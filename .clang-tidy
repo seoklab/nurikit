@@ -1,0 +1,27 @@
+Checks: "-*,bugprone-*,concurrency-*,clang-analyzer-*,clang-diagnostic-*,google-*,misc-*,modernize-*,performance-*,portability-*,readability-*,-modernize-avoid-c-arrays,-modernize-raw-string-literal,-modernize-use-trailing-return-type,-modernize-use-auto,-modernize-pass-by-value,-modernize-use-default-member-init,-modernize-concat-nested-namespaces,-modernize-loop-convert,-modernize-use-emplace,-modernize-use-nodiscard,-readability-isolate-declaration,-readability-identifier-length,-misc-no-recursion,-bugprone-narrowing-conversions,-bugprone-easily-swappable-parameters,-*-braces-around-statements,-*-magic-numbers"
+FormatStyle: "file"
+CheckOptions:
+  - key:             modernize-replace-auto-ptr.IncludeStyle
+    value:           google
+  - key:             modernize-loop-convert.IncludeStyle
+    value:           google
+  - key:             cppcoreguidelines-init-variables.IncludeStyle
+    value:           google
+  - key:             modernize-replace-random-shuffle.IncludeStyle
+    value:           google
+  - key:             performance-move-constructor-init.IncludeStyle
+    value:           google
+  - key:             performance-type-promotion-in-math-fn.IncludeStyle
+    value:           google
+  - key:             modernize-pass-by-value.IncludeStyle
+    value:           google
+  - key:             modernize-make-shared.IncludeStyle
+    value:           google
+  - key:             modernize-make-unique.IncludeStyle
+    value:           google
+  - key:             modernize-pass-by-value.IncludeStyle
+    value:           google
+  - key:             performance-unnecessary-value-param.IncludeStyle
+    value:           google
+  - key:             readability-function-cognitive-complexity.Threshold
+    value:           '30'
