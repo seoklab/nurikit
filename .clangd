@@ -1,15 +1,12 @@
 # Require clangd v15
 CompileFlags:
   Add:
+    - -xc++
     - -Weverything
-    - -Wno-sign-conversion
-    - -Wno-shorten-64-to-32
     - -Wno-c++98-compat
     - -Wno-c++98-compat-pedantic
     - -Wno-c++98-c++11-compat-binary-literal
     - -Wno-c++03-compat
-    - -Wno-documentation
-    - -Wno-documentation-unknown-command
     - -Wno-exit-time-destructors
     - -Wno-global-constructors
     - -Wno-thread-safety-negative
