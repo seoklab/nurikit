@@ -1,4 +1,4 @@
-name: pr-review
+name: PR reviews for C++ files
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ on:
     paths:
       - "src/**"
       - ".clang*"
-      - ".github/workflows/pr-review.yaml"
+      - ".github/workflows/pr-review-cpp.yaml"
       - "CMakeLists.txt"
     types:
       - opened
@@ -21,33 +21,6 @@ defaults:
     shell: bash
 
 jobs:
-  commitlint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-node@v3
-        with:
-          node-version: "18"
-
-      - name: Install commitlint
-        run: npm install commitlint@latest
-
-      - name: Validate commit messages
-        run: |
-          npx commitlint --verbose \
-            --from ${{ github.event.pull_request.base.sha }} \
-            --to ${{ github.event.pull_request.head.sha }}
-
-  run-hooks:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/setup-python@v4
-      - uses: actions/checkout@v3
-      - uses: pre-commit/action@v3.0.0
-
   run-clang-tools:
     runs-on: ubuntu-latest
     if: ${{ !github.event.pull_request.draft }}
