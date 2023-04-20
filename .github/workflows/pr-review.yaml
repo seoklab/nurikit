@@ -1,0 +1,95 @@
+name: pr-review
+
+on:
+  pull_request:
+    branches:
+      - main
+      - "release/**"
+    paths:
+      - "src/**"
+      - ".clang*"
+      - ".github/workflows/pr-review.yml"
+      - "CMakeLists.txt"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  commitlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      - name: Install commitlint
+        run: npm install commitlint@latest
+
+      - name: Validate commit messages
+        run: |
+          npx commitlint --verbose \
+            --from ${{ github.event.pull_request.base.sha }} \
+            --to ${{ github.event.pull_request.head.sha }}
+
+  run-hooks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v3
+      - uses: pre-commit/action@v3.0.0
+
+  run-clang-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~3.16.0" # for Ubuntu 20.04
+
+      - uses: actions/checkout@v3
+
+      - name: Configure with cmake
+        run: |
+          cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -S . -B build
+
+      - uses: cpp-linter/cpp-linter-action@v2
+        id: clang-tools
+        with:
+          version: "15"
+          extensions: "cpp,hpp,c,h"
+          style: file
+          tidy-checks: ""
+          database: build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Fail fast
+        if: steps.clang-tools.outputs.checks-failed > 0
+        run: echo "Some files failed the linting checks!" && exit 1
+
+  test-build:
+    runs-on: ubuntu-latest
+    needs: [run-clang-tools]
+    steps:
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~3.16.0" # for Ubuntu 20.04
+
+      - uses: actions/checkout@v3
+
+      - name: Run cmake --configure
+        run: cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-Werror -S . -B build
+
+      - name: Run cmake --build
+        run: cmake --build build -j
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true

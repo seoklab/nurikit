@@ -1,5 +1,6 @@
 # Require clangd v15
 CompileFlags:
+  # If these flags are updated, .clang-tidy should be updated as well
   Add:
     - -xc++
     - -Weverything
@@ -10,6 +11,8 @@ CompileFlags:
     - -Wno-exit-time-destructors
     - -Wno-global-constructors
     - -Wno-thread-safety-negative
+    - -Wno-padded
+    - -Wno-weak-vtables
 Style:
   FullyQualifiedNamespaces: true
 Diagnostics:
