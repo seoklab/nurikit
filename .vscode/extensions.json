@@ -4,5 +4,6 @@
         "ms-vscode.cmake-tools",
         "llvm-vs-code-extensions.vscode-clangd",
         "josetr.cmake-language-support-vscode",
+        "ymotongpoo.licenser",
     ]
 }
