@@ -1,0 +1,37 @@
+{
+    "[c]": {
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+        "editor.detectIndentation": false,
+        "editor.indentSize": 2,
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2
+    },
+    "[cmake]": {
+        "editor.defaultFormatter": "josetr.cmake-language-support-vscode",
+        "editor.detectIndentation": false,
+        "editor.indentSize": 2,
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2
+    },
+    "[cpp]": {
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+        "editor.detectIndentation": false,
+        "editor.indentSize": 2,
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2
+    },
+    "[markdown]": {
+        "files.trimTrailingWhitespace": false
+    },
+    "[yaml]": {
+        "editor.detectIndentation": false,
+        "editor.indentSize": 2,
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+    },
+    "cmake.copyCompileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "files.eol": "\n",
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    "files.trimTrailingWhitespace": true
+}
