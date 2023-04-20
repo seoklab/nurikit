@@ -1,8 +1,14 @@
+//
+// Project nurikit - Copyright 2023 SNU Compbio Lab.
+// SPDX-License-Identifier: Apache-2.0
+//
+
 {
     "recommendations": [
         "ms-vscode.cpptools",
         "ms-vscode.cmake-tools",
         "llvm-vs-code-extensions.vscode-clangd",
         "josetr.cmake-language-support-vscode",
+        "ymotongpoo.licenser",
     ]
 }

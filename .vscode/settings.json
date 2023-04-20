@@ -1,27 +1,32 @@
+//
+// Project nurikit - Copyright 2023 SNU Compbio Lab.
+// SPDX-License-Identifier: Apache-2.0
+//
+
 {
     "[c]": {
         "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
         "editor.detectIndentation": false,
         "editor.indentSize": 2,
         "editor.insertSpaces": true,
-        "editor.tabSize": 2
+        "editor.tabSize": 2,
     },
     "[cmake]": {
         "editor.defaultFormatter": "josetr.cmake-language-support-vscode",
         "editor.detectIndentation": false,
         "editor.indentSize": 2,
         "editor.insertSpaces": true,
-        "editor.tabSize": 2
+        "editor.tabSize": 2,
     },
     "[cpp]": {
         "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
         "editor.detectIndentation": false,
         "editor.indentSize": 2,
         "editor.insertSpaces": true,
-        "editor.tabSize": 2
+        "editor.tabSize": 2,
     },
     "[markdown]": {
-        "files.trimTrailingWhitespace": false
+        "files.trimTrailingWhitespace": false,
     },
     "[yaml]": {
         "editor.detectIndentation": false,
@@ -33,5 +38,12 @@
     "files.eol": "\n",
     "files.insertFinalNewline": true,
     "files.trimFinalNewlines": true,
-    "files.trimTrailingWhitespace": true
+    "files.trimTrailingWhitespace": true,
+    "license.year": "auto",
+    // Cannot just set @AUTHOR@ - see bug ymotongpoo/vsc-licenser#135
+    "licenser.customHeader": "\nProject @PROJECT@ - Copyright @YEAR@ SNU Compbio Lab.\nSPDX-License-Identifier: Apache-2.0\n",
+    "licenser.disableAutoHeaderInsertion": false,
+    "licenser.disableAutoSave": false,
+    "licenser.license": "Custom",
+    "licenser.projectName": "nurikit",
 }
