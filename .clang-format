@@ -1,4 +1,4 @@
-# Require clang-format v16
+# Require clang-format v15
 ---
 Language: Cpp
 Standard: c++17
@@ -71,8 +71,8 @@ IncludeCategories:
     SortPriority: 5
     CaseSensitive: false
 IndentCaseLabels: false
-InsertNewlineAtEOF: true
-LineEnding: LF
+# InsertNewlineAtEOF: true  # require clang-format v16
+# LineEnding: LF  # require clang-format v16
 NamespaceIndentation: Inner
 PackConstructorInitializers: BinPack
 PenaltyBreakAssignment: 10
