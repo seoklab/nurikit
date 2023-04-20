@@ -20,7 +20,7 @@ repos:
         args: ["--markdown-linebreak-ext=md"]
       - id: mixed-line-ending
         args: ["--fix=lf"]
-  - repo: git@github.com:seoklab/shared-hooks.git
+  - repo: https://github.com/seoklab/shared-hooks
     rev: v0.1.1
     hooks:
       - id: commitlint
