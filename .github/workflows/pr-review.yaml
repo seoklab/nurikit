@@ -8,7 +8,7 @@ on:
     paths:
       - "src/**"
       - ".clang*"
-      - ".github/workflows/pr-review.yml"
+      - ".github/workflows/pr-review.yaml"
       - "CMakeLists.txt"
     types:
       - opened
