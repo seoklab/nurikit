@@ -10,6 +10,11 @@ on:
       - ".clang*"
       - ".github/workflows/pr-review.yml"
       - "CMakeLists.txt"
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
 
 defaults:
   run:
@@ -45,6 +50,7 @@ jobs:
 
   run-clang-tools:
     runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.draft }}
     steps:
       - uses: lukka/get-cmake@latest
         with:
