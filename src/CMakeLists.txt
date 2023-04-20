@@ -1,3 +1,8 @@
+#
+# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
 add_executable(nurikit_exe "main.cpp")
 set_target_properties(nurikit_exe PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY_RELEASE ${PROJECT_SOURCE_DIR})
