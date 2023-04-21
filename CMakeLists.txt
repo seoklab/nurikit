@@ -26,8 +26,6 @@ elseif(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     "Please use clang or gcc as a compiler.")
 endif()
 
-add_compile_options(-pedantic -Wall -Wextra)
-
 # Only do these if this is the main project, and not if it is included through
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   set(CMAKE_CXX_STANDARD 17)
@@ -56,6 +54,5 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   endif()
 endif()
 
-# Uncomment next line for third-party libraries
-# add_subdirectory(third-party EXCLUDE_FROM_ALL)
+add_subdirectory(third-party EXCLUDE_FROM_ALL)
 add_subdirectory(src)

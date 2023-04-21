@@ -35,6 +35,8 @@ jobs:
           cmakeVersion: "~3.16.0" # for Ubuntu 20.04
 
       - uses: actions/checkout@v3
+        with:
+          submodules: recursive
 
       - name: Configure with cmake
         run: |
@@ -51,6 +53,7 @@ jobs:
           style: file
           tidy-checks: ""
           database: build
+          ignore: ".github|build|third-party"
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
@@ -67,6 +70,8 @@ jobs:
           cmakeVersion: "~3.16.0" # for Ubuntu 20.04
 
       - uses: actions/checkout@v3
+        with:
+          submodules: recursive
 
       - name: Run cmake --configure
         run: cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-Werror -S . -B build
