@@ -3,20 +3,26 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+include(GNUInstallDirs)
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY
+  "${PROJECT_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY
+  "${PROJECT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
+
 add_compile_options(-pedantic -Wall -Wextra)
 
-add_executable(nurikit_exe "main.cpp")
-set_target_properties(nurikit_exe PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY_RELEASE ${PROJECT_SOURCE_DIR})
-
-install(TARGETS nurikit_exe RUNTIME)
+add_executable(NuriExe "main.cpp")
+set_target_properties(NuriExe PROPERTIES OUTPUT_NAME nuri)
+install(TARGETS NuriExe RUNTIME)
 
 file(GLOB NURIKIT_SRCS *.cpp)
 list(FILTER NURIKIT_SRCS EXCLUDE REGEX "main\.cpp$")
 
 if(NURIKIT_SRCS)
-  add_library(nurikit_lib SHARED "${NURIKIT_SRCS}")
-  target_link_libraries(nurikit_exe PRIVATE nurikit_lib)
+  add_library(NuriLib SHARED "${NURIKIT_SRCS}")
+  set_target_properties(NuriLib PROPERTIES OUTPUT_NAME nuri)
+  install(TARGETS NuriLib LIBRARY)
 
-  install(TARGETS nurikit_lib LIBRARY)
+  target_link_libraries(NuriExe PRIVATE NuriLib)
 endif()
