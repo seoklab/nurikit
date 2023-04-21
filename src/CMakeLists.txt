@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+add_compile_options(-pedantic -Wall -Wextra)
+
 add_executable(nurikit_exe "main.cpp")
 set_target_properties(nurikit_exe PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY_RELEASE ${PROJECT_SOURCE_DIR})
