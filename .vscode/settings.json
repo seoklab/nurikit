@@ -26,6 +26,10 @@
         "editor.tabSize": 2,
     },
     "[markdown]": {
+        "editor.detectIndentation": false,
+        "editor.indentSize": 2,
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
         "files.trimTrailingWhitespace": false,
     },
     "[yaml]": {
@@ -39,6 +43,7 @@
     "files.insertFinalNewline": true,
     "files.trimFinalNewlines": true,
     "files.trimTrailingWhitespace": true,
+    "githubIssues.issueBranchTitle": "${user}/issue-${issueNumber}",
     "license.year": "auto",
     // Cannot just set @AUTHOR@ - see bug ymotongpoo/vsc-licenser#135
     "licenser.customHeader": "\nProject @PROJECT@ - Copyright @YEAR@ SNU Compbio Lab.\nSPDX-License-Identifier: Apache-2.0\n",
