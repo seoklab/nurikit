@@ -76,6 +76,9 @@ cmake ..
 cmake --build . -j
 ```
 
+The complete build options could be listed with `cmake -LH ..` command in the
+build directory.
+
 :ledger: **Note to seoklab members**: seoklab compute cluster restricts the
 number of cores that can be used by a single user. If you're developing on the
 cluster, you might have to run the above command in a compute node, or replace
@@ -84,9 +87,6 @@ the `-j` option with `-j4`:
 ```shellscript
 cmake --build . -j4
 ```
-
-The complete build options could be listed with `cmake -LH ..` command in the
-build directory.
 
 ### Branching model
 
