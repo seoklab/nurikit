@@ -1,0 +1,54 @@
+#
+# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+name: Test and Report Coverage
+
+on:
+  workflow_call:
+    secrets:
+      CODECOV_TOKEN:
+        required: true
+
+concurrency:
+  group: "codecov"
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.head_commit.message, '[skip test]') }}
+
+    steps:
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~3.16.0" # for Ubuntu 20.04
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lcov
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Compile and run tests
+        run: |
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Debug -DNURIKIT_BUILD_TESTS=ON ..
+          cmake --build . -j
+
+          cd ..
+          ./scripts/coverage.sh build
+
+      - uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.info
+          fail_ci_if_error: true
+          verbose: true

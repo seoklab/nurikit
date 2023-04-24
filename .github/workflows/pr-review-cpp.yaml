@@ -11,9 +11,14 @@ on:
       - main
       - "release/**"
     paths:
-      - "src/**"
-      - ".clang*"
       - ".github/workflows/pr-review-cpp.yaml"
+      - ".github/workflows/test_and_coverage.yaml"
+      - "cmake/**"
+      - "scripts/check_coverage.sh"
+      - "src/**"
+      - "test/**"
+      - "third-party/**"
+      - ".clang-*"
       - "CMakeLists.txt"
     types:
       - opened
@@ -61,23 +66,11 @@ jobs:
         if: ${{ steps.clang-tools.outputs.checks-failed > 0 }}
         run: echo "Some files failed the linting checks!" && exit 1
 
-  test-build:
-    runs-on: ubuntu-latest
+  test-and-coverage:
     needs: [run-clang-tools]
-    steps:
-      - uses: lukka/get-cmake@latest
-        with:
-          cmakeVersion: "~3.16.0" # for Ubuntu 20.04
-
-      - uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
-      - name: Run cmake --configure
-        run: cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-Werror -S . -B build
-
-      - name: Run cmake --build
-        run: cmake --build build -j
+    uses: ./.github/workflows/test_and_coverage.yaml
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
