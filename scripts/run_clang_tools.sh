@@ -24,4 +24,4 @@ else
 fi
 
 xargs -0 -P0 -n1 clang-format -i <"$files"
-xargs -0 -P0 -n1 clang-tidy -p build --extra-arg=-Werror <"$files"
+xargs -0 -P0 -n1 clang-tidy -p build --extra-arg-before=-Werror <"$files"
