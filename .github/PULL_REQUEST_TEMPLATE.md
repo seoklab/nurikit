@@ -6,8 +6,7 @@
 - [ ] Have you checked that there aren't other open [pull requests](http://github.com/seoklab/nurikit/pulls) for the same issue?
 - [ ] Have you [linked the issue(s)](#linked-issues) you are working on?
 
-If the change is related to the source code, tests, or build environments,
-please also check the following:
+If the change is related to the source code, tests, or build environments, please also check the following:
 
 - [ ] Does `./scripts/run_clang_tools.sh` pass without any warnings?
 - [ ] Have you built the project locally without any warnings and errors?
@@ -16,9 +15,7 @@ please also check the following:
 
 ## Linked Issues
 
-Link the tracking issue(s) of this PR, with the
-[auto-close keywords](https://docs.github.com/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue)
-here:
+Link the tracking issue(s) of this PR, with the [auto-close keywords](https://docs.github.com/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue) here:
 
 - Closes #...
 
