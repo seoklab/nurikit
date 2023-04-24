@@ -77,6 +77,29 @@ jobs:
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
+  test-build:
+    runs-on: ubuntu-latest
+    needs: [run-clang-tools]
+    steps:
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~3.16.0" # for Ubuntu 20.04
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libboost-graph-dev
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Build and test
+        run: |
+          cmake -DCMAKE_BUILD_TYPE=Release -S . -B build
+          cmake --build build -j --target all test
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
