@@ -131,3 +131,9 @@ TYPED_TEST(GraphTest, NodeIteratorTest) {
   }
 }
 }  // namespace
+
+namespace nuri {
+// Explicit instantiation of few template classes for testing.
+template class nuri::Graph<int, int>;
+template class nuri::Graph<NonTrivial, NonTrivial>;
+}  // namespace nuri
