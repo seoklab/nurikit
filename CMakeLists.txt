@@ -12,6 +12,8 @@ option(NURIKIT_ENABLE_IPO "Do interprocedural optimization" ON)
 option(NURIKIT_ENABLE_AVX2 "Use -mavx2 flag for optimization" ON)
 option(NURIKIT_ENABLE_ARCH_NATIVE "Use -march=native flag for optimization" OFF)
 
+option(NURIKIT_TEST_COVERAGE "Enable coverage build" OFF)
+
 set(CMAKE_BUILD_TYPE Release CACHE STRING "Bulid type")
 if(CMAKE_BUILD_TYPE STREQUAL "")
   set(CMAKE_BUILD_TYPE Release)
