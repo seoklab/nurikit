@@ -41,8 +41,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libboost-all-dev
+          sudo apt update
+          sudo apt install -y libboost-all-dev
 
       - uses: actions/checkout@v3
         with:
