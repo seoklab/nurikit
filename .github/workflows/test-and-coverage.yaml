@@ -37,16 +37,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          submodules: true
+          submodules: recursive
 
       - name: Compile and run tests
         run: |
           mkdir build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Debug -DNURIKIT_BUILD_TESTS=ON ..
-          cmake --build . -j
-
-          cd ..
-          ./scripts/check_coverage.sh build
+          cmake -DCMAKE_BUILD_TYPE=Debug -DNURIKIT_TEST_COVERAGE=ON ..
+          cmake --build . -j --target nurikit_test
+          ../scripts/check_coverage.sh .
 
       - uses: codecov/codecov-action@v3
         with:
