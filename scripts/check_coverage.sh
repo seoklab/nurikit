@@ -4,11 +4,12 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-build_dir="${1-build}"
+prj_root="$(dirname "$(dirname "$(realpath "$0")")")"
 
-ctest -C Debug -T test -"j$(nproc)" --output-on-failure --test-dir "$build_dir"
+cd "${1-build}"
+ctest -C Debug -T test -"j$(nproc)" --output-on-failure
 
 lcov --rc lcov_branch_coverage=1 --capture \
-	--exclude '/usr/*' --exclude '*/third-party/*' --exclude "$PWD/test/*" \
-	--directory "$build_dir" --output-file coverage.info
-lcov --rc lcov_branch_coverage=1 --list coverage.info
+	--exclude '/usr/*' --exclude '*/third-party/*' --exclude "$prj_root/test/*" \
+	--directory . --output-file "$prj_root/coverage.info"
+lcov --rc lcov_branch_coverage=1 --list "$prj_root/coverage.info"
