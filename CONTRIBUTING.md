@@ -56,9 +56,23 @@ Also, you SHOULD have
 [installed the latest version of pre-commit](https://pre-commit.com/#install)
 and run `pre-commit install --install-hooks` in the root of the repository.
 
+clang-format and clang-tidy are used to format and lint the source code. You
+SHOULD run these tools before submitting the PR. You can run the tools with the
+provided script: `./scripts/run_clang_tools.sh`. This script will run the tools
+on all source files, and will fail if any of the tools report any errors. You
+can also run the tools on specific files by passing the file paths as arguments
+to the script:
+
+```shellscript
+./scripts/run_clang_tools.sh src/atom.cpp src/atom.h
+```
+
+clang-format and clang-tidy MUST be installed on your system to run the script.
+Version 15 of clang-format and clang-tidy are REQUIRED.
+
 :ledger: **Note to seoklab members**: seoklab compute cluster already has the
-latest version of pre-commit installed. You don't need to install it again if
-you're developing on the cluster.
+latest version of pre-commit, clang-format, and clang-tidy installed. You don't
+need to install it again if you're developing on the cluster.
 
 ### Building nurikit
 
@@ -151,7 +165,7 @@ All code written in Python SHOULD follow the
 Once you've finished working on an issue, please create a new pull request with
 the following REQUIRED information:
 
-- Tracking issue.
-- A clear and concise description of what the pull request does.
 - Code review checklist (will be automatically generated from the
-  PULL_REQUEST_TEMPLATE.md file).
+  [PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) file).
+- Tracking issue(s).
+- A clear and concise description of what the pull request does.
