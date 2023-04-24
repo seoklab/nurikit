@@ -46,7 +46,7 @@ jobs:
           cmake --build . -j
 
           cd ..
-          ./scripts/coverage.sh build
+          ./scripts/check_coverage.sh build
 
       - uses: codecov/codecov-action@v3
         with:
