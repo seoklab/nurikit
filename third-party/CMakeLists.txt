@@ -1,6 +1,6 @@
 set(ABSL_PROPAGATE_CXX_STD ON)
 add_subdirectory("abseil-cpp")
 
-if(NURIKIT_BUILD_TESTS)
+if(BUILD_TESTING)
   add_subdirectory("googletest")
 endif()

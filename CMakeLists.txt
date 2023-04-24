@@ -12,11 +12,7 @@ option(NURIKIT_ENABLE_IPO "Do interprocedural optimization" ON)
 option(NURIKIT_ENABLE_AVX2 "Use -mavx2 flag for optimization" ON)
 option(NURIKIT_ENABLE_ARCH_NATIVE "Use -march=native flag for optimization" OFF)
 
-# Misc options
-option(NURIKIT_BUILD_TESTS "Build tests" OFF)
-
 set(CMAKE_BUILD_TYPE Release CACHE STRING "Bulid type")
-
 if(CMAKE_BUILD_TYPE STREQUAL "")
   set(CMAKE_BUILD_TYPE Release)
 endif()
@@ -63,7 +59,7 @@ configure_file(cmake/nurikit_config.h.in generated/nurikit_config.h @ONLY)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/generated)
 add_subdirectory(src)
 
-if(NURIKIT_BUILD_TESTS)
-  include(CTest)
+include(CTest)
+if(BUILD_TESTING)
   add_subdirectory(test)
 endif()
