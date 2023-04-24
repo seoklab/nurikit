@@ -4,19 +4,22 @@
 #
 
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR) # Version for Ubuntu 20.04 LTS
-project(NuriKit LANGUAGES CXX)
+project(nurikit VERSION 0.1.0 LANGUAGES CXX)
+
+# Compile options
+set(NURIKIT_OPTIMIZATION_LEVEL "O3" CACHE STRING "Optimization level")
+option(NURIKIT_ENABLE_IPO "Do interprocedural optimization" ON)
+option(NURIKIT_ENABLE_AVX2 "Use -mavx2 flag for optimization" ON)
+option(NURIKIT_ENABLE_ARCH_NATIVE "Use -march=native flag for optimization" OFF)
+
+# Misc options
+option(NURIKIT_BUILD_TESTS "Build tests" OFF)
 
 set(CMAKE_BUILD_TYPE Release CACHE STRING "Bulid type")
 
 if(CMAKE_BUILD_TYPE STREQUAL "")
   set(CMAKE_BUILD_TYPE Release)
 endif()
-
-# Compile options
-set(OPTIMIZATION_LEVEL "O3" CACHE STRING "Optimization level")
-option(ENABLE_IPO "Do interprocedural optimization" ON)
-option(ENABLE_AVX2 "Use -mavx2 flag for optimization" ON)
-option(ENABLE_ARCH_NATIVE "Use -march=native flag for optimization" OFF)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   string(APPEND CMAKE_CXX_FLAGS " -stdlib=libstdc++")
@@ -33,21 +36,21 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-  set(GLOBAL_OPTFLAGS " -${OPTIMIZATION_LEVEL}")
+  set(NURIKIT_GLOBAL_OPTFLAGS " -${OPTIMIZATION_LEVEL}")
 
-  if(ENABLE_ARCH_NATIVE)
-    string(APPEND GLOBAL_OPTFLAGS " -march=native")
-  elseif(ENABLE_AVX2)
-    string(APPEND GLOBAL_OPTFLAGS " -mavx2")
+  if(NURIKIT_ENABLE_ARCH_NATIVE)
+    string(APPEND NURIKIT_GLOBAL_OPTFLAGS " -march=native")
+  elseif(NURIKIT_ENABLE_AVX2)
+    string(APPEND NURIKIT_GLOBAL_OPTFLAGS " -mavx2")
   endif()
 
-  string(APPEND CMAKE_CXX_FLAGS_RELEASE "${GLOBAL_OPTFLAGS}")
-  string(APPEND CMAKE_CXX_FLAGS_RELWITHDEBINFO "${GLOBAL_OPTFLAGS}")
+  string(APPEND CMAKE_CXX_FLAGS_RELEASE "${NURIKIT_GLOBAL_OPTFLAGS}")
+  string(APPEND CMAKE_CXX_FLAGS_RELWITHDEBINFO "${NURIKIT_GLOBAL_OPTFLAGS}")
 
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_options(-O0)
     add_compile_definitions("DEBUG")
-  elseif(ENABLE_IPO)
+  elseif(NURIKIT_ENABLE_IPO)
     # Next line is required for absl, etc.
     set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
@@ -55,4 +58,12 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 endif()
 
 add_subdirectory(third-party EXCLUDE_FROM_ALL)
+
+configure_file(cmake/nurikit_config.h.in generated/nurikit_config.h @ONLY)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/generated)
 add_subdirectory(src)
+
+if(NURIKIT_BUILD_TESTS)
+  include(CTest)
+  add_subdirectory(test EXCLUDE_FROM_ALL)
+endif()
