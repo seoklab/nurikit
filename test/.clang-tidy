@@ -1,0 +1,8 @@
+#
+# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+Checks: "-cppcoreguidelines-avoid-non-const-global-variables,-cppcoreguidelines-owning-memory,-cppcoreguidelines-special-member-functions,-readability-function-cognitive-complexity,-*-non-private-member-variables-in-classes"
+InheritParentConfig: true
+ExtraArgs:
+  - -Wno-gnu-zero-variadic-macro-arguments
