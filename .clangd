@@ -18,6 +18,8 @@ CompileFlags:
     - -Wno-thread-safety-negative
     - -Wno-padded
     - -Wno-weak-vtables
+    - -Wno-ignored-optimization-argument
+    - -Wno-unused-macros
 Style:
   FullyQualifiedNamespaces: true
 Diagnostics:

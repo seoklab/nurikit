@@ -63,7 +63,7 @@ jobs:
           style: file
           tidy-checks: ""
           database: build
-          ignore: ".github|build|third-party"
+          ignore: ".github|build|third-party|test"
         env:
           GITHUB_TOKEN: ${{ github.token }}
 

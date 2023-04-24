@@ -4,7 +4,8 @@
 #
 
 # Require clang-tidy v15
-Checks: "-*,abseil-*,bugprone-*,clang-*,concurrency-*,cppcoreguidelines-*,google-*,misc-*,modernize-*,openmp-*,performance-*,portability-*,readability-*,-bugprone-easily-swappable-parameters,-cppcoreguidelines-avoid-do-while,-cppcoreguidelines-init-variables,-cppcoreguidelines-narrowing-conversions,-cppcoreguidelines-pro-*,-google-explicit-constructor,-misc-no-recursion,-modernize-avoid-c-arrays,-modernize-braced-init-list,-modernize-loop-convert,-modernize-concat-nested-namespaces,-modernize-pass-by-value,-modernize-raw-string-literal,-modernize-use-trailing-return-type,-modernize-use-auto,-modernize-use-default-member-init,-modernize-use-emplace,-modernize-use-nodiscard,-readability-isolate-declaration,-readability-identifier-length,-*-magic-numbers"
+---
+Checks: "-*,abseil-*,bugprone-*,clang-*,concurrency-*,cppcoreguidelines-*,google-*,misc-*,modernize-*,openmp-*,performance-*,portability-*,readability-*,-bugprone-easily-swappable-parameters,-cppcoreguidelines-avoid-do-while,-cppcoreguidelines-init-variables,-cppcoreguidelines-narrowing-conversions,-cppcoreguidelines-pro-*,-google-explicit-constructor,-misc-no-recursion,-modernize-avoid-c-arrays,-modernize-return-braced-init-list,-modernize-loop-convert,-modernize-concat-nested-namespaces,-modernize-pass-by-value,-modernize-raw-string-literal,-modernize-use-trailing-return-type,-modernize-use-auto,-modernize-use-default-member-init,-modernize-use-emplace,-modernize-use-nodiscard,-readability-isolate-declaration,-readability-identifier-length,-*-magic-numbers"
 FormatStyle: "file"
 # If these flags are updated, .clangd should be updated as well
 ExtraArgsBefore:
@@ -17,6 +18,8 @@ ExtraArgsBefore:
   - -Wno-thread-safety-negative
   - -Wno-padded
   - -Wno-weak-vtables
+  - -Wno-ignored-optimization-argument
+  - -Wno-unused-macros
 CheckOptions:
   - key: bugprone-stringview-nullptr.IncludeStyle
     value: google
@@ -37,8 +40,6 @@ CheckOptions:
   - key: modernize-make-shared.IncludeStyle
     value: google
   - key: modernize-make-unique.IncludeStyle
-    value: google
-  - key: performance-move-constructor-init.IncludeStyle
     value: google
   - key: performance-type-promotion-in-math-fn.IncludeStyle
     value: google
