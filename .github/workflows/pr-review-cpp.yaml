@@ -12,7 +12,7 @@ on:
       - "release/**"
     paths:
       - ".github/workflows/pr-review-cpp.yaml"
-      - ".github/workflows/test_and_coverage.yaml"
+      - ".github/workflows/test-and-coverage.yaml"
       - "cmake/**"
       - "scripts/check_coverage.sh"
       - "src/**"
@@ -73,7 +73,7 @@ jobs:
 
   test-and-coverage:
     needs: [run-clang-tools]
-    uses: ./.github/workflows/test_and_coverage.yaml
+    uses: ./.github/workflows/test-and-coverage.yaml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
