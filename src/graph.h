@@ -179,11 +179,11 @@ namespace internal {
     }
 
     constexpr AdjIterator<GT, is_const> adj_begin() const noexcept {
-      return { graph_, 0 };
+      return graph_->adj_begin(nid_);
     }
 
     constexpr AdjIterator<GT, is_const> adj_end() const noexcept {
-      return { graph_, graph_->degree(nid_) };
+      return graph_->adj_end(nid_);
     }
 
     constexpr Other<true> as_const() const noexcept { return *this; }
@@ -298,6 +298,8 @@ namespace internal {
     using value_type = const_if_t<is_const, AT>;
     using parent_type = const_if_t<is_const, GT>;
 
+    using NodeRef = NodeWrapper<GT, is_const>;
+
     constexpr AdjWrapper(int src, AT &adj, parent_type &graph) noexcept
       : src_(src), adj_(&adj), graph_(&graph) { }
 
@@ -309,11 +311,20 @@ namespace internal {
     constexpr AdjWrapper(const AdjWrapper<GT, other_const> &other) noexcept
       : src_(other.src_), adj_(other.adj_), graph_(other.graph_) { }
 
-    constexpr int id() const noexcept { return adj_->eid; }
+    constexpr int eid() const noexcept { return adj_->eid; }
     constexpr int src() const noexcept { return src_; }
     constexpr int dst() const noexcept { return adj_->dst; }
-    constexpr auto &data() const noexcept {
-      return const_cast<parent_type *>(graph_)->edge(id()).data();
+
+    constexpr NodeRef src_node() const noexcept {
+      return const_cast<parent_type *>(graph_)->node(src());
+    }
+
+    constexpr NodeRef dst_node() const noexcept {
+      return const_cast<parent_type *>(graph_)->node(dst());
+    }
+
+    constexpr auto &edge_data() const noexcept {
+      return const_cast<parent_type *>(graph_)->edge(eid()).data();
     }
 
     constexpr AdjWrapper<GT, true> as_const() const noexcept { return *this; }
@@ -338,20 +349,32 @@ namespace internal {
     using typename Base::reference;
     using typename Base::value_type;
 
-    using Base::Base;
+    using typename Base::parent_type;
+
+    template <bool other_const>
+    using Other = AdjIterator<GT, other_const>;
+
+    constexpr AdjIterator(parent_type *graph, difference_type idx,
+                          difference_type nid) noexcept
+      : Base(graph, idx), nid_(nid) { }
+
+    template <bool other_const,
+              typename = std::enable_if_t<is_const && !other_const>>
+    constexpr AdjIterator(const Other<other_const> &other) noexcept
+      : Base(other), nid_(other.nid) { }
 
   private:
-    using parent_type = const_if_t<is_const, GT>;
-
     friend GT;
     friend Base;
     template <class, bool other_const>
-    friend class EdgeIterator;
+    friend class AdjIterator;
 
-    constexpr value_type deref(typename Base::parent_type *graph,
+    constexpr value_type deref(parent_type *graph,
                                difference_type index) const noexcept {
-      return graph->edge(index);
+      return graph->adjacent(nid_, index);
     }
+
+    int nid_;
   };
 }  // namespace internal
 
@@ -385,6 +408,8 @@ public:
 
   using adjacency_iterator = internal::AdjIterator<Graph, false>;
   using const_adjacency_iterator = internal::AdjIterator<Graph, true>;
+  using AdjRef = typename adjacency_iterator::value_type;
+  using ConstAdjRef = typename const_adjacency_iterator::value_type;
 
   Graph() = default;
   Graph(const Graph &) = default;
@@ -444,8 +469,8 @@ public:
   const_iterator cbegin() const { return { this, 0 }; }
   const_iterator cend() const { return { this, num_nodes() }; }
 
-  EdgeRef edge(int id) { return edges_[id]; }
-  ConstEdgeRef edge(int id) const { return edges_[id]; }
+  EdgeRef edge(int id) { return { id, edges_[id].data, *this }; }
+  ConstEdgeRef edge(int id) const { return { id, edges_[id].data, *this }; }
   void update_edge(int id, const ET &data) { edges_[id].data = data; }
   void update_edge(int id, ET &&data) noexcept {
     edges_[id].data = std::move(data);
@@ -458,19 +483,23 @@ public:
   const_iterator edge_cbegin() const { return { this, 0 }; }
   const_iterator edge_cend() const { return { this, num_edges() }; }
 
-  adjacency_iterator adj_begin(int id) {
-    return { id, adj_list_[id][0], *this };
+  AdjRef adjacent(int nid, int idx) {
+    return { nid, adj_list_[nid][idx], *this };
   }
-  adjacency_iterator adj_end(int id) {
-    return { id, adj_list_[id][degree(id)], *this };
+
+  ConstAdjRef adjacent(int nid, int idx) const {
+    return { nid, adj_list_[nid][idx], *this };
   }
-  const_adjacency_iterator adj_begin(int id) const { return adj_cbegin(id); }
-  const_adjacency_iterator adj_end(int id) const { return adj_cend(id); }
-  const_adjacency_iterator adj_cbegin(int id) const {
-    return { id, adj_list_[id][0], *this };
+
+  adjacency_iterator adj_begin(int nid) { return { this, 0, nid }; }
+  adjacency_iterator adj_end(int nid) { return { this, degree(nid), nid }; }
+  const_adjacency_iterator adj_begin(int nid) const { return adj_cbegin(nid); }
+  const_adjacency_iterator adj_end(int nid) const { return adj_cend(nid); }
+  const_adjacency_iterator adj_cbegin(int nid) const {
+    return { this, 0, nid };
   }
-  const_adjacency_iterator adj_cend(int id) const {
-    return { id, adj_list_[id][degree(id)], *this };
+  const_adjacency_iterator adj_cend(int nid) const {
+    return { this, degree(nid), nid };
   }
 
 private:
