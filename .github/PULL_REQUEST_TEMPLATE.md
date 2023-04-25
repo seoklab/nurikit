@@ -10,8 +10,11 @@ If the change is related to the source code, tests, or build environments, pleas
 
 - [ ] Does `./scripts/run_clang_tools.sh` pass without any warnings?
 - [ ] Have you built the project locally without any warnings and errors?
-- [ ] If you added new features, did you also add corresponding tests?
-- [ ] Does all tests (including the new ones) pass?
+- [ ] Does all tests (if new tests are added, including the new ones) pass?
+
+If you added new feature, then also check the following:
+
+- [ ] Did you also add corresponding tests?
 
 ## Linked Issues
 
