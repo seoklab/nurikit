@@ -14,6 +14,7 @@ on:
       - ".github/workflows/pr-review-cpp.yaml"
       - ".github/workflows/test-and-coverage.yaml"
       - "cmake/**"
+      - "include/**"
       - "scripts/check_coverage.sh"
       - "src/**"
       - "test/**"

@@ -18,7 +18,8 @@ fi
 
 files="$(mktemp)"
 if [[ $# -eq 0 ]]; then
-	find src \( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) -print0 >"$files"
+	find include src \
+		\( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) -print0 >"$files"
 else
 	printf '%s\0' "$@" >"$files"
 fi
