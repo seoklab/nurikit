@@ -1,6 +1,6 @@
 # Third Party License Notices
 
-Here, we list the licenses of the third-party software that we use in our
+Here, we list the licenses of the third-party software(s) that we use in our
 project.
 
 ## homebrew-core
