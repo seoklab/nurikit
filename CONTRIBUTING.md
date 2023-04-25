@@ -142,8 +142,7 @@ are different from the Google C++ Style Guide:
 - All functions, including member functions, MUST follow the
   naming convention of `lower_case`. This is to match the Python naming
   convention.
-- For source files, `.cpp` extensions MUST be used. Header files without
-  implementation file MUST use `.hpp` extension.
+- For source files, `.cpp` extensions MUST be used.
 - Code SHOULD be formatted using `clang-format`, with the provided
   `.clang-format` file. If part of the code needs to be formatted manually
   for some reasons, `// clang-format off` and `// clang-format on` comments MAY
