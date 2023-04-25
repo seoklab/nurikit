@@ -57,8 +57,13 @@ endif()
 
 add_subdirectory(third-party EXCLUDE_FROM_ALL)
 
-configure_file(cmake/nurikit_config.h.in generated/nurikit_config.h @ONLY)
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/generated)
+configure_file(cmake/nurikit_config.h.in
+  generated/include/nuri/nurikit_config.h @ONLY)
+include_directories(
+  ${CMAKE_CURRENT_BINARY_DIR}/generated/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+add_subdirectory(include)
 add_subdirectory(src)
 
 include(CTest)
