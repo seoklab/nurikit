@@ -13,7 +13,7 @@
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
 
-#include "utils.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 template <class NT, class ET>

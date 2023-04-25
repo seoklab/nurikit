@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "graph.h"
+#include "nuri/core/graph.h"
 
 #include <type_traits>
 
