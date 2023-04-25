@@ -39,12 +39,16 @@
         "editor.tabSize": 2,
     },
     "cmake.copyCompileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "cmake.configureArgs": [
+        "-DNURIKIT_TEST_COVERAGE=ON",
+    ],
     "files.eol": "\n",
     "files.insertFinalNewline": true,
     "files.trimFinalNewlines": true,
     "files.trimTrailingWhitespace": true,
     "githubIssues.issueBranchTitle": "${user}/issue-${issueNumber}",
     "license.year": "auto",
+    // "license.author": "SNU Compbio Lab",
     // Cannot just set @AUTHOR@ - see bug ymotongpoo/vsc-licenser#135
     "licenser.customHeader": "\nProject @PROJECT@ - Copyright @YEAR@ SNU Compbio Lab.\nSPDX-License-Identifier: Apache-2.0\n",
     "licenser.disableAutoHeaderInsertion": false,
