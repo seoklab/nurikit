@@ -84,7 +84,7 @@ PenaltyBreakAssignment: 10
 PenaltyBreakBeforeFirstCallParameter: 30
 PenaltyBreakComment: 10
 PenaltyBreakFirstLessLess: 0
-PenaltyBreakString: 50
+PenaltyBreakString: 80
 PenaltyExcessCharacter: 100
 PenaltyReturnTypeOnItsOwnLine: 60
 PointerAlignment: Right
