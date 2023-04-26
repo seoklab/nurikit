@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#ifndef NURIKIT_GRAPH_H_
-#define NURIKIT_GRAPH_H_
+#ifndef NURIKIT_CORE_GRAPH_H_
+#define NURIKIT_CORE_GRAPH_H_
 
 #include <type_traits>
 #include <utility>
@@ -671,4 +671,4 @@ target(typename graph_traits<nuri::Graph<NT, ET>>::edge_descriptor e,
 }
 }  // namespace boost
 
-#endif /* NURIKIT_GRAPH_H_ */
+#endif /* NURIKIT_CORE_GRAPH_H_ */
