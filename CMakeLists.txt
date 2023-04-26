@@ -27,6 +27,8 @@ elseif(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     "Please use clang or gcc as a compiler.")
 endif()
 
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+
 # Only do these if this is the main project, and not if it is included through
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   set(CMAKE_CXX_STANDARD 17)
@@ -72,6 +74,4 @@ add_subdirectory(include)
 add_subdirectory(src)
 
 include(CTest)
-if(BUILD_TESTING)
-  add_subdirectory(test)
-endif()
+add_subdirectory(test EXCLUDE_FROM_ALL)
