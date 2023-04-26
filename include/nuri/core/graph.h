@@ -492,9 +492,9 @@ public:
   Graph &operator=(Graph &&) noexcept = default;
   ~Graph() noexcept = default;
 
-  Graph(int num_nodes): nodes_(num_nodes), adj_list_(num_nodes) { }
+  Graph(int num_nodes): adj_list_(num_nodes), nodes_(num_nodes) { }
   Graph(int num_nodes, const NT &data)
-    : nodes_(num_nodes, data), adj_list_(num_nodes) { }
+    : adj_list_(num_nodes), nodes_(num_nodes, data) { }
 
   bool empty() const {
     // LCOV_EXCL_START
