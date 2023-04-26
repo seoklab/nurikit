@@ -255,9 +255,6 @@ namespace internal {
     }
 
   private:
-    using parent_type = const_if_t<is_const, GT>;
-
-    friend GT;
     friend Base;
     template <class, bool other_const>
     friend class NodeIterator;
@@ -340,9 +337,6 @@ namespace internal {
     }
 
   private:
-    using parent_type = const_if_t<is_const, GT>;
-
-    friend GT;
     friend Base;
     template <class, bool other_const>
     friend class EdgeIterator;
@@ -441,7 +435,6 @@ namespace internal {
     }
 
   private:
-    friend GT;
     friend Base;
     template <class, bool other_const>
     friend class AdjIterator;
