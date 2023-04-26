@@ -13,8 +13,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY
   "${PROJECT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
 
-add_compile_options(-pedantic -Wall -Wextra)
-
 add_executable(nuri_exe "main.cpp")
 set_target_properties(nuri_exe PROPERTIES OUTPUT_NAME nuri)
 install(TARGETS nuri_exe RUNTIME)

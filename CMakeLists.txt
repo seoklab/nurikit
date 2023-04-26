@@ -70,6 +70,8 @@ include_directories(
   ${CMAKE_CURRENT_BINARY_DIR}/generated/include
   ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
+add_compile_options(-pedantic -Wall -Wextra -Wno-sign-compare)
+
 add_subdirectory(include)
 add_subdirectory(src)
 
