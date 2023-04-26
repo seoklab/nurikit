@@ -13,6 +13,7 @@ option(NURIKIT_ENABLE_AVX2 "Use -mavx2 flag for optimization" ON)
 option(NURIKIT_ENABLE_ARCH_NATIVE "Use -march=native flag for optimization" OFF)
 
 option(NURIKIT_TEST_COVERAGE "Enable coverage build" OFF)
+option(NURIKIT_BUILD_DOCS "Build documentation" OFF)
 
 set(CMAKE_BUILD_TYPE Release CACHE STRING "Bulid type")
 if(CMAKE_BUILD_TYPE STREQUAL "")
@@ -74,6 +75,7 @@ add_compile_options(-pedantic -Wall -Wextra -Wno-sign-compare)
 
 add_subdirectory(include)
 add_subdirectory(src)
+add_subdirectory(docs EXCLUDE_FROM_ALL)
 
 include(CTest)
 add_subdirectory(test EXCLUDE_FROM_ALL)
