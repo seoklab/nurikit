@@ -59,6 +59,11 @@ add_subdirectory(third-party EXCLUDE_FROM_ALL)
 
 configure_file(cmake/nurikit_config.h.in
   generated/include/nuri/nurikit_config.h @ONLY)
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/generated/include/nuri/nurikit_config.h
+  DESTINATION include/nuri
+  COMPONENT Development)
+
 include_directories(
   ${CMAKE_CURRENT_BINARY_DIR}/generated/include
   ${CMAKE_CURRENT_SOURCE_DIR}/include)
