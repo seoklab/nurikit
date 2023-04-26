@@ -6,10 +6,13 @@
 #ifndef NURIKIT_CORE_GRAPH_H_
 #define NURIKIT_CORE_GRAPH_H_
 
+#include <numeric>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
+#include <absl/log/absl_check.h>
+#include <absl/log/absl_log.h>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
 
@@ -452,6 +455,13 @@ namespace internal {
   };
 }  // namespace internal
 
+/**
+ * @brief Class for \e very sparse graphs, especially designed for the molecular
+ *        graphs.
+ *
+ * @tparam NT node data type.
+ * @tparam ET edge data type.
+ */
 template <class NT, class ET>
 class Graph {
 public:
@@ -486,6 +496,14 @@ public:
   Graph(int num_nodes, const NT &data)
     : nodes_(num_nodes, data), adj_list_(num_nodes) { }
 
+  bool empty() const {
+    // LCOV_EXCL_START
+    ABSL_DCHECK(num_nodes() > 0 || num_edges() == 0)
+      << "The graph is empty (num_nodes() == 0) but num_edges() == "
+      << num_edges();
+    // LCOV_EXCL_STOP
+    return size() == 0;
+  }
   int size() const { return num_nodes(); }
   int num_nodes() const { return nodes_.size(); }
   int num_edges() const { return edges_.size(); }
@@ -533,6 +551,53 @@ public:
   ConstNodeRef node(int id) const { return { id, nodes_[id], *this }; }
   void update_node(int id, const NT &data) { nodes_[id] = data; }
   void update_node(int id, NT &&data) noexcept { nodes_[id] = std::move(data); }
+
+  void clear() {
+    nodes_.clear();
+    edges_.clear();
+    adj_list_.clear();
+  }
+
+  /**
+   * @brief Remove a node and all its associated edge(s) from the graph.
+   *
+   * @param id The id of the node to be removed.
+   * @return The data of the removed node.
+   * @sa remove_nodes()
+   * @note Time complexity: \f$O(V+E)\f$ if the node has any neighbor, and
+   *       \f$O(1)\f$ if the node has no neighbors. If \p id \f$\ge\f$
+   *       `num_nodes()` or \p id \f$\lt 0\f$, the behavior is undefined.
+   */
+  NT pop_node(int id);
+
+  /**
+   * @brief Remove nodes and all its associated edge(s) from the graph.
+   *
+   * @param begin The beginning of the range of nodes to be removed.
+   * @param end The end of the range of nodes to be removed.
+   * @sa pop_node()
+   * @note Time complexity: \f$O(V+E)\f$. If \p begin or \p end is out of range,
+   *       the behavior is undefined.
+   */
+  void remove_nodes(const_iterator begin, const_iterator end) {
+    remove_nodes(begin, end, [](auto /* ref */) { return true; });
+  }
+
+  /**
+   * @brief Remove matching nodes and all its associated edge(s) from the graph.
+   *
+   * @tparam UnaryPred A unary predicate that takes a `NodeRef` and returns
+   *        `bool`.
+   * @param begin The beginning of the range of nodes to be removed.
+   * @param end The end of the range of nodes to be removed.
+   * @param pred A unary predicate that takes a `NodeRef` and returns `true`
+   *        if the node should be removed.
+   * @sa pop_node()
+   * @note Time complexity: \f$O(V+E)\f$. If \p begin or \p end is out of range,
+   *       the behavior is undefined.
+   */
+  template <class UnaryPred>
+  void remove_nodes(const_iterator begin, const_iterator end, UnaryPred pred);
 
   iterator begin() { return { this, 0 }; }
   iterator end() { return { this, num_nodes() }; }
@@ -640,6 +705,125 @@ private:
   std::vector<NT> nodes_;
   std::vector<StoredEdge> edges_;
 };
+
+/* Out-of-line definitions */
+
+template <class NT, class ET>
+NT Graph<NT, ET>::pop_node(const int id) {
+  NT ret = std::move(nodes_[id]);
+  remove_nodes(begin() + id, begin() + id + 1);
+  return ret;
+}
+
+template <class NT, class ET>
+template <class UnaryPred>
+void Graph<NT, ET>::remove_nodes(const const_iterator begin,
+                                 const const_iterator end, UnaryPred pred) {
+  // Note: the time complexity notations are only for very sparse graphs, i.e.,
+  // E = O(V).
+
+  // This will also handle size() == 0 case correctly.
+  if (begin >= end) {
+    return;
+  }
+
+  // Phase I: mark nodes & edges for removal, ~O(V)
+  std::vector<int> node_keep(num_nodes(), 1), edge_keep(num_edges(), 1);
+  bool remove_begin = false, remove_trailing = end == this->end();
+  for (auto it = begin; it != end; ++it) {
+    if (pred(*it)) {
+      remove_begin = true;
+
+      node_keep[it->id()] = 0;
+      for (const AdjEntry &adj: adj_list_[it->id()]) {
+        edge_keep[adj.eid] = 0;
+      }
+    } else if (remove_begin) {
+      remove_trailing = false;
+    }
+  }
+
+  // Fast path 1: if no nodes are removed, return early.
+  if (!remove_begin) {
+    return;
+  }
+
+  // Phase II: re-number the nodes & edges, O(V+E)
+  // The map contains new node/edge id.
+  std::vector<int> node_map(num_nodes());
+  std::inclusive_scan(node_keep.begin(), node_keep.end(), node_map.begin(),
+                      std::plus<>(), -1);
+  // Fast path 2: if all nodes are removed, clear and return.
+  if (node_map.back() == -1) {
+    ABSL_DLOG(INFO) << "clearing graph";
+    clear();
+    return;
+  }
+
+  // Now we (might) have to re-number the edges.
+  std::vector<int> edge_map(num_edges());
+  std::inclusive_scan(edge_keep.begin(), edge_keep.end(), edge_map.begin(),
+                      std::plus<>(), -1);
+
+  // Phase III: remove unused adjacencies, O(1) or ~O(V)
+  if (remove_trailing) {
+    ABSL_DLOG(INFO) << "resizing adjacency list";
+    adj_list_.resize(node_map.back() + 1);
+  } else if (edge_map.back() < num_edges() - 1) {
+    // ...only if there are removed edges.
+    std::vector<std::vector<AdjEntry>> new_adj;
+    new_adj.reserve(node_map.back() + 1);
+    for (int i = 0; i < num_nodes(); ++i) {
+      if (node_keep[i] != 0) {
+        new_adj.push_back(std::move(adj_list_[i]));
+      }
+    }
+    std::swap(new_adj, adj_list_);
+  }
+
+  // Phase IV: update keeped adjacencies, ~O(V)
+  for (std::vector<AdjEntry> &old_adj: adj_list_) {
+    std::vector<AdjEntry> new_adj;
+    for (auto [dst, eid]: old_adj) {
+      if (node_keep[dst] != 0) {
+        new_adj.push_back({ node_map[dst], edge_map[eid] });
+      }
+    }
+    std::swap(new_adj, old_adj);
+  }
+
+  // Phase V: remove unused nodes, O(1) or O(V)
+  if (remove_trailing) {
+    ABSL_DLOG(INFO) << "resizing node list";
+    nodes_.resize(adj_list_.size());
+  } else {
+    std::vector<NT> new_nodes;
+    new_nodes.reserve(adj_list_.size());
+    for (int i = 0; i < num_nodes(); ++i) {
+      if (node_keep[i] != 0) {
+        new_nodes.push_back(std::move(nodes_[i]));
+      }
+    }
+    std::swap(new_nodes, nodes_);
+  }
+
+  // Phase VI: remove unused edges and update node index, O(E)
+  std::vector<StoredEdge> new_edges;
+  new_edges.reserve(edge_map.back() + 1);
+  for (int i = 0; i < num_edges(); ++i) {
+    if (edge_keep[i] != 0) {
+      StoredEdge &edge = new_edges.emplace_back(std::move(edges_[i]));
+      edge.src = node_map[edge.src];
+      edge.dst = node_map[edge.dst];
+    }
+  }
+  std::swap(new_edges, edges_);
+
+  // LCOV_EXCL_START
+  ABSL_DCHECK(num_nodes() == adj_list_.size())
+    << "node count mismatch: " << num_nodes() << " vs " << adj_list_.size();
+  // LCOV_EXCL_STOP
+}
 }  // namespace nuri
 
 namespace boost {
