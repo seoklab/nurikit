@@ -16,6 +16,8 @@ CompileFlags:
     - -Wno-exit-time-destructors
     - -Wno-global-constructors
     - -Wno-thread-safety-negative
+    - -Wno-sign-compare
+    - -Wno-sign-conversion
     - -Wno-padded
     - -Wno-weak-vtables
     - -Wno-ignored-optimization-argument
