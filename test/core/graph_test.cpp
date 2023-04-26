@@ -66,6 +66,7 @@ TYPED_TEST_SUITE(BasicGraphTest, Implementations);
 
 TYPED_TEST(BasicGraphTest, CreationTest) {
   TypeParam g1;
+  ASSERT_TRUE(g1.empty());
   ASSERT_EQ(g1.size(), 0);
   ASSERT_EQ(g1.num_nodes(), 0);
   ASSERT_EQ(g1.num_edges(), 0);
@@ -415,6 +416,89 @@ TYPED_TEST(AdvancedGraphTest, AdjIteratorTest) {
 
   ASSERT_EQ(it1[2].edge_data(), -1);
 }
+
+TYPED_TEST(AdvancedGraphTest, PopNodeTest) {
+  auto &graph = this->graph_;
+
+  auto data = graph.pop_node(0);
+  ASSERT_EQ(data, 0);
+  ASSERT_EQ(graph.num_nodes(), 10);
+  ASSERT_EQ(graph.num_edges(), 6);
+  for (int i = 0; i < 10; ++i) {
+    ASSERT_EQ(graph.node(i).id(), i);
+    ASSERT_EQ(graph.node(i).data(), i + 1);
+  }
+
+  ASSERT_NE(graph.find_adjacent(0, 1), graph.adj_end(0));
+  ASSERT_NE(graph.find_adjacent(0, 6), graph.adj_end(0));
+  ASSERT_NE(graph.find_adjacent(0, 7), graph.adj_end(0));
+  ASSERT_NE(graph.find_adjacent(1, 2), graph.adj_end(1));
+  ASSERT_NE(graph.find_adjacent(1, 8), graph.adj_end(1));
+  ASSERT_NE(graph.find_adjacent(2, 3), graph.adj_end(2));
+
+  data = graph.pop_node(1);
+  ASSERT_EQ(data, 2);
+  ASSERT_EQ(graph.num_nodes(), 9);
+  ASSERT_EQ(graph.num_edges(), 3);
+  ASSERT_NE(graph.find_adjacent(0, 5), graph.adj_end(0));
+  ASSERT_NE(graph.find_adjacent(0, 6), graph.adj_end(0));
+  ASSERT_NE(graph.find_adjacent(1, 2), graph.adj_end(1));
+}
+
+TYPED_TEST(AdvancedGraphTest, RemoveNoNodeTest) {
+  auto &graph = this->graph_;
+  graph.remove_nodes(graph.end(), graph.begin());
+  graph.remove_nodes(graph.begin(), graph.end(), [](auto) { return false; });
+
+  ASSERT_EQ(graph.num_nodes(), 11);
+  ASSERT_EQ(graph.num_edges(), 10);
+}
+
+TYPED_TEST(AdvancedGraphTest, RemoveAllNodesTest) {
+  auto &graph = this->graph_;
+  graph.remove_nodes(graph.begin(), graph.end());
+
+  ASSERT_TRUE(graph.empty());
+  ASSERT_EQ(graph.num_edges(), 0);
+}
+
+TYPED_TEST(AdvancedGraphTest, RemoveLeadingNodesTest) {
+  auto &graph = this->graph_;
+  graph.remove_nodes(graph.begin(), graph.begin() + 3);
+
+  ASSERT_EQ(graph.num_nodes(), 8);
+  ASSERT_EQ(graph.num_edges(), 1);
+
+  ASSERT_EQ(graph.find_adjacent(0, 1)->edge_data(), 109);
+}
+
+TYPED_TEST(AdvancedGraphTest, RemoveTrailingNodesTest) {
+  auto &graph = this->graph_;
+  graph.remove_nodes(graph.end() - 3, graph.end());
+
+  ASSERT_EQ(graph.num_nodes(), 8);
+  ASSERT_EQ(graph.num_edges(), 8);
+
+  ASSERT_EQ(graph.find_adjacent(0, 1)->edge_data(), 100);
+  ASSERT_EQ(graph.find_adjacent(0, 2)->edge_data(), 101);
+  ASSERT_EQ(graph.find_adjacent(0, 5)->edge_data(), 102);
+  ASSERT_EQ(graph.find_adjacent(0, 6)->edge_data(), 103);
+  ASSERT_EQ(graph.find_adjacent(1, 2)->edge_data(), 104);
+  ASSERT_EQ(graph.find_adjacent(1, 7)->edge_data(), 105);
+  ASSERT_EQ(graph.find_adjacent(2, 3)->edge_data(), 107);
+  ASSERT_EQ(graph.find_adjacent(3, 4)->edge_data(), 109);
+}
+
+TYPED_TEST(AdvancedGraphTest, RemoveMixedNodesTest) {
+  auto &graph = this->graph_;
+  graph.remove_nodes(graph.begin(), graph.end(),
+                     [](auto node) { return node.id() % 2 == 0; });
+
+  ASSERT_EQ(graph.num_nodes(), 5);
+  ASSERT_EQ(graph.num_edges(), 1);
+
+  ASSERT_EQ(graph.find_adjacent(0, 3)->edge_data(), 105);
+}
 }  // namespace
 
 // Explicit instantiation of few template classes for coverage report.
@@ -437,8 +521,8 @@ namespace internal {
   NURIKIT_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, edge_iterator, Edge)      \
   NURIKIT_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, adjacency_iterator, Adj)
 
-  NURIKIT_INSTANTIATE_ALL_TEMPLATES(TrivialGraph);
-  NURIKIT_INSTANTIATE_ALL_TEMPLATES(NonTrivialGraph);
+  NURIKIT_INSTANTIATE_ALL_TEMPLATES(TrivialGraph)
+  NURIKIT_INSTANTIATE_ALL_TEMPLATES(NonTrivialGraph)
   // NOLINTEND(cppcoreguidelines-macro-usage)
 }  // namespace internal
 }  // namespace nuri
