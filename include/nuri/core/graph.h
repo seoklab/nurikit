@@ -6,6 +6,7 @@
 #ifndef NURIKIT_CORE_GRAPH_H_
 #define NURIKIT_CORE_GRAPH_H_
 
+#include <algorithm>
 #include <numeric>
 #include <type_traits>
 #include <utility>
@@ -771,14 +772,12 @@ void Graph<NT, ET>::remove_nodes(const const_iterator begin,
     adj_list_.resize(node_map.back() + 1);
   } else if (edge_map.back() < num_edges() - 1) {
     // ...only if there are removed edges.
-    std::vector<std::vector<AdjEntry>> new_adj;
-    new_adj.reserve(node_map.back() + 1);
-    for (int i = 0; i < num_nodes(); ++i) {
-      if (node_keep[i] != 0) {
-        new_adj.push_back(std::move(adj_list_[i]));
-      }
-    }
-    std::swap(new_adj, adj_list_);
+    int i = 0;
+    auto new_end = std::remove_if(adj_list_.begin(), adj_list_.end(),
+                                  [&](const std::vector<AdjEntry> &) {
+                                    return node_keep[i++] == 0;
+                                  });
+    adj_list_.erase(new_end, adj_list_.end());
   }
 
   // Phase IV: update keeped adjacencies, ~O(V)
@@ -797,14 +796,12 @@ void Graph<NT, ET>::remove_nodes(const const_iterator begin,
     ABSL_DLOG(INFO) << "resizing node list";
     nodes_.resize(adj_list_.size());
   } else {
-    std::vector<NT> new_nodes;
-    new_nodes.reserve(adj_list_.size());
-    for (int i = 0; i < num_nodes(); ++i) {
-      if (node_keep[i] != 0) {
-        new_nodes.push_back(std::move(nodes_[i]));
-      }
-    }
-    std::swap(new_nodes, nodes_);
+    // ...only if there are removed edges.
+    int i = 0;
+    auto new_end =
+      std::remove_if(nodes_.begin(), nodes_.end(),
+                     [&](const NT &) { return node_keep[i++] == 0; });
+    nodes_.erase(new_end, nodes_.end());
   }
 
   // Phase VI: remove unused edges and update node index, O(E)
