@@ -40,11 +40,6 @@ jobs:
         with:
           cmakeVersion: "~3.16.0" # for Ubuntu 20.04
 
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y libboost-graph-dev
-
       - uses: actions/checkout@v3
         with:
           submodules: recursive
@@ -85,11 +80,6 @@ jobs:
       - uses: lukka/get-cmake@latest
         with:
           cmakeVersion: "~3.16.0" # for Ubuntu 20.04
-
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y libboost-graph-dev
 
       - name: Checkout
         uses: actions/checkout@v3

@@ -32,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y lcov libboost-graph-dev
+          sudo apt install -y lcov
 
       - name: Checkout
         uses: actions/checkout@v3
