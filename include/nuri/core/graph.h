@@ -7,7 +7,6 @@
 #define NURIKIT_CORE_GRAPH_H_
 
 #include <algorithm>
-#include <numeric>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -507,7 +506,17 @@ public:
   }
   int size() const { return num_nodes(); }
   int num_nodes() const { return nodes_.size(); }
+
+  bool edge_empty() const {
+    // LCOV_EXCL_START
+    ABSL_DCHECK(num_nodes() > 0 || num_edges() == 0)
+      << "The graph is empty (num_nodes() == 0) but num_edges() == "
+      << num_edges();
+    // LCOV_EXCL_STOP
+    return num_edges() == 0;
+  }
   int num_edges() const { return edges_.size(); }
+
   int degree(int id) const { return adj_list_[id].size(); }
 
   void reserve(int num_nodes) {
@@ -569,7 +578,11 @@ public:
    *       \f$O(1)\f$ if the node has no neighbors. If \p id \f$\ge\f$
    *       `num_nodes()` or \p id \f$\lt 0\f$, the behavior is undefined.
    */
-  NT pop_node(int id);
+  NT pop_node(int id) {
+    NT ret = std::move(nodes_[id]);
+    remove_nodes(begin() + id, begin() + id + 1);
+    return ret;
+  }
 
   /**
    * @brief Remove nodes and all its associated edge(s) from the graph.
@@ -621,6 +634,58 @@ public:
   const_edge_iterator find_edge(int src, int dst) const {
     return find_edge_helper(*this, src, dst);
   }
+
+  void clear_edge() {
+    edges_.clear();
+    for (std::vector<AdjEntry> &adj: adj_list_) {
+      adj.clear();
+    }
+  }
+
+  /**
+   * @brief Remove an edge from the graph.
+   *
+   * @param id The id of the edge to be removed.
+   * @return The data of the removed edge.
+   * @sa remove_edges()
+   * @note Time complexity: ? If \p id \f$\ge\f$
+   *       `num_edges()` or \p id \f$\lt 0\f$, the behavior is undefined.
+   */
+  ET pop_edge(int id) {
+    ET ret = std::move(edges_[id].data);
+    remove_edges(edge_begin() + id, edge_begin() + id + 1);
+    return ret;
+  }
+
+  /**
+   * @brief Remove edges from the graph.
+   *
+   * @param begin The beginning of the range of edges to be removed.
+   * @param end The end of the range of edges to be removed.
+   * @sa pop_edge()
+   * @note Time complexity: ?. If \p begin or \p end is out of range,
+   *       the behavior is undefined.
+   */
+  void remove_edges(const_edge_iterator begin, const_edge_iterator end) {
+    remove_edges(begin, end, [](auto /* ref */) { return true; });
+  }
+
+  /**
+   * @brief Remove edges from the graph.
+   *
+   * @tparam UnaryPred A unary predicate that takes an `EdgeRef` and returns
+   *        `bool`.
+   * @param begin The beginning of the range of edges to be removed.
+   * @param end The end of the range of edges to be removed.
+   * @param pred A unary predicate that takes an `EdgeRef` and returns `true`
+   *        if the edge should be removed.
+   * @sa pop_edge()
+   * @note Time complexity: \f$O(V+E)\f$. If \p begin or \p end is out of range,
+   *       the behavior is undefined.
+   */
+  template <class UnaryPred>
+  void remove_edges(const_edge_iterator begin, const_edge_iterator end,
+                    UnaryPred pred);
 
   edge_iterator edge_begin() { return { this, 0 }; }
   edge_iterator edge_end() { return { this, num_edges() }; }
@@ -707,14 +772,22 @@ private:
   std::vector<StoredEdge> edges_;
 };
 
-/* Out-of-line definitions */
+namespace internal {
+  template <class Iterator, class UnaryPred>
+  void item_mask(Iterator begin, Iterator end, UnaryPred pred,
+                 std::vector<int> &mask, bool &remove, bool &remove_trailing) {
+    for (auto it = begin; it != end; ++it) {
+      if (pred(*it)) {
+        remove = true;
+        mask[it->id()] = 0;
+      } else if (remove) {
+        remove_trailing = false;
+      }
+    }
+  }
+}  // namespace internal
 
-template <class NT, class ET>
-NT Graph<NT, ET>::pop_node(const int id) {
-  NT ret = std::move(nodes_[id]);
-  remove_nodes(begin() + id, begin() + id + 1);
-  return ret;
-}
+/* Out-of-line definitions */
 
 template <class NT, class ET>
 template <class UnaryPred>
@@ -728,32 +801,18 @@ void Graph<NT, ET>::remove_nodes(const const_iterator begin,
     return;
   }
 
-  // Phase I: mark nodes & edges for removal, ~O(V)
-  std::vector<int> node_keep(num_nodes(), 1), edge_keep(num_edges(), 1);
-  bool remove_begin = false, remove_trailing = end == this->end();
-  for (auto it = begin; it != end; ++it) {
-    if (pred(*it)) {
-      remove_begin = true;
-
-      node_keep[it->id()] = 0;
-      for (const AdjEntry &adj: adj_list_[it->id()]) {
-        edge_keep[adj.eid] = 0;
-      }
-    } else if (remove_begin) {
-      remove_trailing = false;
-    }
-  }
-
+  // Phase I: mark nodes & edges for removal, O(V+E)
+  std::vector<int> node_keep(num_nodes(), 1);
+  bool remove = false, remove_trailing = end == this->end();
+  internal::item_mask(begin, end, pred, node_keep, remove, remove_trailing);
   // Fast path 1: if no nodes are removed, return early.
-  if (!remove_begin) {
+  if (!remove) {
     return;
   }
 
-  // Phase II: re-number the nodes & edges, O(V+E)
-  // The map contains new node/edge id.
-  std::vector<int> node_map(num_nodes());
-  std::inclusive_scan(node_keep.begin(), node_keep.end(), node_map.begin(),
-                      std::plus<>(), -1);
+  // Phase II: re-number the nodes, O(V)
+  // The map contains new node id.
+  std::vector<int> node_map = mask_to_map(node_keep);
   // Fast path 2: if all nodes are removed, clear and return.
   if (node_map.back() == -1) {
     ABSL_DLOG(INFO) << "clearing graph";
@@ -761,65 +820,102 @@ void Graph<NT, ET>::remove_nodes(const const_iterator begin,
     return;
   }
 
-  // Now we (might) have to re-number the edges.
-  std::vector<int> edge_map(num_edges());
-  std::inclusive_scan(edge_keep.begin(), edge_keep.end(), edge_map.begin(),
-                      std::plus<>(), -1);
-
-  // Phase III: remove unused adjacencies, O(1) or ~O(V)
+  // Phase III: remove unused adjacencies, O(1) or O(V)
   if (remove_trailing) {
-    ABSL_DLOG(INFO) << "resizing adjacency list";
-    adj_list_.resize(node_map.back() + 1);
-  } else if (edge_map.back() < num_edges() - 1) {
-    // ...only if there are removed edges.
-    int i = 0;
-    auto new_end = std::remove_if(adj_list_.begin(), adj_list_.end(),
-                                  [&](const std::vector<AdjEntry> &) {
-                                    return node_keep[i++] == 0;
-                                  });
-    adj_list_.erase(new_end, adj_list_.end());
-  }
-
-  // Phase IV: update keeped adjacencies, ~O(V)
-  for (std::vector<AdjEntry> &old_adj: adj_list_) {
-    std::vector<AdjEntry> new_adj;
-    for (auto [dst, eid]: old_adj) {
-      if (node_keep[dst] != 0) {
-        new_adj.push_back({ node_map[dst], edge_map[eid] });
-      }
-    }
-    std::swap(new_adj, old_adj);
-  }
-
-  // Phase V: remove unused nodes, O(1) or O(V)
-  if (remove_trailing) {
-    ABSL_DLOG(INFO) << "resizing node list";
-    nodes_.resize(adj_list_.size());
+    ABSL_DLOG(INFO) << "resizing adjacency & node list";
+    nodes_.resize(node_map.back() + 1);
+    adj_list_.resize(nodes_.size());
   } else {
-    // ...only if there are removed edges.
     int i = 0;
-    auto new_end =
+    auto new_nodes_end =
       std::remove_if(nodes_.begin(), nodes_.end(),
                      [&](const NT &) { return node_keep[i++] == 0; });
-    nodes_.erase(new_end, nodes_.end());
+    nodes_.erase(new_nodes_end, nodes_.end());
+
+    i = 0;
+    auto new_adj_end = std::remove_if(adj_list_.begin(), adj_list_.end(),
+                                      [&](const std::vector<AdjEntry> &) {
+                                        return node_keep[i++] == 0;
+                                      });
+    adj_list_.erase(new_adj_end, adj_list_.end());
   }
 
-  // Phase VI: remove unused edges and update node index, O(E)
-  std::vector<StoredEdge> new_edges;
-  new_edges.reserve(edge_map.back() + 1);
-  for (int i = 0; i < num_edges(); ++i) {
-    if (edge_keep[i] != 0) {
-      StoredEdge &edge = new_edges.emplace_back(std::move(edges_[i]));
-      edge.src = node_map[edge.src];
-      edge.dst = node_map[edge.dst];
+  // Phase IV: remove corresponding edges, O(V+E)
+  remove_edges(edge_begin(), edge_end(), [&](const ConstEdgeRef &e) {
+    return (node_keep[e.src()] & node_keep[e.dst()]) == 0;
+  });
+  // Fast path 3: if all edges are removed, return.
+  if (edge_empty()) {
+    return;
+  }
+
+  // Phase V: update node index of edges, O(E)
+  for (StoredEdge &edge: edges_) {
+    edge.src = node_map[edge.src];
+    edge.dst = node_map[edge.dst];
+  }
+
+  // Phase VI: update adjacencies, ~O(V)
+  for (std::vector<AdjEntry> &adjs: adj_list_) {
+    for (AdjEntry &adj: adjs) {
+      adj.dst = node_map[adj.dst];
     }
   }
-  std::swap(new_edges, edges_);
 
   // LCOV_EXCL_START
   ABSL_DCHECK(num_nodes() == adj_list_.size())
     << "node count mismatch: " << num_nodes() << " vs " << adj_list_.size();
   // LCOV_EXCL_STOP
+}
+
+template <class NT, class ET>
+template <class UnaryPred>
+void Graph<NT, ET>::remove_edges(const const_edge_iterator begin,
+                                 const const_edge_iterator end,
+                                 UnaryPred pred) {
+  // This will also handle size() == 0 case correctly.
+  if (begin >= end) {
+    return;
+  }
+
+  // Phase I: Mark edges for removal, O(E)
+  std::vector<int> edge_keep(num_edges(), 1);
+  bool remove = false, remove_trailing = end == this->edge_end();
+  internal::item_mask(begin, end, pred, edge_keep, remove, remove_trailing);
+  // Fast path 1: if no edges are removed, return early.
+  if (!remove) {
+    return;
+  }
+
+  std::vector<int> edge_map = mask_to_map(edge_keep);
+  // Fast path 2: if all edges are removed, clear and return.
+  if (edge_map.back() == -1) {
+    ABSL_DLOG(INFO) << "clearing edges";
+    clear_edge();
+  }
+
+  // Phase II: update adjacencies, ~O(V)
+  for (std::vector<AdjEntry> &old_adj: adj_list_) {
+    std::vector<AdjEntry> new_adj;
+    for (auto [dst, eid]: old_adj) {
+      if (edge_keep[eid] != 0) {
+        new_adj.push_back({ dst, edge_map[eid] });
+      }
+    }
+    std::swap(new_adj, old_adj);
+  }
+
+  // Phase III: remove unused edges, O(E)
+  if (remove_trailing) {
+    // Fast path 2: if only trailing edges are removed, resize.
+    ABSL_DLOG(INFO) << "resizing edge list";
+    edges_.resize(edge_map.back() + 1);
+  } else {
+    int i = 0;
+    auto new_end = std::remove_if(edges_.begin(), edges_.end(),
+                                  [&](auto &) { return edge_keep[i++] == 0; });
+    edges_.erase(new_end, edges_.end());
+  }
 }
 }  // namespace nuri
 
