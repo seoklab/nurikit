@@ -445,34 +445,34 @@ TYPED_TEST(AdvancedGraphTest, PopNodeTest) {
   ASSERT_NE(graph.find_adjacent(1, 2), graph.adj_end(1));
 }
 
-TYPED_TEST(AdvancedGraphTest, RemoveNoNodeTest) {
+TYPED_TEST(AdvancedGraphTest, EraseNoNodeTest) {
   auto &graph = this->graph_;
-  graph.remove_nodes(graph.end(), graph.begin());
-  graph.remove_nodes(graph.begin(), graph.end(), [](auto) { return false; });
+  graph.erase_nodes(graph.end(), graph.begin());
+  graph.erase_nodes(graph.begin(), graph.end(), [](auto) { return false; });
 
   ASSERT_EQ(graph.num_nodes(), 11);
   ASSERT_EQ(graph.num_edges(), 10);
 }
 
-TYPED_TEST(AdvancedGraphTest, RemoveAllNodesTest) {
+TYPED_TEST(AdvancedGraphTest, EraseAllNodesTest) {
   auto &graph = this->graph_;
-  graph.remove_nodes(graph.begin(), graph.end());
+  graph.erase_nodes(graph.begin(), graph.end());
 
   ASSERT_TRUE(graph.empty());
   ASSERT_EQ(graph.num_edges(), 0);
 }
 
-TYPED_TEST(AdvancedGraphTest, RemoveExceptOneNodeTest) {
+TYPED_TEST(AdvancedGraphTest, EraseExceptOneNodeTest) {
   auto &graph = this->graph_;
-  graph.remove_nodes(graph.begin(), graph.end() - 1);
+  graph.erase_nodes(graph.begin(), graph.end() - 1);
 
   ASSERT_EQ(graph.num_nodes(), 1);
   ASSERT_TRUE(graph.edge_empty());
 }
 
-TYPED_TEST(AdvancedGraphTest, RemoveLeadingNodesTest) {
+TYPED_TEST(AdvancedGraphTest, EraseLeadingNodesTest) {
   auto &graph = this->graph_;
-  graph.remove_nodes(graph.begin(), graph.begin() + 3);
+  graph.erase_nodes(graph.begin(), graph.begin() + 3);
 
   ASSERT_EQ(graph.num_nodes(), 8);
   ASSERT_EQ(graph.num_edges(), 1);
@@ -480,9 +480,9 @@ TYPED_TEST(AdvancedGraphTest, RemoveLeadingNodesTest) {
   ASSERT_EQ(graph.find_adjacent(0, 1)->edge_data(), 109);
 }
 
-TYPED_TEST(AdvancedGraphTest, RemoveTrailingNodesTest) {
+TYPED_TEST(AdvancedGraphTest, EraseTrailingNodesTest) {
   auto &graph = this->graph_;
-  graph.remove_nodes(graph.end() - 3, graph.end());
+  graph.erase_nodes(graph.end() - 3, graph.end());
 
   ASSERT_EQ(graph.num_nodes(), 8);
   ASSERT_EQ(graph.num_edges(), 8);
@@ -497,10 +497,10 @@ TYPED_TEST(AdvancedGraphTest, RemoveTrailingNodesTest) {
   ASSERT_EQ(graph.find_adjacent(3, 4)->edge_data(), 109);
 }
 
-TYPED_TEST(AdvancedGraphTest, RemoveMixedNodesTest) {
+TYPED_TEST(AdvancedGraphTest, EraseMixedNodesTest) {
   auto &graph = this->graph_;
-  graph.remove_nodes(graph.begin(), graph.end(),
-                     [](auto node) { return node.id() % 2 == 0; });
+  graph.erase_nodes(graph.begin(), graph.end(),
+                    [](auto node) { return node.id() % 2 == 0; });
 
   ASSERT_EQ(graph.num_nodes(), 5);
   ASSERT_EQ(graph.num_edges(), 1);
@@ -524,27 +524,27 @@ TYPED_TEST(AdvancedGraphTest, PopEdgeTest) {
   ASSERT_EQ(graph.num_nodes(), 11);
 }
 
-TYPED_TEST(AdvancedGraphTest, RemoveNoEdgeTest) {
+TYPED_TEST(AdvancedGraphTest, EraseNoEdgeTest) {
   auto &graph = this->graph_;
-  graph.remove_edges(graph.edge_end(), graph.edge_begin());
-  graph.remove_edges(graph.edge_begin(), graph.edge_end(),
-                     [](auto) { return false; });
+  graph.erase_edges(graph.edge_end(), graph.edge_begin());
+  graph.erase_edges(graph.edge_begin(), graph.edge_end(),
+                    [](auto) { return false; });
 
   ASSERT_EQ(graph.num_nodes(), 11);
   ASSERT_EQ(graph.num_edges(), 10);
 }
 
-TYPED_TEST(AdvancedGraphTest, RemoveAllEdgesTest) {
+TYPED_TEST(AdvancedGraphTest, EraseAllEdgesTest) {
   auto &graph = this->graph_;
-  graph.remove_edges(graph.edge_begin(), graph.edge_end());
+  graph.erase_edges(graph.edge_begin(), graph.edge_end());
 
   ASSERT_EQ(graph.num_nodes(), 11);
   ASSERT_TRUE(graph.edge_empty());
 }
 
-TYPED_TEST(AdvancedGraphTest, RemoveLeadingEdgesTest) {
+TYPED_TEST(AdvancedGraphTest, EraseLeadingEdgesTest) {
   auto &graph = this->graph_;
-  graph.remove_edges(graph.edge_begin(), graph.edge_begin() + 3);
+  graph.erase_edges(graph.edge_begin(), graph.edge_begin() + 3);
 
   ASSERT_EQ(graph.num_nodes(), 11);
   ASSERT_EQ(graph.num_edges(), 7);
@@ -555,9 +555,9 @@ TYPED_TEST(AdvancedGraphTest, RemoveLeadingEdgesTest) {
   ASSERT_EQ(graph.find_adjacent(0, 6)->edge_data(), 103);
 }
 
-TYPED_TEST(AdvancedGraphTest, RemoveTrailingEdgesTest) {
+TYPED_TEST(AdvancedGraphTest, EraseTrailingEdgesTest) {
   auto &graph = this->graph_;
-  graph.remove_edges(graph.edge_end() - 3, graph.edge_end());
+  graph.erase_edges(graph.edge_end() - 3, graph.edge_end());
 
   ASSERT_EQ(graph.num_nodes(), 11);
   ASSERT_EQ(graph.num_edges(), 7);
@@ -574,10 +574,10 @@ TYPED_TEST(AdvancedGraphTest, RemoveTrailingEdgesTest) {
   ASSERT_EQ(graph.find_adjacent(3, 4), graph.adj_end(3));
 }
 
-TYPED_TEST(AdvancedGraphTest, RemoveMixedEdgesTest) {
+TYPED_TEST(AdvancedGraphTest, EraseMixedEdgesTest) {
   auto &graph = this->graph_;
-  graph.remove_edges(graph.edge_begin(), graph.edge_end(),
-                     [](auto edge) { return edge.id() % 2 == 0; });
+  graph.erase_edges(graph.edge_begin(), graph.edge_end(),
+                    [](auto edge) { return edge.id() % 2 == 0; });
 
   ASSERT_EQ(graph.num_nodes(), 11);
   ASSERT_EQ(graph.num_edges(), 5);

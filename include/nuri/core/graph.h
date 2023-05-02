@@ -573,14 +573,14 @@ public:
    *
    * @param id The id of the node to be removed.
    * @return The data of the removed node.
-   * @sa remove_nodes()
+   * @sa erase_nodes()
    * @note Time complexity: \f$O(V+E)\f$ if the node has any neighbor, and
    *       \f$O(E)\f$ if the node has no neighbors. If \p id \f$\ge\f$
    *       `num_nodes()` or \p id \f$\lt 0\f$, the behavior is undefined.
    */
   NT pop_node(int id) {
     NT ret = std::move(nodes_[id]);
-    remove_nodes(begin() + id, begin() + id + 1);
+    erase_nodes(begin() + id, begin() + id + 1);
     return ret;
   }
 
@@ -593,8 +593,8 @@ public:
    * @note Time complexity: \f$O(V+E)\f$. If \p begin or \p end is out of range,
    *       the behavior is undefined.
    */
-  void remove_nodes(const_iterator begin, const_iterator end) {
-    remove_nodes(begin, end, [](auto /* ref */) { return true; });
+  void erase_nodes(const_iterator begin, const_iterator end) {
+    erase_nodes(begin, end, [](auto /* ref */) { return true; });
   }
 
   /**
@@ -611,7 +611,7 @@ public:
    *       the behavior is undefined.
    */
   template <class UnaryPred>
-  void remove_nodes(const_iterator begin, const_iterator end, UnaryPred pred);
+  void erase_nodes(const_iterator begin, const_iterator end, UnaryPred pred);
 
   iterator begin() { return { this, 0 }; }
   iterator end() { return { this, num_nodes() }; }
@@ -647,13 +647,13 @@ public:
    *
    * @param id The id of the edge to be removed.
    * @return The data of the removed edge.
-   * @sa remove_edges()
+   * @sa erase_edges()
    * @note Time complexity: \f$O(V+E)\f$. If \p id \f$\ge\f$ `num_edges()` or
    *       \p id \f$\lt 0\f$, the behavior is undefined.
    */
   ET pop_edge(int id) {
     ET ret = std::move(edges_[id].data);
-    remove_edges(edge_begin() + id, edge_begin() + id + 1);
+    erase_edges(edge_begin() + id, edge_begin() + id + 1);
     return ret;
   }
 
@@ -666,8 +666,8 @@ public:
    * @note Time complexity: \f$O(V+E)\f$. If \p begin or \p end is out of range,
    *       the behavior is undefined.
    */
-  void remove_edges(const_edge_iterator begin, const_edge_iterator end) {
-    remove_edges(begin, end, [](auto /* ref */) { return true; });
+  void erase_edges(const_edge_iterator begin, const_edge_iterator end) {
+    erase_edges(begin, end, [](auto /* ref */) { return true; });
   }
 
   /**
@@ -684,8 +684,8 @@ public:
    *       the behavior is undefined.
    */
   template <class UnaryPred>
-  void remove_edges(const_edge_iterator begin, const_edge_iterator end,
-                    UnaryPred pred);
+  void erase_edges(const_edge_iterator begin, const_edge_iterator end,
+                   UnaryPred pred);
 
   edge_iterator edge_begin() { return { this, 0 }; }
   edge_iterator edge_end() { return { this, num_edges() }; }
@@ -791,8 +791,8 @@ namespace internal {
 
 template <class NT, class ET>
 template <class UnaryPred>
-void Graph<NT, ET>::remove_nodes(const const_iterator begin,
-                                 const const_iterator end, UnaryPred pred) {
+void Graph<NT, ET>::erase_nodes(const const_iterator begin,
+                                const const_iterator end, UnaryPred pred) {
   // Note: the time complexity notations are only for very sparse graphs, i.e.,
   // E = O(V).
 
@@ -841,7 +841,7 @@ void Graph<NT, ET>::remove_nodes(const const_iterator begin,
   }
 
   // Phase IV: remove corresponding edges, O(V+E)
-  remove_edges(edge_begin(), edge_end(), [&](const ConstEdgeRef &e) {
+  erase_edges(edge_begin(), edge_end(), [&](const ConstEdgeRef &e) {
     return (node_keep[e.src()] & node_keep[e.dst()]) == 0;
   });
   // Fast path 3: if all edges are removed, return.
@@ -870,9 +870,8 @@ void Graph<NT, ET>::remove_nodes(const const_iterator begin,
 
 template <class NT, class ET>
 template <class UnaryPred>
-void Graph<NT, ET>::remove_edges(const const_edge_iterator begin,
-                                 const const_edge_iterator end,
-                                 UnaryPred pred) {
+void Graph<NT, ET>::erase_edges(const const_edge_iterator begin,
+                                const const_edge_iterator end, UnaryPred pred) {
   // This will also handle size() == 0 case correctly.
   if (begin >= end) {
     return;
