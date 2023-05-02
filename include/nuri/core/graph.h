@@ -13,8 +13,6 @@
 
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
-#include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/graph_traits.hpp>
 
 #include "nuri/utils.h"
 
@@ -917,34 +915,5 @@ void Graph<NT, ET>::erase_edges(const const_edge_iterator begin,
   }
 }
 }  // namespace nuri
-
-namespace boost {
-template <class NT, class ET>
-struct graph_traits<nuri::Graph<NT, ET>> {
-  using vertex_descriptor = int;
-  using edge_descriptor = int;
-  using directed_category = undirected_tag;
-  using edge_parallel_category = allow_parallel_edge_tag;
-  using traversal_category = boost::undir_adj_list_traversal_tag;
-
-  using vertices_size_type = int;
-  using edges_size_type = int;
-  using degree_size_type = int;
-};
-
-template <class NT, class ET>
-typename graph_traits<nuri::Graph<NT, ET>>::vertex_descriptor
-source(typename graph_traits<nuri::Graph<NT, ET>>::edge_descriptor e,
-       const nuri::Graph<NT, ET> &g) {
-  return g.edge(e).src;
-}
-
-template <class NT, class ET>
-typename graph_traits<nuri::Graph<NT, ET>>::vertex_descriptor
-target(typename graph_traits<nuri::Graph<NT, ET>>::edge_descriptor e,
-       const nuri::Graph<NT, ET> &g) {
-  return g.edge(e).dst;
-}
-}  // namespace boost
 
 #endif /* NURIKIT_CORE_GRAPH_H_ */

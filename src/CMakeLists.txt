@@ -3,9 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-# Version for Ubuntu 20.04 LTS
-find_package(Boost 1.71.0 REQUIRED COMPONENTS graph)
-
 include(GNUInstallDirs)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY
@@ -22,7 +19,6 @@ list(FILTER NURIKIT_SRCS EXCLUDE REGEX "main\.cpp$")
 
 if(NURIKIT_SRCS)
   add_library(nuri_lib SHARED "${NURIKIT_SRCS}")
-  target_link_libraries(nuri_lib PUBLIC Boost::graph)
   set_target_properties(nuri_lib PROPERTIES OUTPUT_NAME nuri)
   install(TARGETS nuri_lib LIBRARY)
 
