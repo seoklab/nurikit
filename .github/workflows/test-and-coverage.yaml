@@ -43,7 +43,7 @@ jobs:
         run: |
           mkdir build && cd build
           cmake -DCMAKE_BUILD_TYPE=Debug -DNURIKIT_TEST_COVERAGE=ON ..
-          cmake --build . -j --target nurikit_test
+          cmake --build . -j --target nurikit_all_test
           ../scripts/check_coverage.sh .
 
       - uses: codecov/codecov-action@v3
