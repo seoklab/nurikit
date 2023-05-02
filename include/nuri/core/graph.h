@@ -575,7 +575,7 @@ public:
    * @return The data of the removed node.
    * @sa remove_nodes()
    * @note Time complexity: \f$O(V+E)\f$ if the node has any neighbor, and
-   *       \f$O(1)\f$ if the node has no neighbors. If \p id \f$\ge\f$
+   *       \f$O(E)\f$ if the node has no neighbors. If \p id \f$\ge\f$
    *       `num_nodes()` or \p id \f$\lt 0\f$, the behavior is undefined.
    */
   NT pop_node(int id) {
@@ -600,12 +600,12 @@ public:
   /**
    * @brief Remove matching nodes and all its associated edge(s) from the graph.
    *
-   * @tparam UnaryPred A unary predicate that takes a `NodeRef` and returns
+   * @tparam UnaryPred A unary predicate that takes a `ConstNodeRef` and returns
    *        `bool`.
    * @param begin The beginning of the range of nodes to be removed.
    * @param end The end of the range of nodes to be removed.
-   * @param pred A unary predicate that takes a `NodeRef` and returns `true`
-   *        if the node should be removed.
+   * @param pred A unary predicate that takes a `ConstNodeRef` and returns
+   *        `true` if the node should be removed.
    * @sa pop_node()
    * @note Time complexity: \f$O(V+E)\f$. If \p begin or \p end is out of range,
    *       the behavior is undefined.
@@ -648,8 +648,8 @@ public:
    * @param id The id of the edge to be removed.
    * @return The data of the removed edge.
    * @sa remove_edges()
-   * @note Time complexity: ? If \p id \f$\ge\f$
-   *       `num_edges()` or \p id \f$\lt 0\f$, the behavior is undefined.
+   * @note Time complexity: \f$O(V+E)\f$. If \p id \f$\ge\f$ `num_edges()` or
+   *       \p id \f$\lt 0\f$, the behavior is undefined.
    */
   ET pop_edge(int id) {
     ET ret = std::move(edges_[id].data);
@@ -663,7 +663,7 @@ public:
    * @param begin The beginning of the range of edges to be removed.
    * @param end The end of the range of edges to be removed.
    * @sa pop_edge()
-   * @note Time complexity: ?. If \p begin or \p end is out of range,
+   * @note Time complexity: \f$O(V+E)\f$. If \p begin or \p end is out of range,
    *       the behavior is undefined.
    */
   void remove_edges(const_edge_iterator begin, const_edge_iterator end) {
@@ -671,14 +671,14 @@ public:
   }
 
   /**
-   * @brief Remove edges from the graph.
+   * @brief Remove matching edges from the graph.
    *
-   * @tparam UnaryPred A unary predicate that takes an `EdgeRef` and returns
-   *        `bool`.
+   * @tparam UnaryPred A unary predicate that takes a `ConstEdgeRef` and returns
+   *         `bool`.
    * @param begin The beginning of the range of edges to be removed.
    * @param end The end of the range of edges to be removed.
-   * @param pred A unary predicate that takes an `EdgeRef` and returns `true`
-   *        if the edge should be removed.
+   * @param pred A unary predicate that takes a `ConstEdgeRef` and returns
+   *        `true` if the edge should be removed.
    * @sa pop_edge()
    * @note Time complexity: \f$O(V+E)\f$. If \p begin or \p end is out of range,
    *       the behavior is undefined.
