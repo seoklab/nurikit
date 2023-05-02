@@ -3,15 +3,30 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-name: PR reviews for C++ files
+name: Test for PR and matching pushes
 
 on:
+  push:
+    branches:
+      - main
+      - "release/**"
+    paths:
+      - ".github/workflows/main-review.yaml"
+      - ".github/workflows/test-and-coverage.yaml"
+      - "cmake/**"
+      - "include/**"
+      - "scripts/check_coverage.sh"
+      - "src/**"
+      - "test/**"
+      - "third-party/**"
+      - ".clang-*"
+      - "CMakeLists.txt"
   pull_request:
     branches:
       - main
       - "release/**"
     paths:
-      - ".github/workflows/pr-review-cpp.yaml"
+      - ".github/workflows/main-review.yaml"
       - ".github/workflows/test-and-coverage.yaml"
       - "cmake/**"
       - "include/**"
@@ -34,7 +49,7 @@ defaults:
 jobs:
   run-clang-tools:
     runs-on: ubuntu-latest
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ github.event_name == 'push' || !github.event.pull_request.draft }}
     steps:
       - uses: lukka/get-cmake@latest
         with:

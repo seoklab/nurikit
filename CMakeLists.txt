@@ -4,7 +4,12 @@
 #
 
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR) # Version for Ubuntu 20.04 LTS
-project(nurikit VERSION 0.1.0 LANGUAGES CXX)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(NurikitUtils)
+
+nurikit_get_version()
+project(nurikit VERSION "${NURIKIT_VERSION}" LANGUAGES CXX)
 
 # Compile options
 set(NURIKIT_OPTIMIZATION_LEVEL "O3" CACHE STRING "Optimization level")
@@ -16,6 +21,7 @@ option(NURIKIT_TEST_COVERAGE "Enable coverage build" OFF)
 option(NURIKIT_BUILD_DOCS "Build documentation" OFF)
 
 set(CMAKE_BUILD_TYPE Release CACHE STRING "Bulid type")
+
 if(CMAKE_BUILD_TYPE STREQUAL "")
   set(CMAKE_BUILD_TYPE Release)
 endif()
@@ -27,8 +33,6 @@ elseif(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     "Unsupported compiler '${CMAKE_CXX_COMPILER_ID}' detected! "
     "Please use clang or gcc as a compiler.")
 endif()
-
-list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 # Only do these if this is the main project, and not if it is included through
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
