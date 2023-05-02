@@ -10,7 +10,8 @@ and extensible design.
 ## Documentation
 
 See documentation for the main branch at
-<http://cluster.seoklab.org/docs/nurikit>. (Only available for SNU networks)
+<http://cluster.seoklab.org/docs/nurikit>. (Use the cluster ID/PW for
+authentication.)
 
 ## Contributing
 
