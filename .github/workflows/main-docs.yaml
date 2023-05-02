@@ -1,0 +1,45 @@
+#
+# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+name: Build and deploy docs
+
+on:
+  push:
+    branches:
+      - "main"
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: "docs"
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: [self-hosted, galaxy3]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Configure with cmake
+        run: |
+          cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -S . -B build
+
+      - name: Build docs
+        run: |
+          cmake --build build --target nurikit_docs -j4
+
+      - name: Deploy
+        run: |
+          mkdir -p "$HOME/var/www/html/docs/nurikit"
+          rsync -avh --delete build/generated/docs/html/ "$HOME/var/www/html/docs/nurikit/"
