@@ -1,6 +1,5 @@
 set(ABSL_PROPAGATE_CXX_STD ON)
+set(ABSL_USE_SYSTEM_INCLUDES ON)
 add_subdirectory("abseil-cpp")
 
-if(BUILD_TESTING)
-  add_subdirectory("googletest")
-endif()
+add_subdirectory("googletest")

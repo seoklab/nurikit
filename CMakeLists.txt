@@ -13,6 +13,7 @@ option(NURIKIT_ENABLE_AVX2 "Use -mavx2 flag for optimization" ON)
 option(NURIKIT_ENABLE_ARCH_NATIVE "Use -march=native flag for optimization" OFF)
 
 option(NURIKIT_TEST_COVERAGE "Enable coverage build" OFF)
+option(NURIKIT_BUILD_DOCS "Build documentation" OFF)
 
 set(CMAKE_BUILD_TYPE Release CACHE STRING "Bulid type")
 if(CMAKE_BUILD_TYPE STREQUAL "")
@@ -26,6 +27,8 @@ elseif(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     "Unsupported compiler '${CMAKE_CXX_COMPILER_ID}' detected! "
     "Please use clang or gcc as a compiler.")
 endif()
+
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 # Only do these if this is the main project, and not if it is included through
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
@@ -59,14 +62,20 @@ add_subdirectory(third-party EXCLUDE_FROM_ALL)
 
 configure_file(cmake/nurikit_config.h.in
   generated/include/nuri/nurikit_config.h @ONLY)
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/generated/include/nuri/nurikit_config.h
+  DESTINATION include/nuri
+  COMPONENT Development)
+
 include_directories(
   ${CMAKE_CURRENT_BINARY_DIR}/generated/include
   ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
+add_compile_options(-pedantic -Wall -Wextra -Wno-sign-compare)
+
 add_subdirectory(include)
 add_subdirectory(src)
+add_subdirectory(docs EXCLUDE_FROM_ALL)
 
 include(CTest)
-if(BUILD_TESTING)
-  add_subdirectory(test)
-endif()
+add_subdirectory(test EXCLUDE_FROM_ALL)
