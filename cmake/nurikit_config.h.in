@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#ifndef NURIKIT_NURIKIT_CONFIG_H_
-#define NURIKIT_NURIKIT_CONFIG_H_
+#ifndef NURI_NURIKIT_CONFIG_H_
+#define NURI_NURIKIT_CONFIG_H_
 
 #include <string_view>
 
@@ -16,4 +16,4 @@ namespace nuri {
 constexpr inline std::string_view kNurikitVersion = "@nurikit_VERSION@";
 }  // namespace nuri
 
-#endif /* NURIKIT_NURIKIT_CONFIG_H_ */
+#endif /* NURI_NURIKIT_CONFIG_H_ */

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#ifndef NURIKIT_UTILS_H_
-#define NURIKIT_UTILS_H_
+#ifndef NURI_UTILS_H_
+#define NURI_UTILS_H_
 
 #include <numeric>
 #include <type_traits>
@@ -28,4 +28,4 @@ Container mask_to_map(const Container &mask) {
 }
 }  // namespace nuri
 
-#endif /* NURIKIT_UTILS_H_ */
+#endif /* NURI_UTILS_H_ */

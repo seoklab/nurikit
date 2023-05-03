@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#ifndef NURIKIT_CORE_GRAPH_H_
-#define NURIKIT_CORE_GRAPH_H_
+#ifndef NURI_CORE_GRAPH_H_
+#define NURI_CORE_GRAPH_H_
 
 #include <algorithm>
 #include <type_traits>
@@ -916,4 +916,4 @@ void Graph<NT, ET>::erase_edges(const const_edge_iterator begin,
 }
 }  // namespace nuri
 
-#endif /* NURIKIT_CORE_GRAPH_H_ */
+#endif /* NURI_CORE_GRAPH_H_ */
