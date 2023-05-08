@@ -907,7 +907,7 @@ void Graph<NT, ET>::erase_nodes(const const_iterator begin,
   }
 
   // Phase III: update the node numbers in adjacencies and edges, O(V+E)
-  std::vector<int> node_map = mask_to_map(node_keep);
+  const std::vector<int> node_map = mask_to_map(node_keep);
 
   for (std::vector<AdjEntry> &adjs: adj_list_) {
     for (AdjEntry &adj: adjs) {
