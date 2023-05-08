@@ -28,7 +28,5 @@ Diagnostics:
   UnusedIncludes: Strict
 Completion:
   AllScopes: true
-InlayHints:
-  Enabled: No
 Hover:
   ShowAKA: Yes
