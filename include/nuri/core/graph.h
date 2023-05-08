@@ -495,22 +495,22 @@ public:
     : adj_list_(num_nodes), nodes_(num_nodes, data) { }
 
   bool empty() const {
-    // LCOV_EXCL_START
+    // GCOV_EXCL_START
     ABSL_DCHECK(num_nodes() > 0 || num_edges() == 0)
       << "The graph is empty (num_nodes() == 0) but num_edges() == "
       << num_edges();
-    // LCOV_EXCL_STOP
+    // GCOV_EXCL_STOP
     return size() == 0;
   }
   int size() const { return num_nodes(); }
   int num_nodes() const { return nodes_.size(); }
 
   bool edge_empty() const {
-    // LCOV_EXCL_START
+    // GCOV_EXCL_START
     ABSL_DCHECK(num_nodes() > 0 || num_edges() == 0)
       << "The graph is empty (num_nodes() == 0) but num_edges() == "
       << num_edges();
-    // LCOV_EXCL_STOP
+    // GCOV_EXCL_STOP
     return num_edges() == 0;
   }
   int num_edges() const { return edges_.size(); }
@@ -860,10 +860,10 @@ void Graph<NT, ET>::erase_nodes(const const_iterator begin,
     }
   }
 
-  // LCOV_EXCL_START
+  // GCOV_EXCL_START
   ABSL_DCHECK(num_nodes() == adj_list_.size())
     << "node count mismatch: " << num_nodes() << " vs " << adj_list_.size();
-  // LCOV_EXCL_STOP
+  // GCOV_EXCL_STOP
 }
 
 template <class NT, class ET>

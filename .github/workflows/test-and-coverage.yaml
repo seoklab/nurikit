@@ -32,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y lcov
+          sudo apt install -y gcovr
 
       - name: Checkout
         uses: actions/checkout@v3
@@ -44,13 +44,13 @@ jobs:
           mkdir build && cd build
           cmake -DCMAKE_BUILD_TYPE=Debug -DNURIKIT_TEST_COVERAGE=ON ..
           cmake --build . -j --target nurikit_all_test
-          ../scripts/check_coverage.sh .
+          ../scripts/check_coverage.sh . --xml
 
       # dependabot does not have access to CODECOV_TOKEN
       - uses: codecov/codecov-action@v3
         if: ${{ github.triggering_actor != 'dependabot[bot]' }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: coverage.info
+          files: build/coverage/xml/coverage.xml
           fail_ci_if_error: true
           verbose: true
