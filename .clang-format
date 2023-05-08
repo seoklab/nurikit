@@ -51,6 +51,10 @@ ContinuationIndentWidth: 2
 Cpp11BracedListStyle: false
 DerivePointerAlignment: false
 IncludeCategories:
+  - Regex: '^<(absl|gtest)/.*'
+    Priority: 3
+    SortPriority: 4
+    CaseSensitive: false
   - Regex: "^<.*/.*"
     Priority: 2
     SortPriority: 3
@@ -63,16 +67,12 @@ IncludeCategories:
     Priority: 1
     SortPriority: 1
     CaseSensitive: false
-  - Regex: '^"(absl|gtest)/.*'
-    Priority: 3
-    SortPriority: 4
-    CaseSensitive: false
   - Regex: "^.*/.*"
-    Priority: 3
+    Priority: 4
     SortPriority: 6
     CaseSensitive: false
   - Regex: "^.*"
-    Priority: 3
+    Priority: 4
     SortPriority: 5
     CaseSensitive: false
 IndentCaseLabels: false
