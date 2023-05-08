@@ -623,7 +623,7 @@ public:
    * @param id The id of the node to be removed.
    * @return The data of the removed node.
    * @sa erase_nodes()
-   * @note Time complexity: \f$O(V+E)\f$ if only trailing nodes are removed,
+   * @note Time complexity: \f$O(V)\f$ if only trailing node is removed,
    *       \f$O(V+E)\f$ otherwise. If \p id \f$\ge\f$ `num_nodes()` or \p id
    *       \f$\lt 0\f$, the behavior is undefined.
    */
@@ -639,7 +639,7 @@ public:
    * @param begin The beginning of the range of nodes to be removed.
    * @param end The end of the range of nodes to be removed.
    * @sa pop_node()
-   * @note Time complexity: \f$O(V+E)\f$ if only trailing nodes are removed,
+   * @note Time complexity: \f$O(V)\f$ if only trailing nodes are removed,
    *       \f$O(V+E)\f$ otherwise. If \p begin or \p end is out of range, the
    *       behavior is undefined.
    */
@@ -657,7 +657,7 @@ public:
    * @param pred A unary predicate that takes a `ConstNodeRef` and returns
    *        `true` if the node should be removed.
    * @sa pop_node()
-   * @note Time complexity: \f$O(V+E)\f$ if only trailing nodes are removed,
+   * @note Time complexity: \f$O(V)\f$ if only trailing nodes are removed,
    *       \f$O(V+E)\f$ otherwise. If \p begin or \p end is out of range, the
    *       behavior is undefined.
    */
