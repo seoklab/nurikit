@@ -46,7 +46,9 @@ jobs:
           cmake --build . -j --target nurikit_all_test
           ../scripts/check_coverage.sh .
 
+      # dependabot does not have access to CODECOV_TOKEN
       - uses: codecov/codecov-action@v3
+        if: ${{ github.triggering_actor != 'dependabot[bot]' }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.info
