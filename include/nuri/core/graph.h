@@ -179,7 +179,98 @@ namespace internal {
   };
 
   template <class GT, bool is_const>
-  class AdjIterator;
+  class AdjWrapper {
+  public:
+    using DT = typename GT::adj_data_type;
+    using edge_id_type = typename GT::edge_id_type;
+    using value_type = const_if_t<is_const, DT>;
+    using edge_value_type = const_if_t<is_const, typename GT::edge_data_type>;
+
+    template <bool other_const>
+    using Other = AdjWrapper<GT, other_const>;
+
+    constexpr AdjWrapper(int src, DT &adj) noexcept: src_(src), adj_(&adj) { }
+
+    constexpr AdjWrapper(int src, const DT &adj) noexcept
+      : src_(src), adj_(&adj) { }
+
+    template <bool other_const,
+              typename = std::enable_if_t<is_const && !other_const>>
+    constexpr AdjWrapper(const Other<other_const> &other) noexcept
+      : src_(other.src_), adj_(other.adj_) { }
+
+    constexpr int src() const noexcept { return src_; }
+    constexpr int dst() const noexcept { return adj_->dst; }
+
+    constexpr edge_id_type eid() const noexcept { return adj_->eid; }
+    constexpr edge_value_type &edge_data() const noexcept {
+      return adj_->eid->data;
+    }
+
+    constexpr Other<true> as_const() const noexcept { return *this; }
+
+  private:
+    template <class, bool>
+    friend class AdjWrapper;
+    friend GT;
+
+    int src_;
+    value_type *adj_;
+  };
+
+  template <class GT, bool is_const>
+  class AdjIterator
+    : public DataIteratorBase<AdjIterator<GT, is_const>, GT,
+                              AdjWrapper<GT, is_const>, is_const> {
+  public:
+    using Base = DataIteratorBase<AdjIterator<GT, is_const>, GT,
+                                  AdjWrapper<GT, is_const>, is_const>;
+
+    using typename Base::difference_type;
+    using typename Base::iterator_category;
+    using typename Base::pointer;
+    using typename Base::reference;
+    using typename Base::value_type;
+
+    using typename Base::parent_type;
+
+    template <bool other_const>
+    using Other = AdjIterator<GT, other_const>;
+
+    constexpr AdjIterator(parent_type *graph, difference_type idx,
+                          difference_type nid) noexcept
+      : Base(graph, idx), nid_(nid) { }
+
+    template <bool other_const,
+              typename = std::enable_if_t<is_const && !other_const>>
+    constexpr AdjIterator(const Other<other_const> &other) noexcept
+      : Base(other), nid_(other.nid_) { }
+
+    template <bool other_const,
+              class = std::enable_if_t<is_const && !other_const>>
+    constexpr AdjIterator &
+    operator=(const AdjIterator<GT, other_const> &other) noexcept {
+      Base::operator=(other);
+      nid_ = other.nid_;
+      return *this;
+    }
+
+  private:
+    friend Base;
+    template <class, bool other_const>
+    friend class AdjIterator;
+
+    constexpr AdjIterator advance(difference_type n) const noexcept {
+      return Base::advance(n, nid_);
+    }
+
+    constexpr value_type deref(parent_type *graph,
+                               difference_type index) const noexcept {
+      return graph->adjacent(nid_, index);
+    }
+
+    int nid_;
+  };
 
   template <class GT, bool is_const>
   class NodeWrapper {
@@ -384,100 +475,6 @@ namespace internal {
     EdgeIterator(stored_edge_id_type eid) noexcept: eid_(eid) { }
 
     EIT eid_;
-  };
-
-  template <class GT, bool is_const>
-  class AdjWrapper {
-  public:
-    using DT = typename GT::adj_data_type;
-    using edge_id_type = typename GT::edge_id_type;
-    using value_type = const_if_t<is_const, DT>;
-    using edge_value_type = const_if_t<is_const, typename GT::edge_data_type>;
-
-    template <bool other_const>
-    using Other = AdjWrapper<GT, other_const>;
-
-    constexpr AdjWrapper(int src, DT &adj) noexcept: src_(src), adj_(&adj) { }
-
-    constexpr AdjWrapper(int src, const DT &adj) noexcept
-      : src_(src), adj_(&adj) { }
-
-    template <bool other_const,
-              typename = std::enable_if_t<is_const && !other_const>>
-    constexpr AdjWrapper(const Other<other_const> &other) noexcept
-      : src_(other.src_), adj_(other.adj_) { }
-
-    constexpr int src() const noexcept { return src_; }
-    constexpr int dst() const noexcept { return adj_->dst; }
-
-    constexpr edge_id_type eid() const noexcept { return adj_->eid; }
-    constexpr edge_value_type &edge_data() const noexcept {
-      return adj_->eid->data;
-    }
-
-    constexpr Other<true> as_const() const noexcept { return *this; }
-
-  private:
-    template <class, bool>
-    friend class AdjWrapper;
-    friend GT;
-
-    int src_;
-    value_type *adj_;
-  };
-
-  template <class GT, bool is_const>
-  class AdjIterator
-    : public DataIteratorBase<AdjIterator<GT, is_const>, GT,
-                              AdjWrapper<GT, is_const>, is_const> {
-  public:
-    using Base = DataIteratorBase<AdjIterator<GT, is_const>, GT,
-                                  AdjWrapper<GT, is_const>, is_const>;
-
-    using typename Base::difference_type;
-    using typename Base::iterator_category;
-    using typename Base::pointer;
-    using typename Base::reference;
-    using typename Base::value_type;
-
-    using typename Base::parent_type;
-
-    template <bool other_const>
-    using Other = AdjIterator<GT, other_const>;
-
-    constexpr AdjIterator(parent_type *graph, difference_type idx,
-                          difference_type nid) noexcept
-      : Base(graph, idx), nid_(nid) { }
-
-    template <bool other_const,
-              typename = std::enable_if_t<is_const && !other_const>>
-    constexpr AdjIterator(const Other<other_const> &other) noexcept
-      : Base(other), nid_(other.nid_) { }
-
-    template <bool other_const,
-              class = std::enable_if_t<is_const && !other_const>>
-    constexpr AdjIterator &
-    operator=(const AdjIterator<GT, other_const> &other) noexcept {
-      Base::operator=(other);
-      nid_ = other.nid_;
-      return *this;
-    }
-
-  private:
-    friend Base;
-    template <class, bool other_const>
-    friend class AdjIterator;
-
-    constexpr AdjIterator advance(difference_type n) const noexcept {
-      return Base::advance(n, nid_);
-    }
-
-    constexpr value_type deref(parent_type *graph,
-                               difference_type index) const noexcept {
-      return graph->adjacent(nid_, index);
-    }
-
-    int nid_;
   };
 }  // namespace internal
 
