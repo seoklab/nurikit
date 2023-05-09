@@ -26,7 +26,7 @@ namespace internal {
   template <class Parent>
   class ArrowHelper {
   public:
-    constexpr ArrowHelper(Parent &&p) noexcept: p_(p) { }
+    constexpr ArrowHelper(Parent &&p) noexcept: p_(std::move(p)) { }
 
     constexpr Parent *operator->() noexcept { return &p_; }
     constexpr const Parent *operator->() const noexcept { return &p_; }
