@@ -11,10 +11,6 @@ on:
       CODECOV_TOKEN:
         required: true
 
-concurrency:
-  group: "codecov"
-  cancel-in-progress: true
-
 defaults:
   run:
     shell: bash
