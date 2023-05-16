@@ -16,7 +16,7 @@ defaults:
     shell: bash
 
 concurrency:
-  group: "docs"
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -41,5 +41,6 @@ jobs:
 
       - name: Deploy
         run: |
-          mkdir -p "$HOME/var/www/html/docs/nurikit"
-          rsync -avh --delete build/generated/docs/html/ "$HOME/var/www/html/docs/nurikit/"
+          output="$HOME/www/html/docs/nurikit/main/"
+          mkdir -p "$output"
+          rsync -avh --delete build/generated/docs/html/ "$output"
