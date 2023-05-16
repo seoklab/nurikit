@@ -42,6 +42,9 @@
     "cmake.configureArgs": [
         "-DNURIKIT_TEST_COVERAGE=ON",
     ],
+    "editor.unicodeHighlight.allowedCharacters": {
+        "©": true,
+    },
     "files.eol": "\n",
     "files.insertFinalNewline": true,
     "files.trimFinalNewlines": true,
