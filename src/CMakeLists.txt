@@ -14,11 +14,14 @@ add_executable(nuri_exe "main.cpp")
 set_target_properties(nuri_exe PROPERTIES OUTPUT_NAME nuri)
 install(TARGETS nuri_exe RUNTIME)
 
-file(GLOB NURIKIT_SRCS *.cpp)
+file(GLOB_RECURSE NURIKIT_SRCS *.cpp)
 list(FILTER NURIKIT_SRCS EXCLUDE REGEX "main\.cpp$")
 
 if(NURIKIT_SRCS)
   add_library(nuri_lib SHARED "${NURIKIT_SRCS}")
+  target_link_libraries(nuri_lib
+    PUBLIC
+    absl::strings absl::flat_hash_map absl::absl_check)
   set_target_properties(nuri_lib PROPERTIES OUTPUT_NAME nuri)
   install(TARGETS nuri_lib LIBRARY)
 
