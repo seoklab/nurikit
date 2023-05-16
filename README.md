@@ -10,7 +10,7 @@ and extensible design.
 ## Documentation
 
 See documentation for the main branch at
-<https://cluster.seoklab.org:8443/docs/nurikit>. (Use the cluster ID/PW for
+<https://cluster.seoklab.org:8443/docs/nurikit/main>. (Use the cluster ID/PW for
 authentication.)
 
 ## Contributing
