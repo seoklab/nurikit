@@ -40,8 +40,7 @@ struct Isotope {
  *     element, the value given is taken from the radioactive table, where the
  *     value represents the longest-lived isotope of the element.
  *   - If ranges are specified in the isotopic abundances table for an element,
- *     the given value is manually averaged from the given range. (*not*
- *     rounded)
+ *     the given value is taken from the NUBASE 2020 table.
  *   - Dummy atom has one *isotope*, which corresponds to the neutron.
  *
  * @subsubsection ai-ref References
@@ -52,6 +51,11 @@ struct Isotope {
  *   - https://ciaaw.org/radioactive-elements.htm (Accessed 2023-05-11)
  *   - https://ciaaw.org/atomic-masses.htm (Accessed 2023-05-11)
  *   - https://ciaaw.org/isotopic-abundances.htm (Accessed 2023-05-11)
+ *
+ * For the isotopes that are listed as ranges in the isotopic abundances table,
+ * the following reference was used:
+ *   - Kondev, F. G. *et al.* *Chinese Phys. C* **2021**, *45* (3), 030001. DOI:
+ *     [10.1088/1674-1137/abddae](https://doi.org/10.1088/1674-1137/abddae)
  *
  * For the neutron mass, the following reference was used:
  *   - https://physics.nist.gov/cgi-bin/cuu/Value?arn (Accessed 2023-05-11)
