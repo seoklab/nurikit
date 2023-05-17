@@ -209,7 +209,7 @@ public:
     return *find_element(atomic_number);
   }
 
-  const Element *find_element(int atomic_number) const noexcept {
+  constexpr const Element *find_element(int atomic_number) const noexcept {
     return has_element(atomic_number) ? &elements_[atomic_number] : nullptr;
   }
 
