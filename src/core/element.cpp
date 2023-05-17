@@ -3900,9 +3900,44 @@ PeriodicTable::PeriodicTable() noexcept
   { 118, 293, 293.213423, 0.0 },
   { 118, 294, 294.213979, 0.0 },
   { 118, 295, 295.216178, 0.0 },
-} },
+} }, },
   // clang-format on
-} { }
+    symbol_to_element_(kElementCount_ + 17),
+    name_to_element_(kElementCount_ + 15) {
+  // Canonical symbols and names.
+  for (const Element &element: elements_) {
+    symbol_to_element_[element.symbol()] = name_to_element_[element.name()] =
+      &element;
+  }
+
+  // Non-canonical symbols for convenience.
+
+  // RDKit use "*" and some others use "X" for dummy atom.
+  symbol_to_element_["*"] = symbol_to_element_["X"] = &elements_[0];
+
+  // Systematic element symbols & names (104-118).
+  symbol_to_element_["Unq"] = name_to_element_["Unnilquadium"] =
+    &elements_[104];
+  symbol_to_element_["Unp"] = name_to_element_["Unnilpentium"] =
+    &elements_[105];
+  symbol_to_element_["Unh"] = name_to_element_["Unnilhexium"] = &elements_[106];
+  symbol_to_element_["Uns"] = name_to_element_["Unnilseptium"] =
+    &elements_[107];
+  symbol_to_element_["Uno"] = name_to_element_["Unniloctium"] = &elements_[108];
+  symbol_to_element_["Une"] = name_to_element_["Unnilennium"] = &elements_[109];
+  symbol_to_element_["Uun"] = name_to_element_["Ununnilium"] = &elements_[110];
+  symbol_to_element_["Uuu"] = name_to_element_["Unununium"] = &elements_[111];
+  symbol_to_element_["Uub"] = name_to_element_["Ununbium"] = &elements_[112];
+  symbol_to_element_["Uut"] = name_to_element_["Ununtrium"] = &elements_[113];
+  symbol_to_element_["Uuq"] = name_to_element_["Ununquadium"] = &elements_[114];
+  symbol_to_element_["Uup"] = name_to_element_["Ununpentium"] = &elements_[115];
+  symbol_to_element_["Uuh"] = name_to_element_["Ununhexium"] = &elements_[116];
+  symbol_to_element_["Uus"] = name_to_element_["Ununseptium"] = &elements_[117];
+  symbol_to_element_["Uuo"] = name_to_element_["Ununoctium"] = &elements_[118];
+
+  symbol_to_element_.rehash(0);
+  name_to_element_.rehash(0);
+}
 
 const PeriodicTable PeriodicTable::kPeriodicTable_ {};
 }  // namespace nuri
