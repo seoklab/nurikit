@@ -28,8 +28,8 @@ namespace {
 
     // 2nd - 3rd row
     if (atnum <= 18) {
-      auto div = std::div(atnum - 3, 8);
-      int period = div.quot + 2;
+      const auto div = std::div(atnum - 3, 8);
+      const int period = div.quot + 2;
       int group = div.rem + 1;
       if (group >= 3) {
         group += 10;
@@ -39,15 +39,15 @@ namespace {
 
     // 4th - 5th row
     if (atnum <= 54) {
-      auto div = std::div(atnum - 19, 18);
-      int period = div.quot + 4;
-      int group = div.rem + 1;
+      const auto div = std::div(atnum - 19, 18);
+      const int period = div.quot + 4;
+      const int group = div.rem + 1;
       return { period, group };
     }
 
     // 6th - 7th row
-    auto div = std::div(atnum - 55, 32);
-    int period = div.quot + 6;
+    const auto div = std::div(atnum - 55, 32);
+    const int period = div.quot + 6;
     int group = div.rem + 1;
     if (group >= 3 && group <= 17) {
       // Lanthanides and actinides
