@@ -6,6 +6,7 @@
 #include "nuri/core/element.h"
 
 #include <algorithm>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -125,5 +126,83 @@ TEST_F(PeriodicTableTest, IsotopesTest) {
         << elem.atomic_number() << elem.symbol();
     }
   }
+}
+
+TEST_F(PeriodicTableTest, PeriodTest) {
+  for (int i = 1; i <= 2; ++i) {
+    EXPECT_EQ(table_.find_element(i)->period(), 1);
+  }
+  for (int i = 3; i <= 10; ++i) {
+    EXPECT_EQ(table_.find_element(i)->period(), 2);
+  }
+  for (int i = 11; i <= 18; ++i) {
+    EXPECT_EQ(table_.find_element(i)->period(), 3);
+  }
+  for (int i = 19; i <= 36; ++i) {
+    EXPECT_EQ(table_.find_element(i)->period(), 4);
+  }
+  for (int i = 37; i <= 54; ++i) {
+    EXPECT_EQ(table_.find_element(i)->period(), 5);
+  }
+  for (int i = 55; i <= 86; ++i) {
+    EXPECT_EQ(table_.find_element(i)->period(), 6);
+  }
+  for (int i = 87; i <= 118; ++i) {
+    EXPECT_EQ(table_.find_element(i)->period(), 7);
+  }
+}
+
+TEST_F(PeriodicTableTest, GroupTest) {
+  std::vector<int> used(PeriodicTable::kElementCount_, 0);
+
+  auto check_group = [&](int z, int group) {
+    used[z] = 1;
+    EXPECT_EQ(table_.find_element(z)->group(), group);
+  };
+
+  auto check_group_for = [&](int group, const std::vector<int> &zs) {
+    for (int z: zs) {
+      check_group(z, group);
+    }
+  };
+
+  // dummy
+  check_group(0, 0);
+
+  // s-block
+  check_group_for(1, { 1, 3, 11, 19, 37, 55, 87 });
+  check_group_for(2, { 4, 12, 20, 38, 56, 88 });
+
+  // Group 3 includes lanthanides and actinides
+  check_group_for(3, { 21, 39 });
+  for (int i = 57; i <= 71; ++i) {
+    check_group(i, 3);
+  }
+  for (int i = 89; i <= 103; ++i) {
+    check_group(i, 3);
+  }
+
+  // Other d-block
+  check_group_for(4, { 22, 40, 72, 104 });
+  check_group_for(5, { 23, 41, 73, 105 });
+  check_group_for(6, { 24, 42, 74, 106 });
+  check_group_for(7, { 25, 43, 75, 107 });
+  check_group_for(8, { 26, 44, 76, 108 });
+  check_group_for(9, { 27, 45, 77, 109 });
+  check_group_for(10, { 28, 46, 78, 110 });
+  check_group_for(11, { 29, 47, 79, 111 });
+  check_group_for(12, { 30, 48, 80, 112 });
+
+  // p-block
+  check_group_for(13, { 5, 13, 31, 49, 81, 113 });
+  check_group_for(14, { 6, 14, 32, 50, 82, 114 });
+  check_group_for(15, { 7, 15, 33, 51, 83, 115 });
+  check_group_for(16, { 8, 16, 34, 52, 84, 116 });
+  check_group_for(17, { 9, 17, 35, 53, 85, 117 });
+  check_group_for(18, { 2, 10, 18, 36, 54, 86, 118 });
+
+  // Check all elements are used
+  EXPECT_TRUE(
+    std::all_of(used.begin(), used.end(), [](int x) { return x == 1; }));
 }
 }  // namespace
