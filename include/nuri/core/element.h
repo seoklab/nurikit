@@ -239,6 +239,9 @@ public:
     return name_to_element_.contains(name);
   }
 
+  const Element *begin() const noexcept { return elements_; }
+  const Element *end() const noexcept { return elements_ + kElementCount_; }
+
   // 118 elements + dummy
   // NOLINTNEXTLINE(readability-identifier-naming)
   constexpr inline static int kElementCount_ = 118 + 1;
