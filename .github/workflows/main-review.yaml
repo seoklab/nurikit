@@ -85,14 +85,14 @@ jobs:
 
   test-and-coverage:
     needs: [run-clang-tools]
-    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(github.event.head_commit.message, '[skip test]') }}
     uses: ./.github/workflows/test-and-coverage.yaml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   test-build:
     needs: [run-clang-tools]
-    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(github.event.head_commit.message, '[skip test]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: lukka/get-cmake@latest
