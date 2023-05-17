@@ -77,6 +77,11 @@ include_directories(
 
 add_compile_options(-pedantic -Wall -Wextra -Wno-sign-compare)
 
+if(NURIKIT_TEST_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  message(STATUS "GNU/Clang detected, enabling coverage")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
+endif()
+
 add_subdirectory(include)
 add_subdirectory(src)
 add_subdirectory(docs EXCLUDE_FROM_ALL)
