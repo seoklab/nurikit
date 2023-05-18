@@ -1,0 +1,23 @@
+#
+# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+[build-system]
+requires = ["scikit-build-core"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "@PROJECT_NAME@"
+version = "@NURIKIT_VERSION@"
+requires-python = ">=3.7"
+
+[tool.scikit-build]
+minimum-version = "0.3"
+cmake.minimum-version = "@CMAKE_MINIMUM_REQUIRED_VERSION@"
+cmake.build-type = "@CMAKE_BUILD_TYPE@"
+cmake.verbose = @NURIKIT_VERBOSE_CMAKE@
+
+sdist.exclude = ["*.h", "*.cpp"]
+wheel.packages = ["python/nuri"]
+wheel.install-dir = "nuri"
