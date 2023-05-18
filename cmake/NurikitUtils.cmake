@@ -50,6 +50,8 @@ function(nurikit_get_version)
     set(NURIKIT_REF "unknown")
   endif()
 
+  string(TIMESTAMP NURIKIT_YEAR "%Y" UTC)
+  set(NURIKIT_YEAR "${NURIKIT_YEAR}" PARENT_SCOPE)
   set(NURIKIT_VERSION "${NURIKIT_VERSION}" PARENT_SCOPE)
   set(NURIKIT_REF "${NURIKIT_REF}" PARENT_SCOPE)
 endfunction()

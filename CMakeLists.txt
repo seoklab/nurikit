@@ -64,27 +64,34 @@ endif()
 
 add_subdirectory(third-party EXCLUDE_FROM_ALL)
 
-configure_file(cmake/nurikit_config.h.in
-  generated/include/nuri/nurikit_config.h @ONLY)
-install(FILES
-  ${CMAKE_CURRENT_BINARY_DIR}/generated/include/nuri/nurikit_config.h
-  DESTINATION include/nuri
-  COMPONENT Development)
-
-include_directories(
-  ${CMAKE_CURRENT_BINARY_DIR}/generated/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
 add_compile_options(-pedantic -Wall -Wextra -Wno-sign-compare)
+set(NURIKIT_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 if(NURIKIT_TEST_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   message(STATUS "GNU/Clang detected, enabling coverage")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
+  string(APPEND CMAKE_CXX_FLAGS " --coverage")
 endif()
 
 add_subdirectory(include)
+include_directories(${NURIKIT_INCLUDE_DIRECTORIES})
+
 add_subdirectory(src)
 add_subdirectory(docs EXCLUDE_FROM_ALL)
+
+if(SKBUILD)
+  add_subdirectory(python)
+else()
+  set(NURIKIT_VERBOSE_CMAKE "false")
+
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(NURIKIT_VERBOSE_CMAKE "true")
+  endif()
+
+  configure_file(
+    pyproject.toml.in "${CMAKE_CURRENT_SOURCE_DIR}/pyproject.toml" @ONLY)
+
+  add_subdirectory(python EXCLUDE_FROM_ALL)
+endif()
 
 include(CTest)
 add_subdirectory(test EXCLUDE_FROM_ALL)
