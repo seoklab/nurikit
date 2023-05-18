@@ -41,11 +41,7 @@ PYBIND11_MODULE(element, m) {
     .def("__repr__", isotope_repr);
 
   using IsotopeList = std::vector<Isotope>;
-  PyProxyCls<IsotopeList>(m, "IsotopeList", R"doc(
-    A list of isotopes of an element.
-
-    This class is a thin wrapper of ``const std::vector<Isotope>``.
-  )doc")
+  PyProxyCls<IsotopeList>(m, "_IsotopeList")
     .def("__len__", &IsotopeList::size)
     .def("__iter__",
          [](const IsotopeList &self) {
@@ -58,7 +54,7 @@ PYBIND11_MODULE(element, m) {
           i += static_cast<int>(self.size());
         }
         if (i < 0 || i >= self.size()) {
-          throw py::index_error("IsotopeList index out of range");
+          throw py::index_error("_IsotopeList index out of range");
         }
         return self[i];
       },
@@ -66,11 +62,11 @@ PYBIND11_MODULE(element, m) {
     .def("__repr__",
          [](const IsotopeList &self) {
            return absl::StrCat(
-             "<IsotopeList of ",
+             "<_IsotopeList of ",
              PeriodicTable::get()[self[0].atomic_number].name(), ">");
          })
     .def("__str__", [](const IsotopeList &self) {
-      return "<IsotopeList ["
+      return "<_IsotopeList ["
              + absl::StrJoin(self, ", ",
                              [](std::string *s, const Isotope &iso) {
                                absl::StrAppend(s, isotope_repr(iso));
