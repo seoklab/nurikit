@@ -31,8 +31,7 @@ PYBIND11_MODULE(element, m) {
   PyProxyCls<Isotope>(m, "Isotope", R"doc(
     An isotope of an element.
 
-    Refer to the ``nuri::Isotope`` class in the C++ documentation for more
-    details.
+    Refer to the ``nuri::Isotope`` class in the |cppdocs| for more details.
   )doc")
     .def_readonly("atomic_number", &Isotope::atomic_number,
                   "Atomic number of the isotope.")
@@ -82,8 +81,7 @@ PYBIND11_MODULE(element, m) {
   PyProxyCls<Element>(m, "Element", R"doc(
     An element.
 
-    Refer to the ``nuri::Element`` class in the C++ documentation for more
-    details.
+    Refer to the ``nuri::Element`` class in the |cppdocs| for more details.
   )doc")
     .def_property_readonly("atomic_number", &Element::atomic_number)
     .def_property_readonly("symbol", &Element::symbol)
@@ -140,8 +138,7 @@ PYBIND11_MODULE(element, m) {
     ...
     <Element Og>
 
-    Refer to the ``nuri::PeriodicTable`` class in the C++ documentation for more
-    details.
+    Refer to the ``nuri::PeriodicTable`` class in the |cppdocs| for details.
   )doc");
   pt.def_static("get", &PeriodicTable::get, py::return_value_policy::reference,
                 R"doc(

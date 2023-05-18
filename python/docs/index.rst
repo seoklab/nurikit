@@ -10,7 +10,7 @@ Welcome to nurikit's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   modules
+   nuri
 
 Indices and tables
 ==================

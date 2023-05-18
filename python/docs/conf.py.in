@@ -40,6 +40,10 @@ html_css_files = [
 
 intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}
 
+rst_prolog = """
+.. |cppdocs| replace:: `C++ documentation`_
+.. _C++ documentation: https://cluster.seoklab.org:8443/docs/nurikit/main
+"""
 
 class UnneededBaseStripDocumenter(autodoc.ClassDocumenter):
     _strip_re = re.compile(

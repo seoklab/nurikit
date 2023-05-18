@@ -10,4 +10,10 @@ very useful by itself, but is a dependency of many other modules. Chemical
 data structures, such as elements, isotopes, and molecules, and also the
 graph structure and algorithms, are defined in this module."""
 
+__all__ = [
+    "Element",
+    "Isotope",
+    "PeriodicTable",
+]
+
 from .element import *
