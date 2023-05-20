@@ -42,6 +42,6 @@ jobs:
 
       - name: Deploy
         run: |
-          output="$HOME/www/html/docs/nurikit/main/"
+          output="$HOME/www/html/docs/nurikit/$(git rev-parse --abbrev-ref HEAD)/"
           mkdir -p "$output"
           rsync -avh --delete build/generated/docs/html/ "$output"
