@@ -65,4 +65,3 @@ NURIKIT_ENABLE_IPO = "@NURIKIT_ENABLE_IPO@"
 
 [tool.cibuildwheel]
 build = ["cp*-manylinux_x86_64"]
-repair-wheel-command = ""
