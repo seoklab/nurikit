@@ -65,7 +65,7 @@ jobs:
           cmake \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -S . -B build
+            -S . -B build -G Ninja
 
       - uses: cpp-linter/cpp-linter-action@v2
         id: clang-tools
@@ -106,7 +106,7 @@ jobs:
 
       - name: Build and test
         run: |
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-Werror -S . -B build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-Werror -S . -B build -G Ninja
           cmake --build build -j --target all test
 
 concurrency:
