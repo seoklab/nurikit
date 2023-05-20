@@ -9,7 +9,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "@PROJECT_NAME@"
-version = "@NURIKIT_FULL_VERSION@"
+version = "@NURIKIT_VERSION@"
 description = "*The* fundamental software platform for chem- and bio-informatics"
 readme = "README.md"
 requires-python = ">=3.7"

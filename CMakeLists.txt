@@ -9,7 +9,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(NurikitUtils)
 
 nurikit_get_version()
-project(nurikit VERSION "${NURIKIT_VERSION}" LANGUAGES CXX)
+project(nurikit VERSION "${NURIKIT_CORE_VERSION}" LANGUAGES CXX)
 
 # Compile options
 set(NURIKIT_OPTIMIZATION_LEVEL "O3" CACHE STRING "Optimization level")
