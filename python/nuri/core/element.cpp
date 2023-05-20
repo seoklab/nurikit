@@ -28,16 +28,37 @@ std::string isotope_repr(const Isotope &iso) {
 }
 
 PYBIND11_MODULE(element, m) {
+  PyProxyCls<Element> py_elem(m, "Element", R"doc(
+    An element.
+
+    All instances of this class are immutable and singleton. If you want to
+    compare two instances, just use the ``is`` operator. You can also compare
+    two elements using the comparison operators, which in turn compares their
+    :attr:`atomic_number` (added for convenience).
+
+    >>> from nuri import periodic_table
+    >>> periodic_table["H"] < periodic_table["He"]
+    True
+
+    Refer to the ``nuri::Element`` class in the |cppdocs| for more details.
+  )doc");
+
   PyProxyCls<Isotope>(m, "Isotope", R"doc(
     An isotope of an element.
 
-    Refer to the ``nuri::Isotope`` class in the |cppdocs| for more details.
+    All instances of this class are immutable and singleton. If you want to
+    compare two instances, just use the ``is`` operator. You can also compare
+    two elements using the comparison operators, which in turn compares their
+    :attr:`mass_number` (added for convenience).
+
+    Refer to the ``nuri::Element`` class in the |cppdocs| for more details.
   )doc")
     .def_readonly("atomic_number", &Isotope::atomic_number,
                   "Atomic number of the isotope.")
-    .def_readonly("mass_number", &Isotope::mass_number)
-    .def_readonly("atomic_weight", &Isotope::atomic_weight)
-    .def_readonly("abundance", &Isotope::abundance)
+    .def_readonly("mass_number", &Isotope::mass_number, ":type: :class:`int`")
+    .def_readonly("atomic_weight", &Isotope::atomic_weight,
+                  ":type: :class:`float`")
+    .def_readonly("abundance", &Isotope::abundance, ":type: :class:`float`")
     .def("__repr__", isotope_repr);
 
   using IsotopeList = std::vector<Isotope>;
@@ -74,22 +95,26 @@ PYBIND11_MODULE(element, m) {
              + "]>";
     });
 
-  PyProxyCls<Element>(m, "Element", R"doc(
-    An element.
-
-    Refer to the ``nuri::Element`` class in the |cppdocs| for more details.
-  )doc")
-    .def_property_readonly("atomic_number", &Element::atomic_number)
-    .def_property_readonly("symbol", &Element::symbol)
-    .def_property_readonly("name", &Element::name)
-    .def_property_readonly("period", &Element::period)
-    .def_property_readonly("group", &Element::group)
-    .def_property_readonly("atomic_weight", &Element::atomic_weight)
-    .def_property_readonly("covalent_radius", &Element::covalent_radius)
-    .def_property_readonly("vdw_radius", &Element::vdw_radius)
-    .def_property_readonly("eneg", &Element::eneg)
-    .def_property_readonly("major_isotope", &Element::major_isotope)
-    .def_property_readonly("isotopes", &Element::isotopes)
+  py_elem  //
+    .def_property_readonly("atomic_number", &Element::atomic_number,
+                           ":type: :class:`int`")
+    .def_property_readonly("symbol", &Element::symbol, ":type: :class:`str`")
+    .def_property_readonly("name", &Element::name, ":type: :class:`str`")
+    .def_property_readonly("period", &Element::period, ":type: :class:`int`")
+    .def_property_readonly("group", &Element::group, ":type: :class:`int`")
+    .def_property_readonly("atomic_weight", &Element::atomic_weight,
+                           ":type: :class:`float`")
+    .def_property_readonly("covalent_radius", &Element::covalent_radius,
+                           ":type: :class:`float`")
+    .def_property_readonly("vdw_radius", &Element::vdw_radius,
+                           ":type: :class:`float`")
+    .def_property_readonly("eneg", &Element::eneg, ":type: :class:`float`")
+    .def_property_readonly("major_isotope", &Element::major_isotope,
+                           py::return_value_policy::reference,
+                           ":type: :class:`Isotope`")
+    .def_property_readonly(
+      "isotopes", &Element::isotopes, py::return_value_policy::reference,
+      ":type: :class:`collections.abc.Sequence` of :class:`Isotope`")
     .def("__repr__", [](const Element &elem) {
       return absl::StrCat("<Element ", elem.symbol(), ">");
     });
@@ -130,6 +155,8 @@ PYBIND11_MODULE(element, m) {
 
     >>> for elem in periodic_table:
     ...     print(elem)
+    ...
+    <Element Xx>
     <Element H>
     ...
     <Element Og>

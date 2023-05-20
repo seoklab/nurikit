@@ -1,11 +1,11 @@
-nuri package
-============
+Nurikit Python API Reference
+============================
 
-Subpackages
------------
+Submodules
+----------
 
 .. toctree::
-   :maxdepth: 4
+   :maxdepth: 3
 
    nuri.core
 

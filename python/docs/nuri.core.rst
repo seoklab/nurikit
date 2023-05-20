@@ -1,5 +1,5 @@
-nuri.core package
-=================
+nuri.core
+=========
 
 Module contents
 ---------------
