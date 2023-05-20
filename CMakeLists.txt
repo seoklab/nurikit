@@ -29,11 +29,6 @@ elseif(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     "Please use clang or gcc as a compiler.")
 endif()
 
-if(NURIKIT_BUILD_PYTHON AND NOT CMAKE_GENERATOR STREQUAL "Ninja")
-  message(FATAL_ERROR
-    "Python bindings require Ninja generator. Try again with -G Ninja.")
-endif()
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
