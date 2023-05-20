@@ -20,8 +20,9 @@ release = "@NURIKIT_REF@"
 
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.intersphinx",
     "sphinx.ext.autosummary",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.doctest",
 ]
 
 autosummary_generate = True
