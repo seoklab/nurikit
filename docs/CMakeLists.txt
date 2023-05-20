@@ -18,10 +18,15 @@ endif()
 
 set(DOXYGEN_IN ${CMAKE_CURRENT_LIST_DIR}/Doxyfile.in)
 set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
+set(DOXYGEN_OUTPUT_DIR "${PROJECT_BINARY_DIR}/generated/docs")
 
 configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
+add_custom_target(_nurikit_docs_setup
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${DOXYGEN_OUTPUT_DIR}"
+  VERBATIM)
 add_custom_target(nurikit_docs
   COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+  DEPENDS _nurikit_docs_setup
   WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
   COMMENT "Generating API documentation with Doxygen"
   VERBATIM)
