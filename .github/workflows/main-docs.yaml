@@ -33,8 +33,7 @@ jobs:
           cmake \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DNURIKIT_BUILD_PYTHON=OFF \
-            -S . -B build
+            -S . -B build -G Ninja
 
       - name: Build docs
         run: |
