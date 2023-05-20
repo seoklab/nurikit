@@ -27,7 +27,11 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: C++",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Topic :: Software Development :: Libraries",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
@@ -42,7 +46,6 @@ Repository = "https://github.com/seoklab/nurikit.git"
 minimum-version = "0.4"
 ninja.make-fallback = false
 
-build-dir = "@PROJECT_BINARY_DIR@"
 cmake.minimum-version = "@CMAKE_MINIMUM_REQUIRED_VERSION@"
 cmake.build-type = "@CMAKE_BUILD_TYPE@"
 cmake.verbose = @NURIKIT_VERBOSE_CMAKE@
@@ -50,3 +53,16 @@ cmake.verbose = @NURIKIT_VERBOSE_CMAKE@
 sdist.exclude = ["*.h", "*.cpp", "*.in", "*.so"]
 wheel.packages = ["python/nuri"]
 wheel.install-dir = "nuri"
+
+[tool.scikit-build.cmake.define]
+NURIKIT_BUILD_PYTHON = "ON"
+NURIKIT_ENABLE_AVX2 = "OFF"
+NURIKIT_ENABLE_ARCH_NATIVE = "OFF"
+NURIKIT_TEST_COVERAGE = "OFF"
+NURIKIT_BUILD_DOCS = "OFF"
+NURIKIT_OPTIMIZATION_LEVEL = "@NURIKIT_OPTIMIZATION_LEVEL@"
+NURIKIT_ENABLE_IPO = "@NURIKIT_ENABLE_IPO@"
+
+[tool.cibuildwheel]
+build = ["cp*-manylinux_x86_64"]
+repair-wheel-command = ""
