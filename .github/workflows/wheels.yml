@@ -1,0 +1,60 @@
+#
+# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+name: Build wheels
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "release/**"
+  pull_request:
+    branches:
+      - "main"
+      - "release/**"
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Wheels for ${{ matrix.python }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["cp37", "cp38", "cp39", "cp310", "cp311"]
+
+    steps:
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~3.16.0" # for Ubuntu 20.04
+
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Configure with cmake
+        run: |
+          cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -S . -B build -G Ninja
+
+      - uses: pypa/cibuildwheel@v2.12.3
+        env:
+          CIBW_BUILD: ${{ matrix.python }}-manylinux_x86_64
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v2
+        with:
+          name: wheels
+          path: wheelhouse/*.whl
