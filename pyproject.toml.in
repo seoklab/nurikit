@@ -9,7 +9,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "@PROJECT_NAME@"
-version = "@NURIKIT_VERSION@"
+version = "@NURIKIT_FULL_VERSION@"
 requires-python = ">=3.7"
 
 [tool.scikit-build]
@@ -21,6 +21,6 @@ cmake.minimum-version = "@CMAKE_MINIMUM_REQUIRED_VERSION@"
 cmake.build-type = "@CMAKE_BUILD_TYPE@"
 cmake.verbose = @NURIKIT_VERBOSE_CMAKE@
 
-sdist.exclude = ["*.h", "*.cpp"]
+sdist.exclude = ["*.h", "*.cpp", "*.in", "*.so"]
 wheel.packages = ["python/nuri"]
 wheel.install-dir = "nuri"

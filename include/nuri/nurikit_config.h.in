@@ -14,6 +14,8 @@
 
 namespace nuri {
 constexpr inline std::string_view kNurikitVersion = "@nurikit_VERSION@";
+constexpr inline std::string_view kNurikitFullVersion =
+  "@NURIKIT_FULL_VERSION@";
 }  // namespace nuri
 
 #endif /* NURI_NURIKIT_CONFIG_H_ */

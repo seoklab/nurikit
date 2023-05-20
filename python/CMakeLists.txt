@@ -11,6 +11,13 @@ Fetchcontent_Declare(
 )
 FetchContent_MakeAvailable(pybind11)
 
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/nuri/_version.py.in"
+  "${CMAKE_CURRENT_SOURCE_DIR}/nuri/_version.py"
+  @ONLY)
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/nuri/_version.py"
+  DESTINATION ".")
+
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/nuri")
 file(GLOB_RECURSE NURIKIT_PYTHON_SOURCES "nuri/*.cpp")
 

@@ -8,6 +8,12 @@ bio-informatics."""
 
 __all__ = [
     "periodic_table",
+    "__version__",
 ]
+
+try:
+    from ._version import __version__, __full_version__
+except ImportError:
+    __version__ = __full_version__ = "unknown"
 
 from .core import periodic_table

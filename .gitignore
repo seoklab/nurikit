@@ -5,6 +5,7 @@
 # Coverage report file
 /coverage.info
 /pyproject.toml
+/python/nuri/_version.py
 
 # Common build directories
 .cache/
