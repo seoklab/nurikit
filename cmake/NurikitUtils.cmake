@@ -1,3 +1,8 @@
+#
+# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
 macro(_nurikit_get_git_version_impl)
   find_package(Git)
 

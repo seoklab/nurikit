@@ -1,3 +1,8 @@
+#
+# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
 find_package(Doxygen 1.8)
 
 if(DOXYGEN_FOUND)
