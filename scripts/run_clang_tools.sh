@@ -18,7 +18,7 @@ fi
 
 files="$(mktemp)"
 if [[ $# -eq 0 ]]; then
-	find include src \
+	find include src python/nuri \
 		\( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) -print0 >"$files"
 else
 	printf '%s\0' "$@" >"$files"

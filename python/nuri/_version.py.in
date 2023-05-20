@@ -3,6 +3,5 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-include(NurikitTest)
-
-nurikit_add_test(graph_test element_test)
+__version__ = "@NURIKIT_VERSION@"
+__full_version__ = "@NURIKIT_FULL_VERSION@"

@@ -1,3 +1,8 @@
+#
+# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
 find_package(Doxygen 1.8)
 
 if(DOXYGEN_FOUND)
@@ -11,7 +16,7 @@ else()
   return()
 endif()
 
-set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in)
+set(DOXYGEN_IN ${CMAKE_CURRENT_LIST_DIR}/Doxyfile.in)
 set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
 
 configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)

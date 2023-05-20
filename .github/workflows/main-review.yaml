@@ -65,7 +65,7 @@ jobs:
           cmake \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -S . -B build
+            -S . -B build -G Ninja
 
       - uses: cpp-linter/cpp-linter-action@v2
         id: clang-tools
@@ -105,9 +105,11 @@ jobs:
           submodules: recursive
 
       - name: Build and test
+        # CMake 'test' target does not have dependencies on 'all' target...
         run: |
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-Werror -S . -B build
-          cmake --build build -j --target all test
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-Werror -S . -B build -G Ninja
+          cmake --build build -j --target all
+          cmake --build build -j --target test
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
