@@ -27,14 +27,14 @@ extensions = [
 
 autosummary_generate = True
 
-templates_path = ["@CMAKE_CURRENT_SOURCE_DIR@/_templates"]
+templates_path = ["@CMAKE_CURRENT_LIST_DIR@/_templates"]
 exclude_patterns = ["Thumbs.db", ".DS_Store"]
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "sphinx_rtd_theme"
-html_static_path = ["@CMAKE_CURRENT_SOURCE_DIR@/_static"]
+html_static_path = ["@CMAKE_CURRENT_LIST_DIR@/_static"]
 html_css_files = [
     "css/rtd-property.css" # workaround https://github.com/readthedocs/sphinx_rtd_theme/issues/1301
 ]

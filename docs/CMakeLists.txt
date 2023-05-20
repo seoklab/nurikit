@@ -11,7 +11,7 @@ else()
   return()
 endif()
 
-set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in)
+set(DOXYGEN_IN ${CMAKE_CURRENT_LIST_DIR}/Doxyfile.in)
 set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
 
 configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)

@@ -16,7 +16,7 @@ if(NOT SKBUILD)
     "${CMAKE_CURRENT_BINARY_DIR}/generated/include/nuri/nurikit_config.h"
     DESTINATION include/nuri)
 
-  install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/nuri"
+  install(DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/nuri"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     FILES_MATCHING PATTERN "*.h")
 endif()

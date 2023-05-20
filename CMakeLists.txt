@@ -5,7 +5,7 @@
 
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR) # Version for Ubuntu 20.04 LTS
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 include(NurikitUtils)
 
 nurikit_get_version()
@@ -72,7 +72,7 @@ endif()
 add_subdirectory(third-party EXCLUDE_FROM_ALL)
 
 add_compile_options(-pedantic -Wall -Wextra -Wno-sign-compare)
-set(NURIKIT_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/include")
+set(NURIKIT_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_LIST_DIR}/include")
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug"
   AND NURIKIT_TEST_COVERAGE
@@ -97,7 +97,7 @@ elseif(NURIKIT_BUILD_PYTHON)
   endif()
 
   configure_file(
-    pyproject.toml.in "${CMAKE_CURRENT_SOURCE_DIR}/pyproject.toml" @ONLY)
+    pyproject.toml.in "${CMAKE_CURRENT_LIST_DIR}/pyproject.toml" @ONLY)
 
   add_subdirectory(python EXCLUDE_FROM_ALL)
 endif()

@@ -12,13 +12,13 @@ Fetchcontent_Declare(
 FetchContent_MakeAvailable(pybind11)
 
 configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/nuri/_version.py.in"
-  "${CMAKE_CURRENT_SOURCE_DIR}/nuri/_version.py"
+  "${CMAKE_CURRENT_LIST_DIR}/nuri/_version.py.in"
+  "${CMAKE_CURRENT_LIST_DIR}/nuri/_version.py"
   @ONLY)
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/nuri/_version.py"
+install(FILES "${CMAKE_CURRENT_LIST_DIR}/nuri/_version.py"
   DESTINATION ".")
 
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/nuri")
+include_directories("${CMAKE_CURRENT_LIST_DIR}/nuri")
 file(GLOB_RECURSE NURIKIT_PYTHON_SOURCES "nuri/*.cpp")
 
 add_custom_target(nuri_python ALL
@@ -31,15 +31,15 @@ foreach(NURIKIT_PYTHON_SOURCE IN LISTS NURIKIT_PYTHON_SOURCES)
   set(NURIKIT_PYTHON_MODULE_OUTPUT_DIR "${NURIKIT_PYTHON_SOURCE_DIR}")
   file(RELATIVE_PATH NURIKIT_PYTHON_SOURCE_DIR_INV
     "${NURIKIT_PYTHON_SOURCE_DIR}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/nuri")
+    "${CMAKE_CURRENT_LIST_DIR}/nuri")
   file(RELATIVE_PATH NURIKIT_PYTHON_SOURCE_DIR
-    "${CMAKE_CURRENT_SOURCE_DIR}/nuri"
+    "${CMAKE_CURRENT_LIST_DIR}/nuri"
     "${NURIKIT_PYTHON_SOURCE_DIR}")
   get_filename_component(
     NURIKIT_PYTHON_MODULE_NAME "${NURIKIT_PYTHON_SOURCE}" NAME_WE)
 
   file(RELATIVE_PATH NURIKIT_PYTHON_MODULE
-    "${CMAKE_CURRENT_SOURCE_DIR}/nuri"
+    "${CMAKE_CURRENT_LIST_DIR}/nuri"
     "${NURIKIT_PYTHON_SOURCE}")
   file(TO_CMAKE_PATH "${NURIKIT_PYTHON_MODULE}" NURIKIT_PYTHON_MODULE)
   string(REPLACE "/" "_" NURIKIT_PYTHON_MODULE "${NURIKIT_PYTHON_MODULE}")
