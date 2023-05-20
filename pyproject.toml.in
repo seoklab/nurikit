@@ -14,6 +14,9 @@ requires-python = ">=3.7"
 
 [tool.scikit-build]
 minimum-version = "0.3"
+ninja.make-fallback = false
+
+build-dir = "@PROJECT_BINARY_DIR@"
 cmake.minimum-version = "@CMAKE_MINIMUM_REQUIRED_VERSION@"
 cmake.build-type = "@CMAKE_BUILD_TYPE@"
 cmake.verbose = @NURIKIT_VERBOSE_CMAKE@
