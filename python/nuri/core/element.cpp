@@ -53,12 +53,37 @@ PYBIND11_MODULE(element, m) {
 
     Refer to the ``nuri::Element`` class in the |cppdocs| for more details.
   )doc")
-    .def_readonly("atomic_number", &Isotope::atomic_number,
-                  "Atomic number of the isotope.")
+    .def_property_readonly(
+      "element",
+      [](const Isotope &self) {
+        return &PeriodicTable::get()[self.atomic_number];
+      },
+      pybind11::return_value_policy::reference,
+      R"doc(
+        :type: :class:`Element`
+
+        The element of this isotope.
+)doc")
     .def_readonly("mass_number", &Isotope::mass_number, ":type: :class:`int`")
     .def_readonly("atomic_weight", &Isotope::atomic_weight,
                   ":type: :class:`float`")
     .def_readonly("abundance", &Isotope::abundance, ":type: :class:`float`")
+    .def("__gt__",
+         [](const Isotope &lhs, const Isotope &rhs) {
+           return lhs.mass_number > rhs.mass_number;
+         })
+    .def("__lt__",
+         [](const Isotope &lhs, const Isotope &rhs) {
+           return lhs.mass_number < rhs.mass_number;
+         })
+    .def("__ge__",
+         [](const Isotope &lhs, const Isotope &rhs) {
+           return lhs.mass_number >= rhs.mass_number;
+         })
+    .def("__le__",
+         [](const Isotope &lhs, const Isotope &rhs) {
+           return lhs.mass_number <= rhs.mass_number;
+         })
     .def("__repr__", isotope_repr);
 
   using IsotopeList = std::vector<Isotope>;
@@ -115,6 +140,22 @@ PYBIND11_MODULE(element, m) {
     .def_property_readonly(
       "isotopes", &Element::isotopes, py::return_value_policy::reference,
       ":type: :class:`collections.abc.Sequence` of :class:`Isotope`")
+    .def("__gt__",
+         [](const Element &lhs, const Element &rhs) {
+           return lhs.atomic_number() > rhs.atomic_number();
+         })
+    .def("__lt__",
+         [](const Element &lhs, const Element &rhs) {
+           return lhs.atomic_number() < rhs.atomic_number();
+         })
+    .def("__ge__",
+         [](const Element &lhs, const Element &rhs) {
+           return lhs.atomic_number() >= rhs.atomic_number();
+         })
+    .def("__le__",
+         [](const Element &lhs, const Element &rhs) {
+           return lhs.atomic_number() <= rhs.atomic_number();
+         })
     .def("__repr__", [](const Element &elem) {
       return absl::StrCat("<Element ", elem.symbol(), ">");
     });
