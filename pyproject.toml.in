@@ -10,7 +10,33 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "@PROJECT_NAME@"
 version = "@NURIKIT_FULL_VERSION@"
+description = "*The* fundamental software platform for chem- and bio-informatics"
+readme = "README.md"
 requires-python = ">=3.7"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Nuri Jung", email = "jnooree@snu.ac.kr"}
+]
+maintainers = [
+    {name = "Nuri Jung", email = "jnooree@snu.ac.kr"}
+]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Operating System :: POSIX :: Linux",
+]
+
+[project.urls]
+Repository = "https://github.com/seoklab/nurikit.git"
 
 [tool.scikit-build]
 minimum-version = "0.4"
