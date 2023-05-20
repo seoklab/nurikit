@@ -13,7 +13,7 @@ version = "@NURIKIT_VERSION@"
 requires-python = ">=3.7"
 
 [tool.scikit-build]
-minimum-version = "0.3"
+minimum-version = "0.4"
 ninja.make-fallback = false
 
 build-dir = "@PROJECT_BINARY_DIR@"
