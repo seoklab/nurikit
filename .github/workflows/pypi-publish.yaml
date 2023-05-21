@@ -1,0 +1,35 @@
+#
+# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+name: Upload to pypi
+
+on:
+  workflow_call:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: release
+      url: https://pypi.org/p/nurikit
+
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: wheels
+          path: dist
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Upload to test.pypi.org until we are ready to release
+          repository-url: https://test.pypi.org/legacy/

@@ -58,3 +58,7 @@ jobs:
         with:
           name: wheels
           path: wheelhouse/*.whl
+
+  publish:
+    needs: [build]
+    uses: ./.github/workflows/pypi-publish.yaml
