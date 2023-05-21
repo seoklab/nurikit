@@ -33,6 +33,7 @@ defaults:
 jobs:
   get-commit-msg:
     runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.draft }}
     outputs:
       commit-msg: ${{ steps.get-commit-msg.outputs.commit-msg }}
     steps:

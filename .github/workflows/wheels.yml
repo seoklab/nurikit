@@ -30,6 +30,7 @@ defaults:
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     name: Wheels for ${{ matrix.python }}
     strategy:
       fail-fast: false
