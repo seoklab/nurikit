@@ -102,15 +102,15 @@ jobs:
         run: echo "Some files failed the linting checks!" && exit 1
 
   test-and-coverage:
-    needs: [run-clang-tools]
-    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(github.event.head_commit.message, '[skip test]') }}
+    needs: [get-commit-msg, run-clang-tools]
+    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(needs.get-commit-msg.outputs.commit-msg, '[skip test]') }}
     uses: ./.github/workflows/test-and-coverage.yaml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   test-build:
-    needs: [run-clang-tools]
-    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(github.event.head_commit.message, '[skip test]') }}
+    needs: [get-commit-msg, run-clang-tools]
+    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(needs.get-commit-msg.outputs.commit-msg, '[skip test]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: lukka/get-cmake@latest
