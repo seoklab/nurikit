@@ -47,9 +47,25 @@ defaults:
     shell: bash
 
 jobs:
+  get-commit-msg:
+    runs-on: ubuntu-latest
+    outputs:
+      commit-msg: ${{ steps.get-commit-msg.outputs.commit-msg }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get commit message
+        id: get-commit-msg
+        run: |
+          MSG="$(git log --no-merges --format=%B -n 1 HEAD)"
+          echo "commit-msg=${MSG}" >> $GITHUB_OUTPUT
+
   run-clang-tools:
     runs-on: ubuntu-latest
-    if: ${{ github.triggering_actor != 'dependabot[bot]' && (github.event_name == 'push' || !github.event.pull_request.draft) && !contains(github.event.head_commit.message, '[skip test]') }}
+    needs: [get-commit-msg]
+    if: ${{ github.triggering_actor != 'dependabot[bot]' && (github.event_name == 'push' || !github.event.pull_request.draft) && !contains(needs.get-commit-msg.outputs.commit-msg, '[skip test]') }}
 
     steps:
       - uses: lukka/get-cmake@latest
