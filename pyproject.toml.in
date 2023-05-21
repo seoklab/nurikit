@@ -65,3 +65,9 @@ NURIKIT_ENABLE_IPO = "@NURIKIT_ENABLE_IPO@"
 
 [tool.cibuildwheel]
 build = ["cp*-manylinux_x86_64"]
+
+test-requires = ["sphinx"]
+test-command = [
+    "cmake -S {project} -B .",
+    "cmake --build . --target nurikit_python_docs_doctest -j",
+]
