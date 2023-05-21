@@ -60,7 +60,9 @@ jobs:
         id: get-commit-msg
         run: |
           MSG="$(git log --no-merges --format=%B -n 1 HEAD)"
+          echo 'commit-msg<<EOM' >> $GITHUB_OUTPUT
           echo "commit-msg=${MSG}" >> $GITHUB_OUTPUT
+          echo 'EOM' >> $GITHUB_OUTPUT
 
   run-clang-tools:
     runs-on: ubuntu-latest
