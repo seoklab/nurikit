@@ -11,7 +11,7 @@ on:
       - main
     paths:
       - ".github/workflows/main-review.yaml"
-      - ".github/workflows/test-and-coverage.yaml"
+      - ".github/workflows/_cpp-test-and-coverage.yaml"
       - "cmake/**"
       - "include/**"
       - "scripts/check_coverage.sh"
@@ -51,7 +51,7 @@ jobs:
   test-and-coverage:
     needs: [get-commit-msg]
     if: ${{ !contains(needs.get-commit-msg.outputs.commit-msg, '[skip test]') }}
-    uses: ./.github/workflows/test-and-coverage.yaml
+    uses: ./.github/workflows/_cpp-test-and-coverage.yaml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
