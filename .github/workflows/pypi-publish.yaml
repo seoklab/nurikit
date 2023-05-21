@@ -24,16 +24,20 @@ jobs:
       id-token: write
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v2
         with:
           name: wheels
           path: dist
 
       - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          # Upload to test.pypi.org until we are ready to release
-          repository-url: https://test.pypi.org/legacy/
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: "dist/*.whl"
+          fail_on_unmatched_files: true
+          generate_release_notes: true
