@@ -459,7 +459,7 @@ TYPED_TEST(AdvancedGraphTest, AdjacencyTest) {
   ASSERT_EQ(adj10.edge_data(), 1000);
   ASSERT_EQ(adj10.as_const().edge_data(), 1000);
 
-  ASSERT_EQ(graph.find_adjacent(0, 10), graph.adj_end(0));
+  ASSERT_TRUE(graph.find_adjacent(0, 10).end());
 
   const Graph &const_graph = graph;
   auto cadj01 = *const_graph.find_adjacent(0, 1);
@@ -477,7 +477,7 @@ TYPED_TEST(AdvancedGraphTest, AdjIteratorTest) {
   ASSERT_EQ(graph.node(0).adj_end(), graph.adj_end(0));
 
   int cnt = 0;
-  for (auto it = graph.adj_begin(0); it != graph.adj_end(0); ++it) {
+  for (auto it = graph.adj_begin(0); !it.end(); ++it) {
     ASSERT_EQ(it->src(), 0);
     it->edge_data() = { -1 };
     cnt++;
@@ -489,7 +489,7 @@ TYPED_TEST(AdvancedGraphTest, AdjIteratorTest) {
   ASSERT_EQ(cnt, graph.degree(0));
 
   const Graph &const_graph = graph;
-  for (auto it = const_graph.adj_begin(0); it != const_graph.adj_end(0); ++it) {
+  for (auto it = const_graph.adj_begin(0); !it.end(); ++it) {
     static_assert(!std::is_assignable_v<decltype(it->edge_data()),
                                         typename Graph::edge_data_type>,
                   "const_iterator should be read-only");
