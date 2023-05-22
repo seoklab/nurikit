@@ -3,6 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+option(NURIKIT_PYDOC_DEPEND_PYTHON
+  "Auto-rebuild python module before building docs" OFF)
+mark_as_advanced(NURIKIT_PYDOC_DEPEND_PYTHON)
+
 find_package(Sphinx)
 
 if(Sphinx_FOUND)
@@ -18,7 +22,11 @@ endif()
 
 configure_file(conf.py.in conf.py @ONLY)
 add_sphinx_docs(nurikit_python_docs)
-add_dependencies(nurikit_python_docs nuri_python)
+
+if(NURIKIT_PYDOC_DEPEND_PYTHON)
+  message("nurikit_python target will rebuild python bindings as requested")
+  add_dependencies(nurikit_python_docs nuri_python)
+endif()
 
 if(NURIKIT_BUILD_DOCS)
   set_target_properties(nurikit_python_docs PROPERTIES EXCLUDE_FROM_ALL OFF)
