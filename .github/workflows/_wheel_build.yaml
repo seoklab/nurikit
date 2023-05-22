@@ -46,7 +46,7 @@ jobs:
           CIBW_BUILD: ${{ inputs.python }}-manylinux_x86_64
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: ${{ inputs.upload }}
         with:
           name: wheels
