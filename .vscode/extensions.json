@@ -5,6 +5,7 @@
 
 {
     "recommendations": [
+        "github.vscode-github-actions",
         "github.vscode-pull-request-github",
         "ms-vscode.cpptools",
         "ms-vscode.cmake-tools",
