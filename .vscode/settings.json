@@ -2,7 +2,6 @@
 // Project nurikit - Copyright 2023 SNU Compbio Lab.
 // SPDX-License-Identifier: Apache-2.0
 //
-
 {
     "[c]": {
         "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
@@ -51,6 +50,10 @@
     ],
     "editor.unicodeHighlight.allowedCharacters": {
         "©": true,
+    },
+    "files.associations": {
+        "*.toml.in": "toml",
+        "*.py.in": "python",
     },
     "files.eol": "\n",
     "files.insertFinalNewline": true,
