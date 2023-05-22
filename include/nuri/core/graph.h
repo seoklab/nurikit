@@ -159,6 +159,10 @@ namespace internal {
       return *this;
     }
 
+    constexpr parent_type *graph() const noexcept {
+      return const_cast<parent_type *>(graph_);
+    }
+
     constexpr Derived *derived() noexcept {
       return static_cast<Derived *>(this);
     }
@@ -253,6 +257,10 @@ namespace internal {
       Base::operator=(other);
       nid_ = other.nid_;
       return *this;
+    }
+
+    constexpr bool end() const noexcept {
+      return *this == this->graph()->adj_end(nid_);
     }
 
   private:
