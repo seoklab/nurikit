@@ -40,6 +40,7 @@ classifiers = [
 ]
 
 [project.urls]
+Documentation = "https://nurikit.seoklab.org/"
 Repository = "https://github.com/seoklab/nurikit.git"
 
 [tool.scikit-build]
