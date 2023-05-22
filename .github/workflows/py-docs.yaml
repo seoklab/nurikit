@@ -2,9 +2,6 @@ name: Build and deploy python docs
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - main
   release:
     types:
       - published
