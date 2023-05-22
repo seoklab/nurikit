@@ -20,6 +20,7 @@ on:
       - "third-party/**"
       - "**/.clang-*"
       - "**/CMakeLists.txt"
+      - pyproject.toml.in
     types:
       - opened
       - reopened

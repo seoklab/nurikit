@@ -23,6 +23,7 @@ on:
       - "third-party/**"
       - "**/.clang-*"
       - "**/CMakeLists.txt"
+      - pyproject.toml.in
 
 defaults:
   run:
