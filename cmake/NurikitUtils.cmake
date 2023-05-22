@@ -55,14 +55,15 @@ function(nurikit_get_version)
   endif()
 
   if(NURIKIT_VERSION)
-    set(NURIKIT_CORE_VERSION "${NURIKIT_VERSION}")
     set(NURIKIT_FULL_VERSION "${NURIKIT_VERSION}")
   else()
-    message(NOTICE "Nurikit version not found! Using 0.1.0.dev0")
-    set(NURIKIT_CORE_VERSION "0.1.0")
-    set(NURIKIT_VERSION "${NURIKIT_CORE_VERSION}.dev0")
+    set(NURIKIT_VERSION "0.1.0.dev0")
+    message(NOTICE "Nurikit version not found! Using ${NURIKIT_VERSION}")
     set(NURIKIT_FULL_VERSION "${NURIKIT_VERSION}+${nurikit_revision}")
   endif()
+
+  string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+"
+    NURIKIT_CORE_VERSION "${NURIKIT_VERSION}")
 
   string(TIMESTAMP NURIKIT_YEAR "%Y" UTC)
   set(NURIKIT_YEAR "${NURIKIT_YEAR}" PARENT_SCOPE)

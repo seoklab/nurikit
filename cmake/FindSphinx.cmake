@@ -32,5 +32,4 @@ function(add_sphinx_docs target)
     ${CMAKE_CURRENT_BINARY_DIR}/html
     COMMENT "Running doctest for ${target}"
     VERBATIM)
-  add_dependencies("${target}_doctest" "${target}")
 endfunction()
