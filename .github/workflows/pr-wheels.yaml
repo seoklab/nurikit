@@ -1,0 +1,42 @@
+#
+# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+name: Build test wheel for PR
+
+on:
+  pull_request:
+    branches:
+      - main
+      - "release/**"
+    paths:
+      - ".github/workflows/pr-wheels.yaml"
+      - ".github/workflows/_wheel-build.yaml"
+      - "cmake/**"
+      - "include/**"
+      - "src/**"
+      - "python/nuri/**"
+      - "third-party/**"
+      - "**/.clang-*"
+      - "**/CMakeLists.txt"
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test-build:
+    if: ${{ !github.event.pull_request.draft }}
+    uses: ./.github/workflows/_wheel_build.yaml
+    with:
+      python: cp38
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true

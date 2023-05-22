@@ -1,0 +1,53 @@
+#
+# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+name: Build wheels
+
+on:
+  workflow_call:
+    inputs:
+      python:
+        type: string
+        description: 'Python version'
+        required: true
+      upload:
+        type: boolean
+        description: 'Upload the built wheels'
+        default: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Wheels for ${{ inputs.python }}
+    steps:
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~3.16.0" # for Ubuntu 20.04
+
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Configure with cmake
+        run: |
+          cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -S . -B build -G Ninja
+
+      - uses: pypa/cibuildwheel@v2.12.3
+        env:
+          CIBW_BUILD: ${{ inputs.python }}-manylinux_x86_64
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v2
+        if: ${{ inputs.upload }}
+        with:
+          name: wheels
+          path: wheelhouse/*.whl
