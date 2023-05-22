@@ -250,6 +250,30 @@ project.
   external contributions to this project including patches, pull requests, etc.
   ```
 
+## Atomic weights & isotope data
+
+- Source URLs:
+  - <https://ciaaw.org/atomic-weights.htm> (Accessed 2023-05-11)
+  - <https://ciaaw.org/abridged-atomic-weights.htm> (Accessed 2023-05-11)
+  - <https://ciaaw.org/radioactive-elements.htm> (Accessed 2023-05-11)
+  - <https://ciaaw.org/atomic-masses.htm> (Accessed 2023-05-11)
+  - <https://ciaaw.org/isotopic-abundances.htm> (Accessed 2023-05-11)
+- Full license text:
+
+  ```txt
+  The contents of the website are jointly copyrighted by CIAAW and IUPAC and can
+  be freely used for educational purposes.
+  © CIAAW, 2007-2022
+  Republication or reproduction of this report or its storage and/or dissemination
+  by electronic means is permitted without the need for formal IUPAC or CIAAW
+  permission on condition that an acknowledgement, with full reference to the
+  source, along with use of the copyright symbol ©, the name IUPAC or CIAAW, and
+  the year of publication, are prominently visible. Publication of a translation
+  into another language is subject to the additional condition of prior approval
+  from the relevant IUPAC National Adhering Organization.
+  For commercial use of this content please contact CIAAW Secretariat.
+  ```
+
 ## homebrew-core
 
 - Project URL: <http://github.com/Homebrew/homebrew-core>
