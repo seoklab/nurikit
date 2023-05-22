@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-name: Build test wheel for main branch
+name: Build wheels for main branch
 
 on:
   workflow_dispatch:
