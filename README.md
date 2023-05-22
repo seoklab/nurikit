@@ -9,6 +9,12 @@ and extensible design.
 
 ## Documentation
 
+### Python API Reference
+
+See <https://nurikit.seoklab.org>.
+
+### C++ API Reference
+
 See documentation for the main branch at
 <https://cluster.seoklab.org:8443/docs/nurikit/main>. (Use the cluster ID/PW for
 authentication.)
