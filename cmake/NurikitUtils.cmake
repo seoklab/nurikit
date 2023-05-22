@@ -26,7 +26,7 @@ macro(_nurikit_get_git_version_impl)
 
   if(git_result EQUAL 0)
     string(STRIP "${NURIKIT_REF}" NURIKIT_REF)
-    string(REPLACE v "" NURIKIT_VERSION "${NURIKIT_REF}")
+    string(REGEX REPLACE "^v" "" NURIKIT_VERSION "${NURIKIT_REF}")
     message(STATUS "Nurikit version from git: ${NURIKIT_VERSION}")
   else()
     execute_process(
