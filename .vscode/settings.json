@@ -2,7 +2,6 @@
 // Project nurikit - Copyright 2023 SNU Compbio Lab.
 // SPDX-License-Identifier: Apache-2.0
 //
-
 {
     "[c]": {
         "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
@@ -38,12 +37,23 @@
         "editor.insertSpaces": true,
         "editor.tabSize": 2,
     },
+    "[github-actions-workflow]": {
+        "editor.detectIndentation": false,
+        "editor.indentSize": 2,
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+    },
     "cmake.copyCompileCommands": "${workspaceFolder}/build/compile_commands.json",
     "cmake.configureArgs": [
         "-DNURIKIT_TEST_COVERAGE=ON",
+        "-DNURIKIT_PYDOC_DEPEND_PYTHON=ON",
     ],
     "editor.unicodeHighlight.allowedCharacters": {
         "©": true,
+    },
+    "files.associations": {
+        "*.toml.in": "toml",
+        "*.py.in": "python",
     },
     "files.eol": "\n",
     "files.insertFinalNewline": true,

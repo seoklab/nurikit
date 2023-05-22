@@ -1,0 +1,64 @@
+name: Build and deploy python docs
+
+on:
+  workflow_dispatch:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "py-docs"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.8'
+
+      - name: Install dependencies
+        run: pip install sphinx sphinx-rtd-theme nurikit
+
+      - name: Configure with cmake
+        run: |
+          cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -S . -B build
+
+      - name: Build docs & test
+        run: |
+          cmake --build build -j \
+            --target nurikit_python_docs nurikit_python_docs_doctest
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: pydocs
+          path: build/python/docs/html/**
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [build]
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v3
+      - uses: actions/download-artifact@v3
+        with:
+          name: pydocs
+          path: _site
+      - uses: actions/upload-pages-artifact@v1
+      - uses: actions/deploy-pages@v2
+        id: deployment
