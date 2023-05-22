@@ -44,7 +44,13 @@ macro(_nurikit_get_git_version_impl)
 endmacro()
 
 function(nurikit_get_version)
-  _nurikit_get_git_version_impl()
+  if(SKBUILD)
+    # Version correctly set via scikit-build-core; skip git versioning.
+    set(NURIKIT_VERSION "${SKBUILD_PROJECT_VERSION}")
+    message(STATUS "Nurikit version from scikit-build-core: ${NURIKIT_VERSION}")
+  else()
+    _nurikit_get_git_version_impl()
+  endif()
 
   if(NURIKIT_REF)
     message(STATUS "Nurikit ref from git: ${NURIKIT_REF}")
