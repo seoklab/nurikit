@@ -60,10 +60,12 @@ jobs:
         with:
           cmakeVersion: "~3.16.0" # for Ubuntu 20.04
 
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y gcovr
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+
+      - name: Install gcovr
+        run: pip install gcovr
 
       - name: Checkout
         uses: actions/checkout@v3
