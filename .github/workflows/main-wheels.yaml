@@ -48,7 +48,7 @@ jobs:
 
   publish-docs:
     needs: [publish]
-    uses: ./.github/workflows/py-docs.yaml
+    uses: ./.github/workflows/docs-python.yaml
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

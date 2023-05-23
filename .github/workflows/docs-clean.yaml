@@ -1,0 +1,27 @@
+#
+# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+name: Cleanup docs if a branch is deleted
+
+on:
+  delete
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  clean:
+    runs-on: [self-hosted, galaxy3]
+    if: ${{ github.event.ref_type == 'branch' }}
+    steps:
+      - name: Remove stale docs
+        run: |
+          deleted_ref='${{ github.event.ref }}'
+          branch="${deleted_ref#refs/heads/}"
+          docs_dir="$HOME/www/html/docs/nurikit/$branch/"
+
+          echo "Removing $docs_dir"
+          rm -rf "$docs_dir"
