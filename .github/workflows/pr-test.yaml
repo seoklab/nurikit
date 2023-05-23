@@ -55,8 +55,7 @@ jobs:
     uses: ./.github/workflows/_run-clang-tools.yaml
 
   test-and-coverage:
-    needs: [run-clang-tools, get-commit-msg]
-    if: ${{ always() && !contains(needs.get-commit-msg.outputs.commit-msg, '[skip test]') && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+    needs: [run-clang-tools]
     uses: ./.github/workflows/_cpp-test-and-coverage.yaml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
