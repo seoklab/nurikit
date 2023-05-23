@@ -78,3 +78,29 @@ function(nurikit_get_version)
   set(NURIKIT_FULL_VERSION "${NURIKIT_FULL_VERSION}" PARENT_SCOPE)
   set(NURIKIT_REF "${NURIKIT_REF}" PARENT_SCOPE)
 endfunction()
+
+function(find_or_fetch_eigen)
+  find_package(Eigen3 3.4 QUIET)
+
+  if(Eigen3_FOUND)
+    message(STATUS "Found Eigen3 ${Eigen3_VERSION}")
+  else()
+    include(FetchContent)
+    message(NOTICE "Could not find compatible Eigen3. Fetching from gitlab.")
+
+    FetchContent_Declare(
+      eigen
+      GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+      GIT_TAG 3.4.0)
+
+    set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+    set(BUILD_TESTING OFF)
+    set(EIGEN_BUILD_DOC OFF)
+    set(EIGEN_BUILD_PKGCONFIG OFF)
+    FetchContent_MakeAvailable(eigen)
+  endif()
+
+  get_target_property(
+    EIGEN_INCLUDE_DIRS Eigen3::Eigen INTERFACE_INCLUDE_DIRECTORIES)
+  set(EIGEN_INCLUDE_DIRS "${EIGEN_INCLUDE_DIRS}" PARENT_SCOPE)
+endfunction()

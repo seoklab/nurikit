@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+find_or_fetch_eigen()
+
 include(GNUInstallDirs)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY
@@ -27,6 +29,10 @@ if(NURIKIT_SRCS)
     absl::strings absl::flat_hash_map absl::absl_check)
   set_target_properties(nuri_lib PROPERTIES OUTPUT_NAME nuri)
   install(TARGETS nuri_lib LIBRARY)
+
+  # Cannot just use Eigen3::Eigen because it includes eigen headers with -I
+  # instead of -isystem, which might trigger compiler warnings.
+  target_include_directories(nuri_lib SYSTEM PUBLIC ${EIGEN_INCLUDE_DIRS})
 
   target_link_libraries(nuri_exe PRIVATE nuri_lib)
 endif()
