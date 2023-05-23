@@ -124,39 +124,82 @@ public:
   Element() = delete;
   ~Element() noexcept = default;
 
+  /**
+   * @brief Get the atomic number of the atom.
+   * @return The atomic number.
+   */
   constexpr int atomic_number() const noexcept { return atomic_number_; }
 
+  /**
+   * @brief Get the period of the atom.
+   * @return Period of this atom.
+   */
   constexpr std::int16_t period() const noexcept { return period_; }
 
   /**
-   * @brief Group of the element.
-   * @return std::int16_t Group of the element. If the element is a dummy atom,
-   *         returns 0. Lanthanides and actinides are treated as group 3.
+   * @brief Get the group of the element.
+   * @return Group of the element. If the element is a dummy atom, returns 0.
+   *         Lanthanides and actinides are treated as group 3.
    */
   constexpr std::int16_t group() const noexcept { return group_; }
 
+  /**
+   * @brief Get the IUPAC Symbol of the atom.
+   * @return The IUPAC Symbol.
+   */
   constexpr std::string_view symbol() const noexcept { return symbol_; }
 
+  /**
+   * @brief Get the IUPAC Name of the atom.
+   * @return The IUPAC Name, in *Titlecase*.
+   */
   constexpr std::string_view name() const noexcept { return name_; }
 
+  /**
+   * @brief Get the atomic weight of the atom.
+   * @return The IUPAC standard atomic weight. See \ref atwt-and-isotope
+   *         "references and notes" for more information.
+   */
   constexpr double atomic_weight() const noexcept { return atomic_weight_; }
 
+  /**
+   * @brief Get the covalent radius of the atom.
+   * @return The covalent radius of the atom (in angstroms). See \ref r-cov
+   *         "references and notes" for more information.
+   */
   constexpr double covalent_radius() const noexcept { return cov_rad_; }
 
+  /**
+   * @brief Get the Van der Waals radius of the atom.
+   * @return The Van der Waals radius of the atom (in angstroms). See \ref r-vdw
+   *         "references and notes" for more information.
+   */
   constexpr double vdw_radius() const noexcept { return vdw_rad_; }
 
   /**
-   * @brief Electronegativity of the element (Pauling scale).
-   *
-   * @return double Electronegativity of the element (Pauling scale). If the
-   *         element has no known electronegativity value, returns -1.
+   * @brief Get electronegativity of the element (Pauling scale).
+   * @return Electronegativity of the element (Pauling scale). If the element
+   *         has no known electronegativity value, returns -1. See \ref eneg
+   *         "references and notes" for more information.
    */
   constexpr double eneg() const noexcept { return eneg_; }
 
+  /**
+   * @brief Get the representative isotope of the element.
+   * @return The representative isotope of the element. I.e., the most abundant
+   *         isotope, or the most stable isotope if the element is radioactive.
+   *         See \ref atwt-and-isotope "references and notes" for more
+   *         information.
+   */
   constexpr const Isotope &major_isotope() const noexcept {
     return *major_isotope_;
   }
 
+  /**
+   * @brief Get all known isotopes of the element.
+   * @return Reference to all known isotopes of the element. See \ref
+   *         atwt-and-isotope "references and notes" for more information.
+   */
   constexpr const std::vector<Isotope> &isotopes() const noexcept {
     return isotopes_;
   }
