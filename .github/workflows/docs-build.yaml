@@ -32,9 +32,19 @@ jobs:
     if: ${{ github.triggering_actor != 'dependabot[bot]' }}
     runs-on: [self-hosted, galaxy3]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - name: Get ref name
+        id: resolve-ref
+        run: |
+          ref_name="${{ github.head_ref }}"
+          if [[ -z "$ref_name" ]]; then
+            ref_name="${{ github.ref_name }}"
+          fi
+          echo "ref_name=$ref_name" >>$GITHUB_OUTPUT
+          echo "ref_name=$ref_name" >>$GITHUB_ENV
+
+      - uses: actions/checkout@v3
         with:
+          ref: ${{ steps.resolve-ref.outputs.ref_name }}
           submodules: recursive
 
       - name: Configure with cmake
@@ -47,14 +57,6 @@ jobs:
       - name: Build docs
         run: |
           cmake --build build --target nurikit_docs -j4
-
-      - name: Get ref name
-        run: |
-          ref_name="${{ github.head_ref }}"
-          if [[ -z "$ref_name" ]]; then
-            ref_name="${{ github.ref_name }}"
-          fi
-          echo "ref_name=$ref_name" >>$GITHUB_ENV
 
       - name: Deploy
         run: |
