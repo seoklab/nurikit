@@ -48,8 +48,16 @@ jobs:
         run: |
           cmake --build build --target nurikit_docs -j4
 
+      - name: Get ref name
+        run: |
+          ref_name="${{ github.head_ref }}"
+          if [[ -z "$ref_name" ]]; then
+            ref_name="${{ github.ref_name }}"
+          fi
+          echo "ref_name=$ref_name" >>$GITHUB_ENV
+
       - name: Deploy
         run: |
-          output="$HOME/www/html/docs/nurikit/$(git rev-parse --abbrev-ref HEAD)/"
+          output="$HOME/www/html/docs/nurikit/$ref_name/"
           mkdir -p "$output"
           rsync -avh --delete build/generated/docs/html/ "$output"
