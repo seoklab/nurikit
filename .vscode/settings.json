@@ -50,6 +50,7 @@
     ],
     "editor.unicodeHighlight.allowedCharacters": {
         "©": true,
+        "Å": true,
     },
     "files.associations": {
         "*.toml.in": "toml",

@@ -51,7 +51,7 @@ ContinuationIndentWidth: 2
 Cpp11BracedListStyle: false
 DerivePointerAlignment: false
 IncludeCategories:
-  - Regex: '^<(absl|gtest)/.*'
+  - Regex: "^<(absl|gtest)/.*"
     Priority: 3
     SortPriority: 4
     CaseSensitive: false
@@ -67,13 +67,17 @@ IncludeCategories:
     Priority: 1
     SortPriority: 1
     CaseSensitive: false
+  - Regex: "^.*config.h"
+    Priority: 4
+    SortPriority: 5
+    CaseSensitive: false
   - Regex: "^.*/.*"
     Priority: 4
-    SortPriority: 6
+    SortPriority: 7
     CaseSensitive: false
   - Regex: "^.*"
     Priority: 4
-    SortPriority: 5
+    SortPriority: 6
     CaseSensitive: false
 IndentCaseLabels: false
 # InsertNewlineAtEOF: true  # require clang-format v16
@@ -105,4 +109,3 @@ SpaceBeforeParens: Custom
 SpaceBeforeRangeBasedForLoopColon: false
 SpaceInEmptyBlock: true
 SpacesInContainerLiterals: false
-...
