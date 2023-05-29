@@ -13,6 +13,7 @@
 #include <utility>
 #include <vector>
 
+#include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 
@@ -669,6 +670,23 @@ public:
   template <class UnaryPred>
   void erase_nodes(const_iterator begin, const_iterator end, UnaryPred pred);
 
+  /**
+   * @brief Remove nodes and all its associated edge(s) from the graph.
+   *
+   * @tparam Iterator An iterator type that dereferences to a value compatible
+   *         with `int`.
+   * @param begin The beginning of the range of node ids to be removed.
+   * @param end The end of the range of node ids to be removed.
+   * @sa pop_node()
+   * @note Time complexity: \f$O(V)\f$ if only trailing nodes are removed,
+   *       \f$O(V+E)\f$ otherwise. If any iterator in range `[`\p begin,
+   *       \p end`)` references an invalid node id, the behavior is undefined.
+   */
+  template <class Iterator,
+            class = std::enable_if_t<std::is_constructible_v<
+              int, typename std::iterator_traits<Iterator>::value_type>>>
+  void erase_nodes(Iterator begin, Iterator end);
+
   iterator begin() { return { this, 0 }; }
   iterator end() { return { this, num_nodes() }; }
   const_iterator begin() const { return cbegin(); }
@@ -790,6 +808,9 @@ private:
     return { ait->adj_->eid };
   }
 
+  void erase_nodes_common(const std::vector<int> &node_keep,
+                          int first_removed_id, bool remove_trailing);
+
   void add_adjacency_entry(stored_edge_id_type eid) {
     adj_list_[eid->src].push_back({ eid->dst, eid });
     adj_list_[eid->dst].push_back({ eid->src, eid });
@@ -853,6 +874,41 @@ Graph<NT, ET> &Graph<NT, ET>::operator=(const Graph &other) {
 }
 
 template <class NT, class ET>
+template <class Iterator, class>
+void Graph<NT, ET>::erase_nodes(Iterator begin, Iterator end) {
+  // Note: the time complexity notations are only for very sparse graphs, i.e.,
+  // E = O(V).
+  if (begin == end) {
+    return;
+  }
+
+  // Phase I: mark nodes for removal, O(V)
+  std::vector<int> node_keep(num_nodes(), 1);
+  int first_removed_id = num_nodes();
+  for (auto it = begin; it != end; ++it) {
+    int nid = *it;
+    node_keep[nid] = 0;
+    first_removed_id = std::min(first_removed_id, nid);
+    for (AdjEntry &adj: adj_list_[nid]) {
+      erase_first(adj_list_[adj.dst],
+                  [&](const auto &neigh) { return neigh.dst == nid; });
+      edges_.erase(adj.eid);
+    }
+    adj_list_[nid].clear();
+  }
+
+  bool remove_trailing = true;
+  for (int i = num_nodes() - 1; i >= first_removed_id; --i) {
+    if (node_keep[i] == 1) {
+      remove_trailing = false;
+      break;
+    }
+  }
+
+  erase_nodes_common(node_keep, first_removed_id, remove_trailing);
+}
+
+template <class NT, class ET>
 template <class UnaryPred>
 void Graph<NT, ET>::erase_nodes(const const_iterator begin,
                                 const const_iterator end, UnaryPred pred) {
@@ -871,6 +927,9 @@ void Graph<NT, ET>::erase_nodes(const const_iterator begin,
   for (auto it = begin; it != end; ++it) {
     if (pred(*it)) {
       int nid = it->id();
+      // GCOV_EXCL_START
+      ABSL_ASSUME(nid >= 0);
+      // GCOV_EXCL_STOP
       if (first_removed_id < 0) {
         first_removed_id = nid;
       }
@@ -878,7 +937,7 @@ void Graph<NT, ET>::erase_nodes(const const_iterator begin,
       node_keep[nid] = 0;
       for (AdjEntry &adj: adj_list_[nid]) {
         erase_first(adj_list_[adj.dst],
-                    [&](const auto &bdj) { return bdj.dst == nid; });
+                    [&](const auto &neigh) { return neigh.dst == nid; });
         edges_.erase(adj.eid);
       }
       adj_list_[nid].clear();
@@ -886,8 +945,16 @@ void Graph<NT, ET>::erase_nodes(const const_iterator begin,
       remove_trailing = false;
     }
   }
+
+  erase_nodes_common(node_keep, first_removed_id, remove_trailing);
+}
+
+template <class NT, class ET>
+void Graph<NT, ET>::erase_nodes_common(const std::vector<int> &node_keep,
+                                       const int first_removed_id,
+                                       const bool remove_trailing) {
   // Fast path 1: no node is removed
-  if (first_removed_id < 0) {
+  if (first_removed_id < 0 || first_removed_id >= num_nodes()) {
     return;
   }
 
