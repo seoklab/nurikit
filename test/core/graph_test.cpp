@@ -7,6 +7,7 @@
 
 #include <iterator>
 #include <type_traits>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -144,6 +145,8 @@ TYPED_TEST(BasicGraphTest, AssignmentTest) {
 
   Graph g1(10, { 10 });
   g1.add_edge(0, 1, { 100 });
+
+  g1 = g1;  // NOLINT
 
   {
     Graph g2(20, { 20 });
@@ -541,8 +544,12 @@ TYPED_TEST(AdvancedGraphTest, EraseNoNodeTest) {
   using Graph = nuri::Graph<TypeParam, TypeParam>;
   Graph &graph = this->graph_;
 
+
   graph.erase_nodes(graph.end(), graph.begin());
   graph.erase_nodes(graph.begin(), graph.end(), [](auto) { return false; });
+
+  std::vector<int> dummy;
+  graph.erase_nodes(dummy.begin(), dummy.end());
 
   ASSERT_EQ(graph.num_nodes(), 11);
   ASSERT_EQ(graph.num_edges(), 10);
@@ -555,6 +562,19 @@ TYPED_TEST(AdvancedGraphTest, EraseAllNodesTest) {
   graph.erase_nodes(graph.begin(), graph.end());
 
   ASSERT_EQ(graph.num_edges(), 0);
+}
+
+TYPED_TEST(AdvancedGraphTest, EraseNodesByIdTest) {
+  using Graph = nuri::Graph<TypeParam, TypeParam>;
+  Graph &graph = this->graph_;
+
+  std::vector<int> node_ids = { 0, 1, 4 };
+
+  graph.erase_nodes(node_ids.begin(), node_ids.end());
+  ASSERT_EQ(graph.num_nodes(), 8);
+  ASSERT_EQ(graph.num_edges(), 2);
+  ASSERT_FALSE(graph.find_adjacent(0, 1).end());
+  ASSERT_FALSE(graph.find_adjacent(0, 6).end());
 }
 
 TYPED_TEST(AdvancedGraphTest, EraseExceptOneNodeTest) {
@@ -584,6 +604,26 @@ TYPED_TEST(AdvancedGraphTest, EraseTrailingNodesTest) {
   Graph &graph = this->graph_;
 
   graph.erase_nodes(graph.end() - 3, graph.end());
+
+  ASSERT_EQ(graph.num_nodes(), 8);
+  ASSERT_EQ(graph.num_edges(), 8);
+
+  ASSERT_EQ(graph.find_adjacent(0, 1)->edge_data(), 100);
+  ASSERT_EQ(graph.find_adjacent(0, 2)->edge_data(), 101);
+  ASSERT_EQ(graph.find_adjacent(0, 5)->edge_data(), 102);
+  ASSERT_EQ(graph.find_adjacent(0, 6)->edge_data(), 103);
+  ASSERT_EQ(graph.find_adjacent(1, 2)->edge_data(), 104);
+  ASSERT_EQ(graph.find_adjacent(1, 7)->edge_data(), 105);
+  ASSERT_EQ(graph.find_adjacent(2, 3)->edge_data(), 107);
+  ASSERT_EQ(graph.find_adjacent(3, 4)->edge_data(), 109);
+}
+
+TYPED_TEST(AdvancedGraphTest, EraseTrailingNodesByIdTest) {
+  using Graph = nuri::Graph<TypeParam, TypeParam>;
+  Graph &graph = this->graph_;
+
+  std::vector<int> node_ids = { 8, 9, 10 };
+  graph.erase_nodes(node_ids.begin(), node_ids.end());
 
   ASSERT_EQ(graph.num_nodes(), 8);
   ASSERT_EQ(graph.num_edges(), 8);
