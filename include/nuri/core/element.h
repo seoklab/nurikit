@@ -25,6 +25,16 @@ struct Isotope {
   double abundance;
 };
 
+constexpr inline bool operator==(const Isotope &lhs,
+                                 const Isotope &rhs) noexcept {
+  return &lhs == &rhs;
+}
+
+constexpr inline bool operator!=(const Isotope &lhs,
+                                 const Isotope &rhs) noexcept {
+  return &lhs != &rhs;
+}
+
 /**
  * @brief The class for element data.
  *
@@ -228,6 +238,16 @@ private:
   const Isotope *major_isotope_;
   std::vector<Isotope> isotopes_;
 };
+
+constexpr inline bool operator==(const Element &lhs,
+                                 const Element &rhs) noexcept {
+  return lhs.atomic_number() == rhs.atomic_number();
+}
+
+constexpr inline bool operator!=(const Element &lhs,
+                                 const Element &rhs) noexcept {
+  return lhs.atomic_number() != rhs.atomic_number();
+}
 
 /**
  * @brief The periodic table of elements.
