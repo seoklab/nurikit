@@ -29,6 +29,7 @@ concurrency:
 
 jobs:
   build-and-deploy:
+    if: ${{ github.triggering_actor != 'dependabot[bot]' }}
     runs-on: [self-hosted, galaxy3]
     steps:
       - name: Checkout
