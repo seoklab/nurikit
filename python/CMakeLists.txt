@@ -46,7 +46,7 @@ foreach(NURIKIT_PYTHON_SOURCE IN LISTS NURIKIT_PYTHON_SOURCES)
   string(REGEX REPLACE
     "\.cpp$" ""
     NURIKIT_PYTHON_MODULE "${NURIKIT_PYTHON_MODULE}")
-  string(PREPEND NURIKIT_PYTHON_MODULE "nurikit_python_")
+  string(PREPEND NURIKIT_PYTHON_MODULE "nuri_python_")
 
   pybind11_add_module(
     "${NURIKIT_PYTHON_MODULE}"
@@ -67,9 +67,11 @@ foreach(NURIKIT_PYTHON_SOURCE IN LISTS NURIKIT_PYTHON_SOURCES)
 
   install(TARGETS "${NURIKIT_PYTHON_MODULE}"
     LIBRARY
-    DESTINATION "${NURIKIT_PYTHON_SOURCE_DIR}")
+    DESTINATION "./${NURIKIT_PYTHON_SOURCE_DIR}")
 
   add_dependencies(nuri_python "${NURIKIT_PYTHON_MODULE}")
 endforeach()
+
+target_link_libraries(nuri_python__log_adapter PRIVATE absl::log_initialize)
 
 add_subdirectory(docs EXCLUDE_FROM_ALL)
