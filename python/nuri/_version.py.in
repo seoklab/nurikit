@@ -3,5 +3,5 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-__version__ = "@NURIKIT_VERSION@"
-__full_version__ = "@NURIKIT_FULL_VERSION@"
+__version__ = "@NURI_VERSION@"
+__full_version__ = "@NURI_FULL_VERSION@"

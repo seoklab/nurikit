@@ -56,7 +56,7 @@ jobs:
 
       - name: Build docs
         run: |
-          cmake --build build --target nurikit_docs -j4
+          cmake --build build --target nuri_docs -j4
 
       - name: Deploy
         run: |

@@ -38,8 +38,8 @@ jobs:
       - name: Compile and run tests
         run: |
           mkdir build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Debug -DNURIKIT_TEST_COVERAGE=ON -G Ninja ..
-          cmake --build . -j --target nurikit_all_test
+          cmake -DCMAKE_BUILD_TYPE=Debug -DNURI_TEST_COVERAGE=ON -G Ninja ..
+          cmake --build . -j --target nuri_all_test
           ../scripts/check_coverage.sh . --xml
 
       - uses: codecov/codecov-action@v3

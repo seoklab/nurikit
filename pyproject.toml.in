@@ -9,7 +9,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "@PROJECT_NAME@"
-version = "@NURIKIT_VERSION@"
+version = "@NURI_VERSION@"
 description = "*The* fundamental software platform for chem- and bio-informatics"
 readme = "README.md"
 requires-python = ">=3.7"
@@ -49,21 +49,21 @@ ninja.make-fallback = false
 
 cmake.minimum-version = "@CMAKE_MINIMUM_REQUIRED_VERSION@"
 cmake.build-type = "@CMAKE_BUILD_TYPE@"
-cmake.verbose = @NURIKIT_VERBOSE_CMAKE@
+cmake.verbose = @NURI_VERBOSE_CMAKE@
 
 sdist.exclude = ["*.h", "*.cpp", "*.in", "*.so"]
 wheel.packages = ["python/nuri"]
 wheel.install-dir = "nuri"
 
 [tool.scikit-build.cmake.define]
-NURIKIT_BUILD_PYTHON = "ON"
-NURIKIT_ENABLE_AVX2 = "OFF"
-NURIKIT_ENABLE_ARCH_NATIVE = "OFF"
-NURIKIT_TEST_COVERAGE = "OFF"
-NURIKIT_BUILD_DOCS = "OFF"
-NURIKIT_REF = "@NURIKIT_REF@"
-NURIKIT_OPTIMIZATION_LEVEL = "@NURIKIT_OPTIMIZATION_LEVEL@"
-NURIKIT_ENABLE_IPO = "@NURIKIT_ENABLE_IPO@"
+NURI_BUILD_PYTHON = "ON"
+NURI_ENABLE_AVX2 = "OFF"
+NURI_ENABLE_ARCH_NATIVE = "OFF"
+NURI_TEST_COVERAGE = "OFF"
+NURI_BUILD_DOCS = "OFF"
+NURI_REF = "@NURI_REF@"
+NURI_OPTIMIZATION_LEVEL = "@NURI_OPTIMIZATION_LEVEL@"
+NURI_ENABLE_IPO = "@NURI_ENABLE_IPO@"
 
 [tool.cibuildwheel]
 build = ["cp*-manylinux_x86_64"]
@@ -71,5 +71,5 @@ build = ["cp*-manylinux_x86_64"]
 test-requires = ["sphinx"]
 test-command = [
     "cmake -S {project} -B .",
-    "cmake --build . --target nurikit_python_docs_doctest -j",
+    "cmake --build . --target nuri_python_docs_doctest -j",
 ]

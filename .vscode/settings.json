@@ -45,8 +45,8 @@
     },
     "cmake.copyCompileCommands": "${workspaceFolder}/build/compile_commands.json",
     "cmake.configureArgs": [
-        "-DNURIKIT_TEST_COVERAGE=ON",
-        "-DNURIKIT_PYDOC_DEPEND_PYTHON=ON",
+        "-DNURI_TEST_COVERAGE=ON",
+        "-DNURI_PYDOC_DEPEND_PYTHON=ON",
     ],
     "editor.unicodeHighlight.allowedCharacters": {
         "©": true,

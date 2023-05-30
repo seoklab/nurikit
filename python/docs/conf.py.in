@@ -16,9 +16,9 @@ from sphinx.ext import autodoc
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "@PROJECT_NAME@"
-copyright = "@NURIKIT_YEAR@ SNU Compbio Lab"
+copyright = "@NURI_YEAR@ SNU Compbio Lab"
 author = "SNU Compbio Lab"
-release = "@NURIKIT_REF@"
+release = "@NURI_REF@"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
