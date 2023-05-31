@@ -9,6 +9,7 @@
 #include <type_traits>
 #include <vector>
 
+#include <absl/container/flat_hash_set.h>
 #include <gtest/gtest.h>
 
 #define NURI_TEST_CONVERTIBILITY(from_name, from_expr, to_name, to_expr,       \
@@ -276,6 +277,17 @@ protected:
     edges_.push_back(graph_.add_edge(3, 4, { 109 }));
   }
 
+  /**
+   * The resulting graph (somewhat looks like a cyclopropane derivative):
+   *
+   *            3 - 4
+   *            |
+   *        9 - 2          10 (<-intentionally unconnected)
+   *          /   \
+   *     6 - 0 --- 1 - 8
+   *         |     |
+   *         5     7
+   */
   Graph graph_;
   std::vector<typename Graph::edge_id_type> edges_;
 };
@@ -740,6 +752,23 @@ TYPED_TEST(AdvancedGraphTest, EraseAddTest) {
   ASSERT_EQ(graph.num_edges(), 6);
   ASSERT_EQ(graph.find_adjacent(7, 10)->eid(), e);
   ASSERT_EQ(graph.find_adjacent(7, 10)->edge_data(), 110);
+}
+
+TYPED_TEST(AdvancedGraphTest, FindConnectedTest) {
+  using Graph = nuri::Graph<TypeParam, TypeParam>;
+  Graph &graph = this->graph_;
+
+  absl::flat_hash_set<int> connected = nuri::connected_components(graph, 0);
+  ASSERT_EQ(connected.size(), 10);
+  ASSERT_FALSE(connected.contains(10));
+
+  connected = nuri::connected_components(graph, 3, 2);
+  ASSERT_EQ(connected.size(), 2);
+  ASSERT_TRUE(connected.contains(3));
+  ASSERT_TRUE(connected.contains(4));
+
+  connected = nuri::connected_components(graph, 1, 2);
+  ASSERT_TRUE(connected.empty());
 }
 }  // namespace
 
