@@ -9,11 +9,13 @@
 #include <algorithm>
 #include <iterator>
 #include <list>
+#include <queue>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include <absl/base/optimization.h>
+#include <absl/container/flat_hash_set.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 
@@ -1050,6 +1052,61 @@ bool Graph<NT, ET>::erase_edge_between(int src, int dst) {
     return true;
   }
   return false;
+}
+
+namespace internal {
+  template <class NT, class ET>
+  void connected_components_impl(const Graph<NT, ET> &g,
+                                 absl::flat_hash_set<int> &visited,
+                                 std::queue<int> &q) {
+    while (!q.empty()) {
+      int atom = q.front();
+      q.pop();
+
+      auto [_, inserted] = visited.insert(atom);
+      if (!inserted) {
+        continue;
+      }
+
+      for (auto ait = g.adj_begin(atom); !ait.end(); ++ait) {
+        int dst = ait->dst();
+        q.push(dst);
+      }
+    }
+  }
+}  // namespace internal
+
+template <class NT, class ET>
+absl::flat_hash_set<int> connected_components(const Graph<NT, ET> &g,
+                                              int begin) {
+  absl::flat_hash_set<int> visited;
+  std::queue<int> q { { begin } };
+
+  internal::connected_components_impl(g, visited, q);
+
+  return visited;
+}
+
+template <class NT, class ET>
+absl::flat_hash_set<int> connected_components(const Graph<NT, ET> &g, int begin,
+                                              int exclude) {
+  absl::flat_hash_set<int> visited { begin };
+  std::queue<int> q;
+
+  for (auto ait = g.adj_begin(begin); !ait.end(); ++ait) {
+    int dst = ait->dst();
+    if (dst != exclude) {
+      q.push(dst);
+    }
+  }
+
+  internal::connected_components_impl(g, visited, q);
+
+  if (visited.contains(exclude)) {
+    return {};
+  }
+
+  return visited;
 }
 }  // namespace nuri
 
