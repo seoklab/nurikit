@@ -40,12 +40,12 @@ jobs:
           mkdir build && cd build
           cmake -DCMAKE_BUILD_TYPE=Debug -DNURI_TEST_COVERAGE=ON -G Ninja ..
           cmake --build . -j --target nuri_all_test
-          ../scripts/check_coverage.sh . --xml
+          ../scripts/check_coverage.sh . --json
 
       - uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: build/coverage/xml/coverage.xml
+          files: build/coverage/json/coverage.json
           fail_ci_if_error: true
           verbose: true
 
