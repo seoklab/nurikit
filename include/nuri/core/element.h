@@ -206,6 +206,22 @@ public:
   }
 
   /**
+   * @brief Find an element with the given mass number.
+   * @return A pointer to the isotope, or `nullptr` if no isotopes with the
+   *         given mass number is known.
+   */
+  const Isotope *find_isotope(int mass_number) const noexcept {
+    auto it = std::find_if(isotopes_.begin(), isotopes_.end(),
+                           [mass_number](const Isotope &iso) {
+                             return iso.mass_number == mass_number;
+                           });
+    if (it == isotopes_.end()) {
+      return nullptr;
+    }
+    return &(*it);
+  }
+
+  /**
    * @brief Get all known isotopes of the element.
    * @return Reference to all known isotopes of the element. See \ref
    *         atwt-and-isotope "references and notes" for more information.
