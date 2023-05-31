@@ -289,7 +289,7 @@ public:
   static const PeriodicTable &get() noexcept { return kPeriodicTable_; }
 
   constexpr const Element &operator[](int atomic_number) const noexcept {
-    return *find_element(atomic_number);
+    return elements_[atomic_number];
   }
 
   constexpr const Element *find_element(int atomic_number) const noexcept {
