@@ -49,175 +49,173 @@ namespace constants {
   };
 }  // namespace constants
 
-namespace internal {
-  class AtomData {
-  public:
-    /**
-     * @brief Creates a dummy atom with unknown hybridization.
-     */
-    AtomData()
-      : AtomData(PeriodicTable::get()[0], constants::Hybridization::kUnkHyb) { }
+class AtomData {
+public:
+  /**
+   * @brief Creates a dummy atom with unknown hybridization.
+   */
+  AtomData()
+    : AtomData(PeriodicTable::get()[0], constants::Hybridization::kUnkHyb) { }
 
-    AtomData(const Element &element, constants::Hybridization hyb,
-             int formal_charge = 0, double partial_charge = 0.0,
-             int mass_number = -1, bool is_aromatic = false,
-             bool is_in_ring = false, bool is_chiral = false,
-             bool is_right_handed = false);
+  AtomData(const Element &element, constants::Hybridization hyb,
+           int formal_charge = 0, double partial_charge = 0.0,
+           int mass_number = -1, bool is_aromatic = false,
+           bool is_in_ring = false, bool is_chiral = false,
+           bool is_right_handed = false);
 
-    /**
-     * @brief Get the atomic number of the atom.
-     * @note This is equivalent to `element().Element::atomic_number()`,
-     *       provided for convenience.
-     * @return int
-     */
-    int atomic_number() const { return element().atomic_number(); }
+  /**
+   * @brief Get the atomic number of the atom.
+   * @note This is equivalent to `element().Element::atomic_number()`,
+   *       provided for convenience.
+   * @return int
+   */
+  int atomic_number() const { return element().atomic_number(); }
 
-    /**
-     * @brief Get the atomic weight of the atom.
-     * @note This is equivalent to `element().Element::atomic_weight()`,
-     *       provided for convenience.
-     * @return int
-     */
-    double atomic_weight() const { return element().atomic_weight(); }
+  /**
+   * @brief Get the atomic weight of the atom.
+   * @note This is equivalent to `element().Element::atomic_weight()`,
+   *       provided for convenience.
+   * @return int
+   */
+  double atomic_weight() const { return element().atomic_weight(); }
 
-    /**
-     * @brief Get the element symbol of the atom.
-     * @note This is equivalent to `element().Element::symbol()`, provided for
-     *       convenience.
-     * @return std::string_view
-     */
-    std::string_view element_symbol() const { return element().symbol(); }
+  /**
+   * @brief Get the element symbol of the atom.
+   * @note This is equivalent to `element().Element::symbol()`, provided for
+   *       convenience.
+   * @return std::string_view
+   */
+  std::string_view element_symbol() const { return element().symbol(); }
 
-    /**
-     * @brief Get the element name of the atom.
-     * @note This is equivalent to `element().Element::name()`, provided for
-     *       convenience.
-     * @return std::string_view
-     */
-    std::string_view element_name() const { return element().name(); }
+  /**
+   * @brief Get the element name of the atom.
+   * @note This is equivalent to `element().Element::name()`, provided for
+   *       convenience.
+   * @return std::string_view
+   */
+  std::string_view element_name() const { return element().name(); }
 
-    /**
-     * @brief Get the element data of the atom.
-     * @return const Element &
-     */
-    const Element &element() const noexcept {
-      ABSL_ASSUME(element_ != nullptr);
-      return *element_;
-    }
-
-    /**
-     * @brief Get the isotope of the atom.
-     * @return A const reference to the isotope object. If any isotope was
-     *         explicitly given, returns that isotope. Otherwise, returns the
-     *         representative isotope of the element.
-     * @sa explicit_isotope()
-     */
-    const Isotope &isotope() const {
-      return ABSL_PREDICT_TRUE(isotope_ == nullptr) ? element().major_isotope()
-                                                    : *isotope_;
-    }
-
-    /**
-     * @brief Get the explicitly set isotope of the atom.
-     * @return A pointer to the explicitly set isotope object. If none was
-     *         explicitly given, returns `nullptr`. Normally isotope() would
-     *         be the preferred method to get the isotope, which returns the
-     *         representative isotope of the element if none was explicitly
-     *         given.
-     * @sa isotope()
-     */
-    const Isotope *explicit_isotope() const { return isotope_; }
-
-    constants::Hybridization hybridization() const { return hyb_; }
-
-    bool is_aromatic() const { return check_flag(kAromaticAtom); }
-
-    bool is_ring_atom() const { return check_flag(kRingAtom); }
-
-    bool is_chiral() const { return check_flag(kChiralAtom); }
-
-    /**
-     * @brief Get handedness of a chiral atom.
-     *
-     * @pre is_chiral() == `true`, otherwise return value would be meaningless.
-     * @return Whether the chiral atom is "right-handed," i.e., `true` for (R)
-     *         and `false` for (S).
-     */
-    bool is_right_handed() const { return check_flag(kRightHandedAtom); }
-
-    void set_partial_charge(double charge) { partial_charge_ = charge; }
-
-    double partial_charge() const { return partial_charge_; }
-
-    void set_formal_charge(int charge) { formal_charge_ = charge; }
-
-    int formal_charge() const { return formal_charge_; }
-
-  private:
-    enum Flags {
-      kAromaticAtom = 0x1,
-      kRingAtom = 0x2,
-      kChiralAtom = 0x4,
-      kRightHandedAtom = 0x8,
-    };
-
-    constexpr bool check_flag(Flags flag) const { return (flags_ & flag) != 0; }
-
-    constexpr void update_flag(bool cond, Flags flag) {
-      uint32_t mask = -static_cast<uint32_t>(cond);
-      flags_ = (flags_ & ~flag) | (mask & flag);
-    }
-
-    friend bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept;
-
-    const Element *element_;
-    const Isotope *isotope_;
-    constants::Hybridization hyb_;
-    uint32_t flags_;
-    int formal_charge_;
-    double partial_charge_;
-  };
-
-  inline bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept {
-    return lhs.element() == rhs.element()
-           && lhs.hybridization() == rhs.hybridization()
-           && lhs.flags_ == rhs.flags_
-           && lhs.formal_charge() == rhs.formal_charge();
+  /**
+   * @brief Get the element data of the atom.
+   * @return const Element &
+   */
+  const Element &element() const noexcept {
+    ABSL_ASSUME(element_ != nullptr);
+    return *element_;
   }
 
-  class BondData {
-  public:
-    BondData(constants::BondOrder order, double length, bool is_rotable)
-      : order_(order), flags_(0), length_(length) {
-      if (is_rotable) {
-        flags_ |= kRotableBond;
-      }
-    }
+  /**
+   * @brief Get the isotope of the atom.
+   * @return A const reference to the isotope object. If any isotope was
+   *         explicitly given, returns that isotope. Otherwise, returns the
+   *         representative isotope of the element.
+   * @sa explicit_isotope()
+   */
+  const Isotope &isotope() const {
+    return ABSL_PREDICT_TRUE(isotope_ == nullptr) ? element().major_isotope()
+                                                  : *isotope_;
+  }
 
-    /**
-     * @brief Get the bond order of the bond.
-     */
-    constants::BondOrder order() const { return order_; }
+  /**
+   * @brief Get the explicitly set isotope of the atom.
+   * @return A pointer to the explicitly set isotope object. If none was
+   *         explicitly given, returns `nullptr`. Normally isotope() would
+   *         be the preferred method to get the isotope, which returns the
+   *         representative isotope of the element if none was explicitly
+   *         given.
+   * @sa isotope()
+   */
+  const Isotope *explicit_isotope() const { return isotope_; }
 
-    bool is_rotable() const { return (flags_ & kRotableBond) != 0; }
+  constants::Hybridization hybridization() const { return hyb_; }
 
-    /**
-     * @brief Get the bond length.
-     * @return The bond length of in angstroms \f$(\mathrm{Å})\f$. If the
-     *         molecule has no 3D conformations, this will return 0.
-     */
-    double length() const { return length_; }
+  bool is_aromatic() const { return check_flag(kAromaticAtom); }
 
-  private:
-    enum Flags {
-      kRotableBond = 0x1,
-    };
+  bool is_ring_atom() const { return check_flag(kRingAtom); }
 
-    constants::BondOrder order_;
-    uint32_t flags_;
-    double length_;
+  bool is_chiral() const { return check_flag(kChiralAtom); }
+
+  /**
+   * @brief Get handedness of a chiral atom.
+   *
+   * @pre is_chiral() == `true`, otherwise return value would be meaningless.
+   * @return Whether the chiral atom is "right-handed," i.e., `true` for (R)
+   *         and `false` for (S).
+   */
+  bool is_right_handed() const { return check_flag(kRightHandedAtom); }
+
+  void set_partial_charge(double charge) { partial_charge_ = charge; }
+
+  double partial_charge() const { return partial_charge_; }
+
+  void set_formal_charge(int charge) { formal_charge_ = charge; }
+
+  int formal_charge() const { return formal_charge_; }
+
+private:
+  enum Flags {
+    kAromaticAtom = 0x1,
+    kRingAtom = 0x2,
+    kChiralAtom = 0x4,
+    kRightHandedAtom = 0x8,
   };
-}  // namespace internal
+
+  constexpr bool check_flag(Flags flag) const { return (flags_ & flag) != 0; }
+
+  constexpr void update_flag(bool cond, Flags flag) {
+    uint32_t mask = -static_cast<uint32_t>(cond);
+    flags_ = (flags_ & ~flag) | (mask & flag);
+  }
+
+  friend bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept;
+
+  const Element *element_;
+  const Isotope *isotope_;
+  constants::Hybridization hyb_;
+  uint32_t flags_;
+  int formal_charge_;
+  double partial_charge_;
+};
+
+inline bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept {
+  return lhs.element() == rhs.element()
+         && lhs.hybridization() == rhs.hybridization()
+         && lhs.flags_ == rhs.flags_
+         && lhs.formal_charge() == rhs.formal_charge();
+}
+
+class BondData {
+public:
+  BondData(constants::BondOrder order, double length, bool is_rotable)
+    : order_(order), flags_(0), length_(length) {
+    if (is_rotable) {
+      flags_ |= kRotableBond;
+    }
+  }
+
+  /**
+   * @brief Get the bond order of the bond.
+   */
+  constants::BondOrder order() const { return order_; }
+
+  bool is_rotable() const { return (flags_ & kRotableBond) != 0; }
+
+  /**
+   * @brief Get the bond length.
+   * @return The bond length of in angstroms \f$(\mathrm{Å})\f$. If the
+   *         molecule has no 3D conformations, this will return 0.
+   */
+  double length() const { return length_; }
+
+private:
+  enum Flags {
+    kRotableBond = 0x1,
+  };
+
+  constants::BondOrder order_;
+  uint32_t flags_;
+  double length_;
+};
 
 /**
  * @brief Read-only molecule class.
@@ -233,7 +231,7 @@ namespace internal {
  */
 class Molecule {
 public:
-  using GraphType = Graph<internal::AtomData, internal::BondData>;
+  using GraphType = Graph<AtomData, BondData>;
 
   using Atom = GraphType::ConstNodeRef;
   using const_iterator = GraphType::const_iterator;
@@ -254,12 +252,12 @@ public:
   /**
    * @brief Construct a Molecule object from a range of atom data.
    * @tparam Iterator The type of the iterator.
-   * @param begin The begin iterator of the range, where `internal::AtomData`
+   * @param begin The begin iterator of the range, where `AtomData`
    *              must be constructible from value type of `\p begin`.
    * @param end The past-the-end iterator of the range.
    */
-  template <class Iterator, class = internal::enable_if_compatible_iter_t<
-                              Iterator, internal::AtomData>>
+  template <class Iterator,
+            class = internal::enable_if_compatible_iter_t<Iterator, AtomData>>
   Molecule(Iterator begin, Iterator end);
 
   /**
@@ -592,7 +590,7 @@ public:
    * @param atom The data of the atom to add.
    * @return The index of the added atom.
    */
-  int add_atom(const internal::AtomData &atom) {
+  int add_atom(const AtomData &atom) {
     int ret = next_atom_idx();
     new_atoms_.push_back(atom);
     return ret;
@@ -622,7 +620,7 @@ public:
    * @return `true` if the bond was added, `false` if the bond already exists.
    * @note Implementation detail: src, dst are swapped if src > dst.
    */
-  bool add_bond(int src, int dst, const internal::BondData &bond);
+  bool add_bond(int src, int dst, const BondData &bond);
 
   /**
    * @brief Add a bond to the molecule.
@@ -671,7 +669,7 @@ public:
 private:
   struct AddedBond {
     std::pair<int, int> ends;
-    internal::BondData data;
+    BondData data;
   };
 
   int next_atom_idx() const;
@@ -690,7 +688,7 @@ private:
 
   Molecule *mol_;
 
-  std::vector<internal::AtomData> new_atoms_;
+  std::vector<AtomData> new_atoms_;
   absl::flat_hash_set<int> removed_atoms_;
 
   std::vector<AddedBond> new_bonds_;

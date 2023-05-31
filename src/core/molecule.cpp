@@ -16,29 +16,27 @@
 #include "nuri/core/geometry.h"
 
 namespace nuri {
-namespace internal {
-  AtomData::AtomData(const Element &element, constants::Hybridization hyb,
-                     int formal_charge, double partial_charge, int mass_number,
-                     bool is_aromatic, bool is_in_ring, bool is_chiral,
-                     bool is_right_handed)
-    : element_(&element), isotope_(nullptr), hyb_(hyb), flags_(0),
-      formal_charge_(formal_charge), partial_charge_(partial_charge) {
-    if (mass_number >= 0) {
-      isotope_ = element.find_isotope(mass_number);
-      ABSL_LOG_IF(WARNING, ABSL_PREDICT_FALSE(isotope_ == nullptr))
-        << "Invalid mass number " << mass_number << " for element "
-        << element.symbol();
-    }
-
-    auto set_flag = [this](bool cond, Flags flag) {
-      flags_ |= -static_cast<uint32_t>(cond) & flag;
-    };
-    set_flag(is_aromatic, kAromaticAtom);
-    set_flag(is_in_ring, kRingAtom);
-    set_flag(is_chiral, kChiralAtom);
-    set_flag(is_right_handed, kRightHandedAtom);
+AtomData::AtomData(const Element &element, constants::Hybridization hyb,
+                   int formal_charge, double partial_charge, int mass_number,
+                   bool is_aromatic, bool is_in_ring, bool is_chiral,
+                   bool is_right_handed)
+  : element_(&element), isotope_(nullptr), hyb_(hyb), flags_(0),
+    formal_charge_(formal_charge), partial_charge_(partial_charge) {
+  if (mass_number >= 0) {
+    isotope_ = element.find_isotope(mass_number);
+    ABSL_LOG_IF(WARNING, ABSL_PREDICT_FALSE(isotope_ == nullptr))
+      << "Invalid mass number " << mass_number << " for element "
+      << element.symbol();
   }
-}  // namespace internal
+
+  auto set_flag = [this](bool cond, Flags flag) {
+    flags_ |= -static_cast<uint32_t>(cond) & flag;
+  };
+  set_flag(is_aromatic, kAromaticAtom);
+  set_flag(is_in_ring, kRingAtom);
+  set_flag(is_chiral, kChiralAtom);
+  set_flag(is_right_handed, kRightHandedAtom);
+}
 
 /* Molecule definitions */
 
@@ -119,8 +117,7 @@ bool Molecule::rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
 
 /* MoleculeMutator definitions */
 
-bool MoleculeMutator::add_bond(int src, int dst,
-                               const internal::BondData &bond) {
+bool MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
   if (ABSL_PREDICT_FALSE(src == dst)) {
     return false;
   }
