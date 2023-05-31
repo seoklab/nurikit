@@ -596,6 +596,14 @@ public:
     return id;
   }
 
+  template <class Iterator,
+            class = internal::enable_if_compatible_iter_t<Iterator, NT>>
+  int add_node(Iterator begin, Iterator end) noexcept {
+    auto it = nodes_.insert(nodes_.end(), begin, end);
+    adj_list_.resize(num_nodes());
+    return it - nodes_.begin();
+  }
+
   edge_id_type add_edge(int src, int dst, const ET &data) {
     stored_edge_id_type eid = edges_.insert(edges_.end(), { src, dst, data });
     add_adjacency_entry(eid);
@@ -644,13 +652,21 @@ public:
    *
    * @param begin The beginning of the range of nodes to be removed.
    * @param end The end of the range of nodes to be removed.
+   * @return A pair of (`new end id`, mapping of `old node id -> new node id`).
+   *         If only trailing nodes are removed, `new end id` will be set to the
+   *         first removed node id, and the mapping will be in a valid but
+   *         unspecified state. If no nodes are removed (special case of
+   *         trailing node removal), `new end id` will be equal to the size of
+   *         the graph before this operation. Otherwise, `new end id` will be
+   *         set to -1 and removed nodes will be marked as -1 in the mapping.
    * @sa pop_node()
    * @note Time complexity: \f$O(V)\f$ if only trailing nodes are removed,
    *       \f$O(V+E)\f$ otherwise. If \p begin or \p end is out of range, the
    *       behavior is undefined.
    */
-  void erase_nodes(const_iterator begin, const_iterator end) {
-    erase_nodes(begin, end, [](auto /* ref */) { return true; });
+  std::pair<int, std::vector<int>> erase_nodes(const_iterator begin,
+                                               const_iterator end) {
+    return erase_nodes(begin, end, [](auto /* ref */) { return true; });
   }
 
   /**
@@ -662,13 +678,21 @@ public:
    * @param end The end of the range of nodes to be removed.
    * @param pred A unary predicate that takes a `ConstNodeRef` and returns
    *        `true` if the node should be removed.
+   * @return A pair of (`new end id`, mapping of `old node id -> new node id`).
+   *         If only trailing nodes are removed, `new end id` will be set to the
+   *         first removed node id, and the mapping will be in a valid but
+   *         unspecified state. If no nodes are removed (special case of
+   *         trailing node removal), `new end id` will be equal to the size of
+   *         the graph before this operation. Otherwise, `new end id` will be
+   *         set to -1 and removed nodes will be marked as -1 in the mapping.
    * @sa pop_node()
    * @note Time complexity: \f$O(V)\f$ if only trailing nodes are removed,
    *       \f$O(V+E)\f$ otherwise. If \p begin or \p end is out of range, the
    *       behavior is undefined.
    */
   template <class UnaryPred>
-  void erase_nodes(const_iterator begin, const_iterator end, UnaryPred pred);
+  std::pair<int, std::vector<int>>
+  erase_nodes(const_iterator begin, const_iterator end, UnaryPred pred);
 
   /**
    * @brief Remove nodes and all its associated edge(s) from the graph.
@@ -677,15 +701,21 @@ public:
    *         with `int`.
    * @param begin The beginning of the range of node ids to be removed.
    * @param end The end of the range of node ids to be removed.
+   * @return A pair of (`new end id`, mapping of `old node id -> new node id`).
+   *         If only trailing nodes are removed, `new end id` will be set to the
+   *         first removed node id, and the mapping will be in a valid but
+   *         unspecified state. If no nodes are removed (special case of
+   *         trailing node removal), `new end id` will be equal to the size of
+   *         the graph before this operation. Otherwise, `new end id` will be
+   *         set to -1 and removed nodes will be marked as -1 in the mapping.
    * @sa pop_node()
    * @note Time complexity: \f$O(V)\f$ if only trailing nodes are removed,
    *       \f$O(V+E)\f$ otherwise. If any iterator in range `[`\p begin,
    *       \p end`)` references an invalid node id, the behavior is undefined.
    */
   template <class Iterator,
-            class = std::enable_if_t<std::is_constructible_v<
-              int, typename std::iterator_traits<Iterator>::value_type>>>
-  void erase_nodes(Iterator begin, Iterator end);
+            class = internal::enable_if_compatible_iter_t<Iterator, int>>
+  std::pair<int, std::vector<int>> erase_nodes(Iterator begin, Iterator end);
 
   iterator begin() { return { this, 0 }; }
   iterator end() { return { this, num_nodes() }; }
@@ -808,8 +838,8 @@ private:
     return { ait->adj_->eid };
   }
 
-  void erase_nodes_common(const std::vector<int> &node_keep,
-                          int first_removed_id, bool remove_trailing);
+  void erase_nodes_common(std::vector<int> &node_keep, int first_removed_id,
+                          bool remove_trailing);
 
   void add_adjacency_entry(stored_edge_id_type eid) {
     adj_list_[eid->src].push_back({ eid->dst, eid });
@@ -875,11 +905,12 @@ Graph<NT, ET> &Graph<NT, ET>::operator=(const Graph &other) {
 
 template <class NT, class ET>
 template <class Iterator, class>
-void Graph<NT, ET>::erase_nodes(Iterator begin, Iterator end) {
+std::pair<int, std::vector<int>> Graph<NT, ET>::erase_nodes(Iterator begin,
+                                                            Iterator end) {
   // Note: the time complexity notations are only for very sparse graphs, i.e.,
   // E = O(V).
   if (begin == end) {
-    return;
+    return { size(), {} };
   }
 
   // Phase I: mark nodes for removal, O(V)
@@ -906,18 +937,20 @@ void Graph<NT, ET>::erase_nodes(Iterator begin, Iterator end) {
   }
 
   erase_nodes_common(node_keep, first_removed_id, remove_trailing);
+  return { remove_trailing ? first_removed_id : -1, std::move(node_keep) };
 }
 
 template <class NT, class ET>
 template <class UnaryPred>
-void Graph<NT, ET>::erase_nodes(const const_iterator begin,
-                                const const_iterator end, UnaryPred pred) {
+std::pair<int, std::vector<int>>
+Graph<NT, ET>::erase_nodes(const const_iterator begin, const const_iterator end,
+                           UnaryPred pred) {
   // Note: the time complexity notations are only for very sparse graphs, i.e.,
   // E = O(V).
 
   // This will also handle size() == 0 case correctly.
   if (begin >= end) {
-    return;
+    return { size(), {} };
   }
 
   // Phase I: mark nodes for removal, O(V)
@@ -947,10 +980,11 @@ void Graph<NT, ET>::erase_nodes(const const_iterator begin,
   }
 
   erase_nodes_common(node_keep, first_removed_id, remove_trailing);
+  return { remove_trailing ? first_removed_id : -1, std::move(node_keep) };
 }
 
 template <class NT, class ET>
-void Graph<NT, ET>::erase_nodes_common(const std::vector<int> &node_keep,
+void Graph<NT, ET>::erase_nodes_common(std::vector<int> &node_keep,
                                        const int first_removed_id,
                                        const bool remove_trailing) {
   // Fast path 1: no node is removed
@@ -979,17 +1013,17 @@ void Graph<NT, ET>::erase_nodes_common(const std::vector<int> &node_keep,
   }
 
   // Phase III: update the node numbers in adjacencies and edges, O(V+E)
-  const std::vector<int> node_map = mask_to_map(node_keep);
+  mask_to_map(node_keep);
 
   for (std::vector<AdjEntry> &adjs: adj_list_) {
     for (AdjEntry &adj: adjs) {
-      adj.dst = node_map[adj.dst];
+      adj.dst = node_keep[adj.dst];
     }
   }
 
   for (StoredEdge &edge: edges_) {
-    edge.src = node_map[edge.src];
-    edge.dst = node_map[edge.dst];
+    edge.src = node_keep[edge.src];
+    edge.dst = node_keep[edge.dst];
   }
 
   // GCOV_EXCL_START
