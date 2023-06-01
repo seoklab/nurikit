@@ -30,7 +30,7 @@ AtomData::AtomData(const Element &element, constants::Hybridization hyb,
   }
 
   auto set_flag = [this](bool cond, Flags flag) {
-    flags_ |= -static_cast<uint32_t>(cond) & flag;
+    flags_ |= -static_cast<decltype(flags_)>(cond) & flag;
   };
   set_flag(is_aromatic, kAromaticAtom);
   set_flag(is_in_ring, kRingAtom);
@@ -41,28 +41,50 @@ AtomData::AtomData(const Element &element, constants::Hybridization hyb,
 /* Molecule definitions */
 
 namespace {
-  Matrix3d generate_rotation(const MatrixX3d &coords, int ref, int pivot,
-                             double angle) {
-    AngleAxisd aa(deg2rad(angle),
-                  (coords.row(pivot) - coords.row(ref)).normalized());
-    return aa.to_matrix();
-  }
+  void rotate_points(MatrixX3d &coords, const std::vector<int> &moving_idxs,
+                     int ref, int pivot, double angle) {
+    Vector3d pv = coords.row(pivot);
+    AngleAxisd aa(deg2rad(angle), (pv - coords.row(ref)).normalized());
 
-  template <class MatrixLike>
-  void rotate_helper(const Matrix3d &rot, MatrixLike &&moving,
-                     const Vector3d &pivot) {
-    for (int i = 0; i < moving.rows(); ++i) {
-      moving.row(i) =
-        (rot * (moving.row(i) - pivot).transpose()).transpose() + pivot;
+    auto rotate_helper = [&](auto moving) {
+      moving = (aa.to_matrix() * (moving.rowwise() - pv).transpose())
+                 .transpose()
+                 .rowwise()
+               + pv;
+    };
+    rotate_helper(coords(moving_idxs, Eigen::all));
+  }
+}  // namespace
+
+int Molecule::add_pos(const MatrixX3d &pos) {
+  int ret = static_cast<int>(conformers_.size());
+  conformers_.push_back(pos);
+
+  // First conformer, update bond lengths
+  if (ret == 0) {
+    for (auto bit = graph_.edge_begin(); bit != graph_.edge_end(); ++bit) {
+      bit->data().length() = (pos.row(bit->dst()) - pos.row(bit->src())).norm();
     }
   }
 
-  void rotate_points(MatrixX3d &coords, const std::vector<int> &moving_idxs,
-                     int ref, int pivot, double angle) {
-    Matrix3d rot = generate_rotation(coords, ref, pivot, angle);
-    rotate_helper(rot, coords(moving_idxs, Eigen::all), coords.row(pivot));
+  return ret;
+}
+
+int Molecule::add_pos(MatrixX3d &&pos) noexcept {
+  int ret = static_cast<int>(conformers_.size());
+  conformers_.push_back(std::move(pos));
+
+  // First conformer, update bond lengths
+  if (ret == 0) {
+    MatrixX3d &the_pos = conformers_[0];
+    for (auto bit = graph_.edge_begin(); bit != graph_.edge_end(); ++bit) {
+      bit->data().length() =
+        (the_pos.row(bit->dst()) - the_pos.row(bit->src())).norm();
+    }
   }
-}  // namespace
+
+  return ret;
+}
 
 bool Molecule::rotate_bond(int ref_atom, int pivot_atom, double angle) {
   return rotate_bond(-1, ref_atom, pivot_atom, angle);
@@ -93,11 +115,13 @@ bool Molecule::rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
 
   absl::flat_hash_set<int> connected =
     connected_components(graph_, pivot_atom, ref_atom);
+  // GCOV_EXCL_START
   if (ABSL_PREDICT_FALSE(connected.empty())) {
     ABSL_DLOG(WARNING) << ref_atom << " -> " << pivot_atom
                        << " bond is rotable, but the two atoms are connected.";
     return false;
   }
+  // GCOV_EXCL_STOP
 
   std::vector<int> moving_atoms(connected.begin(), connected.end());
   // For faster memory access in the rotate_points function
@@ -127,8 +151,9 @@ bool MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
   if (ABSL_PREDICT_FALSE(!inserted)) {
     return false;
   }
-  if (ABSL_PREDICT_FALSE(mol().graph_.find_edge(src, dst)
-                         != mol().graph_.edge_end())) {
+  if (src < mol().num_atoms() && dst < mol().num_atoms()
+      && ABSL_PREDICT_FALSE(mol().graph_.find_edge(src, dst)
+                            != mol().graph_.edge_end())) {
     new_bonds_set_.erase(it);
     return false;
   }
@@ -142,7 +167,7 @@ void MoleculeMutator::remove_bond(int src, int dst) {
     return;
   }
 
-  removed_bonds_.push_back({ src, dst });
+  removed_bonds_.push_back(std::minmax(src, dst));
 }
 
 int MoleculeMutator::num_atoms() const {
@@ -160,6 +185,7 @@ void MoleculeMutator::discard() noexcept {
 
 void MoleculeMutator::accept() noexcept {
   Molecule::GraphType &g = mol().graph_;
+  const int old_size = mol().num_atoms();
 
   // As per the spec, the order is:
 
@@ -181,6 +207,14 @@ void MoleculeMutator::accept() noexcept {
     g.erase_nodes(removed_atoms_.begin(), removed_atoms_.end());
 
   // Update the data
+  for (auto bit = g.edge_begin(); bit != g.edge_end(); ++bit) {
+    auto &d = bit->data();
+    // TODO(jnooree): detect in-ring bonds
+    d.set_ring_bond(false);
+    d.set_rotable(!d.is_ring_bond() && d.order() <= constants::kSingleBond);
+  }
+
+  // Update coordinates
   if (last >= 0) {
     // Only trailing nodes are removed
     for (MatrixX3d &conf: mol().conformers_) {
@@ -188,17 +222,20 @@ void MoleculeMutator::accept() noexcept {
     }
   } else {
     // Select the atom indices
-    ArrayXi idxs(mol().num_atoms());
-    auto it = idxs.begin();
-    for (int i = 0; it != idxs.end(); ++i) {
+    std::vector<int> idxs;
+    for (int i = 0; i < old_size; ++i) {
+      // GCOV_EXCL_START
       ABSL_DCHECK(i < map.size());
+      // GCOV_EXCL_STOP
       if (map[i] >= 0) {
-        *it++ = i;
+        idxs.push_back(i);
       }
     }
 
     for (MatrixX3d &conf: mol().conformers_) {
-      conf = conf(idxs, Eigen::all);
+      MatrixX3d updated(mol().num_atoms(), 3);
+      updated.topRows(idxs.size()) = conf(idxs, Eigen::all);
+      conf = std::move(updated);
     }
   }
 
