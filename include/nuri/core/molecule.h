@@ -18,6 +18,7 @@
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
 #include "nuri/core/graph.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 namespace constants {
@@ -129,11 +130,13 @@ public:
 
   constants::Hybridization hybridization() const { return hyb_; }
 
-  bool is_aromatic() const { return check_flag(kAromaticAtom); }
+  bool is_aromatic() const {
+    return internal::check_flag(flags_, kAromaticAtom);
+  }
 
-  bool is_ring_atom() const { return check_flag(kRingAtom); }
+  bool is_ring_atom() const { return internal::check_flag(flags_, kRingAtom); }
 
-  bool is_chiral() const { return check_flag(kChiralAtom); }
+  bool is_chiral() const { return internal::check_flag(flags_, kChiralAtom); }
 
   /**
    * @brief Get handedness of a chiral atom.
@@ -142,7 +145,9 @@ public:
    * @return Whether the chiral atom is "right-handed," i.e., `true` for (R)
    *         and `false` for (S).
    */
-  bool is_right_handed() const { return check_flag(kRightHandedAtom); }
+  bool is_right_handed() const {
+    return internal::check_flag(flags_, kRightHandedAtom);
+  }
 
   void set_partial_charge(double charge) { partial_charge_ = charge; }
 
@@ -159,13 +164,6 @@ private:
     kChiralAtom = 0x4,
     kRightHandedAtom = 0x8,
   };
-
-  constexpr bool check_flag(Flags flag) const { return (flags_ & flag) != 0; }
-
-  constexpr void update_flag(bool cond, Flags flag) {
-    uint32_t mask = -static_cast<uint32_t>(cond);
-    flags_ = (flags_ & ~flag) | (mask & flag);
-  }
 
   friend bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept;
 
