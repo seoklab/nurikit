@@ -610,7 +610,7 @@ public:
    * @return The index of the added atom.
    */
   int add_atom(const AtomData &atom) {
-    int ret = next_atom_idx();
+    const int ret = next_atom_idx();
     new_atoms_.push_back(atom);
     return ret;
   }

@@ -57,7 +57,7 @@ namespace {
 }  // namespace
 
 int Molecule::add_pos(const MatrixX3d &pos) {
-  int ret = static_cast<int>(conformers_.size());
+  const int ret = static_cast<int>(conformers_.size());
   conformers_.push_back(pos);
 
   // First conformer, update bond lengths
@@ -71,7 +71,7 @@ int Molecule::add_pos(const MatrixX3d &pos) {
 }
 
 int Molecule::add_pos(MatrixX3d &&pos) noexcept {
-  int ret = static_cast<int>(conformers_.size());
+  const int ret = static_cast<int>(conformers_.size());
   conformers_.push_back(std::move(pos));
 
   // First conformer, update bond lengths
@@ -103,7 +103,7 @@ bool Molecule::rotate_bond(int i, int ref_atom, int pivot_atom, double angle) {
 }
 
 bool Molecule::rotate_bond(int i, bond_id_type bid, double angle) {
-  Bond b = bond(bid);
+  const Bond b = bond(bid);
   return rotate_bond_common(i, b, b.src(), b.dst(), angle);
 }
 
@@ -146,7 +146,7 @@ bool MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
     return false;
   }
 
-  std::pair<int, int> ends = std::minmax(src, dst);
+  const std::pair<int, int> ends = std::minmax(src, dst);
   auto [it, inserted] = new_bonds_set_.insert(ends);
   if (ABSL_PREDICT_FALSE(!inserted)) {
     return false;

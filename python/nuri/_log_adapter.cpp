@@ -46,8 +46,11 @@ public:
       PyLogSink::py_log_ =
         py::module_::import("logging").attr("getLogger")("nuri").attr("log");
 
+      // Why no nolint for clang static analyzer?
+#ifndef __clang_analyzer__
       // NOLINTNEXTLINE(*-owning-memory)
       absl::AddLogSink(new PyLogSink);
+#endif
       absl::SetMinLogLevel(absl::LogSeverityAtLeast::kInfo);
       absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfinity);
 
@@ -57,7 +60,7 @@ public:
   }
 
   void Send(const absl::LogEntry &entry) override {
-    py::gil_scoped_acquire gil;
+    const py::gil_scoped_acquire gil;
 
     py_log_(absl_severity_to_py_loglevel(entry.log_severity()),
             entry.text_message());

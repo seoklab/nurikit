@@ -565,7 +565,7 @@ public:
     return size() == 0;
   }
   int size() const { return num_nodes(); }
-  int num_nodes() const { return nodes_.size(); }
+  int num_nodes() const { return static_cast<int>(nodes_.size()); }
 
   bool edge_empty() const {
     // GCOV_EXCL_START
@@ -575,9 +575,9 @@ public:
     // GCOV_EXCL_STOP
     return num_edges() == 0;
   }
-  int num_edges() const { return edges_.size(); }
+  int num_edges() const { return static_cast<int>(edges_.size()); }
 
-  int degree(int id) const { return adj_list_[id].size(); }
+  int degree(int id) const { return static_cast<int>(adj_list_[id].size()); }
 
   void reserve(int num_nodes) {
     nodes_.reserve(num_nodes);
@@ -603,7 +603,7 @@ public:
   int add_node(Iterator begin, Iterator end) noexcept {
     auto it = nodes_.insert(nodes_.end(), begin, end);
     adj_list_.resize(num_nodes());
-    return it - nodes_.begin();
+    return static_cast<int>(it - nodes_.begin());
   }
 
   edge_id_type add_edge(int src, int dst, const ET &data) {
