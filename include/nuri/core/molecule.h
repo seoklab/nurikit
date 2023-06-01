@@ -101,7 +101,9 @@ public:
    * @return const Element &
    */
   const Element &element() const noexcept {
+    // GCOV_EXCL_START
     ABSL_ASSUME(element_ != nullptr);
+    // GCOV_EXCL_STOP
     return *element_;
   }
 
@@ -184,19 +186,29 @@ inline bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept {
 
 class BondData {
 public:
-  BondData(constants::BondOrder order, double length, bool is_rotable)
-    : order_(order), flags_(0), length_(length) {
-    if (is_rotable) {
-      flags_ |= kRotableBond;
-    }
-  }
+  BondData(constants::BondOrder order): order_(order), flags_(0), length_(0) { }
 
   /**
    * @brief Get the bond order of the bond.
    */
   constants::BondOrder order() const { return order_; }
 
-  bool is_rotable() const { return (flags_ & kRotableBond) != 0; }
+  /**
+   * @brief Get the read-write reference to bond order.
+   */
+  constants::BondOrder &order() { return order_; }
+
+  bool is_rotable() const { return internal::check_flag(flags_, kRotableBond); }
+
+  void set_rotable(bool rotable) {
+    internal::update_flag(flags_, rotable, kRotableBond);
+  }
+
+  bool is_ring_bond() const { return internal::check_flag(flags_, kRingBond); }
+
+  void set_ring_bond(bool ring) {
+    internal::update_flag(flags_, ring, kRingBond);
+  }
 
   /**
    * @brief Get the bond length.
@@ -205,9 +217,17 @@ public:
    */
   double length() const { return length_; }
 
+  /**
+   * @brief Get the read-write reference to bond length.
+   * @return The bond length of in angstroms \f$(\mathrm{Å})\f$. If the
+   *         molecule has no 3D conformations, this will return 0.
+   */
+  double &length() { return length_; }
+
 private:
   enum Flags {
     kRotableBond = 0x1,
+    kRingBond = 0x2,
   };
 
   constants::BondOrder order_;
@@ -242,6 +262,8 @@ public:
   using Neighbor = GraphType::ConstAdjRef;
   using const_neighbor_iterator = GraphType::const_adjacency_iterator;
 
+  friend class MoleculeMutator;
+
   /**
    * @brief Construct an empty Molecule object.
    */
@@ -250,8 +272,8 @@ public:
   /**
    * @brief Construct a Molecule object from a range of atom data.
    * @tparam Iterator The type of the iterator.
-   * @param begin The begin iterator of the range, where `AtomData`
-   *              must be constructible from value type of `\p begin`.
+   * @param begin The begin iterator of the range, where `AtomData` must be
+   *              constructible from value type of \p begin.
    * @param end The past-the-end iterator of the range.
    */
   template <class Iterator,
@@ -378,6 +400,13 @@ public:
   }
 
   /**
+   * @brief Get a MoleculeMutator object associated with the molecule.
+   *
+   * @return The MoleculeMutator object to update this molecule.
+   */
+  class MoleculeMutator mutator();
+
+  /**
    * @brief Check if the molecule has any 3D conformations.
    * @return `true` if the molecule has any 3D conformations, `false` otherwise.
    */
@@ -387,7 +416,7 @@ public:
    * @brief Get the atomic coordinates of ith conformer.
    *
    * @param i Index of the conformer.
-   * @return Atomic coordinates of the first conformer.
+   * @return Atomic coordinates of ith conformer.
    * @note If index is out of range, the behavior is undefined.
    */
   const MatrixX3d &pos(int i = 0) const { return conformers_[i]; }
@@ -408,37 +437,31 @@ public:
    * @brief Add a new conformer to the molecule.
    *
    * @param pos Atomic coordinates of the new conformer.
-   * @return The index of the added conformer. On mismatched size, -1 is
-   *         returned.
+   * @return The index of the added conformer.
+   * @note If number of rows of \p pos does not match the number of atoms in the
+   *       molecule, the behavior is undefined.
    *
    * If no conformers exist, the bond lengths will be calculated from the
    * positions of the atoms in `pos`. Otherwise, the bond lengths will be left
    * unmodified, so it is the caller's responsibility to ensure that the bond
    * lengths are consistent with the new conformer.
    */
-  int add_pos(const MatrixX3d &pos) {
-    int ret = static_cast<int>(conformers_.size());
-    conformers_.push_back(pos);
-    return ret;
-  }
+  int add_pos(const MatrixX3d &pos);
 
   /**
    * @brief Add a new conformer to the molecule.
    *
    * @param pos Atomic coordinates of the new conformer.
-   * @return The index of the added conformer. On mismatched size, -1 is
-   *         returned.
-   *
+   * @return The index of the added conformer.
+   * @note If number of rows of \p pos does not match the number of atoms in the
+   *       molecule, the behavior is undefined.
+
    * If no conformers exist, the bond lengths will be calculated from the
    * positions of the atoms in `pos`. Otherwise, the bond lengths will be left
    * unmodified, so it is the caller's responsibility to ensure that the bond
    * lengths are consistent with the new conformer.
    */
-  int add_pos(MatrixX3d &&pos) noexcept {
-    int ret = static_cast<int>(conformers_.size());
-    conformers_.push_back(std::move(pos));
-    return ret;
-  }
+  int add_pos(MatrixX3d &&pos) noexcept;
 
   /**
    * @brief Remove a conformer from the molecule.
@@ -454,7 +477,7 @@ public:
    */
   void transform(const Affine3d &trans) {
     for (MatrixX3d &m: conformers_) {
-      m = trans * m.transpose();
+      m.transpose() = trans * m.transpose();
     }
   }
 
@@ -467,7 +490,7 @@ public:
    */
   void transform(int i, const Affine3d &trans) {
     MatrixX3d &m = conformers_[i];
-    m = trans * m.transpose();
+    m.transpose() = trans * m.transpose();
   }
 
   /**
@@ -533,8 +556,6 @@ public:
   bool rotate_bond(int i, bond_id_type bid, double angle);
 
 private:
-  friend class MoleculeMutator;
-
   bool rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
                           double angle);
 
@@ -641,6 +662,7 @@ public:
    * @note The behavior is undefined if any of the atom indices is out of range,
    *       **at the momenet of `accept()` call**. This is a no-op if the bond
    *       does not exist, also **at the moment of `accept()` call**.
+   * @note Implementation detail: src, dst are swapped if src > dst.
    */
   void remove_bond(int src, int dst);
 
@@ -702,6 +724,10 @@ Molecule::Molecule(Iterator begin, Iterator end): Molecule() {
   for (auto it = begin; it != end; ++it) {
     mutator.add_atom(*it);
   }
+}
+
+inline MoleculeMutator Molecule::mutator() {
+  return MoleculeMutator(*this);
 }
 }  // namespace nuri
 
