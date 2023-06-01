@@ -23,6 +23,8 @@ CompileFlags:
     - -Wno-ignored-optimization-argument
     - -Wno-unused-macros
     - -Wno-unsafe-buffer-usage
+  Remove:
+    - '-fsanitize=*'
 Style:
   FullyQualifiedNamespaces: true
 Diagnostics:

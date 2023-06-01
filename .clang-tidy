@@ -23,6 +23,7 @@ ExtraArgsBefore:
   - -Wno-ignored-optimization-argument
   - -Wno-unused-macros
   - -Wno-unsafe-buffer-usage
+  - -fno-sanitize=all
 CheckOptions:
   - key: bugprone-stringview-nullptr.IncludeStyle
     value: google
