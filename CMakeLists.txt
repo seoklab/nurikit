@@ -18,6 +18,8 @@ option(NURI_ENABLE_IPO "Do interprocedural optimization" ON)
 option(NURI_ENABLE_AVX2 "Use -mavx2 flag for optimization" ON)
 option(NURI_ENABLE_ARCH_NATIVE "Use -march=native flag for optimization" OFF)
 
+option(NURI_ENABLE_SANITIZERS "Enable sanitizers for debug build" OFF)
+
 option(NURI_TEST_COVERAGE "Enable coverage build" OFF)
 option(NURI_BUILD_DOCS "Build documentation" OFF)
 
@@ -54,6 +56,11 @@ endif()
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_options(-O0)
   add_compile_definitions("DEBUG")
+
+  if(NURI_ENABLE_SANITIZERS)
+    add_compile_options(-fsanitize=address -fsanitize=undefined)
+    add_link_options(-fsanitize=address -fsanitize=undefined)
+  endif()
 elseif(NURI_ENABLE_IPO)
   # Next line is required for absl, etc.
   set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
