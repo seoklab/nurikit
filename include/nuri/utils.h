@@ -7,7 +7,7 @@
 #define NURI_UTILS_H_
 
 #include <algorithm>
-#include <numeric>
+#include <iterator>
 #include <type_traits>
 #include <vector>
 
@@ -20,6 +20,40 @@ namespace internal {
 
   template <bool is_const, class T>
   using const_if_t = typename const_if<is_const, T>::type;
+
+  template <class Iterator, class T,
+            bool = std::is_constructible_v<
+              T, typename std::iterator_traits<Iterator>::reference>>
+  struct enable_if_compatible_iter { };
+
+  template <class Iterator, class T>
+  struct enable_if_compatible_iter<Iterator, T, true> {
+    using type = void;
+  };
+
+  template <class Iterator, class T>
+  using enable_if_compatible_iter_t =
+    typename enable_if_compatible_iter<Iterator, T>::type;
+
+  template <class NT, class FT>
+  constexpr std::enable_if_t<
+    std::is_unsigned_v<NT>
+      && std::is_same_v<NT, std::make_unsigned_t<std::underlying_type_t<FT>>>,
+    bool>
+  check_flag(NT flags, FT flag) {
+    return static_cast<bool>(flags & flag);
+  }
+
+  template <class NT, class FT>
+  constexpr std::enable_if_t<
+    std::is_unsigned_v<NT>
+      && std::is_same_v<NT, std::make_unsigned_t<std::underlying_type_t<FT>>>,
+    NT &>
+  update_flag(NT &flags, bool cond, FT flag) {
+    NT mask = -static_cast<NT>(cond);
+    flags = (flags & ~flag) | (mask & flag);
+    return flags;
+  }
 }  // namespace internal
 
 #if __cplusplus >= 202002L
@@ -56,10 +90,11 @@ typename std::vector<T, Alloc>::iterator erase_first(std::vector<T, Alloc> &c,
 }
 
 template <class Container>
-Container mask_to_map(const Container &mask) {
-  Container map(mask.size());
-  std::inclusive_scan(mask.begin(), mask.end(), map.begin(), std::plus<>(), -1);
-  return map;
+void mask_to_map(Container &mask) {
+  typename Container::value_type idx = 0;
+  for (int i = 0; i < mask.size(); ++i) {
+    mask[i] = mask[i] ? idx++ : -1;
+  }
 }
 }  // namespace nuri
 

@@ -7,11 +7,13 @@
 
 #include <iterator>
 #include <type_traits>
+#include <vector>
 
+#include <absl/container/flat_hash_set.h>
 #include <gtest/gtest.h>
 
-#define NURIKIT_TEST_CONVERTIBILITY(from_name, from_expr, to_name, to_expr,    \
-                                    allowed)                                   \
+#define NURI_TEST_CONVERTIBILITY(from_name, from_expr, to_name, to_expr,       \
+                                 allowed)                                      \
   static_assert(std::is_convertible_v<from_expr, to_expr> == allowed,          \
                 #from_name " to " #to_name " convertibility != " #allowed);    \
   static_assert(std::is_constructible_v<to_expr, from_expr> == allowed,        \
@@ -19,10 +21,9 @@
   static_assert(std::is_assignable_v<to_expr, from_expr> == allowed,           \
                 #from_name " to " #to_name " assignability != " #allowed)
 
-#define NURIKIT_ASSERT_ONEWAY_CONVERTIBLE(from_name, from_expr, to_name,       \
-                                          to_expr)                             \
-  NURIKIT_TEST_CONVERTIBILITY(from_name, from_expr, to_name, to_expr, true);   \
-  NURIKIT_TEST_CONVERTIBILITY(to_name, to_expr, from_name, from_expr, false)
+#define NURI_ASSERT_ONEWAY_CONVERTIBLE(from_name, from_expr, to_name, to_expr) \
+  NURI_TEST_CONVERTIBILITY(from_name, from_expr, to_name, to_expr, true);      \
+  NURI_TEST_CONVERTIBILITY(to_name, to_expr, from_name, from_expr, false)
 
 namespace {
 // NOLINTBEGIN(clang-diagnostic-unused-member-function)
@@ -144,6 +145,8 @@ TYPED_TEST(BasicGraphTest, AssignmentTest) {
 
   Graph g1(10, { 10 });
   g1.add_edge(0, 1, { 100 });
+
+  g1 = g1;  // NOLINT
 
   {
     Graph g2(20, { 20 });
@@ -274,6 +277,17 @@ protected:
     edges_.push_back(graph_.add_edge(3, 4, { 109 }));
   }
 
+  /**
+   * The resulting graph (somewhat looks like a cyclopropane derivative):
+   *
+   *            3 - 4
+   *            |
+   *        9 - 2          10 (<-intentionally unconnected)
+   *          /   \
+   *     6 - 0 --- 1 - 8
+   *         |     |
+   *         5     7
+   */
   Graph graph_;
   std::vector<typename Graph::edge_id_type> edges_;
 };
@@ -327,9 +341,9 @@ TYPED_TEST(AdvancedGraphTest, NodeIteratorTest) {
     it->data() = { -1 };
     cnt++;
 
-    NURIKIT_ASSERT_ONEWAY_CONVERTIBLE(node_iterator, decltype(it),
-                                      const_node_iterator,
-                                      typename Graph::const_node_iterator);
+    NURI_ASSERT_ONEWAY_CONVERTIBLE(node_iterator, decltype(it),
+                                   const_node_iterator,
+                                   typename Graph::const_node_iterator);
   }
   ASSERT_EQ(cnt, graph.num_nodes());
 
@@ -400,9 +414,9 @@ TYPED_TEST(AdvancedGraphTest, EdgeIteratorTest) {
     it->data() = { -1 };
     cnt++;
 
-    NURIKIT_ASSERT_ONEWAY_CONVERTIBLE(edge_iterator, decltype(it),
-                                      const_edge_iterator,
-                                      typename Graph::const_edge_iterator);
+    NURI_ASSERT_ONEWAY_CONVERTIBLE(edge_iterator, decltype(it),
+                                   const_edge_iterator,
+                                   typename Graph::const_edge_iterator);
   }
   ASSERT_EQ(cnt, graph.num_edges());
 
@@ -459,7 +473,7 @@ TYPED_TEST(AdvancedGraphTest, AdjacencyTest) {
   ASSERT_EQ(adj10.edge_data(), 1000);
   ASSERT_EQ(adj10.as_const().edge_data(), 1000);
 
-  ASSERT_EQ(graph.find_adjacent(0, 10), graph.adj_end(0));
+  ASSERT_TRUE(graph.find_adjacent(0, 10).end());
 
   const Graph &const_graph = graph;
   auto cadj01 = *const_graph.find_adjacent(0, 1);
@@ -477,19 +491,19 @@ TYPED_TEST(AdvancedGraphTest, AdjIteratorTest) {
   ASSERT_EQ(graph.node(0).adj_end(), graph.adj_end(0));
 
   int cnt = 0;
-  for (auto it = graph.adj_begin(0); it != graph.adj_end(0); ++it) {
+  for (auto it = graph.adj_begin(0); !it.end(); ++it) {
     ASSERT_EQ(it->src(), 0);
     it->edge_data() = { -1 };
     cnt++;
 
-    NURIKIT_ASSERT_ONEWAY_CONVERTIBLE(adj_iterator, decltype(it),
-                                      const_adjacency_iterator,
-                                      typename Graph::const_adjacency_iterator);
+    NURI_ASSERT_ONEWAY_CONVERTIBLE(adj_iterator, decltype(it),
+                                   const_adjacency_iterator,
+                                   typename Graph::const_adjacency_iterator);
   }
   ASSERT_EQ(cnt, graph.degree(0));
 
   const Graph &const_graph = graph;
-  for (auto it = const_graph.adj_begin(0); it != const_graph.adj_end(0); ++it) {
+  for (auto it = const_graph.adj_begin(0); !it.end(); ++it) {
     static_assert(!std::is_assignable_v<decltype(it->edge_data()),
                                         typename Graph::edge_data_type>,
                   "const_iterator should be read-only");
@@ -544,6 +558,9 @@ TYPED_TEST(AdvancedGraphTest, EraseNoNodeTest) {
   graph.erase_nodes(graph.end(), graph.begin());
   graph.erase_nodes(graph.begin(), graph.end(), [](auto) { return false; });
 
+  std::vector<int> dummy;
+  graph.erase_nodes(dummy.begin(), dummy.end());
+
   ASSERT_EQ(graph.num_nodes(), 11);
   ASSERT_EQ(graph.num_edges(), 10);
 }
@@ -555,6 +572,19 @@ TYPED_TEST(AdvancedGraphTest, EraseAllNodesTest) {
   graph.erase_nodes(graph.begin(), graph.end());
 
   ASSERT_EQ(graph.num_edges(), 0);
+}
+
+TYPED_TEST(AdvancedGraphTest, EraseNodesByIdTest) {
+  using Graph = nuri::Graph<TypeParam, TypeParam>;
+  Graph &graph = this->graph_;
+
+  std::vector<int> node_ids = { 0, 1, 4 };
+
+  graph.erase_nodes(node_ids.begin(), node_ids.end());
+  ASSERT_EQ(graph.num_nodes(), 8);
+  ASSERT_EQ(graph.num_edges(), 2);
+  ASSERT_FALSE(graph.find_adjacent(0, 1).end());
+  ASSERT_FALSE(graph.find_adjacent(0, 6).end());
 }
 
 TYPED_TEST(AdvancedGraphTest, EraseExceptOneNodeTest) {
@@ -584,6 +614,26 @@ TYPED_TEST(AdvancedGraphTest, EraseTrailingNodesTest) {
   Graph &graph = this->graph_;
 
   graph.erase_nodes(graph.end() - 3, graph.end());
+
+  ASSERT_EQ(graph.num_nodes(), 8);
+  ASSERT_EQ(graph.num_edges(), 8);
+
+  ASSERT_EQ(graph.find_adjacent(0, 1)->edge_data(), 100);
+  ASSERT_EQ(graph.find_adjacent(0, 2)->edge_data(), 101);
+  ASSERT_EQ(graph.find_adjacent(0, 5)->edge_data(), 102);
+  ASSERT_EQ(graph.find_adjacent(0, 6)->edge_data(), 103);
+  ASSERT_EQ(graph.find_adjacent(1, 2)->edge_data(), 104);
+  ASSERT_EQ(graph.find_adjacent(1, 7)->edge_data(), 105);
+  ASSERT_EQ(graph.find_adjacent(2, 3)->edge_data(), 107);
+  ASSERT_EQ(graph.find_adjacent(3, 4)->edge_data(), 109);
+}
+
+TYPED_TEST(AdvancedGraphTest, EraseTrailingNodesByIdTest) {
+  using Graph = nuri::Graph<TypeParam, TypeParam>;
+  Graph &graph = this->graph_;
+
+  std::vector<int> node_ids = { 8, 9, 10 };
+  graph.erase_nodes(node_ids.begin(), node_ids.end());
 
   ASSERT_EQ(graph.num_nodes(), 8);
   ASSERT_EQ(graph.num_edges(), 8);
@@ -703,6 +753,23 @@ TYPED_TEST(AdvancedGraphTest, EraseAddTest) {
   ASSERT_EQ(graph.find_adjacent(7, 10)->eid(), e);
   ASSERT_EQ(graph.find_adjacent(7, 10)->edge_data(), 110);
 }
+
+TYPED_TEST(AdvancedGraphTest, FindConnectedTest) {
+  using Graph = nuri::Graph<TypeParam, TypeParam>;
+  Graph &graph = this->graph_;
+
+  absl::flat_hash_set<int> connected = nuri::connected_components(graph, 0);
+  ASSERT_EQ(connected.size(), 10);
+  ASSERT_FALSE(connected.contains(10));
+
+  connected = nuri::connected_components(graph, 3, 2);
+  ASSERT_EQ(connected.size(), 2);
+  ASSERT_TRUE(connected.contains(3));
+  ASSERT_TRUE(connected.contains(4));
+
+  connected = nuri::connected_components(graph, 1, 2);
+  ASSERT_TRUE(connected.empty());
+}
 }  // namespace
 
 // Explicit instantiation of few template classes for coverage report.
@@ -714,20 +781,20 @@ namespace internal {
   // NOLINTBEGIN(cppcoreguidelines-macro-usage)
   // Non-const version of wrappers could not be instantiated due to the
   // converting constructor. Non-const iterators could be instantiated.
-#define NURIKIT_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, iterator, RefType)  \
+#define NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, iterator, RefType)     \
   template class RefType##Wrapper<GraphType, true>;                            \
   template class DataIteratorBase<GraphType::iterator, GraphType,              \
                                   GraphType::RefType##Ref, false>;             \
   template class RefType##Iterator<GraphType, false>;
 
-#define NURIKIT_INSTANTIATE_ALL_TEMPLATES(GraphType)                           \
-  NURIKIT_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, iterator, Node)           \
-  NURIKIT_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, adjacency_iterator, Adj)  \
+#define NURI_INSTANTIATE_ALL_TEMPLATES(GraphType)                              \
+  NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, iterator, Node)              \
+  NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, adjacency_iterator, Adj)     \
   template class EdgeWrapper<GraphType, true>;                                 \
   template class EdgeIterator<GraphType, true>;
 
-  NURIKIT_INSTANTIATE_ALL_TEMPLATES(TrivialGraph)
-  NURIKIT_INSTANTIATE_ALL_TEMPLATES(NonTrivialGraph)
+  NURI_INSTANTIATE_ALL_TEMPLATES(TrivialGraph)
+  NURI_INSTANTIATE_ALL_TEMPLATES(NonTrivialGraph)
   // NOLINTEND(cppcoreguidelines-macro-usage)
 }  // namespace internal
 }  // namespace nuri

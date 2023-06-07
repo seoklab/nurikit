@@ -7,9 +7,9 @@ include(GNUInstallDirs)
 
 configure_file(nuri/nurikit_config.h.in
   generated/include/nuri/nurikit_config.h @ONLY)
-list(APPEND NURIKIT_INCLUDE_DIRECTORIES
+list(APPEND NURI_INCLUDE_DIRECTORIES
   "${CMAKE_CURRENT_BINARY_DIR}/generated/include")
-set(NURIKIT_INCLUDE_DIRECTORIES ${NURIKIT_INCLUDE_DIRECTORIES} PARENT_SCOPE)
+set(NURI_INCLUDE_DIRECTORIES ${NURI_INCLUDE_DIRECTORIES} PARENT_SCOPE)
 
 if(NOT SKBUILD)
   install(FILES

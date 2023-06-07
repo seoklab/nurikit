@@ -1,3 +1,8 @@
+#
+# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
 name: Build and deploy python docs
 
 on:
@@ -27,7 +32,7 @@ jobs:
 
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.8'
+          python-version: "3.8"
 
       - name: Install dependencies
         run: pip install sphinx sphinx-rtd-theme nurikit
@@ -41,7 +46,7 @@ jobs:
       - name: Build docs & test
         run: |
           cmake --build build -j \
-            --target nurikit_python_docs nurikit_python_docs_doctest
+            --target nuri_python_docs nuri_python_docs_doctest
 
       - uses: actions/upload-artifact@v3
         with:

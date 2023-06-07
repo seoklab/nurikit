@@ -9,17 +9,19 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 include(NurikitUtils)
 
 nurikit_get_version()
-project(nurikit VERSION "${NURIKIT_CORE_VERSION}" LANGUAGES CXX)
+project(nurikit VERSION "${NURI_CORE_VERSION}" LANGUAGES CXX)
 
 # Compile options
-set(NURIKIT_OPTIMIZATION_LEVEL "O3" CACHE STRING "Optimization level")
-option(NURIKIT_BUILD_PYTHON "Build Python bindings" ON)
-option(NURIKIT_ENABLE_IPO "Do interprocedural optimization" ON)
-option(NURIKIT_ENABLE_AVX2 "Use -mavx2 flag for optimization" ON)
-option(NURIKIT_ENABLE_ARCH_NATIVE "Use -march=native flag for optimization" OFF)
+set(NURI_OPTIMIZATION_LEVEL "O3" CACHE STRING "Optimization level")
+option(NURI_BUILD_PYTHON "Build Python bindings" ON)
+option(NURI_ENABLE_IPO "Do interprocedural optimization" ON)
+option(NURI_ENABLE_AVX2 "Use -mavx2 flag for optimization" ON)
+option(NURI_ENABLE_ARCH_NATIVE "Use -march=native flag for optimization" OFF)
 
-option(NURIKIT_TEST_COVERAGE "Enable coverage build" OFF)
-option(NURIKIT_BUILD_DOCS "Build documentation" OFF)
+option(NURI_ENABLE_SANITIZERS "Enable sanitizers for debug build" OFF)
+
+option(NURI_TEST_COVERAGE "Enable coverage build" OFF)
+option(NURI_BUILD_DOCS "Build documentation" OFF)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   string(APPEND CMAKE_CXX_FLAGS " -stdlib=libstdc++")
@@ -34,16 +36,16 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-set(NURIKIT_GLOBAL_OPTFLAGS " -${NURIKIT_OPTIMIZATION_LEVEL}")
+set(NURI_GLOBAL_OPTFLAGS " -${NURI_OPTIMIZATION_LEVEL}")
 
-if(NURIKIT_ENABLE_ARCH_NATIVE)
-  string(APPEND NURIKIT_GLOBAL_OPTFLAGS " -march=native")
-elseif(NURIKIT_ENABLE_AVX2)
-  string(APPEND NURIKIT_GLOBAL_OPTFLAGS " -mavx2")
+if(NURI_ENABLE_ARCH_NATIVE)
+  string(APPEND NURI_GLOBAL_OPTFLAGS " -march=native")
+elseif(NURI_ENABLE_AVX2)
+  string(APPEND NURI_GLOBAL_OPTFLAGS " -mavx2")
 endif()
 
-string(APPEND CMAKE_CXX_FLAGS_RELEASE "${NURIKIT_GLOBAL_OPTFLAGS}")
-string(APPEND CMAKE_CXX_FLAGS_RELWITHDEBINFO "${NURIKIT_GLOBAL_OPTFLAGS}")
+string(APPEND CMAKE_CXX_FLAGS_RELEASE "${NURI_GLOBAL_OPTFLAGS}")
+string(APPEND CMAKE_CXX_FLAGS_RELWITHDEBINFO "${NURI_GLOBAL_OPTFLAGS}")
 
 set(CMAKE_BUILD_TYPE Release CACHE STRING "Bulid type")
 
@@ -54,7 +56,12 @@ endif()
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_options(-O0)
   add_compile_definitions("DEBUG")
-elseif(NURIKIT_ENABLE_IPO)
+
+  if(NURI_ENABLE_SANITIZERS)
+    add_compile_options(-fsanitize=address -fsanitize=undefined)
+    add_link_options(-fsanitize=address -fsanitize=undefined)
+  endif()
+elseif(NURI_ENABLE_IPO)
   # Next line is required for absl, etc.
   set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
@@ -67,28 +74,28 @@ endif()
 add_subdirectory(third-party EXCLUDE_FROM_ALL)
 
 add_compile_options(-pedantic -Wall -Wextra -Wno-sign-compare)
-set(NURIKIT_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_LIST_DIR}/include")
+set(NURI_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_LIST_DIR}/include")
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug"
-  AND NURIKIT_TEST_COVERAGE
+  AND NURI_TEST_COVERAGE
   AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   message(STATUS "GNU/Clang detected, enabling coverage")
   string(APPEND CMAKE_CXX_FLAGS " --coverage")
 endif()
 
 add_subdirectory(include)
-include_directories(${NURIKIT_INCLUDE_DIRECTORIES})
+include_directories(${NURI_INCLUDE_DIRECTORIES})
 
 add_subdirectory(src)
 add_subdirectory(docs EXCLUDE_FROM_ALL)
 
 if(SKBUILD)
   add_subdirectory(python)
-elseif(NURIKIT_BUILD_PYTHON)
-  set(NURIKIT_VERBOSE_CMAKE "false")
+elseif(NURI_BUILD_PYTHON)
+  set(NURI_VERBOSE_CMAKE "false")
 
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(NURIKIT_VERBOSE_CMAKE "true")
+    set(NURI_VERBOSE_CMAKE "true")
   endif()
 
   configure_file(

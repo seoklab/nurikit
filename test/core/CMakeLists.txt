@@ -5,4 +5,4 @@
 
 include(NurikitTest)
 
-nurikit_add_test(graph_test element_test)
+nurikit_add_test(graph_test geometry_test element_test molecule_test)

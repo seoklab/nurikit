@@ -26,6 +26,10 @@ defaults:
     shell: bash
 
 jobs:
+  run-clang-tools:
+    if: ${{ !contains(github.event.head_commit.message, '[skip test]') }}
+    uses: ./.github/workflows/_run-clang-tools.yaml
+
   test-and-coverage:
     if: ${{ !contains(github.event.head_commit.message, '[skip test]') }}
     uses: ./.github/workflows/_cpp-test-and-coverage.yaml

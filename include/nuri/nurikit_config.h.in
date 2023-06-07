@@ -8,14 +8,13 @@
 
 #include <string_view>
 
-#define NURIKIT_VERSION_MAJOR @nurikit_VERSION_MAJOR@
-#define NURIKIT_VERSION_MINOR @nurikit_VERSION_MINOR@
-#define NURIKIT_VERSION_PATCH @nurikit_VERSION_PATCH@
+#define NURI_VERSION_MAJOR @nurikit_VERSION_MAJOR@
+#define NURI_VERSION_MINOR @nurikit_VERSION_MINOR@
+#define NURI_VERSION_PATCH @nurikit_VERSION_PATCH@
 
 namespace nuri {
-constexpr inline std::string_view kNurikitVersion = "@NURIKIT_VERSION@";
-constexpr inline std::string_view kNurikitFullVersion =
-  "@NURIKIT_FULL_VERSION@";
+constexpr inline std::string_view kNuriVersion = "@NURI_VERSION@";
+constexpr inline std::string_view kNuriFullVersion = "@NURI_FULL_VERSION@";
 }  // namespace nuri
 
 #endif /* NURI_NURIKIT_CONFIG_H_ */

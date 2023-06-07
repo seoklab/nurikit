@@ -49,9 +49,13 @@ jobs:
           echo "commit-msg=${MSG}" >> $GITHUB_OUTPUT
           echo 'EOM' >> $GITHUB_OUTPUT
 
-  test-and-coverage:
+  run-clang-tools:
     needs: [get-commit-msg]
     if: ${{ !contains(needs.get-commit-msg.outputs.commit-msg, '[skip test]') }}
+    uses: ./.github/workflows/_run-clang-tools.yaml
+
+  test-and-coverage:
+    needs: [run-clang-tools]
     uses: ./.github/workflows/_cpp-test-and-coverage.yaml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

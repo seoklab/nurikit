@@ -8,7 +8,7 @@ find_package(Doxygen 1.8)
 if(DOXYGEN_FOUND)
   message(STATUS "Doxygen found")
 else()
-  if(NURIKIT_BUILD_DOCS)
+  if(NURI_BUILD_DOCS)
     message(WARNING "Doxygen not found; cannot build docs")
   else()
     message(STATUS "Doxygen not found; not building docs")
@@ -21,16 +21,16 @@ set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
 set(DOXYGEN_OUTPUT_DIR "${PROJECT_BINARY_DIR}/generated/docs")
 
 configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
-add_custom_target(_nurikit_docs_setup
+add_custom_target(_nuri_docs_setup
   COMMAND ${CMAKE_COMMAND} -E make_directory "${DOXYGEN_OUTPUT_DIR}"
   VERBATIM)
-add_custom_target(nurikit_docs
+add_custom_target(nuri_docs
   COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
-  DEPENDS _nurikit_docs_setup
+  DEPENDS _nuri_docs_setup
   WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
   COMMENT "Generating API documentation with Doxygen"
   VERBATIM)
 
-if(NURIKIT_BUILD_DOCS)
-  set_target_properties(nurikit_docs PROPERTIES EXCLUDE_FROM_ALL OFF)
+if(NURI_BUILD_DOCS)
+  set_target_properties(nuri_docs PROPERTIES EXCLUDE_FROM_ALL OFF)
 endif()
