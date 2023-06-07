@@ -634,12 +634,12 @@ public:
   }
 
   /**
-   * @brief Remove a node and all its associated edge(s) from the graph.
+   * @brief Erase a node and all its associated edge(s) from the graph.
    *
-   * @param id The id of the node to be removed.
-   * @return The data of the removed node.
+   * @param id The id of the node to be erased.
+   * @return The data of the erased node.
    * @sa erase_nodes()
-   * @note Time complexity: \f$O(V)\f$ if only trailing node is removed,
+   * @note Time complexity: \f$O(V)\f$ if only trailing node is erased,
    *       \f$O(V+E)\f$ otherwise. If \p id \f$\ge\f$ `num_nodes()` or \p id
    *       \f$\lt 0\f$, the behavior is undefined.
    */
@@ -650,19 +650,19 @@ public:
   }
 
   /**
-   * @brief Remove nodes and all its associated edge(s) from the graph.
+   * @brief Erase nodes and all its associated edge(s) from the graph.
    *
-   * @param begin The beginning of the range of nodes to be removed.
-   * @param end The end of the range of nodes to be removed.
+   * @param begin The beginning of the range of nodes to be erased.
+   * @param end The end of the range of nodes to be erased.
    * @return A pair of (`new end id`, mapping of `old node id -> new node id`).
-   *         If only trailing nodes are removed, `new end id` will be set to the
-   *         first removed node id, and the mapping will be in a valid but
-   *         unspecified state. If no nodes are removed (special case of
+   *         If only trailing nodes are erased, `new end id` will be set to the
+   *         first erased node id, and the mapping will be in a valid but
+   *         unspecified state. If no nodes are erased (special case of
    *         trailing node removal), `new end id` will be equal to the size of
    *         the graph before this operation. Otherwise, `new end id` will be
-   *         set to -1 and removed nodes will be marked as -1 in the mapping.
+   *         set to -1 and erased nodes will be marked as -1 in the mapping.
    * @sa pop_node()
-   * @note Time complexity: \f$O(V)\f$ if only trailing nodes are removed,
+   * @note Time complexity: \f$O(V)\f$ if only trailing nodes are erased,
    *       \f$O(V+E)\f$ otherwise. If \p begin or \p end is out of range, the
    *       behavior is undefined.
    */
@@ -672,23 +672,23 @@ public:
   }
 
   /**
-   * @brief Remove matching nodes and all its associated edge(s) from the graph.
+   * @brief Erase matching nodes and all its associated edge(s) from the graph.
    *
    * @tparam UnaryPred A unary predicate that takes a `ConstNodeRef` and returns
    *        `bool`.
-   * @param begin The beginning of the range of nodes to be removed.
-   * @param end The end of the range of nodes to be removed.
+   * @param begin The beginning of the range of nodes to be erased.
+   * @param end The end of the range of nodes to be erased.
    * @param pred A unary predicate that takes a `ConstNodeRef` and returns
-   *        `true` if the node should be removed.
+   *        `true` if the node should be erased.
    * @return A pair of (`new end id`, mapping of `old node id -> new node id`).
-   *         If only trailing nodes are removed, `new end id` will be set to the
-   *         first removed node id, and the mapping will be in a valid but
-   *         unspecified state. If no nodes are removed (special case of
+   *         If only trailing nodes are erased, `new end id` will be set to the
+   *         first erased node id, and the mapping will be in a valid but
+   *         unspecified state. If no nodes are erased (special case of
    *         trailing node removal), `new end id` will be equal to the size of
    *         the graph before this operation. Otherwise, `new end id` will be
-   *         set to -1 and removed nodes will be marked as -1 in the mapping.
+   *         set to -1 and erased nodes will be marked as -1 in the mapping.
    * @sa pop_node()
-   * @note Time complexity: \f$O(V)\f$ if only trailing nodes are removed,
+   * @note Time complexity: \f$O(V)\f$ if only trailing nodes are erased,
    *       \f$O(V+E)\f$ otherwise. If \p begin or \p end is out of range, the
    *       behavior is undefined.
    */
@@ -697,21 +697,21 @@ public:
   erase_nodes(const_iterator begin, const_iterator end, UnaryPred pred);
 
   /**
-   * @brief Remove nodes and all its associated edge(s) from the graph.
+   * @brief Erase nodes and all its associated edge(s) from the graph.
    *
    * @tparam Iterator An iterator type that dereferences to a value compatible
    *         with `int`.
-   * @param begin The beginning of the range of node ids to be removed.
-   * @param end The end of the range of node ids to be removed.
+   * @param begin The beginning of the range of node ids to be erased.
+   * @param end The end of the range of node ids to be erased.
    * @return A pair of (`new end id`, mapping of `old node id -> new node id`).
-   *         If only trailing nodes are removed, `new end id` will be set to the
-   *         first removed node id, and the mapping will be in a valid but
-   *         unspecified state. If no nodes are removed (special case of
+   *         If only trailing nodes are erased, `new end id` will be set to the
+   *         first erased node id, and the mapping will be in a valid but
+   *         unspecified state. If no nodes are erased (special case of
    *         trailing node removal), `new end id` will be equal to the size of
    *         the graph before this operation. Otherwise, `new end id` will be
-   *         set to -1 and removed nodes will be marked as -1 in the mapping.
+   *         set to -1 and erased nodes will be marked as -1 in the mapping.
    * @sa pop_node()
-   * @note Time complexity: \f$O(V)\f$ if only trailing nodes are removed,
+   * @note Time complexity: \f$O(V)\f$ if only trailing nodes are erased,
    *       \f$O(V+E)\f$ otherwise. If any iterator in range `[`\p begin,
    *       \p end`)` references an invalid node id, the behavior is undefined.
    */
@@ -751,10 +751,10 @@ public:
   }
 
   /**
-   * @brief Remove an edge from the graph.
+   * @brief Erase an edge from the graph.
    *
-   * @param it The iterator of the edge to be removed.
-   * @return The data of the removed edge.
+   * @param it The iterator of the edge to be erased.
+   * @return The data of the erased edge.
    * @sa erase_edge()
    * @note Time complexity: \f$O(E/V)\f$. If \p it is out of range, the behavior
    *       is undefined.
@@ -766,10 +766,10 @@ public:
   }
 
   /**
-   * @brief Remove an edge from the graph.
+   * @brief Erase an edge from the graph.
    *
-   * @param it The iterator of the edge to be removed.
-   * @return The edge iterator following the removed edge.
+   * @param it The iterator of the edge to be erased.
+   * @return The edge iterator following the erased edge.
    * @sa pop_edge()
    * @note Time complexity: \f$O(E/V)\f$. If \p id is out of range, the behavior
    *       is undefined.
@@ -777,11 +777,11 @@ public:
   edge_iterator erase_edge(const_edge_iterator it);
 
   /**
-   * @brief Remove an edge from the graph between two nodes.
+   * @brief Erase an edge from the graph between two nodes.
    *
    * @param src The id of the source node.
    * @param dst The id of the destination node.
-   * @return Whether the edge is removed.
+   * @return Whether the edge is erased.
    * @note Time complexity: \f$O(E/V)\f$. If \p src or \p dst is out of range,
    *       the behavior is undefined. \p src and \p dst is interchangeable.
    */

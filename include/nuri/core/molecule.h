@@ -244,7 +244,7 @@ private:
  * conformers (if any). If the added conformer is the first one, the bond
  * length will be calculated from its atomic coordinates.
  *
- * Even if the final conformer is removed, the bond lengths will **not** be
+ * Even if the final conformer is erased, the bond lengths will **not** be
  * reset to the initial state.
  */
 class Molecule {
@@ -340,7 +340,7 @@ public:
    * @brief Get a bond of the molecule.
    * @param bond_id Id of the bond to get.
    * @return A read-only view over bond `bond_id` of the molecule.
-   * @note The returned reference is valid until the bond is removed from the
+   * @note The returned reference is valid until the bond is erased from the
    *       molecule.
    */
   Bond bond(bond_id_type bond_id) const { return graph_.edge(bond_id); }
@@ -575,8 +575,8 @@ private:
  *
  * 1. Add atoms,
  * 2. Add bonds,
- * 3. Remove bonds, and
- * 4. Remove atoms.
+ * 3. Erase bonds, and
+ * 4. Erase atoms.
  *
  * This is because the removal of atoms might change the atom indices of the
  * remaining atoms, thus giving unexpected results if the removal is done before
@@ -655,7 +655,7 @@ public:
   }
 
   /**
-   * @brief Remove a bond from the molecule.
+   * @brief Erase a bond from the molecule.
    * @param src Index of the source atom of the bond, after all atom additions.
    * @param dst Index of the destination atom of the bond, after all atom
    *            additions.
