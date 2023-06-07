@@ -13,11 +13,11 @@ ctest -C Debug -T test -"j$(nproc)" --output-on-failure
 cd "$prj_root"
 if [[ "${2-}" == "--html" ]]; then
 	mkdir -p "$build_dir/coverage/html"
-	gcovr -j`nproc` --html-details "$build_dir/coverage/html/index.html" "$build_dir"
+	gcovr --html-details "$build_dir/coverage/html/index.html" "$build_dir"
 	python3 -m http.server -d "$build_dir/coverage/html" "${3-8000}"
 elif [[ "${2-}" == "--json" ]]; then
 	mkdir -p "$build_dir/coverage/json"
-	gcovr -j`nproc` --coveralls "$build_dir/coverage/json/coverage.json" "$build_dir"
+	gcovr --coveralls "$build_dir/coverage/json/coverage.json" "$build_dir"
 else
 	gcovr "$build_dir"
 fi
