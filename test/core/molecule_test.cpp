@@ -342,4 +342,18 @@ TEST_F(MoleculeTest, EraseBondsTest) {
   EXPECT_EQ(mol3.num_atoms(), 12);
   EXPECT_EQ(mol3.num_bonds(), 9);
 }
+
+TEST_F(MoleculeTest, EraseHydrogensTest) {
+  mol_.erase_hydrogens();
+
+  EXPECT_EQ(mol_.size(), 6);
+  for (auto atom: mol_) {
+    EXPECT_NE(atom.data().atomic_number(), 1);
+  }
+
+  EXPECT_EQ(mol_.num_bonds(), 5);
+  for (const auto &c: mol_.all_conf()) {
+    EXPECT_EQ(c.rows(), mol_.size());
+  }
+}
 }  // namespace
