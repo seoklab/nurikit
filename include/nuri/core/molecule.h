@@ -68,7 +68,7 @@ public:
    * @brief Get the atomic number of the atom.
    * @note This is equivalent to `element().Element::atomic_number()`,
    *       provided for convenience.
-   * @return int
+   * @return The atomic number of the element.
    */
   int atomic_number() const { return element().atomic_number(); }
 
@@ -76,7 +76,7 @@ public:
    * @brief Get the atomic weight of the atom.
    * @note This is equivalent to `element().Element::atomic_weight()`,
    *       provided for convenience.
-   * @return int
+   * @return The atomic weight of the element.
    */
   double atomic_weight() const { return element().atomic_weight(); }
 
@@ -84,7 +84,7 @@ public:
    * @brief Get the element symbol of the atom.
    * @note This is equivalent to `element().Element::symbol()`, provided for
    *       convenience.
-   * @return std::string_view
+   * @return The symbol of the element.
    */
   std::string_view element_symbol() const { return element().symbol(); }
 
@@ -92,13 +92,13 @@ public:
    * @brief Get the element name of the atom.
    * @note This is equivalent to `element().Element::name()`, provided for
    *       convenience.
-   * @return std::string_view
+   * @return The name of the element.
    */
   std::string_view element_name() const { return element().name(); }
 
   /**
    * @brief Get the element data of the atom.
-   * @return const Element &
+   * @return Immutable reference to the element object.
    */
   const Element &element() const noexcept {
     // GCOV_EXCL_START
@@ -124,8 +124,7 @@ public:
    * @return A pointer to the explicitly set isotope object. If none was
    *         explicitly given, returns `nullptr`. Normally isotope() would
    *         be the preferred method to get the isotope, which returns the
-   *         representative isotope of the element if none was explicitly
-   *         given.
+   *         representative isotope of the element if none was explicitly given.
    * @sa isotope()
    */
   const Isotope *explicit_isotope() const { return isotope_; }
@@ -302,7 +301,7 @@ public:
   /**
    * @brief Get an atom of the molecule.
    * @param atom_idx Index of the atom to get.
-   * @return A read-only view over `atom_idx`-th atom of the molecule.
+   * @return A read-only view over \p atom_idx -th atom of the molecule.
    * @note If the atom index is out of range, the behavior is undefined. The
    *       returned reference is invalidated when the molecule is modified.
    */
@@ -341,7 +340,7 @@ public:
   /**
    * @brief Get a bond of the molecule.
    * @param bond_id Id of the bond to get.
-   * @return A read-only view over bond `bond_id` of the molecule.
+   * @return A read-only view over bond \p bond_id of the molecule.
    * @note The returned reference is valid until the bond is erased from the
    *       molecule.
    */
@@ -351,9 +350,9 @@ public:
    * @brief Get a bond of the molecule.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
-   * @return An iterator to the bond between `src` and `dst` of the molecule.
+   * @return An iterator to the bond between \p src and \p dst of the molecule.
    *         If no such bond exists, the returned iterator is equal to
-   *         `bond_end()`.
+   *         bond_end().
    */
   const_bond_iterator find_bond(int src, int dst) const {
     return graph_.find_edge(src, dst);
@@ -380,9 +379,9 @@ public:
    * @brief Find a neighbor of the atom.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
-   * @return An iterator to the neighbor wrapper between `src` and `dst` of the
-   *         molecule. If no such bond exists, the returned iterator is equal to
-   *         `neighbor_end()`.
+   * @return An iterator to the neighbor wrapper between \p src and \p dst of
+   *         the molecule. If no such bond exists, the returned iterator is
+   *         equal to \ref neighbor_end() "neighbor_end(\p src)"
    */
   const_neighbor_iterator find_neighbor(int src, int dst) const {
     return graph_.find_adjacent(src, dst);
