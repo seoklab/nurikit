@@ -257,7 +257,7 @@ TEST_F(MoleculeTest, RotateBondTest) {
   EXPECT_TRUE(mol_one.conf(1).isApprox(mol_all.conf(1)));
 }
 
-TEST_F(MoleculeTest, RemoveAtomsTest) {
+TEST_F(MoleculeTest, EraseAtomsTest) {
   int predicted_size;
 
   Molecule mol1(mol_);
@@ -313,7 +313,7 @@ TEST_F(MoleculeTest, RemoveAtomsTest) {
   }
 }
 
-TEST_F(MoleculeTest, RemoveBondsTest) {
+TEST_F(MoleculeTest, EraseBondsTest) {
   Molecule mol1(mol_);
   {
     // All nop
