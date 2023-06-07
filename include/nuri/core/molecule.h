@@ -238,7 +238,9 @@ private:
 /**
  * @brief Read-only molecule class.
  *
- * The only allowed mutable operation on the molecule is modifing conformers.
+ * The two only allowed mutable operation on the molecule is:
+ *    - modifing conformers, and
+ *    - adding/removing hydrogens.
  *
  * If a new conformer is added, it must have same bond lengths with the existing
  * conformers (if any). If the added conformer is the first one, the bond
@@ -405,6 +407,17 @@ public:
    * @return The MoleculeMutator object to update this molecule.
    */
   class MoleculeMutator mutator();
+
+  // TODO(jnooree): add_hydrogens
+  // /**
+  //  * @brief Add hydrogens to the molecule.
+  //  */
+  // void add_hydrogens();
+
+  /**
+   * @brief Erase all hydrogens from the molecule.
+   */
+  void erase_hydrogens();
 
   /**
    * @brief Check if the molecule has any 3D conformations.

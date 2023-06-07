@@ -40,6 +40,15 @@ AtomData::AtomData(const Element &element, constants::Hybridization hyb,
 
 /* Molecule definitions */
 
+void Molecule::erase_hydrogens() {
+  MoleculeMutator m = mutator();
+  for (int i = 0; i < num_atoms(); ++i) {
+    if (atom(i).data().element().atomic_number() == 1) {
+      m.erase_atom(i);
+    }
+  }
+}
+
 namespace {
   void rotate_points(MatrixX3d &coords, const std::vector<int> &moving_idxs,
                      int ref, int pivot, double angle) {
