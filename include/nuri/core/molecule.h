@@ -419,19 +419,19 @@ public:
    * @return Atomic coordinates of ith conformer.
    * @note If index is out of range, the behavior is undefined.
    */
-  const MatrixX3d &pos(int i = 0) const { return conformers_[i]; }
+  const MatrixX3d &conf(int i = 0) const { return conformers_[i]; }
 
   /**
    * @brief Get total number of conformers.
    * @return The number of conformers of the molecule.
    */
-  int npos() const { return static_cast<int>(conformers_.size()); }
+  int num_conf() const { return static_cast<int>(conformers_.size()); }
 
   /**
    * @brief Get all atomic coordinates of the conformers.
    * @return Atomic coordinates of the conformers of the molecule.
    */
-  const std::vector<MatrixX3d> &all_pos() const { return conformers_; }
+  const std::vector<MatrixX3d> &all_conf() const { return conformers_; }
 
   /**
    * @brief Add a new conformer to the molecule.
@@ -446,7 +446,7 @@ public:
    * unmodified, so it is the caller's responsibility to ensure that the bond
    * lengths are consistent with the new conformer.
    */
-  int add_pos(const MatrixX3d &pos);
+  int add_conf(const MatrixX3d &pos);
 
   /**
    * @brief Add a new conformer to the molecule.
@@ -461,15 +461,15 @@ public:
    * unmodified, so it is the caller's responsibility to ensure that the bond
    * lengths are consistent with the new conformer.
    */
-  int add_pos(MatrixX3d &&pos) noexcept;
+  int add_conf(MatrixX3d &&pos) noexcept;
 
   /**
-   * @brief Remove a conformer from the molecule.
+   * @brief Erase a conformer from the molecule.
    *
-   * @param idx Index of the conformer to remove.
+   * @param idx Index of the conformer to erase.
    * @note The behavior is undefined if the conformer index is out of range.
    */
-  void erase_pos(int idx) { conformers_.erase(conformers_.begin() + idx); }
+  void erase_conf(int idx) { conformers_.erase(conformers_.begin() + idx); }
 
   /**
    * @brief Transform the molecule with the given affine transformation.

@@ -148,10 +148,10 @@ protected:
       0.0021, -0.0041, 0.0020,            //
       1.0099, 1.4631, 0.0003,             //
       6.0099, 7.4981, 7.0496;
-    mol_.add_pos(coords1);
+    mol_.add_conf(coords1);
 
-    mol_.erase_pos(0);
-    mol_.add_pos(std::move(coords1));
+    mol_.erase_conf(0);
+    mol_.add_conf(std::move(coords1));
 
     nuri::MatrixX3d coords2(12, 3);
     coords2 << -2.8265, 2.3341, -0.0040,  //
@@ -166,9 +166,9 @@ protected:
       -0.1776, 3.0877, 1.6430,            //
       0.4184, 3.3588, -0.0122,            //
       10.1054, 2.3061, 4.3717;
-    mol_.add_pos(std::move(coords2));
+    mol_.add_conf(std::move(coords2));
 
-    ASSERT_EQ(mol_.npos(), 2);
+    ASSERT_EQ(mol_.num_conf(), 2);
   }
 };
 
@@ -177,10 +177,10 @@ TEST_F(MoleculeTest, TransformTest) {
 
   {
     Molecule mol(mol_);
-    ASSERT_EQ(mol.npos(), mol_.npos());
+    ASSERT_EQ(mol.num_conf(), mol_.num_conf());
     mol.transform(trs);
-    for (int i = 0; i < mol.npos(); ++i) {
-      EXPECT_TRUE(mol.pos(i).isApprox(mol_.pos(i)));
+    for (int i = 0; i < mol.num_conf(); ++i) {
+      EXPECT_TRUE(mol.conf(i).isApprox(mol_.conf(i)));
     }
   }
 
@@ -190,17 +190,18 @@ TEST_F(MoleculeTest, TransformTest) {
   {
     Molecule mol(mol_);
     mol.transform(trs);
-    for (int i = 0; i < mol.npos(); ++i) {
+    for (int i = 0; i < mol.num_conf(); ++i) {
       EXPECT_TRUE(
-        mol.pos(i).transpose().isApprox(trs * mol_.pos(i).transpose()));
+        mol.conf(i).transpose().isApprox(trs * mol_.conf(i).transpose()));
     }
   }
 
   {
     Molecule mol(mol_);
     mol.transform(1, trs);
-    EXPECT_TRUE(mol.pos(0).isApprox(mol_.pos(0)));
-    EXPECT_TRUE(mol.pos(1).transpose().isApprox(trs * mol_.pos(1).transpose()));
+    EXPECT_TRUE(mol.conf(0).isApprox(mol_.conf(0)));
+    EXPECT_TRUE(
+      mol.conf(1).transpose().isApprox(trs * mol_.conf(1).transpose()));
   }
 }
 
@@ -217,9 +218,9 @@ TEST_F(MoleculeTest, RotateBondTest) {
   ASSERT_TRUE(mol_all.rotate_bond(2, 3, 90));
 
   std::vector<int> fixed { 0, 1, 2, 3, 6, 7, 8, 11 };
-  for (int i = 0; i < mol_all.npos(); ++i) {
-    EXPECT_TRUE(mol_all.pos(i)(fixed, Eigen::all)
-                  .isApprox(mol_.pos(i)(fixed, Eigen::all)));
+  for (int i = 0; i < mol_all.num_conf(); ++i) {
+    EXPECT_TRUE(mol_all.conf(i)(fixed, Eigen::all)
+                  .isApprox(mol_.conf(i)(fixed, Eigen::all)));
   }
 
   std::vector<int> rotated { 4, 5, 9, 10 };
@@ -230,8 +231,9 @@ TEST_F(MoleculeTest, RotateBondTest) {
     -0.0876, -0.5744, 1.2232,                 //
     1.0480, 0.9803, -0.2199,                  //
     -0.1401, 1.7976, 0.8236;
-  EXPECT_TRUE(mol_all.pos(0)(rotated, Eigen::all).isApprox(result_coords, 1e-3))
-    << mol_all.pos(0)(rotated, Eigen::all);
+  EXPECT_TRUE(
+    mol_all.conf(0)(rotated, Eigen::all).isApprox(result_coords, 1e-3))
+    << mol_all.conf(0)(rotated, Eigen::all);
 
   // Rotated with UCSF Chimera
   result_coords << -0.6589, 3.4347, 2.0590,  //
@@ -239,8 +241,9 @@ TEST_F(MoleculeTest, RotateBondTest) {
     0.5757, 3.0620, 0.4005,                  //
     -0.7645, 4.1952, 0.1036;
 
-  EXPECT_TRUE(mol_all.pos(1)(rotated, Eigen::all).isApprox(result_coords, 1e-3))
-    << mol_all.pos(1)(rotated, Eigen::all);
+  EXPECT_TRUE(
+    mol_all.conf(1)(rotated, Eigen::all).isApprox(result_coords, 1e-3))
+    << mol_all.conf(1)(rotated, Eigen::all);
 
   Molecule mol_one(mol_all);
 
@@ -250,8 +253,8 @@ TEST_F(MoleculeTest, RotateBondTest) {
   // Rotate reverse!
   ASSERT_TRUE(mol_one.rotate_bond(0, 2, 3, -90));
 
-  EXPECT_TRUE(mol_one.pos(0).isApprox(mol_.pos(0)));
-  EXPECT_TRUE(mol_one.pos(1).isApprox(mol_all.pos(1)));
+  EXPECT_TRUE(mol_one.conf(0).isApprox(mol_.conf(0)));
+  EXPECT_TRUE(mol_one.conf(1).isApprox(mol_all.conf(1)));
 }
 
 TEST_F(MoleculeTest, RemoveAtomsTest) {
@@ -270,8 +273,8 @@ TEST_F(MoleculeTest, RemoveAtomsTest) {
   EXPECT_EQ(mol1.num_atoms(), 9);
   EXPECT_EQ(mol1.num_bonds(), 9);
 
-  for (int i = 0; i < mol1.npos(); ++i) {
-    EXPECT_TRUE(mol1.pos(i).isApprox(mol_.pos(i).topRows<9>()));
+  for (int i = 0; i < mol1.num_conf(); ++i) {
+    EXPECT_TRUE(mol1.conf(i).isApprox(mol_.conf(i).topRows<9>()));
   }
 
   Molecule mol2(mol_);
@@ -287,8 +290,8 @@ TEST_F(MoleculeTest, RemoveAtomsTest) {
   EXPECT_EQ(mol2.num_atoms(), 9);
   EXPECT_EQ(mol2.num_bonds(), 4);
 
-  for (int i = 0; i < mol2.npos(); ++i) {
-    EXPECT_TRUE(mol2.pos(i).isApprox(mol_.pos(i).bottomRows<9>()));
+  for (int i = 0; i < mol2.num_conf(); ++i) {
+    EXPECT_TRUE(mol2.conf(i).isApprox(mol_.conf(i).bottomRows<9>()));
   }
 
   Molecule mol3(mol_);
@@ -305,8 +308,8 @@ TEST_F(MoleculeTest, RemoveAtomsTest) {
   EXPECT_EQ(mol3.num_bonds(), 5);
 
   std::vector<int> keep { 1, 2, 3, 5, 6, 7, 8, 10, 11 };
-  for (int i = 0; i < mol3.npos(); ++i) {
-    EXPECT_TRUE(mol3.pos(i).isApprox(mol_.pos(i)(keep, Eigen::all)));
+  for (int i = 0; i < mol3.num_conf(); ++i) {
+    EXPECT_TRUE(mol3.conf(i).isApprox(mol_.conf(i)(keep, Eigen::all)));
   }
 }
 

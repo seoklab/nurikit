@@ -56,7 +56,7 @@ namespace {
   }
 }  // namespace
 
-int Molecule::add_pos(const MatrixX3d &pos) {
+int Molecule::add_conf(const MatrixX3d &pos) {
   const int ret = static_cast<int>(conformers_.size());
   conformers_.push_back(pos);
 
@@ -70,7 +70,7 @@ int Molecule::add_pos(const MatrixX3d &pos) {
   return ret;
 }
 
-int Molecule::add_pos(MatrixX3d &&pos) noexcept {
+int Molecule::add_conf(MatrixX3d &&pos) noexcept {
   const int ret = static_cast<int>(conformers_.size());
   conformers_.push_back(std::move(pos));
 
@@ -128,7 +128,7 @@ bool Molecule::rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
   std::sort(moving_atoms.begin(), moving_atoms.end());
 
   if (i < 0) {
-    for (int conf = 0; conf < npos(); ++conf) {
+    for (int conf = 0; conf < num_conf(); ++conf) {
       rotate_points(conformers_[conf], moving_atoms, ref_atom, pivot_atom,
                     angle);
     }
