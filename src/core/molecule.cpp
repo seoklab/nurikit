@@ -43,7 +43,7 @@ AtomData::AtomData(const Element &element, constants::Hybridization hyb,
 void Molecule::erase_hydrogens() {
   MoleculeMutator m = mutator();
   for (int i = 0; i < num_atoms(); ++i) {
-    if (atom(i).data().element().atomic_number() == 1) {
+    if (atom(i).data().atomic_number() == 1) {
       m.erase_atom(i);
     }
   }
