@@ -840,8 +840,8 @@ private:
     return { ait->adj_->eid };
   }
 
-  void erase_nodes_common(std::vector<int> &node_keep, int first_removed_id,
-                          bool remove_trailing);
+  void erase_nodes_common(std::vector<int> &node_keep, int first_erased_id,
+                          bool erase_trailing);
 
   void add_adjacency_entry(stored_edge_id_type eid) {
     adj_list_[eid->src].push_back({ eid->dst, eid });
@@ -917,11 +917,11 @@ std::pair<int, std::vector<int>> Graph<NT, ET>::erase_nodes(Iterator begin,
 
   // Phase I: mark nodes for removal, O(V)
   std::vector<int> node_keep(num_nodes(), 1);
-  int first_removed_id = num_nodes();
+  int first_erased_id = num_nodes();
   for (auto it = begin; it != end; ++it) {
     int nid = *it;
     node_keep[nid] = 0;
-    first_removed_id = std::min(first_removed_id, nid);
+    first_erased_id = std::min(first_erased_id, nid);
     for (AdjEntry &adj: adj_list_[nid]) {
       erase_first(adj_list_[adj.dst],
                   [&](const auto &neigh) { return neigh.dst == nid; });
@@ -930,16 +930,16 @@ std::pair<int, std::vector<int>> Graph<NT, ET>::erase_nodes(Iterator begin,
     adj_list_[nid].clear();
   }
 
-  bool remove_trailing = true;
-  for (int i = num_nodes() - 1; i >= first_removed_id; --i) {
+  bool erase_trailing = true;
+  for (int i = num_nodes() - 1; i >= first_erased_id; --i) {
     if (node_keep[i] == 1) {
-      remove_trailing = false;
+      erase_trailing = false;
       break;
     }
   }
 
-  erase_nodes_common(node_keep, first_removed_id, remove_trailing);
-  return { remove_trailing ? first_removed_id : -1, std::move(node_keep) };
+  erase_nodes_common(node_keep, first_erased_id, erase_trailing);
+  return { erase_trailing ? first_erased_id : -1, std::move(node_keep) };
 }
 
 template <class NT, class ET>
@@ -957,16 +957,16 @@ Graph<NT, ET>::erase_nodes(const const_iterator begin, const const_iterator end,
 
   // Phase I: mark nodes for removal, O(V)
   std::vector<int> node_keep(num_nodes(), 1);
-  int first_removed_id = -1;
-  bool remove_trailing = end == this->end();
+  int first_erased_id = -1;
+  bool erase_trailing = end == this->end();
   for (auto it = begin; it != end; ++it) {
     if (pred(*it)) {
       int nid = it->id();
       // GCOV_EXCL_START
       ABSL_ASSUME(nid >= 0);
       // GCOV_EXCL_STOP
-      if (first_removed_id < 0) {
-        first_removed_id = nid;
+      if (first_erased_id < 0) {
+        first_erased_id = nid;
       }
 
       node_keep[nid] = 0;
@@ -976,35 +976,35 @@ Graph<NT, ET>::erase_nodes(const const_iterator begin, const const_iterator end,
         edges_.erase(adj.eid);
       }
       adj_list_[nid].clear();
-    } else if (first_removed_id >= 0) {
-      remove_trailing = false;
+    } else if (first_erased_id >= 0) {
+      erase_trailing = false;
     }
   }
 
-  erase_nodes_common(node_keep, first_removed_id, remove_trailing);
-  return { remove_trailing ? first_removed_id : -1, std::move(node_keep) };
+  erase_nodes_common(node_keep, first_erased_id, erase_trailing);
+  return { erase_trailing ? first_erased_id : -1, std::move(node_keep) };
 }
 
 template <class NT, class ET>
 void Graph<NT, ET>::erase_nodes_common(std::vector<int> &node_keep,
-                                       const int first_removed_id,
-                                       const bool remove_trailing) {
-  // Fast path 1: no node is removed
-  if (first_removed_id < 0 || first_removed_id >= num_nodes()) {
+                                       const int first_erased_id,
+                                       const bool erase_trailing) {
+  // Fast path 1: no node is erased
+  if (first_erased_id < 0 || first_erased_id >= num_nodes()) {
     return;
   }
 
-  // Phase II: remove unused adjacencies
-  if (remove_trailing) {
-    // Fast path 2: if only trailing nodes are removed, no node number needs to
+  // Phase II: erase unused adjacencies
+  if (erase_trailing) {
+    // Fast path 2: if only trailing nodes are erased, no node number needs to
     // be updated.
     ABSL_DLOG(INFO) << "resizing adjacency & node list";
     // O(1) operations
-    nodes_.resize(first_removed_id);
+    nodes_.resize(first_erased_id);
     adj_list_.resize(nodes_.size());
     return;
   }
-  // Remove unused nodes and adjacencies, O(V)
+  // Erase unused nodes and adjacencies, O(V)
   {
     int i = 0;
     erase_if(nodes_, [&](const NT &) { return node_keep[i++] == 0; });

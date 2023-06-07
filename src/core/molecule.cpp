@@ -162,25 +162,25 @@ bool MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
   return true;
 }
 
-void MoleculeMutator::remove_bond(int src, int dst) {
+void MoleculeMutator::erase_bond(int src, int dst) {
   if (ABSL_PREDICT_FALSE(src == dst)) {
     return;
   }
 
-  removed_bonds_.push_back(std::minmax(src, dst));
+  erased_bonds_.push_back(std::minmax(src, dst));
 }
 
 int MoleculeMutator::num_atoms() const {
-  return next_atom_idx() - static_cast<int>(removed_atoms_.size());
+  return next_atom_idx() - static_cast<int>(erased_atoms_.size());
 }
 
 void MoleculeMutator::discard() noexcept {
   new_atoms_.clear();
-  removed_atoms_.clear();
+  erased_atoms_.clear();
 
   new_bonds_.clear();
   new_bonds_set_.clear();
-  removed_bonds_.clear();
+  erased_bonds_.clear();
 }
 
 void MoleculeMutator::accept() noexcept {
@@ -197,14 +197,13 @@ void MoleculeMutator::accept() noexcept {
     g.add_edge(b.ends.first, b.ends.second, b.data);
   }
 
-  // 3. Remove bonds
-  for (const std::pair<int, int> &ends: removed_bonds_) {
+  // 3. Erase bonds
+  for (const std::pair<int, int> &ends: erased_bonds_) {
     g.erase_edge_between(ends.first, ends.second);
   }
 
-  // 4. Remove atoms
-  auto [last, map] =
-    g.erase_nodes(removed_atoms_.begin(), removed_atoms_.end());
+  // 4. Erase atoms
+  auto [last, map] = g.erase_nodes(erased_atoms_.begin(), erased_atoms_.end());
 
   // Update the data
   for (auto bit = g.edge_begin(); bit != g.edge_end(); ++bit) {

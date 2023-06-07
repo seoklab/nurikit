@@ -218,8 +218,8 @@ TEST_F(MoleculeTest, RotateBondTest) {
 
   std::vector<int> fixed { 0, 1, 2, 3, 6, 7, 8, 11 };
   for (int i = 0; i < mol_all.npos(); ++i) {
-    EXPECT_TRUE(
-      mol_all.pos(i)(fixed, Eigen::all).isApprox(mol_.pos(i)(fixed, Eigen::all)));
+    EXPECT_TRUE(mol_all.pos(i)(fixed, Eigen::all)
+                  .isApprox(mol_.pos(i)(fixed, Eigen::all)));
   }
 
   std::vector<int> rotated { 4, 5, 9, 10 };
@@ -260,9 +260,9 @@ TEST_F(MoleculeTest, RemoveAtomsTest) {
   Molecule mol1(mol_);
   {
     auto m = mol1.mutator();
-    m.remove_atom(9);
-    m.remove_atom(10);
-    m.remove_atom(11);
+    m.erase_atom(9);
+    m.erase_atom(10);
+    m.erase_atom(11);
 
     predicted_size = m.num_atoms();
   }
@@ -277,9 +277,9 @@ TEST_F(MoleculeTest, RemoveAtomsTest) {
   Molecule mol2(mol_);
   {
     auto m = mol2.mutator();
-    m.remove_atom(0);
-    m.remove_atom(1);
-    m.remove_atom(2);
+    m.erase_atom(0);
+    m.erase_atom(1);
+    m.erase_atom(2);
 
     predicted_size = m.num_atoms();
   }
@@ -294,9 +294,9 @@ TEST_F(MoleculeTest, RemoveAtomsTest) {
   Molecule mol3(mol_);
   {
     auto m = mol3.mutator();
-    m.remove_atom(0);
-    m.remove_atom(4);
-    m.remove_atom(9);
+    m.erase_atom(0);
+    m.erase_atom(4);
+    m.erase_atom(9);
 
     predicted_size = m.num_atoms();
   }
@@ -315,8 +315,8 @@ TEST_F(MoleculeTest, RemoveBondsTest) {
   {
     // All nop
     auto m = mol1.mutator();
-    m.remove_bond(8, 8);
-    m.remove_bond(8, 9);
+    m.erase_bond(8, 8);
+    m.erase_bond(8, 9);
   }
   EXPECT_EQ(mol1.num_atoms(), 12);
   EXPECT_EQ(mol1.num_bonds(), 11);
@@ -324,7 +324,7 @@ TEST_F(MoleculeTest, RemoveBondsTest) {
   Molecule mol2(mol_);
   {
     auto m = mol2.mutator();
-    m.remove_bond(0, 1);
+    m.erase_bond(0, 1);
   }
   EXPECT_EQ(mol2.num_atoms(), 12);
   EXPECT_EQ(mol2.num_bonds(), 10);
@@ -332,9 +332,9 @@ TEST_F(MoleculeTest, RemoveBondsTest) {
   Molecule mol3(std::move(mol_));
   {
     auto m = mol3.mutator();
-    m.remove_bond(0, 1);
-    m.remove_bond(8, 9);  // nop
-    m.remove_bond(3, 2);
+    m.erase_bond(0, 1);
+    m.erase_bond(8, 9);  // nop
+    m.erase_bond(3, 2);
   }
   EXPECT_EQ(mol3.num_atoms(), 12);
   EXPECT_EQ(mol3.num_bonds(), 9);

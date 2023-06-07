@@ -623,12 +623,12 @@ public:
   int add_atom(const Molecule::Atom &atom) { return add_atom(atom.data()); }
 
   /**
-   * @brief Remove an atom from the molecule.
-   * @param atom_idx Index of the atom to remove, after all atom additions.
+   * @brief Erase an atom from the molecule.
+   * @param atom_idx Index of the atom to erase, after all atom additions.
    * @note The behavior is undefined if the atom index is out of range at the
    *       moment of calling `accept()`.
    */
-  void remove_atom(int atom_idx) { removed_atoms_.insert(atom_idx); }
+  void erase_atom(int atom_idx) { erased_atoms_.insert(atom_idx); }
 
   /**
    * @brief Add a bond to the molecule.
@@ -664,7 +664,7 @@ public:
    *       does not exist, also **at the moment of `accept()` call**.
    * @note Implementation detail: src, dst are swapped if src > dst.
    */
-  void remove_bond(int src, int dst);
+  void erase_bond(int src, int dst);
 
   /**
    * @brief Get the number of atoms in the molecule after the mutation.
@@ -709,11 +709,11 @@ private:
   Molecule *mol_;
 
   std::vector<AtomData> new_atoms_;
-  absl::flat_hash_set<int> removed_atoms_;
+  absl::flat_hash_set<int> erased_atoms_;
 
   std::vector<AddedBond> new_bonds_;
   absl::flat_hash_set<std::pair<int, int>> new_bonds_set_;
-  std::vector<std::pair<int, int>> removed_bonds_;
+  std::vector<std::pair<int, int>> erased_bonds_;
 };
 
 /* Out-of-line definitions */
