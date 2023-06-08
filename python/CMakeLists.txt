@@ -9,7 +9,7 @@ Fetchcontent_Declare(
   GIT_REPOSITORY https://github.com/pybind/pybind11.git
   GIT_TAG v2.10.4
 )
-FetchContent_MakeAvailable(pybind11)
+nurikit_make_available_deponly(pybind11)
 
 configure_file(
   "${CMAKE_CURRENT_LIST_DIR}/nuri/_version.py.in"

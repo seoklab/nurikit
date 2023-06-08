@@ -79,6 +79,18 @@ function(nurikit_get_version)
   set(NURI_REF "${NURI_REF}" PARENT_SCOPE)
 endfunction()
 
+function(nurikit_make_available_deponly target)
+  include(FetchContent)
+
+  FetchContent_GetProperties(${target})
+
+  if(NOT ${target}_POPULATED)
+    FetchContent_Populate(${target})
+    add_subdirectory(
+      ${${target}_SOURCE_DIR} ${${target}_BINARY_DIR} EXCLUDE_FROM_ALL)
+  endif()
+endfunction()
+
 function(find_or_fetch_eigen)
   find_package(Eigen3 3.4 QUIET)
 
@@ -97,7 +109,7 @@ function(find_or_fetch_eigen)
     set(BUILD_TESTING OFF)
     set(EIGEN_BUILD_DOC OFF)
     set(EIGEN_BUILD_PKGCONFIG OFF)
-    FetchContent_MakeAvailable(eigen)
+    nurikit_make_available_deponly(eigen)
   endif()
 
   get_target_property(

@@ -24,15 +24,16 @@ list(FILTER NURI_SRCS EXCLUDE REGEX "main\.cpp$")
 
 if(NURI_SRCS)
   add_library(nuri_lib SHARED "${NURI_SRCS}")
+  set_target_properties(nuri_lib PROPERTIES OUTPUT_NAME nuri)
   target_link_libraries(nuri_lib
     PUBLIC
     absl::strings absl::flat_hash_map absl::absl_check)
-  set_target_properties(nuri_lib PROPERTIES OUTPUT_NAME nuri)
-  install(TARGETS nuri_lib LIBRARY)
 
   # Cannot just use Eigen3::Eigen because it includes eigen headers with -I
   # instead of -isystem, which might trigger compiler warnings.
   target_include_directories(nuri_lib SYSTEM PUBLIC ${EIGEN_INCLUDE_DIRS})
+
+  install(TARGETS nuri_lib LIBRARY)
 
   target_link_libraries(nuri_exe PRIVATE nuri_lib)
 endif()
