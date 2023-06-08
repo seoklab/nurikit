@@ -89,10 +89,12 @@ PYBIND11_MODULE(element, m) {
   using IsotopeList = std::vector<Isotope>;
   PyProxyCls<IsotopeList>(m, "_IsotopeList")
     .def("__len__", &IsotopeList::size)
-    .def("__iter__",
-         [](const IsotopeList &self) {
-           return py::make_iterator(self.begin(), self.end());
-         })
+    .def(
+      "__iter__",
+      [](const IsotopeList &self) {
+        return py::make_iterator(self.begin(), self.end());
+      },
+      py::return_value_policy::reference_internal)
     .def(
       "__getitem__",
       [](const IsotopeList &self, int i) {
@@ -244,10 +246,12 @@ PYBIND11_MODULE(element, m) {
         return elem;
       },
       asn, py::return_value_policy::reference)
-    .def("__iter__",
-         [](const PeriodicTable &self) {
-           return py::make_iterator(self.begin(), self.end());
-         })
+    .def(
+      "__iter__",
+      [](const PeriodicTable &self) {
+        return py::make_iterator(self.begin(), self.end());
+      },
+      py::return_value_policy::reference_internal)
     .def("__len__",
          [](const PeriodicTable &) { return PeriodicTable::kElementCount_; });
 
