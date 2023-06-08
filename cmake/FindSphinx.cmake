@@ -29,7 +29,7 @@ function(add_sphinx_docs target)
     -c ${CMAKE_CURRENT_BINARY_DIR}
     -d ${CMAKE_CURRENT_BINARY_DIR}/doctrees
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_BINARY_DIR}/html
+    ${CMAKE_CURRENT_BINARY_DIR}/doctest
     COMMENT "Running doctest for ${target}"
     VERBATIM)
 endfunction()
