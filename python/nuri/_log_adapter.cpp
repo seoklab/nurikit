@@ -68,11 +68,11 @@ public:
 
 private:
   // NOLINTNEXTLINE(*-identifier-naming,*-global-variables)
-  static py::object py_log_;
+  static py::handle py_log_;
 };
 
 // NOLINTNEXTLINE(*-global-variables)
-py::object PyLogSink::py_log_;
+py::handle PyLogSink::py_log_;
 
 PYBIND11_MODULE(_log_adapter, m) {
   m.def("_init", &PyLogSink::init);
