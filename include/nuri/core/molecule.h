@@ -454,6 +454,8 @@ public:
    */
   class MoleculeMutator mutator();
 
+  void clear() noexcept;
+
   // TODO(jnooree): add_hydrogens
   // /**
   //  * @brief Add hydrogens to the molecule.

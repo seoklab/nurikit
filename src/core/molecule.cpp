@@ -40,6 +40,11 @@ AtomData::AtomData(const Element &element, constants::Hybridization hyb,
 
 /* Molecule definitions */
 
+void Molecule::clear() noexcept {
+  graph_.clear();
+  conformers_.clear();
+}
+
 void Molecule::erase_hydrogens() {
   MoleculeMutator m = mutator();
   for (int i = 0; i < num_atoms(); ++i) {
