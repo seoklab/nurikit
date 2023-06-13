@@ -118,17 +118,17 @@ protected:
       }
       mutator.add_atom({ pt[11], kTerminal, +1 });
 
-      mutator.add_bond(0, 1, { kDoubleBond });
-      mutator.add_bond(0, 2, { kSingleBond });
-      mutator.add_bond(1, 2, { kSingleBond });
-      mutator.add_bond(2, 3, { kSingleBond });
-      mutator.add_bond(3, 4, { kSingleBond });
-      mutator.add_bond(4, 5, { kSingleBond });
-      mutator.add_bond(0, 6, { kSingleBond });
-      mutator.add_bond(1, 7, { kSingleBond });
-      mutator.add_bond(2, 8, { kSingleBond });
-      mutator.add_bond(3, 9, { kSingleBond });
-      mutator.add_bond(3, 10, { kSingleBond });
+      mutator.add_bond(0, 1, BondData { kDoubleBond });
+      mutator.add_bond(0, 2, BondData { kSingleBond });
+      mutator.add_bond(1, 2, BondData { kSingleBond });
+      mutator.add_bond(2, 3, BondData { kSingleBond });
+      mutator.add_bond(3, 4, BondData { kSingleBond });
+      mutator.add_bond(4, 5, BondData { kSingleBond });
+      mutator.add_bond(0, 6, BondData { kSingleBond });
+      mutator.add_bond(1, 7, BondData { kSingleBond });
+      mutator.add_bond(2, 8, BondData { kSingleBond });
+      mutator.add_bond(3, 9, BondData { kSingleBond });
+      mutator.add_bond(3, 10, BondData { kSingleBond });
     }
 
     ASSERT_EQ(mol_.num_atoms(), 12);

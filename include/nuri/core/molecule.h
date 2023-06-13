@@ -185,7 +185,8 @@ inline bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept {
 
 class BondData {
 public:
-  BondData(constants::BondOrder order): order_(order), flags_(0), length_(0) { }
+  explicit BondData(constants::BondOrder order)
+    : order_(order), flags_(0), length_(0) { }
 
   /**
    * @brief Get the bond order of the bond.
