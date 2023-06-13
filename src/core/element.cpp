@@ -3938,6 +3938,4 @@ PeriodicTable::PeriodicTable() noexcept
   symbol_to_element_.rehash(0);
   name_to_element_.rehash(0);
 }
-
-const PeriodicTable PeriodicTable::kPeriodicTable_ {};
 }  // namespace nuri

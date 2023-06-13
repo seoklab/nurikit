@@ -282,11 +282,12 @@ public:
   /**
    * @brief Get the singleton instance of the periodic table.
    * @return const PeriodicTable & The singleton instance of the periodic table.
-   * @note This function is not guaranteed to be safe from the &ldquo;static
-   *       initialization order fiasco.&rdquo; Never call this function from the
-   *       constructor/destructor of another static object.
    */
-  static const PeriodicTable &get() noexcept { return kPeriodicTable_; }
+  static const PeriodicTable &get() noexcept {
+    static const PeriodicTable the_table;
+
+    return the_table;
+  }
 
   constexpr const Element &operator[](int atomic_number) const noexcept {
     return elements_[atomic_number];
@@ -327,9 +328,6 @@ public:
 
 private:
   PeriodicTable() noexcept;
-
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  static const PeriodicTable kPeriodicTable_;
 
   Element elements_[kElementCount_];
   absl::flat_hash_map<std::string_view, const Element *> symbol_to_element_;
