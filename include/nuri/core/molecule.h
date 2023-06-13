@@ -7,6 +7,7 @@
 #define NURI_CORE_MOLECULE_H_
 
 #include <iterator>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
@@ -382,6 +383,10 @@ public:
             class = internal::enable_if_compatible_iter_t<Iterator, AtomData>>
   Molecule(Iterator begin, Iterator end);
 
+  std::string &name() { return name_; }
+
+  const std::string &name() const { return name_; }
+
   /**
    * @brief Check if the molecule has any atoms.
    */
@@ -735,6 +740,7 @@ private:
 
   GraphType graph_;
   std::vector<MatrixX3d> conformers_;
+  std::string name_;
   int circuit_rank_;
   bool was_valid_;
 };

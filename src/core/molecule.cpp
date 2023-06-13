@@ -51,6 +51,7 @@ AtomData::AtomData(const Element &element, int implicit_hydrogens,
 void Molecule::clear() noexcept {
   graph_.clear();
   conformers_.clear();
+  name_.clear();
 }
 
 void Molecule::erase_hydrogens() {
