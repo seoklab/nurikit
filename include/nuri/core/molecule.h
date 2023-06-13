@@ -55,10 +55,10 @@ public:
   /**
    * @brief Creates a dummy atom with unknown hybridization.
    */
-  AtomData()
-    : AtomData(PeriodicTable::get()[0], constants::Hybridization::kUnkHyb) { }
+  AtomData(): AtomData(PeriodicTable::get()[0]) { }
 
-  AtomData(const Element &element, constants::Hybridization hyb,
+  AtomData(const Element &element,
+           constants::Hybridization hyb = constants::kUnkHyb,
            int formal_charge = 0, double partial_charge = 0.0,
            int mass_number = -1, bool is_aromatic = false,
            bool is_in_ring = false, bool is_chiral = false,
