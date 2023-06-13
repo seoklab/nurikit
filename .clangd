@@ -22,9 +22,10 @@ CompileFlags:
     - -Wno-weak-vtables
     - -Wno-ignored-optimization-argument
     - -Wno-unused-macros
+    - -Wno-disabled-macro-expansion
     - -Wno-unsafe-buffer-usage
   Remove:
-    - '-fsanitize=*'
+    - "-fsanitize=*"
 Style:
   FullyQualifiedNamespaces: true
 Diagnostics:

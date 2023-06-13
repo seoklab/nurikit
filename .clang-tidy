@@ -22,6 +22,7 @@ ExtraArgsBefore:
   - -Wno-weak-vtables
   - -Wno-ignored-optimization-argument
   - -Wno-unused-macros
+  - -Wno-disabled-macro-expansion
   - -Wno-unsafe-buffer-usage
   - -fno-sanitize=all
 CheckOptions:
