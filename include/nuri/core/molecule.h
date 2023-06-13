@@ -617,6 +617,18 @@ public:
   bool rotate_bond(int i, bond_id_type bid, double angle);
 
 private:
+  GraphType::NodeRef mutable_atom(int atom_idx) {
+    return graph_.node(atom_idx);
+  }
+
+  GraphType::EdgeRef mutable_bond(bond_id_type bond_id) {
+    return graph_.edge(bond_id);
+  }
+
+  GraphType::edge_iterator find_mutable_bond(int src, int dst) {
+    return graph_.find_edge(src, dst);
+  }
+
   bool rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
                           double angle);
 
@@ -690,6 +702,21 @@ public:
    *       moment of calling `accept()`.
    */
   void erase_atom(int atom_idx) { erased_atoms_.insert(atom_idx); }
+
+  /**
+   * @brief Get data of an atom.
+   * @param atom_idx Index of the atom after all atom additions, but before any
+   *                 erasures.
+   * @note The behavior is undefined if the atom index is out of range at the
+   *       moment of calling `accept()`.
+   */
+  AtomData &atom_data(int atom_idx) {
+    int new_idx = atom_idx - mol_->num_atoms();
+    if (new_idx < 0) {
+      return mol_->mutable_atom(atom_idx).data();
+    }
+    return new_atoms_[new_idx];
+  }
 
   /**
    * @brief Add a bond to the molecule.
