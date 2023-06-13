@@ -5,6 +5,17 @@
 
 find_or_fetch_eigen()
 
+include(FetchContent)
+
+FetchContent_Declare(
+  boost
+  URL https://github.com/boostorg/boost/releases/download/boost-1.82.0/boost-1.82.0.tar.xz
+)
+set(Boost_INCLUDE_LIBRARIES spirit)
+set(Boost_ENABLE_CMAKE ON)
+set(Boost_USE_STATIC_LIBS ON)
+nurikit_make_available_deponly(boost)
+
 include(GNUInstallDirs)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY
@@ -29,9 +40,11 @@ if(NURI_SRCS)
     PUBLIC
     absl::strings absl::flat_hash_map absl::absl_check)
 
-  # Cannot just use Eigen3::Eigen because it includes eigen headers with -I
-  # instead of -isystem, which might trigger compiler warnings.
-  target_include_directories(nuri_lib SYSTEM PUBLIC ${EIGEN_INCLUDE_DIRS})
+  target_system_include_directories(nuri_lib
+    Eigen3::Eigen Boost::spirit Boost::fusion Boost::mpl Boost::optional)
+  target_link_libraries(nuri_lib
+    PRIVATE
+    Boost::spirit Boost::fusion Boost::mpl Boost::optional)
 
   install(TARGETS nuri_lib LIBRARY)
 
