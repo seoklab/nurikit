@@ -96,6 +96,12 @@ public:
    */
   std::string_view element_name() const { return element().name(); }
 
+  void set_element(const Element &element) { element_ = &element; }
+
+  void set_element(int atomic_number) {
+    set_element(PeriodicTable::get()[atomic_number]);
+  }
+
   /**
    * @brief Get the element data of the atom.
    * @return Immutable reference to the element object.
@@ -119,6 +125,12 @@ public:
                                                   : *isotope_;
   }
 
+  void set_isotope(const Isotope &isotope) { isotope_ = &isotope; }
+
+  void set_isotope(int mass_number) {
+    isotope_ = element().find_isotope(mass_number);
+  }
+
   /**
    * @brief Get the explicitly set isotope of the atom.
    * @return A pointer to the explicitly set isotope object. If none was
@@ -129,15 +141,33 @@ public:
    */
   const Isotope *explicit_isotope() const { return isotope_; }
 
+  void set_hybridization(constants::Hybridization hyb) { hyb_ = hyb; }
+
   constants::Hybridization hybridization() const { return hyb_; }
+
+  void set_aromatic(bool is_aromatic) {
+    internal::update_flag(flags_, is_aromatic, kAromaticAtom);
+  }
 
   bool is_aromatic() const {
     return internal::check_flag(flags_, kAromaticAtom);
   }
 
+  void set_ring_atom(bool is_ring_atom) {
+    internal::update_flag(flags_, is_ring_atom, kRingAtom);
+  }
+
   bool is_ring_atom() const { return internal::check_flag(flags_, kRingAtom); }
 
+  void set_chiral(bool is_chiral) {
+    internal::update_flag(flags_, is_chiral, kChiralAtom);
+  }
+
   bool is_chiral() const { return internal::check_flag(flags_, kChiralAtom); }
+
+  void set_right_handed(bool is_right_handed) {
+    internal::update_flag(flags_, is_right_handed, kRightHandedAtom);
+  }
 
   /**
    * @brief Get handedness of a chiral atom.
