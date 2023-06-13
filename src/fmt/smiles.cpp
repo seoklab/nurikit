@@ -467,7 +467,6 @@ Molecule read_smiles(std::string_view smiles) {
     std::ref(ring_map))[x3::with<parser::bond_geometry_tag>(
     std::ref(bond_geometry_map))[parser::smiles]]]]]];
 
-  // NOLINTNEXTLINE(readability-qualified-auto)
   auto begin = smiles.begin();
   bool success =
     x3::phrase_parse_main(begin, smiles.end(), parser, x3::space, x3::unused);
