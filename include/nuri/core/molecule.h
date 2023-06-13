@@ -240,6 +240,20 @@ public:
     internal::update_flag(flags_, ring, kRingBond);
   }
 
+  bool is_aromatic() const {
+    return internal::check_flag(flags_, kAromaticBond);
+  }
+
+  void set_aromatic(bool aromatic) {
+    internal::update_flag(flags_, aromatic, kAromaticBond);
+  }
+
+  bool is_trans() const { return internal::check_flag(flags_, kEConfigBond); }
+
+  void set_trans(bool trans) {
+    internal::update_flag(flags_, trans, kEConfigBond);
+  }
+
   /**
    * @brief Get the bond length.
    * @return The bond length of in angstroms \f$(\mathrm{Å})\f$. If the
@@ -258,6 +272,8 @@ private:
   enum Flags {
     kRotableBond = 0x1,
     kRingBond = 0x2,
+    kAromaticBond = 0x4,
+    kEConfigBond = 0x8,
   };
 
   constants::BondOrder order_;
