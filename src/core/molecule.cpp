@@ -526,7 +526,8 @@ void MoleculeMutator::accept() noexcept {
   // Update rotable flags
   for (auto bit = g.edge_begin(); bit != g.edge_end(); ++bit) {
     auto &d = bit->data();
-    d.set_rotable(!d.is_ring_bond() && d.order() <= constants::kSingleBond);
+    d.set_rotable(!d.is_ring_bond() && !d.is_conjugated()
+                  && d.order() <= constants::kSingleBond);
   }
 
   discard();
