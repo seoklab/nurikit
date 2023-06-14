@@ -28,10 +28,10 @@ TEST(Basic2DMoleculeTest, CreationTest) {
   EXPECT_EQ(empty.num_atoms(), 0);
   EXPECT_EQ(empty.num_bonds(), 0);
 
-  std::vector<nuri::AtomData> atoms(1);
+  std::vector<AtomData> atoms(1);
   atoms.reserve(10);
   for (int i = 1; i < 10; ++i) {
-    atoms.push_back(nuri::AtomData(pt[i], kSP3, 0, 0, i));
+    atoms.push_back(AtomData(pt[i], kSP3, 0, 0, 0, i));
   }
 
   Molecule ten(atoms.begin(), atoms.end());
@@ -48,9 +48,9 @@ TEST(Basic2DMoleculeTest, CreationTest) {
 TEST(Basic2DMoleculeTest, AddAtomsTest) {
   Molecule m;
   {
-    auto mutator = m.mutator();
+    auto mutator = m.mutator(false);
     for (int i = 0; i < 10; ++i) {
-      mutator.add_atom(nuri::AtomData(pt[i], kSP3, 0, 0, i * 2));
+      mutator.add_atom(AtomData(pt[i], kSP3, 0, 0, 0, i * 2));
     }
   }
 
@@ -60,22 +60,22 @@ TEST(Basic2DMoleculeTest, AddAtomsTest) {
 }
 
 TEST(Basic2DMoleculeTest, AddBondsTest) {
-  std::vector<nuri::AtomData> atoms(1);
+  std::vector<AtomData> atoms(1);
   atoms.reserve(10);
   for (int i = 1; i < 10; ++i) {
-    atoms.push_back(nuri::AtomData(pt[i], kSP3, 0, 0, i));
+    atoms.push_back(AtomData(pt[i], kSP3, 0, 0, 0, i));
   }
 
   Molecule ten(atoms.begin(), atoms.end());
   {
-    auto mutator = ten.mutator();
+    auto mutator = ten.mutator(false);
     EXPECT_TRUE(mutator.add_bond(0, 1, BondData(kSingleBond)));
 
     EXPECT_FALSE(mutator.add_bond(0, 0, BondData(kSingleBond)));
     EXPECT_FALSE(mutator.add_bond(1, 0, BondData(kDoubleBond)));
   }
   {
-    auto mutator = ten.mutator();
+    auto mutator = ten.mutator(false);
     EXPECT_FALSE(mutator.add_bond(1, 0, BondData(kDoubleBond)));
   }
 
@@ -262,7 +262,7 @@ TEST_F(MoleculeTest, EraseAtomsTest) {
 
   Molecule mol1(mol_);
   {
-    auto m = mol1.mutator();
+    auto m = mol1.mutator(false);
     m.erase_atom(9);
     m.erase_atom(10);
     m.erase_atom(11);
@@ -280,7 +280,7 @@ TEST_F(MoleculeTest, EraseAtomsTest) {
 
   Molecule mol2(mol_);
   {
-    auto m = mol2.mutator();
+    auto m = mol2.mutator(false);
     m.erase_atom(0);
     m.erase_atom(1);
     m.erase_atom(2);
@@ -298,7 +298,7 @@ TEST_F(MoleculeTest, EraseAtomsTest) {
 
   Molecule mol3(mol_);
   {
-    auto m = mol3.mutator();
+    auto m = mol3.mutator(false);
     m.erase_atom(0);
     m.erase_atom(4);
     m.erase_atom(9);
@@ -320,7 +320,7 @@ TEST_F(MoleculeTest, EraseBondsTest) {
   Molecule mol1(mol_);
   {
     // All nop
-    auto m = mol1.mutator();
+    auto m = mol1.mutator(false);
     m.erase_bond(8, 8);
     m.erase_bond(8, 9);
   }
@@ -329,7 +329,7 @@ TEST_F(MoleculeTest, EraseBondsTest) {
 
   Molecule mol2(mol_);
   {
-    auto m = mol2.mutator();
+    auto m = mol2.mutator(false);
     m.erase_bond(0, 1);
   }
   EXPECT_EQ(mol2.num_atoms(), 12);
@@ -337,7 +337,7 @@ TEST_F(MoleculeTest, EraseBondsTest) {
 
   Molecule mol3(std::move(mol_));
   {
-    auto m = mol3.mutator();
+    auto m = mol3.mutator(false);
     m.erase_bond(0, 1);
     m.erase_bond(8, 9);  // nop
     m.erase_bond(3, 2);
