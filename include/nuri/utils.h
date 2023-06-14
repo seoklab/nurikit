@@ -41,7 +41,7 @@ namespace internal {
       && std::is_same_v<NT, std::make_unsigned_t<std::underlying_type_t<FT>>>,
     bool>
   check_flag(NT flags, FT flag) {
-    return static_cast<bool>(flags & flag);
+    return static_cast<bool>(flags & static_cast<NT>(flag));
   }
 
   template <class NT, class FT>
@@ -50,8 +50,8 @@ namespace internal {
       && std::is_same_v<NT, std::make_unsigned_t<std::underlying_type_t<FT>>>,
     NT &>
   update_flag(NT &flags, bool cond, FT flag) {
-    NT mask = -static_cast<NT>(cond);
-    flags = (flags & ~flag) | (mask & flag);
+    NT mask = -static_cast<NT>(cond), flag_v = static_cast<NT>(flag);
+    flags = (flags & ~flag_v) | (mask & flag_v);
     return flags;
   }
 }  // namespace internal

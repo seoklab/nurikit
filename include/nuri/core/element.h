@@ -12,6 +12,8 @@
 
 #include <absl/container/flat_hash_map.h>
 
+#include "nuri/utils.h"
+
 namespace nuri {
 namespace internal {
   // Value taken from https://physics.nist.gov/cgi-bin/cuu/Value?are
@@ -141,6 +143,14 @@ public:
   constexpr int atomic_number() const noexcept { return atomic_number_; }
 
   /**
+   * @brief Get the number of valence electrons of the atom.
+   * @return The number of valence electrons.
+   */
+  constexpr std::int16_t valence_electrons() const noexcept {
+    return valence_electrons_;
+  }
+
+  /**
    * @brief Get the period of the atom.
    * @return Period of this atom.
    */
@@ -152,6 +162,39 @@ public:
    *         Lanthanides and actinides are treated as group 3.
    */
   constexpr std::int16_t group() const noexcept { return group_; }
+
+  /**
+   * @brief Test if the molecule is radioactive. That is, all of its isotopes
+   *        has natural abundance of 0.
+   * @return `true` if the element is radioactive, `false` otherwise.
+   */
+  constexpr bool radioactive() const noexcept {
+    return internal::check_flag(flags_, ElementFlag::kRadioactive);
+  }
+
+  /**
+   * @brief Test if the molecule is a main group element.
+   * @return `true` if the element is a main group element, `false` otherwise.
+   */
+  constexpr bool main_group() const noexcept {
+    return internal::check_flag(flags_, ElementFlag::kMainGroup);
+  }
+
+  /**
+   * @brief Test if the molecule is a lanthanide.
+   * @return `true` if the element is a lanthanide, `false` otherwise.
+   */
+  constexpr bool lanthanide() const noexcept {
+    return internal::check_flag(flags_, ElementFlag::kLanthanide);
+  }
+
+  /**
+   * @brief Test if the molecule is an actinide.
+   * @return `true` if the element is an actinide, `false` otherwise.
+   */
+  constexpr bool actinide() const noexcept {
+    return internal::check_flag(flags_, ElementFlag::kActinide);
+  }
 
   /**
    * @brief Get the IUPAC Symbol of the atom.
@@ -231,6 +274,13 @@ public:
   }
 
 private:
+  enum class ElementFlag : std::uint16_t {
+    kRadioactive = 0x1,
+    kMainGroup = 0x2,
+    kLanthanide = 0x4,
+    kActinide = 0x8,
+  };
+
   Element(int atomic_number, std::string_view symbol, std::string_view name,
           double atomic_weight, double cov_rad, double vdw_rad, double eneg,
           std::vector<Isotope> &&isotopes) noexcept;
@@ -243,8 +293,10 @@ private:
   friend class PeriodicTable;
 
   int atomic_number_;
+  std::int16_t valence_electrons_;
   std::int16_t period_;
   std::int16_t group_;
+  std::uint16_t flags_;
   std::string_view symbol_;
   std::string_view name_;
   double atomic_weight_;

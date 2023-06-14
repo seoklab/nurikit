@@ -15,7 +15,8 @@
 
 namespace nuri {
 namespace {
-  std::pair<std::int16_t, std::int16_t> get_period_group(const int atnum) {
+  std::pair<std::int16_t, std::int16_t>
+  get_period_group(const int atnum, bool &is_lanthanide_or_actinide) {
     // Dummy atom
     switch (atnum) {
     case 0:
@@ -52,10 +53,41 @@ namespace {
     if (group >= 3 && group <= 17) {
       // Lanthanides and actinides
       group = 3;
+      is_lanthanide_or_actinide = true;
     } else if (group >= 18) {
       group -= 14;
     }
     return { period, group };
+  }
+
+  int get_valence_electrons(const Element &elem) {
+    if (elem.lanthanide()) {
+      if (elem.atomic_number() == 71) {
+        // Lutetium has filled f-orbital
+        return 3;
+      }
+      return elem.atomic_number() - 57 + 3;
+    }
+
+    if (elem.actinide()) {
+      if (elem.atomic_number() == 103) {
+        // Lawrencium has filled f-orbital
+        return 3;
+      }
+      return elem.atomic_number() - 89 + 3;
+    }
+
+    if (elem.group() <= 12) {
+      return elem.group();
+    }
+
+    // Helium
+    if (elem.atomic_number() == 2) {
+      return 2;
+    }
+
+    // Group 13-18
+    return elem.group() - 10;
   }
 }  // namespace
 
@@ -63,31 +95,44 @@ Element::Element(int atomic_number, std::string_view symbol,
                  std::string_view name, double atomic_weight, double cov_rad,
                  double vdw_rad, double eneg,
                  std::vector<Isotope> &&isotopes) noexcept
-  : atomic_number_(atomic_number), symbol_(symbol), name_(name),
+  : atomic_number_(atomic_number), flags_(0), symbol_(symbol), name_(name),
     atomic_weight_(atomic_weight), cov_rad_(cov_rad), vdw_rad_(vdw_rad),
     eneg_(eneg), isotopes_(std::move(isotopes)) {
   ABSL_DCHECK(!isotopes_.empty());
 
-  std::tie(period_, group_) = get_period_group(atomic_number_);
+  bool lan_or_act = false;
+  std::tie(period_, group_) = get_period_group(atomic_number_, lan_or_act);
 
-  // Special case for the radioactive elements
+  if (group_ < 3 || group_ > 12) {
+    flags_ |= static_cast<uint16_t>(ElementFlag::kMainGroup);
+  }
+  if (lan_or_act) {
+    flags_ |= static_cast<uint16_t>(period_ == 6 ? ElementFlag::kLanthanide
+                                                 : ElementFlag::kActinide);
+  }
+
+  valence_electrons_ = static_cast<int16_t>(get_valence_electrons(*this));
+
+  std::vector<Isotope>::iterator it;
   if (std::all_of(isotopes_.begin(), isotopes_.end(),
                   [](const Isotope &isotope) {
                     return isotope.abundance == 0.0;
                   })) {
-    major_isotope_ = &*std::find_if(
-      isotopes_.begin(), isotopes_.end(), [&](const Isotope &isotope) {
-        // NOLINTNEXTLINE(clang-diagnostic-float-equal)
-        return isotope.mass_number == atomic_weight_;
-      });
-    return;
-  }
+    flags_ |= static_cast<uint16_t>(ElementFlag::kRadioactive);
 
-  major_isotope_ =
-    &*std::max_element(isotopes_.begin(), isotopes_.end(),
-                       [](const Isotope &lhs, const Isotope &rhs) {
-                         return lhs.abundance < rhs.abundance;
-                       });
+    it = std::find_if(isotopes_.begin(), isotopes_.end(),
+                      [&](const Isotope &isotope) {
+                        // NOLINTNEXTLINE(clang-diagnostic-float-equal)
+                        return isotope.mass_number == atomic_weight_;
+                      });
+  } else {
+    it = std::max_element(isotopes_.begin(), isotopes_.end(),
+                          [](const Isotope &lhs, const Isotope &rhs) {
+                            return lhs.abundance < rhs.abundance;
+                          });
+  }
+  ABSL_DCHECK(it != isotopes_.end());
+  major_isotope_ = &*it;
 }
 
 // Format:
