@@ -869,9 +869,9 @@ private:
 
 template <class Iterator, class>
 Molecule::Molecule(Iterator begin, Iterator end): Molecule() {
-  MoleculeMutator mutator(*this);
+  MoleculeMutator m = mutator(false);
   for (auto it = begin; it != end; ++it) {
-    mutator.add_atom(*it);
+    m.add_atom(*it);
   }
 }
 
