@@ -186,6 +186,9 @@ namespace internal {
   };
 
   template <class GT, bool is_const>
+  class NodeWrapper;
+
+  template <class GT, bool is_const>
   class AdjWrapper {
   public:
     using DT = typename GT::adj_data_type;
@@ -193,21 +196,29 @@ namespace internal {
     using value_type = const_if_t<is_const, DT>;
     using edge_value_type = const_if_t<is_const, typename GT::edge_data_type>;
 
+    using parent_type = const_if_t<is_const, GT>;
+
     template <bool other_const>
     using Other = AdjWrapper<GT, other_const>;
 
-    constexpr AdjWrapper(int src, DT &adj) noexcept: src_(src), adj_(&adj) { }
+    constexpr AdjWrapper(GT &graph, int src, DT &adj) noexcept
+      : src_(src), adj_(&adj), graph_(&graph) { }
 
-    constexpr AdjWrapper(int src, const DT &adj) noexcept
-      : src_(src), adj_(&adj) { }
+    constexpr AdjWrapper(const GT &graph, int src, const DT &adj) noexcept
+      : src_(src), adj_(&adj), graph_(&graph) { }
 
     template <bool other_const,
               typename = std::enable_if_t<is_const && !other_const>>
     constexpr AdjWrapper(const Other<other_const> &other) noexcept
-      : src_(other.src_), adj_(other.adj_) { }
+      : src_(other.src_), adj_(other.adj_), graph_(other.graph_) { }
 
-    constexpr int src() const noexcept { return src_; }
-    constexpr int dst() const noexcept { return adj_->dst; }
+    constexpr NodeWrapper<GT, is_const> src() const noexcept {
+      return graph_->node(src_);
+    }
+
+    constexpr NodeWrapper<GT, is_const> dst() const noexcept {
+      return graph_->node(adj_->dst);
+    }
 
     constexpr edge_id_type eid() const noexcept { return adj_->eid; }
     constexpr edge_value_type &edge_data() const noexcept {
@@ -223,6 +234,7 @@ namespace internal {
 
     int src_;
     value_type *adj_;
+    parent_type *graph_;
   };
 
   template <class GT, bool is_const>
@@ -311,11 +323,13 @@ namespace internal {
       return *const_cast<value_type *>(data_);
     }
 
-    constexpr AdjIterator<GT, is_const> adj_begin() const noexcept {
+    constexpr int degree() const noexcept { return graph_->degree(nid_); }
+
+    constexpr AdjIterator<GT, is_const> begin() const noexcept {
       return graph_->adj_begin(nid_);
     }
 
-    constexpr AdjIterator<GT, is_const> adj_end() const noexcept {
+    constexpr AdjIterator<GT, is_const> end() const noexcept {
       return graph_->adj_end(nid_);
     }
 
@@ -819,7 +833,7 @@ private:
   find_adj_helper(GT &graph, int src, int dst) {
     auto ret = graph.adj_begin(src);
     for (; ret != graph.adj_end(src); ++ret) {
-      if (ret->dst() == dst) {
+      if (ret->dst().id() == dst) {
         break;
       }
     }
@@ -870,10 +884,12 @@ private:
     return edges_.erase(eid, eid);
   }
 
-  AdjRef adjacent(int nid, int idx) { return { nid, adj_list_[nid][idx] }; }
+  AdjRef adjacent(int nid, int idx) {
+    return { *this, nid, adj_list_[nid][idx] };
+  }
 
   ConstAdjRef adjacent(int nid, int idx) const {
-    return { nid, adj_list_[nid][idx] };
+    return { *this, nid, adj_list_[nid][idx] };
   }
 
   std::vector<std::vector<AdjEntry>> adj_list_;
@@ -1069,7 +1085,7 @@ namespace internal {
       }
 
       for (auto ait = g.adj_begin(atom); !ait.end(); ++ait) {
-        int dst = ait->dst();
+        int dst = ait->dst().id();
         q.push(dst);
       }
     }
@@ -1094,7 +1110,7 @@ absl::flat_hash_set<int> connected_components(const Graph<NT, ET> &g, int begin,
   std::queue<int> q;
 
   for (auto ait = g.adj_begin(begin); !ait.end(); ++ait) {
-    int dst = ait->dst();
+    int dst = ait->dst().id();
     if (dst != exclude) {
       q.push(dst);
     }
