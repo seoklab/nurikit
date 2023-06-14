@@ -244,7 +244,9 @@ namespace {
       return true;
     }
 
-    const int typical_valence = octet_valence(atom.data().element());
+    const int typical_valence =
+      octet_valence(PeriodicTable::get()[atom.data().atomic_number()
+                                         - atom.data().formal_charge()]);
     if (total_valence != typical_valence) {
       return false;
     }
@@ -407,8 +409,7 @@ namespace {
     for (int i = 0; i < graph.num_nodes(); ++i) {
       MutableAtom atom = graph.node(i);
       const int total_degree = all_neighbors(atom),
-                total_valence =
-                  sum_bond_order(atom) + atom.data().formal_charge();
+                total_valence = sum_bond_order(atom);
       valences[i] = total_valence;
       if (ABSL_PREDICT_FALSE(!sethyb(atom, total_degree, total_valence))) {
         return false;
