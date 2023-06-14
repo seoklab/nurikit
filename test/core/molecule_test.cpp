@@ -106,17 +106,17 @@ protected:
     mol_ = Molecule();
 
     {
-      auto mutator = mol_.mutator();
+      auto mutator = mol_.mutator(false);
 
-      mutator.add_atom({ pt[6], kSP2 });
-      mutator.add_atom({ pt[6], kSP2 });
-      mutator.add_atom({ pt[6], kSP3 });
-      mutator.add_atom({ pt[6], kSP3 });
-      mutator.add_atom({ pt[7], kSP3, -1 });
+      mutator.add_atom({ pt[6] });
+      mutator.add_atom({ pt[6] });
+      mutator.add_atom({ pt[6] });
+      mutator.add_atom({ pt[6] });
+      mutator.add_atom({ pt[7], kOtherHyb, 0, -1 });
       for (int i = 5; i < 11; ++i) {
-        mutator.add_atom({ pt[1], kTerminal });
+        mutator.add_atom({ pt[1] });
       }
-      mutator.add_atom({ pt[11], kTerminal, +1 });
+      mutator.add_atom({ pt[11], kOtherHyb, 0, +1 });
 
       mutator.add_bond(0, 1, BondData { kDoubleBond });
       mutator.add_bond(0, 2, BondData { kSingleBond });
