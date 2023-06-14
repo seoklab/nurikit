@@ -504,6 +504,8 @@ void MoleculeMutator::accept() noexcept {
   } else {
     // Select the atom indices
     std::vector<int> idxs;
+    idxs.reserve(mol().num_atoms());
+
     for (int i = 0; i < old_size; ++i) {
       // GCOV_EXCL_START
       ABSL_DCHECK(i < map.size());
@@ -514,8 +516,7 @@ void MoleculeMutator::accept() noexcept {
     }
 
     for (MatrixX3d &conf: mol().conformers_) {
-      MatrixX3d updated(mol().num_atoms(), 3);
-      updated.topRows(idxs.size()) = conf(idxs, Eigen::all);
+      MatrixX3d updated = conf(idxs, Eigen::all);
       conf = std::move(updated);
     }
   }
