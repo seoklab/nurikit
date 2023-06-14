@@ -278,6 +278,9 @@ namespace {
 
   bool sethyb(MutableAtom atom, const int total_degree,
               const int total_valence) {
+    ABSL_DLOG(INFO)
+      << atom.id() << ": " << total_degree << ", " << total_valence;
+
     if (total_degree == 0) {
       atom.data().set_hybridization(constants::kUnbound);
       return true;
