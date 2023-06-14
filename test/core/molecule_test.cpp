@@ -275,6 +275,7 @@ TEST_F(MoleculeTest, EraseAtomsTest) {
 
   for (int i = 0; i < mol1.num_conf(); ++i) {
     EXPECT_TRUE(mol1.conf(i).isApprox(mol_.conf(i).topRows<9>()));
+    EXPECT_EQ(mol1.conf(i).rows(), 9);
   }
 
   Molecule mol2(mol_);
@@ -292,6 +293,7 @@ TEST_F(MoleculeTest, EraseAtomsTest) {
 
   for (int i = 0; i < mol2.num_conf(); ++i) {
     EXPECT_TRUE(mol2.conf(i).isApprox(mol_.conf(i).bottomRows<9>()));
+    EXPECT_EQ(mol2.conf(i).rows(), 9);
   }
 
   Molecule mol3(mol_);
@@ -310,6 +312,7 @@ TEST_F(MoleculeTest, EraseAtomsTest) {
   std::vector<int> keep { 1, 2, 3, 5, 6, 7, 8, 10, 11 };
   for (int i = 0; i < mol3.num_conf(); ++i) {
     EXPECT_TRUE(mol3.conf(i).isApprox(mol_.conf(i)(keep, Eigen::all)));
+    EXPECT_EQ(mol3.conf(i).rows(), 9);
   }
 }
 
