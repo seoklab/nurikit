@@ -492,14 +492,6 @@ void MoleculeMutator::accept() noexcept {
   // 4. Erase atoms
   auto [last, map] = g.erase_nodes(erased_atoms_.begin(), erased_atoms_.end());
 
-  // Update the data
-  for (auto bit = g.edge_begin(); bit != g.edge_end(); ++bit) {
-    auto &d = bit->data();
-    // TODO(jnooree): detect in-ring bonds
-    d.set_ring_bond(false);
-    d.set_rotable(!d.is_ring_bond() && d.order() <= constants::kSingleBond);
-  }
-
   // Update coordinates
   if (last >= 0) {
     // Only trailing nodes are removed
@@ -529,6 +521,12 @@ void MoleculeMutator::accept() noexcept {
   if (sanitize_) {
     ABSL_LOG_IF(WARNING, !mol_->sanitize(conformer_idx_))
       << "Molecule sanitization failed!";
+  }
+
+  // Update rotable flags
+  for (auto bit = g.edge_begin(); bit != g.edge_end(); ++bit) {
+    auto &d = bit->data();
+    d.set_rotable(!d.is_ring_bond() && d.order() <= constants::kSingleBond);
   }
 
   discard();
