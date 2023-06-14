@@ -26,14 +26,14 @@ namespace constants {
    * @brief The hybridization state of an atom object.
    */
   enum Hybridization {
-    kUnkHyb = 0,
-    kTerminal = 1,
+    kUnbound = 0,   // Unbound
+    kTerminal = 1,  // Terminal
     kSP = 2,
     kSP2 = 3,
     kSP3 = 4,
     kSP3D = 5,
     kSP3D2 = 6,
-    kOther = 7,
+    kOtherHyb = 7,  // Unknown/other
   };
 
   /**
@@ -46,8 +46,10 @@ namespace constants {
     kTripleBond = 3,
     kQuadrupleBond = 4,
     kAromaticBond = 5,
-    kConjugatedBond = 6,
   };
+
+  extern constexpr inline double kBondOrderToDouble[] = { 0.0, 1.0, 2.0,
+                                                          3.0, 4.0, 1.5 };
 }  // namespace constants
 
 class AtomData {
@@ -58,11 +60,11 @@ public:
   AtomData(): AtomData(PeriodicTable::get()[0]) { }
 
   AtomData(const Element &element,
-           constants::Hybridization hyb = constants::kUnkHyb,
-           int formal_charge = 0, double partial_charge = 0.0,
-           int mass_number = -1, bool is_aromatic = false,
-           bool is_in_ring = false, bool is_chiral = false,
-           bool is_right_handed = false);
+           constants::Hybridization hyb = constants::kUnbound,
+           int implicit_hydrogens = 0, int formal_charge = 0,
+           double partial_charge = 0.0, int mass_number = -1,
+           bool is_aromatic = false, bool is_in_ring = false,
+           bool is_chiral = false, bool is_right_handed = false);
 
   /**
    * @brief Get the atomic number of the atom.
@@ -145,6 +147,12 @@ public:
 
   constants::Hybridization hybridization() const { return hyb_; }
 
+  void set_implicit_hydrogens(int implicit_hydrogens) {
+    implicit_hydrogens_ = implicit_hydrogens;
+  }
+
+  int implicit_hydrogens() const { return implicit_hydrogens_; }
+
   void set_aromatic(bool is_aromatic) {
     internal::update_flag(flags_, is_aromatic, kAromaticAtom);
   }
@@ -201,6 +209,7 @@ private:
   const Element *element_;
   const Isotope *isotope_;
   constants::Hybridization hyb_;
+  int implicit_hydrogens_;
   uint32_t flags_;
   int formal_charge_;
   double partial_charge_;
@@ -222,6 +231,12 @@ public:
    * @brief Get the bond order of the bond.
    */
   constants::BondOrder order() const { return order_; }
+
+  /**
+   * @brief Get the approximate bond order of the bond.
+   * @return Approximate bond order, e.g., 1.5 for an aromatic bond.
+   */
+  double approx_order() const { return constants::kBondOrderToDouble[order_]; }
 
   /**
    * @brief Get the read-write reference to bond order.
@@ -246,6 +261,14 @@ public:
 
   void set_aromatic(bool aromatic) {
     internal::update_flag(flags_, aromatic, kAromaticBond);
+  }
+
+  bool is_conjugated() const {
+    return internal::check_flag(flags_, kConjugatedBond);
+  }
+
+  void set_conjugated(bool conj) {
+    internal::update_flag(flags_, conj, kConjugatedBond);
   }
 
   bool is_trans() const { return internal::check_flag(flags_, kEConfigBond); }
@@ -273,7 +296,8 @@ private:
     kRotableBond = 0x1,
     kRingBond = 0x2,
     kAromaticBond = 0x4,
-    kEConfigBond = 0x8,
+    kConjugatedBond = 0x8,
+    kEConfigBond = 0x10,
   };
 
   constants::BondOrder order_;
@@ -415,14 +439,6 @@ public:
   const_bond_iterator bond_end() const { return graph_.edge_end(); }
 
   /**
-   * @brief Get the number of bonds of the atom.
-   * @param atom_idx Index of the atom.
-   * @return Valence of the atom.
-   * @note If the atom index is out of range, the behavior is undefined.
-   */
-  int valence(int atom_idx) const { return graph_.degree(atom_idx); }
-
-  /**
    * @brief Find a neighbor of the atom.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
@@ -449,10 +465,11 @@ public:
 
   /**
    * @brief Get a MoleculeMutator object associated with the molecule.
-   *
+   * @param sanitize Passed to the constructor of MoleculeMutator.
    * @return The MoleculeMutator object to update this molecule.
+   * @sa MoleculeMutator
    */
-  class MoleculeMutator mutator();
+  class MoleculeMutator mutator(bool sanitize = true);
 
   void clear() noexcept;
 
@@ -616,7 +633,31 @@ public:
    */
   bool rotate_bond(int i, bond_id_type bid, double angle);
 
+  /**
+   * @brief Fix all chemical errors in the molecule.
+   * @param use_conformer If non-negative, use bond angles and lengths of the
+   *        specified conformer to fix chemical errors. Otherwise, only the
+   *        graph is used. *Unimplemented, currently a no-op.*
+   * @return `true` if the molecule is valid after sanitization, `false` if the
+   *         molecule is still invalid after sanitization.
+   * @note This method has high overhead, and is not intended to be used in
+   *       downstream code. It is mainly used from MoleculeMutator class.
+   */
+  bool sanitize(int use_conformer = -1);
+
+  /**
+   * @brief Observe the previous result of sanitize() call.
+   * @return `true` if the last call to sanitize() resulted in a valid molecule,
+   *         `false` otherwise.
+   * @note Calling this method before calling sanitize() is meaningless.
+   * @sa sanitize()
+   */
+  bool was_valid() const { return was_valid_; }
+
 private:
+  Molecule(GraphType &&graph, std::vector<MatrixX3d> &&conformers) noexcept
+    : graph_(std::move(graph)), conformers_(std::move(conformers)) { }
+
   GraphType::NodeRef mutable_atom(int atom_idx) {
     return graph_.node(atom_idx);
   }
@@ -632,11 +673,9 @@ private:
   bool rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
                           double angle);
 
-  Molecule(GraphType &&graph, std::vector<MatrixX3d> &&conformers) noexcept
-    : graph_(std::move(graph)), conformers_(std::move(conformers)) { }
-
   GraphType graph_;
   std::vector<MatrixX3d> conformers_;
+  bool was_valid_;
 };
 
 /**
@@ -667,7 +706,18 @@ private:
  */
 class MoleculeMutator {
 public:
-  MoleculeMutator(Molecule &mol): mol_(&mol) { }
+  /**
+   * @brief Construct a new MoleculeMutator object
+   *
+   * @param mol The molecule to mutate.
+   * @param sanitize If `true`, sanitize the molecule at accept() call.
+   * @param sanitize_with If non-negative, use bond angles and lengths of the
+   *        specified conformer to fix chemical errors. Otherwise, only the
+   *        graph is used. *Unimplemented, currently a no-op.*
+   * @sa sanitize(), accept()
+   */
+  MoleculeMutator(Molecule &mol, bool sanitize = true, int sanitize_with = -1)
+    : mol_(&mol), conformer_idx_(sanitize_with), sanitize_(sanitize) { }
 
   MoleculeMutator() = delete;
   MoleculeMutator(const MoleculeMutator &) = delete;
@@ -761,6 +811,10 @@ public:
    */
   int num_atoms() const;
 
+  bool &sanitize() { return sanitize_; }
+
+  bool sanitize() const { return sanitize_; }
+
   /**
    * @brief Cancel all pending changes.
    * @note This effectively resets the mutator to the state after construction.
@@ -771,6 +825,10 @@ public:
    * @brief Apply all changes made to the molecule.
    * @note The mutator internally discard() all changes after the call. Thus,
    *       it's a no-op to call this method multiple times.
+   * @sa Molecule::sanitize()
+   *
+   * This will effectively call Molecule::sanitize() unless the mutator was
+   * created with `sanitize = false`.
    */
   void accept() noexcept;
 
@@ -802,9 +860,12 @@ private:
   std::vector<AddedBond> new_bonds_;
   absl::flat_hash_set<std::pair<int, int>> new_bonds_set_;
   std::vector<std::pair<int, int>> erased_bonds_;
+
+  int conformer_idx_;
+  bool sanitize_;
 };
 
-/* Out-of-line definitions */
+/* Out-of-line definitions for molecule */
 
 template <class Iterator, class>
 Molecule::Molecule(Iterator begin, Iterator end): Molecule() {
@@ -814,9 +875,35 @@ Molecule::Molecule(Iterator begin, Iterator end): Molecule() {
   }
 }
 
-inline MoleculeMutator Molecule::mutator() {
-  return MoleculeMutator(*this);
+inline MoleculeMutator Molecule::mutator(bool sanitize) {
+  return MoleculeMutator(*this, sanitize);
 }
+
+/* Utility functions */
+
+/**
+ * @brief Get the number of all neighbors of an atom.
+ * @param atom An atom.
+ * @return Number of all neighbors of the atom, including implicit hydrogens.
+ */
+extern inline int all_neighbors(Molecule::Atom atom) {
+  return atom.degree() + atom.data().implicit_hydrogens();
+}
+
+/**
+ * @brief Count the number of hydrogens of the atom.
+ * @param atom An atom.
+ * @return Number of hydrogens of the atom (including implicit hydrogens)
+ * @note If the atom index is out of range, the behavior is undefined.
+ */
+extern int count_hydrogens(Molecule::Atom atom);
+
+/**
+ * @brief Get the approximate total bond order of the atom.
+ * @param atom An atom.
+ * @return Total bond order of the atom.
+ */
+extern int sum_bond_order(Molecule::Atom atom);
 }  // namespace nuri
 
 #endif /* NURI_CORE_MOLECULE_H_ */
