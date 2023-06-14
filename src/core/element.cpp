@@ -91,7 +91,7 @@ Element::Element(int atomic_number, std::string_view symbol,
 }
 
 // Format:
-// { Z, Symbol, Name, Mass, EN, r_cov, r_vdw, Isotope list }
+// { Z, Symbol, Name, Mass, r_cov, r_vdw, EN, Isotope list }
 PeriodicTable::PeriodicTable() noexcept
   : elements_ {
   // clang-format off
