@@ -359,4 +359,20 @@ TEST_F(MoleculeTest, EraseHydrogensTest) {
     EXPECT_EQ(c.rows(), mol_.size());
   }
 }
+
+TEST_F(MoleculeTest, SanitizeTest) {
+  using namespace nuri::constants;  // NOLINT
+
+  ASSERT_TRUE(mol_.sanitize());
+
+  EXPECT_EQ(mol_.atom(0).data().hybridization(), kSP2);
+  EXPECT_EQ(mol_.atom(1).data().hybridization(), kSP2);
+  EXPECT_EQ(mol_.atom(2).data().hybridization(), kSP3);
+  EXPECT_EQ(mol_.atom(3).data().hybridization(), kSP3);
+  EXPECT_EQ(mol_.atom(4).data().hybridization(), kSP3);
+  for (int i = 5; i < 11; ++i) {
+    EXPECT_EQ(mol_.atom(i).data().hybridization(), kTerminal);
+  }
+  EXPECT_EQ(mol_.atom(11).data().hybridization(), kUnbound);
+}
 }  // namespace
