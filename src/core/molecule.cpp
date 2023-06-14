@@ -53,8 +53,13 @@ void Molecule::clear() noexcept {
 void Molecule::erase_hydrogens() {
   MoleculeMutator m = mutator();
   for (int i = 0; i < num_atoms(); ++i) {
-    if (atom(i).data().atomic_number() == 1) {
+    auto hydrogen = mutable_atom(i);
+    if (hydrogen.data().atomic_number() == 1) {
       m.erase_atom(i);
+      for (auto nei: hydrogen) {
+        AtomData &data = nei.dst().data();
+        data.set_implicit_hydrogens(data.implicit_hydrogens() + 1);
+      }
     }
   }
 }
