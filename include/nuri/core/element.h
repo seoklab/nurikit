@@ -360,7 +360,8 @@ public:
   }
 
   constexpr static bool has_element(int atomic_number) noexcept {
-    return atomic_number < kElementCount_;
+    return static_cast<unsigned int>(atomic_number)
+           < static_cast<unsigned int>(kElementCount_);
   }
 
   bool has_element(std::string_view symbol) const noexcept {
