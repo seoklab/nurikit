@@ -12,7 +12,118 @@
 #include <vector>
 
 namespace nuri {
+
 namespace internal {
+  // Use of std::underlying_type_t on non-enum types is UB until C++20.
+
+#if __cplusplus >= 202002L
+  using std::underlying_type;
+  using std::underlying_type_t;
+#else
+  template <class E, bool = std::is_enum_v<E>>
+  struct underlying_type { };
+
+  template <class E>
+  struct underlying_type<E, false> { };
+
+  template <class E>
+  struct underlying_type<E, true> {
+    using type = std::underlying_type_t<E>;
+  };
+
+  template <class T>
+  using underlying_type_t = typename underlying_type<T>::type;
+
+#endif
+}  // namespace internal
+
+template <class E, class U = internal::underlying_type_t<E>, U = 0>
+constexpr inline E operator|(E lhs, E rhs) {
+  return static_cast<E>(static_cast<U>(lhs) | static_cast<U>(rhs));
+}
+
+template <class E, class U = internal::underlying_type_t<E>, U = 0>
+constexpr inline E &operator|=(E &self, E rhs) {
+  return self = self | rhs;
+}
+
+template <class E, class U = internal::underlying_type_t<E>, U = 0>
+constexpr inline E operator&(E lhs, E rhs) {
+  return static_cast<E>(static_cast<U>(lhs) & static_cast<U>(rhs));
+}
+
+template <class E, class U = internal::underlying_type_t<E>, U = 0>
+constexpr inline E &operator&=(E &self, E rhs) {
+  return self = self & rhs;
+}
+
+template <class E, class U = internal::underlying_type_t<E>, U = 0>
+constexpr inline E operator^(E lhs, E rhs) {
+  return static_cast<E>(static_cast<U>(lhs) ^ static_cast<U>(rhs));
+}
+
+template <class E, class U = internal::underlying_type_t<E>, U = 0>
+constexpr inline E &operator^=(E &self, E rhs) {
+  return self = self ^ rhs;
+}
+
+template <class E, class U = internal::underlying_type_t<E>, U = 0>
+constexpr inline E operator~(E val) {
+  return static_cast<E>(~static_cast<U>(val));
+}
+
+template <class E, class U = internal::underlying_type_t<E>, U = 0,
+          std::enable_if_t<std::is_unsigned_v<U>, int> = 0>
+constexpr inline E operator-(E val) {
+  return static_cast<E>(-static_cast<U>(val));
+}
+
+namespace internal {
+  template <class T, bool = std::is_enum_v<T>>
+  struct extract_if_enum { };
+
+  template <class T>
+  struct extract_if_enum<T, true> {
+    using type = std::underlying_type_t<T>;
+  };
+
+  template <class T>
+  struct extract_if_enum<T, false> {
+    using type = T;
+  };
+
+  template <class T>
+  using extract_if_enum_t = typename extract_if_enum<T>::type;
+
+  template <class E>
+  constexpr bool check_flag(E flags, E flag) {
+    return static_cast<bool>(flags & flag);
+  }
+
+  template <class E, class U = extract_if_enum_t<E>,
+            std::enable_if_t<std::is_unsigned_v<U>, U> = 0>
+  constexpr E &update_flag(E &flags, bool cond, E flag) {
+    E mask = -static_cast<E>(cond);
+    flags = (flags & ~flag) | (mask & flag);
+    return flags;
+  }
+
+  template <class E, class U = extract_if_enum_t<E>,
+            std::enable_if_t<std::is_unsigned_v<U>, U> = 0>
+  constexpr E &set_flag_if(E &flags, bool cond, E flag) {
+    E mask = -static_cast<E>(cond);
+    flags |= mask & flag;
+    return flags;
+  }
+
+  template <class E, class U = extract_if_enum_t<E>,
+            std::enable_if_t<std::is_unsigned_v<U>, U> = 0>
+  constexpr E &unset_flag_if(E &flags, bool cond, E flag) {
+    E mask = -static_cast<E>(cond);
+    flags &= ~(mask & flag);
+    return flags;
+  }
+
   template <bool is_const, class T>
   struct const_if {
     using type = std::conditional_t<is_const, const T, T>;
@@ -34,26 +145,6 @@ namespace internal {
   template <class Iterator, class T>
   using enable_if_compatible_iter_t =
     typename enable_if_compatible_iter<Iterator, T>::type;
-
-  template <class NT, class FT>
-  constexpr std::enable_if_t<
-    std::is_unsigned_v<NT>
-      && std::is_same_v<NT, std::make_unsigned_t<std::underlying_type_t<FT>>>,
-    bool>
-  check_flag(NT flags, FT flag) {
-    return static_cast<bool>(flags & static_cast<NT>(flag));
-  }
-
-  template <class NT, class FT>
-  constexpr std::enable_if_t<
-    std::is_unsigned_v<NT>
-      && std::is_same_v<NT, std::make_unsigned_t<std::underlying_type_t<FT>>>,
-    NT &>
-  update_flag(NT &flags, bool cond, FT flag) {
-    NT mask = -static_cast<NT>(cond), flag_v = static_cast<NT>(flag);
-    flags = (flags & ~flag_v) | (mask & flag_v);
-    return flags;
-  }
 }  // namespace internal
 
 #if __cplusplus >= 202002L
