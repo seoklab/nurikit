@@ -835,6 +835,16 @@ public:
   void erase_bond(int src, int dst);
 
   /**
+   * @brief Get data of a bond.
+   * @param src Index of the source atom of the bond
+   * @param dst Index of the destination atom of the bond
+   * @return Pointer to the bond data, or `nullptr` if the bond does not exist.
+   * @note The behavior is undefined if the atom index is out of range at the
+   *       moment of calling this method.
+   */
+  BondData *bond_data(int src, int dst);
+
+  /**
    * @brief Get the number of atoms in the molecule after the mutation.
    *
    * @return The number of atoms in the molecule after the mutation.

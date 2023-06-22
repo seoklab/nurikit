@@ -460,6 +460,18 @@ void MoleculeMutator::erase_bond(int src, int dst) {
   erased_bonds_.push_back(std::minmax(src, dst));
 }
 
+BondData *MoleculeMutator::bond_data(int src, int dst) {
+  auto bit = mol_->find_mutable_bond(src, dst);
+  if (bit != mol_->bond_end()) {
+    return &bit->data();
+  }
+  auto it = new_bonds_.find({ src, dst });
+  if (it != new_bonds_.end()) {
+    return &it->second;
+  }
+  return nullptr;
+}
+
 int MoleculeMutator::num_atoms() const {
   return next_atom_idx() - static_cast<int>(erased_atoms_.size());
 }
