@@ -863,11 +863,6 @@ public:
   void accept() noexcept;
 
 private:
-  struct AddedBond {
-    std::pair<int, int> ends;
-    BondData data;
-  };
-
   int next_atom_idx() const;
 
   // GCOV_EXCL_START
@@ -887,8 +882,7 @@ private:
   std::vector<AtomData> new_atoms_;
   absl::flat_hash_set<int> erased_atoms_;
 
-  std::vector<AddedBond> new_bonds_;
-  absl::flat_hash_set<std::pair<int, int>> new_bonds_set_;
+  absl::flat_hash_map<std::pair<int, int>, BondData> new_bonds_;
   std::vector<std::pair<int, int>> erased_bonds_;
 
   int conformer_idx_;

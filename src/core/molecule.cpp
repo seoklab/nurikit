@@ -438,18 +438,17 @@ bool MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
   }
 
   const std::pair<int, int> ends = std::minmax(src, dst);
-  auto [it, inserted] = new_bonds_set_.insert(ends);
+  auto [it, inserted] = new_bonds_.insert({ ends, bond });
   if (ABSL_PREDICT_FALSE(!inserted)) {
     return false;
   }
   if (src < mol().num_atoms() && dst < mol().num_atoms()
       && ABSL_PREDICT_FALSE(mol().graph_.find_edge(src, dst)
                             != mol().graph_.edge_end())) {
-    new_bonds_set_.erase(it);
+    new_bonds_.erase(it);
     return false;
   }
 
-  new_bonds_.push_back({ ends, bond });
   return true;
 }
 
@@ -470,7 +469,6 @@ void MoleculeMutator::discard() noexcept {
   erased_atoms_.clear();
 
   new_bonds_.clear();
-  new_bonds_set_.clear();
   erased_bonds_.clear();
 }
 
@@ -484,8 +482,8 @@ void MoleculeMutator::accept() noexcept {
   g.add_node(new_atoms_.begin(), new_atoms_.end());
 
   // 2. Add bonds
-  for (const AddedBond &b: new_bonds_) {
-    g.add_edge(b.ends.first, b.ends.second, b.data);
+  for (auto &&[idxs, data]: new_bonds_) {
+    g.add_edge(idxs.first, idxs.second, data);
   }
 
   // 3. Erase bonds
