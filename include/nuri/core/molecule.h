@@ -154,6 +154,8 @@ public:
 
   void set_aromatic(bool is_aromatic) {
     internal::update_flag(flags_, is_aromatic, AtomFlags::kAromatic);
+    internal::set_flag_if(flags_, is_aromatic,
+                          AtomFlags::kConjugated | AtomFlags::kRing);
   }
 
   bool is_aromatic() const {
@@ -162,6 +164,7 @@ public:
 
   void set_conjugated(bool is_conjugated) {
     internal::update_flag(flags_, is_conjugated, AtomFlags::kConjugated);
+    internal::unset_flag_if(flags_, !is_conjugated, AtomFlags::kAromatic);
   }
 
   bool is_conjugated() const {
@@ -170,6 +173,7 @@ public:
 
   void set_ring_atom(bool is_ring_atom) {
     internal::update_flag(flags_, is_ring_atom, AtomFlags::kRing);
+    internal::unset_flag_if(flags_, !is_ring_atom, AtomFlags::kAromatic);
   }
 
   bool is_ring_atom() const {
@@ -269,6 +273,7 @@ public:
 
   void set_ring_bond(bool ring) {
     internal::update_flag(flags_, ring, BondFlags::kRing);
+    internal::unset_flag_if(flags_, !ring, BondFlags::kAromatic);
   }
 
   bool is_aromatic() const {
@@ -277,6 +282,8 @@ public:
 
   void set_aromatic(bool aromatic) {
     internal::update_flag(flags_, aromatic, BondFlags::kAromatic);
+    internal::set_flag_if(flags_, aromatic,
+                          BondFlags::kRing | BondFlags::kConjugated);
   }
 
   bool is_conjugated() const {
@@ -285,6 +292,7 @@ public:
 
   void set_conjugated(bool conj) {
     internal::update_flag(flags_, conj, BondFlags::kConjugated);
+    internal::unset_flag_if(flags_, !conj, BondFlags::kAromatic);
   }
 
   bool is_trans() const {
