@@ -153,27 +153,39 @@ public:
   int implicit_hydrogens() const { return implicit_hydrogens_; }
 
   void set_aromatic(bool is_aromatic) {
-    internal::update_flag(flags_, is_aromatic, kAromaticAtom);
+    internal::update_flag(flags_, is_aromatic, AtomFlags::kAromatic);
   }
 
   bool is_aromatic() const {
-    return internal::check_flag(flags_, kAromaticAtom);
+    return internal::check_flag(flags_, AtomFlags::kAromatic);
+  }
+
+  void set_conjugated(bool is_conjugated) {
+    internal::update_flag(flags_, is_conjugated, AtomFlags::kConjugated);
+  }
+
+  bool is_conjugated() const {
+    return internal::check_flag(flags_, AtomFlags::kConjugated);
   }
 
   void set_ring_atom(bool is_ring_atom) {
-    internal::update_flag(flags_, is_ring_atom, kRingAtom);
+    internal::update_flag(flags_, is_ring_atom, AtomFlags::kRing);
   }
 
-  bool is_ring_atom() const { return internal::check_flag(flags_, kRingAtom); }
+  bool is_ring_atom() const {
+    return internal::check_flag(flags_, AtomFlags::kRing);
+  }
 
   void set_chiral(bool is_chiral) {
-    internal::update_flag(flags_, is_chiral, kChiralAtom);
+    internal::update_flag(flags_, is_chiral, AtomFlags::kChiral);
   }
 
-  bool is_chiral() const { return internal::check_flag(flags_, kChiralAtom); }
+  bool is_chiral() const {
+    return internal::check_flag(flags_, AtomFlags::kChiral);
+  }
 
   void set_right_handed(bool is_right_handed) {
-    internal::update_flag(flags_, is_right_handed, kRightHandedAtom);
+    internal::update_flag(flags_, is_right_handed, AtomFlags::kRightHanded);
   }
 
   /**
@@ -184,7 +196,7 @@ public:
    *         and `false` for (S).
    */
   bool is_right_handed() const {
-    return internal::check_flag(flags_, kRightHandedAtom);
+    return internal::check_flag(flags_, AtomFlags::kRightHanded);
   }
 
   void set_partial_charge(double charge) { partial_charge_ = charge; }
@@ -196,11 +208,12 @@ public:
   int formal_charge() const { return formal_charge_; }
 
 private:
-  enum Flags {
-    kAromaticAtom = 0x1,
-    kRingAtom = 0x2,
-    kChiralAtom = 0x4,
-    kRightHandedAtom = 0x8,
+  enum class AtomFlags : uint32_t {
+    kAromatic = 0x1,
+    kConjugated = 0x2,
+    kRing = 0x4,
+    kChiral = 0x8,
+    kRightHanded = 0x10,
   };
 
   friend bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept;
@@ -209,7 +222,7 @@ private:
   const Isotope *isotope_;
   constants::Hybridization hyb_;
   int implicit_hydrogens_;
-  uint32_t flags_;
+  AtomFlags flags_;
   int formal_charge_;
   double partial_charge_;
 };
@@ -224,7 +237,7 @@ inline bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept {
 class BondData {
 public:
   explicit BondData(constants::BondOrder order)
-    : order_(order), flags_(0), length_(0) { }
+    : order_(order), flags_(static_cast<BondFlags>(0)), length_(0) { }
 
   /**
    * @brief Get the bond order of the bond.
@@ -242,38 +255,44 @@ public:
    */
   constants::BondOrder &order() { return order_; }
 
-  bool is_rotable() const { return internal::check_flag(flags_, kRotableBond); }
-
-  void set_rotable(bool rotable) {
-    internal::update_flag(flags_, rotable, kRotableBond);
+  bool is_rotable() const {
+    return internal::check_flag(flags_, BondFlags::kRotable);
   }
 
-  bool is_ring_bond() const { return internal::check_flag(flags_, kRingBond); }
+  void set_rotable(bool rotable) {
+    internal::update_flag(flags_, rotable, BondFlags::kRotable);
+  }
+
+  bool is_ring_bond() const {
+    return internal::check_flag(flags_, BondFlags::kRing);
+  }
 
   void set_ring_bond(bool ring) {
-    internal::update_flag(flags_, ring, kRingBond);
+    internal::update_flag(flags_, ring, BondFlags::kRing);
   }
 
   bool is_aromatic() const {
-    return internal::check_flag(flags_, kAromaticBond);
+    return internal::check_flag(flags_, BondFlags::kAromatic);
   }
 
   void set_aromatic(bool aromatic) {
-    internal::update_flag(flags_, aromatic, kAromaticBond);
+    internal::update_flag(flags_, aromatic, BondFlags::kAromatic);
   }
 
   bool is_conjugated() const {
-    return internal::check_flag(flags_, kConjugatedBond);
+    return internal::check_flag(flags_, BondFlags::kConjugated);
   }
 
   void set_conjugated(bool conj) {
-    internal::update_flag(flags_, conj, kConjugatedBond);
+    internal::update_flag(flags_, conj, BondFlags::kConjugated);
   }
 
-  bool is_trans() const { return internal::check_flag(flags_, kEConfigBond); }
+  bool is_trans() const {
+    return internal::check_flag(flags_, BondFlags::kEConfig);
+  }
 
   void set_trans(bool trans) {
-    internal::update_flag(flags_, trans, kEConfigBond);
+    internal::update_flag(flags_, trans, BondFlags::kEConfig);
   }
 
   /**
@@ -291,16 +310,16 @@ public:
   double &length() { return length_; }
 
 private:
-  enum Flags {
-    kRotableBond = 0x1,
-    kRingBond = 0x2,
-    kAromaticBond = 0x4,
-    kConjugatedBond = 0x8,
-    kEConfigBond = 0x10,
+  enum class BondFlags : uint32_t {
+    kRotable = 0x1,
+    kRing = 0x2,
+    kAromatic = 0x4,
+    kConjugated = 0x8,
+    kEConfig = 0x10,
   };
 
   constants::BondOrder order_;
-  uint32_t flags_;
+  BondFlags flags_;
   double length_;
 };
 

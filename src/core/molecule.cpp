@@ -18,6 +18,7 @@
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
 #include "nuri/core/geometry.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 AtomData::AtomData(const Element &element, constants::Hybridization hyb,
@@ -25,7 +26,7 @@ AtomData::AtomData(const Element &element, constants::Hybridization hyb,
                    double partial_charge, int mass_number, bool is_aromatic,
                    bool is_in_ring, bool is_chiral, bool is_right_handed)
   : element_(&element), isotope_(nullptr), hyb_(hyb),
-    implicit_hydrogens_(implicit_hydrogens), flags_(0),
+    implicit_hydrogens_(implicit_hydrogens), flags_(static_cast<AtomFlags>(0)),
     formal_charge_(formal_charge), partial_charge_(partial_charge) {
   if (mass_number >= 0) {
     isotope_ = element.find_isotope(mass_number);
@@ -34,13 +35,12 @@ AtomData::AtomData(const Element &element, constants::Hybridization hyb,
       << element.symbol();
   }
 
-  auto set_flag = [this](bool cond, Flags flag) {
-    flags_ |= -static_cast<decltype(flags_)>(cond) & flag;
-  };
-  set_flag(is_aromatic, kAromaticAtom);
-  set_flag(is_in_ring, kRingAtom);
-  set_flag(is_chiral, kChiralAtom);
-  set_flag(is_right_handed, kRightHandedAtom);
+  internal::set_flag_if(flags_, is_aromatic,
+                        AtomFlags::kAromatic | AtomFlags::kConjugated
+                          | AtomFlags::kRing);
+  internal::set_flag_if(flags_, is_in_ring, AtomFlags::kRing);
+  internal::set_flag_if(flags_, is_chiral, AtomFlags::kChiral);
+  internal::set_flag_if(flags_, is_right_handed, AtomFlags::kRightHanded);
 }
 
 /* Molecule definitions */
