@@ -169,7 +169,7 @@ public:
    * @return `true` if the element is radioactive, `false` otherwise.
    */
   constexpr bool radioactive() const noexcept {
-    return internal::check_flag(flags_, ElementFlag::kRadioactive);
+    return internal::check_flag(flags_, ElementFlags::kRadioactive);
   }
 
   /**
@@ -177,7 +177,7 @@ public:
    * @return `true` if the element is a main group element, `false` otherwise.
    */
   constexpr bool main_group() const noexcept {
-    return internal::check_flag(flags_, ElementFlag::kMainGroup);
+    return internal::check_flag(flags_, ElementFlags::kMainGroup);
   }
 
   /**
@@ -185,7 +185,7 @@ public:
    * @return `true` if the element is a lanthanide, `false` otherwise.
    */
   constexpr bool lanthanide() const noexcept {
-    return internal::check_flag(flags_, ElementFlag::kLanthanide);
+    return internal::check_flag(flags_, ElementFlags::kLanthanide);
   }
 
   /**
@@ -193,7 +193,7 @@ public:
    * @return `true` if the element is an actinide, `false` otherwise.
    */
   constexpr bool actinide() const noexcept {
-    return internal::check_flag(flags_, ElementFlag::kActinide);
+    return internal::check_flag(flags_, ElementFlags::kActinide);
   }
 
   /**
@@ -274,7 +274,7 @@ public:
   }
 
 private:
-  enum class ElementFlag : std::uint16_t {
+  enum class ElementFlags : std::uint16_t {
     kRadioactive = 0x1,
     kMainGroup = 0x2,
     kLanthanide = 0x4,
@@ -296,7 +296,7 @@ private:
   std::int16_t valence_electrons_;
   std::int16_t period_;
   std::int16_t group_;
-  std::uint16_t flags_;
+  ElementFlags flags_;
   std::string_view symbol_;
   std::string_view name_;
   double atomic_weight_;

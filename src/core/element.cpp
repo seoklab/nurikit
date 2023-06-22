@@ -95,20 +95,23 @@ Element::Element(int atomic_number, std::string_view symbol,
                  std::string_view name, double atomic_weight, double cov_rad,
                  double vdw_rad, double eneg,
                  std::vector<Isotope> &&isotopes) noexcept
-  : atomic_number_(atomic_number), flags_(0), symbol_(symbol), name_(name),
-    atomic_weight_(atomic_weight), cov_rad_(cov_rad), vdw_rad_(vdw_rad),
-    eneg_(eneg), isotopes_(std::move(isotopes)) {
+  : atomic_number_(atomic_number), flags_(static_cast<ElementFlags>(0)),
+    symbol_(symbol), name_(name), atomic_weight_(atomic_weight),
+    cov_rad_(cov_rad), vdw_rad_(vdw_rad), eneg_(eneg),
+    isotopes_(std::move(isotopes)) {
+  // GCOV_EXCL_START
   ABSL_DCHECK(!isotopes_.empty());
+  // GCOV_EXCL_STOP
 
   bool lan_or_act = false;
   std::tie(period_, group_) = get_period_group(atomic_number_, lan_or_act);
 
   if (group_ < 3 || group_ > 12) {
-    flags_ |= static_cast<uint16_t>(ElementFlag::kMainGroup);
+    flags_ |= ElementFlags::kMainGroup;
   }
   if (lan_or_act) {
-    flags_ |= static_cast<uint16_t>(period_ == 6 ? ElementFlag::kLanthanide
-                                                 : ElementFlag::kActinide);
+    flags_ |= period_ == 6 ? ElementFlags::kLanthanide
+                           : ElementFlags::kActinide;
   }
 
   valence_electrons_ = static_cast<int16_t>(get_valence_electrons(*this));
@@ -118,7 +121,7 @@ Element::Element(int atomic_number, std::string_view symbol,
                   [](const Isotope &isotope) {
                     return isotope.abundance == 0.0;
                   })) {
-    flags_ |= static_cast<uint16_t>(ElementFlag::kRadioactive);
+    flags_ |= ElementFlags::kRadioactive;
 
     it = std::find_if(isotopes_.begin(), isotopes_.end(),
                       [&](const Isotope &isotope) {
@@ -131,7 +134,11 @@ Element::Element(int atomic_number, std::string_view symbol,
                             return lhs.abundance < rhs.abundance;
                           });
   }
+
+  // GCOV_EXCL_START
   ABSL_DCHECK(it != isotopes_.end());
+  // GCOV_EXCL_STOP
+
   major_isotope_ = &*it;
 }
 
@@ -3947,8 +3954,10 @@ PeriodicTable::PeriodicTable() noexcept
   { 118, 295, 295.216178, 0.0 },
 } }, },
   // clang-format on
+  // GCOV_EXCL_START
     symbol_to_element_(kElementCount_ + 17),
     name_to_element_(kElementCount_ + 15) {
+  // GCOV_EXCL_STOP
   // Canonical symbols and names.
   for (const Element &element: elements_) {
     symbol_to_element_[element.symbol()] = name_to_element_[element.name()] =
