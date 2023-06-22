@@ -203,6 +203,8 @@ public:
     return internal::check_flag(flags_, AtomFlags::kRightHanded);
   }
 
+  void reset_flags() { flags_ = static_cast<AtomFlags>(0); }
+
   void set_partial_charge(double charge) { partial_charge_ = charge; }
 
   double partial_charge() const { return partial_charge_; }
@@ -302,6 +304,8 @@ public:
   void set_trans(bool trans) {
     internal::update_flag(flags_, trans, BondFlags::kEConfig);
   }
+
+  void reset_flags() { flags_ = static_cast<BondFlags>(0); }
 
   /**
    * @brief Get the bond length.
