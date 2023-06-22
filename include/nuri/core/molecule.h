@@ -40,7 +40,6 @@ namespace constants {
    * @brief The bond order of a bond object.
    */
   enum BondOrder {
-    kNoBond = 0,
     kSingleBond = 1,
     kDoubleBond = 2,
     kTripleBond = 3,
