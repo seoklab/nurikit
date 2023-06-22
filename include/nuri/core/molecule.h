@@ -938,6 +938,26 @@ extern int count_hydrogens(Molecule::Atom atom);
  * @return Total bond order of the atom.
  */
 extern int sum_bond_order(Molecule::Atom atom);
+
+/* Important algorithms */
+
+/**
+ * @brief Get all elementary cycles in the molecule.
+ * @param mol A molecule.
+ * @return A pair of (all elementary cycles, success). If success is `false`,
+ *         the vector is in an unspecified state. This will fail if and only if
+ *         any atom is a member of more than 100 elementary cycles.
+ *
+ * This is based on the algorithm described in the following paper:
+ *    Hanser, Th. *et al.* *J. Chem. Inf. Comput. Sci.* **1996**, *36* (6),
+ *    1146-1152. DOI: [10.1021/ci960322f](https://doi.org/10.1021/ci960322f)
+ *
+ * The time complexity of this function is inherently exponential, but it is
+ * expected to run in a reasonable time (\f$\sim\mathcal{O}(V)\f$) for most
+ * molecules in practice.
+ */
+extern std::pair<std::vector<std::vector<int>>, bool>
+find_all_elementary_rings(const Molecule &mol);
 }  // namespace nuri
 
 #endif /* NURI_CORE_MOLECULE_H_ */
