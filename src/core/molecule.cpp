@@ -487,7 +487,7 @@ namespace {
       return;
     }
 
-    auto [subrings, success] = find_all_elementary_rings(mol);
+    auto [subrings, success] = find_all_rings(mol);
     if (ABSL_PREDICT_TRUE(success)) {
       for (const std::vector<int> &ring: subrings) {
         mark_aromatic_ring(graph, ring, pi_e);

@@ -133,7 +133,7 @@ namespace {
 }  // namespace
 
 std::pair<std::vector<std::vector<int>>, bool>
-find_all_elementary_rings(const Molecule &mol) {
+find_all_rings(const Molecule &mol) {
   std::vector<int> sorted_ring_atoms = sort_atoms_by_ring_degree(mol);
   PathGraph pg = pathgraph_init(mol, sorted_ring_atoms);
 
