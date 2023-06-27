@@ -34,7 +34,7 @@ defaults:
 jobs:
   test-build:
     if: ${{ !github.event.pull_request.draft }}
-    uses: ./.github/workflows/_wheel_build.yaml
+    uses: ./.github/workflows/_wheel-build.yaml
     with:
       python: cp38
 
