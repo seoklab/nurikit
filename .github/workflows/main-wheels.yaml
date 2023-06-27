@@ -36,7 +36,7 @@ jobs:
       matrix:
         python: ["cp37", "cp38", "cp39", "cp310", "cp311"]
 
-    uses: ./.github/workflows/_wheel_build.yaml
+    uses: ./.github/workflows/_wheel-build.yaml
     with:
       python: ${{ matrix.python }}
       upload: true
