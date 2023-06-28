@@ -657,7 +657,8 @@ namespace {
     return sum_order;
   }
 
-  bool mol_sanitize_impl(Molecule::GraphType &graph, const Molecule &mol) {
+  std::pair<int, bool> mol_sanitize_impl(Molecule::GraphType &graph,
+                                         const Molecule &mol) {
     // Clear all flags
     for (auto atom: graph) {
       atom.data().reset_flags();
@@ -668,7 +669,7 @@ namespace {
 
     // Find ring atoms & bonds
     auto [rings, num_connected] = find_rings_count_connected(graph);
-    const int cycle_rank =
+    const int circuit_rank =
       graph.num_edges() - graph.num_nodes() + num_connected;
 
     // Calculate valence
@@ -681,25 +682,26 @@ namespace {
     sanitize_conjugated(graph, valences);
 
     // Fix aromaticity
-    if (!sanitize_aromaticity(graph, mol, rings, valences, cycle_rank)) {
-      return false;
+    if (!sanitize_aromaticity(graph, mol, rings, valences, circuit_rank)) {
+      return { circuit_rank, false };
     }
 
     // Validate valence
     for (int i = 0; i < graph.num_nodes(); ++i) {
       if (!sanitize_hybridization(graph.node(i), valences[i])) {
-        return false;
+        return { circuit_rank, false };
       }
     }
 
     // TODO(jnooree): check geometric isomers
 
-    return true;
+    return { circuit_rank, true };
   }
 }  // namespace
 
 bool Molecule::sanitize(int /* use_conformer */) {
-  return was_valid_ = mol_sanitize_impl(graph_, *this);
+  std::tie(circuit_rank_, was_valid_) = mol_sanitize_impl(graph_, *this);
+  return was_valid_;
 }
 
 /* MoleculeMutator definitions */

@@ -369,7 +369,7 @@ public:
   /**
    * @brief Construct an empty Molecule object.
    */
-  Molecule() noexcept = default;
+  Molecule() noexcept: circuit_rank_(0) { }
 
   /**
    * @brief Construct a Molecule object from a range of atom data.
@@ -676,6 +676,20 @@ public:
   bool sanitize(int use_conformer = -1);
 
   /**
+   * @brief Get size of SSSR.
+   * @return The number of rings in the smallest set of smallest rings.
+   */
+  int num_sssr() const { return circuit_rank_; }
+
+  /**
+   * @brief Set size of SSSR.
+   * @warning If the size is incorrect, all library code might return incorrect
+   *          results. It is the caller's responsibility to ensure that the size
+   *          is correct.
+   */
+  void set_num_sssr(int n) { circuit_rank_ = n; }
+
+  /**
    * @brief Observe the previous result of sanitize() call.
    * @return `true` if the last call to sanitize() resulted in a valid molecule,
    *         `false` otherwise.
@@ -705,6 +719,7 @@ private:
 
   GraphType graph_;
   std::vector<MatrixX3d> conformers_;
+  int circuit_rank_;
   bool was_valid_;
 };
 
