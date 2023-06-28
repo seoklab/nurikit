@@ -469,7 +469,7 @@ namespace {
   void mark_aromatic(Molecule::GraphType &graph, const Molecule &mol,
                      const std::vector<std::vector<int>> &rings,
                      const absl::FixedArray<int> &valences,
-                     const int cycle_rank) {
+                     const int circuit_rank) {
     absl::flat_hash_map<int, int> pi_e;
 
     for (auto atom: graph) {
@@ -478,7 +478,7 @@ namespace {
       }
     }
 
-    bool need_subring = cycle_rank > static_cast<int>(rings.size());
+    bool need_subring = circuit_rank > static_cast<int>(rings.size());
     // Fast path: no need to find subrings
     if (!need_subring) {
       for (const std::vector<int> &ring: rings) {
@@ -503,7 +503,7 @@ namespace {
   bool sanitize_aromaticity(Molecule::GraphType &graph, const Molecule &mol,
                             const std::vector<std::vector<int>> &rings,
                             const absl::FixedArray<int> &valences,
-                            const int cycle_rank) {
+                            const int circuit_rank) {
     for (auto bit = graph.edge_begin(); bit != graph.edge_end(); ++bit) {
       if (!bit->data().is_ring_bond()) {
         if (bit->data().order() == constants::kAromaticBond) {
@@ -516,7 +516,7 @@ namespace {
       }
     }
 
-    mark_aromatic(graph, mol, rings, valences, cycle_rank);
+    mark_aromatic(graph, mol, rings, valences, circuit_rank);
 
     for (auto bit = graph.edge_begin(); bit != graph.edge_end(); ++bit) {
       if (bit->data().order() == constants::kAromaticBond
