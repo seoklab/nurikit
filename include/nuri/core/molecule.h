@@ -976,7 +976,7 @@ using Rings = std::vector<std::vector<int>>;
  *    1146-1152. DOI: [10.1021/ci960322f](https://doi.org/10.1021/ci960322f)
  *
  * The time complexity of this function is inherently exponential, but it is
- * expected to run in a reasonable time (\f$\sim\mathcal{O}(V)\f$) for most
+ * expected to run in a reasonable time (\f$\sim\mathcal{O}(V^2)\f$) for most
  * molecules in practice.
  */
 extern std::pair<Rings, bool> find_all_rings(const Molecule &mol);
