@@ -672,6 +672,12 @@ public:
    *         molecule is still invalid after sanitization.
    * @note This method has high overhead, and is not intended to be used in
    *       downstream code. It is mainly used from MoleculeMutator class.
+   * @warning All molecule-related methods/functions assume that the molecule
+   *          is valid. If the molecule is not sanitized after the last
+   *          modification, all library code might return incorrect results. It
+   *          is the caller's responsibility to ensure that the molecule is
+   *          chemically valid before passing it to any library function, if the
+   *          molecule was not sanitized after any modification.
    */
   bool sanitize(int use_conformer = -1);
 
