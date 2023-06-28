@@ -6,6 +6,7 @@
 #include "nuri/core/molecule.h"
 
 #include <algorithm>
+#include <stack>
 #include <vector>
 
 #include <absl/base/optimization.h>
@@ -174,12 +175,16 @@ namespace {
    */
   std::pair<std::vector<std::vector<int>>, int>
   find_rings_count_connected(Molecule::GraphType &graph) {
-    absl::FixedArray<int> ids(graph.num_nodes(), -1), lows(ids);
+    absl::FixedArray<int> ids(graph.num_nodes(), -1), lows(ids),
+      on_stack(ids.size(), 0);
+    std::stack<int, std::vector<int>> stk;
     int id = 0;
 
     // Find cycles
     auto tarjan = [&](auto &self, const int curr, const int prev) -> void {
       ids[curr] = lows[curr] = id++;
+      stk.push(curr);
+      on_stack[curr] = 1;
 
       for (auto adj: graph.node(curr)) {
         const int next = adj.dst().id();
@@ -196,7 +201,7 @@ namespace {
           if (ids[curr] < lows[next]) {
             continue;
           }
-        } else {
+        } else if (on_stack[next] != 0) {
           lows[curr] = std::min(lows[curr], ids[next]);
         }
 
@@ -204,6 +209,16 @@ namespace {
         adj.edge_data().set_ring_bond(true);
         adj.src().data().set_ring_atom(true);
         adj.dst().data().set_ring_atom(true);
+      }
+
+      if (ids[curr] == lows[curr]) {
+        int top;
+        do {
+          top = stk.top();
+          stk.pop();
+          on_stack[top] = 0;
+          lows[top] = ids[curr];
+        } while (top != curr);
       }
     };
 
