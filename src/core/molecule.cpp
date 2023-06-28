@@ -493,26 +493,33 @@ namespace {
       }
     }
 
+    auto mark_aromatic_for = [&](const std::vector<std::vector<int>> &rs) {
+      for (const std::vector<int> &ring: rs) {
+        mark_aromatic_ring(graph, ring, pi_e);
+      }
+    };
+
     bool need_subring = circuit_rank > static_cast<int>(rings.size());
     // Fast path: no need to find subrings
     if (!need_subring) {
-      for (const std::vector<int> &ring: rings) {
-        mark_aromatic_ring(graph, ring, pi_e);
-      }
+      mark_aromatic_for(rings);
       return;
     }
 
     auto [subrings, success] = find_all_rings(mol);
+    // Almost impossible, don't include in coverage report
+    // GCOV_EXCL_START
     if (ABSL_PREDICT_TRUE(success)) {
-      for (const std::vector<int> &ring: subrings) {
-        mark_aromatic_ring(graph, ring, pi_e);
-      }
+      mark_aromatic_for(subrings);
       return;
     }
 
-    // TODO(jnooree): switch to SSSR-based aromaticity detection if the graph
-    // has too many sub-rings
-    ABSL_LOG(WARNING) << "Failed to find subrings";
+    ABSL_LOG(WARNING)
+      << "Ring finding exceeds threshold, falling back to SSSR-based "
+         "aromaticity detection: the result may be incorrect";
+
+    mark_aromatic_for(find_sssr(mol));
+    // GCOV_EXCL_STOP
   }
 
   bool sanitize_aromaticity(Molecule::GraphType &graph, const Molecule &mol,
