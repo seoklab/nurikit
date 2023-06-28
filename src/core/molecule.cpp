@@ -516,7 +516,9 @@ namespace {
       }
     }
 
-    mark_aromatic(graph, mol, rings, valences, circuit_rank);
+    if (circuit_rank > 0) {
+      mark_aromatic(graph, mol, rings, valences, circuit_rank);
+    }
 
     for (auto bit = graph.edge_begin(); bit != graph.edge_end(); ++bit) {
       if (bit->data().order() == constants::kAromaticBond
