@@ -956,6 +956,8 @@ extern int sum_bond_order(Molecule::Atom atom);
 
 /* Important algorithms */
 
+using Rings = std::vector<std::vector<int>>;
+
 /**
  * @brief Find all elementary cycles in the molecular graph.
  * @param mol A molecule.
@@ -971,8 +973,7 @@ extern int sum_bond_order(Molecule::Atom atom);
  * expected to run in a reasonable time (\f$\sim\mathcal{O}(V)\f$) for most
  * molecules in practice.
  */
-extern std::pair<std::vector<std::vector<int>>, bool>
-find_all_rings(const Molecule &mol);
+extern std::pair<Rings, bool> find_all_rings(const Molecule &mol);
 }  // namespace nuri
 
 #endif /* NURI_CORE_MOLECULE_H_ */
