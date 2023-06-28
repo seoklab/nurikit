@@ -18,6 +18,21 @@
 
 namespace nuri {
 namespace {
+  template <class It, class T>
+  bool range_no_overlap(It v_begin, It v_end, It w_begin, It w_end,
+                        absl::flat_hash_set<T> &set) {
+    auto range_no_overlap_impl = [&set](auto vb, auto ve, auto wb, auto we) {
+      set.clear();
+      set.insert(vb, ve);
+      return std::none_of(wb, we,
+                          [&set](const T &x) { return set.contains(x); });
+    };
+
+    return v_end - v_begin > w_end - w_begin
+             ? range_no_overlap_impl(w_begin, w_end, v_begin, v_end)
+             : range_no_overlap_impl(v_begin, v_end, w_begin, w_end);
+  }
+
   int ring_degree(Molecule::Atom atom) {
     return std::accumulate(
       atom.begin(), atom.end(), 0, [](int sum, Molecule::Neighbor nei) {
@@ -78,6 +93,7 @@ namespace {
                               PathGraph &pg,
                               const absl::flat_hash_map<int, int> &atom_order) {
     const int size = static_cast<int>(paths.size());
+    absl::flat_hash_set<int> path_set;
 
     for (int i = 0; i < size - 1; ++i) {
       if (paths[i].back() == id) {
@@ -96,11 +112,8 @@ namespace {
         }
 
         // Check if path y-...-x and z-...-x overlap except endpoints
-        const absl::flat_hash_set<int> path_set(++x_y->begin(), --x_y->end());
-        const bool no_overlap =
-          std::none_of(++x_z->begin(), --x_z->end(),
-                       [&path_set](int bid) { return path_set.contains(bid); });
-        if (!no_overlap) {
+        if (!range_no_overlap(++x_y->begin(), --x_y->end(), ++x_z->begin(),
+                              --x_z->end(), path_set)) {
           continue;
         }
 
