@@ -588,8 +588,8 @@ TEST(SanitizeTest, AromaticTest) {
     EXPECT_TRUE(atom.data().is_aromatic());
     EXPECT_EQ(atom.data().hybridization(), kSP2);
   }
-  for (auto bit = mol.bond_begin(); bit != mol.bond_end(); ++bit) {
-    EXPECT_TRUE(bit->data().is_aromatic());
+  for (auto bond: mol.bonds()) {
+    EXPECT_TRUE(bond.data().is_aromatic());
   }
 
   {
@@ -609,8 +609,8 @@ TEST(SanitizeTest, AromaticTest) {
     EXPECT_TRUE(atom.data().is_aromatic());
     EXPECT_EQ(atom.data().hybridization(), kSP2);
   }
-  for (auto bit = mol.bond_begin(); bit != mol.bond_end(); ++bit) {
-    EXPECT_TRUE(bit->data().is_aromatic());
+  for (auto bond: mol.bonds()) {
+    EXPECT_TRUE(bond.data().is_aromatic());
   }
 
   mol.clear();
@@ -642,8 +642,8 @@ TEST(SanitizeTest, AromaticTest) {
     EXPECT_FALSE(atom.data().is_aromatic());
     EXPECT_EQ(atom.data().hybridization(), kSP2);
   }
-  for (auto bit = mol.bond_begin(); bit != mol.bond_end(); ++bit) {
-    EXPECT_FALSE(bit->data().is_aromatic());
+  for (auto bond: mol.bonds()) {
+    EXPECT_FALSE(bond.data().is_aromatic());
   }
 
   {
@@ -709,12 +709,12 @@ TEST(SanitizeTest, FusedAromaticTest) {
     for (auto atom: mol) {
       EXPECT_TRUE(atom.data().is_aromatic());
     }
-    for (auto bit = mol.bond_begin(); bit != mol.bond_end(); ++bit) {
-      if ((bit->src() == 0 && bit->dst() == 11)
-          || (bit->src() == 5 && bit->dst() == 6)) {
-        EXPECT_FALSE(bit->data().is_aromatic());
+    for (auto bond: mol.bonds()) {
+      if ((bond.src() == 0 && bond.dst() == 11)
+          || (bond.src() == 5 && bond.dst() == 6)) {
+        EXPECT_FALSE(bond.data().is_aromatic());
       } else {
-        EXPECT_TRUE(bit->data().is_aromatic());
+        EXPECT_TRUE(bond.data().is_aromatic());
       }
     }
   };
@@ -758,11 +758,11 @@ TEST(SanitizeTest, FusedAromaticTest) {
     for (auto atom: mol) {
       EXPECT_TRUE(atom.data().is_aromatic());
     }
-    for (auto bit = mol.bond_begin(); bit != mol.bond_end(); ++bit) {
-      if (bit->src() == 0 && bit->dst() == 6) {
-        EXPECT_FALSE(bit->data().is_aromatic());
+    for (auto bond: mol.bonds()) {
+      if (bond.src() == 0 && bond.dst() == 6) {
+        EXPECT_FALSE(bond.data().is_aromatic());
       } else {
-        EXPECT_TRUE(bit->data().is_aromatic());
+        EXPECT_TRUE(bond.data().is_aromatic());
       }
     }
   };

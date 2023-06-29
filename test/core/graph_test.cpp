@@ -410,15 +410,22 @@ TYPED_TEST(AdvancedGraphTest, EdgeIteratorTest) {
   Graph &graph = this->graph_;
 
   int cnt = 0;
-  for (auto it = graph.edge_begin(); it != graph.edge_end(); ++it) {
-    it->data() = { -1 };
+  for (auto edge: graph.edges()) {
+    edge.data() = { -1 };
     cnt++;
-
+  }
+  ASSERT_EQ(cnt, graph.num_edges());
+  for (auto it = graph.edge_begin(); it != graph.edge_end(); ++it) {
     NURI_ASSERT_ONEWAY_CONVERTIBLE(edge_iterator, decltype(it),
                                    const_edge_iterator,
                                    typename Graph::const_edge_iterator);
   }
-  ASSERT_EQ(cnt, graph.num_edges());
+
+  for (auto cedge: graph.cedges()) {
+    static_assert(!std::is_assignable_v<decltype(cedge.data()),
+                                        typename Graph::edge_data_type>,
+                  "const_iterator should be read-only");
+  }
 
   const Graph &const_graph = graph;
   for (auto it = const_graph.edge_begin(); it != const_graph.edge_end(); ++it) {
