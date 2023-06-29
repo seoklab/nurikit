@@ -18,7 +18,6 @@
 #include <absl/container/fixed_array.h>
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
-#include <absl/container/node_hash_map.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 
@@ -194,13 +193,14 @@ namespace {
     const std::vector<Molecule::Neighbor> *path_ry;
     size_t cycle_length;
   };
+
+  using Dr =
+    absl::flat_hash_map<int, std::unique_ptr<std::vector<Molecule::Neighbor>>>;
 }  // namespace
 
 namespace internal {
   struct FindRingsCommonData {
-    absl::node_hash_map<
-      int, absl::node_hash_map<int, std::vector<Molecule::Neighbor>>>
-      d_rs;
+    absl::flat_hash_map<int, std::unique_ptr<Dr>> d_rs;
     std::vector<Cycle> c_ip;
   };
 }  // namespace internal
@@ -317,18 +317,23 @@ namespace {
     return nei.dst().id();
   }
 
+  template <class K, class V>
+  V &insert_new(absl::flat_hash_map<K, std::unique_ptr<V>> &map, K key) {
+    auto [it, inserted] = map.insert({ key, std::make_unique<V>() });
+    ABSL_DCHECK(inserted);
+    return *it->second;
+  }
+
   template <class RandomIt>
   using GenericDestIterator = ExtractingIterator<int, extract_did, RandomIt>;
 
   using DestIterator =
     GenericDestIterator<std::vector<Molecule::Neighbor>::const_iterator>;
 
-  void
-  compute_v_r(const Molecule &mol, const int r, std::vector<int> &v_r,
-              absl::node_hash_map<int, std::vector<Molecule::Neighbor>> &d_r,
-              absl::FixedArray<int> &distances,
-              absl::flat_hash_map<int, Molecule::Neighbor> &backtrace,
-              ClearablePQ<IdDist, std::greater<>> &minheap) {
+  void compute_v_r(const Molecule &mol, const int r, std::vector<int> &v_r,
+                   Dr &d_r, absl::FixedArray<int> &distances,
+                   absl::flat_hash_map<int, Molecule::Neighbor> &backtrace,
+                   ClearablePQ<IdDist, std::greater<>> &minheap) {
     v_r.clear();
     std::fill(distances.begin(), distances.end(), mol.num_atoms());
     minheap.clear();
@@ -362,13 +367,13 @@ namespace {
       if (it == backtrace.end()) {
         auto dit = d_r.find(curr);
         ABSL_DCHECK(dit != d_r.end());
-        return dit->second;
+        return *dit->second;
       }
 
       const int prev = it->second.src().id();
 
       v_r.push_back(curr);
-      std::vector<Molecule::Neighbor> &path = d_r[curr];
+      std::vector<Molecule::Neighbor> &path = insert_new(d_r, curr);
       path.reserve(distances[curr]);
 
       if (prev != r) {
@@ -407,8 +412,7 @@ namespace {
   }
 
   void compute_c_ip(
-    const Molecule &mol, std::vector<Cycle> &c_ip,
-    const absl::node_hash_map<int, std::vector<Molecule::Neighbor>> &d_r,
+    const Molecule &mol, std::vector<Cycle> &c_ip, const Dr &d_r,
     const std::vector<int> &v_r, const absl::FixedArray<int> &distances,
     absl::flat_hash_set<int> &path_set_tmp,
     std::vector<const std::vector<Molecule::Neighbor> *> &r_y_shortest) {
@@ -417,7 +421,7 @@ namespace {
 
       auto yit = d_r.find(y);
       ABSL_DCHECK(yit != d_r.end());
-      const std::vector<Molecule::Neighbor> &path_ry = yit->second;
+      const std::vector<Molecule::Neighbor> &path_ry = *yit->second;
 
       for (auto nei: mol.atom(y)) {
         const int z = nei.dst().id();
@@ -429,7 +433,7 @@ namespace {
         if (zit == d_r.end()) {
           continue;
         }
-        const std::vector<Molecule::Neighbor> &path_rz = zit->second;
+        const std::vector<Molecule::Neighbor> &path_rz = *zit->second;
 
         if (distances[z] + 1 == distances[y]) {
           r_y_shortest.push_back(&path_rz);
@@ -472,7 +476,7 @@ namespace {
         continue;
       }
 
-      auto &d_r = d_rs[r];
+      Dr &d_r = insert_new(d_rs, r);
       compute_v_r(mol, r, v_r, d_r, distances, backtrace, minheap);
       compute_c_ip(mol, c_ip, d_r, v_r, distances, path_set_tmp, r_y_shortest);
     }
@@ -633,11 +637,10 @@ namespace {
     }
   }
 
-  std::vector<std::vector<int>> extract_family_traverse(
-    const absl::node_hash_map<int, std::vector<Molecule::Neighbor>> &d_r,
-    const int src, const int dst) {
+  std::vector<std::vector<int>>
+  extract_family_traverse(const Dr &d_r, const int src, const int dst) {
     // Path of the form src (r) -> ... -> dst
-    const std::vector<Molecule::Neighbor> &path = d_r.find(dst)->second;
+    const std::vector<Molecule::Neighbor> &path = *d_r.find(dst)->second;
 
     // Paths of the form (src ->) ... -> dst
     std::vector<std::vector<int>> result;
@@ -663,7 +666,7 @@ namespace {
         }
 
         auto it = d_r.find(next.id());
-        if (it == d_r.end() || static_cast<int>(it->second.size()) != length) {
+        if (it == d_r.end() || static_cast<int>(it->second->size()) != length) {
           continue;
         }
 
@@ -681,13 +684,10 @@ namespace {
     return result;
   }
 
-  void extract_family(
-    std::vector<std::vector<int>> &cycles,
-    const absl::node_hash_map<
-      int, absl::node_hash_map<int, std::vector<Molecule::Neighbor>>> &d_rs,
-    const int r, const Cycle &c) {
-    const absl::node_hash_map<int, std::vector<Molecule::Neighbor>> &d_r =
-      d_rs.find(r)->second;
+  void extract_family(std::vector<std::vector<int>> &cycles,
+                      const absl::flat_hash_map<int, std::unique_ptr<Dr>> &d_rs,
+                      const int r, const Cycle &c) {
+    const Dr &d_r = *d_rs.find(r)->second;
 
     const int py = extract_did(c.path_rpy->back()),
               qz = extract_did(c.path_rqz->back());
@@ -726,10 +726,10 @@ namespace {
   }
 
   template <bool minimal>
-  std::vector<std::vector<int>> extract_cycles(
-    const absl::node_hash_map<
-      int, absl::node_hash_map<int, std::vector<Molecule::Neighbor>>> &d_rs,
-    const std::vector<Cycle> &c_ip, const std::vector<int> &prototype) {
+  std::vector<std::vector<int>>
+  extract_cycles(const absl::flat_hash_map<int, std::unique_ptr<Dr>> &d_rs,
+                 const std::vector<Cycle> &c_ip,
+                 const std::vector<int> &prototype) {
     std::vector<std::vector<int>> cycles;
 
     for (int i = 0; i < prototype.size(); ++i) {
