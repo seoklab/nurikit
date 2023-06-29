@@ -26,12 +26,17 @@ defaults:
     shell: bash
 
 jobs:
+  check-want-test:
+    uses: ./.github/workflows/_check-want-test.yaml
+
   run-clang-tools:
-    if: ${{ !contains(github.event.head_commit.message, '[skip test]') }}
+    needs: [check-want-test]
+    if: ${{ needs.check-want-test.outputs.want-test }}
     uses: ./.github/workflows/_run-clang-tools.yaml
 
   test-and-coverage:
-    if: ${{ !contains(github.event.head_commit.message, '[skip test]') }}
+    needs: [check-want-test]
+    if: ${{ needs.check-want-test.outputs.want-test }}
     uses: ./.github/workflows/_cpp-test-and-coverage.yaml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

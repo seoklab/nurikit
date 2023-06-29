@@ -32,8 +32,13 @@ defaults:
     shell: bash
 
 jobs:
-  test-build:
+  check-want-test:
     if: ${{ !github.event.pull_request.draft }}
+    uses: ./.github/workflows/_check-want-test.yaml
+
+  test-build:
+    needs: [check-want-test]
+    if: ${{ needs.check-want-test.outputs.want-test }}
     uses: ./.github/workflows/_wheel-build.yaml
     with:
       python: cp38

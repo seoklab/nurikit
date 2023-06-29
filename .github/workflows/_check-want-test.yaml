@@ -1,0 +1,39 @@
+#
+# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+name: Check commit message for skipping test
+
+on:
+  workflow_call:
+    outputs:
+      want-test:
+        value: ${{ jobs.check-want-test.outputs.want-test }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check-want-test:
+    runs-on: ubuntu-latest
+    outputs:
+      want-test: ${{ steps.check-want-test.outputs.want-test }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get commit message
+        id: get-commit-msg
+        run: |
+          MSG="$(git log --no-merges --format=%B -n 1 HEAD)"
+          echo 'commit-msg<<EOM' >> $GITHUB_OUTPUT
+          echo "commit-msg=${MSG}" >> $GITHUB_OUTPUT
+          echo 'EOM' >> $GITHUB_OUTPUT
+
+      - name: Set output
+        id: check-want-test
+        run: |
+          echo "want-test=${{ !contains(steps.get-commit-msg.outputs.commit-msg, '[skip test]') && !contains(steps.get-commit-msg.outputs.commit-msg, '[test skip]') }}" >> $GITHUB_OUTPUT

@@ -31,27 +31,13 @@ defaults:
     shell: bash
 
 jobs:
-  get-commit-msg:
-    runs-on: ubuntu-latest
+  check-want-test:
     if: ${{ !github.event.pull_request.draft }}
-    outputs:
-      commit-msg: ${{ steps.get-commit-msg.outputs.commit-msg }}
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - name: Get commit message
-        id: get-commit-msg
-        run: |
-          MSG="$(git log --no-merges --format=%B -n 1 HEAD)"
-          echo 'commit-msg<<EOM' >> $GITHUB_OUTPUT
-          echo "commit-msg=${MSG}" >> $GITHUB_OUTPUT
-          echo 'EOM' >> $GITHUB_OUTPUT
+    uses: ./.github/workflows/_check-want-test.yaml
 
   run-clang-tools:
-    needs: [get-commit-msg]
-    if: ${{ !contains(needs.get-commit-msg.outputs.commit-msg, '[skip test]') }}
+    needs: [check-want-test]
+    if: ${{ needs.check-want-test.outputs.want-test }}
     uses: ./.github/workflows/_run-clang-tools.yaml
 
   test-and-coverage:
