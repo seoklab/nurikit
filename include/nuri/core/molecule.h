@@ -460,6 +460,16 @@ public:
   }
 
   /**
+   * @brief Get an iterable, non-modifiable view over bonds of the molecule.
+   */
+  auto bonds() const { return graph_.edges(); }
+
+  /**
+   * @brief Get an iterable, non-modifiable view over bonds of the molecule.
+   */
+  auto cbonds() const { return graph_.edges(); }
+
+  /**
    * @brief The begin iterator of the molecule over bonds.
    */
   const_bond_iterator bond_begin() const { return graph_.edge_begin(); }

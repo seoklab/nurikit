@@ -501,6 +501,44 @@ namespace internal {
 
     EIT eid_;
   };
+
+  template <class GT, bool is_const>
+  class EdgesWrapper {
+  public:
+    template <class GU = GT,
+              std::enable_if_t<std::is_same_v<GU, GT> && !is_const, int> = 0>
+    EdgesWrapper(GT &graph): graph_(&graph) { }
+
+    EdgesWrapper(const GT &graph): graph_(&graph) { }
+
+    template <bool other_const>
+    using Other = EdgesWrapper<GT, other_const>;
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    EdgesWrapper(const Other<other_const> &other) noexcept
+      : graph_(other.graph_) { }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    EdgesWrapper &operator=(const Other<other_const> &other) noexcept {
+      graph_ = other.graph_;
+      return *this;
+    }
+
+    EdgeIterator<GT, is_const> begin() const { return graph_->edge_begin(); }
+    EdgeIterator<GT, is_const> end() const { return graph_->edge_end(); }
+
+    EdgeIterator<GT, true> cbegin() const { return graph_->edge_cbegin(); }
+    EdgeIterator<GT, true> cend() const { return graph_->edge_cend(); }
+
+    EdgesWrapper<GT, true> as_const() const { return *this; }
+
+    int size() const { return graph_->num_edges(); }
+
+  private:
+    const_if_t<is_const, GT> *graph_;
+  };
 }  // namespace internal
 
 /**
@@ -800,6 +838,10 @@ public:
    *       the behavior is undefined. \p src and \p dst is interchangeable.
    */
   bool erase_edge_between(int src, int dst);
+
+  internal::EdgesWrapper<Graph, false> edges() { return { *this }; }
+  internal::EdgesWrapper<Graph, true> edges() const { return { *this }; }
+  internal::EdgesWrapper<Graph, true> cedges() const { return { *this }; }
 
   edge_iterator edge_begin() { return { edges_.begin() }; }
   edge_iterator edge_end() { return { edges_.end() }; }
