@@ -551,9 +551,9 @@ namespace {
                                      const std::vector<Cycle> &c_ip) {
     absl::flat_hash_map<BondPtr, int> edge_map;
     int idx = 0;
-    for (auto it = mol.bond_begin(); it != mol.bond_end(); ++it) {
-      if (it->data().is_ring_bond()) {
-        edge_map[&*it->id()] = idx++;
+    for (auto bond: mol.bonds()) {
+      if (bond.data().is_ring_bond()) {
+        edge_map[&*bond.id()] = idx++;
       }
     }
 

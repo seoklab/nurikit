@@ -89,8 +89,8 @@ int Molecule::add_conf(const MatrixX3d &pos) {
 
   // First conformer, update bond lengths
   if (ret == 0) {
-    for (auto bit = graph_.edge_begin(); bit != graph_.edge_end(); ++bit) {
-      bit->data().length() = (pos.row(bit->dst()) - pos.row(bit->src())).norm();
+    for (auto bond: graph_.edges()) {
+      bond.data().length() = (pos.row(bond.dst()) - pos.row(bond.src())).norm();
     }
   }
 
@@ -104,9 +104,9 @@ int Molecule::add_conf(MatrixX3d &&pos) noexcept {
   // First conformer, update bond lengths
   if (ret == 0) {
     MatrixX3d &the_pos = conformers_[0];
-    for (auto bit = graph_.edge_begin(); bit != graph_.edge_end(); ++bit) {
-      bit->data().length() =
-        (the_pos.row(bit->dst()) - the_pos.row(bit->src())).norm();
+    for (auto bond: graph_.edges()) {
+      bond.data().length() =
+        (the_pos.row(bond.dst()) - the_pos.row(bond.src())).norm();
     }
   }
 
@@ -272,10 +272,10 @@ namespace {
       }
     }
 
-    for (auto bit = graph.edge_begin(); bit != graph.edge_end(); ++bit) {
-      if (graph.node(bit->src()).data().is_conjugated()
-          && graph.node(bit->dst()).data().is_conjugated()) {
-        bit->data().set_conjugated(true);
+    for (auto bond: graph.edges()) {
+      if (graph.node(bond.src()).data().is_conjugated()
+          && graph.node(bond.dst()).data().is_conjugated()) {
+        bond.data().set_conjugated(true);
       }
     }
   }
@@ -526,12 +526,12 @@ namespace {
                             const std::vector<std::vector<int>> &rings,
                             const absl::FixedArray<int> &valences,
                             const int circuit_rank) {
-    for (auto bit = graph.edge_begin(); bit != graph.edge_end(); ++bit) {
-      if (!bit->data().is_ring_bond()) {
-        if (bit->data().order() == constants::kAromaticBond) {
+    for (auto bond: graph.edges()) {
+      if (!bond.data().is_ring_bond()) {
+        if (bond.data().order() == constants::kAromaticBond) {
           ABSL_LOG(WARNING)
-            << "Bond order between atoms " << bit->src() << " and "
-            << bit->dst()
+            << "Bond order between atoms " << bond.src() << " and "
+            << bond.dst()
             << " is set aromatic, but the bond is not a ring bond";
           return false;
         }
@@ -542,11 +542,12 @@ namespace {
       mark_aromatic(graph, mol, rings, valences, circuit_rank);
     }
 
-    for (auto bit = graph.edge_begin(); bit != graph.edge_end(); ++bit) {
-      if (bit->data().order() == constants::kAromaticBond
-          && !bit->data().is_aromatic()) {
-        ABSL_LOG(WARNING) << "Bond order of non-aromatic bond " << bit->src()
-                          << " - " << bit->dst() << " is set aromatic";
+    // NOLINTNEXTLINE(readability-use-anyofallof)
+    for (auto bond: graph.edges()) {
+      if (bond.data().order() == constants::kAromaticBond
+          && !bond.data().is_aromatic()) {
+        ABSL_LOG(WARNING) << "Bond order of non-aromatic bond " << bond.src()
+                          << " - " << bond.dst() << " is set aromatic";
         return false;
       }
     }
@@ -687,8 +688,8 @@ namespace {
     for (auto atom: graph) {
       atom.data().reset_flags();
     }
-    for (auto bit = graph.edge_begin(); bit != graph.edge_end(); ++bit) {
-      bit->data().reset_flags();
+    for (auto bond: graph.edges()) {
+      bond.data().reset_flags();
     }
 
     // Find ring atoms & bonds
@@ -718,12 +719,12 @@ namespace {
     }
 
     // Set rotable bonds
-    for (auto bit = graph.edge_begin(); bit != graph.edge_end(); ++bit) {
-      if (bit->data().is_conjugated() || bit->data().is_ring_bond()) {
+    for (auto bond: graph.edges()) {
+      if (bond.data().is_conjugated() || bond.data().is_ring_bond()) {
         continue;
       }
 
-      bit->data().set_rotable(bit->data().order() == constants::kSingleBond);
+      bond.data().set_rotable(bond.data().order() == constants::kSingleBond);
     }
 
     // TODO(jnooree): check geometric isomers
@@ -845,8 +846,8 @@ void MoleculeMutator::accept() noexcept {
   }
 
   // Update rotable flags
-  for (auto bit = g.edge_begin(); bit != g.edge_end(); ++bit) {
-    auto &d = bit->data();
+  for (auto bond: mol_->graph_.edges()) {
+    auto &d = bond.data();
     d.set_rotable(!d.is_ring_bond() && !d.is_conjugated()
                   && d.order() <= constants::kSingleBond);
   }
