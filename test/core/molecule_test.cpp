@@ -36,7 +36,7 @@ TEST(Basic2DMoleculeTest, CreationTest) {
   std::vector<AtomData> atoms(1);
   atoms.reserve(10);
   for (int i = 1; i < 10; ++i) {
-    atoms.push_back(AtomData(pt[i], kSP3, 0, 0, 0, i));
+    atoms.push_back(AtomData(pt[i], 0, 0, kSP3, 0, i));
   }
 
   Molecule ten(atoms.begin(), atoms.end());
@@ -55,7 +55,7 @@ TEST(Basic2DMoleculeTest, AddAtomsTest) {
   {
     auto mutator = m.mutator(false);
     for (int i = 0; i < 10; ++i) {
-      mutator.add_atom(AtomData(pt[i], kSP3, 0, 0, 0, i * 2));
+      mutator.add_atom(AtomData(pt[i], 0, 0, kSP3, 0, i * 2));
     }
   }
 
@@ -68,7 +68,7 @@ TEST(Basic2DMoleculeTest, AddBondsTest) {
   std::vector<AtomData> atoms(1);
   atoms.reserve(10);
   for (int i = 1; i < 10; ++i) {
-    atoms.push_back(AtomData(pt[i], kSP3, 0, 0, 0, i));
+    atoms.push_back(AtomData(pt[i], 0, 0, kSP3, 0, i));
   }
 
   Molecule ten(atoms.begin(), atoms.end());
@@ -117,11 +117,11 @@ protected:
       mutator.add_atom({ pt[6] });
       mutator.add_atom({ pt[6] });
       mutator.add_atom({ pt[6] });
-      mutator.add_atom({ pt[7], kOtherHyb, 0, -1 });
+      mutator.add_atom({ pt[7], 0, -1 });
       for (int i = 5; i < 11; ++i) {
         mutator.add_atom({ pt[1] });
       }
-      mutator.add_atom({ pt[11], kOtherHyb, 0, +1 });
+      mutator.add_atom({ pt[11], 0, +1 });
 
       mutator.add_bond(0, 1, BondData { kDoubleBond });
       mutator.add_bond(0, 2, BondData { kSingleBond });
@@ -807,7 +807,7 @@ TEST(SanitizeTest, NonstandardTest) {
   // MnO4-
   {
     auto mut = mol.mutator();
-    mut.add_atom({ pt[25], kUnbound, 0, -1 });
+    mut.add_atom({ pt[25], 0, -1 });
     mut.add_atom(pt[8]);
     mut.add_atom(pt[8]);
     mut.add_atom(pt[8]);
@@ -826,7 +826,7 @@ TEST(SanitizeTest, NonstandardTest) {
   // pyrrole, but with radical at N: not aromatic
   {
     auto mut = mol.mutator();
-    mut.add_atom({ pt[7], kUnbound, 0, 1 });
+    mut.add_atom({ pt[7], 0, 1 });
     mut.add_atom(pt[6]);
     mut.add_atom(pt[6]);
     mut.add_atom(pt[6]);
@@ -903,7 +903,7 @@ TEST(SanitizeTest, ErrorMolTest) {
   // CH4+
   {
     auto mut = mol.mutator();
-    mut.add_atom({ pt[6], kUnbound, 4, 1 });
+    mut.add_atom({ pt[6], 4, 1 });
   }
   EXPECT_FALSE(mol.was_valid());
 
@@ -912,7 +912,7 @@ TEST(SanitizeTest, ErrorMolTest) {
   // CH+12, invalid
   {
     auto mut = mol.mutator();
-    mut.add_atom({ pt[6], kUnbound, 1, 12 });
+    mut.add_atom({ pt[6], 1, 12 });
   }
   EXPECT_FALSE(mol.was_valid());
 
@@ -921,7 +921,7 @@ TEST(SanitizeTest, ErrorMolTest) {
   // [cH+12]1ccccc1, invalid
   {
     auto mut = mol.mutator();
-    mut.add_atom({ pt[6], kUnbound, 1, 12 });
+    mut.add_atom({ pt[6], 1, 12 });
     mut.add_atom(pt[6]);
     mut.add_atom(pt[6]);
     mut.add_atom(pt[6]);

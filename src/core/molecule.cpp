@@ -24,13 +24,13 @@
 #include "nuri/utils.h"
 
 namespace nuri {
-AtomData::AtomData(const Element &element, constants::Hybridization hyb,
-                   int implicit_hydrogens, int formal_charge,
+AtomData::AtomData(const Element &element, int implicit_hydrogens,
+                   int formal_charge, constants::Hybridization hyb,
                    double partial_charge, int mass_number, bool is_aromatic,
                    bool is_in_ring, bool is_chiral, bool is_right_handed)
-  : element_(&element), isotope_(nullptr), hyb_(hyb),
-    implicit_hydrogens_(implicit_hydrogens), flags_(static_cast<AtomFlags>(0)),
-    formal_charge_(formal_charge), partial_charge_(partial_charge) {
+  : element_(&element), implicit_hydrogens_(implicit_hydrogens),
+    formal_charge_(formal_charge), hyb_(hyb), flags_(static_cast<AtomFlags>(0)),
+    partial_charge_(partial_charge), isotope_(nullptr) {
   if (mass_number >= 0) {
     isotope_ = element.find_isotope(mass_number);
     ABSL_LOG_IF(WARNING, ABSL_PREDICT_FALSE(isotope_ == nullptr))

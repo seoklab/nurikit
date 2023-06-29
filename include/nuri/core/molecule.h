@@ -58,9 +58,9 @@ public:
    */
   AtomData(): AtomData(PeriodicTable::get()[0]) { }
 
-  AtomData(const Element &element,
+  AtomData(const Element &element, int implicit_hydrogens = 0,
+           int formal_charge = 0,
            constants::Hybridization hyb = constants::kUnbound,
-           int implicit_hydrogens = 0, int formal_charge = 0,
            double partial_charge = 0.0, int mass_number = -1,
            bool is_aromatic = false, bool is_in_ring = false,
            bool is_chiral = false, bool is_right_handed = false);
@@ -225,12 +225,12 @@ private:
   friend bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept;
 
   const Element *element_;
-  const Isotope *isotope_;
-  constants::Hybridization hyb_;
   int implicit_hydrogens_;
-  AtomFlags flags_;
   int formal_charge_;
+  constants::Hybridization hyb_;
+  AtomFlags flags_;
   double partial_charge_;
+  const Isotope *isotope_;
 };
 
 inline bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept {
