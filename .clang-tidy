@@ -34,6 +34,8 @@ CheckOptions:
     value: google
   - key: misc-uniqueptr-reset-release.IncludeStyle
     value: google
+  - key: misc-const-correctness.AnalyzeValues
+    value: "false"
   - key: modernize-replace-auto-ptr.IncludeStyle
     value: google
   - key: modernize-loop-convert.IncludeStyle
