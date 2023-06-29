@@ -22,6 +22,7 @@ ExtraArgsBefore:
   - -Wno-weak-vtables
   - -Wno-ignored-optimization-argument
   - -Wno-unused-macros
+  - -Wno-disabled-macro-expansion
   - -Wno-unsafe-buffer-usage
   - -fno-sanitize=all
 CheckOptions:
@@ -33,6 +34,8 @@ CheckOptions:
     value: google
   - key: misc-uniqueptr-reset-release.IncludeStyle
     value: google
+  - key: misc-const-correctness.AnalyzeValues
+    value: "false"
   - key: modernize-replace-auto-ptr.IncludeStyle
     value: google
   - key: modernize-loop-convert.IncludeStyle
@@ -56,7 +59,7 @@ CheckOptions:
     # because they have much more exceptions than the others; however, most
     # types should use CamelCase for readability.
   - key: readability-function-cognitive-complexity.Threshold
-    value: "30"
+    value: "45"
   - key: readability-identifier-naming.EnumConstantCase
     value: CamelCase
   - key: readability-identifier-naming.EnumConstantPrefix

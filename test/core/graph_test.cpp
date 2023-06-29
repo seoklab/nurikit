@@ -410,15 +410,22 @@ TYPED_TEST(AdvancedGraphTest, EdgeIteratorTest) {
   Graph &graph = this->graph_;
 
   int cnt = 0;
-  for (auto it = graph.edge_begin(); it != graph.edge_end(); ++it) {
-    it->data() = { -1 };
+  for (auto edge: graph.edges()) {
+    edge.data() = { -1 };
     cnt++;
-
+  }
+  ASSERT_EQ(cnt, graph.num_edges());
+  for (auto it = graph.edge_begin(); it != graph.edge_end(); ++it) {
     NURI_ASSERT_ONEWAY_CONVERTIBLE(edge_iterator, decltype(it),
                                    const_edge_iterator,
                                    typename Graph::const_edge_iterator);
   }
-  ASSERT_EQ(cnt, graph.num_edges());
+
+  for (auto cedge: graph.cedges()) {
+    static_assert(!std::is_assignable_v<decltype(cedge.data()),
+                                        typename Graph::edge_data_type>,
+                  "const_iterator should be read-only");
+  }
 
   const Graph &const_graph = graph;
   for (auto it = const_graph.edge_begin(); it != const_graph.edge_end(); ++it) {
@@ -462,14 +469,14 @@ TYPED_TEST(AdvancedGraphTest, AdjacencyTest) {
   ASSERT_EQ(graph.degree(10), 0);
 
   auto adj01 = *graph.find_adjacent(0, 1);
-  ASSERT_EQ(adj01.src(), 0);
-  ASSERT_EQ(adj01.dst(), 1);
+  ASSERT_EQ(adj01.src().id(), 0);
+  ASSERT_EQ(adj01.dst().id(), 1);
   ASSERT_EQ(adj01.edge_data(), 100);
   adj01.edge_data() = 1000;
 
   auto adj10 = *graph.find_adjacent(1, 0);
-  ASSERT_EQ(adj10.src(), 1);
-  ASSERT_EQ(adj10.dst(), 0);
+  ASSERT_EQ(adj10.src().id(), 1);
+  ASSERT_EQ(adj10.dst().id(), 0);
   ASSERT_EQ(adj10.edge_data(), 1000);
   ASSERT_EQ(adj10.as_const().edge_data(), 1000);
 
@@ -487,12 +494,12 @@ TYPED_TEST(AdvancedGraphTest, AdjIteratorTest) {
   using Graph = nuri::Graph<TypeParam, TypeParam>;
   Graph &graph = this->graph_;
 
-  ASSERT_EQ(graph.node(0).adj_begin(), graph.adj_begin(0));
-  ASSERT_EQ(graph.node(0).adj_end(), graph.adj_end(0));
+  ASSERT_EQ(graph.node(0).begin(), graph.adj_begin(0));
+  ASSERT_EQ(graph.node(0).end(), graph.adj_end(0));
 
   int cnt = 0;
   for (auto it = graph.adj_begin(0); !it.end(); ++it) {
-    ASSERT_EQ(it->src(), 0);
+    ASSERT_EQ(it->src().id(), 0);
     it->edge_data() = { -1 };
     cnt++;
 

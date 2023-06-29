@@ -121,9 +121,11 @@ TEST_F(PeriodicTableTest, IsotopesTest) {
 
       EXPECT_NEAR(elem.atomic_weight(), avg_wt, tol)
         << elem.atomic_number() << elem.symbol();
+      EXPECT_FALSE(elem.radioactive());
     } else {
       EXPECT_EQ(elem.atomic_weight(), elem.major_isotope().mass_number)
         << elem.atomic_number() << elem.symbol();
+      EXPECT_TRUE(elem.radioactive());
     }
   }
 }
@@ -204,5 +206,20 @@ TEST_F(PeriodicTableTest, GroupTest) {
   // Check all elements are used
   EXPECT_TRUE(
     std::all_of(used.begin(), used.end(), [](int x) { return x == 1; }));
+}
+
+TEST_F(PeriodicTableTest, LanActTest) {
+  for (const auto &elem: table_) {
+    if (elem.atomic_number() >= 57 && elem.atomic_number() <= 71) {
+      EXPECT_TRUE(elem.lanthanide());
+      EXPECT_FALSE(elem.actinide());
+    } else if (elem.atomic_number() >= 89 && elem.atomic_number() <= 103) {
+      EXPECT_FALSE(elem.lanthanide());
+      EXPECT_TRUE(elem.actinide());
+    } else {
+      EXPECT_FALSE(elem.lanthanide());
+      EXPECT_FALSE(elem.actinide());
+    }
+  }
 }
 }  // namespace

@@ -26,28 +26,29 @@ namespace constants {
    * @brief The hybridization state of an atom object.
    */
   enum Hybridization {
-    kUnkHyb = 0,
-    kTerminal = 1,
+    kUnbound = 0,   // Unbound
+    kTerminal = 1,  // Terminal
     kSP = 2,
     kSP2 = 3,
     kSP3 = 4,
     kSP3D = 5,
     kSP3D2 = 6,
-    kOther = 7,
+    kOtherHyb = 7,  // Unknown/other
   };
 
   /**
    * @brief The bond order of a bond object.
    */
   enum BondOrder {
-    kNoBond = 0,
     kSingleBond = 1,
     kDoubleBond = 2,
     kTripleBond = 3,
     kQuadrupleBond = 4,
     kAromaticBond = 5,
-    kConjugatedBond = 6,
   };
+
+  extern constexpr inline double kBondOrderToDouble[] = { 0.0, 1.0, 2.0,
+                                                          3.0, 4.0, 1.5 };
 }  // namespace constants
 
 class AtomData {
@@ -55,14 +56,14 @@ public:
   /**
    * @brief Creates a dummy atom with unknown hybridization.
    */
-  AtomData()
-    : AtomData(PeriodicTable::get()[0], constants::Hybridization::kUnkHyb) { }
+  AtomData(): AtomData(PeriodicTable::get()[0]) { }
 
-  AtomData(const Element &element, constants::Hybridization hyb,
-           int formal_charge = 0, double partial_charge = 0.0,
-           int mass_number = -1, bool is_aromatic = false,
-           bool is_in_ring = false, bool is_chiral = false,
-           bool is_right_handed = false);
+  AtomData(const Element &element, int implicit_hydrogens = 0,
+           int formal_charge = 0,
+           constants::Hybridization hyb = constants::kUnbound,
+           double partial_charge = 0.0, int mass_number = -1,
+           bool is_aromatic = false, bool is_in_ring = false,
+           bool is_chiral = false, bool is_right_handed = false);
 
   /**
    * @brief Get the atomic number of the atom.
@@ -96,6 +97,12 @@ public:
    */
   std::string_view element_name() const { return element().name(); }
 
+  void set_element(const Element &element) { element_ = &element; }
+
+  void set_element(int atomic_number) {
+    set_element(PeriodicTable::get()[atomic_number]);
+  }
+
   /**
    * @brief Get the element data of the atom.
    * @return Immutable reference to the element object.
@@ -119,6 +126,12 @@ public:
                                                   : *isotope_;
   }
 
+  void set_isotope(const Isotope &isotope) { isotope_ = &isotope; }
+
+  void set_isotope(int mass_number) {
+    isotope_ = element().find_isotope(mass_number);
+  }
+
   /**
    * @brief Get the explicitly set isotope of the atom.
    * @return A pointer to the explicitly set isotope object. If none was
@@ -129,15 +142,55 @@ public:
    */
   const Isotope *explicit_isotope() const { return isotope_; }
 
+  void set_hybridization(constants::Hybridization hyb) { hyb_ = hyb; }
+
   constants::Hybridization hybridization() const { return hyb_; }
 
-  bool is_aromatic() const {
-    return internal::check_flag(flags_, kAromaticAtom);
+  void set_implicit_hydrogens(int implicit_hydrogens) {
+    implicit_hydrogens_ = implicit_hydrogens;
   }
 
-  bool is_ring_atom() const { return internal::check_flag(flags_, kRingAtom); }
+  int implicit_hydrogens() const { return implicit_hydrogens_; }
 
-  bool is_chiral() const { return internal::check_flag(flags_, kChiralAtom); }
+  void set_aromatic(bool is_aromatic) {
+    internal::update_flag(flags_, is_aromatic, AtomFlags::kAromatic);
+    internal::set_flag_if(flags_, is_aromatic,
+                          AtomFlags::kConjugated | AtomFlags::kRing);
+  }
+
+  bool is_aromatic() const {
+    return internal::check_flag(flags_, AtomFlags::kAromatic);
+  }
+
+  void set_conjugated(bool is_conjugated) {
+    internal::update_flag(flags_, is_conjugated, AtomFlags::kConjugated);
+    internal::unset_flag_if(flags_, !is_conjugated, AtomFlags::kAromatic);
+  }
+
+  bool is_conjugated() const {
+    return internal::check_flag(flags_, AtomFlags::kConjugated);
+  }
+
+  void set_ring_atom(bool is_ring_atom) {
+    internal::update_flag(flags_, is_ring_atom, AtomFlags::kRing);
+    internal::unset_flag_if(flags_, !is_ring_atom, AtomFlags::kAromatic);
+  }
+
+  bool is_ring_atom() const {
+    return internal::check_flag(flags_, AtomFlags::kRing);
+  }
+
+  void set_chiral(bool is_chiral) {
+    internal::update_flag(flags_, is_chiral, AtomFlags::kChiral);
+  }
+
+  bool is_chiral() const {
+    return internal::check_flag(flags_, AtomFlags::kChiral);
+  }
+
+  void set_right_handed(bool is_right_handed) {
+    internal::update_flag(flags_, is_right_handed, AtomFlags::kRightHanded);
+  }
 
   /**
    * @brief Get handedness of a chiral atom.
@@ -147,8 +200,10 @@ public:
    *         and `false` for (S).
    */
   bool is_right_handed() const {
-    return internal::check_flag(flags_, kRightHandedAtom);
+    return internal::check_flag(flags_, AtomFlags::kRightHanded);
   }
+
+  void reset_flags() { flags_ = static_cast<AtomFlags>(0); }
 
   void set_partial_charge(double charge) { partial_charge_ = charge; }
 
@@ -159,21 +214,23 @@ public:
   int formal_charge() const { return formal_charge_; }
 
 private:
-  enum Flags {
-    kAromaticAtom = 0x1,
-    kRingAtom = 0x2,
-    kChiralAtom = 0x4,
-    kRightHandedAtom = 0x8,
+  enum class AtomFlags : uint32_t {
+    kAromatic = 0x1,
+    kConjugated = 0x2,
+    kRing = 0x4,
+    kChiral = 0x8,
+    kRightHanded = 0x10,
   };
 
   friend bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept;
 
   const Element *element_;
-  const Isotope *isotope_;
-  constants::Hybridization hyb_;
-  uint32_t flags_;
+  int implicit_hydrogens_;
   int formal_charge_;
+  constants::Hybridization hyb_;
+  AtomFlags flags_;
   double partial_charge_;
+  const Isotope *isotope_;
 };
 
 inline bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept {
@@ -185,7 +242,8 @@ inline bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept {
 
 class BondData {
 public:
-  BondData(constants::BondOrder order): order_(order), flags_(0), length_(0) { }
+  explicit BondData(constants::BondOrder order)
+    : order_(order), flags_(static_cast<BondFlags>(0)), length_(0) { }
 
   /**
    * @brief Get the bond order of the bond.
@@ -193,21 +251,61 @@ public:
   constants::BondOrder order() const { return order_; }
 
   /**
+   * @brief Get the approximate bond order of the bond.
+   * @return Approximate bond order, e.g., 1.5 for an aromatic bond.
+   */
+  double approx_order() const { return constants::kBondOrderToDouble[order_]; }
+
+  /**
    * @brief Get the read-write reference to bond order.
    */
   constants::BondOrder &order() { return order_; }
 
-  bool is_rotable() const { return internal::check_flag(flags_, kRotableBond); }
+  bool is_rotable() const {
+    return internal::check_flag(flags_, BondFlags::kRotable);
+  }
 
   void set_rotable(bool rotable) {
-    internal::update_flag(flags_, rotable, kRotableBond);
+    internal::update_flag(flags_, rotable, BondFlags::kRotable);
   }
 
-  bool is_ring_bond() const { return internal::check_flag(flags_, kRingBond); }
+  bool is_ring_bond() const {
+    return internal::check_flag(flags_, BondFlags::kRing);
+  }
 
   void set_ring_bond(bool ring) {
-    internal::update_flag(flags_, ring, kRingBond);
+    internal::update_flag(flags_, ring, BondFlags::kRing);
+    internal::unset_flag_if(flags_, !ring, BondFlags::kAromatic);
   }
+
+  bool is_aromatic() const {
+    return internal::check_flag(flags_, BondFlags::kAromatic);
+  }
+
+  void set_aromatic(bool aromatic) {
+    internal::update_flag(flags_, aromatic, BondFlags::kAromatic);
+    internal::set_flag_if(flags_, aromatic,
+                          BondFlags::kRing | BondFlags::kConjugated);
+  }
+
+  bool is_conjugated() const {
+    return internal::check_flag(flags_, BondFlags::kConjugated);
+  }
+
+  void set_conjugated(bool conj) {
+    internal::update_flag(flags_, conj, BondFlags::kConjugated);
+    internal::unset_flag_if(flags_, !conj, BondFlags::kAromatic);
+  }
+
+  bool is_trans() const {
+    return internal::check_flag(flags_, BondFlags::kEConfig);
+  }
+
+  void set_trans(bool trans) {
+    internal::update_flag(flags_, trans, BondFlags::kEConfig);
+  }
+
+  void reset_flags() { flags_ = static_cast<BondFlags>(0); }
 
   /**
    * @brief Get the bond length.
@@ -224,13 +322,16 @@ public:
   double &length() { return length_; }
 
 private:
-  enum Flags {
-    kRotableBond = 0x1,
-    kRingBond = 0x2,
+  enum class BondFlags : uint32_t {
+    kRotable = 0x1,
+    kRing = 0x2,
+    kAromatic = 0x4,
+    kConjugated = 0x8,
+    kEConfig = 0x10,
   };
 
   constants::BondOrder order_;
-  uint32_t flags_;
+  BondFlags flags_;
   double length_;
 };
 
@@ -268,7 +369,7 @@ public:
   /**
    * @brief Construct an empty Molecule object.
    */
-  Molecule() noexcept = default;
+  Molecule() noexcept: circuit_rank_(0) { }
 
   /**
    * @brief Construct a Molecule object from a range of atom data.
@@ -359,6 +460,16 @@ public:
   }
 
   /**
+   * @brief Get an iterable, non-modifiable view over bonds of the molecule.
+   */
+  auto bonds() const { return graph_.edges(); }
+
+  /**
+   * @brief Get an iterable, non-modifiable view over bonds of the molecule.
+   */
+  auto cbonds() const { return graph_.edges(); }
+
+  /**
    * @brief The begin iterator of the molecule over bonds.
    */
   const_bond_iterator bond_begin() const { return graph_.edge_begin(); }
@@ -366,14 +477,6 @@ public:
    * @brief The past-the-end iterator of the molecule over bonds.
    */
   const_bond_iterator bond_end() const { return graph_.edge_end(); }
-
-  /**
-   * @brief Get the number of bonds of the atom.
-   * @param atom_idx Index of the atom.
-   * @return Valence of the atom.
-   * @note If the atom index is out of range, the behavior is undefined.
-   */
-  int valence(int atom_idx) const { return graph_.degree(atom_idx); }
 
   /**
    * @brief Find a neighbor of the atom.
@@ -402,10 +505,13 @@ public:
 
   /**
    * @brief Get a MoleculeMutator object associated with the molecule.
-   *
+   * @param sanitize Passed to the constructor of MoleculeMutator.
    * @return The MoleculeMutator object to update this molecule.
+   * @sa MoleculeMutator
    */
-  class MoleculeMutator mutator();
+  class MoleculeMutator mutator(bool sanitize = true);
+
+  void clear() noexcept;
 
   // TODO(jnooree): add_hydrogens
   // /**
@@ -567,15 +673,70 @@ public:
    */
   bool rotate_bond(int i, bond_id_type bid, double angle);
 
-private:
-  bool rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
-                          double angle);
+  /**
+   * @brief Fix all chemical errors in the molecule.
+   * @param use_conformer If non-negative, use bond angles and lengths of the
+   *        specified conformer to fix chemical errors. Otherwise, only the
+   *        graph is used. *Unimplemented, currently a no-op.*
+   * @return `true` if the molecule is valid after sanitization, `false` if the
+   *         molecule is still invalid after sanitization.
+   * @note This method has high overhead, and is not intended to be used in
+   *       downstream code. It is mainly used from MoleculeMutator class.
+   * @warning All molecule-related methods/functions assume that the molecule
+   *          is valid. If the molecule is not sanitized after the last
+   *          modification, all library code might return incorrect results. It
+   *          is the caller's responsibility to ensure that the molecule is
+   *          chemically valid before passing it to any library function, if the
+   *          molecule was not sanitized after any modification.
+   */
+  bool sanitize(int use_conformer = -1);
 
+  /**
+   * @brief Get size of SSSR.
+   * @return The number of rings in the smallest set of smallest rings.
+   */
+  int num_sssr() const { return circuit_rank_; }
+
+  /**
+   * @brief Set size of SSSR.
+   * @warning If the size is incorrect, all library code might return incorrect
+   *          results. It is the caller's responsibility to ensure that the size
+   *          is correct.
+   */
+  void set_num_sssr(int n) { circuit_rank_ = n; }
+
+  /**
+   * @brief Observe the previous result of sanitize() call.
+   * @return `true` if the last call to sanitize() resulted in a valid molecule,
+   *         `false` otherwise.
+   * @note Calling this method before calling sanitize() is meaningless.
+   * @sa sanitize()
+   */
+  bool was_valid() const { return was_valid_; }
+
+private:
   Molecule(GraphType &&graph, std::vector<MatrixX3d> &&conformers) noexcept
     : graph_(std::move(graph)), conformers_(std::move(conformers)) { }
 
+  GraphType::NodeRef mutable_atom(int atom_idx) {
+    return graph_.node(atom_idx);
+  }
+
+  GraphType::EdgeRef mutable_bond(bond_id_type bond_id) {
+    return graph_.edge(bond_id);
+  }
+
+  GraphType::edge_iterator find_mutable_bond(int src, int dst) {
+    return graph_.find_edge(src, dst);
+  }
+
+  bool rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
+                          double angle);
+
   GraphType graph_;
   std::vector<MatrixX3d> conformers_;
+  int circuit_rank_;
+  bool was_valid_;
 };
 
 /**
@@ -606,7 +767,18 @@ private:
  */
 class MoleculeMutator {
 public:
-  MoleculeMutator(Molecule &mol): mol_(&mol) { }
+  /**
+   * @brief Construct a new MoleculeMutator object
+   *
+   * @param mol The molecule to mutate.
+   * @param sanitize If `true`, sanitize the molecule at accept() call.
+   * @param sanitize_with If non-negative, use bond angles and lengths of the
+   *        specified conformer to fix chemical errors. Otherwise, only the
+   *        graph is used. *Unimplemented, currently a no-op.*
+   * @sa sanitize(), accept()
+   */
+  MoleculeMutator(Molecule &mol, bool sanitize = true, int sanitize_with = -1)
+    : mol_(&mol), conformer_idx_(sanitize_with), sanitize_(sanitize) { }
 
   MoleculeMutator() = delete;
   MoleculeMutator(const MoleculeMutator &) = delete;
@@ -641,6 +813,21 @@ public:
    *       moment of calling `accept()`.
    */
   void erase_atom(int atom_idx) { erased_atoms_.insert(atom_idx); }
+
+  /**
+   * @brief Get data of an atom.
+   * @param atom_idx Index of the atom after all atom additions, but before any
+   *                 erasures.
+   * @note The behavior is undefined if the atom index is out of range at the
+   *       moment of calling `accept()`.
+   */
+  AtomData &atom_data(int atom_idx) {
+    const int new_idx = atom_idx - mol_->num_atoms();
+    if (new_idx < 0) {
+      return mol_->mutable_atom(atom_idx).data();
+    }
+    return new_atoms_[new_idx];
+  }
 
   /**
    * @brief Add a bond to the molecule.
@@ -679,11 +866,25 @@ public:
   void erase_bond(int src, int dst);
 
   /**
+   * @brief Get data of a bond.
+   * @param src Index of the source atom of the bond
+   * @param dst Index of the destination atom of the bond
+   * @return Pointer to the bond data, or `nullptr` if the bond does not exist.
+   * @note The behavior is undefined if the atom index is out of range at the
+   *       moment of calling this method.
+   */
+  BondData *bond_data(int src, int dst);
+
+  /**
    * @brief Get the number of atoms in the molecule after the mutation.
    *
    * @return The number of atoms in the molecule after the mutation.
    */
   int num_atoms() const;
+
+  bool &sanitize() { return sanitize_; }
+
+  bool sanitize() const { return sanitize_; }
 
   /**
    * @brief Cancel all pending changes.
@@ -695,15 +896,14 @@ public:
    * @brief Apply all changes made to the molecule.
    * @note The mutator internally discard() all changes after the call. Thus,
    *       it's a no-op to call this method multiple times.
+   * @sa Molecule::sanitize()
+   *
+   * This will effectively call Molecule::sanitize() unless the mutator was
+   * created with `sanitize = false`.
    */
   void accept() noexcept;
 
 private:
-  struct AddedBond {
-    std::pair<int, int> ends;
-    BondData data;
-  };
-
   int next_atom_idx() const;
 
   // GCOV_EXCL_START
@@ -723,23 +923,176 @@ private:
   std::vector<AtomData> new_atoms_;
   absl::flat_hash_set<int> erased_atoms_;
 
-  std::vector<AddedBond> new_bonds_;
-  absl::flat_hash_set<std::pair<int, int>> new_bonds_set_;
+  absl::flat_hash_map<std::pair<int, int>, BondData> new_bonds_;
   std::vector<std::pair<int, int>> erased_bonds_;
+
+  int conformer_idx_;
+  bool sanitize_;
 };
 
-/* Out-of-line definitions */
+/* Out-of-line definitions for molecule */
 
 template <class Iterator, class>
 Molecule::Molecule(Iterator begin, Iterator end): Molecule() {
-  MoleculeMutator mutator(*this);
+  MoleculeMutator m = mutator(false);
   for (auto it = begin; it != end; ++it) {
-    mutator.add_atom(*it);
+    m.add_atom(*it);
   }
 }
 
-inline MoleculeMutator Molecule::mutator() {
-  return MoleculeMutator(*this);
+inline MoleculeMutator Molecule::mutator(bool sanitize) {
+  return MoleculeMutator(*this, sanitize);
+}
+
+/* Utility functions */
+
+/**
+ * @brief Get the number of all neighbors of an atom.
+ * @param atom An atom.
+ * @return Number of all neighbors of the atom, including implicit hydrogens.
+ */
+extern inline int all_neighbors(Molecule::Atom atom) {
+  return atom.degree() + atom.data().implicit_hydrogens();
+}
+
+/**
+ * @brief Count the number of hydrogens of the atom.
+ * @param atom An atom.
+ * @return Number of hydrogens of the atom (including implicit hydrogens)
+ * @note If the atom index is out of range, the behavior is undefined.
+ */
+extern int count_hydrogens(Molecule::Atom atom);
+
+/**
+ * @brief Get the approximate total bond order of the atom.
+ * @param atom An atom.
+ * @return Total bond order of the atom.
+ */
+extern int sum_bond_order(Molecule::Atom atom);
+
+/* Important algorithms */
+
+using Rings = std::vector<std::vector<int>>;
+
+/**
+ * @brief Find all elementary cycles in the molecular graph.
+ * @param mol A molecule.
+ * @return A pair of (all elementary cycles, success). If success is `false`,
+ *         the vector is in an unspecified state. This will fail if and only if
+ *         any atom is a member of more than 100 elementary cycles.
+ *
+ * This is based on the algorithm described in the following paper:
+ *    Hanser, Th. *et al.* *J. Chem. Inf. Comput. Sci.* **1996**, *36* (6),
+ *    1146-1152. DOI: [10.1021/ci960322f](https://doi.org/10.1021/ci960322f)
+ *
+ * The time complexity of this function is inherently exponential, but it is
+ * expected to run in a reasonable time (\f$\sim\mathcal{O}(V^2)\f$) for most
+ * molecules in practice.
+ */
+extern std::pair<Rings, bool> find_all_rings(const Molecule &mol);
+
+namespace internal {
+  struct FindRingsCommonData;
+}  // namespace internal
+
+/**
+ * @brief Wrapper class of the common routines of find_sssr() and
+ *        find_relevant_rings().
+ * @sa nuri::find_relevant_rings(), nuri::find_sssr()
+ *
+ * Formally, SSSR (smallest set of smallest rings) is a *minimum cycle basis*
+ * of the molecular graph. As discussed in many literatures, there is no unique
+ * SSSR for a given molecular graph (even for simple molecules such as
+ * 2-oxabicyclo[2.2.2]octane), and the SSSR is often counter-intuitive. For
+ * example, the SSSR of cubane (although unique, due to symmetry reasons)
+ * contains only five rings, which is not most chemists would expect.
+ *
+ * On the other hand, union of all SSSRs, sometimes called the *relevant
+ * rings* in the literatures, is unique for a given molecule, and is the "all
+ * smallest rings" of the molecule, chemically speaking. It is more appropriate
+ * for most applications than SSSR.
+ *
+ * We provide two functions along with this class to find the relevant rings and
+ * SSSR, respectively. If both are needed, it is recommended to construct this
+ * class first, and call find_relevant_rings() and find_sssr() member functions
+ * instead of calling the free functions directly.
+ *
+ * This is based on the algorithm described in the following paper:
+ *    Vismara, P. *Electron. J. Comb.* **1997**, *4* (1), R9.
+ *    DOI: [10.37236/1294](https://doi.org/10.37236/1294)
+ *
+ * Time complexity: theoretically \f$\mathcal{O}(\nu E^3)\f$, where \f$\nu =
+ * \mathcal{O}(E)\f$ is size of SSSR. For most molecules, however, this is
+ * \f$\mathcal{O}(V^3)\f$.
+ */
+class RingSetsFinder {
+public:
+  /**
+   * @brief Construct a new Rings Finder object.
+   * @param mol A molecule.
+   */
+  explicit RingSetsFinder(const Molecule &mol);
+
+  RingSetsFinder(const RingSetsFinder &) = delete;
+  RingSetsFinder &operator=(const RingSetsFinder &) = delete;
+  RingSetsFinder(RingSetsFinder &&) noexcept;
+  RingSetsFinder &operator=(RingSetsFinder &&) noexcept;
+
+  ~RingSetsFinder() noexcept;
+
+  /**
+   * @brief Find the relevant rings of the molecule.
+   * @return The relevant rings of the molecule.
+   * @sa nuri::find_relevant_rings()
+   */
+  Rings find_relevant_rings() const;
+
+  /**
+   * @brief Find the SSSR of the molecule.
+   * @return The smallest set of smallest rings (SSSR) of the molecule.
+   * @sa nuri::find_sssr()
+   * @note This function does not guarantee that the returned set is unique, nor
+   * that the result is reproducible even for the same molecule.
+   */
+  Rings find_sssr() const;
+
+private:
+  const Molecule *mol_;
+  std::unique_ptr<internal::FindRingsCommonData> data_;
+};
+
+/**
+ * @brief Find union of the all SSSRs in the molecular graph.
+ * @param mol A molecule.
+ * @return Union of the all SSSRs in the molecular graph.
+ * @sa find_sssr(), nuri::RingSetsFinder::find_relevant_rings()
+ *
+ * This is a convenience wrapper of the
+ * nuri::RingSetsFinder::find_relevant_rings() member function.
+ *
+ * @note If both relevant rings and SSSR are needed, it is recommended to use
+ * the nuri::RingSetsFinder class instead of the free functions.
+ */
+inline Rings find_relevant_rings(const Molecule &mol) {
+  return RingSetsFinder(mol).find_relevant_rings();
+}
+
+/**
+ * @brief Find a smallest set of smallest rings (SSSR) of the molecular graph.
+ * @param mol A molecule.
+ * @return *A* smallest set of smallest rings (SSSR) of the molecular graph.
+ * @sa find_relevant_rings(), nuri::RingSetsFinder::find_sssr()
+ * @note This function does not guarantee that the returned set is unique, nor
+ *       that the result is reproducible even for the same molecule.
+ *
+ * This is a convenience wrapper of the nuri::RingSetsFinder::find_sssr() member
+ * function.
+ *
+ * @note If both relevant rings and SSSR are needed, it is recommended to use
+ * the nuri::RingSetsFinder class instead of the free functions.
+ */
+inline Rings find_sssr(const Molecule &mol) {
+  return RingSetsFinder(mol).find_sssr();
 }
 }  // namespace nuri
 

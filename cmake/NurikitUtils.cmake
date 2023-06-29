@@ -111,8 +111,16 @@ function(find_or_fetch_eigen)
     set(EIGEN_BUILD_PKGCONFIG OFF)
     nurikit_make_available_deponly(eigen)
   endif()
+endfunction()
 
-  get_target_property(
-    EIGEN_INCLUDE_DIRS Eigen3::Eigen INTERFACE_INCLUDE_DIRECTORIES)
-  set(EIGEN_INCLUDE_DIRS "${EIGEN_INCLUDE_DIRS}" PARENT_SCOPE)
+function(_target_system_include target dep)
+  get_target_property(interface_include_dirs "${dep}"
+    INTERFACE_INCLUDE_DIRECTORIES)
+  target_include_directories("${target}" SYSTEM PUBLIC ${interface_include_dirs})
+endfunction()
+
+function(target_system_include_directories target)
+  foreach(dep IN LISTS ARGN)
+    _target_system_include("${target}" "${dep}")
+  endforeach()
 endfunction()
