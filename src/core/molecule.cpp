@@ -717,6 +717,15 @@ namespace {
       }
     }
 
+    // Set rotable bonds
+    for (auto bit = graph.edge_begin(); bit != graph.edge_end(); ++bit) {
+      if (bit->data().is_conjugated() || bit->data().is_ring_bond()) {
+        continue;
+      }
+
+      bit->data().set_rotable(bit->data().order() == constants::kSingleBond);
+    }
+
     // TODO(jnooree): check geometric isomers
 
     return { circuit_rank, true };
