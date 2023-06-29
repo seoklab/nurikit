@@ -822,7 +822,7 @@ public:
    *       moment of calling `accept()`.
    */
   AtomData &atom_data(int atom_idx) {
-    int new_idx = atom_idx - mol_->num_atoms();
+    const int new_idx = atom_idx - mol_->num_atoms();
     if (new_idx < 0) {
       return mol_->mutable_atom(atom_idx).data();
     }

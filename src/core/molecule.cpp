@@ -266,7 +266,7 @@ namespace {
     for (const std::vector<int> &group: sp2_groups) {
       ABSL_DCHECK(group.size() > 2) << "Group size: " << group.size();
 
-      for (int id: group) {
+      for (const int id: group) {
         AtomData &data = graph.node(id).data();
         data.set_conjugated(true);
       }
@@ -389,8 +389,9 @@ namespace {
   int octet_valence(Molecule::Atom atom) {
     const Element &elem = emulated_element(atom);
 
-    int val_electrons = elem.valence_electrons();
-    int octet_valence = val_electrons <= 4 ? val_electrons : 8 - val_electrons;
+    const int val_electrons = elem.valence_electrons(),
+              octet_valence = val_electrons <= 4 ? val_electrons
+                                                 : 8 - val_electrons;
     return octet_valence;
   }
 
@@ -499,7 +500,7 @@ namespace {
       }
     };
 
-    bool need_subring = circuit_rank > static_cast<int>(rings.size());
+    const bool need_subring = circuit_rank > static_cast<int>(rings.size());
     // Fast path: no need to find subrings
     if (!need_subring) {
       mark_aromatic_for(rings);

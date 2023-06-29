@@ -53,7 +53,7 @@ namespace {
     ret.first.reserve(mol.num_atoms());
 
     for (auto atom: mol) {
-      int degree = ring_degree(atom);
+      const int degree = ring_degree(atom);
       ret.first[atom.id()] = degree;
       ret.second += static_cast<int>(degree > 0);
     }
@@ -84,7 +84,7 @@ namespace {
   PathGraph pathgraph_init(const Molecule &mol,
                            const std::vector<int> &sorted_atoms) {
     PathGraph paths(mol.size());
-    for (int i: sorted_atoms) {
+    for (const int i: sorted_atoms) {
       std::vector<std::vector<int>> &path = paths[i];
       for (auto nei: mol.atom(i)) {
         if (nei.edge_data().is_ring_bond() && !paths.contains(nei.dst().id())) {
@@ -166,7 +166,7 @@ find_all_rings(const Molecule &mol) {
   std::pair<std::vector<std::vector<int>>, bool> result;
   result.second = true;
 
-  for (int id: sorted_ring_atoms) {
+  for (const int id: sorted_ring_atoms) {
     auto it = pg.find(id);
     ABSL_DCHECK(it != pg.end());
 
