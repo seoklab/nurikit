@@ -179,7 +179,7 @@ typename std::vector<T, Alloc>::iterator erase_first(std::vector<T, Alloc> &c,
                                                      Pred pred) {
   auto it = std::find_if(c.begin(), c.end(), pred);
   if (it != c.end()) {
-    c.erase(it);
+    return c.erase(it);
   }
   return it;
 }
