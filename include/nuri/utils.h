@@ -187,6 +187,13 @@ void mask_to_map(Container &mask) {
     mask[i] = mask[i] ? idx++ : -1;
   }
 }
+
+template <typename Derived, typename Base, typename Del>
+std::unique_ptr<Derived, Del>
+static_unique_ptr_cast(std::unique_ptr<Base, Del> &&p) noexcept {
+  auto d = static_cast<Derived *>(p.release());
+  return std::unique_ptr<Derived, Del>(d, std::forward<Del>(p.get_deleter()));
+}
 }  // namespace nuri
 
 #endif /* NURI_UTILS_H_ */
