@@ -371,11 +371,8 @@ namespace {
               });
   }
 
-  const Element &emulated_element(Molecule::Atom atom) {
-    const int emulated_z =
-      atom.data().atomic_number() - atom.data().formal_charge();
-
-    const Element *elem = PeriodicTable::get().find_element(emulated_z);
+  const Element &effective_element_force_unwrap(Molecule::Atom atom) {
+    const Element *elem = effective_element(atom);
     if (ABSL_PREDICT_FALSE(elem == nullptr)) {
       ABSL_LOG(WARNING)
         << "Unexpected atomic number & formal charge combination: "
@@ -383,12 +380,11 @@ namespace {
         << ". The result may be incorrect.";
       elem = &atom.data().element();
     }
-
     return *elem;
   }
 
   int octet_valence(Molecule::Atom atom) {
-    const Element &elem = emulated_element(atom);
+    const Element &elem = effective_element_force_unwrap(atom);
 
     const int val_electrons = elem.valence_electrons(),
               octet_valence = val_electrons <= 4 ? val_electrons
@@ -605,9 +601,9 @@ namespace {
 
     // Octet verification
     const int total_valence_electrons = nbe + 2 * total_valence;
-    const Element &emulated = emulated_element(atom);
+    const Element &effective = effective_element_force_unwrap(atom);
     int max_valence;
-    switch (emulated.period()) {
+    switch (effective.period()) {
     case 1:
       max_valence = 2;
       break;
@@ -615,7 +611,7 @@ namespace {
       max_valence = 8;
       break;
     default:
-      max_valence = emulated.lanthanide() || emulated.actinide() ? 32 : 18;
+      max_valence = effective.lanthanide() || effective.actinide() ? 32 : 18;
       break;
     }
 
@@ -631,7 +627,7 @@ namespace {
     if (total_degree <= 1) {
       atom.data().set_hybridization(
         static_cast<constants::Hybridization>(total_degree));
-    } else if (emulated.main_group()) {
+    } else if (effective.main_group()) {
       atom.data().set_hybridization(hyb);
     } else {
       // Assume non-main-group atoms does not have lone pairs
@@ -834,5 +830,11 @@ int count_hydrogens(Molecule::Atom atom) {
 
 int sum_bond_order(Molecule::Atom atom) {
   return sum_bond_order_impl(atom, true);
+}
+
+const Element *effective_element(Molecule::Atom atom) {
+  const int effective_z =
+    atom.data().atomic_number() - atom.data().formal_charge();
+  return PeriodicTable::get().find_element(effective_z);
 }
 }  // namespace nuri

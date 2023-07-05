@@ -950,6 +950,15 @@ extern int count_hydrogens(Molecule::Atom atom);
  */
 extern int sum_bond_order(Molecule::Atom atom);
 
+/**
+ * @brief Get "effective" element of the atom.
+ * @param atom An atom.
+ * @return "Effective" element of the atom: the returned element has atomic
+ *         number of (original atomic number) - (formal charge). If the
+ *         resulting atomic number is out of range, returns nullptr.
+ */
+extern const Element *effective_element(Molecule::Atom atom);
+
 /* Important algorithms */
 
 using Rings = std::vector<std::vector<int>>;
