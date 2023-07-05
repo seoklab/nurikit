@@ -7,9 +7,13 @@
 #define NURI_UTILS_H_
 
 #include <algorithm>
+#include <filesystem>
 #include <iterator>
+#include <string_view>
 #include <type_traits>
 #include <vector>
+
+#include <absl/base/optimization.h>
 
 namespace nuri {
 
@@ -193,6 +197,14 @@ std::unique_ptr<Derived, Del>
 static_unique_ptr_cast(std::unique_ptr<Base, Del> &&p) noexcept {
   auto d = static_cast<Derived *>(p.release());
   return std::unique_ptr<Derived, Del>(d, std::forward<Del>(p.get_deleter()));
+}
+
+inline std::string_view extension_no_dot(const std::filesystem::path &ext) {
+  const std::string_view ext_view = ext.native();
+  if (ABSL_PREDICT_TRUE(!ext_view.empty())) {
+    return ext_view.substr(1);
+  }
+  return ext_view;
 }
 }  // namespace nuri
 
