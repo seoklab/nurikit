@@ -243,6 +243,8 @@ inline bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept {
 
 class BondData {
 public:
+  BondData(): BondData(constants::kSingleBond) { }
+
   explicit BondData(constants::BondOrder order)
     : order_(order), flags_(static_cast<BondFlags>(0)), length_(0) { }
 
