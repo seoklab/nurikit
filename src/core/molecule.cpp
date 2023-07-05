@@ -743,9 +743,7 @@ bool MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
     return false;
   }
 
-  const unsigned int usrc = src, udst = dst;
-  if (usrc >= mol().num_atoms() || udst >= mol().num_atoms()
-      || mol().graph_.find_edge(src, dst) != mol().graph_.edge_end()) {
+  if (mol().graph_.find_edge(src, dst) != mol().graph_.edge_end()) {
     return false;
   }
 

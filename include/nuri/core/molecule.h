@@ -831,6 +831,7 @@ public:
    *            additions.
    * @param bond The data of the bond to add.
    * @return `true` if the bond was added, `false` if the bond already exists.
+   * @note The behavior is undefined if any of the atom indices is out of range.
    */
   bool add_bond(int src, int dst, const BondData &bond);
 
@@ -841,6 +842,7 @@ public:
    *            additions.
    * @param bond The bond to add.
    * @return `true` if the bond was added, `false` if the bond already exists.
+   * @note The behavior is undefined if any of the atom indices is out of range.
    */
   bool add_bond(int src, int dst, const Molecule::Bond &bond) {
     return add_bond(src, dst, bond.data());
