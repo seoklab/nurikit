@@ -747,18 +747,13 @@ bool MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
     return false;
   }
 
-  const std::pair<int, int> ends = std::minmax(src, dst);
-  auto [it, inserted] = new_bonds_.insert({ ends, bond });
-  if (ABSL_PREDICT_FALSE(!inserted)) {
-    return false;
-  }
-  if (src < mol().num_atoms() && dst < mol().num_atoms()
-      && ABSL_PREDICT_FALSE(mol().graph_.find_edge(src, dst)
-                            != mol().graph_.edge_end())) {
-    new_bonds_.erase(it);
+  const unsigned int usrc = src, udst = dst;
+  if (usrc >= mol().num_atoms() || udst >= mol().num_atoms()
+      || mol().graph_.find_edge(src, dst) != mol().graph_.edge_end()) {
     return false;
   }
 
+  mol().graph_.add_edge(src, dst, bond);
   return true;
 }
 
@@ -767,53 +762,30 @@ void MoleculeMutator::erase_bond(int src, int dst) {
     return;
   }
 
-  erased_bonds_.push_back(std::minmax(src, dst));
+  erased_bonds_.push_back({ src, dst });
 }
 
 BondData *MoleculeMutator::bond_data(int src, int dst) {
-  auto bit = mol_->find_mutable_bond(src, dst);
-  if (bit != mol_->bond_end()) {
-    return &bit->data();
-  }
-  auto it = new_bonds_.find({ src, dst });
-  if (it != new_bonds_.end()) {
-    return &it->second;
-  }
-  return nullptr;
+  auto bit = mol().find_mutable_bond(src, dst);
+  return bit != mol().bond_end() ? &bit->data() : nullptr;
 }
 
-int MoleculeMutator::num_atoms() const {
-  return next_atom_idx() - static_cast<int>(erased_atoms_.size());
-}
-
-void MoleculeMutator::discard() noexcept {
-  new_atoms_.clear();
+void MoleculeMutator::discard_erasure() noexcept {
   erased_atoms_.clear();
-
-  new_bonds_.clear();
   erased_bonds_.clear();
 }
 
-void MoleculeMutator::accept() noexcept {
+void MoleculeMutator::finalize() noexcept {
   Molecule::GraphType &g = mol().graph_;
   const int old_size = mol().num_atoms();
 
   // As per the spec, the order is:
-
-  // 1. Add atoms
-  g.add_node(new_atoms_.begin(), new_atoms_.end());
-
-  // 2. Add bonds
-  for (auto &&[idxs, data]: new_bonds_) {
-    g.add_edge(idxs.first, idxs.second, data);
-  }
-
-  // 3. Erase bonds
+  // 1. Erase bonds
   for (const std::pair<int, int> &ends: erased_bonds_) {
     g.erase_edge_between(ends.first, ends.second);
   }
 
-  // 4. Erase atoms
+  // 2. Erase atoms
   auto [last, map] = g.erase_nodes(erased_atoms_.begin(), erased_atoms_.end());
 
   // Update coordinates
@@ -843,26 +815,11 @@ void MoleculeMutator::accept() noexcept {
   }
 
   if (sanitize_) {
-    ABSL_LOG_IF(ERROR, !mol_->sanitize(conformer_idx_))
+    ABSL_LOG_IF(WARNING, !mol().sanitize(conformer_idx_))
       << "Molecule sanitization failed!";
   }
 
-  // Update rotable flags
-  for (auto bond: mol_->graph_.edges()) {
-    auto &d = bond.data();
-    d.set_rotable(!d.is_ring_bond() && !d.is_conjugated()
-                  && d.order() <= constants::kSingleBond);
-  }
-
-  discard();
-}
-
-int MoleculeMutator::next_atom_idx() const {
-  return mol().num_atoms() + static_cast<int>(new_atoms_.size());
-}
-
-int sum_bond_order(Molecule::Atom atom) {
-  return sum_bond_order_impl(atom, true);
+  discard_erasure();
 }
 
 int count_hydrogens(Molecule::Atom atom) {
@@ -873,5 +830,9 @@ int count_hydrogens(Molecule::Atom atom) {
     }
   }
   return count;
+}
+
+int sum_bond_order(Molecule::Atom atom) {
+  return sum_bond_order_impl(atom, true);
 }
 }  // namespace nuri

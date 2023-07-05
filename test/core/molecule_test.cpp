@@ -134,6 +134,9 @@ protected:
       mutator.add_bond(2, 8, BondData { kSingleBond });
       mutator.add_bond(3, 9, BondData { kSingleBond });
       mutator.add_bond(3, 10, BondData { kSingleBond });
+
+      mutator.bond_data(2, 3)->set_rotable(true);
+      mutator.bond_data(3, 4)->set_rotable(true);
     }
 
     ASSERT_EQ(mol_.num_atoms(), 12);
@@ -263,18 +266,13 @@ TEST_F(MoleculeTest, RotateBondTest) {
 }
 
 TEST_F(MoleculeTest, EraseAtomsTest) {
-  int predicted_size;
-
   Molecule mol1(mol_);
   {
     auto m = mol1.mutator(false);
     m.erase_atom(9);
     m.erase_atom(10);
     m.erase_atom(11);
-
-    predicted_size = m.num_atoms();
   }
-  EXPECT_EQ(mol1.num_atoms(), predicted_size);
   EXPECT_EQ(mol1.num_atoms(), 9);
   EXPECT_EQ(mol1.num_bonds(), 9);
 
@@ -289,10 +287,7 @@ TEST_F(MoleculeTest, EraseAtomsTest) {
     m.erase_atom(0);
     m.erase_atom(1);
     m.erase_atom(2);
-
-    predicted_size = m.num_atoms();
   }
-  EXPECT_EQ(mol2.num_atoms(), predicted_size);
   EXPECT_EQ(mol2.num_atoms(), 9);
   EXPECT_EQ(mol2.num_bonds(), 4);
 
@@ -307,10 +302,7 @@ TEST_F(MoleculeTest, EraseAtomsTest) {
     m.erase_atom(0);
     m.erase_atom(4);
     m.erase_atom(9);
-
-    predicted_size = m.num_atoms();
   }
-  EXPECT_EQ(mol3.num_atoms(), predicted_size);
   EXPECT_EQ(mol3.num_atoms(), 9);
   EXPECT_EQ(mol3.num_bonds(), 5);
 
@@ -710,8 +702,8 @@ TEST(SanitizeTest, FusedAromaticTest) {
       EXPECT_TRUE(atom.data().is_aromatic());
     }
     for (auto bond: mol.bonds()) {
-      if ((bond.src() == 0 && bond.dst() == 11)
-          || (bond.src() == 5 && bond.dst() == 6)) {
+      auto [src, dst] = std::minmax(bond.src(), bond.dst());
+      if ((src == 0 && dst == 11) || (src == 5 && dst == 6)) {
         EXPECT_FALSE(bond.data().is_aromatic());
       } else {
         EXPECT_TRUE(bond.data().is_aromatic());
@@ -759,7 +751,8 @@ TEST(SanitizeTest, FusedAromaticTest) {
       EXPECT_TRUE(atom.data().is_aromatic());
     }
     for (auto bond: mol.bonds()) {
-      if (bond.src() == 0 && bond.dst() == 6) {
+      auto [src, dst] = std::minmax(bond.src(), bond.dst());
+      if (src == 0 && dst == 6) {
         EXPECT_FALSE(bond.data().is_aromatic());
       } else {
         EXPECT_TRUE(bond.data().is_aromatic());
@@ -777,11 +770,11 @@ TEST(SanitizeTest, FusedAromaticTest) {
       }
     }
     for (int i = 0; i < 6; ++i) {
-      mut.add_bond(i, i + 1, BondData(kAromaticBond));
+      ASSERT_TRUE(mut.add_bond(i, i + 1, BondData(kAromaticBond)));
     }
-    mut.add_bond(6, 0, BondData(kSingleBond));
+    ASSERT_TRUE(mut.add_bond(6, 0, BondData(kSingleBond)));
     for (int i = 6; i < 10; ++i) {
-      mut.add_bond(i, (i + 1) % 10, BondData(kAromaticBond));
+      ASSERT_TRUE(mut.add_bond(i, (i + 1) % 10, BondData(kAromaticBond)));
     }
   }
   verify_azulene();
