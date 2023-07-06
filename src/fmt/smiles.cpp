@@ -67,7 +67,9 @@ const struct aliphatic_organic_: public x3::symbols<const Element *> {
     for (const std::string_view symbol:
          { "Cl", "Br", "B", "C", "N", "O", "F", "P", "S", "I", "*" }) {
       const Element *elem = PeriodicTable::get().find_element(symbol);
+      // GCOV_EXCL_START
       ABSL_DCHECK(elem != nullptr) << "Element not found: " << symbol;
+      // GCOV_EXCL_STOP
       add(symbol, elem);
     }
   }
@@ -77,7 +79,9 @@ const struct aromatic_organic_: public x3::symbols<const Element *> {
   aromatic_organic_() {
     for (const std::string_view symbol: { "B", "C", "N", "O", "P", "S" }) {
       const Element *elem = PeriodicTable::get().find_element(symbol);
+      // GCOV_EXCL_START
       ABSL_DCHECK(elem != nullptr) << "Element not found: " << symbol;
+      // GCOV_EXCL_STOP
       add(absl::AsciiStrToLower(symbol), elem);
     }
   }
@@ -101,7 +105,9 @@ const struct aromatic_symbol_: public x3::symbols<const Element *> {
     for (const std::string_view symbol:
          { "Se", "As", "B", "C", "N", "O", "P", "S" }) {
       const Element *elem = PeriodicTable::get().find_element(symbol);
+      // GCOV_EXCL_START
       ABSL_DCHECK(elem != nullptr) << "Element not found: " << symbol;
+      // GCOV_EXCL_STOP
       add(absl::AsciiStrToLower(symbol), elem);
     }
   }
@@ -197,7 +203,9 @@ constants::BondOrder char_to_bond(char b) {
     return constants::kAromaticBond;
   }
 
+  // GCOV_EXCL_START
   ABSL_UNREACHABLE();
+  // GCOV_EXCL_STOP
 }
 
 bool add_bond(MoleculeMutator &mutator, const int prev, const int curr,
