@@ -247,7 +247,7 @@ int add_atom(Ctx &ctx, const Element *elem, int implicit_hydrogens,
 
     if (ABSL_PREDICT_FALSE(!success)) {
       x3::_pass(ctx) = false;
-      ABSL_LOG(ERROR)
+      ABSL_LOG(WARNING)
         << "Failed to add bond from " << last_idx << " to " << idx;
       return -1;
     }
@@ -340,8 +340,9 @@ void handle_ring(Ctx &ctx, int ring_idx) {
   } else {
     // Invalid bond specification.
     x3::_pass(ctx) = false;
-    ABSL_LOG(ERROR) << "Conflicting ring bond specification: " << data.bond_data
-                    << " vs " << bond_data;
+    ABSL_LOG(WARNING)
+      << "Conflicting ring bond specification: " << data.bond_data << " vs "
+      << bond_data;
     return;
   }
 
@@ -350,8 +351,8 @@ void handle_ring(Ctx &ctx, int ring_idx) {
     add_bond(mutator, data.atom_idx, current_idx, resolved_bond_data);
   if (ABSL_PREDICT_FALSE(!success)) {
     x3::_pass(ctx) = false;
-    ABSL_LOG(ERROR) << "Failed to add ring bond from " << data.atom_idx
-                    << " to " << current_idx;
+    ABSL_LOG(WARNING) << "Failed to add ring bond from " << data.atom_idx
+                      << " to " << current_idx;
     return;
   }
 
@@ -492,7 +493,7 @@ Molecule read_smiles(std::string_view smiles) {
     }
     mol.name() = std::string_view(&*begin, smiles.end() - begin);
   } else {
-    ABSL_LOG(WARNING) << "Parsing failed: " << smiles;
+    ABSL_LOG(ERROR) << "Parsing failed: " << smiles;
     mol.clear();
   }
 
