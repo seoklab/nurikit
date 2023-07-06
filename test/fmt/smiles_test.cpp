@@ -244,6 +244,7 @@ TEST_F(SmilesTest, RingsTest) {
     "C-1CCCCC=1 cyclohexene error\n"
     "C1CCCCC1C1CCCCC1 bicyclohexyl\n"
     "C12(CCCCC1)CCCCC2 spiro[5.5]undecane\n"
+    "C%12CCCCC%12 cyclohexane\n"
     "C12CCCCC12 error\n"
     "C12C2CCC1 error\n"
     "C11 error\n");
@@ -271,6 +272,9 @@ TEST_F(SmilesTest, RingsTest) {
 
   test_next_mol("spiro[5.5]undecane", 11, 12);
   EXPECT_EQ(mol_.num_sssr(), 2);
+
+  test_next_mol("cyclohexane", 6, 6);
+  EXPECT_EQ(mol_.num_sssr(), 1);
 
   test_parse_fail();
   test_parse_fail();
