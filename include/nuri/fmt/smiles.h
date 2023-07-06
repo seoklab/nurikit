@@ -25,6 +25,7 @@ extern Molecule read_smiles(std::string_view smiles);
 
 class SmilesStream: public MoleculeStream {
 public:
+  SmilesStream() = default;
   SmilesStream(std::istream &is): is_(&is) { }
 
   SmilesStream(const SmilesStream &) = delete;
