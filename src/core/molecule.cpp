@@ -540,15 +540,13 @@ namespace {
       mark_aromatic(graph, mol, rings, valences, circuit_rank);
     }
 
-    // NOLINTNEXTLINE(readability-use-anyofallof)
-    for (auto bond: graph.edges()) {
-      if (bond.data().order() == constants::kAromaticBond
-          && !bond.data().is_aromatic()) {
-        ABSL_LOG(WARNING) << "Bond order of non-aromatic bond " << bond.src()
-                          << " - " << bond.dst() << " is set aromatic";
-        return false;
-      }
-    }
+    ABSL_LOG_IF(INFO, std::any_of(graph.edge_begin(), graph.edge_end(),
+                                  [](Molecule::Bond bond) {
+                                    return bond.data().order()
+                                             == constants::kAromaticBond
+                                           && !bond.data().is_aromatic();
+                                  }))
+      << "Bond order of non-aromatic bond is set aromatic; is this intended?";
 
     return true;
   }

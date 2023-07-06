@@ -830,7 +830,11 @@ TEST(SanitizeTest, NonstandardTest) {
       mut.atom_data(i).set_implicit_hydrogens(1);
     }
   }
-  EXPECT_FALSE(mol.was_valid());
+
+  EXPECT_TRUE(mol.was_valid());
+  for (auto atom: mol) {
+    EXPECT_FALSE(atom.data().is_aromatic());
+  }
 
   mol.clear();
 
@@ -849,8 +853,9 @@ TEST(SanitizeTest, NonstandardTest) {
     }
   }
   EXPECT_TRUE(mol.was_valid());
-
-  // mol.clear();
+  for (auto atom: mol) {
+    EXPECT_TRUE(atom.data().is_aromatic());
+  }
 }
 
 TEST(SanitizeTest, ErrorMolTest) {
