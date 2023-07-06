@@ -702,7 +702,7 @@ TEST(SanitizeTest, FusedAromaticTest) {
       EXPECT_TRUE(atom.data().is_aromatic());
     }
     for (auto bond: mol.bonds()) {
-      auto [src, dst] = std::minmax(bond.src(), bond.dst());
+      auto [src, dst] = std::minmax({ bond.src(), bond.dst() });
       if ((src == 0 && dst == 11) || (src == 5 && dst == 6)) {
         EXPECT_FALSE(bond.data().is_aromatic());
       } else {
@@ -751,7 +751,7 @@ TEST(SanitizeTest, FusedAromaticTest) {
       EXPECT_TRUE(atom.data().is_aromatic());
     }
     for (auto bond: mol.bonds()) {
-      auto [src, dst] = std::minmax(bond.src(), bond.dst());
+      auto [src, dst] = std::minmax({ bond.src(), bond.dst() });
       if (src == 0 && dst == 6) {
         EXPECT_FALSE(bond.data().is_aromatic());
       } else {
