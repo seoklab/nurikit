@@ -590,8 +590,13 @@ namespace {
     constants::Hybridization hyb = from_degree(total_degree, nbe);
     if (hyb == constants::kSP3 && atom.data().is_conjugated()) {
       hyb = constants::kSP2;
-      if (atom.data().is_aromatic() && sum_bond_order(atom) == 4
-          && nbe % 2 != 0) {
+      if (nbe > 0
+          && std ::any_of(atom.begin(), atom.end(),
+                          [](Molecule::Neighbor nei) {
+                            return nei.edge_data().order()
+                                   == constants::kAromaticBond;
+                          })
+          && octet_valence(atom) < total_valence) {
         // Pyrrole, etc.
         --nbe;
       }
