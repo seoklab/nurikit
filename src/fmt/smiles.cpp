@@ -468,8 +468,7 @@ Molecule read_smiles(std::string_view smiles) {
     std::ref(bond_geometry_map))[parser::smiles]]]]]];
 
   auto begin = smiles.begin();
-  bool success =
-    x3::phrase_parse_main(begin, smiles.end(), parser, x3::space, x3::unused);
+  bool success = x3::parse_main(begin, smiles.end(), parser, x3::unused);
 
   success = success && ring_map.empty();
 
@@ -480,6 +479,9 @@ Molecule read_smiles(std::string_view smiles) {
   }
 
   if (success) {
+    while (begin != smiles.end() && std::isspace(*begin) != 0) {
+      ++begin;
+    }
     mol.name() = std::string_view(&*begin, smiles.end() - begin);
   } else {
     ABSL_LOG(WARNING) << "Parsing failed: " << smiles;
