@@ -292,10 +292,15 @@ constexpr auto set_chirality = [](auto &ctx) {
                   << static_cast<int>(x3::_attr(ctx));
 };
 
+constexpr auto set_atom_class = [](auto &) {
+  ABSL_LOG(WARNING) << "Atom classes are currently not implemented";
+};
+
 const auto bracket_atom =  //
   x3::lit('[') >> ((-x3::uint_ >> element_symbol)[bracket_atom_adder(false)]
                    | (-x3::uint_ >> aromatic_symbol)[bracket_atom_adder(true)])
-  >> -chirality[set_chirality] >> -hydrogen >> -charge >> x3::lit(']');
+  >> -chirality[set_chirality] >> -hydrogen >> -charge
+  >> -(x3::lit(':') >> x3::int_)[set_atom_class] >> x3::lit(']');
 
 constexpr auto set_last_bond_data = [](auto &ctx) {
   x3::get<last_bond_data_tag>(ctx).get() = x3::_attr(ctx);
