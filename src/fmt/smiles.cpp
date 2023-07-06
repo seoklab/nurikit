@@ -484,7 +484,10 @@ Molecule read_smiles(std::string_view smiles) {
   auto begin = smiles.begin();
   bool success = x3::parse_main(begin, smiles.end(), parser, x3::unused);
 
-  success = success && ring_map.empty();
+  if (success && !ring_map.empty()) {
+    ABSL_LOG(WARNING) << "Unresolved ring bonds: " << ring_map.size();
+    success = false;
+  }
 
   for (auto atom: mol) {
     if (atom.data().implicit_hydrogens() < 0) {
