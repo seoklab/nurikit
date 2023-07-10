@@ -295,7 +295,7 @@ public:
 
   explicit MoleculeStreamWrapper(const std::filesystem::path &path): is_(path) {
     const std::filesystem::path full_ext = path.extension();
-    const std::string_view ext = extension_no_dot(ext);
+    const std::string_view ext = extension_no_dot(full_ext);
 
     const MoleculeStreamFactory *factory =
       MoleculeStreamFactory::find_factory(ext);
