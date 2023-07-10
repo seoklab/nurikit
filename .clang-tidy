@@ -60,6 +60,8 @@ CheckOptions:
     # types should use CamelCase for readability.
   - key: readability-function-cognitive-complexity.Threshold
     value: "45"
+  - key: readability-function-cognitive-complexity.IgnoreMacros
+    value: "true"
   - key: readability-identifier-naming.EnumConstantCase
     value: CamelCase
   - key: readability-identifier-naming.EnumConstantPrefix
