@@ -17,7 +17,6 @@
 #include <type_traits>
 
 #include <absl/base/attributes.h>
-#include <absl/container/flat_hash_map.h>
 #include <absl/log/absl_log.h>
 
 #include "nuri/core/molecule.h"
@@ -198,9 +197,6 @@ public:
   }
 
 private:
-  static absl::flat_hash_map<std::string, const MoleculeStreamFactory *> &
-  registry();
-
   static void register_for_name(const MoleculeStreamFactory *factory,
                                 std::string_view name);
 };

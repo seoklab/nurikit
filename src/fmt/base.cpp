@@ -8,10 +8,18 @@
 #include <absl/log/absl_log.h>
 
 namespace nuri {
+namespace {
+absl::flat_hash_map<std::string, const MoleculeStreamFactory *> &
+stream_factory_registry() {
+  static absl::flat_hash_map<std::string, const MoleculeStreamFactory *> ret;
+  return ret;
+}
+}  // namespace
+
 const MoleculeStreamFactory *
 MoleculeStreamFactory::find_factory(std::string_view name) {
   const absl::flat_hash_map<std::string, const MoleculeStreamFactory *> &reg =
-    registry();
+    stream_factory_registry();
 
   auto it = reg.find(name);
   if (it == reg.end()) {
@@ -39,17 +47,12 @@ bool MoleculeStreamFactory::register_factory(
 
 void MoleculeStreamFactory::register_for_name(
   const MoleculeStreamFactory *factory, std::string_view name) {
-  auto [_, inserted] = registry().insert_or_assign(name, factory);
+  auto [_, inserted] =
+    stream_factory_registry().insert_or_assign(name, factory);
   // GCOV_EXCL_START
   ABSL_LOG_IF(WARNING, !inserted)
     << "Duplicate factory name: " << name
     << ". Overwriting existing factory (is this intended?).";
   // GCOV_EXCL_STOP
-}
-
-absl::flat_hash_map<std::string, const MoleculeStreamFactory *> &
-MoleculeStreamFactory::registry() {
-  static absl::flat_hash_map<std::string, const MoleculeStreamFactory *> ret;
-  return ret;
 }
 }  // namespace nuri
