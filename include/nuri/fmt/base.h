@@ -104,6 +104,8 @@ public:
    * @return The current molecule.
    * @pre Previous call to advance() must return true, otherwise an empty
    *      molecule is returned.
+   * @note The returned molecule will be empty if the stream is at the end, or
+   *       parsing of the current molecule failed.
    */
   virtual Molecule current() const = 0;
 
