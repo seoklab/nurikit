@@ -7,12 +7,15 @@
 #define NURI_UTILS_H_
 
 #include <algorithm>
+#include <filesystem>
 #include <iterator>
+#include <string_view>
 #include <type_traits>
 #include <vector>
 
-namespace nuri {
+#include <absl/base/optimization.h>
 
+namespace nuri {
 namespace internal {
   // Use of std::underlying_type_t on non-enum types is UB until C++20.
 
@@ -175,7 +178,7 @@ typename std::vector<T, Alloc>::iterator erase_first(std::vector<T, Alloc> &c,
                                                      Pred pred) {
   auto it = std::find_if(c.begin(), c.end(), pred);
   if (it != c.end()) {
-    c.erase(it);
+    return c.erase(it);
   }
   return it;
 }
@@ -186,6 +189,21 @@ void mask_to_map(Container &mask) {
   for (int i = 0; i < mask.size(); ++i) {
     mask[i] = mask[i] ? idx++ : -1;
   }
+}
+
+template <typename Derived, typename Base, typename Del>
+std::unique_ptr<Derived, Del>
+static_unique_ptr_cast(std::unique_ptr<Base, Del> &&p) noexcept {
+  auto d = static_cast<Derived *>(p.release());
+  return std::unique_ptr<Derived, Del>(d, std::forward<Del>(p.get_deleter()));
+}
+
+inline std::string_view extension_no_dot(const std::filesystem::path &ext) {
+  const std::string_view ext_view = ext.native();
+  if (ABSL_PREDICT_TRUE(!ext_view.empty())) {
+    return ext_view.substr(1);
+  }
+  return ext_view;
 }
 }  // namespace nuri
 

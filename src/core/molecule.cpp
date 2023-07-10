@@ -51,6 +51,7 @@ AtomData::AtomData(const Element &element, int implicit_hydrogens,
 void Molecule::clear() noexcept {
   graph_.clear();
   conformers_.clear();
+  name_.clear();
 }
 
 void Molecule::erase_hydrogens() {
@@ -58,7 +59,7 @@ void Molecule::erase_hydrogens() {
   for (int i = 0; i < num_atoms(); ++i) {
     auto hydrogen = mutable_atom(i);
     if (hydrogen.data().atomic_number() == 1) {
-      m.erase_atom(i);
+      m.mark_atom_erase(i);
       for (auto nei: hydrogen) {
         AtomData &data = nei.dst().data();
         data.set_implicit_hydrogens(data.implicit_hydrogens() + 1);
@@ -370,11 +371,8 @@ namespace {
               });
   }
 
-  const Element &emulated_element(Molecule::Atom atom) {
-    const int emulated_z =
-      atom.data().atomic_number() - atom.data().formal_charge();
-
-    const Element *elem = PeriodicTable::get().find_element(emulated_z);
+  const Element &effective_element_force_unwrap(Molecule::Atom atom) {
+    const Element *elem = effective_element(atom);
     if (ABSL_PREDICT_FALSE(elem == nullptr)) {
       ABSL_LOG(WARNING)
         << "Unexpected atomic number & formal charge combination: "
@@ -382,12 +380,11 @@ namespace {
         << ". The result may be incorrect.";
       elem = &atom.data().element();
     }
-
     return *elem;
   }
 
   int octet_valence(Molecule::Atom atom) {
-    const Element &elem = emulated_element(atom);
+    const Element &elem = effective_element_force_unwrap(atom);
 
     const int val_electrons = elem.valence_electrons(),
               octet_valence = val_electrons <= 4 ? val_electrons
@@ -543,15 +540,13 @@ namespace {
       mark_aromatic(graph, mol, rings, valences, circuit_rank);
     }
 
-    // NOLINTNEXTLINE(readability-use-anyofallof)
-    for (auto bond: graph.edges()) {
-      if (bond.data().order() == constants::kAromaticBond
-          && !bond.data().is_aromatic()) {
-        ABSL_LOG(WARNING) << "Bond order of non-aromatic bond " << bond.src()
-                          << " - " << bond.dst() << " is set aromatic";
-        return false;
-      }
-    }
+    ABSL_LOG_IF(INFO, std::any_of(graph.edge_begin(), graph.edge_end(),
+                                  [](Molecule::Bond bond) {
+                                    return bond.data().order()
+                                             == constants::kAromaticBond
+                                           && !bond.data().is_aromatic();
+                                  }))
+      << "Bond order of non-aromatic bond is set aromatic; is this intended?";
 
     return true;
   }
@@ -595,8 +590,13 @@ namespace {
     constants::Hybridization hyb = from_degree(total_degree, nbe);
     if (hyb == constants::kSP3 && atom.data().is_conjugated()) {
       hyb = constants::kSP2;
-      if (atom.data().is_aromatic() && sum_bond_order(atom) == 4
-          && nbe % 2 != 0) {
+      if (nbe > 0
+          && std ::any_of(atom.begin(), atom.end(),
+                          [](Molecule::Neighbor nei) {
+                            return nei.edge_data().order()
+                                   == constants::kAromaticBond;
+                          })
+          && octet_valence(atom) < total_valence) {
         // Pyrrole, etc.
         --nbe;
       }
@@ -604,9 +604,9 @@ namespace {
 
     // Octet verification
     const int total_valence_electrons = nbe + 2 * total_valence;
-    const Element &emulated = emulated_element(atom);
+    const Element &effective = effective_element_force_unwrap(atom);
     int max_valence;
-    switch (emulated.period()) {
+    switch (effective.period()) {
     case 1:
       max_valence = 2;
       break;
@@ -614,7 +614,7 @@ namespace {
       max_valence = 8;
       break;
     default:
-      max_valence = emulated.lanthanide() || emulated.actinide() ? 32 : 18;
+      max_valence = effective.lanthanide() || effective.actinide() ? 32 : 18;
       break;
     }
 
@@ -630,7 +630,7 @@ namespace {
     if (total_degree <= 1) {
       atom.data().set_hybridization(
         static_cast<constants::Hybridization>(total_degree));
-    } else if (emulated.main_group()) {
+    } else if (effective.main_group()) {
       atom.data().set_hybridization(hyb);
     } else {
       // Assume non-main-group atoms does not have lone pairs
@@ -746,73 +746,43 @@ bool MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
     return false;
   }
 
-  const std::pair<int, int> ends = std::minmax(src, dst);
-  auto [it, inserted] = new_bonds_.insert({ ends, bond });
-  if (ABSL_PREDICT_FALSE(!inserted)) {
-    return false;
-  }
-  if (src < mol().num_atoms() && dst < mol().num_atoms()
-      && ABSL_PREDICT_FALSE(mol().graph_.find_edge(src, dst)
-                            != mol().graph_.edge_end())) {
-    new_bonds_.erase(it);
+  if (mol().graph_.find_edge(src, dst) != mol().graph_.edge_end()) {
     return false;
   }
 
+  mol().graph_.add_edge(src, dst, bond);
   return true;
 }
 
-void MoleculeMutator::erase_bond(int src, int dst) {
+void MoleculeMutator::mark_bond_erase(int src, int dst) {
   if (ABSL_PREDICT_FALSE(src == dst)) {
     return;
   }
 
-  erased_bonds_.push_back(std::minmax(src, dst));
+  erased_bonds_.push_back({ src, dst });
 }
 
 BondData *MoleculeMutator::bond_data(int src, int dst) {
-  auto bit = mol_->find_mutable_bond(src, dst);
-  if (bit != mol_->bond_end()) {
-    return &bit->data();
-  }
-  auto it = new_bonds_.find({ src, dst });
-  if (it != new_bonds_.end()) {
-    return &it->second;
-  }
-  return nullptr;
+  auto bit = mol().find_mutable_bond(src, dst);
+  return bit != mol().bond_end() ? &bit->data() : nullptr;
 }
 
-int MoleculeMutator::num_atoms() const {
-  return next_atom_idx() - static_cast<int>(erased_atoms_.size());
-}
-
-void MoleculeMutator::discard() noexcept {
-  new_atoms_.clear();
+void MoleculeMutator::discard_erasure() noexcept {
   erased_atoms_.clear();
-
-  new_bonds_.clear();
   erased_bonds_.clear();
 }
 
-void MoleculeMutator::accept() noexcept {
+void MoleculeMutator::finalize() noexcept {
   Molecule::GraphType &g = mol().graph_;
   const int old_size = mol().num_atoms();
 
   // As per the spec, the order is:
-
-  // 1. Add atoms
-  g.add_node(new_atoms_.begin(), new_atoms_.end());
-
-  // 2. Add bonds
-  for (auto &&[idxs, data]: new_bonds_) {
-    g.add_edge(idxs.first, idxs.second, data);
-  }
-
-  // 3. Erase bonds
+  // 1. Erase bonds
   for (const std::pair<int, int> &ends: erased_bonds_) {
     g.erase_edge_between(ends.first, ends.second);
   }
 
-  // 4. Erase atoms
+  // 2. Erase atoms
   auto [last, map] = g.erase_nodes(erased_atoms_.begin(), erased_atoms_.end());
 
   // Update coordinates
@@ -842,26 +812,11 @@ void MoleculeMutator::accept() noexcept {
   }
 
   if (sanitize_) {
-    ABSL_LOG_IF(ERROR, !mol_->sanitize(conformer_idx_))
+    ABSL_LOG_IF(WARNING, !mol().sanitize(conformer_idx_))
       << "Molecule sanitization failed!";
   }
 
-  // Update rotable flags
-  for (auto bond: mol_->graph_.edges()) {
-    auto &d = bond.data();
-    d.set_rotable(!d.is_ring_bond() && !d.is_conjugated()
-                  && d.order() <= constants::kSingleBond);
-  }
-
-  discard();
-}
-
-int MoleculeMutator::next_atom_idx() const {
-  return mol().num_atoms() + static_cast<int>(new_atoms_.size());
-}
-
-int sum_bond_order(Molecule::Atom atom) {
-  return sum_bond_order_impl(atom, true);
+  discard_erasure();
 }
 
 int count_hydrogens(Molecule::Atom atom) {
@@ -872,5 +827,15 @@ int count_hydrogens(Molecule::Atom atom) {
     }
   }
   return count;
+}
+
+int sum_bond_order(Molecule::Atom atom) {
+  return sum_bond_order_impl(atom, true);
+}
+
+const Element *effective_element(Molecule::Atom atom) {
+  const int effective_z =
+    atom.data().atomic_number() - atom.data().formal_charge();
+  return PeriodicTable::get().find_element(effective_z);
 }
 }  // namespace nuri

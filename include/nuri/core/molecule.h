@@ -7,13 +7,13 @@
 #define NURI_CORE_MOLECULE_H_
 
 #include <iterator>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include <absl/base/optimization.h>
-#include <absl/container/flat_hash_set.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
@@ -242,6 +242,8 @@ inline bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept {
 
 class BondData {
 public:
+  BondData(): BondData(constants::kSingleBond) { }
+
   explicit BondData(constants::BondOrder order)
     : order_(order), flags_(static_cast<BondFlags>(0)), length_(0) { }
 
@@ -381,6 +383,10 @@ public:
   template <class Iterator,
             class = internal::enable_if_compatible_iter_t<Iterator, AtomData>>
   Molecule(Iterator begin, Iterator end);
+
+  std::string &name() { return name_; }
+
+  const std::string &name() const { return name_; }
 
   /**
    * @brief Check if the molecule has any atoms.
@@ -735,6 +741,7 @@ private:
 
   GraphType graph_;
   std::vector<MatrixX3d> conformers_;
+  std::string name_;
   int circuit_rank_;
   bool was_valid_;
 };
@@ -742,28 +749,25 @@ private:
 /**
  * @brief A class to mutate a molecule.
  *
- * The order of the mutations does not effect the result. The mutations are
- * applied in the following order **regardless of the order of the method
- * calls**:
+ * Atom and bond addition is directly applied to the molecule, but atom and bond
+ * erasure is delayed until the `finalize()` method is called. This is because
+ * the erasure of atoms might change the atom indices of the remaining atoms,
+ * and might give unexpected results if the erasure is done before any other
+ * mutations. The erasures will be applied in this order:
  *
- * 1. Add atoms,
- * 2. Add bonds,
- * 3. Erase bonds, and
- * 4. Erase atoms.
+ * 1. Bond erasures.
+ * 2. Atom erasures.
  *
- * This is because the removal of atoms might change the atom indices of the
- * remaining atoms, thus giving unexpected results if the removal is done before
- * any other mutations.
+ * If `finalize()` method is not explicitly called, the destructor will
+ * automatically call it.
  *
- * The mutations are applied when the `accept()` method is called. If the
- * method is not explicitly called, the destructor will automatically call it.
- *
- * Conformers of molecules will resize to the new number of atoms, but currently
- * there is no way to specify the new positions of the added atoms. Assign the
- * new positions manually after the mutation if necessary.
+ * Conformers of molecules will resize to the new number of atoms also at the
+ * `finalize()` call. Currently, there is no way to specify the new positions of
+ * the added atoms. Assign the new positions manually after the mutation if
+ * necessary.
  *
  * @note Having multiple instances of this class for the same molecule might
- *       result in an inconsistent bond addition/removal.
+ *       result in an inconsistent state.
  */
 class MoleculeMutator {
 public:
@@ -771,11 +775,11 @@ public:
    * @brief Construct a new MoleculeMutator object
    *
    * @param mol The molecule to mutate.
-   * @param sanitize If `true`, sanitize the molecule at accept() call.
+   * @param sanitize If `true`, sanitize the molecule at finalize() call.
    * @param sanitize_with If non-negative, use bond angles and lengths of the
    *        specified conformer to fix chemical errors. Otherwise, only the
    *        graph is used. *Unimplemented, currently a no-op.*
-   * @sa sanitize(), accept()
+   * @sa sanitize(), finalize()
    */
   MoleculeMutator(Molecule &mol, bool sanitize = true, int sanitize_with = -1)
     : mol_(&mol), conformer_idx_(sanitize_with), sanitize_(sanitize) { }
@@ -786,18 +790,14 @@ public:
   MoleculeMutator(MoleculeMutator &&) noexcept = default;
   MoleculeMutator &operator=(MoleculeMutator &&) noexcept = default;
 
-  ~MoleculeMutator() noexcept { accept(); }
+  ~MoleculeMutator() noexcept { finalize(); }
 
   /**
    * @brief Add an atom to the molecule.
    * @param atom The data of the atom to add.
    * @return The index of the added atom.
    */
-  int add_atom(const AtomData &atom) {
-    const int ret = next_atom_idx();
-    new_atoms_.push_back(atom);
-    return ret;
-  }
+  int add_atom(const AtomData &atom) { return mol().graph_.add_node(atom); }
 
   /**
    * @brief Add an atom to the molecule.
@@ -807,63 +807,54 @@ public:
   int add_atom(const Molecule::Atom &atom) { return add_atom(atom.data()); }
 
   /**
-   * @brief Erase an atom from the molecule.
-   * @param atom_idx Index of the atom to erase, after all atom additions.
+   * @brief Mark an atom to be erased.
+   * @param atom_idx Index of the atom to erase, after all additions.
    * @note The behavior is undefined if the atom index is out of range at the
-   *       moment of calling `accept()`.
+   *       moment of calling `finalize()`.
    */
-  void erase_atom(int atom_idx) { erased_atoms_.insert(atom_idx); }
+  void mark_atom_erase(int atom_idx) { erased_atoms_.push_back(atom_idx); }
 
   /**
    * @brief Get data of an atom.
    * @param atom_idx Index of the atom after all atom additions, but before any
    *                 erasures.
-   * @note The behavior is undefined if the atom index is out of range at the
-   *       moment of calling `accept()`.
+   * @note The behavior is undefined if the atom index is out of range.
    */
   AtomData &atom_data(int atom_idx) {
-    const int new_idx = atom_idx - mol_->num_atoms();
-    if (new_idx < 0) {
-      return mol_->mutable_atom(atom_idx).data();
-    }
-    return new_atoms_[new_idx];
+    return mol().graph_.node(atom_idx).data();
   }
 
   /**
    * @brief Add a bond to the molecule.
-   * @param src Index of the source atom of the bond, after all atom additions.
-   * @param dst Index of the destination atom of the bond, after all atom
-   *            additions.
+   * @param src Index of the source atom of the bond.
+   * @param dst Index of the destination atom of the bond.
    * @param bond The data of the bond to add.
    * @return `true` if the bond was added, `false` if the bond already exists.
-   * @note Implementation detail: src, dst are swapped if src > dst.
+   * @note The behavior is undefined if any of the atom indices is out of range.
    */
   bool add_bond(int src, int dst, const BondData &bond);
 
   /**
    * @brief Add a bond to the molecule.
-   * @param src Index of the source atom of the bond, after all atom additions.
-   * @param dst Index of the destination atom of the bond, after all atom
-   *            additions.
-   * @param bond The bond to add.
+   * @param src Index of the source atom of the bond.
+   * @param dst Index of the destination atom of the bond.
+   * @param bond The bond to copy the data from.
    * @return `true` if the bond was added, `false` if the bond already exists.
-   * @note Implementation detail: src, dst are swapped if src > dst.
+   * @note The behavior is undefined if any of the atom indices is out of range.
    */
   bool add_bond(int src, int dst, const Molecule::Bond &bond) {
     return add_bond(src, dst, bond.data());
   }
 
   /**
-   * @brief Erase a bond from the molecule.
-   * @param src Index of the source atom of the bond, after all atom additions.
-   * @param dst Index of the destination atom of the bond, after all atom
-   *            additions.
+   * @brief Mark a bond to be erased.
+   * @param src Index of the source atom of the bond, after all additions.
+   * @param dst Index of the destination atom of the bond, after all additions.
    * @note The behavior is undefined if any of the atom indices is out of range,
-   *       **at the momenet of `accept()` call**. This is a no-op if the bond
-   *       does not exist, also **at the moment of `accept()` call**.
-   * @note Implementation detail: src, dst are swapped if src > dst.
+   *       at the momenet of `finalize()` call. This is a no-op if the bond does
+   *       not exist, also at the moment of `finalize()` call.
    */
-  void erase_bond(int src, int dst);
+  void mark_bond_erase(int src, int dst);
 
   /**
    * @brief Get data of a bond.
@@ -875,37 +866,28 @@ public:
    */
   BondData *bond_data(int src, int dst);
 
-  /**
-   * @brief Get the number of atoms in the molecule after the mutation.
-   *
-   * @return The number of atoms in the molecule after the mutation.
-   */
-  int num_atoms() const;
-
   bool &sanitize() { return sanitize_; }
 
   bool sanitize() const { return sanitize_; }
 
   /**
-   * @brief Cancel all pending changes.
-   * @note This effectively resets the mutator to the state after construction.
+   * @brief Cancel all pending atom and bond removals.
+   *
+   * This effectively resets the mutator to the state after construction.
    */
-  void discard() noexcept;
+  void discard_erasure() noexcept;
 
   /**
-   * @brief Apply all changes made to the molecule.
-   * @note The mutator internally discard() all changes after the call. Thus,
-   *       it's a no-op to call this method multiple times.
+   * @brief Finalize the mutation.
+   * @note The mutator internally calls discard_erasure() after applying
+   *       changes. Thus, it's a no-op to call this method multiple times.
    * @sa Molecule::sanitize()
    *
-   * This will effectively call Molecule::sanitize() unless the mutator was
-   * created with `sanitize = false`.
+   * This will effectively call Molecule::sanitize() unless sanitize() == false.
    */
-  void accept() noexcept;
+  void finalize() noexcept;
 
 private:
-  int next_atom_idx() const;
-
   // GCOV_EXCL_START
   Molecule &mol() noexcept {
     ABSL_ASSUME(mol_ != nullptr);
@@ -920,10 +902,7 @@ private:
 
   Molecule *mol_;
 
-  std::vector<AtomData> new_atoms_;
-  absl::flat_hash_set<int> erased_atoms_;
-
-  absl::flat_hash_map<std::pair<int, int>, BondData> new_bonds_;
+  std::vector<int> erased_atoms_;
   std::vector<std::pair<int, int>> erased_bonds_;
 
   int conformer_idx_;
@@ -969,6 +948,15 @@ extern int count_hydrogens(Molecule::Atom atom);
  * @return Total bond order of the atom.
  */
 extern int sum_bond_order(Molecule::Atom atom);
+
+/**
+ * @brief Get "effective" element of the atom.
+ * @param atom An atom.
+ * @return "Effective" element of the atom: the returned element has atomic
+ *         number of (original atomic number) - (formal charge). If the
+ *         resulting atomic number is out of range, returns nullptr.
+ */
+extern const Element *effective_element(Molecule::Atom atom);
 
 /* Important algorithms */
 

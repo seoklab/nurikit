@@ -916,7 +916,10 @@ private:
     if (it != src_adjs.end()) {
       ret = it->eid;
       src_adjs.erase(it);
-      erase_first(adj_list_[dst], pred_gen(src));
+
+      std::vector<AdjEntry> &dst_adjs = adj_list_[dst];
+      dst_adjs.erase(
+        std::find_if(dst_adjs.begin(), dst_adjs.end(), pred_gen(src)));
     }
 
     return ret;
