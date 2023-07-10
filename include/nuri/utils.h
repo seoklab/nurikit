@@ -16,7 +16,6 @@
 #include <absl/base/optimization.h>
 
 namespace nuri {
-
 namespace internal {
   // Use of std::underlying_type_t on non-enum types is UB until C++20.
 
