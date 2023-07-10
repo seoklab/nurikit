@@ -8,6 +8,18 @@
 #include <absl/log/absl_log.h>
 
 namespace nuri {
+const MoleculeStreamFactory *
+MoleculeStreamFactory::find_factory(std::string_view name) {
+  const absl::flat_hash_map<std::string, const MoleculeStreamFactory *> &reg =
+    registry();
+
+  auto it = reg.find(name);
+  if (it == reg.end()) {
+    return nullptr;
+  }
+  return it->second;
+}
+
 bool MoleculeStreamFactory::register_factory(
   std::unique_ptr<MoleculeStreamFactory> factory,
   const std::vector<std::string> &names) {

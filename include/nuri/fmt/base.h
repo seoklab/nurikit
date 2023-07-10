@@ -156,16 +156,7 @@ public:
    * @return A pointer to the factory instance for the given format name, or
    *         nullptr if no factory is registered for the given name.
    */
-  static const MoleculeStreamFactory *find_factory(std::string_view name) {
-    const absl::flat_hash_map<std::string, const MoleculeStreamFactory *> &reg =
-      registry();
-
-    auto it = reg.find(name);
-    if (it == reg.end()) {
-      return nullptr;
-    }
-    return it->second;
-  }
+  static const MoleculeStreamFactory *find_factory(std::string_view name);
 
   /**
    * @brief Register the factory for the given format name(s).
@@ -207,11 +198,11 @@ public:
   }
 
 private:
-  static void register_for_name(const MoleculeStreamFactory *factory,
-                                std::string_view name);
-
   static absl::flat_hash_map<std::string, const MoleculeStreamFactory *> &
   registry();
+
+  static void register_for_name(const MoleculeStreamFactory *factory,
+                                std::string_view name);
 };
 
 template <class SourceStream, class Stream = MoleculeStream>
