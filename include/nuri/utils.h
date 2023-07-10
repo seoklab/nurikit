@@ -191,11 +191,11 @@ void mask_to_map(Container &mask) {
   }
 }
 
-template <typename Derived, typename Base, typename Del>
-std::unique_ptr<Derived, Del>
-static_unique_ptr_cast(std::unique_ptr<Base, Del> &&p) noexcept {
+template <typename Derived, typename Base>
+std::unique_ptr<Derived>
+static_unique_ptr_cast(std::unique_ptr<Base> &&p) noexcept {
   auto d = static_cast<Derived *>(p.release());
-  return std::unique_ptr<Derived, Del>(d, std::forward<Del>(p.get_deleter()));
+  return std::unique_ptr<Derived>(d);
 }
 
 inline std::string_view extension_no_dot(const std::filesystem::path &ext) {
