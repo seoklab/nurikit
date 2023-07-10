@@ -29,15 +29,8 @@
 
 namespace nuri {
 bool SmilesStream::advance() {
-  if (!is_->good()) {
-    return false;
-  }
-
-  do {
-    std::getline(*is_, block_);
-  } while (block_.empty() && is_->good());
-
-  return !block_.empty();
+  while (std::getline(*is_, block_) && block_.empty()) { }
+  return *is_ && !block_.empty();
 }
 
 const bool SmilesStreamFactory::kRegistered =
