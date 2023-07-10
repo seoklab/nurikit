@@ -201,6 +201,14 @@ private:
                                 std::string_view name);
 };
 
+template <class MoleculeStreamImpl>
+class DefaultStreamFactoryImpl: public MoleculeStreamFactory {
+public:
+  std::unique_ptr<MoleculeStream> from_stream(std::istream &is) const override {
+    return std::make_unique<MoleculeStreamImpl>(is);
+  }
+};
+
 template <class SourceStream, class Stream = MoleculeStream>
 class MoleculeStreamWrapper {
 public:

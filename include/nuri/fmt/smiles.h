@@ -43,20 +43,7 @@ private:
   std::string line_;
 };
 
-class SmileStreamFactory: public MoleculeStreamFactory {
-public:
-  /**
-   * @brief Read a SMILES string from a stream and return a molecule.
-   *
-   * @param is the stream to read from.
-   * @return The stream object that reads the file and returns molecules.
-   * @sa read_file()
-   * @note The returned stream object reads \p is while \p is `.good()` is true.
-   */
-  std::unique_ptr<MoleculeStream> from_stream(std::istream &is) const override {
-    return std::make_unique<SmilesStream>(is);
-  }
-
+class SmilesStreamFactory: public DefaultStreamFactoryImpl<SmilesStream> {
 private:
   static const bool kRegistered ABSL_ATTRIBUTE_UNUSED;
 };

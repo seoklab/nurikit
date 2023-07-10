@@ -40,9 +40,9 @@ bool SmilesStream::advance() {
   return !line_.empty();
 }
 
-const bool SmileStreamFactory::kRegistered =
+const bool SmilesStreamFactory::kRegistered =
   MoleculeStreamFactory::register_factory(
-    std::make_unique<SmileStreamFactory>(), { "smi", "smiles" });
+    std::make_unique<SmilesStreamFactory>(), { "smi", "smiles" });
 
 namespace {
 namespace x3 = boost::spirit::x3;
