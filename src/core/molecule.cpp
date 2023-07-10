@@ -59,7 +59,7 @@ void Molecule::erase_hydrogens() {
   for (int i = 0; i < num_atoms(); ++i) {
     auto hydrogen = mutable_atom(i);
     if (hydrogen.data().atomic_number() == 1) {
-      m.erase_atom(i);
+      m.mark_atom_erase(i);
       for (auto nei: hydrogen) {
         AtomData &data = nei.dst().data();
         data.set_implicit_hydrogens(data.implicit_hydrogens() + 1);
@@ -754,7 +754,7 @@ bool MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
   return true;
 }
 
-void MoleculeMutator::erase_bond(int src, int dst) {
+void MoleculeMutator::mark_bond_erase(int src, int dst) {
   if (ABSL_PREDICT_FALSE(src == dst)) {
     return;
   }

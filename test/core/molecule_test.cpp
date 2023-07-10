@@ -269,9 +269,9 @@ TEST_F(MoleculeTest, EraseAtomsTest) {
   Molecule mol1(mol_);
   {
     auto m = mol1.mutator(false);
-    m.erase_atom(9);
-    m.erase_atom(10);
-    m.erase_atom(11);
+    m.mark_atom_erase(9);
+    m.mark_atom_erase(10);
+    m.mark_atom_erase(11);
   }
   EXPECT_EQ(mol1.num_atoms(), 9);
   EXPECT_EQ(mol1.num_bonds(), 9);
@@ -284,9 +284,9 @@ TEST_F(MoleculeTest, EraseAtomsTest) {
   Molecule mol2(mol_);
   {
     auto m = mol2.mutator(false);
-    m.erase_atom(0);
-    m.erase_atom(1);
-    m.erase_atom(2);
+    m.mark_atom_erase(0);
+    m.mark_atom_erase(1);
+    m.mark_atom_erase(2);
   }
   EXPECT_EQ(mol2.num_atoms(), 9);
   EXPECT_EQ(mol2.num_bonds(), 4);
@@ -299,9 +299,9 @@ TEST_F(MoleculeTest, EraseAtomsTest) {
   Molecule mol3(mol_);
   {
     auto m = mol3.mutator(false);
-    m.erase_atom(0);
-    m.erase_atom(4);
-    m.erase_atom(9);
+    m.mark_atom_erase(0);
+    m.mark_atom_erase(4);
+    m.mark_atom_erase(9);
   }
   EXPECT_EQ(mol3.num_atoms(), 9);
   EXPECT_EQ(mol3.num_bonds(), 5);
@@ -318,8 +318,8 @@ TEST_F(MoleculeTest, EraseBondsTest) {
   {
     // All nop
     auto m = mol1.mutator(false);
-    m.erase_bond(8, 8);
-    m.erase_bond(8, 9);
+    m.mark_bond_erase(8, 8);
+    m.mark_bond_erase(8, 9);
   }
   EXPECT_EQ(mol1.num_atoms(), 12);
   EXPECT_EQ(mol1.num_bonds(), 11);
@@ -327,7 +327,7 @@ TEST_F(MoleculeTest, EraseBondsTest) {
   Molecule mol2(mol_);
   {
     auto m = mol2.mutator(false);
-    m.erase_bond(0, 1);
+    m.mark_bond_erase(0, 1);
   }
   EXPECT_EQ(mol2.num_atoms(), 12);
   EXPECT_EQ(mol2.num_bonds(), 10);
@@ -335,9 +335,9 @@ TEST_F(MoleculeTest, EraseBondsTest) {
   Molecule mol3(std::move(mol_));
   {
     auto m = mol3.mutator(false);
-    m.erase_bond(0, 1);
-    m.erase_bond(8, 9);  // nop
-    m.erase_bond(3, 2);
+    m.mark_bond_erase(0, 1);
+    m.mark_bond_erase(8, 9);  // nop
+    m.mark_bond_erase(3, 2);
   }
   EXPECT_EQ(mol3.num_atoms(), 12);
   EXPECT_EQ(mol3.num_bonds(), 9);

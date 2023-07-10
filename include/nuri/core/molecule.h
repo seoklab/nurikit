@@ -807,12 +807,12 @@ public:
   int add_atom(const Molecule::Atom &atom) { return add_atom(atom.data()); }
 
   /**
-   * @brief Erase an atom from the molecule.
-   * @param atom_idx Index of the atom to erase, after all atom additions.
+   * @brief Mark an atom to be erased.
+   * @param atom_idx Index of the atom to erase, after all additions.
    * @note The behavior is undefined if the atom index is out of range at the
    *       moment of calling `finalize()`.
    */
-  void erase_atom(int atom_idx) { erased_atoms_.push_back(atom_idx); }
+  void mark_atom_erase(int atom_idx) { erased_atoms_.push_back(atom_idx); }
 
   /**
    * @brief Get data of an atom.
@@ -826,9 +826,8 @@ public:
 
   /**
    * @brief Add a bond to the molecule.
-   * @param src Index of the source atom of the bond, after all atom additions.
-   * @param dst Index of the destination atom of the bond, after all atom
-   *            additions.
+   * @param src Index of the source atom of the bond.
+   * @param dst Index of the destination atom of the bond.
    * @param bond The data of the bond to add.
    * @return `true` if the bond was added, `false` if the bond already exists.
    * @note The behavior is undefined if any of the atom indices is out of range.
@@ -837,10 +836,9 @@ public:
 
   /**
    * @brief Add a bond to the molecule.
-   * @param src Index of the source atom of the bond, after all atom additions.
-   * @param dst Index of the destination atom of the bond, after all atom
-   *            additions.
-   * @param bond The bond to add.
+   * @param src Index of the source atom of the bond.
+   * @param dst Index of the destination atom of the bond.
+   * @param bond The bond to copy the data from.
    * @return `true` if the bond was added, `false` if the bond already exists.
    * @note The behavior is undefined if any of the atom indices is out of range.
    */
@@ -849,15 +847,14 @@ public:
   }
 
   /**
-   * @brief Erase a bond from the molecule.
-   * @param src Index of the source atom of the bond, after all atom additions.
-   * @param dst Index of the destination atom of the bond, after all atom
-   *            additions.
+   * @brief Mark a bond to be erased.
+   * @param src Index of the source atom of the bond, after all additions.
+   * @param dst Index of the destination atom of the bond, after all additions.
    * @note The behavior is undefined if any of the atom indices is out of range,
-   *       **at the momenet of `finalize()` call**. This is a no-op if the bond
-   *       does not exist, also **at the moment of `finalize()` call**.
+   *       at the momenet of `finalize()` call. This is a no-op if the bond does
+   *       not exist, also at the moment of `finalize()` call.
    */
-  void erase_bond(int src, int dst);
+  void mark_bond_erase(int src, int dst);
 
   /**
    * @brief Get data of a bond.
