@@ -5,6 +5,7 @@
 
 #include "nuri/fmt/base.h"
 
+#include <absl/container/flat_hash_map.h>
 #include <absl/log/absl_log.h>
 
 namespace nuri {
