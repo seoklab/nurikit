@@ -1,6 +1,6 @@
 # nurikit
 
-[![tests](https://github.com/seoklab/nurikit/actions/workflows/main-check.yaml/badge.svg)](https://github.com/seoklab/nurikit/actions/workflows/main-check.yaml) [![codecov](https://codecov.io/gh/seoklab/nurikit/branch/main/graph/badge.svg?token=5X6HJTVA5K)](https://codecov.io/gh/seoklab/nurikit) [![PyPI version](https://badge.fury.io/py/nurikit.svg)](https://badge.fury.io/py/nurikit)
+[![tests](https://github.com/seoklab/nurikit/actions/workflows/main-test.yaml/badge.svg)](https://github.com/seoklab/nurikit/actions/workflows/main-test.yaml) [![codecov](https://codecov.io/gh/seoklab/nurikit/branch/main/graph/badge.svg?token=5X6HJTVA5K)](https://codecov.io/gh/seoklab/nurikit) [![PyPI version](https://badge.fury.io/py/nurikit.svg?github-dont-cache=true)](https://badge.fury.io/py/nurikit)
 
 ## Introduction
 
