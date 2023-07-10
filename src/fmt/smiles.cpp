@@ -34,15 +34,14 @@ bool SmilesStream::advance() {
   }
 
   do {
-    std::getline(*is_, line_);
-  } while (line_.empty() && is_->good());
+    std::getline(*is_, block_);
+  } while (block_.empty() && is_->good());
 
-  return !line_.empty();
+  return !block_.empty();
 }
 
 const bool SmilesStreamFactory::kRegistered =
-  MoleculeStreamFactory::register_factory(
-    std::make_unique<SmilesStreamFactory>(), { "smi", "smiles" });
+  register_stream_factory<SmilesStreamFactory>({ "smi", "smiles" });
 
 namespace {
 namespace x3 = boost::spirit::x3;
@@ -460,7 +459,7 @@ void update_implicit_hydrogens(Molecule::Atom atom, AtomData &data) {
 
 }  // namespace
 
-Molecule read_smiles(std::string_view smiles) {
+Molecule read_smiles(const std::string &smiles) {
   Molecule mol;
 
   // Context variables

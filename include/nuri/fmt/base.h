@@ -130,6 +130,28 @@ Stream &operator>>(Stream &stream, Molecule &mol) {
   return stream;
 }
 
+template <class Block, Molecule (*parser)(const Block &)>
+class DefaultStreamImpl: public MoleculeStream {
+public:
+  DefaultStreamImpl() = default;
+  DefaultStreamImpl(std::istream &is): is_(&is) { }
+
+  DefaultStreamImpl(const DefaultStreamImpl &) = delete;
+  DefaultStreamImpl &operator=(const DefaultStreamImpl &) = delete;
+  DefaultStreamImpl(DefaultStreamImpl &&) noexcept = default;
+  DefaultStreamImpl &operator=(DefaultStreamImpl &&) noexcept = default;
+
+  ~DefaultStreamImpl() noexcept override = default;
+
+  Molecule current() const override { return parser(block_); }
+
+protected:
+  // NOLINTBEGIN(*-non-private-member-variables-in-classes)
+  std::istream *is_;
+  Block block_;
+  // NOLINTEND(*-non-private-member-variables-in-classes)
+};
+
 class MoleculeStreamFactory {
 public:
   MoleculeStreamFactory() = default;
@@ -200,6 +222,12 @@ private:
   static void register_for_name(const MoleculeStreamFactory *factory,
                                 std::string_view name);
 };
+
+template <class StreamFactoryImpl>
+bool register_stream_factory(const std::vector<std::string> &names) {
+  return MoleculeStreamFactory::register_factory(
+    std::make_unique<StreamFactoryImpl>(), names);
+}
 
 template <class MoleculeStreamImpl>
 class DefaultStreamFactoryImpl: public MoleculeStreamFactory {
