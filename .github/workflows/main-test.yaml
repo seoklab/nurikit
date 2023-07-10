@@ -10,7 +10,7 @@ on:
     branches:
       - main
     paths:
-      - ".github/workflows/main-check.yaml"
+      - ".github/workflows/main-test.yaml"
       - ".github/workflows/_cpp-test-and-coverage.yaml"
       - "cmake/**"
       - "include/**"
