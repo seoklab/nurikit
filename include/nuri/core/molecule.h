@@ -264,11 +264,8 @@ public:
   constants::BondOrder &order() { return order_; }
 
   bool is_rotable() const {
-    return internal::check_flag(flags_, BondFlags::kRotable);
-  }
-
-  void set_rotable(bool rotable) {
-    internal::update_flag(flags_, rotable, BondFlags::kRotable);
+    return !internal::check_flag(flags_,
+                                 BondFlags::kConjugated | BondFlags::kRing);
   }
 
   bool is_ring_bond() const {
@@ -325,11 +322,10 @@ public:
 
 private:
   enum class BondFlags : uint32_t {
-    kRotable = 0x1,
-    kRing = 0x2,
-    kAromatic = 0x4,
-    kConjugated = 0x8,
-    kEConfig = 0x10,
+    kRing = 0x1,
+    kAromatic = 0x2,
+    kConjugated = 0x4,
+    kEConfig = 0x8,
   };
 
   constants::BondOrder order_;
