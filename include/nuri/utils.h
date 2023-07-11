@@ -15,6 +15,8 @@
 
 #include <absl/base/optimization.h>
 
+#include "nuri/eigen_config.h"
+
 namespace nuri {
 namespace internal {
   // Use of std::underlying_type_t on non-enum types is UB until C++20.
@@ -204,6 +206,14 @@ inline std::string_view extension_no_dot(const std::filesystem::path &ext) {
     return ext_view.substr(1);
   }
   return ext_view;
+}
+
+inline MatrixX3d stack(const std::vector<Vector3d> &vs) {
+  MatrixX3d m(vs.size(), 3);
+  for (int i = 0; i < vs.size(); ++i) {
+    m.row(i) = vs[i];
+  }
+  return m;
 }
 }  // namespace nuri
 
