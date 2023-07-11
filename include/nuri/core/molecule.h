@@ -889,7 +889,6 @@ public:
    */
   void finalize() noexcept;
 
-private:
   // GCOV_EXCL_START
   Molecule &mol() noexcept {
     ABSL_ASSUME(mol_ != nullptr);
@@ -902,6 +901,7 @@ private:
   }
   // GCOV_EXCL_STOP
 
+private:
   Molecule *mol_;
 
   std::vector<int> erased_atoms_;
