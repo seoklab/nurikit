@@ -13,7 +13,9 @@
 #include <utility>
 #include <vector>
 
+#include <absl/base/attributes.h>
 #include <absl/base/optimization.h>
+#include <absl/container/fixed_array.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
@@ -355,11 +357,12 @@ public:
   using const_neighbor_iterator = GraphType::const_adjacency_iterator;
 
   friend class MoleculeMutator;
+  friend class MoleculeSanitizer;
 
   /**
    * @brief Construct an empty Molecule object.
    */
-  Molecule() noexcept: circuit_rank_(0) { }
+  Molecule() noexcept = default;
 
   /**
    * @brief Construct a Molecule object from a range of atom data.
@@ -501,11 +504,10 @@ public:
 
   /**
    * @brief Get a MoleculeMutator object associated with the molecule.
-   * @param sanitize Passed to the constructor of MoleculeMutator.
    * @return The MoleculeMutator object to update this molecule.
    * @sa MoleculeMutator
    */
-  class MoleculeMutator mutator(bool sanitize = true);
+  class MoleculeMutator mutator();
 
   void clear() noexcept;
 
@@ -670,45 +672,41 @@ public:
   bool rotate_bond(int i, bond_id_type bid, double angle);
 
   /**
-   * @brief Fix all chemical errors in the molecule.
-   * @param use_conformer If non-negative, use bond angles and lengths of the
-   *        specified conformer to fix chemical errors. Otherwise, only the
-   *        graph is used. *Unimplemented, currently a no-op.*
-   * @return `true` if the molecule is valid after sanitization, `false` if the
-   *         molecule is still invalid after sanitization.
-   * @note This method has high overhead, and is not intended to be used in
-   *       downstream code. It is mainly used from MoleculeMutator class.
+   * @brief Update topology of the molecule.
+   *
+   * This method is safe to call multiple times, but will be automatically
+   * called from the MoleculeMutator class anyway. Thus, user code normally
+   * don't need to call this method.
+   *
+   * @note This only changes ring atom/bond flags. If the molecule is modified
+   *       in a way that changes aromaticity, the aromaticity flags should be
+   *       updated manually or by using the MoleculeSanitizer class.
    * @warning All molecule-related methods/functions assume that the molecule
-   *          is valid. If the molecule is not sanitized after the last
-   *          modification, all library code might return incorrect results. It
-   *          is the caller's responsibility to ensure that the molecule is
-   *          chemically valid before passing it to any library function, if the
-   *          molecule was not sanitized after any modification.
+   *          has valid topology data.
    */
-  bool sanitize(int use_conformer = -1);
+  void update_topology();
 
   /**
    * @brief Get size of SSSR.
    * @return The number of rings in the smallest set of smallest rings.
    */
-  int num_sssr() const { return circuit_rank_; }
+  int num_sssr() const { return num_bonds() - num_atoms() + num_fragments(); }
 
   /**
-   * @brief Set size of SSSR.
-   * @warning If the size is incorrect, all library code might return incorrect
-   *          results. It is the caller's responsibility to ensure that the size
-   *          is correct.
+   * @brief Get the ring groups of the molecule, i.e. all rings of a molecule,
+   *        merged into groups of rings that share at least one atom.
+   * @return List of the ring groups. If a ring group consists of single ring,
+   *         the atom indices form a ring in the order of the returned vector.
    */
-  void set_num_sssr(int n) { circuit_rank_ = n; }
+  const std::vector<std::vector<int>> &ring_groups() const {
+    return ring_groups_;
+  }
 
   /**
-   * @brief Observe the previous result of sanitize() call.
-   * @return `true` if the last call to sanitize() resulted in a valid molecule,
-   *         `false` otherwise.
-   * @note Calling this method before calling sanitize() is meaningless.
-   * @sa sanitize()
+   * @brief Get number of fragments (aka connected components).
+   * @return The number of fragments.
    */
-  bool was_valid() const { return was_valid_; }
+  int num_fragments() const { return num_fragments_; }
 
 private:
   Molecule(GraphType &&graph, std::vector<MatrixX3d> &&conformers) noexcept
@@ -732,8 +730,9 @@ private:
   GraphType graph_;
   std::vector<MatrixX3d> conformers_;
   std::string name_;
-  int circuit_rank_;
-  bool was_valid_;
+
+  std::vector<std::vector<int>> ring_groups_;
+  int num_fragments_;
 };
 
 /**
@@ -762,17 +761,11 @@ private:
 class MoleculeMutator {
 public:
   /**
-   * @brief Construct a new MoleculeMutator object
+   * @brief Construct a new MoleculeMutator object.
    *
    * @param mol The molecule to mutate.
-   * @param sanitize If `true`, sanitize the molecule at finalize() call.
-   * @param sanitize_with If non-negative, use bond angles and lengths of the
-   *        specified conformer to fix chemical errors. Otherwise, only the
-   *        graph is used. *Unimplemented, currently a no-op.*
-   * @sa sanitize(), finalize()
    */
-  MoleculeMutator(Molecule &mol, bool sanitize = true, int sanitize_with = -1)
-    : mol_(&mol), conformer_idx_(sanitize_with), sanitize_(sanitize) { }
+  MoleculeMutator(Molecule &mol): mol_(&mol) { }
 
   MoleculeMutator() = delete;
   MoleculeMutator(const MoleculeMutator &) = delete;
@@ -856,10 +849,6 @@ public:
    */
   BondData *bond_data(int src, int dst);
 
-  bool &sanitize() { return sanitize_; }
-
-  bool sanitize() const { return sanitize_; }
-
   /**
    * @brief Cancel all pending atom and bond removals.
    *
@@ -873,7 +862,7 @@ public:
    *       changes. Thus, it's a no-op to call this method multiple times.
    * @sa Molecule::sanitize()
    *
-   * This will effectively call Molecule::sanitize() unless sanitize() == false.
+   * This will effectively call Molecule::update_topology().
    */
   void finalize() noexcept;
 
@@ -894,23 +883,101 @@ private:
 
   std::vector<int> erased_atoms_;
   std::vector<std::pair<int, int>> erased_bonds_;
+};
 
-  int conformer_idx_;
-  bool sanitize_;
+class MoleculeSanitizer {
+public:
+  /**
+   * @brief Construct a new MoleculeSanitizer object.
+   *
+   * @param molecule The molecule to sanitize.
+   */
+  explicit MoleculeSanitizer(Molecule &molecule);
+
+  MoleculeSanitizer(MoleculeSanitizer &&) noexcept = default;
+  ~MoleculeSanitizer() noexcept = default;
+
+  MoleculeSanitizer() = delete;
+  MoleculeSanitizer(const MoleculeSanitizer &) = delete;
+  MoleculeSanitizer &operator=(const MoleculeSanitizer &) = delete;
+  MoleculeSanitizer &operator=(MoleculeSanitizer &&) noexcept = delete;
+
+  /**
+   * @brief Sanitize conjugated bonds.
+   * @return Whether the molecule was successfully sanitized.
+   */
+  ABSL_MUST_USE_RESULT bool sanitize_conjugated();
+
+  /**
+   * @brief Sanitize aromaticity.
+   * @pre Requires conjugated bonds to be sanitized. Do it manually, or call
+   *      sanitize_conjugated() first.
+   * @return Whether the molecule was successfully sanitized.
+   */
+  ABSL_MUST_USE_RESULT bool sanitize_aromaticity();
+
+  /**
+   * @brief Sanitize hybridization.
+   * @pre Requires conjugated bonds to be sanitized. Do it manually, or call
+   *      sanitize_conjugated() first.
+   * @return Whether the molecule was successfully sanitized.
+   */
+  ABSL_MUST_USE_RESULT bool sanitize_hybridization();
+
+  /**
+   * @brief Sanitize valences.
+   * @pre Requires conjugated bonds to be sanitized. Do it manually, or call
+   *      sanitize_conjugated() first.
+   * @return Whether the molecule was successfully sanitized.
+   */
+  ABSL_MUST_USE_RESULT bool sanitize_valence();
+
+  /**
+   * @brief Sanitize all.
+   *
+   * This is a shortcut for calling all of the above methods in the following
+   * order:
+   *   - sanitize_conjugated()
+   *   - sanitize_aromaticity()
+   *   - sanitize_hybridization()
+   *   - sanitize_valence()
+   *
+   * The method will return on the first failure.
+   *
+   * @return Whether the molecule was successfully sanitized.
+   */
+  ABSL_MUST_USE_RESULT bool sanitize_all() {
+    return sanitize_conjugated() && sanitize_aromaticity()
+           && sanitize_hybridization() && sanitize_valence();
+  }
+
+  Molecule &mol() noexcept {
+    ABSL_ASSUME(mol_ != nullptr);
+    return *mol_;
+  }
+
+  const Molecule &mol() const noexcept {
+    ABSL_ASSUME(mol_ != nullptr);
+    return *mol_;
+  }
+
+private:
+  Molecule *mol_;
+  absl::FixedArray<int> valences_;
 };
 
 /* Out-of-line definitions for molecule */
 
 template <class Iterator, class>
 Molecule::Molecule(Iterator begin, Iterator end): Molecule() {
-  MoleculeMutator m = mutator(false);
+  MoleculeMutator m = mutator();
   for (auto it = begin; it != end; ++it) {
     m.add_atom(*it);
   }
 }
 
-inline MoleculeMutator Molecule::mutator(bool sanitize) {
-  return MoleculeMutator(*this, sanitize);
+inline MoleculeMutator Molecule::mutator() {
+  return MoleculeMutator(*this);
 }
 
 /* Utility functions */

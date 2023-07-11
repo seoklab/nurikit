@@ -18,6 +18,8 @@
 #include "nuri/fmt/base.h"
 
 namespace {
+using nuri::MoleculeSanitizer;
+
 void print_mol(const nuri::Molecule &mol) {
   for (auto atom: mol) {
     std::cout << atom.data().element_symbol() << " ";
@@ -48,14 +50,18 @@ public:
   void test_error_mol() {
     ASSERT_TRUE(ss_.advance());
     mol_ = ss_.current();
-    EXPECT_FALSE(mol_.was_valid());
+
+    MoleculeSanitizer sanitizer(mol_);
+    EXPECT_FALSE(sanitizer.sanitize_all());
   }
 
   void test_next_mol(std::string_view name, int natoms, int nbonds) {
     ASSERT_TRUE(ss_.advance());
     mol_ = ss_.current();
 
-    ASSERT_TRUE(mol_.was_valid());
+    MoleculeSanitizer sanitizer(mol_);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+
     EXPECT_EQ(mol_.name(), name);
     EXPECT_EQ(mol_.num_atoms(), natoms);
     EXPECT_EQ(mol_.num_bonds(), nbonds);
@@ -424,7 +430,10 @@ TEST(SmilesFactoryTest, CreationTest) {
 
   nuri::Molecule mol = ss->current();
   EXPECT_FALSE(mol.empty());
-  EXPECT_TRUE(mol.was_valid());
+
+  MoleculeSanitizer sanitizer(mol);
+  EXPECT_TRUE(sanitizer.sanitize_all());
+
   EXPECT_EQ(mol.num_atoms(), 1);
   EXPECT_EQ(mol.num_bonds(), 0);
   EXPECT_EQ(mol.atom(0).data().implicit_hydrogens(), 4);
