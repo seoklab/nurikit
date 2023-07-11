@@ -283,6 +283,8 @@ public:
   // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
   iterator end() { return iterator(); }
 
+  operator bool() const { return is_ && stream_; }
+
 private:
   SourceStream is_;
   std::unique_ptr<Stream> stream_;
@@ -347,6 +349,8 @@ public:
    */
   // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
   iterator end() { return iterator(); }
+
+  operator bool() const { return is_ && stream_; }
 
 private:
   std::ifstream is_;
