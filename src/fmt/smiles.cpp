@@ -146,7 +146,7 @@ constexpr auto update_hydrogen = [](auto &ctx) {
             h_count = char_to_int(x3::_attr(ctx).value_or('1'));
 
   ABSL_DLOG(INFO) << "Adding " << h_count << " hydrogens to atom " << last_idx;
-  mutator.atom_data(last_idx).set_implicit_hydrogens(h_count);
+  mutator.mol().atom(last_idx).data().set_implicit_hydrogens(h_count);
 };
 
 constexpr auto hydrogen = (x3::lit('H') >> -x3::digit)[update_hydrogen];
@@ -156,7 +156,7 @@ void set_charge(Ctx &ctx, bool positive, int abs_charge) {
   MoleculeMutator &mutator = x3::get<mutator_tag>(ctx);
   const int last_idx = get_last_idx(ctx),
             charge = positive ? abs_charge : -abs_charge;
-  mutator.atom_data(last_idx).set_formal_charge(charge);
+  mutator.mol().atom(last_idx).data().set_formal_charge(charge);
 
   ABSL_DLOG(INFO) << "Setting charge of atom " << last_idx << " to " << charge;
 }
@@ -206,8 +206,8 @@ bool add_bond(MoleculeMutator &mutator, const int prev, const int curr,
 
   // Automatic bond
   if (bond_repr == '\0') {
-    const AtomData &last_atom_data = mutator.atom_data(prev),
-                   &atom_data = mutator.atom_data(curr);
+    const AtomData &last_atom_data = mutator.mol().atom(prev).data(),
+                   &atom_data = mutator.mol().atom(curr).data();
     bond_data.order() = last_atom_data.is_aromatic() && atom_data.is_aromatic()
                           ? constants::kAromaticBond
                           : constants::kSingleBond;
@@ -227,7 +227,7 @@ int add_atom(Ctx &ctx, const Element *elem, int implicit_hydrogens,
   MoleculeMutator &mutator = x3::get<mutator_tag>(ctx);
 
   const int idx = mutator.add_atom(AtomData(*elem, implicit_hydrogens));
-  mutator.atom_data(idx).set_aromatic(aromatic);
+  mutator.mol().atom(idx).data().set_aromatic(aromatic);
 
   ABSL_DLOG(INFO) << "Adding " << (aromatic ? "aromatic " : "") << "atom "
                   << idx << " (" << elem->symbol() << ')';
@@ -267,7 +267,7 @@ void add_bracket_atom(Ctx &ctx, const Payload &payload, bool aromatic) {
   auto &maybe_isotope = at_c<0>(x3::_attr(ctx));
   if (maybe_isotope) {
     MoleculeMutator &mutator = x3::get<mutator_tag>(ctx);
-    mutator.atom_data(idx).set_isotope(*maybe_isotope);
+    mutator.mol().atom(idx).data().set_isotope(*maybe_isotope);
   }
 }
 
@@ -411,9 +411,9 @@ BOOST_SPIRIT_DEFINE(smiles)
 // NOLINTEND(clang-diagnostic-unneeded-internal-declaration)
 // NOLINTEND(readability-identifier-naming,clang-diagnostic-unused-template)
 
-void update_implicit_hydrogens(Molecule::Atom atom, AtomData &data) {
+void update_implicit_hydrogens(Molecule::MutableAtom atom) {
   // Required for correct bond order calculation
-  data.set_implicit_hydrogens(0);
+  atom.data().set_implicit_hydrogens(0);
 
   int sum_bo = sum_bond_order(atom), normal_valence;
 
@@ -447,7 +447,7 @@ void update_implicit_hydrogens(Molecule::Atom atom, AtomData &data) {
     normal_valence = 1;
   }
 
-  data.set_implicit_hydrogens(std::max(0, normal_valence - sum_bo));
+  atom.data().set_implicit_hydrogens(std::max(0, normal_valence - sum_bo));
 }
 
 }  // namespace
@@ -483,7 +483,7 @@ Molecule read_smiles(const std::string &smiles) {
 
   for (auto atom: mol) {
     if (atom.data().implicit_hydrogens() < 0) {
-      update_implicit_hydrogens(atom, mutator.atom_data(atom.id()));
+      update_implicit_hydrogens(atom);
     }
   }
 

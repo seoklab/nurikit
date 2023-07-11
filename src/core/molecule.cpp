@@ -308,11 +308,6 @@ void MoleculeMutator::mark_bond_erase(int src, int dst) {
   erased_bonds_.push_back({ src, dst });
 }
 
-BondData *MoleculeMutator::bond_data(int src, int dst) {
-  auto bit = mol().find_bond(src, dst);
-  return bit != mol().bond_end() ? &bit->data() : nullptr;
-}
-
 void MoleculeMutator::discard_erasure() noexcept {
   erased_atoms_.clear();
   erased_bonds_.clear();

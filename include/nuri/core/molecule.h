@@ -883,16 +883,6 @@ public:
   void mark_atom_erase(int atom_idx) { erased_atoms_.push_back(atom_idx); }
 
   /**
-   * @brief Get data of an atom.
-   * @param atom_idx Index of the atom after all atom additions, but before any
-   *                 erasures.
-   * @note The behavior is undefined if the atom index is out of range.
-   */
-  AtomData &atom_data(int atom_idx) {
-    return mol().graph_.node(atom_idx).data();
-  }
-
-  /**
    * @brief Add a bond to the molecule.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
@@ -923,16 +913,6 @@ public:
    *       not exist, also at the moment of `finalize()` call.
    */
   void mark_bond_erase(int src, int dst);
-
-  /**
-   * @brief Get data of a bond.
-   * @param src Index of the source atom of the bond
-   * @param dst Index of the destination atom of the bond
-   * @return Pointer to the bond data, or `nullptr` if the bond does not exist.
-   * @note The behavior is undefined if the atom index is out of range at the
-   *       moment of calling this method.
-   */
-  BondData *bond_data(int src, int dst);
 
   /**
    * @brief Cancel all pending atom and bond removals.
