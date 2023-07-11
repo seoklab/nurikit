@@ -56,11 +56,10 @@ void Molecule::clear() noexcept {
 
 void Molecule::erase_hydrogens() {
   MoleculeMutator m = mutator();
-  for (int i = 0; i < num_atoms(); ++i) {
-    auto hydrogen = mutable_atom(i);
-    if (hydrogen.data().atomic_number() == 1) {
-      m.mark_atom_erase(i);
-      for (auto nei: hydrogen) {
+  for (auto atom: *this) {
+    if (atom.data().atomic_number() == 1) {
+      m.mark_atom_erase(atom.id());
+      for (auto nei: atom) {
         AtomData &data = nei.dst().data();
         data.set_implicit_hydrogens(data.implicit_hydrogens() + 1);
       }
@@ -168,8 +167,8 @@ bool Molecule::rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
 }
 
 namespace {
-  using MutableAtom = Molecule::GraphType::NodeRef;
-  using MutableBond = Molecule::GraphType::EdgeRef;
+  using MutableAtom = Molecule::MutableAtom;
+  using MutableBond = Molecule::MutableBond;
 
   /*
    * Update the ring information of the molecule
@@ -310,7 +309,7 @@ void MoleculeMutator::mark_bond_erase(int src, int dst) {
 }
 
 BondData *MoleculeMutator::bond_data(int src, int dst) {
-  auto bit = mol().find_mutable_bond(src, dst);
+  auto bit = mol().find_bond(src, dst);
   return bit != mol().bond_end() ? &bit->data() : nullptr;
 }
 
@@ -434,20 +433,20 @@ namespace {
            && all_neighbors(atom) <= 3;
   }
 
-  void mark_conjugated(Molecule::GraphType &graph,
+  void mark_conjugated(Molecule &mol,
                        const std::vector<std::vector<int>> &sp2_groups) {
     for (const std::vector<int> &group: sp2_groups) {
       ABSL_DCHECK(group.size() > 2) << "Group size: " << group.size();
 
       for (const int id: group) {
-        AtomData &data = graph.node(id).data();
+        AtomData &data = mol.atom(id).data();
         data.set_conjugated(true);
       }
     }
 
-    for (auto bond: graph.edges()) {
-      if (graph.node(bond.src()).data().is_conjugated()
-          && graph.node(bond.dst()).data().is_conjugated()) {
+    for (auto bond: mol.bonds()) {
+      if (mol.atom(bond.src()).data().is_conjugated()
+          && mol.atom(bond.dst()).data().is_conjugated()) {
         bond.data().set_conjugated(true);
       }
     }
@@ -458,14 +457,14 @@ bool MoleculeSanitizer::sanitize_conjugated() {
   absl::flat_hash_set<int> candidates;
   std::vector<std::vector<int>> groups;
 
-  for (auto atom: mol().graph_) {
+  for (auto atom: mol()) {
     atom.data().set_conjugated(false);
     if (is_conjugated_candidate(atom)) {
       candidates.insert(atom.id());
     }
   }
 
-  for (auto bond: mol().graph_.edges()) {
+  for (auto bond: mol().bonds()) {
     bond.data().set_conjugated(false);
   }
 
@@ -526,7 +525,7 @@ bool MoleculeSanitizer::sanitize_conjugated() {
     }
   }
 
-  mark_conjugated(mol().graph_, groups);
+  mark_conjugated(mol(), groups);
 
   return true;
 }
@@ -619,17 +618,16 @@ namespace {
     return pie_estimate;
   }
 
-  bool test_aromatic(const Molecule::GraphType &graph,
-                     const std::vector<int> &ring, const int pi_e_sum) {
+  bool test_aromatic(const Molecule &mol, const std::vector<int> &ring,
+                     const int pi_e_sum) {
     return pi_e_sum % 4 == 2
            // Dummy atoms are always allowed in aromatic rings
            || std::any_of(ring.begin(), ring.end(), [&](int id) {
-                return graph.node(id).data().atomic_number() == 0;
+                return mol.atom(id).data().atomic_number() == 0;
               });
   }
 
-  void mark_aromatic_ring(Molecule::GraphType &graph,
-                          const std::vector<int> &ring,
+  void mark_aromatic_ring(Molecule &mol, const std::vector<int> &ring,
                           const absl::flat_hash_map<int, int> &pi_e) {
     int pi_e_sum = 0;
     for (int i = 0; i < ring.size(); ++i) {
@@ -640,7 +638,7 @@ namespace {
       pi_e_sum += it->second;
     }
 
-    const bool this_aromatic = test_aromatic(graph, ring, pi_e_sum);
+    const bool this_aromatic = test_aromatic(mol, ring, pi_e_sum);
     if (!this_aromatic) {
       return;
     }
@@ -649,19 +647,18 @@ namespace {
       const int src = ring[i],
                 dst = ring[(i + 1) % static_cast<int>(ring.size())];
 
-      graph.node(src).data().set_aromatic(true);
+      mol.atom(src).data().set_aromatic(true);
 
-      auto eit = graph.find_edge(src, dst);
-      ABSL_DCHECK(eit != graph.edge_end());
+      auto eit = mol.find_bond(src, dst);
+      ABSL_DCHECK(eit != mol.bond_end());
       eit->data().set_aromatic(true);
     }
   }
 
-  void mark_aromatic(Molecule::GraphType &graph, const Molecule &mol,
-                     const absl::FixedArray<int> &valences) {
+  void mark_aromatic(Molecule &mol, const absl::FixedArray<int> &valences) {
     absl::flat_hash_map<int, int> pi_e;
 
-    for (auto atom: graph) {
+    for (auto atom: mol) {
       if (is_aromatic_candidate(atom)) {
         pi_e.insert({ atom.id(), count_pi_e(atom, valences[atom.id()]) });
       }
@@ -669,7 +666,7 @@ namespace {
 
     auto mark_aromatic_for = [&](const std::vector<std::vector<int>> &rs) {
       for (const std::vector<int> &ring: rs) {
-        mark_aromatic_ring(graph, ring, pi_e);
+        mark_aromatic_ring(mol, ring, pi_e);
       }
     };
 
@@ -710,15 +707,15 @@ bool MoleculeSanitizer::sanitize_aromaticity() {
     }
   }
 
-  for (auto atom: mol().graph_) {
+  for (auto atom: mol()) {
     atom.data().set_aromatic(false);
   }
-  for (auto bond: mol().graph_.edges()) {
+  for (auto bond: mol().bonds()) {
     bond.data().set_aromatic(false);
   }
 
   if (mol().num_sssr() > 0) {
-    mark_aromatic(mol().graph_, mol(), valences_);
+    mark_aromatic(mol(), valences_);
   }
 
   ABSL_LOG_IF(INFO, std::any_of(mol().bond_begin(), mol().bond_end(),
@@ -807,10 +804,9 @@ namespace {
 }  // namespace
 
 bool MoleculeSanitizer::sanitize_hybridization() {
-  return std::all_of(mol().graph_.begin(), mol().graph_.end(),
-                     [&](MutableAtom atom) {
-                       return sanitize_hyb_atom(atom, valences_[atom.id()]);
-                     });
+  return std::all_of(mol().begin(), mol().end(), [&](MutableAtom atom) {
+    return sanitize_hyb_atom(atom, valences_[atom.id()]);
+  });
 }
 
 namespace {

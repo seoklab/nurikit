@@ -345,19 +345,24 @@ class Molecule {
 public:
   using GraphType = Graph<AtomData, BondData>;
 
+  using MutableAtom = GraphType::NodeRef;
   using Atom = GraphType::ConstNodeRef;
+  using iterator = GraphType::iterator;
   using const_iterator = GraphType::const_iterator;
+  using atom_iterator = iterator;
   using const_atom_iterator = const_iterator;
 
+  using MutableBond = GraphType::EdgeRef;
   using Bond = GraphType::ConstEdgeRef;
   using bond_id_type = GraphType::edge_id_type;
+  using bond_iterator = GraphType::edge_iterator;
   using const_bond_iterator = GraphType::const_edge_iterator;
 
   using Neighbor = GraphType::ConstAdjRef;
+  using neighbor_iterator = GraphType::adjacency_iterator;
   using const_neighbor_iterator = GraphType::const_adjacency_iterator;
 
   friend class MoleculeMutator;
-  friend class MoleculeSanitizer;
 
   /**
    * @brief Construct an empty Molecule object.
@@ -399,6 +404,15 @@ public:
   int num_atoms() const { return graph_.num_nodes(); }
 
   /**
+   * @brief Get a mutable atom of the molecule.
+   * @param atom_idx Index of the atom to get.
+   * @return A mutable view over \p atom_idx -th atom of the molecule.
+   * @note If the atom index is out of range, the behavior is undefined. The
+   *       returned reference is invalidated when the molecule is modified.
+   */
+  MutableAtom atom(int atom_idx) { return graph_.node(atom_idx); }
+
+  /**
    * @brief Get an atom of the molecule.
    * @param atom_idx Index of the atom to get.
    * @return A read-only view over \p atom_idx -th atom of the molecule.
@@ -411,7 +425,18 @@ public:
    * @brief The begin iterator of the molecule over atoms.
    * @sa atom_begin()
    */
+  iterator begin() { return graph_.begin(); }
+  /**
+   * @brief The begin iterator of the molecule over atoms.
+   * @sa atom_begin()
+   */
   const_iterator begin() const { return graph_.begin(); }
+
+  /**
+   * @brief The begin iterator of the molecule over atoms.
+   * @sa begin()
+   */
+  iterator atom_begin() { return begin(); }
   /**
    * @brief The begin iterator of the molecule over atoms.
    * @sa begin()
@@ -421,7 +446,16 @@ public:
   /**
    * @brief The past-the-end iterator of the molecule over atoms.
    */
+  iterator end() { return graph_.end(); }
+  /**
+   * @brief The past-the-end iterator of the molecule over atoms.
+   */
   const_iterator end() const { return graph_.end(); }
+
+  /**
+   * @brief The past-the-end iterator of the molecule over atoms.
+   */
+  iterator atom_end() { return end(); }
   /**
    * @brief The past-the-end iterator of the molecule over atoms.
    */
@@ -436,6 +470,15 @@ public:
    * @brief Get the number of bonds in the molecule.
    */
   int num_bonds() const { return graph_.num_edges(); }
+
+  /**
+   * @brief Get a mutable bond of the molecule.
+   * @param bond_id Id of the bond to get.
+   * @return A mutable view over bond \p bond_id of the molecule.
+   * @note The returned reference is valid until the bond is erased from the
+   *       molecule.
+   */
+  MutableBond bond(bond_id_type bond_id) { return graph_.edge(bond_id); }
 
   /**
    * @brief Get a bond of the molecule.
@@ -454,9 +497,26 @@ public:
    *         If no such bond exists, the returned iterator is equal to
    *         bond_end().
    */
+  bond_iterator find_bond(int src, int dst) {
+    return graph_.find_edge(src, dst);
+  }
+
+  /**
+   * @brief Get a bond of the molecule.
+   * @param src Index of the source atom of the bond.
+   * @param dst Index of the destination atom of the bond.
+   * @return An iterator to the bond between \p src and \p dst of the molecule.
+   *         If no such bond exists, the returned iterator is equal to
+   *         bond_end().
+   */
   const_bond_iterator find_bond(int src, int dst) const {
     return graph_.find_edge(src, dst);
   }
+
+  /**
+   * @brief Get an iterable, modifiable view over bonds of the molecule.
+   */
+  auto bonds() { return graph_.edges(); }
 
   /**
    * @brief Get an iterable, non-modifiable view over bonds of the molecule.
@@ -471,11 +531,31 @@ public:
   /**
    * @brief The begin iterator of the molecule over bonds.
    */
+  bond_iterator bond_begin() { return graph_.edge_begin(); }
+  /**
+   * @brief The begin iterator of the molecule over bonds.
+   */
   const_bond_iterator bond_begin() const { return graph_.edge_begin(); }
   /**
    * @brief The past-the-end iterator of the molecule over bonds.
    */
+  bond_iterator bond_end() { return graph_.edge_end(); }
+  /**
+   * @brief The past-the-end iterator of the molecule over bonds.
+   */
   const_bond_iterator bond_end() const { return graph_.edge_end(); }
+
+  /**
+   * @brief Find a neighbor of the atom.
+   * @param src Index of the source atom of the bond.
+   * @param dst Index of the destination atom of the bond.
+   * @return An iterator to the neighbor wrapper between \p src and \p dst of
+   *         the molecule. If no such bond exists, the returned iterator is
+   *         equal to \ref neighbor_end() "neighbor_end(\p src)"
+   */
+  neighbor_iterator find_neighbor(int src, int dst) {
+    return graph_.find_adjacent(src, dst);
+  }
 
   /**
    * @brief Find a neighbor of the atom.
@@ -492,8 +572,20 @@ public:
   /**
    * @brief The begin iterator of an atom over its neighbors.
    */
+  neighbor_iterator neighbor_begin(int atom_idx) {
+    return graph_.adj_begin(atom_idx);
+  }
+  /**
+   * @brief The begin iterator of an atom over its neighbors.
+   */
   const_neighbor_iterator neighbor_begin(int atom_idx) const {
     return graph_.adj_begin(atom_idx);
+  }
+  /**
+   * @brief The past-the-end iterator of an atom over its neighbors.
+   */
+  neighbor_iterator neighbor_end(int atom_idx) {
+    return graph_.adj_end(atom_idx);
   }
   /**
    * @brief The past-the-end iterator of an atom over its neighbors.
@@ -711,18 +803,6 @@ public:
 private:
   Molecule(GraphType &&graph, std::vector<MatrixX3d> &&conformers) noexcept
     : graph_(std::move(graph)), conformers_(std::move(conformers)) { }
-
-  GraphType::NodeRef mutable_atom(int atom_idx) {
-    return graph_.node(atom_idx);
-  }
-
-  GraphType::EdgeRef mutable_bond(bond_id_type bond_id) {
-    return graph_.edge(bond_id);
-  }
-
-  GraphType::edge_iterator find_mutable_bond(int src, int dst) {
-    return graph_.find_edge(src, dst);
-  }
 
   bool rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
                           double angle);
