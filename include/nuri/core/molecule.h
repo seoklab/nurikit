@@ -330,9 +330,14 @@ private:
 /**
  * @brief Read-only molecule class.
  *
- * The two only allowed mutable operation on the molecule is:
+ * The few allowed mutable operations on the molecule are:
+ *    - updating atom/bond properties,
  *    - modifing conformers, and
  *    - adding/removing hydrogens.
+ *
+ * Note that it is the responsibility of the user to ensure the molecule is in a
+ * chemically valid state after property modification. For sanitization, use the
+ * MoleculeSanitizer class.
  *
  * If a new conformer is added, it must have same bond lengths with the existing
  * conformers (if any). If the added conformer is the first one, the bond
