@@ -430,7 +430,7 @@ public:
   /**
    * @brief Check if the molecule has any bonds.
    */
-  bool bond_empty() const { return graph_.empty(); }
+  bool bond_empty() const { return graph_.edge_empty(); }
 
   /**
    * @brief Get the number of bonds in the molecule.
