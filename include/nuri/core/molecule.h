@@ -388,6 +388,8 @@ public:
 
   const std::string &name() const { return name_; }
 
+  void reserve(int num_atoms) { graph_.reserve(num_atoms); }
+
   /**
    * @brief Check if the molecule has any atoms.
    */
