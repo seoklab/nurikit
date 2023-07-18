@@ -1057,6 +1057,14 @@ extern inline int all_neighbors(Molecule::Atom atom) {
 }
 
 /**
+ * @brief Get the number of heavy atoms bonded to an atom.
+ * @param atom An atom.
+ * @return Number of heavy atoms bonded to the atom.
+ * @note Dummy atom counts as a heavy atom.
+ */
+extern int count_heavy(Molecule::Atom atom);
+
+/**
  * @brief Count the number of hydrogens of the atom.
  * @param atom An atom.
  * @return Number of hydrogens of the atom (including implicit hydrogens)

@@ -6,6 +6,7 @@
 #include "nuri/core/molecule.h"
 
 #include <algorithm>
+#include <numeric>
 #include <stack>
 #include <vector>
 
@@ -859,6 +860,13 @@ bool MoleculeSanitizer::sanitize_valence() {
   return std::all_of(mol().begin(), mol().end(), [&](Molecule::Atom atom) {
     return sanitize_val_atom(atom, valences_[atom.id()]);
   });
+}
+
+int count_heavy(Molecule::Atom atom) {
+  return std::accumulate(
+    atom.begin(), atom.end(), 0, [](int acc, Molecule::Neighbor nei) {
+      return acc + static_cast<int>(nei.dst().data().atomic_number() != 1);
+    });
 }
 
 int count_hydrogens(Molecule::Atom atom) {
