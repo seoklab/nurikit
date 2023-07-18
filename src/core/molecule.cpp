@@ -557,13 +557,6 @@ namespace {
     return *elem;
   }
 
-  int octet_valence(const Element &effective) {
-    const int val_electrons = effective.valence_electrons(),
-              octet_valence = val_electrons <= 4 ? val_electrons
-                                                 : 8 - val_electrons;
-    return octet_valence;
-  }
-
   int count_pi_e(Molecule::Atom atom, int total_valence) {
     const int nb_electrons = nonbonding_electrons(atom, total_valence);
     ABSL_DLOG_IF(WARNING, nb_electrons < 0)
@@ -575,7 +568,8 @@ namespace {
         })) {
       // Special case, some bonds are aromatic
       // Now we have to check structures like furan, pyrrole, etc.
-      const int ov = octet_valence(effective_element_force_unwrap(atom));
+      const int ov =
+        internal::octet_valence(effective_element_force_unwrap(atom));
 
       // E.g. O in furan, N in pyrrole, ...
       if (ov < total_valence) {
@@ -735,7 +729,7 @@ namespace {
 
   bool is_pyrrole_like(Molecule::Atom atom, const Element &effective,
                        const int nbe, const int total_valence) {
-    return nbe > 0 && octet_valence(effective) < total_valence
+    return nbe > 0 && internal::octet_valence(effective) < total_valence
            && std::any_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
                 return nei.edge_data().order() == constants::kAromaticBond;
               });
