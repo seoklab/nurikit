@@ -5,7 +5,6 @@
 
 #include "nuri/fmt/smiles.h"
 
-#include <iostream>
 #include <memory>
 #include <numeric>
 #include <sstream>
@@ -14,75 +13,16 @@
 
 #include <gtest/gtest.h>
 
+#include "fmt_test_common.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 
+namespace nuri {
 namespace {
-using nuri::MoleculeSanitizer;
-
-void print_mol(const nuri::Molecule &mol) {
-  for (auto atom: mol) {
-    std::cout << atom.data().element_symbol() << " ";
-  }
-  std::cout << '\n';
-  for (auto bond: mol.bonds()) {
-    std::cout << bond.src() << " -> " << bond.dst() << ' '
-              << bond.data().order() << '\n';
-  }
-  std::cout << "---\n";
-}
-
-class SmilesTest: public ::testing::Test {
-public:
-  // NOLINTBEGIN(readability-identifier-naming)
-  std::istringstream iss_;
-  nuri::SmilesStream ss_;
-  nuri::Molecule mol_;
-  bool print_;
-  // NOLINTEND(readability-identifier-naming)
-
-  void test_parse_fail() {
-    ASSERT_TRUE(ss_.advance());
-    mol_ = ss_.current();
-    EXPECT_TRUE(mol_.empty());
-  }
-
-  void test_error_mol() {
-    ASSERT_TRUE(ss_.advance());
-    mol_ = ss_.current();
-
-    MoleculeSanitizer sanitizer(mol_);
-    EXPECT_FALSE(sanitizer.sanitize_all());
-  }
-
-  void test_next_mol(std::string_view name, int natoms, int nbonds) {
-    ASSERT_TRUE(ss_.advance());
-    mol_ = ss_.current();
-
-    MoleculeSanitizer sanitizer(mol_);
-    ASSERT_TRUE(sanitizer.sanitize_all());
-
-    EXPECT_EQ(mol_.name(), name);
-    EXPECT_EQ(mol_.num_atoms(), natoms);
-    EXPECT_EQ(mol_.num_bonds(), nbonds);
-
-    if (print_) {
-      print_mol(mol_);
-    }
-  }
-
-protected:
-  void SetUp() override {
-    iss_.clear();
-    ss_ = nuri::SmilesStream(iss_);
-    print_ = false;
-  }
-
-  void TearDown() override { EXPECT_FALSE(ss_.advance()); }
-};
+using SmilesTest = internal::FormatTest<SmilesStream>;
 
 TEST_F(SmilesTest, SingleAtomTest) {
-  iss_.str(
+  set_test_string(
     // Taken from opensmiles spec
     "[U] uranium\n"
     "[Pb] lead\n"
@@ -103,7 +43,7 @@ TEST_F(SmilesTest, SingleAtomTest) {
 }
 
 TEST_F(SmilesTest, SingleHeavyAtomTest) {
-  iss_.str(
+  set_test_string(
     // Taken from opensmiles spec
     "[CH4] methane\n"
     "[ClH] hydrogen chloride\n"
@@ -120,7 +60,7 @@ TEST_F(SmilesTest, SingleHeavyAtomTest) {
 }
 
 TEST_F(SmilesTest, ChargeTest) {
-  iss_.str(
+  set_test_string(
     // Taken from opensmiles spec
     "[Cl-] chloride anion\n"
     "[OH-] hydroxide anion\n"
@@ -148,7 +88,7 @@ TEST_F(SmilesTest, ChargeTest) {
 }
 
 TEST_F(SmilesTest, IsotopeTest) {
-  iss_.str(
+  set_test_string(
     // Taken from opensmiles spec
     "[13CH4] 13C methane\n"
     "[2H+] deuterium ion\n");
@@ -162,7 +102,7 @@ TEST_F(SmilesTest, IsotopeTest) {
 }
 
 TEST_F(SmilesTest, WildcardAtomTest) {
-  iss_.str(
+  set_test_string(
     // Taken from opensmiles spec
     // 01 2 3 4567
     "Oc1c(*)cccc1 ortho-substituted phenol\n");
@@ -172,7 +112,7 @@ TEST_F(SmilesTest, WildcardAtomTest) {
 }
 
 TEST_F(SmilesTest, AtomClassTest) {
-  iss_.str(
+  set_test_string(
     // Taken from opensmiles spec
     "[CH4:005] methane with atom class\n");
 
@@ -180,7 +120,7 @@ TEST_F(SmilesTest, AtomClassTest) {
 }
 
 TEST_F(SmilesTest, BasicBondsTest) {
-  iss_.str(
+  set_test_string(
     // Taken from opensmiles spec
     "CC ethane\n"
     "C=C ethene\n"
@@ -191,57 +131,56 @@ TEST_F(SmilesTest, BasicBondsTest) {
   test_next_mol("ethane", 2, 1);
   EXPECT_EQ(mol_.atom(0).data().implicit_hydrogens(), 3);
   EXPECT_EQ(mol_.atom(1).data().implicit_hydrogens(), 3);
-  EXPECT_EQ(mol_.find_bond(0, 1)->data().order(), nuri::constants::kSingleBond);
+  EXPECT_EQ(mol_.find_bond(0, 1)->data().order(), constants::kSingleBond);
 
   test_next_mol("ethene", 2, 1);
   EXPECT_EQ(mol_.atom(0).data().implicit_hydrogens(), 2);
   EXPECT_EQ(mol_.atom(1).data().implicit_hydrogens(), 2);
-  EXPECT_EQ(mol_.find_bond(0, 1)->data().order(), nuri::constants::kDoubleBond);
+  EXPECT_EQ(mol_.find_bond(0, 1)->data().order(), constants::kDoubleBond);
 
   test_next_mol("hydrogen cyanide", 2, 1);
   EXPECT_EQ(mol_.atom(0).data().implicit_hydrogens(), 1);
   EXPECT_EQ(mol_.atom(1).data().implicit_hydrogens(), 0);
-  EXPECT_EQ(mol_.find_bond(0, 1)->data().order(), nuri::constants::kTripleBond);
+  EXPECT_EQ(mol_.find_bond(0, 1)->data().order(), constants::kTripleBond);
 
   test_next_mol("octachlorodirhenate (III)", 10, 9);
-  EXPECT_EQ(mol_.find_bond(0, 5)->data().order(),
-            nuri::constants::kQuadrupleBond);
+  EXPECT_EQ(mol_.find_bond(0, 5)->data().order(), constants::kQuadrupleBond);
 
   test_next_mol("benzene", 6, 6);
   for (auto bond: mol_.bonds()) {
-    EXPECT_EQ(bond.data().order(), nuri::constants::kAromaticBond);
+    EXPECT_EQ(bond.data().order(), constants::kAromaticBond);
   }
 }
 
 TEST_F(SmilesTest, BranchTest) {
-  iss_.str(
+  set_test_string(
     // Taken from opensmiles spec
     "OS(=O)(=S)O thiosulfate\n"
     "[O-]P(=O)([O-])[O-] phosphate\n"
     "C(C(C(C(C(C(C(C(C(C(C(C(C(C(C(C(C(C(C(C(C))))))))))))))))))))C C22H46");
 
   test_next_mol("thiosulfate", 5, 4);
-  EXPECT_EQ(mol_.find_bond(0, 1)->data().order(), nuri::constants::kSingleBond);
-  EXPECT_EQ(mol_.find_bond(1, 2)->data().order(), nuri::constants::kDoubleBond);
-  EXPECT_EQ(mol_.find_bond(1, 3)->data().order(), nuri::constants::kDoubleBond);
-  EXPECT_EQ(mol_.find_bond(1, 4)->data().order(), nuri::constants::kSingleBond);
+  EXPECT_EQ(mol_.find_bond(0, 1)->data().order(), constants::kSingleBond);
+  EXPECT_EQ(mol_.find_bond(1, 2)->data().order(), constants::kDoubleBond);
+  EXPECT_EQ(mol_.find_bond(1, 3)->data().order(), constants::kDoubleBond);
+  EXPECT_EQ(mol_.find_bond(1, 4)->data().order(), constants::kSingleBond);
 
   test_next_mol("phosphate", 5, 4);
-  EXPECT_EQ(mol_.find_bond(0, 1)->data().order(), nuri::constants::kSingleBond);
-  EXPECT_EQ(mol_.find_bond(1, 2)->data().order(), nuri::constants::kDoubleBond);
-  EXPECT_EQ(mol_.find_bond(1, 3)->data().order(), nuri::constants::kSingleBond);
-  EXPECT_EQ(mol_.find_bond(1, 4)->data().order(), nuri::constants::kSingleBond);
+  EXPECT_EQ(mol_.find_bond(0, 1)->data().order(), constants::kSingleBond);
+  EXPECT_EQ(mol_.find_bond(1, 2)->data().order(), constants::kDoubleBond);
+  EXPECT_EQ(mol_.find_bond(1, 3)->data().order(), constants::kSingleBond);
+  EXPECT_EQ(mol_.find_bond(1, 4)->data().order(), constants::kSingleBond);
 
   test_next_mol("C22H46", 22, 21);
   EXPECT_EQ(std::accumulate(mol_.begin(), mol_.end(), 0,
-                            [](int sum, nuri::Molecule::Atom atom) {
+                            [](int sum, Molecule::Atom atom) {
                               return sum + atom.data().implicit_hydrogens();
                             }),
             46);
 }
 
 TEST_F(SmilesTest, RingsTest) {
-  iss_.str(
+  set_test_string(
     // Taken from opensmiles spec
     "N1CC2CCCCC2CC1 perhydroisoquinoline\n"
     "C=1CCCCC=1 cyclohexene\n"
@@ -264,7 +203,7 @@ TEST_F(SmilesTest, RingsTest) {
     }
   }
   for (auto bond: mol_.bonds()) {
-    EXPECT_EQ(bond.data().order(), nuri::constants::kSingleBond);
+    EXPECT_EQ(bond.data().order(), constants::kSingleBond);
   }
   EXPECT_EQ(mol_.num_sssr(), 2);
 
@@ -288,7 +227,7 @@ TEST_F(SmilesTest, RingsTest) {
 }
 
 TEST_F(SmilesTest, AromaticityTest) {
-  iss_.str(
+  set_test_string(
     // Taken from opensmiles spec
     "c1ccc2CCCc2c1 indane\n"
     "C1=CC=C2CCCC2=C1 indane\n"
@@ -342,10 +281,10 @@ TEST_F(SmilesTest, AromaticityTest) {
   }
   for (auto bond: mol_.bonds()) {
     if (bond.src() == 5 && bond.dst() == 6) {
-      EXPECT_EQ(bond.data().order(), nuri::constants::kSingleBond);
+      EXPECT_EQ(bond.data().order(), constants::kSingleBond);
       EXPECT_FALSE(bond.data().is_aromatic());
     } else {
-      EXPECT_EQ(bond.data().order(), nuri::constants::kAromaticBond);
+      EXPECT_EQ(bond.data().order(), constants::kAromaticBond);
       EXPECT_TRUE(bond.data().is_aromatic());
     }
   }
@@ -368,14 +307,14 @@ TEST_F(SmilesTest, AromaticityTest) {
 
 TEST_F(SmilesTest, MoreHydrogensTest) {
   // Taken from opensmiles spec
-  iss_.str("[H]C([H])([H])[H] explicit hydrogen methane");
+  set_test_string("[H]C([H])([H])[H] explicit hydrogen methane");
 
   test_next_mol("explicit hydrogen methane", 5, 4);
   EXPECT_EQ(mol_.atom(0).data().implicit_hydrogens(), 0);
 }
 
 TEST_F(SmilesTest, DotBondTest) {
-  iss_.str(
+  set_test_string(
     // Taken from opensmiles spec
     "[Na+].[Cl-] sodium chloride\n"
     "[NH4+].[NH4+].[O-]S(=O)(=O)[S-] diammonium thiosulfate\n"
@@ -387,7 +326,7 @@ TEST_F(SmilesTest, DotBondTest) {
 }
 
 TEST_F(SmilesTest, BondGeometryTest) {
-  iss_.str(  // Taken from opensmiles spec
+  set_test_string(  // Taken from opensmiles spec
     "F/C=C/F trans-difluoride\n"
     "C(/F)=C/F cis-difluoride\n");
 
@@ -397,7 +336,7 @@ TEST_F(SmilesTest, BondGeometryTest) {
 
 TEST_F(SmilesTest, EnamineRealExamplesTest) {
   // clang-format off
-  iss_.str(
+  set_test_string(
 // Taken from Enamine REAL database
 // 01 2 34 5  6 789  0 1  23 4 5 67890  1  2    3  4    5  6 789  0   1 2
   "CC(C)CN(C(=O)COC(=O)C1=CC=C(N2CCCCC2)C([N+](=O)[O-])=C1)C1CCS(=O)(=O)C1 Z19788751\n"
@@ -420,15 +359,15 @@ TEST_F(SmilesTest, EnamineRealExamplesTest) {
 
 TEST(SmilesFactoryTest, CreationTest) {
   std::istringstream iss("C methane");
-  const nuri::MoleculeStreamFactory *smiles_factory =
-    nuri::MoleculeStreamFactory::find_factory("smi");
+  const MoleculeStreamFactory *smiles_factory =
+    MoleculeStreamFactory::find_factory("smi");
   ASSERT_TRUE(smiles_factory != nullptr);
 
-  std::unique_ptr<nuri::MoleculeStream> ss = smiles_factory->from_stream(iss);
+  std::unique_ptr<MoleculeStream> ss = smiles_factory->from_stream(iss);
   ASSERT_TRUE(ss);
   ASSERT_TRUE(ss->advance());
 
-  nuri::Molecule mol = ss->current();
+  Molecule mol = ss->current();
   EXPECT_FALSE(mol.empty());
 
   MoleculeSanitizer sanitizer(mol);
@@ -441,3 +380,4 @@ TEST(SmilesFactoryTest, CreationTest) {
   ASSERT_FALSE(ss->advance());
 }
 }  // namespace
+}  // namespace nuri
