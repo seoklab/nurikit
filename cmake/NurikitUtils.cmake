@@ -92,6 +92,11 @@ function(nurikit_make_available_deponly target)
 endfunction()
 
 function(find_or_fetch_eigen)
+  set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+  set(BUILD_TESTING OFF)
+  set(EIGEN_BUILD_DOC OFF)
+  set(EIGEN_BUILD_PKGCONFIG OFF)
+
   find_package(Eigen3 3.4 QUIET)
 
   if(Eigen3_FOUND)
@@ -104,11 +109,6 @@ function(find_or_fetch_eigen)
       eigen
       GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
       GIT_TAG 3.4.0)
-
-    set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
-    set(BUILD_TESTING OFF)
-    set(EIGEN_BUILD_DOC OFF)
-    set(EIGEN_BUILD_PKGCONFIG OFF)
     nurikit_make_available_deponly(eigen)
   endif()
 endfunction()
