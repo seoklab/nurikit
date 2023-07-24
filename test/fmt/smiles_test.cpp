@@ -29,16 +29,16 @@ TEST_F(SmilesTest, SingleAtomTest) {
     "[He] helium\n"
     "[*] unknown atom\n");
 
-  test_next_mol("uranium", 1, 0);
+  NURI_FMT_TEST_NEXT_MOL("uranium", 1, 0);
   EXPECT_EQ(mol_.atom(0).data().atomic_number(), 92);
 
-  test_next_mol("lead", 1, 0);
+  NURI_FMT_TEST_NEXT_MOL("lead", 1, 0);
   EXPECT_EQ(mol_.atom(0).data().atomic_number(), 82);
 
-  test_next_mol("helium", 1, 0);
+  NURI_FMT_TEST_NEXT_MOL("helium", 1, 0);
   EXPECT_EQ(mol_.atom(0).data().atomic_number(), 2);
 
-  test_next_mol("unknown atom", 1, 0);
+  NURI_FMT_TEST_NEXT_MOL("unknown atom", 1, 0);
   EXPECT_EQ(mol_.atom(0).data().atomic_number(), 0);
 }
 
@@ -49,13 +49,13 @@ TEST_F(SmilesTest, SingleHeavyAtomTest) {
     "[ClH] hydrogen chloride\n"
     "[ClH1] hydrogen chloride\n");
 
-  test_next_mol("methane", 1, 0);
+  NURI_FMT_TEST_NEXT_MOL("methane", 1, 0);
   EXPECT_EQ(mol_.atom(0).data().implicit_hydrogens(), 4);
 
-  test_next_mol("hydrogen chloride", 1, 0);
+  NURI_FMT_TEST_NEXT_MOL("hydrogen chloride", 1, 0);
   EXPECT_EQ(mol_.atom(0).data().implicit_hydrogens(), 1);
 
-  test_next_mol("hydrogen chloride", 1, 0);
+  NURI_FMT_TEST_NEXT_MOL("hydrogen chloride", 1, 0);
   EXPECT_EQ(mol_.atom(0).data().implicit_hydrogens(), 1);
 }
 
@@ -68,22 +68,22 @@ TEST_F(SmilesTest, ChargeTest) {
     "[Cu+2] copper(II) cation\n"
     "[Cu++] copper(II) cation\n");
 
-  test_next_mol("chloride anion", 1, 0);
+  NURI_FMT_TEST_NEXT_MOL("chloride anion", 1, 0);
   EXPECT_EQ(mol_.atom(0).data().formal_charge(), -1);
   EXPECT_EQ(mol_.atom(0).data().implicit_hydrogens(), 0);
 
-  test_next_mol("hydroxide anion", 1, 0);
+  NURI_FMT_TEST_NEXT_MOL("hydroxide anion", 1, 0);
   EXPECT_EQ(mol_.atom(0).data().formal_charge(), -1);
   EXPECT_EQ(mol_.atom(0).data().implicit_hydrogens(), 1);
 
-  test_next_mol("ammonium cation", 1, 0);
+  NURI_FMT_TEST_NEXT_MOL("ammonium cation", 1, 0);
   EXPECT_EQ(mol_.atom(0).data().formal_charge(), 1);
   EXPECT_EQ(mol_.atom(0).data().implicit_hydrogens(), 4);
 
-  test_next_mol("copper(II) cation", 1, 0);
+  NURI_FMT_TEST_NEXT_MOL("copper(II) cation", 1, 0);
   EXPECT_EQ(mol_.atom(0).data().formal_charge(), 2);
 
-  test_next_mol("copper(II) cation", 1, 0);
+  NURI_FMT_TEST_NEXT_MOL("copper(II) cation", 1, 0);
   EXPECT_EQ(mol_.atom(0).data().formal_charge(), 2);
 }
 
@@ -93,10 +93,10 @@ TEST_F(SmilesTest, IsotopeTest) {
     "[13CH4] 13C methane\n"
     "[2H+] deuterium ion\n");
 
-  test_next_mol("13C methane", 1, 0);
+  NURI_FMT_TEST_NEXT_MOL("13C methane", 1, 0);
   EXPECT_EQ(mol_.atom(0).data().isotope().mass_number, 13);
 
-  test_next_mol("deuterium ion", 1, 0);
+  NURI_FMT_TEST_NEXT_MOL("deuterium ion", 1, 0);
   EXPECT_EQ(mol_.atom(0).data().isotope().mass_number, 2);
   EXPECT_EQ(mol_.atom(0).data().formal_charge(), 1);
 }
@@ -107,7 +107,7 @@ TEST_F(SmilesTest, WildcardAtomTest) {
     // 01 2 3 4567
     "Oc1c(*)cccc1 ortho-substituted phenol\n");
 
-  test_next_mol("ortho-substituted phenol", 8, 8);
+  NURI_FMT_TEST_NEXT_MOL("ortho-substituted phenol", 8, 8);
   EXPECT_EQ(mol_.atom(3).data().implicit_hydrogens(), 0);
 }
 
@@ -116,7 +116,7 @@ TEST_F(SmilesTest, AtomClassTest) {
     // Taken from opensmiles spec
     "[CH4:005] methane with atom class\n");
 
-  test_next_mol("methane with atom class", 1, 0);
+  NURI_FMT_TEST_NEXT_MOL("methane with atom class", 1, 0);
 }
 
 TEST_F(SmilesTest, BasicBondsTest) {
@@ -128,25 +128,25 @@ TEST_F(SmilesTest, BasicBondsTest) {
     "[Rh-](Cl)(Cl)(Cl)(Cl)$[Rh-](Cl)(Cl)(Cl)Cl octachlorodirhenate (III)\n"
     "c:1:c:c:c:c:c:1 benzene\n");
 
-  test_next_mol("ethane", 2, 1);
+  NURI_FMT_TEST_NEXT_MOL("ethane", 2, 1);
   EXPECT_EQ(mol_.atom(0).data().implicit_hydrogens(), 3);
   EXPECT_EQ(mol_.atom(1).data().implicit_hydrogens(), 3);
   EXPECT_EQ(mol_.find_bond(0, 1)->data().order(), constants::kSingleBond);
 
-  test_next_mol("ethene", 2, 1);
+  NURI_FMT_TEST_NEXT_MOL("ethene", 2, 1);
   EXPECT_EQ(mol_.atom(0).data().implicit_hydrogens(), 2);
   EXPECT_EQ(mol_.atom(1).data().implicit_hydrogens(), 2);
   EXPECT_EQ(mol_.find_bond(0, 1)->data().order(), constants::kDoubleBond);
 
-  test_next_mol("hydrogen cyanide", 2, 1);
+  NURI_FMT_TEST_NEXT_MOL("hydrogen cyanide", 2, 1);
   EXPECT_EQ(mol_.atom(0).data().implicit_hydrogens(), 1);
   EXPECT_EQ(mol_.atom(1).data().implicit_hydrogens(), 0);
   EXPECT_EQ(mol_.find_bond(0, 1)->data().order(), constants::kTripleBond);
 
-  test_next_mol("octachlorodirhenate (III)", 10, 9);
+  NURI_FMT_TEST_NEXT_MOL("octachlorodirhenate (III)", 10, 9);
   EXPECT_EQ(mol_.find_bond(0, 5)->data().order(), constants::kQuadrupleBond);
 
-  test_next_mol("benzene", 6, 6);
+  NURI_FMT_TEST_NEXT_MOL("benzene", 6, 6);
   for (auto bond: mol_.bonds()) {
     EXPECT_EQ(bond.data().order(), constants::kAromaticBond);
   }
@@ -159,19 +159,19 @@ TEST_F(SmilesTest, BranchTest) {
     "[O-]P(=O)([O-])[O-] phosphate\n"
     "C(C(C(C(C(C(C(C(C(C(C(C(C(C(C(C(C(C(C(C(C))))))))))))))))))))C C22H46");
 
-  test_next_mol("thiosulfate", 5, 4);
+  NURI_FMT_TEST_NEXT_MOL("thiosulfate", 5, 4);
   EXPECT_EQ(mol_.find_bond(0, 1)->data().order(), constants::kSingleBond);
   EXPECT_EQ(mol_.find_bond(1, 2)->data().order(), constants::kDoubleBond);
   EXPECT_EQ(mol_.find_bond(1, 3)->data().order(), constants::kDoubleBond);
   EXPECT_EQ(mol_.find_bond(1, 4)->data().order(), constants::kSingleBond);
 
-  test_next_mol("phosphate", 5, 4);
+  NURI_FMT_TEST_NEXT_MOL("phosphate", 5, 4);
   EXPECT_EQ(mol_.find_bond(0, 1)->data().order(), constants::kSingleBond);
   EXPECT_EQ(mol_.find_bond(1, 2)->data().order(), constants::kDoubleBond);
   EXPECT_EQ(mol_.find_bond(1, 3)->data().order(), constants::kSingleBond);
   EXPECT_EQ(mol_.find_bond(1, 4)->data().order(), constants::kSingleBond);
 
-  test_next_mol("C22H46", 22, 21);
+  NURI_FMT_TEST_NEXT_MOL("C22H46", 22, 21);
   EXPECT_EQ(std::accumulate(mol_.begin(), mol_.end(), 0,
                             [](int sum, Molecule::Atom atom) {
                               return sum + atom.data().implicit_hydrogens();
@@ -194,7 +194,7 @@ TEST_F(SmilesTest, RingsTest) {
     "C12C2CCC1 error\n"
     "C11 error\n");
 
-  test_next_mol("perhydroisoquinoline", 10, 11);
+  NURI_FMT_TEST_NEXT_MOL("perhydroisoquinoline", 10, 11);
   for (auto atom: mol_) {
     if (atom.data().atomic_number() == 7 || atom.degree() == 3) {
       EXPECT_EQ(atom.data().implicit_hydrogens(), 1);
@@ -207,23 +207,23 @@ TEST_F(SmilesTest, RingsTest) {
   }
   EXPECT_EQ(mol_.num_sssr(), 2);
 
-  test_next_mol("cyclohexene", 6, 6);
-  test_next_mol("cyclohexene", 6, 6);
-  test_next_mol("cyclohexene", 6, 6);
-  test_parse_fail();
+  NURI_FMT_TEST_NEXT_MOL("cyclohexene", 6, 6);
+  NURI_FMT_TEST_NEXT_MOL("cyclohexene", 6, 6);
+  NURI_FMT_TEST_NEXT_MOL("cyclohexene", 6, 6);
+  NURI_FMT_TEST_PARSE_FAIL();
 
-  test_next_mol("bicyclohexyl", 12, 13);
+  NURI_FMT_TEST_NEXT_MOL("bicyclohexyl", 12, 13);
   EXPECT_EQ(mol_.num_sssr(), 2);
 
-  test_next_mol("spiro[5.5]undecane", 11, 12);
+  NURI_FMT_TEST_NEXT_MOL("spiro[5.5]undecane", 11, 12);
   EXPECT_EQ(mol_.num_sssr(), 2);
 
-  test_next_mol("cyclohexane", 6, 6);
+  NURI_FMT_TEST_NEXT_MOL("cyclohexane", 6, 6);
   EXPECT_EQ(mol_.num_sssr(), 1);
 
-  test_parse_fail();
-  test_parse_fail();
-  test_parse_fail();
+  NURI_FMT_TEST_PARSE_FAIL();
+  NURI_FMT_TEST_PARSE_FAIL();
+  NURI_FMT_TEST_PARSE_FAIL();
 }
 
 TEST_F(SmilesTest, AromaticityTest) {
@@ -242,7 +242,7 @@ TEST_F(SmilesTest, AromaticityTest) {
     "O=C1C=CC(=O)C2=C1OC=CO2 aromatic test\n");
 
   auto test_indane = [&]() {
-    test_next_mol("indane", 9, 10);
+    NURI_FMT_TEST_NEXT_MOL("indane", 9, 10);
     EXPECT_EQ(mol_.num_sssr(), 2);
     for (int i: { 0, 1, 2, 3, 7, 8 }) {
       EXPECT_TRUE(mol_.atom(i).data().is_aromatic());
@@ -255,7 +255,7 @@ TEST_F(SmilesTest, AromaticityTest) {
   test_indane();
 
   auto test_furan = [&]() {
-    test_next_mol("furan", 5, 5);
+    NURI_FMT_TEST_NEXT_MOL("furan", 5, 5);
     EXPECT_EQ(mol_.num_sssr(), 1);
     for (auto atom: mol_) {
       EXPECT_TRUE(atom.data().is_aromatic());
@@ -265,7 +265,7 @@ TEST_F(SmilesTest, AromaticityTest) {
   test_furan();
 
   auto test_cbd = [&]() {
-    test_next_mol("cyclobutadiene", 4, 4);
+    NURI_FMT_TEST_NEXT_MOL("cyclobutadiene", 4, 4);
     EXPECT_EQ(mol_.num_sssr(), 1);
     for (auto atom: mol_) {
       EXPECT_FALSE(atom.data().is_aromatic());
@@ -274,7 +274,7 @@ TEST_F(SmilesTest, AromaticityTest) {
   test_cbd();
   test_cbd();
 
-  test_next_mol("biphenyl", 12, 13);
+  NURI_FMT_TEST_NEXT_MOL("biphenyl", 12, 13);
   EXPECT_EQ(mol_.num_sssr(), 2);
   for (auto atom: mol_) {
     EXPECT_TRUE(atom.data().is_aromatic());
@@ -289,16 +289,16 @@ TEST_F(SmilesTest, AromaticityTest) {
     }
   }
 
-  test_error_mol();
+  NURI_FMT_TEST_ERROR_MOL();
 
-  test_next_mol("aromatic test", 12, 14);
+  NURI_FMT_TEST_NEXT_MOL("aromatic test", 12, 14);
   EXPECT_EQ(mol_.num_sssr(), 3);
   for (auto atom: mol_) {
     EXPECT_TRUE(atom.data().is_aromatic());
   }
   EXPECT_FALSE(mol_.find_bond(3, 6)->data().is_aromatic());
 
-  test_next_mol("aromatic test", 12, 13);
+  NURI_FMT_TEST_NEXT_MOL("aromatic test", 12, 13);
   EXPECT_EQ(mol_.num_sssr(), 2);
   for (auto atom: mol_) {
     EXPECT_FALSE(atom.data().is_aromatic());
@@ -309,7 +309,7 @@ TEST_F(SmilesTest, MoreHydrogensTest) {
   // Taken from opensmiles spec
   set_test_string("[H]C([H])([H])[H] explicit hydrogen methane");
 
-  test_next_mol("explicit hydrogen methane", 5, 4);
+  NURI_FMT_TEST_NEXT_MOL("explicit hydrogen methane", 5, 4);
   EXPECT_EQ(mol_.atom(0).data().implicit_hydrogens(), 0);
 }
 
@@ -320,9 +320,9 @@ TEST_F(SmilesTest, DotBondTest) {
     "[NH4+].[NH4+].[O-]S(=O)(=O)[S-] diammonium thiosulfate\n"
     "c1c2c3c4cc1.Br2.Cl3.Cl4 1-bromo-2,3-dichlorobenzene\n");
 
-  test_next_mol("sodium chloride", 2, 0);
-  test_next_mol("diammonium thiosulfate", 7, 4);
-  test_next_mol("1-bromo-2,3-dichlorobenzene", 9, 9);
+  NURI_FMT_TEST_NEXT_MOL("sodium chloride", 2, 0);
+  NURI_FMT_TEST_NEXT_MOL("diammonium thiosulfate", 7, 4);
+  NURI_FMT_TEST_NEXT_MOL("1-bromo-2,3-dichlorobenzene", 9, 9);
 }
 
 TEST_F(SmilesTest, BondGeometryTest) {
@@ -330,8 +330,8 @@ TEST_F(SmilesTest, BondGeometryTest) {
     "F/C=C/F trans-difluoride\n"
     "C(/F)=C/F cis-difluoride\n");
 
-  test_next_mol("trans-difluoride", 4, 3);
-  test_next_mol("cis-difluoride", 4, 3);
+  NURI_FMT_TEST_NEXT_MOL("trans-difluoride", 4, 3);
+  NURI_FMT_TEST_NEXT_MOL("cis-difluoride", 4, 3);
 }
 
 TEST_F(SmilesTest, EnamineRealExamplesTest) {
@@ -351,10 +351,10 @@ TEST_F(SmilesTest, EnamineRealExamplesTest) {
 
   print_ = true;
 
-  test_next_mol("Z19788751", 33, 35);
-  test_next_mol("test molecule Z3640991685", 27, 30);
-  test_next_mol("Z3085457096", 27, 27);
-  test_next_mol("Z2719008285", 27, 29);
+  NURI_FMT_TEST_NEXT_MOL("Z19788751", 33, 35);
+  NURI_FMT_TEST_NEXT_MOL("test molecule Z3640991685", 27, 30);
+  NURI_FMT_TEST_NEXT_MOL("Z3085457096", 27, 27);
+  NURI_FMT_TEST_NEXT_MOL("Z2719008285", 27, 29);
 }
 
 TEST(SmilesFactoryTest, CreationTest) {

@@ -15,6 +15,42 @@
 
 #include "nuri/core/molecule.h"
 
+#define NURI_FMT_TEST_PARSE_FAIL()                                             \
+  do {                                                                         \
+    ASSERT_TRUE(this->advance()) << "Molecule index: " << this->idx_;          \
+    this->mol_ = this->ms_.current();                                          \
+    EXPECT_TRUE(this->mol_.empty()) << "Molecule index: " << this->idx_;       \
+  } while (false)
+
+#define NURI_FMT_TEST_ERROR_MOL()                                              \
+  do {                                                                         \
+    ASSERT_TRUE(this->advance()) << "Molecule index: " << this->idx_;          \
+    this->mol_ = this->ms_.current();                                          \
+    MoleculeSanitizer sanitizer(this->mol_);                                   \
+    EXPECT_FALSE(sanitizer.sanitize_all())                                     \
+      << "Molecule index: " << this->idx_;                                     \
+  } while (false)
+
+#define NURI_FMT_TEST_NEXT_MOL(mol_name, natoms, nbonds)                       \
+  do {                                                                         \
+    ASSERT_TRUE(this->advance()) << "Molecule index: " << this->idx_;          \
+    this->mol_ = this->ms_.current();                                          \
+                                                                               \
+    MoleculeSanitizer sanitizer(this->mol_);                                   \
+    ASSERT_TRUE(sanitizer.sanitize_all()) << "Molecule index: " << this->idx_; \
+                                                                               \
+    EXPECT_EQ(this->mol_.name(), mol_name)                                     \
+      << "Molecule index: " << this->idx_;                                     \
+    EXPECT_EQ(this->mol_.num_atoms(), natoms)                                  \
+      << "Molecule index: " << this->idx_;                                     \
+    EXPECT_EQ(this->mol_.num_bonds(), nbonds)                                  \
+      << "Molecule index: " << this->idx_;                                     \
+                                                                               \
+    if (print_) {                                                              \
+      internal::print_mol(this->mol_);                                         \
+    }                                                                          \
+  } while (false)
+
 namespace nuri {
 namespace internal {
 inline void print_mol(const Molecule &mol) {
@@ -36,49 +72,28 @@ public:
   std::istringstream iss_;
   MoleculeStream ms_;
   Molecule mol_;
+  int idx_;
   bool print_;
   // NOLINTEND(readability-identifier-naming)
 
   void set_test_string(const std::string &str) { iss_.str(str); }
 
-  void test_parse_fail() {
-    ASSERT_TRUE(ms_.advance());
-    mol_ = ms_.current();
-    EXPECT_TRUE(mol_.empty());
-  }
-
-  void test_error_mol() {
-    ASSERT_TRUE(ms_.advance());
-    mol_ = ms_.current();
-
-    MoleculeSanitizer sanitizer(mol_);
-    EXPECT_FALSE(sanitizer.sanitize_all());
-  }
-
-  void test_next_mol(std::string_view name, int natoms, int nbonds) {
-    ASSERT_TRUE(ms_.advance());
-    mol_ = ms_.current();
-
-    MoleculeSanitizer sanitizer(mol_);
-    ASSERT_TRUE(sanitizer.sanitize_all());
-
-    EXPECT_EQ(mol_.name(), name);
-    EXPECT_EQ(mol_.num_atoms(), natoms);
-    EXPECT_EQ(mol_.num_bonds(), nbonds);
-
-    if (print_) {
-      print_mol(mol_);
-    }
+  bool advance() {
+    ++idx_;
+    return ms_.advance();
   }
 
 protected:
   void SetUp() override {
     iss_.clear();
     ms_ = MoleculeStream(iss_);
+    idx_ = 0;
     print_ = false;
   }
 
-  void TearDown() override { EXPECT_FALSE(ms_.advance()); }
+  void TearDown() override {
+    EXPECT_FALSE(advance()) << "Molecule index: " << idx_;
+  }
 };
 }  // namespace internal
 }  // namespace nuri
