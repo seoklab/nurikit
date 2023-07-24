@@ -37,7 +37,7 @@
     this->mol_ = this->ms_.current();                                          \
                                                                                \
     MoleculeSanitizer sanitizer(this->mol_);                                   \
-    ASSERT_TRUE(sanitizer.sanitize_all()) << "Molecule index: " << this->idx_; \
+    EXPECT_TRUE(sanitizer.sanitize_all()) << "Molecule index: " << this->idx_; \
                                                                                \
     EXPECT_EQ(this->mol_.name(), mol_name)                                     \
       << "Molecule index: " << this->idx_;                                     \
