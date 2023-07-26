@@ -9,11 +9,13 @@
 #include <algorithm>
 #include <filesystem>
 #include <iterator>
+#include <numeric>
 #include <string_view>
 #include <type_traits>
 #include <vector>
 
 #include <absl/base/optimization.h>
+#include <absl/container/fixed_array.h>
 
 #include "nuri/eigen_config.h"
 
@@ -183,6 +185,31 @@ typename std::vector<T, Alloc>::iterator erase_first(std::vector<T, Alloc> &c,
     return c.erase(it);
   }
   return it;
+}
+
+inline absl::FixedArray<int> generate_index(int size) {
+  absl::FixedArray<int> result(size);
+  std::iota(result.begin(), result.end(), 0);
+  return result;
+}
+
+template <class Container, class Comp>
+absl::FixedArray<int> argsort(const Container &container, Comp op) {
+  absl::FixedArray<int> idxs = generate_index(container.size());
+  std::sort(idxs.begin(), idxs.end(),
+            [&](int i, int j) { return op(container[i], container[j]); });
+  return idxs;
+}
+
+template <class Container, class Comp>
+absl::FixedArray<int> argpartition(const Container &container, int count,
+                                   Comp op) {
+  absl::FixedArray<int> idxs = generate_index(container.size());
+  std::nth_element(idxs.begin(), idxs.begin() + count - 1, idxs.end(),
+                   [&](int i, int j) {
+                     return op(container[i], container[j]);
+                   });
+  return idxs;
 }
 
 template <class Container>
