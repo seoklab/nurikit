@@ -151,6 +151,11 @@ namespace internal {
   template <class Iterator, class T>
   using enable_if_compatible_iter_t =
     typename enable_if_compatible_iter<Iterator, T>::type;
+
+  template <class F>
+  int iround(F x) {
+    return static_cast<int>(std::lround(x));
+  }
 }  // namespace internal
 
 #if __cplusplus >= 202002L
