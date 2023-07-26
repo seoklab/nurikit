@@ -617,8 +617,8 @@ namespace {
               });
   }
 
-  bool test_aromatic(const Molecule &mol, const std::vector<int> &ring,
-                     const int pi_e_sum) {
+  bool is_ring_aromatic(const Molecule &mol, const std::vector<int> &ring,
+                        const int pi_e_sum) {
     return pi_e_sum % 4 == 2
            // Dummy atoms are always allowed in aromatic rings
            || std::any_of(ring.begin(), ring.end(), [&](int id) {
@@ -637,7 +637,7 @@ namespace {
       pi_e_sum += it->second;
     }
 
-    const bool this_aromatic = test_aromatic(mol, ring, pi_e_sum);
+    const bool this_aromatic = is_ring_aromatic(mol, ring, pi_e_sum);
     if (!this_aromatic) {
       return;
     }
