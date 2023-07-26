@@ -393,6 +393,13 @@ namespace internal {
     // c1(=O)ccccc1 (not aromatic, but the bond order must also be correct for
     // this case)
     sum_order += num_aromatic + 1 - num_multiple_bond;
+
+    if (aromatic_correct) {
+      int pie_estimate = count_pi_e(atom, sum_order);
+      // pyrrole, again.
+      sum_order -= static_cast<int>(pie_estimate != 1);
+    }
+
     return sum_order;
   }
 }  // namespace internal
