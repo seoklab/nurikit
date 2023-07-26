@@ -354,8 +354,7 @@ namespace internal {
         num_multiple_bond = 0;
 
     for (auto adj: atom) {
-      if (adj.edge_data().order() == constants::kAromaticBond
-          || (aromatic_correct && adj.edge_data().is_aromatic())) {
+      if (adj.edge_data().order() == constants::kAromaticBond) {
         ++num_aromatic;
       } else {
         sum_order += adj.edge_data().order();
