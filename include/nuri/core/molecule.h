@@ -1047,6 +1047,15 @@ inline MoleculeMutator Molecule::mutator() {
 
 /* Utility functions */
 
+namespace internal {
+  inline int common_valence(const Element &effective) {
+    const int val_electrons = effective.valence_electrons(),
+              common_valence = val_electrons <= 4 ? val_electrons
+                                                  : 8 - val_electrons;
+    return common_valence;
+  }
+}  // namespace internal
+
 /**
  * @brief Get the number of all neighbors of an atom.
  * @param atom An atom.
@@ -1212,15 +1221,6 @@ inline Rings find_relevant_rings(const Molecule &mol) {
 inline Rings find_sssr(const Molecule &mol) {
   return RingSetsFinder(mol).find_sssr();
 }
-
-namespace internal {
-  inline int octet_valence(const Element &effective) {
-    const int val_electrons = effective.valence_electrons(),
-              octet_valence = val_electrons <= 4 ? val_electrons
-                                                 : 8 - val_electrons;
-    return octet_valence;
-  }
-}  // namespace internal
 }  // namespace nuri
 
 #endif /* NURI_CORE_MOLECULE_H_ */

@@ -569,11 +569,11 @@ namespace {
         })) {
       // Special case, some bonds are aromatic
       // Now we have to check structures like furan, pyrrole, etc.
-      const int ov =
-        internal::octet_valence(effective_element_force_unwrap(atom));
+      const int cv =
+        internal::common_valence(effective_element_force_unwrap(atom));
 
       // E.g. O in furan, N in pyrrole, ...
-      if (ov < total_valence) {
+      if (cv < total_valence) {
         // Has nonbonding electrons (O, N) -> 2 electrons participate in
         // No nonbonding electrons (B) -> no electrons participate in
         const int pie_estimate = static_cast<int>(nb_electrons > 0) * 2;
@@ -583,7 +583,7 @@ namespace {
       }
 
       // Not sure if this condition will ever be true, just in case
-      ABSL_LOG_IF(WARNING, ov > total_valence)
+      ABSL_LOG_IF(WARNING, cv > total_valence)
         << "Valence smaller than octet valence";
 
       // Normal case: atoms in pyridine, benzene, ...
@@ -730,7 +730,7 @@ namespace {
 
   bool is_pyrrole_like(Molecule::Atom atom, const Element &effective,
                        const int nbe, const int total_valence) {
-    return nbe > 0 && internal::octet_valence(effective) < total_valence
+    return nbe > 0 && internal::common_valence(effective) < total_valence
            && std::any_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
                 return nei.edge_data().order() == constants::kAromaticBond;
               });
