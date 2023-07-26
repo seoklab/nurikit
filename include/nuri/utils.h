@@ -40,7 +40,6 @@ namespace internal {
 
   template <class T>
   using underlying_type_t = typename underlying_type<T>::type;
-
 #endif
 }  // namespace internal
 
