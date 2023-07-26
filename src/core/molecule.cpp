@@ -350,7 +350,8 @@ void MoleculeMutator::finalize() noexcept {
 
 namespace internal {
   int sum_bond_order(Molecule::Atom atom, bool aromatic_correct) {
-    int sum_order = atom.data().implicit_hydrogens(), num_aromatic = 0;
+    int sum_order = atom.data().implicit_hydrogens(), num_aromatic = 0,
+        num_multiple_bond = 0;
 
     for (auto adj: atom) {
       if (adj.edge_data().order() == constants::kAromaticBond
@@ -358,6 +359,8 @@ namespace internal {
         ++num_aromatic;
       } else {
         sum_order += adj.edge_data().order();
+        num_multiple_bond +=
+          static_cast<int>(adj.edge_data().order() > constants::kSingleBond);
       }
     }
 
@@ -387,7 +390,10 @@ namespace internal {
     //   - for 3 aromatic bonds, assume 2, 1, 1 for the bond orders (this is
     //     the most common case, e.g. naphthalene) = 4
     //   - others are very unlikely, ignore for now
-    sum_order += num_aromatic + 1;
+    // Then, subtract non-aromatic multiple bond; this is for structures like
+    // c1(=O)ccccc1 (not aromatic, but the bond order must also be correct for
+    // this case)
+    sum_order += num_aromatic + 1 - num_multiple_bond;
     return sum_order;
   }
 }  // namespace internal
