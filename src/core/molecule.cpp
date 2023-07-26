@@ -360,8 +360,8 @@ void MoleculeMutator::finalize() noexcept {
 
 /* MoleculeSanitizer definitions */
 
-namespace {
-  int sum_bond_order_impl(Molecule::Atom atom, bool aromatic_correct) {
+namespace internal {
+  int sum_bond_order(Molecule::Atom atom, bool aromatic_correct) {
     int sum_order = atom.data().implicit_hydrogens(), num_aromatic = 0;
 
     for (auto adj: atom) {
@@ -402,13 +402,13 @@ namespace {
     sum_order += num_aromatic + 1;
     return sum_order;
   }
-}  // namespace
+}  // namespace internal
 
 MoleculeSanitizer::MoleculeSanitizer(Molecule &molecule)
   : mol_(&molecule), valences_(molecule.num_atoms()) {
   // Calculate valence
   for (auto atom: mol()) {
-    valences_[atom.id()] = sum_bond_order_impl(atom, false);
+    valences_[atom.id()] = sum_bond_order(atom, false);
   }
 }
 
@@ -526,27 +526,8 @@ bool MoleculeSanitizer::sanitize_conjugated() {
   return true;
 }
 
-namespace {
-  bool is_aromatic_candidate(Molecule::Atom atom) {
-    const AtomData &data = atom.data();
-    // Consider in-ring, main-group, conjugated (implies hyb <= sp2)
-    return data.is_ring_atom() && data.element().main_group()
-           && atom.data().is_conjugated()
-           // No more than one double bonds, otherwise it's allene-like
-           && std::count_if(atom.begin(), atom.end(),
-                            [](Molecule::Neighbor nei) {
-                              return nei.edge_data().order()
-                                     == constants::kDoubleBond;
-                            })
-                < 2
-           // No exocyclic high-order bonds
-           && std::all_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
-                return nei.edge_data().is_ring_bond()
-                       || nei.edge_data().order() == constants::kSingleBond;
-              });
-  }
-
-  const Element &effective_element_force_unwrap(Molecule::Atom atom) {
+namespace internal {
+  const Element &effective_element_or_element(Molecule::Atom atom) noexcept {
     const Element *elem = effective_element(atom);
     if (ABSL_PREDICT_FALSE(elem == nullptr)) {
       ABSL_LOG(WARNING)
@@ -569,8 +550,7 @@ namespace {
         })) {
       // Special case, some bonds are aromatic
       // Now we have to check structures like furan, pyrrole, etc.
-      const int cv =
-        internal::common_valence(effective_element_force_unwrap(atom));
+      const int cv = common_valence(effective_element_or_element(atom));
 
       // E.g. O in furan, N in pyrrole, ...
       if (cv < total_valence) {
@@ -606,6 +586,35 @@ namespace {
     ABSL_DLOG(INFO)
       << "Exceptional: " << atom.id() << " " << pie_estimate << " pi electrons";
     return pie_estimate;
+  }
+
+  constants::Hybridization from_degree(const int total_degree,
+                                       const int nb_electrons) {
+    const int lone_pairs = nb_electrons / 2 + nb_electrons % 2,
+              steric_number = total_degree + lone_pairs;
+    return static_cast<constants::Hybridization>(
+      std::min(steric_number, static_cast<int>(constants::kOtherHyb)));
+  }
+}  // namespace internal
+
+namespace {
+  bool is_aromatic_candidate(Molecule::Atom atom) {
+    const AtomData &data = atom.data();
+    // Consider in-ring, main-group, conjugated (implies hyb <= sp2)
+    return data.is_ring_atom() && data.element().main_group()
+           && atom.data().is_conjugated()
+           // No more than one double bonds, otherwise it's allene-like
+           && std::count_if(atom.begin(), atom.end(),
+                            [](Molecule::Neighbor nei) {
+                              return nei.edge_data().order()
+                                     == constants::kDoubleBond;
+                            })
+                < 2
+           // No exocyclic high-order bonds
+           && std::all_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
+                return nei.edge_data().is_ring_bond()
+                       || nei.edge_data().order() == constants::kSingleBond;
+              });
   }
 
   bool test_aromatic(const Molecule &mol, const std::vector<int> &ring,
@@ -720,14 +729,6 @@ bool MoleculeSanitizer::sanitize_aromaticity() {
 }
 
 namespace {
-  constants::Hybridization from_degree(const int total_degree,
-                                       const int nb_electrons) {
-    const int lone_pairs = nb_electrons / 2 + nb_electrons % 2,
-              steric_number = total_degree + lone_pairs;
-    return static_cast<constants::Hybridization>(
-      std::min(steric_number, static_cast<int>(constants::kOtherHyb)));
-  }
-
   bool is_pyrrole_like(Molecule::Atom atom, const Element &effective,
                        const int nbe, const int total_valence) {
     return nbe > 0 && internal::common_valence(effective) < total_valence
@@ -751,7 +752,7 @@ namespace {
     if (atom.data().atomic_number() == 0) {
       // Assume dummy atom always satisfies the octet rule
       const int nbe = std::max(8 - total_valence, 0);
-      atom.data().set_hybridization(from_degree(total_degree, nbe));
+      atom.data().set_hybridization(internal::from_degree(total_degree, nbe));
       return true;
     }
 
@@ -765,9 +766,9 @@ namespace {
         << "; assuming no lone pair";
     }
 
-    const Element &effective = effective_element_force_unwrap(atom);
+    const Element &effective = internal::effective_element_or_element(atom);
 
-    constants::Hybridization hyb = from_degree(total_degree, nbe);
+    constants::Hybridization hyb = internal::from_degree(total_degree, nbe);
     if (hyb == constants::kSP3 && atom.data().is_conjugated()) {
       hyb = constants::kSP2;
       if (is_pyrrole_like(atom, effective, nbe, total_valence)) {
@@ -785,7 +786,7 @@ namespace {
     } else {
       // Assume non-main-group atoms does not have lone pairs
       atom.data().set_hybridization(
-        std::min(hyb, from_degree(total_degree, 0)));
+        std::min(hyb, internal::from_degree(total_degree, 0)));
     }
 
     return true;
@@ -845,7 +846,7 @@ namespace {
       return false;
     }
 
-    const Element &effective = effective_element_force_unwrap(atom);
+    const Element &effective = internal::effective_element_or_element(atom);
     if (atom.data().is_conjugated()
         && is_pyrrole_like(atom, effective, nbe, total_valence)) {
       // Pyrrole, etc.
@@ -877,10 +878,6 @@ int count_hydrogens(Molecule::Atom atom) {
     }
   }
   return count;
-}
-
-int sum_bond_order(Molecule::Atom atom) {
-  return sum_bond_order_impl(atom, true);
 }
 
 const Element *effective_element(Molecule::Atom atom) {

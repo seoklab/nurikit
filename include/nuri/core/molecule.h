@@ -1054,6 +1054,16 @@ namespace internal {
                                                   : 8 - val_electrons;
     return common_valence;
   }
+
+  extern const Element &
+  effective_element_or_element(Molecule::Atom atom) noexcept;
+
+  extern int sum_bond_order(Molecule::Atom atom, bool aromatic_correct);
+
+  extern constants::Hybridization from_degree(int total_degree,
+                                              int nb_electrons);
+
+  extern int count_pi_e(Molecule::Atom atom, int total_valence);
 }  // namespace internal
 
 /**
@@ -1086,7 +1096,9 @@ extern int count_hydrogens(Molecule::Atom atom);
  * @param atom An atom.
  * @return Total bond order of the atom.
  */
-extern int sum_bond_order(Molecule::Atom atom);
+inline int sum_bond_order(Molecule::Atom atom) {
+  return internal::sum_bond_order(atom, true);
+}
 
 /**
  * @brief Get "effective" element of the atom.

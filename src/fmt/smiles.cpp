@@ -415,7 +415,7 @@ void update_implicit_hydrogens(Molecule::MutableAtom atom) {
   // Required for correct bond order calculation
   atom.data().set_implicit_hydrogens(0);
 
-  int sum_bo = sum_bond_order(atom), normal_valence;
+  int sum_bo = internal::sum_bond_order(atom, false), normal_valence;
 
   switch (atom.data().atomic_number()) {
   case 0:
