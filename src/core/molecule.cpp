@@ -717,6 +717,10 @@ bool MoleculeSanitizer::sanitize_aromaticity() {
     mark_aromatic(mol(), valences_);
   }
 
+  for (auto atom: mol()) {
+    valences_[atom.id()] = sum_bond_order(atom);
+  }
+
   ABSL_LOG_IF(INFO, std::any_of(mol().bond_begin(), mol().bond_end(),
                                 [](Molecule::Bond bond) {
                                   return bond.data().order()
