@@ -249,39 +249,28 @@ namespace {
 }  // namespace
 
 void Molecule::update_topology() {
-  absl::FixedArray<bool> orig_aromatic_atom(num_atoms()),
-    orig_aromatic_bond(num_bonds());
-
-  int i = 0;
   for (auto atom: graph_) {
-    orig_aromatic_atom[i++] = atom.data().is_aromatic();
     atom.data().set_ring_atom(false);
   }
 
-  i = 0;
   for (auto bond: graph_.edges()) {
-    orig_aromatic_bond[i++] = bond.data().is_aromatic();
     bond.data().set_ring_bond(false);
   }
 
   // Find ring atoms & bonds
   std::tie(ring_groups_, num_fragments_) = find_rings_count_connected(graph_);
 
-  // Restore aromaticity
-  i = 0;
-  for (auto bond: graph_.edges()) {
-    bool was_aromatic = orig_aromatic_bond[i++];
-    bond.data().set_aromatic(bond.data().is_ring_bond() && was_aromatic);
+  // Fix non-ring aromaticity
+  for (auto atom: graph_) {
+    if (!atom.data().is_ring_atom()) {
+      atom.data().set_aromatic(false);
+    }
   }
 
-  i = 0;
-  for (auto atom: graph_) {
-    bool was_aromatic = orig_aromatic_atom[i++];
-    atom.data().set_aromatic(
-      was_aromatic
-      && std::any_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
-           return nei.edge_data().is_aromatic();
-         }));
+  for (auto bond: graph_.edges()) {
+    if (!bond.data().is_ring_bond()) {
+      bond.data().set_aromatic(false);
+    }
   }
 }
 
