@@ -13,7 +13,9 @@
 #include <utility>
 #include <vector>
 
+#include <absl/base/attributes.h>
 #include <absl/base/optimization.h>
+#include <absl/container/fixed_array.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
@@ -154,8 +156,6 @@ public:
 
   void set_aromatic(bool is_aromatic) {
     internal::update_flag(flags_, is_aromatic, AtomFlags::kAromatic);
-    internal::set_flag_if(flags_, is_aromatic,
-                          AtomFlags::kConjugated | AtomFlags::kRing);
   }
 
   bool is_aromatic() const {
@@ -164,7 +164,6 @@ public:
 
   void set_conjugated(bool is_conjugated) {
     internal::update_flag(flags_, is_conjugated, AtomFlags::kConjugated);
-    internal::unset_flag_if(flags_, !is_conjugated, AtomFlags::kAromatic);
   }
 
   bool is_conjugated() const {
@@ -173,7 +172,6 @@ public:
 
   void set_ring_atom(bool is_ring_atom) {
     internal::update_flag(flags_, is_ring_atom, AtomFlags::kRing);
-    internal::unset_flag_if(flags_, !is_ring_atom, AtomFlags::kAromatic);
   }
 
   bool is_ring_atom() const {
@@ -264,11 +262,8 @@ public:
   constants::BondOrder &order() { return order_; }
 
   bool is_rotable() const {
-    return internal::check_flag(flags_, BondFlags::kRotable);
-  }
-
-  void set_rotable(bool rotable) {
-    internal::update_flag(flags_, rotable, BondFlags::kRotable);
+    return !internal::check_flag(flags_,
+                                 BondFlags::kConjugated | BondFlags::kRing);
   }
 
   bool is_ring_bond() const {
@@ -277,7 +272,6 @@ public:
 
   void set_ring_bond(bool ring) {
     internal::update_flag(flags_, ring, BondFlags::kRing);
-    internal::unset_flag_if(flags_, !ring, BondFlags::kAromatic);
   }
 
   bool is_aromatic() const {
@@ -286,8 +280,6 @@ public:
 
   void set_aromatic(bool aromatic) {
     internal::update_flag(flags_, aromatic, BondFlags::kAromatic);
-    internal::set_flag_if(flags_, aromatic,
-                          BondFlags::kRing | BondFlags::kConjugated);
   }
 
   bool is_conjugated() const {
@@ -296,7 +288,6 @@ public:
 
   void set_conjugated(bool conj) {
     internal::update_flag(flags_, conj, BondFlags::kConjugated);
-    internal::unset_flag_if(flags_, !conj, BondFlags::kAromatic);
   }
 
   bool is_trans() const {
@@ -325,11 +316,10 @@ public:
 
 private:
   enum class BondFlags : uint32_t {
-    kRotable = 0x1,
-    kRing = 0x2,
-    kAromatic = 0x4,
-    kConjugated = 0x8,
-    kEConfig = 0x10,
+    kRing = 0x1,
+    kAromatic = 0x2,
+    kConjugated = 0x4,
+    kEConfig = 0x8,
   };
 
   constants::BondOrder order_;
@@ -340,9 +330,14 @@ private:
 /**
  * @brief Read-only molecule class.
  *
- * The two only allowed mutable operation on the molecule is:
+ * The few allowed mutable operations on the molecule are:
+ *    - updating atom/bond properties,
  *    - modifing conformers, and
  *    - adding/removing hydrogens.
+ *
+ * Note that it is the responsibility of the user to ensure the molecule is in a
+ * chemically valid state after property modification. For sanitization, use the
+ * MoleculeSanitizer class.
  *
  * If a new conformer is added, it must have same bond lengths with the existing
  * conformers (if any). If the added conformer is the first one, the bond
@@ -355,15 +350,21 @@ class Molecule {
 public:
   using GraphType = Graph<AtomData, BondData>;
 
+  using MutableAtom = GraphType::NodeRef;
   using Atom = GraphType::ConstNodeRef;
+  using iterator = GraphType::iterator;
   using const_iterator = GraphType::const_iterator;
+  using atom_iterator = iterator;
   using const_atom_iterator = const_iterator;
 
+  using MutableBond = GraphType::EdgeRef;
   using Bond = GraphType::ConstEdgeRef;
   using bond_id_type = GraphType::edge_id_type;
+  using bond_iterator = GraphType::edge_iterator;
   using const_bond_iterator = GraphType::const_edge_iterator;
 
   using Neighbor = GraphType::ConstAdjRef;
+  using neighbor_iterator = GraphType::adjacency_iterator;
   using const_neighbor_iterator = GraphType::const_adjacency_iterator;
 
   friend class MoleculeMutator;
@@ -371,7 +372,7 @@ public:
   /**
    * @brief Construct an empty Molecule object.
    */
-  Molecule() noexcept: circuit_rank_(0) { }
+  Molecule() noexcept = default;
 
   /**
    * @brief Construct a Molecule object from a range of atom data.
@@ -387,6 +388,8 @@ public:
   std::string &name() { return name_; }
 
   const std::string &name() const { return name_; }
+
+  void reserve(int num_atoms) { graph_.reserve(num_atoms); }
 
   /**
    * @brief Check if the molecule has any atoms.
@@ -406,6 +409,15 @@ public:
   int num_atoms() const { return graph_.num_nodes(); }
 
   /**
+   * @brief Get a mutable atom of the molecule.
+   * @param atom_idx Index of the atom to get.
+   * @return A mutable view over \p atom_idx -th atom of the molecule.
+   * @note If the atom index is out of range, the behavior is undefined. The
+   *       returned reference is invalidated when the molecule is modified.
+   */
+  MutableAtom atom(int atom_idx) { return graph_.node(atom_idx); }
+
+  /**
    * @brief Get an atom of the molecule.
    * @param atom_idx Index of the atom to get.
    * @return A read-only view over \p atom_idx -th atom of the molecule.
@@ -418,7 +430,18 @@ public:
    * @brief The begin iterator of the molecule over atoms.
    * @sa atom_begin()
    */
+  iterator begin() { return graph_.begin(); }
+  /**
+   * @brief The begin iterator of the molecule over atoms.
+   * @sa atom_begin()
+   */
   const_iterator begin() const { return graph_.begin(); }
+
+  /**
+   * @brief The begin iterator of the molecule over atoms.
+   * @sa begin()
+   */
+  iterator atom_begin() { return begin(); }
   /**
    * @brief The begin iterator of the molecule over atoms.
    * @sa begin()
@@ -428,7 +451,16 @@ public:
   /**
    * @brief The past-the-end iterator of the molecule over atoms.
    */
+  iterator end() { return graph_.end(); }
+  /**
+   * @brief The past-the-end iterator of the molecule over atoms.
+   */
   const_iterator end() const { return graph_.end(); }
+
+  /**
+   * @brief The past-the-end iterator of the molecule over atoms.
+   */
+  iterator atom_end() { return end(); }
   /**
    * @brief The past-the-end iterator of the molecule over atoms.
    */
@@ -437,12 +469,21 @@ public:
   /**
    * @brief Check if the molecule has any bonds.
    */
-  bool bond_empty() const { return graph_.empty(); }
+  bool bond_empty() const { return graph_.edge_empty(); }
 
   /**
    * @brief Get the number of bonds in the molecule.
    */
   int num_bonds() const { return graph_.num_edges(); }
+
+  /**
+   * @brief Get a mutable bond of the molecule.
+   * @param bond_id Id of the bond to get.
+   * @return A mutable view over bond \p bond_id of the molecule.
+   * @note The returned reference is valid until the bond is erased from the
+   *       molecule.
+   */
+  MutableBond bond(bond_id_type bond_id) { return graph_.edge(bond_id); }
 
   /**
    * @brief Get a bond of the molecule.
@@ -461,9 +502,26 @@ public:
    *         If no such bond exists, the returned iterator is equal to
    *         bond_end().
    */
+  bond_iterator find_bond(int src, int dst) {
+    return graph_.find_edge(src, dst);
+  }
+
+  /**
+   * @brief Get a bond of the molecule.
+   * @param src Index of the source atom of the bond.
+   * @param dst Index of the destination atom of the bond.
+   * @return An iterator to the bond between \p src and \p dst of the molecule.
+   *         If no such bond exists, the returned iterator is equal to
+   *         bond_end().
+   */
   const_bond_iterator find_bond(int src, int dst) const {
     return graph_.find_edge(src, dst);
   }
+
+  /**
+   * @brief Get an iterable, modifiable view over bonds of the molecule.
+   */
+  auto bonds() { return graph_.edges(); }
 
   /**
    * @brief Get an iterable, non-modifiable view over bonds of the molecule.
@@ -478,11 +536,31 @@ public:
   /**
    * @brief The begin iterator of the molecule over bonds.
    */
+  bond_iterator bond_begin() { return graph_.edge_begin(); }
+  /**
+   * @brief The begin iterator of the molecule over bonds.
+   */
   const_bond_iterator bond_begin() const { return graph_.edge_begin(); }
   /**
    * @brief The past-the-end iterator of the molecule over bonds.
    */
+  bond_iterator bond_end() { return graph_.edge_end(); }
+  /**
+   * @brief The past-the-end iterator of the molecule over bonds.
+   */
   const_bond_iterator bond_end() const { return graph_.edge_end(); }
+
+  /**
+   * @brief Find a neighbor of the atom.
+   * @param src Index of the source atom of the bond.
+   * @param dst Index of the destination atom of the bond.
+   * @return An iterator to the neighbor wrapper between \p src and \p dst of
+   *         the molecule. If no such bond exists, the returned iterator is
+   *         equal to \ref neighbor_end() "neighbor_end(\p src)"
+   */
+  neighbor_iterator find_neighbor(int src, int dst) {
+    return graph_.find_adjacent(src, dst);
+  }
 
   /**
    * @brief Find a neighbor of the atom.
@@ -499,8 +577,20 @@ public:
   /**
    * @brief The begin iterator of an atom over its neighbors.
    */
+  neighbor_iterator neighbor_begin(int atom_idx) {
+    return graph_.adj_begin(atom_idx);
+  }
+  /**
+   * @brief The begin iterator of an atom over its neighbors.
+   */
   const_neighbor_iterator neighbor_begin(int atom_idx) const {
     return graph_.adj_begin(atom_idx);
+  }
+  /**
+   * @brief The past-the-end iterator of an atom over its neighbors.
+   */
+  neighbor_iterator neighbor_end(int atom_idx) {
+    return graph_.adj_end(atom_idx);
   }
   /**
    * @brief The past-the-end iterator of an atom over its neighbors.
@@ -511,11 +601,10 @@ public:
 
   /**
    * @brief Get a MoleculeMutator object associated with the molecule.
-   * @param sanitize Passed to the constructor of MoleculeMutator.
    * @return The MoleculeMutator object to update this molecule.
    * @sa MoleculeMutator
    */
-  class MoleculeMutator mutator(bool sanitize = true);
+  class MoleculeMutator mutator();
 
   void clear() noexcept;
 
@@ -680,61 +769,45 @@ public:
   bool rotate_bond(int i, bond_id_type bid, double angle);
 
   /**
-   * @brief Fix all chemical errors in the molecule.
-   * @param use_conformer If non-negative, use bond angles and lengths of the
-   *        specified conformer to fix chemical errors. Otherwise, only the
-   *        graph is used. *Unimplemented, currently a no-op.*
-   * @return `true` if the molecule is valid after sanitization, `false` if the
-   *         molecule is still invalid after sanitization.
-   * @note This method has high overhead, and is not intended to be used in
-   *       downstream code. It is mainly used from MoleculeMutator class.
+   * @brief Update topology of the molecule.
+   *
+   * This method is safe to call multiple times, but will be automatically
+   * called from the MoleculeMutator class anyway. Thus, user code normally
+   * don't need to call this method.
+   *
+   * @note This only changes ring atom/bond flags. If the molecule is modified
+   *       in a way that changes aromaticity, the aromaticity flags should be
+   *       updated manually or by using the MoleculeSanitizer class.
    * @warning All molecule-related methods/functions assume that the molecule
-   *          is valid. If the molecule is not sanitized after the last
-   *          modification, all library code might return incorrect results. It
-   *          is the caller's responsibility to ensure that the molecule is
-   *          chemically valid before passing it to any library function, if the
-   *          molecule was not sanitized after any modification.
+   *          has valid topology data.
    */
-  bool sanitize(int use_conformer = -1);
+  void update_topology();
 
   /**
    * @brief Get size of SSSR.
    * @return The number of rings in the smallest set of smallest rings.
    */
-  int num_sssr() const { return circuit_rank_; }
+  int num_sssr() const { return num_bonds() - num_atoms() + num_fragments(); }
 
   /**
-   * @brief Set size of SSSR.
-   * @warning If the size is incorrect, all library code might return incorrect
-   *          results. It is the caller's responsibility to ensure that the size
-   *          is correct.
+   * @brief Get the ring groups of the molecule, i.e. all rings of a molecule,
+   *        merged into groups of rings that share at least one atom.
+   * @return List of the ring groups. If a ring group consists of single ring,
+   *         the atom indices form a ring in the order of the returned vector.
    */
-  void set_num_sssr(int n) { circuit_rank_ = n; }
+  const std::vector<std::vector<int>> &ring_groups() const {
+    return ring_groups_;
+  }
 
   /**
-   * @brief Observe the previous result of sanitize() call.
-   * @return `true` if the last call to sanitize() resulted in a valid molecule,
-   *         `false` otherwise.
-   * @note Calling this method before calling sanitize() is meaningless.
-   * @sa sanitize()
+   * @brief Get number of fragments (aka connected components).
+   * @return The number of fragments.
    */
-  bool was_valid() const { return was_valid_; }
+  int num_fragments() const { return num_fragments_; }
 
 private:
   Molecule(GraphType &&graph, std::vector<MatrixX3d> &&conformers) noexcept
     : graph_(std::move(graph)), conformers_(std::move(conformers)) { }
-
-  GraphType::NodeRef mutable_atom(int atom_idx) {
-    return graph_.node(atom_idx);
-  }
-
-  GraphType::EdgeRef mutable_bond(bond_id_type bond_id) {
-    return graph_.edge(bond_id);
-  }
-
-  GraphType::edge_iterator find_mutable_bond(int src, int dst) {
-    return graph_.find_edge(src, dst);
-  }
 
   bool rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
                           double angle);
@@ -742,8 +815,9 @@ private:
   GraphType graph_;
   std::vector<MatrixX3d> conformers_;
   std::string name_;
-  int circuit_rank_;
-  bool was_valid_;
+
+  std::vector<std::vector<int>> ring_groups_;
+  int num_fragments_;
 };
 
 /**
@@ -772,17 +846,11 @@ private:
 class MoleculeMutator {
 public:
   /**
-   * @brief Construct a new MoleculeMutator object
+   * @brief Construct a new MoleculeMutator object.
    *
    * @param mol The molecule to mutate.
-   * @param sanitize If `true`, sanitize the molecule at finalize() call.
-   * @param sanitize_with If non-negative, use bond angles and lengths of the
-   *        specified conformer to fix chemical errors. Otherwise, only the
-   *        graph is used. *Unimplemented, currently a no-op.*
-   * @sa sanitize(), finalize()
    */
-  MoleculeMutator(Molecule &mol, bool sanitize = true, int sanitize_with = -1)
-    : mol_(&mol), conformer_idx_(sanitize_with), sanitize_(sanitize) { }
+  MoleculeMutator(Molecule &mol): mol_(&mol) { }
 
   MoleculeMutator() = delete;
   MoleculeMutator(const MoleculeMutator &) = delete;
@@ -813,16 +881,6 @@ public:
    *       moment of calling `finalize()`.
    */
   void mark_atom_erase(int atom_idx) { erased_atoms_.push_back(atom_idx); }
-
-  /**
-   * @brief Get data of an atom.
-   * @param atom_idx Index of the atom after all atom additions, but before any
-   *                 erasures.
-   * @note The behavior is undefined if the atom index is out of range.
-   */
-  AtomData &atom_data(int atom_idx) {
-    return mol().graph_.node(atom_idx).data();
-  }
 
   /**
    * @brief Add a bond to the molecule.
@@ -857,20 +915,6 @@ public:
   void mark_bond_erase(int src, int dst);
 
   /**
-   * @brief Get data of a bond.
-   * @param src Index of the source atom of the bond
-   * @param dst Index of the destination atom of the bond
-   * @return Pointer to the bond data, or `nullptr` if the bond does not exist.
-   * @note The behavior is undefined if the atom index is out of range at the
-   *       moment of calling this method.
-   */
-  BondData *bond_data(int src, int dst);
-
-  bool &sanitize() { return sanitize_; }
-
-  bool sanitize() const { return sanitize_; }
-
-  /**
    * @brief Cancel all pending atom and bond removals.
    *
    * This effectively resets the mutator to the state after construction.
@@ -883,11 +927,10 @@ public:
    *       changes. Thus, it's a no-op to call this method multiple times.
    * @sa Molecule::sanitize()
    *
-   * This will effectively call Molecule::sanitize() unless sanitize() == false.
+   * This will effectively call Molecule::update_topology().
    */
   void finalize() noexcept;
 
-private:
   // GCOV_EXCL_START
   Molecule &mol() noexcept {
     ABSL_ASSUME(mol_ != nullptr);
@@ -900,30 +943,128 @@ private:
   }
   // GCOV_EXCL_STOP
 
+private:
   Molecule *mol_;
 
   std::vector<int> erased_atoms_;
   std::vector<std::pair<int, int>> erased_bonds_;
+};
 
-  int conformer_idx_;
-  bool sanitize_;
+class MoleculeSanitizer {
+public:
+  /**
+   * @brief Construct a new MoleculeSanitizer object.
+   *
+   * @param molecule The molecule to sanitize.
+   */
+  explicit MoleculeSanitizer(Molecule &molecule);
+
+  MoleculeSanitizer(MoleculeSanitizer &&) noexcept = default;
+  ~MoleculeSanitizer() noexcept = default;
+
+  MoleculeSanitizer() = delete;
+  MoleculeSanitizer(const MoleculeSanitizer &) = delete;
+  MoleculeSanitizer &operator=(const MoleculeSanitizer &) = delete;
+  MoleculeSanitizer &operator=(MoleculeSanitizer &&) noexcept = delete;
+
+  /**
+   * @brief Sanitize conjugated bonds.
+   * @return Whether the molecule was successfully sanitized.
+   */
+  ABSL_MUST_USE_RESULT bool sanitize_conjugated();
+
+  /**
+   * @brief Sanitize aromaticity.
+   * @pre Requires conjugated bonds to be sanitized. Do it manually, or call
+   *      sanitize_conjugated() first.
+   * @return Whether the molecule was successfully sanitized.
+   */
+  ABSL_MUST_USE_RESULT bool sanitize_aromaticity();
+
+  /**
+   * @brief Sanitize hybridization.
+   * @pre Requires conjugated bonds to be sanitized. Do it manually, or call
+   *      sanitize_conjugated() first.
+   * @return Whether the molecule was successfully sanitized.
+   */
+  ABSL_MUST_USE_RESULT bool sanitize_hybridization();
+
+  /**
+   * @brief Sanitize valences.
+   * @pre Requires conjugated bonds to be sanitized. Do it manually, or call
+   *      sanitize_conjugated() first.
+   * @return Whether the molecule was successfully sanitized.
+   */
+  ABSL_MUST_USE_RESULT bool sanitize_valence();
+
+  /**
+   * @brief Sanitize all.
+   *
+   * This is a shortcut for calling all of the above methods in the following
+   * order:
+   *   - sanitize_conjugated()
+   *   - sanitize_aromaticity()
+   *   - sanitize_hybridization()
+   *   - sanitize_valence()
+   *
+   * The method will return on the first failure.
+   *
+   * @return Whether the molecule was successfully sanitized.
+   */
+  ABSL_MUST_USE_RESULT bool sanitize_all() {
+    return sanitize_conjugated() && sanitize_aromaticity()
+           && sanitize_hybridization() && sanitize_valence();
+  }
+
+  Molecule &mol() noexcept {
+    ABSL_ASSUME(mol_ != nullptr);
+    return *mol_;
+  }
+
+  const Molecule &mol() const noexcept {
+    ABSL_ASSUME(mol_ != nullptr);
+    return *mol_;
+  }
+
+private:
+  Molecule *mol_;
+  absl::FixedArray<int> valences_;
 };
 
 /* Out-of-line definitions for molecule */
 
 template <class Iterator, class>
 Molecule::Molecule(Iterator begin, Iterator end): Molecule() {
-  MoleculeMutator m = mutator(false);
+  MoleculeMutator m = mutator();
   for (auto it = begin; it != end; ++it) {
     m.add_atom(*it);
   }
 }
 
-inline MoleculeMutator Molecule::mutator(bool sanitize) {
-  return MoleculeMutator(*this, sanitize);
+inline MoleculeMutator Molecule::mutator() {
+  return MoleculeMutator(*this);
 }
 
 /* Utility functions */
+
+namespace internal {
+  inline int common_valence(const Element &effective) {
+    const int val_electrons = effective.valence_electrons(),
+              common_valence = val_electrons <= 4 ? val_electrons
+                                                  : 8 - val_electrons;
+    return common_valence;
+  }
+
+  extern const Element &
+  effective_element_or_element(Molecule::Atom atom) noexcept;
+
+  extern int sum_bond_order(Molecule::Atom atom, bool aromatic_correct);
+
+  extern constants::Hybridization from_degree(int total_degree,
+                                              int nb_electrons);
+
+  extern int count_pi_e(Molecule::Atom atom, int total_valence);
+}  // namespace internal
 
 /**
  * @brief Get the number of all neighbors of an atom.
@@ -933,6 +1074,14 @@ inline MoleculeMutator Molecule::mutator(bool sanitize) {
 extern inline int all_neighbors(Molecule::Atom atom) {
   return atom.degree() + atom.data().implicit_hydrogens();
 }
+
+/**
+ * @brief Get the number of heavy atoms bonded to an atom.
+ * @param atom An atom.
+ * @return Number of heavy atoms bonded to the atom.
+ * @note Dummy atom counts as a heavy atom.
+ */
+extern int count_heavy(Molecule::Atom atom);
 
 /**
  * @brief Count the number of hydrogens of the atom.
@@ -947,7 +1096,9 @@ extern int count_hydrogens(Molecule::Atom atom);
  * @param atom An atom.
  * @return Total bond order of the atom.
  */
-extern int sum_bond_order(Molecule::Atom atom);
+inline int sum_bond_order(Molecule::Atom atom) {
+  return internal::sum_bond_order(atom, true);
+}
 
 /**
  * @brief Get "effective" element of the atom.

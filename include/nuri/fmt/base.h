@@ -130,6 +130,28 @@ Stream &operator>>(Stream &stream, Molecule &mol) {
   return stream;
 }
 
+template <class Block, Molecule (*parser)(const Block &)>
+class DefaultStreamImpl: public MoleculeStream {
+public:
+  DefaultStreamImpl() = default;
+  DefaultStreamImpl(std::istream &is): is_(&is) { }
+
+  DefaultStreamImpl(const DefaultStreamImpl &) = delete;
+  DefaultStreamImpl &operator=(const DefaultStreamImpl &) = delete;
+  DefaultStreamImpl(DefaultStreamImpl &&) noexcept = default;
+  DefaultStreamImpl &operator=(DefaultStreamImpl &&) noexcept = default;
+
+  ~DefaultStreamImpl() noexcept override = default;
+
+  Molecule current() const override { return parser(block_); }
+
+protected:
+  // NOLINTBEGIN(*-non-private-member-variables-in-classes)
+  std::istream *is_;
+  Block block_;
+  // NOLINTEND(*-non-private-member-variables-in-classes)
+};
+
 class MoleculeStreamFactory {
 public:
   MoleculeStreamFactory() = default;
@@ -201,6 +223,12 @@ private:
                                 std::string_view name);
 };
 
+template <class StreamFactoryImpl>
+bool register_stream_factory(const std::vector<std::string> &names) {
+  return MoleculeStreamFactory::register_factory(
+    std::make_unique<StreamFactoryImpl>(), names);
+}
+
 template <class MoleculeStreamImpl>
 class DefaultStreamFactoryImpl: public MoleculeStreamFactory {
 public:
@@ -255,6 +283,8 @@ public:
   // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
   iterator end() { return iterator(); }
 
+  operator bool() const { return is_ && stream_; }
+
 private:
   SourceStream is_;
   std::unique_ptr<Stream> stream_;
@@ -267,7 +297,7 @@ public:
 
   explicit MoleculeStreamWrapper(const std::filesystem::path &path): is_(path) {
     const std::filesystem::path full_ext = path.extension();
-    const std::string_view ext = extension_no_dot(ext);
+    const std::string_view ext = extension_no_dot(full_ext);
 
     const MoleculeStreamFactory *factory =
       MoleculeStreamFactory::find_factory(ext);
@@ -319,6 +349,8 @@ public:
    */
   // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
   iterator end() { return iterator(); }
+
+  operator bool() const { return is_ && stream_; }
 
 private:
   std::ifstream is_;

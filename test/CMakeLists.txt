@@ -25,6 +25,7 @@ foreach(nuri_test_src IN LISTS NURI_TEST_SRCS)
     target_link_libraries("${nuri_test_target}" PRIVATE nuri_lib)
   endif()
 
-  gtest_discover_tests("${nuri_test_target}" "" AUTO)
+  gtest_discover_tests("${nuri_test_target}"
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
   add_dependencies(nuri_all_test "${nuri_test_target}")
 endforeach()

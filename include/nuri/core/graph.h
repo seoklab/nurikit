@@ -46,7 +46,7 @@ namespace internal {
     using difference_type = int;
     using value_type = DT;
     using pointer = ArrowHelper<value_type>;
-    using reference = value_type &;
+    using reference = value_type;
     using iterator_category = std::random_access_iterator_tag;
 
     constexpr DataIteratorBase(parent_type *graph,
@@ -99,11 +99,11 @@ namespace internal {
       return index_ - other.index_;
     }
 
-    constexpr value_type operator*() const noexcept {
+    constexpr reference operator*() const noexcept {
       return derived()->deref(graph_, index_);
     }
 
-    constexpr value_type operator[](difference_type n) const noexcept {
+    constexpr reference operator[](difference_type n) const noexcept {
       return *(*derived() + n);
     }
 
@@ -433,7 +433,7 @@ namespace internal {
     using difference_type = int;
     using iterator_category = std::bidirectional_iterator_tag;
     using pointer = ArrowHelper<EdgeWrapper<GT, is_const>>;
-    using reference = EdgeWrapper<GT, is_const> &;
+    using reference = EdgeWrapper<GT, is_const>;
     using value_type = EdgeWrapper<GT, is_const>;
 
     using edge_id_type = typename GT::edge_id_type;
@@ -476,7 +476,7 @@ namespace internal {
       return tmp;
     }
 
-    value_type operator*() const noexcept { return { eid_ }; }
+    reference operator*() const noexcept { return { eid_ }; }
     pointer operator->() const noexcept { return { **this }; }
 
     template <bool other_const>

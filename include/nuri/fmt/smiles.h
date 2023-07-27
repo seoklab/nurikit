@@ -6,8 +6,7 @@
 #ifndef NURI_FMT_SMILES_H_
 #define NURI_FMT_SMILES_H_
 
-#include <istream>
-#include <string_view>
+#include <string>
 
 #include <absl/base/attributes.h>
 
@@ -21,26 +20,12 @@ namespace nuri {
  * @param smiles the SMILES string to read.
  * @return A molecule. On failure, the returned molecule is empty.
  */
-extern Molecule read_smiles(std::string_view smiles);
+extern Molecule read_smiles(const std::string &smiles);
 
-class SmilesStream: public MoleculeStream {
+class SmilesStream: public DefaultStreamImpl<std::string, read_smiles> {
 public:
-  SmilesStream() = default;
-  SmilesStream(std::istream &is): is_(&is) { }
-
-  SmilesStream(const SmilesStream &) = delete;
-  SmilesStream &operator=(const SmilesStream &) = delete;
-  SmilesStream(SmilesStream &&) noexcept = default;
-  SmilesStream &operator=(SmilesStream &&) noexcept = default;
-
-  ~SmilesStream() noexcept override = default;
-
+  using DefaultStreamImpl<std::string, read_smiles>::DefaultStreamImpl;
   bool advance() override;
-  Molecule current() const override { return read_smiles(line_); }
-
-private:
-  std::istream *is_;
-  std::string line_;
 };
 
 class SmilesStreamFactory: public DefaultStreamFactoryImpl<SmilesStream> {

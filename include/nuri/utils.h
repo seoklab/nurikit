@@ -9,11 +9,15 @@
 #include <algorithm>
 #include <filesystem>
 #include <iterator>
+#include <numeric>
 #include <string_view>
 #include <type_traits>
 #include <vector>
 
 #include <absl/base/optimization.h>
+#include <absl/container/fixed_array.h>
+
+#include "nuri/eigen_config.h"
 
 namespace nuri {
 namespace internal {
@@ -36,7 +40,6 @@ namespace internal {
 
   template <class T>
   using underlying_type_t = typename underlying_type<T>::type;
-
 #endif
 }  // namespace internal
 
@@ -148,6 +151,11 @@ namespace internal {
   template <class Iterator, class T>
   using enable_if_compatible_iter_t =
     typename enable_if_compatible_iter<Iterator, T>::type;
+
+  template <class F>
+  int iround(F x) {
+    return static_cast<int>(std::lround(x));
+  }
 }  // namespace internal
 
 #if __cplusplus >= 202002L
@@ -183,6 +191,31 @@ typename std::vector<T, Alloc>::iterator erase_first(std::vector<T, Alloc> &c,
   return it;
 }
 
+inline absl::FixedArray<int> generate_index(int size) {
+  absl::FixedArray<int> result(size);
+  std::iota(result.begin(), result.end(), 0);
+  return result;
+}
+
+template <class Container, class Comp>
+absl::FixedArray<int> argsort(const Container &container, Comp op) {
+  absl::FixedArray<int> idxs = generate_index(container.size());
+  std::sort(idxs.begin(), idxs.end(),
+            [&](int i, int j) { return op(container[i], container[j]); });
+  return idxs;
+}
+
+template <class Container, class Comp>
+absl::FixedArray<int> argpartition(const Container &container, int count,
+                                   Comp op) {
+  absl::FixedArray<int> idxs = generate_index(container.size());
+  std::nth_element(idxs.begin(), idxs.begin() + count - 1, idxs.end(),
+                   [&](int i, int j) {
+                     return op(container[i], container[j]);
+                   });
+  return idxs;
+}
+
 template <class Container>
 void mask_to_map(Container &mask) {
   typename Container::value_type idx = 0;
@@ -191,11 +224,11 @@ void mask_to_map(Container &mask) {
   }
 }
 
-template <typename Derived, typename Base, typename Del>
-std::unique_ptr<Derived, Del>
-static_unique_ptr_cast(std::unique_ptr<Base, Del> &&p) noexcept {
+template <typename Derived, typename Base>
+std::unique_ptr<Derived>
+static_unique_ptr_cast(std::unique_ptr<Base> &&p) noexcept {
   auto d = static_cast<Derived *>(p.release());
-  return std::unique_ptr<Derived, Del>(d, std::forward<Del>(p.get_deleter()));
+  return std::unique_ptr<Derived>(d);
 }
 
 inline std::string_view extension_no_dot(const std::filesystem::path &ext) {
@@ -204,6 +237,14 @@ inline std::string_view extension_no_dot(const std::filesystem::path &ext) {
     return ext_view.substr(1);
   }
   return ext_view;
+}
+
+inline MatrixX3d stack(const std::vector<Vector3d> &vs) {
+  MatrixX3d m(vs.size(), 3);
+  for (int i = 0; i < vs.size(); ++i) {
+    m.row(i) = vs[i];
+  }
+  return m;
 }
 }  // namespace nuri
 

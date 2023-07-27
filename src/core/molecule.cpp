@@ -56,11 +56,10 @@ void Molecule::clear() noexcept {
 
 void Molecule::erase_hydrogens() {
   MoleculeMutator m = mutator();
-  for (int i = 0; i < num_atoms(); ++i) {
-    auto hydrogen = mutable_atom(i);
-    if (hydrogen.data().atomic_number() == 1) {
-      m.mark_atom_erase(i);
-      for (auto nei: hydrogen) {
+  for (auto atom: *this) {
+    if (atom.data().atomic_number() == 1) {
+      m.mark_atom_erase(atom.id());
+      for (auto nei: atom) {
         AtomData &data = nei.dst().data();
         data.set_implicit_hydrogens(data.implicit_hydrogens() + 1);
       }
@@ -168,8 +167,8 @@ bool Molecule::rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
 }
 
 namespace {
-  using MutableAtom = Molecule::GraphType::NodeRef;
-  using MutableBond = Molecule::GraphType::EdgeRef;
+  using MutableAtom = Molecule::MutableAtom;
+  using MutableBond = Molecule::MutableBond;
 
   /*
    * Update the ring information of the molecule
@@ -247,496 +246,32 @@ namespace {
     }
     return ret;
   }
-
-  int nonbonding_electrons(Molecule::Atom atom, const int total_valence) {
-    return atom.data().element().valence_electrons() - total_valence
-           - atom.data().formal_charge();
-  }
-
-  bool is_conjugated_candidate(Molecule::Atom atom) {
-    const AtomData &data = atom.data();
-    // Consider main-group atoms only
-    return data.element().main_group()
-           // Cannot check hybridization here, as it might be incorrect
-           // (Most prominent example: amide nitrogen)
-           && all_neighbors(atom) <= 3;
-  }
-
-  void mark_conjugated(Molecule::GraphType &graph,
-                       const std::vector<std::vector<int>> &sp2_groups) {
-    for (const std::vector<int> &group: sp2_groups) {
-      ABSL_DCHECK(group.size() > 2) << "Group size: " << group.size();
-
-      for (const int id: group) {
-        AtomData &data = graph.node(id).data();
-        data.set_conjugated(true);
-      }
-    }
-
-    for (auto bond: graph.edges()) {
-      if (graph.node(bond.src()).data().is_conjugated()
-          && graph.node(bond.dst()).data().is_conjugated()) {
-        bond.data().set_conjugated(true);
-      }
-    }
-  }
-
-  void sanitize_conjugated(Molecule::GraphType &graph,
-                           const absl::FixedArray<int> &valences) {
-    absl::flat_hash_set<int> candidates;
-    std::vector<std::vector<int>> groups;
-
-    for (auto atom: graph) {
-      if (is_conjugated_candidate(atom)) {
-        candidates.insert(atom.id());
-      }
-    }
-
-    auto dfs = [&](auto &self, int curr, const BondData *prev_bond) -> void {
-      groups.back().push_back(curr);
-      candidates.erase(curr);
-
-      auto src = graph.node(curr);
-      for (auto nei: src) {
-        auto dst = nei.dst();
-        if (!candidates.contains(dst.id())) {
-          continue;
-        }
-
-        if (prev_bond == nullptr) {
-          prev_bond = &nei.edge_data();
-        } else {
-          if (prev_bond->order() == constants::kSingleBond) {
-            if (nei.edge_data().order() == constants::kSingleBond
-                && src.data().atomic_number() != 0
-                && dst.data().atomic_number() != 0) {
-              // Single - single bond -> conjugated if curr has lone pair and
-              // next doesn't, or vice versa, or any of them is dummy
-              const int src_nbe = nonbonding_electrons(src, valences[curr]),
-                        dst_nbe = nonbonding_electrons(dst, valences[dst.id()]);
-              if ((src_nbe > 0 && dst_nbe > 0)
-                  || (src_nbe <= 0 && dst_nbe <= 0)) {
-                continue;
-              }
-            }
-          } else if (nei.edge_data().order() != constants::kSingleBond
-                     && (prev_bond->order() != constants::kAromaticBond
-                         || nei.edge_data().order()
-                              != constants::kAromaticBond)) {
-            // Aromatic - aromatic bond -> conjugated
-            // double~triple - double~triple bond -> allene-like
-            // aromatic - double~triple bond -> not conjugated (erroneous?)
-            continue;
-          }
-        }
-
-        self(self, dst.id(), &nei.edge_data());
-      }
-    };
-
-    // Mark conjugated atoms
-    for (auto atom: graph) {
-      if (!candidates.contains(atom.id())) {
-        continue;
-      }
-
-      groups.emplace_back();
-      dfs(dfs, atom.id(), nullptr);
-
-      if (groups.back().size() < 3) {
-        candidates.insert(groups.back().begin(), groups.back().end());
-        groups.pop_back();
-      }
-    }
-
-    mark_conjugated(graph, groups);
-  }
-
-  bool is_aromatic_candidate(Molecule::Atom atom) {
-    const AtomData &data = atom.data();
-    // Consider in-ring, main-group, conjugated (implies hyb <= sp2)
-    return data.is_ring_atom() && data.element().main_group()
-           && atom.data().is_conjugated()
-           // No more than one double bonds, otherwise it's allene-like
-           && std::count_if(atom.begin(), atom.end(),
-                            [](Molecule::Neighbor nei) {
-                              return nei.edge_data().order()
-                                     == constants::kDoubleBond;
-                            })
-                < 2
-           // No exocyclic high-order bonds
-           && std::all_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
-                return nei.edge_data().is_ring_bond()
-                       || nei.edge_data().order() == constants::kSingleBond;
-              });
-  }
-
-  const Element &effective_element_force_unwrap(Molecule::Atom atom) {
-    const Element *elem = effective_element(atom);
-    if (ABSL_PREDICT_FALSE(elem == nullptr)) {
-      ABSL_LOG(WARNING)
-        << "Unexpected atomic number & formal charge combination: "
-        << atom.data().atomic_number() << ", " << atom.data().formal_charge()
-        << ". The result may be incorrect.";
-      elem = &atom.data().element();
-    }
-    return *elem;
-  }
-
-  int octet_valence(Molecule::Atom atom) {
-    const Element &elem = effective_element_force_unwrap(atom);
-
-    const int val_electrons = elem.valence_electrons(),
-              octet_valence = val_electrons <= 4 ? val_electrons
-                                                 : 8 - val_electrons;
-    return octet_valence;
-  }
-
-  int count_pi_e(Molecule::Atom atom, int total_valence) {
-    const int nb_electrons = nonbonding_electrons(atom, total_valence);
-    ABSL_DLOG_IF(WARNING, nb_electrons < 0)
-      << "Negative nonbonding electrons for atom " << atom.id() << " ("
-      << atom.data().element().symbol() << "): " << nb_electrons;
-
-    if (std::any_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
-          return nei.edge_data().order() == constants::kAromaticBond;
-        })) {
-      // Special case, some bonds are aromatic
-      // Now we have to check structures like furan, pyrrole, etc.
-      const int ov = octet_valence(atom);
-
-      // E.g. O in furan, N in pyrrole, ...
-      if (ov < total_valence) {
-        // Has nonbonding electrons (O, N) -> 2 electrons participate in
-        // No nonbonding electrons (B) -> no electrons participate in
-        const int pie_estimate = static_cast<int>(nb_electrons > 0) * 2;
-        ABSL_DLOG(INFO) << "Special case: " << atom.id() << " " << pie_estimate
-                        << " pi electrons";
-        return pie_estimate;
-      }
-
-      // Not sure if this condition will ever be true, just in case
-      ABSL_LOG_IF(WARNING, ov > total_valence)
-        << "Valence smaller than octet valence";
-
-      // Normal case: atoms in pyridine, benzene, ...
-      ABSL_DLOG(INFO) << "Normal case: " << atom.id() << " 1 pi electron";
-      return 1;
-    }
-
-    if (std::any_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
-          return nei.edge_data().is_ring_bond()
-                 && (nei.edge_data().order() == constants::kDoubleBond
-                     || nei.edge_data().order() == constants::kTripleBond);
-        })) {
-      // Normal case, at least one double/triple bond in the ring
-      ABSL_DLOG(INFO) << "Normal case: " << atom.id() << " 1 pi electron";
-      return 1;
-    }
-
-    // E.g. N in pyrrole
-    const int pie_estimate = std::min(nb_electrons, 2);
-    ABSL_DLOG(INFO)
-      << "Exceptional: " << atom.id() << " " << pie_estimate << " pi electrons";
-    return pie_estimate;
-  }
-
-  bool test_aromatic(Molecule::GraphType &graph, const std::vector<int> &ring,
-                     const int pi_e_sum) {
-    return pi_e_sum % 4 == 2
-           // Dummy atoms are always allowed in aromatic rings
-           || std::any_of(ring.begin(), ring.end(), [&](int id) {
-                return graph.node(id).data().atomic_number() == 0;
-              });
-  }
-
-  void mark_aromatic_ring(Molecule::GraphType &graph,
-                          const std::vector<int> &ring,
-                          const absl::flat_hash_map<int, int> &pi_e) {
-    int pi_e_sum = 0;
-    for (int i = 0; i < ring.size(); ++i) {
-      auto it = pi_e.find(ring[i]);
-      if (it == pi_e.end()) {
-        return;
-      }
-      pi_e_sum += it->second;
-    }
-
-    const bool this_aromatic = test_aromatic(graph, ring, pi_e_sum);
-    if (!this_aromatic) {
-      return;
-    }
-
-    for (int i = 0; i < ring.size(); ++i) {
-      const int src = ring[i],
-                dst = ring[(i + 1) % static_cast<int>(ring.size())];
-
-      graph.node(src).data().set_aromatic(true);
-
-      auto eit = graph.find_edge(src, dst);
-      ABSL_DCHECK(eit != graph.edge_end());
-      eit->data().set_aromatic(true);
-    }
-  }
-
-  void mark_aromatic(Molecule::GraphType &graph, const Molecule &mol,
-                     const std::vector<std::vector<int>> &rings,
-                     const absl::FixedArray<int> &valences,
-                     const int circuit_rank) {
-    absl::flat_hash_map<int, int> pi_e;
-
-    for (auto atom: graph) {
-      if (is_aromatic_candidate(atom)) {
-        pi_e.insert({ atom.id(), count_pi_e(atom, valences[atom.id()]) });
-      }
-    }
-
-    auto mark_aromatic_for = [&](const std::vector<std::vector<int>> &rs) {
-      for (const std::vector<int> &ring: rs) {
-        mark_aromatic_ring(graph, ring, pi_e);
-      }
-    };
-
-    const bool need_subring = circuit_rank > static_cast<int>(rings.size());
-    // Fast path: no need to find subrings
-    if (!need_subring) {
-      mark_aromatic_for(rings);
-      return;
-    }
-
-    auto [subrings, success] = find_all_rings(mol);
-    // Almost impossible, don't include in coverage report
-    // GCOV_EXCL_START
-    if (ABSL_PREDICT_TRUE(success)) {
-      mark_aromatic_for(subrings);
-      return;
-    }
-
-    ABSL_LOG(WARNING)
-      << "Ring finding exceeds threshold, falling back to SSSR-based "
-         "aromaticity detection: the result may be incorrect";
-
-    mark_aromatic_for(find_sssr(mol));
-    // GCOV_EXCL_STOP
-  }
-
-  bool sanitize_aromaticity(Molecule::GraphType &graph, const Molecule &mol,
-                            const std::vector<std::vector<int>> &rings,
-                            const absl::FixedArray<int> &valences,
-                            const int circuit_rank) {
-    for (auto bond: graph.edges()) {
-      if (!bond.data().is_ring_bond()) {
-        if (bond.data().order() == constants::kAromaticBond) {
-          ABSL_LOG(WARNING)
-            << "Bond order between atoms " << bond.src() << " and "
-            << bond.dst()
-            << " is set aromatic, but the bond is not a ring bond";
-          return false;
-        }
-      }
-    }
-
-    if (circuit_rank > 0) {
-      mark_aromatic(graph, mol, rings, valences, circuit_rank);
-    }
-
-    ABSL_LOG_IF(INFO, std::any_of(graph.edge_begin(), graph.edge_end(),
-                                  [](Molecule::Bond bond) {
-                                    return bond.data().order()
-                                             == constants::kAromaticBond
-                                           && !bond.data().is_aromatic();
-                                  }))
-      << "Bond order of non-aromatic bond is set aromatic; is this intended?";
-
-    return true;
-  }
-
-  constants::Hybridization from_degree(const int total_degree,
-                                       const int nb_electrons) {
-    const int lone_pairs = nb_electrons / 2 + nb_electrons % 2,
-              steric_number = total_degree + lone_pairs;
-    return static_cast<constants::Hybridization>(
-      std::min(steric_number, static_cast<int>(constants::kOtherHyb)));
-  }
-
-  std::string format_atom_common(Molecule::Atom atom, bool caps) {
-    return absl::StrCat(caps ? "A" : "a", "tom ", atom.id(), " (",
-                        atom.data().element().symbol(), ")");
-  }
-
-  // Set hybridization for others
-  bool sanitize_hybridization(MutableAtom atom, const int total_valence) {
-    const int total_degree = all_neighbors(atom);
-
-    ABSL_DLOG(INFO)
-      << atom.id() << ": " << total_degree << ", " << total_valence;
-
-    if (atom.data().atomic_number() == 0) {
-      // Assume dummy atom always satisfies the octet rule
-      const int nbe = std::max(8 - total_valence, 0);
-      atom.data().set_hybridization(from_degree(total_degree, nbe));
-      return true;
-    }
-
-    int nbe = nonbonding_electrons(atom, total_valence);
-    if (nbe < 0) {
-      ABSL_LOG(WARNING)
-        << "Valence electrons exceeded for " << format_atom_common(atom, false)
-        << ": total valence " << total_valence << ", "
-        << "formal charge " << atom.data().formal_charge();
-      return false;
-    }
-
-    constants::Hybridization hyb = from_degree(total_degree, nbe);
-    if (hyb == constants::kSP3 && atom.data().is_conjugated()) {
-      hyb = constants::kSP2;
-      if (nbe > 0
-          && std ::any_of(atom.begin(), atom.end(),
-                          [](Molecule::Neighbor nei) {
-                            return nei.edge_data().order()
-                                   == constants::kAromaticBond;
-                          })
-          && octet_valence(atom) < total_valence) {
-        // Pyrrole, etc.
-        --nbe;
-      }
-    }
-
-    // Octet verification
-    const int total_valence_electrons = nbe + 2 * total_valence;
-    const Element &effective = effective_element_force_unwrap(atom);
-    int max_valence;
-    switch (effective.period()) {
-    case 1:
-      max_valence = 2;
-      break;
-    case 2:
-      max_valence = 8;
-      break;
-    default:
-      max_valence = effective.lanthanide() || effective.actinide() ? 32 : 18;
-      break;
-    }
-
-    if (total_valence_electrons > max_valence) {
-      ABSL_LOG(WARNING)
-        << format_atom_common(atom, true) << " with charge "
-        << atom.data().formal_charge() << " has more than " << max_valence
-        << " valence electrons: " << total_valence_electrons;
-      return false;
-    }
-
-    // Unbound / terminal
-    if (total_degree <= 1) {
-      atom.data().set_hybridization(
-        static_cast<constants::Hybridization>(total_degree));
-    } else if (effective.main_group()) {
-      atom.data().set_hybridization(hyb);
-    } else {
-      // Assume non-main-group atoms does not have lone pairs
-      atom.data().set_hybridization(
-        std::min(hyb, from_degree(total_degree, 0)));
-    }
-
-    return true;
-  }
-
-  int sum_bond_order_impl(Molecule::Atom atom, bool aromatic_correct) {
-    int sum_order = atom.data().implicit_hydrogens(), num_aromatic = 0;
-
-    for (auto adj: atom) {
-      if (adj.edge_data().order() == constants::kAromaticBond
-          || (aromatic_correct && adj.edge_data().is_aromatic())) {
-        ++num_aromatic;
-      } else {
-        sum_order += adj.edge_data().order();
-      }
-    }
-
-    if (num_aromatic == 0) {
-      return sum_order;
-    }
-
-    ABSL_LOG_IF(INFO, aromatic_correct && !atom.data().is_aromatic())
-      << "Non-aromatic atom " << atom.id() << " has " << num_aromatic
-      << " aromatic bonds";
-
-    if (num_aromatic < 2) {
-      ABSL_LOG(INFO) << "Aromatic atom with less than two aromatic bonds; "
-                        "assuming single bond for each aromatic bond";
-      return sum_order + num_aromatic;
-    }
-    if (num_aromatic > 3) {
-      // Aromatic atom with >= 4 aromatic bonds is very unlikely;
-      // just log it and fall through
-      ABSL_LOG(INFO) << "Cannot correctly determine total bond order for "
-                        "aromatic atom with more than 4 aromatic bonds";
-    }
-
-    // The logic here:
-    //   - for 2 aromatic bonds, each will contribute 1.5 to the total bond
-    //     order (e.g. benzene) = 3
-    //   - for 3 aromatic bonds, assume 2, 1, 1 for the bond orders (this is
-    //     the most common case, e.g. naphthalene) = 4
-    //   - others are very unlikely, ignore for now
-    sum_order += num_aromatic + 1;
-    return sum_order;
-  }
-
-  std::pair<int, bool> mol_sanitize_impl(Molecule::GraphType &graph,
-                                         const Molecule &mol) {
-    // Clear all flags
-    for (auto atom: graph) {
-      atom.data().reset_flags();
-    }
-    for (auto bond: graph.edges()) {
-      bond.data().reset_flags();
-    }
-
-    // Find ring atoms & bonds
-    auto [rings, num_connected] = find_rings_count_connected(graph);
-    const int circuit_rank =
-      graph.num_edges() - graph.num_nodes() + num_connected;
-
-    // Calculate valence
-    absl::FixedArray<int> valences(graph.num_nodes());
-    for (int i = 0; i < graph.num_nodes(); ++i) {
-      valences[i] = sum_bond_order_impl(graph.node(i), false);
-    }
-
-    // Find conjugation
-    sanitize_conjugated(graph, valences);
-
-    // Fix aromaticity
-    if (!sanitize_aromaticity(graph, mol, rings, valences, circuit_rank)) {
-      return { circuit_rank, false };
-    }
-
-    // Validate valence
-    for (int i = 0; i < graph.num_nodes(); ++i) {
-      if (!sanitize_hybridization(graph.node(i), valences[i])) {
-        return { circuit_rank, false };
-      }
-    }
-
-    // Set rotable bonds
-    for (auto bond: graph.edges()) {
-      if (bond.data().is_conjugated() || bond.data().is_ring_bond()) {
-        continue;
-      }
-
-      bond.data().set_rotable(bond.data().order() == constants::kSingleBond);
-    }
-
-    // TODO(jnooree): check geometric isomers
-
-    return { circuit_rank, true };
-  }
 }  // namespace
 
-bool Molecule::sanitize(int /* use_conformer */) {
-  std::tie(circuit_rank_, was_valid_) = mol_sanitize_impl(graph_, *this);
-  return was_valid_;
+void Molecule::update_topology() {
+  for (auto atom: graph_) {
+    atom.data().set_ring_atom(false);
+  }
+
+  for (auto bond: graph_.edges()) {
+    bond.data().set_ring_bond(false);
+  }
+
+  // Find ring atoms & bonds
+  std::tie(ring_groups_, num_fragments_) = find_rings_count_connected(graph_);
+
+  // Fix non-ring aromaticity
+  for (auto atom: graph_) {
+    if (!atom.data().is_ring_atom()) {
+      atom.data().set_aromatic(false);
+    }
+  }
+
+  for (auto bond: graph_.edges()) {
+    if (!bond.data().is_ring_bond()) {
+      bond.data().set_aromatic(false);
+    }
+  }
 }
 
 /* MoleculeMutator definitions */
@@ -760,11 +295,6 @@ void MoleculeMutator::mark_bond_erase(int src, int dst) {
   }
 
   erased_bonds_.push_back({ src, dst });
-}
-
-BondData *MoleculeMutator::bond_data(int src, int dst) {
-  auto bit = mol().find_mutable_bond(src, dst);
-  return bit != mol().bond_end() ? &bit->data() : nullptr;
 }
 
 void MoleculeMutator::discard_erasure() noexcept {
@@ -811,12 +341,534 @@ void MoleculeMutator::finalize() noexcept {
     }
   }
 
-  if (sanitize_) {
-    ABSL_LOG_IF(WARNING, !mol().sanitize(conformer_idx_))
-      << "Molecule sanitization failed!";
-  }
+  mol().update_topology();
 
   discard_erasure();
+}
+
+/* MoleculeSanitizer definitions */
+
+namespace internal {
+  int sum_bond_order(Molecule::Atom atom, bool aromatic_correct) {
+    int sum_order = atom.data().implicit_hydrogens(), num_aromatic = 0,
+        num_multiple_bond = 0;
+
+    for (auto adj: atom) {
+      if (adj.edge_data().order() == constants::kAromaticBond) {
+        ++num_aromatic;
+      } else {
+        sum_order += adj.edge_data().order();
+        num_multiple_bond +=
+          static_cast<int>(adj.edge_data().order() > constants::kSingleBond);
+      }
+    }
+
+    if (num_aromatic == 0) {
+      return sum_order;
+    }
+
+    ABSL_LOG_IF(INFO, aromatic_correct && !atom.data().is_aromatic())
+      << "Non-aromatic atom " << atom.id() << " has " << num_aromatic
+      << " aromatic bonds";
+
+    if (num_aromatic == 1) {
+      ABSL_LOG(INFO) << "Atom with single aromatic bond; assuming double bond "
+                        "for bond order calculation";
+    } else if (num_aromatic > 3) {
+      // Aromatic atom with >= 4 aromatic bonds is very unlikely;
+      // just log it and fall through
+      ABSL_LOG(WARNING) << "Cannot correctly determine total bond order for "
+                           "aromatic atom with more than 4 aromatic bonds";
+    }
+
+    // The logic here:
+    //   - for 1 aromatic bond, assume it's a double bond (e.g. carboxylate C-O
+    //     bond has "aromatic" bond order in some Mol2 files) = 2
+    //   - for 2 aromatic bonds, each will contribute 1.5 to the total bond
+    //     order (e.g. benzene) = 3
+    //   - for 3 aromatic bonds, assume 2, 1, 1 for the bond orders (this is
+    //     the most common case, e.g. naphthalene) = 4
+    //   - others are very unlikely, ignore for now
+    // Then, subtract non-aromatic multiple bond; this is for structures like
+    // c1(=O)ccccc1 (not aromatic, but the bond order must also be correct for
+    // this case)
+    sum_order += num_aromatic + 1 - num_multiple_bond;
+
+    if (aromatic_correct) {
+      int pie_estimate = count_pi_e(atom, sum_order);
+      // pyrrole, again.
+      sum_order -= static_cast<int>(pie_estimate != 1);
+    }
+
+    return sum_order;
+  }
+}  // namespace internal
+
+MoleculeSanitizer::MoleculeSanitizer(Molecule &molecule)
+  : mol_(&molecule), valences_(molecule.num_atoms()) {
+  // Calculate valence
+  for (auto atom: mol()) {
+    valences_[atom.id()] = sum_bond_order(atom, false);
+  }
+}
+
+namespace {
+  int nonbonding_electrons(Molecule::Atom atom, const int total_valence) {
+    // Don't use effective_element* here, this function must return negative
+    // values for any chemically invalid combinations of the three values
+    return atom.data().element().valence_electrons() - total_valence
+           - atom.data().formal_charge();
+  }
+
+  bool is_conjugated_candidate(Molecule::Atom atom) {
+    const AtomData &data = atom.data();
+    // Consider main-group atoms only
+    return data.element().main_group()
+           // Cannot check hybridization here, as it might be incorrect
+           // (Most prominent example: amide nitrogen)
+           && all_neighbors(atom) <= 3;
+  }
+
+  void mark_conjugated(Molecule &mol,
+                       const std::vector<std::vector<int>> &sp2_groups) {
+    for (const std::vector<int> &group: sp2_groups) {
+      ABSL_DCHECK(group.size() > 2) << "Group size: " << group.size();
+
+      for (const int id: group) {
+        AtomData &data = mol.atom(id).data();
+        data.set_conjugated(true);
+      }
+    }
+
+    for (auto bond: mol.bonds()) {
+      if (mol.atom(bond.src()).data().is_conjugated()
+          && mol.atom(bond.dst()).data().is_conjugated()) {
+        bond.data().set_conjugated(true);
+      }
+    }
+  }
+}  // namespace
+
+bool MoleculeSanitizer::sanitize_conjugated() {
+  absl::flat_hash_set<int> candidates;
+  std::vector<std::vector<int>> groups;
+
+  for (auto atom: mol()) {
+    atom.data().set_conjugated(false);
+    if (is_conjugated_candidate(atom)) {
+      candidates.insert(atom.id());
+    }
+  }
+
+  for (auto bond: mol().bonds()) {
+    bond.data().set_conjugated(false);
+  }
+
+  auto dfs = [&](auto &self, int curr, const BondData *prev_bond) -> void {
+    groups.back().push_back(curr);
+    candidates.erase(curr);
+
+    auto src = mol().atom(curr);
+    for (auto nei: src) {
+      auto dst = nei.dst();
+      if (!candidates.contains(dst.id())) {
+        continue;
+      }
+
+      if (prev_bond == nullptr) {
+        prev_bond = &nei.edge_data();
+      } else {
+        if (prev_bond->order() == constants::kSingleBond) {
+          if (nei.edge_data().order() == constants::kSingleBond
+              && src.data().atomic_number() != 0
+              && dst.data().atomic_number() != 0) {
+            // Single - single bond -> conjugated if curr has lone pair and
+            // next doesn't, or vice versa, or any of them is dummy
+            const int src_nbe = nonbonding_electrons(src, valences_[curr]),
+                      dst_nbe = nonbonding_electrons(dst, valences_[dst.id()]);
+            if ((src_nbe > 0 && dst_nbe > 0)
+                || (src_nbe <= 0 && dst_nbe <= 0)) {
+              continue;
+            }
+          }
+        } else if (nei.edge_data().order() != constants::kSingleBond
+                   && (prev_bond->order() != constants::kAromaticBond
+                       || nei.edge_data().order()
+                            != constants::kAromaticBond)) {
+          // Aromatic - aromatic bond -> conjugated
+          // double~triple - double~triple bond -> allene-like
+          // aromatic - double~triple bond -> not conjugated (erroneous?)
+          continue;
+        }
+      }
+
+      self(self, dst.id(), &nei.edge_data());
+    }
+  };
+
+  // Mark conjugated atoms
+  for (auto atom: mol()) {
+    if (!candidates.contains(atom.id())) {
+      continue;
+    }
+
+    groups.emplace_back();
+    dfs(dfs, atom.id(), nullptr);
+
+    if (groups.back().size() < 3) {
+      candidates.insert(groups.back().begin(), groups.back().end());
+      groups.pop_back();
+    }
+  }
+
+  mark_conjugated(mol(), groups);
+
+  return true;
+}
+
+namespace internal {
+  const Element &effective_element_or_element(Molecule::Atom atom) noexcept {
+    const Element *elem = effective_element(atom);
+    if (ABSL_PREDICT_FALSE(elem == nullptr)) {
+      ABSL_LOG(WARNING)
+        << "Unexpected atomic number & formal charge combination: "
+        << atom.data().atomic_number() << ", " << atom.data().formal_charge()
+        << ". The result may be incorrect.";
+      elem = &atom.data().element();
+    }
+    return *elem;
+  }
+
+  int count_pi_e(Molecule::Atom atom, int total_valence) {
+    const int nb_electrons = nonbonding_electrons(atom, total_valence);
+    ABSL_DLOG_IF(WARNING, nb_electrons < 0)
+      << "Negative nonbonding electrons for atom " << atom.id() << " ("
+      << atom.data().element().symbol() << "): " << nb_electrons;
+
+    if (std::any_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
+          return nei.edge_data().order() == constants::kAromaticBond;
+        })) {
+      // Special case, some bonds are aromatic
+      // Now we have to check structures like furan, pyrrole, etc.
+      const int cv = common_valence(effective_element_or_element(atom));
+
+      // E.g. O in furan, N in pyrrole, ...
+      if (cv < total_valence) {
+        // Has nonbonding electrons (O, N) -> 2 electrons participate in
+        // No nonbonding electrons (B) -> no electrons participate in
+        const int pie_estimate = static_cast<int>(nb_electrons > 0) * 2;
+        ABSL_DLOG(INFO) << "Special case: " << atom.id() << " " << pie_estimate
+                        << " pi electrons";
+        return pie_estimate;
+      }
+
+      // Not sure if this condition will ever be true, just in case
+      ABSL_LOG_IF(WARNING, cv > total_valence)
+        << "Valence smaller than octet valence";
+
+      // Normal case: atoms in pyridine, benzene, ...
+      ABSL_DLOG(INFO) << "Normal case: " << atom.id() << " 1 pi electron";
+      return 1;
+    }
+
+    if (std::any_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
+          return nei.edge_data().is_ring_bond()
+                 && (nei.edge_data().order() == constants::kDoubleBond
+                     || nei.edge_data().order() == constants::kTripleBond);
+        })) {
+      // Normal case, at least one double/triple bond in the ring
+      ABSL_DLOG(INFO) << "Normal case: " << atom.id() << " 1 pi electron";
+      return 1;
+    }
+
+    // E.g. N in pyrrole
+    const int pie_estimate = std::min(nb_electrons, 2);
+    ABSL_DLOG(INFO)
+      << "Exceptional: " << atom.id() << " " << pie_estimate << " pi electrons";
+    return pie_estimate;
+  }
+
+  constants::Hybridization from_degree(const int total_degree,
+                                       const int nb_electrons) {
+    const int lone_pairs = nb_electrons / 2 + nb_electrons % 2,
+              steric_number = total_degree + lone_pairs;
+    return static_cast<constants::Hybridization>(
+      std::min(steric_number, static_cast<int>(constants::kOtherHyb)));
+  }
+}  // namespace internal
+
+namespace {
+  bool is_aromatic_candidate(Molecule::Atom atom) {
+    const AtomData &data = atom.data();
+    // Consider in-ring, main-group, conjugated (implies hyb <= sp2)
+    return data.is_ring_atom() && data.element().main_group()
+           && atom.data().is_conjugated()
+           // No more than one double bonds, otherwise it's allene-like
+           && std::count_if(atom.begin(), atom.end(),
+                            [](Molecule::Neighbor nei) {
+                              return nei.edge_data().order()
+                                     == constants::kDoubleBond;
+                            })
+                < 2
+           // No exocyclic high-order bonds
+           && std::all_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
+                return nei.edge_data().is_ring_bond()
+                       || nei.edge_data().order() == constants::kSingleBond;
+              });
+  }
+
+  bool is_ring_aromatic(const Molecule &mol, const std::vector<int> &ring,
+                        const int pi_e_sum) {
+    return pi_e_sum % 4 == 2
+           // Dummy atoms are always allowed in aromatic rings
+           || std::any_of(ring.begin(), ring.end(), [&](int id) {
+                return mol.atom(id).data().atomic_number() == 0;
+              });
+  }
+
+  void mark_aromatic_ring(Molecule &mol, const std::vector<int> &ring,
+                          const absl::flat_hash_map<int, int> &pi_e) {
+    int pi_e_sum = 0;
+    for (int i = 0; i < ring.size(); ++i) {
+      auto it = pi_e.find(ring[i]);
+      if (it == pi_e.end()) {
+        return;
+      }
+      pi_e_sum += it->second;
+    }
+
+    const bool this_aromatic = is_ring_aromatic(mol, ring, pi_e_sum);
+    if (!this_aromatic) {
+      return;
+    }
+
+    for (int i = 0; i < ring.size(); ++i) {
+      const int src = ring[i],
+                dst = ring[(i + 1) % static_cast<int>(ring.size())];
+
+      mol.atom(src).data().set_aromatic(true);
+
+      auto eit = mol.find_bond(src, dst);
+      ABSL_DCHECK(eit != mol.bond_end());
+      eit->data().set_aromatic(true);
+    }
+  }
+
+  void mark_aromatic(Molecule &mol, const absl::FixedArray<int> &valences) {
+    absl::flat_hash_map<int, int> pi_e;
+
+    for (auto atom: mol) {
+      if (is_aromatic_candidate(atom)) {
+        pi_e.insert({ atom.id(), count_pi_e(atom, valences[atom.id()]) });
+      }
+    }
+
+    auto mark_aromatic_for = [&](const std::vector<std::vector<int>> &rs) {
+      for (const std::vector<int> &ring: rs) {
+        mark_aromatic_ring(mol, ring, pi_e);
+      }
+    };
+
+    const bool need_subring = mol.num_sssr()
+                              > static_cast<int>(mol.ring_groups().size());
+    // Fast path: no need to find subrings
+    if (!need_subring) {
+      mark_aromatic_for(mol.ring_groups());
+      return;
+    }
+
+    auto [subrings, success] = find_all_rings(mol);
+    // Almost impossible, don't include in coverage report
+    // GCOV_EXCL_START
+    if (ABSL_PREDICT_TRUE(success)) {
+      mark_aromatic_for(subrings);
+      return;
+    }
+
+    ABSL_LOG(WARNING)
+      << "Ring finding exceeds threshold, falling back to SSSR-based "
+         "aromaticity detection: the result may be incorrect";
+
+    mark_aromatic_for(find_sssr(mol));
+    // GCOV_EXCL_STOP
+  }
+}  // namespace
+
+bool MoleculeSanitizer::sanitize_aromaticity() {
+  for (auto bond: mol().bonds()) {
+    if (!bond.data().is_ring_bond()) {
+      if (bond.data().order() == constants::kAromaticBond) {
+        ABSL_LOG(WARNING)
+          << "Bond order between atoms " << bond.src() << " and " << bond.dst()
+          << " is set aromatic, but the bond is not a ring bond";
+        return false;
+      }
+    }
+  }
+
+  for (auto atom: mol()) {
+    atom.data().set_aromatic(false);
+  }
+  for (auto bond: mol().bonds()) {
+    bond.data().set_aromatic(false);
+  }
+
+  if (mol().num_sssr() > 0) {
+    mark_aromatic(mol(), valences_);
+  }
+
+  for (auto atom: mol()) {
+    valences_[atom.id()] = sum_bond_order(atom);
+  }
+
+  ABSL_LOG_IF(INFO, std::any_of(mol().bond_begin(), mol().bond_end(),
+                                [](Molecule::Bond bond) {
+                                  return bond.data().order()
+                                           == constants::kAromaticBond
+                                         && !bond.data().is_aromatic();
+                                }))
+    << "Bond order of non-aromatic bond is set aromatic; is this intended?";
+
+  return true;
+}
+
+namespace {
+  bool is_pyrrole_like(Molecule::Atom atom, const Element &effective,
+                       const int nbe, const int total_valence) {
+    return nbe > 0 && internal::common_valence(effective) < total_valence
+           && std::any_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
+                return nei.edge_data().order() == constants::kAromaticBond;
+              });
+  }
+
+  std::string format_atom_common(Molecule::Atom atom, bool caps) {
+    return absl::StrCat(caps ? "A" : "a", "tom ", atom.id(), " (",
+                        atom.data().element().symbol(), ")");
+  }
+
+  // Set hybridization for others
+  bool sanitize_hyb_atom(MutableAtom atom, const int total_valence) {
+    const int total_degree = all_neighbors(atom);
+
+    ABSL_DLOG(INFO)
+      << atom.id() << ": " << total_degree << ", " << total_valence;
+
+    if (atom.data().atomic_number() == 0) {
+      // Assume dummy atom always satisfies the octet rule
+      const int nbe = std::max(8 - total_valence, 0);
+      atom.data().set_hybridization(internal::from_degree(total_degree, nbe));
+      return true;
+    }
+
+    int nbe = std::max(0, nonbonding_electrons(atom, total_valence));
+    if (nbe < 0) {
+      nbe = 0;
+      ABSL_LOG(INFO)
+        << "Valence electrons exceeded for " << format_atom_common(atom, false)
+        << ": total valence " << total_valence << ", "
+        << "formal charge " << atom.data().formal_charge()
+        << "; assuming no lone pair";
+    }
+
+    const Element &effective = internal::effective_element_or_element(atom);
+
+    constants::Hybridization hyb = internal::from_degree(total_degree, nbe);
+    if (hyb == constants::kSP3 && atom.data().is_conjugated()) {
+      hyb = constants::kSP2;
+      if (is_pyrrole_like(atom, effective, nbe, total_valence)) {
+        // Pyrrole, etc.
+        --nbe;
+      }
+    }
+
+    // Unbound / terminal
+    if (total_degree <= 1) {
+      atom.data().set_hybridization(
+        static_cast<constants::Hybridization>(total_degree));
+    } else if (effective.main_group()) {
+      atom.data().set_hybridization(hyb);
+    } else {
+      // Assume non-main-group atoms does not have lone pairs
+      atom.data().set_hybridization(
+        std::min(hyb, internal::from_degree(total_degree, 0)));
+    }
+
+    return true;
+  }
+
+}  // namespace
+
+bool MoleculeSanitizer::sanitize_hybridization() {
+  return std::all_of(mol().begin(), mol().end(), [&](MutableAtom atom) {
+    return sanitize_hyb_atom(atom, valences_[atom.id()]);
+  });
+}
+
+namespace {
+  int max_valence(const Element &effective) {
+    switch (effective.period()) {
+    case 1:
+      return 2;
+    case 2:
+      return 8;
+    default:
+      return effective.lanthanide() || effective.actinide() ? 32 : 18;
+    }
+  }
+
+  bool test_valence(Molecule::Atom atom, const Element &effective,
+                    const int total_valence_electrons) {
+    const int mv = max_valence(effective);
+    if (total_valence_electrons > mv) {
+      ABSL_LOG(WARNING)
+        << format_atom_common(atom, true) << " with charge "
+        << atom.data().formal_charge() << " has more than " << mv
+        << " valence electrons: " << total_valence_electrons;
+      return false;
+    }
+
+    return true;
+  }
+
+  bool sanitize_val_atom(Molecule::Atom atom, const int total_valence) {
+    ABSL_DLOG(INFO)
+      << atom.id() << ": " << all_neighbors(atom) << ", " << total_valence;
+
+    if (atom.data().atomic_number() == 0) {
+      // Assume dummy atom always satisfies the octet rule
+      return true;
+    }
+
+    int nbe = nonbonding_electrons(atom, total_valence);
+    if (nbe < 0) {
+      ABSL_LOG(WARNING)
+        << "Valence electrons exceeded for " << format_atom_common(atom, false)
+        << ": total valence " << total_valence << ", "
+        << "formal charge " << atom.data().formal_charge();
+      return false;
+    }
+
+    const Element &effective = internal::effective_element_or_element(atom);
+    if (atom.data().is_conjugated()
+        && is_pyrrole_like(atom, effective, nbe, total_valence)) {
+      // Pyrrole, etc.
+      --nbe;
+    }
+
+    return test_valence(atom, effective, nbe + 2 * total_valence);
+  }
+}  // namespace
+
+bool MoleculeSanitizer::sanitize_valence() {
+  return std::all_of(mol().begin(), mol().end(), [&](Molecule::Atom atom) {
+    return sanitize_val_atom(atom, valences_[atom.id()]);
+  });
+}
+
+int count_heavy(Molecule::Atom atom) {
+  return std::count_if(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
+    return nei.dst().data().atomic_number() != 1;
+  });
 }
 
 int count_hydrogens(Molecule::Atom atom) {
@@ -827,10 +879,6 @@ int count_hydrogens(Molecule::Atom atom) {
     }
   }
   return count;
-}
-
-int sum_bond_order(Molecule::Atom atom) {
-  return sum_bond_order_impl(atom, true);
 }
 
 const Element *effective_element(Molecule::Atom atom) {

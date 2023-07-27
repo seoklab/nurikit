@@ -3955,7 +3955,7 @@ PeriodicTable::PeriodicTable() noexcept
 } }, },
   // clang-format on
   // GCOV_EXCL_START
-    symbol_to_element_(kElementCount_ + 17),
+    symbol_to_element_(kElementCount_ + 18),
     name_to_element_(kElementCount_ + 15) {
   // GCOV_EXCL_STOP
   // Canonical symbols and names.
@@ -3966,8 +3966,9 @@ PeriodicTable::PeriodicTable() noexcept
 
   // Non-canonical symbols for convenience.
 
-  // RDKit use "*" and some others use "X" for dummy atom.
-  symbol_to_element_["*"] = symbol_to_element_["X"] = &elements_[0];
+  // RDKit use "*" and some others use "X", "Du" for dummy atom.
+  symbol_to_element_["*"] = symbol_to_element_["X"] = symbol_to_element_["Du"] =
+    &elements_[0];
 
   // Systematic element symbols & names (104-118).
   symbol_to_element_["Unq"] = name_to_element_["Unnilquadium"] =

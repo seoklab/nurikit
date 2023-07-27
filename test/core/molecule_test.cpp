@@ -6,7 +6,6 @@
 #include "nuri/core/molecule.h"
 
 #include <algorithm>
-#include <iostream>
 #include <vector>
 
 #include <absl/container/flat_hash_set.h>
@@ -20,6 +19,7 @@ namespace {
 using nuri::AtomData;
 using nuri::BondData;
 using nuri::Molecule;
+using nuri::MoleculeSanitizer;
 
 // NOLINTNEXTLINE(*-using-namespace)
 using namespace nuri::constants;
@@ -53,7 +53,7 @@ TEST(Basic2DMoleculeTest, CreationTest) {
 TEST(Basic2DMoleculeTest, AddAtomsTest) {
   Molecule m;
   {
-    auto mutator = m.mutator(false);
+    auto mutator = m.mutator();
     for (int i = 0; i < 10; ++i) {
       mutator.add_atom(AtomData(pt[i], 0, 0, kSP3, 0, i * 2));
     }
@@ -73,14 +73,14 @@ TEST(Basic2DMoleculeTest, AddBondsTest) {
 
   Molecule ten(atoms.begin(), atoms.end());
   {
-    auto mutator = ten.mutator(false);
+    auto mutator = ten.mutator();
     EXPECT_TRUE(mutator.add_bond(0, 1, BondData(kSingleBond)));
 
     EXPECT_FALSE(mutator.add_bond(0, 0, BondData(kSingleBond)));
     EXPECT_FALSE(mutator.add_bond(1, 0, BondData(kDoubleBond)));
   }
   {
-    auto mutator = ten.mutator(false);
+    auto mutator = ten.mutator();
     EXPECT_FALSE(mutator.add_bond(1, 0, BondData(kDoubleBond)));
   }
 
@@ -111,7 +111,7 @@ protected:
     mol_ = Molecule();
 
     {
-      auto mutator = mol_.mutator(false);
+      auto mutator = mol_.mutator();
 
       mutator.add_atom({ pt[6] });
       mutator.add_atom({ pt[6] });
@@ -134,9 +134,6 @@ protected:
       mutator.add_bond(2, 8, BondData { kSingleBond });
       mutator.add_bond(3, 9, BondData { kSingleBond });
       mutator.add_bond(3, 10, BondData { kSingleBond });
-
-      mutator.bond_data(2, 3)->set_rotable(true);
-      mutator.bond_data(3, 4)->set_rotable(true);
     }
 
     ASSERT_EQ(mol_.num_atoms(), 12);
@@ -268,7 +265,7 @@ TEST_F(MoleculeTest, RotateBondTest) {
 TEST_F(MoleculeTest, EraseAtomsTest) {
   Molecule mol1(mol_);
   {
-    auto m = mol1.mutator(false);
+    auto m = mol1.mutator();
     m.mark_atom_erase(9);
     m.mark_atom_erase(10);
     m.mark_atom_erase(11);
@@ -283,7 +280,7 @@ TEST_F(MoleculeTest, EraseAtomsTest) {
 
   Molecule mol2(mol_);
   {
-    auto m = mol2.mutator(false);
+    auto m = mol2.mutator();
     m.mark_atom_erase(0);
     m.mark_atom_erase(1);
     m.mark_atom_erase(2);
@@ -298,7 +295,7 @@ TEST_F(MoleculeTest, EraseAtomsTest) {
 
   Molecule mol3(mol_);
   {
-    auto m = mol3.mutator(false);
+    auto m = mol3.mutator();
     m.mark_atom_erase(0);
     m.mark_atom_erase(4);
     m.mark_atom_erase(9);
@@ -317,7 +314,7 @@ TEST_F(MoleculeTest, EraseBondsTest) {
   Molecule mol1(mol_);
   {
     // All nop
-    auto m = mol1.mutator(false);
+    auto m = mol1.mutator();
     m.mark_bond_erase(8, 8);
     m.mark_bond_erase(8, 9);
   }
@@ -326,7 +323,7 @@ TEST_F(MoleculeTest, EraseBondsTest) {
 
   Molecule mol2(mol_);
   {
-    auto m = mol2.mutator(false);
+    auto m = mol2.mutator();
     m.mark_bond_erase(0, 1);
   }
   EXPECT_EQ(mol2.num_atoms(), 12);
@@ -334,7 +331,7 @@ TEST_F(MoleculeTest, EraseBondsTest) {
 
   Molecule mol3(std::move(mol_));
   {
-    auto m = mol3.mutator(false);
+    auto m = mol3.mutator();
     m.mark_bond_erase(0, 1);
     m.mark_bond_erase(8, 9);  // nop
     m.mark_bond_erase(3, 2);
@@ -358,7 +355,8 @@ TEST_F(MoleculeTest, EraseHydrogensTest) {
 }
 
 TEST_F(MoleculeTest, SanitizeTest) {
-  ASSERT_TRUE(mol_.sanitize());
+  MoleculeSanitizer sanitizer(mol_);
+  ASSERT_TRUE(sanitizer.sanitize_all());
 
   EXPECT_EQ(mol_.atom(0).data().hybridization(), kSP2);
   EXPECT_EQ(mol_.atom(1).data().hybridization(), kSP2);
@@ -405,12 +403,12 @@ TEST(SanitizeTest, FindRingsTest) {
     mut.add_bond(5, 7, BondData(kSingleBond));
 
     for (int i: { 1, 3, 4, 5, 6 }) {
-      mut.atom_data(i).set_implicit_hydrogens(1);
+      mol.atom(i).data().set_implicit_hydrogens(1);
     }
     for (int i: { 0, 7 }) {
-      mut.atom_data(i).set_implicit_hydrogens(2);
+      mol.atom(i).data().set_implicit_hydrogens(2);
     }
-    mut.atom_data(2).set_implicit_hydrogens(3);
+    mol.atom(2).data().set_implicit_hydrogens(3);
   }
 }
 
@@ -430,11 +428,15 @@ TEST(SanitizeTest, ConjugatedTest) {
     mut.add_bond(0, 2, BondData(kDoubleBond));
     mut.add_bond(0, 3, BondData(kSingleBond));
 
-    mut.atom_data(1).set_implicit_hydrogens(3);
-    mut.atom_data(3).set_implicit_hydrogens(1);
+    mol.atom(1).data().set_implicit_hydrogens(3);
+    mol.atom(3).data().set_implicit_hydrogens(1);
   }
 
-  ASSERT_TRUE(mol.was_valid());
+  {
+    MoleculeSanitizer sanitizer(mol);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+  }
+
   EXPECT_EQ(mol.atom(2).data().hybridization(), kTerminal);
   EXPECT_EQ(mol.atom(2).data().is_conjugated(), true);
   for (auto atom: mol) {
@@ -459,24 +461,29 @@ TEST(SanitizeTest, ConjugatedTest) {
 
     for (int i = 0; i < 5; ++i) {
       mut.add_bond(i, (i + 1) % 5, BondData(kAromaticBond));
-      mut.atom_data(i).set_implicit_hydrogens(1);
+      mol.atom(i).data().set_implicit_hydrogens(1);
     }
   }
 
-  ASSERT_TRUE(mol.was_valid());
+  {
+    MoleculeSanitizer sanitizer(mol);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+  }
+
   for (auto atom: mol) {
     EXPECT_EQ(atom.data().hybridization(), kSP2);
     EXPECT_TRUE(atom.data().is_conjugated());
   }
 
-  {
-    auto mut = mol.mutator();
-    for (int i = 0; i < 5; ++i) {
-      *mut.bond_data(i, (i + 1) % 5) = BondData(kAromaticBond);
-    }
+  for (int i = 0; i < 5; ++i) {
+    mol.find_bond(i, (i + 1) % 5)->data().order() = kAromaticBond;
   }
 
-  ASSERT_TRUE(mol.was_valid());
+  {
+    MoleculeSanitizer sanitizer(mol);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+  }
+
   for (auto atom: mol) {
     EXPECT_EQ(atom.data().hybridization(), kSP2);
     EXPECT_TRUE(atom.data().is_conjugated());
@@ -497,12 +504,15 @@ TEST(SanitizeTest, ConjugatedTest) {
     mut.add_bond(4, 5, BondData(kSingleBond));
 
     for (int i: { 1, 2, 4 }) {
-      mut.atom_data(i).set_implicit_hydrogens(1);
+      mol.atom(i).data().set_implicit_hydrogens(1);
     }
-    mut.atom_data(5).set_implicit_hydrogens(3);
+    mol.atom(5).data().set_implicit_hydrogens(3);
   }
 
-  ASSERT_TRUE(mol.was_valid());
+  {
+    MoleculeSanitizer sanitizer(mol);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+  }
 
   for (auto atom: mol) {
     EXPECT_EQ(atom.data().is_conjugated(), atom.id() < 4) << atom.id();
@@ -533,14 +543,17 @@ TEST(SanitizeTest, ConjugatedTest) {
     mut.add_bond(1, 4, BondData(kSingleBond));
 
     for (int i: { 1, 4 }) {
-      mut.atom_data(i).set_implicit_hydrogens(1);
+      mol.atom(i).data().set_implicit_hydrogens(1);
     }
     for (int i: { 2, 3 }) {
-      mut.atom_data(i).set_implicit_hydrogens(2);
+      mol.atom(i).data().set_implicit_hydrogens(2);
     }
   }
 
-  ASSERT_TRUE(mol.was_valid());
+  {
+    MoleculeSanitizer sanitizer(mol);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+  }
 
   for (auto atom: mol) {
     EXPECT_EQ(atom.data().is_conjugated(), atom.id() != 1 && atom.id() != 2)
@@ -570,11 +583,14 @@ TEST(SanitizeTest, AromaticTest) {
     mut.add_bond(4, 0, BondData(kSingleBond));
 
     for (int i = 0; i < 5; ++i) {
-      mut.atom_data(i).set_implicit_hydrogens(1);
+      mol.atom(i).data().set_implicit_hydrogens(1);
     }
   }
 
-  ASSERT_TRUE(mol.was_valid());
+  {
+    MoleculeSanitizer sanitizer(mol);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+  }
 
   for (auto atom: mol) {
     EXPECT_TRUE(atom.data().is_aromatic());
@@ -584,18 +600,18 @@ TEST(SanitizeTest, AromaticTest) {
     EXPECT_TRUE(bond.data().is_aromatic());
   }
 
-  {
-    auto mut = mol.mutator();
-    for (int i = 0; i < 5; ++i) {
-      *mut.bond_data(0, 1) = BondData(kAromaticBond);
-      *mut.bond_data(1, 3) = BondData(kAromaticBond);
-      *mut.bond_data(3, 2) = BondData(kAromaticBond);
-      *mut.bond_data(2, 4) = BondData(kAromaticBond);
-      *mut.bond_data(4, 0) = BondData(kAromaticBond);
-    }
+  for (int i = 0; i < 5; ++i) {
+    mol.find_bond(0, 1)->data().order() = kAromaticBond;
+    mol.find_bond(1, 3)->data().order() = kAromaticBond;
+    mol.find_bond(3, 2)->data().order() = kAromaticBond;
+    mol.find_bond(2, 4)->data().order() = kAromaticBond;
+    mol.find_bond(4, 0)->data().order() = kAromaticBond;
   }
 
-  ASSERT_TRUE(mol.was_valid());
+  {
+    MoleculeSanitizer sanitizer(mol);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+  }
 
   for (auto atom: mol) {
     EXPECT_TRUE(atom.data().is_aromatic());
@@ -624,11 +640,14 @@ TEST(SanitizeTest, AromaticTest) {
     mut.add_bond(4, 0, BondData(kSingleBond));
 
     for (int i = 0; i < 5; ++i) {
-      mut.atom_data(i).set_implicit_hydrogens(1);
+      mol.atom(i).data().set_implicit_hydrogens(1);
     }
   }
 
-  ASSERT_TRUE(mol.was_valid());
+  {
+    MoleculeSanitizer sanitizer(mol);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+  }
 
   for (auto atom: mol) {
     EXPECT_FALSE(atom.data().is_aromatic());
@@ -638,14 +657,14 @@ TEST(SanitizeTest, AromaticTest) {
     EXPECT_FALSE(bond.data().is_aromatic());
   }
 
-  {
-    auto mut = mol.mutator();
-    for (int i = 0; i < 5; ++i) {
-      *mut.bond_data(i, (i + 1) % 5) = BondData(kAromaticBond);
-    }
+  for (int i = 0; i < 5; ++i) {
+    mol.find_bond(i, (i + 1) % 5)->data() = BondData(kAromaticBond);
   }
 
-  EXPECT_FALSE(mol.was_valid());
+  {
+    MoleculeSanitizer sanitizer(mol);
+    EXPECT_FALSE(sanitizer.sanitize_all());
+  }
 
   mol.clear();
 
@@ -672,24 +691,29 @@ TEST(SanitizeTest, AromaticTest) {
     mut.add_bond(3, 7, BondData(kDoubleBond));
 
     for (int i: { 1, 2, 4, 5 }) {
-      mut.atom_data(i).set_implicit_hydrogens(1);
+      mol.atom(i).data().set_implicit_hydrogens(1);
     }
   }
 
-  ASSERT_TRUE(mol.was_valid());
+  {
+    MoleculeSanitizer sanitizer(mol);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+  }
+
   for (auto atom: mol) {
     EXPECT_FALSE(atom.data().is_aromatic());
     EXPECT_EQ(atom.data().hybridization(),
               atom.data().atomic_number() == 8 ? kTerminal : kSP2);
   }
 
-  {
-    auto mut = mol.mutator();
-    for (int i = 0; i < 6; ++i) {
-      *mut.bond_data(i, (i + 1) % 6) = BondData(kAromaticBond);
-    }
+  for (int i = 0; i < 6; ++i) {
+    mol.find_bond(i, (i + 1) % 6)->data() = BondData(kAromaticBond);
   }
-  EXPECT_FALSE(mol.was_valid());
+
+  {
+    MoleculeSanitizer sanitizer(mol);
+    EXPECT_FALSE(sanitizer.sanitize_all());
+  }
 }
 
 TEST(SanitizeTest, FusedAromaticTest) {
@@ -697,7 +721,11 @@ TEST(SanitizeTest, FusedAromaticTest) {
 
   // benzene-cyclobutadiene-benzene fused ring
   const auto verify_bcb = [&mol]() {
-    ASSERT_TRUE(mol.was_valid());
+    {
+      MoleculeSanitizer sanitizer(mol);
+      ASSERT_TRUE(sanitizer.sanitize_all());
+    }
+
     for (auto atom: mol) {
       EXPECT_TRUE(atom.data().is_aromatic());
     }
@@ -716,7 +744,7 @@ TEST(SanitizeTest, FusedAromaticTest) {
     for (int i = 0; i < 12; ++i) {
       mut.add_atom(pt[6]);
       if (i != 0 && i != 5 && i != 6 && i != 11) {
-        mut.atom_data(i).set_implicit_hydrogens(1);
+        mol.atom(i).data().set_implicit_hydrogens(1);
       }
     }
     for (int i = 0; i < 6; ++i) {
@@ -729,24 +757,27 @@ TEST(SanitizeTest, FusedAromaticTest) {
   verify_bcb();
 
   // kekulized version
-  {
-    auto mut = mol.mutator();
-    mut.bond_data(1, 2)->order() = mut.bond_data(3, 4)->order() =
-      mut.bond_data(5, 0)->order() = mut.bond_data(6, 7)->order() =
-        mut.bond_data(8, 9)->order() = mut.bond_data(10, 11)->order() =
-          kDoubleBond;
 
-    mut.bond_data(0, 1)->order() = mut.bond_data(2, 3)->order() =
-      mut.bond_data(4, 5)->order() = mut.bond_data(7, 8)->order() =
-        mut.bond_data(9, 10)->order() = mut.bond_data(11, 6)->order() =
-          kSingleBond;
-  }
+  mol.find_bond(1, 2)->data().order() = mol.find_bond(3, 4)->data().order() =
+    mol.find_bond(5, 0)->data().order() = mol.find_bond(6, 7)->data().order() =
+      mol.find_bond(8, 9)->data().order() =
+        mol.find_bond(10, 11)->data().order() = kDoubleBond;
+
+  mol.find_bond(0, 1)->data().order() = mol.find_bond(2, 3)->data().order() =
+    mol.find_bond(4, 5)->data().order() = mol.find_bond(7, 8)->data().order() =
+      mol.find_bond(9, 10)->data().order() =
+        mol.find_bond(11, 6)->data().order() = kSingleBond;
+
   verify_bcb();
 
   mol.clear();
 
   const auto verify_azulene = [&mol]() {
-    ASSERT_TRUE(mol.was_valid());
+    {
+      MoleculeSanitizer sanitizer(mol);
+      ASSERT_TRUE(sanitizer.sanitize_all());
+    }
+
     for (auto atom: mol) {
       EXPECT_TRUE(atom.data().is_aromatic());
     }
@@ -766,7 +797,7 @@ TEST(SanitizeTest, FusedAromaticTest) {
     for (int i = 0; i < 10; ++i) {
       mut.add_atom(pt[6]);
       if (i != 0 && i != 6) {
-        mut.atom_data(i).set_implicit_hydrogens(1);
+        mol.atom(i).data().set_implicit_hydrogens(1);
       }
     }
     for (int i = 0; i < 6; ++i) {
@@ -780,16 +811,13 @@ TEST(SanitizeTest, FusedAromaticTest) {
   verify_azulene();
 
   // kekulized version
-  {
-    auto mut = mol.mutator();
-    mut.bond_data(1, 2)->order() = mut.bond_data(3, 4)->order() =
-      mut.bond_data(5, 6)->order() = mut.bond_data(7, 8)->order() =
-        mut.bond_data(9, 0)->order() = kDoubleBond;
+  mol.find_bond(1, 2)->data().order() = mol.find_bond(3, 4)->data().order() =
+    mol.find_bond(5, 6)->data().order() = mol.find_bond(7, 8)->data().order() =
+      mol.find_bond(9, 0)->data().order() = kDoubleBond;
 
-    mut.bond_data(0, 1)->order() = mut.bond_data(2, 3)->order() =
-      mut.bond_data(4, 5)->order() = mut.bond_data(6, 7)->order() =
-        mut.bond_data(8, 9)->order() = kSingleBond;
-  }
+  mol.find_bond(0, 1)->data().order() = mol.find_bond(2, 3)->data().order() =
+    mol.find_bond(4, 5)->data().order() = mol.find_bond(6, 7)->data().order() =
+      mol.find_bond(8, 9)->data().order() = kSingleBond;
   verify_azulene();
 }
 
@@ -811,7 +839,12 @@ TEST(SanitizeTest, NonstandardTest) {
     mut.add_bond(0, 3, BondData(kDoubleBond));
     mut.add_bond(0, 4, BondData(kDoubleBond));
   }
-  ASSERT_TRUE(mol.was_valid());
+
+  {
+    MoleculeSanitizer sanitizer(mol);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+  }
+
   EXPECT_EQ(mol.atom(0).data().hybridization(), kSP3);
 
   mol.clear();
@@ -827,11 +860,15 @@ TEST(SanitizeTest, NonstandardTest) {
 
     for (int i = 0; i < 5; ++i) {
       mut.add_bond(i, (i + 1) % 5, BondData(kAromaticBond));
-      mut.atom_data(i).set_implicit_hydrogens(1);
+      mol.atom(i).data().set_implicit_hydrogens(1);
     }
   }
 
-  EXPECT_TRUE(mol.was_valid());
+  {
+    MoleculeSanitizer sanitizer(mol);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+  }
+
   for (auto atom: mol) {
     EXPECT_FALSE(atom.data().is_aromatic());
   }
@@ -849,10 +886,15 @@ TEST(SanitizeTest, NonstandardTest) {
 
     for (int i = 0; i < 5; ++i) {
       mut.add_bond(i, (i + 1) % 5, BondData(kAromaticBond));
-      mut.atom_data(i).set_implicit_hydrogens(1);
+      mol.atom(i).data().set_implicit_hydrogens(1);
     }
   }
-  EXPECT_TRUE(mol.was_valid());
+
+  {
+    MoleculeSanitizer sanitizer(mol);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+  }
+
   for (auto atom: mol) {
     EXPECT_TRUE(atom.data().is_aromatic());
   }
@@ -865,9 +907,13 @@ TEST(SanitizeTest, ErrorMolTest) {
   {
     auto mut = mol.mutator();
     mut.add_atom(pt[6]);
-    mut.atom_data(0).set_implicit_hydrogens(5);
+    mol.atom(0).data().set_implicit_hydrogens(5);
   }
-  EXPECT_FALSE(mol.was_valid());
+
+  {
+    MoleculeSanitizer sanitizer(mol);
+    EXPECT_FALSE(sanitizer.sanitize_all());
+  }
 
   mol.clear();
 
@@ -880,7 +926,11 @@ TEST(SanitizeTest, ErrorMolTest) {
     mut.add_bond(0, 1, BondData(kDoubleBond));
     mut.add_bond(0, 2, BondData(kDoubleBond));
   }
-  EXPECT_FALSE(mol.was_valid());
+
+  {
+    MoleculeSanitizer sanitizer(mol);
+    EXPECT_FALSE(sanitizer.sanitize_all());
+  }
 
   mol.clear();
 
@@ -894,7 +944,11 @@ TEST(SanitizeTest, ErrorMolTest) {
     mut.add_bond(1, 2, BondData(kAromaticBond));
     mut.add_bond(2, 3, BondData(kAromaticBond));
   }
-  EXPECT_FALSE(mol.was_valid());
+
+  {
+    MoleculeSanitizer sanitizer(mol);
+    EXPECT_FALSE(sanitizer.sanitize_all());
+  }
 
   mol.clear();
 
@@ -903,7 +957,11 @@ TEST(SanitizeTest, ErrorMolTest) {
     auto mut = mol.mutator();
     mut.add_atom({ pt[6], 4, 1 });
   }
-  EXPECT_FALSE(mol.was_valid());
+
+  {
+    MoleculeSanitizer sanitizer(mol);
+    EXPECT_FALSE(sanitizer.sanitize_all());
+  }
 
   mol.clear();
 
@@ -912,7 +970,11 @@ TEST(SanitizeTest, ErrorMolTest) {
     auto mut = mol.mutator();
     mut.add_atom({ pt[6], 1, 12 });
   }
-  EXPECT_FALSE(mol.was_valid());
+
+  {
+    MoleculeSanitizer sanitizer(mol);
+    EXPECT_FALSE(sanitizer.sanitize_all());
+  }
 
   mol.clear();
 
@@ -934,10 +996,14 @@ TEST(SanitizeTest, ErrorMolTest) {
     mut.add_bond(5, 0, BondData(kAromaticBond));
 
     for (int i = 0; i < 6; ++i) {
-      mut.atom_data(i).set_implicit_hydrogens(1);
+      mol.atom(i).data().set_implicit_hydrogens(1);
     }
   }
-  EXPECT_FALSE(mol.was_valid());
+
+  {
+    MoleculeSanitizer sanitizer(mol);
+    EXPECT_FALSE(sanitizer.sanitize_all());
+  }
 
   mol.clear();
 
@@ -955,7 +1021,11 @@ TEST(SanitizeTest, ErrorMolTest) {
     mut.add_bond(0, 3, BondData(kDoubleBond));
     mut.add_bond(0, 4, BondData(kDoubleBond));
   }
-  EXPECT_FALSE(mol.was_valid());
+
+  {
+    MoleculeSanitizer sanitizer(mol);
+    EXPECT_FALSE(sanitizer.sanitize_all());
+  }
 }
 
 template <class T>
@@ -979,10 +1049,10 @@ TEST(MoleculeAlgorithmTest, IndoleTest) {
     }
     m.add_atom(pt[7]);
     for (int i = 0; i < 9; ++i) {
-      m.atom_data(i).set_implicit_hydrogens(1);
+      mol.atom(i).data().set_implicit_hydrogens(1);
     }
     for (int i: { 4, 5 }) {
-      m.atom_data(i).set_implicit_hydrogens(0);
+      mol.atom(i).data().set_implicit_hydrogens(0);
     }
 
     m.add_bond(0, 1, BondData(kAromaticBond));
@@ -997,7 +1067,10 @@ TEST(MoleculeAlgorithmTest, IndoleTest) {
     m.add_bond(7, 8, BondData(kAromaticBond));
   }
 
-  ASSERT_TRUE(mol.was_valid());
+  {
+    MoleculeSanitizer sanitizer(mol);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+  }
 
   nuri::RingSetsFinder finder(mol);
 
@@ -1024,7 +1097,7 @@ TEST(MoleculeAlgorithmTest, CubaneTest) {
       m.add_atom(pt[6]);
     }
     for (int i = 0; i < 8; ++i) {
-      m.atom_data(i).set_implicit_hydrogens(1);
+      mol.atom(i).data().set_implicit_hydrogens(1);
     }
     m.add_bond(0, 1, BondData(kSingleBond));
     m.add_bond(0, 3, BondData(kSingleBond));
@@ -1040,7 +1113,10 @@ TEST(MoleculeAlgorithmTest, CubaneTest) {
     m.add_bond(6, 7, BondData(kSingleBond));
   }
 
-  ASSERT_TRUE(mol.was_valid());
+  {
+    MoleculeSanitizer sanitizer(mol);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+  }
 
   auto sssr = nuri::find_sssr(mol);
   EXPECT_EQ(sssr.size(), 5);
