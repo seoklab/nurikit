@@ -138,19 +138,9 @@ namespace internal {
   template <bool is_const, class T>
   using const_if_t = typename const_if<is_const, T>::type;
 
-  template <class Iterator, class T,
-            bool = std::is_constructible_v<
-              T, typename std::iterator_traits<Iterator>::reference>>
-  struct enable_if_compatible_iter { };
-
-  template <class Iterator, class T>
-  struct enable_if_compatible_iter<Iterator, T, true> {
-    using type = void;
-  };
-
-  template <class Iterator, class T>
-  using enable_if_compatible_iter_t =
-    typename enable_if_compatible_iter<Iterator, T>::type;
+  template <class Iterator, class T, class U = T>
+  using enable_if_compatible_iter_t = std::enable_if_t<std::is_constructible_v<
+    U, typename std::iterator_traits<Iterator>::reference>>;
 
   template <class F>
   int iround(F x) {
