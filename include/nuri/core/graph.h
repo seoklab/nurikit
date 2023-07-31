@@ -94,7 +94,7 @@ namespace internal {
     }
 
     template <class Other,
-              class = std::enable_if_t<std::is_convertible_v<Other, Derived>>>
+              std::enable_if_t<std::is_convertible_v<Other, Derived>, int> = 0>
     constexpr difference_type operator-(const Other &other) const noexcept {
       return index_ - other.index_;
     }
@@ -110,37 +110,37 @@ namespace internal {
     constexpr pointer operator->() const noexcept { return { **derived() }; }
 
     template <class Other,
-              class = std::enable_if_t<std::is_convertible_v<Other, Derived>>>
+              std::enable_if_t<std::is_convertible_v<Other, Derived>, int> = 0>
     constexpr bool operator<(const Other &other) const noexcept {
       return index_ < other.index_;
     }
 
     template <class Other,
-              class = std::enable_if_t<std::is_convertible_v<Other, Derived>>>
+              std::enable_if_t<std::is_convertible_v<Other, Derived>, int> = 0>
     constexpr bool operator>(const Other &other) const noexcept {
       return index_ > other.index_;
     }
 
     template <class Other,
-              class = std::enable_if_t<std::is_convertible_v<Other, Derived>>>
+              std::enable_if_t<std::is_convertible_v<Other, Derived>, int> = 0>
     constexpr bool operator<=(const Other &other) const noexcept {
       return index_ <= other.index_;
     }
 
     template <class Other,
-              class = std::enable_if_t<std::is_convertible_v<Other, Derived>>>
+              std::enable_if_t<std::is_convertible_v<Other, Derived>, int> = 0>
     constexpr bool operator>=(const Other &other) const noexcept {
       return index_ >= other.index_;
     }
 
     template <class Other,
-              class = std::enable_if_t<std::is_convertible_v<Other, Derived>>>
+              std::enable_if_t<std::is_convertible_v<Other, Derived>, int> = 0>
     constexpr bool operator==(const Other &other) const noexcept {
       return index_ == other.index_;
     }
 
     template <class Other,
-              class = std::enable_if_t<std::is_convertible_v<Other, Derived>>>
+              std::enable_if_t<std::is_convertible_v<Other, Derived>, int> = 0>
     constexpr bool operator!=(const Other &other) const noexcept {
       return !(*this == other);
     }
@@ -150,12 +150,12 @@ namespace internal {
     friend class DataIteratorBase;
 
     template <class Other,
-              class = std::enable_if_t<!std::is_same_v<Derived, Other>>>
+              std::enable_if_t<!std::is_same_v<Derived, Other>, int> = 0>
     constexpr DataIteratorBase(const Other &other) noexcept
       : graph_(other.graph_), index_(other.index_) { }
 
     template <class Other,
-              class = std::enable_if_t<!std::is_same_v<Derived, Other>>>
+              std::enable_if_t<!std::is_same_v<Derived, Other>, int> = 0>
     constexpr DataIteratorBase &operator=(const Other &other) noexcept {
       graph_ = other.graph_;
       index_ = other.index_;
@@ -210,7 +210,7 @@ namespace internal {
       : src_(src), adj_(&adj), graph_(&graph) { }
 
     template <bool other_const,
-              typename = std::enable_if_t<is_const && !other_const>>
+              std::enable_if_t<is_const && !other_const, int> = 0>
     constexpr AdjWrapper(const Other<other_const> &other) noexcept
       : src_(other.src_), adj_(other.adj_), graph_(other.graph_) { }
 
@@ -263,12 +263,12 @@ namespace internal {
       : Base(graph, idx), nid_(nid) { }
 
     template <bool other_const,
-              typename = std::enable_if_t<is_const && !other_const>>
+              std::enable_if_t<is_const && !other_const, int> = 0>
     constexpr AdjIterator(const Other<other_const> &other) noexcept
       : Base(other), nid_(other.nid_) { }
 
     template <bool other_const,
-              class = std::enable_if_t<is_const && !other_const>>
+              std::enable_if_t<is_const && !other_const, int> = 0>
     constexpr AdjIterator &
     operator=(const AdjIterator<GT, other_const> &other) noexcept {
       Base::operator=(other);
@@ -325,7 +325,7 @@ namespace internal {
       : nid_(nid), data_(&data), graph_(&graph) { }
 
     template <bool other_const,
-              class = std::enable_if_t<is_const && !other_const>>
+              std::enable_if_t<is_const && !other_const, int> = 0>
     constexpr NodeWrapper(const Other<other_const> &other) noexcept
       : nid_(other.nid_), data_(other.data_), graph_(other.graph_) { }
 
@@ -371,12 +371,12 @@ namespace internal {
     using Base::Base;
 
     template <bool other_const,
-              class = std::enable_if_t<is_const && !other_const>>
+              std::enable_if_t<is_const && !other_const, int> = 0>
     constexpr NodeIterator(const NodeIterator<GT, other_const> &other) noexcept
       : Base(other) { }
 
     template <bool other_const,
-              class = std::enable_if_t<is_const && !other_const>>
+              std::enable_if_t<is_const && !other_const, int> = 0>
     constexpr NodeIterator &
     operator=(const NodeIterator<GT, other_const> &other) noexcept {
       Base::operator=(other);
@@ -410,7 +410,7 @@ namespace internal {
     constexpr EdgeWrapper(edge_id_type eid) noexcept: eid_(eid) { }
 
     template <bool other_const,
-              class = std::enable_if_t<is_const && !other_const>>
+              std::enable_if_t<is_const && !other_const, int> = 0>
     constexpr EdgeWrapper(const Other<other_const> &other) noexcept
       : eid_(other.eid_) { }
 
@@ -456,11 +456,11 @@ namespace internal {
     EdgeIterator(edge_id_type eid) noexcept: eid_(eid) { }
 
     template <bool other_const,
-              class = std::enable_if_t<is_const && !other_const>>
+              std::enable_if_t<is_const && !other_const, int> = 0>
     EdgeIterator(const Other<other_const> &other) noexcept: eid_(other.eid_) { }
 
     template <bool other_const,
-              class = std::enable_if_t<is_const && !other_const>>
+              std::enable_if_t<is_const && !other_const, int> = 0>
     EdgeIterator &operator=(const Other<other_const> &other) noexcept {
       eid_ = other.eid_;
       return *this;
