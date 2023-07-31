@@ -307,6 +307,10 @@ namespace internal {
     using parent_type = const_if_t<is_const, GT>;
     using value_type = const_if_t<is_const, DT>;
 
+    using adjacency_iterator =
+      std::conditional_t<is_const, typename GT::const_adjacency_iterator,
+                         typename GT::adjacency_iterator>;
+
     template <bool other_const>
     using Other = NodeWrapper<GT, other_const>;
 
@@ -329,13 +333,11 @@ namespace internal {
 
     constexpr int degree() const noexcept { return graph_->degree(nid_); }
 
-    constexpr AdjIterator<GT, is_const> begin() const noexcept {
+    adjacency_iterator begin() const noexcept {
       return graph_->adj_begin(nid_);
     }
 
-    constexpr AdjIterator<GT, is_const> end() const noexcept {
-      return graph_->adj_end(nid_);
-    }
+    adjacency_iterator end() const noexcept { return graph_->adj_end(nid_); }
 
     constexpr Other<true> as_const() const noexcept { return *this; }
 
