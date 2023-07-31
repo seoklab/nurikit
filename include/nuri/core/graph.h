@@ -274,6 +274,10 @@ namespace internal {
       return *this;
     }
 
+    constexpr bool begin() const noexcept {
+      return *this == this->graph()->adj_begin(nid_);
+    }
+
     constexpr bool end() const noexcept {
       return *this == this->graph()->adj_end(nid_);
     }
