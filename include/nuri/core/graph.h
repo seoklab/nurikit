@@ -204,6 +204,8 @@ namespace internal {
     constexpr AdjWrapper(GT &graph, int src, DT &adj) noexcept
       : src_(src), adj_(&adj), graph_(&graph) { }
 
+    template <bool this_const = is_const,
+              std::enable_if_t<is_const && this_const, int> = 0>
     constexpr AdjWrapper(const GT &graph, int src, const DT &adj) noexcept
       : src_(src), adj_(&adj), graph_(&graph) { }
 
@@ -317,6 +319,8 @@ namespace internal {
     constexpr NodeWrapper(int nid, DT &data, parent_type &graph) noexcept
       : nid_(nid), data_(&data), graph_(&graph) { }
 
+    template <bool this_const = is_const,
+              std::enable_if_t<is_const && this_const, int> = 0>
     constexpr NodeWrapper(int nid, const DT &data, parent_type &graph) noexcept
       : nid_(nid), data_(&data), graph_(&graph) { }
 
@@ -401,6 +405,8 @@ namespace internal {
     template <bool other_const>
     using Other = EdgeWrapper<GT, other_const>;
 
+    template <bool this_const = is_const,
+              std::enable_if_t<is_const && this_const, int> = 0>
     constexpr EdgeWrapper(edge_id_type eid) noexcept: eid_(eid) { }
 
     template <bool other_const,
