@@ -785,9 +785,9 @@ template class Graph<int, int>;
 template class Graph<NonTrivial, NonTrivial>;
 
 namespace internal {
-  // NOLINTBEGIN(cppcoreguidelines-macro-usage)
-  // Non-const version of wrappers could not be instantiated due to the
-  // converting constructor. Non-const iterators could be instantiated.
+// NOLINTBEGIN(cppcoreguidelines-macro-usage)
+// Non-const version of wrappers could not be instantiated due to the
+// converting constructor. Non-const iterators could be instantiated.
 #define NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, iterator, RefType)     \
   template class RefType##Wrapper<GraphType, true>;                            \
   template class DataIteratorBase<GraphType::iterator, GraphType,              \
@@ -800,8 +800,8 @@ namespace internal {
   template class EdgeWrapper<GraphType, true>;                                 \
   template class EdgeIterator<GraphType, true>;
 
-  NURI_INSTANTIATE_ALL_TEMPLATES(TrivialGraph)
-  NURI_INSTANTIATE_ALL_TEMPLATES(NonTrivialGraph)
-  // NOLINTEND(cppcoreguidelines-macro-usage)
+NURI_INSTANTIATE_ALL_TEMPLATES(TrivialGraph)
+NURI_INSTANTIATE_ALL_TEMPLATES(NonTrivialGraph)
+// NOLINTEND(cppcoreguidelines-macro-usage)
 }  // namespace internal
 }  // namespace nuri
