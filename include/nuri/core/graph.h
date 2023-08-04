@@ -10,6 +10,7 @@
 #include <iterator>
 #include <list>
 #include <queue>
+#include <stack>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -25,7 +26,25 @@ namespace nuri {
 template <class NT, class ET>
 class Graph;
 
+template <class NT, class ET, bool is_const>
+class Subgraph;
+
 namespace internal {
+  template <class GT>
+  struct GraphTraits;
+
+  // NOLINTBEGIN(readability-identifier-naming)
+
+  template <class NT, class ET>
+  struct GraphTraits<Graph<NT, ET>> { };
+
+  template <class NT, class ET, bool subg_const>
+  struct GraphTraits<Subgraph<NT, ET, subg_const>> {
+    constexpr static bool is_const = subg_const;
+  };
+
+  // NOLINTEND(readability-identifier-naming)
+
   template <class Parent>
   class ArrowHelper {
   public:
@@ -233,7 +252,11 @@ namespace internal {
 
   private:
     template <class, bool>
+    friend class SubAdjIterator;
+
+    template <class, bool>
     friend class AdjWrapper;
+
     friend GT;
 
     int src_;
@@ -588,6 +611,9 @@ private:
   friend class internal::AdjWrapper;
   template <class, bool>
   friend class internal::AdjIterator;
+
+  template <class, class, bool>
+  friend class Subgraph;
 
 public:
   using node_data_type = NT;
@@ -1127,6 +1153,698 @@ bool Graph<NT, ET>::erase_edge_between(int src, int dst) {
     return true;
   }
   return false;
+}
+
+namespace internal {
+
+  template <class SGT, bool is_const>
+  class SubNodeIterator
+    : public DataIteratorBase<SubNodeIterator<SGT, is_const>, SGT,
+                              NodeWrapper<SGT, is_const>, is_const> {
+  public:
+    using Base = DataIteratorBase<SubNodeIterator<SGT, is_const>, SGT,
+                                  NodeWrapper<SGT, is_const>, is_const>;
+
+    using typename Base::difference_type;
+    using typename Base::iterator_category;
+    using typename Base::pointer;
+    using typename Base::reference;
+    using typename Base::value_type;
+
+    using Base::Base;
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    constexpr SubNodeIterator(
+      const SubNodeIterator<SGT, other_const> &other) noexcept
+      : Base(other) { }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    constexpr SubNodeIterator &
+    operator=(const SubNodeIterator<SGT, other_const> &other) noexcept {
+      Base::operator=(other);
+      return *this;
+    }
+
+    template <class SGU, bool other_const,
+              std::enable_if_t<std::is_same_v<typename SGT::graph_type,
+                                              typename SGU::graph_type>,
+                               int> = 0>
+    constexpr difference_type
+    operator-(const SubNodeIterator<SGU, other_const> &other) const noexcept {
+      return this->index() - other.index();
+    }
+
+    template <class SGU, bool other_const,
+              std::enable_if_t<std::is_same_v<typename SGT::graph_type,
+                                              typename SGU::graph_type>,
+                               int> = 0>
+    constexpr bool
+    operator<(const SubNodeIterator<SGU, other_const> &other) const noexcept {
+      return this->index() < other.index();
+    }
+
+    template <class SGU, bool other_const,
+              std::enable_if_t<std::is_same_v<typename SGT::graph_type,
+                                              typename SGU::graph_type>,
+                               int> = 0>
+    constexpr bool
+    operator>(const SubNodeIterator<SGU, other_const> &other) const noexcept {
+      return this->index() > other.index();
+    }
+
+    template <class SGU, bool other_const,
+              std::enable_if_t<std::is_same_v<typename SGT::graph_type,
+                                              typename SGU::graph_type>,
+                               int> = 0>
+    constexpr bool
+    operator<=(const SubNodeIterator<SGU, other_const> &other) const noexcept {
+      return this->index() <= other.index();
+    }
+
+    template <class SGU, bool other_const,
+              std::enable_if_t<std::is_same_v<typename SGT::graph_type,
+                                              typename SGU::graph_type>,
+                               int> = 0>
+    constexpr bool
+    operator>=(const SubNodeIterator<SGU, other_const> &other) const noexcept {
+      return this->index() >= other.index();
+    }
+
+    template <class SGU, bool other_const,
+              std::enable_if_t<std::is_same_v<typename SGT::graph_type,
+                                              typename SGU::graph_type>,
+                               int> = 0>
+    bool
+    operator==(const SubNodeIterator<SGU, other_const> &other) const noexcept {
+      return this->index() == other.index();
+    }
+
+    template <class SGU, bool other_const,
+              std::enable_if_t<std::is_same_v<typename SGT::graph_type,
+                                              typename SGU::graph_type>,
+                               int> = 0>
+    bool
+    operator!=(const SubNodeIterator<SGU, other_const> &other) const noexcept {
+      return !(*this == other);
+    }
+
+  private:
+    friend Base;
+
+    template <class, bool>
+    friend class SubNodeIterator;
+
+    constexpr value_type deref(typename Base::parent_type *graph,
+                               difference_type index) const noexcept {
+      return graph->node(index);
+    }
+  };
+
+  template <class SGT, bool is_const>
+  class SubAdjIterator {
+  public:
+    using parent_type = const_if_t<is_const, SGT>;
+
+    using difference_type = int;
+    using value_type = AdjWrapper<SGT, is_const>;
+    using pointer = ArrowHelper<value_type>;
+    using reference = value_type;
+    using iterator_category = std::bidirectional_iterator_tag;
+
+    template <bool other_const>
+    using Other = SubAdjIterator<SGT, other_const>;
+
+    constexpr SubAdjIterator(
+      parent_type &subgraph,
+      AdjIterator<typename SGT::graph_type, is_const> ait) noexcept
+      : subgraph_(&subgraph), ait_(ait) { }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    constexpr SubAdjIterator(const Other<other_const> &other) noexcept
+      : subgraph_(other.subgraph_), ait_(other.ait_) { }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    constexpr SubAdjIterator &
+    operator=(const Other<other_const> &other) noexcept {
+      subgraph_ = other.subgraph_;
+      ait_ = other.ait_;
+      return *this;
+    }
+
+    SubAdjIterator &operator++() noexcept {
+      for (; !(++ait_).end() && !subgraph_->contains(ait_->dst().id());) { }
+      return *this;
+    }
+
+    SubAdjIterator operator++(int) noexcept {
+      SubAdjIterator tmp(*this);
+      ++*this;
+      return tmp;
+    }
+
+    SubAdjIterator &operator--() noexcept {
+      for (; !ait_--.begin() && !subgraph_->contains(ait_->dst().id());) { }
+      return *this;
+    }
+
+    SubAdjIterator operator--(int) noexcept {
+      SubAdjIterator tmp(*this);
+      --*this;
+      return tmp;
+    }
+
+    reference operator*() const noexcept {
+      AdjWrapper<typename SGT::graph_type, is_const> adj(*ait_);
+      return reference(*subgraph_, adj.src().id(), *adj.adj_);
+    }
+
+    pointer operator->() const noexcept { return { **this }; }
+
+    template <class SGU, bool other_const>
+    bool
+    operator==(const SubAdjIterator<SGU, other_const> &other) const noexcept {
+      return ait_ == other.ait_;
+    }
+
+    template <class SGU, bool other_const>
+    bool
+    operator!=(const SubAdjIterator<SGU, other_const> &other) const noexcept {
+      return !(*this == other);
+    }
+
+    bool begin() const noexcept { return ait_.begin(); }
+
+    bool end() const noexcept { return ait_.end(); }
+
+  private:
+    template <class, bool>
+    friend class SubAdjIterator;
+
+    parent_type *subgraph_;
+    AdjIterator<typename SGT::graph_type, is_const> ait_;
+  };
+
+  template <class EFT, class GT, bool is_const>
+  class SubEdgeIterator
+    : public DataIteratorBase<SubEdgeIterator<EFT, GT, is_const>, EFT,
+                              EdgeWrapper<GT, is_const>, is_const> {
+  public:
+    using Base = DataIteratorBase<SubEdgeIterator<EFT, GT, is_const>, EFT,
+                                  EdgeWrapper<GT, is_const>, is_const>;
+
+    using typename Base::difference_type;
+    using typename Base::iterator_category;
+    using typename Base::pointer;
+    using typename Base::reference;
+    using typename Base::value_type;
+
+    using Base::Base;
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    constexpr SubEdgeIterator(
+      const SubEdgeIterator<EFT, GT, other_const> &other) noexcept
+      : Base(other) { }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    constexpr SubEdgeIterator &
+    operator=(const SubEdgeIterator<EFT, GT, other_const> &other) noexcept {
+      Base::operator=(other);
+      return *this;
+    }
+
+    template <class EFU, bool other_const>
+    constexpr difference_type operator-(
+      const SubEdgeIterator<EFU, GT, other_const> &other) const noexcept {
+      return this->index() - other.index();
+    }
+
+    template <class EFU, bool other_const>
+    constexpr bool operator<(
+      const SubEdgeIterator<EFU, GT, other_const> &other) const noexcept {
+      return this->index() < other.index();
+    }
+
+    template <class EFU, bool other_const>
+    constexpr bool operator>(
+      const SubEdgeIterator<EFU, GT, other_const> &other) const noexcept {
+      return this->index() > other.index();
+    }
+
+    template <class EFU, bool other_const>
+    constexpr bool operator<=(
+      const SubEdgeIterator<EFU, GT, other_const> &other) const noexcept {
+      return this->index() <= other.index();
+    }
+
+    template <class EFU, bool other_const>
+    constexpr bool operator>=(
+      const SubEdgeIterator<EFU, GT, other_const> &other) const noexcept {
+      return this->index() >= other.index();
+    }
+
+    template <class EFU, bool other_const>
+    bool operator==(
+      const SubEdgeIterator<EFU, GT, other_const> &other) const noexcept {
+      return this->index() == other.index();
+    }
+
+    template <class EFU, bool other_const>
+    bool operator!=(
+      const SubEdgeIterator<EFU, GT, other_const> &other) const noexcept {
+      return !(*this == other);
+    }
+
+  private:
+    friend Base;
+
+    template <class, class, bool>
+    friend class SubEdgeIterator;
+
+    value_type deref(typename Base::parent_type *finder,
+                     difference_type index) const noexcept {
+      return (*finder)[index];
+    }
+  };
+
+  template <class GT, bool is_const>
+  class SubEdgesFinder {
+  public:
+    using edge_id_type = typename GT::edge_id_type;
+
+    using iterator = SubEdgeIterator<SubEdgesFinder, GT, is_const>;
+    using const_iterator = SubEdgeIterator<SubEdgesFinder, GT, true>;
+
+    template <bool other_const>
+    using Other = SubEdgesFinder<GT, other_const>;
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    SubEdgesFinder(const Other<other_const> &other)
+      : graph_(other.graph_), edges_(other.edges_) { }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    SubEdgesFinder(Other<other_const> &&other) noexcept
+      : graph_(other.graph_), edges_(std::move(other.edges_)) { }
+
+    template <class SGT,
+              std::enable_if_t<!GraphTraits<SGT>::is_const && !is_const, int> = 0>
+    SubEdgesFinder(SGT &subgraph)
+      : graph_(&subgraph.parent()), edges_(find_edges(subgraph)) { }
+
+    template <class SGT,
+              std::enable_if_t<is_const && !std::is_same_v<SGT, SubEdgesFinder>,
+                               int> = 0>
+    SubEdgesFinder(const SGT &subgraph)
+      : graph_(&subgraph.parent()), edges_(find_edges(subgraph)) { }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    SubEdgesFinder &operator=(const Other<other_const> &other) {
+      graph_ = other.graph_;
+      edges_ = other.edges_;
+      return *this;
+    }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    SubEdgesFinder &operator=(Other<other_const> &&other) noexcept {
+      graph_ = other.graph_;
+      edges_ = std::move(other.edges_);
+      return *this;
+    }
+
+    int size() const { return static_cast<int>(edges_.size()); }
+
+    EdgeWrapper<GT, is_const> operator[](int idx) const {
+      return graph_->edge(edges_[idx]);
+    }
+
+    iterator begin() { return { this, 0 }; }
+    iterator end() { return { this, size() }; }
+    const_iterator begin() const { return cbegin(); }
+    const_iterator end() const { return cend(); }
+
+    const_iterator cbegin() const { return { this, 0 }; }
+    const_iterator cend() const { return { this, size() }; }
+
+  private:
+    template <class SGT>
+    static std::vector<edge_id_type> find_edges(const SGT &subgraph) {
+      std::vector<edge_id_type> edges;
+      std::stack<int, std::vector<int>> stack;
+      absl::flat_hash_set<int> visited(subgraph.num_nodes());
+
+      for (auto node: subgraph) {
+        auto [_, inserted] = visited.insert(node.id());
+        if (!inserted) {
+          continue;
+        }
+
+        stack.push(node.id());
+        while (!stack.empty()) {
+          int u = stack.top();
+          stack.pop();
+
+          for (auto nei: *subgraph.find_node(u)) {
+            int v = nei.dst().id();
+            if (u < v) {
+              edges.push_back(nei.eid());
+            }
+
+            std::tie(_, inserted) = visited.insert(v);
+            if (inserted) {
+              stack.push(v);
+            }
+          }
+        }
+      }
+
+      return edges;
+    }
+
+    const_if_t<is_const, GT> *graph_;
+    std::vector<edge_id_type> edges_;
+  };
+
+  class SortedNodes {
+  public:
+    SortedNodes() = default;
+
+    SortedNodes(const std::vector<int> &nodes): nodes_(nodes) { init(); }
+
+    SortedNodes(std::vector<int> &&nodes) noexcept: nodes_(std::move(nodes)) {
+      init();
+    }
+
+    template <class Iter,
+              class = internal::enable_if_compatible_iter_t<Iter, int>>
+    SortedNodes(Iter begin, Iter end): nodes_(begin, end) {
+      init();
+    }
+
+    bool empty() const { return nodes_.empty(); }
+
+    int size() const { return static_cast<int>(nodes_.size()); }
+
+    void clear() noexcept { nodes_.clear(); }
+
+    void reserve(int num_nodes) { nodes_.reserve(num_nodes); }
+
+    void insert(int id) { insert_sorted(nodes_, id); }
+
+    void erase(int id) {
+      int pos = find(id);
+      if (pos < size()) {
+        nodes_.erase(nodes_.begin() + pos);
+      }
+    }
+
+    template <class Iter>
+    void erase(Iter begin, Iter end) {
+      nodes_.erase(begin, end);
+    }
+
+    template <class UnaryPred,
+              std::enable_if_t<!std::is_convertible_v<UnaryPred, int>, int> = 0>
+    void erase(UnaryPred pred) {
+      erase_if(nodes_, pred);
+    }
+
+    int operator[](int idx) const { return nodes_[idx]; }
+
+    bool contains(int id) const {
+      return std::binary_search(nodes_.begin(), nodes_.end(), id);
+    }
+
+    int find(int id) const {
+      auto it = std::lower_bound(nodes_.begin(), nodes_.end(), id);
+      if (it == nodes_.end() || *it != id) {
+        return static_cast<int>(nodes_.size());
+      }
+      return static_cast<int>(it - nodes_.begin());
+    }
+
+    auto begin() const { return nodes_.begin(); }
+    auto end() const { return nodes_.end(); }
+
+    const std::vector<int> &ids() const { return nodes_; }
+
+  private:
+    void init() { std::sort(nodes_.begin(), nodes_.end()); }
+
+    std::vector<int> nodes_;
+  };
+}  // namespace internal
+
+template <class NT, class ET, bool is_const = false>
+class Subgraph {
+public:
+  using graph_type = Graph<NT, ET>;
+  using parent_type = internal::const_if_t<is_const, graph_type>;
+
+  using node_data_type = NT;
+  using edge_data_type = ET;
+  using edge_id_type = typename parent_type::edge_id_type;
+
+  using iterator = internal::SubNodeIterator<Subgraph, is_const>;
+  using node_iterator = iterator;
+  using const_iterator = internal::SubNodeIterator<Subgraph, true>;
+  using const_node_iterator = const_iterator;
+  using NodeRef = typename iterator::value_type;
+  using ConstNodeRef = typename const_iterator::value_type;
+
+  using adjacency_iterator = internal::SubAdjIterator<Subgraph, is_const>;
+  using const_adjacency_iterator = internal::SubAdjIterator<Subgraph, true>;
+  using AdjRef = typename adjacency_iterator::value_type;
+  using ConstAdjRef = typename const_adjacency_iterator::value_type;
+
+  template <bool other_const>
+  using Other = Subgraph<NT, ET, other_const>;
+
+  Subgraph(graph_type &&graph) = delete;
+
+  Subgraph(parent_type &graph): parent_(&graph) { }
+
+  Subgraph(parent_type &graph, const std::vector<int> &nodes)
+    : parent_(&graph), nodes_(nodes) { }
+
+  Subgraph(parent_type &graph, std::vector<int> &&nodes) noexcept
+    : parent_(&graph), nodes_(std::move(nodes)) { }
+
+  template <bool other_const,
+            std::enable_if_t<is_const && !other_const, int> = 0>
+  Subgraph(const Other<other_const> &other)
+    : parent_(other.parent_), nodes_(other.nodes_) { }
+
+  template <bool other_const,
+            std::enable_if_t<is_const && !other_const, int> = 0>
+  Subgraph(Other<other_const> &&other) noexcept
+    : parent_(other.parent_), nodes_(std::move(other.nodes_)) { }
+
+  template <bool other_const,
+            std::enable_if_t<is_const && !other_const, int> = 0>
+  Subgraph &operator=(const Other<other_const> &other) {
+    parent_ = other.parent_;
+    nodes_ = other.nodes_;
+    return *this;
+  }
+
+  template <bool other_const,
+            std::enable_if_t<is_const && !other_const, int> = 0>
+  Subgraph &operator=(Other<other_const> &&other) noexcept {
+    parent_ = other.parent_;
+    nodes_ = std::move(other.nodes_);
+    return *this;
+  }
+
+  parent_type &parent() { return *parent_; }
+
+  const graph_type &parent() const { return *parent_; }
+
+  bool empty() const { return nodes_.empty(); }
+
+  int size() const { return num_nodes(); }
+
+  int num_nodes() const { return nodes_.size(); }
+
+  void clear() noexcept { nodes_.clear(); }
+
+  void reserve(int num_nodes) { nodes_.reserve(num_nodes); }
+
+  void add_node(int id) { return nodes_.insert(id); }
+
+  bool contains(int id) const { return nodes_.contains(id); }
+
+  bool contains(typename graph_type::ConstNodeRef node) const {
+    return contains(node.id());
+  }
+
+  NodeRef operator[](int idx) { return node(idx); }
+  ConstNodeRef operator[](int idx) const { return node(idx); }
+
+  NodeRef node(int idx) {
+    auto pnode = parent_->node(nodes_[idx]);
+    return { pnode.id(), pnode.data(), *this };
+  }
+  ConstNodeRef node(int idx) const {
+    auto pnode = parent_->node(nodes_[idx]);
+    return { pnode.id(), pnode.data(), *this };
+  }
+
+  iterator find_node(int id) { return begin() + nodes_.find(id); }
+  iterator find_node(typename graph_type::ConstNodeRef node) {
+    return find_node(node.id());
+  }
+  const_iterator find_node(int id) const { return begin() + nodes_.find(id); }
+  const_iterator find_node(typename graph_type::ConstNodeRef node) const {
+    return find_node(node.id());
+  }
+
+  void erase_node(int id) { nodes_.erase(id); }
+
+  void erase_node(ConstNodeRef node) { erase_node(node.id()); }
+
+  void erase_node(typename graph_type::ConstNodeRef node) {
+    erase_node(node.id());
+  }
+
+  void erase_nodes(const_iterator begin, const_iterator end) {
+    nodes_.erase(begin - this->begin() + nodes_.begin(),
+                 end - this->begin() + nodes_.begin());
+  }
+
+  template <class UnaryPred>
+  void erase_nodes(UnaryPred pred) {
+    nodes_.erase(pred);
+  }
+
+  iterator begin() { return { this, 0 }; }
+  iterator end() { return { this, num_nodes() }; }
+
+  const_iterator begin() const { return cbegin(); }
+  const_iterator end() const { return cend(); }
+
+  const_iterator cbegin() const { return { this, 0 }; }
+  const_iterator cend() const { return { this, num_nodes() }; }
+
+  const std::vector<int> &node_ids() const { return nodes_.ids(); }
+
+  internal::SubEdgesFinder<graph_type, is_const> edges() { return { *this }; }
+
+  internal::SubEdgesFinder<graph_type, true> edges() const { return { *this }; }
+
+  int degree(int id) const {
+    return std::distance(adj_cbegin(id), adj_cend(id));
+  }
+
+  adjacency_iterator find_adjacent(int src, int dst) {
+    return find_adj_helper(*this, src, dst);
+  }
+
+  const_adjacency_iterator find_adjacent(int src, int dst) const {
+    return find_adj_helper(*this, src, dst);
+  }
+
+  adjacency_iterator adj_begin(int nid) {
+    return { *this, parent_->adj_begin(nid) };
+  }
+  adjacency_iterator adj_end(int nid) {
+    return { *this, parent_->adj_end(nid) };
+  }
+
+  const_adjacency_iterator adj_begin(int nid) const { return adj_cbegin(nid); }
+  const_adjacency_iterator adj_end(int nid) const { return adj_cend(nid); }
+
+  const_adjacency_iterator adj_cbegin(int nid) const {
+    return { *this, parent_->adj_begin(nid) };
+  }
+  const_adjacency_iterator adj_cend(int nid) const {
+    return { *this, parent_->adj_end(nid) };
+  }
+
+private:
+  template <class, class, bool>
+  friend class Subgraph;
+
+  template <class, bool>
+  friend class internal::AdjWrapper;
+
+  using adj_data_type = typename graph_type::adj_data_type;
+
+  template <class SGT>
+  static auto find_adj_helper(SGT &graph, int src, int dst) {
+    auto ret = graph.adj_begin(src);
+    for (; ret != graph.adj_end(src); ++ret) {
+      if (ret->dst().id() == dst) {
+        break;
+      }
+    }
+    return ret;
+  }
+
+  parent_type *parent_;
+  internal::SortedNodes nodes_;
+};
+
+/* Deduction guides */
+
+template <class NT, class ET>
+Subgraph(Graph<NT, ET> &graph) -> Subgraph<NT, ET, false>;
+
+template <class NT, class ET>
+Subgraph(Graph<NT, ET> &graph, const std::vector<int> &nodes)
+  -> Subgraph<NT, ET, false>;
+
+template <class NT, class ET>
+Subgraph(Graph<NT, ET> &graph, std::vector<int> &&nodes) noexcept
+  -> Subgraph<NT, ET, false>;
+
+template <class NT, class ET>
+Subgraph(const Graph<NT, ET> &graph) -> Subgraph<NT, ET, true>;
+
+template <class NT, class ET>
+Subgraph(const Graph<NT, ET> &graph, const std::vector<int> &nodes)
+  -> Subgraph<NT, ET, true>;
+
+template <class NT, class ET>
+Subgraph(const Graph<NT, ET> &graph, std::vector<int> &&nodes) noexcept
+  -> Subgraph<NT, ET, true>;
+
+/* Helper templates */
+
+namespace internal {
+  template <class T>
+  struct SubgraphTypeHelper;
+
+  template <class T>
+  struct SubgraphTypeHelper<T &> {
+    using type = typename SubgraphTypeHelper<T>::type;
+  };
+
+  template <template <class, class> class GT, class NT, class ET>
+  struct SubgraphTypeHelper<GT<NT, ET>> {
+    using type = Subgraph<NT, ET, false>;
+  };
+
+  template <template <class, class> class GT, class NT, class ET>
+  struct SubgraphTypeHelper<const GT<NT, ET>> {
+    using type = Subgraph<NT, ET, true>;
+  };
+}  // namespace internal
+
+template <class GT>
+using SubgraphOf = typename internal::SubgraphTypeHelper<GT>::type;
+
+template <class GT, class... Args>
+SubgraphOf<GT> make_subgraph(GT &&graph, Args &&...args) {
+  return { std::forward<GT>(graph), std::forward<Args>(args)... };
 }
 
 namespace internal {
