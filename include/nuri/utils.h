@@ -181,6 +181,18 @@ typename std::vector<T, Alloc>::iterator erase_first(std::vector<T, Alloc> &c,
   return it;
 }
 
+template <class T, class Alloc, class Comp>
+typename std::vector<T, Alloc>::iterator
+insert_sorted(std::vector<T, Alloc> &c, const T &value, Comp comp) {
+  return c.insert(std::upper_bound(c.begin(), c.end(), value, comp), value);
+}
+
+template <class T, class Alloc>
+typename std::vector<T, Alloc>::iterator insert_sorted(std::vector<T, Alloc> &c,
+                                                       const T &value) {
+  return insert_sorted(c, value, std::less<>());
+}
+
 inline absl::FixedArray<int> generate_index(int size) {
   absl::FixedArray<int> result(size);
   std::iota(result.begin(), result.end(), 0);
