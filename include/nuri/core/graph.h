@@ -180,6 +180,8 @@ namespace internal {
       return Derived(graph_, index_ + n, std::forward<Args>(args)...);
     }
 
+    constexpr difference_type index() const noexcept { return index_; }
+
   private:
     parent_type *graph_;
     difference_type index_;
