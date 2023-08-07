@@ -37,12 +37,12 @@ jobs:
 
   run-clang-tools:
     needs: [check-want-test]
-    if: ${{ needs.check-want-test.outputs.want-test }}
+    if: ${{ needs.check-want-test.outputs.want-test == 'true' }}
     uses: ./.github/workflows/_run-clang-tools.yaml
 
   test-and-coverage:
-    needs: [run-clang-tools]
-    if: ${{ always() && (needs.run-clang-tools.result == 'success' || needs.run-clang-tools.result == 'skipped' ) }}
+    needs: [check-want-test, run-clang-tools]
+    if: ${{ always() && needs.check-want-test.outputs.want-test == 'true' && (needs.run-clang-tools.result == 'success' || needs.run-clang-tools.result == 'skipped' ) }}
     uses: ./.github/workflows/_cpp-test-and-coverage.yaml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
