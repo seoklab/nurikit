@@ -1798,6 +1798,7 @@ public:
    *
    * @param id the id of the node to check
    * @return true if the node is in the subgraph, false otherwise
+   * @note Time complexity: \f$O(\log V')\f$.
    */
   bool contains(int id) const { return nodes_.contains(id); }
 
@@ -1807,6 +1808,7 @@ public:
    * @param node The node to check
    * @return true if the node is in the subgraph, false otherwise
    * @note This is equivalent to calling contains(node.id()).
+   * @note Time complexity: \f$O(\log V')\f$.
    */
   bool contains(typename graph_type::ConstNodeRef node) const {
     return contains(node.id());
@@ -1863,6 +1865,7 @@ public:
    *
    * @param id The id of the node to find
    * @return An iterator to the node if found, end() otherwise.
+   * @note Time complexity: \f$O(\log V')\f$.
    */
   iterator find_node(int id) { return begin() + nodes_.find(id); }
 
@@ -1872,6 +1875,7 @@ public:
    * @param node The node to find
    * @return An iterator to the node if found, end() otherwise.
    * @note This is equivalent to calling find_node(node.id()).
+   * @note Time complexity: \f$O(\log V')\f$.
    */
   iterator find_node(typename graph_type::ConstNodeRef node) {
     return find_node(node.id());
@@ -1882,6 +1886,7 @@ public:
    *
    * @param id The id of the node to find
    * @return A const_iterator to the node if found, end() otherwise
+   * @note Time complexity: \f$O(\log V')\f$.
    */
   const_iterator find_node(int id) const { return begin() + nodes_.find(id); }
 
@@ -1891,6 +1896,7 @@ public:
    * @param node The node to find
    * @return A const_iterator to the node if found, end() otherwise.
    * @note This is equivalent to calling find_node(node.id()).
+   * @note Time complexity: \f$O(\log V')\f$.
    */
   const_iterator find_node(typename graph_type::ConstNodeRef node) const {
     return find_node(node.id());
