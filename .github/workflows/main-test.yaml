@@ -31,12 +31,12 @@ jobs:
 
   run-clang-tools:
     needs: [check-want-test]
-    if: ${{ needs.check-want-test.outputs.want-test }}
+    if: ${{ needs.check-want-test.outputs.want-test == 'true' }}
     uses: ./.github/workflows/_run-clang-tools.yaml
 
   test-and-coverage:
     needs: [check-want-test]
-    if: ${{ needs.check-want-test.outputs.want-test }}
+    if: ${{ needs.check-want-test.outputs.want-test == 'true' }}
     uses: ./.github/workflows/_cpp-test-and-coverage.yaml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
