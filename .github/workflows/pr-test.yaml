@@ -42,6 +42,7 @@ jobs:
 
   test-and-coverage:
     needs: [run-clang-tools]
+    if: ${{ always() && (needs.run-clang-tools.result == 'success' || needs.run-clang-tools.result == 'skipped' ) }}
     uses: ./.github/workflows/_cpp-test-and-coverage.yaml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
