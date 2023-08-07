@@ -6,6 +6,7 @@
 #ifndef NURI_CORE_MOLECULE_H_
 #define NURI_CORE_MOLECULE_H_
 
+#include <algorithm>
 #include <iterator>
 #include <string>
 #include <string_view>
@@ -326,6 +327,339 @@ private:
   BondFlags flags_;
   double length_;
 };
+
+class Molecule;
+
+namespace internal {
+  template <bool is_const = false>
+  class Substructure {
+  public:
+    using GraphType = const_if_t<is_const, Graph<AtomData, BondData>>;
+
+    // Should use SubgraphOf<GraphType> here, but Subgraph was used directly for
+    // better clangd autocompletion.
+    using SubgraphType = Subgraph<AtomData, BondData, is_const>;
+
+    using MutableAtom = typename SubgraphType::NodeRef;
+    using Atom = typename SubgraphType::ConstNodeRef;
+
+    using iterator = typename SubgraphType::iterator;
+    using const_iterator = typename SubgraphType::const_iterator;
+    using atom_iterator = iterator;
+    using const_atom_iterator = const_iterator;
+
+    using Neighbor = typename SubgraphType::ConstAdjRef;
+    using neighbor_iterator = typename SubgraphType::adjacency_iterator;
+    using const_neighbor_iterator =
+      typename SubgraphType::const_adjacency_iterator;
+
+    Substructure(const SubgraphType &sub): subgraph_(sub) { }
+
+    Substructure(SubgraphType &&sub) noexcept: subgraph_(std::move(sub)) { }
+
+    Substructure(const SubgraphType &sub, const std::string &name)
+      : subgraph_(sub), name_(name) { }
+
+    Substructure(SubgraphType &&sub, std::string &&name) noexcept
+      : subgraph_(std::move(sub)), name_(std::move(name)) { }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    Substructure(const Substructure<other_const> &other)
+      : subgraph_(other.subgraph_), name_(other.name_) { }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    Substructure(Substructure<other_const> &&other) noexcept
+      : subgraph_(std::move(other.subgraph_)), name_(std::move(other.name_)) { }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    Substructure &operator=(const Substructure<other_const> &other) {
+      subgraph_ = other.subgraph_;
+      name_ = other.name_;
+      return *this;
+    }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    Substructure &operator=(Substructure<other_const> &&other) noexcept {
+      subgraph_ = std::move(other.subgraph_);
+      name_ = std::move(other.name_);
+      return *this;
+    }
+
+    bool empty() const { return subgraph_.empty(); }
+    int size() const { return subgraph_.size(); }
+    int num_atoms() const { return subgraph_.num_nodes(); }
+    void clear() { subgraph_.clear(); }
+
+    void update(const std::vector<int> &atoms) { subgraph_.update(atoms); }
+    void update(std::vector<int> &&atoms) noexcept {
+      subgraph_.update(std::move(atoms));
+    }
+
+    void reserve(int n) { subgraph_.reserve(n); }
+
+    void add_atom(int id) { subgraph_.add_node(id); }
+
+    bool contains(int id) const { return subgraph_.contains(id); }
+    bool contains(typename GraphType::ConstNodeRef atom) const {
+      return subgraph_.contains(atom);
+    }
+
+    MutableAtom operator[](int idx) { return subgraph_[idx]; }
+    Atom operator[](int idx) const { return subgraph_[idx]; }
+
+    MutableAtom atom(int idx) { return subgraph_.node(idx); }
+    Atom atom(int idx) const { return subgraph_.node(idx); }
+
+    iterator find_atom(int id) { return subgraph_.find_node(id); }
+    iterator find_atom(typename GraphType::ConstNodeRef atom) {
+      return subgraph_.find_node(atom);
+    }
+
+    const_iterator find_atom(int id) const { return subgraph_.find_node(id); }
+    const_iterator find_atom(typename GraphType::ConstNodeRef atom) const {
+      return subgraph_.find_node(atom);
+    }
+
+    void erase_atom(int id) { subgraph_.erase_node(id); }
+    void erase_atom(Atom atom) { subgraph_.erase_node(atom); }
+    void erase_atom(typename GraphType::ConstNodeRef atom) {
+      subgraph_.erase_node(atom);
+    }
+
+    void erase_atoms(const_iterator begin, const_iterator end) {
+      subgraph_.erase_nodes(begin, end);
+    }
+
+    template <class UnaryPred>
+    void erase_atoms(UnaryPred &&pred) {
+      subgraph_.erase_nodes(std::forward<UnaryPred>(pred));
+    }
+
+    iterator begin() { return subgraph_.begin(); }
+    iterator end() { return subgraph_.end(); }
+
+    const_iterator begin() const { return cbegin(); }
+    const_iterator end() const { return cend(); }
+
+    const_iterator cbegin() const { return subgraph_.cbegin(); }
+    const_iterator cend() const { return subgraph_.cend(); }
+
+    const std::vector<int> &atom_ids() const { return subgraph_.node_ids(); }
+
+    auto bonds() { return subgraph_.edges(); }
+    auto bonds() const { return subgraph_.edges(); }
+
+    int degree(int id) const { return subgraph_.degree(id); }
+
+    neighbor_iterator find_neighbor(int src, int dst) {
+      return subgraph_.find_adjacent(src, dst);
+    }
+
+    const_neighbor_iterator find_neighbor(int src, int dst) const {
+      return subgraph_.find_adjacent(src, dst);
+    }
+
+    neighbor_iterator neighbor_begin(int id) { return subgraph_.adj_begin(id); }
+    neighbor_iterator neighbor_end(int id) { return subgraph_.adj_end(id); }
+
+    const_neighbor_iterator neighbor_begin(int id) const {
+      return subgraph_.adj_begin(id);
+    }
+    const_neighbor_iterator neighbor_end(int id) const {
+      return subgraph_.adj_end(id);
+    }
+
+    const_neighbor_iterator neighbor_cbegin(int id) const {
+      return subgraph_.adj_cbegin(id);
+    }
+    const_neighbor_iterator neighbor_cend(int id) const {
+      return subgraph_.adj_cend(id);
+    }
+
+    std::string &name() { return name_; }
+
+    const std::string &name() const { return name_; }
+
+    void set_id(int id) { id_ = id; }
+
+    int id() const { return id_; }
+
+  private:
+    SubgraphType subgraph_;
+
+    std::string name_;
+    int id_;
+  };
+
+  template <class FT, bool is_const>
+  class FindSubstructIter {
+  public:
+    using parent_type = const_if_t<is_const, FT>;
+
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = const_if_t<is_const, Substructure<false>>;
+    using reference = value_type &;
+    using pointer = value_type *;
+    using difference_type = int;
+
+    using SubstructContainer = std::vector<Substructure<false>>;
+    using ParentIterator =
+      std::conditional_t<is_const, typename SubstructContainer::const_iterator,
+                         typename SubstructContainer::iterator>;
+
+    FindSubstructIter() = default;
+
+    FindSubstructIter(parent_type &finder, ParentIterator it)
+      : finder_(&finder), it_(finder.next(it)) { }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    FindSubstructIter(const FindSubstructIter<FT, other_const> &other)
+      : finder_(&other.finder_), it_(other.it_) { }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    FindSubstructIter &
+    operator=(const FindSubstructIter<FT, other_const> &other) {
+      finder_ = other.finder_;
+      it_ = other.it_;
+      return *this;
+    }
+
+    FindSubstructIter &operator++() {
+      it_ = finder_->next(++it_);
+      return *this;
+    }
+
+    FindSubstructIter operator++(int) {
+      auto tmp = *this;
+      ++(*this);
+      return tmp;
+    }
+
+    template <class OtherPred, bool other_const>
+    bool
+    operator==(const FindSubstructIter<OtherPred, other_const> &other) const {
+      return it_ == other.it_;
+    }
+
+    template <class OtherPred, bool other_const>
+    bool
+    operator!=(const FindSubstructIter<OtherPred, other_const> &other) const {
+      return !(*this == other);
+    }
+
+    reference operator*() const { return *it_; }
+
+    pointer operator->() const { return &*it_; }
+
+  private:
+    template <class, bool>
+    friend class FindSubstructIter;
+
+    parent_type *finder_;
+    ParentIterator it_;
+  };
+
+  template <class UnaryPred, bool is_const>
+  class SubstructureFinder {
+  public:
+    using SubstructContainer = std::vector<Substructure<false>>;
+    using parent_type = const_if_t<is_const, SubstructContainer>;
+
+    using iterator = FindSubstructIter<SubstructureFinder, is_const>;
+    using const_iterator = FindSubstructIter<SubstructureFinder, true>;
+
+    SubstructureFinder(parent_type &substructs, UnaryPred &&pred)
+      : substructs_(&substructs), pred_(std::forward<UnaryPred>(pred)) { }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    SubstructureFinder(const SubstructureFinder<UnaryPred, other_const> &other)
+      : substructs_(other.substructs_), pred_(other.pred_) { }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    SubstructureFinder(
+      SubstructureFinder<UnaryPred, other_const>
+        &&other) noexcept(std::is_nothrow_move_constructible_v<UnaryPred>)
+      : substructs_(other.substructs_), pred_(std::move(other.pred_)) { }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    SubstructureFinder &
+    operator=(const SubstructureFinder<UnaryPred, other_const> &other) {
+      substructs_ = other.substructs_;
+      pred_ = other.pred_;
+      return *this;
+    }
+
+    template <bool other_const,
+              std::enable_if_t<is_const && !other_const, int> = 0>
+    SubstructureFinder &
+    operator=(SubstructureFinder<UnaryPred, other_const> &&other) noexcept(
+      std::is_nothrow_move_constructible_v<UnaryPred>) {
+      substructs_ = other.substructs_;
+      pred_ = std::move(other.pred_);
+      return *this;
+    }
+
+    iterator begin() { return iterator(*this, substructs_->begin()); }
+    iterator end() { return iterator(*this, substructs_->end()); }
+
+    const_iterator begin() const {
+      return const_iterator(*this, substructs_->begin());
+    }
+    const_iterator end() const {
+      return const_iterator(*this, substructs_->end());
+    }
+
+    const_iterator cbegin() const {
+      return const_iterator(*this, substructs_->begin());
+    }
+    const_iterator cend() const {
+      return const_iterator(*this, substructs_->end());
+    }
+
+  private:
+    template <class, bool>
+    friend class FindSubstructIter;
+
+    typename SubstructContainer::iterator
+    next(typename SubstructContainer::iterator begin) {
+      return std::find_if(begin, substructs_->end(), pred_);
+    }
+
+    typename SubstructContainer::const_iterator
+    next(typename SubstructContainer::const_iterator begin) const {
+      return std::find_if(begin, substructs_->cend(), pred_);
+    }
+
+    parent_type *substructs_;
+    UnaryPred pred_;
+  };
+
+  template <class UnaryPred>
+  SubstructureFinder<UnaryPred, false>
+  make_substructure_finder(std::vector<Substructure<false>> &substructs,
+                           UnaryPred &&pred) {
+    return { substructs, std::forward<UnaryPred>(pred) };
+  }
+
+  template <class UnaryPred>
+  SubstructureFinder<UnaryPred, true>
+  make_substructure_finder(const std::vector<Substructure<false>> &substructs,
+                           UnaryPred &&pred) {
+    return { substructs, std::forward<UnaryPred>(pred) };
+  }
+}  // namespace internal
+
+using Substructure = internal::Substructure<false>;
+using ConstSubstructure = internal::Substructure<true>;
 
 /**
  * @brief Read-only molecule class.
@@ -769,6 +1103,181 @@ public:
   bool rotate_bond(int i, bond_id_type bid, double angle);
 
   /**
+   * @brief Create and return a substurcture of the molecule.
+   *
+   * @return The new substructure.
+   */
+  Substructure substructure(const std::vector<int> &nodes) {
+    return Subgraph(this->graph_, nodes);
+  }
+
+  /**
+   * @brief Create and return a substurcture of the molecule.
+   *
+   * @return The new substructure.
+   */
+  Substructure substructure(std::vector<int> &&nodes) noexcept {
+    return Subgraph(this->graph_, std::move(nodes));
+  }
+
+  /**
+   * @brief Create and return a substurcture of the molecule.
+   *
+   * @return The new substructure.
+   */
+  ConstSubstructure substructure(const std::vector<int> &nodes) const {
+    return Subgraph(this->graph_, nodes);
+  }
+
+  /**
+   * @brief Create and return a substurcture of the molecule.
+   *
+   * @return The new substructure.
+   */
+  ConstSubstructure substructure(std::vector<int> &&nodes) const noexcept {
+    return Subgraph(this->graph_, std::move(nodes));
+  }
+
+  /**
+   * @brief Get a substructure of the molecule.
+   *
+   * @param i Index of the substructure to get.
+   * @return A reference to the substructure.
+   */
+  Substructure &get_substructure(int i) { return substructs_[i]; }
+
+  /**
+   * @brief Get a substructure of the molecule.
+   *
+   * @param i Index of the substructure to get.
+   * @return A const reference to the substructure.
+   */
+  const Substructure &get_substructure(int i) const { return substructs_[i]; }
+
+  /**
+   * @brief Store and return a new substurcture of the molecule.
+   *
+   * @return The new substructure.
+   */
+  Substructure &add_substructure() {
+    return substructs_.emplace_back(Subgraph(this->graph_));
+  }
+
+  /**
+   * @brief Create and return a substurcture of the molecule.
+   *
+   * @param idxs Indices of atoms in the substructure.
+   * @return The new substructure.
+   */
+  Substructure &add_substructure(const std::vector<int> &idxs) {
+    return substructs_.emplace_back(Subgraph(this->graph_, idxs));
+  }
+
+  /**
+   * @brief Create and return a substurcture of the molecule.
+   *
+   * @param idxs Indices of atoms in the substructure.
+   * @return The new substructure.
+   */
+  Substructure &add_substructure(std::vector<int> &&idxs) noexcept {
+    return substructs_.emplace_back(Subgraph(this->graph_, std::move(idxs)));
+  }
+
+  /**
+   * @brief Erase a substructure of the molecule.
+   *
+   * @param i Index of the substructure to erase.
+   * @note If the index is out of range, the behavior is undefined.
+   * @note Time complexity: \f$O(N)\f$, where \f$N\f$ is number of
+   *       substructures.
+   */
+  void erase_substructure(int i) { substructs_.erase(substructs_.begin() + i); }
+
+  /**
+   * @brief Erase substructures of the molecule.
+   *
+   * @tparam UnaryPred Unary predicate type.
+   * @param pred Unary predicate that accepts a substructure and returns true if
+   *        the substructure should be erased.
+   * @note Time complexity: \f$O(N)\f$, where \f$N\f$ is number of
+   *       substructures.
+   */
+  template <class UnaryPred>
+  void erase_substructures(UnaryPred &&pred) {
+    erase_if(substructs_, std::forward<UnaryPred>(pred));
+  }
+
+  /**
+   * @brief Erase all substructures of the molecule.
+   */
+  void clear_substructures() noexcept { substructs_.clear(); }
+
+  /**
+   * @brief Check if the molecule has substructures.
+   *
+   * @return `true` if the molecule has substructures, `false` otherwise.
+   */
+  bool has_substructure() const { return !substructs_.empty(); }
+
+  /**
+   * @brief Get the number of substructures.
+   *
+   * @return The number of substructures managed by the molecule.
+   */
+  int num_substructures() const { return static_cast<int>(substructs_.size()); }
+
+  /**
+   * @brief Get the substructures.
+   *
+   * @return A const reference to all substructures.
+   */
+  const std::vector<Substructure> &substructures() const { return substructs_; }
+
+  /**
+   * @brief Find substructures with given id.
+   *
+   * @return A ranged view of substructures with given id.
+   */
+  auto find_substructures(int id) {
+    return internal::make_substructure_finder(
+      substructs_, [id](const Substructure &sub) { return sub.id() == id; });
+  }
+
+  /**
+   * @brief Find substructures with given name.
+   *
+   * @return A ranged view of substructures with given name.
+   */
+  auto find_substructures(const std::string &name) {
+    return internal::make_substructure_finder(substructs_,
+                                              [name](const Substructure &sub) {
+                                                return sub.name() == name;
+                                              });
+  }
+
+  /**
+   * @brief Find substructures with given id.
+   *
+   * @return A ranged constant view of substructures with given id.
+   */
+  auto find_substructures(int id) const {
+    return internal::make_substructure_finder(
+      substructs_, [id](const Substructure &sub) { return sub.id() == id; });
+  }
+
+  /**
+   * @brief Find substructures with given name.
+   *
+   * @return A ranged constant view of substructures with given name.
+   */
+  auto find_substructures(const std::string &name) const {
+    return internal::make_substructure_finder(substructs_,
+                                              [name](const Substructure &sub) {
+                                                return sub.name() == name;
+                                              });
+  }
+
+  /**
    * @brief Update topology of the molecule.
    *
    * This method is safe to call multiple times, but will be automatically
@@ -815,6 +1324,8 @@ private:
   GraphType graph_;
   std::vector<MatrixX3d> conformers_;
   std::string name_;
+
+  std::vector<Substructure> substructs_;
 
   std::vector<std::vector<int>> ring_groups_;
   int num_fragments_;

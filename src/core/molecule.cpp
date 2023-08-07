@@ -52,6 +52,10 @@ void Molecule::clear() noexcept {
   graph_.clear();
   conformers_.clear();
   name_.clear();
+
+  substructs_.clear();
+  ring_groups_.clear();
+  num_fragments_ = 0;
 }
 
 void Molecule::erase_hydrogens() {
@@ -313,7 +317,24 @@ void MoleculeMutator::finalize() noexcept {
   }
 
   // 2. Erase atoms
-  auto [last, map] = g.erase_nodes(erased_atoms_.begin(), erased_atoms_.end());
+  int last;
+  std::vector<int> map;
+  std::tie(last, map) =
+    g.erase_nodes(erased_atoms_.begin(), erased_atoms_.end());
+
+  // Update substructures
+  for (Substructure &sub: mol().substructs_) {
+    std::vector<int> updated;
+    updated.reserve(sub.size());
+
+    for (auto node: sub) {
+      if (map[node.id()] >= 0) {
+        updated.push_back(map[node.id()]);
+      }
+    }
+
+    sub.update(std::move(updated));
+  }
 
   // Update coordinates
   if (last >= 0) {
