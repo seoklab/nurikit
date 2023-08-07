@@ -163,8 +163,8 @@ typename std::vector<T, Alloc>::size_type erase(std::vector<T, Alloc> &c,
 
 template <class T, class Alloc, class Pred>
 typename std::vector<T, Alloc>::size_type erase_if(std::vector<T, Alloc> &c,
-                                                   Pred pred) {
-  auto it = std::remove_if(c.begin(), c.end(), pred);
+                                                   Pred &&pred) {
+  auto it = std::remove_if(c.begin(), c.end(), std::forward<Pred>(pred));
   auto r = std::distance(it, c.end());
   c.erase(it, c.end());
   return r;
@@ -173,8 +173,8 @@ typename std::vector<T, Alloc>::size_type erase_if(std::vector<T, Alloc> &c,
 
 template <class T, class Alloc, class Pred>
 typename std::vector<T, Alloc>::iterator erase_first(std::vector<T, Alloc> &c,
-                                                     Pred pred) {
-  auto it = std::find_if(c.begin(), c.end(), pred);
+                                                     Pred &&pred) {
+  auto it = std::find_if(c.begin(), c.end(), std::forward<Pred>(pred));
   if (it != c.end()) {
     return c.erase(it);
   }
@@ -183,8 +183,10 @@ typename std::vector<T, Alloc>::iterator erase_first(std::vector<T, Alloc> &c,
 
 template <class T, class Alloc, class Comp>
 typename std::vector<T, Alloc>::iterator
-insert_sorted(std::vector<T, Alloc> &c, const T &value, Comp comp) {
-  return c.insert(std::upper_bound(c.begin(), c.end(), value, comp), value);
+insert_sorted(std::vector<T, Alloc> &c, const T &value, Comp &&comp) {
+  return c.insert(std::upper_bound(c.begin(), c.end(), value,
+                                   std::forward<Comp>(comp)),
+                  value);
 }
 
 template <class T, class Alloc>
@@ -200,7 +202,7 @@ inline absl::FixedArray<int> generate_index(int size) {
 }
 
 template <class Container, class Comp>
-absl::FixedArray<int> argsort(const Container &container, Comp op) {
+absl::FixedArray<int> argsort(const Container &container, Comp &&op) {
   absl::FixedArray<int> idxs = generate_index(container.size());
   std::sort(idxs.begin(), idxs.end(),
             [&](int i, int j) { return op(container[i], container[j]); });
@@ -209,7 +211,7 @@ absl::FixedArray<int> argsort(const Container &container, Comp op) {
 
 template <class Container, class Comp>
 absl::FixedArray<int> argpartition(const Container &container, int count,
-                                   Comp op) {
+                                   Comp &&op) {
   absl::FixedArray<int> idxs = generate_index(container.size());
   std::nth_element(idxs.begin(), idxs.begin() + count - 1, idxs.end(),
                    [&](int i, int j) {

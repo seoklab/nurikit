@@ -786,7 +786,7 @@ public:
    */
   template <class UnaryPred>
   std::pair<int, std::vector<int>>
-  erase_nodes(const_iterator begin, const_iterator end, UnaryPred pred);
+  erase_nodes(const_iterator begin, const_iterator end, UnaryPred &&pred);
 
   /**
    * @brief Erase nodes and all its associated edge(s) from the graph.
@@ -1047,7 +1047,7 @@ template <class NT, class ET>
 template <class UnaryPred>
 std::pair<int, std::vector<int>>
 Graph<NT, ET>::erase_nodes(const const_iterator begin, const const_iterator end,
-                           UnaryPred pred) {
+                           UnaryPred &&pred) {
   // Note: the time complexity notations are only for very sparse graphs, i.e.,
   // E = O(V).
 
@@ -1573,8 +1573,8 @@ namespace internal {
 
     template <class UnaryPred,
               std::enable_if_t<!std::is_convertible_v<UnaryPred, int>, int> = 0>
-    void erase(UnaryPred pred) {
-      erase_if(nodes_, pred);
+    void erase(UnaryPred &&pred) {
+      erase_if(nodes_, std::forward<UnaryPred>(pred));
     }
 
     int operator[](int idx) const { return nodes_[idx]; }
@@ -1721,8 +1721,8 @@ public:
   }
 
   template <class UnaryPred>
-  void erase_nodes(UnaryPred pred) {
-    nodes_.erase(pred);
+  void erase_nodes(UnaryPred &&pred) {
+    nodes_.erase(std::forward<UnaryPred>(pred));
   }
 
   iterator begin() { return { this, 0 }; }
