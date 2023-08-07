@@ -1603,6 +1603,32 @@ namespace internal {
   };
 }  // namespace internal
 
+/**
+ * @brief A subgraph of a graph.
+ *
+ * @tparam NT node data type
+ * @tparam ET edge data type
+ * @tparam is_const whether the subgraph is const. This is to support creating
+ *         subgraphs of const graphs.
+ * @note Removing nodes/edges on the parent graph will invalidate the subgraph.
+ *
+ * The subgraph is a non-owning view of a graph. A subgraph could be constructed
+ * by selecting nodes of the parent graph. The resulting subgraph will contain
+ * only the nodes and edges that are incident to the selected nodes.
+ *
+ * The subgraph has very similar API to the graph. Here, we note major
+ * differences:
+ *   - Adding/removing nodes will just mark the nodes as selected/unselected.
+ *   - Edges could not be added/removed.
+ *   - Iterating edges require graph traversal, so there are no direct edge
+ *     iterators in the subgraph.
+ *   - Some methods have different time complexity requirements. Refer to the
+ *     documentation of each method for details.
+ *
+ * In all time complexity specifications, \f$V\f$ and \f$E\f$ are the number of
+ * nodes and edges in the parent graph, and \f$V'\f$ and \f$E'\f$ are the number
+ * of nodes and edges in the subgraph, respectively.
+ */
 template <class NT, class ET, bool is_const = false>
 class Subgraph {
 public:
@@ -1630,24 +1656,63 @@ public:
 
   Subgraph(graph_type &&graph) = delete;
 
+  /**
+   * @brief Construct an empty subgraph
+   *
+   * @param graph The parent graph
+   */
   Subgraph(parent_type &graph): parent_(&graph) { }
 
+  /**
+   * @brief Construct a new Subgraph object
+   *
+   * @param graph The parent graph
+   * @param nodes The set of nodes in the subgraph. If any of the node ids are
+   *        not in the parent graph, or if there are duplicates, the behavior
+   *        is undefined.
+   */
   Subgraph(parent_type &graph, const std::vector<int> &nodes)
     : parent_(&graph), nodes_(nodes) { }
 
+  /**
+   * @brief Construct a new Subgraph object
+   *
+   * @param graph The parent graph
+   * @param nodes The set of nodes in the subgraph. If any of the node ids are
+   *        not in the parent graph, or if there are duplicates, the behavior
+   *        is undefined.
+   */
   Subgraph(parent_type &graph, std::vector<int> &&nodes) noexcept
     : parent_(&graph), nodes_(std::move(nodes)) { }
 
+  /**
+   * @brief Converting constructor to allow implicit conversion from a non-const
+   *        subgraph to a const subgraph.
+   *
+   * @param other The non-const subgraph
+   */
   template <bool other_const,
             std::enable_if_t<is_const && !other_const, int> = 0>
   Subgraph(const Other<other_const> &other)
     : parent_(other.parent_), nodes_(other.nodes_) { }
 
+  /**
+   * @brief Converting constructor to allow implicit conversion from a non-const
+   *        subgraph to a const subgraph.
+   *
+   * @param other The non-const subgraph
+   */
   template <bool other_const,
             std::enable_if_t<is_const && !other_const, int> = 0>
   Subgraph(Other<other_const> &&other) noexcept
     : parent_(other.parent_), nodes_(std::move(other.nodes_)) { }
 
+  /**
+   * @brief Converting assignment operator to allow implicit conversion from a
+   *        non-const subgraph to a const subgraph.
+   *
+   * @param other The non-const subgraph
+   */
   template <bool other_const,
             std::enable_if_t<is_const && !other_const, int> = 0>
   Subgraph &operator=(const Other<other_const> &other) {
@@ -1656,6 +1721,12 @@ public:
     return *this;
   }
 
+  /**
+   * @brief Converting assignment operator to allow implicit conversion from a
+   *        non-const subgraph to a const subgraph.
+   *
+   * @param other The non-const subgraph
+   */
   template <bool other_const,
             std::enable_if_t<is_const && !other_const, int> = 0>
   Subgraph &operator=(Other<other_const> &&other) noexcept {
@@ -1664,62 +1735,216 @@ public:
     return *this;
   }
 
+  /**
+   * @brief Get the parent graph
+   *
+   * @return Reference (might be const) to the parent graph
+   */
   parent_type &parent() { return *parent_; }
 
+  /**
+   * @brief Get the parent graph
+   *
+   * @return const-reference to the parent graph
+   */
   const graph_type &parent() const { return *parent_; }
 
+  /**
+   * @brief Whether the subgraph is empty
+   *
+   * @return true if the subgraph is empty, false otherwise
+   */
   bool empty() const { return nodes_.empty(); }
 
+  /**
+   * @brief Count number of nodes in the subgraph
+   *
+   * @return The number of nodes in the subgraph
+   */
   int size() const { return num_nodes(); }
 
+  /**
+   * @brief Count number of nodes in the subgraph
+   *
+   * @return The number of nodes in the subgraph
+   */
   int num_nodes() const { return nodes_.size(); }
 
+  /**
+   * @brief Clear the subgraph
+   *
+   * @note This does not affect the parent graph.
+   */
   void clear() noexcept { nodes_.clear(); }
 
+  /**
+   * @brief Reserve space for a number of nodes
+   *
+   * @param num_nodes The number of nodes to reserve space for
+   */
   void reserve(int num_nodes) { nodes_.reserve(num_nodes); }
 
+  /**
+   * @brief Add a node to the subgraph
+   *
+   * @param id The id of the node to add
+   * @note If the node is already in the subgraph or the node id is out of
+   *       range, the behavior is undefined.
+   */
   void add_node(int id) { return nodes_.insert(id); }
 
+  /**
+   * @brief Check if a node is in the subgraph
+   *
+   * @param id the id of the node to check
+   * @return true if the node is in the subgraph, false otherwise
+   */
   bool contains(int id) const { return nodes_.contains(id); }
 
+  /**
+   * @brief Check if a node is in the subgraph
+   *
+   * @param node The node to check
+   * @return true if the node is in the subgraph, false otherwise
+   * @note This is equivalent to calling contains(node.id()).
+   */
   bool contains(typename graph_type::ConstNodeRef node) const {
     return contains(node.id());
   }
 
+  /**
+   * @brief Get a node in the subgraph
+   *
+   * @param idx The index of the node to get
+   * @return A reference wrapper to the node (might be const)
+   * @note `id()` of the returned node is the node id in the parent graph,
+   *       **not** the index in the subgraph.
+   */
   NodeRef operator[](int idx) { return node(idx); }
+
+  /**
+   * @brief Get a node in the subgraph
+   *
+   * @param idx The index of the node to get
+   * @return A const-reference wrapper to the node
+   * @note `id()` of the returned node is the node id in the parent graph,
+   *       **not** the index in the subgraph.
+   */
   ConstNodeRef operator[](int idx) const { return node(idx); }
 
+  /**
+   * @brief Get a node in the subgraph
+   *
+   * @param idx The index of the node to get
+   * @return A reference wrapper to the node (might be const)
+   * @note `id()` of the returned node is the node id in the parent graph,
+   *       **not** the index in the subgraph.
+   */
   NodeRef node(int idx) {
     auto pnode = parent_->node(nodes_[idx]);
     return { pnode.id(), pnode.data(), *this };
   }
+
+  /**
+   * @brief Get a node in the subgraph
+   *
+   * @param idx The index of the node to get
+   * @return A const-reference wrapper to the node
+   * @note `id()` of the returned node is the node id in the parent graph,
+   *       **not** the index in the subgraph.
+   */
   ConstNodeRef node(int idx) const {
     auto pnode = parent_->node(nodes_[idx]);
     return { pnode.id(), pnode.data(), *this };
   }
 
+  /**
+   * @brief Find a node with the given id.
+   *
+   * @param id The id of the node to find
+   * @return An iterator to the node if found, end() otherwise.
+   */
   iterator find_node(int id) { return begin() + nodes_.find(id); }
+
+  /**
+   * @brief Find a node with the given id.
+   *
+   * @param node The node to find
+   * @return An iterator to the node if found, end() otherwise.
+   * @note This is equivalent to calling find_node(node.id()).
+   */
   iterator find_node(typename graph_type::ConstNodeRef node) {
     return find_node(node.id());
   }
+
+  /**
+   * @brief Find a node with the given id.
+   *
+   * @param id The id of the node to find
+   * @return A const_iterator to the node if found, end() otherwise
+   */
   const_iterator find_node(int id) const { return begin() + nodes_.find(id); }
+
+  /**
+   * @brief Find a node with the given id.
+   *
+   * @param node The node to find
+   * @return A const_iterator to the node if found, end() otherwise.
+   * @note This is equivalent to calling find_node(node.id()).
+   */
   const_iterator find_node(typename graph_type::ConstNodeRef node) const {
     return find_node(node.id());
   }
 
+  /**
+   * @brief Erase a node from the subgraph
+   *
+   * @param id The id of the node to erase
+   * @note This is a no-op if the node is not in the subgraph.
+   * @note Time complexity: \f$O(V')\f$ in worst case.
+   */
   void erase_node(int id) { nodes_.erase(id); }
 
+  /**
+   * @brief Erase a node from the subgraph
+   *
+   * @param node The node to erase
+   * @note This is equivalent to calling erase_node(node.id()).
+   * @note Time complexity: \f$O(V')\f$ in worst case.
+   */
   void erase_node(ConstNodeRef node) { erase_node(node.id()); }
 
+  /**
+   * @brief Erase a node from the subgraph
+   *
+   * @param node The node to erase
+   * @note This is a no-op if the node is not in the subgraph.
+   * @note This is equivalent to calling erase_node(node.id()).
+   * @note Time complexity: \f$O(V')\f$ in worst case.
+   */
   void erase_node(typename graph_type::ConstNodeRef node) {
     erase_node(node.id());
   }
 
+  /**
+   * @brief Erase range of nodes from the subgraph
+   *
+   * @param begin Iterator pointing to the first node to erase
+   * @param end Iterator pointing to the node after the last node to erase
+   * @note Time complexity: \f$O(V')\f$ in worst case.
+   */
   void erase_nodes(const_iterator begin, const_iterator end) {
     nodes_.erase(begin - this->begin() + nodes_.begin(),
                  end - this->begin() + nodes_.begin());
   }
 
+  /**
+   * @brief Erase matching nodes from the subgraph
+   *
+   * @tparam UnaryPred Type of the unary predicate
+   * @param pred Unary predicate that returns true for nodes to erase
+   * @note Time complexity: \f$O(V')\f$ in worst case.
+   */
   template <class UnaryPred>
   void erase_nodes(UnaryPred &&pred) {
     nodes_.erase(std::forward<UnaryPred>(pred));
@@ -1734,20 +1959,65 @@ public:
   const_iterator cbegin() const { return { this, 0 }; }
   const_iterator cend() const { return { this, num_nodes() }; }
 
+  /**
+   * @brief Get all node ids in the subgraph
+   *
+   * @return The node ids in the subgraph, in an unspecified order
+   */
   const std::vector<int> &node_ids() const { return nodes_.ids(); }
 
+  /**
+   * @brief Find all edges in the subgraph
+   *
+   * @return A wrapper that can be used to iterate over all edges in the
+   *         subgraph (might be const).
+   * @note Time complexity: \f$O(V'+E')\f$.
+   */
   internal::SubEdgesFinder<graph_type, is_const> edges() { return { *this }; }
 
+  /**
+   * @brief Find all edges in the subgraph
+   *
+   * @return A const-wrapper that can be used to iterate over all edges in the
+   *         subgraph.
+   * @note Time complexity: \f$O(V'+E')\f$.
+   */
   internal::SubEdgesFinder<graph_type, true> edges() const { return { *this }; }
 
+  /**
+   * @brief Count in-subgraph neighbors of a node
+   *
+   * @param id The id of the node
+   * @return The number of neighbors of the node that are in the subgraph
+   * @note Time complexity: \f$O(V/E)\f$.
+   */
   int degree(int id) const {
     return std::distance(adj_cbegin(id), adj_cend(id));
   }
 
+  /**
+   * @brief Find adjacent node of a node
+   *
+   * @param src The id of one node
+   * @param dst The id of the other node
+   * @return An iterator to the adjacent node if found, adj_end(src) otherwise.
+   * @note This will only find edges that are in the subgraph.
+   * @note Time complexity: \f$O(V/E)\f$.
+   */
   adjacency_iterator find_adjacent(int src, int dst) {
     return find_adj_helper(*this, src, dst);
   }
 
+  /**
+   * @brief Find adjacent node of a node
+   *
+   * @param src The id of one node
+   * @param dst The id of the other node
+   * @return A const-iterator to the adjacent node if found, adj_end(src)
+   *         otherwise.
+   * @note This will only find edges that are in the subgraph.
+   * @note Time complexity: \f$O(V/E)\f$.
+   */
   const_adjacency_iterator find_adjacent(int src, int dst) const {
     return find_adj_helper(*this, src, dst);
   }
@@ -1842,6 +2112,14 @@ namespace internal {
 template <class GT>
 using SubgraphOf = typename internal::SubgraphTypeHelper<GT>::type;
 
+/**
+ * @brief Make a subgraph from a graph.
+ * @tparam GT The type of the graph
+ * @tparam Args Extra arguments to pass to the subgraph constructor
+ * @param graph The graph to make a subgraph of
+ * @param args Extra arguments to pass to the subgraph constructor
+ * @return A subgraph of the graph
+ */
 template <class GT, class... Args>
 SubgraphOf<GT> make_subgraph(GT &&graph, Args &&...args) {
   return { std::forward<GT>(graph), std::forward<Args>(args)... };
