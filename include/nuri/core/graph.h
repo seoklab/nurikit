@@ -2029,7 +2029,12 @@ public:
    *
    * @param id The id of the node
    * @return The number of neighbors of the node that are in the subgraph
+   * @note The behavior is undefined if the node is not in the subgraph.
    * @note Time complexity: \f$O(V/E)\f$.
+   * @warning This method does not accept node index in the subgraph, but the
+   *          index in the original graph. This is due to the implementation
+   *          detail of the node wrappers. If such behavior is needed, use
+   *          node().degree() instead.
    */
   int degree(int id) const {
     return std::distance(adj_cbegin(id), adj_cend(id));
