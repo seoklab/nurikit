@@ -1330,8 +1330,6 @@ namespace internal {
       return !(*this == other);
     }
 
-    bool begin() const noexcept { return ait_.begin(); }
-
     bool end() const noexcept { return ait_.end(); }
 
   private:
