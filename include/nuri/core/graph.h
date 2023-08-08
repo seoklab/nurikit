@@ -1596,6 +1596,16 @@ namespace internal {
     auto begin() const { return nodes_.begin(); }
     auto end() const { return nodes_.end(); }
 
+    void replace(const std::vector<int> &nodes) {
+      nodes_ = nodes;
+      init();
+    }
+
+    void replace(std::vector<int> &&nodes) noexcept {
+      nodes_ = std::move(nodes);
+      init();
+    }
+
     const std::vector<int> &ids() const { return nodes_; }
 
   private:
@@ -1771,6 +1781,28 @@ public:
    * @return The number of nodes in the subgraph
    */
   int num_nodes() const { return nodes_.size(); }
+
+  /**
+   * @brief Change the set of nodes in the subgraph
+   *
+   * @param nodes The new set of nodes
+   * @note If any of the node ids are not in the parent graph, or if there are
+   *       duplicates, the behavior is undefined.
+   * @note Time complexity: \f$O(V' \log V')\f$
+   */
+  void update(const std::vector<int> &nodes) { nodes_.replace(nodes); }
+
+  /**
+   * @brief Change the set of nodes in the subgraph
+   *
+   * @param nodes The new set of nodes
+   * @note If any of the node ids are not in the parent graph, or if there are
+   *       duplicates, the behavior is undefined.
+   * @note Time complexity: \f$O(V' \log V')\f$
+   */
+  void update(std::vector<int> &&nodes) noexcept {
+    nodes_.replace(std::move(nodes));
+  }
 
   /**
    * @brief Clear the subgraph
