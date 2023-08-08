@@ -1109,7 +1109,7 @@ public:
    * @return The new substructure.
    */
   Substructure substructure(const std::vector<int> &nodes) {
-    return Subgraph(this->graph_, nodes);
+    return Subgraph(graph_, nodes);
   }
 
   /**
@@ -1118,7 +1118,7 @@ public:
    * @return The new substructure.
    */
   Substructure substructure(std::vector<int> &&nodes) noexcept {
-    return Subgraph(this->graph_, std::move(nodes));
+    return Subgraph(graph_, std::move(nodes));
   }
 
   /**
@@ -1127,7 +1127,7 @@ public:
    * @return The new substructure.
    */
   ConstSubstructure substructure(const std::vector<int> &nodes) const {
-    return Subgraph(this->graph_, nodes);
+    return Subgraph(graph_, nodes);
   }
 
   /**
@@ -1136,7 +1136,7 @@ public:
    * @return The new substructure.
    */
   ConstSubstructure substructure(std::vector<int> &&nodes) const noexcept {
-    return Subgraph(this->graph_, std::move(nodes));
+    return Subgraph(graph_, std::move(nodes));
   }
 
   /**
@@ -1161,7 +1161,7 @@ public:
    * @return The new substructure.
    */
   Substructure &add_substructure() {
-    return substructs_.emplace_back(Subgraph(this->graph_));
+    return substructs_.emplace_back(Subgraph(graph_));
   }
 
   /**
@@ -1171,7 +1171,7 @@ public:
    * @return The new substructure.
    */
   Substructure &add_substructure(const std::vector<int> &idxs) {
-    return substructs_.emplace_back(Subgraph(this->graph_, idxs));
+    return substructs_.emplace_back(Subgraph(graph_, idxs));
   }
 
   /**
@@ -1181,7 +1181,7 @@ public:
    * @return The new substructure.
    */
   Substructure &add_substructure(std::vector<int> &&idxs) noexcept {
-    return substructs_.emplace_back(Subgraph(this->graph_, std::move(idxs)));
+    return substructs_.emplace_back(Subgraph(graph_, std::move(idxs)));
   }
 
   /**
