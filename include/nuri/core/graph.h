@@ -1273,9 +1273,7 @@ namespace internal {
     constexpr SubAdjIterator(
       parent_type &subgraph,
       AdjIterator<typename SGT::graph_type, is_const> ait) noexcept
-      : subgraph_(&subgraph), ait_(ait) {
-      for (; !ait_.end() && !subgraph_->contains(ait_->dst().id()); ++ait_) { }
-    }
+      : subgraph_(&subgraph), ait_(advance(ait)) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
@@ -1292,7 +1290,7 @@ namespace internal {
     }
 
     SubAdjIterator &operator++() noexcept {
-      for (; !(++ait_).end() && !subgraph_->contains(ait_->dst().id());) { }
+      ait_ = advance(++ait_);
       return *this;
     }
 
@@ -1339,6 +1337,12 @@ namespace internal {
   private:
     template <class, bool>
     friend class SubAdjIterator;
+
+    AdjIterator<typename SGT::graph_type, is_const>
+    advance(AdjIterator<typename SGT::graph_type, is_const> ait) {
+      for (; !ait.end() && !subgraph_->contains(ait->dst().id()); ++ait) { }
+      return ait;
+    }
 
     parent_type *subgraph_;
     AdjIterator<typename SGT::graph_type, is_const> ait_;
