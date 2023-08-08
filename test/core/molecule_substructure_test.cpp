@@ -390,7 +390,7 @@ protected:
 };
 
 TEST_F(MolSubstructureTest, AddSubstructures) {
-  EXPECT_TRUE(mol_.has_substructure());
+  EXPECT_TRUE(mol_.has_substructures());
   EXPECT_EQ(mol_.num_substructures(), 1);
 
   Substructure &sub1 = mol_.add_substructure();
@@ -410,9 +410,9 @@ TEST_F(MolSubstructureTest, AddSubstructures) {
 }
 
 TEST_F(MolSubstructureTest, ClearSubstructures) {
-  EXPECT_TRUE(mol_.has_substructure());
+  EXPECT_TRUE(mol_.has_substructures());
   mol_.clear_substructures();
-  EXPECT_FALSE(mol_.has_substructure());
+  EXPECT_FALSE(mol_.has_substructures());
 }
 
 TEST_F(MolSubstructureTest, GetSubstructures) {
@@ -430,13 +430,13 @@ TEST_F(MolSubstructureTest, EraseSubstructures) {
   EXPECT_EQ(sub.size(), 4);
 
   mol_.erase_substructure(0);
-  EXPECT_FALSE(mol_.has_substructure());
+  EXPECT_FALSE(mol_.has_substructures());
 
   mol_.add_substructure({ 0, 1, 2, 10 });
   mol_.erase_substructures([](const auto &) { return false; });
-  EXPECT_TRUE(mol_.has_substructure());
+  EXPECT_TRUE(mol_.has_substructures());
   mol_.erase_substructures([](const auto &) { return true; });
-  EXPECT_FALSE(mol_.has_substructure());
+  EXPECT_FALSE(mol_.has_substructures());
 }
 
 TEST_F(MolSubstructureTest, FindSubstructures) {

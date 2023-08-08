@@ -1218,7 +1218,7 @@ public:
    *
    * @return `true` if the molecule has substructures, `false` otherwise.
    */
-  bool has_substructure() const { return !substructs_.empty(); }
+  bool has_substructures() const { return !substructs_.empty(); }
 
   /**
    * @brief Get the number of substructures.
