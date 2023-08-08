@@ -181,9 +181,7 @@ namespace internal {
       return *this;
     }
 
-    constexpr parent_type *graph() const noexcept {
-      return const_cast<parent_type *>(graph_);
-    }
+    constexpr parent_type *graph() const noexcept { return graph_; }
 
     constexpr Derived *derived() noexcept {
       return static_cast<Derived *>(this);
@@ -356,9 +354,7 @@ namespace internal {
 
     constexpr int id() const noexcept { return nid_; }
 
-    constexpr value_type &data() const noexcept {
-      return *const_cast<value_type *>(data_);
-    }
+    constexpr value_type &data() const noexcept { return *data_; }
 
     constexpr int degree() const noexcept { return graph_->degree(nid_); }
 
@@ -443,9 +439,7 @@ namespace internal {
     constexpr int src() const noexcept { return eid_->src; }
     constexpr int dst() const noexcept { return eid_->dst; }
 
-    constexpr value_type &data() const noexcept {
-      return const_cast<value_type &>(eid_->data);
-    }
+    constexpr value_type &data() const noexcept { return eid_->data; }
 
     constexpr Other<true> as_const() const noexcept { return *this; }
 
