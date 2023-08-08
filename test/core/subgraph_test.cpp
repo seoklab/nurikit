@@ -450,6 +450,15 @@ protected:
   std::vector<Graph::edge_id_type> edges_;
 };
 
+TEST_F(AdvancedSubgraphTest, CountDegrees) {
+  sg_.add_node(4);
+  sg_.erase_node(10);
+
+  for (auto node: sg_) {
+    EXPECT_EQ(node.degree(), node.id() == 4 ? 0 : 2) << node.id();
+  }
+}
+
 TEST_F(AdvancedSubgraphTest, IterateAdjacency) {
   int total = 0;
   for (auto node: sg_) {
