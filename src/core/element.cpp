@@ -95,10 +95,10 @@ Element::Element(int atomic_number, std::string_view symbol,
                  std::string_view name, double atomic_weight, double cov_rad,
                  double vdw_rad, double eneg,
                  std::vector<Isotope> &&isotopes) noexcept
-  : atomic_number_(atomic_number), flags_(static_cast<ElementFlags>(0)),
-    symbol_(symbol), name_(name), atomic_weight_(atomic_weight),
-    cov_rad_(cov_rad), vdw_rad_(vdw_rad), eneg_(eneg),
-    isotopes_(std::move(isotopes)) {
+    : atomic_number_(atomic_number), flags_(static_cast<ElementFlags>(0)),
+      symbol_(symbol), name_(name), atomic_weight_(atomic_weight),
+      cov_rad_(cov_rad), vdw_rad_(vdw_rad), eneg_(eneg),
+      isotopes_(std::move(isotopes)) {
   // GCOV_EXCL_START
   ABSL_DCHECK(!isotopes_.empty());
   // GCOV_EXCL_STOP
@@ -3961,23 +3961,23 @@ PeriodicTable::PeriodicTable() noexcept
   // Canonical symbols and names.
   for (const Element &element: elements_) {
     symbol_to_element_[element.symbol()] = name_to_element_[element.name()] =
-      &element;
+        &element;
   }
 
   // Non-canonical symbols for convenience.
 
   // RDKit use "*" and some others use "X", "Du" for dummy atom.
   symbol_to_element_["*"] = symbol_to_element_["X"] = symbol_to_element_["Du"] =
-    &elements_[0];
+      &elements_[0];
 
   // Systematic element symbols & names (104-118).
   symbol_to_element_["Unq"] = name_to_element_["Unnilquadium"] =
-    &elements_[104];
+      &elements_[104];
   symbol_to_element_["Unp"] = name_to_element_["Unnilpentium"] =
-    &elements_[105];
+      &elements_[105];
   symbol_to_element_["Unh"] = name_to_element_["Unnilhexium"] = &elements_[106];
   symbol_to_element_["Uns"] = name_to_element_["Unnilseptium"] =
-    &elements_[107];
+      &elements_[107];
   symbol_to_element_["Uno"] = name_to_element_["Unniloctium"] = &elements_[108];
   symbol_to_element_["Une"] = name_to_element_["Unnilennium"] = &elements_[109];
   symbol_to_element_["Uun"] = name_to_element_["Ununnilium"] = &elements_[110];

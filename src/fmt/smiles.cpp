@@ -34,7 +34,7 @@ bool SmilesStream::advance() {
 }
 
 const bool SmilesStreamFactory::kRegistered =
-  register_stream_factory<SmilesStreamFactory>({ "smi", "smiles" });
+    register_stream_factory<SmilesStreamFactory>({ "smi", "smiles" });
 
 namespace {
 namespace x3 = boost::spirit::x3;
@@ -107,9 +107,9 @@ const struct aromatic_symbol_: public x3::symbols<const Element *> {
 
 const struct chirality_: public x3::symbols<Chirality> {
   chirality_() {
-    add("@", Chirality::kCCW)  //
-      ("@@", Chirality::kCW)   //
-      ;
+    add("@", Chirality::kCCW)   //
+        ("@@", Chirality::kCW)  //
+        ;
   }
 } chirality;
 
@@ -209,8 +209,8 @@ bool add_bond(MoleculeMutator &mutator, const int prev, const int curr,
     const AtomData &last_atom_data = mutator.mol().atom(prev).data(),
                    &atom_data = mutator.mol().atom(curr).data();
     bond_data.order() = last_atom_data.is_aromatic() && atom_data.is_aromatic()
-                          ? constants::kAromaticBond
-                          : constants::kSingleBond;
+                            ? constants::kAromaticBond
+                            : constants::kSingleBond;
   } else {
     bond_data.order() = char_to_bond(bond_repr);
   }
@@ -240,7 +240,7 @@ int add_atom(Ctx &ctx, const Element *elem, int implicit_hydrogens,
     if (ABSL_PREDICT_FALSE(!success)) {
       x3::_pass(ctx) = false;
       ABSL_LOG(WARNING)
-        << "Failed to add bond from " << last_idx << " to " << idx;
+          << "Failed to add bond from " << last_idx << " to " << idx;
       return -1;
     }
 
@@ -289,10 +289,11 @@ constexpr auto set_atom_class = [](auto &) {
 };
 
 const auto bracket_atom =  //
-  x3::lit('[') >> ((-x3::uint_ >> element_symbol)[bracket_atom_adder(false)]
-                   | (-x3::uint_ >> aromatic_symbol)[bracket_atom_adder(true)])
-  >> -chirality[set_chirality] >> -hydrogen >> -charge
-  >> -(x3::lit(':') >> x3::int_)[set_atom_class] >> x3::lit(']');
+    x3::lit('[')
+    >> ((-x3::uint_ >> element_symbol)[bracket_atom_adder(false)]
+        | (-x3::uint_ >> aromatic_symbol)[bracket_atom_adder(true)])
+    >> -chirality[set_chirality] >> -hydrogen >> -charge
+    >> -(x3::lit(':') >> x3::int_)[set_atom_class] >> x3::lit(']');
 
 constexpr auto set_last_bond_data = [](auto &ctx) {
   x3::get<last_bond_data_tag>(ctx).get() = x3::_attr(ctx);
@@ -316,7 +317,7 @@ void handle_ring(Ctx &ctx, int ring_idx) {
   const char bond_data = x3::get<last_bond_data_tag>(ctx);
   RingMap &map = x3::get<ring_map_tag>(ctx);
   auto [it, is_new] = map.insert({
-    ring_idx, {bond_data, current_idx}
+      ring_idx, {bond_data, current_idx}
   });
 
   // New ring index, nothing to do.
@@ -338,14 +339,14 @@ void handle_ring(Ctx &ctx, int ring_idx) {
     // Invalid bond specification.
     x3::_pass(ctx) = false;
     ABSL_LOG(WARNING)
-      << "Conflicting ring bond specification: " << data.bond_data << " vs "
-      << bond_data;
+        << "Conflicting ring bond specification: " << data.bond_data << " vs "
+        << bond_data;
     return;
   }
 
   MoleculeMutator &mutator = x3::get<mutator_tag>(ctx);
   const bool success =
-    add_bond(mutator, data.atom_idx, current_idx, resolved_bond_data);
+      add_bond(mutator, data.atom_idx, current_idx, resolved_bond_data);
   if (ABSL_PREDICT_FALSE(!success)) {
     x3::_pass(ctx) = false;
     ABSL_LOG(WARNING) << "Failed to add ring bond from " << data.atom_idx
@@ -356,7 +357,7 @@ void handle_ring(Ctx &ctx, int ring_idx) {
   if (resolved_bond_data == '/' || resolved_bond_data == '\\') {
     BondGeometryMap &bond_geometry_map = x3::get<bond_geometry_tag>(ctx);
     bond_geometry_map[std::make_pair(data.atom_idx, current_idx)] =
-      resolved_bond_data;
+        resolved_bond_data;
   }
 
   map.erase(it);
@@ -466,12 +467,12 @@ Molecule read_smiles(const std::string &smiles) {
   stack.push(-1);
 
   auto parser = x3::with<parser::mutator_tag>(
-    std::ref(mutator))[x3::with<parser::last_atom_stack_tag>(
-    std::ref(stack))[x3::with<parser::last_bond_data_tag>(
-    std::ref(last_bond_data))[x3::with<parser::chirality_map_tag>(
-    std::ref(chirality_map))[x3::with<parser::ring_map_tag>(
-    std::ref(ring_map))[x3::with<parser::bond_geometry_tag>(
-    std::ref(bond_geometry_map))[parser::smiles]]]]]];
+      std::ref(mutator))[x3::with<parser::last_atom_stack_tag>(
+      std::ref(stack))[x3::with<parser::last_bond_data_tag>(
+      std::ref(last_bond_data))[x3::with<parser::chirality_map_tag>(
+      std::ref(chirality_map))[x3::with<parser::ring_map_tag>(
+      std::ref(ring_map))[x3::with<parser::bond_geometry_tag>(
+      std::ref(bond_geometry_map))[parser::smiles]]]]]];
 
   auto begin = smiles.begin();
   bool success = x3::parse_main(begin, smiles.end(), parser, x3::unused);

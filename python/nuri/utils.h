@@ -16,8 +16,8 @@
 namespace nuri_py {
 template <class CppType, class... Args>
 using PyProxyCls =
-  pybind11::class_<CppType, std::unique_ptr<CppType, pybind11::nodelete>,
-                   Args...>;
+    pybind11::class_<CppType, std::unique_ptr<CppType, pybind11::nodelete>,
+                     Args...>;
 }  // namespace nuri_py
 
 PYBIND11_MAKE_OPAQUE(std::vector<nuri::Isotope>)

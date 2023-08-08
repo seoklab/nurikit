@@ -37,15 +37,15 @@ namespace {
     };
 
     return v_end - v_begin > w_end - w_begin
-             ? range_no_overlap_impl(w_begin, w_end, v_begin, v_end)
-             : range_no_overlap_impl(v_begin, v_end, w_begin, w_end);
+               ? range_no_overlap_impl(w_begin, w_end, v_begin, v_end)
+               : range_no_overlap_impl(v_begin, v_end, w_begin, w_end);
   }
 
   int ring_degree(Molecule::Atom atom) {
     return std::accumulate(
-      atom.begin(), atom.end(), 0, [](int sum, Molecule::Neighbor nei) {
-        return sum + static_cast<int>(nei.edge_data().is_ring_bond());
-      });
+        atom.begin(), atom.end(), 0, [](int sum, Molecule::Neighbor nei) {
+          return sum + static_cast<int>(nei.edge_data().is_ring_bond());
+        });
   }
 
   std::pair<std::vector<int>, int> ring_degrees(const Molecule &mol) {
@@ -137,7 +137,7 @@ namespace {
         auto it = pg.find(src);
         ABSL_DCHECK(it != pg.end());
         std::vector<int> &new_path =
-          it->second.emplace_back(x_y->rbegin(), x_y->rend());
+            it->second.emplace_back(x_y->rbegin(), x_y->rend());
         new_path.insert(new_path.end(), ++x_z->begin(), x_z->end());
       }
     }
@@ -172,8 +172,8 @@ find_all_rings(const Molecule &mol) {
 
     if (ABSL_PREDICT_FALSE(it->second.size() > kMaxRingMembership)) {
       ABSL_LOG(INFO)
-        << "Stopped finding rings because an atom belongs to more than "
-        << kMaxRingMembership << " rings";
+          << "Stopped finding rings because an atom belongs to more than "
+          << kMaxRingMembership << " rings";
       result.second = false;
       break;
     }
@@ -195,7 +195,7 @@ namespace {
   };
 
   using Dr =
-    absl::flat_hash_map<int, std::unique_ptr<std::vector<Molecule::Neighbor>>>;
+      absl::flat_hash_map<int, std::unique_ptr<std::vector<Molecule::Neighbor>>>;
 }  // namespace
 
 namespace internal {
@@ -214,9 +214,9 @@ namespace {
   struct ClearablePQ: public std::priority_queue<T, S, C> {
   public:
     template <
-      class U = T,  //
-      std::enable_if_t<std::is_same_v<T, U> && std::is_trivially_copyable_v<T>,
-                       int> = 0>
+        class U = T,  //
+        std::enable_if_t<
+            std::is_same_v<T, U> && std::is_trivially_copyable_v<T>, int> = 0>
     T pop_get() noexcept {
       T v = this->top();
       this->pop();
@@ -328,7 +328,7 @@ namespace {
   using GenericDestIterator = ExtractingIterator<int, extract_did, RandomIt>;
 
   using DestIterator =
-    GenericDestIterator<std::vector<Molecule::Neighbor>::const_iterator>;
+      GenericDestIterator<std::vector<Molecule::Neighbor>::const_iterator>;
 
   void compute_v_r(const Molecule &mol, const int r, std::vector<int> &v_r,
                    Dr &d_r, absl::FixedArray<int> &distances,
@@ -378,7 +378,7 @@ namespace {
 
       if (prev != r) {
         const std::vector<Molecule::Neighbor> &sub =
-          self(self, prev, backtrace.find(prev));
+            self(self, prev, backtrace.find(prev));
         path.insert(path.end(), sub.begin(), sub.end());
       }
       path.push_back(it->second);
@@ -412,10 +412,10 @@ namespace {
   }
 
   void compute_c_ip(
-    const Molecule &mol, std::vector<Cycle> &c_ip, const Dr &d_r,
-    const std::vector<int> &v_r, const absl::FixedArray<int> &distances,
-    absl::flat_hash_set<int> &path_set_tmp,
-    std::vector<const std::vector<Molecule::Neighbor> *> &r_y_shortest) {
+      const Molecule &mol, std::vector<Cycle> &c_ip, const Dr &d_r,
+      const std::vector<int> &v_r, const absl::FixedArray<int> &distances,
+      absl::flat_hash_set<int> &path_set_tmp,
+      std::vector<const std::vector<Molecule::Neighbor> *> &r_y_shortest) {
     for (const int y: v_r) {
       r_y_shortest.clear();
 
@@ -457,7 +457,7 @@ namespace {
   std::unique_ptr<internal::FindRingsCommonData>
   prepare_find_ring_sets(const Molecule &mol, const int num_ring_atoms) {
     std::unique_ptr<internal::FindRingsCommonData> data =
-      std::make_unique<internal::FindRingsCommonData>();
+        std::make_unique<internal::FindRingsCommonData>();
     auto &d_rs = data->d_rs;
     auto &c_ip = data->c_ip;
 
@@ -565,11 +565,11 @@ namespace {
       begin = end;
       size = static_cast<int>(c_ip[begin].cycle_length);
       end = static_cast<int>(
-        std::find_if(c_ip.begin() + begin + 1, c_ip.end(),
-                     [&](const Cycle &c) {
-                       return static_cast<int>(c.cycle_length) > size;
-                     })
-        - c_ip.begin());
+          std::find_if(c_ip.begin() + begin + 1, c_ip.end(),
+                       [&](const Cycle &c) {
+                         return static_cast<int>(c.cycle_length) > size;
+                       })
+          - c_ip.begin());
 
       // Remove eliminated rows
       for (int original = 0, updated = 0; original < basis.size(); ++original) {
@@ -580,16 +580,16 @@ namespace {
 
       m_idx = static_cast<int>(basis.size());
       m.resize(m_idx + end - begin);
-      basis =
-        verify_basis<minimal>(m, m_idx, used_edges, c_ip, begin, end, edge_map);
+      basis = verify_basis<minimal>(m, m_idx, used_edges, c_ip, begin, end,
+                                    edge_map);
     } while (std::any_of(used_edges.begin(), used_edges.end(),
                          [](int i) { return i == 0; }));
 
     return basis;
   }
 
-  using RDestIterator =
-    GenericDestIterator<std::vector<Molecule::Neighbor>::const_reverse_iterator>;
+  using RDestIterator = GenericDestIterator<
+      std::vector<Molecule::Neighbor>::const_reverse_iterator>;
 
   void add_odd_cycle(std::vector<std::vector<int>> &cycles,
                      const std::vector<Molecule::Neighbor> &path_ry,
@@ -756,9 +756,9 @@ RingSetsFinder::RingSetsFinder(const Molecule &mol): mol_(&mol) {
   }
 
   const int num_ring_atoms = std::accumulate(
-    mol.begin(), mol.end(), 0, [](int sum, Molecule::Atom atom) {
-      return sum + static_cast<int>(atom.data().is_ring_atom());
-    });
+      mol.begin(), mol.end(), 0, [](int sum, Molecule::Atom atom) {
+        return sum + static_cast<int>(atom.data().is_ring_atom());
+      });
 
   // d_rs: digraph version of molecule (the edge direction is opposite to
   // the version of the paper)

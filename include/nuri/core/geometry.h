@@ -12,10 +12,10 @@
 namespace nuri {
 namespace constants {
   extern constexpr inline double kPi =
-    3.1415926535897932384626433832795028841971693993751058209749445923078164;
+      3.1415926535897932384626433832795028841971693993751058209749445923078164;
 
   extern constexpr inline double kTwoPi =
-    6.2831853071795864769252867665590057683943387987502116419498891846156328;
+      6.2831853071795864769252867665590057683943387987502116419498891846156328;
 }  // namespace constants
 
 template <class DT>
@@ -35,10 +35,10 @@ public:
   AngleAxis() = default;
 
   AngleAxis(double angle, const Vector3<DT> &axis)
-    : axis_(axis), angle_(angle) { }
+      : axis_(axis), angle_(angle) { }
 
   AngleAxis(double angle, Vector3<DT> &&axis) noexcept
-    : axis_(std::move(axis)), angle_(angle) { }
+      : axis_(std::move(axis)), angle_(angle) { }
 
   const Vector3<DT> &axis() const { return axis_; }
 

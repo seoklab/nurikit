@@ -47,13 +47,13 @@ public:
   BoolMatrixKey() = delete;
 
   BoolMatrixKey(const Index idx)
-    : BoolMatrixKey(idx / internal::kBitsPerBlock,
-                    idx % internal::kBitsPerBlock) {
+      : BoolMatrixKey(idx / internal::kBitsPerBlock,
+                      idx % internal::kBitsPerBlock) {
     ABSL_ASSUME(idx >= 0);
   }
 
   BoolMatrixKey(const Index blk, const Index bit)
-    : blk_(blk), bit_(static_cast<int>(bit)), mask_(1ULL << bit_) { }
+      : blk_(blk), bit_(static_cast<int>(bit)), mask_(1ULL << bit_) { }
 
   Index to_index() const { return blk_ * internal::kBitsPerBlock + bit_; }
 
@@ -74,10 +74,10 @@ public:
   BoolMatrix() = delete;
 
   explicit BoolMatrix(Index cols)
-    : data_(0, (cols - 1) / internal::kBitsPerBlock + 1), cols_(cols) { }
+      : data_(0, (cols - 1) / internal::kBitsPerBlock + 1), cols_(cols) { }
 
   BoolMatrix(Index rows, Index cols)
-    : data_(rows, (cols - 1) / internal::kBitsPerBlock + 1), cols_(cols) { }
+      : data_(rows, (cols - 1) / internal::kBitsPerBlock + 1), cols_(cols) { }
 
   bool operator()(Index row, BoolMatrixKey col) const {
     return (data_(row, col.blk()) & col.mask()) != 0;
@@ -170,7 +170,7 @@ private:
 
   // Row-wise compressed data
   Eigen::Matrix<internal::Block, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    data_;
+      data_;
   Eigen::Index cols_;
 };
 // NOLINTEND(google-runtime-int)

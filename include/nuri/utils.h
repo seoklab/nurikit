@@ -140,7 +140,7 @@ namespace internal {
 
   template <class Iterator, class T, class U = T>
   using enable_if_compatible_iter_t = std::enable_if_t<std::is_constructible_v<
-    U, typename std::iterator_traits<Iterator>::reference>>;
+      U, typename std::iterator_traits<Iterator>::reference>>;
 
   template <class F>
   int iround(F x) {

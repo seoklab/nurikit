@@ -244,7 +244,7 @@ public:
   BondData(): BondData(constants::kSingleBond) { }
 
   explicit BondData(constants::BondOrder order)
-    : order_(order), flags_(static_cast<BondFlags>(0)), length_(0) { }
+      : order_(order), flags_(static_cast<BondFlags>(0)), length_(0) { }
 
   /**
    * @brief Get the bond order of the bond.
@@ -351,27 +351,28 @@ namespace internal {
     using Neighbor = typename SubgraphType::ConstAdjRef;
     using neighbor_iterator = typename SubgraphType::adjacency_iterator;
     using const_neighbor_iterator =
-      typename SubgraphType::const_adjacency_iterator;
+        typename SubgraphType::const_adjacency_iterator;
 
     Substructure(const SubgraphType &sub): subgraph_(sub) { }
 
     Substructure(SubgraphType &&sub) noexcept: subgraph_(std::move(sub)) { }
 
     Substructure(const SubgraphType &sub, const std::string &name)
-      : subgraph_(sub), name_(name) { }
+        : subgraph_(sub), name_(name) { }
 
     Substructure(SubgraphType &&sub, std::string &&name) noexcept
-      : subgraph_(std::move(sub)), name_(std::move(name)) { }
+        : subgraph_(std::move(sub)), name_(std::move(name)) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     Substructure(const Substructure<other_const> &other)
-      : subgraph_(other.subgraph_), name_(other.name_) { }
+        : subgraph_(other.subgraph_), name_(other.name_) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     Substructure(Substructure<other_const> &&other) noexcept
-      : subgraph_(std::move(other.subgraph_)), name_(std::move(other.name_)) { }
+        : subgraph_(std::move(other.subgraph_)), name_(std::move(other.name_)) {
+    }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
@@ -508,18 +509,18 @@ namespace internal {
 
     using SubstructContainer = std::vector<Substructure<false>>;
     using ParentIterator =
-      std::conditional_t<is_const, typename SubstructContainer::const_iterator,
-                         typename SubstructContainer::iterator>;
+        std::conditional_t<is_const, typename SubstructContainer::const_iterator,
+                           typename SubstructContainer::iterator>;
 
     FindSubstructIter() = default;
 
     FindSubstructIter(parent_type &finder, ParentIterator it)
-      : finder_(&finder), it_(finder.next(it)) { }
+        : finder_(&finder), it_(finder.next(it)) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     FindSubstructIter(const FindSubstructIter<FT, other_const> &other)
-      : finder_(&other.finder_), it_(other.it_) { }
+        : finder_(&other.finder_), it_(other.it_) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
@@ -575,19 +576,19 @@ namespace internal {
     using const_iterator = FindSubstructIter<SubstructureFinder, true>;
 
     SubstructureFinder(parent_type &substructs, UnaryPred &&pred)
-      : substructs_(&substructs), pred_(std::forward<UnaryPred>(pred)) { }
+        : substructs_(&substructs), pred_(std::forward<UnaryPred>(pred)) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     SubstructureFinder(const SubstructureFinder<UnaryPred, other_const> &other)
-      : substructs_(other.substructs_), pred_(other.pred_) { }
+        : substructs_(other.substructs_), pred_(other.pred_) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     SubstructureFinder(
-      SubstructureFinder<UnaryPred, other_const>
-        &&other) noexcept(std::is_nothrow_move_constructible_v<UnaryPred>)
-      : substructs_(other.substructs_), pred_(std::move(other.pred_)) { }
+        SubstructureFinder<UnaryPred, other_const>
+            &&other) noexcept(std::is_nothrow_move_constructible_v<UnaryPred>)
+        : substructs_(other.substructs_), pred_(std::move(other.pred_)) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
@@ -602,7 +603,7 @@ namespace internal {
               std::enable_if_t<is_const && !other_const, int> = 0>
     SubstructureFinder &
     operator=(SubstructureFinder<UnaryPred, other_const> &&other) noexcept(
-      std::is_nothrow_move_constructible_v<UnaryPred>) {
+        std::is_nothrow_move_constructible_v<UnaryPred>) {
       substructs_ = other.substructs_;
       pred_ = std::move(other.pred_);
       return *this;
@@ -1240,7 +1241,7 @@ public:
    */
   auto find_substructures(int id) {
     return internal::make_substructure_finder(
-      substructs_, [id](const Substructure &sub) { return sub.id() == id; });
+        substructs_, [id](const Substructure &sub) { return sub.id() == id; });
   }
 
   /**
@@ -1262,7 +1263,7 @@ public:
    */
   auto find_substructures(int id) const {
     return internal::make_substructure_finder(
-      substructs_, [id](const Substructure &sub) { return sub.id() == id; });
+        substructs_, [id](const Substructure &sub) { return sub.id() == id; });
   }
 
   /**
@@ -1316,7 +1317,7 @@ public:
 
 private:
   Molecule(GraphType &&graph, std::vector<MatrixX3d> &&conformers) noexcept
-    : graph_(std::move(graph)), conformers_(std::move(conformers)) { }
+      : graph_(std::move(graph)), conformers_(std::move(conformers)) { }
 
   bool rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
                           double angle);
