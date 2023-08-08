@@ -1279,7 +1279,9 @@ namespace internal {
     constexpr SubAdjIterator(
       parent_type &subgraph,
       AdjIterator<typename SGT::graph_type, is_const> ait) noexcept
-      : subgraph_(&subgraph), ait_(ait) { }
+      : subgraph_(&subgraph), ait_(ait) {
+      for (; !ait_.end() && !subgraph_->contains(ait_->dst().id()); ++ait_) { }
+    }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
