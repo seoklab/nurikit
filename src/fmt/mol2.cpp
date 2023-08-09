@@ -91,7 +91,7 @@ bool Mol2Stream::advance() {
 }
 
 const bool Mol2StreamFactory::kRegistered =
-  register_stream_factory<Mol2StreamFactory>({ "mol2" });
+    register_stream_factory<Mol2StreamFactory>({ "mol2" });
 
 namespace {
 namespace x3 = boost::spirit::x3;
@@ -101,8 +101,8 @@ using Iter = std::vector<std::string>::const_iterator;
 // NOLINTBEGIN(readability-identifier-naming)
 namespace parser {
 constexpr auto mol_nums_line =
-  *x3::omit[x3::blank] >> x3::uint_ >> +x3::omit[x3::blank]
-  >> +x3::omit[x3::digit] % +x3::blank >> *x3::omit[x3::blank];
+    *x3::omit[x3::blank] >> x3::uint_ >> +x3::omit[x3::blank]
+    >> +x3::omit[x3::digit] % +x3::blank >> *x3::omit[x3::blank];
 }
 // NOLINTEND(readability-identifier-naming)
 
@@ -187,14 +187,14 @@ struct TrailingBlanksRule: public x3::rule<Tag, T> {
 };
 
 constexpr auto nonblank_trailing_blanks =
-  TrailingBlanksRule<std::string, struct nonblank_trailing_blanks_tag>() =
-    +~x3::blank;
+    TrailingBlanksRule<std::string, struct nonblank_trailing_blanks_tag>() =
+        +~x3::blank;
 
 constexpr auto double_trailing_blanks = TrailingBlanksRule<double>() =
-  x3::double_;
+    x3::double_;
 
 constexpr auto uint_trailing_blanks = TrailingBlanksRule<unsigned int>() =
-  x3::uint_;
+    x3::uint_;
 
 constexpr auto atom_line = *x3::omit[x3::blank]         //
                            >> uint_trailing_blanks      //
@@ -207,9 +207,9 @@ constexpr auto atom_line = *x3::omit[x3::blank]         //
                                 >> x3::double_)
                            >> *x3::omit[x3::blank];
 using AtomLine =
-  std::tuple<unsigned int, std::string, absl::InlinedVector<double, 3>,
-             std::string, boost::optional<std::string>,
-             boost::optional<std::tuple<unsigned int, std::string, double>>>;
+    std::tuple<unsigned int, std::string, absl::InlinedVector<double, 3>,
+               std::string, boost::optional<std::string>,
+               boost::optional<std::tuple<unsigned int, std::string, double>>>;
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
@@ -284,7 +284,7 @@ std::pair<bool, bool> parse_atom_block(MoleculeMutator &mutator,
     mutator.add_atom(data);
 
     ABSL_LOG_IF(WARNING, lit != it->end())
-      << "Ignoring extra tokens in atom line";
+        << "Ignoring extra tokens in atom line";
   }
 
   return { true, has_hydrogen };
@@ -300,13 +300,13 @@ const struct bond_type_: public x3::symbols<BondData> {
       return data;
     };
 
-    add                                           //
-      ("1", BondData(constants::kSingleBond))     //
-      ("2", BondData(constants::kDoubleBond))     //
-      ("3", BondData(constants::kTripleBond))     //
-      ("am", conjugated_bond())                   //
-      ("ar", BondData(constants::kAromaticBond))  //
-      ("du", BondData(constants::kSingleBond));
+    add                                             //
+        ("1", BondData(constants::kSingleBond))     //
+        ("2", BondData(constants::kDoubleBond))     //
+        ("3", BondData(constants::kTripleBond))     //
+        ("am", conjugated_bond())                   //
+        ("ar", BondData(constants::kAromaticBond))  //
+        ("du", BondData(constants::kSingleBond));
   }
 } bond_type;
 
@@ -355,7 +355,7 @@ bool parse_bond_block(MoleculeMutator &mutator, Iter &it, const Iter end) {
     }
 
     ABSL_LOG_IF(WARNING, lit != it->end())
-      << "Ignoring extra tokens in bond line";
+        << "Ignoring extra tokens in bond line";
   }
 
   return true;
@@ -391,7 +391,7 @@ std::pair<bool, bool> parse_atom_attr_block(Molecule &mol, Iter &it,
 
     ABSL_DCHECK(ids.size() == 2);
     ABSL_LOG_IF(INFO, lit != it->end())
-      << "Ignoring extra tokens in atom attribute line";
+        << "Ignoring extra tokens in atom attribute line";
 
     --ids[0];
     if (ids[0] >= mol.num_atoms()) {
@@ -402,7 +402,7 @@ std::pair<bool, bool> parse_atom_attr_block(Molecule &mol, Iter &it,
 
     for (int i = 0; !mol2_block_end(++it, end) && i < ids[1]; ++i) {
       std::pair<std::string_view, std::string_view> tokens =
-        absl::StrSplit(*it, ' ', absl::SkipEmpty());
+          absl::StrSplit(*it, ' ', absl::SkipEmpty());
 
       if (tokens.first != "charge") {
         ABSL_LOG(WARNING) << "Unimplemented atom attribute " << tokens.first
@@ -413,7 +413,7 @@ std::pair<bool, bool> parse_atom_attr_block(Molecule &mol, Iter &it,
       int fcharge;
       if (!absl::SimpleAtoi(tokens.second, &fcharge)) {
         ABSL_LOG(WARNING)
-          << "Failed to parse formal charge; continuing without charge";
+            << "Failed to parse formal charge; continuing without charge";
         continue;
       }
 
@@ -434,11 +434,11 @@ void fix_aromatic_bonds(Molecule &mol) {
     }
 
     const int aromatic_count = std::accumulate(
-      atom.begin(), atom.end(), 0, [](int sum, Molecule::Neighbor nei) {
-        return sum
-               + static_cast<int>(nei.edge_data().order()
-                                  == constants::kAromaticBond);
-      });
+        atom.begin(), atom.end(), 0, [](int sum, Molecule::Neighbor nei) {
+          return sum
+                 + static_cast<int>(nei.edge_data().order()
+                                    == constants::kAromaticBond);
+        });
     if (aromatic_count < 2) {
       continue;
     }
@@ -483,11 +483,11 @@ void fix_guadinium(Molecule &mol, const std::vector<int> &ccat) {
     if (!any_double) {
       // Why last? Because rdkit does it.
       auto last_lowest_degree = std::min_element(
-        std::make_reverse_iterator(atom.end()),
-        std::make_reverse_iterator(atom.begin()),
-        [](Molecule::Neighbor lhs, Molecule::Neighbor rhs) {
-          return count_heavy(lhs.dst()) < count_heavy(rhs.dst());
-        });
+          std::make_reverse_iterator(atom.end()),
+          std::make_reverse_iterator(atom.begin()),
+          [](Molecule::Neighbor lhs, Molecule::Neighbor rhs) {
+            return count_heavy(lhs.dst()) < count_heavy(rhs.dst());
+          });
 
       last_lowest_degree->dst().data().set_formal_charge(1);
       last_lowest_degree->edge_data().order() = constants::kDoubleBond;
@@ -533,7 +533,7 @@ void fix_aromatic_ring_common(Molecule &mol,
     }
 
     sum_pi_e +=
-      internal::count_pi_e(atom, internal::sum_bond_order(atom, false));
+        internal::count_pi_e(atom, internal::sum_bond_order(atom, false));
   }
 
   int test = sum_pi_e % 4 - 2;
@@ -556,7 +556,7 @@ void fix_aromatic_ring_common(Molecule &mol,
   }
 
   int max_idx = static_cast<int>(
-    std::max_element(priority.begin(), priority.end()) - priority.begin());
+      std::max_element(priority.begin(), priority.end()) - priority.begin());
   heuristic_update(candids[max_idx]);
 }
 
@@ -594,8 +594,8 @@ void guess_aromatic_hydrogens_updater(Molecule::MutableAtom atom,
   //     test will be nonzero
   //   -> Don't add hydrogens in this case
   int sbo = internal::sum_bond_order(atom, false),
-      cv =
-        internal::common_valence(internal::effective_element_or_element(atom));
+      cv = internal::common_valence(
+          internal::effective_element_or_element(atom));
   atom.data().set_implicit_hydrogens(atom.data().implicit_hydrogens()
                                      + static_cast<int>(sbo <= cv));
 }
@@ -726,7 +726,7 @@ int guess_hydrogens_normal_atom(Molecule::Atom atom, const Element &effective) {
 
 int guess_hydrogens_normal_atom(Molecule::Atom atom) {
   return guess_hydrogens_normal_atom(
-    atom, internal::effective_element_or_element(atom));
+      atom, internal::effective_element_or_element(atom));
 }
 
 // Assumses that all (appropriate) atoms satisfy octet rule.
@@ -756,7 +756,7 @@ void guess_hydrogens(Molecule &mol) {
     }
 
     atom.data().set_implicit_hydrogens(
-      guess_hydrogens_normal_atom(atom, *elem));
+        guess_hydrogens_normal_atom(atom, *elem));
   }
 
   if (!has_candidate) {
@@ -822,7 +822,7 @@ void fix_nitro_group(Molecule::MutableAtom atom, std::vector<int> &assigned) {
   };
 
   int terminal_oxygen_count =
-    std::count_if(atom.begin(), atom.end(), is_matching_oxygen);
+      std::count_if(atom.begin(), atom.end(), is_matching_oxygen);
   if (terminal_oxygen_count != 2) {
     return;
   }
@@ -848,7 +848,7 @@ void fix_nitro_group(Molecule::MutableAtom atom, std::vector<int> &assigned) {
 }
 
 void guess_fcharge_hydrogens_aromatic_rings(
-  Molecule &mol, std::vector<int> &adjust_candidates) {
+    Molecule &mol, std::vector<int> &adjust_candidates) {
   // Carbon with two single bonds -> update both (eg. Cp-)
   // Carbon -> update formal charge
   // Heteroatom -> update implicit hydrogens
@@ -906,9 +906,10 @@ void guess_fcharge_hydrogens(Molecule &mol) {
       data.set_implicit_hydrogens(unused_valence);
     } else if (data.element().period() > 2) {
       ABSL_LOG_FIRST_N(WARNING, 1)
-        << "Automatic formal charge & implicit hydrogens assignment might be "
-           "incorrect if an atom could have expanded octet; explicitly assign "
-           "one of the two properties";
+          << "Automatic formal charge & implicit hydrogens assignment might be "
+             "incorrect if an atom could have expanded octet; explicitly "
+             "assign "
+             "one of the two properties";
 
       // Just assume expanded octet without charge
       data.set_formal_charge(0);
@@ -916,7 +917,7 @@ void guess_fcharge_hydrogens(Molecule &mol) {
 
       int nbe = data.element().valence_electrons() - sum_bo;
       data.set_hybridization(
-        internal::from_degree(atom.degree(), std::max(0, nbe)));
+          internal::from_degree(atom.degree(), std::max(0, nbe)));
     } else {
       int fchg = data.element().group() > 14 ? -unused_valence : unused_valence;
       data.set_formal_charge(fchg);
@@ -954,21 +955,21 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
       if (absl::StartsWith(*it, "@<TRIPOS>ATOM")) {
         atom_parsed = true;
         std::tie(success, has_hydrogens) =
-          parse_atom_block(mutator, pos, ccat, it, mol2.end());
+            parse_atom_block(mutator, pos, ccat, it, mol2.end());
       } else if (absl::StartsWith(*it, "@<TRIPOS>BOND")) {
         success = parse_bond_block(mutator, it, mol2.end());
       } else if (absl::StartsWith(*it, "@<TRIPOS>UNITY_ATOM_ATTR")) {
         if (!atom_parsed) {
           success = false;
           ABSL_LOG(WARNING)
-            << "UNITY_ATOM_ATTR block must come after ATOM block";
+              << "UNITY_ATOM_ATTR block must come after ATOM block";
           break;
         }
         std::tie(success, has_fcharge) =
-          parse_atom_attr_block(mol, it, mol2.end());
+            parse_atom_attr_block(mol, it, mol2.end());
       } else {
         ABSL_LOG_IF(WARNING, absl::StartsWith(*it, "@"))
-          << "Unimplemented mol2 block: " << *it;
+            << "Unimplemented mol2 block: " << *it;
         ++it;
       }
     }
@@ -1000,7 +1001,7 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
     const int degree = all_neighbors(atom);
     if (degree <= 1) {
       atom.data().set_hybridization(
-        static_cast<constants::Hybridization>(degree));
+          static_cast<constants::Hybridization>(degree));
     }
   }
 

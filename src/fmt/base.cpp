@@ -20,7 +20,7 @@ stream_factory_registry() {
 const MoleculeStreamFactory *
 MoleculeStreamFactory::find_factory(std::string_view name) {
   const absl::flat_hash_map<std::string, const MoleculeStreamFactory *> &reg =
-    stream_factory_registry();
+      stream_factory_registry();
 
   auto it = reg.find(name);
   if (it == reg.end()) {
@@ -30,8 +30,8 @@ MoleculeStreamFactory::find_factory(std::string_view name) {
 }
 
 bool MoleculeStreamFactory::register_factory(
-  std::unique_ptr<MoleculeStreamFactory> factory,
-  const std::vector<std::string> &names) {
+    std::unique_ptr<MoleculeStreamFactory> factory,
+    const std::vector<std::string> &names) {
   static std::vector<std::unique_ptr<MoleculeStreamFactory>> factories;
 
   MoleculeStreamFactory *f = factories.emplace_back(std::move(factory)).get();
@@ -47,13 +47,13 @@ bool MoleculeStreamFactory::register_factory(
 }
 
 void MoleculeStreamFactory::register_for_name(
-  const MoleculeStreamFactory *factory, std::string_view name) {
+    const MoleculeStreamFactory *factory, std::string_view name) {
   auto [_, inserted] =
-    stream_factory_registry().insert_or_assign(name, factory);
+      stream_factory_registry().insert_or_assign(name, factory);
   // GCOV_EXCL_START
   ABSL_LOG_IF(WARNING, !inserted)
-    << "Duplicate factory name: " << name
-    << ". Overwriting existing factory (is this intended?).";
+      << "Duplicate factory name: " << name
+      << ". Overwriting existing factory (is this intended?).";
   // GCOV_EXCL_STOP
 }
 }  // namespace nuri

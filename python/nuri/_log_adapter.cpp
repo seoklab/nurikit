@@ -44,7 +44,7 @@ public:
       absl::InitializeLog();
 
       PyLogSink::py_log_ =
-        py::module_::import("logging").attr("getLogger")("nuri").attr("log");
+          py::module_::import("logging").attr("getLogger")("nuri").attr("log");
 
       // Why no nolint for clang static analyzer?
 #ifndef __clang_analyzer__

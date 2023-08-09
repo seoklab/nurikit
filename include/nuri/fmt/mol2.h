@@ -21,7 +21,7 @@ namespace nuri {
 extern Molecule read_mol2(const std::vector<std::string> &mol2);
 
 class Mol2Stream
-  : public DefaultStreamImpl<std::vector<std::string>, read_mol2> {
+    : public DefaultStreamImpl<std::vector<std::string>, read_mol2> {
 public:
   using DefaultStreamImpl<std::vector<std::string>,
                           read_mol2>::DefaultStreamImpl;

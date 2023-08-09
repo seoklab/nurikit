@@ -39,7 +39,7 @@ public:
 
   MoleculeStreamIterator(): stream_(nullptr), end_(true) { }
   MoleculeStreamIterator(Stream &stream)
-    : stream_(&stream), end_(!stream_->advance()) { }
+      : stream_(&stream), end_(!stream_->advance()) { }
   MoleculeStreamIterator(const MoleculeStreamIterator &other) = default;
   MoleculeStreamIterator &
   operator=(const MoleculeStreamIterator &other) = default;
@@ -226,7 +226,7 @@ private:
 template <class StreamFactoryImpl>
 bool register_stream_factory(const std::vector<std::string> &names) {
   return MoleculeStreamFactory::register_factory(
-    std::make_unique<StreamFactoryImpl>(), names);
+      std::make_unique<StreamFactoryImpl>(), names);
 }
 
 template <class MoleculeStreamImpl>
@@ -244,9 +244,9 @@ public:
 
   template <class... Args>
   MoleculeStreamWrapper(std::string_view fmt, Args &&...args)
-    : is_(std::forward<Args>(args)...) {
+      : is_(std::forward<Args>(args)...) {
     const MoleculeStreamFactory *factory =
-      MoleculeStreamFactory::find_factory(fmt);
+        MoleculeStreamFactory::find_factory(fmt);
 
     if (ABSL_PREDICT_FALSE(factory == nullptr)) {
       ABSL_LOG(WARNING) << "No factory found for " << fmt;
@@ -300,7 +300,7 @@ public:
     const std::string_view ext = extension_no_dot(full_ext);
 
     const MoleculeStreamFactory *factory =
-      MoleculeStreamFactory::find_factory(ext);
+        MoleculeStreamFactory::find_factory(ext);
 
     if (ABSL_PREDICT_FALSE(factory == nullptr)) {
       ABSL_LOG(WARNING) << "No factory found for " << ext;
@@ -311,9 +311,9 @@ public:
   }
 
   MoleculeStreamWrapper(std::string_view fmt, const std::filesystem::path &path)
-    : is_(path) {
+      : is_(path) {
     const MoleculeStreamFactory *factory =
-      MoleculeStreamFactory::find_factory(fmt);
+        MoleculeStreamFactory::find_factory(fmt);
 
     if (ABSL_PREDICT_FALSE(factory == nullptr)) {
       ABSL_LOG(WARNING) << "No factory found for " << fmt;
