@@ -22,7 +22,7 @@ jobs:
         with:
           cmakeVersion: "~3.16.0" # for Ubuntu 20.04
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 

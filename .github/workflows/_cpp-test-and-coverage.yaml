@@ -33,7 +33,7 @@ jobs:
         run: pip install gcovr
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -59,7 +59,7 @@ jobs:
           cmakeVersion: "~3.16.0" # for Ubuntu 20.04
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
