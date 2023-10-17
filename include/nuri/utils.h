@@ -204,7 +204,7 @@ inline absl::FixedArray<int> generate_index(int size) {
 }
 
 template <class Container, class Comp>
-absl::FixedArray<int> argsort(const Container &container, Comp &&op) {
+absl::FixedArray<int> argsort(const Container &container, Comp op) {
   absl::FixedArray<int> idxs = generate_index(container.size());
   std::sort(idxs.begin(), idxs.end(),
             [&](int i, int j) { return op(container[i], container[j]); });
@@ -213,7 +213,7 @@ absl::FixedArray<int> argsort(const Container &container, Comp &&op) {
 
 template <class Container, class Comp>
 absl::FixedArray<int> argpartition(const Container &container, int count,
-                                   Comp &&op) {
+                                   Comp op) {
   absl::FixedArray<int> idxs = generate_index(container.size());
   std::nth_element(idxs.begin(), idxs.begin() + count - 1, idxs.end(),
                    [&](int i, int j) {
