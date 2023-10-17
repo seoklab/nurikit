@@ -36,7 +36,7 @@ jobs:
       - uses: cpp-linter/cpp-linter-action@v2
         id: clang-tools
         with:
-          version: "15"
+          version: "16"
           extensions: "cpp,hpp,c,h"
           style: file
           tidy-checks: ""
