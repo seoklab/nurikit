@@ -27,6 +27,8 @@ jobs:
   check-want-test:
     if: ${{ !github.event.pull_request.draft }}
     uses: ./.github/workflows/_check-want-test.yaml
+    with:
+      keyword: "lint"
 
   run-clang-tools:
     needs: [check-want-test]

@@ -7,6 +7,10 @@ name: Check commit message for skipping test
 
 on:
   workflow_call:
+    inputs:
+      keyword:
+        type: string
+        default: "test"
     outputs:
       want-test:
         value: ${{ jobs.check-want-test.outputs.want-test }}
@@ -41,4 +45,4 @@ jobs:
       - name: Set output
         id: check-want-test
         run: |
-          echo "want-test=${{ !contains(steps.get-commit-msg.outputs.commit-msg, '[skip test]') && !contains(steps.get-commit-msg.outputs.commit-msg, '[test skip]') }}" >> $GITHUB_OUTPUT
+          echo "want-test=${{ !contains(steps.get-commit-msg.outputs.commit-msg, format('[skip {0}]', inputs.keyword)) && !contains(steps.get-commit-msg.outputs.commit-msg, format('[{0} skip]', inputs.keyword)) }}" >> $GITHUB_OUTPUT
