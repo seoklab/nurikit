@@ -105,6 +105,7 @@ namespace internal {
 
   template <class E>
   constexpr bool check_flag(E flags, E flag) {
+    // NOLINTNEXTLINE(bugprone-non-zero-enum-to-bool-conversion)
     return static_cast<bool>(flags & flag);
   }
 
