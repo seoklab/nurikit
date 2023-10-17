@@ -1362,7 +1362,7 @@ public:
    *
    * @param mol The molecule to mutate.
    */
-  MoleculeMutator(Molecule &mol): mol_(&mol) { }
+  MoleculeMutator(Molecule &mol): mol_(&mol), init_num_atoms_(mol.size()) { }
 
   MoleculeMutator() = delete;
   MoleculeMutator(const MoleculeMutator &) = delete;
@@ -1457,6 +1457,7 @@ public:
 
 private:
   Molecule *mol_;
+  int init_num_atoms_;
 
   std::vector<int> erased_atoms_;
   std::vector<std::pair<int, int>> erased_bonds_;
