@@ -27,6 +27,8 @@ namespace {
       return { 1, 1 };
     case 2:
       return { 1, 18 };
+    default:
+      break;
     }
 
     // 2nd - 3rd row

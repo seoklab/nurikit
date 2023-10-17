@@ -194,11 +194,11 @@ constants::BondOrder char_to_bond(char b) {
     return constants::kQuadrupleBond;
   case ':':
     return constants::kAromaticBond;
+  default:
+    // GCOV_EXCL_START
+    ABSL_UNREACHABLE();
+    // GCOV_EXCL_STOP
   }
-
-  // GCOV_EXCL_START
-  ABSL_UNREACHABLE();
-  // GCOV_EXCL_STOP
 }
 
 bool add_bond(MoleculeMutator &mutator, const int prev, const int curr,
