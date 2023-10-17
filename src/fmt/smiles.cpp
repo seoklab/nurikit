@@ -194,8 +194,8 @@ constants::BondOrder char_to_bond(char b) {
     return constants::kQuadrupleBond;
   case ':':
     return constants::kAromaticBond;
-  default:
     // GCOV_EXCL_START
+  default:
     ABSL_UNREACHABLE();
     // GCOV_EXCL_STOP
   }
