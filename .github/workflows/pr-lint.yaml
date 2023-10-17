@@ -3,23 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-name: Test PR
+name: Lint PR
 
 on:
   pull_request:
     branches:
       - main
     paths:
-      - ".github/workflows/pr-test.yaml"
-      - ".github/workflows/_cpp-test-and-coverage.yaml"
-      - "cmake/**"
-      - "include/**"
-      - "scripts/check_coverage.sh"
-      - "src/**"
-      - "test/**"
-      - "third-party/**"
-      - "CMakeLists.txt"
-      - "!**.clang*"
+      - ".github/workflows/pr-lint.yaml"
+      - ".github/workflows/_run-clang-tools.yaml"
+      - "**.clang-*"
     types:
       - opened
       - reopened
@@ -39,13 +32,8 @@ jobs:
     needs: [check-want-test]
     if: ${{ needs.check-want-test.outputs.want-test == 'true' }}
     uses: ./.github/workflows/_run-clang-tools.yaml
-
-  test-and-coverage:
-    needs: [check-want-test, run-clang-tools]
-    if: ${{ always() && needs.check-want-test.outputs.want-test == 'true' && (needs.run-clang-tools.result == 'success' || needs.run-clang-tools.result == 'skipped' ) }}
-    uses: ./.github/workflows/_cpp-test-and-coverage.yaml
-    secrets:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    with:
+      files-changed-only: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
