@@ -11,6 +11,9 @@ on:
       files-changed-only:
         type: boolean
         default: true
+      version:
+        type: string
+        default: "16"
 
 defaults:
   run:
@@ -37,19 +40,33 @@ jobs:
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
             -S . -B build -G Ninja
 
+      - name: Run clang tools to all files
+        if: ${{ always() && !inputs.files-changed-only }}
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+
+          VERS=${{ inputs.version }}
+          sudo ./llvm.sh $VERS
+          sudo apt-get install -y clang-tidy-$VERS clang-format-$VERS
+          sudo ln -sf clang-tidy-$VERS /usr/bin/clang-tidy
+          sudo ln -sf clang-format-$VERS /usr/bin/clang-format
+
+          ./scripts/run_clang_tools.sh -c
+
       - uses: cpp-linter/cpp-linter-action@v2
+        if: ${{ always() && inputs.files-changed-only }}
         id: clang-tools
         with:
-          version: "16"
+          version: ${{ inputs.version }}
           extensions: "cpp,hpp,c,h"
           style: file
           tidy-checks: ""
           database: build
           ignore: ".github|build|third-party|test"
-          files-changed-only: ${{ inputs.files-changed-only }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
       - name: Fail fast
-        if: ${{ steps.clang-tools.outputs.checks-failed > 0 }}
+        if: ${{ always() && steps.clang-tools.outputs.checks-failed > 0 }}
         run: echo "Some files failed the linting checks!" && exit 1
