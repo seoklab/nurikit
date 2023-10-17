@@ -6,6 +6,7 @@
 #ifndef NURI_CORE_ELEMENT_H_
 #define NURI_CORE_ELEMENT_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <string_view>
 #include <vector>

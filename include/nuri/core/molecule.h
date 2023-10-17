@@ -7,7 +7,9 @@
 #define NURI_CORE_MOLECULE_H_
 
 #include <algorithm>
+#include <cstdint>
 #include <iterator>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -213,7 +215,7 @@ public:
   int formal_charge() const { return formal_charge_; }
 
 private:
-  enum class AtomFlags : uint32_t {
+  enum class AtomFlags : std::uint32_t {
     kAromatic = 0x1,
     kConjugated = 0x2,
     kRing = 0x4,
@@ -316,7 +318,7 @@ public:
   double &length() { return length_; }
 
 private:
-  enum class BondFlags : uint32_t {
+  enum class BondFlags : std::uint32_t {
     kRing = 0x1,
     kAromatic = 0x2,
     kConjugated = 0x4,

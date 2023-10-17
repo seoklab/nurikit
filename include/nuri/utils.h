@@ -8,7 +8,9 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <functional>
 #include <iterator>
+#include <memory>
 #include <numeric>
 #include <string_view>
 #include <type_traits>

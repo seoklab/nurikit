@@ -12,8 +12,11 @@
 #include <absl/log/absl_log.h>
 #include <absl/log/globals.h>
 #include <absl/log/initialize.h>
+#include <absl/log/log_entry.h>
 #include <absl/log/log_sink.h>
+#ifndef __clang_analyzer__
 #include <absl/log/log_sink_registry.h>
+#endif
 
 namespace nuri_py {
 namespace {

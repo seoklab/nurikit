@@ -5,11 +5,13 @@
 
 #include "nuri/fmt/smiles.h"
 
-#include <initializer_list>
-#include <memory>
+#include <algorithm>
+#include <cctype>
+#include <functional>
 #include <stack>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <boost/fusion/include/at_c.hpp>
@@ -21,7 +23,6 @@
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/ascii.h>
-#include <absl/strings/str_cat.h>
 
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"

@@ -6,7 +6,10 @@
 #ifndef NURI_FMT_MOL2_H_
 #define NURI_FMT_MOL2_H_
 
+#include <string>
 #include <vector>
+
+#include <absl/base/attributes.h>
 
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"

@@ -5,8 +5,6 @@
 #ifndef NURI_CORE_GEOMETRY_H_
 #define NURI_CORE_GEOMETRY_H_
 
-#include <Eigen/Dense>
-
 #include "nuri/eigen_config.h"
 
 namespace nuri {

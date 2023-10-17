@@ -6,29 +6,27 @@
 #include "nuri/fmt/mol2.h"
 
 #include <algorithm>
+#include <cmath>
 #include <istream>
 #include <iterator>
 #include <numeric>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
-#include <version>
 
 #include <boost/fusion/include/std_tuple.hpp>
 #include <boost/optional.hpp>
 #include <boost/spirit/home/x3.hpp>
 
 #include <absl/container/fixed_array.h>
-#include <absl/container/flat_hash_map.h>
-#include <absl/container/flat_hash_set.h>
 #include <absl/container/inlined_vector.h>
+#include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/ascii.h>
 #include <absl/strings/match.h>
 #include <absl/strings/numbers.h>
-#include <absl/strings/str_cat.h>
-#include <absl/strings/str_join.h>
 #include <absl/strings/str_split.h>
 
 #include "nuri/eigen_config.h"

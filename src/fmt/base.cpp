@@ -5,6 +5,12 @@
 
 #include "nuri/fmt/base.h"
 
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include <absl/container/flat_hash_map.h>
 #include <absl/log/absl_log.h>
 

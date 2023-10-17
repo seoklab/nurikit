@@ -7,6 +7,9 @@
 
 #include <algorithm>
 #include <stack>
+#include <string>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 #include <absl/base/optimization.h>
