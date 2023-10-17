@@ -34,6 +34,8 @@ jobs:
     needs: [check-want-test]
     if: ${{ needs.check-want-test.outputs.want-test == 'true' }}
     uses: ./.github/workflows/_run-clang-tools.yaml
+    with:
+      files-changed-only: false
 
   test-and-coverage:
     needs: [check-want-test]

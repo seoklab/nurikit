@@ -7,6 +7,10 @@ name: Run clang tools
 
 on:
   workflow_call:
+    inputs:
+      files-changed-only:
+        type: boolean
+        default: true
 
 defaults:
   run:
@@ -42,6 +46,7 @@ jobs:
           tidy-checks: ""
           database: build
           ignore: ".github|build|third-party|test"
+          files-changed-only: ${{ inputs.files-changed-only }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
