@@ -50,20 +50,6 @@ TEST(Basic2DMoleculeTest, CreationTest) {
   }
 }
 
-TEST(Basic2DMoleculeTest, AddAtomsTest) {
-  Molecule m;
-  {
-    auto mutator = m.mutator();
-    for (int i = 0; i < 10; ++i) {
-      mutator.add_atom(AtomData(pt[i], 0, 0, kSP3, 0, i * 2));
-    }
-  }
-
-  for (int i = 0; i < 10; ++i) {
-    EXPECT_EQ(m.atom(i).data().atomic_number(), i);
-  }
-}
-
 TEST(Basic2DMoleculeTest, AddBondsTest) {
   std::vector<AtomData> atoms(1);
   atoms.reserve(10);
@@ -176,6 +162,20 @@ protected:
     ASSERT_EQ(mol_.num_conf(), 2);
   }
 };
+
+TEST_F(MoleculeTest, AddAtomsTest) {
+  {
+    auto mutator = mol_.mutator();
+    mutator.add_atom(AtomData(pt[1], 0, 0, kSP3, 0, 2));
+  }
+
+  EXPECT_EQ(mol_.num_atoms(), 13);
+  for (const nuri::MatrixX3d &conf: mol_.all_conf()) {
+    EXPECT_EQ(conf.rows(), 13);
+  }
+
+  EXPECT_EQ(mol_.atom(mol_.size() - 1).data().atomic_number(), 1);
+}
 
 TEST_F(MoleculeTest, TransformTest) {
   nuri::Affine3d trs = nuri::Affine3d::Identity();
