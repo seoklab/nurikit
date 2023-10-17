@@ -12,6 +12,7 @@ on:
     paths:
       - ".github/workflows/main-test.yaml"
       - ".github/workflows/_cpp-test-and-coverage.yaml"
+      - ".github/workflows/_run-clang-tools.yaml"
       - "cmake/**"
       - "include/**"
       - "scripts/check_coverage.sh"
