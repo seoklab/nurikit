@@ -5,11 +5,13 @@
 
 #include "nuri/fmt/smiles.h"
 
-#include <initializer_list>
-#include <memory>
+#include <algorithm>
+#include <cctype>
+#include <functional>
 #include <stack>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <boost/fusion/include/at_c.hpp>
@@ -21,7 +23,6 @@
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/ascii.h>
-#include <absl/strings/str_cat.h>
 
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
@@ -193,11 +194,11 @@ constants::BondOrder char_to_bond(char b) {
     return constants::kQuadrupleBond;
   case ':':
     return constants::kAromaticBond;
+    // GCOV_EXCL_START
+  default:
+    ABSL_UNREACHABLE();
+    // GCOV_EXCL_STOP
   }
-
-  // GCOV_EXCL_START
-  ABSL_UNREACHABLE();
-  // GCOV_EXCL_STOP
 }
 
 bool add_bond(MoleculeMutator &mutator, const int prev, const int curr,

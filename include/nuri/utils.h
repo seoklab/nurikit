@@ -8,7 +8,9 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <functional>
 #include <iterator>
+#include <memory>
 #include <numeric>
 #include <string_view>
 #include <type_traits>
@@ -103,6 +105,7 @@ namespace internal {
 
   template <class E>
   constexpr bool check_flag(E flags, E flag) {
+    // NOLINTNEXTLINE(bugprone-non-zero-enum-to-bool-conversion)
     return static_cast<bool>(flags & flag);
   }
 
@@ -202,7 +205,7 @@ inline absl::FixedArray<int> generate_index(int size) {
 }
 
 template <class Container, class Comp>
-absl::FixedArray<int> argsort(const Container &container, Comp &&op) {
+absl::FixedArray<int> argsort(const Container &container, Comp op) {
   absl::FixedArray<int> idxs = generate_index(container.size());
   std::sort(idxs.begin(), idxs.end(),
             [&](int i, int j) { return op(container[i], container[j]); });
@@ -211,7 +214,7 @@ absl::FixedArray<int> argsort(const Container &container, Comp &&op) {
 
 template <class Container, class Comp>
 absl::FixedArray<int> argpartition(const Container &container, int count,
-                                   Comp &&op) {
+                                   Comp op) {
   absl::FixedArray<int> idxs = generate_index(container.size());
   std::nth_element(idxs.begin(), idxs.begin() + count - 1, idxs.end(),
                    [&](int i, int j) {

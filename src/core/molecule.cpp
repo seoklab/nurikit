@@ -7,6 +7,9 @@
 
 #include <algorithm>
 #include <stack>
+#include <string>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 #include <absl/base/optimization.h>
@@ -309,7 +312,12 @@ void MoleculeMutator::discard_erasure() noexcept {
 
 void MoleculeMutator::finalize() noexcept {
   Molecule::GraphType &g = mol().graph_;
-  const int old_size = mol().num_atoms();
+  const int added_size = mol().num_atoms();
+  if (added_size > init_num_atoms_) {
+    for (MatrixX3d &conf: mol().conformers_) {
+      conf.conservativeResize(added_size, Eigen::NoChange);
+    }
+  }
 
   // As per the spec, the order is:
   // 1. Erase bonds
@@ -348,7 +356,7 @@ void MoleculeMutator::finalize() noexcept {
     std::vector<int> idxs;
     idxs.reserve(mol().num_atoms());
 
-    for (int i = 0; i < old_size; ++i) {
+    for (int i = 0; i < added_size; ++i) {
       // GCOV_EXCL_START
       ABSL_DCHECK(i < map.size());
       // GCOV_EXCL_STOP

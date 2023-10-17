@@ -6,6 +6,7 @@
 #ifndef NURI_FMT_BASE_H_
 #define NURI_FMT_BASE_H_
 
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <istream>
@@ -15,8 +16,10 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <vector>
 
 #include <absl/base/attributes.h>
+#include <absl/base/optimization.h>
 #include <absl/log/absl_log.h>
 
 #include "nuri/core/molecule.h"

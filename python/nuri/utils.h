@@ -7,9 +7,9 @@
 #define NURI_PYTHON_UTILS_H_
 
 #include <memory>
+#include <vector>
 
 #include <pybind11/pybind11.h>
-#include <pybind11/pytypes.h>
 
 #include "nuri/core/element.h"
 

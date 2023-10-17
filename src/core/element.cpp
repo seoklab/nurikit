@@ -8,8 +8,10 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <string_view>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include <absl/log/absl_check.h>
 
@@ -25,6 +27,8 @@ namespace {
       return { 1, 1 };
     case 2:
       return { 1, 18 };
+    default:
+      break;
     }
 
     // 2nd - 3rd row
