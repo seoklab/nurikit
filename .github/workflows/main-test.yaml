@@ -15,7 +15,7 @@ on:
       - ".github/workflows/_run-clang-tools.yaml"
       - "cmake/**"
       - "include/**"
-      - "scripts/check_coverage.sh"
+      - "scripts/**"
       - "src/**"
       - "test/**"
       - "third-party/**"

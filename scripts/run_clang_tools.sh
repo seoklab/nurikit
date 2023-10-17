@@ -16,7 +16,19 @@ if [[ ! -d build ]]; then
 	exit 1
 fi
 
+cf_args=("-i")
+while getopts 'c' opt; do
+	case "$opt" in
+	c) cf_args=(-n --Werror) ;;
+	*) break ;;
+	esac
+done
+
+shift $((OPTIND - 1))
+
 files="$(mktemp)"
+trap 'rm -f "$files"' INT TERM EXIT
+
 if [[ $# -eq 0 ]]; then
 	find include src python/nuri \
 		\( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) -print0 >"$files"
@@ -24,5 +36,5 @@ else
 	printf '%s\0' "$@" >"$files"
 fi
 
-xargs -0 -P0 -n1 clang-format -i <"$files"
-xargs -0 -P0 -n1 clang-tidy -p build --extra-arg-before=-Werror <"$files"
+xargs -0 -P0 -n1 clang-format "${cf_args[@]}" <"$files"
+xargs -0 -P0 -n1 clang-tidy -p build --warnings-as-errors='*' <"$files"

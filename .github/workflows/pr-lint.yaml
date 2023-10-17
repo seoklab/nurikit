@@ -12,6 +12,7 @@ on:
     paths:
       - ".github/workflows/pr-lint.yaml"
       - ".github/workflows/_run-clang-tools.yaml"
+      - "scripts/run_clang_tools.sh"
       - "**.clang-*"
     types:
       - opened
