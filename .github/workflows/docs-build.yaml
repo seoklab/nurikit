@@ -42,7 +42,7 @@ jobs:
           echo "ref_name=$ref_name" >>$GITHUB_OUTPUT
           echo "ref_name=$ref_name" >>$GITHUB_ENV
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ steps.resolve-ref.outputs.ref_name }}
           submodules: recursive
