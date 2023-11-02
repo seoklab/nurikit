@@ -398,9 +398,9 @@ TYPED_TEST(AdvancedGraphTest, UpdateEdgeTest) {
   ASSERT_EQ(graph.edge(edges[0]).data(), 1000);
   ASSERT_EQ(graph.edge(edges[1]).data(), 1001);
   static_assert(
-    !std::is_assignable_v<decltype(graph.edge(edges[0]).as_const().data()),
-                          typename Graph::edge_data_type>,
-    "const edge wrapper should not be assignable");
+      !std::is_assignable_v<decltype(graph.edge(edges[0]).as_const().data()),
+                            typename Graph::edge_data_type>,
+      "const edge wrapper should not be assignable");
   ASSERT_EQ(graph.edge(edges[0]).as_const().data(), 1000);
   ASSERT_EQ(graph.edge(edges[1]).as_const().data(), 1001);
 }
