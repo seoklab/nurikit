@@ -427,19 +427,22 @@ namespace internal {
       return subgraph_.find_node(atom);
     }
 
-    void erase_atom(int id) { subgraph_.erase_node(id); }
+    void erase_atom(int idx) { subgraph_.erase_node(idx); }
     void erase_atom(Atom atom) { subgraph_.erase_node(atom); }
-    void erase_atom(typename GraphType::ConstNodeRef atom) {
-      subgraph_.erase_node(atom);
-    }
 
     void erase_atoms(const_iterator begin, const_iterator end) {
       subgraph_.erase_nodes(begin, end);
     }
 
+    void erase_atom_of(int id) { subgraph_.erase_node_of(id); }
+
+    void erase_atom_of(typename GraphType::ConstNodeRef atom) {
+      subgraph_.erase_node_of(atom);
+    }
+
     template <class UnaryPred>
-    void erase_atoms(UnaryPred &&pred) {
-      subgraph_.erase_nodes(std::forward<UnaryPred>(pred));
+    void erase_atoms_of(UnaryPred &&pred) {
+      subgraph_.erase_nodes_of(std::forward<UnaryPred>(pred));
     }
 
     iterator begin() { return subgraph_.begin(); }

@@ -337,8 +337,9 @@ void MoleculeMutator::finalize() noexcept {
     updated.reserve(sub.size());
 
     for (auto node: sub) {
-      if (map[node.id()] >= 0) {
-        updated.push_back(map[node.id()]);
+      auto pnode = node.as_parent();
+      if (map[pnode.id()] >= 0) {
+        updated.push_back(map[pnode.id()]);
       }
     }
 
