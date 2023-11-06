@@ -511,6 +511,25 @@ TEST_F(MolSubstructureTest, EraseAtomsFromMolecule) {
   EXPECT_TRUE(sub.contains(1));
   EXPECT_FALSE(sub.contains(2));
 }
+
+TEST_F(MolSubstructureTest, MergeSubstructure) {
+  Substructure &sub = mol_.get_substructure(0);
+  mol_.merge(sub);
+
+  ASSERT_EQ(mol_.size(), 16);
+  ASSERT_EQ(mol_.num_bonds(), 14);
+
+  EXPECT_EQ(mol_.atom(12).data().atomic_number(), 6);
+  EXPECT_EQ(mol_.atom(13).data().atomic_number(), 6);
+  EXPECT_EQ(mol_.atom(14).data().atomic_number(), 6);
+  EXPECT_EQ(mol_.atom(15).data().atomic_number(), 1);
+
+  EXPECT_EQ(mol_.find_bond(12, 13)->data().order(), constants::kDoubleBond);
+  EXPECT_EQ(mol_.find_bond(13, 14)->data().order(), constants::kSingleBond);
+  EXPECT_EQ(mol_.find_bond(14, 12)->data().order(), constants::kSingleBond);
+
+  EXPECT_EQ(mol_.num_sssr(), 2);
+}
 }  // namespace
 
 namespace internal {
