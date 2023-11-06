@@ -882,6 +882,20 @@ public:
     return { this, degree(nid), nid };
   }
 
+  template <class GraphLike>
+  void merge(const GraphLike &other) {
+    const int offset = size();
+    reserve(offset + other.size());
+
+    for (auto node: other) {
+      add_node(node.data());
+    }
+
+    for (auto edge: other.edges()) {
+      add_edge(edge.src() + offset, edge.dst() + offset, edge.data());
+    }
+  }
+
 private:
   template <class GT>
   static internal::AdjIterator<Graph, std::is_const_v<GT>>
