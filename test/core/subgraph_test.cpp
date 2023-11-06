@@ -568,6 +568,22 @@ TEST_F(AdvancedSubgraphTest, FindEdges) {
   EXPECT_EQ(ccedges.size(), 3);
   test_iter(csg_, ccedges, __LINE__);
 }
+
+TEST_F(AdvancedSubgraphTest, AddSubgraph) {
+  sg_.update({ 2, 3, 4 });
+
+  graph_.merge(sg_);
+
+  ASSERT_EQ(graph_.size(), 14);
+  ASSERT_EQ(graph_.num_edges(), 12);
+
+  EXPECT_EQ(graph_.node(11).data(), 2);
+  EXPECT_EQ(graph_.node(12).data(), 3);
+  EXPECT_EQ(graph_.node(13).data(), 4);
+
+  EXPECT_EQ(graph_.find_edge(11, 12)->data(), 107);
+  EXPECT_EQ(graph_.find_edge(12, 13)->data(), 109);
+}
 }  // namespace
 
 template class Subgraph<int, int, false>;

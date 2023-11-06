@@ -777,6 +777,25 @@ TYPED_TEST(AdvancedGraphTest, FindConnectedTest) {
   connected = nuri::connected_components(graph, 1, 2);
   ASSERT_TRUE(connected.empty());
 }
+
+TYPED_TEST(AdvancedGraphTest, MergeOther) {
+  using Graph = nuri::Graph<TypeParam, TypeParam>;
+  Graph &graph = this->graph_;
+
+  Graph other;
+  other.add_node({ 11 });
+  other.add_node({ 12 });
+  other.add_edge(0, 1, 1112);
+
+  graph.merge(other);
+
+  ASSERT_EQ(graph.num_nodes(), 13);
+  ASSERT_EQ(graph.num_edges(), 11);
+
+  EXPECT_EQ(graph.node(11).data(), 11);
+  EXPECT_EQ(graph.node(12).data(), 12);
+  EXPECT_EQ(graph.find_edge(11, 12)->data(), 1112);
+}
 }  // namespace
 
 // Explicit instantiation of few template classes for coverage report.
