@@ -9,7 +9,6 @@
 
 #include "fmt_test_common.h"
 #include "nuri/core/molecule.h"
-#include "nuri/fmt/base.h"
 
 namespace nuri {
 namespace {
@@ -374,13 +373,13 @@ NO_CHARGES
       case 8:
         oxygen_fchg += atom.data().formal_charge();
         EXPECT_EQ(atom.data().hybridization(), constants::kTerminal)
-          << atom.id();
+            << atom.id();
         break;
       default:
         EXPECT_EQ(atom.data().hybridization(), constants::kSP2) << atom.id();
         EXPECT_EQ(atom.data().formal_charge(),
                   atom.data().atomic_number() == 7 ? 1 : 0)
-          << atom.id();
+            << atom.id();
       }
 
       total_hcount += atom.data().implicit_hydrogens();
@@ -459,7 +458,7 @@ charge 0
         EXPECT_EQ(atom.data().hybridization(), constants::kSP3D2) << atom.id();
       } else {
         EXPECT_EQ(atom.data().hybridization(), constants::kTerminal)
-          << atom.id();
+            << atom.id();
       }
       EXPECT_EQ(atom.data().formal_charge(), 0) << atom.id();
       EXPECT_EQ(atom.data().implicit_hydrogens(), 0) << atom.id();
@@ -565,8 +564,8 @@ GASTEIGER
                  && mol_.atom(3).data().implicit_hydrogens() == 1)
                 || (mol_.atom(2).data().implicit_hydrogens() == 1
                     && mol_.atom(3).data().implicit_hydrogens() == 0))
-      << "2: " << mol_.atom(2).data().implicit_hydrogens()
-      << ", 3: " << mol_.atom(3).data().implicit_hydrogens();
+        << "2: " << mol_.atom(2).data().implicit_hydrogens()
+        << ", 3: " << mol_.atom(3).data().implicit_hydrogens();
   }
 }
 
@@ -737,7 +736,7 @@ charge -1
     for (auto atom: mol_) {
       total_fchg += atom.data().formal_charge();
       EXPECT_EQ(atom.data().implicit_hydrogens(), 1)
-        << "Trial: " << i + 1 << ", Atom: " << atom.id();
+          << "Trial: " << i + 1 << ", Atom: " << atom.id();
       bo_sum += sum_bond_order(atom);
     }
 
@@ -801,7 +800,7 @@ NO_CHARGES
     for (auto atom: mol_) {
       total_fchg += atom.data().formal_charge();
       EXPECT_EQ(atom.data().implicit_hydrogens(), 1)
-        << "Trial: " << i + 1 << ", Atom: " << atom.id();
+          << "Trial: " << i + 1 << ", Atom: " << atom.id();
       bo_sum += sum_bond_order(atom);
     }
 
@@ -872,7 +871,7 @@ charge 1
     for (auto atom: mol_) {
       total_fchg += atom.data().formal_charge();
       EXPECT_EQ(atom.data().implicit_hydrogens(), 1)
-        << "Trial: " << i + 1 << ", Atom: " << atom.id();
+          << "Trial: " << i + 1 << ", Atom: " << atom.id();
       bo_sum += sum_bond_order(atom);
     }
 
@@ -937,7 +936,7 @@ NO_CHARGES
     for (auto atom: mol_) {
       total_fchg += atom.data().formal_charge();
       EXPECT_EQ(atom.data().implicit_hydrogens(), 1)
-        << "Trial: " << i + 1 << ", Atom: " << atom.id();
+          << "Trial: " << i + 1 << ", Atom: " << atom.id();
       bo_sum += sum_bond_order(atom);
     }
 
@@ -1151,10 +1150,10 @@ NO_CHARGES
     for (auto atom: mol_) {
       EXPECT_TRUE(atom.data().is_aromatic());
       EXPECT_EQ(atom.data().formal_charge(), 0)
-        << "Trial: " << i + 1 << ", Atom: " << atom.id();
+          << "Trial: " << i + 1 << ", Atom: " << atom.id();
       EXPECT_EQ(atom.data().implicit_hydrogens(),
                 static_cast<int>(atom.degree() == 2))
-        << "Trial: " << i + 1 << ", Atom: " << atom.id();
+          << "Trial: " << i + 1 << ", Atom: " << atom.id();
       bo_sum += sum_bond_order(atom);
     }
 
