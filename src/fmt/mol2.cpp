@@ -16,11 +16,13 @@
 #include <utility>
 #include <vector>
 
+#include <boost/fusion/include/std_pair.hpp>
 #include <boost/fusion/include/std_tuple.hpp>
 #include <boost/optional.hpp>
 #include <boost/spirit/home/x3.hpp>
 
 #include <absl/container/fixed_array.h>
+#include <absl/container/flat_hash_map.h>
 #include <absl/container/inlined_vector.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
@@ -198,23 +200,53 @@ constexpr auto atom_line = *x3::omit[x3::blank]         //
                            >> uint_trailing_blanks      //
                            >> nonblank_trailing_blanks  //
                            >> x3::repeat(3)[double_trailing_blanks]
-                           >> +x3::alpha >> -('.' >> +x3::alnum)
-                           >> -(+x3::omit[x3::blank]         //
-                                >> uint_trailing_blanks      //
-                                >> nonblank_trailing_blanks  //
-                                >> x3::double_)
-                           >> *x3::omit[x3::blank];
-using AtomLine =
-    std::tuple<unsigned int, std::string, absl::InlinedVector<double, 3>,
-               std::string, boost::optional<std::string>,
-               boost::optional<std::tuple<unsigned int, std::string, double>>>;
+                           >> +x3::alpha >> -('.' >> +x3::alnum)  //
+                           >> -(+x3::omit[x3::blank]              //
+                                >> uint_trailing_blanks           //
+                                >> -(nonblank_trailing_blanks     //
+                                     >> -x3::double_));
+using AtomLine = std::tuple<
+    unsigned int, std::string, absl::InlinedVector<double, 3>, std::string,
+    boost::optional<std::string>,
+    boost::optional<std::pair<
+        unsigned int,
+        boost::optional<std::pair<std::string, boost::optional<double>>>>>>;
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
-std::pair<bool, bool> parse_atom_block(MoleculeMutator &mutator,
-                                       std::vector<Vector3d> &pos,
-                                       std::vector<int> &ccat, Iter &it,
-                                       const Iter end) {
+void process_optional_attrs(
+    Molecule::MutableAtom atom,
+    absl::flat_hash_map<unsigned int, std::pair<std::vector<int>, std::string>>
+        &substructs,
+    boost::optional<std::pair<
+        unsigned int,
+        boost::optional<std::pair<std::string, boost::optional<double>>>>>
+        &attrs) {
+  if (!attrs) {
+    return;
+  }
+
+  std::pair<std::vector<int>, std::string> &substruct =
+      substructs[attrs->first];
+  substruct.first.push_back(atom.id());
+  if (!attrs->second) {
+    return;
+  }
+
+  substruct.second = std::move(attrs->second->first);
+  if (!attrs->second->second) {
+    return;
+  }
+
+  atom.data().set_partial_charge(*attrs->second->second);
+}
+
+std::pair<bool, bool> parse_atom_block(
+    MoleculeMutator &mutator, std::vector<Vector3d> &pos,
+    std::vector<int> &ccat,
+    absl::flat_hash_map<unsigned int, std::pair<std::vector<int>, std::string>>
+        &substructs,
+    Iter &it, const Iter end) {
   parser::AtomLine tokens;
   bool has_hydrogen = false;
 
@@ -274,12 +306,10 @@ std::pair<bool, bool> parse_atom_block(MoleculeMutator &mutator,
                              ccat);
     }
 
-    auto &optional_attrs = std::get<5>(tokens);
-    if (optional_attrs) {
-      data.set_partial_charge(std::get<2>(*optional_attrs));
-    }
+    int idx = mutator.add_atom(data);
 
-    mutator.add_atom(data);
+    auto &optional_attrs = std::get<5>(tokens);
+    process_optional_attrs(mutator.mol().atom(idx), substructs, optional_attrs);
 
     ABSL_LOG_IF(WARNING, lit != it->end())
         << "Ignoring extra tokens in atom line";
@@ -423,8 +453,45 @@ std::pair<bool, bool> parse_atom_attr_block(Molecule &mol, Iter &it,
   return { true, has_fcharge };
 }
 
-// Some mol2 files set bond type of conjugated bonds to aromatic; just make them
-// non-aromatic, conjugated bonds
+// NOLINTBEGIN(readability-identifier-naming)
+namespace parser {
+const auto substructure_line = *x3::omit[x3::blank]         //
+                               >> uint_trailing_blanks      //
+                               >> nonblank_trailing_blanks  //
+                               >> +x3::omit[x3::digit] >> *x3::omit[x3::blank];
+using SubstructureLine = std::pair<unsigned int, std::string>;
+}  // namespace parser
+// NOLINTEND(readability-identifier-naming)
+
+bool parse_substructure_block(Molecule &mol, Iter &it, const Iter end) {
+  parser::SubstructureLine data;
+
+  while (!mol2_block_end(++it, end)) {
+    if (std::all_of(it->begin(), it->end(), absl::ascii_isblank)) {
+      ABSL_LOG(INFO) << "Skipping blank line";
+      continue;
+    }
+
+    data.second.clear();
+
+    auto lit = it->begin();
+
+    if (!x3::parse(lit, it->end(), parser::substructure_line, data)) {
+      ABSL_LOG(WARNING) << "Failed to parse substructure line";
+      ABSL_LOG(INFO) << "The line is: " << *it;
+      return false;
+    }
+
+    Substructure &sub = mol.add_substructure();
+    sub.set_id(static_cast<int>(data.first));
+    sub.name() = std::move(data.second);
+  }
+
+  return true;
+}
+
+// Some mol2 files set bond type of conjugated bonds to aromatic; just make
+// them non-aromatic, conjugated bonds
 void fix_aromatic_bonds(Molecule &mol) {
   for (auto atom: mol) {
     if (atom.data().is_ring_atom() || atom.degree() < 2) {
@@ -935,6 +1002,8 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
   Molecule mol;
   std::vector<Vector3d> pos;
   std::vector<int> ccat;
+  absl::flat_hash_map<unsigned int, std::pair<std::vector<int>, std::string>>
+      substructs;
   bool success = true, has_hydrogens = false, has_fcharge = false;
   bool atom_parsed = false;
 
@@ -953,7 +1022,7 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
       if (absl::StartsWith(*it, "@<TRIPOS>ATOM")) {
         atom_parsed = true;
         std::tie(success, has_hydrogens) =
-            parse_atom_block(mutator, pos, ccat, it, mol2.end());
+            parse_atom_block(mutator, pos, ccat, substructs, it, mol2.end());
       } else if (absl::StartsWith(*it, "@<TRIPOS>BOND")) {
         success = parse_bond_block(mutator, it, mol2.end());
       } else if (absl::StartsWith(*it, "@<TRIPOS>UNITY_ATOM_ATTR")) {
@@ -965,6 +1034,8 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
         }
         std::tie(success, has_fcharge) =
             parse_atom_attr_block(mol, it, mol2.end());
+      } else if (absl::StartsWith(*it, "@<TRIPOS>SUBSTRUCTURE")) {
+        success = parse_substructure_block(mol, it, mol2.end());
       } else {
         ABSL_LOG_IF(WARNING, absl::StartsWith(*it, "@"))
             << "Unimplemented mol2 block: " << *it;
@@ -1004,6 +1075,14 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
   }
 
   mol.add_conf(stack(pos));
+
+  // Only add substructures actually mentioned in the SUBSTRUCTURE block
+  for (auto &[_, data]: substructs) {
+    for (Substructure &sub: mol.find_substructures(data.second)) {
+      sub.update(std::move(data.first));
+    }
+  }
+
   return mol;
 }
 }  // namespace nuri
