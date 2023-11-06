@@ -494,6 +494,8 @@ namespace internal {
     int id() const { return id_; }
 
   private:
+    friend Molecule;
+
     SubgraphType graph_;
 
     std::string name_;
@@ -1318,6 +1320,27 @@ public:
    * @return The number of fragments.
    */
   int num_fragments() const { return num_fragments_; }
+
+  /**
+   * @brief Merge other molecule-like object into this molecule.
+   * @tparam MoleculeLike Type of the other molecule-like object.
+   * @param other The other molecule-like object.
+   * @warning The resulting molecule might not be chemically valid. Use the
+   *          MolculeSanitizer class to sanitize the molecule if necessary.
+   * @note Size of conformers will be updated, but the positions of the added
+   *       atoms will not be set. It is the responsibility of the user to set
+   *       the positions of the added atoms if necessary.
+   * @note This method effectively calls update_topology().
+   */
+  template <class MoleculeLike>
+  void merge(const MoleculeLike &other) {
+    graph_.merge(other.graph_);
+    update_topology();
+
+    for (MatrixX3d &conf: conformers_) {
+      conf.conservativeResize(size(), Eigen::NoChange);
+    }
+  }
 
 private:
   Molecule(GraphType &&graph, std::vector<MatrixX3d> &&conformers) noexcept
