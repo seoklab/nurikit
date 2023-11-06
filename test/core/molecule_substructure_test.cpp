@@ -158,11 +158,11 @@ TEST_F(SubstructureTest, GetAtoms) {
 TEST_F(SubstructureTest, FindAtoms) {
   auto it = sub_.find_atom(0);
   EXPECT_NE(it, sub_.end());
-  EXPECT_EQ(it->id(), 0);
+  EXPECT_EQ(it->as_parent().id(), 0);
 
   it = sub_.find_atom(10);
   EXPECT_NE(it, sub_.end());
-  EXPECT_EQ(it->id(), 10);
+  EXPECT_EQ(it->as_parent().id(), 10);
 
   it = sub_.find_atom(4);
   EXPECT_EQ(it, sub_.end());
@@ -170,33 +170,33 @@ TEST_F(SubstructureTest, FindAtoms) {
   const Substructure &csub = sub_;
   auto cit = csub.find_atom(0);
   EXPECT_NE(cit, csub.end());
-  EXPECT_EQ(cit->id(), 0);
+  EXPECT_EQ(cit->as_parent().id(), 0);
 
   cit = csub.find_atom(10);
   EXPECT_NE(cit, csub.end());
-  EXPECT_EQ(cit->id(), 10);
+  EXPECT_EQ(cit->as_parent().id(), 10);
 
   cit = csub.find_atom(4);
   EXPECT_EQ(cit, csub.end());
 
   it = sub_.find_atom(mol_.atom(0));
   EXPECT_NE(it, sub_.end());
-  EXPECT_EQ(it->id(), 0);
+  EXPECT_EQ(it->as_parent().id(), 0);
 
   it = sub_.find_atom(mol_.atom(10));
   EXPECT_NE(it, sub_.end());
-  EXPECT_EQ(it->id(), 10);
+  EXPECT_EQ(it->as_parent().id(), 10);
 
   it = sub_.find_atom(mol_.atom(4));
   EXPECT_EQ(it, sub_.end());
 
   cit = csub.find_atom(mol_.atom(0));
   EXPECT_NE(cit, csub.end());
-  EXPECT_EQ(cit->id(), 0);
+  EXPECT_EQ(cit->as_parent().id(), 0);
 
   cit = csub.find_atom(mol_.atom(10));
   EXPECT_NE(cit, csub.end());
-  EXPECT_EQ(cit->id(), 10);
+  EXPECT_EQ(cit->as_parent().id(), 10);
 
   cit = csub.find_atom(mol_.atom(4));
   EXPECT_EQ(cit, csub.end());
@@ -205,19 +205,19 @@ TEST_F(SubstructureTest, FindAtoms) {
 TEST_F(SubstructureTest, EraseAtoms) {
   auto sub1 = sub_;
   EXPECT_TRUE(sub1.contains(0));
-  sub1.erase_atom(0);
+  sub1.erase_atom_of(0);
   EXPECT_FALSE(sub1.contains(0));
-  sub1.erase_atom(0);
+  sub1.erase_atom_of(0);
   EXPECT_FALSE(sub1.contains(0));
   EXPECT_EQ(sub1.size(), 3);
 
   sub1.erase_atoms(sub1.begin(), --sub1.end());
   EXPECT_EQ(sub1.size(), 1);
 
-  sub1.erase_atoms([](const auto &) { return false; });
+  sub1.erase_atoms_of([](const auto &) { return false; });
   EXPECT_EQ(sub1.size(), 1);
 
-  sub1.erase_atoms([](const auto &) { return true; });
+  sub1.erase_atoms_of([](const auto &) { return true; });
   EXPECT_TRUE(sub1.empty());
 
   auto sub2 = sub_;
@@ -228,7 +228,7 @@ TEST_F(SubstructureTest, EraseAtoms) {
   EXPECT_EQ(sub2.size(), 3);
 
   auto sub3 = sub_;
-  sub3.erase_atom(mol_.atom(0));
+  sub3.erase_atom_of(mol_.atom(0));
   EXPECT_FALSE(sub3.contains(mol_.atom(0)));
   EXPECT_EQ(sub3.size(), 3);
 }
@@ -236,14 +236,14 @@ TEST_F(SubstructureTest, EraseAtoms) {
 TEST_F(SubstructureTest, IterateAtoms) {
   int count = 0;
   for (auto atom: sub_) {
-    EXPECT_TRUE(sub_.contains(atom.id()));
+    EXPECT_TRUE(sub_.contains(atom.as_parent().id()));
     ++count;
   }
   EXPECT_EQ(count, sub_.size());
 
   count = 0;
   for (auto atom: std::as_const(sub_)) {
-    EXPECT_TRUE(sub_.contains(atom.id()));
+    EXPECT_TRUE(sub_.contains(atom.as_parent().id()));
     ++count;
   }
   EXPECT_EQ(count, sub_.size());
@@ -252,7 +252,7 @@ TEST_F(SubstructureTest, IterateAtoms) {
   for (auto rit = std::make_reverse_iterator(sub_.end()),
             rend = std::make_reverse_iterator(sub_.begin());
        rit != rend; ++rit) {
-    EXPECT_TRUE(sub_.contains(rit->id()));
+    EXPECT_TRUE(sub_.contains(rit->as_parent().id()));
     ++count;
   }
   EXPECT_EQ(count, sub_.size());
@@ -261,7 +261,7 @@ TEST_F(SubstructureTest, IterateAtoms) {
   for (auto rit = std::make_reverse_iterator(sub_.cend()),
             rend = std::make_reverse_iterator(sub_.cbegin());
        rit != rend; ++rit) {
-    EXPECT_TRUE(sub_.contains(rit->id()));
+    EXPECT_TRUE(sub_.contains(rit->as_parent().id()));
     ++count;
   }
   EXPECT_EQ(count, sub_.size());
@@ -277,8 +277,10 @@ TEST_F(SubstructureTest, ListBonds) {
 
 TEST_F(SubstructureTest, CountDegrees) {
   for (auto atom: sub_) {
-    EXPECT_EQ(atom.degree(), atom.id() == 10 ? 0 : 2) << atom.id();
-    EXPECT_EQ(sub_.degree(atom.id()), atom.id() == 10 ? 0 : 2) << atom.id();
+    EXPECT_EQ(atom.degree(), atom.as_parent().id() == 10 ? 0 : 2)
+        << atom.as_parent().id();
+    EXPECT_EQ(sub_.degree(atom.id()), atom.as_parent().id() == 10 ? 0 : 2)
+        << atom.as_parent().id();
   }
 }
 
@@ -488,7 +490,7 @@ NURI_ASSERT_ONEWAY_CONVERTIBLE(substurcture iterator, Substructure::iterator,
                                const substurcture iterator,
                                Substructure::const_iterator);
 
-TEST_F(MolSubstructureTest, EraseNodesFromMolecule) {
+TEST_F(MolSubstructureTest, EraseAtomsFromMolecule) {
   Substructure &sub = mol_.get_substructure(0);
   EXPECT_TRUE(sub.contains(10));
 
@@ -508,6 +510,25 @@ TEST_F(MolSubstructureTest, EraseNodesFromMolecule) {
   EXPECT_EQ(sub.size(), 2);
   EXPECT_TRUE(sub.contains(1));
   EXPECT_FALSE(sub.contains(2));
+}
+
+TEST_F(MolSubstructureTest, MergeSubstructure) {
+  Substructure &sub = mol_.get_substructure(0);
+  mol_.merge(sub);
+
+  ASSERT_EQ(mol_.size(), 16);
+  ASSERT_EQ(mol_.num_bonds(), 14);
+
+  EXPECT_EQ(mol_.atom(12).data().atomic_number(), 6);
+  EXPECT_EQ(mol_.atom(13).data().atomic_number(), 6);
+  EXPECT_EQ(mol_.atom(14).data().atomic_number(), 6);
+  EXPECT_EQ(mol_.atom(15).data().atomic_number(), 1);
+
+  EXPECT_EQ(mol_.find_bond(12, 13)->data().order(), constants::kDoubleBond);
+  EXPECT_EQ(mol_.find_bond(13, 14)->data().order(), constants::kSingleBond);
+  EXPECT_EQ(mol_.find_bond(14, 12)->data().order(), constants::kSingleBond);
+
+  EXPECT_EQ(mol_.num_sssr(), 2);
 }
 }  // namespace
 

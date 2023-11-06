@@ -355,31 +355,30 @@ namespace internal {
     using const_neighbor_iterator =
         typename SubgraphType::const_adjacency_iterator;
 
-    Substructure(const SubgraphType &sub): subgraph_(sub) { }
+    Substructure(const SubgraphType &sub): graph_(sub) { }
 
-    Substructure(SubgraphType &&sub) noexcept: subgraph_(std::move(sub)) { }
+    Substructure(SubgraphType &&sub) noexcept: graph_(std::move(sub)) { }
 
     Substructure(const SubgraphType &sub, const std::string &name)
-        : subgraph_(sub), name_(name) { }
+        : graph_(sub), name_(name) { }
 
     Substructure(SubgraphType &&sub, std::string &&name) noexcept
-        : subgraph_(std::move(sub)), name_(std::move(name)) { }
+        : graph_(std::move(sub)), name_(std::move(name)) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     Substructure(const Substructure<other_const> &other)
-        : subgraph_(other.subgraph_), name_(other.name_) { }
+        : graph_(other.graph_), name_(other.name_) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     Substructure(Substructure<other_const> &&other) noexcept
-        : subgraph_(std::move(other.subgraph_)), name_(std::move(other.name_)) {
-    }
+        : graph_(std::move(other.graph_)), name_(std::move(other.name_)) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     Substructure &operator=(const Substructure<other_const> &other) {
-      subgraph_ = other.subgraph_;
+      graph_ = other.graph_;
       name_ = other.name_;
       return *this;
     }
@@ -387,100 +386,103 @@ namespace internal {
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     Substructure &operator=(Substructure<other_const> &&other) noexcept {
-      subgraph_ = std::move(other.subgraph_);
+      graph_ = std::move(other.graph_);
       name_ = std::move(other.name_);
       return *this;
     }
 
-    bool empty() const { return subgraph_.empty(); }
-    int size() const { return subgraph_.size(); }
-    int num_atoms() const { return subgraph_.num_nodes(); }
-    void clear() { subgraph_.clear(); }
+    bool empty() const { return graph_.empty(); }
+    int size() const { return graph_.size(); }
+    int num_atoms() const { return graph_.num_nodes(); }
+    void clear() { graph_.clear(); }
 
-    void update(const std::vector<int> &atoms) { subgraph_.update(atoms); }
+    void update(const std::vector<int> &atoms) { graph_.update(atoms); }
     void update(std::vector<int> &&atoms) noexcept {
-      subgraph_.update(std::move(atoms));
+      graph_.update(std::move(atoms));
     }
 
-    void reserve(int n) { subgraph_.reserve(n); }
+    void reserve(int n) { graph_.reserve(n); }
 
-    void add_atom(int id) { subgraph_.add_node(id); }
+    void add_atom(int id) { graph_.add_node(id); }
 
-    bool contains(int id) const { return subgraph_.contains(id); }
+    bool contains(int id) const { return graph_.contains(id); }
     bool contains(typename GraphType::ConstNodeRef atom) const {
-      return subgraph_.contains(atom);
+      return graph_.contains(atom);
     }
 
-    MutableAtom operator[](int idx) { return subgraph_[idx]; }
-    Atom operator[](int idx) const { return subgraph_[idx]; }
+    MutableAtom operator[](int idx) { return graph_[idx]; }
+    Atom operator[](int idx) const { return graph_[idx]; }
 
-    MutableAtom atom(int idx) { return subgraph_.node(idx); }
-    Atom atom(int idx) const { return subgraph_.node(idx); }
+    MutableAtom atom(int idx) { return graph_.node(idx); }
+    Atom atom(int idx) const { return graph_.node(idx); }
 
-    iterator find_atom(int id) { return subgraph_.find_node(id); }
+    iterator find_atom(int id) { return graph_.find_node(id); }
     iterator find_atom(typename GraphType::ConstNodeRef atom) {
-      return subgraph_.find_node(atom);
+      return graph_.find_node(atom);
     }
 
-    const_iterator find_atom(int id) const { return subgraph_.find_node(id); }
+    const_iterator find_atom(int id) const { return graph_.find_node(id); }
     const_iterator find_atom(typename GraphType::ConstNodeRef atom) const {
-      return subgraph_.find_node(atom);
+      return graph_.find_node(atom);
     }
 
-    void erase_atom(int id) { subgraph_.erase_node(id); }
-    void erase_atom(Atom atom) { subgraph_.erase_node(atom); }
-    void erase_atom(typename GraphType::ConstNodeRef atom) {
-      subgraph_.erase_node(atom);
-    }
+    void erase_atom(int idx) { graph_.erase_node(idx); }
+    void erase_atom(Atom atom) { graph_.erase_node(atom); }
 
     void erase_atoms(const_iterator begin, const_iterator end) {
-      subgraph_.erase_nodes(begin, end);
+      graph_.erase_nodes(begin, end);
+    }
+
+    void erase_atom_of(int id) { graph_.erase_node_of(id); }
+
+    void erase_atom_of(typename GraphType::ConstNodeRef atom) {
+      graph_.erase_node_of(atom);
     }
 
     template <class UnaryPred>
-    void erase_atoms(UnaryPred &&pred) {
-      subgraph_.erase_nodes(std::forward<UnaryPred>(pred));
+    void erase_atoms_of(UnaryPred &&pred) {
+      graph_.erase_nodes_of(std::forward<UnaryPred>(pred));
     }
 
-    iterator begin() { return subgraph_.begin(); }
-    iterator end() { return subgraph_.end(); }
+    iterator begin() { return graph_.begin(); }
+    iterator end() { return graph_.end(); }
 
     const_iterator begin() const { return cbegin(); }
     const_iterator end() const { return cend(); }
 
-    const_iterator cbegin() const { return subgraph_.cbegin(); }
-    const_iterator cend() const { return subgraph_.cend(); }
+    const_iterator cbegin() const { return graph_.cbegin(); }
+    const_iterator cend() const { return graph_.cend(); }
 
-    const std::vector<int> &atom_ids() const { return subgraph_.node_ids(); }
+    const std::vector<int> &atom_ids() const { return graph_.node_ids(); }
 
-    auto bonds() { return subgraph_.edges(); }
-    auto bonds() const { return subgraph_.edges(); }
+    auto bonds() { return graph_.edges(); }
+    auto bonds() const { return graph_.edges(); }
 
-    int degree(int id) const { return subgraph_.degree(id); }
+    int degree(int id) const { return graph_.degree(id); }
 
     neighbor_iterator find_neighbor(int src, int dst) {
-      return subgraph_.find_adjacent(src, dst);
+      return graph_.find_adjacent(src, dst);
     }
 
     const_neighbor_iterator find_neighbor(int src, int dst) const {
-      return subgraph_.find_adjacent(src, dst);
+      return graph_.find_adjacent(src, dst);
     }
 
-    neighbor_iterator neighbor_begin(int id) { return subgraph_.adj_begin(id); }
-    neighbor_iterator neighbor_end(int id) { return subgraph_.adj_end(id); }
+    neighbor_iterator neighbor_begin(int id) { return graph_.adj_begin(id); }
+    neighbor_iterator neighbor_end(int id) { return graph_.adj_end(id); }
 
     const_neighbor_iterator neighbor_begin(int id) const {
-      return subgraph_.adj_begin(id);
+      return graph_.adj_begin(id);
     }
     const_neighbor_iterator neighbor_end(int id) const {
-      return subgraph_.adj_end(id);
+      return graph_.adj_end(id);
     }
 
     const_neighbor_iterator neighbor_cbegin(int id) const {
-      return subgraph_.adj_cbegin(id);
+      return graph_.adj_cbegin(id);
     }
     const_neighbor_iterator neighbor_cend(int id) const {
-      return subgraph_.adj_cend(id);
+      return graph_.adj_cend(id);
     }
 
     std::string &name() { return name_; }
@@ -492,7 +494,9 @@ namespace internal {
     int id() const { return id_; }
 
   private:
-    SubgraphType subgraph_;
+    friend Molecule;
+
+    SubgraphType graph_;
 
     std::string name_;
     int id_;
@@ -1316,6 +1320,27 @@ public:
    * @return The number of fragments.
    */
   int num_fragments() const { return num_fragments_; }
+
+  /**
+   * @brief Merge other molecule-like object into this molecule.
+   * @tparam MoleculeLike Type of the other molecule-like object.
+   * @param other The other molecule-like object.
+   * @warning The resulting molecule might not be chemically valid. Use the
+   *          MolculeSanitizer class to sanitize the molecule if necessary.
+   * @note Size of conformers will be updated, but the positions of the added
+   *       atoms will not be set. It is the responsibility of the user to set
+   *       the positions of the added atoms if necessary.
+   * @note This method effectively calls update_topology().
+   */
+  template <class MoleculeLike>
+  void merge(const MoleculeLike &other) {
+    graph_.merge(other.graph_);
+    update_topology();
+
+    for (MatrixX3d &conf: conformers_) {
+      conf.conservativeResize(size(), Eigen::NoChange);
+    }
+  }
 
 private:
   Molecule(GraphType &&graph, std::vector<MatrixX3d> &&conformers) noexcept

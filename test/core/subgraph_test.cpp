@@ -25,6 +25,9 @@
 #define NURI_ASSERT_ONEWAY_CONVERTIBLE(from_name, from_expr, to_name, to_expr) \
   NURI_TEST_CONVERTIBILITY(from_name, from_expr, to_name, to_expr, true);      \
   NURI_TEST_CONVERTIBILITY(to_name, to_expr, from_name, from_expr, false)
+#define NURI_ASSERT_TWOWAY_CONVERTIBLE(from_name, from_expr, to_name, to_expr) \
+  NURI_TEST_CONVERTIBILITY(from_name, from_expr, to_name, to_expr, true);      \
+  NURI_TEST_CONVERTIBILITY(to_name, to_expr, from_name, from_expr, true)
 
 namespace nuri {
 namespace {
@@ -37,8 +40,8 @@ static_assert(std::is_same_v<SubgraphOf<Graph &>, Subgraph<int, int>>,
 static_assert(std::is_same_v<SubgraphOf<const Graph>, Subgraph<int, int, true>>,
               "SubGraphType<Graph> must be a ConstSubGraph");
 static_assert(
-  std::is_same_v<SubgraphOf<const Graph &>, Subgraph<int, int, true>>,
-  "SubGraphType<Graph> must be a ConstSubGraph");
+    std::is_same_v<SubgraphOf<const Graph &>, Subgraph<int, int, true>>,
+    "SubGraphType<Graph> must be a ConstSubGraph");
 
 NURI_ASSERT_ONEWAY_CONVERTIBLE(subgraph, SubgraphOf<Graph>, const subgraph,
                                SubgraphOf<const Graph>);
@@ -128,14 +131,14 @@ TEST(BasicSubgraphTest, FindNodes) {
   EXPECT_NE(sg.find_node(2), sg.end());
   EXPECT_EQ(sg.find_node(2), sg.find_node(g.node(2)));
   EXPECT_EQ(sg.find_node(2), std::as_const(sg).find_node(g.node(2)));
-  EXPECT_EQ(sg.find_node(2)->id(), 2);
+  EXPECT_EQ(sg.find_node(2)->as_parent().id(), 2);
   EXPECT_EQ(sg.find_node(4), sg.end());
 
   Subgraph csg(std::as_const(g), { 2, 3 });
   EXPECT_NE(csg.find_node(2), csg.end());
   EXPECT_EQ(csg.find_node(2), csg.find_node(g.node(2)));
   EXPECT_EQ(csg.find_node(2), std::as_const(csg).find_node(g.node(2)));
-  EXPECT_EQ(csg.find_node(2)->id(), 2);
+  EXPECT_EQ(csg.find_node(2)->as_parent().id(), 2);
   EXPECT_EQ(csg.find_node(4), csg.end());
 }
 
@@ -149,20 +152,26 @@ TEST(BasicSubgraphTest, AccessNodes) {
   g.add_node(5);
 
   Subgraph sg(g, { 2, 3 });
-  EXPECT_EQ(sg[0].id(), 2);
-  EXPECT_EQ(sg[1].id(), 3);
+  EXPECT_EQ(sg[0].id(), 0);
+  EXPECT_EQ(sg[0].as_parent().id(), 2);
+  EXPECT_EQ(sg[1].id(), 1);
+  EXPECT_EQ(sg[1].as_parent().id(), 3);
 
   const auto &csg = sg;
-  EXPECT_EQ(csg[0].id(), 2);
-  EXPECT_EQ(csg[1].id(), 3);
+  EXPECT_EQ(csg[0].id(), 0);
+  EXPECT_EQ(csg[0].as_parent().id(), 2);
+  EXPECT_EQ(csg[1].id(), 1);
+  EXPECT_EQ(csg[1].as_parent().id(), 3);
 
   std::vector ids = { 2, 3 };
   Subgraph ccsg(std::as_const(g), ids);
-  EXPECT_EQ(ccsg[0].id(), 2);
-  EXPECT_EQ(ccsg[1].id(), 3);
+  EXPECT_EQ(ccsg[0].id(), 0);
+  EXPECT_EQ(ccsg[0].as_parent().id(), 2);
+  EXPECT_EQ(ccsg[1].id(), 1);
+  EXPECT_EQ(ccsg[1].as_parent().id(), 3);
 
   EXPECT_TRUE(
-    std::is_permutation(ids.begin(), ids.end(), ccsg.node_ids().begin()));
+      std::is_permutation(ids.begin(), ids.end(), ccsg.node_ids().begin()));
 }
 
 TEST(BasicSubgraphTest, ContainsNodes) {
@@ -194,7 +203,7 @@ TEST(BasicSubgraphTest, IterateNodes) {
   Subgraph sg1(g, { 2, 3 });
   int i = 2;
   for (auto it = sg1.begin(); it != sg1.end(); it++, i++) {
-    EXPECT_EQ(it->id(), i);
+    EXPECT_EQ(it->as_parent().id(), i);
     EXPECT_EQ(it->data(), i);
     static_assert(std::is_assignable_v<decltype(it->data()), int>,
                   "Subgraph iterator must be mutable");
@@ -203,7 +212,7 @@ TEST(BasicSubgraphTest, IterateNodes) {
   for (auto rit = std::make_reverse_iterator(sg1.end());
        rit != std::make_reverse_iterator(sg1.begin()); rit++) {
     --i;
-    EXPECT_EQ(rit->id(), i);
+    EXPECT_EQ(rit->as_parent().id(), i);
     EXPECT_EQ(rit->data(), i);
     static_assert(std::is_assignable_v<decltype(rit->data()), int>,
                   "Subgraph iterator must be mutable");
@@ -212,7 +221,7 @@ TEST(BasicSubgraphTest, IterateNodes) {
   const auto &csg1 = sg1;
   i = 2;
   for (auto it = csg1.begin(); it != csg1.end(); it++, i++) {
-    EXPECT_EQ(it->id(), i);
+    EXPECT_EQ(it->as_parent().id(), i);
     EXPECT_EQ(it->data(), i);
     static_assert(!std::is_assignable_v<decltype(it->data()), int>,
                   "Subgraph const_iterator must be immutable");
@@ -221,7 +230,7 @@ TEST(BasicSubgraphTest, IterateNodes) {
   for (auto rit = std::make_reverse_iterator(csg1.end());
        rit != std::make_reverse_iterator(csg1.begin()); rit++) {
     --i;
-    EXPECT_EQ(rit->id(), i);
+    EXPECT_EQ(rit->as_parent().id(), i);
     EXPECT_EQ(rit->data(), i);
     static_assert(!std::is_assignable_v<decltype(rit->data()), int>,
                   "Subgraph const_iterator must be immutable");
@@ -229,7 +238,7 @@ TEST(BasicSubgraphTest, IterateNodes) {
 
   i = 2;
   for (auto it = sg1.cbegin(); it != sg1.cend(); it++, i++) {
-    EXPECT_EQ(it->id(), i);
+    EXPECT_EQ(it->as_parent().id(), i);
     EXPECT_EQ(it->data(), i);
     static_assert(!std::is_assignable_v<decltype(it->data()), int>,
                   "Subgraph const_iterator must be immutable");
@@ -246,13 +255,13 @@ TEST(BasicSubgraphTest, IterateNodes) {
   std::vector<int> nodes { 4, 3 };
   Subgraph csg2(std::as_const(g), nodes);
   static_assert(
-    std::is_same_v<decltype(csg2)::iterator, decltype(csg2)::const_iterator>,
-    "const_subgraph::iterator and const_subgraph::const_iterator must be "
-    "same");
+      std::is_same_v<decltype(csg2)::iterator, decltype(csg2)::const_iterator>,
+      "const_subgraph::iterator and const_subgraph::const_iterator must be "
+      "same");
 
   i = 3;
   for (auto it = csg2.begin(); it != csg2.end(); it++, i++) {
-    EXPECT_EQ(it->id(), i);
+    EXPECT_EQ(it->as_parent().id(), i);
     EXPECT_EQ(it->data(), i);
     static_assert(!std::is_assignable_v<decltype(it->data()), int>,
                   "ConstSubGraph iterator must be immutable");
@@ -260,7 +269,7 @@ TEST(BasicSubgraphTest, IterateNodes) {
   for (auto rit = std::make_reverse_iterator(csg2.end());
        rit != std::make_reverse_iterator(csg2.begin()); ++rit) {
     --i;
-    EXPECT_EQ(rit->id(), i);
+    EXPECT_EQ(rit->as_parent().id(), i);
     EXPECT_EQ(rit->data(), i);
     static_assert(!std::is_assignable_v<decltype(rit->data()), int>,
                   "ConstSubGraph iterator must be immutable");
@@ -291,13 +300,13 @@ TEST(BasicSubgraphTest, AddNodes) {
 
   int i = 2;
   for (auto it = sg.begin(); it != sg.end(); ++it, ++i) {
-    EXPECT_EQ(it->id(), i);
+    EXPECT_EQ(it->as_parent().id(), i);
     EXPECT_EQ(it->data(), i);
   }
 
   i = 2;
   for (auto it = sg.cbegin(); it != sg.cend(); ++it, ++i) {
-    EXPECT_EQ(it->id(), i);
+    EXPECT_EQ(it->as_parent().id(), i);
     EXPECT_EQ(it->data(), i);
   }
 
@@ -306,7 +315,7 @@ TEST(BasicSubgraphTest, AddNodes) {
   csg.add_node(3);
   i = 3;
   for (auto it = csg.begin(); it != csg.end(); ++it, ++i) {
-    EXPECT_EQ(it->id(), i);
+    EXPECT_EQ(it->as_parent().id(), i);
     EXPECT_EQ(it->data(), i);
   }
 }
@@ -321,9 +330,9 @@ TEST(BasicSubgraphTest, EraseNodes) {
   g.add_node(5);
 
   Subgraph sg(g, { 2, 3 });
-  sg.erase_node(2);
+  sg.erase_node(0);
   EXPECT_EQ(sg.size(), 1);
-  sg.erase_node(2);
+  sg.erase_node_of(2);
   EXPECT_EQ(sg.size(), 1);
 
   sg.add_node(5);
@@ -331,18 +340,18 @@ TEST(BasicSubgraphTest, EraseNodes) {
   EXPECT_EQ(sg.size(), 1);
 
   sg.add_node(5);
-  sg.erase_node(g.node(5));
+  sg.erase_node_of(g.node(5));
   EXPECT_EQ(sg.size(), 1);
 
   int i = 3;
   for (auto it = sg.begin(); it != sg.end(); ++it, ++i) {
-    EXPECT_EQ(it->id(), i);
+    EXPECT_EQ(it->as_parent().id(), i);
     EXPECT_EQ(it->data(), i);
   }
 
   i = 3;
   for (auto it = sg.cbegin(); it != sg.cend(); ++it, ++i) {
-    EXPECT_EQ(it->id(), i);
+    EXPECT_EQ(it->as_parent().id(), i);
     EXPECT_EQ(it->data(), i);
   }
 
@@ -350,7 +359,7 @@ TEST(BasicSubgraphTest, EraseNodes) {
   sg.add_node(2);
   EXPECT_EQ(sg.size(), 3);
 
-  sg.erase_nodes([](int id) { return id > 3; });
+  sg.erase_nodes_of([](int id) { return id > 3; });
   EXPECT_EQ(sg.size(), 2);
   EXPECT_FALSE(sg.contains(5));
 
@@ -358,12 +367,12 @@ TEST(BasicSubgraphTest, EraseNodes) {
   EXPECT_TRUE(sg.empty());
 
   Subgraph csg(std::as_const(g), { 4, 5, 3 });
-  csg.erase_node(5);
+  csg.erase_node_of(5);
   EXPECT_EQ(csg.size(), 2);
 
   i = 3;
   for (auto it = csg.begin(); it != csg.end(); ++it, ++i) {
-    EXPECT_EQ(it->id(), i);
+    EXPECT_EQ(it->as_parent().id(), i);
     EXPECT_EQ(it->data(), i);
   }
 
@@ -371,7 +380,7 @@ TEST(BasicSubgraphTest, EraseNodes) {
   csg.add_node(2);
   EXPECT_EQ(csg.size(), 4);
 
-  csg.erase_nodes([](int id) { return id > 3; });
+  csg.erase_nodes_of([](int id) { return id > 3; });
   EXPECT_EQ(csg.size(), 2);
   EXPECT_FALSE(csg.contains(4));
   EXPECT_FALSE(csg.contains(5));
@@ -391,7 +400,7 @@ TEST(BasicSubgraphTest, UpdateNodes) {
 
   Subgraph sg(g, { 2, 3 });
   for (auto node: sg) {
-    node.data() = node.id() * 2;
+    node.data() = node.as_parent().id() * 2;
   }
 
   for (auto node: g) {
@@ -452,10 +461,11 @@ protected:
 
 TEST_F(AdvancedSubgraphTest, CountDegrees) {
   sg_.add_node(4);
-  sg_.erase_node(10);
+  sg_.erase_node_of(10);
 
   for (auto node: sg_) {
-    EXPECT_EQ(node.degree(), node.id() == 4 ? 0 : 2) << node.id();
+    EXPECT_EQ(node.degree(), node.as_parent().id() == 4 ? 0 : 2)
+        << node.as_parent().id();
   }
 }
 
@@ -535,12 +545,13 @@ TEST_F(AdvancedSubgraphTest, FindEdges) {
     }
 
     for (int i = 0; i < visit_count.size(); ++i) {
-      if (sg.contains(i) && sg.degree(i) > 0) {
+      auto sit = sg.find_node(i);
+      if (sit != sg.end() && sit->degree() > 0) {
         EXPECT_EQ(visit_count[i], 2)
-          << "i: " << i << " callsite: line " << line;
+            << "i: " << i << " callsite: line " << line;
       } else {
         EXPECT_EQ(visit_count[i], 0)
-          << "i: " << i << " callsite: line " << line;
+            << "i: " << i << " callsite: line " << line;
       }
     }
   };
@@ -557,45 +568,62 @@ TEST_F(AdvancedSubgraphTest, FindEdges) {
   EXPECT_EQ(ccedges.size(), 3);
   test_iter(csg_, ccedges, __LINE__);
 }
+
+TEST_F(AdvancedSubgraphTest, AddSubgraph) {
+  sg_.update({ 2, 3, 4 });
+
+  graph_.merge(sg_);
+
+  ASSERT_EQ(graph_.size(), 14);
+  ASSERT_EQ(graph_.num_edges(), 12);
+
+  EXPECT_EQ(graph_.node(11).data(), 2);
+  EXPECT_EQ(graph_.node(12).data(), 3);
+  EXPECT_EQ(graph_.node(13).data(), 4);
+
+  EXPECT_EQ(graph_.find_edge(11, 12)->data(), 107);
+  EXPECT_EQ(graph_.find_edge(12, 13)->data(), 109);
+}
 }  // namespace
 
 template class Subgraph<int, int, false>;
 template class Subgraph<int, int, true>;
 
 namespace internal {
-// NOLINTBEGIN(cppcoreguidelines-macro-usage)
-#define NURI_INSTANTIATE_ALL_TEMPLATES(GT)                                     \
-  template class EdgeWrapper<GT, false>;                                       \
-  template class EdgeWrapper<GT, true>;                                        \
-  template class SubEdgesFinder<GT, false>;                                    \
-  template class SubEdgesFinder<GT, true>;                                     \
-  template class DataIteratorBase<                                             \
-    SubEdgeIterator<SubEdgesFinder<GT, false>, GT, false>,                     \
-    SubEdgesFinder<GT, false>, GT::EdgeRef, false>;                            \
-  template class DataIteratorBase<                                             \
-    SubEdgeIterator<SubEdgesFinder<GT, true>, GT, true>,                       \
-    SubEdgesFinder<GT, true>, GT::ConstEdgeRef, true>;                         \
-  template class SubEdgeIterator<SubEdgesFinder<GT, false>, GT, false>;        \
-  template class SubEdgeIterator<SubEdgesFinder<GT, true>, GT, true>;          \
-                                                                               \
-  template class NodeWrapper<SubgraphOf<GT>, false>;                           \
-  template class NodeWrapper<SubgraphOf<const GT>, true>;                      \
-  template class DataIteratorBase<NodeIterator<SubgraphOf<GT>, false>,         \
-                                  SubgraphOf<GT>,                              \
-                                  NodeWrapper<SubgraphOf<GT>, false>, false>;  \
-  template class DataIteratorBase<                                             \
-    NodeIterator<SubgraphOf<const GT>, true>, SubgraphOf<const GT>,            \
-    NodeWrapper<SubgraphOf<const GT>, true>, true>;                            \
-  template class NodeIterator<SubgraphOf<GT>, false>;                          \
-  template class NodeIterator<SubgraphOf<const GT>, true>;                     \
-                                                                               \
-  template class AdjWrapper<SubgraphOf<GT>, false>;                            \
-  template class AdjWrapper<SubgraphOf<const GT>, true>;                       \
-  template class SubAdjIterator<SubgraphOf<GT>, false>;                        \
-  template class SubAdjIterator<SubgraphOf<const GT>, true>
-
 using GraphType = nuri::Graph<int, int>;
-NURI_INSTANTIATE_ALL_TEMPLATES(GraphType);
+
+template class SubEdgeWrapper<GraphType, false>;
+template class SubEdgeWrapper<GraphType, true>;
+
+template class DataIteratorBase<
+    SubEdgeIterator<SubEdgesFinder<SubgraphOf<GraphType>, false>, true>,
+    SubEdgesFinder<SubgraphOf<GraphType>, false>,
+    SubEdgeWrapper<GraphType, true>, true>;
+template class SubEdgeIterator<SubEdgesFinder<SubgraphOf<GraphType>, false>,
+                               true>;
+
+// Other repetitive instantiations
+// NOLINTBEGIN(cppcoreguidelines-macro-usage)
+#define NURI_INSTANTIATE_ALL_TEMPLATES(SGT, is_const)                          \
+  template class SubEdgesFinder<SGT, is_const>;                                \
+                                                                               \
+  template class DataIteratorBase<                                             \
+      SubEdgeIterator<SubEdgesFinder<SGT, is_const>, is_const>,                \
+      SubEdgesFinder<SGT, is_const>,                                           \
+      SubEdgeWrapper<typename SGT::graph_type, is_const>, is_const>;           \
+  template class SubEdgeIterator<SubEdgesFinder<SGT, is_const>, is_const>;     \
+                                                                               \
+  template class SubNodeWrapper<SGT, is_const>;                                \
+  template class DataIteratorBase<SubNodeIterator<SGT, is_const>, SGT,         \
+                                  SubNodeWrapper<SGT, is_const>, is_const>;    \
+  template class SubNodeIterator<SGT, is_const>;                               \
+                                                                               \
+  template class AdjWrapper<SGT, is_const>;                                    \
+  template class SubAdjIterator<SGT, is_const>
+
+NURI_INSTANTIATE_ALL_TEMPLATES(SubgraphOf<GraphType>, false);
+NURI_INSTANTIATE_ALL_TEMPLATES(SubgraphOf<GraphType>, true);
+NURI_INSTANTIATE_ALL_TEMPLATES(SubgraphOf<const GraphType>, true);
 // NOLINTEND(cppcoreguidelines-macro-usage)
 }  // namespace internal
 }  // namespace nuri

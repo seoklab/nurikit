@@ -398,9 +398,9 @@ TYPED_TEST(AdvancedGraphTest, UpdateEdgeTest) {
   ASSERT_EQ(graph.edge(edges[0]).data(), 1000);
   ASSERT_EQ(graph.edge(edges[1]).data(), 1001);
   static_assert(
-    !std::is_assignable_v<decltype(graph.edge(edges[0]).as_const().data()),
-                          typename Graph::edge_data_type>,
-    "const edge wrapper should not be assignable");
+      !std::is_assignable_v<decltype(graph.edge(edges[0]).as_const().data()),
+                            typename Graph::edge_data_type>,
+      "const edge wrapper should not be assignable");
   ASSERT_EQ(graph.edge(edges[0]).as_const().data(), 1000);
   ASSERT_EQ(graph.edge(edges[1]).as_const().data(), 1001);
 }
@@ -776,6 +776,25 @@ TYPED_TEST(AdvancedGraphTest, FindConnectedTest) {
 
   connected = nuri::connected_components(graph, 1, 2);
   ASSERT_TRUE(connected.empty());
+}
+
+TYPED_TEST(AdvancedGraphTest, MergeOther) {
+  using Graph = nuri::Graph<TypeParam, TypeParam>;
+  Graph &graph = this->graph_;
+
+  Graph other;
+  other.add_node({ 11 });
+  other.add_node({ 12 });
+  other.add_edge(0, 1, 1112);
+
+  graph.merge(other);
+
+  ASSERT_EQ(graph.num_nodes(), 13);
+  ASSERT_EQ(graph.num_edges(), 11);
+
+  EXPECT_EQ(graph.node(11).data(), 11);
+  EXPECT_EQ(graph.node(12).data(), 12);
+  EXPECT_EQ(graph.find_edge(11, 12)->data(), 1112);
 }
 }  // namespace
 

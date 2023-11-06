@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-# Require clangd v15
+# Require clangd v17
 CompileFlags:
   # If these flags are updated, .clang-tidy should be updated as well
   Add:
@@ -26,6 +26,8 @@ CompileFlags:
     - -Wno-unsafe-buffer-usage
   Remove:
     - "-fsanitize=*"
+Index:
+  StandardLibrary: Yes
 Style:
   FullyQualifiedNamespaces: true
 Diagnostics:
@@ -34,3 +36,9 @@ Completion:
   AllScopes: true
 Hover:
   ShowAKA: Yes
+InlayHints:
+  BlockEnd: Yes
+  Designators: Yes
+  Enabled: Yes
+  ParameterNames: Yes
+  DeducedTypes: Yes

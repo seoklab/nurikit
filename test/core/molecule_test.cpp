@@ -380,6 +380,28 @@ TEST_F(MoleculeTest, SanitizeTest) {
   }
 }
 
+TEST_F(MoleculeTest, MergeOther) {
+  Molecule mol;
+
+  {
+    auto mut = mol.mutator();
+    mut.add_atom(pt[6]);
+    mut.add_atom(pt[6]);
+
+    mut.add_bond(0, 1, BondData(kSingleBond));
+  }
+
+  mol_.merge(mol);
+
+  ASSERT_EQ(mol_.num_atoms(), 14);
+  ASSERT_EQ(mol_.num_bonds(), 12);
+
+  EXPECT_EQ(mol_.atom(12).data().atomic_number(), 6);
+  EXPECT_EQ(mol_.atom(13).data().atomic_number(), 6);
+
+  EXPECT_EQ(mol_.find_bond(12, 13)->data().order(), kSingleBond);
+}
+
 TEST(SanitizeTest, FindRingsTest) {
   Molecule mol;
 
