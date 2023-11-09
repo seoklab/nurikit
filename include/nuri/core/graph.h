@@ -500,8 +500,12 @@ namespace internal {
     using EIT = std::conditional_t<is_const, edge_id_type, stored_edge_id_type>;
 
     friend GT;
+
     template <class, bool>
     friend class EdgeIterator;
+
+    template <class, bool>
+    friend class SubEdgesFinder;
 
     EdgeIterator(stored_edge_id_type eid) noexcept: eid_(eid) { }
 
@@ -1651,7 +1655,7 @@ namespace internal {
       return *this;
     }
 
-    int size() const { return static_cast<int>(edges_.size()); }
+    int size() const { return static_cast<int>(edges_.size()) - 1; }
 
     EdgeRef operator[](int idx) const { return edges_[idx]; }
 
@@ -1695,6 +1699,8 @@ namespace internal {
           }
         }
       }
+
+      edges.push_back({ -1, -1, subgraph.parent().edge_end().eid_ });
 
       return edges;
     }
