@@ -284,17 +284,25 @@ void Molecule::update_topology() {
 
 /* MoleculeMutator definitions */
 
+namespace {
+  template <class DT>
+  bool add_bond_impl(Molecule::GraphType &graph, int src, int dst, DT &&bond) {
+    if (graph.find_edge(src, dst) != graph.edge_end()
+        || ABSL_PREDICT_FALSE(src == dst)) {
+      return false;
+    }
+
+    graph.add_edge(src, dst, std::forward<DT>(bond));
+    return true;
+  }
+}  // namespace
+
 bool MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
-  if (ABSL_PREDICT_FALSE(src == dst)) {
-    return false;
-  }
+  return add_bond_impl(mol().graph_, src, dst, bond);
+}
 
-  if (mol().graph_.find_edge(src, dst) != mol().graph_.edge_end()) {
-    return false;
-  }
-
-  mol().graph_.add_edge(src, dst, bond);
-  return true;
+bool MoleculeMutator::add_bond(int src, int dst, BondData &&bond) noexcept {
+  return add_bond_impl(mol().graph_, src, dst, std::move(bond));
 }
 
 void MoleculeMutator::mark_bond_erase(int src, int dst) {

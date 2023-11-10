@@ -530,6 +530,15 @@ TEST_F(MolSubstructureTest, MergeSubstructure) {
 
   EXPECT_EQ(mol_.num_sssr(), 2);
 }
+
+TEST_F(MolSubstructureTest, Properties) {
+  Substructure &sub = mol_.get_substructure(0);
+  sub.add_prop("test", "1");
+  auto it = absl::c_find_if(sub.props(), [](const auto &p) {
+    return p == std::pair<std::string, std::string>("test", "1");
+  });
+  EXPECT_NE(it, sub.props().end());
+}
 }  // namespace
 
 namespace internal {

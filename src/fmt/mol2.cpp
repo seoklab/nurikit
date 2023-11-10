@@ -121,15 +121,18 @@ void parse_mol_block(Molecule &mol, Iter &it, const Iter end) {
   }
 
   auto lit = it->begin();
+
   unsigned int num_atoms;
-  if (!x3::parse(lit, it->end(), parser::mol_nums_line, num_atoms)
-      || lit != it->end()) {
+  bool parser_ok = x3::parse(lit, it->end(), parser::mol_nums_line, num_atoms);
+  if (parser_ok) {
+    mol.reserve(static_cast<int>(num_atoms));
+  }
+
+  if (!parser_ok || lit != it->end()) {
     ABSL_LOG(WARNING) << "Failed to parse mol block line; this file might be "
                          "incompatible with future versions of nurikit";
     ABSL_LOG(INFO) << "The line is: " << *it;
   }
-
-  mol.reserve(static_cast<int>(num_atoms));
 
   for (; !mol2_block_end(++it, end);) { }
 }

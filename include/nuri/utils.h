@@ -12,6 +12,7 @@
 #include <iterator>
 #include <memory>
 #include <numeric>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <vector>
@@ -24,7 +25,6 @@
 namespace nuri {
 namespace internal {
   // Use of std::underlying_type_t on non-enum types is UB until C++20.
-
 #if __cplusplus >= 202002L
   using std::underlying_type;
   using std::underlying_type_t;
@@ -148,6 +148,34 @@ namespace internal {
   template <class F>
   int iround(F x) {
     return static_cast<int>(std::lround(x));
+  }
+
+  // RDKit-compatible key for name
+  constexpr inline std::string_view kNameKey = "_Name";
+
+  template <class PT>
+  auto find_name(PT &props) -> decltype(props.begin()) {
+    return std::find_if(props.begin(), props.end(),
+                        [](const auto &p) { return p.first == kNameKey; });
+  }
+
+  template <class PT>
+  const std::string *get_name(PT &props) {
+    auto it = internal::find_name(props);
+    if (it == props.end()) {
+      return nullptr;
+    }
+    return &it->second;
+  }
+
+  template <class PT>
+  void set_name(PT &props, std::string_view name) {
+    auto it = find_name(props);
+    if (it != props.end()) {
+      it->second = name;
+    } else {
+      props.emplace_back(kNameKey, name);
+    }
   }
 }  // namespace internal
 

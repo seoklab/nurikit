@@ -16,7 +16,7 @@
 rules:
   header-max-length: [2, always, 72]
   body-max-line-length: [2, always, 72]
-  footer-max-line-length: [2, always, 72]
+  footer-max-line-length: [1, always, 100]
   body-leading-blank: [1, always]
   footer-leading-blank: [1, always]
   subject-case:
@@ -31,3 +31,7 @@ rules:
     - 2
     - always
     - [build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test]
+parserPreset:
+  parserOpts:
+    noteKeywords:
+      - '\[.+\]:'
