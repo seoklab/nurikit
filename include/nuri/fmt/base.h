@@ -52,8 +52,20 @@ public:
     return true;
   }
 
+  /**
+   * @brief Get the current molecule.
+   * @return Reference to the current molecule.
+   * @pre Previous call to advance() must return true, otherwise the behavior
+   *      is unspecified.
+   */
   Molecule &current() { return mol_; }
 
+  /**
+   * @brief Get the current molecule.
+   * @return Const reference to the current molecule.
+   * @pre Previous call to advance() must return true, otherwise the behavior
+   *      is unspecified.
+   */
   const Molecule &current() const { return mol_; }
 
 private:
