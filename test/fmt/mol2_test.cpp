@@ -12,7 +12,7 @@
 
 namespace nuri {
 namespace {
-using Mol2Test = internal::FormatTest<Mol2Stream>;
+using Mol2Test = internal::FormatTest<Mol2Reader>;
 
 TEST_F(Mol2Test, BasicParsing) {
   set_test_string(R"mol2(
@@ -170,7 +170,7 @@ NO_CHARGES
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("quaternary ammonium salt", 5, 4);
-    for (auto atom: mol_) {
+    for (auto atom: mol()) {
       EXPECT_EQ(atom.data().hybridization(), constants::kSP3) << atom.id();
 
       if (atom.id() == 1) {
@@ -263,7 +263,7 @@ NO_CHARGES
     int total_fchg = 0, total_hcount = 0, bo_sum = 0;
 
     NURI_FMT_TEST_NEXT_MOL("guadinium-like", 7, 6);
-    for (auto atom: mol_) {
+    for (auto atom: mol()) {
       EXPECT_EQ(atom.data().hybridization(), constants::kSP2) << atom.id();
 
       total_fchg += atom.data().formal_charge();
@@ -272,7 +272,7 @@ NO_CHARGES
       EXPECT_GE(atom.data().implicit_hydrogens(), 0) << atom.id();
     }
 
-    for (auto bond: mol_.bonds()) {
+    for (auto bond: mol().bonds()) {
       bo_sum += bond.data().order();
     }
 
@@ -283,7 +283,7 @@ NO_CHARGES
 
   int total_fchg = 0, total_hcount = 0, bo_sum = 0;
   NURI_FMT_TEST_NEXT_MOL("guadinium", 4, 3);
-  for (auto atom: mol_) {
+  for (auto atom: mol()) {
     EXPECT_EQ(atom.data().hybridization(), constants::kSP2) << atom.id();
 
     total_fchg += atom.data().formal_charge();
@@ -292,7 +292,7 @@ NO_CHARGES
     EXPECT_GE(atom.data().implicit_hydrogens(), 0) << atom.id();
   }
 
-  for (auto bond: mol_.bonds()) {
+  for (auto bond: mol().bonds()) {
     bo_sum += bond.data().order();
   }
 
@@ -368,7 +368,7 @@ NO_CHARGES
     int oxygen_fchg = 0, total_hcount = 0, bo_sum = 0;
 
     NURI_FMT_TEST_NEXT_MOL("nitrobenzene", 9, 9);
-    for (auto atom: mol_) {
+    for (auto atom: mol()) {
       switch (atom.data().atomic_number()) {
       case 8:
         oxygen_fchg += atom.data().formal_charge();
@@ -453,7 +453,7 @@ charge 0
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("sf6", 7, 6);
 
-    for (auto atom: mol_) {
+    for (auto atom: mol()) {
       if (atom.id() == 1) {
         EXPECT_EQ(atom.data().hybridization(), constants::kSP3D2) << atom.id();
       } else {
@@ -464,7 +464,7 @@ charge 0
       EXPECT_EQ(atom.data().implicit_hydrogens(), 0) << atom.id();
     }
 
-    for (auto bond: mol_.bonds()) {
+    for (auto bond: mol().bonds()) {
       EXPECT_EQ(bond.data().order(), constants::kSingleBond);
     }
   }
@@ -544,28 +544,28 @@ GASTEIGER
       EXPECT_EQ(atom.data().formal_charge(), 0) << atom.id();
     };
 
-    test_atom(mol_.atom(0), 3);
-    test_atom(mol_.atom(1), 0);
-    test_atom(mol_.atom(2), 1);
-    test_atom(mol_.atom(3), 0);
+    test_atom(mol().atom(0), 3);
+    test_atom(mol().atom(1), 0);
+    test_atom(mol().atom(2), 1);
+    test_atom(mol().atom(3), 0);
   }
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("carboxylate", 4, 3);
 
-    for (auto atom: mol_) {
+    for (auto atom: mol()) {
       EXPECT_EQ(atom.data().formal_charge(), 0) << atom.id();
     }
 
-    EXPECT_EQ(mol_.atom(0).data().implicit_hydrogens(), 3);
-    EXPECT_EQ(mol_.atom(1).data().implicit_hydrogens(), 0);
+    EXPECT_EQ(mol().atom(0).data().implicit_hydrogens(), 3);
+    EXPECT_EQ(mol().atom(1).data().implicit_hydrogens(), 0);
 
-    EXPECT_TRUE((mol_.atom(2).data().implicit_hydrogens() == 0
-                 && mol_.atom(3).data().implicit_hydrogens() == 1)
-                || (mol_.atom(2).data().implicit_hydrogens() == 1
-                    && mol_.atom(3).data().implicit_hydrogens() == 0))
-        << "2: " << mol_.atom(2).data().implicit_hydrogens()
-        << ", 3: " << mol_.atom(3).data().implicit_hydrogens();
+    EXPECT_TRUE((mol().atom(2).data().implicit_hydrogens() == 0
+                 && mol().atom(3).data().implicit_hydrogens() == 1)
+                || (mol().atom(2).data().implicit_hydrogens() == 1
+                    && mol().atom(3).data().implicit_hydrogens() == 0))
+        << "2: " << mol().atom(2).data().implicit_hydrogens()
+        << ", 3: " << mol().atom(3).data().implicit_hydrogens();
   }
 }
 
@@ -658,13 +658,13 @@ AMBER ff14SB
   )mol2");
 
   auto check_thiazole = [&]() {
-    for (auto atom: mol_) {
+    for (auto atom: mol()) {
       EXPECT_EQ(atom.data().formal_charge(), 0) << "Atom id: " << atom.id();
     }
 
-    EXPECT_TRUE(MoleculeSanitizer(mol_).sanitize_all());
+    EXPECT_TRUE(MoleculeSanitizer(mol()).sanitize_all());
     for (int i: { 1, 2, 3, 9, 10 }) {
-      EXPECT_TRUE(mol_.atom(i).data().is_aromatic());
+      EXPECT_TRUE(mol().atom(i).data().is_aromatic());
     }
   };
 
@@ -733,7 +733,7 @@ charge -1
     int total_fchg = 0, bo_sum = 0;
     NURI_FMT_TEST_NEXT_MOL("Cyclopentadienyl anion", 5, 5);
 
-    for (auto atom: mol_) {
+    for (auto atom: mol()) {
       total_fchg += atom.data().formal_charge();
       EXPECT_EQ(atom.data().implicit_hydrogens(), 1)
           << "Trial: " << i + 1 << ", Atom: " << atom.id();
@@ -797,7 +797,7 @@ NO_CHARGES
     int total_fchg = 0, bo_sum = 0;
     NURI_FMT_TEST_NEXT_MOL("Cyclopentadienyl anion", 5, 5);
 
-    for (auto atom: mol_) {
+    for (auto atom: mol()) {
       total_fchg += atom.data().formal_charge();
       EXPECT_EQ(atom.data().implicit_hydrogens(), 1)
           << "Trial: " << i + 1 << ", Atom: " << atom.id();
@@ -868,7 +868,7 @@ charge 1
     int total_fchg = 0, bo_sum = 0;
     NURI_FMT_TEST_NEXT_MOL("Tropylium cation", 7, 7);
 
-    for (auto atom: mol_) {
+    for (auto atom: mol()) {
       total_fchg += atom.data().formal_charge();
       EXPECT_EQ(atom.data().implicit_hydrogens(), 1)
           << "Trial: " << i + 1 << ", Atom: " << atom.id();
@@ -933,7 +933,7 @@ NO_CHARGES
     int total_fchg = 0, bo_sum = 0;
     NURI_FMT_TEST_NEXT_MOL("Tropylium cation", 7, 7);
 
-    for (auto atom: mol_) {
+    for (auto atom: mol()) {
       total_fchg += atom.data().formal_charge();
       EXPECT_EQ(atom.data().implicit_hydrogens(), 1)
           << "Trial: " << i + 1 << ", Atom: " << atom.id();
@@ -1001,7 +1001,7 @@ charge 0
 
     NURI_FMT_TEST_NEXT_MOL("imidazole", 5, 5);
 
-    for (auto atom: mol_) {
+    for (auto atom: mol()) {
       EXPECT_EQ(atom.data().formal_charge(), 0);
       if (atom.data().atomic_number() == 7) {
         nitrogen_hcount += atom.data().implicit_hydrogens();
@@ -1066,7 +1066,7 @@ GASTEIGER
 
     NURI_FMT_TEST_NEXT_MOL("imidazole", 5, 5);
 
-    for (auto atom: mol_) {
+    for (auto atom: mol()) {
       EXPECT_EQ(atom.data().formal_charge(), 0);
       if (atom.data().atomic_number() == 7) {
         nitrogen_hcount += atom.data().implicit_hydrogens();
@@ -1147,7 +1147,7 @@ NO_CHARGES
 
     NURI_FMT_TEST_NEXT_MOL("indole", 9, 10);
 
-    for (auto atom: mol_) {
+    for (auto atom: mol()) {
       EXPECT_TRUE(atom.data().is_aromatic());
       EXPECT_EQ(atom.data().formal_charge(), 0)
           << "Trial: " << i + 1 << ", Atom: " << atom.id();
@@ -1159,7 +1159,7 @@ NO_CHARGES
 
     EXPECT_EQ(bo_sum, 8 * 4 + 3) << "Trial: " << i + 1;
 
-    for (auto bond: mol_.bonds()) {
+    for (auto bond: mol().bonds()) {
       EXPECT_TRUE(bond.data().is_aromatic());
     }
   }
@@ -1273,10 +1273,10 @@ USER_CHARGES
 
   NURI_FMT_TEST_NEXT_MOL("7yoo-cut", 44, 44);
 
-  EXPECT_TRUE(mol_.has_substructures());
-  ASSERT_EQ(mol_.num_substructures(), 4);
+  EXPECT_TRUE(mol().has_substructures());
+  ASSERT_EQ(mol().num_substructures(), 4);
 
-  for (auto &sub: mol_.substructures()) {
+  for (auto &sub: mol().substructures()) {
     switch (sub.id()) {
     case 1:
       EXPECT_EQ(sub.name(), "ARG3");

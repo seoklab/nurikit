@@ -16,17 +16,17 @@
 
 namespace nuri {
 namespace {
-absl::flat_hash_map<std::string, const MoleculeStreamFactory *> &
-stream_factory_registry() {
-  static absl::flat_hash_map<std::string, const MoleculeStreamFactory *> ret;
+absl::flat_hash_map<std::string, const MoleculeReaderFactory *> &
+reader_factory_registry() {
+  static absl::flat_hash_map<std::string, const MoleculeReaderFactory *> ret;
   return ret;
 }
 }  // namespace
 
-const MoleculeStreamFactory *
-MoleculeStreamFactory::find_factory(std::string_view name) {
-  const absl::flat_hash_map<std::string, const MoleculeStreamFactory *> &reg =
-      stream_factory_registry();
+const MoleculeReaderFactory *
+MoleculeReaderFactory::find_factory(std::string_view name) {
+  const absl::flat_hash_map<std::string, const MoleculeReaderFactory *> &reg =
+      reader_factory_registry();
 
   auto it = reg.find(name);
   if (it == reg.end()) {
@@ -35,12 +35,12 @@ MoleculeStreamFactory::find_factory(std::string_view name) {
   return it->second;
 }
 
-bool MoleculeStreamFactory::register_factory(
-    std::unique_ptr<MoleculeStreamFactory> factory,
+bool MoleculeReaderFactory::register_factory(
+    std::unique_ptr<MoleculeReaderFactory> factory,
     const std::vector<std::string> &names) {
-  static std::vector<std::unique_ptr<MoleculeStreamFactory>> factories;
+  static std::vector<std::unique_ptr<MoleculeReaderFactory>> factories;
 
-  MoleculeStreamFactory *f = factories.emplace_back(std::move(factory)).get();
+  MoleculeReaderFactory *f = factories.emplace_back(std::move(factory)).get();
   // GCOV_EXCL_START
   ABSL_LOG_IF(WARNING, names.empty()) << "Empty name list for factory";
   // GCOV_EXCL_STOP
@@ -52,10 +52,10 @@ bool MoleculeStreamFactory::register_factory(
   return true;
 }
 
-void MoleculeStreamFactory::register_for_name(
-    const MoleculeStreamFactory *factory, std::string_view name) {
+void MoleculeReaderFactory::register_for_name(
+    const MoleculeReaderFactory *factory, std::string_view name) {
   auto [_, inserted] =
-      stream_factory_registry().insert_or_assign(name, factory);
+      reader_factory_registry().insert_or_assign(name, factory);
   // GCOV_EXCL_START
   ABSL_LOG_IF(WARNING, !inserted)
       << "Duplicate factory name: " << name

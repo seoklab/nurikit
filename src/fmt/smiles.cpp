@@ -29,13 +29,21 @@
 #include "nuri/fmt/base.h"
 
 namespace nuri {
-bool SmilesStream::advance() {
-  while (std::getline(*is_, block_) && block_.empty()) { }
-  return *is_ && !block_.empty();
+std::vector<std::string> SmilesReader::next() {
+  std::vector<std::string> ret;
+  ret.emplace_back();
+
+  while (std::getline(*is_, ret[0]) && ret[0].empty()) { }
+
+  if (ret[0].empty()) {
+    ret.clear();
+  }
+
+  return ret;
 }
 
-const bool SmilesStreamFactory::kRegistered =
-    register_stream_factory<SmilesStreamFactory>({ "smi", "smiles" });
+const bool SmilesReaderFactory::kRegistered =
+    register_reader_factory<SmilesReaderFactory>({ "smi", "smiles" });
 
 namespace {
 namespace x3 = boost::spirit::x3;
@@ -454,8 +462,14 @@ void update_implicit_hydrogens(Molecule::MutableAtom atom) {
 
 }  // namespace
 
-Molecule read_smiles(const std::string &smiles) {
+Molecule read_smiles(const std::vector<std::string> &smi_block) {
   Molecule mol;
+  if (smi_block.empty()) {
+    ABSL_LOG(WARNING) << "Empty SMILES block";
+    return mol;
+  }
+
+  const std::string &smiles = smi_block[0];
 
   // Context variables
   MoleculeMutator mutator = mol.mutator();

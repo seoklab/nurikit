@@ -23,16 +23,17 @@ namespace nuri {
  */
 extern Molecule read_mol2(const std::vector<std::string> &mol2);
 
-class Mol2Stream
-    : public DefaultStreamImpl<std::vector<std::string>, read_mol2> {
+class Mol2Reader: public DefaultReaderImpl<read_mol2> {
 public:
-  using DefaultStreamImpl<std::vector<std::string>,
-                          read_mol2>::DefaultStreamImpl;
+  using DefaultReaderImpl<read_mol2>::DefaultReaderImpl;
 
-  bool advance() override;
+  std::vector<std::string> next() override;
+
+private:
+  bool read_mol_header_ = false;
 };
 
-class Mol2StreamFactory: public DefaultStreamFactoryImpl<Mol2Stream> {
+class Mol2ReaderFactory: public DefaultReaderFactoryImpl<Mol2Reader> {
 private:
   static const bool kRegistered ABSL_ATTRIBUTE_UNUSED;
 };
