@@ -6,8 +6,10 @@
 #include "nuri/core/molecule.h"
 
 #include <algorithm>
+#include <utility>
 #include <vector>
 
+#include <absl/algorithm/container.h>
 #include <absl/container/flat_hash_set.h>
 #include <gtest/gtest.h>
 
@@ -400,6 +402,32 @@ TEST_F(MoleculeTest, MergeOther) {
   EXPECT_EQ(mol_.atom(13).data().atomic_number(), 6);
 
   EXPECT_EQ(mol_.find_bond(12, 13)->data().order(), kSingleBond);
+}
+
+TEST_F(MoleculeTest, Properties) {
+  mol_.add_prop("test", "1");
+  auto it = absl::c_find_if(mol_.props(), [](const auto &p) {
+    return p == std::pair<std::string, std::string>("test", "1");
+  });
+  EXPECT_NE(it, mol_.props().end());
+
+  mol_.atom(0).data().add_prop("test", "2");
+  it = absl::c_find_if(mol_.atom(0).data().props(), [](const auto &p) {
+    return p == std::pair<std::string, std::string>("test", "2");
+  });
+  EXPECT_NE(it, mol_.atom(0).data().props().end());
+
+  mol_.bond_begin()->data().add_prop("test", "3");
+  it = absl::c_find_if(mol_.bond_begin()->data().props(), [](const auto &p) {
+    return p == std::pair<std::string, std::string>("test", "3");
+  });
+  EXPECT_NE(it, mol_.bond_begin()->data().props().end());
+
+  mol_.atom(0).data().set_name("test");
+  EXPECT_EQ(*mol_.atom(0).data().find_name(), "test");
+
+  mol_.bond_begin()->data().set_name("test");
+  EXPECT_EQ(*mol_.bond_begin()->data().find_name(), "test");
 }
 
 TEST(SanitizeTest, FindRingsTest) {
