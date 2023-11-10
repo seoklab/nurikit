@@ -26,15 +26,23 @@ done
 
 shift $((OPTIND - 1))
 
-files="$(mktemp)"
-trap 'rm -f "$files"' INT TERM EXIT
+tmpd="$(mktemp -d)"
+trap 'rm -rf "$tmpd"' INT TERM EXIT
 
 if [[ $# -eq 0 ]]; then
 	find include src python/nuri \
-		\( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) -print0 >"$files"
+		\( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) -print0 \
+		>"$tmpd/tidy-checks"
+
+	cp "$tmpd/tidy-checks" "$tmpd/format-checks"
+
+	find test \( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) -print0 \
+		>>"$tmpd/format-checks"
 else
-	printf '%s\0' "$@" >"$files"
+	printf '%s\0' "$@" >"$tmpd/tidy-checks"
+	cp "$tmpd/tidy-checks" "$tmpd/format-checks"
 fi
 
-xargs -0 -P0 -n1 clang-format "${cf_args[@]}" <"$files"
-xargs -0 -P0 -n1 clang-tidy -p build --warnings-as-errors='*' <"$files"
+xargs -0 -P0 -n1 clang-format "${cf_args[@]}" <"$tmpd/format-checks"
+xargs -0 -P0 -n1 clang-tidy -p build --warnings-as-errors='*' \
+	<"$tmpd/tidy-checks"
