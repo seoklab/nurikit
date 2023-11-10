@@ -99,7 +99,7 @@ TEST_F(PeriodicTableTest, IsotopesTest) {
         tol = 1e-2;
       }
       EXPECT_NEAR(total_abundance, 1.0, tol)
-        << elem.atomic_number() << elem.symbol();
+          << elem.atomic_number() << elem.symbol();
 
       tol = 5e-3;
       // Some elements have larger uncertainty
@@ -120,11 +120,11 @@ TEST_F(PeriodicTableTest, IsotopesTest) {
       }
 
       EXPECT_NEAR(elem.atomic_weight(), avg_wt, tol)
-        << elem.atomic_number() << elem.symbol();
+          << elem.atomic_number() << elem.symbol();
       EXPECT_FALSE(elem.radioactive());
     } else {
       EXPECT_EQ(elem.atomic_weight(), elem.major_isotope().mass_number)
-        << elem.atomic_number() << elem.symbol();
+          << elem.atomic_number() << elem.symbol();
       EXPECT_TRUE(elem.radioactive());
     }
   }
@@ -205,7 +205,7 @@ TEST_F(PeriodicTableTest, GroupTest) {
 
   // Check all elements are used
   EXPECT_TRUE(
-    std::all_of(used.begin(), used.end(), [](int x) { return x == 1; }));
+      std::all_of(used.begin(), used.end(), [](int x) { return x == 1; }));
 }
 
 TEST_F(PeriodicTableTest, LanActTest) {
