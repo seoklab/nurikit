@@ -7,6 +7,7 @@
 #define NURI_FMT_SMILES_H_
 
 #include <string>
+#include <vector>
 
 #include <absl/base/attributes.h>
 
@@ -17,18 +18,20 @@ namespace nuri {
 /**
  * @brief Read a single SMILES string and return a molecule.
  *
- * @param smiles the SMILES string to read.
+ * @param smi_block the SMILES block to read. Only the first string is used;
+ *                  the rest are ignored. This is to support the interface
+ *                  of the reader.
  * @return A molecule. On failure, the returned molecule is empty.
  */
-extern Molecule read_smiles(const std::string &smiles);
+extern Molecule read_smiles(const std::vector<std::string> &smi_block);
 
-class SmilesStream: public DefaultStreamImpl<std::string, read_smiles> {
+class SmilesReader: public DefaultReaderImpl<read_smiles> {
 public:
-  using DefaultStreamImpl<std::string, read_smiles>::DefaultStreamImpl;
-  bool advance() override;
+  using DefaultReaderImpl<read_smiles>::DefaultReaderImpl;
+  std::vector<std::string> next() override;
 };
 
-class SmilesStreamFactory: public DefaultStreamFactoryImpl<SmilesStream> {
+class SmilesReaderFactory: public DefaultReaderFactoryImpl<SmilesReader> {
 private:
   static const bool kRegistered ABSL_ATTRIBUTE_UNUSED;
 };

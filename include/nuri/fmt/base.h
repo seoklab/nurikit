@@ -6,16 +6,13 @@
 #ifndef NURI_FMT_BASE_H_
 #define NURI_FMT_BASE_H_
 
-#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <istream>
-#include <iterator>
 #include <memory>
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <vector>
 
 #include <absl/base/attributes.h>
@@ -26,103 +23,55 @@
 #include "nuri/utils.h"
 
 namespace nuri {
-class MoleculeStream;
+class MoleculeReader;
 
-template <class Stream = MoleculeStream>
-class MoleculeStreamIterator {
-  static_assert(!std::is_const_v<Stream>,
-                "Stream must not be const-qualified.");
-
-public:
-  using iterator_category = std::input_iterator_tag;
-  using value_type = Molecule;
-  using difference_type = std::ptrdiff_t;
-  using pointer = value_type *;
-  using reference = value_type &;
-
-  MoleculeStreamIterator(): stream_(nullptr), end_(true) { }
-  MoleculeStreamIterator(Stream &stream)
-      : stream_(&stream), end_(!stream_->advance()) { }
-  MoleculeStreamIterator(const MoleculeStreamIterator &other) = default;
-  MoleculeStreamIterator &
-  operator=(const MoleculeStreamIterator &other) = default;
-  MoleculeStreamIterator(MoleculeStreamIterator &&other) noexcept = default;
-  MoleculeStreamIterator &
-  operator=(MoleculeStreamIterator &&other) noexcept = default;
-  ~MoleculeStreamIterator() noexcept = default;
-
-  Molecule &operator*() { return mol_; }
-  const Molecule &operator*() const { return mol_; }
-
-  Molecule *operator->() { return &mol_; }
-  const Molecule *operator->() const { return &mol_; }
-
-  MoleculeStreamIterator &operator++() {
-    end_ = !stream_->advance();
-    if (!end_) {
-      mol_ = stream_->current();
-    }
-    return *this;
-  }
-
-  MoleculeStreamIterator operator++(int) {
-    MoleculeStreamIterator tmp(*this);
-    ++(*this);
-    return tmp;
-  }
-
-  bool operator==(const MoleculeStreamIterator &other) const {
-    return (end_ && other.end_)
-           || (!end_ && !other.end_ && stream_ == other.stream_);
-  }
-
-  bool operator!=(const MoleculeStreamIterator &other) const {
-    return !(*this == other);
-  }
-
-private:
-  Stream *stream_;
-  Molecule mol_;
-  bool end_;
-};
-
+template <class Reader = MoleculeReader>
 class MoleculeStream {
 public:
-  MoleculeStream() = default;
+  MoleculeStream(Reader &reader): reader_(&reader) { }
+
   MoleculeStream(const MoleculeStream &) = delete;
   MoleculeStream &operator=(const MoleculeStream &) = delete;
   MoleculeStream(MoleculeStream &&) noexcept = default;
   MoleculeStream &operator=(MoleculeStream &&) noexcept = default;
-  virtual ~MoleculeStream() noexcept = default;
+  ~MoleculeStream() noexcept = default;
 
   /**
    * @brief Advance the stream to the next molecule.
+   *
    * @return true if the stream is not at the end, false otherwise.
+   * @note If this function returns false, the current molecule is not changed.
    */
-  ABSL_MUST_USE_RESULT virtual bool advance() = 0;
+  ABSL_MUST_USE_RESULT bool advance() {
+    block_ = reader_->next();
+    if (block_.empty()) {
+      return false;
+    }
+
+    mol_ = reader_->parse(block_);
+    return true;
+  }
 
   /**
    * @brief Get the current molecule.
-   * @return The current molecule.
-   * @pre Previous call to advance() must return true, otherwise an empty
-   *      molecule is returned.
-   * @note The returned molecule will be empty if the stream is at the end, or
-   *       parsing of the current molecule failed.
+   * @return Reference to the current molecule.
+   * @pre Previous call to advance() must return true, otherwise the behavior
+   *      is unspecified.
    */
-  virtual Molecule current() const = 0;
+  Molecule &current() { return mol_; }
 
   /**
-   * @brief Get the begin iterator of the stream.
-   * @return The begin iterator of the stream.
+   * @brief Get the current molecule.
+   * @return Const reference to the current molecule.
+   * @pre Previous call to advance() must return true, otherwise the behavior
+   *      is unspecified.
    */
-  MoleculeStreamIterator<> begin() { return MoleculeStreamIterator<>(*this); }
+  const Molecule &current() const { return mol_; }
 
-  /**
-   * @brief Get the past-the-end iterator of the stream.
-   * @return The past-the-end iterator of the stream.
-   */
-  // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-  MoleculeStreamIterator<> end() { return MoleculeStreamIterator<>(); }
+private:
+  Reader *reader_;
+  std::vector<std::string> block_;
+  Molecule mol_;
 };
 
 template <class Stream>
@@ -133,45 +82,72 @@ Stream &operator>>(Stream &stream, Molecule &mol) {
   return stream;
 }
 
-template <class Block, Molecule (*parser)(const Block &)>
-class DefaultStreamImpl: public MoleculeStream {
+class MoleculeReader {
 public:
-  DefaultStreamImpl() = default;
-  DefaultStreamImpl(std::istream &is): is_(&is) { }
+  MoleculeReader() = default;
+  MoleculeReader(const MoleculeReader &) = delete;
+  MoleculeReader &operator=(const MoleculeReader &) = delete;
+  MoleculeReader(MoleculeReader &&) noexcept = default;
+  MoleculeReader &operator=(MoleculeReader &&) noexcept = default;
+  virtual ~MoleculeReader() noexcept = default;
 
-  DefaultStreamImpl(const DefaultStreamImpl &) = delete;
-  DefaultStreamImpl &operator=(const DefaultStreamImpl &) = delete;
-  DefaultStreamImpl(DefaultStreamImpl &&) noexcept = default;
-  DefaultStreamImpl &operator=(DefaultStreamImpl &&) noexcept = default;
+  /**
+   * @brief Advance the reader to the next molecule.
+   * @return The next block containing the next molecule. If the stream is at
+   *         the end, an empty block is returned.
+   */
+  virtual std::vector<std::string> next() = 0;
 
-  ~DefaultStreamImpl() noexcept override = default;
+  /**
+   * @brief Parse the current block and return the molecule.
+   * @param block The block to parse.
+   * @return The current molecule.
+   * @note The returned molecule will be empty if the block is empty.
+   */
+  virtual Molecule parse(const std::vector<std::string> &block) const = 0;
 
-  Molecule current() const override { return parser(block_); }
+  MoleculeStream<MoleculeReader> stream() { return { *this }; }
+};
+
+template <auto parser>
+class DefaultReaderImpl: public MoleculeReader {
+public:
+  DefaultReaderImpl() = default;
+  DefaultReaderImpl(std::istream &is): is_(&is) { }
+
+  DefaultReaderImpl(const DefaultReaderImpl &) = delete;
+  DefaultReaderImpl &operator=(const DefaultReaderImpl &) = delete;
+  DefaultReaderImpl(DefaultReaderImpl &&) noexcept = default;
+  DefaultReaderImpl &operator=(DefaultReaderImpl &&) noexcept = default;
+
+  ~DefaultReaderImpl() noexcept override = default;
+
+  Molecule parse(const std::vector<std::string> &block) const final {
+    return parser(block);
+  }
 
 protected:
   // NOLINTBEGIN(*-non-private-member-variables-in-classes)
   std::istream *is_;
-  Block block_;
   // NOLINTEND(*-non-private-member-variables-in-classes)
 };
 
-class MoleculeStreamFactory {
+class MoleculeReaderFactory {
 public:
-  MoleculeStreamFactory() = default;
-  MoleculeStreamFactory(const MoleculeStreamFactory &) = default;
-  MoleculeStreamFactory &operator=(const MoleculeStreamFactory &) = default;
-  MoleculeStreamFactory(MoleculeStreamFactory &&) noexcept = default;
-  MoleculeStreamFactory &operator=(MoleculeStreamFactory &&) noexcept = default;
-  virtual ~MoleculeStreamFactory() noexcept = default;
+  MoleculeReaderFactory() = default;
+  MoleculeReaderFactory(const MoleculeReaderFactory &) = default;
+  MoleculeReaderFactory &operator=(const MoleculeReaderFactory &) = default;
+  MoleculeReaderFactory(MoleculeReaderFactory &&) noexcept = default;
+  MoleculeReaderFactory &operator=(MoleculeReaderFactory &&) noexcept = default;
+  virtual ~MoleculeReaderFactory() noexcept = default;
 
   /**
-   * @brief Create a new stream from the given file.
+   * @brief Create a new reader from the given istream object.
    * @param is The input stream to read from.
-   * @return A new stream instance.
-   * @note The input stream must survive until the returned stream is
-   *       destructed.
+   * @return A new reader instance.
+   * @note The istream must survive until the returned reader is destructed.
    */
-  virtual std::unique_ptr<MoleculeStream>
+  virtual std::unique_ptr<MoleculeReader>
   from_stream(std::istream &is) const = 0;
 
   /**
@@ -180,7 +156,7 @@ public:
    * @return A pointer to the factory instance for the given format name, or
    *         nullptr if no factory is registered for the given name.
    */
-  static const MoleculeStreamFactory *find_factory(std::string_view name);
+  static const MoleculeReaderFactory *find_factory(std::string_view name);
 
   /**
    * @brief Register the factory for the given format name(s).
@@ -199,7 +175,7 @@ public:
    * @note This function is not thread-safe. Some synchronization mechanism
    *       must be used to call register_*() functions from multiple threads.
    */
-  static bool register_factory(std::unique_ptr<MoleculeStreamFactory> factory,
+  static bool register_factory(std::unique_ptr<MoleculeReaderFactory> factory,
                                const std::vector<std::string> &names);
 
   /**
@@ -222,149 +198,129 @@ public:
   }
 
 private:
-  static void register_for_name(const MoleculeStreamFactory *factory,
+  static void register_for_name(const MoleculeReaderFactory *factory,
                                 std::string_view name);
 };
 
-template <class StreamFactoryImpl>
-bool register_stream_factory(const std::vector<std::string> &names) {
-  return MoleculeStreamFactory::register_factory(
-      std::make_unique<StreamFactoryImpl>(), names);
+template <class ReaderFactoryImpl>
+bool register_reader_factory(const std::vector<std::string> &names) {
+  return MoleculeReaderFactory::register_factory(
+      std::make_unique<ReaderFactoryImpl>(), names);
 }
 
-template <class MoleculeStreamImpl>
-class DefaultStreamFactoryImpl: public MoleculeStreamFactory {
+template <class MoleculeReaderImpl>
+class DefaultReaderFactoryImpl: public MoleculeReaderFactory {
 public:
-  std::unique_ptr<MoleculeStream> from_stream(std::istream &is) const override {
-    return std::make_unique<MoleculeStreamImpl>(is);
+  std::unique_ptr<MoleculeReader> from_stream(std::istream &is) const final {
+    return std::make_unique<MoleculeReaderImpl>(is);
   }
 };
 
-template <class SourceStream, class Stream = MoleculeStream>
-class MoleculeStreamWrapper {
+template <class SourceStream, class Reader = MoleculeReader>
+class MoleculeReaderWrapper {
 public:
-  using iterator = MoleculeStreamIterator<MoleculeStreamWrapper>;
-
   template <class... Args>
-  MoleculeStreamWrapper(std::string_view fmt, Args &&...args)
+  MoleculeReaderWrapper(std::string_view fmt, Args &&...args)
       : is_(std::forward<Args>(args)...) {
-    const MoleculeStreamFactory *factory =
-        MoleculeStreamFactory::find_factory(fmt);
+    const MoleculeReaderFactory *factory =
+        MoleculeReaderFactory::find_factory(fmt);
 
     if (ABSL_PREDICT_FALSE(factory == nullptr)) {
       ABSL_LOG(WARNING) << "No factory found for " << fmt;
       return;
     }
 
-    stream_ = static_unique_ptr_cast<Stream>(factory->from_stream(is_));
+    reader_ = static_unique_ptr_cast<Reader>(factory->from_stream(is_));
   }
 
   /**
    * @brief Advance the stream to the next molecule.
-   * @return true if the stream is not at the end, false otherwise.
+   * @return The next block containing the next molecule. If the stream is at
+   *         the end, an empty block is returned.
    */
-  ABSL_MUST_USE_RESULT bool advance() { return stream_->advance(); }
+  std::vector<std::string> next() { return reader_->next(); }
 
   /**
-   * @brief Get the current molecule.
+   * @brief Parse the current block and return the molecule.
+   * @param block The block to parse.
    * @return The current molecule.
-   * @pre Previous call to advance() must return true, otherwise an empty
-   *      molecule is returned.
+   * @note The returned molecule will be empty if the block is empty.
    */
-  Molecule current() const { return stream_->current(); }
+  Molecule parse(const std::vector<std::string> &block) const {
+    return reader_->parse(block);
+  }
 
-  /**
-   * @brief Get the begin iterator of the stream.
-   * @return The begin iterator of the stream.
-   */
-  iterator begin() { return iterator(*this); }
+  MoleculeStream<Reader> stream() { return { *reader_ }; }
 
-  /**
-   * @brief Get the past-the-end iterator of the stream.
-   * @return The past-the-end iterator of the stream.
-   */
-  // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-  iterator end() { return iterator(); }
-
-  operator bool() const { return is_ && stream_; }
+  operator bool() const { return is_ && reader_; }
 
 private:
   SourceStream is_;
-  std::unique_ptr<Stream> stream_;
+  std::unique_ptr<Reader> reader_;
 };
 
-template <class Stream>
-class MoleculeStreamWrapper<std::ifstream, Stream> {
+template <class Reader>
+class MoleculeReaderWrapper<std::ifstream, Reader> {
 public:
-  using iterator = MoleculeStreamIterator<MoleculeStreamWrapper>;
-
-  explicit MoleculeStreamWrapper(const std::filesystem::path &path): is_(path) {
+  explicit MoleculeReaderWrapper(const std::filesystem::path &path): is_(path) {
     const std::filesystem::path full_ext = path.extension();
     const std::string_view ext = extension_no_dot(full_ext);
 
-    const MoleculeStreamFactory *factory =
-        MoleculeStreamFactory::find_factory(ext);
+    const MoleculeReaderFactory *factory =
+        MoleculeReaderFactory::find_factory(ext);
 
     if (ABSL_PREDICT_FALSE(factory == nullptr)) {
       ABSL_LOG(WARNING) << "No factory found for " << ext;
       return;
     }
 
-    stream_ = static_unique_ptr_cast<Stream>(factory->from_stream(is_));
+    reader_ = static_unique_ptr_cast<Reader>(factory->from_stream(is_));
   }
 
-  MoleculeStreamWrapper(std::string_view fmt, const std::filesystem::path &path)
+  MoleculeReaderWrapper(std::string_view fmt, const std::filesystem::path &path)
       : is_(path) {
-    const MoleculeStreamFactory *factory =
-        MoleculeStreamFactory::find_factory(fmt);
+    const MoleculeReaderFactory *factory =
+        MoleculeReaderFactory::find_factory(fmt);
 
     if (ABSL_PREDICT_FALSE(factory == nullptr)) {
       ABSL_LOG(WARNING) << "No factory found for " << fmt;
       return;
     }
 
-    stream_ = static_unique_ptr_cast<Stream>(factory->from_stream(is_));
+    reader_ = static_unique_ptr_cast<Reader>(factory->from_stream(is_));
   }
 
   /**
    * @brief Advance the stream to the next molecule.
-   * @return true if the stream is not at the end, false otherwise.
+   * @return The next block containing the next molecule. If the stream is at
+   *         the end, an empty block is returned.
    */
-  ABSL_MUST_USE_RESULT bool advance() { return stream_->advance(); }
+  std::vector<std::string> next() { return reader_->next(); }
 
   /**
-   * @brief Get the current molecule.
+   * @brief Parse the current block and return the molecule.
+   * @param block The block to parse.
    * @return The current molecule.
-   * @pre Previous call to advance() must return true, otherwise an empty
-   *      molecule is returned.
+   * @note The returned molecule will be empty if the block is empty.
    */
-  Molecule current() const { return stream_->current(); }
+  Molecule parse(const std::vector<std::string> &block) const {
+    return reader_->parse(block);
+  }
 
-  /**
-   * @brief Get the begin iterator of the stream.
-   * @return The begin iterator of the stream.
-   */
-  iterator begin() { return iterator(*this); }
+  MoleculeStream<Reader> stream() { return { *reader_ }; }
 
-  /**
-   * @brief Get the past-the-end iterator of the stream.
-   * @return The past-the-end iterator of the stream.
-   */
-  // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-  iterator end() { return iterator(); }
-
-  operator bool() const { return is_ && stream_; }
+  operator bool() const { return is_ && reader_; }
 
 private:
   std::ifstream is_;
-  std::unique_ptr<Stream> stream_;
+  std::unique_ptr<Reader> reader_;
 };
 
-template <class Stream = MoleculeStream>
-using FileMoleculeStream = MoleculeStreamWrapper<std::ifstream, Stream>;
+template <class Reader = MoleculeReader>
+using FileMoleculeReader = MoleculeReaderWrapper<std::ifstream, Reader>;
 
-template <class Stream = MoleculeStream>
-using StringMoleculeStream = MoleculeStreamWrapper<std::istringstream, Stream>;
+template <class Reader = MoleculeReader>
+using StringMoleculeReader = MoleculeReaderWrapper<std::istringstream, Reader>;
 }  // namespace nuri
 
 #endif /* NURI_FMT_BASE_H_ */

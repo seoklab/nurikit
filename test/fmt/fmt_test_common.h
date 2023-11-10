@@ -14,40 +14,38 @@
 #include <gtest/gtest.h>
 
 #include "nuri/core/molecule.h"
+#include "nuri/fmt/base.h"
 
 #define NURI_FMT_TEST_PARSE_FAIL()                                             \
   do {                                                                         \
     ASSERT_TRUE(this->advance()) << "Molecule index: " << this->idx_;          \
-    this->mol_ = this->ms_.current();                                          \
-    EXPECT_TRUE(this->mol_.empty()) << "Molecule index: " << this->idx_;       \
+    EXPECT_TRUE(this->mol().empty()) << "Molecule index: " << this->idx_;      \
   } while (false)
 
 #define NURI_FMT_TEST_ERROR_MOL()                                              \
   do {                                                                         \
     ASSERT_TRUE(this->advance()) << "Molecule index: " << this->idx_;          \
-    this->mol_ = this->ms_.current();                                          \
-    MoleculeSanitizer sanitizer(this->mol_);                                   \
+    MoleculeSanitizer sanitizer(this->mol());                                  \
     EXPECT_FALSE(sanitizer.sanitize_all())                                     \
-      << "Molecule index: " << this->idx_;                                     \
+        << "Molecule index: " << this->idx_;                                   \
   } while (false)
 
 #define NURI_FMT_TEST_NEXT_MOL(mol_name, natoms, nbonds)                       \
   do {                                                                         \
     ASSERT_TRUE(this->advance()) << "Molecule index: " << this->idx_;          \
-    this->mol_ = this->ms_.current();                                          \
                                                                                \
-    MoleculeSanitizer sanitizer(this->mol_);                                   \
+    MoleculeSanitizer sanitizer(this->mol());                                  \
     EXPECT_TRUE(sanitizer.sanitize_all()) << "Molecule index: " << this->idx_; \
                                                                                \
-    EXPECT_EQ(this->mol_.name(), mol_name)                                     \
-      << "Molecule index: " << this->idx_;                                     \
-    EXPECT_EQ(this->mol_.num_atoms(), natoms)                                  \
-      << "Molecule index: " << this->idx_;                                     \
-    EXPECT_EQ(this->mol_.num_bonds(), nbonds)                                  \
-      << "Molecule index: " << this->idx_;                                     \
+    EXPECT_EQ(this->mol().name(), mol_name)                                    \
+        << "Molecule index: " << this->idx_;                                   \
+    EXPECT_EQ(this->mol().num_atoms(), natoms)                                 \
+        << "Molecule index: " << this->idx_;                                   \
+    EXPECT_EQ(this->mol().num_bonds(), nbonds)                                 \
+        << "Molecule index: " << this->idx_;                                   \
                                                                                \
     if (print_) {                                                              \
-      internal::print_mol(this->mol_);                                         \
+      internal::print_mol(this->mol());                                        \
     }                                                                          \
   } while (false)
 
@@ -65,13 +63,13 @@ inline void print_mol(const Molecule &mol) {
   std::cout << "---\n";
 }
 
-template <class MoleculeStream>
+template <class MoleculeReader>
 class FormatTest: public ::testing::Test {
 public:
   // NOLINTBEGIN(readability-identifier-naming)
   std::istringstream iss_;
-  MoleculeStream ms_;
-  Molecule mol_;
+  MoleculeReader mr_ = { iss_ };
+  MoleculeStream<MoleculeReader> ms_ = { mr_ };
   int idx_;
   bool print_;
   // NOLINTEND(readability-identifier-naming)
@@ -83,10 +81,11 @@ public:
     return ms_.advance();
   }
 
+  Molecule &mol() { return ms_.current(); }
+
 protected:
   void SetUp() override {
     iss_.clear();
-    ms_ = MoleculeStream(iss_);
     idx_ = 0;
     print_ = false;
   }

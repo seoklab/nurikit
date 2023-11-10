@@ -39,7 +39,9 @@
 
 namespace nuri {
 namespace {
-void advance_first(std::istream &is, std::vector<std::string> &block) {
+std::vector<std::string> advance_header_unread(std::istream &is,
+                                               bool &read_mol_header) {
+  std::vector<std::string> block;
   bool first = true;
 
   std::string line;
@@ -52,22 +54,27 @@ void advance_first(std::istream &is, std::vector<std::string> &block) {
       if (first) {
         first = false;
       } else {
+        read_mol_header = true;
         break;
       }
     }
 
     block.push_back(std::move(line));
   }
+
+  return block;
 }
 
-void advance_next(std::istream &is, std::vector<std::string> &block) {
+std::vector<std::string> advance_header_read(std::istream &is,
+                                             bool &read_mol_header) {
+  std::vector<std::string> block { "@<TRIPOS>MOLECULE" };
   std::string line;
 
-  block.clear();
-  block.push_back("@<TRIPOS>MOLECULE");
+  while (std::getline(is, line)) {
+    if (absl::StartsWith(line, "@<TRIPOS>MOLECULE")) {
+      return block;
+    }
 
-  while (std::getline(is, line)
-         && !absl::StartsWith(line, "@<TRIPOS>MOLECULE")) {
     if (absl::StartsWith(line, "#")) {
       continue;
     }
@@ -75,23 +82,21 @@ void advance_next(std::istream &is, std::vector<std::string> &block) {
     block.push_back(std::move(line));
   }
 
-  if (!is && block.size() == 1) {
-    block.clear();
-  }
+  read_mol_header = false;
+  return block;
 }
 }  // namespace
 
-bool Mol2Stream::advance() {
-  if (block_.empty()) {
-    advance_first(*is_, block_);
-  } else {
-    advance_next(*is_, block_);
+std::vector<std::string> Mol2Reader::next() {
+  if (read_mol_header_) {
+    return advance_header_read(*is_, read_mol_header_);
   }
-  return !block_.empty();
+
+  return advance_header_unread(*is_, read_mol_header_);
 }
 
-const bool Mol2StreamFactory::kRegistered =
-    register_stream_factory<Mol2StreamFactory>({ "mol2" });
+const bool Mol2ReaderFactory::kRegistered =
+    register_reader_factory<Mol2ReaderFactory>({ "mol2" });
 
 namespace {
 namespace x3 = boost::spirit::x3;
