@@ -214,6 +214,24 @@ public:
 
   int formal_charge() const { return formal_charge_; }
 
+  const std::string *find_name() const { return internal::get_name(props_); }
+
+  void set_name(std::string_view name) { internal::set_name(props_, name); }
+
+  void add_prop(const std::string &key, const std::string &val) {
+    props_.emplace_back(key, val);
+  }
+
+  void add_prop(std::string &&key, std::string &&val) noexcept {
+    props_.emplace_back(std::move(key), std::move(val));
+  }
+
+  std::vector<std::pair<std::string, std::string>> &props() { return props_; }
+
+  const std::vector<std::pair<std::string, std::string>> &props() const {
+    return props_;
+  }
+
 private:
   enum class AtomFlags : std::uint32_t {
     kAromatic = 0x1,
@@ -232,6 +250,7 @@ private:
   AtomFlags flags_;
   double partial_charge_;
   const Isotope *isotope_;
+  std::vector<std::pair<std::string, std::string>> props_;
 };
 
 inline bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept {
@@ -317,6 +336,24 @@ public:
    */
   double &length() { return length_; }
 
+  const std::string *find_name() const { return internal::get_name(props_); }
+
+  void set_name(std::string_view name) { internal::set_name(props_, name); }
+
+  void add_prop(const std::string &key, const std::string &val) {
+    props_.emplace_back(key, val);
+  }
+
+  void add_prop(std::string &&key, std::string &&val) noexcept {
+    props_.emplace_back(std::move(key), std::move(val));
+  }
+
+  std::vector<std::pair<std::string, std::string>> &props() { return props_; }
+
+  const std::vector<std::pair<std::string, std::string>> &props() const {
+    return props_;
+  }
+
 private:
   enum class BondFlags : std::uint32_t {
     kRing = 0x1,
@@ -328,6 +365,7 @@ private:
   constants::BondOrder order_;
   BondFlags flags_;
   double length_;
+  std::vector<std::pair<std::string, std::string>> props_;
 };
 
 class Molecule;
@@ -493,6 +531,20 @@ namespace internal {
 
     int id() const { return id_; }
 
+    void add_prop(const std::string &key, const std::string &val) {
+      props_.emplace_back(key, val);
+    }
+
+    void add_prop(std::string &&key, std::string &&val) noexcept {
+      props_.emplace_back(std::move(key), std::move(val));
+    }
+
+    std::vector<std::pair<std::string, std::string>> &props() { return props_; }
+
+    const std::vector<std::pair<std::string, std::string>> &props() const {
+      return props_;
+    }
+
   private:
     friend Molecule;
 
@@ -500,6 +552,7 @@ namespace internal {
 
     std::string name_;
     int id_;
+    std::vector<std::pair<std::string, std::string>> props_;
   };
 
   template <class FT, bool is_const>
@@ -1342,6 +1395,20 @@ public:
     }
   }
 
+  void add_prop(const std::string &key, const std::string &val) {
+    props_.emplace_back(key, val);
+  }
+
+  void add_prop(std::string &&key, std::string &&val) noexcept {
+    props_.emplace_back(std::move(key), std::move(val));
+  }
+
+  std::vector<std::pair<std::string, std::string>> &props() { return props_; }
+
+  const std::vector<std::pair<std::string, std::string>> &props() const {
+    return props_;
+  }
+
 private:
   Molecule(GraphType &&graph, std::vector<MatrixX3d> &&conformers) noexcept
       : graph_(std::move(graph)), conformers_(std::move(conformers)) { }
@@ -1352,6 +1419,7 @@ private:
   GraphType graph_;
   std::vector<MatrixX3d> conformers_;
   std::string name_;
+  std::vector<std::pair<std::string, std::string>> props_;
 
   std::vector<Substructure> substructs_;
 
@@ -1408,6 +1476,15 @@ public:
 
   /**
    * @brief Add an atom to the molecule.
+   * @param atom The data of the atom to add.
+   * @return The index of the added atom.
+   */
+  int add_atom(AtomData &&atom) noexcept {
+    return mol().graph_.add_node(std::move(atom));
+  }
+
+  /**
+   * @brief Add an atom to the molecule.
    * @param atom An atom to add.
    * @return The index of the added atom.
    */
@@ -1430,6 +1507,16 @@ public:
    * @note The behavior is undefined if any of the atom indices is out of range.
    */
   bool add_bond(int src, int dst, const BondData &bond);
+
+  /**
+   * @brief Add a bond to the molecule.
+   * @param src Index of the source atom of the bond.
+   * @param dst Index of the destination atom of the bond.
+   * @param bond The data of the bond to add.
+   * @return `true` if the bond was added, `false` if the bond already exists.
+   * @note The behavior is undefined if any of the atom indices is out of range.
+   */
+  bool add_bond(int src, int dst, BondData &&bond) noexcept;
 
   /**
    * @brief Add a bond to the molecule.
