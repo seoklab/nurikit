@@ -29,17 +29,14 @@
 #include "nuri/fmt/base.h"
 
 namespace nuri {
-std::vector<std::string> SmilesReader::next() {
-  std::vector<std::string> ret;
-  ret.emplace_back();
-
-  while (std::getline(*is_, ret[0]) && ret[0].empty()) { }
-
-  if (ret[0].empty()) {
-    ret.clear();
+bool SmilesReader::getnext(std::vector<std::string> &block) {
+  if (block.empty()) {
+    block.emplace_back();
   }
 
-  return ret;
+  std::string &smiles = block[0];
+  while (std::getline(*is_, smiles) && smiles.empty()) { }
+  return static_cast<bool>(*is_);
 }
 
 const bool SmilesReaderFactory::kRegistered =

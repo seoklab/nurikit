@@ -27,7 +27,7 @@ class Mol2Reader: public DefaultReaderImpl<read_mol2> {
 public:
   using DefaultReaderImpl<read_mol2>::DefaultReaderImpl;
 
-  std::vector<std::string> next() override;
+  bool getnext(std::vector<std::string> &block) override;
 
 private:
   bool read_mol_header_ = false;
