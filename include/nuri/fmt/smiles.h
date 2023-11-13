@@ -28,7 +28,7 @@ extern Molecule read_smiles(const std::vector<std::string> &smi_block);
 class SmilesReader: public DefaultReaderImpl<read_smiles> {
 public:
   using DefaultReaderImpl<read_smiles>::DefaultReaderImpl;
-  std::vector<std::string> next() override;
+  bool getnext(std::vector<std::string> &block) override;
 };
 
 class SmilesReaderFactory: public DefaultReaderFactoryImpl<SmilesReader> {

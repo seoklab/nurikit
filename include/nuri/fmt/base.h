@@ -43,8 +43,7 @@ public:
    * @note If this function returns false, the current molecule is not changed.
    */
   ABSL_MUST_USE_RESULT bool advance() {
-    block_ = reader_->next();
-    if (block_.empty()) {
+    if (!reader_->getnext(block_)) {
       return false;
     }
 
@@ -96,7 +95,28 @@ public:
    * @return The next block containing the next molecule. If the stream is at
    *         the end, an empty block is returned.
    */
-  virtual std::vector<std::string> next() = 0;
+  std::vector<std::string> next() {
+    std::vector<std::string> block;
+    if (!getnext(block)) {
+      block.clear();
+    }
+    return block;
+  }
+
+  /**
+   * @brief Advance the reader to the next molecule.
+   * @param block The block containing the next molecule. If true is returned,
+   *              pre-existing contents of the block are discarded. Otherwise,
+   *              the block is in a valid but unspecified state.
+   * @return true if the reader has successfully advanced to the next molecule,
+   *         false otherwise.
+   * @note The name of this method is loosely based on the std::getline()
+   *       function due to its similar semantics. The name also prevents
+   *       name collision with the (non-virtual) next() method when subclasses
+   *       override this method.
+   */
+  ABSL_MUST_USE_RESULT virtual bool
+  getnext(std::vector<std::string> &block) = 0;
 
   /**
    * @brief Parse the current block and return the molecule.
@@ -241,6 +261,18 @@ public:
   std::vector<std::string> next() { return reader_->next(); }
 
   /**
+   * @brief Advance the reader to the next molecule.
+   * @param block The block containing the next molecule. If true is returned,
+   *              pre-existing contents of the block are discarded. Otherwise,
+   *              the block is in a valid but unspecified state.
+   * @return true if the reader has successfully advanced to the next molecule,
+   *         false otherwise.
+   */
+  bool getnext(std::vector<std::string> &block) {
+    return reader_->getnext(block);
+  }
+
+  /**
    * @brief Parse the current block and return the molecule.
    * @param block The block to parse.
    * @return The current molecule.
@@ -296,6 +328,18 @@ public:
    *         the end, an empty block is returned.
    */
   std::vector<std::string> next() { return reader_->next(); }
+
+  /**
+   * @brief Advance the reader to the next molecule.
+   * @param block The block containing the next molecule. If true is returned,
+   *              pre-existing contents of the block are discarded. Otherwise,
+   *              the block is in a valid but unspecified state.
+   * @return true if the reader has successfully advanced to the next molecule,
+   *         false otherwise.
+   */
+  bool getnext(std::vector<std::string> &block) {
+    return reader_->getnext(block);
+  }
 
   /**
    * @brief Parse the current block and return the molecule.

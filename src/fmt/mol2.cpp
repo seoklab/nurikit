@@ -39,9 +39,8 @@
 
 namespace nuri {
 namespace {
-std::vector<std::string> advance_header_unread(std::istream &is,
-                                               bool &read_mol_header) {
-  std::vector<std::string> block;
+bool advance_header_unread(std::istream &is, std::vector<std::string> &block,
+                           bool &read_mol_header) {
   bool first = true;
 
   std::string line;
@@ -62,17 +61,18 @@ std::vector<std::string> advance_header_unread(std::istream &is,
     block.push_back(std::move(line));
   }
 
-  return block;
+  return !block.empty();
 }
 
-std::vector<std::string> advance_header_read(std::istream &is,
-                                             bool &read_mol_header) {
-  std::vector<std::string> block { "@<TRIPOS>MOLECULE" };
+void advance_header_read(std::istream &is, std::vector<std::string> &block,
+                         bool &read_mol_header) {
   std::string line;
+
+  block.push_back("@<TRIPOS>MOLECULE");
 
   while (std::getline(is, line)) {
     if (absl::StartsWith(line, "@<TRIPOS>MOLECULE")) {
-      return block;
+      return;
     }
 
     if (absl::StartsWith(line, "#")) {
@@ -83,16 +83,18 @@ std::vector<std::string> advance_header_read(std::istream &is,
   }
 
   read_mol_header = false;
-  return block;
 }
 }  // namespace
 
-std::vector<std::string> Mol2Reader::next() {
+bool Mol2Reader::getnext(std::vector<std::string> &block) {
+  block.clear();
+
   if (read_mol_header_) {
-    return advance_header_read(*is_, read_mol_header_);
+    advance_header_read(*is_, block, read_mol_header_);
+    return true;
   }
 
-  return advance_header_unread(*is_, read_mol_header_);
+  return advance_header_unread(*is_, block, read_mol_header_);
 }
 
 const bool Mol2ReaderFactory::kRegistered =
