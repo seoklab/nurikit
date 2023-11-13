@@ -76,7 +76,7 @@ private:
 template <class Stream>
 Stream &operator>>(Stream &stream, Molecule &mol) {
   if (stream.advance()) {
-    mol = stream.current();
+    mol = std::move(stream.current());
   }
   return stream;
 }
