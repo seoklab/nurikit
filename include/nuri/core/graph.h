@@ -447,6 +447,8 @@ namespace internal {
     template <bool other_const>
     using Other = EdgeIterator<GT, other_const>;
 
+    EdgeIterator() = default;
+
     EdgeIterator(edge_id_type eid) noexcept: eid_(eid) { }
 
     template <bool other_const,
