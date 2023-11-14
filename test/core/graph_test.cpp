@@ -818,7 +818,9 @@ namespace internal {
   NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, iterator, Node)              \
   NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, adjacency_iterator, Adj)     \
   template class EdgeWrapper<GraphType, true>;                                 \
-  template class EdgeIterator<GraphType, true>;
+  template class EdgeWrapper<GraphType, false>;                                \
+  template class EdgeIterator<GraphType, true>;                                \
+  template class EdgeIterator<GraphType, false>;
 
 NURI_INSTANTIATE_ALL_TEMPLATES(TrivialGraph)
 NURI_INSTANTIATE_ALL_TEMPLATES(NonTrivialGraph)
