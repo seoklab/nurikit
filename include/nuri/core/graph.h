@@ -677,17 +677,17 @@ public:
     return static_cast<int>(it - nodes_.begin());
   }
 
-  edge_id_type add_edge(int src, int dst, const ET &data) {
+  edge_iterator add_edge(int src, int dst, const ET &data) {
     stored_edge_id_type eid = edges_.insert(edges_.end(), { src, dst, data });
     add_adjacency_entry(eid);
-    return eid;
+    return { eid };
   }
 
-  edge_id_type add_edge(int src, int dst, ET &&data) noexcept {
+  edge_iterator add_edge(int src, int dst, ET &&data) noexcept {
     stored_edge_id_type eid =
         edges_.insert(edges_.end(), { src, dst, std::move(data) });
     add_adjacency_entry(eid);
-    return eid;
+    return { eid };
   }
 
   NodeRef operator[](int id) { return node(id); }
