@@ -56,6 +56,7 @@ void Molecule::clear() noexcept {
   graph_.clear();
   conformers_.clear();
   name_.clear();
+  props_.clear();
 
   substructs_.clear();
   ring_groups_.clear();
