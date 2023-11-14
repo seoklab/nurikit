@@ -67,7 +67,7 @@ elseif(NURI_ENABLE_IPO)
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 endif()
 
-if(CMAKE_BUILD_TYPE MATCHES "Release|RelWithDebInfo")
+if(CMAKE_BUILD_TYPE MATCHES "Release|MinSizeRel")
   add_link_options(-s)
 endif()
 
