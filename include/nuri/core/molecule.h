@@ -1339,6 +1339,28 @@ public:
   }
 
   /**
+   * @brief Find substructures with given predicate.
+   *
+   * @return A ranged view of substructures which satisfy the predicate.
+   */
+  template <class UnaryPred>
+  auto find_substructures_if(UnaryPred &&pred) {
+    return internal::make_substructure_finder(substructs_,
+                                              std::forward<UnaryPred>(pred));
+  }
+
+  /**
+   * @brief Find substructures with given predicate.
+   *
+   * @return A ranged view of substructures which satisfy the predicate.
+   */
+  template <class UnaryPred>
+  auto find_substructures_if(UnaryPred &&pred) const {
+    return internal::make_substructure_finder(substructs_,
+                                              std::forward<UnaryPred>(pred));
+  }
+
+  /**
    * @brief Update topology of the molecule.
    *
    * This method is safe to call multiple times, but will be automatically
