@@ -218,12 +218,9 @@ public:
 
   void set_name(std::string_view name) { internal::set_name(props_, name); }
 
-  void add_prop(const std::string &key, const std::string &val) {
-    props_.emplace_back(key, val);
-  }
-
-  void add_prop(std::string &&key, std::string &&val) noexcept {
-    props_.emplace_back(std::move(key), std::move(val));
+  template <class KT, class VT>
+  void add_prop(KT &&key, VT &&val) {
+    props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
   }
 
   std::vector<std::pair<std::string, std::string>> &props() { return props_; }
@@ -340,12 +337,9 @@ public:
 
   void set_name(std::string_view name) { internal::set_name(props_, name); }
 
-  void add_prop(const std::string &key, const std::string &val) {
-    props_.emplace_back(key, val);
-  }
-
-  void add_prop(std::string &&key, std::string &&val) noexcept {
-    props_.emplace_back(std::move(key), std::move(val));
+  template <class KT, class VT>
+  void add_prop(KT &&key, VT &&val) {
+    props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
   }
 
   std::vector<std::pair<std::string, std::string>> &props() { return props_; }
@@ -537,12 +531,9 @@ namespace internal {
 
     int id() const { return id_; }
 
-    void add_prop(const std::string &key, const std::string &val) {
-      props_.emplace_back(key, val);
-    }
-
-    void add_prop(std::string &&key, std::string &&val) noexcept {
-      props_.emplace_back(std::move(key), std::move(val));
+    template <class KT, class VT>
+    void add_prop(KT &&key, VT &&val) {
+      props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
     }
 
     std::vector<std::pair<std::string, std::string>> &props() { return props_; }
@@ -1401,12 +1392,9 @@ public:
     }
   }
 
-  void add_prop(const std::string &key, const std::string &val) {
-    props_.emplace_back(key, val);
-  }
-
-  void add_prop(std::string &&key, std::string &&val) noexcept {
-    props_.emplace_back(std::move(key), std::move(val));
+  template <class KT, class VT>
+  void add_prop(KT &&key, VT &&val) {
+    props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
   }
 
   std::vector<std::pair<std::string, std::string>> &props() { return props_; }
