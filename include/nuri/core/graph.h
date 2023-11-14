@@ -449,6 +449,8 @@ namespace internal {
 
     EdgeIterator() = default;
 
+    template <bool this_const = is_const,
+              std::enable_if_t<is_const && this_const, int> = 0>
     EdgeIterator(edge_id_type eid) noexcept: eid_(eid) { }
 
     template <bool other_const,
