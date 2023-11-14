@@ -432,7 +432,13 @@ namespace internal {
     bool empty() const { return graph_.empty(); }
     int size() const { return graph_.size(); }
     int num_atoms() const { return graph_.num_nodes(); }
-    void clear() { graph_.clear(); }
+
+    void clear() {
+      graph_.clear();
+      name_.clear();
+      id_ = 0;
+      props_.clear();
+    }
 
     void update(const std::vector<int> &atoms) { graph_.update(atoms); }
     void update(std::vector<int> &&atoms) noexcept {
