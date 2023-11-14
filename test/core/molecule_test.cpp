@@ -6,6 +6,7 @@
 #include "nuri/core/molecule.h"
 
 #include <algorithm>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -61,15 +62,20 @@ TEST(Basic2DMoleculeTest, AddBondsTest) {
 
   Molecule ten(atoms.begin(), atoms.end());
   {
-    auto mutator = ten.mutator();
-    EXPECT_TRUE(mutator.add_bond(0, 1, BondData(kSingleBond)));
+    Molecule::bond_iterator bit1, bit2;
+    bool success;
 
-    EXPECT_FALSE(mutator.add_bond(0, 0, BondData(kSingleBond)));
-    EXPECT_FALSE(mutator.add_bond(1, 0, BondData(kDoubleBond)));
+    auto mutator = ten.mutator();
+    std::tie(bit1, success) = mutator.add_bond(0, 1, BondData(kSingleBond));
+    EXPECT_TRUE(success);
+
+    std::tie(bit2, success) = mutator.add_bond(1, 0, BondData(kDoubleBond));
+    EXPECT_EQ(bit1, bit2);
+    EXPECT_FALSE(success);
   }
   {
     auto mutator = ten.mutator();
-    EXPECT_FALSE(mutator.add_bond(1, 0, BondData(kDoubleBond)));
+    EXPECT_FALSE(mutator.add_bond(1, 0, BondData(kDoubleBond)).second);
   }
 
   EXPECT_EQ(ten.num_bonds(), 1);
@@ -853,11 +859,12 @@ TEST(SanitizeTest, FusedAromaticTest) {
       }
     }
     for (int i = 0; i < 6; ++i) {
-      ASSERT_TRUE(mut.add_bond(i, i + 1, BondData(kAromaticBond)));
+      ASSERT_TRUE(mut.add_bond(i, i + 1, BondData(kAromaticBond)).second);
     }
-    ASSERT_TRUE(mut.add_bond(6, 0, BondData(kSingleBond)));
+    ASSERT_TRUE(mut.add_bond(6, 0, BondData(kSingleBond)).second);
     for (int i = 6; i < 10; ++i) {
-      ASSERT_TRUE(mut.add_bond(i, (i + 1) % 10, BondData(kAromaticBond)));
+      ASSERT_TRUE(
+          mut.add_bond(i, (i + 1) % 10, BondData(kAromaticBond)).second);
     }
   }
   verify_azulene();

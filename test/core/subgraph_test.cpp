@@ -456,7 +456,7 @@ protected:
   Graph graph_;
   SubgraphOf<Graph> sg_ = Subgraph(graph_);
   SubgraphOf<const Graph> csg_ = sg_;
-  std::vector<Graph::edge_id_type> edges_;
+  std::vector<Graph::edge_iterator> edges_;
 };
 
 TEST_F(AdvancedSubgraphTest, CountDegrees) {
@@ -511,28 +511,28 @@ TEST_F(AdvancedSubgraphTest, FindAdjacency) {
 
   it = sg_.find_adjacent(0, 1);
   EXPECT_FALSE(it.end());
-  EXPECT_EQ(it->eid(), edges_[0]);
+  EXPECT_EQ(it->eid(), edges_[0]->id());
 
   auto cit = std::as_const(sg_).find_adjacent(0, 5);
   EXPECT_TRUE(cit.end());
 
   cit = std::as_const(sg_).find_adjacent(0, 1);
   EXPECT_FALSE(cit.end());
-  EXPECT_EQ(cit->eid(), edges_[0]);
+  EXPECT_EQ(cit->eid(), edges_[0]->id());
 
   auto ccit = csg_.find_adjacent(0, 5);
   EXPECT_TRUE(ccit.end());
 
   ccit = csg_.find_adjacent(0, 1);
   EXPECT_FALSE(ccit.end());
-  EXPECT_EQ(ccit->eid(), edges_[0]);
+  EXPECT_EQ(ccit->eid(), edges_[0]->id());
 
   ccit = csg_.find_adjacent(0, 5);
   EXPECT_TRUE(ccit.end());
 
   ccit = csg_.find_adjacent(0, 1);
   EXPECT_FALSE(ccit.end());
-  EXPECT_EQ(ccit->eid(), edges_[0]);
+  EXPECT_EQ(ccit->eid(), edges_[0]->id());
 }
 
 TEST_F(AdvancedSubgraphTest, FindEdges) {
