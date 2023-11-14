@@ -1304,8 +1304,10 @@ public:
    * @brief Find substructures with given name.
    *
    * @return A ranged view of substructures with given name.
+   * @warning The owner of name must ensure that the name is valid during the
+   *          lifetime of the returned view.
    */
-  auto find_substructures(const std::string &name) {
+  auto find_substructures(std::string_view name) {
     return internal::make_substructure_finder(substructs_,
                                               [name](const Substructure &sub) {
                                                 return sub.name() == name;
@@ -1326,8 +1328,10 @@ public:
    * @brief Find substructures with given name.
    *
    * @return A ranged constant view of substructures with given name.
+   * @warning The owner of name must ensure that the name is valid during the
+   *          lifetime of the returned view.
    */
-  auto find_substructures(const std::string &name) const {
+  auto find_substructures(std::string_view name) const {
     return internal::make_substructure_finder(substructs_,
                                               [name](const Substructure &sub) {
                                                 return sub.name() == name;
