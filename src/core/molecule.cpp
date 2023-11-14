@@ -287,22 +287,25 @@ void Molecule::update_topology() {
 
 namespace {
   template <class DT>
-  bool add_bond_impl(Molecule::GraphType &graph, int src, int dst, DT &&bond) {
-    if (graph.find_edge(src, dst) != graph.edge_end()
-        || ABSL_PREDICT_FALSE(src == dst)) {
-      return false;
+  std::pair<Molecule::bond_iterator, bool>
+  add_bond_impl(Molecule::GraphType &graph, int src, int dst, DT &&bond) {
+    auto it = graph.find_edge(src, dst);
+    if (it != graph.edge_end()) {
+      return std::make_pair(it, false);
     }
 
-    graph.add_edge(src, dst, std::forward<DT>(bond));
-    return true;
+    return std::make_pair(graph.add_edge(src, dst, std::forward<DT>(bond)),
+                          true);
   }
 }  // namespace
 
-bool MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
+std::pair<Molecule::bond_iterator, bool>
+MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
   return add_bond_impl(mol().graph_, src, dst, bond);
 }
 
-bool MoleculeMutator::add_bond(int src, int dst, BondData &&bond) noexcept {
+std::pair<Molecule::bond_iterator, bool>
+MoleculeMutator::add_bond(int src, int dst, BondData &&bond) noexcept {
   return add_bond_impl(mol().graph_, src, dst, std::move(bond));
 }
 

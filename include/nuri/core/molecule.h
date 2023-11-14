@@ -1509,30 +1509,42 @@ public:
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
    * @param bond The data of the bond to add.
-   * @return `true` if the bond was added, `false` if the bond already exists.
-   * @note The behavior is undefined if any of the atom indices is out of range.
+   * @return If added, pair of iterator to the added bond, and `true`. If the
+   *         bond already exists, pair of iterator to the existing bond, and
+   *         `false`.
+   * @note The behavior is undefined if any of the atom indices is out of range,
+   *       or if src == dst.
    */
-  bool add_bond(int src, int dst, const BondData &bond);
+  std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
+                                                    const BondData &bond);
 
   /**
    * @brief Add a bond to the molecule.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
    * @param bond The data of the bond to add.
-   * @return `true` if the bond was added, `false` if the bond already exists.
-   * @note The behavior is undefined if any of the atom indices is out of range.
+   * @return If added, pair of iterator to the added bond, and `true`. If the
+   *         bond already exists, pair of iterator to the existing bond, and
+   *         `false`.
+   * @note The behavior is undefined if any of the atom indices is out of range,
+   *       or if src == dst.
    */
-  bool add_bond(int src, int dst, BondData &&bond) noexcept;
+  std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
+                                                    BondData &&bond) noexcept;
 
   /**
    * @brief Add a bond to the molecule.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
    * @param bond The bond to copy the data from.
-   * @return `true` if the bond was added, `false` if the bond already exists.
-   * @note The behavior is undefined if any of the atom indices is out of range.
+   * @return If added, pair of iterator to the added bond, and `true`. If the
+   *         bond already exists, pair of iterator to the existing bond, and
+   *         `false`.
+   * @note The behavior is undefined if any of the atom indices is out of range,
+   *       or if src == dst.
    */
-  bool add_bond(int src, int dst, const Molecule::Bond &bond) {
+  std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
+                                                    Molecule::Bond bond) {
     return add_bond(src, dst, bond.data());
   }
 
