@@ -12,7 +12,7 @@
 
 namespace nuri {
 namespace {
-using Mol2Test = internal::FormatTest<Mol2Reader>;
+using Mol2Test = internal::StringFormatTest<Mol2Reader>;
 
 TEST_F(Mol2Test, BasicParsing) {
   set_test_string(R"mol2(

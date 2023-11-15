@@ -64,7 +64,7 @@ inline void print_mol(const Molecule &mol) {
 }
 
 template <class MoleculeReader>
-class FormatTest: public ::testing::Test {
+class StringFormatTest: public ::testing::Test {
 public:
   // NOLINTBEGIN(readability-identifier-naming)
   std::istringstream iss_;
