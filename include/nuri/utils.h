@@ -230,18 +230,50 @@ typename std::vector<T, Alloc>::iterator erase_first(std::vector<T, Alloc> &c,
   return it;
 }
 
-template <class T, class Alloc, class Comp>
-typename std::vector<T, Alloc>::iterator
-insert_sorted(std::vector<T, Alloc> &c, const T &value, Comp &&comp) {
-  return c.insert(std::upper_bound(c.begin(), c.end(), value,
-                                   std::forward<Comp>(comp)),
-                  value);
+template <class Container, class Comp,
+          internal::enable_if_iter_category_t<
+              Container, std::random_access_iterator_tag> = 0>
+std::pair<typename Container::iterator, bool>
+insert_sorted(Container &c, const typename Container::value_type &value,
+              Comp &&comp) {
+  // *it >= value
+  auto it =
+      std::lower_bound(c.begin(), c.end(), value, std::forward<Comp>(comp));
+  if (it != c.end() && !comp(value, *it)) {
+    // value >= *it, i.e., value == *it
+    return { it, false };
+  }
+  return { c.insert(it, value), true };
 }
 
-template <class T, class Alloc>
-typename std::vector<T, Alloc>::iterator insert_sorted(std::vector<T, Alloc> &c,
-                                                       const T &value) {
+template <class Container, internal::enable_if_iter_category_t<
+                               Container, std::random_access_iterator_tag> = 0>
+std::pair<typename Container::iterator, bool>
+insert_sorted(Container &c, const typename Container::value_type &value) {
   return insert_sorted(c, value, std::less<>());
+}
+
+template <class Container, class Comp,
+          internal::enable_if_iter_category_t<
+              Container, std::random_access_iterator_tag> = 0>
+std::pair<typename Container::iterator, bool>
+insert_sorted(Container &c, typename Container::value_type &&value,
+              Comp &&comp) {
+  // *it >= value
+  auto it =
+      std::lower_bound(c.begin(), c.end(), value, std::forward<Comp>(comp));
+  if (it != c.end() && !comp(value, *it)) {
+    // value >= *it, i.e., value == *it
+    return { it, false };
+  }
+  return { c.insert(it, std::move(value)), true };
+}
+
+template <class Container, internal::enable_if_iter_category_t<
+                               Container, std::random_access_iterator_tag> = 0>
+std::pair<typename Container::iterator, bool>
+insert_sorted(Container &c, typename Container::value_type &&value) {
+  return insert_sorted(c, std::move(value), std::less<>());
 }
 
 inline absl::FixedArray<int> generate_index(int size) {
