@@ -1528,6 +1528,10 @@ public:
    *         `false`.
    * @note The behavior is undefined if any of the atom indices is out of range,
    *       or if src == dst.
+   *
+   * If the bond is added and the molecule has at least one conformer, the bond
+   * length will be calculated from the positions of the atoms in the first
+   * conformer.
    */
   std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
                                                     const BondData &bond);
@@ -1542,6 +1546,10 @@ public:
    *         `false`.
    * @note The behavior is undefined if any of the atom indices is out of range,
    *       or if src == dst.
+   *
+   * If the bond is added and the molecule has at least one conformer, the bond
+   * length will be calculated from the positions of the atoms in the first
+   * conformer.
    */
   std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
                                                     BondData &&bond) noexcept;
@@ -1556,6 +1564,10 @@ public:
    *         `false`.
    * @note The behavior is undefined if any of the atom indices is out of range,
    *       or if src == dst.
+   *
+   * If the bond is added and the molecule has at least one conformer, the bond
+   * length will be calculated from the positions of the atoms in the first
+   * conformer.
    */
   std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
                                                     Molecule::Bond bond) {
