@@ -23,6 +23,7 @@
 
 #include "nuri/core/bool_matrix.h"
 #include "nuri/core/molecule.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 namespace {
@@ -235,80 +236,6 @@ namespace {
     }
   };
 
-  // NOLINTBEGIN(clang-diagnostic-unused-member-function)
-  template <class T, T (*extractor)(Molecule::Neighbor), class RandomIt>
-  class ExtractingIterator {
-  public:
-    using iterator_category = std::random_access_iterator_tag;
-    using value_type = T;
-    using difference_type = ptrdiff_t;
-    using pointer = const T *;
-    using reference = const T &;
-
-    explicit ExtractingIterator(RandomIt it): it_(it) { }
-
-    T operator*() const { return extractor(*it_); }
-
-    ExtractingIterator &operator+=(difference_type n) {
-      it_ += n;
-      return *this;
-    }
-
-    ExtractingIterator operator+(difference_type n) const {
-      return ExtractingIterator(it_ + n);
-    }
-
-    friend ExtractingIterator operator+(difference_type n,
-                                        ExtractingIterator rhs) {
-      return ExtractingIterator(n + rhs.it_);
-    }
-
-    ExtractingIterator &operator-=(difference_type n) {
-      it_ -= n;
-      return *this;
-    }
-
-    ExtractingIterator operator-(difference_type n) const {
-      return ExtractingIterator(it_ - n);
-    }
-
-    difference_type operator-(ExtractingIterator rhs) const {
-      return it_ - rhs.it_;
-    }
-
-    T operator[](difference_type n) const { return extractor(it_[n]); }
-
-    ExtractingIterator &operator--() {
-      --it_;
-      return *this;
-    }
-
-    ExtractingIterator operator--(int) { return ExtractingIterator(it_--); }
-
-    ExtractingIterator &operator++() {
-      ++it_;
-      return *this;
-    }
-
-    ExtractingIterator operator++(int) { return ExtractingIterator(it_++); }
-
-    bool operator==(ExtractingIterator rhs) const { return it_ == rhs.it_; }
-
-    bool operator!=(ExtractingIterator rhs) const { return it_ != rhs.it_; }
-
-    bool operator<(ExtractingIterator rhs) const { return it_ < rhs.it_; }
-
-    bool operator>(ExtractingIterator rhs) const { return it_ > rhs.it_; }
-
-    bool operator<=(ExtractingIterator rhs) const { return it_ <= rhs.it_; }
-
-    bool operator>=(ExtractingIterator rhs) const { return it_ >= rhs.it_; }
-
-  private:
-    RandomIt it_;
-  };
-  // NOLINTEND(clang-diagnostic-unused-member-function)
-
   int extract_sid(Molecule::Neighbor nei) {
     return nei.src().id();
   }
@@ -325,7 +252,8 @@ namespace {
   }
 
   template <class RandomIt>
-  using GenericDestIterator = ExtractingIterator<int, extract_did, RandomIt>;
+  using GenericDestIterator =
+      internal::TransformIterator<RandomIt, extract_did, int, int>;
 
   using DestIterator =
       GenericDestIterator<std::vector<Molecule::Neighbor>::const_iterator>;

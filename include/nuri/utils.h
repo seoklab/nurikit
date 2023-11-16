@@ -104,6 +104,87 @@ namespace internal {
   private:
     pointer p_;
   };
+
+  template <class Iter, auto unaryop,
+            class Ref = decltype(unaryop(*std::declval<Iter>())),
+            class Val = std::remove_reference_t<Ref>,
+            class Ptr = ArrowHelper<Ref>>
+  class TransformIterator {
+  public:
+    using iterator_category =
+        typename std::iterator_traits<Iter>::iterator_category;
+    using value_type = Val;
+    using difference_type =
+        typename std::iterator_traits<Iter>::difference_type;
+    using reference = Ref;
+    using pointer = Ptr;
+
+    TransformIterator() = default;
+    explicit TransformIterator(Iter it): it_(it) { }
+
+    reference operator*() const { return unaryop(*it_); }
+    pointer operator->() const { return { unaryop(*it_) }; }
+
+    TransformIterator &operator+=(difference_type n) {
+      it_ += n;
+      return *this;
+    }
+
+    TransformIterator operator+(difference_type n) const {
+      return TransformIterator(it_ + n);
+    }
+
+    friend TransformIterator operator+(difference_type n,
+                                       TransformIterator rhs) {
+      return TransformIterator(n + rhs.it_);
+    }
+
+    TransformIterator &operator-=(difference_type n) {
+      it_ -= n;
+      return *this;
+    }
+
+    TransformIterator operator-(difference_type n) const {
+      return TransformIterator(it_ - n);
+    }
+
+    difference_type operator-(TransformIterator rhs) const {
+      return it_ - rhs.it_;
+    }
+
+    reference operator[](difference_type n) const { return unaryop(it_[n]); }
+
+    TransformIterator &operator--() {
+      --it_;
+      return *this;
+    }
+
+    TransformIterator operator--(int) { return TransformIterator(it_--); }
+
+    TransformIterator &operator++() {
+      ++it_;
+      return *this;
+    }
+
+    TransformIterator operator++(int) { return TransformIterator(it_++); }
+
+    bool operator==(TransformIterator rhs) const { return it_ == rhs.it_; }
+
+    bool operator!=(TransformIterator rhs) const { return it_ != rhs.it_; }
+
+    bool operator<(TransformIterator rhs) const { return it_ < rhs.it_; }
+
+    bool operator>(TransformIterator rhs) const { return it_ > rhs.it_; }
+
+    bool operator<=(TransformIterator rhs) const { return it_ <= rhs.it_; }
+
+    bool operator>=(TransformIterator rhs) const { return it_ >= rhs.it_; }
+
+    Iter base() const { return it_; }
+
+  private:
+    Iter it_;
+  };
 }  // namespace internal
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
