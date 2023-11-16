@@ -341,6 +341,26 @@ typename std::vector<T, Alloc>::iterator erase_first(std::vector<T, Alloc> &c,
   return it;
 }
 
+template <class Iter, class VT, class Comp,
+          internal::enable_if_iter_category_t<
+              Iter, std::random_access_iterator_tag> = 0>
+Iter find_sorted(Iter begin, Iter end, const VT &value, Comp &&comp) {
+  // *it >= value
+  auto it = std::lower_bound(begin, end, value, std::forward<Comp>(comp));
+  if (it != end && !comp(value, *it)) {
+    // value >= *it, i.e., value == *it
+    return it;
+  }
+  return end;
+}
+
+template <class Iter, class VT,
+          internal::enable_if_iter_category_t<
+              Iter, std::random_access_iterator_tag> = 0>
+Iter find_sorted(Iter begin, Iter end, const VT &value) {
+  return find_sorted(begin, end, value, std::less<>());
+}
+
 template <class Container, class Comp,
           internal::enable_if_iter_category_t<
               typename Container::iterator, std::random_access_iterator_tag> = 0>
