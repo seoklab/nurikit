@@ -28,6 +28,9 @@ namespace internal {
 #if __cplusplus >= 202002L
   using std::underlying_type;
   using std::underlying_type_t;
+
+  using std::remove_cvref;
+  using std::remove_cvref_t;
 #else
   template <class E, bool = std::is_enum_v<E>>
   struct underlying_type { };
@@ -42,6 +45,14 @@ namespace internal {
 
   template <class T>
   using underlying_type_t = typename underlying_type<T>::type;
+
+  template <class T>
+  struct remove_cvref {
+    using type = std::remove_cv_t<std::remove_reference_t<T>>;
+  };
+
+  template <class T>
+  using remove_cvref_t = typename remove_cvref<T>::type;
 #endif
 
   template <class To, class From>
