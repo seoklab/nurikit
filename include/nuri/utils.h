@@ -72,6 +72,22 @@ namespace internal {
       std::is_same_v<typename std::iterator_traits<Iter>::iterator_category,
                      IteratorTag>,
       IfTrue>;
+
+  template <class T, bool = std::is_enum_v<T>>
+  struct extract_if_enum { };
+
+  template <class T>
+  struct extract_if_enum<T, true> {
+    using type = std::underlying_type_t<T>;
+  };
+
+  template <class T>
+  struct extract_if_enum<T, false> {
+    using type = T;
+  };
+
+  template <class T>
+  using extract_if_enum_t = typename extract_if_enum<T>::type;
 }  // namespace internal
 
 namespace internal {
@@ -228,22 +244,6 @@ constexpr inline E operator-(E val) {
 }
 
 namespace internal {
-  template <class T, bool = std::is_enum_v<T>>
-  struct extract_if_enum { };
-
-  template <class T>
-  struct extract_if_enum<T, true> {
-    using type = std::underlying_type_t<T>;
-  };
-
-  template <class T>
-  struct extract_if_enum<T, false> {
-    using type = T;
-  };
-
-  template <class T>
-  using extract_if_enum_t = typename extract_if_enum<T>::type;
-
   template <class E>
   constexpr bool check_flag(E flags, E flag) {
     // NOLINTNEXTLINE(bugprone-non-zero-enum-to-bool-conversion)
