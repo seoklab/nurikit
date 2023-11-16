@@ -95,24 +95,12 @@ namespace {
 int Molecule::add_conf(const MatrixX3d &pos) {
   const int ret = static_cast<int>(conformers_.size());
   conformers_.push_back(pos);
-
-  // First conformer, update bond lengths
-  if (ret == 0) {
-    update_bond_lengths();
-  }
-
   return ret;
 }
 
 int Molecule::add_conf(MatrixX3d &&pos) noexcept {
   const int ret = static_cast<int>(conformers_.size());
   conformers_.push_back(std::move(pos));
-
-  // First conformer, update bond lengths
-  if (ret == 0) {
-    update_bond_lengths();
-  }
-
   return ret;
 }
 

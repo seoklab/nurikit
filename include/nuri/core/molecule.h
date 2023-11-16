@@ -1058,10 +1058,11 @@ public:
    * @note If number of rows of \p pos does not match the number of atoms in the
    *       molecule, the behavior is undefined.
    *
-   * If no conformers exist, the bond lengths will be calculated from the
-   * positions of the atoms in `pos`. Otherwise, the bond lengths will be left
-   * unmodified, so it is the caller's responsibility to ensure that the bond
-   * lengths are consistent with the new conformer.
+   * The bond lengths will be left unmodified, so it is the caller's
+   * responsibility to ensure that the bond lengths are consistent with the new
+   * conformer.
+   *
+   * @see update_bond_lengths()
    */
   int add_conf(const MatrixX3d &pos);
 
@@ -1073,10 +1074,11 @@ public:
    * @note If number of rows of \p pos does not match the number of atoms in the
    *       molecule, the behavior is undefined.
 
-   * If no conformers exist, the bond lengths will be calculated from the
-   * positions of the atoms in `pos`. Otherwise, the bond lengths will be left
-   * unmodified, so it is the caller's responsibility to ensure that the bond
-   * lengths are consistent with the new conformer.
+   * The bond lengths will be left unmodified, so it is the caller's
+   * responsibility to ensure that the bond lengths are consistent with the new
+   * conformer.
+   *
+   * @see update_bond_lengths()
    */
   int add_conf(MatrixX3d &&pos) noexcept;
 
