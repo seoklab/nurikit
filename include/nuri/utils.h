@@ -67,10 +67,9 @@ namespace internal {
       std::enable_if_t<is_implicitly_constructible_v<
           T, typename std::iterator_traits<Iterator>::reference>>;
 
-  template <class Container, class IteratorTag, class IfTrue = int>
+  template <class Iter, class IteratorTag, class IfTrue = int>
   using enable_if_iter_category_t = std::enable_if_t<
-      std::is_same_v<typename std::iterator_traits<
-                         typename Container::iterator>::iterator_category,
+      std::is_same_v<typename std::iterator_traits<Iter>::iterator_category,
                      IteratorTag>,
       IfTrue>;
 }  // namespace internal
@@ -344,7 +343,7 @@ typename std::vector<T, Alloc>::iterator erase_first(std::vector<T, Alloc> &c,
 
 template <class Container, class Comp,
           internal::enable_if_iter_category_t<
-              Container, std::random_access_iterator_tag> = 0>
+              typename Container::iterator, std::random_access_iterator_tag> = 0>
 std::pair<typename Container::iterator, bool>
 insert_sorted(Container &c, const typename Container::value_type &value,
               Comp &&comp) {
@@ -358,8 +357,9 @@ insert_sorted(Container &c, const typename Container::value_type &value,
   return { c.insert(it, value), true };
 }
 
-template <class Container, internal::enable_if_iter_category_t<
-                               Container, std::random_access_iterator_tag> = 0>
+template <class Container,
+          internal::enable_if_iter_category_t<
+              typename Container::iterator, std::random_access_iterator_tag> = 0>
 std::pair<typename Container::iterator, bool>
 insert_sorted(Container &c, const typename Container::value_type &value) {
   return insert_sorted(c, value, std::less<>());
@@ -367,7 +367,7 @@ insert_sorted(Container &c, const typename Container::value_type &value) {
 
 template <class Container, class Comp,
           internal::enable_if_iter_category_t<
-              Container, std::random_access_iterator_tag> = 0>
+              typename Container::iterator, std::random_access_iterator_tag> = 0>
 std::pair<typename Container::iterator, bool>
 insert_sorted(Container &c, typename Container::value_type &&value,
               Comp &&comp) {
@@ -381,8 +381,9 @@ insert_sorted(Container &c, typename Container::value_type &&value,
   return { c.insert(it, std::move(value)), true };
 }
 
-template <class Container, internal::enable_if_iter_category_t<
-                               Container, std::random_access_iterator_tag> = 0>
+template <class Container,
+          internal::enable_if_iter_category_t<
+              typename Container::iterator, std::random_access_iterator_tag> = 0>
 std::pair<typename Container::iterator, bool>
 insert_sorted(Container &c, typename Container::value_type &&value) {
   return insert_sorted(c, std::move(value), std::less<>());
