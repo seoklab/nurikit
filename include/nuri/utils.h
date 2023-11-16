@@ -7,6 +7,7 @@
 #define NURI_UTILS_H_
 
 #include <algorithm>
+#include <cstddef>
 #include <filesystem>
 #include <functional>
 #include <iterator>
@@ -19,6 +20,7 @@
 
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
+#include <absl/strings/ascii.h>
 
 #include "nuri/eigen_config.h"
 
@@ -466,6 +468,16 @@ inline std::string_view extension_no_dot(const std::filesystem::path &ext) {
     return ext_view.substr(1);
   }
   return ext_view;
+}
+
+constexpr inline std::string_view slice(std::string_view str, std::size_t begin,
+                                        std::size_t end) {
+  return str.substr(begin, end - begin);
+}
+
+inline std::string_view slice_strip(std::string_view str, std::size_t begin,
+                                    std::size_t end) {
+  return absl::StripAsciiWhitespace(slice(str, begin, end));
 }
 
 inline MatrixX3d stack(const std::vector<Vector3d> &vs) {
