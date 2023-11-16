@@ -1022,6 +1022,19 @@ public:
    * @param i Index of the conformer.
    * @return Atomic coordinates of ith conformer.
    * @note If index is out of range, the behavior is undefined.
+   * @note Resizing the returned matrix is a no-op. In debug mode, an assertion
+   *       failure will be triggered if the matrix is resized.
+   * @warning Bond lengths will not be updated even if the coordinates are
+   *          updated. Call update_bond_lengths() to update the bond lengths.
+   */
+  Ref<MatrixX3d> conf(int i = 0) { return conformers_[i]; }
+
+  /**
+   * @brief Get the atomic coordinates of ith conformer.
+   *
+   * @param i Index of the conformer.
+   * @return Atomic coordinates of ith conformer.
+   * @note If index is out of range, the behavior is undefined.
    */
   const MatrixX3d &conf(int i = 0) const { return conformers_[i]; }
 

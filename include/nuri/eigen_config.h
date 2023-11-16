@@ -59,6 +59,13 @@ using ArrayXX = Array<DT, Eigen::Dynamic, Eigen::Dynamic>;
 using ArrayXXi = ArrayXX<int>;
 using ArrayXXf = ArrayXX<float>;
 using ArrayXXd = ArrayXX<double>;
+
+
+template <class MT>
+using Ref = Eigen::Ref<MT, Eigen::RowMajor>;
+
+template <class MT>
+using Map = Eigen::Map<MT, Eigen::RowMajor>;
 }  // namespace nuri
 
 #endif /* NURI_EIGEN_CONFIG_H_ */
