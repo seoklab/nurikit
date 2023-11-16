@@ -98,9 +98,7 @@ int Molecule::add_conf(const MatrixX3d &pos) {
 
   // First conformer, update bond lengths
   if (ret == 0) {
-    for (auto bond: graph_.edges()) {
-      bond.data().length() = (pos.row(bond.dst()) - pos.row(bond.src())).norm();
-    }
+    update_bond_lengths();
   }
 
   return ret;
@@ -112,14 +110,17 @@ int Molecule::add_conf(MatrixX3d &&pos) noexcept {
 
   // First conformer, update bond lengths
   if (ret == 0) {
-    MatrixX3d &the_pos = conformers_[0];
-    for (auto bond: graph_.edges()) {
-      bond.data().length() =
-          (the_pos.row(bond.dst()) - the_pos.row(bond.src())).norm();
-    }
+    update_bond_lengths();
   }
 
   return ret;
+}
+
+void Molecule::update_bond_lengths() {
+  MatrixX3d &pos = conformers_[0];
+  for (auto bond: graph_.edges()) {
+    bond.data().length() = (pos.row(bond.dst()) - pos.row(bond.src())).norm();
+  }
 }
 
 bool Molecule::rotate_bond(int ref_atom, int pivot_atom, double angle) {

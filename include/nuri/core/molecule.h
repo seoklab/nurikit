@@ -1098,6 +1098,12 @@ public:
   }
 
   /**
+   * @brief Calculate and update the bond lengths of the molecule.
+   * @note The behavior is undefined if the molecule has no conformers.
+   */
+  void update_bond_lengths();
+
+  /**
    * @brief Rotate a bond.
    * @param ref_atom Index of the reference atom.
    * @param pivot_atom Index of the pivot atom.
