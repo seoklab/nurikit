@@ -24,18 +24,6 @@
 
 namespace nuri {
 namespace internal {
-  template <class Parent>
-  class ArrowHelper {
-  public:
-    constexpr ArrowHelper(Parent &&p) noexcept: p_(std::move(p)) { }
-
-    constexpr Parent *operator->() noexcept { return &p_; }
-    constexpr const Parent *operator->() const noexcept { return &p_; }
-
-  private:
-    Parent p_;
-  };
-
   template <class Derived, class GT, class DT, bool is_const>
   class DataIteratorBase {
   public:

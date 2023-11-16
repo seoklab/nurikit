@@ -75,6 +75,37 @@ namespace internal {
       IfTrue>;
 }  // namespace internal
 
+namespace internal {
+  template <class RefLike,
+            bool is_lvalue_ref = std::is_lvalue_reference_v<RefLike>>
+  class ArrowHelper;
+
+  template <class RefLike>
+  class ArrowHelper<RefLike, false> {
+  public:
+    constexpr ArrowHelper(RefLike &&r) noexcept: r_(std::move(r)) { }
+
+    constexpr RefLike *operator->() noexcept { return &r_; }
+    constexpr const RefLike *operator->() const noexcept { return &r_; }
+
+  private:
+    RefLike r_;
+  };
+
+  template <class RefLike>
+  class ArrowHelper<RefLike, true> {
+    using pointer = std::remove_reference_t<RefLike> *;
+
+  public:
+    constexpr ArrowHelper(RefLike r) noexcept: p_(&r) { }
+
+    constexpr pointer operator->() const noexcept { return p_; }
+
+  private:
+    pointer p_;
+  };
+}  // namespace internal
+
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
 constexpr inline E operator|(E lhs, E rhs) {
   return static_cast<E>(static_cast<U>(lhs) | static_cast<U>(rhs));
