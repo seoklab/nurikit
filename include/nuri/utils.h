@@ -43,6 +43,16 @@ namespace internal {
   template <class T>
   using underlying_type_t = typename underlying_type<T>::type;
 #endif
+
+  template <class To, class From>
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  constexpr inline bool is_implicitly_constructible_v =
+      std::is_constructible_v<To, From> && std::is_convertible_v<From, To>;
+
+  template <class To, class From>
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  constexpr inline bool is_explicitly_constructible_v =
+      std::is_constructible_v<To, From> && !std::is_convertible_v<From, To>;
 }  // namespace internal
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
