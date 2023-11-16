@@ -53,6 +53,26 @@ namespace internal {
   // NOLINTNEXTLINE(readability-identifier-naming)
   constexpr inline bool is_explicitly_constructible_v =
       std::is_constructible_v<To, From> && !std::is_convertible_v<From, To>;
+
+  template <bool is_const, class T>
+  struct const_if {
+    using type = std::conditional_t<is_const, const T, T>;
+  };
+
+  template <bool is_const, class T>
+  using const_if_t = typename const_if<is_const, T>::type;
+
+  template <class Iterator, class T, class IfTrue = int>
+  using enable_if_compatible_iter_t =
+      std::enable_if_t<is_implicitly_constructible_v<
+          T, typename std::iterator_traits<Iterator>::reference>>;
+
+  template <class Container, class IteratorTag, class IfTrue = int>
+  using enable_if_iter_category_t = std::enable_if_t<
+      std::is_same_v<typename std::iterator_traits<
+                         typename Container::iterator>::iterator_category,
+                     IteratorTag>,
+      IfTrue>;
 }  // namespace internal
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
@@ -142,18 +162,6 @@ namespace internal {
     flags &= ~(mask & flag);
     return flags;
   }
-
-  template <bool is_const, class T>
-  struct const_if {
-    using type = std::conditional_t<is_const, const T, T>;
-  };
-
-  template <bool is_const, class T>
-  using const_if_t = typename const_if<is_const, T>::type;
-
-  template <class Iterator, class T, class U = T>
-  using enable_if_compatible_iter_t = std::enable_if_t<std::is_constructible_v<
-      U, typename std::iterator_traits<Iterator>::reference>>;
 
   template <class F>
   int iround(F x) {

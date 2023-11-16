@@ -672,7 +672,7 @@ public:
   }
 
   template <class Iterator,
-            class = internal::enable_if_compatible_iter_t<Iterator, NT>>
+            internal::enable_if_compatible_iter_t<Iterator, NT> = 0>
   int add_node(Iterator begin, Iterator end) noexcept {
     auto it = nodes_.insert(nodes_.end(), begin, end);
     adj_list_.resize(num_nodes());
@@ -1723,8 +1723,7 @@ namespace internal {
       init();
     }
 
-    template <class Iter,
-              class = internal::enable_if_compatible_iter_t<Iter, int>>
+    template <class Iter, internal::enable_if_compatible_iter_t<Iter, int> = 0>
     SortedNodes(Iter begin, Iter end): nodes_(begin, end) {
       init();
     }
