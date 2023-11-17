@@ -342,33 +342,91 @@ public:
     return the_table;
   }
 
+  /**
+   * @brief Get element with the given atomic number.
+   *
+   * @param atomic_number The atomic number of the element.
+   * @return A const reference to the element.
+   * @note The behavior is undefined if \p atomic_number is not in range
+   *       [0, 118].
+   */
   constexpr const Element &operator[](int atomic_number) const noexcept {
     return elements_[atomic_number];
   }
 
+  /**
+   * @brief Find element with the given atomic number.
+   *
+   * @param atomic_number The atomic number of the element.
+   * @return A pointer to the element, or `nullptr` if no element with the given
+   *         atomic number is known.
+   */
   constexpr const Element *find_element(int atomic_number) const noexcept {
     return has_element(atomic_number) ? &elements_[atomic_number] : nullptr;
   }
 
+  /**
+   * @brief Find element with the given atomic symbol.
+   *
+   * @param symbol The atomic symbol of the element.
+   * @return A pointer to the element, or `nullptr` if no element with the given
+   *         symbol is known.
+   * @note The symbol is case-sensitive, but supports three common cases:
+   *       Titlecase, UPPERCASE, and lowercase.
+   */
   const Element *find_element(std::string_view symbol) const noexcept {
     auto it = symbol_to_element_.find(symbol);
     return it != symbol_to_element_.end() ? it->second : nullptr;
   }
 
+  /**
+   * @brief Find element with the given name.
+   *
+   * @param name The atomic name of the element.
+   * @return A pointer to the element, or `nullptr` if no element with the given
+   *         name is known.
+   * @note The name is case-sensitive, but supports three common cases:
+   *       Titlecase, UPPERCASE, and lowercase.
+   */
   const Element *find_element_of_name(std::string_view name) const noexcept {
     auto it = name_to_element_.find(name);
     return it != name_to_element_.end() ? it->second : nullptr;
   }
 
+  /**
+   * @brief Check if the periodic table has an element with the given atomic
+   *        symbol.
+   * @param atomic_number The atomic number of the element.
+   * @return Whether the periodic table has an element with the given atomic
+   *         number.
+   */
   constexpr static bool has_element(int atomic_number) noexcept {
     return static_cast<unsigned int>(atomic_number)
            < static_cast<unsigned int>(kElementCount_);
   }
 
+  /**
+   * @brief Check if the periodic table has an element with the given atomic
+   *        symbol.
+   *
+   * @param symbol The atomic symbol of the element.
+   * @return Whether the periodic table has an element with the given symbol.
+   * @note The symbol is case-sensitive, but supports three common cases:
+   *       Titlecase, UPPERCASE, and lowercase.
+   */
   bool has_element(std::string_view symbol) const noexcept {
     return symbol_to_element_.contains(symbol);
   }
 
+  /**
+   * @brief Check if the periodic table has an element with the given atomic
+   *        name.
+   *
+   * @param name The atomic name of the element.
+   * @return Whether the periodic table has an element with the given name.
+   * @note The name is case-sensitive, but supports three common cases:
+   *       Titlecase, UPPERCASE, and lowercase.
+   */
   bool has_element_of_name(std::string_view name) const noexcept {
     return name_to_element_.contains(name);
   }
