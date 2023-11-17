@@ -279,32 +279,25 @@ std::pair<bool, bool> parse_atom_block(
 
     pos.push_back(Vector3d(std::get<2>(tokens).data()));
 
-    std::string &atom_sym = std::get<3>(tokens);
+    std::string_view atom_sym = std::get<3>(tokens);
     const Element *elem = PeriodicTable::get().find_element(atom_sym);
-    while (elem == nullptr) {
-      atom_sym[0] = absl::ascii_toupper(atom_sym[0]);
-      for (int i = 1; i < atom_sym.size(); ++i) {
-        atom_sym[i] = absl::ascii_tolower(atom_sym[i]);
-      }
+    if (elem == nullptr) {
+      std::string sym_upper = absl::AsciiStrToUpper(atom_sym);
+      elem = PeriodicTable::get().find_element(sym_upper);
+      if (elem == nullptr) {
+        if (sym_upper == "LP") {
+          ABSL_LOG(INFO) << "Lone pair support not implemented yet";
+          return { false, false };
+        }
 
-      elem = PeriodicTable::get().find_element(atom_sym);
-      if (elem != nullptr) {
-        break;
-      }
+        if (sym_upper != "ANY") {
+          ABSL_LOG(INFO) << "Cannot find element " << atom_sym
+                         << "; check mol2 file consistency";
+          return { false, false };
+        }
 
-      if (absl::EqualsIgnoreCase(atom_sym, "LP")) {
-        ABSL_LOG(INFO) << "Lone pair support not implemented yet";
-        return { false, false };
+        elem = &PeriodicTable::get()[0];
       }
-
-      if (atom_sym != "Any") {
-        ABSL_LOG(INFO) << "Cannot find element " << atom_sym
-                       << "; check mol2 file consistency";
-        return { false, false };
-      }
-
-      elem = &PeriodicTable::get()[0];
-      break;
     }
 
     has_hydrogen |= elem->atomic_number() == 1;
