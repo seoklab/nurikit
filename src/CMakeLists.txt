@@ -38,14 +38,14 @@ if(NURI_SRCS)
   set_target_properties(nuri_lib PROPERTIES OUTPUT_NAME nuri)
   target_link_libraries(nuri_lib
     PUBLIC
-    absl::strings absl::flat_hash_map absl::absl_check)
+    absl::strings absl::flat_hash_map absl::absl_check Boost::iterator)
 
   target_system_include_directories(nuri_lib
     Eigen3::Eigen Boost::spirit Boost::fusion Boost::mpl Boost::optional
     Boost::iterator)
   target_link_libraries(nuri_lib
     PRIVATE
-    Boost::spirit Boost::fusion Boost::mpl Boost::optional Boost::iterator)
+    Boost::spirit Boost::fusion Boost::mpl Boost::optional)
 
   install(TARGETS nuri_lib LIBRARY)
 
