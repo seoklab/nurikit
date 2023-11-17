@@ -6,6 +6,7 @@
 #include "nuri/core/element.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <string_view>
@@ -14,6 +15,8 @@
 #include <vector>
 
 #include <absl/log/absl_check.h>
+#include <absl/strings/ascii.h>
+#include <absl/strings/str_cat.h>
 
 namespace nuri {
 namespace {
@@ -3959,40 +3962,104 @@ PeriodicTable::PeriodicTable() noexcept
 } }, },
   // clang-format on
   // GCOV_EXCL_START
-    symbol_to_element_(kElementCount_ + 18),
-    name_to_element_(kElementCount_ + 15) {
+    symbol_to_element_(static_cast<size_t>(kElementCount_ + 17) * 3),
+    name_to_element_(static_cast<size_t>(kElementCount_ + 15) * 3) {
   // GCOV_EXCL_STOP
   // Canonical symbols and names.
   for (const Element &element: elements_) {
     symbol_to_element_[element.symbol()] = name_to_element_[element.name()] =
         &element;
+
+    if (element.symbol().size() > 1) {
+      absl::StrAppend(&symb_name_buf_, absl::AsciiStrToUpper(element.symbol()));
+    }
+
+    absl::StrAppend(&symb_name_buf_, absl::AsciiStrToLower(element.symbol()),
+                    absl::AsciiStrToUpper(element.name()),
+                    absl::AsciiStrToLower(element.name()));
   }
+
+  symb_name_buf_.shrink_to_fit();
+
+  std::string_view buffer = symb_name_buf_;
+  size_t pos = 0;
+  for (const Element &element: elements_) {
+    size_t len = element.symbol().size();
+    if (element.symbol().size() > 1) {
+      symbol_to_element_[buffer.substr(pos, len)] = &element;
+      pos += len;
+    }
+    symbol_to_element_[buffer.substr(pos, len)] = &element;
+    pos += len;
+
+    len = element.name().size();
+    name_to_element_[buffer.substr(pos, len)] = &element;
+    pos += len;
+    name_to_element_[buffer.substr(pos, len)] = &element;
+    pos += len;
+  }
+
+  ABSL_DCHECK(pos == symb_name_buf_.size());
+
+// NOLINTNEXTLINE(*-macro-usage)
+#define NURI_ELEMENT_ADD_EXTRA(number, s1, s2, s3, n1, n2, n3)                 \
+  symbol_to_element_[#s1] = symbol_to_element_[#s2] =                          \
+      symbol_to_element_[#s3] = name_to_element_[#n1] =                        \
+          name_to_element_[#n2] = name_to_element_[#n3] = &elements_[number]
 
   // Non-canonical symbols for convenience.
 
   // RDKit use "*" and some others use "X", "Du" for dummy atom.
-  symbol_to_element_["*"] = symbol_to_element_["X"] = symbol_to_element_["Du"] =
-      &elements_[0];
+  NURI_ELEMENT_ADD_EXTRA(0, *, X, x, Du, DU, du);
 
   // Systematic element symbols & names (104-118).
-  symbol_to_element_["Unq"] = name_to_element_["Unnilquadium"] =
-      &elements_[104];
-  symbol_to_element_["Unp"] = name_to_element_["Unnilpentium"] =
-      &elements_[105];
-  symbol_to_element_["Unh"] = name_to_element_["Unnilhexium"] = &elements_[106];
-  symbol_to_element_["Uns"] = name_to_element_["Unnilseptium"] =
-      &elements_[107];
-  symbol_to_element_["Uno"] = name_to_element_["Unniloctium"] = &elements_[108];
-  symbol_to_element_["Une"] = name_to_element_["Unnilennium"] = &elements_[109];
-  symbol_to_element_["Uun"] = name_to_element_["Ununnilium"] = &elements_[110];
-  symbol_to_element_["Uuu"] = name_to_element_["Unununium"] = &elements_[111];
-  symbol_to_element_["Uub"] = name_to_element_["Ununbium"] = &elements_[112];
-  symbol_to_element_["Uut"] = name_to_element_["Ununtrium"] = &elements_[113];
-  symbol_to_element_["Uuq"] = name_to_element_["Ununquadium"] = &elements_[114];
-  symbol_to_element_["Uup"] = name_to_element_["Ununpentium"] = &elements_[115];
-  symbol_to_element_["Uuh"] = name_to_element_["Ununhexium"] = &elements_[116];
-  symbol_to_element_["Uus"] = name_to_element_["Ununseptium"] = &elements_[117];
-  symbol_to_element_["Uuo"] = name_to_element_["Ununoctium"] = &elements_[118];
+
+  NURI_ELEMENT_ADD_EXTRA(104,            //
+                         Unq, UNQ, unq,  //
+                         Unnilquadium, UNNILQUADIUM, unnilquadium);
+  NURI_ELEMENT_ADD_EXTRA(105,            //
+                         Unp, UNP, unp,  //
+                         Unnilpentium, UNNILPENTIUM, unnilpentium);
+  NURI_ELEMENT_ADD_EXTRA(106,            //
+                         Unh, UNH, unh,  //
+                         Unnilhexium, UNNILHEXIUM, unnilhexium);
+  NURI_ELEMENT_ADD_EXTRA(107,            //
+                         Uns, UNS, uns,  //
+                         Unnilseptium, UNNILSEPTIUM, unnilseptium);
+  NURI_ELEMENT_ADD_EXTRA(108,            //
+                         Uno, UNO, uno,  //
+                         Unniloctium, UNNILOCTIUM, unniloctium);
+  NURI_ELEMENT_ADD_EXTRA(109,            //
+                         Une, UNE, une,  //
+                         Unnilennium, UNNILENNIUM, unnilennium);
+  NURI_ELEMENT_ADD_EXTRA(110,            //
+                         Uun, UUN, uun,  //
+                         Ununnilium, UNUNNILIUM, ununnilium);
+  NURI_ELEMENT_ADD_EXTRA(111,            //
+                         Uuu, UUU, uuu,  //
+                         Unununium, UNUNUNIUM, unununium);
+  NURI_ELEMENT_ADD_EXTRA(112,            //
+                         Uub, UUB, uub,  //
+                         Ununbium, UNUNBIUM, ununbium);
+  NURI_ELEMENT_ADD_EXTRA(113,            //
+                         Uut, UUT, uut,  //
+                         Ununtrium, UNUNTRIUM, ununtrium);
+  NURI_ELEMENT_ADD_EXTRA(114,            //
+                         Uuq, UUQ, uuq,  //
+                         Ununquadium, UNUNQUADIUM, ununquadium);
+  NURI_ELEMENT_ADD_EXTRA(115,            //
+                         Uup, UUP, uup,  //
+                         Ununpentium, UNUNPENTIUM, ununpentium);
+  NURI_ELEMENT_ADD_EXTRA(116,            //
+                         Uuh, UUH, uuh,  //
+                         Ununhexium, UNUNHEXIUM, ununhexium);
+  NURI_ELEMENT_ADD_EXTRA(117,            //
+                         Uus, UUS, uus,  //
+                         Ununseptium, UNUNSEPTIUM, ununseptium);
+  NURI_ELEMENT_ADD_EXTRA(118,            //
+                         Uuo, UUO, uuo,  //
+                         Ununoctium, UNUNOCTIUM, ununoctium);
+#undef NURI_ELEMENT_ADD_EXTRA
 
   symbol_to_element_.rehash(0);
   name_to_element_.rehash(0);

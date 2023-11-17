@@ -384,6 +384,7 @@ private:
   PeriodicTable() noexcept;
 
   Element elements_[kElementCount_];
+  std::string symb_name_buf_;
   absl::flat_hash_map<std::string_view, const Element *> symbol_to_element_;
   absl::flat_hash_map<std::string_view, const Element *> name_to_element_;
 };
