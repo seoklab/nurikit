@@ -8,6 +8,7 @@
 #include <pybind11/pytypes.h>
 
 #include <absl/base/call_once.h>
+#include <absl/base/internal/raw_logging.h>
 #include <absl/base/log_severity.h>
 #include <absl/log/absl_log.h>
 #include <absl/log/globals.h>
@@ -43,11 +44,12 @@ public:
    */
   static void init() {
     static absl::once_flag flag;
+
     auto initializer = []() {
       absl::InitializeLog();
 
-      PyLogSink::py_log_ =
-          py::module_::import("logging").attr("getLogger")("nuri").attr("log");
+      logger_ = py::module_::import("logging").attr("getLogger")("nuri");
+      logger_.inc_ref();
 
       // Why no nolint for clang static analyzer?
 #ifndef __clang_analyzer__
@@ -59,23 +61,33 @@ public:
 
       ABSL_DLOG(INFO) << "initialized nurikit Python logging sink.";
     };
+
     absl::call_once(flag, initializer);
   }
 
   void Send(const absl::LogEntry &entry) override {
-    const py::gil_scoped_acquire gil;
+    try {
+      const py::gil_scoped_acquire gil;
 
-    py_log_(absl_severity_to_py_loglevel(entry.log_severity()),
-            entry.text_message());
+      try {
+        logger_.attr("log")(absl_severity_to_py_loglevel(entry.log_severity()),
+                            entry.text_message());
+      } catch (py::error_already_set &e) {
+        e.discard_as_unraisable("nurikit internal logging");
+      }
+    } catch (...) {
+      ABSL_RAW_LOG(ERROR, "unknown error while logging (original message: %s)",
+                   entry.text_message_with_prefix_and_newline_c_str());
+    }
   }
 
 private:
   // NOLINTNEXTLINE(*-identifier-naming,*-global-variables)
-  static py::handle py_log_;
+  static py::handle logger_;
 };
 
 // NOLINTNEXTLINE(*-global-variables)
-py::handle PyLogSink::py_log_;
+py::handle PyLogSink::logger_;
 
 PYBIND11_MODULE(_log_adapter, m) {
   m.def("_init", &PyLogSink::init);
