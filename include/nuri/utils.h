@@ -18,6 +18,8 @@
 #include <type_traits>
 #include <vector>
 
+#include <boost/iterator/iterator_facade.hpp>
+
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
 #include <absl/strings/ascii.h>
@@ -133,84 +135,49 @@ namespace internal {
     pointer p_;
   };
 
-  template <class Iter, auto unaryop,
-            class Ref = decltype(unaryop(*std::declval<Iter>())),
-            class Val = std::remove_reference_t<Ref>,
-            class Ptr = ArrowHelper<Ref>>
-  class TransformIterator {
+  template <class Iter, auto unaryop>
+  class TransformIterator
+      : public boost::iterator_facade<
+            TransformIterator<Iter, unaryop>,
+            std::remove_reference_t<decltype(unaryop(*std::declval<Iter>()))>,
+            typename std::iterator_traits<Iter>::iterator_category,
+            decltype(unaryop(*std::declval<Iter>())),
+            typename std::iterator_traits<Iter>::difference_type> {
+    using Base = boost::iterator_facade<
+        TransformIterator<Iter, unaryop>,
+        std::remove_reference_t<decltype(unaryop(*std::declval<Iter>()))>,
+        typename std::iterator_traits<Iter>::iterator_category,
+        decltype(unaryop(*std::declval<Iter>())),
+        typename std::iterator_traits<Iter>::difference_type>;
+    using Traits = std::iterator_traits<Base>;
+
   public:
-    using iterator_category =
-        typename std::iterator_traits<Iter>::iterator_category;
-    using value_type = Val;
-    using difference_type =
-        typename std::iterator_traits<Iter>::difference_type;
-    using reference = Ref;
-    using pointer = Ptr;
+    using iterator_category = typename Traits::iterator_category;
+    using value_type = typename Traits::value_type;
+    using difference_type = typename Traits::difference_type;
+    using pointer = typename Traits::pointer;
+    using reference = typename Traits::reference;
 
     TransformIterator() = default;
     explicit TransformIterator(Iter it): it_(it) { }
 
-    reference operator*() const { return unaryop(*it_); }
-    pointer operator->() const { return { unaryop(*it_) }; }
-
-    TransformIterator &operator+=(difference_type n) {
-      it_ += n;
-      return *this;
-    }
-
-    TransformIterator operator+(difference_type n) const {
-      return TransformIterator(it_ + n);
-    }
-
-    friend TransformIterator operator+(difference_type n,
-                                       TransformIterator rhs) {
-      return TransformIterator(n + rhs.it_);
-    }
-
-    TransformIterator &operator-=(difference_type n) {
-      it_ -= n;
-      return *this;
-    }
-
-    TransformIterator operator-(difference_type n) const {
-      return TransformIterator(it_ - n);
-    }
-
-    difference_type operator-(TransformIterator rhs) const {
-      return it_ - rhs.it_;
-    }
-
-    reference operator[](difference_type n) const { return unaryop(it_[n]); }
-
-    TransformIterator &operator--() {
-      --it_;
-      return *this;
-    }
-
-    TransformIterator operator--(int) { return TransformIterator(it_--); }
-
-    TransformIterator &operator++() {
-      ++it_;
-      return *this;
-    }
-
-    TransformIterator operator++(int) { return TransformIterator(it_++); }
-
-    bool operator==(TransformIterator rhs) const { return it_ == rhs.it_; }
-
-    bool operator!=(TransformIterator rhs) const { return it_ != rhs.it_; }
-
-    bool operator<(TransformIterator rhs) const { return it_ < rhs.it_; }
-
-    bool operator>(TransformIterator rhs) const { return it_ > rhs.it_; }
-
-    bool operator<=(TransformIterator rhs) const { return it_ <= rhs.it_; }
-
-    bool operator>=(TransformIterator rhs) const { return it_ >= rhs.it_; }
-
     Iter base() const { return it_; }
 
   private:
+    friend class boost::iterator_core_access;
+
+    reference dereference() const { return unaryop(*it_); }
+
+    bool equal(TransformIterator rhs) const { return it_ == rhs.it_; }
+
+    void increment() { ++it_; }
+    void decrement() { --it_; }
+    void advance(difference_type n) { it_ += n; }
+
+    difference_type distance_to(TransformIterator lhs) const {
+      return lhs.it_ - it_;
+    }
+
     Iter it_;
   };
 }  // namespace internal

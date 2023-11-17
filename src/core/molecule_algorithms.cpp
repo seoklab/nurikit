@@ -253,7 +253,7 @@ namespace {
 
   template <class RandomIt>
   using GenericDestIterator =
-      internal::TransformIterator<RandomIt, extract_did, int, int>;
+      internal::TransformIterator<RandomIt, extract_did>;
 
   using DestIterator =
       GenericDestIterator<std::vector<Molecule::Neighbor>::const_iterator>;
