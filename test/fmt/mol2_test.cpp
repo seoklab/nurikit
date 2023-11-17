@@ -132,7 +132,7 @@ GASTEIGER
 charge 1
 )mol2");
 
-  for (int i = 0; i < 11; ++i) {
+  for (int i = 0; i < 12; ++i) {
     NURI_FMT_TEST_PARSE_FAIL();
   }
 }
