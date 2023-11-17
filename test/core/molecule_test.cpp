@@ -12,6 +12,7 @@
 
 #include <absl/algorithm/container.h>
 #include <absl/container/flat_hash_set.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include "nuri/eigen_config.h"
@@ -183,6 +184,23 @@ TEST_F(MoleculeTest, AddAtomsTest) {
   }
 
   EXPECT_EQ(mol_.atom(mol_.size() - 1).data().atomic_number(), 1);
+}
+
+TEST_F(MoleculeTest, AddBonds) {
+  {
+    auto mutator = mol_.mutator();
+    BondData d;
+    d.length() = 0;
+    mutator.add_bond(4, 11, d);
+  }
+
+  EXPECT_EQ(mol_.num_bonds(), 12);
+
+  auto bit = mol_.find_bond(4, 11);
+  ASSERT_NE(bit, mol_.bond_end());
+  EXPECT_THAT(bit->data().length(), testing::Not(testing::DoubleEq(0)));
+  EXPECT_DOUBLE_EQ(bit->data().length(),
+                   (mol_.conf().row(4) - mol_.conf().row(11)).norm());
 }
 
 TEST_F(MoleculeTest, TransformTest) {
