@@ -60,7 +60,6 @@ using ArrayXXi = ArrayXX<int>;
 using ArrayXXf = ArrayXX<float>;
 using ArrayXXd = ArrayXX<double>;
 
-
 template <class MT>
 using Ref = Eigen::Ref<MT, Eigen::RowMajor>;
 
