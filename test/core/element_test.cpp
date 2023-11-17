@@ -36,12 +36,15 @@ TEST_F(PeriodicTableTest, AtomicNumberTest) {
 }
 
 TEST_F(PeriodicTableTest, SymbolTest) {
-  ASSERT_TRUE(table_.has_element("H"));
+  ASSERT_TRUE(table_.has_element("He"));
 
-  const Element &hydrogen = *table_.find_element("H");
-  EXPECT_EQ(hydrogen.atomic_number(), 1);
-  EXPECT_EQ(hydrogen.symbol(), "H");
-  EXPECT_EQ(hydrogen.name(), "Hydrogen");
+  const Element &helium = *table_.find_element("He");
+  EXPECT_EQ(helium.atomic_number(), 2);
+  EXPECT_EQ(helium.symbol(), "He");
+  EXPECT_EQ(helium.name(), "Helium");
+
+  EXPECT_EQ(table_.find_element("HE"), &helium);
+  EXPECT_EQ(table_.find_element("he"), &helium);
 
   EXPECT_FALSE(table_.has_element("Aa"));
   EXPECT_EQ(table_.find_element("Aa"), nullptr);
@@ -54,6 +57,9 @@ TEST_F(PeriodicTableTest, NameTest) {
   EXPECT_EQ(helium.atomic_number(), 2);
   EXPECT_EQ(helium.symbol(), "He");
   EXPECT_EQ(helium.name(), "Helium");
+
+  EXPECT_EQ(table_.find_element_of_name("HELIUM"), &helium);
+  EXPECT_EQ(table_.find_element_of_name("helium"), &helium);
 
   EXPECT_FALSE(table_.has_element_of_name("Random"));
   EXPECT_EQ(table_.find_element_of_name("Random"), nullptr);
@@ -116,6 +122,8 @@ TEST_F(PeriodicTableTest, IsotopesTest) {
         break;
       case 82:  // Pb
         tol = 1.1;
+        break;
+      default:
         break;
       }
 

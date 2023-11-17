@@ -186,8 +186,11 @@ PYBIND11_MODULE(element, m) {
     >>> periodic_table["Hydrogen"]
     <Element H>
 
-    Note the "atomic names" must be in *Titlecase*. For example, "hydrogen"
-    would not work. If no such element exists, a :exc:`KeyError` is raised.
+    Note the symbols and names are case sensitive and default to *Titlecase*.
+    We additionally support two common cases for all symbols and names: (1) all
+    upper case, and (2) all lower case. For example, ``periodic_table["HE"]``
+    and ``periodic_table["he"]`` both work, but ``periodic_table["hE"]`` would
+    not. If no such element exists, a :exc:`KeyError` is raised.
 
     >>> periodic_table[1000]
     Traceback (most recent call last):
