@@ -65,6 +65,17 @@ NO_CHARGES
      1     1     2    error
 @<TRIPOS>MOLECULE
 *****
+ 1 1 0 0 0
+SMALL
+NO_CHARGES
+
+
+@<TRIPOS>ATOM
+      1 N           0    0.0000    0.0000 N.3
+@<TRIPOS>BOND
+     1     1     1    1
+@<TRIPOS>MOLECULE
+*****
  1 0 0 0 0
 SMALL
 NO_CHARGES
