@@ -46,7 +46,7 @@ namespace internal {
         : graph_(graph), index_(index) { }
 
   protected:
-    using Parent = DataIteratorBase<Derived, GT, DT, is_const>;
+    using Parent = DataIteratorBase;
 
     template <class Other,
               std::enable_if_t<!std::is_same_v<Derived, Other>, int> = 0>

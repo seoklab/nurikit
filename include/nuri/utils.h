@@ -135,13 +135,8 @@ namespace internal {
             typename std::iterator_traits<Iter>::iterator_category,
             decltype(unaryop(*std::declval<Iter>())),
             typename std::iterator_traits<Iter>::difference_type> {
-    using Base = boost::iterator_facade<
-        TransformIterator<Iter, unaryop>,
-        std::remove_reference_t<decltype(unaryop(*std::declval<Iter>()))>,
-        typename std::iterator_traits<Iter>::iterator_category,
-        decltype(unaryop(*std::declval<Iter>())),
-        typename std::iterator_traits<Iter>::difference_type>;
-    using Traits = std::iterator_traits<Base>;
+    using Traits =
+        std::iterator_traits<typename TransformIterator::iterator_facade_>;
 
   public:
     using iterator_category = typename Traits::iterator_category;
