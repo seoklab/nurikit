@@ -106,34 +106,10 @@ namespace internal {
 }  // namespace internal
 
 namespace internal {
-  template <class RefLike,
-            bool is_lvalue_ref = std::is_lvalue_reference_v<RefLike>>
-  class ArrowHelper;
-
-  template <class RefLike>
-  class ArrowHelper<RefLike, false> {
-  public:
-    constexpr ArrowHelper(RefLike &&r) noexcept: r_(std::move(r)) { }
-
-    constexpr RefLike *operator->() noexcept { return &r_; }
-    constexpr const RefLike *operator->() const noexcept { return &r_; }
-
-  private:
-    RefLike r_;
-  };
-
-  template <class RefLike>
-  class ArrowHelper<RefLike, true> {
-    using pointer = std::remove_reference_t<RefLike> *;
-
-  public:
-    constexpr ArrowHelper(RefLike r) noexcept: p_(&r) { }
-
-    constexpr pointer operator->() const noexcept { return p_; }
-
-  private:
-    pointer p_;
-  };
+  template <class Derived, class RefLike, class Category,
+            class difference_type = std::ptrdiff_t>
+  using ProxyIterator = boost::iterator_facade<Derived, RefLike, Category,
+                                               RefLike, difference_type>;
 
   template <class Iter, auto unaryop>
   class TransformIterator
