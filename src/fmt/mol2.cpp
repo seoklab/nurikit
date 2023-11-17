@@ -375,18 +375,26 @@ bool parse_bond_block(MoleculeMutator &mutator, Iter &it, const Iter end) {
       return false;
     }
 
-    auto &ids = std::get<0>(tokens);
+    const auto &ids = std::get<0>(tokens);
+    int mol_ids[2];
+
     for (int i = 0; i < 2; ++i) {
-      --ids[i];
-      if (ids[i] >= mutator.mol().num_atoms()) {
+      mol_ids[i] = static_cast<int>(ids[i] - 1);
+      if (mol_ids[i] >= mutator.mol().num_atoms()) {
         ABSL_LOG(WARNING) << "Atom index " << ids[i]
                           << " out of range; check mol2 file consistency";
         return false;
       }
     }
 
-    if (!mutator.add_bond(static_cast<int>(ids[0]), static_cast<int>(ids[1]),
-                          std::get<1>(tokens))) {
+    if (mol_ids[0] == mol_ids[1]) {
+      ABSL_LOG(WARNING) << "Failed to add self-bond to atom " << ids[0];
+      return false;
+    }
+
+    auto [_, success] =
+        mutator.add_bond(mol_ids[0], mol_ids[1], std::get<1>(tokens));
+    if (!success) {
       ABSL_LOG(WARNING) << "Failed to add bond " << ids[0] << " -> " << ids[1]
                         << "; check mol2 file consistency";
       return false;
@@ -1085,6 +1093,7 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
   }
 
   mol.add_conf(stack(pos));
+  mol.update_bond_lengths();
 
   // Only add substructures actually mentioned in the SUBSTRUCTURE block
   for (auto &[_, data]: substructs) {

@@ -56,6 +56,7 @@ void Molecule::clear() noexcept {
   graph_.clear();
   conformers_.clear();
   name_.clear();
+  props_.clear();
 
   substructs_.clear();
   ring_groups_.clear();
@@ -94,31 +95,20 @@ namespace {
 int Molecule::add_conf(const MatrixX3d &pos) {
   const int ret = static_cast<int>(conformers_.size());
   conformers_.push_back(pos);
-
-  // First conformer, update bond lengths
-  if (ret == 0) {
-    for (auto bond: graph_.edges()) {
-      bond.data().length() = (pos.row(bond.dst()) - pos.row(bond.src())).norm();
-    }
-  }
-
   return ret;
 }
 
 int Molecule::add_conf(MatrixX3d &&pos) noexcept {
   const int ret = static_cast<int>(conformers_.size());
   conformers_.push_back(std::move(pos));
-
-  // First conformer, update bond lengths
-  if (ret == 0) {
-    MatrixX3d &the_pos = conformers_[0];
-    for (auto bond: graph_.edges()) {
-      bond.data().length() =
-          (the_pos.row(bond.dst()) - the_pos.row(bond.src())).norm();
-    }
-  }
-
   return ret;
+}
+
+void Molecule::update_bond_lengths() {
+  MatrixX3d &pos = conformers_[0];
+  for (auto bond: graph_.edges()) {
+    bond.data().length() = (pos.row(bond.dst()) - pos.row(bond.src())).norm();
+  }
 }
 
 bool Molecule::rotate_bond(int ref_atom, int pivot_atom, double angle) {
@@ -286,23 +276,31 @@ void Molecule::update_topology() {
 
 namespace {
   template <class DT>
-  bool add_bond_impl(Molecule::GraphType &graph, int src, int dst, DT &&bond) {
-    if (graph.find_edge(src, dst) != graph.edge_end()
-        || ABSL_PREDICT_FALSE(src == dst)) {
-      return false;
+  std::pair<Molecule::bond_iterator, bool>
+  add_bond_impl(Molecule &mol, Molecule::GraphType &graph, int src, int dst,
+                DT &&bond) {
+    auto it = graph.find_edge(src, dst);
+    if (it != graph.edge_end()) {
+      return std::make_pair(it, false);
     }
 
-    graph.add_edge(src, dst, std::forward<DT>(bond));
-    return true;
+    it = graph.add_edge(src, dst, std::forward<DT>(bond));
+    if (mol.is_3d()) {
+      it->data().length() =
+          (mol.conf(0).row(src) - mol.conf(0).row(dst)).norm();
+    }
+    return std::make_pair(it, true);
   }
 }  // namespace
 
-bool MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
-  return add_bond_impl(mol().graph_, src, dst, bond);
+std::pair<Molecule::bond_iterator, bool>
+MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
+  return add_bond_impl(mol(), mol().graph_, src, dst, bond);
 }
 
-bool MoleculeMutator::add_bond(int src, int dst, BondData &&bond) noexcept {
-  return add_bond_impl(mol().graph_, src, dst, std::move(bond));
+std::pair<Molecule::bond_iterator, bool>
+MoleculeMutator::add_bond(int src, int dst, BondData &&bond) noexcept {
+  return add_bond_impl(mol(), mol().graph_, src, dst, std::move(bond));
 }
 
 void MoleculeMutator::mark_bond_erase(int src, int dst) {

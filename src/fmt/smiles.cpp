@@ -208,6 +208,10 @@ constants::BondOrder char_to_bond(char b) {
 
 bool add_bond(MoleculeMutator &mutator, const int prev, const int curr,
               const char bond_repr) {
+  if (prev == curr) {
+    return false;
+  }
+
   BondData bond_data;
 
   // Automatic bond
@@ -224,7 +228,8 @@ bool add_bond(MoleculeMutator &mutator, const int prev, const int curr,
   ABSL_DLOG(INFO) << "Trying to add bond " << prev << " -> " << curr << ": "
                   << bond_data.order();
 
-  return mutator.add_bond(prev, curr, bond_data);
+  auto [_, success] = mutator.add_bond(prev, curr, bond_data);
+  return success;
 }
 
 template <class Ctx>

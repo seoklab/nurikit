@@ -218,12 +218,9 @@ public:
 
   void set_name(std::string_view name) { internal::set_name(props_, name); }
 
-  void add_prop(const std::string &key, const std::string &val) {
-    props_.emplace_back(key, val);
-  }
-
-  void add_prop(std::string &&key, std::string &&val) noexcept {
-    props_.emplace_back(std::move(key), std::move(val));
+  template <class KT, class VT>
+  void add_prop(KT &&key, VT &&val) {
+    props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
   }
 
   std::vector<std::pair<std::string, std::string>> &props() { return props_; }
@@ -340,12 +337,9 @@ public:
 
   void set_name(std::string_view name) { internal::set_name(props_, name); }
 
-  void add_prop(const std::string &key, const std::string &val) {
-    props_.emplace_back(key, val);
-  }
-
-  void add_prop(std::string &&key, std::string &&val) noexcept {
-    props_.emplace_back(std::move(key), std::move(val));
+  template <class KT, class VT>
+  void add_prop(KT &&key, VT &&val) {
+    props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
   }
 
   std::vector<std::pair<std::string, std::string>> &props() { return props_; }
@@ -432,7 +426,13 @@ namespace internal {
     bool empty() const { return graph_.empty(); }
     int size() const { return graph_.size(); }
     int num_atoms() const { return graph_.num_nodes(); }
-    void clear() { graph_.clear(); }
+
+    void clear() {
+      graph_.clear();
+      name_.clear();
+      id_ = 0;
+      props_.clear();
+    }
 
     void update(const std::vector<int> &atoms) { graph_.update(atoms); }
     void update(std::vector<int> &&atoms) noexcept {
@@ -531,12 +531,9 @@ namespace internal {
 
     int id() const { return id_; }
 
-    void add_prop(const std::string &key, const std::string &val) {
-      props_.emplace_back(key, val);
-    }
-
-    void add_prop(std::string &&key, std::string &&val) noexcept {
-      props_.emplace_back(std::move(key), std::move(val));
+    template <class KT, class VT>
+    void add_prop(KT &&key, VT &&val) {
+      props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
     }
 
     std::vector<std::pair<std::string, std::string>> &props() { return props_; }
@@ -1025,6 +1022,19 @@ public:
    * @param i Index of the conformer.
    * @return Atomic coordinates of ith conformer.
    * @note If index is out of range, the behavior is undefined.
+   * @note Resizing the returned matrix is a no-op. In debug mode, an assertion
+   *       failure will be triggered if the matrix is resized.
+   * @warning Bond lengths will not be updated even if the coordinates are
+   *          updated. Call update_bond_lengths() to update the bond lengths.
+   */
+  Ref<MatrixX3d> conf(int i = 0) { return conformers_[i]; }
+
+  /**
+   * @brief Get the atomic coordinates of ith conformer.
+   *
+   * @param i Index of the conformer.
+   * @return Atomic coordinates of ith conformer.
+   * @note If index is out of range, the behavior is undefined.
    */
   const MatrixX3d &conf(int i = 0) const { return conformers_[i]; }
 
@@ -1048,10 +1058,11 @@ public:
    * @note If number of rows of \p pos does not match the number of atoms in the
    *       molecule, the behavior is undefined.
    *
-   * If no conformers exist, the bond lengths will be calculated from the
-   * positions of the atoms in `pos`. Otherwise, the bond lengths will be left
-   * unmodified, so it is the caller's responsibility to ensure that the bond
-   * lengths are consistent with the new conformer.
+   * The bond lengths will be left unmodified, so it is the caller's
+   * responsibility to ensure that the bond lengths are consistent with the new
+   * conformer.
+   *
+   * @see update_bond_lengths()
    */
   int add_conf(const MatrixX3d &pos);
 
@@ -1063,10 +1074,11 @@ public:
    * @note If number of rows of \p pos does not match the number of atoms in the
    *       molecule, the behavior is undefined.
 
-   * If no conformers exist, the bond lengths will be calculated from the
-   * positions of the atoms in `pos`. Otherwise, the bond lengths will be left
-   * unmodified, so it is the caller's responsibility to ensure that the bond
-   * lengths are consistent with the new conformer.
+   * The bond lengths will be left unmodified, so it is the caller's
+   * responsibility to ensure that the bond lengths are consistent with the new
+   * conformer.
+   *
+   * @see update_bond_lengths()
    */
   int add_conf(MatrixX3d &&pos) noexcept;
 
@@ -1099,6 +1111,12 @@ public:
     MatrixX3d &m = conformers_[i];
     m.transpose() = trans * m.transpose();
   }
+
+  /**
+   * @brief Calculate and update the bond lengths of the molecule.
+   * @note The behavior is undefined if the molecule has no conformers.
+   */
+  void update_bond_lengths();
 
   /**
    * @brief Rotate a bond.
@@ -1307,8 +1325,10 @@ public:
    * @brief Find substructures with given name.
    *
    * @return A ranged view of substructures with given name.
+   * @warning The owner of name must ensure that the name is valid during the
+   *          lifetime of the returned view.
    */
-  auto find_substructures(const std::string &name) {
+  auto find_substructures(std::string_view name) {
     return internal::make_substructure_finder(substructs_,
                                               [name](const Substructure &sub) {
                                                 return sub.name() == name;
@@ -1329,12 +1349,36 @@ public:
    * @brief Find substructures with given name.
    *
    * @return A ranged constant view of substructures with given name.
+   * @warning The owner of name must ensure that the name is valid during the
+   *          lifetime of the returned view.
    */
-  auto find_substructures(const std::string &name) const {
+  auto find_substructures(std::string_view name) const {
     return internal::make_substructure_finder(substructs_,
                                               [name](const Substructure &sub) {
                                                 return sub.name() == name;
                                               });
+  }
+
+  /**
+   * @brief Find substructures with given predicate.
+   *
+   * @return A ranged view of substructures which satisfy the predicate.
+   */
+  template <class UnaryPred>
+  auto find_substructures_if(UnaryPred &&pred) {
+    return internal::make_substructure_finder(substructs_,
+                                              std::forward<UnaryPred>(pred));
+  }
+
+  /**
+   * @brief Find substructures with given predicate.
+   *
+   * @return A ranged view of substructures which satisfy the predicate.
+   */
+  template <class UnaryPred>
+  auto find_substructures_if(UnaryPred &&pred) const {
+    return internal::make_substructure_finder(substructs_,
+                                              std::forward<UnaryPred>(pred));
   }
 
   /**
@@ -1395,12 +1439,9 @@ public:
     }
   }
 
-  void add_prop(const std::string &key, const std::string &val) {
-    props_.emplace_back(key, val);
-  }
-
-  void add_prop(std::string &&key, std::string &&val) noexcept {
-    props_.emplace_back(std::move(key), std::move(val));
+  template <class KT, class VT>
+  void add_prop(KT &&key, VT &&val) {
+    props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
   }
 
   std::vector<std::pair<std::string, std::string>> &props() { return props_; }
@@ -1503,30 +1544,54 @@ public:
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
    * @param bond The data of the bond to add.
-   * @return `true` if the bond was added, `false` if the bond already exists.
-   * @note The behavior is undefined if any of the atom indices is out of range.
+   * @return If added, pair of iterator to the added bond, and `true`. If the
+   *         bond already exists, pair of iterator to the existing bond, and
+   *         `false`.
+   * @note The behavior is undefined if any of the atom indices is out of range,
+   *       or if src == dst.
+   *
+   * If the bond is added and the molecule has at least one conformer, the bond
+   * length will be calculated from the positions of the atoms in the first
+   * conformer.
    */
-  bool add_bond(int src, int dst, const BondData &bond);
+  std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
+                                                    const BondData &bond);
 
   /**
    * @brief Add a bond to the molecule.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
    * @param bond The data of the bond to add.
-   * @return `true` if the bond was added, `false` if the bond already exists.
-   * @note The behavior is undefined if any of the atom indices is out of range.
+   * @return If added, pair of iterator to the added bond, and `true`. If the
+   *         bond already exists, pair of iterator to the existing bond, and
+   *         `false`.
+   * @note The behavior is undefined if any of the atom indices is out of range,
+   *       or if src == dst.
+   *
+   * If the bond is added and the molecule has at least one conformer, the bond
+   * length will be calculated from the positions of the atoms in the first
+   * conformer.
    */
-  bool add_bond(int src, int dst, BondData &&bond) noexcept;
+  std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
+                                                    BondData &&bond) noexcept;
 
   /**
    * @brief Add a bond to the molecule.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
    * @param bond The bond to copy the data from.
-   * @return `true` if the bond was added, `false` if the bond already exists.
-   * @note The behavior is undefined if any of the atom indices is out of range.
+   * @return If added, pair of iterator to the added bond, and `true`. If the
+   *         bond already exists, pair of iterator to the existing bond, and
+   *         `false`.
+   * @note The behavior is undefined if any of the atom indices is out of range,
+   *       or if src == dst.
+   *
+   * If the bond is added and the molecule has at least one conformer, the bond
+   * length will be calculated from the positions of the atoms in the first
+   * conformer.
    */
-  bool add_bond(int src, int dst, const Molecule::Bond &bond) {
+  std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
+                                                    Molecule::Bond bond) {
     return add_bond(src, dst, bond.data());
   }
 

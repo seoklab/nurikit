@@ -456,7 +456,7 @@ protected:
   Graph graph_;
   SubgraphOf<Graph> sg_ = Subgraph(graph_);
   SubgraphOf<const Graph> csg_ = sg_;
-  std::vector<Graph::edge_id_type> edges_;
+  std::vector<Graph::edge_iterator> edges_;
 };
 
 TEST_F(AdvancedSubgraphTest, CountDegrees) {
@@ -511,28 +511,28 @@ TEST_F(AdvancedSubgraphTest, FindAdjacency) {
 
   it = sg_.find_adjacent(0, 1);
   EXPECT_FALSE(it.end());
-  EXPECT_EQ(it->eid(), edges_[0]);
+  EXPECT_EQ(it->eid(), edges_[0]->id());
 
   auto cit = std::as_const(sg_).find_adjacent(0, 5);
   EXPECT_TRUE(cit.end());
 
   cit = std::as_const(sg_).find_adjacent(0, 1);
   EXPECT_FALSE(cit.end());
-  EXPECT_EQ(cit->eid(), edges_[0]);
+  EXPECT_EQ(cit->eid(), edges_[0]->id());
 
   auto ccit = csg_.find_adjacent(0, 5);
   EXPECT_TRUE(ccit.end());
 
   ccit = csg_.find_adjacent(0, 1);
   EXPECT_FALSE(ccit.end());
-  EXPECT_EQ(ccit->eid(), edges_[0]);
+  EXPECT_EQ(ccit->eid(), edges_[0]->id());
 
   ccit = csg_.find_adjacent(0, 5);
   EXPECT_TRUE(ccit.end());
 
   ccit = csg_.find_adjacent(0, 1);
   EXPECT_FALSE(ccit.end());
-  EXPECT_EQ(ccit->eid(), edges_[0]);
+  EXPECT_EQ(ccit->eid(), edges_[0]->id());
 }
 
 TEST_F(AdvancedSubgraphTest, FindEdges) {
@@ -594,6 +594,10 @@ using GraphType = nuri::Graph<int, int>;
 
 template class SubEdgeWrapper<GraphType, false>;
 template class SubEdgeWrapper<GraphType, true>;
+static_assert(std::is_trivially_copyable_v<SubEdgeWrapper<GraphType, false>>,
+              "SubEdgeWrapper must be trivially copyable");
+static_assert(std::is_trivially_copyable_v<SubEdgeWrapper<GraphType, true>>,
+              "ConstSubEdgeWrapper must be trivially copyable");
 
 template class DataIteratorBase<
     SubEdgeIterator<SubEdgesFinder<SubgraphOf<GraphType>, false>, true>,
@@ -601,6 +605,10 @@ template class DataIteratorBase<
     SubEdgeWrapper<GraphType, true>, true>;
 template class SubEdgeIterator<SubEdgesFinder<SubgraphOf<GraphType>, false>,
                                true>;
+static_assert(
+    std::is_trivially_copyable_v<
+        SubEdgeIterator<SubEdgesFinder<SubgraphOf<GraphType>, false>, true>>,
+    "SubEdgeIterator must be trivially copyable");
 
 // Other repetitive instantiations
 // NOLINTBEGIN(cppcoreguidelines-macro-usage)
@@ -612,14 +620,29 @@ template class SubEdgeIterator<SubEdgesFinder<SubgraphOf<GraphType>, false>,
       SubEdgesFinder<SGT, is_const>,                                           \
       SubEdgeWrapper<typename SGT::graph_type, is_const>, is_const>;           \
   template class SubEdgeIterator<SubEdgesFinder<SGT, is_const>, is_const>;     \
+  static_assert(                                                               \
+      std::is_trivially_copyable_v<                                            \
+          SubEdgeIterator<SubEdgesFinder<SGT, is_const>, (is_const)>>,         \
+      "SubEdgeIterator must be trivially copyable");                           \
                                                                                \
   template class SubNodeWrapper<SGT, is_const>;                                \
+  static_assert(std::is_trivially_copyable_v<SubNodeWrapper<SGT, (is_const)>>, \
+                "SubNodeWrapper must be trivially copyable");                  \
+                                                                               \
   template class DataIteratorBase<SubNodeIterator<SGT, is_const>, SGT,         \
                                   SubNodeWrapper<SGT, is_const>, is_const>;    \
   template class SubNodeIterator<SGT, is_const>;                               \
+  static_assert(                                                               \
+      std::is_trivially_copyable_v<SubNodeIterator<SGT, (is_const)>>,          \
+      "SubNodeIterator must be trivially copyable");                           \
                                                                                \
   template class AdjWrapper<SGT, is_const>;                                    \
-  template class SubAdjIterator<SGT, is_const>
+  static_assert(std::is_trivially_copyable_v<AdjWrapper<SGT, (is_const)>>,     \
+                "AdjWrapper must be trivially copyable");                      \
+                                                                               \
+  template class SubAdjIterator<SGT, is_const>;                                \
+  static_assert(std::is_trivially_copyable_v<SubAdjIterator<SGT, (is_const)>>, \
+                "SubAdjIterator must be trivially copyable")
 
 NURI_INSTANTIATE_ALL_TEMPLATES(SubgraphOf<GraphType>, false);
 NURI_INSTANTIATE_ALL_TEMPLATES(SubgraphOf<GraphType>, true);

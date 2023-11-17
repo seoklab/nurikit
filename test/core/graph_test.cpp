@@ -215,26 +215,26 @@ TYPED_TEST(BasicGraphTest, AddEdgeTest) {
   ASSERT_EQ(graph.num_nodes(), 6);
   ASSERT_EQ(graph.num_edges(), 3);
 
-  ASSERT_EQ(graph.edge(e0).src(), 0);
-  ASSERT_EQ(graph.edge(e0).dst(), 1);
-  ASSERT_EQ(graph.edge(e1).src(), 2);
-  ASSERT_EQ(graph.edge(e1).dst(), 0);
-  ASSERT_EQ(graph.edge(e2).src(), 3);
-  ASSERT_EQ(graph.edge(e2).dst(), 0);
+  ASSERT_EQ(e0->src(), 0);
+  ASSERT_EQ(e0->dst(), 1);
+  ASSERT_EQ(e1->src(), 2);
+  ASSERT_EQ(e1->dst(), 0);
+  ASSERT_EQ(e2->src(), 3);
+  ASSERT_EQ(e2->dst(), 0);
 
   for (int i = 0; i < graph.num_nodes(); ++i) {
     ASSERT_EQ(graph.node(i).data(), i);
   }
 
-  std::vector<typename Graph::edge_id_type> edges { e0, e1, e2 };
+  std::vector<typename Graph::edge_iterator> edges { e0, e1, e2 };
   for (int i = 0; i < graph.num_edges(); ++i) {
-    ASSERT_EQ(graph.edge(edges[i]).data(), i + graph.num_nodes());
+    ASSERT_EQ(edges[i]->data(), i + graph.num_nodes());
   }
 
   auto it = graph.find_edge(0, 1);
-  ASSERT_EQ(it->id(), e0);
-  ASSERT_EQ(graph.find_edge(0, 2)->id(), e1);
-  ASSERT_EQ(graph.find_edge(0, 3)->id(), e2);
+  ASSERT_EQ(it, e0);
+  ASSERT_EQ(graph.find_edge(0, 2), e1);
+  ASSERT_EQ(graph.find_edge(0, 3), e2);
 
   ASSERT_EQ(graph.find_edge(0, 4), graph.edge_end());
 
@@ -289,7 +289,7 @@ protected:
    *         5     7
    */
   Graph graph_;
-  std::vector<typename Graph::edge_id_type> edges_;
+  std::vector<typename Graph::edge_iterator> edges_;
 };
 
 TYPED_TEST_SUITE(AdvancedGraphTest, Implementations);
@@ -389,20 +389,19 @@ TYPED_TEST(AdvancedGraphTest, NodeIteratorTest) {
 TYPED_TEST(AdvancedGraphTest, UpdateEdgeTest) {
   using Graph = nuri::Graph<TypeParam, TypeParam>;
   Graph &graph = this->graph_;
-  std::vector<typename Graph::edge_id_type> &edges = this->edges_;
+  std::vector<typename Graph::edge_iterator> &edges = this->edges_;
 
   typename Graph::edge_data_type new_data = { 1000 };
-  graph.update_edge(edges[0], new_data);
-  graph.update_edge(edges[1], { 1001 });
+  graph.update_edge(edges[0]->id(), new_data);
+  graph.update_edge(edges[1]->id(), { 1001 });
 
-  ASSERT_EQ(graph.edge(edges[0]).data(), 1000);
-  ASSERT_EQ(graph.edge(edges[1]).data(), 1001);
-  static_assert(
-      !std::is_assignable_v<decltype(graph.edge(edges[0]).as_const().data()),
-                            typename Graph::edge_data_type>,
-      "const edge wrapper should not be assignable");
-  ASSERT_EQ(graph.edge(edges[0]).as_const().data(), 1000);
-  ASSERT_EQ(graph.edge(edges[1]).as_const().data(), 1001);
+  ASSERT_EQ(edges[0]->data(), 1000);
+  ASSERT_EQ(edges[1]->data(), 1001);
+  static_assert(!std::is_assignable_v<decltype(edges[0]->as_const().data()),
+                                      typename Graph::edge_data_type>,
+                "const edge wrapper should not be assignable");
+  ASSERT_EQ(edges[0]->as_const().data(), 1000);
+  ASSERT_EQ(edges[1]->as_const().data(), 1001);
 }
 
 TYPED_TEST(AdvancedGraphTest, EdgeIteratorTest) {
@@ -671,7 +670,7 @@ TYPED_TEST(AdvancedGraphTest, EraseMixedNodesTest) {
 TYPED_TEST(AdvancedGraphTest, PopEdgeTest) {
   using Graph = nuri::Graph<TypeParam, TypeParam>;
   Graph &graph = this->graph_;
-  std::vector<typename Graph::edge_id_type> &edges = this->edges_;
+  std::vector<typename Graph::edge_iterator> &edges = this->edges_;
 
   auto data = graph.pop_edge(edges[0]);
   ASSERT_EQ(data, 100);
@@ -689,7 +688,7 @@ TYPED_TEST(AdvancedGraphTest, PopEdgeTest) {
 TYPED_TEST(AdvancedGraphTest, EraseEdgeTest) {
   using Graph = nuri::Graph<TypeParam, TypeParam>;
   Graph &graph = this->graph_;
-  std::vector<typename Graph::edge_id_type> &edges = this->edges_;
+  std::vector<typename Graph::edge_iterator> &edges = this->edges_;
 
   graph.erase_edge(edges[0]);
   ASSERT_EQ(graph.num_edges(), 9);
@@ -755,9 +754,9 @@ TYPED_TEST(AdvancedGraphTest, EraseAddTest) {
   ASSERT_EQ(graph.num_nodes(), 11);
 
   graph.erase_edge_between(0, 1);
-  auto e = graph.add_edge(7, 10, 110);
+  auto eit = graph.add_edge(7, 10, 110);
   ASSERT_EQ(graph.num_edges(), 6);
-  ASSERT_EQ(graph.find_adjacent(7, 10)->eid(), e);
+  ASSERT_EQ(graph.find_adjacent(7, 10)->eid(), eit->id());
   ASSERT_EQ(graph.find_adjacent(7, 10)->edge_data(), 110);
 }
 
@@ -808,21 +807,43 @@ namespace internal {
 #define NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, iterator, RefType)     \
   template class RefType##Wrapper<GraphType, false>;                           \
   template class RefType##Wrapper<GraphType, true>;                            \
+  static_assert(                                                               \
+      std::is_trivially_copyable_v<RefType##Wrapper<GraphType, false>>,        \
+      #RefType "Wrapper must be trivially copyable");                          \
+  static_assert(                                                               \
+      std::is_trivially_copyable_v<RefType##Iterator<GraphType, true>>,        \
+      "Const" #RefType "Wrapper must be trivially copyable");                  \
   template class DataIteratorBase<GraphType::iterator, GraphType,              \
                                   GraphType::RefType##Ref, false>;             \
   template class DataIteratorBase<GraphType::const_##iterator, GraphType,      \
                                   GraphType::Const##RefType##Ref, true>;       \
   template class RefType##Iterator<GraphType, false>;                          \
-  template class RefType##Iterator<GraphType, true>;
+  template class RefType##Iterator<GraphType, true>;                           \
+  static_assert(                                                               \
+      std::is_trivially_copyable_v<RefType##Iterator<GraphType, false>>,       \
+      #iterator " must be trivially copyable");                                \
+  static_assert(                                                               \
+      std::is_trivially_copyable_v<RefType##Iterator<GraphType, true>>,        \
+      "const_" #iterator " must be trivially copyable");
 
 #define NURI_INSTANTIATE_ALL_TEMPLATES(GraphType)                              \
   NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, iterator, Node)              \
   NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, adjacency_iterator, Adj)     \
   template class EdgeWrapper<GraphType, true>;                                 \
-  template class EdgeIterator<GraphType, true>;
+  template class EdgeWrapper<GraphType, false>;                                \
+  static_assert(std::is_trivially_copyable_v<EdgeWrapper<GraphType, true>>,    \
+                "ConstEdgeWrapper must be trivially copyable");                \
+  static_assert(std::is_trivially_copyable_v<EdgeWrapper<GraphType, false>>,   \
+                "EdgeWrapper must be trivially copyable");                     \
+  template class EdgeIterator<GraphType, true>;                                \
+  template class EdgeIterator<GraphType, false>;                               \
+  static_assert(std::is_trivially_copyable_v<EdgeIterator<GraphType, true>>,   \
+                "const_edge_iterator must be trivially copyable");             \
+  static_assert(std::is_trivially_copyable_v<EdgeIterator<GraphType, true>>,   \
+                "edge_iterator must be trivially copyable")
 
-NURI_INSTANTIATE_ALL_TEMPLATES(TrivialGraph)
-NURI_INSTANTIATE_ALL_TEMPLATES(NonTrivialGraph)
+NURI_INSTANTIATE_ALL_TEMPLATES(TrivialGraph);
+NURI_INSTANTIATE_ALL_TEMPLATES(NonTrivialGraph);
 // NOLINTEND(cppcoreguidelines-macro-usage)
 }  // namespace internal
 }  // namespace nuri

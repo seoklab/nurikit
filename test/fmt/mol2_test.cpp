@@ -12,7 +12,7 @@
 
 namespace nuri {
 namespace {
-using Mol2Test = internal::FormatTest<Mol2Reader>;
+using Mol2Test = internal::StringFormatTest<Mol2Reader>;
 
 TEST_F(Mol2Test, BasicParsing) {
   set_test_string(R"mol2(
@@ -63,6 +63,17 @@ NO_CHARGES
       2 N           0    0.0000    0.0000 N.3
 @<TRIPOS>BOND
      1     1     2    error
+@<TRIPOS>MOLECULE
+*****
+ 1 1 0 0 0
+SMALL
+NO_CHARGES
+
+
+@<TRIPOS>ATOM
+      1 N           0    0.0000    0.0000 N.3
+@<TRIPOS>BOND
+     1     1     1    1
 @<TRIPOS>MOLECULE
 *****
  1 0 0 0 0
@@ -121,7 +132,7 @@ GASTEIGER
 charge 1
 )mol2");
 
-  for (int i = 0; i < 11; ++i) {
+  for (int i = 0; i < 12; ++i) {
     NURI_FMT_TEST_PARSE_FAIL();
   }
 }

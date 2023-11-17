@@ -20,7 +20,7 @@
 
 namespace nuri {
 namespace {
-using SmilesTest = internal::FormatTest<SmilesReader>;
+using SmilesTest = internal::StringFormatTest<SmilesReader>;
 
 TEST_F(SmilesTest, SingleAtomTest) {
   set_test_string(

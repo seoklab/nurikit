@@ -7,6 +7,7 @@
 #define NURI_UTILS_H_
 
 #include <algorithm>
+#include <cstddef>
 #include <filesystem>
 #include <functional>
 #include <iterator>
@@ -15,10 +16,14 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 #include <vector>
+
+#include <boost/iterator/iterator_facade.hpp>
 
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
+#include <absl/strings/ascii.h>
 
 #include "nuri/eigen_config.h"
 
@@ -28,6 +33,9 @@ namespace internal {
 #if __cplusplus >= 202002L
   using std::underlying_type;
   using std::underlying_type_t;
+
+  using std::remove_cvref;
+  using std::remove_cvref_t;
 #else
   template <class E, bool = std::is_enum_v<E>>
   struct underlying_type { };
@@ -42,7 +50,124 @@ namespace internal {
 
   template <class T>
   using underlying_type_t = typename underlying_type<T>::type;
+
+  template <class T>
+  struct remove_cvref {
+    using type = std::remove_cv_t<std::remove_reference_t<T>>;
+  };
+
+  template <class T>
+  using remove_cvref_t = typename remove_cvref<T>::type;
 #endif
+
+  template <class To, class From>
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  constexpr inline bool is_implicitly_constructible_v =
+      std::is_constructible_v<To, From> && std::is_convertible_v<From, To>;
+
+  template <class To, class From>
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  constexpr inline bool is_explicitly_constructible_v =
+      std::is_constructible_v<To, From> && !std::is_convertible_v<From, To>;
+
+  template <bool is_const, class T>
+  struct const_if {
+    using type = std::conditional_t<is_const, const T, T>;
+  };
+
+  template <bool is_const, class T>
+  using const_if_t = typename const_if<is_const, T>::type;
+
+  template <class Iterator, class T, class IfTrue = int>
+  using enable_if_compatible_iter_t =
+      std::enable_if_t<is_implicitly_constructible_v<
+          T, typename std::iterator_traits<Iterator>::reference>>;
+
+  template <class Iter, class IteratorTag, class IfTrue = int>
+  using enable_if_iter_category_t = std::enable_if_t<
+      std::is_same_v<typename std::iterator_traits<Iter>::iterator_category,
+                     IteratorTag>,
+      IfTrue>;
+
+  template <class T, bool = std::is_enum_v<T>>
+  struct extract_if_enum { };
+
+  template <class T>
+  struct extract_if_enum<T, true> {
+    using type = std::underlying_type_t<T>;
+  };
+
+  template <class T>
+  struct extract_if_enum<T, false> {
+    using type = T;
+  };
+
+  template <class T>
+  using extract_if_enum_t = typename extract_if_enum<T>::type;
+}  // namespace internal
+
+namespace internal {
+  template <class Derived, class RefLike, class Category,
+            class Difference = std::ptrdiff_t>
+  class ProxyIterator: public boost::iterator_facade<Derived, RefLike, Category,
+                                                     RefLike, Difference> { };
+
+  template <class Derived, class RefLike, class Difference>
+  class ProxyIterator<Derived, RefLike, std::random_access_iterator_tag,
+                      Difference>
+      : public boost::iterator_facade<Derived, RefLike,
+                                      std::random_access_iterator_tag, RefLike,
+                                      Difference> {
+    using Parent = typename ProxyIterator::iterator_facade_;
+
+  public:
+    // Required to override boost's implementation that returns a proxy
+    constexpr typename Parent::reference
+    operator[](typename Parent::difference_type n) const noexcept {
+      return *(*static_cast<const Derived *>(this) + n);
+    }
+  };
+
+  template <class Iter, auto unaryop>
+  class TransformIterator
+      : public boost::iterator_facade<
+            TransformIterator<Iter, unaryop>,
+            std::remove_reference_t<decltype(unaryop(*std::declval<Iter>()))>,
+            typename std::iterator_traits<Iter>::iterator_category,
+            decltype(unaryop(*std::declval<Iter>())),
+            typename std::iterator_traits<Iter>::difference_type> {
+    using Traits =
+        std::iterator_traits<typename TransformIterator::iterator_facade_>;
+
+  public:
+    using iterator_category = typename Traits::iterator_category;
+    using value_type = typename Traits::value_type;
+    using difference_type = typename Traits::difference_type;
+    using pointer = typename Traits::pointer;
+    using reference = typename Traits::reference;
+
+    TransformIterator() = default;
+    explicit TransformIterator(Iter it): it_(it) { }
+
+    Iter base() const { return it_; }
+
+  private:
+    friend class boost::iterator_core_access;
+
+    reference dereference() const { return unaryop(*it_); }
+
+    bool equal(TransformIterator rhs) const { return it_ == rhs.it_; }
+
+    void increment() { ++it_; }
+    void decrement() { --it_; }
+    void advance(difference_type n) { it_ += n; }
+
+    difference_type distance_to(TransformIterator lhs) const {
+      return lhs.it_ - it_;
+    }
+
+    Iter it_;
+  };
 }  // namespace internal
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
@@ -87,22 +212,6 @@ constexpr inline E operator-(E val) {
 }
 
 namespace internal {
-  template <class T, bool = std::is_enum_v<T>>
-  struct extract_if_enum { };
-
-  template <class T>
-  struct extract_if_enum<T, true> {
-    using type = std::underlying_type_t<T>;
-  };
-
-  template <class T>
-  struct extract_if_enum<T, false> {
-    using type = T;
-  };
-
-  template <class T>
-  using extract_if_enum_t = typename extract_if_enum<T>::type;
-
   template <class E>
   constexpr bool check_flag(E flags, E flag) {
     // NOLINTNEXTLINE(bugprone-non-zero-enum-to-bool-conversion)
@@ -132,18 +241,6 @@ namespace internal {
     flags &= ~(mask & flag);
     return flags;
   }
-
-  template <bool is_const, class T>
-  struct const_if {
-    using type = std::conditional_t<is_const, const T, T>;
-  };
-
-  template <bool is_const, class T>
-  using const_if_t = typename const_if<is_const, T>::type;
-
-  template <class Iterator, class T, class U = T>
-  using enable_if_compatible_iter_t = std::enable_if_t<std::is_constructible_v<
-      U, typename std::iterator_traits<Iterator>::reference>>;
 
   template <class F>
   int iround(F x) {
@@ -212,18 +309,72 @@ typename std::vector<T, Alloc>::iterator erase_first(std::vector<T, Alloc> &c,
   return it;
 }
 
-template <class T, class Alloc, class Comp>
-typename std::vector<T, Alloc>::iterator
-insert_sorted(std::vector<T, Alloc> &c, const T &value, Comp &&comp) {
-  return c.insert(std::upper_bound(c.begin(), c.end(), value,
-                                   std::forward<Comp>(comp)),
-                  value);
+template <class Iter, class VT, class Comp,
+          internal::enable_if_iter_category_t<
+              Iter, std::random_access_iterator_tag> = 0>
+Iter find_sorted(Iter begin, Iter end, const VT &value, Comp &&comp) {
+  // *it >= value
+  auto it = std::lower_bound(begin, end, value, std::forward<Comp>(comp));
+  if (it != end && !comp(value, *it)) {
+    // value >= *it, i.e., value == *it
+    return it;
+  }
+  return end;
 }
 
-template <class T, class Alloc>
-typename std::vector<T, Alloc>::iterator insert_sorted(std::vector<T, Alloc> &c,
-                                                       const T &value) {
+template <class Iter, class VT,
+          internal::enable_if_iter_category_t<
+              Iter, std::random_access_iterator_tag> = 0>
+Iter find_sorted(Iter begin, Iter end, const VT &value) {
+  return find_sorted(begin, end, value, std::less<>());
+}
+
+template <class Container, class Comp,
+          internal::enable_if_iter_category_t<
+              typename Container::iterator, std::random_access_iterator_tag> = 0>
+std::pair<typename Container::iterator, bool>
+insert_sorted(Container &c, const typename Container::value_type &value,
+              Comp &&comp) {
+  // *it >= value
+  auto it =
+      std::lower_bound(c.begin(), c.end(), value, std::forward<Comp>(comp));
+  if (it != c.end() && !comp(value, *it)) {
+    // value >= *it, i.e., value == *it
+    return { it, false };
+  }
+  return { c.insert(it, value), true };
+}
+
+template <class Container,
+          internal::enable_if_iter_category_t<
+              typename Container::iterator, std::random_access_iterator_tag> = 0>
+std::pair<typename Container::iterator, bool>
+insert_sorted(Container &c, const typename Container::value_type &value) {
   return insert_sorted(c, value, std::less<>());
+}
+
+template <class Container, class Comp,
+          internal::enable_if_iter_category_t<
+              typename Container::iterator, std::random_access_iterator_tag> = 0>
+std::pair<typename Container::iterator, bool>
+insert_sorted(Container &c, typename Container::value_type &&value,
+              Comp &&comp) {
+  // *it >= value
+  auto it =
+      std::lower_bound(c.begin(), c.end(), value, std::forward<Comp>(comp));
+  if (it != c.end() && !comp(value, *it)) {
+    // value >= *it, i.e., value == *it
+    return { it, false };
+  }
+  return { c.insert(it, std::move(value)), true };
+}
+
+template <class Container,
+          internal::enable_if_iter_category_t<
+              typename Container::iterator, std::random_access_iterator_tag> = 0>
+std::pair<typename Container::iterator, bool>
+insert_sorted(Container &c, typename Container::value_type &&value) {
+  return insert_sorted(c, std::move(value), std::less<>());
 }
 
 inline absl::FixedArray<int> generate_index(int size) {
@@ -272,6 +423,16 @@ inline std::string_view extension_no_dot(const std::filesystem::path &ext) {
     return ext_view.substr(1);
   }
   return ext_view;
+}
+
+constexpr inline std::string_view slice(std::string_view str, std::size_t begin,
+                                        std::size_t end) {
+  return str.substr(begin, end - begin);
+}
+
+inline std::string_view slice_strip(std::string_view str, std::size_t begin,
+                                    std::size_t end) {
+  return absl::StripAsciiWhitespace(slice(str, begin, end));
 }
 
 inline MatrixX3d stack(const std::vector<Vector3d> &vs) {

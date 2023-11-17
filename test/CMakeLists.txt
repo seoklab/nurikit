@@ -19,7 +19,7 @@ foreach(nuri_test_src IN LISTS NURI_TEST_SRCS)
   set(nuri_test_target "nuri_${nuri_test_prefix}_${nuri_test_name}")
   add_executable("${nuri_test_target}" ${nuri_test_src})
   target_link_libraries("${nuri_test_target}" PRIVATE
-    GTest::gtest GTest::gtest_main absl::absl_log absl::absl_check)
+    GTest::gtest GTest::gmock GTest::gtest_main absl::absl_log absl::absl_check)
 
   if(TARGET nuri_lib)
     target_link_libraries("${nuri_test_target}" PRIVATE nuri_lib)

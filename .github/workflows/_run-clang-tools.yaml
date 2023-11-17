@@ -20,9 +20,16 @@ defaults:
     shell: bash
 
 jobs:
+  check-want-lint:
+    if: ${{ !github.event.pull_request.draft }}
+    uses: ./.github/workflows/_check-want-test.yaml
+    with:
+      keyword: "lint"
+
   verify-format-and-lint:
     runs-on: ubuntu-latest
-    if: ${{ github.triggering_actor != 'dependabot[bot]' }}
+    needs: [check-want-lint]
+    if: ${{ github.triggering_actor != 'dependabot[bot]' && needs.check-want-lint.outputs.want-test == 'true' }}
 
     steps:
       - uses: lukka/get-cmake@latest
