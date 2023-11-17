@@ -388,8 +388,8 @@ bool parse_bond_block(MoleculeMutator &mutator, Iter &it, const Iter end) {
     }
 
     if (mol_ids[0] == mol_ids[1]) {
-      ABSL_LOG(WARNING) << "Ignoring self-bond of atom " << ids[0];
-      continue;
+      ABSL_LOG(WARNING) << "Failed to add self-bond to atom " << ids[0];
+      return false;
     }
 
     auto [_, success] =
