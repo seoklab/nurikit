@@ -807,23 +807,43 @@ namespace internal {
 #define NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, iterator, RefType)     \
   template class RefType##Wrapper<GraphType, false>;                           \
   template class RefType##Wrapper<GraphType, true>;                            \
+  static_assert(                                                               \
+      std::is_trivially_copyable_v<RefType##Wrapper<GraphType, false>>,        \
+      #RefType "Wrapper must be trivially copyable");                          \
+  static_assert(                                                               \
+      std::is_trivially_copyable_v<RefType##Iterator<GraphType, true>>,        \
+      "Const" #RefType "Wrapper must be trivially copyable");                  \
   template class DataIteratorBase<GraphType::iterator, GraphType,              \
                                   GraphType::RefType##Ref, false>;             \
   template class DataIteratorBase<GraphType::const_##iterator, GraphType,      \
                                   GraphType::Const##RefType##Ref, true>;       \
   template class RefType##Iterator<GraphType, false>;                          \
-  template class RefType##Iterator<GraphType, true>;
+  template class RefType##Iterator<GraphType, true>;                           \
+  static_assert(                                                               \
+      std::is_trivially_copyable_v<RefType##Iterator<GraphType, false>>,       \
+      #iterator " must be trivially copyable");                                \
+  static_assert(                                                               \
+      std::is_trivially_copyable_v<RefType##Iterator<GraphType, true>>,        \
+      "const_" #iterator " must be trivially copyable");
 
 #define NURI_INSTANTIATE_ALL_TEMPLATES(GraphType)                              \
   NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, iterator, Node)              \
   NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, adjacency_iterator, Adj)     \
   template class EdgeWrapper<GraphType, true>;                                 \
   template class EdgeWrapper<GraphType, false>;                                \
+  static_assert(std::is_trivially_copyable_v<EdgeWrapper<GraphType, true>>,    \
+                "ConstEdgeWrapper must be trivially copyable");                \
+  static_assert(std::is_trivially_copyable_v<EdgeWrapper<GraphType, false>>,   \
+                "EdgeWrapper must be trivially copyable");                     \
   template class EdgeIterator<GraphType, true>;                                \
-  template class EdgeIterator<GraphType, false>;
+  template class EdgeIterator<GraphType, false>;                               \
+  static_assert(std::is_trivially_copyable_v<EdgeIterator<GraphType, true>>,   \
+                "const_edge_iterator must be trivially copyable");             \
+  static_assert(std::is_trivially_copyable_v<EdgeIterator<GraphType, true>>,   \
+                "edge_iterator must be trivially copyable")
 
-NURI_INSTANTIATE_ALL_TEMPLATES(TrivialGraph)
-NURI_INSTANTIATE_ALL_TEMPLATES(NonTrivialGraph)
+NURI_INSTANTIATE_ALL_TEMPLATES(TrivialGraph);
+NURI_INSTANTIATE_ALL_TEMPLATES(NonTrivialGraph);
 // NOLINTEND(cppcoreguidelines-macro-usage)
 }  // namespace internal
 }  // namespace nuri
