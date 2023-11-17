@@ -107,9 +107,25 @@ namespace internal {
 
 namespace internal {
   template <class Derived, class RefLike, class Category,
-            class difference_type = std::ptrdiff_t>
-  using ProxyIterator = boost::iterator_facade<Derived, RefLike, Category,
-                                               RefLike, difference_type>;
+            class Difference = std::ptrdiff_t>
+  class ProxyIterator: public boost::iterator_facade<Derived, RefLike, Category,
+                                                     RefLike, Difference> { };
+
+  template <class Derived, class RefLike, class Difference>
+  class ProxyIterator<Derived, RefLike, std::random_access_iterator_tag,
+                      Difference>
+      : public boost::iterator_facade<Derived, RefLike,
+                                      std::random_access_iterator_tag, RefLike,
+                                      Difference> {
+    using Parent = typename ProxyIterator::iterator_facade_;
+
+  public:
+    // Required to override boost's implementation that returns a proxy
+    constexpr typename Parent::reference
+    operator[](typename Parent::difference_type n) const noexcept {
+      return *(*static_cast<const Derived *>(this) + n);
+    }
+  };
 
   template <class Iter, auto unaryop>
   class TransformIterator

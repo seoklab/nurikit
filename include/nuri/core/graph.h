@@ -45,11 +45,6 @@ namespace internal {
                                difference_type index) noexcept
         : graph_(graph), index_(index) { }
 
-    // Required to override boost's implementation that returns a proxy
-    constexpr reference operator[](difference_type n) const noexcept {
-      return *(static_cast<const Derived &>(*this) + n);
-    }
-
   protected:
     using Parent = DataIteratorBase<Derived, GT, DT, is_const>;
 
