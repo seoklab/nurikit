@@ -32,6 +32,7 @@
 #include <absl/strings/str_split.h>
 
 #include "nuri/eigen_config.h"
+#include "nuri/algo/rings.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"

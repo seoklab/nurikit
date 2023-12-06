@@ -21,6 +21,7 @@
 #include <absl/strings/str_cat.h>
 
 #include "nuri/eigen_config.h"
+#include "nuri/algo/rings.h"
 #include "nuri/core/element.h"
 #include "nuri/core/geometry.h"
 #include "nuri/core/graph.h"
