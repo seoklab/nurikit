@@ -1642,6 +1642,22 @@ namespace internal {
       init();
     }
 
+    void remap(const std::vector<int> &old_to_new) {
+      auto first = std::find_if(nodes_.begin(), nodes_.end(),
+                                [&](int id) { return old_to_new[id] < 0; });
+
+      for (auto it = nodes_.begin(); it < first; ++it)
+        *it = old_to_new[*it];
+
+      for (auto it = first; it++ < nodes_.end() - 1;) {
+        int new_id = old_to_new[*it];
+        *first = new_id;
+        first += add_if(new_id >= 0);
+      }
+
+      nodes_.erase(first, nodes_.end());
+    }
+
     const std::vector<int> &ids() const { return nodes_; }
 
   private:
@@ -2055,6 +2071,18 @@ public:
   template <class UnaryPred>
   void erase_nodes_of(UnaryPred &&pred) {
     nodes_.erase(std::forward<UnaryPred>(pred));
+  }
+
+  /**
+   * @brief Re-map node ids
+   *
+   * @param old_to_new A vector that maps old node ids to new node ids, so that
+   *        old_to_new[old_id] = new_id. If old_to_new[old_id] < 0, then the
+   *        node is removed from the subgraph.
+   * @note Time complexity: \f$O(V')\f$.
+   */
+  void remap_nodes(const std::vector<int> &old_to_new) {
+    nodes_.remap(old_to_new);
   }
 
   iterator begin() { return { this, 0 }; }

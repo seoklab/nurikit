@@ -392,18 +392,9 @@ void MoleculeMutator::finalize() noexcept {
       g.erase_nodes(erased_atoms_.begin(), erased_atoms_.end());
 
   // Update substructures
-  for (Substructure &sub: mol().substructs_) {
-    std::vector<int> updated;
-    updated.reserve(sub.size());
-
-    for (auto node: sub) {
-      auto pnode = node.as_parent();
-      if (map[pnode.id()] >= 0) {
-        updated.push_back(map[pnode.id()]);
-      }
-    }
-
-    sub.update(std::move(updated));
+  if (last < added_size) {
+    for (Substructure &sub: mol().substructs_) {
+      sub.graph_.remap_nodes(map);
   }
 
   // Update coordinates
