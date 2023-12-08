@@ -52,6 +52,10 @@ CheckOptions:
     value: google
   - key: performance-unnecessary-value-param.IncludeStyle
     value: google
+  - key: google-readability-braces-around-statements.ShortStatementLines
+    value: 3
+  - key: readability-braces-around-statements.ShortStatementLines
+    value: 3
     # The following entries are (partailly) based on the Google C++ Style Guide.
     # Namely, we use lower_case for function names, for better interoperability
     # with the Python language.
