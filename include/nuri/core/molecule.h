@@ -1632,18 +1632,17 @@ public:
 
   /**
    * @brief Cancel all pending atom and bond removals.
-   *
-   * This effectively resets the mutator to the state after construction.
    */
   void discard_erasure() noexcept;
 
   /**
    * @brief Finalize the mutation.
    * @note The mutator internally calls discard_erasure() after applying
-   *       changes. Thus, it's a no-op to call this method multiple times.
+   *       changes. Thus, successive calls to finalize() have no effect.
    * @sa Molecule::sanitize()
    *
-   * This will effectively call Molecule::update_topology().
+   * This will effectively call Molecule::update_topology(), if any atoms or
+   * bonds are added or removed.
    */
   void finalize() noexcept;
 
