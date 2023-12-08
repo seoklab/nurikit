@@ -370,6 +370,36 @@ void MoleculeMutator::discard_erasure() noexcept {
   erased_bonds_.clear();
 }
 
+namespace {
+  void remap_confs(std::vector<MatrixX3d> &confs, const int added_size,
+                   const int new_size, const bool is_trailing,
+                   const std::vector<int> &old_to_new) {
+    // Only trailing nodes are removed
+    if (is_trailing) {
+      for (MatrixX3d &conf: confs)
+        conf.conservativeResize(new_size, Eigen::NoChange);
+      return;
+    }
+
+    // Select the atom indices
+    std::vector<int> idxs;
+    idxs.reserve(new_size);
+
+    for (int i = 0; i < added_size; ++i) {
+      // GCOV_EXCL_START
+      ABSL_DCHECK(i < old_to_new.size());
+      // GCOV_EXCL_STOP
+      if (old_to_new[i] >= 0)
+        idxs.push_back(i);
+    }
+
+    for (MatrixX3d &conf: confs) {
+      MatrixX3d updated = conf(idxs, Eigen::all);
+      conf = std::move(updated);
+    }
+  }
+}  // namespace
+
 void MoleculeMutator::finalize() noexcept {
   Molecule::GraphType &g = mol().graph_;
   const int added_size = mol().num_atoms();
@@ -391,36 +421,12 @@ void MoleculeMutator::finalize() noexcept {
   std::tie(last, map) =
       g.erase_nodes(erased_atoms_.begin(), erased_atoms_.end());
 
-  // Update substructures
   if (last < added_size) {
-    for (Substructure &sub: mol().substructs_) {
+    for (Substructure &sub: mol().substructs_)
       sub.graph_.remap_nodes(map);
-  }
 
-  // Update coordinates
-  if (last >= 0) {
-    // Only trailing nodes are removed
-    for (MatrixX3d &conf: mol().conformers_) {
-      conf.conservativeResize(mol().num_atoms(), Eigen::NoChange);
-    }
-  } else {
-    // Select the atom indices
-    std::vector<int> idxs;
-    idxs.reserve(mol().num_atoms());
-
-    for (int i = 0; i < added_size; ++i) {
-      // GCOV_EXCL_START
-      ABSL_DCHECK(i < map.size());
-      // GCOV_EXCL_STOP
-      if (map[i] >= 0) {
-        idxs.push_back(i);
-      }
-    }
-
-    for (MatrixX3d &conf: mol().conformers_) {
-      MatrixX3d updated = conf(idxs, Eigen::all);
-      conf = std::move(updated);
-    }
+    remap_confs(mol().conformers_, added_size, mol().num_atoms(), last >= 0,
+                map);
   }
 
   mol().update_topology();
