@@ -2147,6 +2147,16 @@ public:
     return { *this, idx, parent_->adj_cend(nodes_[idx]) };
   }
 
+  /**
+   * @brief Re-bind the subgraph to a new parent graph.
+   *
+   * @param parent The new parent graph to bind.
+   * @warning This method does no bookkeeping, so it is the caller's
+   *          responsibility to ensure that the new parent graph is compatible
+   *          with the subgraph. The behavior is undefined otherwise.
+   */
+  void rebind(parent_type &parent) { parent_ = &parent; }
+
 private:
   template <class, class, bool>
   friend class Subgraph;

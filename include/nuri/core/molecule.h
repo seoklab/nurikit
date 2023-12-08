@@ -364,6 +364,7 @@ private:
 };
 
 class Molecule;
+class MoleculeMutator;
 
 namespace internal {
   template <bool is_const = false>
@@ -545,6 +546,11 @@ namespace internal {
 
   private:
     friend Molecule;
+    friend MoleculeMutator;
+
+    void rebind(typename SubgraphType::parent_type &parent) {
+      graph_.rebind(parent);
+    }
 
     SubgraphType graph_;
 
@@ -759,12 +765,18 @@ public:
   using neighbor_iterator = GraphType::adjacency_iterator;
   using const_neighbor_iterator = GraphType::const_adjacency_iterator;
 
-  friend class MoleculeMutator;
+  friend MoleculeMutator;
 
   /**
    * @brief Construct an empty Molecule object.
    */
   Molecule() noexcept = default;
+  ~Molecule() noexcept = default;
+
+  Molecule(const Molecule &other) noexcept;
+  Molecule(Molecule &&other) noexcept;
+  Molecule &operator=(const Molecule &other) noexcept;
+  Molecule &operator=(Molecule &&other) noexcept;
 
   /**
    * @brief Construct a Molecule object from a range of atom data.
@@ -996,7 +1008,7 @@ public:
    * @return The MoleculeMutator object to update this molecule.
    * @sa MoleculeMutator
    */
-  class MoleculeMutator mutator();
+  MoleculeMutator mutator();
 
   void clear() noexcept;
 
@@ -1456,6 +1468,8 @@ public:
 private:
   Molecule(GraphType &&graph, std::vector<MatrixX3d> &&conformers) noexcept
       : graph_(std::move(graph)), conformers_(std::move(conformers)) { }
+
+  void rebind_substructs() noexcept;
 
   bool rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
                           double angle);

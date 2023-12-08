@@ -55,6 +55,51 @@ AtomData::AtomData(const Element &element, int implicit_hydrogens,
 
 /* Molecule definitions */
 
+Molecule::Molecule(const Molecule &other) noexcept
+    : graph_(other.graph_), conformers_(other.conformers_), name_(other.name_),
+      props_(other.props_), substructs_(other.substructs_),
+      ring_groups_(other.ring_groups_), num_fragments_(other.num_fragments_) {
+  rebind_substructs();
+}
+
+Molecule::Molecule(Molecule &&other) noexcept
+    : graph_(std::move(other.graph_)),
+      conformers_(std::move(other.conformers_)), name_(std::move(other.name_)),
+      props_(std::move(other.props_)),
+      substructs_(std::move(other.substructs_)),
+      ring_groups_(std::move(other.ring_groups_)),
+      num_fragments_(other.num_fragments_) {
+  rebind_substructs();
+}
+
+Molecule &Molecule::operator=(const Molecule &other) noexcept {
+  graph_ = other.graph_;
+  conformers_ = other.conformers_;
+  name_ = other.name_;
+  props_ = other.props_;
+  substructs_ = other.substructs_;
+  ring_groups_ = other.ring_groups_;
+  num_fragments_ = other.num_fragments_;
+
+  rebind_substructs();
+
+  return *this;
+}
+
+Molecule &Molecule::operator=(Molecule &&other) noexcept {
+  graph_ = std::move(other.graph_);
+  conformers_ = std::move(other.conformers_);
+  name_ = std::move(other.name_);
+  props_ = std::move(other.props_);
+  substructs_ = std::move(other.substructs_);
+  ring_groups_ = std::move(other.ring_groups_);
+  num_fragments_ = other.num_fragments_;
+
+  rebind_substructs();
+
+  return *this;
+}
+
 void Molecule::clear() noexcept {
   graph_.clear();
   conformers_.clear();
@@ -133,6 +178,12 @@ bool Molecule::rotate_bond(int i, int ref_atom, int pivot_atom, double angle) {
 bool Molecule::rotate_bond(int i, bond_id_type bid, double angle) {
   const Bond b = bond(bid);
   return rotate_bond_common(i, b, b.src(), b.dst(), angle);
+}
+
+void Molecule::rebind_substructs() noexcept {
+  for (Substructure &sub: substructs_) {
+    sub.rebind(graph_);
+  }
 }
 
 bool Molecule::rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
