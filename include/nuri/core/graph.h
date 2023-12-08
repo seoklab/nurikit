@@ -2069,7 +2069,7 @@ public:
    * @note Time complexity: \f$O(V')\f$ in worst case.
    */
   template <class UnaryPred>
-  void erase_nodes_of(UnaryPred &&pred) {
+  void erase_nodes_if(UnaryPred &&pred) {
     nodes_.erase(std::forward<UnaryPred>(pred));
   }
 

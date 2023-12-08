@@ -359,7 +359,7 @@ TEST(BasicSubgraphTest, EraseNodes) {
   sg.add_node(2);
   EXPECT_EQ(sg.size(), 3);
 
-  sg.erase_nodes_of([](int id) { return id > 3; });
+  sg.erase_nodes_if([](int id) { return id > 3; });
   EXPECT_EQ(sg.size(), 2);
   EXPECT_FALSE(sg.contains(5));
 
@@ -380,7 +380,7 @@ TEST(BasicSubgraphTest, EraseNodes) {
   csg.add_node(2);
   EXPECT_EQ(csg.size(), 4);
 
-  csg.erase_nodes_of([](int id) { return id > 3; });
+  csg.erase_nodes_if([](int id) { return id > 3; });
   EXPECT_EQ(csg.size(), 2);
   EXPECT_FALSE(csg.contains(4));
   EXPECT_FALSE(csg.contains(5));

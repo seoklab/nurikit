@@ -486,8 +486,8 @@ namespace internal {
     }
 
     template <class UnaryPred>
-    void erase_atoms_of(UnaryPred &&pred) {
-      graph_.erase_nodes_of(std::forward<UnaryPred>(pred));
+    void erase_atoms_if(UnaryPred &&pred) {
+      graph_.erase_nodes_if(std::forward<UnaryPred>(pred));
     }
 
     iterator begin() { return graph_.begin(); }
