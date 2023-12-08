@@ -401,19 +401,22 @@ namespace {
 }  // namespace
 
 void MoleculeMutator::finalize() noexcept {
+  if (mol().num_atoms() == prev_num_atoms_
+      && mol().num_bonds() == prev_num_bonds_  //
+      && erased_atoms_.empty()                 //
+      && erased_bonds_.empty())
+    return;
+
   Molecule::GraphType &g = mol().graph_;
   const int added_size = mol().num_atoms();
-  if (added_size > init_num_atoms_) {
-    for (MatrixX3d &conf: mol().conformers_) {
+  if (added_size > prev_num_atoms_)
+    for (MatrixX3d &conf: mol().conformers_)
       conf.conservativeResize(added_size, Eigen::NoChange);
-    }
-  }
 
   // As per the spec, the order is:
   // 1. Erase bonds
-  for (const std::pair<int, int> &ends: erased_bonds_) {
+  for (const std::pair<int, int> &ends: erased_bonds_)
     g.erase_edge_between(ends.first, ends.second);
-  }
 
   // 2. Erase atoms
   int last;
@@ -431,6 +434,8 @@ void MoleculeMutator::finalize() noexcept {
 
   mol().update_topology();
 
+  prev_num_atoms_ = mol().num_atoms();
+  prev_num_bonds_ = mol().num_bonds();
   discard_erasure();
 }
 
