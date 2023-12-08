@@ -402,18 +402,22 @@ namespace internal {
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     Substructure(const Substructure<other_const> &other)
-        : graph_(other.graph_), name_(other.name_) { }
+        : graph_(other.graph_), name_(other.name_), id_(other.id_),
+          props_(other.props_) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     Substructure(Substructure<other_const> &&other) noexcept
-        : graph_(std::move(other.graph_)), name_(std::move(other.name_)) { }
+        : graph_(std::move(other.graph_)), name_(std::move(other.name_)),
+          id_(other.id_), props_(std::move(other.props_)) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     Substructure &operator=(const Substructure<other_const> &other) {
       graph_ = other.graph_;
       name_ = other.name_;
+      id_ = other.id_;
+      props_ = other.props_;
       return *this;
     }
 
@@ -422,6 +426,8 @@ namespace internal {
     Substructure &operator=(Substructure<other_const> &&other) noexcept {
       graph_ = std::move(other.graph_);
       name_ = std::move(other.name_);
+      id_ = other.id_;
+      props_ = std::move(other.props_);
       return *this;
     }
 
