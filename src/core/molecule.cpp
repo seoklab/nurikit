@@ -12,6 +12,8 @@
 #include <utility>
 #include <vector>
 
+#include <Eigen/Dense>
+
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
 #include <absl/container/flat_hash_map.h>
@@ -80,16 +82,16 @@ void Molecule::erase_hydrogens() {
 namespace {
   void rotate_points(MatrixX3d &coords, const std::vector<int> &moving_idxs,
                      int ref, int pivot, double angle) {
-    Vector3d pv = coords.row(pivot);
-    AngleAxisd aa(deg2rad(angle), (pv - coords.row(ref)).normalized());
+    auto view = swap_axis<Eigen::Matrix3Xd>(coords);
 
-    auto rotate_helper = [&](auto moving) {
-      moving = (aa.to_matrix() * (moving.rowwise() - pv).transpose())
-                   .transpose()
-                   .rowwise()
-               + pv;
-    };
-    rotate_helper(coords(moving_idxs, Eigen::all));
+    Eigen::Vector3d pv = view.col(pivot);
+    Eigen::Affine3d rotation =
+        Eigen::Translation3d(pv)
+        * Eigen::AngleAxisd(deg2rad(angle), (pv - view.col(ref)).normalized())
+        * Eigen::Translation3d(-pv);
+
+    auto rotate_helper = [&](auto moving) { moving = rotation * moving; };
+    rotate_helper(view(Eigen::all, moving_idxs));
   }
 }  // namespace
 

@@ -5,6 +5,8 @@
 #ifndef NURI_EIGEN_CONFIG_H_
 #define NURI_EIGEN_CONFIG_H_
 
+#include <type_traits>
+
 #include <Eigen/Dense>
 
 namespace nuri {
@@ -37,14 +39,6 @@ using Vector3 = Vector<DT, 3>;
 using Vector3f = Vector3<float>;
 using Vector3d = Vector3<double>;
 
-template <class DT, int Dim, int Mode>
-using Transform = Eigen::Transform<DT, Dim, Mode, Eigen::RowMajor>;
-
-template <class DT>
-using Affine3 = Transform<DT, 3, Eigen::Affine>;
-using Affine3f = Affine3<float>;
-using Affine3d = Affine3<double>;
-
 template <class DT, Eigen::Index Rows, Eigen::Index Cols>
 using Array = Eigen::Array<DT, Rows, Cols, Eigen::RowMajor>;
 
@@ -65,6 +59,19 @@ using Ref = Eigen::Ref<MT, Eigen::RowMajor>;
 
 template <class MT>
 using Map = Eigen::Map<MT, Eigen::RowMajor>;
+
+template <
+    class ReturnType, class MatrixLike,
+    std::enable_if_t<
+        std::is_same_v<typename MatrixLike::Scalar, typename ReturnType::Scalar>
+            && MatrixLike::RowsAtCompileTime == ReturnType::ColsAtCompileTime
+            && MatrixLike::ColsAtCompileTime == ReturnType::RowsAtCompileTime
+            && MatrixLike::IsRowMajor != ReturnType::IsRowMajor,
+        int> = 0>
+auto swap_axis(Eigen::PlainObjectBase<MatrixLike> &m) {
+  return Eigen::Map<ReturnType, Eigen::AlignedMax>(m.data(), m.cols(),
+                                                   m.rows());
+}
 }  // namespace nuri
 
 #endif /* NURI_EIGEN_CONFIG_H_ */

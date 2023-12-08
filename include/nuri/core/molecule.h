@@ -15,6 +15,8 @@
 #include <utility>
 #include <vector>
 
+#include <Eigen/Dense>
+
 #include <absl/base/attributes.h>
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
@@ -1093,9 +1095,10 @@ public:
    * @brief Transform the molecule with the given affine transformation.
    * @param trans The affine transformation to apply.
    */
-  void transform(const Affine3d &trans) {
+  void transform(const Eigen::Affine3d &trans) {
     for (MatrixX3d &m: conformers_) {
-      m.transpose() = trans * m.transpose();
+      auto view = swap_axis<Eigen::Matrix3Xd>(m);
+      view = trans * view;
     }
   }
 
@@ -1106,9 +1109,10 @@ public:
    * @param trans The affine transformation to apply.
    * @note The behavior is undefined if the conformer index is out of range.
    */
-  void transform(int i, const Affine3d &trans) {
+  void transform(int i, const Eigen::Affine3d &trans) {
     MatrixX3d &m = conformers_[i];
-    m.transpose() = trans * m.transpose();
+    auto view = swap_axis<Eigen::Matrix3Xd>(m);
+    view = trans * view;
   }
 
   /**

@@ -203,7 +203,7 @@ TEST_F(MoleculeTest, AddBonds) {
 }
 
 TEST_F(MoleculeTest, TransformTest) {
-  nuri::Affine3d trs = nuri::Affine3d::Identity();
+  Eigen::Affine3d trs = Eigen::Affine3d::Identity();
 
   {
     Molecule mol(mol_);
@@ -215,7 +215,8 @@ TEST_F(MoleculeTest, TransformTest) {
   }
 
   trs.translation() << 5, 0, 0;
-  trs.linear() = nuri::AngleAxisd(90, { 0, 0, 1 }).to_matrix();
+  trs.linear() = Eigen::AngleAxisd(nuri::deg2rad(90), Eigen::Vector3d::UnitZ())
+                     .toRotationMatrix();
 
   {
     Molecule mol(mol_);
