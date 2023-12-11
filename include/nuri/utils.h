@@ -128,14 +128,58 @@ namespace internal {
     }
   };
 
-  template <class Iter, auto unaryop>
+  template <class Derived, class Iter, class UnaryOp, auto op,
+            bool = std::is_member_function_pointer_v<UnaryOp>,
+            bool = std::is_class_v<UnaryOp>>
+  class TransformIteratorTrampoline;
+
+  template <class Derived, class Traits, class Ref>
+  using TransformIteratorBase =
+      boost::iterator_facade<Derived, std::remove_reference_t<Ref>,
+                             typename Traits::iterator_category, Ref,
+                             typename Traits::difference_type>;
+
+  template <class Derived, class Iter, class UnaryOp, UnaryOp op>
+  class TransformIteratorTrampoline<Derived, Iter, UnaryOp, op, false, false>
+      : public TransformIteratorBase<Derived, std::iterator_traits<Iter>,
+                                     decltype(op(*std::declval<Iter>()))> {
+  protected:
+    using Parent = TransformIteratorTrampoline;
+    constexpr static auto dereference_impl(Iter it) { return op(*it); }
+  };
+
+  template <class Derived, class Iter, class UnaryOp, UnaryOp op>
+  class TransformIteratorTrampoline<Derived, Iter, UnaryOp, op, true, false>
+      : public TransformIteratorBase<Derived, std::iterator_traits<Iter>,
+                                     decltype((*std::declval<Iter>().*op)())> {
+  protected:
+    using Parent = TransformIteratorTrampoline;
+    constexpr static auto dereference_impl(Iter it) { return (*it.*op)(); }
+  };
+
+  template <class Derived, class Iter, class UnaryOp>
+  class TransformIteratorTrampoline<Derived, Iter, UnaryOp, nullptr, false, true>
+      : public TransformIteratorBase<Derived, std::iterator_traits<Iter>,
+                                     decltype(std::declval<UnaryOp>()(
+                                         *std::declval<Iter>()))> {
+  protected:
+    using Parent = TransformIteratorTrampoline;
+
+    TransformIteratorTrampoline(const UnaryOp &op): op_(op) { }
+
+    TransformIteratorTrampoline(UnaryOp &&op): op_(std::move(op)) { }
+
+    constexpr auto dereference_impl(Iter it) const { return op_(*it); }
+
+  private:
+    UnaryOp op_;
+  };
+
+  template <class Iter, class UnaryOp, auto unaryop = nullptr>
   class TransformIterator
-      : public boost::iterator_facade<
-            TransformIterator<Iter, unaryop>,
-            std::remove_reference_t<decltype(unaryop(*std::declval<Iter>()))>,
-            typename std::iterator_traits<Iter>::iterator_category,
-            decltype(unaryop(*std::declval<Iter>())),
-            typename std::iterator_traits<Iter>::difference_type> {
+      : public TransformIteratorTrampoline<
+            TransformIterator<Iter, UnaryOp, unaryop>, Iter, UnaryOp, unaryop> {
+    using Base = typename TransformIterator::Parent;
     using Traits =
         std::iterator_traits<typename TransformIterator::iterator_facade_>;
 
@@ -146,28 +190,44 @@ namespace internal {
     using pointer = typename Traits::pointer;
     using reference = typename Traits::reference;
 
-    TransformIterator() = default;
-    explicit TransformIterator(Iter it): it_(it) { }
+    constexpr TransformIterator() = default;
 
-    Iter base() const { return it_; }
+    template <class... Args>
+    constexpr explicit TransformIterator(Iter it, Args &&...args)
+        : Base(std::forward<Args>(args)...), it_(it) { }
+
+    constexpr Iter base() const { return it_; }
 
   private:
     friend class boost::iterator_core_access;
 
-    reference dereference() const { return unaryop(*it_); }
+    constexpr reference dereference() const {
+      return Base::dereference_impl(it_);
+    }
 
-    bool equal(TransformIterator rhs) const { return it_ == rhs.it_; }
+    constexpr bool equal(TransformIterator rhs) const { return it_ == rhs.it_; }
 
-    void increment() { ++it_; }
-    void decrement() { --it_; }
-    void advance(difference_type n) { it_ += n; }
+    constexpr void increment() { ++it_; }
+    constexpr void decrement() { --it_; }
+    constexpr void advance(difference_type n) { it_ += n; }
 
-    difference_type distance_to(TransformIterator lhs) const {
+    constexpr difference_type distance_to(TransformIterator lhs) const {
       return lhs.it_ - it_;
     }
 
     Iter it_;
   };
+
+  template <auto unaryop, class Iter>
+  constexpr auto make_transform_iterator(Iter it) {
+    return TransformIterator<Iter, decltype(unaryop), unaryop>(it);
+  }
+
+  template <class UnaryOp, class Iter>
+  constexpr auto make_transform_iterator(Iter it, UnaryOp &&op) {
+    return TransformIterator<Iter, remove_cvref_t<UnaryOp>>(
+        it, std::forward<UnaryOp>(op));
+  }
 }  // namespace internal
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0>

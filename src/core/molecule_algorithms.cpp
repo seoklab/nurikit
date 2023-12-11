@@ -251,12 +251,10 @@ namespace {
     return *it->second;
   }
 
-  template <class RandomIt>
-  using GenericDestIterator =
-      internal::TransformIterator<RandomIt, extract_did>;
-
-  using DestIterator =
-      GenericDestIterator<std::vector<Molecule::Neighbor>::const_iterator>;
+  template <class Iter>
+  auto make_dst_iterator(Iter it) {
+    return internal::make_transform_iterator<extract_did>(it);
+  }
 
   void compute_v_r(const Molecule &mol, const int r, std::vector<int> &v_r,
                    Dr &d_r, absl::FixedArray<int> &distances,
@@ -327,10 +325,10 @@ namespace {
                     // nullptr if odd
                     const std::vector<Molecule::Neighbor> *path_ry,
                     absl::flat_hash_set<int> &path_set_tmp) {
-    if (!range_no_overlap(DestIterator(path_rpy.begin()),
-                          DestIterator(--path_rpy.end()),
-                          DestIterator(path_rqz.begin()),
-                          DestIterator(--path_rqz.end()), path_set_tmp)) {
+    if (!range_no_overlap(make_dst_iterator(path_rpy.begin()),
+                          make_dst_iterator(--path_rpy.end()),
+                          make_dst_iterator(path_rqz.begin()),
+                          make_dst_iterator(--path_rqz.end()), path_set_tmp)) {
       return;
     }
 
@@ -516,9 +514,6 @@ namespace {
     return basis;
   }
 
-  using RDestIterator = GenericDestIterator<
-      std::vector<Molecule::Neighbor>::const_reverse_iterator>;
-
   void add_odd_cycle(std::vector<std::vector<int>> &cycles,
                      const std::vector<Molecule::Neighbor> &path_ry,
                      const std::vector<Molecule::Neighbor> &path_rz) {
@@ -526,11 +521,11 @@ namespace {
     cycle.reserve(path_ry.size() + path_rz.size());
 
     // Add (no r) ... y
-    cycle.insert(cycle.end(), DestIterator(path_ry.begin()),
-                 DestIterator(path_ry.end()));
+    cycle.insert(cycle.end(), make_dst_iterator(path_ry.begin()),
+                 make_dst_iterator(path_ry.end()));
     // Add z ... (no r)
-    cycle.insert(cycle.end(), RDestIterator(path_rz.rbegin()),
-                 RDestIterator(path_rz.rend()));
+    cycle.insert(cycle.end(), make_dst_iterator(path_rz.rbegin()),
+                 make_dst_iterator(path_rz.rend()));
     // Add r
     cycle.push_back(path_ry.front().src().id());
   }
@@ -543,13 +538,13 @@ namespace {
     cycle.reserve(path_rp.size() + path_rq.size() + 1);
 
     // Add (no r) ... p
-    cycle.insert(cycle.end(), DestIterator(path_rp.begin()),
-                 DestIterator(path_rp.end()));
+    cycle.insert(cycle.end(), make_dst_iterator(path_rp.begin()),
+                 make_dst_iterator(path_rp.end()));
     // Add y
     cycle.push_back(y);
     // Add q ... (no r)
-    cycle.insert(cycle.end(), RDestIterator(path_rq.rbegin()),
-                 RDestIterator(path_rq.rend()));
+    cycle.insert(cycle.end(), make_dst_iterator(path_rq.rbegin()),
+                 make_dst_iterator(path_rq.rend()));
     // Add r
     cycle.push_back(path_rp.front().src().id());
   }
