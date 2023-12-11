@@ -6,6 +6,7 @@
 #define NURI_CORE_GEOMETRY_H_
 
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "nuri/eigen_config.h"

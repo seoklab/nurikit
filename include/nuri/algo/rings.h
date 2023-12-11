@@ -6,6 +6,7 @@
 #define NURI_ALGO_RINGS_H_
 
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "nuri/core/molecule.h"
