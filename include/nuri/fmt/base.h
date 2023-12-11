@@ -365,6 +365,26 @@ using FileMoleculeReader = MoleculeReaderWrapper<std::ifstream, Reader>;
 
 template <class Reader = MoleculeReader>
 using StringMoleculeReader = MoleculeReaderWrapper<std::istringstream, Reader>;
+
+class ReversedStream {
+public:
+  ReversedStream(std::istream &is, char delim = '\n', size_t bufsz = 4096)
+      : is_(&is), delim_(delim), buf_(bufsz) {
+    reset();
+  }
+
+  void reset();
+
+  bool getline(std::string &line);
+
+private:
+  void read_block();
+
+  std::istream *is_;
+  size_t prev_;
+  char delim_;
+  internal::DumbBuffer<char> buf_;
+};
 }  // namespace nuri
 
 #endif /* NURI_FMT_BASE_H_ */

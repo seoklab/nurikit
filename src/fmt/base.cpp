@@ -5,6 +5,12 @@
 
 #include "nuri/fmt/base.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <cstring>
+#include <ios>
+#include <istream>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -12,6 +18,7 @@
 #include <vector>
 
 #include <absl/container/flat_hash_map.h>
+#include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 
 namespace nuri {
@@ -61,5 +68,76 @@ void MoleculeReaderFactory::register_for_name(
       << "Duplicate factory name: " << name
       << ". Overwriting existing factory (is this intended?).";
   // GCOV_EXCL_STOP
+}
+
+namespace {
+const char *find_after_last_delim(const char *begin, const char *end,
+                                  char delim) {
+  // after_last points to the *next* character of last delim in the buffer,
+  // due to the nature of std::reverse_iterator.
+  return std::find(std::make_reverse_iterator(end),
+                   std::make_reverse_iterator(begin), delim)
+      .base();
+}
+}  // namespace
+
+void ReversedStream::reset() {
+  is_->clear();
+  is_->seekg(0, std::ios::end);
+  if (is_->tellg() == 0) {
+    is_->setstate(std::ios::eofbit);
+  }
+
+  read_block();
+
+  if (prev_ > 0 && buf_[prev_ - 1] == delim_) {
+    --prev_;
+  }
+}
+
+bool ReversedStream::getline(std::string &line) {
+  line.clear();
+
+  if (!*is_) {
+    return false;
+  }
+
+  do {
+    auto after_last =
+        find_after_last_delim(buf_.cbegin(), buf_.cbegin() + prev_, delim_);
+    line.insert(line.begin(), after_last, buf_.cbegin() + prev_);
+
+    // Found, done
+    if (after_last > buf_.cbegin()) {
+      prev_ = after_last - buf_.cbegin() - 1;
+      break;
+    }
+
+    read_block();
+  } while (*is_);
+
+  return true;
+}
+
+void ReversedStream::read_block() {
+  if (is_->eof()) {
+    is_->setstate(std::ios::failbit);
+    prev_ = 0;
+    return;
+  }
+
+  const size_t unread = is_->tellg();
+  size_t read_size = std::min(unread, buf_.size());
+  std::ios::off_type offset = -static_cast<std::ios::off_type>(read_size);
+
+  is_->seekg(offset, std::ios::cur);
+  is_->read(buf_.data(), static_cast<std::streamsize>(read_size));
+  prev_ = is_->gcount();
+  ABSL_DCHECK(!*is_ || is_->gcount() == read_size);
+
+  is_->seekg(offset, std::ios::cur);
+  if (is_->tellg() == 0) {
+    is_->setstate(std::ios::eofbit);
+  }
 }
 }  // namespace nuri
