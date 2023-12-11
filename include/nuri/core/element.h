@@ -496,6 +496,9 @@ private:
   absl::flat_hash_map<std::string_view, const Element *> symbol_to_element_;
   absl::flat_hash_map<std::string_view, const Element *> name_to_element_;
 };
+
+// NOLINTNEXTLINE(readability-identifier-naming)
+static const PeriodicTable &kPt = PeriodicTable::get();
 }  // namespace nuri
 
 #endif /* NURI_CORE_ELEMENT_H_ */
