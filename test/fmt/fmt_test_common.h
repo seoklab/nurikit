@@ -6,6 +6,8 @@
 #ifndef NURI_TEST_FMT_FMT_TEST_COMMON_H_
 #define NURI_TEST_FMT_FMT_TEST_COMMON_H_
 
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -63,6 +65,10 @@ inline void print_mol(const Molecule &mol) {
   std::cout << "---\n";
 }
 
+inline std::filesystem::path test_data(std::string_view name) {
+  return std::filesystem::path("test/test_data") / name;
+}
+
 template <class MoleculeReader>
 class StringFormatTest: public ::testing::Test {
 public:
@@ -86,6 +92,41 @@ public:
 protected:
   void SetUp() override {
     iss_.clear();
+    idx_ = 0;
+    print_ = false;
+  }
+
+  void TearDown() override {
+    EXPECT_FALSE(advance()) << "Molecule index: " << idx_;
+  }
+};
+
+template <class MoleculeReader>
+class FileFormatTest: public ::testing::Test {
+public:
+  // NOLINTBEGIN(readability-identifier-naming)
+  std::ifstream ifs_;
+  MoleculeReader mr_ = { ifs_ };
+  MoleculeStream<MoleculeReader> ms_ = { mr_ };
+  int idx_;
+  bool print_;
+  // NOLINTEND(readability-identifier-naming)
+
+  void set_test_file(std::string_view name) {
+    ifs_.open(test_data(name));
+    ASSERT_TRUE(ifs_) << "Failed to open file: " << name;
+  }
+
+  bool advance() {
+    ++idx_;
+    return ms_.advance();
+  }
+
+  Molecule &mol() { return ms_.current(); }
+
+protected:
+  void SetUp() override {
+    ifs_.clear();
     idx_ = 0;
     print_ = false;
   }
