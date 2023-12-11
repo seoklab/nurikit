@@ -1033,7 +1033,16 @@ public:
    * @return Atomic coordinates of ith conformer.
    * @note If index is out of range, the behavior is undefined.
    */
-  const MatrixX3d &conf(int i = 0) const { return conformers_[i]; }
+  const MatrixX3d &conf(int i = 0) const { return cconf(i); }
+
+  /**
+   * @brief Get the atomic coordinates of ith conformer.
+   *
+   * @param i Index of the conformer.
+   * @return Atomic coordinates of ith conformer.
+   * @note If index is out of range, the behavior is undefined.
+   */
+  const MatrixX3d &cconf(int i = 0) const { return conformers_[i]; }
 
   /**
    * @brief Get total number of conformers.
