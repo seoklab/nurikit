@@ -243,6 +243,14 @@ namespace internal {
 
     adjacency_iterator end() const noexcept { return graph_->adj_end(nid_); }
 
+    AdjWrapper<GT, is_const> neighbor(int idx) const noexcept {
+      return graph_->adjacent(nid_, idx);
+    }
+
+    AdjWrapper<GT, is_const> operator[](int idx) const noexcept {
+      return neighbor(idx);
+    }
+
     constexpr Other<true> as_const() const noexcept { return *this; }
 
   private:
@@ -468,6 +476,9 @@ private:
     int dst;
     stored_edge_id_type eid;
   };
+
+  template <class, bool>
+  friend class internal::NodeWrapper;
 
   template <class, bool>
   friend class internal::EdgeWrapper;
