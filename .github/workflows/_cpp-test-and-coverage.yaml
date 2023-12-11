@@ -25,7 +25,7 @@ jobs:
         with:
           cmakeVersion: "~3.16.0" # for Ubuntu 20.04
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
 
