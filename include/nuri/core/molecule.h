@@ -1352,6 +1352,13 @@ public:
   /**
    * @brief Get the substructures.
    *
+   * @return A reference to all substructures.
+   */
+  std::vector<Substructure> &substructures() { return substructs_; }
+
+  /**
+   * @brief Get the substructures.
+   *
    * @return A const reference to all substructures.
    */
   const std::vector<Substructure> &substructures() const { return substructs_; }
