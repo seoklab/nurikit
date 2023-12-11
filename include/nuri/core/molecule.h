@@ -1799,6 +1799,8 @@ namespace internal {
   extern constants::Hybridization from_degree(int total_degree,
                                               int nb_electrons);
 
+  extern int nonbonding_electrons(const AtomData &data, int total_valence);
+
   extern int count_pi_e(Molecule::Atom atom, int total_valence);
 }  // namespace internal
 
@@ -1834,6 +1836,17 @@ extern int count_hydrogens(Molecule::Atom atom);
  */
 inline int sum_bond_order(Molecule::Atom atom) {
   return internal::sum_bond_order(atom, true);
+}
+
+/**
+ * @brief Get the predicted non-bonding electron count of the atom.
+ * @param atom An atom.
+ * @return Predicted non-bonding electron count of the atom.
+ * @note This function might return a negative value if the atom is not
+ *       chemically valid.
+ */
+inline int nonbonding_electrons(Molecule::Atom atom) {
+  return internal::nonbonding_electrons(atom.data(), sum_bond_order(atom));
 }
 
 /**

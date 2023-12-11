@@ -30,6 +30,8 @@
 #include "nuri/utils.h"
 
 namespace nuri {
+using internal::nonbonding_electrons;
+
 AtomData::AtomData(const Element &element, int implicit_hydrogens,
                    int formal_charge, constants::Hybridization hyb,
                    double partial_charge, int mass_number, bool is_aromatic,
@@ -516,13 +518,6 @@ MoleculeSanitizer::MoleculeSanitizer(Molecule &molecule)
 }
 
 namespace {
-  int nonbonding_electrons(Molecule::Atom atom, const int total_valence) {
-    // Don't use effective_element* here, this function must return negative
-    // values for any chemically invalid combinations of the three values
-    return atom.data().element().valence_electrons() - total_valence
-           - atom.data().formal_charge();
-  }
-
   bool is_conjugated_candidate(Molecule::Atom atom) {
     const AtomData &data = atom.data();
     // Consider main-group atoms only
@@ -587,8 +582,10 @@ bool MoleculeSanitizer::sanitize_conjugated() {
               && dst.data().atomic_number() != 0) {
             // Single - single bond -> conjugated if curr has lone pair and
             // next doesn't, or vice versa, or any of them is dummy
-            const int src_nbe = nonbonding_electrons(src, valences_[curr]),
-                      dst_nbe = nonbonding_electrons(dst, valences_[dst.id()]);
+            const int src_nbe =
+                          nonbonding_electrons(src.data(), valences_[curr]),
+                      dst_nbe =
+                          nonbonding_electrons(dst.data(), valences_[dst.id()]);
             if ((src_nbe > 0 && dst_nbe > 0)
                 || (src_nbe <= 0 && dst_nbe <= 0)) {
               continue;
@@ -642,8 +639,15 @@ namespace internal {
     return *elem;
   }
 
+  int nonbonding_electrons(const AtomData &data, const int total_valence) {
+    // Don't use effective_element* here, this function must return negative
+    // values for any chemically invalid combinations of the three values
+    return data.element().valence_electrons() - total_valence
+           - data.formal_charge();
+  }
+
   int count_pi_e(Molecule::Atom atom, int total_valence) {
-    const int nb_electrons = nonbonding_electrons(atom, total_valence);
+    const int nb_electrons = nonbonding_electrons(atom.data(), total_valence);
     ABSL_DLOG_IF(WARNING, nb_electrons < 0)
         << "Negative nonbonding electrons for atom " << atom.id() << " ("
         << atom.data().element().symbol() << "): " << nb_electrons;
@@ -864,7 +868,7 @@ namespace {
       return true;
     }
 
-    int nbe = std::max(0, nonbonding_electrons(atom, total_valence));
+    int nbe = std::max(0, nonbonding_electrons(atom.data(), total_valence));
     if (nbe < 0) {
       nbe = 0;
       ABSL_LOG(INFO) << "Valence electrons exceeded for "
@@ -943,7 +947,7 @@ namespace {
       return true;
     }
 
-    int nbe = nonbonding_electrons(atom, total_valence);
+    int nbe = nonbonding_electrons(atom.data(), total_valence);
     if (nbe < 0) {
       ABSL_LOG(WARNING) << "Valence electrons exceeded for "
                         << format_atom_common(atom, false) << ": total valence "
