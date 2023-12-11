@@ -11,8 +11,6 @@
 #include <iterator>
 #include <memory>
 #include <numeric>
-#include <queue>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -213,22 +211,6 @@ RingSetsFinder &RingSetsFinder::operator=(RingSetsFinder &&) noexcept = default;
 RingSetsFinder::~RingSetsFinder() noexcept = default;
 
 namespace {
-  template <class T, class C = std::less<>, class S = std::vector<T>>
-  struct ClearablePQ: public std::priority_queue<T, S, C> {
-  public:
-    template <
-        class U = T,  //
-        std::enable_if_t<
-            std::is_same_v<T, U> && std::is_trivially_copyable_v<T>, int> = 0>
-    T pop_get() noexcept {
-      T v = this->top();
-      this->pop();
-      return v;
-    }
-
-    void clear() noexcept { this->c.clear(); }
-  };
-
   struct IdDist {
     int id, distance;
 
@@ -261,7 +243,7 @@ namespace {
   void compute_v_r(const Molecule &mol, const int r, std::vector<int> &v_r,
                    Dr &d_r, absl::FixedArray<int> &distances,
                    absl::flat_hash_map<int, Molecule::Neighbor> &backtrace,
-                   ClearablePQ<IdDist, std::greater<>> &minheap) {
+                   internal::ClearablePQ<IdDist, std::greater<>> &minheap) {
     v_r.clear();
     std::fill(distances.begin(), distances.end(), mol.num_atoms());
     minheap.clear();
@@ -393,7 +375,7 @@ namespace {
     std::vector<int> v_r;
     absl::FixedArray<int> distances(mol.num_atoms());
     absl::flat_hash_map<int, Molecule::Neighbor> backtrace(num_ring_atoms);
-    ClearablePQ<IdDist, std::greater<>> minheap;
+    internal::ClearablePQ<IdDist, std::greater<>> minheap;
 
     absl::flat_hash_set<int> path_set_tmp;
     std::vector<const std::vector<Molecule::Neighbor> *> r_y_shortest;

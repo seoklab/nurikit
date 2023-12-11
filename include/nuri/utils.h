@@ -13,6 +13,7 @@
 #include <iterator>
 #include <memory>
 #include <numeric>
+#include <queue>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -107,6 +108,22 @@ namespace internal {
 }  // namespace internal
 
 namespace internal {
+  template <class T, class C = std::less<>, class S = std::vector<T>>
+  struct ClearablePQ: public std::priority_queue<T, S, C> {
+    using Base = std::priority_queue<T, S, C>;
+
+  public:
+    using Base::Base;
+
+    T pop_get() noexcept {
+      T v = std::move(this->c.front());
+      this->pop();
+      return v;
+    }
+
+    void clear() noexcept { this->c.clear(); }
+  };
+
   template <class Derived, class RefLike, class Category,
             class Difference = std::ptrdiff_t>
   class ProxyIterator: public boost::iterator_facade<Derived, RefLike, Category,
