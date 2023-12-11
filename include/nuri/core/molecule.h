@@ -422,6 +422,12 @@ private:
 class Molecule;
 class MoleculeMutator;
 
+enum class SubstructCategory {
+  kUnknown,
+  kResidue,
+  kChain,
+};
+
 namespace internal {
   template <bool is_const = false>
   class Substructure {
@@ -445,27 +451,33 @@ namespace internal {
     using const_neighbor_iterator =
         typename SubgraphType::const_adjacency_iterator;
 
-    Substructure(const SubgraphType &sub): graph_(sub) { }
+    Substructure(const SubgraphType &sub,
+                 SubstructCategory cat = SubstructCategory::kUnknown)
+        : graph_(sub), cat_(cat) { }
 
-    Substructure(SubgraphType &&sub) noexcept: graph_(std::move(sub)) { }
+    Substructure(SubgraphType &&sub,
+                 SubstructCategory cat = SubstructCategory::kUnknown) noexcept
+        : graph_(std::move(sub)), cat_(cat) { }
 
-    Substructure(const SubgraphType &sub, const std::string &name)
-        : graph_(sub), name_(name) { }
+    Substructure(const SubgraphType &sub, const std::string &name,
+                 SubstructCategory cat = SubstructCategory::kUnknown)
+        : graph_(sub), name_(name), cat_(cat) { }
 
-    Substructure(SubgraphType &&sub, std::string &&name) noexcept
-        : graph_(std::move(sub)), name_(std::move(name)) { }
+    Substructure(SubgraphType &&sub, std::string &&name,
+                 SubstructCategory cat = SubstructCategory::kUnknown) noexcept
+        : graph_(std::move(sub)), name_(std::move(name)), cat_(cat) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     Substructure(const Substructure<other_const> &other)
         : graph_(other.graph_), name_(other.name_), id_(other.id_),
-          props_(other.props_) { }
+          cat_(other.cat_), props_(other.props_) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     Substructure(Substructure<other_const> &&other) noexcept
         : graph_(std::move(other.graph_)), name_(std::move(other.name_)),
-          id_(other.id_), props_(std::move(other.props_)) { }
+          id_(other.id_), cat_(other.cat_), props_(std::move(other.props_)) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
@@ -473,6 +485,7 @@ namespace internal {
       graph_ = other.graph_;
       name_ = other.name_;
       id_ = other.id_;
+      cat_ = other.cat_;
       props_ = other.props_;
       return *this;
     }
@@ -483,6 +496,7 @@ namespace internal {
       graph_ = std::move(other.graph_);
       name_ = std::move(other.name_);
       id_ = other.id_;
+      cat_ = other.cat_;
       props_ = std::move(other.props_);
       return *this;
     }
@@ -495,6 +509,7 @@ namespace internal {
       graph_.clear();
       name_.clear();
       id_ = 0;
+      cat_ = SubstructCategory::kUnknown;
       props_.clear();
     }
 
@@ -595,6 +610,10 @@ namespace internal {
 
     int id() const { return id_; }
 
+    SubstructCategory &category() { return cat_; }
+
+    SubstructCategory category() const { return cat_; }
+
     template <class KT, class VT>
     void add_prop(KT &&key, VT &&val) {
       props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
@@ -618,6 +637,7 @@ namespace internal {
 
     std::string name_;
     int id_;
+    SubstructCategory cat_;
     std::vector<std::pair<std::string, std::string>> props_;
   };
 
@@ -1308,8 +1328,9 @@ public:
    *
    * @return The new substructure.
    */
-  Substructure substructure(const std::vector<int> &nodes) {
-    return Subgraph(graph_, nodes);
+  Substructure
+  substructure(SubstructCategory cat = SubstructCategory::kUnknown) {
+    return { Subgraph(graph_), cat };
   }
 
   /**
@@ -1317,8 +1338,10 @@ public:
    *
    * @return The new substructure.
    */
-  Substructure substructure(std::vector<int> &&nodes) noexcept {
-    return Subgraph(graph_, std::move(nodes));
+  Substructure
+  substructure(const std::vector<int> &nodes,
+               SubstructCategory cat = SubstructCategory::kUnknown) {
+    return { Subgraph(graph_, nodes), cat };
   }
 
   /**
@@ -1326,8 +1349,10 @@ public:
    *
    * @return The new substructure.
    */
-  ConstSubstructure substructure(const std::vector<int> &nodes) const {
-    return Subgraph(graph_, nodes);
+  Substructure
+  substructure(std::vector<int> &&nodes,
+               SubstructCategory cat = SubstructCategory::kUnknown) noexcept {
+    return { Subgraph(graph_, std::move(nodes)), cat };
   }
 
   /**
@@ -1335,8 +1360,31 @@ public:
    *
    * @return The new substructure.
    */
-  ConstSubstructure substructure(std::vector<int> &&nodes) const noexcept {
-    return Subgraph(graph_, std::move(nodes));
+  ConstSubstructure
+  substructure(SubstructCategory cat = SubstructCategory::kUnknown) const {
+    return { Subgraph(graph_), cat };
+  }
+
+  /**
+   * @brief Create and return a substurcture of the molecule.
+   *
+   * @return The new substructure.
+   */
+  ConstSubstructure
+  substructure(const std::vector<int> &nodes,
+               SubstructCategory cat = SubstructCategory::kUnknown) const {
+    return { Subgraph(graph_, nodes), cat };
+  }
+
+  /**
+   * @brief Create and return a substurcture of the molecule.
+   *
+   * @return The new substructure.
+   */
+  ConstSubstructure substructure(
+      std::vector<int> &&nodes,
+      SubstructCategory cat = SubstructCategory::kUnknown) const noexcept {
+    return { Subgraph(graph_, std::move(nodes)), cat };
   }
 
   /**
@@ -1360,8 +1408,9 @@ public:
    *
    * @return The new substructure.
    */
-  Substructure &add_substructure() {
-    return substructs_.emplace_back(Subgraph(graph_));
+  Substructure &
+  add_substructure(SubstructCategory cat = SubstructCategory::kUnknown) {
+    return substructs_.emplace_back(Subgraph(graph_), cat);
   }
 
   /**
@@ -1370,8 +1419,10 @@ public:
    * @param idxs Indices of atoms in the substructure.
    * @return The new substructure.
    */
-  Substructure &add_substructure(const std::vector<int> &idxs) {
-    return substructs_.emplace_back(Subgraph(graph_, idxs));
+  Substructure &
+  add_substructure(const std::vector<int> &idxs,
+                   SubstructCategory cat = SubstructCategory::kUnknown) {
+    return substructs_.emplace_back(Subgraph(graph_, idxs), cat);
   }
 
   /**
@@ -1380,8 +1431,10 @@ public:
    * @param idxs Indices of atoms in the substructure.
    * @return The new substructure.
    */
-  Substructure &add_substructure(std::vector<int> &&idxs) noexcept {
-    return substructs_.emplace_back(Subgraph(graph_, std::move(idxs)));
+  Substructure &add_substructure(
+      std::vector<int> &&idxs,
+      SubstructCategory cat = SubstructCategory::kUnknown) noexcept {
+    return substructs_.emplace_back(Subgraph(graph_, std::move(idxs)), cat);
   }
 
   /**
@@ -1452,6 +1505,17 @@ public:
   }
 
   /**
+   * @brief Find substructures with given category.
+   *
+   * @return A ranged view of substructures with given category.
+   */
+  auto find_substructures(SubstructCategory cat) {
+    return internal::make_substructure_finder(  //
+        substructs_,
+        [cat](const Substructure &sub) { return sub.category() == cat; });
+  }
+
+  /**
    * @brief Find substructures with given name.
    *
    * @return A ranged view of substructures with given name.
@@ -1473,6 +1537,17 @@ public:
   auto find_substructures(int id) const {
     return internal::make_substructure_finder(
         substructs_, [id](const Substructure &sub) { return sub.id() == id; });
+  }
+
+  /**
+   * @brief Find substructures with given category.
+   *
+   * @return A ranged constant view of substructures with given category.
+   */
+  auto find_substructures(SubstructCategory cat) const {
+    return internal::make_substructure_finder(  //
+        substructs_,
+        [cat](const Substructure &sub) { return sub.category() == cat; });
   }
 
   /**
