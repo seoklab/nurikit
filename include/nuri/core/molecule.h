@@ -622,20 +622,26 @@ namespace internal {
   };
 
   template <class FT, bool is_const>
-  class FindSubstructIter {
-  public:
-    using parent_type = const_if_t<is_const, FT>;
+  class FindSubstructIter
+      : public boost::iterator_facade<FindSubstructIter<FT, is_const>,
+                                      const_if_t<is_const, Substructure<false>>,
+                                      std::forward_iterator_tag> {
+    using Traits =
+        std::iterator_traits<typename FindSubstructIter::iterator_facade_>;
 
-    using iterator_category = std::forward_iterator_tag;
-    using value_type = const_if_t<is_const, Substructure<false>>;
-    using reference = value_type &;
-    using pointer = value_type *;
-    using difference_type = int;
+  public:
+    using iterator_category = typename Traits::iterator_category;
+    using value_type = typename Traits::value_type;
+    using difference_type = typename Traits::difference_type;
+    using pointer = typename Traits::pointer;
+    using reference = typename Traits::reference;
+
+    using parent_type = const_if_t<is_const, FT>;
 
     using SubstructContainer = std::vector<Substructure<false>>;
     using ParentIterator =
-        std::conditional_t<is_const, typename SubstructContainer::const_iterator,
-                           typename SubstructContainer::iterator>;
+        std::conditional_t<is_const, SubstructContainer::const_iterator,
+                           SubstructContainer::iterator>;
 
     FindSubstructIter() = default;
 
@@ -656,36 +662,22 @@ namespace internal {
       return *this;
     }
 
-    FindSubstructIter &operator++() {
-      it_ = finder_->next(++it_);
-      return *this;
-    }
-
-    FindSubstructIter operator++(int) {
-      auto tmp = *this;
-      ++(*this);
-      return tmp;
-    }
-
-    template <class OtherPred, bool other_const>
-    bool
-    operator==(const FindSubstructIter<OtherPred, other_const> &other) const {
-      return it_ == other.it_;
-    }
-
-    template <class OtherPred, bool other_const>
-    bool
-    operator!=(const FindSubstructIter<OtherPred, other_const> &other) const {
-      return !(*this == other);
-    }
-
-    reference operator*() const { return *it_; }
-
-    pointer operator->() const { return &*it_; }
+    ParentIterator base() const { return it_; }
 
   private:
     template <class, bool>
     friend class FindSubstructIter;
+
+    friend class boost::iterator_core_access;
+
+    reference dereference() const { return *it_; }
+
+    template <bool other_const>
+    bool equal(FindSubstructIter<FT, other_const> rhs) const {
+      return it_ == rhs.it_;
+    }
+
+    void increment() { it_ = finder_->next(++it_); }
 
     parent_type *finder_;
     ParentIterator it_;
