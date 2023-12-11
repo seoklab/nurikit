@@ -43,6 +43,12 @@ template <class DT, Eigen::Index Rows, Eigen::Index Cols>
 using Array = Eigen::Array<DT, Rows, Cols, Eigen::RowMajor>;
 
 template <class DT>
+using Array3 = Array<DT, 1, 3>;
+using Array3i = Array3<int>;
+using Array3f = Array3<float>;
+using Array3d = Array3<double>;
+
+template <class DT>
 using ArrayX = Array<DT, 1, Eigen::Dynamic>;
 using ArrayXi = ArrayX<int>;
 using ArrayXf = ArrayX<float>;
