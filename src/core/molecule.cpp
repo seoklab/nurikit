@@ -45,6 +45,12 @@ AtomData::AtomData(const Element &element, int implicit_hydrogens,
         << element.symbol();
   }
 
+  if (implicit_hydrogens_ < 0) {
+    ABSL_DLOG(WARNING)
+        << "Negative implicit hydrogens for atom " << element.symbol();
+    implicit_hydrogens_ = 0;
+  }
+
   internal::set_flag_if(flags_, is_aromatic,
                         AtomFlags::kAromatic | AtomFlags::kConjugated
                             | AtomFlags::kRing);

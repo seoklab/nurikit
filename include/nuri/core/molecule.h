@@ -153,7 +153,9 @@ public:
   constants::Hybridization hybridization() const { return hyb_; }
 
   void set_implicit_hydrogens(int implicit_hydrogens) {
-    implicit_hydrogens_ = implicit_hydrogens;
+    ABSL_DLOG_IF(WARNING, implicit_hydrogens < 0)
+        << "Negative implicit hydrogens are not allowed. Setting to 0.";
+    implicit_hydrogens_ = std::max(0, implicit_hydrogens);
   }
 
   int implicit_hydrogens() const { return implicit_hydrogens_; }
