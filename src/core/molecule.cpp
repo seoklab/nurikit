@@ -299,14 +299,14 @@ namespace {
       }
     }
 
-    absl::flat_hash_map<int, std::vector<int>> components;
+    std::vector<std::vector<int>> components(id);
     for (int i = 0; i < graph.num_nodes(); ++i) {
       components[lows[i]].push_back(i);
     }
 
     std::pair<std::vector<std::vector<int>>, int> ret;
     ret.second = num_connected;
-    for (auto &[_, comp]: components) {
+    for (std::vector<int> &comp: components) {
       if (comp.size() > 2) {
         std::sort(comp.begin(), comp.end(),
                   [&](int a, int b) { return ids[a] < ids[b]; });
