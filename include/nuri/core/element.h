@@ -132,9 +132,44 @@ constexpr inline bool operator!=(const Isotope &lhs,
  *
  *  - Retrieved from the BODR (Blue Obelisk Data Repository):
  *    https://github.com/BlueObelisk/bodr/blob/29ce17071c71b2d4d5ee81a2a28f0407331f1624/bodr/elements/elements.xml
+ *
+ * @subsection type-state About the type and standard state data
+ *
+ * The element type and standard state data were obtained from the PubChem
+ * periodic table.
+ *
+ * The element type represents classification of the element into one of the
+ * following categories. The categories are mutually exclusive, and elements
+ * that do not fall into any of the categories are classified as metals.
+ *
+ *  - Unknown (only dummy atoms),
+ *  - Nonmetal,
+ *  - Metalloid
+ *
+ * The standard state represents the state of the element at 298.15 K and 1 atm,
+ * and is one of gas, liquid, or solid. Unknown is only used for dummy atoms.
+ *
+ * @subsubsection type-state-ref References
+ *
+ *  - National Center for Biotechnology Information. Periodic Table of Elements.
+ *    https://pubchem.ncbi.nlm.nih.gov/periodic-table. (Accessed 2023-12-05)
  */
 class Element {
 public:
+  enum class Type : std::uint8_t {
+    kUnknown,
+    kMetal,
+    kMetalloid,
+    kNonmetal,
+  };
+
+  enum class State : std::uint8_t {
+    kUnknown,
+    kSolid,
+    kLiquid,
+    kGas,
+  };
+
   Element() = delete;
   ~Element() noexcept = default;
 
@@ -197,6 +232,18 @@ public:
   constexpr bool actinide() const noexcept {
     return internal::check_flag(flags_, ElementFlags::kActinide);
   }
+
+  /**
+   * @brief Get the type of the element.
+   * @return The type of the element.
+   */
+  constexpr Type type() const noexcept { return type_; }
+
+  /**
+   * @brief Get the standard state of the element.
+   * @return The standard state of the element.
+   */
+  constexpr State state() const noexcept { return state_; }
 
   /**
    * @brief Get the IUPAC Symbol of the atom.
@@ -299,6 +346,8 @@ private:
   std::int16_t period_;
   std::int16_t group_;
   ElementFlags flags_;
+  Type type_;
+  State state_;
   std::string_view symbol_;
   std::string_view name_;
   double atomic_weight_;

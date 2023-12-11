@@ -96,6 +96,57 @@ namespace {
     // Group 13-18
     return elem.group() - 10;
   }
+
+  Element::Type get_type(const Element &elem) {
+    if (elem.group() >= 17) {
+      return Element::Type::kNonmetal;
+    }
+
+    switch (elem.atomic_number()) {
+    case 0:
+      return Element::Type::kUnknown;
+    case 1:   // H
+    case 6:   // C
+    case 7:   // N
+    case 8:   // O
+    case 15:  // P
+    case 16:  // S
+    case 34:  // Se
+      return Element::Type::kNonmetal;
+    case 5:   // B
+    case 14:  // Si
+    case 32:  // Ge
+    case 33:  // As
+    case 51:  // Sb
+    case 52:  // Te
+    case 84:  // Po
+      return Element::Type::kMetalloid;
+    default:
+      return Element::Type::kMetal;
+    }
+  }
+
+  Element::State get_state(const Element &elem) {
+    if (elem.group() == 18) {
+      return Element::State::kGas;
+    }
+
+    switch (elem.atomic_number()) {
+    case 0:
+      return Element::State::kUnknown;
+    case 35:  // Br
+    case 80:  // Hg
+      return Element::State::kLiquid;
+    case 1:   // H
+    case 7:   // N
+    case 8:   // O
+    case 9:   // F
+    case 17:  // Cl
+      return Element::State::kGas;
+    default:
+      return Element::State::kSolid;
+    }
+  }
 }  // namespace
 
 Element::Element(int atomic_number, std::string_view symbol,
@@ -122,6 +173,8 @@ Element::Element(int atomic_number, std::string_view symbol,
   }
 
   valence_electrons_ = static_cast<int16_t>(get_valence_electrons(*this));
+  type_ = get_type(*this);
+  state_ = get_state(*this);
 
   std::vector<Isotope>::iterator it;
   if (std::all_of(isotopes_.begin(), isotopes_.end(),
