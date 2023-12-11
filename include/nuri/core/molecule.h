@@ -265,7 +265,7 @@ public:
   BondData(): BondData(constants::kSingleBond) { }
 
   explicit BondData(constants::BondOrder order)
-      : order_(order), flags_(static_cast<BondFlags>(0)), length_(0) { }
+      : order_(order), flags_(static_cast<BondFlags>(0)) { }
 
   /**
    * @brief Get the bond order of the bond.
@@ -322,20 +322,6 @@ public:
 
   void reset_flags() { flags_ = static_cast<BondFlags>(0); }
 
-  /**
-   * @brief Get the bond length.
-   * @return The bond length of in angstroms \f$(\mathrm{Å})\f$. If the
-   *         molecule has no 3D conformations, this will return 0.
-   */
-  double length() const { return length_; }
-
-  /**
-   * @brief Get the read-write reference to bond length.
-   * @return The bond length of in angstroms \f$(\mathrm{Å})\f$. If the
-   *         molecule has no 3D conformations, this will return 0.
-   */
-  double &length() { return length_; }
-
   const std::string *find_name() const { return internal::get_name(props_); }
 
   void set_name(std::string_view name) { internal::set_name(props_, name); }
@@ -361,7 +347,6 @@ private:
 
   constants::BondOrder order_;
   BondFlags flags_;
-  double length_;
   std::vector<std::pair<std::string, std::string>> props_;
 };
 
@@ -744,13 +729,6 @@ using ConstSubstructure = internal::Substructure<true>;
  * Note that it is the responsibility of the user to ensure the molecule is in a
  * chemically valid state after property modification. For sanitization, use the
  * MoleculeSanitizer class.
- *
- * If a new conformer is added, it must have same bond lengths with the existing
- * conformers (if any). If the added conformer is the first one, the bond
- * length will be calculated from its atomic coordinates.
- *
- * Even if the final conformer is erased, the bond lengths will **not** be
- * reset to the initial state.
  */
 class Molecule {
 public:
@@ -1041,12 +1019,10 @@ public:
    * @brief Get the atomic coordinates of ith conformer.
    *
    * @param i Index of the conformer.
-   * @return Atomic coordinates of ith conformer.
+   * @return A mutable view over the atomic coordinates of ith conformer.
    * @note If index is out of range, the behavior is undefined.
    * @note Resizing the returned matrix is a no-op. In debug mode, an assertion
    *       failure will be triggered if the matrix is resized.
-   * @warning Bond lengths will not be updated even if the coordinates are
-   *          updated. Call update_bond_lengths() to update the bond lengths.
    */
   Ref<MatrixX3d> conf(int i = 0) { return conformers_[i]; }
 
@@ -1078,12 +1054,6 @@ public:
    * @return The index of the added conformer.
    * @note If number of rows of \p pos does not match the number of atoms in the
    *       molecule, the behavior is undefined.
-   *
-   * The bond lengths will be left unmodified, so it is the caller's
-   * responsibility to ensure that the bond lengths are consistent with the new
-   * conformer.
-   *
-   * @see update_bond_lengths()
    */
   int add_conf(const MatrixX3d &pos);
 
@@ -1094,12 +1064,6 @@ public:
    * @return The index of the added conformer.
    * @note If number of rows of \p pos does not match the number of atoms in the
    *       molecule, the behavior is undefined.
-
-   * The bond lengths will be left unmodified, so it is the caller's
-   * responsibility to ensure that the bond lengths are consistent with the new
-   * conformer.
-   *
-   * @see update_bond_lengths()
    */
   int add_conf(MatrixX3d &&pos) noexcept;
 
@@ -1136,10 +1100,59 @@ public:
   }
 
   /**
-   * @brief Calculate and update the bond lengths of the molecule.
-   * @note The behavior is undefined if the molecule has no conformers.
+   * @brief Calculate the squared distance between two atoms.
+   * @param src Index of the source atom.
+   * @param dst Index of the destination atom.
+   * @param conf Index of the conformer to use for the calculation.
+   * @return The squared distance between the two atoms.
+   * @note The behavior is undefined if any of the indices are out of range.
    */
-  void update_bond_lengths();
+  double distsq(int src, int dst, int conf = 0) const;
+
+  /**
+   * @brief Calculate the squared distance between two bonded atoms.
+   * @param bond The bond between the two atoms.
+   * @param conf Index of the conformer to use for the calculation.
+   * @return The squared distance between the two atoms.
+   * @note The behavior is undefined the bond is not in the molecule, or if the
+   *       conformer index is out of range.
+   */
+  double distsq(Bond bond, int conf = 0) const {
+    return distsq(bond.src(), bond.dst(), conf);
+  }
+
+  /**
+   * @brief Calculate the distance between two atoms.
+   * @param src Index of the source atom.
+   * @param dst Index of the destination atom.
+   * @param conf Index of the conformer to use for the calculation.
+   * @return The distance between the two atoms.
+   * @note The behavior is undefined if any of the indices are out of range.
+   */
+  double distance(int src, int dst, int conf = 0) const {
+    return std::sqrt(distsq(src, dst, conf));
+  }
+
+  /**
+   * @brief Calculate the distance between two bonded atoms.
+   * @param bond The bond between the two atoms.
+   * @param conf Index of the conformer to use for the calculation.
+   * @return The distance between the two atoms.
+   * @note The behavior is undefined the bond is not in the molecule, or if the
+   *       conformer index is out of range.
+   */
+  double distance(Bond bond, int conf = 0) const {
+    return distance(bond.src(), bond.dst(), conf);
+  }
+
+  /**
+   * @brief Calculate the bond lengths of the molecule.
+   * @param conf Index of the conformer to use for the calculation.
+   * @return An array of bond lengths. The order of the bond lengths is the same
+   *         as the order of the bonds returned by bonds().
+   * @note The behavior is undefined if \p conf is out of range.
+   */
+  ArrayXd bond_lengths(int conf = 0) const;
 
   /**
    * @brief Rotate a bond.
@@ -1576,10 +1589,6 @@ public:
    *         `false`.
    * @note The behavior is undefined if any of the atom indices is out of range,
    *       or if src == dst.
-   *
-   * If the bond is added and the molecule has at least one conformer, the bond
-   * length will be calculated from the positions of the atoms in the first
-   * conformer.
    */
   std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
                                                     const BondData &bond);
@@ -1594,10 +1603,6 @@ public:
    *         `false`.
    * @note The behavior is undefined if any of the atom indices is out of range,
    *       or if src == dst.
-   *
-   * If the bond is added and the molecule has at least one conformer, the bond
-   * length will be calculated from the positions of the atoms in the first
-   * conformer.
    */
   std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
                                                     BondData &&bond) noexcept;
@@ -1612,10 +1617,6 @@ public:
    *         `false`.
    * @note The behavior is undefined if any of the atom indices is out of range,
    *       or if src == dst.
-   *
-   * If the bond is added and the molecule has at least one conformer, the bond
-   * length will be calculated from the positions of the atoms in the first
-   * conformer.
    */
   std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
                                                     Molecule::Bond bond) {

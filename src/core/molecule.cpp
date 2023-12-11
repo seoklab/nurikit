@@ -158,11 +158,20 @@ int Molecule::add_conf(MatrixX3d &&pos) noexcept {
   return ret;
 }
 
-void Molecule::update_bond_lengths() {
-  MatrixX3d &pos = conformers_[0];
-  for (auto bond: graph_.edges()) {
-    bond.data().length() = (pos.row(bond.dst()) - pos.row(bond.src())).norm();
+double Molecule::distsq(int src, int dst, int conf) const {
+  const MatrixX3d &pos = conformers_[conf];
+  return (pos.row(dst) - pos.row(src)).squaredNorm();
+}
+
+ArrayXd Molecule::bond_lengths(int conf) const {
+  ArrayXd lengths(num_bonds());
+
+  auto bit = bond_begin();
+  for (int i = 0; i < num_bonds(); ++i) {
+    lengths[i] = distance(*bit++, conf);
   }
+
+  return lengths;
 }
 
 bool Molecule::rotate_bond(int ref_atom, int pivot_atom, double angle) {
@@ -337,30 +346,25 @@ void Molecule::update_topology() {
 namespace {
   template <class DT>
   std::pair<Molecule::bond_iterator, bool>
-  add_bond_impl(Molecule &mol, Molecule::GraphType &graph, int src, int dst,
-                DT &&bond) {
+  add_bond_impl(Molecule::GraphType &graph, int src, int dst, DT &&bond) {
     auto it = graph.find_edge(src, dst);
     if (it != graph.edge_end()) {
       return std::make_pair(it, false);
     }
 
     it = graph.add_edge(src, dst, std::forward<DT>(bond));
-    if (mol.is_3d()) {
-      it->data().length() =
-          (mol.conf(0).row(src) - mol.conf(0).row(dst)).norm();
-    }
     return std::make_pair(it, true);
   }
 }  // namespace
 
 std::pair<Molecule::bond_iterator, bool>
 MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
-  return add_bond_impl(mol(), mol().graph_, src, dst, bond);
+  return add_bond_impl(mol().graph_, src, dst, bond);
 }
 
 std::pair<Molecule::bond_iterator, bool>
 MoleculeMutator::add_bond(int src, int dst, BondData &&bond) noexcept {
-  return add_bond_impl(mol(), mol().graph_, src, dst, std::move(bond));
+  return add_bond_impl(mol().graph_, src, dst, std::move(bond));
 }
 
 void MoleculeMutator::mark_bond_erase(int src, int dst) {
