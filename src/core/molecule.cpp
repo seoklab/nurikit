@@ -30,6 +30,9 @@
 #include "nuri/utils.h"
 
 namespace nuri {
+using internal::count_pi_e;
+using internal::effective_element_or_element;
+using internal::from_degree;
 using internal::nonbonding_electrons;
 
 AtomData::AtomData(const Element &element, int implicit_hydrogens,
@@ -862,7 +865,7 @@ namespace {
     if (atom.data().atomic_number() == 0) {
       // Assume dummy atom always satisfies the octet rule
       const int nbe = std::max(8 - total_valence, 0);
-      atom.data().set_hybridization(internal::from_degree(total_degree, nbe));
+      atom.data().set_hybridization(from_degree(total_degree, nbe));
       return true;
     }
 
@@ -876,9 +879,9 @@ namespace {
                      << "; assuming no lone pair";
     }
 
-    const Element &effective = internal::effective_element_or_element(atom);
+    const Element &effective = effective_element_or_element(atom);
 
-    constants::Hybridization hyb = internal::from_degree(total_degree, nbe);
+    constants::Hybridization hyb = from_degree(total_degree, nbe);
     if (hyb == constants::kSP3 && atom.data().is_conjugated()) {
       hyb = constants::kSP2;
       if (is_pyrrole_like(atom, effective, nbe, total_valence)) {
@@ -896,7 +899,7 @@ namespace {
     } else {
       // Assume non-main-group atoms does not have lone pairs
       atom.data().set_hybridization(
-          std::min(hyb, internal::from_degree(total_degree, 0)));
+          std::min(hyb, from_degree(total_degree, 0)));
     }
 
     return true;
@@ -953,7 +956,7 @@ namespace {
       return false;
     }
 
-    const Element &effective = internal::effective_element_or_element(atom);
+    const Element &effective = effective_element_or_element(atom);
     if (atom.data().is_conjugated()
         && is_pyrrole_like(atom, effective, nbe, total_valence)) {
       // Pyrrole, etc.
