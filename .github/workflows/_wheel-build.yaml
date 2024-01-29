@@ -41,12 +41,12 @@ jobs:
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
             -S . -B build -G Ninja
 
-      - uses: pypa/cibuildwheel@v2.16.2
+      - uses: pypa/cibuildwheel@v2.16.4
         env:
           CIBW_BUILD: ${{ inputs.python }}-manylinux_x86_64
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: ${{ inputs.upload }}
         with:
           name: wheels
