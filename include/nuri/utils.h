@@ -574,7 +574,7 @@ inline MatrixX3d stack(const std::vector<Vector3d> &vs) {
   return m;
 }
 
-constexpr inline int add_if(bool cond, int val = 1) {
+constexpr inline int value_if(bool cond, int val = 1) {
   return static_cast<int>(cond) * val;
 }
 }  // namespace nuri

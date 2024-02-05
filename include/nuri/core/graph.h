@@ -1663,7 +1663,7 @@ namespace internal {
       for (auto it = first; it++ < nodes_.end() - 1;) {
         int new_id = old_to_new[*it];
         *first = new_id;
-        first += add_if(new_id >= 0);
+        first += value_if(new_id >= 0);
       }
 
       nodes_.erase(first, nodes_.end());
