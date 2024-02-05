@@ -5,9 +5,12 @@
 #ifndef NURI_CORE_GEOMETRY_H_
 #define NURI_CORE_GEOMETRY_H_
 
+#include <cmath>
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+#include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
 
@@ -94,6 +97,166 @@ constexpr DT deg2rad(DT deg) {
 template <class DT, std::enable_if_t<std::is_integral_v<DT>, int> = 0>
 constexpr double deg2rad(DT deg) {
   return deg * constants::kPi / 180;
+}
+
+template <class MatrixLike>
+auto pdistsq(const MatrixLike &m) {
+  using DT = typename MatrixLike::Scalar;
+
+  const Eigen::Index n = m.rows();
+  ArrayX<DT> distsq(n * (n - 1) / 2);
+
+  for (Eigen::Index i = 0, k = 0; i < n - 1; ++i) {
+    Vector3<DT> v = m.row(i);
+    for (Eigen::Index j = i + 1; j < n; ++j, ++k) {
+      distsq[k] = (v - m.row(j)).squaredNorm();
+    }
+  }
+
+  return distsq;
+}
+
+template <class MatrixLike>
+auto pdist(const MatrixLike &m) {
+  return pdistsq(m).sqrt();
+}
+
+namespace internal {
+  constexpr inline double safe_normalizer(double sqn, double eps = 1e-12) {
+    return sqn < eps ? 1 : 1 / std::sqrt(sqn);
+  }
+}  // namespace internal
+
+/**
+ * @brief Calculate the cosine of the angle between two vectors.
+ * @param oa The first vector.
+ * @param ob The second vector.
+ * @return The cosine of the angle between the two vectors.
+ */
+inline double cos_angle(const Vector3d &oa, const Vector3d &ob) {
+  return oa.dot(ob)
+         * internal::safe_normalizer(oa.squaredNorm() * ob.squaredNorm());
+}
+
+/**
+ * @brief Calculate the cosine of the angle between two vectors.
+ * @param o The origin of the angle.
+ * @param a The first point.
+ * @param b The second point.
+ * @return The cosine of the angle between the two vectors o -> a and o -> b.
+ */
+inline double cos_angle(const Vector3d &o, const Vector3d &a,
+                        const Vector3d &b) {
+  Vector3d oa = a - o, ob = b - o;
+  return cos_angle(oa, ob);
+}
+
+/**
+ * @brief Calculate sin and cos of half an average angle between vectors,
+ *        (0 - idxs[0]), (1 - idxs[1]), ..., (n-1 - idxs[n-1]).
+ * @param m The vectors.
+ * @param idxs The indices of the vectors to calculate the angle with.
+ * @return Pair of (sum of sines, sum of cosines) of half an average angle.
+ *         The average angle itself can be directly calculated by
+ *         2 * std::atan2(sum_sin, sum_cos).
+ * @warning The vectors must be of the same length.
+ * @note The behavior is undefined if idxs contains out-of-range indices, or
+ *       size of idxs is not equal to the number of vectors.
+ * @note The returned sums are always non-negative. Thus, the result could be
+ *       interpreted as if they are calculated from the angles in [0, 90]
+ *       degrees. That is, the average angle is always in [0, 180] degrees.
+ */
+template <class Scalar, class Indexer, int N, auto... Extra>
+inline std::pair<Scalar, Scalar>
+sum_tan2_half(const Eigen::Matrix<Scalar, N, 3, 1, Extra...> &m,
+              const Indexer &idxs) {
+  double csum = (m + m(idxs, Eigen::all)).rowwise().norm().sum(),
+         ssum = (m - m(idxs, Eigen::all)).rowwise().norm().sum();
+  return std::make_pair(ssum, csum);
+}
+
+/**
+ * @brief Calculate sin and cos of half an average angle between consecutive
+ *        vectors, i.e., (0, 1), (1, 2), ..., (n-1, 0).
+ * @param m The vectors.
+ * @return Pair of (sum of sines, sum of cosines) of half an average angle.
+ *         The average angle itself can be directly calculated by
+ *         2 * std::atan2(sum_sin, sum_cos).
+ * @warning The vectors must be of the same length.
+ * @note The returned sums are always non-negative. Thus, the result could be
+ *       interpreted as if they are calculated from the angles in [0, 90]
+ *       degrees. That is, the average angle is always in [0, 180] degrees.
+ */
+template <class Scalar, int N, auto... Extra>
+inline std::pair<Scalar, Scalar>
+sum_tan2_half(const Eigen::Matrix<Scalar, N, 3, 1, Extra...> &m) {
+  if constexpr (N == Eigen::Dynamic) {
+    CyclicIndex<1> idxs(m.rows());
+    return sum_tan2_half(m, idxs);
+  }
+
+  CyclicIndex<1, N> idxs;
+  return sum_tan2_half(m, idxs);
+}
+
+/**
+ * @brief Calculate A - (v) - B - (axis) - C - (w) - D dihedral angle along the
+ *        axis. Axis should be normalized.
+ * @param axis The normalized axis of the dihedral angle.
+ * @param v The vector from A to B.
+ * @param w The vector from C to D.
+ * @return The cosine of the dihedral angle.
+ *
+ * See https://stackoverflow.com/a/34245697 for the implementation(s) in python.
+ */
+inline double cos_dihedral(const Vector3d &axis, Vector3d v, Vector3d w) {
+  v -= v.dot(axis) * axis;
+  w -= w.dot(axis) * axis;
+  return v.dot(w)
+         * internal::safe_normalizer(v.squaredNorm() * w.squaredNorm());
+}
+
+/**
+ * @brief Calculate A -> - B -> C -> D dihedral angle.
+ * @param a The position of point A.
+ * @param b The position of point B.
+ * @param c The position of point C.
+ * @param d The position of point D.
+ * @return The cosine of the dihedral angle.
+ *
+ * See https://stackoverflow.com/a/34245697 for the implementation(s) in python.
+ */
+inline double cos_dihedral(const Vector3d &a, const Vector3d &b,
+                           const Vector3d &c, const Vector3d &d) {
+  Vector3d axis = (c - b).normalized();
+  return cos_dihedral(axis, a - b, d - c);
+}
+
+/**
+ * @brief Perform a least-squares fit of a plane to a set of points.
+ *
+ * @tparam MatrixLike The type of the matrix-like object.
+ * @param pts The matrix-like object containing the points. Should be in a
+ *        N x 3 shape, where N >= 3.
+ * @param normalize Whether to normalize the normal vector. Defaults to true.
+ * @return The best-fit plane defined by a 4-vector (a, b, c, d), such that
+ *         ax + by + cz + d = 0.
+ */
+template <class MatrixLike>
+Vector4d fit_plane(const MatrixLike &pts, bool normalize = true) {
+  Vector3d cntr = pts.colwise().mean();
+  MatrixXd m = pts.rowwise() - cntr;
+
+  auto cm = swap_axis<Eigen::MatrixXd>(m);
+  auto svd = cm.jacobiSvd(Eigen::ComputeThinU);
+
+  Vector4d ret;
+  ret.leftCols(3) = svd.matrixU().col(2);
+  if (normalize) {
+    ret.leftCols(3).normalize();
+  }
+  ret[3] = -ret.leftCols(3).dot(cntr);
+  return ret;
 }
 }  // namespace nuri
 
