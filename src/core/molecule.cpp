@@ -462,7 +462,7 @@ namespace internal {
       if (adj.edge_data().order() == constants::kAromaticBond) {
         ++num_aromatic;
       } else {
-        sum_order += adj.edge_data().order();
+        sum_order += std::max(adj.edge_data().order(), constants::kSingleBond);
         num_multiple_bond +=
             static_cast<int>(adj.edge_data().order() > constants::kSingleBond);
       }

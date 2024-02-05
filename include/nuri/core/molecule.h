@@ -46,6 +46,7 @@ namespace constants {
    * @brief The bond order of a bond object.
    */
   enum BondOrder {
+    kOtherBond = 0,
     kSingleBond = 1,
     kDoubleBond = 2,
     kTripleBond = 3,
@@ -262,7 +263,7 @@ inline bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept {
 
 class BondData {
 public:
-  BondData(): BondData(constants::kSingleBond) { }
+  BondData(): BondData(constants::kOtherBond) { }
 
   explicit BondData(constants::BondOrder order)
       : order_(order), flags_(static_cast<BondFlags>(0)) { }
@@ -1833,6 +1834,7 @@ extern int count_hydrogens(Molecule::Atom atom);
  * @brief Get the approximate total bond order of the atom.
  * @param atom An atom.
  * @return Total bond order of the atom.
+ * @note "Other bond" count as single bond.
  */
 inline int sum_bond_order(Molecule::Atom atom) {
   return internal::sum_bond_order(atom, true);
