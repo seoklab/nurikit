@@ -58,6 +58,14 @@ namespace constants {
                                                           3.0, 4.0, 1.5 };
 }  // namespace constants
 
+enum class AtomFlags : std::uint32_t {
+  kAromatic = 0x1,
+  kConjugated = 0x2,
+  kRing = 0x4,
+  kChiral = 0x8,
+  kRightHanded = 0x10,
+};
+
 class AtomData {
 public:
   /**
@@ -104,10 +112,14 @@ public:
    */
   std::string_view element_name() const { return element().name(); }
 
-  void set_element(const Element &element) { element_ = &element; }
+  AtomData &set_element(const Element &element) {
+    element_ = &element;
+    return *this;
+  }
 
-  void set_element(int atomic_number) {
+  AtomData &set_element(int atomic_number) {
     set_element(PeriodicTable::get()[atomic_number]);
+    return *this;
   }
 
   /**
@@ -133,10 +145,14 @@ public:
                                                   : *isotope_;
   }
 
-  void set_isotope(const Isotope &isotope) { isotope_ = &isotope; }
+  AtomData &set_isotope(const Isotope &isotope) {
+    isotope_ = &isotope;
+    return *this;
+  }
 
-  void set_isotope(int mass_number) {
+  AtomData &set_isotope(int mass_number) {
     isotope_ = element().find_isotope(mass_number);
+    return *this;
   }
 
   /**
@@ -149,52 +165,61 @@ public:
    */
   const Isotope *explicit_isotope() const { return isotope_; }
 
-  void set_hybridization(constants::Hybridization hyb) { hyb_ = hyb; }
+  AtomData &set_hybridization(constants::Hybridization hyb) {
+    hyb_ = hyb;
+    return *this;
+  }
 
   constants::Hybridization hybridization() const { return hyb_; }
 
-  void set_implicit_hydrogens(int implicit_hydrogens) {
+  AtomData &set_implicit_hydrogens(int implicit_hydrogens) {
     ABSL_DLOG_IF(WARNING, implicit_hydrogens < 0)
         << "Negative implicit hydrogens are not allowed. Setting to 0.";
     implicit_hydrogens_ = std::max(0, implicit_hydrogens);
+    return *this;
   }
 
   int implicit_hydrogens() const { return implicit_hydrogens_; }
 
-  void set_aromatic(bool is_aromatic) {
+  AtomData &set_aromatic(bool is_aromatic) {
     internal::update_flag(flags_, is_aromatic, AtomFlags::kAromatic);
+    return *this;
   }
 
   bool is_aromatic() const {
     return internal::check_flag(flags_, AtomFlags::kAromatic);
   }
 
-  void set_conjugated(bool is_conjugated) {
+  AtomData &set_conjugated(bool is_conjugated) {
     internal::update_flag(flags_, is_conjugated, AtomFlags::kConjugated);
+    return *this;
   }
 
   bool is_conjugated() const {
     return internal::check_flag(flags_, AtomFlags::kConjugated);
   }
 
-  void set_ring_atom(bool is_ring_atom) {
+  AtomData &set_ring_atom(bool is_ring_atom) {
     internal::update_flag(flags_, is_ring_atom, AtomFlags::kRing);
+    return *this;
   }
 
   bool is_ring_atom() const {
     return internal::check_flag(flags_, AtomFlags::kRing);
   }
 
-  void set_chiral(bool is_chiral) {
+  AtomData &set_chiral(bool is_chiral) {
     internal::update_flag(flags_, is_chiral, AtomFlags::kChiral);
+    return *this;
   }
 
   bool is_chiral() const {
     return internal::check_flag(flags_, AtomFlags::kChiral);
   }
 
-  void set_right_handed(bool is_right_handed) {
+  AtomData &set_right_handed(bool is_right_handed) {
     internal::update_flag(flags_, is_right_handed, AtomFlags::kRightHanded);
+    return *this;
   }
 
   /**
@@ -208,23 +233,46 @@ public:
     return internal::check_flag(flags_, AtomFlags::kRightHanded);
   }
 
-  void reset_flags() { flags_ = static_cast<AtomFlags>(0); }
+  AtomData &add_flags(AtomFlags flags) {
+    flags_ |= flags;
+    return *this;
+  }
 
-  void set_partial_charge(double charge) { partial_charge_ = charge; }
+  AtomData &del_flags(AtomFlags flags) {
+    flags_ &= ~flags;
+    return *this;
+  }
+
+  AtomData &reset_flags() {
+    flags_ = static_cast<AtomFlags>(0);
+    return *this;
+  }
+
+  AtomData &set_partial_charge(double charge) {
+    partial_charge_ = charge;
+    return *this;
+  }
 
   double partial_charge() const { return partial_charge_; }
 
-  void set_formal_charge(int charge) { formal_charge_ = charge; }
+  AtomData &set_formal_charge(int charge) {
+    formal_charge_ = charge;
+    return *this;
+  }
 
   int formal_charge() const { return formal_charge_; }
 
   const std::string *find_name() const { return internal::get_name(props_); }
 
-  void set_name(std::string_view name) { internal::set_name(props_, name); }
+  AtomData &set_name(std::string_view name) {
+    internal::set_name(props_, name);
+    return *this;
+  }
 
   template <class KT, class VT>
-  void add_prop(KT &&key, VT &&val) {
+  AtomData &add_prop(KT &&key, VT &&val) {
     props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
+    return *this;
   }
 
   std::vector<std::pair<std::string, std::string>> &props() { return props_; }
@@ -234,14 +282,6 @@ public:
   }
 
 private:
-  enum class AtomFlags : std::uint32_t {
-    kAromatic = 0x1,
-    kConjugated = 0x2,
-    kRing = 0x4,
-    kChiral = 0x8,
-    kRightHanded = 0x10,
-  };
-
   friend bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept;
 
   const Element *element_;
@@ -260,6 +300,13 @@ inline bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept {
          && lhs.flags_ == rhs.flags_
          && lhs.formal_charge() == rhs.formal_charge();
 }
+
+enum class BondFlags : std::uint32_t {
+  kRing = 0x1,
+  kAromatic = 0x2,
+  kConjugated = 0x4,
+  kEConfig = 0x8,
+};
 
 class BondData {
 public:
@@ -284,6 +331,11 @@ public:
    */
   constants::BondOrder &order() { return order_; }
 
+  BondData &set_order(constants::BondOrder order) {
+    order_ = order;
+    return *this;
+  }
+
   bool is_rotable() const {
     return !internal::check_flag(flags_,
                                  BondFlags::kConjugated | BondFlags::kRing);
@@ -293,43 +345,64 @@ public:
     return internal::check_flag(flags_, BondFlags::kRing);
   }
 
-  void set_ring_bond(bool ring) {
+  BondData &set_ring_bond(bool ring) {
     internal::update_flag(flags_, ring, BondFlags::kRing);
+    return *this;
   }
 
   bool is_aromatic() const {
     return internal::check_flag(flags_, BondFlags::kAromatic);
   }
 
-  void set_aromatic(bool aromatic) {
+  BondData &set_aromatic(bool aromatic) {
     internal::update_flag(flags_, aromatic, BondFlags::kAromatic);
+    return *this;
   }
 
   bool is_conjugated() const {
     return internal::check_flag(flags_, BondFlags::kConjugated);
   }
 
-  void set_conjugated(bool conj) {
+  BondData &set_conjugated(bool conj) {
     internal::update_flag(flags_, conj, BondFlags::kConjugated);
+    return *this;
   }
 
   bool is_trans() const {
     return internal::check_flag(flags_, BondFlags::kEConfig);
   }
 
-  void set_trans(bool trans) {
+  BondData &set_trans(bool trans) {
     internal::update_flag(flags_, trans, BondFlags::kEConfig);
+    return *this;
   }
 
-  void reset_flags() { flags_ = static_cast<BondFlags>(0); }
+  BondData &add_flags(BondFlags flags) {
+    flags_ |= flags;
+    return *this;
+  }
+
+  BondData &del_flags(BondFlags flags) {
+    flags_ &= ~flags;
+    return *this;
+  }
+
+  BondData &reset_flags() {
+    flags_ = static_cast<BondFlags>(0);
+    return *this;
+  }
 
   const std::string *find_name() const { return internal::get_name(props_); }
 
-  void set_name(std::string_view name) { internal::set_name(props_, name); }
+  BondData &set_name(std::string_view name) {
+    internal::set_name(props_, name);
+    return *this;
+  }
 
   template <class KT, class VT>
-  void add_prop(KT &&key, VT &&val) {
+  BondData &add_prop(KT &&key, VT &&val) {
     props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
+    return *this;
   }
 
   std::vector<std::pair<std::string, std::string>> &props() { return props_; }
@@ -339,13 +412,6 @@ public:
   }
 
 private:
-  enum class BondFlags : std::uint32_t {
-    kRing = 0x1,
-    kAromatic = 0x2,
-    kConjugated = 0x4,
-    kEConfig = 0x8,
-  };
-
   constants::BondOrder order_;
   BondFlags flags_;
   std::vector<std::pair<std::string, std::string>> props_;

@@ -326,18 +326,14 @@ std::pair<bool, bool> parse_atom_block(
 namespace parser {
 const struct bond_type_: public x3::symbols<BondData> {
   bond_type_() {
-    auto conjugated_bond = []() {
-      BondData data(constants::kSingleBond);
-      data.set_conjugated(true);
-      return data;
-    };
-
-    add                                             //
-        ("1", BondData(constants::kSingleBond))     //
-        ("2", BondData(constants::kDoubleBond))     //
-        ("3", BondData(constants::kTripleBond))     //
-        ("am", conjugated_bond())                   //
-        ("ar", BondData(constants::kAromaticBond))  //
+    add                                                                //
+        ("1", BondData(constants::kSingleBond))                        //
+        ("2", BondData(constants::kDoubleBond))                        //
+        ("3", BondData(constants::kTripleBond))                        //
+        ("am", BondData(constants::kSingleBond).set_conjugated(true))  //
+        ("ar",
+         BondData(constants::kAromaticBond)
+             .add_flags(BondFlags::kConjugated | BondFlags::kAromatic))  //
         ("du", BondData(constants::kSingleBond));
   }
 } bond_type;
@@ -527,12 +523,8 @@ void fix_aromatic_bonds(Molecule &mol) {
         continue;
       }
 
-      nei.edge_data().order() = order;
-      nei.edge_data().set_conjugated(true);
-
-      if (order == constants::kDoubleBond) {
-        order = constants::kSingleBond;
-      }
+      nei.edge_data().set_order(order).del_flags(BondFlags::kAromatic);
+      order = constants::kSingleBond;
     }
   }
 }
