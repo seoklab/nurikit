@@ -558,7 +558,18 @@ namespace internal {
       props.emplace_back(kNameKey, name);
     }
   }
+
+  constexpr inline int negate_if_false(bool cond) {
+    int ret = (static_cast<int>(cond) << 1) - 1;
+    ABSL_ASSUME(ret == 1 || ret == -1);
+    return ret;
+  }
 }  // namespace internal
+
+template <class T, class... Args>
+auto c_any_of(std::initializer_list<T> &&il, Args &&...args) {
+  return std::any_of(il.begin(), il.end(), std::forward<Args>(args)...);
+}
 
 #if __cplusplus >= 202002L
 using std::erase;
