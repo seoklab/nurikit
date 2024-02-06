@@ -34,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["cp37", "cp38", "cp39", "cp310", "cp311"]
+        python: ["cp37", "cp38", "cp39", "cp310", "cp311", "cp312"]
 
     uses: ./.github/workflows/_wheel-build.yaml
     with:
