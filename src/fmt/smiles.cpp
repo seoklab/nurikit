@@ -125,12 +125,14 @@ struct RingData {
 };
 
 struct mutator_tag;
+struct has_hydrogens_tag;
 struct last_atom_stack_tag;
 struct last_bond_data_tag;
 struct chirality_map_tag;
 struct ring_map_tag;
 struct bond_geometry_tag;
 
+using HydrogenIdx = std::vector<int>;
 using AtomIdxStack = std::stack<int, std::vector<int>>;
 using ChiralityMap = absl::flat_hash_map<int, Chirality>;
 using RingMap = absl::flat_hash_map<int, RingData>;
@@ -233,11 +235,10 @@ bool add_bond(MoleculeMutator &mutator, const int prev, const int curr,
 }
 
 template <class Ctx>
-int add_atom(Ctx &ctx, const Element *elem, int implicit_hydrogens,
-             bool aromatic) {
+int add_atom(Ctx &ctx, const Element *elem, bool aromatic) {
   MoleculeMutator &mutator = x3::get<mutator_tag>(ctx);
 
-  const int idx = mutator.add_atom(AtomData(*elem, implicit_hydrogens));
+  const int idx = mutator.add_atom(AtomData(*elem));
   mutator.mol().atom(idx).data().set_aromatic(aromatic);
 
   ABSL_DLOG(INFO) << "Adding " << (aromatic ? "aromatic " : "") << "atom "
@@ -269,11 +270,13 @@ template <class Ctx, class Payload>
 void add_bracket_atom(Ctx &ctx, const Payload &payload, bool aromatic) {
   using boost::fusion::at_c;
 
-  const int idx = add_atom(ctx, at_c<1>(payload), 0, aromatic);
+  const int idx = add_atom(ctx, at_c<1>(payload), aromatic);
   if (ABSL_PREDICT_FALSE(idx < 0)) {
     // Failed to add atom.
     return;
   }
+
+  x3::get<has_hydrogens_tag>(ctx).get().push_back(idx);
 
   auto &maybe_isotope = at_c<0>(x3::_attr(ctx));
   if (maybe_isotope) {
@@ -390,9 +393,8 @@ const auto ring_bond = (bond | implicit_bond)
                            | '%' >> (x3::digit >> x3::digit)[set_ring_digits]);
 
 constexpr auto organic_atom_adder(bool is_aromatic) {
-  return [is_aromatic](auto &ctx) {
-    add_atom(ctx, x3::_attr(ctx), -1, is_aromatic);
-  };
+  return
+      [is_aromatic](auto &ctx) { add_atom(ctx, x3::_attr(ctx), is_aromatic); };
 }
 
 const auto atom = aliphatic_organic[organic_atom_adder(false)]
@@ -461,7 +463,6 @@ void update_implicit_hydrogens(Molecule::MutableAtom atom) {
 
   atom.data().set_implicit_hydrogens(std::max(0, normal_valence - sum_bo));
 }
-
 }  // namespace
 
 Molecule read_smiles(const std::vector<std::string> &smi_block) {
@@ -475,6 +476,7 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
 
   // Context variables
   MoleculeMutator mutator = mol.mutator();
+  parser::HydrogenIdx has_hydrogens;
   parser::AtomIdxStack stack;
   char last_bond_data = '.';
   parser::ChiralityMap chirality_map;
@@ -484,12 +486,13 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
   stack.push(-1);
 
   auto parser = x3::with<parser::mutator_tag>(
-      std::ref(mutator))[x3::with<parser::last_atom_stack_tag>(
+      std::ref(mutator))[x3::with<parser::has_hydrogens_tag>(
+      std::ref(has_hydrogens))[x3::with<parser::last_atom_stack_tag>(
       std::ref(stack))[x3::with<parser::last_bond_data_tag>(
       std::ref(last_bond_data))[x3::with<parser::chirality_map_tag>(
       std::ref(chirality_map))[x3::with<parser::ring_map_tag>(
       std::ref(ring_map))[x3::with<parser::bond_geometry_tag>(
-      std::ref(bond_geometry_map))[parser::smiles]]]]]];
+      std::ref(bond_geometry_map))[parser::smiles]]]]]]];
 
   auto begin = smiles.begin();
   bool success = x3::parse_main(begin, smiles.end(), parser, x3::unused);
@@ -499,10 +502,14 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
     success = false;
   }
 
+  auto hit = has_hydrogens.begin();
   for (auto atom: mol) {
-    if (atom.data().implicit_hydrogens() < 0) {
-      update_implicit_hydrogens(atom);
+    if (hit != has_hydrogens.end() && *hit == atom.id()) {
+      ++hit;
+      continue;
     }
+
+    update_implicit_hydrogens(atom);
   }
 
   if (success) {

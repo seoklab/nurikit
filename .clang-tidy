@@ -5,7 +5,7 @@
 
 # Require clang-tidy v15
 ---
-Checks: "-*,abseil-*,boost-*,bugprone-*,clang-*,concurrency-*,cppcoreguidelines-*,google-*,misc-*,modernize-*,openmp-*,performance-*,portability-*,readability-*,-bugprone-assignment-in-if-condition,-bugprone-easily-swappable-parameters,-cppcoreguidelines-avoid-do-while,-cppcoreguidelines-avoid-c-arrays,-cppcoreguidelines-init-variables,-cppcoreguidelines-narrowing-conversions,-cppcoreguidelines-pro-*,-cppcoreguidelines-rvalue-reference-param-not-moved,-google-explicit-constructor,-misc-no-recursion,-modernize-avoid-c-arrays,-modernize-return-braced-init-list,-modernize-loop-convert,-modernize-concat-nested-namespaces,-modernize-pass-by-value,-modernize-raw-string-literal,-modernize-use-trailing-return-type,-modernize-use-auto,-modernize-use-default-member-init,-modernize-use-emplace,-modernize-use-equals-delete,-modernize-use-nodiscard,-readability-isolate-declaration,-readability-identifier-length,-readability-qualified-auto,-*-magic-numbers"
+Checks: "-*,abseil-*,boost-*,bugprone-*,clang-*,concurrency-*,cppcoreguidelines-*,google-*,misc-*,modernize-*,openmp-*,performance-*,portability-*,readability-*,-bugprone-assignment-in-if-condition,-bugprone-easily-swappable-parameters,-cppcoreguidelines-avoid-do-while,-cppcoreguidelines-avoid-c-arrays,-cppcoreguidelines-init-variables,-cppcoreguidelines-narrowing-conversions,-cppcoreguidelines-pro-*,-cppcoreguidelines-rvalue-reference-param-not-moved,-cppcoreguidelines-use-default-member-init,-google-explicit-constructor,-misc-no-recursion,-modernize-avoid-c-arrays,-modernize-return-braced-init-list,-modernize-loop-convert,-modernize-concat-nested-namespaces,-modernize-pass-by-value,-modernize-raw-string-literal,-modernize-use-trailing-return-type,-modernize-use-auto,-modernize-use-default-member-init,-modernize-use-emplace,-modernize-use-equals-delete,-modernize-use-nodiscard,-readability-isolate-declaration,-readability-identifier-length,-readability-qualified-auto,-*-magic-numbers"
 FormatStyle: "file"
 # If these flags are updated, .clangd should be updated as well
 ExtraArgsBefore:
@@ -52,6 +52,10 @@ CheckOptions:
     value: google
   - key: performance-unnecessary-value-param.IncludeStyle
     value: google
+  - key: google-readability-braces-around-statements.ShortStatementLines
+    value: 3
+  - key: readability-braces-around-statements.ShortStatementLines
+    value: 3
     # The following entries are (partailly) based on the Google C++ Style Guide.
     # Namely, we use lower_case for function names, for better interoperability
     # with the Python language.

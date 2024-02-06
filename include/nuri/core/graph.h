@@ -16,6 +16,7 @@
 #include <vector>
 
 #include <boost/iterator/iterator_facade.hpp>
+#include <Eigen/Dense>
 
 #include <absl/base/optimization.h>
 #include <absl/container/flat_hash_set.h>
@@ -243,6 +244,18 @@ namespace internal {
 
     adjacency_iterator end() const noexcept { return graph_->adj_end(nid_); }
 
+    AdjWrapper<GT, is_const> neighbor(int idx) const noexcept {
+      return graph_->adjacent(nid_, idx);
+    }
+
+    AdjWrapper<GT, is_const> operator[](int idx) const noexcept {
+      return neighbor(idx);
+    }
+
+    adjacency_iterator find_adjacent(int aid) const noexcept {
+      return graph_->find_adjacent(nid_, aid);
+    }
+
     constexpr Other<true> as_const() const noexcept { return *this; }
 
   private:
@@ -468,6 +481,9 @@ private:
     int dst;
     stored_edge_id_type eid;
   };
+
+  template <class, bool>
+  friend class internal::NodeWrapper;
 
   template <class, bool>
   friend class internal::EdgeWrapper;
@@ -1050,6 +1066,27 @@ bool Graph<NT, ET>::erase_edge_between(int src, int dst) {
   return false;
 }
 
+namespace internal {
+  template <class GT, bool is_const>
+  class EigenNeighborIndexer {
+  public:
+    EigenNeighborIndexer(NodeWrapper<GT, is_const> node): node_(node) { }
+
+    int size() const { return node_.degree(); }
+
+    int operator[](int i) const { return node_[i].dst().id(); }
+
+  private:
+    NodeWrapper<GT, is_const> node_;
+  };
+}  // namespace internal
+
+template <class GT, bool is_const>
+internal::EigenNeighborIndexer<GT, is_const>
+as_index(internal::NodeWrapper<GT, is_const> node) {
+  return { node };
+}
+
 template <class, class, bool>
 class Subgraph;
 
@@ -1121,6 +1158,10 @@ namespace internal {
     }
 
     adjacency_iterator end() const noexcept { return subgraph_->adj_end(idx_); }
+
+    adjacency_iterator find_adjacent(int aid) const noexcept {
+      return subgraph_->find_adjacent(idx_, aid);
+    }
 
     constexpr Other<true> as_const() const noexcept { return *this; }
 
@@ -1642,6 +1683,22 @@ namespace internal {
       init();
     }
 
+    void remap(const std::vector<int> &old_to_new) {
+      auto first = std::find_if(nodes_.begin(), nodes_.end(),
+                                [&](int id) { return old_to_new[id] < 0; });
+
+      for (auto it = nodes_.begin(); it < first; ++it)
+        *it = old_to_new[*it];
+
+      for (auto it = first; it++ < nodes_.end() - 1;) {
+        int new_id = old_to_new[*it];
+        *first = new_id;
+        first += value_if(new_id >= 0);
+      }
+
+      nodes_.erase(first, nodes_.end());
+    }
+
     const std::vector<int> &ids() const { return nodes_; }
 
   private:
@@ -2053,8 +2110,20 @@ public:
    * @note Time complexity: \f$O(V')\f$ in worst case.
    */
   template <class UnaryPred>
-  void erase_nodes_of(UnaryPred &&pred) {
+  void erase_nodes_if(UnaryPred &&pred) {
     nodes_.erase(std::forward<UnaryPred>(pred));
+  }
+
+  /**
+   * @brief Re-map node ids
+   *
+   * @param old_to_new A vector that maps old node ids to new node ids, so that
+   *        old_to_new[old_id] = new_id. If old_to_new[old_id] < 0, then the
+   *        node is removed from the subgraph.
+   * @note Time complexity: \f$O(V')\f$.
+   */
+  void remap_nodes(const std::vector<int> &old_to_new) {
+    nodes_.remap(old_to_new);
   }
 
   iterator begin() { return { this, 0 }; }
@@ -2146,6 +2215,16 @@ public:
   const_adjacency_iterator adj_cend(int idx) const {
     return { *this, idx, parent_->adj_cend(nodes_[idx]) };
   }
+
+  /**
+   * @brief Re-bind the subgraph to a new parent graph.
+   *
+   * @param parent The new parent graph to bind.
+   * @warning This method does no bookkeeping, so it is the caller's
+   *          responsibility to ensure that the new parent graph is compatible
+   *          with the subgraph. The behavior is undefined otherwise.
+   */
+  void rebind(parent_type &parent) { parent_ = &parent; }
 
 private:
   template <class, class, bool>

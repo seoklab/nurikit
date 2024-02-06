@@ -8,21 +8,26 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstring>
 #include <filesystem>
 #include <functional>
+#include <initializer_list>
 #include <iterator>
 #include <memory>
 #include <numeric>
+#include <queue>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include <boost/iterator/iterator_facade.hpp>
+#include <Eigen/Dense>
 
 #include <absl/base/optimization.h>
-#include <absl/container/fixed_array.h>
+#include <absl/log/absl_check.h>
 #include <absl/strings/ascii.h>
 
 #include "nuri/eigen_config.h"
@@ -107,6 +112,22 @@ namespace internal {
 }  // namespace internal
 
 namespace internal {
+  template <class T, class C = std::less<>, class S = std::vector<T>>
+  struct ClearablePQ: public std::priority_queue<T, S, C> {
+    using Base = std::priority_queue<T, S, C>;
+
+  public:
+    using Base::Base;
+
+    T pop_get() noexcept {
+      T v = std::move(this->c.front());
+      this->pop();
+      return v;
+    }
+
+    void clear() noexcept { this->c.clear(); }
+  };
+
   template <class Derived, class RefLike, class Category,
             class Difference = std::ptrdiff_t>
   class ProxyIterator: public boost::iterator_facade<Derived, RefLike, Category,
@@ -228,7 +249,211 @@ namespace internal {
     return TransformIterator<Iter, remove_cvref_t<UnaryOp>>(
         it, std::forward<UnaryOp>(op));
   }
+
+  template <class K, class V, V sentinel = -1>
+  class CompactMap {
+  public:
+    static_assert(std::is_convertible_v<K, size_t>,
+                  "Key must be an integer-like type");
+
+    using key_type = K;
+    using mapped_type = V;
+    using value_type = V;
+    using size_type = size_t;
+    using difference_type = ptrdiff_t;
+    using reference = V &;
+    using const_reference = const V &;
+    using pointer = V *;
+    using const_pointer = const V *;
+
+    CompactMap(size_t cap): data_(cap, sentinel) { }
+
+    template <class... Args>
+    std::pair<pointer, bool> try_emplace(key_type key, Args &&...args) {
+      handle_resize(key);
+
+      reference v = data_[key];
+      bool isnew = v == sentinel;
+      if (isnew) {
+        v = V(std::forward<Args>(args)...);
+      }
+      return { &v, isnew };
+    }
+
+    pointer find(key_type key) {
+      if (key < data_.size()) {
+        return data_[key] == sentinel ? nullptr : &data_[key];
+      }
+      return nullptr;
+    }
+
+    const_pointer find(key_type key) const {
+      if (key < data_.size()) {
+        return data_[key] == sentinel ? nullptr : &data_[key];
+      }
+      return nullptr;
+    }
+
+  private:
+    void handle_resize(key_type new_key) {
+      if (new_key >= data_.size()) {
+        data_.resize(new_key + 1, sentinel);
+      }
+    }
+
+    std::vector<V> data_;
+  };
+
+  class PowersetStream {
+  public:
+    explicit PowersetStream(int n): n_(n), r_(0), r_max_(0), state_(0) { }
+
+    PowersetStream &next() {
+      if (state_ >= r_max_) {
+        ++r_;
+        r_max_ |= 1U << (n_ - r_);
+        state_ = (1U << r_) - 1;
+        return *this;
+      }
+
+      unsigned int leading_ones = 1;
+      for (; static_cast<bool>(state_ & 1U << (n_ - leading_ones));
+           ++leading_ones)
+        ;
+
+      unsigned int next_one_bit = n_ - leading_ones;
+      for (; !static_cast<bool>(state_ & 1U << next_one_bit); --next_one_bit)
+        ;
+
+      unsigned int mask = (1U << next_one_bit) - 1;
+      state_ = ((1U << leading_ones) - 1) << (next_one_bit + 1)
+               | (mask & state_);
+      return *this;
+    }
+
+    unsigned int state() const { return state_; }
+
+    operator bool() const { return r_ <= n_; }
+
+  private:
+    int n_;
+    int r_;
+    unsigned int r_max_;
+    unsigned int state_;
+  };
+
+  inline PowersetStream &operator>>(PowersetStream &ps, unsigned int &state) {
+    ps.next();
+    state = ps.state();
+    return ps;
+  }
+
+  template <class ZIT>
+  struct ZippedIteratorTraits;
+
+  template <template <class...> class ZIT, class Iter, class Jter>
+  struct ZippedIteratorTraits<ZIT<Iter, Jter>> {
+    using iterator_category = std::common_type_t<
+        typename std::iterator_traits<Iter>::iterator_category,
+        typename std::iterator_traits<Jter>::iterator_category>;
+    using difference_type =
+        std::common_type_t<typename std::iterator_traits<Iter>::difference_type,
+                           typename std::iterator_traits<Jter>::difference_type>;
+    using reference = std::pair<typename std::iterator_traits<Iter>::reference,
+                                typename std::iterator_traits<Jter>::reference>;
+  };
+
+  template <template <class...> class ZIT, class... Iters>
+  struct ZippedIteratorTraits<ZIT<Iters...>> {
+    using iterator_category = std::common_type_t<
+        typename std::iterator_traits<Iters>::iterator_category...>;
+    using difference_type = std::common_type_t<
+        typename std::iterator_traits<Iters>::difference_type...>;
+    using reference =
+        std::tuple<typename std::iterator_traits<Iters>::reference...>;
+  };
+
+  template <class Derived>
+  class ZippedIteratorBase
+      : public ProxyIterator<
+            Derived, typename ZippedIteratorTraits<Derived>::reference,
+            typename ZippedIteratorTraits<Derived>::iterator_category,
+            typename ZippedIteratorTraits<Derived>::difference_type> {
+    using Root = typename ZippedIteratorBase::iterator_facade_;
+    using Traits = std::iterator_traits<Root>;
+
+  public:
+    using iterator_category = typename Traits::iterator_category;
+    using value_type = typename Traits::value_type;
+    using difference_type = typename Traits::difference_type;
+    using pointer = typename Traits::pointer;
+    using reference = typename Traits::reference;
+  };
 }  // namespace internal
+
+template <class... Iters>
+class ZippedIterator
+    : public internal::ZippedIteratorBase<ZippedIterator<Iters...>> {
+  static_assert(sizeof...(Iters) > 1, "At least two iterators are required");
+
+  using Base = internal::ZippedIteratorBase<ZippedIterator>;
+
+public:
+  constexpr ZippedIterator() = default;
+
+  constexpr ZippedIterator(Iters... its): its_(its...) { }
+
+  template <size_t N = 0>
+  constexpr auto base() const {
+    return std::get<N>(its_);
+  }
+
+  template <size_t N = sizeof...(Iters), std::enable_if_t<N == 2, int> = 0>
+  constexpr auto first() const {
+    return base<0>();
+  }
+
+  template <size_t N = sizeof...(Iters), std::enable_if_t<N == 2, int> = 0>
+  constexpr auto second() const {
+    return base<1>();
+  }
+
+private:
+  friend class boost::iterator_core_access;
+
+  constexpr typename Base::reference dereference() const {
+    return std::apply(
+        [](auto &...it) { return typename Base::reference(*it...); }, its_);
+  }
+
+  constexpr bool equal(const ZippedIterator &rhs) const {
+    return base() == rhs.base();
+  }
+
+  constexpr void increment() {
+    std::apply([](auto &...it) { (static_cast<void>(++it), ...); }, its_);
+  }
+
+  constexpr void decrement() {
+    std::apply([](auto &...it) { (static_cast<void>(--it), ...); }, its_);
+  }
+
+  constexpr void advance(typename Base::difference_type n) {
+    std::apply([n](auto &...it) { (static_cast<void>(it += n), ...); }, its_);
+  }
+
+  constexpr typename Base::difference_type
+  distance_to(const ZippedIterator &lhs) const {
+    return lhs.base() - base();
+  }
+
+  std::tuple<Iters...> its_;
+};
+
+template <class... Iters>
+constexpr auto make_zipped_iterator(Iters... iters) {
+  return ZippedIterator<Iters...>(iters...);
+}
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
 constexpr inline E operator|(E lhs, E rhs) {
@@ -334,7 +559,18 @@ namespace internal {
       props.emplace_back(kNameKey, name);
     }
   }
+
+  constexpr inline int negate_if_false(bool cond) {
+    int ret = (static_cast<int>(cond) << 1) - 1;
+    ABSL_ASSUME(ret == 1 || ret == -1);
+    return ret;
+  }
 }  // namespace internal
+
+template <class T, class... Args>
+auto c_any_of(std::initializer_list<T> &&il, Args &&...args) {
+  return std::any_of(il.begin(), il.end(), std::forward<Args>(args)...);
+}
 
 #if __cplusplus >= 202002L
 using std::erase;
@@ -437,24 +673,26 @@ insert_sorted(Container &c, typename Container::value_type &&value) {
   return insert_sorted(c, std::move(value), std::less<>());
 }
 
-inline absl::FixedArray<int> generate_index(int size) {
-  absl::FixedArray<int> result(size);
+template <int N = Eigen::Dynamic, int... Extra>
+auto generate_index(Eigen::Index size) {
+  Array<int, 1, N, Extra...> result(size);
   std::iota(result.begin(), result.end(), 0);
   return result;
 }
 
-template <class Container, class Comp>
-absl::FixedArray<int> argsort(const Container &container, Comp op) {
-  absl::FixedArray<int> idxs = generate_index(container.size());
+template <int N = Eigen::Dynamic, int... Extra, class Container,
+          class Comp = std::less<>>
+auto argsort(const Container &container, Comp op = {}) {
+  auto idxs = generate_index<N, Extra...>(std::size(container));
   std::sort(idxs.begin(), idxs.end(),
             [&](int i, int j) { return op(container[i], container[j]); });
   return idxs;
 }
 
-template <class Container, class Comp>
-absl::FixedArray<int> argpartition(const Container &container, int count,
-                                   Comp op) {
-  absl::FixedArray<int> idxs = generate_index(container.size());
+template <int N = Eigen::Dynamic, int... Extra, class Container,
+          class Comp = std::less<>>
+auto argpartition(const Container &container, int count, Comp op = {}) {
+  auto idxs = generate_index<N, Extra...>(std::size(container));
   std::nth_element(idxs.begin(), idxs.begin() + count - 1, idxs.end(),
                    [&](int i, int j) {
                      return op(container[i], container[j]);
@@ -495,12 +733,30 @@ inline std::string_view slice_strip(std::string_view str, std::size_t begin,
   return absl::StripAsciiWhitespace(slice(str, begin, end));
 }
 
+namespace internal {
+  template <bool = (sizeof(double) * 3) % alignof(Vector3d) == 0>
+  inline void stack_impl(MatrixX3d &m, const std::vector<Vector3d> &vs) {
+    for (int i = 0; i < vs.size(); ++i)
+      m.row(i) = vs[i];
+  }
+
+  template <>
+  inline void stack_impl<true>(MatrixX3d &m, const std::vector<Vector3d> &vs) {
+    ABSL_DCHECK(reinterpret_cast<ptrdiff_t>(vs[0].data()) + sizeof(double) * 3
+                == reinterpret_cast<ptrdiff_t>(vs[1].data()))
+        << "Bad alignment";
+    std::memcpy(m.data(), vs[0].data(), vs.size() * sizeof(double) * 3);
+  }
+}  // namespace internal
+
 inline MatrixX3d stack(const std::vector<Vector3d> &vs) {
   MatrixX3d m(vs.size(), 3);
-  for (int i = 0; i < vs.size(); ++i) {
-    m.row(i) = vs[i];
-  }
+  internal::stack_impl(m, vs);
   return m;
+}
+
+constexpr inline int value_if(bool cond, int val = 1) {
+  return static_cast<int>(cond) * val;
 }
 }  // namespace nuri
 

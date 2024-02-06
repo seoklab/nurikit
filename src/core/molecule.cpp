@@ -12,6 +12,8 @@
 #include <utility>
 #include <vector>
 
+#include <Eigen/Dense>
+
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
 #include <absl/container/flat_hash_map.h>
@@ -21,12 +23,15 @@
 #include <absl/strings/str_cat.h>
 
 #include "nuri/eigen_config.h"
+#include "nuri/algo/rings.h"
 #include "nuri/core/element.h"
 #include "nuri/core/geometry.h"
 #include "nuri/core/graph.h"
 #include "nuri/utils.h"
 
 namespace nuri {
+using internal::nonbonding_electrons;
+
 AtomData::AtomData(const Element &element, int implicit_hydrogens,
                    int formal_charge, constants::Hybridization hyb,
                    double partial_charge, int mass_number, bool is_aromatic,
@@ -42,6 +47,12 @@ AtomData::AtomData(const Element &element, int implicit_hydrogens,
         << element.symbol();
   }
 
+  if (implicit_hydrogens_ < 0) {
+    ABSL_DLOG(WARNING)
+        << "Negative implicit hydrogens for atom " << element.symbol();
+    implicit_hydrogens_ = 0;
+  }
+
   internal::set_flag_if(flags_, is_aromatic,
                         AtomFlags::kAromatic | AtomFlags::kConjugated
                             | AtomFlags::kRing);
@@ -51,6 +62,51 @@ AtomData::AtomData(const Element &element, int implicit_hydrogens,
 }
 
 /* Molecule definitions */
+
+Molecule::Molecule(const Molecule &other) noexcept
+    : graph_(other.graph_), conformers_(other.conformers_), name_(other.name_),
+      props_(other.props_), substructs_(other.substructs_),
+      ring_groups_(other.ring_groups_), num_fragments_(other.num_fragments_) {
+  rebind_substructs();
+}
+
+Molecule::Molecule(Molecule &&other) noexcept
+    : graph_(std::move(other.graph_)),
+      conformers_(std::move(other.conformers_)), name_(std::move(other.name_)),
+      props_(std::move(other.props_)),
+      substructs_(std::move(other.substructs_)),
+      ring_groups_(std::move(other.ring_groups_)),
+      num_fragments_(other.num_fragments_) {
+  rebind_substructs();
+}
+
+Molecule &Molecule::operator=(const Molecule &other) noexcept {
+  graph_ = other.graph_;
+  conformers_ = other.conformers_;
+  name_ = other.name_;
+  props_ = other.props_;
+  substructs_ = other.substructs_;
+  ring_groups_ = other.ring_groups_;
+  num_fragments_ = other.num_fragments_;
+
+  rebind_substructs();
+
+  return *this;
+}
+
+Molecule &Molecule::operator=(Molecule &&other) noexcept {
+  graph_ = std::move(other.graph_);
+  conformers_ = std::move(other.conformers_);
+  name_ = std::move(other.name_);
+  props_ = std::move(other.props_);
+  substructs_ = std::move(other.substructs_);
+  ring_groups_ = std::move(other.ring_groups_);
+  num_fragments_ = other.num_fragments_;
+
+  rebind_substructs();
+
+  return *this;
+}
 
 void Molecule::clear() noexcept {
   graph_.clear();
@@ -79,16 +135,16 @@ void Molecule::erase_hydrogens() {
 namespace {
   void rotate_points(MatrixX3d &coords, const std::vector<int> &moving_idxs,
                      int ref, int pivot, double angle) {
-    Vector3d pv = coords.row(pivot);
-    AngleAxisd aa(deg2rad(angle), (pv - coords.row(ref)).normalized());
+    auto view = swap_axis<Eigen::Matrix3Xd>(coords);
 
-    auto rotate_helper = [&](auto moving) {
-      moving = (aa.to_matrix() * (moving.rowwise() - pv).transpose())
-                   .transpose()
-                   .rowwise()
-               + pv;
-    };
-    rotate_helper(coords(moving_idxs, Eigen::all));
+    Eigen::Vector3d pv = view.col(pivot);
+    Eigen::Affine3d rotation =
+        Eigen::Translation3d(pv)
+        * Eigen::AngleAxisd(deg2rad(angle), (pv - view.col(ref)).normalized())
+        * Eigen::Translation3d(-pv);
+
+    auto rotate_helper = [&](auto moving) { moving = rotation * moving; };
+    rotate_helper(view(Eigen::all, moving_idxs));
   }
 }  // namespace
 
@@ -104,11 +160,20 @@ int Molecule::add_conf(MatrixX3d &&pos) noexcept {
   return ret;
 }
 
-void Molecule::update_bond_lengths() {
-  MatrixX3d &pos = conformers_[0];
-  for (auto bond: graph_.edges()) {
-    bond.data().length() = (pos.row(bond.dst()) - pos.row(bond.src())).norm();
+double Molecule::distsq(int src, int dst, int conf) const {
+  const MatrixX3d &pos = conformers_[conf];
+  return (pos.row(dst) - pos.row(src)).squaredNorm();
+}
+
+ArrayXd Molecule::bond_lengths(int conf) const {
+  ArrayXd lengths(num_bonds());
+
+  auto bit = bond_begin();
+  for (int i = 0; i < num_bonds(); ++i) {
+    lengths[i] = distance(*bit++, conf);
   }
+
+  return lengths;
 }
 
 bool Molecule::rotate_bond(int ref_atom, int pivot_atom, double angle) {
@@ -130,6 +195,12 @@ bool Molecule::rotate_bond(int i, int ref_atom, int pivot_atom, double angle) {
 bool Molecule::rotate_bond(int i, bond_id_type bid, double angle) {
   const Bond b = bond(bid);
   return rotate_bond_common(i, b, b.src(), b.dst(), angle);
+}
+
+void Molecule::rebind_substructs() noexcept {
+  for (Substructure &sub: substructs_) {
+    sub.rebind(graph_);
+  }
 }
 
 bool Molecule::rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
@@ -277,30 +348,25 @@ void Molecule::update_topology() {
 namespace {
   template <class DT>
   std::pair<Molecule::bond_iterator, bool>
-  add_bond_impl(Molecule &mol, Molecule::GraphType &graph, int src, int dst,
-                DT &&bond) {
+  add_bond_impl(Molecule::GraphType &graph, int src, int dst, DT &&bond) {
     auto it = graph.find_edge(src, dst);
     if (it != graph.edge_end()) {
       return std::make_pair(it, false);
     }
 
     it = graph.add_edge(src, dst, std::forward<DT>(bond));
-    if (mol.is_3d()) {
-      it->data().length() =
-          (mol.conf(0).row(src) - mol.conf(0).row(dst)).norm();
-    }
     return std::make_pair(it, true);
   }
 }  // namespace
 
 std::pair<Molecule::bond_iterator, bool>
 MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
-  return add_bond_impl(mol(), mol().graph_, src, dst, bond);
+  return add_bond_impl(mol().graph_, src, dst, bond);
 }
 
 std::pair<Molecule::bond_iterator, bool>
 MoleculeMutator::add_bond(int src, int dst, BondData &&bond) noexcept {
-  return add_bond_impl(mol(), mol().graph_, src, dst, std::move(bond));
+  return add_bond_impl(mol().graph_, src, dst, std::move(bond));
 }
 
 void MoleculeMutator::mark_bond_erase(int src, int dst) {
@@ -308,7 +374,9 @@ void MoleculeMutator::mark_bond_erase(int src, int dst) {
     return;
   }
 
-  erased_bonds_.push_back({ src, dst });
+  auto it = mol().find_bond(src, dst);
+  if (it != mol().bond_end())
+    erased_bonds_.push_back(it->id());
 }
 
 void MoleculeMutator::discard_erasure() noexcept {
@@ -316,20 +384,53 @@ void MoleculeMutator::discard_erasure() noexcept {
   erased_bonds_.clear();
 }
 
-void MoleculeMutator::finalize() noexcept {
-  Molecule::GraphType &g = mol().graph_;
-  const int added_size = mol().num_atoms();
-  if (added_size > init_num_atoms_) {
-    for (MatrixX3d &conf: mol().conformers_) {
-      conf.conservativeResize(added_size, Eigen::NoChange);
+namespace {
+  void remap_confs(std::vector<MatrixX3d> &confs, const int added_size,
+                   const int new_size, const bool is_trailing,
+                   const std::vector<int> &old_to_new) {
+    // Only trailing nodes are removed
+    if (is_trailing) {
+      for (MatrixX3d &conf: confs)
+        conf.conservativeResize(new_size, Eigen::NoChange);
+      return;
+    }
+
+    // Select the atom indices
+    std::vector<int> idxs;
+    idxs.reserve(new_size);
+
+    for (int i = 0; i < added_size; ++i) {
+      // GCOV_EXCL_START
+      ABSL_DCHECK(i < old_to_new.size());
+      // GCOV_EXCL_STOP
+      if (old_to_new[i] >= 0)
+        idxs.push_back(i);
+    }
+
+    for (MatrixX3d &conf: confs) {
+      MatrixX3d updated = conf(idxs, Eigen::all);
+      conf = std::move(updated);
     }
   }
+}  // namespace
+
+void MoleculeMutator::finalize() noexcept {
+  if (mol().num_atoms() == prev_num_atoms_
+      && mol().num_bonds() == prev_num_bonds_  //
+      && erased_atoms_.empty()                 //
+      && erased_bonds_.empty())
+    return;
+
+  Molecule::GraphType &g = mol().graph_;
+  const int added_size = mol().num_atoms();
+  if (added_size > prev_num_atoms_)
+    for (MatrixX3d &conf: mol().conformers_)
+      conf.conservativeResize(added_size, Eigen::NoChange);
 
   // As per the spec, the order is:
   // 1. Erase bonds
-  for (const std::pair<int, int> &ends: erased_bonds_) {
-    g.erase_edge_between(ends.first, ends.second);
-  }
+  for (auto bid: erased_bonds_)
+    g.erase_edge(bid);
 
   // 2. Erase atoms
   int last;
@@ -337,49 +438,18 @@ void MoleculeMutator::finalize() noexcept {
   std::tie(last, map) =
       g.erase_nodes(erased_atoms_.begin(), erased_atoms_.end());
 
-  // Update substructures
-  for (Substructure &sub: mol().substructs_) {
-    std::vector<int> updated;
-    updated.reserve(sub.size());
+  if (last < added_size) {
+    for (Substructure &sub: mol().substructs_)
+      sub.graph_.remap_nodes(map);
 
-    for (auto node: sub) {
-      auto pnode = node.as_parent();
-      if (map[pnode.id()] >= 0) {
-        updated.push_back(map[pnode.id()]);
-      }
-    }
-
-    sub.update(std::move(updated));
-  }
-
-  // Update coordinates
-  if (last >= 0) {
-    // Only trailing nodes are removed
-    for (MatrixX3d &conf: mol().conformers_) {
-      conf.conservativeResize(mol().num_atoms(), Eigen::NoChange);
-    }
-  } else {
-    // Select the atom indices
-    std::vector<int> idxs;
-    idxs.reserve(mol().num_atoms());
-
-    for (int i = 0; i < added_size; ++i) {
-      // GCOV_EXCL_START
-      ABSL_DCHECK(i < map.size());
-      // GCOV_EXCL_STOP
-      if (map[i] >= 0) {
-        idxs.push_back(i);
-      }
-    }
-
-    for (MatrixX3d &conf: mol().conformers_) {
-      MatrixX3d updated = conf(idxs, Eigen::all);
-      conf = std::move(updated);
-    }
+    remap_confs(mol().conformers_, added_size, mol().num_atoms(), last >= 0,
+                map);
   }
 
   mol().update_topology();
 
+  prev_num_atoms_ = mol().num_atoms();
+  prev_num_bonds_ = mol().num_bonds();
   discard_erasure();
 }
 
@@ -394,7 +464,7 @@ namespace internal {
       if (adj.edge_data().order() == constants::kAromaticBond) {
         ++num_aromatic;
       } else {
-        sum_order += adj.edge_data().order();
+        sum_order += std::max(adj.edge_data().order(), constants::kSingleBond);
         num_multiple_bond +=
             static_cast<int>(adj.edge_data().order() > constants::kSingleBond);
       }
@@ -450,13 +520,6 @@ MoleculeSanitizer::MoleculeSanitizer(Molecule &molecule)
 }
 
 namespace {
-  int nonbonding_electrons(Molecule::Atom atom, const int total_valence) {
-    // Don't use effective_element* here, this function must return negative
-    // values for any chemically invalid combinations of the three values
-    return atom.data().element().valence_electrons() - total_valence
-           - atom.data().formal_charge();
-  }
-
   bool is_conjugated_candidate(Molecule::Atom atom) {
     const AtomData &data = atom.data();
     // Consider main-group atoms only
@@ -521,8 +584,10 @@ bool MoleculeSanitizer::sanitize_conjugated() {
               && dst.data().atomic_number() != 0) {
             // Single - single bond -> conjugated if curr has lone pair and
             // next doesn't, or vice versa, or any of them is dummy
-            const int src_nbe = nonbonding_electrons(src, valences_[curr]),
-                      dst_nbe = nonbonding_electrons(dst, valences_[dst.id()]);
+            const int src_nbe =
+                          nonbonding_electrons(src.data(), valences_[curr]),
+                      dst_nbe =
+                          nonbonding_electrons(dst.data(), valences_[dst.id()]);
             if ((src_nbe > 0 && dst_nbe > 0)
                 || (src_nbe <= 0 && dst_nbe <= 0)) {
               continue;
@@ -576,8 +641,15 @@ namespace internal {
     return *elem;
   }
 
+  int nonbonding_electrons(const AtomData &data, const int total_valence) {
+    // Don't use effective_element* here, this function must return negative
+    // values for any chemically invalid combinations of the three values
+    return data.element().valence_electrons() - total_valence
+           - data.formal_charge();
+  }
+
   int count_pi_e(Molecule::Atom atom, int total_valence) {
-    const int nb_electrons = nonbonding_electrons(atom, total_valence);
+    const int nb_electrons = nonbonding_electrons(atom.data(), total_valence);
     ABSL_DLOG_IF(WARNING, nb_electrons < 0)
         << "Negative nonbonding electrons for atom " << atom.id() << " ("
         << atom.data().element().symbol() << "): " << nb_electrons;
@@ -598,10 +670,6 @@ namespace internal {
                         << " pi electrons";
         return pie_estimate;
       }
-
-      // Not sure if this condition will ever be true, just in case
-      ABSL_LOG_IF(WARNING, cv > total_valence)
-          << "Valence smaller than octet valence";
 
       // Normal case: atoms in pyridine, benzene, ...
       ABSL_DLOG(INFO) << "Normal case: " << atom.id() << " 1 pi electron";
@@ -625,12 +693,16 @@ namespace internal {
     return pie_estimate;
   }
 
+  int steric_number(const int total_degree, const int nb_electrons) {
+    const int lone_pairs = nb_electrons / 2;
+    return total_degree + lone_pairs;
+  }
+
   constants::Hybridization from_degree(const int total_degree,
                                        const int nb_electrons) {
-    const int lone_pairs = nb_electrons / 2 + nb_electrons % 2,
-              steric_number = total_degree + lone_pairs;
+    int sn = steric_number(total_degree, nb_electrons);
     return static_cast<constants::Hybridization>(
-        std::min(steric_number, static_cast<int>(constants::kOtherHyb)));
+        std::min(sn, static_cast<int>(constants::kOtherHyb)));
   }
 }  // namespace internal
 
@@ -798,7 +870,7 @@ namespace {
       return true;
     }
 
-    int nbe = std::max(0, nonbonding_electrons(atom, total_valence));
+    int nbe = std::max(0, nonbonding_electrons(atom.data(), total_valence));
     if (nbe < 0) {
       nbe = 0;
       ABSL_LOG(INFO) << "Valence electrons exceeded for "
@@ -833,7 +905,6 @@ namespace {
 
     return true;
   }
-
 }  // namespace
 
 bool MoleculeSanitizer::sanitize_hybridization() {
@@ -877,7 +948,7 @@ namespace {
       return true;
     }
 
-    int nbe = nonbonding_electrons(atom, total_valence);
+    int nbe = nonbonding_electrons(atom.data(), total_valence);
     if (nbe < 0) {
       ABSL_LOG(WARNING) << "Valence electrons exceeded for "
                         << format_atom_common(atom, false) << ": total valence "

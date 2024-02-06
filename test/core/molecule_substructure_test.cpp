@@ -214,10 +214,10 @@ TEST_F(SubstructureTest, EraseAtoms) {
   sub1.erase_atoms(sub1.begin(), --sub1.end());
   EXPECT_EQ(sub1.size(), 1);
 
-  sub1.erase_atoms_of([](const auto &) { return false; });
+  sub1.erase_atoms_if([](const auto &) { return false; });
   EXPECT_EQ(sub1.size(), 1);
 
-  sub1.erase_atoms_of([](const auto &) { return true; });
+  sub1.erase_atoms_if([](const auto &) { return true; });
   EXPECT_TRUE(sub1.empty());
 
   auto sub2 = sub_;

@@ -32,6 +32,7 @@
 #include <absl/strings/str_split.h>
 
 #include "nuri/eigen_config.h"
+#include "nuri/algo/rings.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
@@ -325,18 +326,14 @@ std::pair<bool, bool> parse_atom_block(
 namespace parser {
 const struct bond_type_: public x3::symbols<BondData> {
   bond_type_() {
-    auto conjugated_bond = []() {
-      BondData data(constants::kSingleBond);
-      data.set_conjugated(true);
-      return data;
-    };
-
-    add                                             //
-        ("1", BondData(constants::kSingleBond))     //
-        ("2", BondData(constants::kDoubleBond))     //
-        ("3", BondData(constants::kTripleBond))     //
-        ("am", conjugated_bond())                   //
-        ("ar", BondData(constants::kAromaticBond))  //
+    add                                                                //
+        ("1", BondData(constants::kSingleBond))                        //
+        ("2", BondData(constants::kDoubleBond))                        //
+        ("3", BondData(constants::kTripleBond))                        //
+        ("am", BondData(constants::kSingleBond).set_conjugated(true))  //
+        ("ar",
+         BondData(constants::kAromaticBond)
+             .add_flags(BondFlags::kConjugated | BondFlags::kAromatic))  //
         ("du", BondData(constants::kSingleBond));
   }
 } bond_type;
@@ -505,9 +502,8 @@ bool parse_substructure_block(Molecule &mol, Iter &it, const Iter end) {
 // them non-aromatic, conjugated bonds
 void fix_aromatic_bonds(Molecule &mol) {
   for (auto atom: mol) {
-    if (atom.data().is_ring_atom() || atom.degree() < 2) {
+    if (atom.data().is_ring_atom() || atom.degree() < 2)
       continue;
-    }
 
     const int aromatic_count = std::accumulate(
         atom.begin(), atom.end(), 0, [](int sum, Molecule::Neighbor nei) {
@@ -515,23 +511,17 @@ void fix_aromatic_bonds(Molecule &mol) {
                  + static_cast<int>(nei.edge_data().order()
                                     == constants::kAromaticBond);
         });
-    if (aromatic_count < 2) {
+    if (aromatic_count < 2)
       continue;
-    }
 
     // Set one bond to double and the others to single
     constants::BondOrder order = constants::kDoubleBond;
     for (auto nei: atom) {
-      if (nei.edge_data().order() != constants::kAromaticBond) {
+      if (nei.edge_data().order() != constants::kAromaticBond)
         continue;
-      }
 
-      nei.edge_data().order() = order;
-      nei.edge_data().set_conjugated(true);
-
-      if (order == constants::kDoubleBond) {
-        order = constants::kSingleBond;
-      }
+      nei.edge_data().set_order(order).del_flags(BondFlags::kAromatic);
+      order = constants::kSingleBond;
     }
   }
 }
@@ -580,17 +570,15 @@ void fix_aromatic_ring_common(Molecule &mol,
 
   for (int id: ring) {
     auto atom = mol.atom(id);
-    if (atom.degree() > 3) {
+    if (atom.degree() > 3)
       return;
-    }
-    if (adjust_candidates[id] != 0) {
+
+    if (adjust_candidates[id] != 0)
       candids.push_back(id);
-    }
   }
 
-  if (candids.empty()) {
+  if (candids.empty())
     return;
-  }
 
   absl::FixedArray<int> priority(candids.size(), 0);
   for (int i = 0; i < candids.size(); ++i) {
@@ -604,18 +592,16 @@ void fix_aromatic_ring_common(Molecule &mol,
   int sum_pi_e = 0;
   for (int i = 0; i < ring.size(); ++i) {
     Molecule::Atom atom = mol.atom(ring[i]);
-    if (atom.data().atomic_number() == 0) {
+    if (atom.data().atomic_number() == 0)
       return;
-    }
 
     sum_pi_e +=
         internal::count_pi_e(atom, internal::sum_bond_order(atom, false));
   }
 
   int test = sum_pi_e % 4 - 2;
-  if (test == 0) {
+  if (test == 0)
     return;
-  }
 
   auto heuristic_update = [&](int id) {
     adjust_candidates[id] = 0;
@@ -627,9 +613,8 @@ void fix_aromatic_ring_common(Molecule &mol,
     return;
   }
 
-  for (int i = 0; i < candids.size(); ++i) {
+  for (int i = 0; i < candids.size(); ++i)
     priority[i] += scorer(mol.atom(candids[i]));
-  }
 
   int max_idx = static_cast<int>(
       std::max_element(priority.begin(), priority.end()) - priority.begin());
@@ -779,9 +764,8 @@ void guess_fcharge(Molecule &mol) {
     atom.data().set_formal_charge(guess_fcharge_atom(atom, group));
   }
 
-  if (!has_candidate) {
+  if (!has_candidate)
     return;
-  }
 
   guess_fcharge_aromatic_rings(mol, adjust_candidates);
 }
@@ -813,9 +797,8 @@ void guess_hydrogens(Molecule &mol) {
 
   for (auto atom: mol) {
     // Skip dummy, hydrogen and helium atoms
-    if (atom.data().atomic_number() < 3) {
+    if (atom.data().atomic_number() < 3)
       continue;
-    }
 
     const Element *elem = effective_element(atom);
     if (elem == nullptr) {
@@ -823,9 +806,9 @@ void guess_hydrogens(Molecule &mol) {
                            "charge; cannot add hydrogens";
       continue;
     }
-    if (!elem->main_group() || elem->group() == 18) {
+    if (!elem->main_group() || elem->group() == 18)
       continue;
-    }
+
     if (maybe_aromatic_atom(atom)) {
       adjust_candidates[atom.id()] = 1;
       has_candidate = true;
@@ -835,9 +818,8 @@ void guess_hydrogens(Molecule &mol) {
         guess_hydrogens_normal_atom(atom, *elem));
   }
 
-  if (!has_candidate) {
+  if (!has_candidate)
     return;
-  }
 
   guess_hydrogens_aromatic_rings(mol, adjust_candidates);
 }
@@ -889,9 +871,8 @@ int guess_fcharge_from_pcharge(Molecule::Atom atom) {
 // }
 
 void fix_nitro_group(Molecule::MutableAtom atom, std::vector<int> &assigned) {
-  if (atom.data().atomic_number() != 7 || all_neighbors(atom) > 3) {
+  if (atom.data().atomic_number() != 7 || all_neighbors(atom) > 3)
     return;
-  }
 
   auto is_matching_oxygen = [](Molecule::Neighbor nei) {
     return nei.dst().data().atomic_number() == 8 && count_heavy(nei.dst()) == 1;
@@ -899,17 +880,15 @@ void fix_nitro_group(Molecule::MutableAtom atom, std::vector<int> &assigned) {
 
   int terminal_oxygen_count =
       std::count_if(atom.begin(), atom.end(), is_matching_oxygen);
-  if (terminal_oxygen_count != 2) {
+  if (terminal_oxygen_count != 2)
     return;
-  }
 
   assigned[atom.id()] = 1;
   atom.data().set_formal_charge(static_cast<int>(atom.degree() == 3));
   atom.data().set_implicit_hydrogens(0);
   for (auto nei: atom) {
-    if (!is_matching_oxygen(nei)) {
+    if (!is_matching_oxygen(nei))
       continue;
-    }
 
     auto dst = nei.dst();
     assigned[dst.id()] = 1;
@@ -971,9 +950,8 @@ void guess_fcharge_hydrogens(Molecule &mol) {
       continue;
     }
 
-    if (atom.degree() > 1) {
+    if (atom.degree() > 1)
       fix_nitro_group(atom, assigned);
-    }
 
     int cv = internal::common_valence(data.element());
     int sum_bo = internal::sum_bond_order(atom, false);
@@ -984,8 +962,7 @@ void guess_fcharge_hydrogens(Molecule &mol) {
       ABSL_LOG_FIRST_N(WARNING, 1)
           << "Automatic formal charge & implicit hydrogens assignment might be "
              "incorrect if an atom could have expanded octet; explicitly "
-             "assign "
-             "one of the two properties";
+             "assign one of the two properties";
 
       // Just assume expanded octet without charge
       data.set_formal_charge(0);
@@ -1001,9 +978,8 @@ void guess_fcharge_hydrogens(Molecule &mol) {
     assigned[atom.id()] = 1;
   }
 
-  if (!has_candidate) {
+  if (!has_candidate)
     return;
-  }
 
   guess_fcharge_hydrogens_aromatic_rings(mol, adjust_candidates);
 }
@@ -1063,14 +1039,12 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
 
   fix_aromatic_bonds(mol);
 
-  if (!has_fcharge) {
+  if (!has_fcharge)
     fix_guadinium(mol, ccat);
-  }
 
   if (has_hydrogens) {
-    if (!has_fcharge) {
+    if (!has_fcharge)
       guess_fcharge(mol);
-    }
   } else if (has_fcharge) {
     guess_hydrogens(mol);
   } else {
@@ -1086,14 +1060,11 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
   }
 
   mol.add_conf(stack(pos));
-  mol.update_bond_lengths();
 
   // Only add substructures actually mentioned in the SUBSTRUCTURE block
-  for (auto &[_, data]: substructs) {
-    for (Substructure &sub: mol.find_substructures(data.second)) {
+  for (auto &[_, data]: substructs)
+    for (Substructure &sub: mol.find_substructures(data.second))
       sub.update(std::move(data.first));
-    }
-  }
 
   return mol;
 }
