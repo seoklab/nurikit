@@ -48,7 +48,7 @@ jobs:
           cmake --build build -j \
             --target nuri_python_docs nuri_python_docs_doctest
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: pydocs
           path: build/python/docs/html/**
@@ -61,10 +61,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/configure-pages@v4
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: pydocs
           path: _site
-      - uses: actions/upload-pages-artifact@v2
-      - uses: actions/deploy-pages@v3
+      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/deploy-pages@v4
         id: deployment
