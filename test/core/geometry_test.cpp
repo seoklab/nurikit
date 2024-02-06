@@ -223,5 +223,18 @@ TEST(OCTreeTest, FindNeighborByCountAndDistance) {
     verify_octree_neighbor_kd(tree, test.row(i), k, cutoff,
                               absl::StrCat("On line ", __LINE__));
 }
+
+TEST(FitPlaneTest, CheckCorrectness) {
+  MatrixX3d m(4, 3);
+  m << 0.83204366, 0.51745906, 0.2127645,  //
+      0.1541316, 0.34186033, 0.37958696,   //
+      0.09409007, 0.55596287, 0.84068561,  //
+      0.16504374, 0.44050598, 0.63581156;
+
+  // From numpy.linalg.svd
+  Vector4d ans(0.33410998, -0.84014984, 0.42722215, 0.06480301458722172);
+  Vector4d p = fit_plane(m);
+  EXPECT_TRUE(p.isApprox(ans, 1e-6));
+}
 }  // namespace
 }  // namespace nuri
