@@ -299,6 +299,50 @@ namespace internal {
 
     std::vector<V> data_;
   };
+
+  class PowersetStream {
+  public:
+    explicit PowersetStream(int n): n_(n), r_(0), r_max_(0), state_(0) { }
+
+    PowersetStream &next() {
+      if (state_ >= r_max_) {
+        ++r_;
+        r_max_ |= 1U << (n_ - r_);
+        state_ = (1U << r_) - 1;
+        return *this;
+      }
+
+      unsigned int leading_ones = 1;
+      for (; static_cast<bool>(state_ & 1U << (n_ - leading_ones));
+           ++leading_ones)
+        ;
+
+      unsigned int next_one_bit = n_ - leading_ones;
+      for (; !static_cast<bool>(state_ & 1U << next_one_bit); --next_one_bit)
+        ;
+
+      unsigned int mask = (1U << next_one_bit) - 1;
+      state_ = ((1U << leading_ones) - 1) << (next_one_bit + 1)
+               | (mask & state_);
+      return *this;
+    }
+
+    unsigned int state() const { return state_; }
+
+    operator bool() const { return r_ <= n_; }
+
+  private:
+    int n_;
+    int r_;
+    unsigned int r_max_;
+    unsigned int state_;
+  };
+
+  inline PowersetStream &operator>>(PowersetStream &ps, unsigned int &state) {
+    ps.next();
+    state = ps.state();
+    return ps;
+  }
 }  // namespace internal
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
