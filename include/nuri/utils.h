@@ -733,11 +733,25 @@ inline std::string_view slice_strip(std::string_view str, std::size_t begin,
   return absl::StripAsciiWhitespace(slice(str, begin, end));
 }
 
+namespace internal {
+  template <bool = (sizeof(double) * 3) % alignof(Vector3d) == 0>
+  inline void stack_impl(MatrixX3d &m, const std::vector<Vector3d> &vs) {
+    for (int i = 0; i < vs.size(); ++i)
+      m.row(i) = vs[i];
+  }
+
+  template <>
+  inline void stack_impl<true>(MatrixX3d &m, const std::vector<Vector3d> &vs) {
+    ABSL_DCHECK(reinterpret_cast<ptrdiff_t>(vs[0].data()) + sizeof(double) * 3
+                == reinterpret_cast<ptrdiff_t>(vs[1].data()))
+        << "Bad alignment";
+    std::memcpy(m.data(), vs[0].data(), vs.size() * sizeof(double) * 3);
+  }
+}  // namespace internal
+
 inline MatrixX3d stack(const std::vector<Vector3d> &vs) {
   MatrixX3d m(vs.size(), 3);
-  for (int i = 0; i < vs.size(); ++i) {
-    m.row(i) = vs[i];
-  }
+  internal::stack_impl(m, vs);
   return m;
 }
 
