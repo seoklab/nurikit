@@ -671,10 +671,6 @@ namespace internal {
         return pie_estimate;
       }
 
-      // Not sure if this condition will ever be true, just in case
-      ABSL_LOG_IF(WARNING, cv > total_valence)
-          << "Valence smaller than octet valence";
-
       // Normal case: atoms in pyridine, benzene, ...
       ABSL_DLOG(INFO) << "Normal case: " << atom.id() << " 1 pi electron";
       return 1;
