@@ -215,12 +215,12 @@ TYPED_TEST(BasicGraphTest, AddEdgeTest) {
   ASSERT_EQ(graph.num_nodes(), 6);
   ASSERT_EQ(graph.num_edges(), 3);
 
-  ASSERT_EQ(e0->src(), 0);
-  ASSERT_EQ(e0->dst(), 1);
-  ASSERT_EQ(e1->src(), 2);
-  ASSERT_EQ(e1->dst(), 0);
-  ASSERT_EQ(e2->src(), 3);
-  ASSERT_EQ(e2->dst(), 0);
+  ASSERT_EQ(e0->src().id(), 0);
+  ASSERT_EQ(e0->dst().id(), 1);
+  ASSERT_EQ(e1->src().id(), 2);
+  ASSERT_EQ(e1->dst().id(), 0);
+  ASSERT_EQ(e2->src().id(), 3);
+  ASSERT_EQ(e2->dst().id(), 0);
 
   for (int i = 0; i < graph.num_nodes(); ++i) {
     ASSERT_EQ(graph.node(i).data(), i);
@@ -262,19 +262,19 @@ protected:
       graph_.add_node({ i });
     }
 
-    edges_.push_back(graph_.add_edge(0, 1, { 100 }));
-    edges_.push_back(graph_.add_edge(0, 2, { 101 }));
-    edges_.push_back(graph_.add_edge(5, 0, { 102 }));
-    edges_.push_back(graph_.add_edge(6, 0, { 103 }));
+    graph_.add_edge(0, 1, { 100 });
+    graph_.add_edge(0, 2, { 101 });
+    graph_.add_edge(5, 0, { 102 });
+    graph_.add_edge(6, 0, { 103 });
 
-    edges_.push_back(graph_.add_edge(1, 2, { 104 }));
-    edges_.push_back(graph_.add_edge(7, 1, { 105 }));
-    edges_.push_back(graph_.add_edge(8, 1, { 106 }));
+    graph_.add_edge(1, 2, { 104 });
+    graph_.add_edge(7, 1, { 105 });
+    graph_.add_edge(8, 1, { 106 });
 
-    edges_.push_back(graph_.add_edge(2, 3, { 107 }));
-    edges_.push_back(graph_.add_edge(9, 2, { 108 }));
+    graph_.add_edge(2, 3, { 107 });
+    graph_.add_edge(9, 2, { 108 });
 
-    edges_.push_back(graph_.add_edge(3, 4, { 109 }));
+    graph_.add_edge(3, 4, { 109 });
   }
 
   /**
@@ -289,7 +289,6 @@ protected:
    *         5     7
    */
   Graph graph_;
-  std::vector<typename Graph::edge_iterator> edges_;
 };
 
 TYPED_TEST_SUITE(AdvancedGraphTest, Implementations);
@@ -389,19 +388,18 @@ TYPED_TEST(AdvancedGraphTest, NodeIteratorTest) {
 TYPED_TEST(AdvancedGraphTest, UpdateEdgeTest) {
   using Graph = nuri::Graph<TypeParam, TypeParam>;
   Graph &graph = this->graph_;
-  std::vector<typename Graph::edge_iterator> &edges = this->edges_;
 
   typename Graph::edge_data_type new_data = { 1000 };
-  graph.update_edge(edges[0]->id(), new_data);
-  graph.update_edge(edges[1]->id(), { 1001 });
+  graph.update_edge(0, new_data);
+  graph.update_edge(1, { 1001 });
 
-  ASSERT_EQ(edges[0]->data(), 1000);
-  ASSERT_EQ(edges[1]->data(), 1001);
-  static_assert(!std::is_assignable_v<decltype(edges[0]->as_const().data()),
+  ASSERT_EQ(graph.edge(0).data(), 1000);
+  ASSERT_EQ(graph.edge(1).data(), 1001);
+  static_assert(!std::is_assignable_v<decltype(graph.edge(0).as_const().data()),
                                       typename Graph::edge_data_type>,
                 "const edge wrapper should not be assignable");
-  ASSERT_EQ(edges[0]->as_const().data(), 1000);
-  ASSERT_EQ(edges[1]->as_const().data(), 1001);
+  ASSERT_EQ(graph.edge(0).as_const().data(), 1000);
+  ASSERT_EQ(graph.edge(1).as_const().data(), 1001);
 }
 
 TYPED_TEST(AdvancedGraphTest, EdgeIteratorTest) {
@@ -670,14 +668,13 @@ TYPED_TEST(AdvancedGraphTest, EraseMixedNodesTest) {
 TYPED_TEST(AdvancedGraphTest, PopEdgeTest) {
   using Graph = nuri::Graph<TypeParam, TypeParam>;
   Graph &graph = this->graph_;
-  std::vector<typename Graph::edge_iterator> &edges = this->edges_;
 
-  auto data = graph.pop_edge(edges[0]);
+  auto data = graph.pop_edge(0);
   ASSERT_EQ(data, 100);
   ASSERT_EQ(graph.num_edges(), 9);
   ASSERT_EQ(graph.find_adjacent(0, 1), graph.adj_end(0));
 
-  data = graph.pop_edge(edges[2]);
+  data = graph.pop_edge(1);
   ASSERT_EQ(data, 102);
   ASSERT_EQ(graph.num_edges(), 8);
   ASSERT_EQ(graph.find_adjacent(0, 5), graph.adj_end(0));
@@ -688,13 +685,12 @@ TYPED_TEST(AdvancedGraphTest, PopEdgeTest) {
 TYPED_TEST(AdvancedGraphTest, EraseEdgeTest) {
   using Graph = nuri::Graph<TypeParam, TypeParam>;
   Graph &graph = this->graph_;
-  std::vector<typename Graph::edge_iterator> &edges = this->edges_;
 
-  graph.erase_edge(edges[0]);
+  graph.pop_edge(0);
   ASSERT_EQ(graph.num_edges(), 9);
   ASSERT_EQ(graph.find_adjacent(0, 1), graph.adj_end(0));
 
-  graph.erase_edge(edges[2]);
+  graph.pop_edge(1);
   ASSERT_EQ(graph.num_edges(), 8);
   ASSERT_EQ(graph.find_adjacent(0, 5), graph.adj_end(0));
 
@@ -710,9 +706,8 @@ TYPED_TEST(AdvancedGraphTest, EraseAllEdgesTest) {
   using Graph = nuri::Graph<TypeParam, TypeParam>;
   Graph &graph = this->graph_;
 
-  for (auto it = graph.edge_begin(); it != graph.edge_end();) {
-    graph.erase_edge(it++);
-  }
+  graph.erase_edges(graph.edge_begin(), graph.edge_end());
+
   ASSERT_EQ(graph.num_nodes(), 11);
   ASSERT_TRUE(graph.edge_empty());
 }
@@ -721,14 +716,8 @@ TYPED_TEST(AdvancedGraphTest, EraseMixedEdgesTest) {
   using Graph = nuri::Graph<TypeParam, TypeParam>;
   Graph &graph = this->graph_;
 
-  int i = 0;
-  for (auto it = graph.edge_begin(); it != graph.edge_end();) {
-    if (i++ % 2 == 0) {
-      graph.erase_edge(it++);
-    } else {
-      ++it;
-    }
-  }
+  graph.erase_edges(graph.edge_begin(), graph.edge_end(),
+                    [](auto edge) { return edge.id() % 2 == 0; });
 
   ASSERT_EQ(graph.num_nodes(), 11);
   ASSERT_EQ(graph.num_edges(), 5);

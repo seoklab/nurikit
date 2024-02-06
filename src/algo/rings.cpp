@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <functional>
-#include <iterator>
 #include <memory>
 #include <numeric>
 #include <utility>
@@ -398,16 +397,14 @@ namespace {
     return data;
   }
 
-  using BondPtr = std::iterator_traits<Molecule::bond_id_type>::pointer;
-
   void assign_eids(BoolMatrix &m, std::vector<int> &used_edges,
                    const int cycle_idx, const Cycle &cycle,
-                   const absl::flat_hash_map<BondPtr, int> &edge_map) {
+                   const internal::CompactMap<int, int> &edge_map) {
     const auto mark_edge = [&](Molecule::Neighbor nei) {
-      auto it = edge_map.find(&*nei.eid());
-      ABSL_DCHECK(it != edge_map.end());
-      m.set(it->second, cycle_idx);
-      used_edges[it->second] = 1;
+      auto it = edge_map.find(nei.eid());
+      ABSL_DCHECK(it != nullptr);
+      m.set(*it, cycle_idx);
+      used_edges[*it] = 1;
     };
 
     for (Molecule::Neighbor nei: *cycle.path_rpy) {
@@ -442,7 +439,7 @@ namespace {
   std::vector<int>
   verify_basis(BoolMatrix &m, const int m_idx, std::vector<int> &used_edges,
                const std::vector<Cycle> &c_ip, const int begin, const int end,
-               const absl::flat_hash_map<BondPtr, int> &edge_map) {
+               const internal::CompactMap<int, int> &edge_map) {
     for (int i = begin, j = m_idx; i < end; ++i, ++j) {
       assign_eids(m, used_edges, j, c_ip[i], edge_map);
     }
@@ -459,16 +456,14 @@ namespace {
   template <bool minimal>
   std::vector<int> compute_prototype(const Molecule &mol,
                                      const std::vector<Cycle> &c_ip) {
-    absl::flat_hash_map<BondPtr, int> edge_map;
+    internal::CompactMap<int, int> edge_map(mol.num_bonds());
     int idx = 0;
-    for (auto bond: mol.bonds()) {
-      if (bond.data().is_ring_bond()) {
-        edge_map[&*bond.id()] = idx++;
-      }
-    }
+    for (auto bond: mol.bonds())
+      if (bond.data().is_ring_bond())
+        edge_map.try_emplace(bond.id(), idx++);
 
-    BoolMatrix m(static_cast<BoolMatrix::Index>(edge_map.size()));
-    std::vector<int> basis, used_edges(edge_map.size(), 0);
+    BoolMatrix m(static_cast<BoolMatrix::Index>(idx));
+    std::vector<int> basis, used_edges(idx, 0);
     int size, begin, end = 0, m_idx;
 
     do {

@@ -272,9 +272,9 @@ TEST_F(MoleculeTest, RotateBondTest) {
 
   // Not rotable
   bid = mol_one.find_bond(0, 1)->id();
-  ASSERT_FALSE(mol_one.rotate_bond(1, bid, 90));
+  ASSERT_FALSE(mol_one.rotate_bond_conf(1, bid, 90));
   // Rotate reverse!
-  ASSERT_TRUE(mol_one.rotate_bond(0, 2, 3, -90));
+  ASSERT_TRUE(mol_one.rotate_bond_conf(0, 2, 3, -90));
 
   EXPECT_TRUE(mol_one.conf(0).isApprox(mol_.conf(0)));
   EXPECT_TRUE(mol_one.conf(1).isApprox(mol_all.conf(1)));
@@ -796,7 +796,7 @@ TEST(SanitizeTest, FusedAromaticTest) {
       EXPECT_TRUE(atom.data().is_aromatic());
     }
     for (auto bond: mol.bonds()) {
-      auto [src, dst] = std::minmax({ bond.src(), bond.dst() });
+      auto [src, dst] = std::minmax({ bond.src().id(), bond.dst().id() });
       if ((src == 0 && dst == 11) || (src == 5 && dst == 6)) {
         EXPECT_FALSE(bond.data().is_aromatic());
       } else {
@@ -850,7 +850,7 @@ TEST(SanitizeTest, FusedAromaticTest) {
       EXPECT_TRUE(atom.data().is_aromatic());
     }
     for (auto bond: mol.bonds()) {
-      auto [src, dst] = std::minmax({ bond.src(), bond.dst() });
+      auto [src, dst] = std::minmax({ bond.src().id(), bond.dst().id() });
       if (src == 0 && dst == 6) {
         EXPECT_FALSE(bond.data().is_aromatic());
       } else {

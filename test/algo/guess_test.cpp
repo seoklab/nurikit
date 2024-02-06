@@ -520,7 +520,7 @@ TEST(GuessBondsTest, FUY) {
   EXPECT_EQ(total_implicit_hydrogens, 11);
 
   for (auto bond: mol.bonds()) {
-    EXPECT_EQ(bond.data().order(), bond.src() == 3 || bond.dst() == 3
+    EXPECT_EQ(bond.data().order(), bond.src().id() == 3 || bond.dst().id() == 3
                                        ? constants::kDoubleBond
                                        : constants::kSingleBond);
   }
@@ -770,10 +770,10 @@ TEST(GuessBondsTest, GPC) {
       continue;
 
     // Checked already in the previous steps
-    if (bond.src() == 20 || bond.dst() == 20)
+    if (bond.src().id() == 20 || bond.dst().id() == 20)
       continue;
-    if (bond.src() == 7 || bond.dst() == 7 || bond.src() == 34
-        || bond.dst() == 34)
+    if (bond.src().id() == 7 || bond.dst().id() == 7 || bond.src().id() == 34
+        || bond.dst().id() == 34)
       continue;
 
     EXPECT_EQ(bond.data().order(), 1);

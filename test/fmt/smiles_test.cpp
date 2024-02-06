@@ -281,7 +281,7 @@ TEST_F(SmilesTest, AromaticityTest) {
     EXPECT_TRUE(atom.data().is_aromatic());
   }
   for (auto bond: mol().bonds()) {
-    if (bond.src() == 5 && bond.dst() == 6) {
+    if (bond.src().id() == 5 && bond.dst().id() == 6) {
       EXPECT_EQ(bond.data().order(), constants::kSingleBond);
       EXPECT_FALSE(bond.data().is_aromatic());
     } else {

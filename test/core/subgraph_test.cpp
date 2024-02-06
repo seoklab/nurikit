@@ -540,8 +540,8 @@ TEST_F(AdvancedSubgraphTest, FindEdges) {
     std::vector<int> visit_count(graph_.size(), 0);
 
     for (auto it = ef.begin(); it != ef.end(); it++) {
-      visit_count[it->src()]++;
-      visit_count[it->dst()]++;
+      visit_count[it->src().id()]++;
+      visit_count[it->dst().id()]++;
     }
 
     for (int i = 0; i < visit_count.size(); ++i) {
@@ -592,17 +592,19 @@ template class Subgraph<int, int, true>;
 namespace internal {
 using GraphType = nuri::Graph<int, int>;
 
-template class SubEdgeWrapper<GraphType, false>;
-template class SubEdgeWrapper<GraphType, true>;
-static_assert(std::is_trivially_copyable_v<SubEdgeWrapper<GraphType, false>>,
-              "SubEdgeWrapper must be trivially copyable");
-static_assert(std::is_trivially_copyable_v<SubEdgeWrapper<GraphType, true>>,
-              "ConstSubEdgeWrapper must be trivially copyable");
+template class SubEdgeWrapper<SubgraphOf<GraphType>, false>;
+template class SubEdgeWrapper<SubgraphOf<GraphType>, true>;
+static_assert(
+    std::is_trivially_copyable_v<SubEdgeWrapper<SubgraphOf<GraphType>, false>>,
+    "SubEdgeWrapper must be trivially copyable");
+static_assert(
+    std::is_trivially_copyable_v<SubEdgeWrapper<SubgraphOf<GraphType>, true>>,
+    "ConstSubEdgeWrapper must be trivially copyable");
 
 template class DataIteratorBase<
     SubEdgeIterator<SubEdgesFinder<SubgraphOf<GraphType>, false>, true>,
     SubEdgesFinder<SubgraphOf<GraphType>, false>,
-    SubEdgeWrapper<GraphType, true>, true>;
+    SubEdgeWrapper<SubgraphOf<GraphType>, true>, true>;
 template class SubEdgeIterator<SubEdgesFinder<SubgraphOf<GraphType>, false>,
                                true>;
 static_assert(
@@ -617,8 +619,7 @@ static_assert(
                                                                                \
   template class DataIteratorBase<                                             \
       SubEdgeIterator<SubEdgesFinder<SGT, is_const>, is_const>,                \
-      SubEdgesFinder<SGT, is_const>,                                           \
-      SubEdgeWrapper<typename SGT::graph_type, is_const>, is_const>;           \
+      SubEdgesFinder<SGT, is_const>, SubEdgeWrapper<SGT, is_const>, is_const>; \
   template class SubEdgeIterator<SubEdgesFinder<SGT, is_const>, is_const>;     \
   static_assert(                                                               \
       std::is_trivially_copyable_v<                                            \

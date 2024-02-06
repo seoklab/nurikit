@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <iterator>
-#include <list>
 #include <queue>
 #include <stack>
 #include <type_traits>
@@ -41,6 +40,8 @@ namespace internal {
     using difference_type = typename Traits::difference_type;
     using pointer = typename Traits::pointer;
     using reference = typename Traits::reference;
+
+    constexpr DataIteratorBase() noexcept = default;
 
     constexpr DataIteratorBase(parent_type *graph,
                                difference_type index) noexcept
@@ -97,20 +98,14 @@ namespace internal {
 
   template <class GT, bool is_const>
   class AdjWrapper {
-  private:
-    using EIT = std::conditional_t<is_const, typename GT::edge_id_type,
-                                   typename GT::stored_edge_id_type>;
-
   public:
-    using edge_id_type = typename GT::edge_id_type;
     using edge_value_type = const_if_t<is_const, typename GT::edge_data_type>;
-
     using parent_type = const_if_t<is_const, GT>;
 
     template <bool other_const>
     using Other = AdjWrapper<GT, other_const>;
 
-    constexpr AdjWrapper(parent_type &graph, int src, int dst, EIT eid) noexcept
+    constexpr AdjWrapper(parent_type &graph, int src, int dst, int eid) noexcept
         : src_(src), dst_(dst), eid_(eid), graph_(&graph) { }
 
     template <bool other_const,
@@ -122,8 +117,10 @@ namespace internal {
     constexpr auto src() const noexcept { return graph_->node(src_); }
     constexpr auto dst() const noexcept { return graph_->node(dst_); }
 
-    constexpr edge_id_type eid() const noexcept { return eid_; }
-    constexpr edge_value_type &edge_data() const noexcept { return eid_->data; }
+    constexpr int eid() const noexcept { return eid_; }
+    constexpr edge_value_type &edge_data() const noexcept {
+      return graph_->edge(eid_).data();
+    }
 
     constexpr Other<true> as_const() const noexcept { return *this; }
 
@@ -142,7 +139,7 @@ namespace internal {
 
     int src_;
     int dst_;
-    EIT eid_;
+    int eid_;
     parent_type *graph_;
   };
 
@@ -313,108 +310,83 @@ namespace internal {
   public:
     using DT = typename GT::edge_data_type;
 
-    using edge_id_type = typename GT::edge_id_type;
+    using parent_type = const_if_t<is_const, GT>;
     using value_type = const_if_t<is_const, DT>;
 
     template <bool other_const>
     using Other = EdgeWrapper<GT, other_const>;
 
-    template <bool this_const = is_const,
-              std::enable_if_t<is_const && this_const, int> = 0>
-    constexpr EdgeWrapper(edge_id_type eid) noexcept: eid_(eid) { }
+    constexpr EdgeWrapper(int eid, value_type &data,
+                          parent_type &graph) noexcept
+        : eid_(eid), data_(&data), graph_(&graph) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     constexpr EdgeWrapper(const Other<other_const> &other) noexcept
-        : eid_(other.eid_) { }
+        : eid_(other.eid_), data_(other.data_), graph_(other.graph_) { }
 
-    constexpr edge_id_type id() const noexcept { return eid_; }
-    constexpr int src() const noexcept { return eid_->src; }
-    constexpr int dst() const noexcept { return eid_->dst; }
+    constexpr int id() const noexcept { return eid_; }
 
-    constexpr value_type &data() const noexcept { return eid_->data; }
+    constexpr NodeWrapper<GT, is_const> src() const noexcept {
+      return graph_->node(graph_->edges_[eid_].src);
+    }
+
+    constexpr NodeWrapper<GT, is_const> dst() const noexcept {
+      return graph_->node(graph_->edges_[eid_].dst);
+    }
+
+    constexpr value_type &data() const noexcept { return *data_; }
 
     constexpr Other<true> as_const() const noexcept { return *this; }
 
   private:
-    using stored_edge_id_type = typename GT::stored_edge_id_type;
-    using EIT = std::conditional_t<is_const, edge_id_type, stored_edge_id_type>;
-
-    friend GT;
     template <class, bool>
     friend class EdgeWrapper;
-    template <class, bool>
-    friend class EdgeIterator;
 
-    constexpr EdgeWrapper(stored_edge_id_type eid) noexcept: eid_(eid) { }
-
-    EIT eid_;
+    int eid_;
+    value_type *data_;
+    parent_type *graph_;
   };
 
   template <class GT, bool is_const>
   class EdgeIterator
-      : public ProxyIterator<EdgeIterator<GT, is_const>,
-                             EdgeWrapper<GT, is_const>,
-                             std::bidirectional_iterator_tag, int> {
-    using Traits =
-        std::iterator_traits<typename EdgeIterator::iterator_facade_>;
+      : public DataIteratorBase<EdgeIterator<GT, is_const>, GT,
+                                EdgeWrapper<GT, is_const>, is_const> {
+    using Base = typename EdgeIterator::Parent;
 
   public:
-    using iterator_category = typename Traits::iterator_category;
-    using value_type = typename Traits::value_type;
-    using difference_type = typename Traits::difference_type;
-    using pointer = typename Traits::pointer;
-    using reference = typename Traits::reference;
+    using typename Base::difference_type;
+    using typename Base::iterator_category;
+    using typename Base::pointer;
+    using typename Base::reference;
+    using typename Base::value_type;
 
-    using edge_id_type = typename GT::edge_id_type;
-
-    template <bool other_const>
-    using Other = EdgeIterator<GT, other_const>;
-
-    EdgeIterator() = default;
-
-    template <bool this_const = is_const,
-              std::enable_if_t<is_const && this_const, int> = 0>
-    EdgeIterator(edge_id_type eid) noexcept: eid_(eid) { }
+    using Base::Base;
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
-    EdgeIterator(const Other<other_const> &other) noexcept: eid_(other.eid_) { }
+    constexpr EdgeIterator(const EdgeIterator<GT, other_const> &other) noexcept
+        : Base(other) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
-    EdgeIterator &operator=(const Other<other_const> &other) noexcept {
-      eid_ = other.eid_;
+    constexpr EdgeIterator &
+    operator=(const EdgeIterator<GT, other_const> &other) noexcept {
+      Base::operator=(other);
       return *this;
     }
 
   private:
-    using stored_edge_id_type = typename GT::stored_edge_id_type;
-    using EIT = std::conditional_t<is_const, edge_id_type, stored_edge_id_type>;
-
-    friend GT;
+    friend Base;
 
     friend class boost::iterator_core_access;
 
-    template <class, bool>
+    template <class, bool other_const>
     friend class EdgeIterator;
 
-    template <class, bool>
-    friend class SubEdgesFinder;
-
-    EdgeIterator(stored_edge_id_type eid) noexcept: eid_(eid) { }
-
-    reference dereference() const noexcept { return { eid_ }; }
-
-    template <bool other_const>
-    bool equal(const Other<other_const> &other) const noexcept {
-      return eid_ == other.eid_;
+    constexpr reference dereference() const noexcept {
+      return this->graph()->edge(this->index());
     }
-
-    void increment() noexcept { ++eid_; }
-    void decrement() noexcept { --eid_; }
-
-    EIT eid_;
   };
 
   template <class GT, bool is_const>
@@ -439,6 +411,10 @@ namespace internal {
     EdgesWrapper &operator=(const Other<other_const> &other) noexcept {
       graph_ = other.graph_;
       return *this;
+    }
+
+    EdgeWrapper<GT, is_const> operator[](int id) const {
+      return graph_->edge(id);
     }
 
     EdgeIterator<GT, is_const> begin() const { return graph_->edge_begin(); }
@@ -475,11 +451,10 @@ private:
     ET data;
   };
   using edge_type = StoredEdge;
-  using stored_edge_id_type = typename std::list<StoredEdge>::iterator;
 
   struct AdjEntry {
     int dst;
-    stored_edge_id_type eid;
+    int eid;
   };
 
   template <class, bool>
@@ -503,7 +478,6 @@ private:
 public:
   using node_data_type = NT;
   using edge_data_type = ET;
-  using edge_id_type = typename std::list<StoredEdge>::const_iterator;
 
   using iterator = internal::NodeIterator<Graph, false>;
   using node_iterator = iterator;
@@ -533,9 +507,9 @@ public:
       std::is_same_v<typename const_adjacency_iterator::reference, ConstAdjRef>);
 
   Graph() = default;
-  Graph(const Graph & /* other */);
+  Graph(const Graph &) = default;
   Graph(Graph &&) noexcept = default;
-  Graph &operator=(const Graph & /* other */);
+  Graph &operator=(const Graph &) = default;
   Graph &operator=(Graph &&) noexcept = default;
   ~Graph() noexcept = default;
 
@@ -571,6 +545,8 @@ public:
     adj_list_.reserve(num_nodes);
   }
 
+  void reserve_edges(int num_edges) { edges_.reserve(num_edges); }
+
   int add_node(const NT &data) {
     int id = num_nodes();
     nodes_.push_back(data);
@@ -594,16 +570,17 @@ public:
   }
 
   edge_iterator add_edge(int src, int dst, const ET &data) {
-    stored_edge_id_type eid = edges_.insert(edges_.end(), { src, dst, data });
-    add_adjacency_entry(eid);
-    return { eid };
+    int eid = num_edges();
+    edges_.push_back({ src, dst, data });
+    add_adjacency_entry(src, dst, eid);
+    return { this, eid };
   }
 
   edge_iterator add_edge(int src, int dst, ET &&data) noexcept {
-    stored_edge_id_type eid =
-        edges_.insert(edges_.end(), { src, dst, std::move(data) });
-    add_adjacency_entry(eid);
-    return { eid };
+    int eid = num_edges();
+    edges_.push_back({ src, dst, std::move(data) });
+    add_adjacency_entry(src, dst, eid);
+    return { this, eid };
   }
 
   NodeRef operator[](int id) { return node(id); }
@@ -649,9 +626,9 @@ public:
    *         the graph before this operation. Otherwise, `new end id` will be
    *         set to -1 and erased nodes will be marked as -1 in the mapping.
    * @sa pop_node()
-   * @note Time complexity: \f$O(V)\f$ if only trailing nodes are erased,
-   *       \f$O(V+E)\f$ otherwise. If \p begin or \p end is out of range, the
-   *       behavior is undefined.
+   * @note Time complexity: \f$O(V)\f$ if only trailing nodes and edges are
+   *       erased, \f$O(V+E)\f$ otherwise. If \p begin or \p end is out of
+   *       range, the behavior is undefined.
    */
   std::pair<int, std::vector<int>> erase_nodes(const_iterator begin,
                                                const_iterator end) {
@@ -713,13 +690,11 @@ public:
   const_iterator cbegin() const { return { this, 0 }; }
   const_iterator cend() const { return { this, num_nodes() }; }
 
-  EdgeRef edge(edge_id_type id) { return { promote_const_eid(id) }; }
-  ConstEdgeRef edge(edge_id_type id) const { return { id }; }
-  void update_edge(edge_id_type id, const ET &data) {
-    promote_const_eid(id)->data = data;
-  }
-  void update_edge(edge_id_type id, ET &&data) noexcept {
-    promote_const_eid(id)->data = std::move(data);
+  EdgeRef edge(int id) { return { id, edges_[id].data, *this }; }
+  ConstEdgeRef edge(int id) const { return { id, edges_[id].data, *this }; }
+  void update_edge(int id, const ET &data) { edges_[id].data = data; }
+  void update_edge(int id, ET &&data) noexcept {
+    edges_[id].data = std::move(data);
   }
 
   edge_iterator find_edge(int src, int dst) {
@@ -732,36 +707,24 @@ public:
 
   void clear_edge() {
     edges_.clear();
-    for (std::vector<AdjEntry> &adj: adj_list_) {
+    for (std::vector<AdjEntry> &adj: adj_list_)
       adj.clear();
-    }
   }
 
   /**
    * @brief Erase an edge from the graph.
    *
-   * @param it The iterator of the edge to be erased.
+   * @param id The id of the edge to be erased.
    * @return The data of the erased edge.
-   * @sa erase_edge()
-   * @note Time complexity: \f$O(E/V)\f$. If \p it is out of range, the behavior
-   *       is undefined.
-   */
-  ET pop_edge(const_edge_iterator it) {
-    ET ret = std::move(it->id()->data);
-    erase_edge(it);
-    return ret;
-  }
-
-  /**
-   * @brief Erase an edge from the graph.
-   *
-   * @param it The iterator of the edge to be erased.
-   * @return The edge iterator following the erased edge.
-   * @sa pop_edge()
+   * @sa erase_edges()
    * @note Time complexity: \f$O(E/V)\f$. If \p id is out of range, the behavior
    *       is undefined.
    */
-  edge_iterator erase_edge(const_edge_iterator it);
+  ET pop_edge(int id) {
+    ET ret = std::move(edges_[id].data);
+    erase_edges(edge_begin() + id, edge_begin() + id + 1);
+    return ret;
+  }
 
   /**
    * @brief Erase an edge from the graph between two nodes.
@@ -769,21 +732,91 @@ public:
    * @param src The id of the source node.
    * @param dst The id of the destination node.
    * @return Whether the edge is erased.
-   * @note Time complexity: \f$O(E/V)\f$. If \p src or \p dst is out of range,
-   *       the behavior is undefined. \p src and \p dst is interchangeable.
+   * @note Time complexity: \f$O(E/V)\f$ if the edge is the last edge of the
+   *       graph or is not found, \f$O(V+E)\f$ otherwise. If \p src or \p dst is
+   *       out of range, the behavior is undefined. \p src and \p dst are
+   *       interchangeable.
    */
   bool erase_edge_between(int src, int dst);
+
+  /**
+   * @brief Erase edges from the graph.
+   *
+   * @param begin The beginning of the range of nodes to be erased.
+   * @param end The end of the range of nodes to be erased.
+   * @return A pair of (`new end id`, mapping of `old edge id -> new edge id`).
+   *         If only trailing edges are erased, `new end id` will be set to the
+   *         first erased edge id, and the mapping will be in a valid but
+   *         unspecified state. If no edges are erased (special case of trailing
+   *         edge removal), `new end id` will be equal to the size of the graph
+   *         before this operation. Otherwise, `new end id` will be set to -1
+   *         and erased edges will be marked as -1 in the mapping.
+   * @sa pop_edge()
+   * @note Time complexity: \f$O(E)\f$. If \p begin or \p end is out of range,
+   *       the behavior is undefined.
+   */
+  std::pair<int, std::vector<int>> erase_edges(const_edge_iterator begin,
+                                               const_edge_iterator end) {
+    return erase_edges(begin, end, [](auto /* ref */) { return true; });
+  }
+
+  /**
+   * @brief Erase matching edges from the graph.
+   *
+   * @tparam UnaryPred A unary predicate that takes a `ConstEdgeRef` and returns
+   *        `bool`.
+   * @param begin The beginning of the range of edges to be erased.
+   * @param end The end of the range of edges to be erased.
+   * @param pred A unary predicate that takes a `ConstEdgeRef` and returns
+   *        `true` if the edge should be erased.
+   * @return A pair of (`new end id`, mapping of `old edge id -> new edge id`).
+   *         If only trailing edges are erased, `new end id` will be set to the
+   *         first erased edge id, and the mapping will be in a valid but
+   *         unspecified state. If no edges are erased (special case of
+   *         trailing edge removal), `new end id` will be equal to the size of
+   *         the graph before this operation. Otherwise, `new end id` will be
+   *         set to -1 and erased edges will be marked as -1 in the mapping.
+   * @sa pop_edge()
+   * @note Time complexity: \f$O(E)\f$. If \p begin or \p end is out of range,
+   *       the behavior is undefined.
+   */
+  template <class UnaryPred>
+  std::pair<int, std::vector<int>> erase_edges(const_edge_iterator begin,
+                                               const_edge_iterator end,
+                                               UnaryPred pred);
+
+  /**
+   * @brief Erase edges from the graph.
+   *
+   * @tparam Iterator An iterator type that dereferences to a value compatible
+   *         with `int`.
+   * @param begin The beginning of the range of edge ids to be erased.
+   * @param end The end of the range of edge ids to be erased.
+   * @return A pair of (`new end id`, mapping of `old edge id -> new edge id`).
+   *         If only trailing edges are erased, `new end id` will be set to the
+   *         first erased edge id, and the mapping will be in a valid but
+   *         unspecified state. If no edges are erased (special case of
+   *         trailing edge removal), `new end id` will be equal to the size of
+   *         the graph before this operation. Otherwise, `new end id` will be
+   *         set to -1 and erased edges will be marked as -1 in the mapping.
+   * @sa pop_edge()
+   * @note Time complexity: \f$O(E)\f$. If any iterator in range `[`\p begin,
+   *       \p end`)` references an invalid edge id, the behavior is undefined.
+   */
+  template <class Iterator,
+            class = internal::enable_if_compatible_iter_t<Iterator, int>>
+  std::pair<int, std::vector<int>> erase_edges(Iterator begin, Iterator end);
 
   internal::EdgesWrapper<Graph, false> edges() { return { *this }; }
   internal::EdgesWrapper<Graph, true> edges() const { return { *this }; }
   internal::EdgesWrapper<Graph, true> cedges() const { return { *this }; }
 
-  edge_iterator edge_begin() { return { edges_.begin() }; }
-  edge_iterator edge_end() { return { edges_.end() }; }
+  edge_iterator edge_begin() { return { this, 0 }; }
+  edge_iterator edge_end() { return { this, num_edges() }; }
   const_edge_iterator edge_begin() const { return edge_cbegin(); }
   const_edge_iterator edge_end() const { return edge_cend(); }
-  const_edge_iterator edge_cbegin() const { return { edges_.cbegin() }; }
-  const_edge_iterator edge_cend() const { return { edges_.cend() }; }
+  const_edge_iterator edge_cbegin() const { return { this, 0 }; }
+  const_edge_iterator edge_cend() const { return { this, num_edges() }; }
 
   adjacency_iterator find_adjacent(int src, int dst) {
     return find_adj_helper(*this, src, dst);
@@ -809,13 +842,11 @@ public:
     const int offset = size();
     reserve(offset + other.size());
 
-    for (auto node: other) {
+    for (auto node: other)
       add_node(node.data());
-    }
 
-    for (auto edge: other.edges()) {
-      add_edge(edge.src() + offset, edge.dst() + offset, edge.data());
-    }
+    for (auto edge: other.edges())
+      add_edge(edge.src().id() + offset, edge.dst().id() + offset, edge.data());
   }
 
 private:
@@ -823,41 +854,40 @@ private:
   static internal::AdjIterator<Graph, std::is_const_v<GT>>
   find_adj_helper(GT &graph, int src, int dst) {
     auto ret = graph.adj_begin(src);
-    for (; ret != graph.adj_end(src); ++ret) {
-      if (ret->dst().id() == dst) {
+
+    for (; ret != graph.adj_end(src); ++ret)
+      if (ret->dst().id() == dst)
         break;
-      }
-    }
+
     return ret;
   }
 
   template <class GT>
   static internal::EdgeIterator<Graph, std::is_const_v<GT>>
   find_edge_helper(GT &graph, int src, int dst) {
-    if (graph.degree(src) > graph.degree(dst)) {
+    if (graph.degree(src) > graph.degree(dst))
       return find_edge_helper(graph, dst, src);
-    }
 
     auto ait = find_adj_helper(graph, src, dst);
-    if (ait == graph.adj_end(src)) {
+    if (ait.end())
       return graph.edge_end();
-    }
-    return { ait->eid_ };
+
+    return { &graph, ait->eid_ };
   }
 
   void erase_nodes_common(std::vector<int> &node_keep, int first_erased_id,
                           bool erase_trailing);
 
-  void add_adjacency_entry(stored_edge_id_type eid) {
-    adj_list_[eid->src].push_back({ eid->dst, eid });
-    adj_list_[eid->dst].push_back({ eid->src, eid });
+  void add_adjacency_entry(int src, int dst, int eid) {
+    adj_list_[src].push_back({ dst, eid });
+    adj_list_[dst].push_back({ src, eid });
   }
 
-  edge_id_type erase_adjacent(const int src, const int dst) {
-    edge_id_type ret = edge_end()->id();
+  int erase_adjacent(const int src, const int dst) {
+    int ret = num_edges();
 
     auto pred_gen = [](int other) {
-      return [=](const AdjEntry &adj) { return adj.dst == other; };
+      return [other](const AdjEntry &adj) { return adj.dst == other; };
     };
 
     std::vector<AdjEntry> &src_adjs = adj_list_[src];
@@ -874,9 +904,8 @@ private:
     return ret;
   }
 
-  stored_edge_id_type promote_const_eid(edge_id_type eid) {
-    return edges_.erase(eid, eid);
-  }
+  void erase_edges_common(std::vector<int> &edge_keep, int first_erased_id,
+                          bool erase_trailing);
 
   AdjRef adjacent(int nid, int idx) {
     AdjEntry &adj = adj_list_[nid][idx];
@@ -890,32 +919,10 @@ private:
 
   std::vector<std::vector<AdjEntry>> adj_list_;
   std::vector<NT> nodes_;
-  std::list<StoredEdge> edges_;
+  std::vector<StoredEdge> edges_;
 };
 
 /* Out-of-line definitions */
-
-template <class NT, class ET>
-Graph<NT, ET>::Graph(const Graph &other)
-    : adj_list_(other.num_nodes()), nodes_(other.nodes_), edges_(other.edges_) {
-  for (auto eit = edges_.begin(); eit != edges_.end(); ++eit) {
-    add_adjacency_entry(eit);
-  }
-}
-
-template <class NT, class ET>
-Graph<NT, ET> &Graph<NT, ET>::operator=(const Graph &other) {
-  if (this != &other) {
-    adj_list_ = std::vector<std::vector<AdjEntry>>(other.num_nodes());
-    nodes_ = other.nodes_;
-    edges_ = other.edges_;
-
-    for (auto eit = edges_.begin(); eit != edges_.end(); ++eit) {
-      add_adjacency_entry(eit);
-    }
-  }
-  return *this;
-}
 
 template <class NT, class ET>
 template <class Iterator, class>
@@ -923,9 +930,8 @@ std::pair<int, std::vector<int>> Graph<NT, ET>::erase_nodes(Iterator begin,
                                                             Iterator end) {
   // Note: the time complexity notations are only for very sparse graphs, i.e.,
   // E = O(V).
-  if (begin == end) {
+  if (begin == end)
     return { size(), {} };
-  }
 
   // Phase I: mark nodes for removal, O(V)
   std::vector<int> node_keep(num_nodes(), 1);
@@ -934,12 +940,6 @@ std::pair<int, std::vector<int>> Graph<NT, ET>::erase_nodes(Iterator begin,
     int nid = *it;
     node_keep[nid] = 0;
     first_erased_id = std::min(first_erased_id, nid);
-    for (AdjEntry &adj: adj_list_[nid]) {
-      erase_first(adj_list_[adj.dst],
-                  [&](const auto &neigh) { return neigh.dst == nid; });
-      edges_.erase(adj.eid);
-    }
-    adj_list_[nid].clear();
   }
 
   bool erase_trailing = true;
@@ -963,9 +963,8 @@ Graph<NT, ET>::erase_nodes(const const_iterator begin, const const_iterator end,
   // E = O(V).
 
   // This will also handle size() == 0 case correctly.
-  if (begin >= end) {
+  if (begin >= end)
     return { size(), {} };
-  }
 
   // Phase I: mark nodes for removal, O(V)
   std::vector<int> node_keep(num_nodes(), 1);
@@ -974,20 +973,15 @@ Graph<NT, ET>::erase_nodes(const const_iterator begin, const const_iterator end,
   for (auto it = begin; it != end; ++it) {
     if (pred(*it)) {
       int nid = it->id();
+
       // GCOV_EXCL_START
       ABSL_ASSUME(nid >= 0);
       // GCOV_EXCL_STOP
-      if (first_erased_id < 0) {
+
+      if (first_erased_id < 0)
         first_erased_id = nid;
-      }
 
       node_keep[nid] = 0;
-      for (AdjEntry &adj: adj_list_[nid]) {
-        erase_first(adj_list_[adj.dst],
-                    [&](const auto &neigh) { return neigh.dst == nid; });
-        edges_.erase(adj.eid);
-      }
-      adj_list_[nid].clear();
     } else if (first_erased_id >= 0) {
       erase_trailing = false;
     }
@@ -1002,11 +996,15 @@ void Graph<NT, ET>::erase_nodes_common(std::vector<int> &node_keep,
                                        const int first_erased_id,
                                        const bool erase_trailing) {
   // Fast path 1: no node is erased
-  if (first_erased_id < 0 || first_erased_id >= num_nodes()) {
+  if (first_erased_id < 0 || first_erased_id >= num_nodes())
     return;
-  }
 
-  // Phase II: erase unused adjacencies
+  // Phase I: erase the edges
+  erase_edges(edge_begin(), edge_end(), [&](ConstEdgeRef edge) {
+    return node_keep[edge.src().id()] == 0 || node_keep[edge.dst().id()] == 0;
+  });
+
+  // Phase II: erase the nodes & adjacencies
   if (erase_trailing) {
     // Fast path 2: if only trailing nodes are erased, no node number needs to
     // be updated.
@@ -1016,24 +1014,20 @@ void Graph<NT, ET>::erase_nodes_common(std::vector<int> &node_keep,
     adj_list_.resize(nodes_.size());
     return;
   }
+
   // Erase unused nodes and adjacencies, O(V)
-  {
-    int i = 0;
-    erase_if(nodes_, [&](const NT &) { return node_keep[i++] == 0; });
-    i = 0;
-    erase_if(adj_list_, [&](const std::vector<AdjEntry> &) {
-      return node_keep[i++] == 0;
-    });
-  }
+  int i = 0;
+  erase_if(nodes_, [&](const NT &) { return node_keep[i++] == 0; });
+  i = 0;
+  erase_if(adj_list_,
+           [&](const std::vector<AdjEntry> &) { return node_keep[i++] == 0; });
 
   // Phase III: update the node numbers in adjacencies and edges, O(V+E)
   mask_to_map(node_keep);
 
-  for (std::vector<AdjEntry> &adjs: adj_list_) {
-    for (AdjEntry &adj: adjs) {
+  for (std::vector<AdjEntry> &adjs: adj_list_)
+    for (AdjEntry &adj: adjs)
       adj.dst = node_keep[adj.dst];
-    }
-  }
 
   for (StoredEdge &edge: edges_) {
     edge.src = node_keep[edge.src];
@@ -1047,23 +1041,118 @@ void Graph<NT, ET>::erase_nodes_common(std::vector<int> &node_keep,
 }
 
 template <class NT, class ET>
-typename Graph<NT, ET>::edge_iterator
-Graph<NT, ET>::erase_edge(const const_edge_iterator it) {
-  auto pred = [&](const auto &adj) { return adj.eid == it->id(); };
+bool Graph<NT, ET>::erase_edge_between(int src, int dst) {
+  int eid = erase_adjacent(src, dst), orig_edges = num_edges();
+  if (eid >= orig_edges)
+    return false;
 
-  erase_first(adj_list_[it->src()], pred);
-  erase_first(adj_list_[it->dst()], pred);
-  return edges_.erase(it->id());
+  edges_.erase(edges_.begin() + eid);
+
+  if (eid != orig_edges - 1) {
+    for (std::vector<AdjEntry> &adjs: adj_list_) {
+      for (AdjEntry &adj: adjs) {
+        if (adj.eid > eid)
+          --adj.eid;
+      }
+    }
+  }
+
+  return true;
 }
 
 template <class NT, class ET>
-bool Graph<NT, ET>::erase_edge_between(int src, int dst) {
-  auto id = erase_adjacent(src, dst);
-  if (id != edge_end()->id()) {
-    edges_.erase(id);
-    return true;
+template <class UnaryPred>
+std::pair<int, std::vector<int>>
+Graph<NT, ET>::erase_edges(const_edge_iterator begin, const_edge_iterator end,
+                           UnaryPred pred) {
+  // This will also handle size() == 0 case correctly.
+  if (begin >= end)
+    return { size(), {} };
+
+  // Phase I: mark edges for removal, O(E)
+  std::vector<int> edge_keep(num_edges(), 1);
+  int first_erased_id = -1;
+  bool erase_trailing = end == this->edge_end();
+  for (auto it = begin; it != end; ++it) {
+    if (pred(*it)) {
+      int eid = it->id();
+      // GCOV_EXCL_START
+      ABSL_ASSUME(eid >= 0);
+      // GCOV_EXCL_STOP
+      if (first_erased_id < 0)
+        first_erased_id = eid;
+
+      edge_keep[eid] = 0;
+    } else if (first_erased_id >= 0) {
+      erase_trailing = false;
+    }
   }
-  return false;
+
+  erase_edges_common(edge_keep, first_erased_id, erase_trailing);
+  return { erase_trailing ? first_erased_id : -1, std::move(edge_keep) };
+}
+
+template <class NT, class ET>
+template <class Iterator, class>
+std::pair<int, std::vector<int>> Graph<NT, ET>::erase_edges(Iterator begin,
+                                                            Iterator end) {
+  // This will also handle size() == 0 case correctly.
+  if (begin >= end)
+    return { size(), {} };
+
+  // Phase I: mark edges for removal, O(E)
+  std::vector<int> edge_keep(num_edges(), 1);
+  int first_erased_id = num_edges();
+  for (auto it = begin; it != end; ++it) {
+    int eid = *it;
+    edge_keep[eid] = 0;
+    first_erased_id = std::min(first_erased_id, eid);
+  }
+
+  bool erase_trailing = true;
+  for (int i = num_edges() - 1; i >= first_erased_id; --i) {
+    if (edge_keep[i] == 1) {
+      erase_trailing = false;
+      break;
+    }
+  }
+
+  erase_edges_common(edge_keep, first_erased_id, erase_trailing);
+  return { erase_trailing ? first_erased_id : -1, std::move(edge_keep) };
+}
+
+template <class NT, class ET>
+void Graph<NT, ET>::erase_edges_common(std::vector<int> &edge_keep,
+                                       int first_erased_id,
+                                       bool erase_trailing) {
+  // Fast path 1: no edge is erased
+  if (first_erased_id < 0 || first_erased_id >= num_edges())
+    return;
+
+  // Phase II: erase unused adjacencies
+  for (std::vector<AdjEntry> &adjs: adj_list_)
+    erase_if(adjs,
+             [&](const AdjEntry &adj) { return edge_keep[adj.eid] == 0; });
+
+  // Fast path 2: if only trailing edges are erased, no edge number needs to
+  // be updated.
+  if (erase_trailing) {
+    ABSL_DLOG(INFO) << "resizing edge list";
+    // O(1) operation
+    edges_.resize(first_erased_id);
+    return;
+  }
+
+  // Phase III: erase the edges
+  int i = 0;
+  erase_if(edges_, [&](const StoredEdge &) { return edge_keep[i++] == 0; });
+
+  // Phase IV: update the edge numbers in adjacencies, O(V+E)
+  mask_to_map(edge_keep);
+
+  for (std::vector<AdjEntry> &adjs: adj_list_)
+    for (AdjEntry &adj: adjs)
+      adj.eid = edge_keep[adj.eid];
 }
 
 namespace internal {
@@ -1198,8 +1287,8 @@ namespace internal {
     using Base::Base;
 
     // Might look strange, but this is to provide all comparisons between
-    // all types of iterators (due to boost implementation). However, they could
-    // not be really constructed, so we static_assert to prevent misuse.
+    // all types of iterators (due to boost implementation). However, they
+    // could not be really constructed, so we static_assert to prevent misuse.
 
     template <
         class SGU, bool other_const,
@@ -1285,7 +1374,8 @@ namespace internal {
     using reference = typename Traits::reference;
 
     static_assert(!GraphTraits<SGT>::is_const || is_const,
-                  "Cannot create non-const SubAdjIterator from const Subgraph");
+                  "Cannot create non-const SubAdjIterator from const "
+                  "Subgraph");
 
     constexpr SubAdjIterator(parent_type &subgraph, int src,
                              parent_adjacency_iterator ait) noexcept
@@ -1294,8 +1384,8 @@ namespace internal {
     }
 
     // Might look strange, but this is to provide all comparisons between
-    // all types of iterators (due to boost implementation). However, they could
-    // not be really constructed, so we static_assert to prevent misuse.
+    // all types of iterators (due to boost implementation). However, they
+    // could not be really constructed, so we static_assert to prevent misuse.
 
     template <
         class SGU, bool other_const,
@@ -1377,37 +1467,42 @@ namespace internal {
     parent_adjacency_iterator ait_;
   };
 
-  template <class GT, bool is_const>
+  template <class SGT, bool is_const>
   class SubEdgeWrapper {
   public:
-    using DT = typename GT::edge_data_type;
+    using DT = typename SGT::edge_data_type;
 
-    using edge_id_type = typename GT::edge_id_type;
+    using parent_type = const_if_t<is_const, SGT>;
     using value_type = const_if_t<is_const, DT>;
 
     template <bool other_const>
-    using Other = SubEdgeWrapper<GT, other_const>;
+    using Other = SubEdgeWrapper<SGT, other_const>;
 
-  private:
-    using EIT = std::conditional_t<is_const, edge_id_type,
-                                   typename GT::stored_edge_id_type>;
+    static_assert(!GraphTraits<SGT>::is_const || is_const,
+                  "Cannot create non-const SubEdgeWrapper from const "
+                  "Subgraph");
 
-  public:
-    constexpr SubEdgeWrapper(int src, int dst, EIT eid) noexcept
-        : src_(src), dst_(dst), eid_(eid) { }
+    constexpr SubEdgeWrapper(int src, int dst, int eid, value_type &data,
+                             parent_type &subgraph) noexcept
+        : src_(src), dst_(dst), eid_(eid), data_(&data), subgraph_(&subgraph) {
+    }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     constexpr SubEdgeWrapper(const Other<other_const> &other) noexcept
-        : src_(other.src_), dst_(other.dst_), eid_(other.eid_) { }
+        : src_(other.src_), dst_(other.dst_), eid_(other.eid_),
+          data_(other.data_), subgraph_(other.subgraph_) { }
 
-    constexpr edge_id_type id() const noexcept { return eid_; }
-    constexpr int src() const noexcept { return src_; }
-    constexpr int dst() const noexcept { return dst_; }
+    constexpr auto src() const noexcept { return subgraph_->node(src_); }
+    constexpr auto dst() const noexcept { return subgraph_->node(dst_); }
 
-    constexpr value_type &data() const noexcept { return eid_->data; }
+    constexpr value_type &data() const noexcept { return *data_; }
 
     constexpr Other<true> as_const() const noexcept { return *this; }
+
+    EdgeWrapper<typename SGT::graph_type, is_const> as_parent() const noexcept {
+      return subgraph_->parent().edge(eid_);
+    }
 
   private:
     template <class, bool>
@@ -1421,7 +1516,9 @@ namespace internal {
 
     int src_;
     int dst_;
-    EIT eid_;
+    int eid_;
+    value_type *data_;
+    parent_type *subgraph_;
   };
 
   template <class EFT, bool is_const>
@@ -1445,8 +1542,8 @@ namespace internal {
     using Base::Base;
 
     // Might look strange, but this is to provide all comparisons between
-    // all types of iterators (due to boost implementation). However, they could
-    // not be really constructed, so we static_assert to prevent misuse.
+    // all types of iterators (due to boost implementation). However, they
+    // could not be really constructed, so we static_assert to prevent misuse.
 
     template <
         class EFU, bool other_const,
@@ -1508,10 +1605,9 @@ namespace internal {
   template <class SGT, bool is_const>
   class SubEdgesFinder {
   public:
-    using graph_type = typename SGT::graph_type;
-    using parent_type = typename SGT::parent_type;
+    using graph_type = SGT;
+    using parent_type = const_if_t<is_const, SGT>;
 
-    using edge_id_type = typename SGT::edge_id_type;
     using edge_data_type = typename SGT::edge_data_type;
 
     using iterator = SubEdgeIterator<SubEdgesFinder, is_const>;
@@ -1521,7 +1617,8 @@ namespace internal {
     using ConstEdgeRef = typename const_iterator::value_type;
 
     static_assert(!GraphTraits<SGT>::is_const || is_const,
-                  "Cannot create non-const SubEdgesFinder from const Subgraph");
+                  "Cannot create non-const SubEdgesFinder from const "
+                  "Subgraph");
 
     template <class SGU, bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
@@ -1561,7 +1658,15 @@ namespace internal {
 
     int size() const { return static_cast<int>(edges_.size()) - 1; }
 
-    EdgeRef operator[](int idx) const { return edges_[idx]; }
+    EdgeRef operator[](int idx) {
+      auto [src, dst, eid] = edges_[idx];
+      return { src, dst, eid, subgraph_->edge(eid).data(), *subgraph_ };
+    }
+
+    ConstEdgeRef operator[](int idx) const {
+      auto [src, dst, eid] = edges_[idx];
+      return { src, dst, eid, subgraph_->edge(eid).data(), *subgraph_ };
+    }
 
     iterator begin() { return { this, 0 }; }
     iterator end() { return { this, size() }; }
@@ -1572,16 +1677,21 @@ namespace internal {
     const_iterator cend() const { return { this, size() }; }
 
   private:
-    static std::vector<EdgeRef>
+    struct SubEdgeInfo {
+      int src;
+      int dst;
+      int eid;
+    };
+
+    static std::vector<SubEdgeInfo>
     find_edges(const_if_t<is_const, SGT> &subgraph) {
-      std::vector<EdgeRef> edges;
+      std::vector<SubEdgeInfo> edges;
       std::stack<int, std::vector<int>> stack;
       std::vector<int> visited(subgraph.num_nodes(), 0);
 
       for (int i = 0; i < subgraph.size(); ++i) {
-        if (visited[i] != 0) {
+        if (visited[i] != 0)
           continue;
-        }
 
         visited[i] = 1;
         stack.push(i);
@@ -1592,9 +1702,8 @@ namespace internal {
 
           for (auto nei: subgraph[u]) {
             int v = nei.dst().id();
-            if (u < v) {
+            if (u < v)
               edges.push_back({ u, v, nei.eid_ });
-            }
 
             if (visited[v] == 0) {
               visited[v] = 1;
@@ -1604,13 +1713,13 @@ namespace internal {
         }
       }
 
-      edges.push_back({ -1, -1, subgraph.parent().edge_end().eid_ });
+      edges.push_back({ -1, -1, subgraph.parent().num_edges() });
 
       return edges;
     }
 
     const_if_t<is_const, SGT> *subgraph_;
-    std::vector<EdgeRef> edges_;
+    std::vector<SubEdgeInfo> edges_;
   };
 
   class SortedNodes {
@@ -1715,11 +1824,13 @@ namespace internal {
  * @tparam ET edge data type
  * @tparam is_const whether the subgraph is const. This is to support creating
  *         subgraphs of const graphs.
- * @note Removing nodes/edges on the parent graph will invalidate the subgraph.
+ * @note Removing nodes/edges on the parent graph will invalidate the
+ * subgraph.
  *
- * The subgraph is a non-owning view of a graph. A subgraph could be constructed
- * by selecting nodes of the parent graph. The resulting subgraph will contain
- * only the nodes and edges that are incident to the selected nodes.
+ * The subgraph is a non-owning view of a graph. A subgraph could be
+ * constructed by selecting nodes of the parent graph. The resulting subgraph
+ * will contain only the nodes and edges that are incident to the selected
+ * nodes.
  *
  * The subgraph has very similar API to the graph. Here, we note major
  * differences:
@@ -1730,9 +1841,9 @@ namespace internal {
  *   - Some methods have different time complexity requirements. Refer to the
  *     documentation of each method for details.
  *
- * In all time complexity specifications, \f$V\f$ and \f$E\f$ are the number of
- * nodes and edges in the parent graph, and \f$V'\f$ and \f$E'\f$ are the number
- * of nodes and edges in the subgraph, respectively.
+ * In all time complexity specifications, \f$V\f$ and \f$E\f$ are the number
+ * of nodes and edges in the parent graph, and \f$V'\f$ and \f$E'\f$ are the
+ * number of nodes and edges in the subgraph, respectively.
  */
 template <class NT, class ET, bool is_const = false>
 class Subgraph {
@@ -1742,7 +1853,6 @@ public:
 
   using node_data_type = NT;
   using edge_data_type = ET;
-  using edge_id_type = typename parent_type::edge_id_type;
 
   using iterator = internal::SubNodeIterator<Subgraph, is_const>;
   using node_iterator = iterator;
@@ -1798,8 +1908,8 @@ public:
       : parent_(&graph), nodes_(std::move(nodes)) { }
 
   /**
-   * @brief Converting constructor to allow implicit conversion from a non-const
-   *        subgraph to a const subgraph.
+   * @brief Converting constructor to allow implicit conversion from a
+   * non-const subgraph to a const subgraph.
    *
    * @param other The non-const subgraph
    */
@@ -1809,8 +1919,8 @@ public:
       : parent_(other.parent_), nodes_(other.nodes_) { }
 
   /**
-   * @brief Converting constructor to allow implicit conversion from a non-const
-   *        subgraph to a const subgraph.
+   * @brief Converting constructor to allow implicit conversion from a
+   * non-const subgraph to a const subgraph.
    *
    * @param other The non-const subgraph
    */
@@ -1922,8 +2032,8 @@ public:
    * @brief Add a node to the subgraph
    *
    * @param id The id of the node to add
-   * @note If the node is already in the subgraph, this is a no-op. If the node
-   *       id is out of range, the behavior is undefined.
+   * @note If the node is already in the subgraph, this is a no-op. If the
+   * node id is out of range, the behavior is undefined.
    */
   void add_node(int id) { return nodes_.insert(id); }
 
@@ -2117,8 +2227,8 @@ public:
   /**
    * @brief Re-map node ids
    *
-   * @param old_to_new A vector that maps old node ids to new node ids, so that
-   *        old_to_new[old_id] = new_id. If old_to_new[old_id] < 0, then the
+   * @param old_to_new A vector that maps old node ids to new node ids, so
+   * that old_to_new[old_id] = new_id. If old_to_new[old_id] < 0, then the
    *        node is removed from the subgraph.
    * @note Time complexity: \f$O(V')\f$.
    */
@@ -2177,7 +2287,8 @@ public:
    *
    * @param src The index of one node
    * @param dst The index of the other node
-   * @return An iterator to the adjacent node if found, adj_end(src) otherwise.
+   * @return An iterator to the adjacent node if found, adj_end(src)
+   * otherwise.
    * @note This will only find edges that are in the subgraph.
    * @note Time complexity: \f$O(V/E)\f$.
    */
@@ -2233,16 +2344,23 @@ private:
   template <class, bool>
   friend class internal::AdjWrapper;
 
-  using stored_edge_id_type = typename graph_type::stored_edge_id_type;
+  template <class, bool>
+  friend class internal::SubEdgesFinder;
+
+  // Only for AdjWrapper!
+
+  auto edge(int eid) { return parent().edge(eid); }
+
+  auto edge(int eid) const { return parent().edge(eid); }
 
   template <class SGT>
   static auto find_adj_helper(SGT &graph, int src, int dst) {
     auto ret = graph.adj_begin(src);
-    for (; ret != graph.adj_end(src); ++ret) {
-      if (ret->dst().id() == dst) {
+
+    for (; ret != graph.adj_end(src); ++ret)
+      if (ret->dst().id() == dst)
         break;
-      }
-    }
+
     return ret;
   }
 
@@ -2322,9 +2440,8 @@ namespace internal {
       q.pop();
 
       auto [_, inserted] = visited.insert(atom);
-      if (!inserted) {
+      if (!inserted)
         continue;
-      }
 
       for (auto ait = g.adj_begin(atom); !ait.end(); ++ait) {
         int dst = ait->dst().id();
@@ -2353,16 +2470,14 @@ absl::flat_hash_set<int> connected_components(const Graph<NT, ET> &g, int begin,
 
   for (auto ait = g.adj_begin(begin); !ait.end(); ++ait) {
     int dst = ait->dst().id();
-    if (dst != exclude) {
+    if (dst != exclude)
       q.push(dst);
-    }
   }
 
   internal::connected_components_impl(g, visited, q);
 
-  if (visited.contains(exclude)) {
+  if (visited.contains(exclude))
     return {};
-  }
 
   return visited;
 }
