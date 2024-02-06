@@ -1890,6 +1890,8 @@ namespace internal {
 
   extern int sum_bond_order(Molecule::Atom atom, bool aromatic_correct);
 
+  extern int steric_number(int total_degree, int nb_electrons);
+
   extern constants::Hybridization from_degree(int total_degree,
                                               int nb_electrons);
 

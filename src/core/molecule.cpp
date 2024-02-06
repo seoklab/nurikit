@@ -693,12 +693,16 @@ namespace internal {
     return pie_estimate;
   }
 
+  int steric_number(const int total_degree, const int nb_electrons) {
+    const int lone_pairs = nb_electrons / 2;
+    return total_degree + lone_pairs;
+  }
+
   constants::Hybridization from_degree(const int total_degree,
                                        const int nb_electrons) {
-    const int lone_pairs = nb_electrons / 2 + nb_electrons % 2,
-              steric_number = total_degree + lone_pairs;
+    int sn = steric_number(total_degree, nb_electrons);
     return static_cast<constants::Hybridization>(
-        std::min(steric_number, static_cast<int>(constants::kOtherHyb)));
+        std::min(sn, static_cast<int>(constants::kOtherHyb)));
   }
 }  // namespace internal
 
