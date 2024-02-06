@@ -133,36 +133,34 @@ void Molecule::erase_hydrogens() {
 }
 
 namespace {
-  void rotate_points(MatrixX3d &coords, const std::vector<int> &moving_idxs,
+  void rotate_points(Matrix3Xd &coords, const std::vector<int> &moving_idxs,
                      int ref, int pivot, double angle) {
-    auto view = swap_axis<Eigen::Matrix3Xd>(coords);
-
-    Eigen::Vector3d pv = view.col(pivot);
+    Eigen::Vector3d pv = coords.col(pivot);
     Eigen::Affine3d rotation =
         Eigen::Translation3d(pv)
-        * Eigen::AngleAxisd(deg2rad(angle), (pv - view.col(ref)).normalized())
+        * Eigen::AngleAxisd(deg2rad(angle), (pv - coords.col(ref)).normalized())
         * Eigen::Translation3d(-pv);
 
     auto rotate_helper = [&](auto moving) { moving = rotation * moving; };
-    rotate_helper(view(Eigen::all, moving_idxs));
+    rotate_helper(coords(Eigen::all, moving_idxs));
   }
 }  // namespace
 
-int Molecule::add_conf(const MatrixX3d &pos) {
+int Molecule::add_conf(const Matrix3Xd &pos) {
   const int ret = static_cast<int>(conformers_.size());
   conformers_.push_back(pos);
   return ret;
 }
 
-int Molecule::add_conf(MatrixX3d &&pos) noexcept {
+int Molecule::add_conf(Matrix3Xd &&pos) noexcept {
   const int ret = static_cast<int>(conformers_.size());
   conformers_.push_back(std::move(pos));
   return ret;
 }
 
 double Molecule::distsq(int src, int dst, int conf) const {
-  const MatrixX3d &pos = conformers_[conf];
-  return (pos.row(dst) - pos.row(src)).squaredNorm();
+  const Matrix3Xd &pos = conformers_[conf];
+  return (pos.col(dst) - pos.col(src)).squaredNorm();
 }
 
 ArrayXd Molecule::bond_lengths(int conf) const {
@@ -385,13 +383,13 @@ void MoleculeMutator::discard_erasure() noexcept {
 }
 
 namespace {
-  void remap_confs(std::vector<MatrixX3d> &confs, const int added_size,
+  void remap_confs(std::vector<Matrix3Xd> &confs, const int added_size,
                    const int new_size, const bool is_trailing,
                    const std::vector<int> &old_to_new) {
     // Only trailing nodes are removed
     if (is_trailing) {
-      for (MatrixX3d &conf: confs)
-        conf.conservativeResize(new_size, Eigen::NoChange);
+      for (Matrix3Xd &conf: confs)
+        conf.conservativeResize(Eigen::NoChange, new_size);
       return;
     }
 
@@ -407,8 +405,8 @@ namespace {
         idxs.push_back(i);
     }
 
-    for (MatrixX3d &conf: confs) {
-      MatrixX3d updated = conf(idxs, Eigen::all);
+    for (Matrix3Xd &conf: confs) {
+      Matrix3Xd updated = conf(Eigen::all, idxs);
       conf = std::move(updated);
     }
   }
@@ -424,8 +422,8 @@ void MoleculeMutator::finalize() noexcept {
   Molecule::GraphType &g = mol().graph_;
   const int added_size = mol().num_atoms();
   if (added_size > prev_num_atoms_)
-    for (MatrixX3d &conf: mol().conformers_)
-      conf.conservativeResize(added_size, Eigen::NoChange);
+    for (Matrix3Xd &conf: mol().conformers_)
+      conf.conservativeResize(Eigen::NoChange, added_size);
 
   // As per the spec, the order is:
   // 1. Erase bonds

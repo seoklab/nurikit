@@ -406,7 +406,7 @@ namespace {
     const auto mark_edge = [&](Molecule::Neighbor nei) {
       auto it = edge_map.find(&*nei.eid());
       ABSL_DCHECK(it != edge_map.end());
-      m.set(cycle_idx, it->second);
+      m.set(it->second, cycle_idx);
       used_edges[it->second] = 1;
     };
 
@@ -481,10 +481,10 @@ namespace {
                        })
           - c_ip.begin());
 
-      // Remove eliminated rows
+      // Remove eliminated cols
       for (int original = 0, updated = 0; original < basis.size(); ++original) {
         if (basis[original] != 0 && original != updated++) {
-          m.move_row(original, updated);
+          m.move_col(original, updated);
         }
       }
 

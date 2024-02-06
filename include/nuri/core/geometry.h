@@ -16,7 +16,7 @@
 
 namespace nuri {
 namespace internal {
-  using Array8i = Array<int, 1, 8>;
+  using Array8i = Array<int, 8, 1>;
 
   class OCTreeNode {
   public:
@@ -43,9 +43,9 @@ class OCTree {
 public:
   OCTree(): pts_(nullptr) { }
 
-  OCTree(const MatrixX3d &pts) { rebuild(pts); }
+  OCTree(const Matrix3Xd &pts) { rebuild(pts); }
 
-  void rebuild(const MatrixX3d &pts);
+  void rebuild(const Matrix3Xd &pts);
 
   void find_neighbors_k(const Vector3d &pt, int k, std::vector<int> &idxs,
                         std::vector<double> &distsq) const;
@@ -58,7 +58,7 @@ public:
                          std::vector<int> &idxs,
                          std::vector<double> &distsq) const;
 
-  const MatrixX3d &pts() const { return *pts_; }
+  const Matrix3Xd &pts() const { return *pts_; }
 
   const Vector3d &max() const { return max_; }
 
@@ -75,7 +75,7 @@ public:
   const internal::OCTreeNode &operator[](int idx) const { return nodes_[idx]; }
 
 private:
-  const MatrixX3d *pts_;
+  const Matrix3Xd *pts_;
   Vector3d max_;
   Vector3d len_;
   std::vector<internal::OCTreeNode> nodes_;
@@ -103,13 +103,13 @@ template <class MatrixLike>
 auto pdistsq(const MatrixLike &m) {
   using DT = typename MatrixLike::Scalar;
 
-  const Eigen::Index n = m.rows();
+  const Eigen::Index n = m.cols();
   ArrayX<DT> distsq(n * (n - 1) / 2);
 
   for (Eigen::Index i = 0, k = 0; i < n - 1; ++i) {
-    Vector3<DT> v = m.row(i);
+    Vector3<DT> v = m.col(i);
     for (Eigen::Index j = i + 1; j < n; ++j, ++k) {
-      distsq[k] = (v - m.row(j)).squaredNorm();
+      distsq[k] = (v - m.col(j)).squaredNorm();
     }
   }
 
@@ -168,10 +168,9 @@ inline double cos_angle(const Vector3d &o, const Vector3d &a,
  */
 template <class Scalar, class Indexer, int N, auto... Extra>
 inline std::pair<Scalar, Scalar>
-sum_tan2_half(const Eigen::Matrix<Scalar, N, 3, 1, Extra...> &m,
-              const Indexer &idxs) {
-  double csum = (m + m(idxs, Eigen::all)).rowwise().norm().sum(),
-         ssum = (m - m(idxs, Eigen::all)).rowwise().norm().sum();
+sum_tan2_half(const Matrix<Scalar, 3, N, 0, Extra...> &m, const Indexer &idxs) {
+  double csum = (m + m(Eigen::all, idxs)).colwise().norm().sum(),
+         ssum = (m - m(Eigen::all, idxs)).colwise().norm().sum();
   return std::make_pair(ssum, csum);
 }
 
@@ -189,9 +188,9 @@ sum_tan2_half(const Eigen::Matrix<Scalar, N, 3, 1, Extra...> &m,
  */
 template <class Scalar, int N, auto... Extra>
 inline std::pair<Scalar, Scalar>
-sum_tan2_half(const Eigen::Matrix<Scalar, N, 3, 1, Extra...> &m) {
+sum_tan2_half(const Matrix<Scalar, 3, N, 0, Extra...> &m) {
   if constexpr (N == Eigen::Dynamic) {
-    CyclicIndex<1> idxs(m.rows());
+    CyclicIndex<1> idxs(m.cols());
     return sum_tan2_half(m, idxs);
   }
 
@@ -244,18 +243,15 @@ inline double cos_dihedral(const Vector3d &a, const Vector3d &b,
  */
 template <class MatrixLike>
 Vector4d fit_plane(const MatrixLike &pts, bool normalize = true) {
-  Vector3d cntr = pts.colwise().mean();
-  MatrixXd m = pts.rowwise() - cntr;
-
-  auto cm = swap_axis<Eigen::MatrixXd>(m);
-  auto svd = cm.jacobiSvd(Eigen::ComputeThinU);
+  Vector3d cntr = pts.rowwise().mean();
+  MatrixXd m = pts.colwise() - cntr;
+  auto svd = m.jacobiSvd(Eigen::ComputeThinU);
 
   Vector4d ret;
-  ret.leftCols(3) = svd.matrixU().col(2);
-  if (normalize) {
-    ret.leftCols(3).normalize();
-  }
-  ret[3] = -ret.leftCols(3).dot(cntr);
+  ret.head<3>() = svd.matrixU().col(2);
+  if (normalize)
+    ret.head<3>().normalize();
+  ret[3] = -ret.head<3>().dot(cntr);
   return ret;
 }
 }  // namespace nuri

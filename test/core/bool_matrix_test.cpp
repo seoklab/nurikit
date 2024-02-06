@@ -19,35 +19,33 @@ TEST(BoolMatrixTest, EliminationTest) {
    *  [0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
    *  [1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1],
    *  [0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1],
-   *  [0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 0]]
+   *  [0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 0]] (transposed)
    */
-  BoolMatrix mat(6, 12);
+  BoolMatrix mat(12, 6);
 
-  int r = 0;
-  auto assign_row = [&, r](std::vector<bool> row) mutable {
-    for (int j = 0; j < row.size(); ++j) {
-      mat.assign(r, j, row[j]);
-    }
-    ++r;
+  int c = 0;
+  auto assign_col = [&, c](std::vector<bool> col) mutable {
+    for (int i = 0; i < col.size(); ++i)
+      mat.assign(i, c, col[i]);
+    ++c;
   };
 
-  assign_row({ false, true, false, false, true, false, false, true, true, true,
+  assign_col({ false, true, false, false, true, false, false, true, true, true,
                false, true });
-  assign_row({ true, false, false, false, false, false, false, true, false,
+  assign_col({ true, false, false, false, false, false, false, true, false,
                true, false, false });
-  assign_row({ false, true, false, true, true, false, false, false, false,
+  assign_col({ false, true, false, true, true, false, false, false, false,
                false, false, false });
-  assign_row({ true, true, false, true, true, false, false, true, true, false,
+  assign_col({ true, true, false, true, true, false, false, true, true, false,
                false, true });
-  // Dependent row (0 ^ 2 = 4)
-  assign_row({ false, false, false, true, false, false, false, true, true, true,
+  // Dependent col (0 ^ 2 = 4)
+  assign_col({ false, false, false, true, false, false, false, true, true, true,
                false, true });
-  assign_row({ false, false, false, true, true, true, false, false, false, true,
+  assign_col({ false, false, false, true, true, true, false, false, false, true,
                true, false });
 
   std::vector<int> result = mat.gaussian_elimination();
-  for (int i = 0; i < result.size(); ++i) {
+  for (int i = 0; i < result.size(); ++i)
     EXPECT_EQ(static_cast<bool>(result[i]), i != 4);
-  }
 }
 }  // namespace
