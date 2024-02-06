@@ -16,6 +16,7 @@
 #include <vector>
 
 #include <boost/iterator/iterator_facade.hpp>
+#include <Eigen/Dense>
 
 #include <absl/base/optimization.h>
 #include <absl/container/flat_hash_set.h>
@@ -1063,6 +1064,27 @@ bool Graph<NT, ET>::erase_edge_between(int src, int dst) {
     return true;
   }
   return false;
+}
+
+namespace internal {
+  template <class GT, bool is_const>
+  class EigenNeighborIndexer {
+  public:
+    EigenNeighborIndexer(NodeWrapper<GT, is_const> node): node_(node) { }
+
+    int size() const { return node_.degree(); }
+
+    int operator[](int i) const { return node_[i].dst().id(); }
+
+  private:
+    NodeWrapper<GT, is_const> node_;
+  };
+}  // namespace internal
+
+template <class GT, bool is_const>
+internal::EigenNeighborIndexer<GT, is_const>
+as_index(internal::NodeWrapper<GT, is_const> node) {
+  return { node };
 }
 
 template <class, class, bool>
