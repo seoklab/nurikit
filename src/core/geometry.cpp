@@ -151,12 +151,13 @@ namespace {
 
   using PQ = internal::ClearablePQ<PQEntry, decltype(&pq_cmp)>;
 
-  int octant_idx(const Array3d &diff) {
-    Array3i isneg = (diff < 0.).cast<int>();
+  int octant_idx(const Vector3d &diff) {
+    Array3i isneg = (diff.array() < 0.).cast<int>();
     return (isneg.x() << 2) | (isneg.y() << 1) | (isneg.z() << 0);
   }
 
-  Array8d octant_min_distsq(int octant, const Vector3d &ax_distsq) {
+  Array8d octant_min_distsq(int octant, const Vector3d &ax_distsq,
+                            double my_dsq = 0.0) {
     int idxs[8] = { octant,
                     // flip    x  ,             y ,              z,
                     octant ^ 0b100, octant ^ 0b010, octant ^ 0b001,
@@ -166,7 +167,7 @@ namespace {
                     octant ^ 0b111 };
 
     Array8d octant_distsq;
-    octant_distsq(idxs)[0] = 0;
+    octant_distsq(idxs)[0] = my_dsq;
     // neighbors
     octant_distsq(idxs).segment<3>(1) = ax_distsq;
     // diagonals
@@ -215,9 +216,10 @@ namespace {
       }
 
       Vector3d half = size * 0.5;
-      Array3d cntr_diff = pt - maxs + half;
+      Vector3d cntr_diff = pt - maxs + half;
       int octant = octant_idx(cntr_diff);
-      Array8d octant_distsq = octant_min_distsq(octant, cntr_diff.abs2());
+      Array8d octant_distsq =
+          octant_min_distsq(octant, cntr_diff.cwiseAbs2(), dsq);
 
       for (int i = 0; i < 8; ++i) {
         int cid = node[i];
@@ -260,9 +262,9 @@ namespace {
     }
 
     Vector3d half = size * 0.5;
-    Array3d cntr_diff = pt - maxs + half;
+    Vector3d cntr_diff = pt - maxs + half;
     int octant = octant_idx(cntr_diff);
-    Array8d octant_distsq = octant_min_distsq(octant, cntr_diff.abs2());
+    Array8d octant_distsq = octant_min_distsq(octant, cntr_diff.cwiseAbs2());
 
     for (int i = 0; i < 8; ++i) {
       int cid = node[i];
