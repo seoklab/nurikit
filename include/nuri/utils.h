@@ -10,12 +10,14 @@
 #include <cstddef>
 #include <filesystem>
 #include <functional>
+#include <initializer_list>
 #include <iterator>
 #include <memory>
 #include <numeric>
 #include <queue>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -24,6 +26,7 @@
 
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
+#include <absl/log/absl_check.h>
 #include <absl/strings/ascii.h>
 
 #include "nuri/eigen_config.h"
@@ -343,7 +346,113 @@ namespace internal {
     state = ps.state();
     return ps;
   }
+
+  template <class ZIT>
+  struct ZippedIteratorTraits;
+
+  template <template <class...> class ZIT, class Iter, class Jter>
+  struct ZippedIteratorTraits<ZIT<Iter, Jter>> {
+    using iterator_category = std::common_type_t<
+        typename std::iterator_traits<Iter>::iterator_category,
+        typename std::iterator_traits<Jter>::iterator_category>;
+    using difference_type =
+        std::common_type_t<typename std::iterator_traits<Iter>::difference_type,
+                           typename std::iterator_traits<Jter>::difference_type>;
+    using reference = std::pair<typename std::iterator_traits<Iter>::reference,
+                                typename std::iterator_traits<Jter>::reference>;
+  };
+
+  template <template <class...> class ZIT, class... Iters>
+  struct ZippedIteratorTraits<ZIT<Iters...>> {
+    using iterator_category = std::common_type_t<
+        typename std::iterator_traits<Iters>::iterator_category...>;
+    using difference_type = std::common_type_t<
+        typename std::iterator_traits<Iters>::difference_type...>;
+    using reference =
+        std::tuple<typename std::iterator_traits<Iters>::reference...>;
+  };
+
+  template <class Derived>
+  class ZippedIteratorBase
+      : public ProxyIterator<
+            Derived, typename ZippedIteratorTraits<Derived>::reference,
+            typename ZippedIteratorTraits<Derived>::iterator_category,
+            typename ZippedIteratorTraits<Derived>::difference_type> {
+    using Root = typename ZippedIteratorBase::iterator_facade_;
+    using Traits = std::iterator_traits<Root>;
+
+  public:
+    using iterator_category = typename Traits::iterator_category;
+    using value_type = typename Traits::value_type;
+    using difference_type = typename Traits::difference_type;
+    using pointer = typename Traits::pointer;
+    using reference = typename Traits::reference;
+  };
 }  // namespace internal
+
+template <class... Iters>
+class ZippedIterator
+    : public internal::ZippedIteratorBase<ZippedIterator<Iters...>> {
+  static_assert(sizeof...(Iters) > 1, "At least two iterators are required");
+
+  using Base = internal::ZippedIteratorBase<ZippedIterator>;
+
+public:
+  constexpr ZippedIterator() = default;
+
+  constexpr ZippedIterator(Iters... its): its_(its...) { }
+
+  template <size_t N = 0>
+  constexpr auto base() const {
+    return std::get<N>(its_);
+  }
+
+  template <size_t N = sizeof...(Iters), std::enable_if_t<N == 2, int> = 0>
+  constexpr auto first() const {
+    return base<0>();
+  }
+
+  template <size_t N = sizeof...(Iters), std::enable_if_t<N == 2, int> = 0>
+  constexpr auto second() const {
+    return base<1>();
+  }
+
+private:
+  friend class boost::iterator_core_access;
+
+  constexpr typename Base::reference dereference() const {
+    return std::apply(
+        [](auto &...it) { return typename Base::reference(*it...); }, its_);
+  }
+
+  constexpr bool equal(const ZippedIterator &rhs) const {
+    return base() == rhs.base();
+  }
+
+  constexpr void increment() {
+    std::apply([](auto &...it) { (static_cast<void>(++it), ...); }, its_);
+  }
+
+  constexpr void decrement() {
+    std::apply([](auto &...it) { (static_cast<void>(--it), ...); }, its_);
+  }
+
+  constexpr void advance(typename Base::difference_type n) {
+    std::apply([n](auto &...it) { (static_cast<void>(it += n), ...); }, its_);
+  }
+
+  constexpr typename Base::difference_type
+  distance_to(const ZippedIterator &lhs) const {
+    return lhs.base() - base();
+  }
+
+  std::tuple<Iters...> its_;
+};
+
+template <class... Iters>
+constexpr auto make_zipped_iterator(Iters... iters) {
+  return ZippedIterator<Iters...>(iters...);
+}
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
 constexpr inline E operator|(E lhs, E rhs) {
