@@ -675,7 +675,7 @@ insert_sorted(Container &c, typename Container::value_type &&value) {
 
 template <int N = Eigen::Dynamic, int... Extra>
 auto generate_index(Eigen::Index size) {
-  Array<int, 1, N, Extra...> result(size);
+  Array<int, N, 1, 0, Extra...> result(size);
   std::iota(result.begin(), result.end(), 0);
   return result;
 }
@@ -735,13 +735,13 @@ inline std::string_view slice_strip(std::string_view str, std::size_t begin,
 
 namespace internal {
   template <bool = (sizeof(double) * 3) % alignof(Vector3d) == 0>
-  inline void stack_impl(MatrixX3d &m, const std::vector<Vector3d> &vs) {
+  inline void stack_impl(Matrix3Xd &m, const std::vector<Vector3d> &vs) {
     for (int i = 0; i < vs.size(); ++i)
-      m.row(i) = vs[i];
+      m.col(i) = vs[i];
   }
 
   template <>
-  inline void stack_impl<true>(MatrixX3d &m, const std::vector<Vector3d> &vs) {
+  inline void stack_impl<true>(Matrix3Xd &m, const std::vector<Vector3d> &vs) {
     ABSL_DCHECK(reinterpret_cast<ptrdiff_t>(vs[0].data()) + sizeof(double) * 3
                 == reinterpret_cast<ptrdiff_t>(vs[1].data()))
         << "Bad alignment";
@@ -749,8 +749,8 @@ namespace internal {
   }
 }  // namespace internal
 
-inline MatrixX3d stack(const std::vector<Vector3d> &vs) {
-  MatrixX3d m(vs.size(), 3);
+inline Matrix3Xd stack(const std::vector<Vector3d> &vs) {
+  Matrix3Xd m(3, vs.size());
   internal::stack_impl(m, vs);
   return m;
 }

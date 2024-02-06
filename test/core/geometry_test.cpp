@@ -41,7 +41,7 @@ void verify_oct_range(int idx, const OCTree &oct, const Vector3d &max,
   const auto &node = oct[idx];
   if (node.leaf()) {
     for (int i = 0; i < node.nleaf(); ++i) {
-      const Vector3d &pt = oct.pts().row(node[i]);
+      const Vector3d &pt = oct.pts().col(node[i]);
       EXPECT_TRUE((pt.array() <= max.array() + 1e6).all()) << "node = " << idx;
       EXPECT_TRUE((pt.array() >= (max - size).array() - 1e6).all())
           << "node = " << idx;
@@ -58,7 +58,7 @@ void verify_oct_range(int idx, const OCTree &oct, const Vector3d &max,
 }
 
 TEST(OCTreeTest, Create) {
-  MatrixX3d m = MatrixX3d::Random(500, 3);
+  Matrix3Xd m = Matrix3Xd::Random(3, 500);
   OCTree tree(m);
 
   std::vector<int> childs { tree.root() }, idxs;
@@ -81,7 +81,7 @@ TEST(OCTreeTest, Create) {
   for (int i = 0; i < childs.size(); ++i)
     EXPECT_EQ(childs[i], i) << "i = " << i;
 
-  ASSERT_EQ(idxs.size(), m.rows());
+  ASSERT_EQ(idxs.size(), m.cols());
   std::sort(idxs.begin(), idxs.end());
   for (int i = 0; i < idxs.size(); ++i)
     EXPECT_EQ(idxs[i], i) << "i = " << i;
@@ -89,12 +89,12 @@ TEST(OCTreeTest, Create) {
 
 void verify_octree_neighbor_k(const OCTree &tree, const Vector3d &qry,
                               const int n) {
-  const MatrixX3d &pts = tree.pts();
+  const Matrix3Xd &pts = tree.pts();
 
   std::vector<int> answer(n, -1);
   std::vector<double> dsq_ref(n, 1e+10);
-  for (int i = 0; i < pts.rows(); ++i) {
-    double dsq = (pts.row(i) - qry).squaredNorm();
+  for (int i = 0; i < pts.cols(); ++i) {
+    double dsq = (pts.col(i) - qry).squaredNorm();
     for (int j = 0; j < n; ++j) {
       if (dsq < dsq_ref[j]) {
         for (int k = n - 1; k > j; --k) {
@@ -124,22 +124,22 @@ void verify_octree_neighbor_k(const OCTree &tree, const Vector3d &qry,
 }
 
 TEST(OCTreeTest, FindNeighborByCount) {
-  MatrixX3d m = MatrixX3d::Random(500, 3);
-  MatrixX3d test = MatrixX3d::Random(50, 3);
+  Matrix3Xd m = Matrix3Xd::Random(3, 500);
+  Matrix3Xd test = Matrix3Xd::Random(3, 50);
   int k = 10;
 
   OCTree tree(m);
-  for (int i = 0; i < test.rows(); ++i)
-    verify_octree_neighbor_k(tree, test.row(i), k);
+  for (int i = 0; i < test.cols(); ++i)
+    verify_octree_neighbor_k(tree, test.col(i), k);
 }
 
 void verify_octree_neighbor_d(const OCTree &tree, const Vector3d &qry,
                               double cutoff) {
-  const MatrixX3d &pts = tree.pts();
+  const Matrix3Xd &pts = tree.pts();
 
   std::vector<int> answer;
-  for (int i = 0; i < pts.rows(); ++i)
-    if ((pts.row(i) - qry).squaredNorm() <= cutoff * cutoff)
+  for (int i = 0; i < pts.cols(); ++i)
+    if ((pts.col(i) - qry).squaredNorm() <= cutoff * cutoff)
       answer.push_back(i);
 
   ASSERT_FALSE(answer.empty());
@@ -155,25 +155,25 @@ void verify_octree_neighbor_d(const OCTree &tree, const Vector3d &qry,
 }
 
 TEST(OCTreeTest, FindNeighborByDistance) {
-  MatrixX3d m = MatrixX3d::Random(500, 3);
-  MatrixX3d test = MatrixX3d::Random(50, 3);
+  Matrix3Xd m = Matrix3Xd::Random(3, 500);
+  Matrix3Xd test = Matrix3Xd::Random(3, 50);
   double cutoff = 0.5;
 
   OCTree tree(m);
-  for (int i = 0; i < test.rows(); ++i)
-    verify_octree_neighbor_d(tree, test.row(i), cutoff);
+  for (int i = 0; i < test.cols(); ++i)
+    verify_octree_neighbor_d(tree, test.col(i), cutoff);
 }
 
 void verify_octree_neighbor_kd(const OCTree &tree, const Vector3d &qry,
                                const int n, const double cutoff,
                                std::string_view onerr) {
-  const MatrixX3d &pts = tree.pts();
+  const Matrix3Xd &pts = tree.pts();
   const double cutoffsq = cutoff * cutoff;
 
   std::vector<int> answer(n, -1);
   std::vector<double> dsq_ref(n, 1e+10);
-  for (int i = 0; i < pts.rows(); ++i) {
-    double dsq = (pts.row(i) - qry).squaredNorm();
+  for (int i = 0; i < pts.cols(); ++i) {
+    double dsq = (pts.col(i) - qry).squaredNorm();
     for (int j = 0; j < n; ++j) {
       if (dsq < dsq_ref[j] && dsq <= cutoffsq) {
         for (int k = n - 1; k > j; --k) {
@@ -206,29 +206,29 @@ void verify_octree_neighbor_kd(const OCTree &tree, const Vector3d &qry,
 }
 
 TEST(OCTreeTest, FindNeighborByCountAndDistance) {
-  MatrixX3d m = MatrixX3d::Random(500, 3);
-  MatrixX3d test = MatrixX3d::Random(50, 3);
+  Matrix3Xd m = Matrix3Xd::Random(3, 500);
+  Matrix3Xd test = Matrix3Xd::Random(3, 50);
   int k = 10;
   // 5 neighbors in average
   double cutoff = std::pow(2.0 * 5 / 500, 1.0 / 3.0);
 
   OCTree tree(m);
-  for (int i = 0; i < test.rows(); ++i)
-    verify_octree_neighbor_kd(tree, test.row(i), k, cutoff,
+  for (int i = 0; i < test.cols(); ++i)
+    verify_octree_neighbor_kd(tree, test.col(i), k, cutoff,
                               absl::StrCat("On line ", __LINE__));
 
   // 15 neighbors in average
   cutoff = std::pow(2.0 * 15 / 500, 1.0 / 3.0);
-  for (int i = 0; i < test.rows(); ++i)
-    verify_octree_neighbor_kd(tree, test.row(i), k, cutoff,
+  for (int i = 0; i < test.cols(); ++i)
+    verify_octree_neighbor_kd(tree, test.col(i), k, cutoff,
                               absl::StrCat("On line ", __LINE__));
 }
 
 TEST(FitPlaneTest, CheckCorrectness) {
-  MatrixX3d m(4, 3);
-  m << 0.83204366, 0.51745906, 0.2127645,  //
-      0.1541316, 0.34186033, 0.37958696,   //
-      0.09409007, 0.55596287, 0.84068561,  //
+  Matrix3Xd m(3, 4);
+  m.transpose() << 0.83204366, 0.51745906, 0.2127645,  //
+      0.1541316, 0.34186033, 0.37958696,               //
+      0.09409007, 0.55596287, 0.84068561,              //
       0.16504374, 0.44050598, 0.63581156;
 
   // From numpy.linalg.svd

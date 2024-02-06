@@ -1112,7 +1112,7 @@ public:
    * @note Resizing the returned matrix is a no-op. In debug mode, an assertion
    *       failure will be triggered if the matrix is resized.
    */
-  Ref<MatrixX3d> conf(int i = 0) { return conformers_[i]; }
+  Eigen::Ref<Matrix3Xd> conf(int i = 0) { return conformers_[i]; }
 
   /**
    * @brief Get the atomic coordinates of ith conformer.
@@ -1121,7 +1121,7 @@ public:
    * @return Atomic coordinates of ith conformer.
    * @note If index is out of range, the behavior is undefined.
    */
-  const MatrixX3d &conf(int i = 0) const { return cconf(i); }
+  const Matrix3Xd &conf(int i = 0) const { return cconf(i); }
 
   /**
    * @brief Get the atomic coordinates of ith conformer.
@@ -1130,7 +1130,7 @@ public:
    * @return Atomic coordinates of ith conformer.
    * @note If index is out of range, the behavior is undefined.
    */
-  const MatrixX3d &cconf(int i = 0) const { return conformers_[i]; }
+  const Matrix3Xd &cconf(int i = 0) const { return conformers_[i]; }
 
   /**
    * @brief Get total number of conformers.
@@ -1142,27 +1142,27 @@ public:
    * @brief Get all atomic coordinates of the conformers.
    * @return Atomic coordinates of the conformers of the molecule.
    */
-  const std::vector<MatrixX3d> &all_conf() const { return conformers_; }
+  const std::vector<Matrix3Xd> &all_conf() const { return conformers_; }
 
   /**
    * @brief Add a new conformer to the molecule.
    *
    * @param pos Atomic coordinates of the new conformer.
    * @return The index of the added conformer.
-   * @note If number of rows of \p pos does not match the number of atoms in the
+   * @note If number of cols of \p pos does not match the number of atoms in the
    *       molecule, the behavior is undefined.
    */
-  int add_conf(const MatrixX3d &pos);
+  int add_conf(const Matrix3Xd &pos);
 
   /**
    * @brief Add a new conformer to the molecule.
    *
    * @param pos Atomic coordinates of the new conformer.
    * @return The index of the added conformer.
-   * @note If number of rows of \p pos does not match the number of atoms in the
+   * @note If number of cols of \p pos does not match the number of atoms in the
    *       molecule, the behavior is undefined.
    */
-  int add_conf(MatrixX3d &&pos) noexcept;
+  int add_conf(Matrix3Xd &&pos) noexcept;
 
   /**
    * @brief Erase a conformer from the molecule.
@@ -1177,10 +1177,8 @@ public:
    * @param trans The affine transformation to apply.
    */
   void transform(const Eigen::Affine3d &trans) {
-    for (MatrixX3d &m: conformers_) {
-      auto view = swap_axis<Eigen::Matrix3Xd>(m);
-      view = trans * view;
-    }
+    for (Matrix3Xd &m: conformers_)
+      m = trans * m;
   }
 
   /**
@@ -1191,9 +1189,8 @@ public:
    * @note The behavior is undefined if the conformer index is out of range.
    */
   void transform(int i, const Eigen::Affine3d &trans) {
-    MatrixX3d &m = conformers_[i];
-    auto view = swap_axis<Eigen::Matrix3Xd>(m);
-    view = trans * view;
+    Matrix3Xd &m = conformers_[i];
+    m = trans * m;
   }
 
   /**
@@ -1574,9 +1571,8 @@ public:
     graph_.merge(other.graph_);
     update_topology();
 
-    for (MatrixX3d &conf: conformers_) {
-      conf.conservativeResize(size(), Eigen::NoChange);
-    }
+    for (Matrix3Xd &conf: conformers_)
+      conf.conservativeResize(Eigen::NoChange, size());
   }
 
   template <class KT, class VT>
@@ -1591,7 +1587,7 @@ public:
   }
 
 private:
-  Molecule(GraphType &&graph, std::vector<MatrixX3d> &&conformers) noexcept
+  Molecule(GraphType &&graph, std::vector<Matrix3Xd> &&conformers) noexcept
       : graph_(std::move(graph)), conformers_(std::move(conformers)) { }
 
   void rebind_substructs() noexcept;
@@ -1600,7 +1596,7 @@ private:
                           double angle);
 
   GraphType graph_;
-  std::vector<MatrixX3d> conformers_;
+  std::vector<Matrix3Xd> conformers_;
   std::string name_;
   std::vector<std::pair<std::string, std::string>> props_;
 

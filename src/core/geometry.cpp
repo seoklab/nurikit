@@ -45,16 +45,16 @@ namespace {
 
   // partition begin - end into two parts:
   // +: [begin, ret), -: [ret, end)
-  int partition_sub(ArrayXi &idxs, int begin, int end, const MatrixX3d &pts,
+  int partition_sub(ArrayXi &idxs, int begin, int end, const Matrix3Xd &pts,
                     const Vector3d &cntr, int axis) {
     auto it =
         std::partition(idxs.begin() + begin, idxs.begin() + end,
-                       [&](int idx) { return pts(idx, axis) >= cntr[axis]; });
+                       [&](int idx) { return pts(axis, idx) >= cntr[axis]; });
     return static_cast<int>(it - idxs.begin());
   }
 
   Array8i partition_octant(ArrayXi &idxs, int begin, int end,
-                           const MatrixX3d &pts, const Vector3d &cntr) {
+                           const Matrix3Xd &pts, const Vector3d &cntr) {
     Array8i ptrs;
     ptrs[7] = end;
 
@@ -84,7 +84,7 @@ namespace {
     return ptrs;
   }
 
-  int build_octree(const MatrixX3d &pts, std::vector<OCTreeNode> &data,
+  int build_octree(const Matrix3Xd &pts, std::vector<OCTreeNode> &data,
                    const Vector3d &max, const Vector3d &size, ArrayXi &idxs,
                    const int begin, const int nleaf) {
     Array8i children;
@@ -123,19 +123,19 @@ namespace {
   }
 }  // namespace
 
-void OCTree::rebuild(const MatrixX3d &pts) {
+void OCTree::rebuild(const Matrix3Xd &pts) {
   pts_ = &pts;
-  max_ = pts.colwise().maxCoeff();
-  len_ = max_ - pts.colwise().minCoeff();
+  max_ = pts.rowwise().maxCoeff();
+  len_ = max_ - pts.rowwise().minCoeff();
 
-  ArrayXi idxs(pts.rows());
+  ArrayXi idxs(pts.cols());
   std::iota(idxs.begin(), idxs.end(), 0);
 
-  build_octree(pts, nodes_, max_, len_, idxs, 0, static_cast<int>(pts.rows()));
+  build_octree(pts, nodes_, max_, len_, idxs, 0, static_cast<int>(pts.cols()));
 }
 
 namespace {
-  using Array8d = Array<double, 1, 8>;
+  using Array8d = Array<double, 8, 1>;
 
   struct PQEntry {
     bool leaf;
@@ -187,9 +187,9 @@ namespace {
       ABSL_LOG(WARNING) << "k is not a positive number: " << k;
       return;
     }
-    if (k > oct.pts().rows()) {
+    if (k > oct.pts().cols()) {
       ABSL_LOG(WARNING) << "k " << k << " is larger than the number of points "
-                        << oct.pts().rows();
+                        << oct.pts().cols();
     }
 
     PQ minheap(pq_cmp);
@@ -208,7 +208,7 @@ namespace {
       if (node.leaf()) {
         for (int i = 0; i < node.nleaf(); ++i) {
           int cid = node[i];
-          double d = (pt - oct.pts().row(cid)).squaredNorm();
+          double d = (pt - oct.pts().col(cid)).squaredNorm();
           if (pred(d))
             minheap.push({ true, cid, maxs, size, d });
         }
@@ -287,7 +287,7 @@ void OCTree::find_neighbors_d(const Vector3d &pt, const double cutoff,
 
   distsq.clear();
   erase_if(idxs, [&](int idx) {
-    double d = (pts_->row(idx) - pt).squaredNorm();
+    double d = (pts_->col(idx) - pt).squaredNorm();
     bool far = d > cutoffsq;
     if (!far)
       distsq.push_back(d);

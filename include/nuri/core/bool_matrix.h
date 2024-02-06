@@ -14,6 +14,8 @@
 #include <absl/base/config.h>
 #include <absl/base/optimization.h>
 
+#include "nuri/eigen_config.h"
+
 namespace nuri {
 // NOLINTBEGIN(google-runtime-int)
 
@@ -70,105 +72,93 @@ public:
 
   BoolMatrix() = delete;
 
-  explicit BoolMatrix(Index cols)
-      : data_(0, (cols - 1) / internal::kBitsPerBlock + 1), cols_(cols) { }
+  explicit BoolMatrix(Index rows, Index cols = 0)
+      : data_((rows - 1) / internal::kBitsPerBlock + 1, cols), rows_(rows) { }
 
-  BoolMatrix(Index rows, Index cols)
-      : data_(rows, (cols - 1) / internal::kBitsPerBlock + 1), cols_(cols) { }
-
-  bool operator()(Index row, BoolMatrixKey col) const {
-    return (data_(row, col.blk()) & col.mask()) != 0;
+  bool operator()(BoolMatrixKey row, Index col) const {
+    return (data_(row.blk(), col) & row.mask()) != 0;
   }
 
-  Index rows() const { return data_.rows(); }
+  Index rows() const { return rows_; }
 
-  Index cols() const { return cols_; }
+  Index cols() const { return data_.cols(); }
 
-  std::vector<int> gaussian_elimination() { return row_reduction_impl<true>(); }
+  std::vector<int> gaussian_elimination() { return col_reduction_impl<true>(); }
 
   std::vector<int> partial_reduction(const int reduce_begin) {
-    return row_reduction_impl<false>(reduce_begin);
+    return col_reduction_impl<false>(reduce_begin);
   }
 
-  void rowwise_xor(Index r1, Index r2) {
-    for (Index blk = 0; blk < data_.cols(); ++blk) {
-      data_(r1, blk) ^= data_(r2, blk);
-    }
+  void colwise_xor(Index c1, Index c2) {
+    for (Index blk = 0; blk < data_.rows(); ++blk)
+      data_(blk, c1) ^= data_(blk, c2);
   }
 
   void zero() { data_.setZero(); }
 
-  void resize(int rows) {
-    const Index oldrows = data_.rows();
-    data_.conservativeResize(rows, Eigen::NoChange);
-    if (rows > oldrows) {
-      data_.bottomRows(rows - oldrows).setZero();
-    }
+  void resize(int cols) {
+    const Index oldcols = data_.cols();
+    data_.conservativeResize(Eigen::NoChange, cols);
+    if (cols > oldcols)
+      data_.rightCols(cols - oldcols).setZero();
   }
 
-  // Move row r1 to r2; r2 is overwritten, r1 is zeroed
-  void move_row(Index r1, Index r2) {
-    data_.row(r2) = data_.row(r1);
-    data_.row(r1).setZero();
+  // Move col c1 to c2; c2 is overwritten, c1 is zeroed
+  void move_col(Index c1, Index c2) {
+    data_.col(c2) = data_.col(c1);
+    data_.col(c1).setZero();
   }
 
-  void set(Index row, BoolMatrixKey col) {
-    data_(row, col.blk()) |= col.mask();
+  void set(BoolMatrixKey row, Index col) {
+    data_(row.blk(), col) |= row.mask();
   }
 
-  void unset(Index row, BoolMatrixKey col) {
-    data_(row, col.blk()) &= ~col.mask();
+  void unset(BoolMatrixKey row, Index col) {
+    data_(row.blk(), col) &= ~row.mask();
   }
 
-  void assign(Index row, BoolMatrixKey col, bool value) {
-    internal::Block &data = data_(row, col.blk());
-    data = (data & ~col.mask())
-           | (static_cast<internal::Block>(value) << col.bit());
+  void assign(BoolMatrixKey row, Index col, bool value) {
+    internal::Block &data = data_(row.blk(), col);
+    data = (data & ~row.mask())
+           | (static_cast<internal::Block>(value) << row.bit());
   }
 
 private:
   template <bool full>
-  std::vector<int> row_reduction_impl(const int reduce_begin = 0) {
-    std::vector<int> used(data_.rows(), 0);
+  std::vector<int> col_reduction_impl(const int reduce_begin = 0) {
+    std::vector<int> used(data_.cols(), 0);
 
-    for (int col = 0; col < cols_; ++col) {
-      const int p = static_cast<int>(find_pivot(col, used));
+    for (int row = 0; row < rows_; ++row) {
+      const int p = static_cast<int>(find_pivot(row, used));
       // Try basis in [0, begin)
-      if (p < 0) {
+      if (p < 0)
         continue;
-      }
 
       used[p] = 1;
 
-      if constexpr (!full) {
-        if (p >= reduce_begin) {
+      if constexpr (!full)
+        if (p >= reduce_begin)
           continue;
-        }
-      }
 
-      for (Index i = reduce_begin; i < data_.rows(); ++i) {
-        if (used[i] == 0 && (*this)(i, col)) {
-          rowwise_xor(i, p);
-        }
-      }
+      for (Index i = reduce_begin; i < data_.cols(); ++i)
+        if (used[i] == 0 && (*this)(row, i))
+          colwise_xor(i, p);
     }
 
     return used;
   }
 
-  Index find_pivot(BoolMatrixKey col, const std::vector<int> &used) const {
-    for (Index i = 0; i < data_.rows(); ++i) {
-      if (used[i] == 0 && (data_(i, col.blk()) & col.mask()) != 0) {
+  Index find_pivot(BoolMatrixKey row, const std::vector<int> &used) const {
+    for (Index i = 0; i < data_.cols(); ++i)
+      if (used[i] == 0 && (data_(row.blk(), i) & row.mask()) != 0)
         return i;
-      }
-    }
+
     return -1;
   }
 
-  // Row-wise compressed data
-  Eigen::Matrix<internal::Block, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-      data_;
-  Eigen::Index cols_;
+  // Col-wise compressed data
+  Matrix<internal::Block, Eigen::Dynamic, Eigen::Dynamic> data_;
+  Eigen::Index rows_;
 };
 // NOLINTEND(google-runtime-int)
 }  // namespace nuri

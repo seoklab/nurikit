@@ -54,9 +54,9 @@ namespace {
   // pdist-based solution is faster for about <= 1000 atoms.
   constexpr int kSmallLimit = 1000;
 
-  void prepare_conn_search(const MatrixX3d &pos, ArrayXd &distsq,
+  void prepare_conn_search(const Matrix3Xd &pos, ArrayXd &distsq,
                            OCTree &tree) {
-    if (pos.rows() <= kSmallLimit) {
+    if (pos.cols() <= kSmallLimit) {
       distsq = pdistsq(pos);
     } else {
       tree.rebuild(pos);
@@ -103,7 +103,7 @@ namespace {
         continue;
 
       // No atoms will form bonds > 5.0 A.
-      oct.find_neighbors_d(oct.pts().row(i), 5.0 + threshold, idxs, distsq);
+      oct.find_neighbors_d(oct.pts().col(i), 5.0 + threshold, idxs, distsq);
 
       for (int j = 0; j < idxs.size(); ++j) {
         if (i == j)
@@ -121,10 +121,10 @@ namespace {
 
   void remove_excess_bonds_max_n(MoleculeMutator &mut,
                                  Molecule::MutableAtom atom, int n,
-                                 const MatrixX3d &pos) {
+                                 const Matrix3Xd &pos) {
     VectorXd dsqs =
-        (pos(as_index(atom), Eigen::all).rowwise() - pos.row(atom.id()))
-            .rowwise()
+        (pos(Eigen::all, as_index(atom)).colwise() - pos.col(atom.id()))
+            .colwise()
             .squaredNorm();
     ArrayXi idxs = argpartition(dsqs, n);
     for (int i = n; i < atom.degree(); ++i)
@@ -157,7 +157,7 @@ namespace {
     return true;
   }
 
-  void guess_connectivity(MoleculeMutator &mut, const MatrixX3d &pos,
+  void guess_connectivity(MoleculeMutator &mut, const Matrix3Xd &pos,
                           double threshold, const ArrayXd &dist,
                           const OCTree &oct) {
     if (mut.mol().size() <= kSmallLimit)
@@ -218,18 +218,18 @@ namespace {
   }
 
   constants::Hybridization hyb_common(Molecule::Atom atom,
-                                      const MatrixX3d &pos) {
+                                      const Matrix3Xd &pos) {
     if (atom.degree() == 2) {
-      double cos = cos_angle(pos.row(atom.id()), pos.row(atom[0].dst().id()),
-                             pos.row(atom[1].dst().id()));
+      double cos = cos_angle(pos.col(atom.id()), pos.col(atom[0].dst().id()),
+                             pos.col(atom[1].dst().id()));
       return hyb_from_cos(cos);
     }
 
     ABSL_DCHECK(atom.degree() == 3);
 
     Matrix3d vectors =
-        (pos(as_index(atom), Eigen::all).rowwise() - pos.row(atom.id()))
-            .rowwise()
+        (pos(Eigen::all, as_index(atom)).colwise() - pos.col(atom.id()))
+            .colwise()
             .normalized();
     return hyb_from_vectors(vectors);
   }
@@ -247,9 +247,9 @@ namespace {
     }
   }
 
-  void hyb_ring(Molecule &mol, const MatrixX3d &pos,
+  void hyb_ring(Molecule &mol, const Matrix3Xd &pos,
                 const std::vector<int> &ring, double threshold) {
-    using MatrixMax63d = MatrixX3<double, 6, 3>;
+    using MatrixMax36d = Matrix<double, 3, Eigen::Dynamic, 0, 3, 6>;
 
     const int n = static_cast<int>(ring.size());
     ABSL_DCHECK(n < 7);
@@ -258,13 +258,13 @@ namespace {
     ArrayXi::ConstMapType rv(ring.data(), n);
 
     // vectors i -> i+1
-    MatrixMax63d vectors = pos(rv(next), Eigen::all) - pos(rv, Eigen::all);
+    MatrixMax36d vectors = pos(Eigen::all, rv(next)) - pos(Eigen::all, rv);
 
     // cross product of (i -> i+1) and (i+1 -> i+2), cyclic
-    MatrixMax63d cross(n, 3);
+    MatrixMax36d cross(3, n);
     for (int i = 0; i < n; ++i)
-      cross.row(i) = vectors.row(i).cross(vectors.row(next[i]));
-    cross.rowwise().normalize();
+      cross.col(i) = vectors.col(i).cross(vectors.col(next[i]));
+    cross.colwise().normalize();
 
     auto [ssum, csum] = sum_tan2_half(cross, next);
     if (ssum <= threshold * csum) {
@@ -295,7 +295,7 @@ namespace {
     }
   }
 
-  void guess_hyb_nonterminal(Molecule &mol, const MatrixX3d &pos,
+  void guess_hyb_nonterminal(Molecule &mol, const Matrix3Xd &pos,
                              const std::vector<std::vector<int>> &sssr) {
     for (auto atom: mol) {
       if (atom.degree() <= 1 || atom.data().element().period() == 1)
@@ -418,10 +418,10 @@ namespace {
   }
 
   // 2 <= number of neighbors <= 3
-  bool fg_tert_carbon(Molecule::MutableAtom atom, const MatrixX3d &pos,
+  bool fg_tert_carbon(Molecule::MutableAtom atom, const Matrix3Xd &pos,
                       ArrayXb &visited) {
-    using ArrayMax3i = Array<int, 1, Eigen::Dynamic, 1, 3>;
-    using VectorMax3d = Matrix<double, 1, Eigen::Dynamic, 1, 3>;
+    using ArrayMax3i = Array<int, Eigen::Dynamic, 1, 0, 3>;
+    using VectorMax3d = Matrix<double, Eigen::Dynamic, 1, 0, 3>;
 
     int ncnt = absl::c_count_if(atom, [](Molecule::Neighbor nei) {
       return nei.dst().data().atomic_number() == 7;
@@ -434,8 +434,8 @@ namespace {
     });
 
     VectorMax3d dsqs =
-        (pos(as_index(atom), Eigen::all).rowwise() - pos.row(atom.id()))
-            .rowwise()
+        (pos(Eigen::all, as_index(atom)).colwise() - pos.col(atom.id()))
+            .colwise()
             .squaredNorm();
 
     if (ncnt == 3)
@@ -490,7 +490,7 @@ namespace {
     atom.data().set_hybridization(constants::kSP2);
 
     // Exclude the highest penalty atom if three neighbors exist
-    ArrayMax3i ordered = argpartition<Eigen::Dynamic, 1, 3>(penalty, 2);
+    ArrayMax3i ordered = argpartition<Eigen::Dynamic, 3>(penalty, 2);
     for (int i: ordered.head<2>()) {
       auto nei = atom[i];
       auto dst = nei.dst();
@@ -510,7 +510,7 @@ namespace {
 
   // -NO2 or -SeOOH
   bool fg_tert_nitrogen_selenium(Molecule::MutableAtom atom,
-                                 const MatrixX3d &pos, ArrayXb &visited,
+                                 const Matrix3Xd &pos, ArrayXb &visited,
                                  constants::Hybridization hyb_single,
                                  int fchg_single, int hcnt_single) {
     absl::InlinedVector<Molecule::MutableNeighbor, 3> oxygens;
@@ -525,8 +525,8 @@ namespace {
 
     auto [near, far] =
         std::minmax(oxygens[0], oxygens[1], [&](auto lhs, auto rhs) {
-          return (pos.row(lhs.dst().id()) - pos.row(atom.id())).squaredNorm()
-                 < (pos.row(rhs.dst().id()) - pos.row(atom.id())).squaredNorm();
+          return (pos.col(lhs.dst().id()) - pos.col(atom.id())).squaredNorm()
+                 < (pos.col(rhs.dst().id()) - pos.col(atom.id())).squaredNorm();
         });
 
     visited[atom.id()] = true;
@@ -559,7 +559,7 @@ namespace {
     return true;
   }
 
-  bool fg_tert(Molecule::MutableAtom atom, const MatrixX3d &pos,
+  bool fg_tert(Molecule::MutableAtom atom, const Matrix3Xd &pos,
                ArrayXb &visited) {
     if (atom.degree() == 3 && atom.data().hybridization() != constants::kSP2)
       return false;
@@ -579,9 +579,9 @@ namespace {
   }
 
   // phosphoryl & sulfonyl
-  void fg_x_yl(Molecule::MutableAtom atom, const MatrixX3d &pos,
+  void fg_x_yl(Molecule::MutableAtom atom, const Matrix3Xd &pos,
                ArrayXb &visited) {
-    using ArrayMax4d = Array<double, 1, Eigen::Dynamic, 1, 4>;
+    using ArrayMax4d = Array<double, Eigen::Dynamic, 1, 0, 4>;
 
     const int ocnt = atom.data().atomic_number() - 14;
     if (ocnt > 2 || ocnt < 1)
@@ -597,8 +597,8 @@ namespace {
     if (oxygens.size() < ocnt)
       return;
 
-    ArrayMax4d dsqs = (pos(oxygens, Eigen::all).rowwise() - pos.row(atom.id()))
-                          .rowwise()
+    ArrayMax4d dsqs = (pos(Eigen::all, oxygens).colwise() - pos.col(atom.id()))
+                          .colwise()
                           .squaredNorm();
 
     absl::FixedArray<int> idxs(oxygens.size());
@@ -618,7 +618,7 @@ namespace {
     }
   }
 
-  void recognize_fg(Molecule &mol, const MatrixX3d &pos) {
+  void recognize_fg(Molecule &mol, const Matrix3Xd &pos) {
     ArrayXb visited = ArrayXb::Zero(mol.size());
 
     for (auto atom: mol) {
@@ -908,14 +908,14 @@ namespace {
   }
 
   void mark_multiple_bonds_all_terminal(Molecule::MutableAtom atom,
-                                        const MatrixX3d &pos) {
+                                        const Matrix3Xd &pos) {
     auto nei = atom[0];
     if (nei.edge_data().order() != constants::kOtherBond
         || nei.dst().degree() != 1)
       return;
 
     double distsq =
-        (pos.row(nei.dst().id()) - pos.row(atom.id())).squaredNorm();
+        (pos.col(nei.dst().id()) - pos.col(atom.id())).squaredNorm();
     auto [double_sq, triple_sq] =
         ordered<multiple_bond_distsq_cutoffs>(atom.data(), nei.dst().data());
 
@@ -937,7 +937,7 @@ namespace {
   };
 
   template <auto thres>
-  void mark_multiple_bonds_hyb(Molecule::MutableAtom atom, const MatrixX3d &pos,
+  void mark_multiple_bonds_hyb(Molecule::MutableAtom atom, const Matrix3Xd &pos,
                                constants::BondOrder ifshort) {
     absl::InlinedVector<MultipleBondFindParams, 3> candidates;
     for (int i = 0; i < atom.degree(); ++i) {
@@ -949,7 +949,7 @@ namespace {
         continue;
 
       double distsq =
-                 (pos.row(nei.dst().id()) - pos.row(atom.id())).squaredNorm(),
+                 (pos.col(nei.dst().id()) - pos.col(atom.id())).squaredNorm(),
              cuttofsq = ordered<thres>(atom.data(), nei.dst().data());
       if (distsq <= cuttofsq)
         candidates.push_back({ i, distsq, cuttofsq });
@@ -976,7 +976,7 @@ namespace {
     atom[candidates[0].idx].edge_data().set_order(ifshort);
   }
 
-  void find_multiple_bonds(Molecule::MutableAtom atom, const MatrixX3d &pos) {
+  void find_multiple_bonds(Molecule::MutableAtom atom, const Matrix3Xd &pos) {
     if (atom.degree() == 0)
       return;
 
@@ -1017,7 +1017,7 @@ namespace {
     ABSL_DLOG(INFO) << "Marked " << cnt << " bonds as single.";
   }
 
-  void assign_bond_orders(Molecule &mol, const MatrixX3d &pos) {
+  void assign_bond_orders(Molecule &mol, const Matrix3Xd &pos) {
     for (auto atom: mol) {
       int valence = sum_bond_order(atom),
           common_valence = internal::common_valence(
@@ -1304,12 +1304,12 @@ namespace {
            || (atom.degree() <= 2 && sp3_atom_can_conjugate(atom));
   }
 
-  bool torsion_can_conjugate(const MatrixX3d &pos, int a, int b, int c, int d) {
-    auto cos = cos_dihedral(pos.row(a), pos.row(b), pos.row(c), pos.row(d));
+  bool torsion_can_conjugate(const Matrix3Xd &pos, int a, int b, int c, int d) {
+    auto cos = cos_dihedral(pos.col(a), pos.col(b), pos.col(c), pos.col(d));
     return cos >= kCos12 || cos <= -kCos12;
   }
 
-  void find_conjugated_groups_dfs(const Molecule &mol, const MatrixX3d &pos,
+  void find_conjugated_groups_dfs(const Molecule &mol, const Matrix3Xd &pos,
                                   absl::flat_hash_set<int> &candidates,
                                   std::vector<std::vector<int>> &groups,
                                   int cur, const Molecule::Neighbor *prev_nei) {
@@ -1366,7 +1366,7 @@ namespace {
     }
   }
 
-  void find_conjugated_groups(const Molecule &mol, const MatrixX3d &pos,
+  void find_conjugated_groups(const Molecule &mol, const Matrix3Xd &pos,
                               absl::flat_hash_set<int> &candidates,
                               std::vector<std::vector<int>> &groups) {
     groups.emplace_back();
@@ -1407,7 +1407,7 @@ namespace {
     }
   }
 
-  void guess_conjugated(Molecule &mol, const MatrixX3d &pos) {
+  void guess_conjugated(Molecule &mol, const Matrix3Xd &pos) {
     absl::flat_hash_set<int> candidates;
     std::vector<std::vector<int>> groups;
 
@@ -1419,7 +1419,7 @@ namespace {
     mark_conjugated(mol, groups);
   }
 
-  bool guess_types_common(Molecule &mol, const MatrixX3d &pos) {
+  bool guess_types_common(Molecule &mol, const Matrix3Xd &pos) {
     Rings sssr = find_sssr(mol);
 
     guess_hyb_nonterminal(mol, pos, sssr);
@@ -1451,7 +1451,7 @@ bool guess_bonds(MoleculeMutator &mut, int conf, double threshold) {
     return false;
   }
 
-  const MatrixX3d &pos = mol.cconf(conf);
+  const Matrix3Xd &pos = mol.cconf(conf);
 
   // For small molecules
   ArrayXd distsq;
