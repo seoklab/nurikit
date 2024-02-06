@@ -23,6 +23,7 @@
 #include <vector>
 
 #include <boost/iterator/iterator_facade.hpp>
+#include <Eigen/Dense>
 
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
@@ -672,24 +673,26 @@ insert_sorted(Container &c, typename Container::value_type &&value) {
   return insert_sorted(c, std::move(value), std::less<>());
 }
 
-inline absl::FixedArray<int> generate_index(int size) {
-  absl::FixedArray<int> result(size);
+template <int N = Eigen::Dynamic, int... Extra>
+auto generate_index(Eigen::Index size) {
+  Array<int, 1, N, Extra...> result(size);
   std::iota(result.begin(), result.end(), 0);
   return result;
 }
 
-template <class Container, class Comp>
-absl::FixedArray<int> argsort(const Container &container, Comp op) {
-  absl::FixedArray<int> idxs = generate_index(container.size());
+template <int N = Eigen::Dynamic, int... Extra, class Container,
+          class Comp = std::less<>>
+auto argsort(const Container &container, Comp op = {}) {
+  auto idxs = generate_index<N, Extra...>(std::size(container));
   std::sort(idxs.begin(), idxs.end(),
             [&](int i, int j) { return op(container[i], container[j]); });
   return idxs;
 }
 
-template <class Container, class Comp>
-absl::FixedArray<int> argpartition(const Container &container, int count,
-                                   Comp op) {
-  absl::FixedArray<int> idxs = generate_index(container.size());
+template <int N = Eigen::Dynamic, int... Extra, class Container,
+          class Comp = std::less<>>
+auto argpartition(const Container &container, int count, Comp op = {}) {
+  auto idxs = generate_index<N, Extra...>(std::size(container));
   std::nth_element(idxs.begin(), idxs.begin() + count - 1, idxs.end(),
                    [&](int i, int j) {
                      return op(container[i], container[j]);
