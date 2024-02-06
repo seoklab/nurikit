@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstring>
 #include <filesystem>
 #include <functional>
 #include <initializer_list>
@@ -26,7 +27,6 @@
 #include <Eigen/Dense>
 
 #include <absl/base/optimization.h>
-#include <absl/container/fixed_array.h>
 #include <absl/log/absl_check.h>
 #include <absl/strings/ascii.h>
 

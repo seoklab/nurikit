@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 #include <utility>
 #include <vector>
 
@@ -17,8 +18,10 @@
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
 #include <absl/container/flat_hash_map.h>
+#include <absl/container/flat_hash_set.h>
 #include <absl/container/inlined_vector.h>
 #include <absl/log/absl_check.h>
+#include <absl/log/absl_log.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/algo/rings.h"
