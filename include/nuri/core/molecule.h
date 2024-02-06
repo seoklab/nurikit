@@ -814,6 +814,7 @@ public:
   using bond_iterator = GraphType::edge_iterator;
   using const_bond_iterator = GraphType::const_edge_iterator;
 
+  using MutableNeighbor = GraphType::AdjRef;
   using Neighbor = GraphType::ConstAdjRef;
   using neighbor_iterator = GraphType::adjacency_iterator;
   using const_neighbor_iterator = GraphType::const_adjacency_iterator;
@@ -882,6 +883,24 @@ public:
    *       returned reference is invalidated when the molecule is modified.
    */
   Atom atom(int atom_idx) const { return graph_.node(atom_idx); }
+
+  /**
+   * @brief Get a mutable atom of the molecule.
+   * @param atom_idx Index of the atom to get.
+   * @return A mutable view over \p atom_idx -th atom of the molecule.
+   * @note If the atom index is out of range, the behavior is undefined. The
+   *       returned reference is invalidated when the molecule is modified.
+   */
+  MutableAtom operator[](int atom_idx) { return graph_[atom_idx]; }
+
+  /**
+   * @brief Get an atom of the molecule.
+   * @param atom_idx Index of the atom to get.
+   * @return A read-only view over \p atom_idx -th atom of the molecule.
+   * @note If the atom index is out of range, the behavior is undefined. The
+   *       returned reference is invalidated when the molecule is modified.
+   */
+  Atom operator[](int atom_idx) const { return graph_[atom_idx]; }
 
   /**
    * @brief The begin iterator of the molecule over atoms.
@@ -1708,11 +1727,19 @@ public:
 
   /**
    * @brief Mark a bond to be erased.
+   * @param bit The bond iterator to erase.
+   * @note The behavior is undefined if the iterator is out of range.
+   */
+  void mark_bond_erase(Molecule::const_bond_iterator bit) {
+    erased_bonds_.push_back(bit->id());
+  }
+
+  /**
+   * @brief Mark a bond to be erased.
    * @param src Index of the source atom of the bond, after all additions.
    * @param dst Index of the destination atom of the bond, after all additions.
-   * @note The behavior is undefined if any of the atom indices is out of range,
-   *       at the momenet of `finalize()` call. This is a no-op if the bond does
-   *       not exist, also at the moment of `finalize()` call.
+   * @note The behavior is undefined if any of the atom indices is out of range.
+   *       This is a no-op if the bond does not exist.
    */
   void mark_bond_erase(int src, int dst);
 
@@ -1750,7 +1777,7 @@ private:
   int prev_num_bonds_;
 
   std::vector<int> erased_atoms_;
-  std::vector<std::pair<int, int>> erased_bonds_;
+  std::vector<Molecule::bond_id_type> erased_bonds_;
 };
 
 class MoleculeSanitizer {

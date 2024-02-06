@@ -374,7 +374,9 @@ void MoleculeMutator::mark_bond_erase(int src, int dst) {
     return;
   }
 
-  erased_bonds_.push_back({ src, dst });
+  auto it = mol().find_bond(src, dst);
+  if (it != mol().bond_end())
+    erased_bonds_.push_back(it->id());
 }
 
 void MoleculeMutator::discard_erasure() noexcept {
@@ -427,8 +429,8 @@ void MoleculeMutator::finalize() noexcept {
 
   // As per the spec, the order is:
   // 1. Erase bonds
-  for (const std::pair<int, int> &ends: erased_bonds_)
-    g.erase_edge_between(ends.first, ends.second);
+  for (auto bid: erased_bonds_)
+    g.erase_edge(bid);
 
   // 2. Erase atoms
   int last;
@@ -903,7 +905,6 @@ namespace {
 
     return true;
   }
-
 }  // namespace
 
 bool MoleculeSanitizer::sanitize_hybridization() {
