@@ -251,6 +251,10 @@ namespace internal {
       return neighbor(idx);
     }
 
+    adjacency_iterator find_adjacent(int aid) const noexcept {
+      return graph_->find_adjacent(nid_, aid);
+    }
+
     constexpr Other<true> as_const() const noexcept { return *this; }
 
   private:
@@ -1132,6 +1136,10 @@ namespace internal {
     }
 
     adjacency_iterator end() const noexcept { return subgraph_->adj_end(idx_); }
+
+    adjacency_iterator find_adjacent(int aid) const noexcept {
+      return subgraph_->find_adjacent(idx_, aid);
+    }
 
     constexpr Other<true> as_const() const noexcept { return *this; }
 
