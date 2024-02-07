@@ -850,6 +850,8 @@ public:
 
   void reserve(int num_atoms) { graph_.reserve(num_atoms); }
 
+  void reserve_bonds(int num_bonds) { graph_.reserve_edges(num_bonds); }
+
   /**
    * @brief Check if the molecule has any atoms.
    */
