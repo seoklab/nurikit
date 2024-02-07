@@ -506,33 +506,41 @@ TEST_F(AdvancedSubgraphTest, IterateAdjacency) {
 }
 
 TEST_F(AdvancedSubgraphTest, FindAdjacency) {
-  auto it = sg_.find_adjacent(0, 5);
-  EXPECT_TRUE(it.end());
+  auto mmit = sg_.find_adjacent(0, 5);
+  EXPECT_TRUE(mmit.end());
+  EXPECT_EQ(mmit, sg_.node(0).find_adjacent(5));
 
-  it = sg_.find_adjacent(0, 1);
-  EXPECT_FALSE(it.end());
-  EXPECT_EQ(it->eid(), edges_[0]->id());
+  mmit = sg_.find_adjacent(0, 1);
+  EXPECT_FALSE(mmit.end());
+  EXPECT_EQ(mmit->eid(), edges_[0]->id());
+  EXPECT_EQ(mmit, sg_.node(0).find_adjacent(1));
 
-  auto cit = std::as_const(sg_).find_adjacent(0, 5);
-  EXPECT_TRUE(cit.end());
+  auto mcit = std::as_const(sg_).find_adjacent(0, 5);
+  EXPECT_TRUE(mcit.end());
+  EXPECT_EQ(mcit, std::as_const(sg_).node(0).find_adjacent(5));
 
-  cit = std::as_const(sg_).find_adjacent(0, 1);
-  EXPECT_FALSE(cit.end());
-  EXPECT_EQ(cit->eid(), edges_[0]->id());
+  mcit = std::as_const(sg_).find_adjacent(0, 1);
+  EXPECT_FALSE(mcit.end());
+  EXPECT_EQ(mcit->eid(), edges_[0]->id());
+  EXPECT_EQ(mcit, std::as_const(sg_).node(0).find_adjacent(1));
 
-  auto ccit = csg_.find_adjacent(0, 5);
+  auto cmit = csg_.find_adjacent(0, 5);
+  EXPECT_TRUE(cmit.end());
+  EXPECT_EQ(cmit, csg_.node(0).find_adjacent(5));
+
+  cmit = csg_.find_adjacent(0, 1);
+  EXPECT_FALSE(cmit.end());
+  EXPECT_EQ(cmit->eid(), edges_[0]->id());
+  EXPECT_EQ(cmit, csg_.node(0).find_adjacent(1));
+
+  auto ccit = std::as_const(csg_).find_adjacent(0, 5);
   EXPECT_TRUE(ccit.end());
+  EXPECT_EQ(ccit, std::as_const(csg_).node(0).find_adjacent(5));
 
-  ccit = csg_.find_adjacent(0, 1);
+  ccit = std::as_const(csg_).find_adjacent(0, 1);
   EXPECT_FALSE(ccit.end());
   EXPECT_EQ(ccit->eid(), edges_[0]->id());
-
-  ccit = csg_.find_adjacent(0, 5);
-  EXPECT_TRUE(ccit.end());
-
-  ccit = csg_.find_adjacent(0, 1);
-  EXPECT_FALSE(ccit.end());
-  EXPECT_EQ(ccit->eid(), edges_[0]->id());
+  EXPECT_EQ(ccit, std::as_const(csg_).node(0).find_adjacent(1));
 }
 
 TEST_F(AdvancedSubgraphTest, FindEdges) {

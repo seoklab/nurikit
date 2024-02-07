@@ -257,6 +257,7 @@ protected:
   void SetUp() override {
     graph_ = Graph();
     graph_.reserve(11);
+    graph_.reserve_edges(10);
 
     for (int i = 0; i < 11; ++i) {
       graph_.add_node({ i });
@@ -464,6 +465,11 @@ TYPED_TEST(AdvancedGraphTest, AdjacencyTest) {
   ASSERT_EQ(graph.degree(8), 1);
   ASSERT_EQ(graph.degree(9), 1);
   ASSERT_EQ(graph.degree(10), 0);
+
+  ASSERT_EQ(graph.find_adjacent(0, 1), graph.node(0).find_adjacent(1));
+  ASSERT_EQ(graph.find_adjacent(1, 0), graph.node(1).find_adjacent(0));
+  ASSERT_NE(graph.find_adjacent(0, 1), graph.node(0).find_adjacent(2));
+  ASSERT_NE(graph.find_adjacent(1, 0), graph.node(2).find_adjacent(0));
 
   auto adj01 = *graph.find_adjacent(0, 1);
   ASSERT_EQ(adj01.src().id(), 0);
@@ -686,11 +692,11 @@ TYPED_TEST(AdvancedGraphTest, EraseEdgeTest) {
   using Graph = nuri::Graph<TypeParam, TypeParam>;
   Graph &graph = this->graph_;
 
-  graph.pop_edge(0);
+  graph.erase_edge(0);
   ASSERT_EQ(graph.num_edges(), 9);
   ASSERT_EQ(graph.find_adjacent(0, 1), graph.adj_end(0));
 
-  graph.pop_edge(1);
+  graph.erase_edge(1);
   ASSERT_EQ(graph.num_edges(), 8);
   ASSERT_EQ(graph.find_adjacent(0, 5), graph.adj_end(0));
 
@@ -817,19 +823,8 @@ namespace internal {
 
 #define NURI_INSTANTIATE_ALL_TEMPLATES(GraphType)                              \
   NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, iterator, Node)              \
-  NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, adjacency_iterator, Adj)     \
-  template class EdgeWrapper<GraphType, true>;                                 \
-  template class EdgeWrapper<GraphType, false>;                                \
-  static_assert(std::is_trivially_copyable_v<EdgeWrapper<GraphType, true>>,    \
-                "ConstEdgeWrapper must be trivially copyable");                \
-  static_assert(std::is_trivially_copyable_v<EdgeWrapper<GraphType, false>>,   \
-                "EdgeWrapper must be trivially copyable");                     \
-  template class EdgeIterator<GraphType, true>;                                \
-  template class EdgeIterator<GraphType, false>;                               \
-  static_assert(std::is_trivially_copyable_v<EdgeIterator<GraphType, true>>,   \
-                "const_edge_iterator must be trivially copyable");             \
-  static_assert(std::is_trivially_copyable_v<EdgeIterator<GraphType, true>>,   \
-                "edge_iterator must be trivially copyable")
+  NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, edge_iterator, Edge)         \
+  NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, adjacency_iterator, Adj)
 
 NURI_INSTANTIATE_ALL_TEMPLATES(TrivialGraph);
 NURI_INSTANTIATE_ALL_TEMPLATES(NonTrivialGraph);
