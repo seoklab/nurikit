@@ -43,9 +43,9 @@ namespace internal {
 
     constexpr DataIteratorBase() noexcept = default;
 
-    constexpr DataIteratorBase(parent_type *graph,
+    constexpr DataIteratorBase(parent_type &graph,
                                difference_type index) noexcept
-        : graph_(graph), index_(index) { }
+        : graph_(&graph), index_(index) { }
 
   protected:
     using Parent = DataIteratorBase;
@@ -63,7 +63,7 @@ namespace internal {
       return *this;
     }
 
-    constexpr parent_type *graph() const noexcept { return graph_; }
+    constexpr parent_type &graph() const noexcept { return *graph_; }
 
     constexpr difference_type index() const noexcept { return index_; }
 
@@ -159,7 +159,7 @@ namespace internal {
     template <bool other_const>
     using Other = AdjIterator<GT, other_const>;
 
-    constexpr AdjIterator(parent_type *graph, difference_type idx,
+    constexpr AdjIterator(parent_type &graph, difference_type idx,
                           difference_type nid) noexcept
         : Base(graph, idx), nid_(nid) { }
 
@@ -177,11 +177,11 @@ namespace internal {
     }
 
     constexpr bool begin() const noexcept {
-      return Base::equal(this->graph()->adj_begin(nid_));
+      return Base::equal(this->graph().adj_begin(nid_));
     }
 
     constexpr bool end() const noexcept {
-      return Base::equal(this->graph()->adj_end(nid_));
+      return Base::equal(this->graph().adj_end(nid_));
     }
 
   private:
@@ -200,7 +200,7 @@ namespace internal {
     }
 
     constexpr reference dereference() const noexcept {
-      return this->graph()->adjacent(nid_, this->index());
+      return this->graph().adjacent(nid_, this->index());
     }
 
     int nid_;
@@ -302,7 +302,7 @@ namespace internal {
     friend class NodeIterator;
 
     constexpr reference dereference() const noexcept {
-      return this->graph()->node(this->index());
+      return this->graph().node(this->index());
     }
   };
 
@@ -386,7 +386,7 @@ namespace internal {
     friend class EdgeIterator;
 
     constexpr reference dereference() const noexcept {
-      return this->graph()->edge(this->index());
+      return this->graph().edge(this->index());
     }
   };
 
@@ -554,14 +554,14 @@ public:
     int eid = num_edges();
     edges_.push_back({ src, dst, data });
     add_adjacency_entry(src, dst, eid);
-    return { this, eid };
+    return { *this, eid };
   }
 
   edge_iterator add_edge(int src, int dst, ET &&data) noexcept {
     int eid = num_edges();
     edges_.push_back({ src, dst, std::move(data) });
     add_adjacency_entry(src, dst, eid);
-    return { this, eid };
+    return { *this, eid };
   }
 
   NodeRef operator[](int id) { return node(id); }
@@ -677,12 +677,12 @@ public:
             class = internal::enable_if_compatible_iter_t<Iterator, int>>
   std::pair<int, std::vector<int>> erase_nodes(Iterator begin, Iterator end);
 
-  iterator begin() { return { this, 0 }; }
-  iterator end() { return { this, num_nodes() }; }
+  iterator begin() { return { *this, 0 }; }
+  iterator end() { return { *this, num_nodes() }; }
   const_iterator begin() const { return cbegin(); }
   const_iterator end() const { return cend(); }
-  const_iterator cbegin() const { return { this, 0 }; }
-  const_iterator cend() const { return { this, num_nodes() }; }
+  const_iterator cbegin() const { return { *this, 0 }; }
+  const_iterator cend() const { return { *this, num_nodes() }; }
 
   EdgeRef edge(int id) { return { id, *this }; }
   ConstEdgeRef edge(int id) const { return { id, *this }; }
@@ -831,12 +831,12 @@ public:
   internal::EdgesWrapper<Graph, true> edges() const { return { *this }; }
   internal::EdgesWrapper<Graph, true> cedges() const { return { *this }; }
 
-  edge_iterator edge_begin() { return { this, 0 }; }
-  edge_iterator edge_end() { return { this, num_edges() }; }
+  edge_iterator edge_begin() { return { *this, 0 }; }
+  edge_iterator edge_end() { return { *this, num_edges() }; }
   const_edge_iterator edge_begin() const { return edge_cbegin(); }
   const_edge_iterator edge_end() const { return edge_cend(); }
-  const_edge_iterator edge_cbegin() const { return { this, 0 }; }
-  const_edge_iterator edge_cend() const { return { this, num_edges() }; }
+  const_edge_iterator edge_cbegin() const { return { *this, 0 }; }
+  const_edge_iterator edge_cend() const { return { *this, num_edges() }; }
 
   adjacency_iterator find_adjacent(int src, int dst) {
     return find_adj_helper(*this, src, dst);
@@ -846,15 +846,15 @@ public:
     return find_adj_helper(*this, src, dst);
   }
 
-  adjacency_iterator adj_begin(int nid) { return { this, 0, nid }; }
-  adjacency_iterator adj_end(int nid) { return { this, degree(nid), nid }; }
+  adjacency_iterator adj_begin(int nid) { return { *this, 0, nid }; }
+  adjacency_iterator adj_end(int nid) { return { *this, degree(nid), nid }; }
   const_adjacency_iterator adj_begin(int nid) const { return adj_cbegin(nid); }
   const_adjacency_iterator adj_end(int nid) const { return adj_cend(nid); }
   const_adjacency_iterator adj_cbegin(int nid) const {
-    return { this, 0, nid };
+    return { *this, 0, nid };
   }
   const_adjacency_iterator adj_cend(int nid) const {
-    return { this, degree(nid), nid };
+    return { *this, degree(nid), nid };
   }
 
   template <class GraphLike>
@@ -907,7 +907,7 @@ private:
     if (ait.end())
       return graph.edge_end();
 
-    return { &graph, ait->eid_ };
+    return { graph, ait->eid_ };
   }
 
   void erase_nodes_common(std::vector<int> &node_keep, int first_erased_id,
@@ -1367,7 +1367,7 @@ namespace internal {
     friend class SubNodeIterator;
 
     constexpr reference dereference() const noexcept {
-      return this->graph()->node(this->index());
+      return this->graph().node(this->index());
     }
 
     template <class SGU, bool other_const,
@@ -1640,7 +1640,7 @@ namespace internal {
     }
 
     reference dereference() const noexcept {
-      return (*this->graph())[this->index()];
+      return this->graph()[this->index()];
     }
   };
 
@@ -1710,13 +1710,13 @@ namespace internal {
       return { src, dst, eid, *subgraph_ };
     }
 
-    iterator begin() { return { this, 0 }; }
-    iterator end() { return { this, size() }; }
+    iterator begin() { return { *this, 0 }; }
+    iterator end() { return { *this, size() }; }
     const_iterator begin() const { return cbegin(); }
     const_iterator end() const { return cend(); }
 
-    const_iterator cbegin() const { return { this, 0 }; }
-    const_iterator cend() const { return { this, size() }; }
+    const_iterator cbegin() const { return { *this, 0 }; }
+    const_iterator cend() const { return { *this, size() }; }
 
   private:
     struct SubEdgeInfo {
@@ -2290,14 +2290,14 @@ public:
     nodes_.remap(old_to_new);
   }
 
-  iterator begin() { return { this, 0 }; }
-  iterator end() { return { this, num_nodes() }; }
+  iterator begin() { return { *this, 0 }; }
+  iterator end() { return { *this, num_nodes() }; }
 
   const_iterator begin() const { return cbegin(); }
   const_iterator end() const { return cend(); }
 
-  const_iterator cbegin() const { return { this, 0 }; }
-  const_iterator cend() const { return { this, num_nodes() }; }
+  const_iterator cbegin() const { return { *this, 0 }; }
+  const_iterator cend() const { return { *this, num_nodes() }; }
 
   /**
    * @brief Get all node ids in the subgraph
