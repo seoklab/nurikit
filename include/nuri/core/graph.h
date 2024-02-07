@@ -177,11 +177,11 @@ namespace internal {
     }
 
     constexpr bool begin() const noexcept {
-      return *this == this->graph()->adj_begin(nid_);
+      return Base::equal(this->graph()->adj_begin(nid_));
     }
 
     constexpr bool end() const noexcept {
-      return *this == this->graph()->adj_end(nid_);
+      return Base::equal(this->graph()->adj_end(nid_));
     }
 
   private:
