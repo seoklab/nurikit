@@ -67,12 +67,6 @@ namespace internal {
 
     constexpr difference_type index() const noexcept { return index_; }
 
-  private:
-    template <class, class, class, bool>
-    friend class DataIteratorBase;
-
-    friend class boost::iterator_core_access;
-
     template <class Other,
               std::enable_if_t<std::is_convertible_v<Other, Derived>, int> = 0>
     constexpr bool equal(const Other &other) const noexcept {
@@ -88,6 +82,12 @@ namespace internal {
     void increment() noexcept { ++index_; }
     void decrement() noexcept { --index_; }
     void advance(difference_type n) noexcept { index_ += n; }
+
+  private:
+    template <class, class, class, bool>
+    friend class DataIteratorBase;
+
+    friend class boost::iterator_core_access;
 
     parent_type *graph_;
     difference_type index_;
@@ -193,6 +193,13 @@ namespace internal {
 
     template <class, bool>
     friend class AdjIterator;
+
+    template <
+        class Other,
+        std::enable_if_t<std::is_convertible_v<Other, AdjIterator>, int> = 0>
+    constexpr bool equal(const Other &other) const noexcept {
+      return nid_ == other.nid_ && Base::equal(other);
+    }
 
     constexpr reference dereference() const noexcept {
       return this->graph()->adjacent(nid_, this->index());
