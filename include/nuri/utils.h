@@ -543,12 +543,11 @@ namespace internal {
   }
 
   template <class PT>
-  const std::string *get_name(PT &props) {
+  std::string_view get_name(PT &props) {
     auto it = internal::find_name(props);
-    if (it == props.end()) {
-      return nullptr;
-    }
-    return &it->second;
+    if (it == props.end())
+      return {};
+    return it->second;
   }
 
   template <class PT>

@@ -440,10 +440,10 @@ TEST_F(MoleculeTest, Properties) {
   EXPECT_NE(it, mol_.bond_begin()->data().props().end());
 
   mol_.atom(0).data().set_name("test");
-  EXPECT_EQ(*mol_.atom(0).data().find_name(), "test");
+  EXPECT_EQ(mol_.atom(0).data().get_name(), "test");
 
   mol_.bond_begin()->data().set_name("test");
-  EXPECT_EQ(*mol_.bond_begin()->data().find_name(), "test");
+  EXPECT_EQ(mol_.bond_begin()->data().get_name(), "test");
 }
 
 TEST(SanitizeTest, FindRingsTest) {

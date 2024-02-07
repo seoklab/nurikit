@@ -264,7 +264,7 @@ public:
 
   int formal_charge() const { return formal_charge_; }
 
-  const std::string *find_name() const { return internal::get_name(props_); }
+  std::string_view get_name() const { return internal::get_name(props_); }
 
   AtomData &set_name(std::string_view name) {
     internal::set_name(props_, name);
@@ -394,7 +394,7 @@ public:
     return *this;
   }
 
-  const std::string *find_name() const { return internal::get_name(props_); }
+  std::string_view get_name() const { return internal::get_name(props_); }
 
   BondData &set_name(std::string_view name) {
     internal::set_name(props_, name);
