@@ -722,9 +722,19 @@ public:
    */
   ET pop_edge(int id) {
     ET ret = std::move(edges_[id].data);
-    erase_edges(edge_begin() + id, edge_begin() + id + 1);
+    erase_edge(id);
     return ret;
   }
+
+  /**
+   * @brief Erase an edge from the graph.
+   *
+   * @param id The id of the edge to be erased.
+   * @sa pop_edge(), erase_edge_between(), erase_edges()
+   * @note Time complexity: \f$O(E/V)\f$. If \p id is out of range, the behavior
+   *       is undefined.
+   */
+  void erase_edge(int id);
 
   /**
    * @brief Erase an edge from the graph between two nodes.
@@ -737,7 +747,14 @@ public:
    *       out of range, the behavior is undefined. \p src and \p dst are
    *       interchangeable.
    */
-  bool erase_edge_between(int src, int dst);
+  bool erase_edge_between(int src, int dst) {
+    int eid = erase_adjacent(src, dst);
+    if (eid >= num_edges())
+      return false;
+
+    erase_edge(eid);
+    return true;
+  }
 
   /**
    * @brief Erase edges from the graph.
@@ -1044,23 +1061,22 @@ void Graph<NT, ET>::erase_nodes_common(std::vector<int> &node_keep,
 }
 
 template <class NT, class ET>
-bool Graph<NT, ET>::erase_edge_between(int src, int dst) {
-  int eid = erase_adjacent(src, dst), orig_edges = num_edges();
-  if (eid >= orig_edges)
-    return false;
+void Graph<NT, ET>::erase_edge(int id) {
+  const StoredEdge &edge = edges_[id];
+  erase_adjacent(edge.src, edge.dst);
 
-  edges_.erase(edges_.begin() + eid);
+  int orig_edges = num_edges();
+  edges_.erase(edges_.begin() + id);
 
-  if (eid != orig_edges - 1) {
-    for (std::vector<AdjEntry> &adjs: adj_list_) {
-      for (AdjEntry &adj: adjs) {
-        if (adj.eid > eid)
-          --adj.eid;
-      }
+  if (id == orig_edges - 1)
+    return;
+
+  for (std::vector<AdjEntry> &adjs: adj_list_) {
+    for (AdjEntry &adj: adjs) {
+      if (adj.eid > id)
+        --adj.eid;
     }
   }
-
-  return true;
 }
 
 template <class NT, class ET>
