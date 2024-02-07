@@ -86,7 +86,8 @@ namespace internal {
   template <class Iterator, class T, class IfTrue = int>
   using enable_if_compatible_iter_t =
       std::enable_if_t<is_implicitly_constructible_v<
-          T, typename std::iterator_traits<Iterator>::reference>>;
+                           T, typename std::iterator_traits<Iterator>::reference>,
+                       IfTrue>;
 
   template <class Iter, class IteratorTag, class IfTrue = int>
   using enable_if_iter_category_t = std::enable_if_t<

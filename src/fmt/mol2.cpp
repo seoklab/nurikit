@@ -108,10 +108,9 @@ using Iter = std::vector<std::string>::const_iterator;
 
 // NOLINTBEGIN(readability-identifier-naming)
 namespace parser {
-constexpr auto mol_nums_line =
-    *x3::omit[x3::blank] >> x3::uint_ >> +x3::omit[x3::blank]
-    >> +x3::omit[x3::digit] % +x3::blank >> *x3::omit[x3::blank];
-}
+constexpr auto mol_nums_line = *x3::omit[x3::blank] >> x3::uint_
+                               >> -(+x3::omit[x3::blank] >> x3::uint_);
+}  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
 bool mol2_block_end(const Iter it, const Iter end) {
@@ -119,30 +118,27 @@ bool mol2_block_end(const Iter it, const Iter end) {
 }
 
 void parse_mol_block(Molecule &mol, Iter &it, const Iter end) {
-  if (mol2_block_end(++it, end)) {
+  if (mol2_block_end(++it, end))
     return;
-  }
 
   mol.name() = *it == "*****" ? "" : *it;
-  if (mol2_block_end(++it, end)) {
+  if (mol2_block_end(++it, end))
     return;
-  }
 
   auto lit = it->begin();
-
-  unsigned int num_atoms;
-  bool parser_ok = x3::parse(lit, it->end(), parser::mol_nums_line, num_atoms);
+  std::pair<unsigned int, boost::optional<unsigned int>> nums;
+  bool parser_ok = x3::parse(lit, it->end(), parser::mol_nums_line, nums);
   if (parser_ok) {
-    mol.reserve(static_cast<int>(num_atoms));
-  }
-
-  if (!parser_ok || lit != it->end()) {
+    mol.reserve(static_cast<int>(nums.first));
+    mol.reserve_bonds(static_cast<int>(nums.second.value_or(0)));
+  } else {
     ABSL_LOG(WARNING) << "Failed to parse mol block line; this file might be "
                          "incompatible with future versions of nurikit";
     ABSL_LOG(INFO) << "The line is: " << *it;
   }
 
-  for (; !mol2_block_end(++it, end);) { }
+  for (; !mol2_block_end(++it, end);)
+    ;
 }
 
 void atom_data_from_subtype(AtomData &data, int i, std::string_view subtype,

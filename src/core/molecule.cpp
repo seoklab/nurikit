@@ -175,14 +175,15 @@ ArrayXd Molecule::bond_lengths(int conf) const {
 }
 
 bool Molecule::rotate_bond(int ref_atom, int pivot_atom, double angle) {
-  return rotate_bond(-1, ref_atom, pivot_atom, angle);
+  return rotate_bond_conf(-1, ref_atom, pivot_atom, angle);
 }
 
-bool Molecule::rotate_bond(bond_id_type bid, double angle) {
-  return rotate_bond(-1, bid, angle);
+bool Molecule::rotate_bond(int bid, double angle) {
+  return rotate_bond_conf(-1, bid, angle);
 }
 
-bool Molecule::rotate_bond(int i, int ref_atom, int pivot_atom, double angle) {
+bool Molecule::rotate_bond_conf(int i, int ref_atom, int pivot_atom,
+                                double angle) {
   auto bit = find_bond(ref_atom, pivot_atom);
   if (bit == bond_end()) {
     return false;
@@ -190,22 +191,20 @@ bool Molecule::rotate_bond(int i, int ref_atom, int pivot_atom, double angle) {
   return rotate_bond_common(i, *bit, ref_atom, pivot_atom, angle);
 }
 
-bool Molecule::rotate_bond(int i, bond_id_type bid, double angle) {
+bool Molecule::rotate_bond_conf(int i, int bid, double angle) {
   const Bond b = bond(bid);
-  return rotate_bond_common(i, b, b.src(), b.dst(), angle);
+  return rotate_bond_common(i, b, b.src().id(), b.dst().id(), angle);
 }
 
 void Molecule::rebind_substructs() noexcept {
-  for (Substructure &sub: substructs_) {
+  for (Substructure &sub: substructs_)
     sub.rebind(graph_);
-  }
 }
 
 bool Molecule::rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
                                   double angle) {
-  if (!b.data().is_rotable()) {
+  if (!b.data().is_rotable())
     return false;
-  }
 
   absl::flat_hash_set<int> connected =
       connected_components(graph_, pivot_atom, ref_atom);
@@ -427,8 +426,7 @@ void MoleculeMutator::finalize() noexcept {
 
   // As per the spec, the order is:
   // 1. Erase bonds
-  for (auto bid: erased_bonds_)
-    g.erase_edge(bid);
+  g.erase_edges(erased_bonds_.begin(), erased_bonds_.end());
 
   // 2. Erase atoms
   int last;
@@ -539,8 +537,8 @@ namespace {
     }
 
     for (auto bond: mol.bonds()) {
-      if (mol.atom(bond.src()).data().is_conjugated()
-          && mol.atom(bond.dst()).data().is_conjugated()) {
+      if (bond.src().data().is_conjugated()
+          && bond.dst().data().is_conjugated()) {
         bond.data().set_conjugated(true);
       }
     }
@@ -806,8 +804,8 @@ bool MoleculeSanitizer::sanitize_aromaticity() {
     if (!bond.data().is_ring_bond()) {
       if (bond.data().order() == constants::kAromaticBond) {
         ABSL_LOG(WARNING)
-            << "Bond order between atoms " << bond.src() << " and "
-            << bond.dst()
+            << "Bond order between atoms " << bond.src().id() << " and "
+            << bond.dst().id()
             << " is set aromatic, but the bond is not a ring bond";
         return false;
       }

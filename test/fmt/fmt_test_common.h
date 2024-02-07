@@ -57,7 +57,7 @@ inline void print_mol(const Molecule &mol) {
   }
   std::cout << '\n';
   for (auto bond: mol.bonds()) {
-    std::cout << bond.src() << " -> " << bond.dst() << ' '
+    std::cout << bond.src().id() << " -> " << bond.dst().id() << ' '
               << bond.data().order() << '\n';
   }
   std::cout << "---\n";

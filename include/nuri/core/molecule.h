@@ -812,7 +812,6 @@ public:
 
   using MutableBond = GraphType::EdgeRef;
   using Bond = GraphType::ConstEdgeRef;
-  using bond_id_type = GraphType::edge_id_type;
   using bond_iterator = GraphType::edge_iterator;
   using const_bond_iterator = GraphType::const_edge_iterator;
 
@@ -850,6 +849,8 @@ public:
   const std::string &name() const { return name_; }
 
   void reserve(int num_atoms) { graph_.reserve(num_atoms); }
+
+  void reserve_bonds(int num_bonds) { graph_.reserve_edges(num_bonds); }
 
   /**
    * @brief Check if the molecule has any atoms.
@@ -956,21 +957,21 @@ public:
 
   /**
    * @brief Get a mutable bond of the molecule.
-   * @param bond_id Id of the bond to get.
-   * @return A mutable view over bond \p bond_id of the molecule.
-   * @note The returned reference is valid until the bond is erased from the
-   *       molecule.
+   * @param bond_idx Index of the bond to get.
+   * @return A mutable view over bond \p bond_idx of the molecule.
+   * @note If the atom index is out of range, the behavior is undefined. The
+   *       returned reference is invalidated when the molecule is modified.
    */
-  MutableBond bond(bond_id_type bond_id) { return graph_.edge(bond_id); }
+  MutableBond bond(int bond_idx) { return graph_.edge(bond_idx); }
 
   /**
    * @brief Get a bond of the molecule.
-   * @param bond_id Id of the bond to get.
-   * @return A read-only view over bond \p bond_id of the molecule.
-   * @note The returned reference is valid until the bond is erased from the
-   *       molecule.
+   * @param bond_idx Index of the bond to get.
+   * @return A read-only view over bond \p bond_idx of the molecule.
+   * @note If the atom index is out of range, the behavior is undefined. The
+   *       returned reference is invalidated when the molecule is modified.
    */
-  Bond bond(bond_id_type bond_id) const { return graph_.edge(bond_id); }
+  Bond bond(int bond_idx) const { return graph_.edge(bond_idx); }
 
   /**
    * @brief Get a bond of the molecule.
@@ -1212,7 +1213,7 @@ public:
    *       conformer index is out of range.
    */
   double distsq(Bond bond, int conf = 0) const {
-    return distsq(bond.src(), bond.dst(), conf);
+    return distsq(bond.src().id(), bond.dst().id(), conf);
   }
 
   /**
@@ -1236,7 +1237,7 @@ public:
    *       conformer index is out of range.
    */
   double distance(Bond bond, int conf = 0) const {
-    return distance(bond.src(), bond.dst(), conf);
+    return distance(bond.src().id(), bond.dst().id(), conf);
   }
 
   /**
@@ -1267,7 +1268,7 @@ public:
 
   /**
    * @brief Rotate a bond.
-   * @param bid The id of bond to rotate.
+   * @param bid The index of bond to rotate.
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
    *         not applied (e.g. the bond is not rotatable, etc.).
@@ -1278,7 +1279,7 @@ public:
    * rotated about the source atom -> destination atom axis. Positive angle
    * means counter-clockwise rotation (as in the right-hand rule).
    */
-  bool rotate_bond(bond_id_type bid, double angle);
+  bool rotate_bond(int bid, double angle);
 
   /**
    * @brief Rotate a bond of a conformer.
@@ -1294,12 +1295,12 @@ public:
    * rotated about the pivot atom -> pivot atom axis. Positive angle means
    * counter-clockwise rotation (as in the right-hand rule).
    */
-  bool rotate_bond(int i, int ref_atom, int pivot_atom, double angle);
+  bool rotate_bond_conf(int i, int ref_atom, int pivot_atom, double angle);
 
   /**
    * @brief Rotate a bond of a conformer.
    * @param i The index of the conformer to transform.
-   * @param bid The id of bond to rotate.
+   * @param bid The index of bond to rotate.
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
    *         not applied (e.g. the bond is not rotatable, etc.).
@@ -1308,7 +1309,7 @@ public:
    * rotated about the source atom -> destination atom axis. Positive angle
    * means counter-clockwise rotation (as in the right-hand rule).
    */
-  bool rotate_bond(int i, bond_id_type bid, double angle);
+  bool rotate_bond_conf(int i, int bid, double angle);
 
   /**
    * @brief Create and return a substurcture of the molecule.
@@ -1725,12 +1726,10 @@ public:
 
   /**
    * @brief Mark a bond to be erased.
-   * @param bit The bond iterator to erase.
-   * @note The behavior is undefined if the iterator is out of range.
+   * @param bid The index of the bond to erase.
+   * @note The behavior is undefined if the index is out of range.
    */
-  void mark_bond_erase(Molecule::const_bond_iterator bit) {
-    erased_bonds_.push_back(bit->id());
-  }
+  void mark_bond_erase(int bid) { erased_bonds_.push_back(bid); }
 
   /**
    * @brief Mark a bond to be erased.
@@ -1775,7 +1774,7 @@ private:
   int prev_num_bonds_;
 
   std::vector<int> erased_atoms_;
-  std::vector<Molecule::bond_id_type> erased_bonds_;
+  std::vector<int> erased_bonds_;
 };
 
 class MoleculeSanitizer {
