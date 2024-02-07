@@ -875,7 +875,7 @@ private:
   find_adj_helper(GT &graph, int src, int dst) {
     auto ret = graph.adj_begin(src);
 
-    for (; ret != graph.adj_end(src); ++ret)
+    for (; !ret.end(); ++ret)
       if (ret->dst().id() == dst)
         break;
 
@@ -896,6 +896,9 @@ private:
   }
 
   void erase_nodes_common(std::vector<int> &node_keep, int first_erased_id,
+                          bool erase_trailing);
+
+  void erase_edges_common(std::vector<int> &edge_keep, int first_erased_id,
                           bool erase_trailing);
 
   void add_adjacency_entry(int src, int dst, int eid) {
@@ -923,9 +926,6 @@ private:
 
     return ret;
   }
-
-  void erase_edges_common(std::vector<int> &edge_keep, int first_erased_id,
-                          bool erase_trailing);
 
   AdjRef adjacent(int nid, int idx) {
     AdjEntry &adj = adj_list_[nid][idx];
