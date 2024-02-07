@@ -196,6 +196,21 @@ TYPED_TEST(BasicGraphTest, AddNodeTest) {
   ASSERT_EQ(graph.node(1).data(), 1);
 }
 
+TYPED_TEST(BasicGraphTest, AddNodesTest) {
+  using Graph = nuri::Graph<TypeParam, TypeParam>;
+
+  std::vector<TypeParam> data { 0, 1, 2, 3, 4, 5 };
+
+  Graph graph;
+  graph.add_nodes(data.begin(), data.end());
+
+  ASSERT_EQ(graph.num_nodes(), 6);
+  ASSERT_EQ(graph.num_edges(), 0);
+
+  for (int i = 0; i < graph.num_nodes(); ++i)
+    EXPECT_EQ(graph.node(i).data(), i);
+}
+
 TYPED_TEST(BasicGraphTest, AddEdgeTest) {
   using Graph = nuri::Graph<TypeParam, TypeParam>;
 
