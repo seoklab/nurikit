@@ -753,7 +753,14 @@ public:
    *       \f$O(V+E)\f$ otherwise. If \p id is out of range, the behavior is
    *       undefined.
    */
-  void erase_edge(int id);
+  void erase_edge(int id) {
+    const StoredEdge &edge = edges_[id];
+    auto srcit = find_adjacency_entry(edge.src, edge.dst),
+         dstit = find_adjacency_entry(edge.dst, edge.src);
+    erase_adjacency_entry(edge.src, srcit, edge.dst, dstit);
+
+    erase_edge_common(id);
+  }
 
   /**
    * @brief Erase an edge from the graph between two nodes.
@@ -766,14 +773,7 @@ public:
    *       range, the behavior is undefined. \p src and \p dst are
    *       interchangeable.
    */
-  bool erase_edge_between(int src, int dst) {
-    int eid = erase_adjacent(src, dst);
-    if (eid >= num_edges())
-      return false;
-
-    erase_edge(eid);
-    return true;
-  }
+  bool erase_edge_between(int src, int dst);
 
   /**
    * @brief Erase edges from the graph.
@@ -920,6 +920,8 @@ private:
   void erase_nodes_common(std::vector<int> &node_keep, int first_erased_id,
                           bool erase_trailing);
 
+  void erase_edge_common(int id);
+
   void erase_edges_common(std::vector<int> &edge_keep, int first_erased_id,
                           bool erase_trailing);
 
@@ -928,25 +930,16 @@ private:
     adj_list_[dst].push_back({ src, eid });
   }
 
-  int erase_adjacent(const int src, const int dst) {
-    int ret = num_edges();
+  auto find_adjacency_entry(int src, int dst) {
+    return std::find_if(adj_list_[src].begin(), adj_list_[src].end(),
+                        [dst](const AdjEntry &adj) { return adj.dst == dst; });
+  }
 
-    auto pred_gen = [](int other) {
-      return [other](const AdjEntry &adj) { return adj.dst == other; };
-    };
-
-    std::vector<AdjEntry> &src_adjs = adj_list_[src];
-    auto it = std::find_if(src_adjs.begin(), src_adjs.end(), pred_gen(dst));
-    if (it != src_adjs.end()) {
-      ret = it->eid;
-      src_adjs.erase(it);
-
-      std::vector<AdjEntry> &dst_adjs = adj_list_[dst];
-      dst_adjs.erase(
-          std::find_if(dst_adjs.begin(), dst_adjs.end(), pred_gen(src)));
-    }
-
-    return ret;
+  void erase_adjacency_entry(
+      int src, typename std::vector<AdjEntry>::const_iterator srcit, int dst,
+      typename std::vector<AdjEntry>::const_iterator dstit) {
+    adj_list_[src].erase(srcit);
+    adj_list_[dst].erase(dstit);
   }
 
   AdjRef adjacent(int nid, int idx) {
@@ -1085,10 +1078,26 @@ void Graph<NT, ET>::erase_nodes_common(std::vector<int> &node_keep,
 }
 
 template <class NT, class ET>
-void Graph<NT, ET>::erase_edge(int id) {
-  const StoredEdge &edge = edges_[id];
-  erase_adjacent(edge.src, edge.dst);
+bool Graph<NT, ET>::erase_edge_between(int src, int dst) {
+  if (degree(src) > degree(dst))
+    return erase_edge_between(dst, src);
 
+  auto srcit = find_adjacency_entry(src, dst);
+  if (srcit == adj_list_[src].end())
+    return false;
+
+  int eid = srcit->eid;
+  // NOLINTNEXTLINE(readability-suspicious-call-argument)
+  auto dstit = find_adjacency_entry(dst, src);
+  erase_adjacency_entry(src, srcit, dst, dstit);
+
+  erase_edge_common(eid);
+
+  return true;
+}
+
+template <class NT, class ET>
+void Graph<NT, ET>::erase_edge_common(int id) {
   int orig_edges = num_edges();
   edges_.erase(edges_.begin() + id);
 
