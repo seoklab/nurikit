@@ -1067,7 +1067,7 @@ Graph<NT, ET>::erase_edges(const_edge_iterator begin, const_edge_iterator end,
                            UnaryPred pred) {
   // This will also handle size() == 0 case correctly.
   if (begin >= end)
-    return { size(), {} };
+    return { num_edges(), {} };
 
   // Phase I: mark edges for removal, O(E)
   std::vector<int> edge_keep(num_edges(), 1);
@@ -1098,7 +1098,7 @@ std::pair<int, std::vector<int>> Graph<NT, ET>::erase_edges(Iterator begin,
                                                             Iterator end) {
   // This will also handle size() == 0 case correctly.
   if (begin >= end)
-    return { size(), {} };
+    return { num_edges(), {} };
 
   // Phase I: mark edges for removal, O(E)
   std::vector<int> edge_keep(num_edges(), 1);
