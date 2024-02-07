@@ -604,8 +604,8 @@ public:
    * @return The data of the erased node.
    * @sa erase_nodes()
    * @note Time complexity: \f$O(V)\f$ if only trailing node is erased,
-   *       \f$O(V+E)\f$ otherwise. If \p id \f$\ge\f$ `num_nodes()` or \p id
-   *       \f$\lt 0\f$, the behavior is undefined.
+   *       \f$O(V+E)\f$ otherwise. If \p id is out of range, the behavior is
+   *       undefined.
    */
   NT pop_node(int id) {
     NT ret = std::move(nodes_[id]);
@@ -626,9 +626,13 @@ public:
    *         the graph before this operation. Otherwise, `new end id` will be
    *         set to -1 and erased nodes will be marked as -1 in the mapping.
    * @sa pop_node()
-   * @note Time complexity: \f$O(V)\f$ if only trailing nodes and edges are
-   *       erased, \f$O(V+E)\f$ otherwise. If \p begin or \p end is out of
-   *       range, the behavior is undefined.
+   * @note Time complexity:
+   *         1. \f$O(N)\f$ if no nodes are erased,
+   *         2. \f$O(V)\f$ if only trailing nodes are erased and no edges are
+   *            erased,
+   *         3. \f$O(V+E)\f$ otherwise.
+   *       If \p begin or the iterator before \p end is out of range, the
+   *       behavior is undefined.
    */
   std::pair<int, std::vector<int>> erase_nodes(const_iterator begin,
                                                const_iterator end) {
@@ -652,8 +656,12 @@ public:
    *         the graph before this operation. Otherwise, `new end id` will be
    *         set to -1 and erased nodes will be marked as -1 in the mapping.
    * @sa pop_node()
-   * @note Time complexity: \f$O(V)\f$ if only trailing nodes are erased,
-   *       \f$O(V+E)\f$ otherwise. If \p begin or \p end is out of range, the
+   * @note Time complexity:
+   *         1. \f$O(N)\f$ if no nodes are erased,
+   *         2. \f$O(V)\f$ if only trailing nodes are erased and no edges are
+   *            erased,
+   *         3. \f$O(V+E)\f$ otherwise.
+   *       If \p begin or the iterator before \p end is out of range, the
    *       behavior is undefined.
    */
   template <class UnaryPred>
@@ -675,9 +683,13 @@ public:
    *         the graph before this operation. Otherwise, `new end id` will be
    *         set to -1 and erased nodes will be marked as -1 in the mapping.
    * @sa pop_node()
-   * @note Time complexity: \f$O(V)\f$ if only trailing nodes are erased,
-   *       \f$O(V+E)\f$ otherwise. If any iterator in range `[`\p begin,
-   *       \p end`)` references an invalid node id, the behavior is undefined.
+   * @note Time complexity:
+   *         1. \f$O(N)\f$ if no nodes are erased,
+   *         2. \f$O(V)\f$ if only trailing nodes are erased and no edges are
+   *            erased,
+   *         3. \f$O(V+E)\f$ otherwise.
+   *       If any iterator in range `[`\p begin, \p end`)` references an invalid
+   *       node id, the behavior is undefined.
    */
   template <class Iterator,
             class = internal::enable_if_compatible_iter_t<Iterator, int>>
@@ -716,9 +728,9 @@ public:
    *
    * @param id The id of the edge to be erased.
    * @return The data of the erased edge.
-   * @sa erase_edges()
-   * @note Time complexity: \f$O(E/V)\f$. If \p id is out of range, the behavior
-   *       is undefined.
+   * @sa erase_edge(), erase_edge_between(), erase_edges()
+   * @note Time complexity: same as erase_edge(). If \p id is out of range, the
+   *       behavior is undefined.
    */
   ET pop_edge(int id) {
     ET ret = std::move(edges_[id].data);
@@ -731,8 +743,9 @@ public:
    *
    * @param id The id of the edge to be erased.
    * @sa pop_edge(), erase_edge_between(), erase_edges()
-   * @note Time complexity: \f$O(E/V)\f$. If \p id is out of range, the behavior
-   *       is undefined.
+   * @note Time complexity: \f$O(E/V)\f$ if the edge is the last edge,
+   *       \f$O(V+E)\f$ otherwise. If \p id is out of range, the behavior is
+   *       undefined.
    */
   void erase_edge(int id);
 
@@ -742,9 +755,9 @@ public:
    * @param src The id of the source node.
    * @param dst The id of the destination node.
    * @return Whether the edge is erased.
-   * @note Time complexity: \f$O(E/V)\f$ if the edge is the last edge of the
-   *       graph or is not found, \f$O(V+E)\f$ otherwise. If \p src or \p dst is
-   *       out of range, the behavior is undefined. \p src and \p dst are
+   * @sa pop_edge(), erase_edge(), erase_edges()
+   * @note Time complexity: same as erase_edge(). If \p src or \p dst is out of
+   *       range, the behavior is undefined. \p src and \p dst are
    *       interchangeable.
    */
   bool erase_edge_between(int src, int dst) {
@@ -768,8 +781,9 @@ public:
    *         edge removal), `new end id` will be equal to the size of the graph
    *         before this operation. Otherwise, `new end id` will be set to -1
    *         and erased edges will be marked as -1 in the mapping.
-   * @sa pop_edge()
-   * @note Time complexity: \f$O(E)\f$. If \p begin or \p end is out of range,
+   * @sa pop_edge(), erase_edge(), erase_edge_between()
+   * @note Time complexity: \f$O(N)\f$ if no edges were removed, \f$O(V+E)\f$
+   *       otherwise. If \p begin or the iterator before \p end is out of range,
    *       the behavior is undefined.
    */
   std::pair<int, std::vector<int>> erase_edges(const_edge_iterator begin,
@@ -793,8 +807,9 @@ public:
    *         trailing edge removal), `new end id` will be equal to the size of
    *         the graph before this operation. Otherwise, `new end id` will be
    *         set to -1 and erased edges will be marked as -1 in the mapping.
-   * @sa pop_edge()
-   * @note Time complexity: \f$O(E)\f$. If \p begin or \p end is out of range,
+   * @sa pop_edge(), erase_edge(), erase_edge_between()
+   * @note Time complexity: \f$O(N)\f$ if no edges were removed, \f$O(V+E)\f$
+   *       otherwise. If \p begin or the iterator before \p end is out of range,
    *       the behavior is undefined.
    */
   template <class UnaryPred>
@@ -816,9 +831,10 @@ public:
    *         trailing edge removal), `new end id` will be equal to the size of
    *         the graph before this operation. Otherwise, `new end id` will be
    *         set to -1 and erased edges will be marked as -1 in the mapping.
-   * @sa pop_edge()
-   * @note Time complexity: \f$O(E)\f$. If any iterator in range `[`\p begin,
-   *       \p end`)` references an invalid edge id, the behavior is undefined.
+   * @sa pop_edge(), erase_edge(), erase_edge_between()
+   * @note Time complexity: \f$O(N)\f$ if no edges were removed, \f$O(V+E)\f$
+   *       otherwise. If any iterator in range `[`\p begin, \p end`)` references
+   *       an invalid edge id, the behavior is undefined.
    */
   template <class Iterator,
             class = internal::enable_if_compatible_iter_t<Iterator, int>>
@@ -1019,12 +1035,12 @@ void Graph<NT, ET>::erase_nodes_common(std::vector<int> &node_keep,
   if (first_erased_id < 0 || first_erased_id >= num_nodes())
     return;
 
-  // Phase I: erase the edges
+  // Phase II: erase the edges, O(V+E)
   erase_edges(edge_begin(), edge_end(), [&](ConstEdgeRef edge) {
     return node_keep[edge.src().id()] == 0 || node_keep[edge.dst().id()] == 0;
   });
 
-  // Phase II: erase the nodes & adjacencies
+  // Phase III: erase the nodes & adjacencies
   if (erase_trailing) {
     // Fast path 2: if only trailing nodes are erased, no node number needs to
     // be updated.
@@ -1037,12 +1053,14 @@ void Graph<NT, ET>::erase_nodes_common(std::vector<int> &node_keep,
 
   // Erase unused nodes and adjacencies, O(V)
   int i = 0;
-  erase_if(nodes_, [&](const NT &) { return node_keep[i++] == 0; });
+  erase_if(nodes_,
+           [&](const NT & /* unused */) { return node_keep[i++] == 0; });
   i = 0;
-  erase_if(adj_list_,
-           [&](const std::vector<AdjEntry> &) { return node_keep[i++] == 0; });
+  erase_if(adj_list_, [&](const std::vector<AdjEntry> & /* unused */) {
+    return node_keep[i++] == 0;
+  });
 
-  // Phase III: update the node numbers in adjacencies and edges, O(V+E)
+  // Phase IV: update the node numbers in adjacencies and edges, O(V+E)
   mask_to_map(node_keep);
 
   for (std::vector<AdjEntry> &adjs: adj_list_)
@@ -1084,11 +1102,11 @@ template <class UnaryPred>
 std::pair<int, std::vector<int>>
 Graph<NT, ET>::erase_edges(const_edge_iterator begin, const_edge_iterator end,
                            UnaryPred pred) {
-  // This will also handle size() == 0 case correctly.
+  // This will also handle num_edges() == 0 case correctly.
   if (begin >= end)
     return { num_edges(), {} };
 
-  // Phase I: mark edges for removal, O(E)
+  // Phase I: mark edges for removal, O(N)
   std::vector<int> edge_keep(num_edges(), 1);
   int first_erased_id = -1;
   bool erase_trailing = end == this->edge_end();
@@ -1115,11 +1133,11 @@ template <class NT, class ET>
 template <class Iterator, class>
 std::pair<int, std::vector<int>> Graph<NT, ET>::erase_edges(Iterator begin,
                                                             Iterator end) {
-  // This will also handle size() == 0 case correctly.
+  // This will also handle num_edges() == 0 case correctly.
   if (begin >= end)
     return { num_edges(), {} };
 
-  // Phase I: mark edges for removal, O(E)
+  // Phase I: mark edges for removal, O(N)
   std::vector<int> edge_keep(num_edges(), 1);
   int first_erased_id = num_edges();
   for (auto it = begin; it != end; ++it) {
@@ -1148,7 +1166,7 @@ void Graph<NT, ET>::erase_edges_common(std::vector<int> &edge_keep,
   if (first_erased_id < 0 || first_erased_id >= num_edges())
     return;
 
-  // Phase II: erase unused adjacencies
+  // Phase II: erase unused adjacencies, O(V+E)
   for (std::vector<AdjEntry> &adjs: adj_list_)
     erase_if(adjs,
              [&](const AdjEntry &adj) { return edge_keep[adj.eid] == 0; });
@@ -1162,9 +1180,11 @@ void Graph<NT, ET>::erase_edges_common(std::vector<int> &edge_keep,
     return;
   }
 
-  // Phase III: erase the edges
+  // Phase III: erase the edges, O(E)
   int i = 0;
-  erase_if(edges_, [&](const StoredEdge &) { return edge_keep[i++] == 0; });
+  erase_if(edges_, [&](const StoredEdge & /* unused */) {
+    return edge_keep[i++] == 0;
+  });
 
   // Phase IV: update the edge numbers in adjacencies, O(V+E)
   mask_to_map(edge_keep);
