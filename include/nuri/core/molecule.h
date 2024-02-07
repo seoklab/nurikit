@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdint>
 #include <iterator>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -44,6 +45,29 @@ namespace constants {
     kOtherHyb = 7,  // Unknown/other
   };
 
+  inline std::ostream &operator<<(std::ostream &os, Hybridization hyb) {
+    switch (hyb) {
+    case kUnbound:
+      return os << "unbound";
+    case kTerminal:
+      return os << "terminal";
+    case kSP:
+      return os << "sp";
+    case kSP2:
+      return os << "sp2";
+    case kSP3:
+      return os << "sp3";
+    case kSP3D:
+      return os << "sp3d";
+    case kSP3D2:
+      return os << "sp3d2";
+    case kOtherHyb:
+      break;
+    }
+
+    return os << "other";
+  }
+
   /**
    * @brief The bond order of a bond object.
    */
@@ -55,6 +79,25 @@ namespace constants {
     kQuadrupleBond = 4,
     kAromaticBond = 5,
   };
+
+  inline std::ostream &operator<<(std::ostream &os, BondOrder bo) {
+    switch (bo) {
+    case kOtherBond:
+      break;
+    case kSingleBond:
+      return os << "single";
+    case kDoubleBond:
+      return os << "double";
+    case kTripleBond:
+      return os << "triple";
+    case kQuadrupleBond:
+      return os << "quadruple";
+    case kAromaticBond:
+      return os << "aromatic";
+    }
+
+    return os << "other";
+  }
 
   extern constexpr inline double kBondOrderToDouble[] = { 0.0, 1.0, 2.0,
                                                           3.0, 4.0, 1.5 };
@@ -235,6 +278,8 @@ public:
     return internal::check_flag(flags_, AtomFlags::kRightHanded);
   }
 
+  AtomFlags flags() const { return flags_; }
+
   AtomData &add_flags(AtomFlags flags) {
     flags_ |= flags;
     return *this;
@@ -378,6 +423,8 @@ public:
     internal::update_flag(flags_, trans, BondFlags::kEConfig);
     return *this;
   }
+
+  BondFlags flags() const { return flags_; }
 
   BondData &add_flags(BondFlags flags) {
     flags_ |= flags;
