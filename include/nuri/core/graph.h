@@ -119,7 +119,7 @@ namespace internal {
 
     constexpr int eid() const noexcept { return eid_; }
     constexpr edge_value_type &edge_data() const noexcept {
-      return graph_->edge(eid_).data();
+      return graph_->edge_data(eid_);
     }
 
     constexpr Other<true> as_const() const noexcept { return *this; }
@@ -130,8 +130,6 @@ namespace internal {
 
     template <class, bool>
     friend class SubAdjIterator;
-    template <class, bool>
-    friend class SubEdgeWrapper;
     template <class, bool>
     friend class SubEdgesFinder;
 
@@ -223,22 +221,19 @@ namespace internal {
     template <bool other_const>
     using Other = NodeWrapper<GT, other_const>;
 
-    constexpr NodeWrapper(int nid, DT &data, parent_type &graph) noexcept
-        : nid_(nid), data_(&data), graph_(&graph) { }
-
-    template <bool this_const = is_const,
-              std::enable_if_t<is_const && this_const, int> = 0>
-    constexpr NodeWrapper(int nid, const DT &data, parent_type &graph) noexcept
-        : nid_(nid), data_(&data), graph_(&graph) { }
+    constexpr NodeWrapper(int nid, parent_type &graph) noexcept
+        : nid_(nid), graph_(&graph) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     constexpr NodeWrapper(const Other<other_const> &other) noexcept
-        : nid_(other.nid_), data_(other.data_), graph_(other.graph_) { }
+        : nid_(other.nid_), graph_(other.graph_) { }
 
     constexpr int id() const noexcept { return nid_; }
 
-    constexpr value_type &data() const noexcept { return *data_; }
+    constexpr value_type &data() const noexcept {
+      return graph_->node_data(nid_);
+    }
 
     constexpr int degree() const noexcept { return graph_->degree(nid_); }
 
@@ -267,7 +262,6 @@ namespace internal {
     friend class NodeWrapper;
 
     int nid_;
-    value_type *data_;
     parent_type *graph_;
   };
 
@@ -323,26 +317,27 @@ namespace internal {
     template <bool other_const>
     using Other = EdgeWrapper<GT, other_const>;
 
-    constexpr EdgeWrapper(int eid, value_type &data,
-                          parent_type &graph) noexcept
-        : eid_(eid), data_(&data), graph_(&graph) { }
+    constexpr EdgeWrapper(int eid, parent_type &graph) noexcept
+        : eid_(eid), graph_(&graph) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     constexpr EdgeWrapper(const Other<other_const> &other) noexcept
-        : eid_(other.eid_), data_(other.data_), graph_(other.graph_) { }
+        : eid_(other.eid_), graph_(other.graph_) { }
 
     constexpr int id() const noexcept { return eid_; }
 
     constexpr NodeWrapper<GT, is_const> src() const noexcept {
-      return graph_->node(graph_->edges_[eid_].src);
+      return graph_->edge_src(eid_);
     }
 
     constexpr NodeWrapper<GT, is_const> dst() const noexcept {
-      return graph_->node(graph_->edges_[eid_].dst);
+      return graph_->edge_dst(eid_);
     }
 
-    constexpr value_type &data() const noexcept { return *data_; }
+    constexpr value_type &data() const noexcept {
+      return graph_->edge_data(eid_);
+    }
 
     constexpr Other<true> as_const() const noexcept { return *this; }
 
@@ -351,7 +346,6 @@ namespace internal {
     friend class EdgeWrapper;
 
     int eid_;
-    value_type *data_;
     parent_type *graph_;
   };
 
@@ -457,30 +451,11 @@ private:
     int dst;
     ET data;
   };
-  using edge_type = StoredEdge;
 
   struct AdjEntry {
     int dst;
     int eid;
   };
-
-  template <class, bool>
-  friend class internal::NodeWrapper;
-
-  template <class, bool>
-  friend class internal::EdgeWrapper;
-  template <class, bool>
-  friend class internal::EdgeIterator;
-
-  template <class, bool>
-  friend class internal::AdjWrapper;
-  template <class, bool>
-  friend class internal::AdjIterator;
-
-  template <class, class, bool>
-  friend class Subgraph;
-  template <class, bool>
-  friend class internal::SubEdgeWrapper;
 
 public:
   using node_data_type = NT;
@@ -592,10 +567,11 @@ public:
   NodeRef operator[](int id) { return node(id); }
   ConstNodeRef operator[](int id) const { return node(id); }
 
-  NodeRef node(int id) { return { id, nodes_[id], *this }; }
-  ConstNodeRef node(int id) const { return { id, nodes_[id], *this }; }
-  void update_node(int id, const NT &data) { nodes_[id] = data; }
-  void update_node(int id, NT &&data) noexcept { nodes_[id] = std::move(data); }
+  NodeRef node(int id) { return { id, *this }; }
+  ConstNodeRef node(int id) const { return { id, *this }; }
+
+  NT &node_data(int id) { return nodes_[id]; }
+  const NT &node_data(int id) const { return nodes_[id]; }
 
   void clear() {
     nodes_.clear();
@@ -708,12 +684,17 @@ public:
   const_iterator cbegin() const { return { this, 0 }; }
   const_iterator cend() const { return { this, num_nodes() }; }
 
-  EdgeRef edge(int id) { return { id, edges_[id].data, *this }; }
-  ConstEdgeRef edge(int id) const { return { id, edges_[id].data, *this }; }
-  void update_edge(int id, const ET &data) { edges_[id].data = data; }
-  void update_edge(int id, ET &&data) noexcept {
-    edges_[id].data = std::move(data);
-  }
+  EdgeRef edge(int id) { return { id, *this }; }
+  ConstEdgeRef edge(int id) const { return { id, *this }; }
+
+  NodeRef edge_src(int id) { return this->node(edges_[id].src); }
+  ConstNodeRef edge_src(int id) const { return this->node(edges_[id].src); }
+
+  NodeRef edge_dst(int id) { return this->node(edges_[id].dst); }
+  ConstNodeRef edge_dst(int id) const { return this->node(edges_[id].dst); }
+
+  ET &edge_data(int id) { return edges_[id].data; }
+  const ET &edge_data(int id) const { return edges_[id].data; }
 
   edge_iterator find_edge(int src, int dst) {
     return find_edge_helper(*this, src, dst);
@@ -892,6 +873,18 @@ public:
   }
 
 private:
+  template <class, bool>
+  friend class internal::NodeWrapper;
+
+  template <class, bool>
+  friend class internal::EdgeIterator;
+
+  template <class, bool>
+  friend class internal::AdjIterator;
+
+  template <class, class, bool>
+  friend class Subgraph;
+
   template <class GT>
   static internal::AdjIterator<Graph, std::is_const_v<GT>>
   find_adj_helper(GT &graph, int src, int dst) {
@@ -1276,23 +1269,19 @@ namespace internal {
                   "Cannot create non-const SubNodeWrapper from const "
                   "Subgraph");
 
-    constexpr SubNodeWrapper(int idx, DT &data, parent_type &subgraph) noexcept
-        : idx_(idx), data_(&data), subgraph_(&subgraph) { }
-
-    template <bool this_const = is_const,
-              std::enable_if_t<is_const && this_const, int> = 0>
-    constexpr SubNodeWrapper(int idx, const DT &data,
-                             parent_type &subgraph) noexcept
-        : idx_(idx), data_(&data), subgraph_(&subgraph) { }
+    constexpr SubNodeWrapper(int idx, parent_type &subgraph) noexcept
+        : idx_(idx), subgraph_(&subgraph) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     constexpr SubNodeWrapper(const Other<other_const> &other) noexcept
-        : idx_(other.idx_), data_(other.data_), subgraph_(other.subgraph_) { }
+        : idx_(other.idx_), subgraph_(other.subgraph_) { }
 
     constexpr int id() const noexcept { return idx_; }
 
-    constexpr value_type &data() const noexcept { return *data_; }
+    constexpr value_type &data() const noexcept {
+      return subgraph_->node_data(idx_);
+    }
 
     constexpr int degree() const noexcept { return subgraph_->degree(idx_); }
 
@@ -1317,7 +1306,6 @@ namespace internal {
     friend class SubNodeWrapper;
 
     int idx_;
-    value_type *data_;
     parent_type *subgraph_;
   };
 
@@ -1536,21 +1524,22 @@ namespace internal {
                   "Cannot create non-const SubEdgeWrapper from const "
                   "Subgraph");
 
-    constexpr SubEdgeWrapper(int src, int dst, int eid, value_type &data,
+    constexpr SubEdgeWrapper(int src, int dst, int eid,
                              parent_type &subgraph) noexcept
-        : src_(src), dst_(dst), eid_(eid), data_(&data), subgraph_(&subgraph) {
-    }
+        : src_(src), dst_(dst), eid_(eid), subgraph_(&subgraph) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     constexpr SubEdgeWrapper(const Other<other_const> &other) noexcept
         : src_(other.src_), dst_(other.dst_), eid_(other.eid_),
-          data_(other.data_), subgraph_(other.subgraph_) { }
+          subgraph_(other.subgraph_) { }
 
     constexpr auto src() const noexcept { return subgraph_->node(src_); }
     constexpr auto dst() const noexcept { return subgraph_->node(dst_); }
 
-    constexpr value_type &data() const noexcept { return *data_; }
+    constexpr value_type &data() const noexcept {
+      return subgraph_->edge_data(eid_);
+    }
 
     constexpr Other<true> as_const() const noexcept { return *this; }
 
@@ -1571,7 +1560,6 @@ namespace internal {
     int src_;
     int dst_;
     int eid_;
-    value_type *data_;
     parent_type *subgraph_;
   };
 
@@ -1714,12 +1702,12 @@ namespace internal {
 
     EdgeRef operator[](int idx) {
       auto [src, dst, eid] = edges_[idx];
-      return { src, dst, eid, subgraph_->edge(eid).data(), *subgraph_ };
+      return { src, dst, eid, *subgraph_ };
     }
 
     ConstEdgeRef operator[](int idx) const {
       auto [src, dst, eid] = edges_[idx];
-      return { src, dst, eid, subgraph_->edge(eid).data(), *subgraph_ };
+      return { src, dst, eid, *subgraph_ };
     }
 
     iterator begin() { return { this, 0 }; }
@@ -2134,10 +2122,7 @@ public:
    * @param idx The index of the node to get
    * @return A reference wrapper to the node (might be const)
    */
-  NodeRef node(int idx) {
-    auto pnode = parent_->node(nodes_[idx]);
-    return { idx, pnode.data(), *this };
-  }
+  NodeRef node(int idx) { return { idx, *this }; }
 
   /**
    * @brief Get a node in the subgraph
@@ -2145,10 +2130,25 @@ public:
    * @param idx The index of the node to get
    * @return A const-reference wrapper to the node
    */
-  ConstNodeRef node(int idx) const {
-    auto pnode = parent_->node(nodes_[idx]);
-    return { idx, pnode.data(), *this };
+  ConstNodeRef node(int idx) const { return { idx, *this }; }
+
+  /**
+   * @brief Get data of a node in the subgraph
+   *
+   * @param idx The index of the node to get
+   * @return A reference to the node data (might be const)
+   */
+  internal::const_if_t<is_const, NT> &node_data(int idx) {
+    return parent_->node_data(nodes_[idx]);
   }
+
+  /**
+   * @brief Get data of a node in the subgraph
+   *
+   * @param idx The index of the node to get
+   * @return A const-reference to the node data
+   */
+  const NT &node_data(int idx) const { return parent_->node_data(nodes_[idx]); }
 
   /**
    * @brief Get a parent node of a node in the subgraph
@@ -2397,15 +2397,17 @@ private:
 
   template <class, bool>
   friend class internal::AdjWrapper;
+  template <class, bool>
+  friend class internal::SubEdgeWrapper;
 
   template <class, bool>
   friend class internal::SubEdgesFinder;
 
-  // Only for AdjWrapper!
+  // Only for AdjWrapper/SubEdgeWrapper!
 
-  auto edge(int eid) { return parent().edge(eid); }
+  auto &&edge_data(int eid) { return parent().edge_data(eid); }
 
-  auto edge(int eid) const { return parent().edge(eid); }
+  auto &&edge_data(int eid) const { return parent().edge_data(eid); }
 
   template <class SGT>
   static auto find_adj_helper(SGT &graph, int src, int dst) {

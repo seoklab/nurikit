@@ -334,8 +334,8 @@ TYPED_TEST(AdvancedGraphTest, UpdateNodeTest) {
   Graph &graph = this->graph_;
 
   typename Graph::node_data_type new_data = { 1000 };
-  graph.update_node(0, new_data);
-  graph.update_node(1, { 1001 });
+  graph.node_data(0) = new_data;
+  graph.node_data(1) = { 1001 };
 
   ASSERT_EQ(graph.node(0).data(), 1000);
   ASSERT_EQ(graph.node(1).data(), 1001);
@@ -406,8 +406,8 @@ TYPED_TEST(AdvancedGraphTest, UpdateEdgeTest) {
   Graph &graph = this->graph_;
 
   typename Graph::edge_data_type new_data = { 1000 };
-  graph.update_edge(0, new_data);
-  graph.update_edge(1, { 1001 });
+  graph.edge_data(0) = new_data;
+  graph.edge_data(1) = { 1001 };
 
   ASSERT_EQ(graph.edge(0).data(), 1000);
   ASSERT_EQ(graph.edge(1).data(), 1001);
