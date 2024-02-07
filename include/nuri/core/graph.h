@@ -570,10 +570,9 @@ public:
 
   template <class Iterator,
             internal::enable_if_compatible_iter_t<Iterator, NT> = 0>
-  int add_node(Iterator begin, Iterator end) noexcept {
-    auto it = nodes_.insert(nodes_.end(), begin, end);
+  void add_nodes(Iterator begin, Iterator end) {
+    nodes_.insert(nodes_.end(), begin, end);
     adj_list_.resize(num_nodes());
-    return static_cast<int>(it - nodes_.begin());
   }
 
   edge_iterator add_edge(int src, int dst, const ET &data) {
