@@ -845,7 +845,10 @@ public:
     for (auto node: other)
       add_node(node.data());
 
-    for (auto edge: other.edges())
+    auto edges = other.edges();
+    reserve_edges(num_edges() + edges.size());
+
+    for (auto edge: edges)
       add_edge(edge.src().id() + offset, edge.dst().id() + offset, edge.data());
   }
 
