@@ -48,7 +48,7 @@ jobs:
     steps:
       - uses: actions/setup-python@v5
       - uses: actions/checkout@v4
-      - uses: pre-commit/action@v3.0.0
+      - uses: pre-commit/action@v3.0.1
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
