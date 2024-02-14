@@ -19,6 +19,7 @@
 
 #include <Eigen/Dense>
 
+#include <absl/algorithm/container.h>
 #include <absl/base/attributes.h>
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
@@ -551,6 +552,11 @@ namespace internal {
     bool empty() const { return graph_.empty(); }
     int size() const { return graph_.size(); }
     int num_atoms() const { return graph_.num_nodes(); }
+    int count_heavy_atoms() const {
+      return absl::c_count_if(graph_, [](Substructure::Atom atom) {
+        return atom.data().atomic_number() != 1;
+      });
+    }
 
     void clear() {
       graph_.clear();
@@ -927,6 +933,18 @@ public:
    * @sa size()
    */
   int num_atoms() const { return graph_.num_nodes(); }
+
+  /**
+   * @brief Get the number of heavy atoms in the molecule (i.e., non-hydrogen
+   *        atoms).
+   * @sa size(), num_atoms()
+   * @note Time complexity is O(V).
+   */
+  int count_heavy_atoms() const {
+    return absl::c_count_if(graph_, [](Molecule::Atom a) {
+      return a.data().atomic_number() != 1;
+    });
+  }
 
   /**
    * @brief Get a mutable atom of the molecule.
@@ -2058,6 +2076,22 @@ inline int nonbonding_electrons(Molecule::Atom atom) {
 }
 
 /**
+ * @brief Get the predicted steric number of the atom.
+ * @param atom An atom.
+ * @return Predicted steric number of the atom.
+ * @note This function might return a negative value if the atom is not
+ *       chemically valid.
+ * @note Radicals don't count as lone pairs.
+ */
+inline int steric_number(Molecule::Atom atom) {
+  int nbe = nonbonding_electrons(atom);
+  if (nbe < 0)
+    return nbe;
+
+  return internal::steric_number(all_neighbors(atom), nbe);
+}
+
+/**
  * @brief Get "effective" element of the atom.
  * @param atom An atom.
  * @return "Effective" element of the atom: the returned element has atomic
@@ -2065,6 +2099,14 @@ inline int nonbonding_electrons(Molecule::Atom atom) {
  *         resulting atomic number is out of range, returns nullptr.
  */
 extern const Element *effective_element(Molecule::Atom atom);
+
+/**
+ * @brief Get fragments of the molecule.
+ *
+ * @param mol The molecule.
+ * @return A list of fragments. Each fragment is a list of atom indices.
+ */
+extern std::vector<std::vector<int>> fragments(const Molecule &mol);
 }  // namespace nuri
 
 #endif /* NURI_CORE_MOLECULE_H_ */

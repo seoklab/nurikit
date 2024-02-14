@@ -994,4 +994,30 @@ const Element *effective_element(Molecule::Atom atom) {
       atom.data().atomic_number() - atom.data().formal_charge();
   return PeriodicTable::get().find_element(effective_z);
 }
+
+std::vector<std::vector<int>> fragments(const Molecule &mol) {
+  std::vector<std::vector<int>> result;
+  ArrayXb visited = ArrayXb::Constant(mol.num_atoms(), false);
+
+  auto dfs = [&](auto &self, std::vector<int> &sub, int curr) -> void {
+    sub.push_back(curr);
+    visited[curr] = true;
+
+    for (auto nei: mol.atom(curr)) {
+      if (visited[nei.dst().id()])
+        continue;
+
+      self(self, sub, nei.dst().id());
+    }
+  };
+
+  for (auto atom: mol) {
+    if (visited[atom.id()])
+      continue;
+
+    dfs(dfs, result.emplace_back(), atom.id());
+  }
+
+  return result;
+}
 }  // namespace nuri
