@@ -702,13 +702,10 @@ namespace internal {
         // Has nonbonding electrons (O, N) -> 2 electrons participate in
         // No nonbonding electrons (B) -> no electrons participate in
         const int pie_estimate = static_cast<int>(nb_electrons > 0) * 2;
-        ABSL_DLOG(INFO) << "Special case: " << atom.id() << " " << pie_estimate
-                        << " pi electrons";
         return pie_estimate;
       }
 
       // Normal case: atoms in pyridine, benzene, ...
-      ABSL_DLOG(INFO) << "Normal case: " << atom.id() << " 1 pi electron";
       return 1;
     }
 
@@ -718,14 +715,11 @@ namespace internal {
                      || nei.edge_data().order() == constants::kTripleBond);
         })) {
       // Normal case, at least one double/triple bond in the ring
-      ABSL_DLOG(INFO) << "Normal case: " << atom.id() << " 1 pi electron";
       return 1;
     }
 
     // E.g. N in pyrrole
     const int pie_estimate = std::min(nb_electrons, 2);
-    ABSL_DLOG(INFO) << "Exceptional: " << atom.id() << " " << pie_estimate
-                    << " pi electrons";
     return pie_estimate;
   }
 
