@@ -38,7 +38,7 @@ if(NURI_SRCS)
   set_target_properties(nuri_lib PROPERTIES OUTPUT_NAME nuri)
   target_link_libraries(nuri_lib
     PUBLIC
-    absl::strings absl::flat_hash_map absl::absl_check
+    absl::strings absl::flat_hash_map absl::absl_check absl::absl_log
     Boost::iterator Boost::config)
 
   target_system_include_directories(nuri_lib
