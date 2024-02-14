@@ -13,6 +13,7 @@
 #include <utility>
 #include <vector>
 
+#include <absl/algorithm/container.h>
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
 #include <absl/container/flat_hash_map.h>
@@ -41,27 +42,29 @@ namespace {
                : range_no_overlap_impl(v_begin, v_end, w_begin, w_end);
   }
 
-  int ring_degree(Molecule::Atom atom) {
-    return std::accumulate(
-        atom.begin(), atom.end(), 0, [](int sum, Molecule::Neighbor nei) {
-          return sum + static_cast<int>(nei.edge_data().is_ring_bond());
-        });
+  template <class AtomLike>
+  int ring_degree(AtomLike atom) {
+    return absl::c_count_if(atom, [](auto nei) {
+      return nei.edge_data().is_ring_bond();
+    });
   }
 
-  std::pair<std::vector<int>, int> ring_degrees(const Molecule &mol) {
+  template <class MoleculeLike>
+  std::pair<std::vector<int>, int> ring_degrees(const MoleculeLike &mol) {
     std::pair ret { std::vector<int>(), 0 };
     ret.first.reserve(mol.num_atoms());
 
     for (auto atom: mol) {
       const int degree = ring_degree(atom);
       ret.first[atom.id()] = degree;
-      ret.second += static_cast<int>(degree > 0);
+      ret.second += value_if(degree > 0);
     }
 
     return ret;
   }
 
-  std::vector<int> sort_atoms_by_ring_degree(const Molecule &mol) {
+  template <class MoleculeLike>
+  std::vector<int> sort_atoms_by_ring_degree(const MoleculeLike &mol) {
     std::pair dn = ring_degrees(mol);
     std::vector<int> &degrees = dn.first;
     const int num_ring_atoms = dn.second;
@@ -81,25 +84,33 @@ namespace {
 
   using PathGraph = absl::flat_hash_map<int, std::vector<std::vector<int>>>;
 
-  PathGraph pathgraph_init(const Molecule &mol,
-                           const std::vector<int> &sorted_atoms) {
+  template <class MoleculeLike, class Pred>
+  PathGraph pathgraph_init(const MoleculeLike &mol,
+                           const std::vector<int> &sorted_atoms, Pred pred) {
     PathGraph paths(mol.size());
+
     for (const int i: sorted_atoms) {
       std::vector<std::vector<int>> &path = paths[i];
+
       for (auto nei: mol.atom(i)) {
-        if (nei.edge_data().is_ring_bond() && !paths.contains(nei.dst().id())) {
-          path.push_back({ i, nei.dst().id() });
-        }
+        if (!pred(static_cast<int>(path.size())))
+          break;
+
+        if (!nei.edge_data().is_ring_bond() || paths.contains(nei.dst().id()))
+          continue;
+
+        path.push_back({ i, nei.dst().id() });
       }
     }
     return paths;
   }
 
-  void find_rings_remove_atom(const int id,
-                              std::vector<std::vector<int>> &paths,
-                              std::vector<std::vector<int>> &rings,
-                              PathGraph &pg,
-                              const absl::flat_hash_map<int, int> &atom_order) {
+  template <class Pred>
+  void
+  find_rings_remove_atom(const int id, std::vector<std::vector<int>> &paths,
+                         std::vector<std::vector<int>> &rings, PathGraph &pg,
+                         const absl::flat_hash_map<int, int> &atom_order,
+                         Pred pred) {
     const int size = static_cast<int>(paths.size());
     absl::flat_hash_set<int> path_set;
 
@@ -115,15 +126,17 @@ namespace {
 
         // path: y-...-x, z-...-x
         const std::vector<int> *x_y = &paths[i], *x_z = &paths[j];
-        if (x_y->size() > x_z->size()) {
+        // -1 for duplicate x, -1 for y == z
+        if (!pred(static_cast<int>(x_y->size() + x_z->size()) - 2))
+          continue;
+
+        if (x_y->size() > x_z->size())
           std::swap(x_y, x_z);
-        }
 
         // Check if path y-...-x and z-...-x overlap except endpoints
         if (!range_no_overlap(++x_y->begin(), --x_y->end(), ++x_z->begin(),
-                              --x_z->end(), path_set)) {
+                              --x_z->end(), path_set))
           continue;
-        }
 
         int src = x_y->back(), dst = x_z->back();
         auto sit = atom_order.find(src), dit = atom_order.find(dst);
@@ -136,6 +149,7 @@ namespace {
         // Add src -> x -> dst path to atom src
         auto it = pg.find(src);
         ABSL_DCHECK(it != pg.end());
+
         std::vector<int> &new_path =
             it->second.emplace_back(x_y->rbegin(), x_y->rend());
         new_path.insert(new_path.end(), ++x_z->begin(), x_z->end());
@@ -151,63 +165,101 @@ namespace {
   }
 
   constexpr int kMaxRingMembership = 100;
-}  // namespace
 
-std::pair<std::vector<std::vector<int>>, bool>
-find_all_rings(const Molecule &mol) {
-  std::vector<int> sorted_ring_atoms = sort_atoms_by_ring_degree(mol);
-  PathGraph pg = pathgraph_init(mol, sorted_ring_atoms);
+  template <class MoleculeLike, class Pred>
+  std::pair<Rings, bool> find_all_rings_impl(const MoleculeLike &mol,
+                                             Pred pred) {
+    std::vector<int> sorted_ring_atoms = sort_atoms_by_ring_degree(mol);
+    PathGraph pg = pathgraph_init(mol, sorted_ring_atoms, pred);
 
-  absl::flat_hash_map<int, int> atom_order(sorted_ring_atoms.size());
-  for (int i = 0; i < sorted_ring_atoms.size(); ++i) {
-    atom_order[sorted_ring_atoms[i]] = i;
-  }
-
-  std::pair<std::vector<std::vector<int>>, bool> result;
-  result.second = true;
-
-  for (const int id: sorted_ring_atoms) {
-    auto it = pg.find(id);
-    ABSL_DCHECK(it != pg.end());
-
-    if (ABSL_PREDICT_FALSE(it->second.size() > kMaxRingMembership)) {
-      ABSL_LOG(INFO)
-          << "Stopped finding rings because an atom belongs to more than "
-          << kMaxRingMembership << " rings";
-      result.second = false;
-      break;
+    absl::flat_hash_map<int, int> atom_order(sorted_ring_atoms.size());
+    for (int i = 0; i < sorted_ring_atoms.size(); ++i) {
+      atom_order[sorted_ring_atoms[i]] = i;
     }
 
-    find_rings_remove_atom(id, it->second, result.first, pg, atom_order);
-    pg.erase(it);
+    std::pair<Rings, bool> result;
+    result.second = true;
+
+    for (const int id: sorted_ring_atoms) {
+      auto it = pg.find(id);
+      ABSL_DCHECK(it != pg.end());
+
+      if (ABSL_PREDICT_FALSE(it->second.size() > kMaxRingMembership)) {
+        ABSL_LOG(INFO)
+            << "Stopped finding rings because an atom belongs to more than "
+            << kMaxRingMembership << " rings";
+        result.second = false;
+        break;
+      }
+
+      find_rings_remove_atom(id, it->second, result.first, pg, atom_order,
+                             pred);
+      pg.erase(it);
+    }
+
+    return result;
   }
 
-  return result;
+  template <class MoleculeLike>
+  std::pair<Rings, bool> find_all_rings_wrapper(const MoleculeLike &mol,
+                                                int max_size) {
+    if (max_size < 0) {
+      return find_all_rings_impl(mol, [](int /* unused */) { return true; });
+    }
+
+    return find_all_rings_impl(mol, [max_size](int size) {
+      return size <= max_size;
+    });
+  }
+}  // namespace
+
+std::pair<Rings, bool> find_all_rings(const Molecule &mol, int max_size) {
+  return find_all_rings_wrapper(mol, max_size);
+}
+
+std::pair<Rings, bool> find_all_rings(const Substructure &sub, int max_size) {
+  return find_all_rings_wrapper(sub, max_size);
+}
+
+std::pair<Rings, bool> find_all_rings(const ConstSubstructure &sub,
+                                      int max_size) {
+  return find_all_rings_wrapper(sub, max_size);
 }
 
 namespace {
+  template <class MoleculeLike>
   struct Cycle {
-    const std::vector<Molecule::Neighbor> *path_rpy;
-    const std::vector<Molecule::Neighbor> *path_rqz;
+    const std::vector<typename MoleculeLike::Neighbor> *path_rpy;
+    const std::vector<typename MoleculeLike::Neighbor> *path_rqz;
     // nullptr if cycle is odd
-    const std::vector<Molecule::Neighbor> *path_ry;
+    const std::vector<typename MoleculeLike::Neighbor> *path_ry;
     size_t cycle_length;
   };
 
-  using Dr =
-      absl::flat_hash_map<int, std::unique_ptr<std::vector<Molecule::Neighbor>>>;
+  template <class MoleculeLike>
+  using Dr = absl::flat_hash_map<
+      int, std::unique_ptr<std::vector<typename MoleculeLike::Neighbor>>>;
 }  // namespace
 
 namespace internal {
+  template <class MoleculeLike>
   struct FindRingsCommonData {
-    absl::flat_hash_map<int, std::unique_ptr<Dr>> d_rs;
-    std::vector<Cycle> c_ip;
+    absl::flat_hash_map<int, std::unique_ptr<Dr<MoleculeLike>>> d_rs;
+    std::vector<Cycle<MoleculeLike>> c_ip;
+    int max_size;
   };
 }  // namespace internal
 
-RingSetsFinder::RingSetsFinder(RingSetsFinder &&) noexcept = default;
-RingSetsFinder &RingSetsFinder::operator=(RingSetsFinder &&) noexcept = default;
-RingSetsFinder::~RingSetsFinder() noexcept = default;
+template <class MoleculeLike>
+RingSetsFinder<MoleculeLike>::RingSetsFinder(RingSetsFinder &&) noexcept =
+    default;
+
+template <class MoleculeLike>
+RingSetsFinder<MoleculeLike> &
+RingSetsFinder<MoleculeLike>::operator=(RingSetsFinder &&) noexcept = default;
+
+template <class MoleculeLike>
+RingSetsFinder<MoleculeLike>::~RingSetsFinder() noexcept = default;
 
 namespace {
   struct IdDist {
@@ -219,11 +271,13 @@ namespace {
     }
   };
 
-  int extract_sid(Molecule::Neighbor nei) {
+  template <class NeighborLike>
+  int extract_sid(NeighborLike nei) {
     return nei.src().id();
   }
 
-  int extract_did(Molecule::Neighbor nei) {
+  template <class NeighborLike>
+  int extract_did(NeighborLike nei) {
     return nei.dst().id();
   }
 
@@ -234,15 +288,18 @@ namespace {
     return *it->second;
   }
 
-  template <class Iter>
+  template <class MoleculeLike, class Iter>
   auto make_dst_iterator(Iter it) {
-    return internal::make_transform_iterator<extract_did>(it);
+    return internal::make_transform_iterator<
+        extract_did<typename MoleculeLike::Neighbor>>(it);
   }
 
-  void compute_v_r(const Molecule &mol, const int r, std::vector<int> &v_r,
-                   Dr &d_r, absl::FixedArray<int> &distances,
-                   absl::flat_hash_map<int, Molecule::Neighbor> &backtrace,
-                   internal::ClearablePQ<IdDist, std::greater<>> &minheap) {
+  template <class MoleculeLike, class Pred>
+  void compute_v_r(
+      const MoleculeLike &mol, const int r, std::vector<int> &v_r,
+      Dr<MoleculeLike> &d_r, absl::FixedArray<int> &distances,
+      absl::flat_hash_map<int, typename MoleculeLike::Neighbor> &backtrace,
+      internal::ClearablePQ<IdDist, std::greater<>> &minheap, Pred pred) {
     v_r.clear();
     std::fill(distances.begin(), distances.end(), mol.num_atoms());
     minheap.clear();
@@ -261,8 +318,8 @@ namespace {
 
       for (auto nei: mol.atom(curr)) {
         const int dst = nei.dst().id();
-        if (nei.edge_data().is_ring_bond() && dst < r
-            && distances[dst] > dist) {
+        if (nei.edge_data().is_ring_bond() && dst < r && distances[dst] > dist
+            && pred(dist)) {
           minheap.push({ dst, dist });
           distances[dst] = dist;
           auto [_, inserted] = backtrace.insert({ dst, nei });
@@ -271,8 +328,9 @@ namespace {
       }
     } while (!minheap.empty());
 
-    auto find_subpaths = [&](auto &self, const int curr,
-                             auto it) -> std::vector<Molecule::Neighbor> & {
+    auto find_subpaths =
+        [&](auto &self, const int curr,
+            auto it) -> std::vector<typename MoleculeLike::Neighbor> & {
       if (it == backtrace.end()) {
         auto dit = d_r.find(curr);
         ABSL_DCHECK(dit != d_r.end());
@@ -282,11 +340,12 @@ namespace {
       const int prev = it->second.src().id();
 
       v_r.push_back(curr);
-      std::vector<Molecule::Neighbor> &path = insert_new(d_r, curr);
+      std::vector<typename MoleculeLike::Neighbor> &path =
+          insert_new(d_r, curr);
       path.reserve(distances[curr]);
 
       if (prev != r) {
-        const std::vector<Molecule::Neighbor> &sub =
+        const std::vector<typename MoleculeLike::Neighbor> &sub =
             self(self, prev, backtrace.find(prev));
         path.insert(path.end(), sub.begin(), sub.end());
       }
@@ -302,35 +361,46 @@ namespace {
     }
   }
 
-  void merge_cycles(std::vector<Cycle> &c_ip,
-                    const std::vector<Molecule::Neighbor> &path_rpy,
-                    const std::vector<Molecule::Neighbor> &path_rqz,
-                    // nullptr if odd
-                    const std::vector<Molecule::Neighbor> *path_ry,
-                    absl::flat_hash_set<int> &path_set_tmp) {
-    if (!range_no_overlap(make_dst_iterator(path_rpy.begin()),
-                          make_dst_iterator(--path_rpy.end()),
-                          make_dst_iterator(path_rqz.begin()),
-                          make_dst_iterator(--path_rqz.end()), path_set_tmp)) {
+  template <class MoleculeLike, class Pred>
+  void
+  merge_cycles(std::vector<Cycle<MoleculeLike>> &c_ip,
+               const std::vector<typename MoleculeLike::Neighbor> &path_rpy,
+               const std::vector<typename MoleculeLike::Neighbor> &path_rqz,
+               // nullptr if odd
+               const std::vector<typename MoleculeLike::Neighbor> *path_ry,
+               absl::flat_hash_set<int> &path_set_tmp, Pred pred) {
+    if (!range_no_overlap(make_dst_iterator<MoleculeLike>(path_rpy.begin()),
+                          make_dst_iterator<MoleculeLike>(--path_rpy.end()),
+                          make_dst_iterator<MoleculeLike>(path_rqz.begin()),
+                          make_dst_iterator<MoleculeLike>(--path_rqz.end()),
+                          path_set_tmp)) {
       return;
     }
 
     const size_t cycle_size = path_rpy.size() + path_rqz.size()
                               + static_cast<size_t>(path_ry != nullptr) + 1;
+    if (cycle_size < 3 || !pred(static_cast<int>(cycle_size)))
+      return;
+
     c_ip.push_back({ &path_rpy, &path_rqz, path_ry, cycle_size });
   }
 
-  void compute_c_ip(
-      const Molecule &mol, std::vector<Cycle> &c_ip, const Dr &d_r,
-      const std::vector<int> &v_r, const absl::FixedArray<int> &distances,
-      absl::flat_hash_set<int> &path_set_tmp,
-      std::vector<const std::vector<Molecule::Neighbor> *> &r_y_shortest) {
+  template <class MoleculeLike, class Pred>
+  void
+  compute_c_ip(const MoleculeLike &mol, std::vector<Cycle<MoleculeLike>> &c_ip,
+               const Dr<MoleculeLike> &d_r, const std::vector<int> &v_r,
+               const absl::FixedArray<int> &distances,
+               absl::flat_hash_set<int> &path_set_tmp,
+               std::vector<const std::vector<typename MoleculeLike::Neighbor> *>
+                   &r_y_shortest,
+               Pred pred) {
     for (const int y: v_r) {
       r_y_shortest.clear();
 
       auto yit = d_r.find(y);
       ABSL_DCHECK(yit != d_r.end());
-      const std::vector<Molecule::Neighbor> &path_ry = *yit->second;
+      const std::vector<typename MoleculeLike::Neighbor> &path_ry =
+          *yit->second;
 
       for (auto nei: mol.atom(y)) {
         const int z = nei.dst().id();
@@ -342,75 +412,84 @@ namespace {
         if (zit == d_r.end()) {
           continue;
         }
-        const std::vector<Molecule::Neighbor> &path_rz = *zit->second;
+        const std::vector<typename MoleculeLike::Neighbor> &path_rz =
+            *zit->second;
 
         if (distances[z] + 1 == distances[y]) {
           r_y_shortest.push_back(&path_rz);
         } else if (distances[z] != distances[y] + 1 && z < y) {
           // Cycle y -> r -> z -> y
-          merge_cycles(c_ip, path_ry, path_rz, nullptr, path_set_tmp);
+          merge_cycles(c_ip, path_ry, path_rz, nullptr, path_set_tmp, pred);
         }
       }
 
       for (int i = 0; i < static_cast<int>(r_y_shortest.size()) - 1; ++i) {
-        const std::vector<Molecule::Neighbor> &path_rp = *r_y_shortest[i];
+        const std::vector<typename MoleculeLike::Neighbor> &path_rp =
+            *r_y_shortest[i];
         for (int j = i + 1; j < r_y_shortest.size(); ++j) {
-          const std::vector<Molecule::Neighbor> &path_rq = *r_y_shortest[j];
+          const std::vector<typename MoleculeLike::Neighbor> &path_rq =
+              *r_y_shortest[j];
           // Path p -> r -> q -> y -> p
-          merge_cycles(c_ip, path_rp, path_rq, &path_ry, path_set_tmp);
+          merge_cycles(c_ip, path_rp, path_rq, &path_ry, path_set_tmp, pred);
         }
       }
     }
   }
 
-  std::unique_ptr<internal::FindRingsCommonData>
-  prepare_find_ring_sets(const Molecule &mol, const int num_ring_atoms) {
-    std::unique_ptr<internal::FindRingsCommonData> data =
-        std::make_unique<internal::FindRingsCommonData>();
+  template <class MoleculeLike, class Pred>
+  std::unique_ptr<internal::FindRingsCommonData<MoleculeLike>>
+  prepare_find_ring_sets(const MoleculeLike &mol, const int num_ring_atoms,
+                         Pred pred) {
+    std::unique_ptr<internal::FindRingsCommonData<MoleculeLike>> data =
+        std::make_unique<internal::FindRingsCommonData<MoleculeLike>>();
     auto &d_rs = data->d_rs;
     auto &c_ip = data->c_ip;
 
     // Cache variables, allocate here to avoid reallocation
     std::vector<int> v_r;
     absl::FixedArray<int> distances(mol.num_atoms());
-    absl::flat_hash_map<int, Molecule::Neighbor> backtrace(num_ring_atoms);
+    absl::flat_hash_map<int, typename MoleculeLike::Neighbor> backtrace(
+        num_ring_atoms);
     internal::ClearablePQ<IdDist, std::greater<>> minheap;
 
     absl::flat_hash_set<int> path_set_tmp;
-    std::vector<const std::vector<Molecule::Neighbor> *> r_y_shortest;
+    std::vector<const std::vector<typename MoleculeLike::Neighbor> *>
+        r_y_shortest;
 
     for (int r = 0; r < mol.num_atoms(); ++r) {
-      Molecule::Atom atom = mol.atom(r);
+      auto atom = mol.atom(r);
       if (!atom.data().is_ring_atom()) {
         continue;
       }
 
-      Dr &d_r = insert_new(d_rs, r);
-      compute_v_r(mol, r, v_r, d_r, distances, backtrace, minheap);
-      compute_c_ip(mol, c_ip, d_r, v_r, distances, path_set_tmp, r_y_shortest);
+      Dr<MoleculeLike> &d_r = insert_new(d_rs, r);
+      compute_v_r(mol, r, v_r, d_r, distances, backtrace, minheap, pred);
+      compute_c_ip(mol, c_ip, d_r, v_r, distances, path_set_tmp, r_y_shortest,
+                   pred);
     }
 
-    std::sort(c_ip.begin(), c_ip.end(), [](const Cycle &a, const Cycle &b) {
+    std::sort(c_ip.begin(), c_ip.end(), [](const auto &a, const auto &b) {
       return a.cycle_length < b.cycle_length;
     });
 
     return data;
   }
 
+  template <class MoleculeLike>
   void assign_eids(BoolMatrix &m, std::vector<int> &used_edges,
-                   const int cycle_idx, const Cycle &cycle,
+                   const int cycle_idx, const Cycle<MoleculeLike> &cycle,
                    const internal::CompactMap<int, int> &edge_map) {
-    const auto mark_edge = [&](Molecule::Neighbor nei) {
+    const auto mark_edge = [&](typename MoleculeLike::Neighbor nei) {
       auto it = edge_map.find(nei.eid());
       ABSL_DCHECK(it != nullptr);
       m.set(*it, cycle_idx);
       used_edges[*it] = 1;
     };
 
-    for (Molecule::Neighbor nei: *cycle.path_rpy) {
+    for (typename MoleculeLike::Neighbor nei: *cycle.path_rpy) {
       mark_edge(nei);
     }
-    for (Molecule::Neighbor nei: *cycle.path_rqz) {
+    for (typename MoleculeLike::Neighbor nei: *cycle.path_rqz) {
       mark_edge(nei);
     }
 
@@ -418,7 +497,7 @@ namespace {
       // Even cycle, add edges from r ... p, r ... q, and y - q, y - p edges
       const int p = extract_did(cycle.path_rpy->back()),
                 q = extract_did(cycle.path_rqz->back());
-      for (Molecule::Neighbor nei: cycle.path_ry->back().dst()) {
+      for (typename MoleculeLike::Neighbor nei: cycle.path_ry->back().dst()) {
         if (nei.dst().id() == p || nei.dst().id() == q) {
           mark_edge(nei);
         }
@@ -426,7 +505,7 @@ namespace {
     } else {
       // Odd cycle, add edges from y ... r, z ... r, and y - z edge
       const int z = extract_did(cycle.path_rqz->back());
-      for (Molecule::Neighbor nei: cycle.path_rpy->back().dst()) {
+      for (typename MoleculeLike::Neighbor nei: cycle.path_rpy->back().dst()) {
         if (nei.dst().id() == z) {
           mark_edge(nei);
           break;
@@ -435,11 +514,11 @@ namespace {
     }
   }
 
-  template <bool minimal>
+  template <class MoleculeLike, bool minimal>
   std::vector<int>
   verify_basis(BoolMatrix &m, const int m_idx, std::vector<int> &used_edges,
-               const std::vector<Cycle> &c_ip, const int begin, const int end,
-               const internal::CompactMap<int, int> &edge_map) {
+               const std::vector<Cycle<MoleculeLike>> &c_ip, const int begin,
+               const int end, const internal::CompactMap<int, int> &edge_map) {
     for (int i = begin, j = m_idx; i < end; ++i, ++j) {
       assign_eids(m, used_edges, j, c_ip[i], edge_map);
     }
@@ -453,12 +532,15 @@ namespace {
     return m.partial_reduction(m_idx);
   }
 
-  template <bool minimal>
-  std::vector<int> compute_prototype(const Molecule &mol,
-                                     const std::vector<Cycle> &c_ip) {
-    internal::CompactMap<int, int> edge_map(mol.num_bonds());
+  template <bool minimal, class MoleculeLike>
+  std::vector<int>
+  compute_prototype(const MoleculeLike &mol,
+                    const std::vector<Cycle<MoleculeLike>> &c_ip) {
+    auto bonds = mol.bonds();
+
+    internal::CompactMap<int, int> edge_map(bonds.size());
     int idx = 0;
-    for (auto bond: mol.bonds())
+    for (auto bond: bonds)
       if (bond.data().is_ring_bond())
         edge_map.try_emplace(bond.id(), idx++);
 
@@ -466,12 +548,15 @@ namespace {
     std::vector<int> basis, used_edges(idx, 0);
     int size, begin, end = 0, m_idx;
 
+    int num_used = 0, num_used_diff = 0;
     do {
+      num_used += num_used_diff;
+
       begin = end;
       size = static_cast<int>(c_ip[begin].cycle_length);
       end = static_cast<int>(
           std::find_if(c_ip.begin() + begin + 1, c_ip.end(),
-                       [&](const Cycle &c) {
+                       [&](const Cycle<MoleculeLike> &c) {
                          return static_cast<int>(c.cycle_length) > size;
                        })
           - c_ip.begin());
@@ -485,70 +570,89 @@ namespace {
 
       m_idx = static_cast<int>(basis.size());
       m.resize(m_idx + end - begin);
-      basis = verify_basis<minimal>(m, m_idx, used_edges, c_ip, begin, end,
-                                    edge_map);
-    } while (std::any_of(used_edges.begin(), used_edges.end(),
-                         [](int i) { return i == 0; }));
+      basis = verify_basis<MoleculeLike, minimal>(m, m_idx, used_edges, c_ip,
+                                                  begin, end, edge_map);
+
+      num_used_diff = static_cast<int>(absl::c_count(used_edges, 1)) - num_used;
+    } while (num_used_diff > 0);
 
     return basis;
   }
 
-  void add_odd_cycle(std::vector<std::vector<int>> &cycles,
-                     const std::vector<Molecule::Neighbor> &path_ry,
-                     const std::vector<Molecule::Neighbor> &path_rz) {
+  template <class MoleculeLike>
+  void
+  add_odd_cycle(std::vector<std::vector<int>> &cycles,
+                const std::vector<typename MoleculeLike::Neighbor> &path_ry,
+                const std::vector<typename MoleculeLike::Neighbor> &path_rz,
+                const int max_size) {
+    int size = static_cast<int>(path_ry.size() + path_rz.size());
+    if (size > max_size)
+      return;
+
     std::vector<int> &cycle = cycles.emplace_back();
-    cycle.reserve(path_ry.size() + path_rz.size());
+    cycle.reserve(size);
 
     // Add (no r) ... y
-    cycle.insert(cycle.end(), make_dst_iterator(path_ry.begin()),
-                 make_dst_iterator(path_ry.end()));
+    cycle.insert(cycle.end(), make_dst_iterator<MoleculeLike>(path_ry.begin()),
+                 make_dst_iterator<MoleculeLike>(path_ry.end()));
     // Add z ... (no r)
-    cycle.insert(cycle.end(), make_dst_iterator(path_rz.rbegin()),
-                 make_dst_iterator(path_rz.rend()));
+    cycle.insert(cycle.end(), make_dst_iterator<MoleculeLike>(path_rz.rbegin()),
+                 make_dst_iterator<MoleculeLike>(path_rz.rend()));
     // Add r
     cycle.push_back(path_ry.front().src().id());
   }
 
-  void add_even_cycle(std::vector<std::vector<int>> &cycles,
-                      const std::vector<Molecule::Neighbor> &path_rp,
-                      const std::vector<Molecule::Neighbor> &path_rq,
-                      const int y) {
+  template <class MoleculeLike>
+  void
+  add_even_cycle(std::vector<std::vector<int>> &cycles,
+                 const std::vector<typename MoleculeLike::Neighbor> &path_rp,
+                 const std::vector<typename MoleculeLike::Neighbor> &path_rq,
+                 const int y, const int max_size) {
+    int size = static_cast<int>(path_rp.size() + path_rq.size() + 1);
+    if (size > max_size)
+      return;
+
     std::vector<int> &cycle = cycles.emplace_back();
-    cycle.reserve(path_rp.size() + path_rq.size() + 1);
+    cycle.reserve(size);
 
     // Add (no r) ... p
-    cycle.insert(cycle.end(), make_dst_iterator(path_rp.begin()),
-                 make_dst_iterator(path_rp.end()));
+    cycle.insert(cycle.end(), make_dst_iterator<MoleculeLike>(path_rp.begin()),
+                 make_dst_iterator<MoleculeLike>(path_rp.end()));
     // Add y
     cycle.push_back(y);
     // Add q ... (no r)
-    cycle.insert(cycle.end(), make_dst_iterator(path_rq.rbegin()),
-                 make_dst_iterator(path_rq.rend()));
+    cycle.insert(cycle.end(), make_dst_iterator<MoleculeLike>(path_rq.rbegin()),
+                 make_dst_iterator<MoleculeLike>(path_rq.rend()));
     // Add r
     cycle.push_back(path_rp.front().src().id());
   }
 
-  void extract_member(std::vector<std::vector<int>> &cycles, const Cycle &c) {
+  template <class MoleculeLike>
+  void extract_member(std::vector<std::vector<int>> &cycles,
+                      const Cycle<MoleculeLike> &c, const int max_size) {
     if (c.path_ry != nullptr) {
       // Even cycle, p ... r, r ... q, q -> y -> p
-      add_even_cycle(cycles, *c.path_rpy, *c.path_rqz,
-                     c.path_ry->back().dst().id());
+      add_even_cycle<MoleculeLike>(cycles, *c.path_rpy, *c.path_rqz,
+                                   c.path_ry->back().dst().id(), max_size);
     } else {
       // Odd cycle, y ... r, r ... z (z -> y omitted)
-      add_odd_cycle(cycles, *c.path_rpy, *c.path_rqz);
+      add_odd_cycle<MoleculeLike>(cycles, *c.path_rpy, *c.path_rqz, max_size);
     }
   }
 
+  template <class MoleculeLike>
   std::vector<std::vector<int>>
-  extract_family_traverse(const Dr &d_r, const int src, const int dst) {
+  extract_family_traverse(const Dr<MoleculeLike> &d_r, const int src,
+                          const int dst) {
     // Path of the form src (r) -> ... -> dst
-    const std::vector<Molecule::Neighbor> &path = *d_r.find(dst)->second;
+    const std::vector<typename MoleculeLike::Neighbor> &path =
+        *d_r.find(dst)->second;
 
     // Paths of the form (src ->) ... -> dst
     std::vector<std::vector<int>> result;
 
     // Reverse traversal (dst -> src)
-    auto extract_paths = [&](auto &self, Molecule::Atom curr, const int prev,
+    auto extract_paths = [&](auto &self, auto curr, const int prev,
                              int length) -> void {
       ABSL_DCHECK(length > 0);
       --length;
@@ -586,16 +690,18 @@ namespace {
     return result;
   }
 
-  void extract_family(std::vector<std::vector<int>> &cycles,
-                      const absl::flat_hash_map<int, std::unique_ptr<Dr>> &d_rs,
-                      const int r, const Cycle &c) {
-    const Dr &d_r = *d_rs.find(r)->second;
+  template <class MoleculeLike>
+  void extract_family(
+      std::vector<std::vector<int>> &cycles,
+      const absl::flat_hash_map<int, std::unique_ptr<Dr<MoleculeLike>>> &d_rs,
+      const int r, const Cycle<MoleculeLike> &c, const int max_size) {
+    const Dr<MoleculeLike> &d_r = *d_rs.find(r)->second;
 
     const int py = extract_did(c.path_rpy->back()),
               qz = extract_did(c.path_rqz->back());
 
-    std::vector paths_rpy = extract_family_traverse(d_r, r, py),
-                paths_rqz = extract_family_traverse(d_r, r, qz);
+    std::vector paths_rpy = extract_family_traverse<MoleculeLike>(d_r, r, py),
+                paths_rqz = extract_family_traverse<MoleculeLike>(d_r, r, qz);
 
     if (c.path_ry != nullptr) {
       // Even cycle
@@ -603,8 +709,12 @@ namespace {
 
       for (auto &rp: paths_rpy) {
         for (auto &rq: paths_rqz) {
+          int size = static_cast<int>(rp.size() + rq.size() + 2);
+          if (size > max_size)
+            continue;
+
           std::vector<int> &cycle = cycles.emplace_back();
-          cycle.reserve(rp.size() + rq.size() + 2);
+          cycle.reserve(size);
 
           cycle.push_back(r);
           cycle.insert(cycle.end(), rp.begin(), rp.end());
@@ -616,8 +726,12 @@ namespace {
       // Odd cycle
       for (auto &ry: paths_rpy) {
         for (auto &rz: paths_rqz) {
+          int size = static_cast<int>(ry.size() + rz.size() + 1);
+          if (size > max_size)
+            continue;
+
           std::vector<int> &cycle = cycles.emplace_back();
-          cycle.reserve(ry.size() + rz.size() + 1);
+          cycle.reserve(size);
 
           cycle.push_back(r);
           cycle.insert(cycle.end(), ry.begin(), ry.end());
@@ -627,11 +741,11 @@ namespace {
     }
   }
 
-  template <bool minimal>
-  std::vector<std::vector<int>>
-  extract_cycles(const absl::flat_hash_map<int, std::unique_ptr<Dr>> &d_rs,
-                 const std::vector<Cycle> &c_ip,
-                 const std::vector<int> &prototype) {
+  template <bool minimal, class MoleculeLike>
+  std::vector<std::vector<int>> extract_cycles(
+      const absl::flat_hash_map<int, std::unique_ptr<Dr<MoleculeLike>>> &d_rs,
+      const std::vector<Cycle<MoleculeLike>> &c_ip,
+      const std::vector<int> &prototype, const int max_size) {
     std::vector<std::vector<int>> cycles;
 
     for (int i = 0; i < prototype.size(); ++i) {
@@ -640,10 +754,11 @@ namespace {
       }
 
       if constexpr (minimal) {
-        extract_member(cycles, c_ip[i]);
+        extract_member<MoleculeLike>(cycles, c_ip[i], max_size);
       } else {
-        extract_family(cycles, d_rs, extract_sid(c_ip[i].path_rpy->front()),
-                       c_ip[i]);
+        extract_family<MoleculeLike>(cycles, d_rs,
+                                     extract_sid(c_ip[i].path_rpy->front()),
+                                     c_ip[i], max_size);
       }
     }
 
@@ -651,38 +766,54 @@ namespace {
   }
 }  // namespace
 
-RingSetsFinder::RingSetsFinder(const Molecule &mol): mol_(&mol) {
-  if (mol.num_sssr() == 0) {
-    // Don't bother if there are no rings
-    return;
-  }
-
-  const int num_ring_atoms = std::accumulate(
-      mol.begin(), mol.end(), 0, [](int sum, Molecule::Atom atom) {
+template <class MoleculeLike>
+RingSetsFinder<MoleculeLike>::RingSetsFinder(const MoleculeLike &mol,
+                                             int max_size)
+    : mol_(&mol) {
+  const int num_ring_atoms =
+      std::accumulate(mol.begin(), mol.end(), 0, [](int sum, auto atom) {
         return sum + static_cast<int>(atom.data().is_ring_atom());
       });
 
-  // d_rs: digraph version of molecule (the edge direction is opposite to
-  // the version of the paper)
-  // c_ip: A list of unique cycles
-  data_ = prepare_find_ring_sets(mol, num_ring_atoms);
+  if (max_size < 0) {
+    data_ = prepare_find_ring_sets(mol, num_ring_atoms,
+                                   [](int /* unused */) { return true; });
+  } else {
+    data_ = prepare_find_ring_sets(mol, num_ring_atoms, [max_size](int dist) {
+      return dist <= max_size;
+    });
+  }
+
+  if (data_->c_ip.empty()) {
+    data_.reset();
+  } else {
+    data_->max_size = max_size >= 0 ? max_size : mol.num_atoms();
+  }
 }
 
-Rings RingSetsFinder::find_relevant_rings() const {
+template <class MoleculeLike>
+Rings RingSetsFinder<MoleculeLike>::find_relevant_rings() const {
   if (!data_) {
     return {};
   }
 
   std::vector<int> prototype = compute_prototype<false>(*mol_, data_->c_ip);
-  return extract_cycles<false>(data_->d_rs, data_->c_ip, prototype);
+  return extract_cycles<false>(data_->d_rs, data_->c_ip, prototype,
+                               data_->max_size);
 }
 
-Rings RingSetsFinder::find_sssr() const {
+template <class MoleculeLike>
+Rings RingSetsFinder<MoleculeLike>::find_sssr() const {
   if (!data_) {
     return {};
   }
 
   std::vector<int> prototype = compute_prototype<true>(*mol_, data_->c_ip);
-  return extract_cycles<true>(data_->d_rs, data_->c_ip, prototype);
+  return extract_cycles<true>(data_->d_rs, data_->c_ip, prototype,
+                              data_->max_size);
 }
+
+template class RingSetsFinder<Molecule>;
+template class RingSetsFinder<Substructure>;
+template class RingSetsFinder<ConstSubstructure>;
 }  // namespace nuri

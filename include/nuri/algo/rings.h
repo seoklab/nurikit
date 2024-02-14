@@ -17,6 +17,8 @@ using Rings = std::vector<std::vector<int>>;
 /**
  * @brief Find all elementary cycles in the molecular graph.
  * @param mol A molecule.
+ * @param max_size Maximum size of the rings to be found. If negative, all
+ *        rings are found.
  * @return A pair of (all elementary cycles, success). If success is `false`,
  *         the vector is in an unspecified state. This will fail if and only if
  *         any atom is a member of more than 100 elementary cycles.
@@ -29,9 +31,51 @@ using Rings = std::vector<std::vector<int>>;
  * expected to run in a reasonable time (\f$\sim\mathcal{O}(V^2)\f$) for most
  * molecules in practice.
  */
-extern std::pair<Rings, bool> find_all_rings(const Molecule &mol);
+extern std::pair<Rings, bool> find_all_rings(const Molecule &mol,
+                                             int max_size = -1);
+
+/**
+ * @brief Find all elementary cycles in the substructure.
+ * @param sub A substructure.
+ * @param max_size Maximum size of the rings to be found. If negative, all
+ *        rings are found.
+ * @return A pair of (all elementary cycles, success). If success is `false`,
+ *         the vector is in an unspecified state. This will fail if and only if
+ *         any atom is a member of more than 100 elementary cycles.
+ *
+ * This is based on the algorithm described in the following paper:
+ *    Hanser, Th. *et al.* *J. Chem. Inf. Comput. Sci.* **1996**, *36* (6),
+ *    1146-1152. DOI: [10.1021/ci960322f](https://doi.org/10.1021/ci960322f)
+ *
+ * The time complexity of this function is inherently exponential, but it is
+ * expected to run in a reasonable time (\f$\sim\mathcal{O}(V^2)\f$) for most
+ * molecules in practice.
+ */
+extern std::pair<Rings, bool> find_all_rings(const Substructure &sub,
+                                             int max_size = -1);
+
+/**
+ * @brief Find all elementary cycles in the substructure.
+ * @param sub A substructure.
+ * @param max_size Maximum size of the rings to be found. If negative, all
+ *        rings are found.
+ * @return A pair of (all elementary cycles, success). If success is `false`,
+ *         the vector is in an unspecified state. This will fail if and only if
+ *         any atom is a member of more than 100 elementary cycles.
+ *
+ * This is based on the algorithm described in the following paper:
+ *    Hanser, Th. *et al.* *J. Chem. Inf. Comput. Sci.* **1996**, *36* (6),
+ *    1146-1152. DOI: [10.1021/ci960322f](https://doi.org/10.1021/ci960322f)
+ *
+ * The time complexity of this function is inherently exponential, but it is
+ * expected to run in a reasonable time (\f$\sim\mathcal{O}(V^2)\f$) for most
+ * molecules in practice.
+ */
+extern std::pair<Rings, bool> find_all_rings(const ConstSubstructure &sub,
+                                             int max_size = -1);
 
 namespace internal {
+  template <class MoleculeLike>
   struct FindRingsCommonData;
 }  // namespace internal
 
@@ -65,13 +109,16 @@ namespace internal {
  * \mathcal{O}(E)\f$ is size of SSSR. For most molecules, however, this is
  * \f$\mathcal{O}(V^3)\f$.
  */
+template <class MoleculeLike>
 class RingSetsFinder {
 public:
   /**
    * @brief Construct a new Rings Finder object.
    * @param mol A molecule.
+   * @param max_size Maximum size of the rings to be found. If negative, all
+   *        rings are found.
    */
-  explicit RingSetsFinder(const Molecule &mol);
+  explicit RingSetsFinder(const MoleculeLike &mol, int max_size = -1);
 
   RingSetsFinder(const RingSetsFinder &) = delete;
   RingSetsFinder &operator=(const RingSetsFinder &) = delete;
@@ -97,13 +144,22 @@ public:
   Rings find_sssr() const;
 
 private:
-  const Molecule *mol_;
-  std::unique_ptr<internal::FindRingsCommonData> data_;
+  const MoleculeLike *mol_;
+  std::unique_ptr<internal::FindRingsCommonData<MoleculeLike>> data_;
 };
+
+template <class MoleculeLike>
+RingSetsFinder(const MoleculeLike &, int) -> RingSetsFinder<MoleculeLike>;
+
+extern template class RingSetsFinder<Molecule>;
+extern template class RingSetsFinder<Substructure>;
+extern template class RingSetsFinder<ConstSubstructure>;
 
 /**
  * @brief Find union of the all SSSRs in the molecular graph.
  * @param mol A molecule.
+ * @param max_size Maximum size of the rings to be found. If negative, all
+ *        rings are found.
  * @return Union of the all SSSRs in the molecular graph.
  * @sa find_sssr(), nuri::RingSetsFinder::find_relevant_rings()
  *
@@ -113,13 +169,52 @@ private:
  * @note If both relevant rings and SSSR are needed, it is recommended to use
  * the nuri::RingSetsFinder class instead of the free functions.
  */
-inline Rings find_relevant_rings(const Molecule &mol) {
-  return RingSetsFinder(mol).find_relevant_rings();
+inline Rings find_relevant_rings(const Molecule &mol, int max_size = -1) {
+  return RingSetsFinder(mol, max_size).find_relevant_rings();
+}
+
+/**
+ * @brief Find union of the all SSSRs in the substructure.
+ * @param sub A substructure.
+ * @param max_size Maximum size of the rings to be found. If negative, all
+ *        rings are found.
+ * @return Union of the all SSSRs in the substructure.
+ * @sa find_sssr(), nuri::RingSetsFinder::find_relevant_rings()
+ *
+ * This is a convenience wrapper of the
+ * nuri::RingSetsFinder::find_relevant_rings() member function.
+ *
+ * @note If both relevant rings and SSSR are needed, it is recommended to use
+ * the nuri::RingSetsFinder class instead of the free functions.
+ */
+inline Rings find_relevant_rings(const Substructure &sub, int max_size = -1) {
+  return RingSetsFinder(sub, max_size).find_relevant_rings();
+}
+
+/**
+ * @brief Find union of the all SSSRs in the substructure.
+ * @param sub A substructure.
+ * @param max_size Maximum size of the rings to be found. If negative, all
+ *        rings are found.
+ * @return Union of the all SSSRs in the substructure.
+ * @sa find_sssr(), nuri::RingSetsFinder::find_relevant_rings()
+ *
+ * This is a convenience wrapper of the
+ * nuri::RingSetsFinder::find_relevant_rings() member function.
+ *
+ * @note If both relevant rings and SSSR are needed, it is recommended to use
+ * the nuri::RingSetsFinder class instead of the free functions.
+ */
+inline Rings find_relevant_rings(const ConstSubstructure &sub,
+                                 int max_size = -1) {
+  return RingSetsFinder(sub, max_size).find_relevant_rings();
 }
 
 /**
  * @brief Find a smallest set of smallest rings (SSSR) of the molecular graph.
  * @param mol A molecule.
+ * @param max_size Maximum size of the rings to be found. If negative, all
+ *        rings are found.
  * @return *A* smallest set of smallest rings (SSSR) of the molecular graph.
  * @sa find_relevant_rings(), nuri::RingSetsFinder::find_sssr()
  * @note This function does not guarantee that the returned set is unique, nor
@@ -131,8 +226,48 @@ inline Rings find_relevant_rings(const Molecule &mol) {
  * @note If both relevant rings and SSSR are needed, it is recommended to use
  * the nuri::RingSetsFinder class instead of the free functions.
  */
-inline Rings find_sssr(const Molecule &mol) {
-  return RingSetsFinder(mol).find_sssr();
+inline Rings find_sssr(const Molecule &mol, int max_size = -1) {
+  return RingSetsFinder(mol, max_size).find_sssr();
+}
+
+/**
+ * @brief Find a smallest set of smallest rings (SSSR) of the substructure.
+ * @param sub A substructure.
+ * @param max_size Maximum size of the rings to be found. If negative, all
+ *        rings are found.
+ * @return *A* smallest set of smallest rings (SSSR) of the substructure.
+ * @sa find_relevant_rings(), nuri::RingSetsFinder::find_sssr()
+ * @note This function does not guarantee that the returned set is unique, nor
+ *       that the result is reproducible even for the same molecule.
+ *
+ * This is a convenience wrapper of the nuri::RingSetsFinder::find_sssr() member
+ * function.
+ *
+ * @note If both relevant rings and SSSR are needed, it is recommended to use
+ * the nuri::RingSetsFinder class instead of the free functions.
+ */
+inline Rings find_sssr(const Substructure &sub, int max_size = -1) {
+  return RingSetsFinder(sub, max_size).find_sssr();
+}
+
+/**
+ * @brief Find a smallest set of smallest rings (SSSR) of the substructure.
+ * @param sub A substructure.
+ * @param max_size Maximum size of the rings to be found. If negative, all
+ *        rings are found.
+ * @return *A* smallest set of smallest rings (SSSR) of the substructure.
+ * @sa find_relevant_rings(), nuri::RingSetsFinder::find_sssr()
+ * @note This function does not guarantee that the returned set is unique, nor
+ *       that the result is reproducible even for the same molecule.
+ *
+ * This is a convenience wrapper of the nuri::RingSetsFinder::find_sssr() member
+ * function.
+ *
+ * @note If both relevant rings and SSSR are needed, it is recommended to use
+ * the nuri::RingSetsFinder class instead of the free functions.
+ */
+inline Rings find_sssr(const ConstSubstructure &sub, int max_size = -1) {
+  return RingSetsFinder(sub, max_size).find_sssr();
 }
 }  // namespace nuri
 
