@@ -563,8 +563,7 @@ void handle_negative_hcnt(Molecule::MutableAtom atom) {
   int fchg_adjust = pair ? 1 : radical ? 0 : -1;
   atom.data().set_formal_charge(atom.data().formal_charge() + fchg_adjust);
 
-  int degree = all_neighbors(atom);
-  constants::Hybridization newhyb = internal::from_degree(degree, nbe);
+  constants::Hybridization newhyb = internal::from_degree(atom.degree(), nbe);
   if (newhyb < constants::kSP3)
     return;
 
@@ -664,7 +663,7 @@ public:
 
         int new_hcnt = atom.data().implicit_hydrogens() - 1;
         if (new_hcnt < 0) {
-          new_hcnt = 0;
+          atom.data().set_implicit_hydrogens(0);
           handle_negative_hcnt(atom);
         } else {
           atom.data().set_implicit_hydrogens(new_hcnt);
