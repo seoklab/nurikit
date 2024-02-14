@@ -1534,6 +1534,8 @@ namespace internal {
         : src_(other.src_), dst_(other.dst_), eid_(other.eid_),
           subgraph_(other.subgraph_) { }
 
+    constexpr auto id() const noexcept { return eid_; }
+
     constexpr auto src() const noexcept { return subgraph_->node(src_); }
     constexpr auto dst() const noexcept { return subgraph_->node(dst_); }
 
