@@ -116,10 +116,29 @@ void Molecule::clear() noexcept {
   conformers_.clear();
   name_.clear();
   props_.clear();
-
   substructs_.clear();
   ring_groups_.clear();
   num_fragments_ = 0;
+}
+
+void Molecule::clear_atoms() noexcept {
+  graph_.clear();
+
+  for (Matrix3Xd &conf: conformers_)
+    conf.resize(Eigen::NoChange, 0);
+
+  for (Substructure &sub: substructs_)
+    sub.clear_atoms();
+
+  ring_groups_.clear();
+  num_fragments_ = 0;
+}
+
+void Molecule::clear_bonds() noexcept {
+  graph_.clear_edges();
+
+  ring_groups_.clear();
+  num_fragments_ = num_atoms();
 }
 
 void Molecule::erase_hydrogens() {
@@ -345,6 +364,12 @@ void Molecule::update_topology() {
 
 /* MoleculeMutator definitions */
 
+void MoleculeMutator::clear_atoms() noexcept {
+  mol().clear_atoms();
+  prev_num_atoms_ = prev_num_bonds_ = 0;
+  discard_erasure();
+}
+
 namespace {
   template <class DT>
   std::pair<Molecule::bond_iterator, bool>
@@ -377,6 +402,18 @@ void MoleculeMutator::mark_bond_erase(int src, int dst) {
   auto it = mol().find_bond(src, dst);
   if (it != mol().bond_end())
     erased_bonds_.push_back(it->id());
+}
+
+void MoleculeMutator::clear_bonds() noexcept {
+  mol().clear_bonds();
+  prev_num_bonds_ = 0;
+  erased_bonds_.clear();
+}
+
+void MoleculeMutator::clear() noexcept {
+  mol().clear();
+  prev_num_atoms_ = prev_num_bonds_ = 0;
+  discard_erasure();
 }
 
 void MoleculeMutator::discard_erasure() noexcept {

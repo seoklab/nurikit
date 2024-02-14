@@ -558,13 +558,15 @@ namespace internal {
       });
     }
 
-    void clear() {
+    void clear() noexcept {
       graph_.clear();
       name_.clear();
       id_ = 0;
       cat_ = SubstructCategory::kUnknown;
       props_.clear();
     }
+
+    void clear_atoms() noexcept { graph_.clear(); }
 
     void update(const std::vector<int> &atoms) { graph_.update(atoms); }
     void update(std::vector<int> &&atoms) noexcept {
@@ -1162,7 +1164,35 @@ public:
    */
   MoleculeMutator mutator();
 
+  /**
+   * @brief Reset the molecule to an empty state.
+   * @note Don't call this method if you have an active MoleculeMutator object.
+   *       Call MoleculeMutator::clear() instead.
+   *
+   * This method effectively resets the molecule to the state of a default
+   * constructed molecule. Unlike clear_atoms(), this will also clear name,
+   * conformers, substructures, and properties.
+   */
   void clear() noexcept;
+
+  /**
+   * @brief Clear all atoms and bonds of the molecule.
+   * @note Don't call this method if you have an active MoleculeMutator object.
+   *       Call MoleculeMutator::clear_atoms() instead.
+   *
+   * All conformers will be resized to 0. All substructures will contain no
+   * atoms.
+   */
+  void clear_atoms() noexcept;
+
+  /**
+   * @brief Clear all bonds of the molecule.
+   * @note Don't call this method if you have an active MoleculeMutator object.
+   *       Call MoleculeMutator::clear_bonds() instead.
+   *
+   * Conformers and substructures are not affected.
+   */
+  void clear_bonds() noexcept;
 
   // TODO(jnooree): add_hydrogens
   // /**
@@ -1813,6 +1843,11 @@ public:
   void mark_atom_erase(int atom_idx) { erased_atoms_.push_back(atom_idx); }
 
   /**
+   * @brief Clear all atoms and bonds of the molecule.
+   */
+  void clear_atoms() noexcept;
+
+  /**
    * @brief Add a bond to the molecule.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
@@ -1871,6 +1906,16 @@ public:
    *       This is a no-op if the bond does not exist.
    */
   void mark_bond_erase(int src, int dst);
+
+  /**
+   * @brief Clear all bonds of the molecule.
+   */
+  void clear_bonds() noexcept;
+
+  /**
+   * @brief Clear the molecule.
+   */
+  void clear() noexcept;
 
   /**
    * @brief Cancel all pending atom and bond removals.
