@@ -704,7 +704,7 @@ public:
     return find_edge_helper(*this, src, dst);
   }
 
-  void clear_edge() {
+  void clear_edges() {
     edges_.clear();
     for (std::vector<AdjEntry> &adj: adj_list_)
       adj.clear();

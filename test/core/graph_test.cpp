@@ -315,7 +315,7 @@ TYPED_TEST(AdvancedGraphTest, ClearEmptyTest) {
 
   {
     Graph tmp(graph);
-    tmp.clear_edge();
+    tmp.clear_edges();
 
     ASSERT_EQ(tmp.num_nodes(), 11);
     ASSERT_TRUE(tmp.edge_empty());
