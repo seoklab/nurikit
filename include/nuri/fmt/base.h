@@ -6,6 +6,7 @@
 #ifndef NURI_FMT_BASE_H_
 #define NURI_FMT_BASE_H_
 
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <istream>
@@ -368,7 +369,7 @@ using StringMoleculeReader = MoleculeReaderWrapper<std::istringstream, Reader>;
 
 class ReversedStream {
 public:
-  ReversedStream(std::istream &is, char delim = '\n', size_t bufsz = 4096)
+  ReversedStream(std::istream &is, char delim = '\n', std::size_t bufsz = 4096)
       : is_(&is), delim_(delim), buf_(bufsz) {
     reset();
   }
@@ -381,7 +382,7 @@ private:
   void read_block();
 
   std::istream *is_;
-  size_t prev_;
+  std::size_t prev_;
   char delim_;
   internal::DumbBuffer<char> buf_;
 };

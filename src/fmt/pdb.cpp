@@ -6,9 +6,11 @@
 #include "nuri/fmt/pdb.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstring>
 #include <initializer_list>
+#include <istream>
 #include <iterator>
 #include <string>
 #include <string_view>
@@ -29,11 +31,11 @@
 #include <absl/strings/numbers.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_format.h>
-#include <absl/strings/str_join.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/algo/guess.h"
 #include "nuri/core/element.h"
+#include "nuri/core/graph.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 #include "nuri/utils.h"

@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numeric>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -1518,7 +1519,7 @@ namespace {
 }  // namespace
 
 bool guess_connectivity(MoleculeMutator &mut, int conf, double threshold) {
-  Molecule &mol = mut.mol();
+  const Molecule &mol = mut.mol();
   if (mol.num_conf() <= conf) {
     ABSL_DLOG(WARNING) << "Conformer index " << conf << " is out of range.";
     return false;
