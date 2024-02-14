@@ -177,6 +177,7 @@ TEST_F(MoleculeTest, AddAtomsTest) {
   }
 
   EXPECT_EQ(mol_.num_atoms(), 13);
+  EXPECT_EQ(mol_.count_heavy_atoms(), 6);
   for (const nuri::Matrix3Xd &conf: mol_.all_conf()) {
     EXPECT_EQ(conf.cols(), 13);
   }

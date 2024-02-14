@@ -89,20 +89,24 @@ protected:
 TEST_F(SubstructureTest, CreateSubstructure) {
   EXPECT_EQ(sub_.size(), 4);
   EXPECT_EQ(sub_.num_atoms(), 4);
+  EXPECT_EQ(sub_.count_heavy_atoms(), 3);
 
   std::vector<int> tmp { 0, 1, 2, 10 };
   Substructure sub = mol_.substructure(tmp);
   EXPECT_EQ(sub.size(), 4);
   EXPECT_EQ(sub.num_atoms(), 4);
+  EXPECT_EQ(sub.count_heavy_atoms(), 3);
 
   const Molecule &cmol = mol_;
   ConstSubstructure csub1 = cmol.substructure({ 0, 1, 2, 10 });
   EXPECT_EQ(csub1.size(), 4);
   EXPECT_EQ(csub1.num_atoms(), 4);
+  EXPECT_EQ(csub1.count_heavy_atoms(), 3);
 
   ConstSubstructure csub2 = cmol.substructure(tmp);
   EXPECT_EQ(csub2.size(), 4);
   EXPECT_EQ(csub2.num_atoms(), 4);
+  EXPECT_EQ(csub2.count_heavy_atoms(), 3);
 }
 
 TEST_F(SubstructureTest, ClearSubstructure) {
