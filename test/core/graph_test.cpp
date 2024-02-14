@@ -834,11 +834,11 @@ namespace internal {
       #iterator " must be trivially copyable");                                \
   static_assert(                                                               \
       std::is_trivially_copyable_v<RefType##Iterator<GraphType, true>>,        \
-      "const_" #iterator " must be trivially copyable");
+      "const_" #iterator " must be trivially copyable")
 
 #define NURI_INSTANTIATE_ALL_TEMPLATES(GraphType)                              \
-  NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, iterator, Node)              \
-  NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, edge_iterator, Edge)         \
+  NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, iterator, Node);             \
+  NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, edge_iterator, Edge);        \
   NURI_INSTANTIATE_TEMPLATES_WITH_BASE(GraphType, adjacency_iterator, Adj)
 
 NURI_INSTANTIATE_ALL_TEMPLATES(TrivialGraph);
