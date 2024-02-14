@@ -52,7 +52,13 @@ namespace {
   }
 
   // pdist-based solution is faster for about <= 1000 atoms.
-  constexpr int kSmallLimit = 1000;
+  // set 100 for debug builds, for testing purposes.
+  constexpr int kSmallLimit =
+#ifdef NDEBUG
+      1000;
+#else
+      100;
+#endif
 
   void prepare_conn_search(const Matrix3Xd &pos, ArrayXd &distsq,
                            OCTree &tree) {
