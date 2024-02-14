@@ -1736,7 +1736,7 @@ private:
   std::vector<Substructure> substructs_;
 
   std::vector<std::vector<int>> ring_groups_;
-  int num_fragments_;
+  int num_fragments_ = 0;
 };
 
 /**
