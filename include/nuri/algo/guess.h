@@ -25,8 +25,21 @@ constexpr inline double kDefaultThreshold = 0.5;
  * If connectivity information is already present and is correct, consider using
  * guess_all_types().
  */
-extern bool guess_bonds(MoleculeMutator &mut, int conf = 0,
-                        double threshold = kDefaultThreshold);
+extern bool guess_everything(MoleculeMutator &mut, int conf = 0,
+                             double threshold = kDefaultThreshold);
+
+/**
+ * @brief Guess connectivity information of a molecule.
+ * @param mut The mutator of the molecule to be guessed.
+ * @param conf The index of the conformation used for guessing.
+ * @param threshold The threshold for guessing bonds.
+ * @return true if the guessing is successful.
+ *
+ * This function assumes all connectivity information is missing. The
+ * information present in the molecule could be overwritten by this function.
+ */
+extern bool guess_connectivity(MoleculeMutator &mut, int conf = 0,
+                               double threshold = kDefaultThreshold);
 
 /**
  * @brief Guess types of atoms and bonds, and number of hydrogens of a molecule.

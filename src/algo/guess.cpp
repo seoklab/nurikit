@@ -1511,7 +1511,7 @@ namespace {
   }
 }  // namespace
 
-bool guess_bonds(MoleculeMutator &mut, int conf, double threshold) {
+bool guess_connectivity(MoleculeMutator &mut, int conf, double threshold) {
   Molecule &mol = mut.mol();
   if (mol.num_conf() <= conf) {
     ABSL_DLOG(WARNING) << "Conformer index " << conf << " is out of range.";
@@ -1528,9 +1528,17 @@ bool guess_bonds(MoleculeMutator &mut, int conf, double threshold) {
   guess_connectivity(mut, pos, threshold, distsq, tree);
   mut.finalize();
 
+  return true;
+}
+
+bool guess_everything(MoleculeMutator &mut, int conf, double threshold) {
+  Molecule &mol = mut.mol();
+  if (!guess_connectivity(mut, conf, threshold))
+    return false;
+
   reset_atoms(mol);
   reset_bonds(mol);
-  return guess_types_common(mol, pos);
+  return guess_types_common(mol, mol.cconf(conf));
 }
 
 bool guess_all_types(Molecule &mol, int conf) {
@@ -1539,8 +1547,13 @@ bool guess_all_types(Molecule &mol, int conf) {
     return false;
   }
 
-  if (!no_excess_bonds(mol, [](auto...) { return false; }))
+  if (!no_excess_bonds(mol, [](Molecule::Atom atom, int /* max_neighbors */) {
+        ABSL_LOG(WARNING) << "Degree overflow for atom " << atom.id() << " ("
+                          << atom.data().element().symbol() << ").";
+        return false;
+      })) {
     return false;
+  }
 
   reset_atoms(mol);
   reset_bonds(mol);
