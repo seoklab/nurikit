@@ -691,7 +691,7 @@ namespace internal {
     SubgraphType graph_;
 
     std::string name_;
-    int id_;
+    int id_ = 0;
     SubstructCategory cat_;
     std::vector<std::pair<std::string, std::string>> props_;
   };
