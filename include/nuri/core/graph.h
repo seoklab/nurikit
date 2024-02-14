@@ -704,7 +704,7 @@ public:
     return find_edge_helper(*this, src, dst);
   }
 
-  void clear_edge() {
+  void clear_edges() {
     edges_.clear();
     for (std::vector<AdjEntry> &adj: adj_list_)
       adj.clear();
@@ -1533,6 +1533,8 @@ namespace internal {
     constexpr SubEdgeWrapper(const Other<other_const> &other) noexcept
         : src_(other.src_), dst_(other.dst_), eid_(other.eid_),
           subgraph_(other.subgraph_) { }
+
+    constexpr auto id() const noexcept { return eid_; }
 
     constexpr auto src() const noexcept { return subgraph_->node(src_); }
     constexpr auto dst() const noexcept { return subgraph_->node(dst_); }

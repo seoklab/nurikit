@@ -30,6 +30,9 @@
 #include "nuri/utils.h"
 
 namespace nuri {
+using internal::count_pi_e;
+using internal::effective_element_or_element;
+using internal::from_degree;
 using internal::nonbonding_electrons;
 
 AtomData::AtomData(const Element &element, int implicit_hydrogens,
@@ -113,10 +116,29 @@ void Molecule::clear() noexcept {
   conformers_.clear();
   name_.clear();
   props_.clear();
-
   substructs_.clear();
   ring_groups_.clear();
   num_fragments_ = 0;
+}
+
+void Molecule::clear_atoms() noexcept {
+  graph_.clear();
+
+  for (Matrix3Xd &conf: conformers_)
+    conf.resize(Eigen::NoChange, 0);
+
+  for (Substructure &sub: substructs_)
+    sub.clear_atoms();
+
+  ring_groups_.clear();
+  num_fragments_ = 0;
+}
+
+void Molecule::clear_bonds() noexcept {
+  graph_.clear_edges();
+
+  ring_groups_.clear();
+  num_fragments_ = num_atoms();
 }
 
 void Molecule::erase_hydrogens() {
@@ -296,14 +318,14 @@ namespace {
       }
     }
 
-    absl::flat_hash_map<int, std::vector<int>> components;
+    std::vector<std::vector<int>> components(id);
     for (int i = 0; i < graph.num_nodes(); ++i) {
       components[lows[i]].push_back(i);
     }
 
     std::pair<std::vector<std::vector<int>>, int> ret;
     ret.second = num_connected;
-    for (auto &[_, comp]: components) {
+    for (std::vector<int> &comp: components) {
       if (comp.size() > 2) {
         std::sort(comp.begin(), comp.end(),
                   [&](int a, int b) { return ids[a] < ids[b]; });
@@ -342,6 +364,12 @@ void Molecule::update_topology() {
 
 /* MoleculeMutator definitions */
 
+void MoleculeMutator::clear_atoms() noexcept {
+  mol().clear_atoms();
+  prev_num_atoms_ = prev_num_bonds_ = 0;
+  discard_erasure();
+}
+
 namespace {
   template <class DT>
   std::pair<Molecule::bond_iterator, bool>
@@ -374,6 +402,18 @@ void MoleculeMutator::mark_bond_erase(int src, int dst) {
   auto it = mol().find_bond(src, dst);
   if (it != mol().bond_end())
     erased_bonds_.push_back(it->id());
+}
+
+void MoleculeMutator::clear_bonds() noexcept {
+  mol().clear_bonds();
+  prev_num_bonds_ = 0;
+  erased_bonds_.clear();
+}
+
+void MoleculeMutator::clear() noexcept {
+  mol().clear();
+  prev_num_atoms_ = prev_num_bonds_ = 0;
+  discard_erasure();
 }
 
 void MoleculeMutator::discard_erasure() noexcept {
@@ -662,13 +702,10 @@ namespace internal {
         // Has nonbonding electrons (O, N) -> 2 electrons participate in
         // No nonbonding electrons (B) -> no electrons participate in
         const int pie_estimate = static_cast<int>(nb_electrons > 0) * 2;
-        ABSL_DLOG(INFO) << "Special case: " << atom.id() << " " << pie_estimate
-                        << " pi electrons";
         return pie_estimate;
       }
 
       // Normal case: atoms in pyridine, benzene, ...
-      ABSL_DLOG(INFO) << "Normal case: " << atom.id() << " 1 pi electron";
       return 1;
     }
 
@@ -678,14 +715,11 @@ namespace internal {
                      || nei.edge_data().order() == constants::kTripleBond);
         })) {
       // Normal case, at least one double/triple bond in the ring
-      ABSL_DLOG(INFO) << "Normal case: " << atom.id() << " 1 pi electron";
       return 1;
     }
 
     // E.g. N in pyrrole
     const int pie_estimate = std::min(nb_electrons, 2);
-    ABSL_DLOG(INFO) << "Exceptional: " << atom.id() << " " << pie_estimate
-                    << " pi electrons";
     return pie_estimate;
   }
 
@@ -862,7 +896,7 @@ namespace {
     if (atom.data().atomic_number() == 0) {
       // Assume dummy atom always satisfies the octet rule
       const int nbe = std::max(8 - total_valence, 0);
-      atom.data().set_hybridization(internal::from_degree(total_degree, nbe));
+      atom.data().set_hybridization(from_degree(total_degree, nbe));
       return true;
     }
 
@@ -876,9 +910,9 @@ namespace {
                      << "; assuming no lone pair";
     }
 
-    const Element &effective = internal::effective_element_or_element(atom);
+    const Element &effective = effective_element_or_element(atom);
 
-    constants::Hybridization hyb = internal::from_degree(total_degree, nbe);
+    constants::Hybridization hyb = from_degree(total_degree, nbe);
     if (hyb == constants::kSP3 && atom.data().is_conjugated()) {
       hyb = constants::kSP2;
       if (is_pyrrole_like(atom, effective, nbe, total_valence)) {
@@ -896,7 +930,7 @@ namespace {
     } else {
       // Assume non-main-group atoms does not have lone pairs
       atom.data().set_hybridization(
-          std::min(hyb, internal::from_degree(total_degree, 0)));
+          std::min(hyb, from_degree(total_degree, 0)));
     }
 
     return true;
@@ -953,7 +987,7 @@ namespace {
       return false;
     }
 
-    const Element &effective = internal::effective_element_or_element(atom);
+    const Element &effective = effective_element_or_element(atom);
     if (atom.data().is_conjugated()
         && is_pyrrole_like(atom, effective, nbe, total_valence)) {
       // Pyrrole, etc.
@@ -990,5 +1024,31 @@ const Element *effective_element(Molecule::Atom atom) {
   const int effective_z =
       atom.data().atomic_number() - atom.data().formal_charge();
   return PeriodicTable::get().find_element(effective_z);
+}
+
+std::vector<std::vector<int>> fragments(const Molecule &mol) {
+  std::vector<std::vector<int>> result;
+  ArrayXb visited = ArrayXb::Constant(mol.num_atoms(), false);
+
+  auto dfs = [&](auto &self, std::vector<int> &sub, int curr) -> void {
+    sub.push_back(curr);
+    visited[curr] = true;
+
+    for (auto nei: mol.atom(curr)) {
+      if (visited[nei.dst().id()])
+        continue;
+
+      self(self, sub, nei.dst().id());
+    }
+  };
+
+  for (auto atom: mol) {
+    if (visited[atom.id()])
+      continue;
+
+    dfs(dfs, result.emplace_back(), atom.id());
+  }
+
+  return result;
 }
 }  // namespace nuri

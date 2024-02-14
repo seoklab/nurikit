@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numeric>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -52,7 +53,13 @@ namespace {
   }
 
   // pdist-based solution is faster for about <= 1000 atoms.
-  constexpr int kSmallLimit = 1000;
+  // set 100 for debug builds, for testing purposes.
+  constexpr int kSmallLimit =
+#ifdef NDEBUG
+      1000;
+#else
+      100;
+#endif
 
   void prepare_conn_search(const Matrix3Xd &pos, ArrayXd &distsq,
                            OCTree &tree) {
@@ -96,25 +103,26 @@ namespace {
     std::vector<double> distsq;
 
     const Molecule &mol = mut.mol();
-
-    for (int i = 0; i < mol.size(); ++i) {
-      const Element &e = mol.atom(i).data().element();
+    for (auto src: mol) {
+      const Element &e = src.data().element();
       if (e.type() == Element::Type::kMetal)
         continue;
 
       // No atoms will form bonds > 5.0 A.
-      oct.find_neighbors_d(oct.pts().col(i), 5.0 + threshold, idxs, distsq);
+      oct.find_neighbors_d(oct.pts().col(src.id()), 5.0 + threshold, idxs,
+                           distsq);
 
-      for (int j = 0; j < idxs.size(); ++j) {
-        if (i == j)
+      for (int i = 0; i < idxs.size(); i++) {
+        auto dst = mol.atom(idxs[i]);
+        if (src.id() == dst.id())
           continue;
 
-        const Element &f = mol.atom(j).data().element();
+        const Element &f = dst.data().element();
         if (f.type() == Element::Type::kMetal)
           continue;
 
-        if (distsq[j] <= rcov_sum_sq(e, f, threshold))
-          mut.add_bond(i, j, {});
+        if (distsq[i] <= rcov_sum_sq(e, f, threshold))
+          mut.add_bond(src.id(), dst.id(), {});
       }
     }
   }
@@ -296,7 +304,7 @@ namespace {
   }
 
   void guess_hyb_nonterminal(Molecule &mol, const Matrix3Xd &pos,
-                             const std::vector<std::vector<int>> &sssr) {
+                             const std::vector<std::vector<int>> &rings) {
     for (auto atom: mol) {
       if (atom.degree() <= 1 || atom.data().element().period() == 1)
         continue;
@@ -319,7 +327,7 @@ namespace {
       }
     }
 
-    for (auto &ring: sssr) {
+    for (auto &ring: rings) {
       if (ring.size() == 5) {
         hyb_ring(mol, pos, ring, kTan7_5_2);
       } else if (ring.size() == 6) {
@@ -825,7 +833,7 @@ namespace {
   }
 
   void find_aromatics(Molecule &mol,
-                      const std::vector<std::vector<int>> &sssr) {
+                      const std::vector<std::vector<int>> &rings) {
     absl::flat_hash_map<int, absl::InlinedVector<PiElecArgs, 2>> pi_e_estimates;
 
     for (auto &ring: mol.ring_groups()) {
@@ -836,7 +844,7 @@ namespace {
       }
     }
 
-    for (auto &ring: sssr) {
+    for (auto &ring: rings) {
       if (ring.size() < 5 || ring.size() > 7)
         continue;
 
@@ -1007,14 +1015,11 @@ namespace {
   }
 
   void assign_bond_order_others(Molecule &mol) {
-    int cnt = 0;
     for (auto bond: mol.bonds()) {
       if (bond.data().order() != constants::kOtherBond)
         continue;
       bond.data().set_order(constants::kSingleBond);
-      cnt++;
     }
-    ABSL_DLOG(INFO) << "Marked " << cnt << " bonds as single.";
   }
 
   void assign_bond_orders(Molecule &mol, const Matrix3Xd &pos) {
@@ -1047,7 +1052,29 @@ namespace {
     int steric_number;
   };
 
-  using Conflicts = std::vector<ConflictInfo>;
+  class Conflicts {
+  public:
+    using iterator = absl::flat_hash_map<int, ConflictInfo>::iterator;
+
+    void add(int idx, Conflict why, const Element &effective, int overflowed,
+             int steric_number) {
+      data_.insert_or_assign(idx, { idx, why, &effective, overflowed,
+                                    steric_number });
+    }
+
+    void mark_resolved(iterator it) { data_.erase(it); }
+
+    iterator find(int idx) { return data_.find(idx); }
+
+    bool empty() const { return data_.empty(); }
+
+    auto begin() { return data_.begin(); }
+
+    auto end() { return data_.end(); }
+
+  private:
+    absl::flat_hash_map<int, ConflictInfo> data_;
+  };
 
   template <class Overflow>
   void guess_hfh_atom(Molecule::MutableAtom atom, const Element &effective,
@@ -1059,14 +1086,14 @@ namespace {
     int unused_valence = cv - sum_bo;
     int pred_h = data.implicit_hydrogens() + unused_valence;
 
-    data.set_implicit_hydrogens(pred_h);
+    data.set_implicit_hydrogens(std::max(pred_h, 0));
 
     sum_bo = sum_bond_order(atom);
     int nbe = effective.valence_electrons() - sum_bo;
     int n_over = overflowed(pred_h, nbe);
     if (n_over > 0) {
-      conflicts.push_back(
-          { atom.id(), Conflict::kValenceOverflow, &effective, n_over, -1 });
+      conflicts.add(atom.id(), Conflict::kValenceOverflow, effective, n_over,
+                    -1);
       return;
     }
 
@@ -1084,8 +1111,8 @@ namespace {
     if (data.hybridization() == constants::kOtherHyb) {
       data.set_hybridization(static_cast<constants::Hybridization>(sn));
     } else if (sn > data.hybridization()) {
-      conflicts.push_back({ atom.id(), Conflict::kHybConflict, &effective,
-                            sn - data.hybridization(), sn });
+      conflicts.add(atom.id(), Conflict::kHybConflict, effective,
+                    sn - data.hybridization(), sn);
     } else {
       ABSL_DCHECK(sn == data.hybridization());
     }
@@ -1103,8 +1130,6 @@ namespace {
   //   2. Hybridization mismatch. This might also include unmarked conjugated
   //      atoms.
   bool guess_hyb_fcharge_hydrogens(Molecule &mol, Conflicts &conflicts) {
-    conflicts.clear();
-
     auto log_degree_overflow = [](int line, Molecule::Atom atom,
                                   int max_degree) {
       ABSL_LOG(WARNING).AtLocation(__FILE__, line)
@@ -1175,68 +1200,102 @@ namespace {
     return true;
   }
 
-  void try_fix_overflow(
-      Molecule::MutableAtom atom, const ConflictInfo &info,
-      ArrayXi &conflict_map,
-      const std::vector<std::pair<int, ConflictInfo *>> &nei_conflict) {
+  bool try_fix_overflow(
+      Molecule::MutableAtom atom, Conflicts::iterator &it, Conflicts &conflicts,
+      std::vector<std::pair<int, Conflicts::iterator>> &nei_conflict) {
+    const ConflictInfo &info = it->second;
+    int overflowed = info.overflowed;
+
     // pre: implicit H count == 0
     // Might be resolved by removing multiple bonds if neighbor is also
     // overflowing, or by updating formal charge (max +-2)
-    if (nei_conflict.empty()) {
-      int fchg = atom.data().formal_charge();
+    absl::c_sort(
+        nei_conflict, [&](const std::pair<int, Conflicts::iterator> &lhs,
+                          const std::pair<int, Conflicts::iterator> &rhs) {
+          auto ln = atom[lhs.first], rn = atom[rhs.first];
+          return ln.dst().degree() > rn.dst().degree()
+                 || (ln.dst().degree() == rn.dst().degree()
+                     && ln.edge_data().order() > rn.edge_data().order());
+        });
 
-      if (info.effective->period() == 2) {
-        if (info.overflowed > 1 || info.effective->group() == 14)
-          return;
+    for (auto [i, jt]: nei_conflict) {
+      auto nei = atom[i];
+      int nei_req = jt->second.overflowed;
+      int available = std::min(overflowed, nei_req);
+      auto ord = static_cast<constants::BondOrder>(nei.edge_data().order()
+                                                   - available);
+      if (ord < constants::kSingleBond)
+        continue;
 
-        fchg += info.effective->group() > 14 ? info.overflowed
-                                             : -info.overflowed;
-      } else {
-        // PCl6-
-        fchg -= info.overflowed;
+      nei.edge_data().order() = ord;
+
+      jt->second.overflowed -= available;
+      if (nei_req == 0)
+        conflicts.mark_resolved(jt);
+
+      overflowed -= available;
+      if (overflowed == 0) {
+        conflicts.mark_resolved(it++);
+        return true;
       }
-
-      if (fchg < -2 || fchg > 2)
-        return;
-
-      const Element *new_effective =
-          kPt.find_element(atom.data().atomic_number() - fchg);
-      if (new_effective == nullptr
-          || new_effective->period() > atom.data().element().period())
-        return;
-
-      atom.data().set_formal_charge(fchg);
-      conflict_map[atom.id()] = -1;
-      return;
     }
+
+    int fchg = atom.data().formal_charge();
+    if (info.effective->period() == 2) {
+      // Cannot handle atoms with already the highest available max bond order
+      // (group 14 -> 4, other groups can have < 4)
+      if (overflowed >= 2 || info.effective->group() == 14)
+        return false;
+
+      fchg += info.effective->group() > 14 ? overflowed : -overflowed;
+    } else {
+      // PCl6-
+      fchg -= overflowed;
+    }
+
+    if (fchg < -2 || fchg > 2)
+      return false;
+
+    const Element *new_effective =
+        kPt.find_element(atom.data().atomic_number() - fchg);
+    if (new_effective == nullptr
+        || new_effective->period() != atom.data().element().period())
+      return false;
+
+    atom.data().set_formal_charge(fchg);
+    conflicts.mark_resolved(it++);
+    return true;
   }
 
-  void try_fix_hyb_conflict(
-      Molecule::MutableAtom atom, const ConflictInfo &info,
-      ArrayXi &conflict_map,
-      std::vector<std::pair<int, ConflictInfo *>> &nei_conflict) {
+  bool try_fix_hyb_conflict(
+      Molecule::MutableAtom atom, Conflicts::iterator &it, Conflicts &conflicts,
+      std::vector<std::pair<int, Conflicts::iterator>> &nei_conflict) {
+    const ConflictInfo &info = it->second;
+
     // steric number != hybridization
-    // 1. Missing multiple bond or conjugation, if neighbor also has conflicts
+    // 1. Missing multiple bond, if neighbor also has conflicts (conjugation
+    //    already marked)
     // 2. Wrong hybridization, if no neighbor has conflicts
     if (nei_conflict.empty()) {
       atom.data().set_hybridization(
           static_cast<constants::Hybridization>(info.steric_number));
-      conflict_map[atom.id()] = -1;
-      return;
+      conflicts.mark_resolved(it++);
+      return true;
     }
 
-    absl::c_sort(nei_conflict, [&](const std::pair<int, ConflictInfo *> &lhs,
-                                   const std::pair<int, ConflictInfo *> &rhs) {
-      auto ln = atom[lhs.first], rn = atom[rhs.first];
-      return ln.dst().degree() < rn.dst().degree()
-             || ln.edge_data().order() < rn.edge_data().order();
-    });
+    absl::c_sort(
+        nei_conflict, [&](const std::pair<int, Conflicts::iterator> &lhs,
+                          const std::pair<int, Conflicts::iterator> &rhs) {
+          auto ln = atom[lhs.first], rn = atom[rhs.first];
+          return ln.dst().degree() < rn.dst().degree()
+                 || (ln.dst().degree() == rn.dst().degree()
+                     && ln.edge_data().order() < rn.edge_data().order());
+        });
 
     int required = info.overflowed;
-
-    for (auto [i, ci]: nei_conflict) {
+    for (auto [i, jt]: nei_conflict) {
       auto nei = atom[i];
-      int nei_req = ci->overflowed;
+      int nei_req = jt->second.overflowed;
       int available = std::min(required, nei_req);
       auto ord = static_cast<constants::BondOrder>(nei.edge_data().order()
                                                    + available);
@@ -1245,52 +1304,51 @@ namespace {
 
       nei.edge_data().order() = ord;
 
-      ci->overflowed -= available;
+      jt->second.overflowed -= available;
       if (nei_req == 0)
-        conflict_map[nei.dst().id()] = -1;
+        conflicts.mark_resolved(jt);
 
       required -= available;
       if (required == 0) {
-        conflict_map[atom.id()] = -1;
-        break;
+        conflicts.mark_resolved(it++);
+        return true;
       }
     }
+
+    return false;
   }
 
   bool try_fix_conflicts(Molecule &mol, Conflicts &conflicts) {
-    ArrayXi conflict_map = ArrayXi::Constant(mol.size(), -1);
-    for (int i = 0; i < conflicts.size(); ++i)
-      conflict_map[conflicts[i].idx] = i;
+    std::vector<std::pair<int, Conflicts::iterator>> nei_conflict;
 
-    std::vector<std::pair<int, ConflictInfo *>> nei_conflict;
-    for (auto &cinfo: conflicts) {
-      if (conflict_map[cinfo.idx] < 0)
-        continue;
+    for (auto it = conflicts.begin(); it != conflicts.end();) {
+      auto atom = mol.atom(it->second.idx);
 
       nei_conflict.clear();
-      auto atom = mol.atom(cinfo.idx);
       for (int i = 0; i < atom.degree(); ++i) {
-        int cid = conflict_map[atom[i].dst().id()];
-        if (cid >= 0 && conflicts[cid].why == cinfo.why)
-          nei_conflict.push_back({ i, &conflicts[cid] });
+        auto jt = conflicts.find(atom[i].dst().id());
+        if (jt != conflicts.end() && jt->second.why == it->second.why)
+          nei_conflict.push_back({ i, jt });
       }
 
-      switch (cinfo.why) {
+      bool resolved = false;
+      switch (it->second.why) {
       case Conflict::kValenceOverflow:
-        try_fix_overflow(atom, cinfo, conflict_map, nei_conflict);
+        resolved = try_fix_overflow(atom, it, conflicts, nei_conflict);
         break;
       case Conflict::kHybConflict:
-        try_fix_hyb_conflict(atom, cinfo, conflict_map, nei_conflict);
+        resolved = try_fix_hyb_conflict(atom, it, conflicts, nei_conflict);
         break;
       }
+
+      if (!resolved)
+        ++it;
     }
 
-    return absl::c_none_of(conflicts, [&](const ConflictInfo &cinfo) {
-      return conflict_map[cinfo.idx] >= 0;
-    });
+    return conflicts.empty();
   }
 
-  bool sp3_atom_can_conjugate(Molecule::Atom atom) {
+  bool hyb_incorrect_atom_can_conjugate(Molecule::Atom atom) {
     bool any_multiple = absl::c_any_of(atom, [](Molecule::Neighbor nei) {
       return nei.edge_data().order() > constants::kSingleBond;
     });
@@ -1300,8 +1358,9 @@ namespace {
 
   bool is_conjugated_candidate(Molecule::Atom atom) {
     return atom.data().is_conjugated()
-           || atom.data().hybridization() <= constants::kSP2
-           || (atom.degree() <= 2 && sp3_atom_can_conjugate(atom));
+           || (atom.degree() == 3
+               && atom.data().hybridization() <= constants::kSP2)
+           || (atom.degree() <= 2 && hyb_incorrect_atom_can_conjugate(atom));
   }
 
   bool torsion_can_conjugate(const Matrix3Xd &pos, int a, int b, int c, int d) {
@@ -1390,7 +1449,8 @@ namespace {
   }
 
   void mark_conjugated(Molecule &mol,
-                       const std::vector<std::vector<int>> &groups) {
+                       const std::vector<std::vector<int>> &groups,
+                       Conflicts &conflicts) {
     for (const std::vector<int> &group: groups) {
       ABSL_DCHECK(group.size() > 2) << "Group size: " << group.size();
 
@@ -1400,6 +1460,15 @@ namespace {
         AtomData &data = atom.data();
         data.add_flags(AtomFlags::kConjugated)
             .set_hybridization(std::min(constants::kSP2, data.hybridization()));
+
+        auto it = conflicts.find(atom.as_parent().id());
+        if (it != conflicts.end() && it->second.why == Conflict::kHybConflict) {
+          if (--it->second.overflowed == 0) {
+            conflicts.mark_resolved(it);
+          } else {
+            --it->second.steric_number;
+          }
+        }
       }
 
       for (auto bond: sub.bonds())
@@ -1407,7 +1476,8 @@ namespace {
     }
   }
 
-  void guess_conjugated(Molecule &mol, const Matrix3Xd &pos) {
+  void guess_conjugated(Molecule &mol, const Matrix3Xd &pos,
+                        Conflicts &conflicts) {
     absl::flat_hash_set<int> candidates;
     std::vector<std::vector<int>> groups;
 
@@ -1416,19 +1486,25 @@ namespace {
         candidates.insert(atom.id());
 
     find_conjugated_groups(mol, pos, candidates, groups);
-    mark_conjugated(mol, groups);
+    mark_conjugated(mol, groups, conflicts);
   }
 
   bool guess_types_common(Molecule &mol, const Matrix3Xd &pos) {
-    Rings sssr = find_sssr(mol);
+    Rings rings;
+    bool ok;
 
-    guess_hyb_nonterminal(mol, pos, sssr);
+    std::tie(rings, ok) = find_all_rings(mol, 6);
+    if (!ok)
+      rings = find_sssr(mol, 6);
+
+    guess_hyb_nonterminal(mol, pos, rings);
     recognize_fg(mol, pos);
-    find_aromatics(mol, sssr);
+    find_aromatics(mol, rings);
     assign_bond_orders(mol, pos);
 
     Conflicts conflicts;
     guess_hyb_fcharge_hydrogens(mol, conflicts);
+    guess_conjugated(mol, pos, conflicts);
 
     if (!conflicts.empty()) {
       bool success = try_fix_conflicts(mol, conflicts);
@@ -1438,14 +1514,12 @@ namespace {
       }
     }
 
-    guess_conjugated(mol, pos);
-
     return true;
   }
 }  // namespace
 
-bool guess_bonds(MoleculeMutator &mut, int conf, double threshold) {
-  Molecule &mol = mut.mol();
+bool guess_connectivity(MoleculeMutator &mut, int conf, double threshold) {
+  const Molecule &mol = mut.mol();
   if (mol.num_conf() <= conf) {
     ABSL_DLOG(WARNING) << "Conformer index " << conf << " is out of range.";
     return false;
@@ -1461,9 +1535,17 @@ bool guess_bonds(MoleculeMutator &mut, int conf, double threshold) {
   guess_connectivity(mut, pos, threshold, distsq, tree);
   mut.finalize();
 
+  return true;
+}
+
+bool guess_everything(MoleculeMutator &mut, int conf, double threshold) {
+  Molecule &mol = mut.mol();
+  if (!guess_connectivity(mut, conf, threshold))
+    return false;
+
   reset_atoms(mol);
   reset_bonds(mol);
-  return guess_types_common(mol, pos);
+  return guess_types_common(mol, mol.cconf(conf));
 }
 
 bool guess_all_types(Molecule &mol, int conf) {
@@ -1472,8 +1554,13 @@ bool guess_all_types(Molecule &mol, int conf) {
     return false;
   }
 
-  if (!no_excess_bonds(mol, [](auto...) { return false; }))
+  if (!no_excess_bonds(mol, [](Molecule::Atom atom, int /* max_neighbors */) {
+        ABSL_LOG(WARNING) << "Degree overflow for atom " << atom.id() << " ("
+                          << atom.data().element().symbol() << ").";
+        return false;
+      })) {
     return false;
+  }
 
   reset_atoms(mol);
   reset_bonds(mol);

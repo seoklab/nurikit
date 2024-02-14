@@ -83,34 +83,65 @@ protected:
     ASSERT_EQ(mol_.num_bonds(), 11);
 
     sub_ = mol_.substructure({ 0, 1, 2, 10 });
+    ASSERT_FALSE(sub_.empty());
   }
 };
 
 TEST_F(SubstructureTest, CreateSubstructure) {
   EXPECT_EQ(sub_.size(), 4);
   EXPECT_EQ(sub_.num_atoms(), 4);
+  EXPECT_EQ(sub_.count_heavy_atoms(), 3);
 
   std::vector<int> tmp { 0, 1, 2, 10 };
   Substructure sub = mol_.substructure(tmp);
   EXPECT_EQ(sub.size(), 4);
   EXPECT_EQ(sub.num_atoms(), 4);
+  EXPECT_EQ(sub.count_heavy_atoms(), 3);
 
   const Molecule &cmol = mol_;
   ConstSubstructure csub1 = cmol.substructure({ 0, 1, 2, 10 });
   EXPECT_EQ(csub1.size(), 4);
   EXPECT_EQ(csub1.num_atoms(), 4);
+  EXPECT_EQ(csub1.count_heavy_atoms(), 3);
 
   ConstSubstructure csub2 = cmol.substructure(tmp);
   EXPECT_EQ(csub2.size(), 4);
   EXPECT_EQ(csub2.num_atoms(), 4);
+  EXPECT_EQ(csub2.count_heavy_atoms(), 3);
 }
 
-TEST_F(SubstructureTest, ClearSubstructure) {
-  EXPECT_FALSE(sub_.empty());
+TEST_F(SubstructureTest, ClearAll) {
+  sub_.name() = "test";
+  sub_.add_prop("key", "val");
+  sub_.set_id(10);
 
   sub_.clear();
+
   EXPECT_EQ(sub_.size(), 0);
   EXPECT_TRUE(sub_.empty());
+  EXPECT_TRUE(sub_.name().empty());
+  EXPECT_TRUE(sub_.props().empty());
+  EXPECT_EQ(sub_.id(), 0);
+}
+
+TEST_F(SubstructureTest, ClearAtoms) {
+  using std::string_literals::operator""s;
+
+  sub_.name() = "test";
+  sub_.add_prop("key", "val");
+  sub_.set_id(10);
+
+  sub_.clear_atoms();
+
+  EXPECT_EQ(sub_.size(), 0);
+  EXPECT_TRUE(sub_.empty());
+
+  EXPECT_EQ(sub_.name(), "test");
+
+  ASSERT_FALSE(sub_.props().empty());
+  EXPECT_EQ(sub_.props()[0], std::pair("key"s, "val"s));
+
+  EXPECT_EQ(sub_.id(), 10);
 }
 
 TEST_F(SubstructureTest, UpdateAtoms) {

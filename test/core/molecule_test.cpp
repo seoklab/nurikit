@@ -18,6 +18,8 @@
 #include "nuri/core/geometry.h"
 
 namespace {
+using std::string_literals::operator""s;
+
 using nuri::AtomData;
 using nuri::BondData;
 using nuri::Molecule;
@@ -168,6 +170,13 @@ protected:
 
     ASSERT_EQ(mol_.num_conf(), 2);
   }
+
+  void add_extra_data() {
+    mol_.name() = "test molecule";
+    mol_.add_prop("key", "val");
+    nuri::Substructure &sub = mol_.add_substructure({ 0, 1, 2 });
+    sub.name() = "test substructure";
+  }
 };
 
 TEST_F(MoleculeTest, AddAtomsTest) {
@@ -177,6 +186,7 @@ TEST_F(MoleculeTest, AddAtomsTest) {
   }
 
   EXPECT_EQ(mol_.num_atoms(), 13);
+  EXPECT_EQ(mol_.count_heavy_atoms(), 6);
   for (const nuri::Matrix3Xd &conf: mol_.all_conf()) {
     EXPECT_EQ(conf.cols(), 13);
   }
@@ -372,6 +382,118 @@ TEST_F(MoleculeTest, EraseHydrogensTest) {
   }
 }
 
+void verify_clear_all(const Molecule &mol) {
+  EXPECT_EQ(mol.size(), 0);
+  EXPECT_EQ(mol.num_atoms(), 0);
+  EXPECT_EQ(mol.num_bonds(), 0);
+  EXPECT_EQ(mol.num_conf(), 0);
+  EXPECT_EQ(mol.num_fragments(), 0);
+  EXPECT_TRUE(mol.name().empty());
+  EXPECT_TRUE(mol.props().empty());
+  EXPECT_TRUE(mol.substructures().empty());
+  EXPECT_TRUE(mol.ring_groups().empty());
+}
+
+TEST_F(MoleculeTest, ClearAll) {
+  add_extra_data();
+  mol_.clear();
+  verify_clear_all(mol_);
+}
+
+TEST_F(MoleculeTest, ClearAllWithMutator) {
+  add_extra_data();
+
+  {
+    auto mut = mol_.mutator();
+    mut.mark_atom_erase(5);
+    mut.mark_bond_erase(5);
+    mut.clear();
+  }
+
+  verify_clear_all(mol_);
+}
+
+void verify_clear_atoms(const Molecule &mol) {
+  EXPECT_EQ(mol.size(), 0);
+  EXPECT_EQ(mol.num_atoms(), 0);
+  EXPECT_EQ(mol.num_bonds(), 0);
+  EXPECT_EQ(mol.num_fragments(), 0);
+  EXPECT_TRUE(mol.ring_groups().empty());
+
+  EXPECT_EQ(mol.num_conf(), 2);
+  for (const auto &c: mol.all_conf())
+    EXPECT_EQ(c.cols(), 0);
+
+  EXPECT_EQ(mol.name(), "test molecule");
+
+  ASSERT_EQ(mol.props().size(), 1);
+  EXPECT_EQ(mol.props()[0], std::pair("key"s, "val"s));
+
+  ASSERT_EQ(mol.substructures().size(), 1);
+  EXPECT_TRUE(mol.substructures()[0].empty());
+  EXPECT_EQ(mol.substructures()[0].name(), "test substructure");
+}
+
+TEST_F(MoleculeTest, ClearAtoms) {
+  add_extra_data();
+  mol_.clear_atoms();
+  verify_clear_atoms(mol_);
+}
+
+TEST_F(MoleculeTest, ClearAtomsWithMutator) {
+  add_extra_data();
+
+  {
+    auto mut = mol_.mutator();
+    mut.mark_atom_erase(5);
+    mut.mark_bond_erase(5);
+    mut.clear_atoms();
+  }
+
+  verify_clear_atoms(mol_);
+}
+
+void verify_clear_bonds(const Molecule &mol, int num_atoms) {
+  EXPECT_EQ(mol.num_bonds(), 0);
+
+  EXPECT_EQ(mol.size(), num_atoms);
+  EXPECT_EQ(mol.num_atoms(), num_atoms);
+  EXPECT_EQ(mol.num_fragments(), num_atoms);
+  EXPECT_TRUE(mol.ring_groups().empty());
+
+  EXPECT_EQ(mol.num_conf(), 2);
+  for (const auto &c: mol.all_conf())
+    EXPECT_EQ(c.cols(), num_atoms);
+
+  EXPECT_EQ(mol.name(), "test molecule");
+
+  ASSERT_EQ(mol.props().size(), 1);
+  EXPECT_EQ(mol.props()[0], std::pair("key"s, "val"s));
+
+  ASSERT_EQ(mol.substructures().size(), 1);
+  EXPECT_EQ(mol.substructures()[0].atom_ids(), std::vector<int>({ 0, 1, 2 }));
+  EXPECT_EQ(mol.substructures()[0].name(), "test substructure");
+}
+
+TEST_F(MoleculeTest, ClearBonds) {
+  add_extra_data();
+  mol_.clear_bonds();
+  verify_clear_bonds(mol_, 12);
+}
+
+TEST_F(MoleculeTest, ClearBondsWithMutator) {
+  add_extra_data();
+
+  {
+    auto mut = mol_.mutator();
+    mut.mark_atom_erase(5);
+    mut.mark_bond_erase(5);
+    mut.clear_bonds();
+  }
+
+  verify_clear_bonds(mol_, 11);
+}
+
 TEST_F(MoleculeTest, SanitizeTest) {
   MoleculeSanitizer sanitizer(mol_);
   ASSERT_TRUE(sanitizer.sanitize_all());
@@ -420,6 +542,28 @@ TEST_F(MoleculeTest, MergeOther) {
   EXPECT_EQ(mol_.find_bond(12, 13)->data().order(), kSingleBond);
 }
 
+TEST_F(MoleculeTest, GetFragments) {
+  std::vector fragments = nuri::fragments(mol_);
+  EXPECT_EQ(fragments.size(), 2);
+  EXPECT_EQ(fragments.size(), mol_.num_fragments());
+
+  bool found_1 = false, found_11 = false;
+  for (const auto &f: fragments) {
+    if (f.size() == 11) {
+      EXPECT_FALSE(found_11) << "Duplicate fragment";
+      EXPECT_TRUE(absl::c_all_of(f, [](int i) { return i < 11; }));
+      found_11 = true;
+    } else if (f.size() == 1) {
+      EXPECT_FALSE(found_1) << "Duplicate fragment";
+      EXPECT_EQ(f[0], 11);
+      found_1 = true;
+    } else {
+      FAIL() << "Unexpected fragment size: " << f.size();
+    }
+  }
+  EXPECT_TRUE(found_1 && found_11);
+}
+
 TEST_F(MoleculeTest, Properties) {
   mol_.add_prop("test", "1");
   auto it = absl::c_find_if(mol_.props(), [](const auto &p) {
@@ -440,10 +584,10 @@ TEST_F(MoleculeTest, Properties) {
   EXPECT_NE(it, mol_.bond_begin()->data().props().end());
 
   mol_.atom(0).data().set_name("test");
-  EXPECT_EQ(*mol_.atom(0).data().find_name(), "test");
+  EXPECT_EQ(mol_.atom(0).data().get_name(), "test");
 
   mol_.bond_begin()->data().set_name("test");
-  EXPECT_EQ(*mol_.bond_begin()->data().find_name(), "test");
+  EXPECT_EQ(mol_.bond_begin()->data().get_name(), "test");
 }
 
 TEST(SanitizeTest, FindRingsTest) {

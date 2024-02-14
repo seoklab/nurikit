@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdint>
 #include <iterator>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -18,6 +19,7 @@
 
 #include <Eigen/Dense>
 
+#include <absl/algorithm/container.h>
 #include <absl/base/attributes.h>
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
@@ -44,6 +46,29 @@ namespace constants {
     kOtherHyb = 7,  // Unknown/other
   };
 
+  inline std::ostream &operator<<(std::ostream &os, Hybridization hyb) {
+    switch (hyb) {
+    case kUnbound:
+      return os << "unbound";
+    case kTerminal:
+      return os << "terminal";
+    case kSP:
+      return os << "sp";
+    case kSP2:
+      return os << "sp2";
+    case kSP3:
+      return os << "sp3";
+    case kSP3D:
+      return os << "sp3d";
+    case kSP3D2:
+      return os << "sp3d2";
+    case kOtherHyb:
+      break;
+    }
+
+    return os << "other";
+  }
+
   /**
    * @brief The bond order of a bond object.
    */
@@ -55,6 +80,25 @@ namespace constants {
     kQuadrupleBond = 4,
     kAromaticBond = 5,
   };
+
+  inline std::ostream &operator<<(std::ostream &os, BondOrder bo) {
+    switch (bo) {
+    case kOtherBond:
+      break;
+    case kSingleBond:
+      return os << "single";
+    case kDoubleBond:
+      return os << "double";
+    case kTripleBond:
+      return os << "triple";
+    case kQuadrupleBond:
+      return os << "quadruple";
+    case kAromaticBond:
+      return os << "aromatic";
+    }
+
+    return os << "other";
+  }
 
   extern constexpr inline double kBondOrderToDouble[] = { 0.0, 1.0, 2.0,
                                                           3.0, 4.0, 1.5 };
@@ -235,6 +279,8 @@ public:
     return internal::check_flag(flags_, AtomFlags::kRightHanded);
   }
 
+  AtomFlags flags() const { return flags_; }
+
   AtomData &add_flags(AtomFlags flags) {
     flags_ |= flags;
     return *this;
@@ -264,7 +310,7 @@ public:
 
   int formal_charge() const { return formal_charge_; }
 
-  const std::string *find_name() const { return internal::get_name(props_); }
+  std::string_view get_name() const { return internal::get_name(props_); }
 
   AtomData &set_name(std::string_view name) {
     internal::set_name(props_, name);
@@ -379,6 +425,8 @@ public:
     return *this;
   }
 
+  BondFlags flags() const { return flags_; }
+
   BondData &add_flags(BondFlags flags) {
     flags_ |= flags;
     return *this;
@@ -394,7 +442,7 @@ public:
     return *this;
   }
 
-  const std::string *find_name() const { return internal::get_name(props_); }
+  std::string_view get_name() const { return internal::get_name(props_); }
 
   BondData &set_name(std::string_view name) {
     internal::set_name(props_, name);
@@ -422,6 +470,12 @@ private:
 class Molecule;
 class MoleculeMutator;
 
+enum class SubstructCategory {
+  kUnknown,
+  kResidue,
+  kChain,
+};
+
 namespace internal {
   template <bool is_const = false>
   class Substructure {
@@ -445,27 +499,33 @@ namespace internal {
     using const_neighbor_iterator =
         typename SubgraphType::const_adjacency_iterator;
 
-    Substructure(const SubgraphType &sub): graph_(sub) { }
+    Substructure(const SubgraphType &sub,
+                 SubstructCategory cat = SubstructCategory::kUnknown)
+        : graph_(sub), cat_(cat) { }
 
-    Substructure(SubgraphType &&sub) noexcept: graph_(std::move(sub)) { }
+    Substructure(SubgraphType &&sub,
+                 SubstructCategory cat = SubstructCategory::kUnknown) noexcept
+        : graph_(std::move(sub)), cat_(cat) { }
 
-    Substructure(const SubgraphType &sub, const std::string &name)
-        : graph_(sub), name_(name) { }
+    Substructure(const SubgraphType &sub, const std::string &name,
+                 SubstructCategory cat = SubstructCategory::kUnknown)
+        : graph_(sub), name_(name), cat_(cat) { }
 
-    Substructure(SubgraphType &&sub, std::string &&name) noexcept
-        : graph_(std::move(sub)), name_(std::move(name)) { }
+    Substructure(SubgraphType &&sub, std::string &&name,
+                 SubstructCategory cat = SubstructCategory::kUnknown) noexcept
+        : graph_(std::move(sub)), name_(std::move(name)), cat_(cat) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     Substructure(const Substructure<other_const> &other)
         : graph_(other.graph_), name_(other.name_), id_(other.id_),
-          props_(other.props_) { }
+          cat_(other.cat_), props_(other.props_) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
     Substructure(Substructure<other_const> &&other) noexcept
         : graph_(std::move(other.graph_)), name_(std::move(other.name_)),
-          id_(other.id_), props_(std::move(other.props_)) { }
+          id_(other.id_), cat_(other.cat_), props_(std::move(other.props_)) { }
 
     template <bool other_const,
               std::enable_if_t<is_const && !other_const, int> = 0>
@@ -473,6 +533,7 @@ namespace internal {
       graph_ = other.graph_;
       name_ = other.name_;
       id_ = other.id_;
+      cat_ = other.cat_;
       props_ = other.props_;
       return *this;
     }
@@ -483,6 +544,7 @@ namespace internal {
       graph_ = std::move(other.graph_);
       name_ = std::move(other.name_);
       id_ = other.id_;
+      cat_ = other.cat_;
       props_ = std::move(other.props_);
       return *this;
     }
@@ -490,13 +552,21 @@ namespace internal {
     bool empty() const { return graph_.empty(); }
     int size() const { return graph_.size(); }
     int num_atoms() const { return graph_.num_nodes(); }
+    int count_heavy_atoms() const {
+      return absl::c_count_if(graph_, [](Substructure::Atom atom) {
+        return atom.data().atomic_number() != 1;
+      });
+    }
 
-    void clear() {
+    void clear() noexcept {
       graph_.clear();
       name_.clear();
       id_ = 0;
+      cat_ = SubstructCategory::kUnknown;
       props_.clear();
     }
+
+    void clear_atoms() noexcept { graph_.clear(); }
 
     void update(const std::vector<int> &atoms) { graph_.update(atoms); }
     void update(std::vector<int> &&atoms) noexcept {
@@ -595,6 +665,10 @@ namespace internal {
 
     int id() const { return id_; }
 
+    SubstructCategory &category() { return cat_; }
+
+    SubstructCategory category() const { return cat_; }
+
     template <class KT, class VT>
     void add_prop(KT &&key, VT &&val) {
       props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
@@ -617,25 +691,32 @@ namespace internal {
     SubgraphType graph_;
 
     std::string name_;
-    int id_;
+    int id_ = 0;
+    SubstructCategory cat_;
     std::vector<std::pair<std::string, std::string>> props_;
   };
 
   template <class FT, bool is_const>
-  class FindSubstructIter {
-  public:
-    using parent_type = const_if_t<is_const, FT>;
+  class FindSubstructIter
+      : public boost::iterator_facade<FindSubstructIter<FT, is_const>,
+                                      const_if_t<is_const, Substructure<false>>,
+                                      std::forward_iterator_tag> {
+    using Traits =
+        std::iterator_traits<typename FindSubstructIter::iterator_facade_>;
 
-    using iterator_category = std::forward_iterator_tag;
-    using value_type = const_if_t<is_const, Substructure<false>>;
-    using reference = value_type &;
-    using pointer = value_type *;
-    using difference_type = int;
+  public:
+    using iterator_category = typename Traits::iterator_category;
+    using value_type = typename Traits::value_type;
+    using difference_type = typename Traits::difference_type;
+    using pointer = typename Traits::pointer;
+    using reference = typename Traits::reference;
+
+    using parent_type = const_if_t<is_const, FT>;
 
     using SubstructContainer = std::vector<Substructure<false>>;
     using ParentIterator =
-        std::conditional_t<is_const, typename SubstructContainer::const_iterator,
-                           typename SubstructContainer::iterator>;
+        std::conditional_t<is_const, SubstructContainer::const_iterator,
+                           SubstructContainer::iterator>;
 
     FindSubstructIter() = default;
 
@@ -656,36 +737,22 @@ namespace internal {
       return *this;
     }
 
-    FindSubstructIter &operator++() {
-      it_ = finder_->next(++it_);
-      return *this;
-    }
-
-    FindSubstructIter operator++(int) {
-      auto tmp = *this;
-      ++(*this);
-      return tmp;
-    }
-
-    template <class OtherPred, bool other_const>
-    bool
-    operator==(const FindSubstructIter<OtherPred, other_const> &other) const {
-      return it_ == other.it_;
-    }
-
-    template <class OtherPred, bool other_const>
-    bool
-    operator!=(const FindSubstructIter<OtherPred, other_const> &other) const {
-      return !(*this == other);
-    }
-
-    reference operator*() const { return *it_; }
-
-    pointer operator->() const { return &*it_; }
+    ParentIterator base() const { return it_; }
 
   private:
     template <class, bool>
     friend class FindSubstructIter;
+
+    friend class boost::iterator_core_access;
+
+    reference dereference() const { return *it_; }
+
+    template <bool other_const>
+    bool equal(FindSubstructIter<FT, other_const> rhs) const {
+      return it_ == rhs.it_;
+    }
+
+    void increment() { it_ = finder_->next(++it_); }
 
     parent_type *finder_;
     ParentIterator it_;
@@ -868,6 +935,18 @@ public:
    * @sa size()
    */
   int num_atoms() const { return graph_.num_nodes(); }
+
+  /**
+   * @brief Get the number of heavy atoms in the molecule (i.e., non-hydrogen
+   *        atoms).
+   * @sa size(), num_atoms()
+   * @note Time complexity is O(V).
+   */
+  int count_heavy_atoms() const {
+    return absl::c_count_if(graph_, [](Molecule::Atom a) {
+      return a.data().atomic_number() != 1;
+    });
+  }
 
   /**
    * @brief Get a mutable atom of the molecule.
@@ -1085,7 +1164,35 @@ public:
    */
   MoleculeMutator mutator();
 
+  /**
+   * @brief Reset the molecule to an empty state.
+   * @note Don't call this method if you have an active MoleculeMutator object.
+   *       Call MoleculeMutator::clear() instead.
+   *
+   * This method effectively resets the molecule to the state of a default
+   * constructed molecule. Unlike clear_atoms(), this will also clear name,
+   * conformers, substructures, and properties.
+   */
   void clear() noexcept;
+
+  /**
+   * @brief Clear all atoms and bonds of the molecule.
+   * @note Don't call this method if you have an active MoleculeMutator object.
+   *       Call MoleculeMutator::clear_atoms() instead.
+   *
+   * All conformers will be resized to 0. All substructures will contain no
+   * atoms.
+   */
+  void clear_atoms() noexcept;
+
+  /**
+   * @brief Clear all bonds of the molecule.
+   * @note Don't call this method if you have an active MoleculeMutator object.
+   *       Call MoleculeMutator::clear_bonds() instead.
+   *
+   * Conformers and substructures are not affected.
+   */
+  void clear_bonds() noexcept;
 
   // TODO(jnooree): add_hydrogens
   // /**
@@ -1316,8 +1423,9 @@ public:
    *
    * @return The new substructure.
    */
-  Substructure substructure(const std::vector<int> &nodes) {
-    return Subgraph(graph_, nodes);
+  Substructure
+  substructure(SubstructCategory cat = SubstructCategory::kUnknown) {
+    return { Subgraph(graph_), cat };
   }
 
   /**
@@ -1325,8 +1433,10 @@ public:
    *
    * @return The new substructure.
    */
-  Substructure substructure(std::vector<int> &&nodes) noexcept {
-    return Subgraph(graph_, std::move(nodes));
+  Substructure
+  substructure(const std::vector<int> &nodes,
+               SubstructCategory cat = SubstructCategory::kUnknown) {
+    return { Subgraph(graph_, nodes), cat };
   }
 
   /**
@@ -1334,8 +1444,10 @@ public:
    *
    * @return The new substructure.
    */
-  ConstSubstructure substructure(const std::vector<int> &nodes) const {
-    return Subgraph(graph_, nodes);
+  Substructure
+  substructure(std::vector<int> &&nodes,
+               SubstructCategory cat = SubstructCategory::kUnknown) noexcept {
+    return { Subgraph(graph_, std::move(nodes)), cat };
   }
 
   /**
@@ -1343,8 +1455,31 @@ public:
    *
    * @return The new substructure.
    */
-  ConstSubstructure substructure(std::vector<int> &&nodes) const noexcept {
-    return Subgraph(graph_, std::move(nodes));
+  ConstSubstructure
+  substructure(SubstructCategory cat = SubstructCategory::kUnknown) const {
+    return { Subgraph(graph_), cat };
+  }
+
+  /**
+   * @brief Create and return a substurcture of the molecule.
+   *
+   * @return The new substructure.
+   */
+  ConstSubstructure
+  substructure(const std::vector<int> &nodes,
+               SubstructCategory cat = SubstructCategory::kUnknown) const {
+    return { Subgraph(graph_, nodes), cat };
+  }
+
+  /**
+   * @brief Create and return a substurcture of the molecule.
+   *
+   * @return The new substructure.
+   */
+  ConstSubstructure substructure(
+      std::vector<int> &&nodes,
+      SubstructCategory cat = SubstructCategory::kUnknown) const noexcept {
+    return { Subgraph(graph_, std::move(nodes)), cat };
   }
 
   /**
@@ -1368,8 +1503,9 @@ public:
    *
    * @return The new substructure.
    */
-  Substructure &add_substructure() {
-    return substructs_.emplace_back(Subgraph(graph_));
+  Substructure &
+  add_substructure(SubstructCategory cat = SubstructCategory::kUnknown) {
+    return substructs_.emplace_back(Subgraph(graph_), cat);
   }
 
   /**
@@ -1378,8 +1514,10 @@ public:
    * @param idxs Indices of atoms in the substructure.
    * @return The new substructure.
    */
-  Substructure &add_substructure(const std::vector<int> &idxs) {
-    return substructs_.emplace_back(Subgraph(graph_, idxs));
+  Substructure &
+  add_substructure(const std::vector<int> &idxs,
+                   SubstructCategory cat = SubstructCategory::kUnknown) {
+    return substructs_.emplace_back(Subgraph(graph_, idxs), cat);
   }
 
   /**
@@ -1388,8 +1526,10 @@ public:
    * @param idxs Indices of atoms in the substructure.
    * @return The new substructure.
    */
-  Substructure &add_substructure(std::vector<int> &&idxs) noexcept {
-    return substructs_.emplace_back(Subgraph(graph_, std::move(idxs)));
+  Substructure &add_substructure(
+      std::vector<int> &&idxs,
+      SubstructCategory cat = SubstructCategory::kUnknown) noexcept {
+    return substructs_.emplace_back(Subgraph(graph_, std::move(idxs)), cat);
   }
 
   /**
@@ -1460,6 +1600,17 @@ public:
   }
 
   /**
+   * @brief Find substructures with given category.
+   *
+   * @return A ranged view of substructures with given category.
+   */
+  auto find_substructures(SubstructCategory cat) {
+    return internal::make_substructure_finder(  //
+        substructs_,
+        [cat](const Substructure &sub) { return sub.category() == cat; });
+  }
+
+  /**
    * @brief Find substructures with given name.
    *
    * @return A ranged view of substructures with given name.
@@ -1481,6 +1632,17 @@ public:
   auto find_substructures(int id) const {
     return internal::make_substructure_finder(
         substructs_, [id](const Substructure &sub) { return sub.id() == id; });
+  }
+
+  /**
+   * @brief Find substructures with given category.
+   *
+   * @return A ranged constant view of substructures with given category.
+   */
+  auto find_substructures(SubstructCategory cat) const {
+    return internal::make_substructure_finder(  //
+        substructs_,
+        [cat](const Substructure &sub) { return sub.category() == cat; });
   }
 
   /**
@@ -1604,7 +1766,7 @@ private:
   std::vector<Substructure> substructs_;
 
   std::vector<std::vector<int>> ring_groups_;
-  int num_fragments_;
+  int num_fragments_ = 0;
 };
 
 /**
@@ -1681,6 +1843,11 @@ public:
   void mark_atom_erase(int atom_idx) { erased_atoms_.push_back(atom_idx); }
 
   /**
+   * @brief Clear all atoms and bonds of the molecule.
+   */
+  void clear_atoms() noexcept;
+
+  /**
    * @brief Add a bond to the molecule.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
@@ -1739,6 +1906,16 @@ public:
    *       This is a no-op if the bond does not exist.
    */
   void mark_bond_erase(int src, int dst);
+
+  /**
+   * @brief Clear all bonds of the molecule.
+   */
+  void clear_bonds() noexcept;
+
+  /**
+   * @brief Clear the molecule.
+   */
+  void clear() noexcept;
 
   /**
    * @brief Cancel all pending atom and bond removals.
@@ -1944,6 +2121,22 @@ inline int nonbonding_electrons(Molecule::Atom atom) {
 }
 
 /**
+ * @brief Get the predicted steric number of the atom.
+ * @param atom An atom.
+ * @return Predicted steric number of the atom.
+ * @note This function might return a negative value if the atom is not
+ *       chemically valid.
+ * @note Radicals don't count as lone pairs.
+ */
+inline int steric_number(Molecule::Atom atom) {
+  int nbe = nonbonding_electrons(atom);
+  if (nbe < 0)
+    return nbe;
+
+  return internal::steric_number(all_neighbors(atom), nbe);
+}
+
+/**
  * @brief Get "effective" element of the atom.
  * @param atom An atom.
  * @return "Effective" element of the atom: the returned element has atomic
@@ -1951,6 +2144,14 @@ inline int nonbonding_electrons(Molecule::Atom atom) {
  *         resulting atomic number is out of range, returns nullptr.
  */
 extern const Element *effective_element(Molecule::Atom atom);
+
+/**
+ * @brief Get fragments of the molecule.
+ *
+ * @param mol The molecule.
+ * @return A list of fragments. Each fragment is a list of atom indices.
+ */
+extern std::vector<std::vector<int>> fragments(const Molecule &mol);
 }  // namespace nuri
 
 #endif /* NURI_CORE_MOLECULE_H_ */
