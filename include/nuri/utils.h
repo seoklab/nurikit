@@ -14,6 +14,7 @@
 #include <functional>
 #include <initializer_list>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <numeric>
 #include <queue>
@@ -29,6 +30,7 @@
 
 #include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
+#include <absl/numeric/bits.h>
 #include <absl/strings/ascii.h>
 
 #include "nuri/eigen_config.h"
@@ -411,17 +413,17 @@ namespace internal {
         return *this;
       }
 
-      unsigned int leading_ones = 1;
-      for (; static_cast<bool>(state_ & 1U << (n_ - leading_ones));
-           ++leading_ones)
-        ;
+      constexpr auto nbits = std::numeric_limits<decltype(state_)>::digits;
+      unsigned int shifted = state_ << (nbits - n_);
 
-      unsigned int next_one_bit = n_ - leading_ones;
-      for (; !static_cast<bool>(state_ & 1U << next_one_bit); --next_one_bit)
-        ;
+      unsigned int leading_ones = absl::countl_one(shifted);
+      unsigned int stripped = (shifted << leading_ones) >> leading_ones;
+
+      int leading_zeros = absl::countl_zero(stripped);
+      int next_one_bit = std::max(n_ - leading_zeros - 1, 0);
 
       unsigned int mask = (1U << next_one_bit) - 1;
-      state_ = ((1U << leading_ones) - 1) << (next_one_bit + 1)
+      state_ = ((1U << (leading_ones + 1)) - 1) << (next_one_bit + 1)
                | (mask & state_);
       return *this;
     }
