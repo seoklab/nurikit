@@ -654,7 +654,7 @@ void guess_aromatic_hydrogens_updater(Molecule::MutableAtom atom,
       cv = internal::common_valence(
           internal::effective_element_or_element(atom));
   atom.data().set_implicit_hydrogens(atom.data().implicit_hydrogens()
-                                     + static_cast<int>(sbo <= cv));
+                                     + value_if(sbo <= cv));
 }
 
 int guess_aromatic_fcharge_scorer(Molecule::Atom atom) {
