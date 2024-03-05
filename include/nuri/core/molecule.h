@@ -219,9 +219,8 @@ public:
   constants::Hybridization hybridization() const { return hyb_; }
 
   AtomData &set_implicit_hydrogens(int implicit_hydrogens) {
-    ABSL_DLOG_IF(WARNING, implicit_hydrogens < 0)
-        << "Negative implicit hydrogens are not allowed. Setting to 0.";
-    implicit_hydrogens_ = std::max(0, implicit_hydrogens);
+    ABSL_DCHECK(implicit_hydrogens >= 0);
+    implicit_hydrogens_ = implicit_hydrogens;
     return *this;
   }
 

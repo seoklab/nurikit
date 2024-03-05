@@ -2134,7 +2134,7 @@ void add_inter_res_bond(MoleculeMutator &mut, const int prev_cterm,
   AtomData &ad = mut.mol().atom(nterm).data();
   ad.set_hybridization(constants::kSP2);
   ad.set_conjugated(true);
-  ad.set_implicit_hydrogens(ad.implicit_hydrogens() - 1);
+  ad.set_implicit_hydrogens(nonnegative(ad.implicit_hydrogens() - 1));
 }
 
 void add_std_bonds(MoleculeMutator &mut) {
