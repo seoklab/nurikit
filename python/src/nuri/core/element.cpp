@@ -12,23 +12,48 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 
+#include <absl/strings/ascii.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
 
-#include "utils.h"
+#include "nuri/python/core/core_module.h"
+#include "nuri/python/utils.h"
 
 namespace nuri {
+namespace python_internal {
 namespace {
-namespace py = pybind11;
-
-using nuri_py::PyProxyCls;
-
 std::string isotope_repr(const Isotope &iso) {
   return absl::StrCat("<Isotope ", iso.mass_number, " ",
                       PeriodicTable::get()[iso.atomic_number].symbol(), ">");
 }
+}  // namespace
 
-PYBIND11_MODULE(element, m) {
+const Element &element_from_symbol_or_name(std::string_view symbol_or_name) {
+  std::string arg(symbol_or_name);
+  absl::AsciiStrToUpper(&arg);
+
+  const Element *elem = kPt.find_element(arg);
+  if (elem == nullptr) {
+    elem = kPt.find_element_of_name(arg);
+    if (elem == nullptr)
+      throw py::key_error(std::string(symbol_or_name));
+  }
+
+  return *elem;
+}
+
+const Isotope &isotope_from_element_and_mass(const Element &elem,
+                                             int mass_number) {
+  const Isotope *iso = elem.find_isotope(mass_number);
+  if (iso == nullptr) {
+    throw py::value_error(  //
+        absl::StrCat("invalid mass number ", mass_number, " for element ",
+                     elem.symbol()));
+  }
+  return *iso;
+}
+
+void bind_element(py::module &m) {
   PyProxyCls<Element> py_elem(m, "Element", R"doc(
     An element.
 
@@ -56,19 +81,18 @@ PYBIND11_MODULE(element, m) {
   )doc")
       .def_property_readonly(
           "element",
-          [](const Isotope &self) {
-            return &PeriodicTable::get()[self.atomic_number];
+          [](const Isotope &self) -> const Element & {
+            return kPt[self.atomic_number];
           },
-          pybind11::return_value_policy::reference,
+          rvp::reference,
           R"doc(
-        :type: :class:`Element`
+        :type: Element
 
         The element of this isotope.
 )doc")
-      .def_readonly("mass_number", &Isotope::mass_number, ":type: :class:`int`")
-      .def_readonly("atomic_weight", &Isotope::atomic_weight,
-                    ":type: :class:`float`")
-      .def_readonly("abundance", &Isotope::abundance, ":type: :class:`float`")
+      .def_readonly("mass_number", &Isotope::mass_number, ":type: int")
+      .def_readonly("atomic_weight", &Isotope::atomic_weight, ":type: float")
+      .def_readonly("abundance", &Isotope::abundance, ":type: float")
       .def("__gt__",
            [](const Isotope &lhs, const Isotope &rhs) {
              return lhs.mass_number > rhs.mass_number;
@@ -93,21 +117,17 @@ PYBIND11_MODULE(element, m) {
       .def(
           "__iter__",
           [](const IsotopeList &self) {
-            return py::make_iterator(self.begin(), self.end());
+            return py::make_iterator(self.begin(), self.end(), rvp::reference);
           },
-          py::return_value_policy::reference_internal)
+          kReturnsSubobject)
       .def(
           "__getitem__",
-          [](const IsotopeList &self, int i) {
-            if (i < 0) {
-              i += static_cast<int>(self.size());
-            }
-            if (i < 0 || i >= self.size()) {
-              throw py::index_error("_IsotopeList index out of range");
-            }
+          [](const IsotopeList &self, int i) -> const Isotope & {
+            i = py_check_index(static_cast<int>(self.size()), i,
+                               "_IsotopeList index out of range");
             return self[i];
           },
-          py::arg("index"), py::return_value_policy::reference)
+          py::arg("index"), rvp::reference)
       .def("__repr__",
            [](const IsotopeList &self) {
              return absl::StrCat(
@@ -125,24 +145,34 @@ PYBIND11_MODULE(element, m) {
 
   py_elem  //
       .def_property_readonly("atomic_number", &Element::atomic_number,
-                             ":type: :class:`int`")
-      .def_property_readonly("symbol", &Element::symbol, ":type: :class:`str`")
-      .def_property_readonly("name", &Element::name, ":type: :class:`str`")
-      .def_property_readonly("period", &Element::period, ":type: :class:`int`")
-      .def_property_readonly("group", &Element::group, ":type: :class:`int`")
+                             rvp::automatic, ":type: int")
+      .def_property_readonly("symbol", &Element::symbol, rvp::automatic,
+                             ":type: str")
+      .def_property_readonly("name", &Element::name, rvp::automatic,
+                             ":type: str")
+      .def_property_readonly("period", &Element::period, rvp::automatic,
+                             ":type: int")
+      .def_property_readonly("group", &Element::group, rvp::automatic,
+                             ":type: int")
       .def_property_readonly("atomic_weight", &Element::atomic_weight,
-                             ":type: :class:`float`")
+                             rvp::automatic, ":type: float")
       .def_property_readonly("covalent_radius", &Element::covalent_radius,
-                             ":type: :class:`float`")
-      .def_property_readonly("vdw_radius", &Element::vdw_radius,
-                             ":type: :class:`float`")
-      .def_property_readonly("eneg", &Element::eneg, ":type: :class:`float`")
+                             rvp::automatic, ":type: float")
+      .def_property_readonly("vdw_radius", &Element::vdw_radius, rvp::automatic,
+                             ":type: float")
+      .def_property_readonly("eneg", &Element::eneg, rvp::automatic,
+                             ":type: float")
       .def_property_readonly("major_isotope", &Element::major_isotope,
-                             py::return_value_policy::reference,
-                             ":type: :class:`Isotope`")
-      .def_property_readonly(
-          "isotopes", &Element::isotopes, py::return_value_policy::reference,
-          ":type: :class:`collections.abc.Sequence` of :class:`Isotope`")
+                             rvp::reference, ":type: Isotope")
+      .def_property_readonly("isotopes", &Element::isotopes, rvp::reference,
+                             ":type: collections.abc.Sequence[Isotope]")
+      .def("get_isotope", isotope_from_element_and_mass, rvp::reference,
+           py::arg("mass_number"), R"doc(
+Get an isotope of this element by mass number.
+
+:param mass_number: The mass number of the isotope.
+:raises ValueError: If no such isotope exists.
+)doc")
       .def("__gt__",
            [](const Element &lhs, const Element &rhs) {
              return lhs.atomic_number() > rhs.atomic_number();
@@ -166,101 +196,90 @@ PYBIND11_MODULE(element, m) {
   const py::arg an("atomic_number"), asn("atomic_symbol_or_name");
 
   PyProxyCls<PeriodicTable> pt(m, "PeriodicTable", R"doc(
-    The periodic table of elements.
+The periodic table of elements.
 
-    The periodic table is a singleton object. You can access the periodic table
-    via the :data:`nuri.periodic_table` attribute, or the factory static method
-    :meth:`PeriodicTable.get()`. Both of them refer to the same object. Note
-    that :class:`PeriodicTable` object is *not* constructible from the Python
-    side.
+The periodic table is a singleton object. You can access the periodic table via
+the :data:`nuri.periodic_table` attribute, or the factory static method
+:meth:`PeriodicTable.get()`. Both of them refer to the same object. Note that
+:class:`PeriodicTable` object is *not* constructible from the Python side.
 
-    You can access the periodic table as a dictionary-like object. The keys are
-    atomic numbers, atomic symbols, and atomic names, tried in this order. The
-    returned values are :class:`Element` objects. For example:
+You can access the periodic table as a dictionary-like object. The keys are
+atomic numbers, atomic symbols, and atomic names, tried in this order. The
+returned values are :class:`Element` objects. For example:
 
-    >>> from nuri import periodic_table
-    >>> periodic_table[1]
-    <Element H>
-    >>> periodic_table["H"]
-    <Element H>
-    >>> periodic_table["Hydrogen"]
-    <Element H>
+>>> from nuri import periodic_table
+>>> periodic_table[1]
+<Element H>
+>>> periodic_table["H"]
+<Element H>
+>>> periodic_table["Hydrogen"]
+<Element H>
 
-    Note the symbols and names are case sensitive and default to *Titlecase*.
-    We additionally support two common cases for all symbols and names: (1) all
-    upper case, and (2) all lower case. For example, ``periodic_table["HE"]``
-    and ``periodic_table["he"]`` both work, but ``periodic_table["hE"]`` would
-    not. If no such element exists, a :exc:`KeyError` is raised.
+The symbols and names are case insensitive. If no such element exists, a
+:exc:`KeyError` is raised.
 
-    >>> periodic_table[1000]
-    Traceback (most recent call last):
-      ...
-    KeyError: '1000'
+>>> periodic_table[1000]
+Traceback (most recent call last):
+  ...
+KeyError: '1000'
 
-    The periodic table itself is an iterable object. You can iterate over the
-    elements in the periodic table.
+You can also test for the existence of an element using the ``in`` operator.
 
-    >>> for elem in periodic_table:
-    ...     print(elem)
-    ...
-    <Element Xx>
-    <Element H>
-    ...
-    <Element Og>
+>>> 1 in periodic_table
+True
+>>> "H" in periodic_table
+True
+>>> "Hydrogen" in periodic_table
+True
+>>> 1000 in periodic_table
+False
 
-    Refer to the ``nuri::PeriodicTable`` class in the |cppdocs| for details.
+The periodic table itself is an iterable object. You can iterate over the
+elements in the periodic table.
+
+>>> for elem in periodic_table:
+...     print(elem)
+...
+<Element Xx>
+<Element H>
+...
+<Element Og>
+
+Refer to the ``nuri::PeriodicTable`` class in the |cppdocs| for details.
   )doc");
-  pt.def_static("get", &PeriodicTable::get, py::return_value_policy::reference,
+  pt.def_static("get", &PeriodicTable::get, rvp::reference,
                 R"doc(
     Get the singleton :class:`PeriodicTable` object (same as
     :data:`nuri.periodic_table`).
 )doc")
-      .def(
+      .def_static("__contains__",
+                  py::overload_cast<int>(PeriodicTable::has_element), an)
+      .def_static(
           "__contains__",
-          [](const PeriodicTable &, int z) {
-            return PeriodicTable::has_element(z);
-          },
-          an)
-      .def(
-          "__contains__",
-          [](const PeriodicTable &self, std::string_view arg) {
-            return self.has_element(arg) || self.has_element_of_name(arg);
+          [](std::string arg) {
+            absl::AsciiStrToUpper(&arg);
+            return kPt.has_element(arg) || kPt.has_element_of_name(arg);
           },
           asn)
-      .def(
+      .def_static(
           "__getitem__",
-          [](const PeriodicTable &self, int z) {
-            const Element *elem = self.find_element(z);
-            if (elem == nullptr) {
+          [](int z) {
+            const Element *elem = kPt.find_element(z);
+            if (elem == nullptr)
               throw py::key_error(absl::StrCat(z));
-            }
             return elem;
           },
-          an, py::return_value_policy::reference)
-      .def(
-          "__getitem__",
-          [](const PeriodicTable &self, const std::string &arg) {
-            const Element *elem = self.find_element(arg);
-            if (elem == nullptr) {
-              elem = self.find_element_of_name(arg);
-              if (elem == nullptr) {
-                throw py::key_error(arg);
-              }
-            }
-            return elem;
-          },
-          asn, py::return_value_policy::reference)
-      .def(
-          "__iter__",
-          [](const PeriodicTable &self) {
-            return py::make_iterator(self.begin(), self.end());
-          },
-          py::return_value_policy::reference_internal)
-      .def("__len__",
-           [](const PeriodicTable &) { return PeriodicTable::kElementCount_; });
+          an, rvp::reference)
+      .def_static("__getitem__", element_from_symbol_or_name, asn,
+                  rvp::reference)
+      .def_static("__iter__",
+                  []() {
+                    return py::make_iterator(kPt.begin(), kPt.end(),
+                                             rvp::reference);
+                  })
+      .def_static("__len__", []() { return PeriodicTable::kElementCount_; });
 
-  m.attr("periodic_table") =
-      py::cast(nuri::PeriodicTable::get(), py::return_value_policy::reference);
+  m.attr("periodic_table") = py::cast(kPt, rvp::reference);
 }
-}  // namespace
+}  // namespace python_internal
 }  // namespace nuri

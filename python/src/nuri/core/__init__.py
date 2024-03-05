@@ -11,9 +11,24 @@ data structures, such as elements, isotopes, and molecules, and also the
 graph structure and algorithms, are defined in this module."""
 
 __all__ = [
+    "Molecule",
+    "Mutator",
+    "Atom",
+    "Bond",
+    "Neighbor",
+    "SubstructureContainer",
+    "Substructure",
+    "SubAtom",
+    "SubBond",
+    "SubNeighbor",
     "Element",
     "Isotope",
     "PeriodicTable",
+    "Hyb",
+    "BondOrder",
+    "SubstructureCategory",
+    "AtomData",
+    "BondData",
 ]
 
-from .element import *
+from ._core import *
