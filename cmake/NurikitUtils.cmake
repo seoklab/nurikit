@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-macro(_nurikit_get_git_version_impl)
+macro(_nuri_get_git_version_impl)
   find_package(Git)
 
   if(NOT Git_FOUND)
@@ -43,13 +43,13 @@ macro(_nurikit_get_git_version_impl)
   endif()
 endmacro()
 
-function(nurikit_get_version)
+function(nuri_get_version)
   if(SKBUILD)
     # Version correctly set via scikit-build-core; skip git versioning.
     set(NURI_VERSION "${SKBUILD_PROJECT_VERSION}")
     message(STATUS "Nurikit version from scikit-build-core: ${NURI_VERSION}")
   else()
-    _nurikit_get_git_version_impl()
+    _nuri_get_git_version_impl()
   endif()
 
   if(NURI_REF)
@@ -79,7 +79,7 @@ function(nurikit_get_version)
   set(NURI_REF "${NURI_REF}" PARENT_SCOPE)
 endfunction()
 
-function(nurikit_make_available_deponly target)
+function(nuri_make_available_deponly target)
   include(FetchContent)
 
   FetchContent_GetProperties(${target})
@@ -109,7 +109,7 @@ function(find_or_fetch_eigen)
       eigen
       GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
       GIT_TAG 3.4.0)
-    nurikit_make_available_deponly(eigen)
+    nuri_make_available_deponly(eigen)
   endif()
 endfunction()
 
