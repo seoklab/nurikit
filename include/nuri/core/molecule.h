@@ -393,8 +393,9 @@ public:
   }
 
   bool is_rotable() const {
-    return !internal::check_flag(flags_,
-                                 BondFlags::kConjugated | BondFlags::kRing);
+    return order_ <= constants::kSingleBond
+           && !internal::check_flag(flags_,
+                                    BondFlags::kConjugated | BondFlags::kRing);
   }
 
   bool is_ring_bond() const {
