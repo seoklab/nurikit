@@ -52,7 +52,7 @@ cmake.build-type = "@CMAKE_BUILD_TYPE@"
 cmake.verbose = @NURI_VERBOSE_CMAKE@
 
 sdist.exclude = ["*.h", "*.cpp", "*.in", "*.so"]
-wheel.packages = ["python/nuri"]
+wheel.packages = ["python/src/nuri"]
 wheel.install-dir = "nuri"
 
 [tool.scikit-build.cmake.define]
