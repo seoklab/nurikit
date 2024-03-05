@@ -704,6 +704,14 @@ public:
     return find_edge_helper(*this, src, dst);
   }
 
+  edge_iterator find_edge(ConstNodeRef src, ConstNodeRef dst) {
+    return find_edge(src.id(), dst.id());
+  }
+
+  const_edge_iterator find_edge(ConstNodeRef src, ConstNodeRef dst) const {
+    return find_edge(src.id(), dst.id());
+  }
+
   void clear_edges() {
     edges_.clear();
     for (std::vector<AdjEntry> &adj: adj_list_)
@@ -755,6 +763,21 @@ public:
    *       interchangeable.
    */
   bool erase_edge_between(int src, int dst);
+
+  /**
+   * @brief Erase an edge from the graph between two nodes.
+   *
+   * @param src The source node.
+   * @param dst The destination node.
+   * @return Whether the edge is erased.
+   * @sa pop_edge(), erase_edge(), erase_edges()
+   * @note Time complexity: same as erase_edge(). If \p src or \p dst does not
+   *       belong to this graph, the behavior is undefined. \p src and \p dst
+   *       are interchangeable.
+   */
+  bool erase_edge_between(ConstNodeRef src, ConstNodeRef dst) {
+    return erase_edge_between(src.id(), dst.id());
+  }
 
   /**
    * @brief Erase edges from the graph.
@@ -844,6 +867,15 @@ public:
 
   const_adjacency_iterator find_adjacent(int src, int dst) const {
     return find_adj_helper(*this, src, dst);
+  }
+
+  adjacency_iterator find_adjacent(ConstNodeRef src, ConstNodeRef dst) {
+    return find_adjacent(src.id(), dst.id());
+  }
+
+  const_adjacency_iterator find_adjacent(ConstNodeRef src,
+                                         ConstNodeRef dst) const {
+    return find_adjacent(src.id(), dst.id());
   }
 
   adjacency_iterator adj_begin(int nid) { return { *this, 0, nid }; }

@@ -1093,6 +1093,30 @@ public:
   }
 
   /**
+   * @brief Get a bond of the molecule.
+   * @param src The source atom of the bond.
+   * @param dst The destination atom of the bond.
+   * @return An iterator to the bond between \p src and \p dst of the molecule.
+   *         If no such bond exists, the returned iterator is equal to
+   *         bond_end().
+   */
+  bond_iterator find_bond(Atom src, Atom dst) {
+    return graph_.find_edge(src, dst);
+  }
+
+  /**
+   * @brief Get a bond of the molecule.
+   * @param src The source atom of the bond.
+   * @param dst The destination atom of the bond.
+   * @return An iterator to the bond between \p src and \p dst of the molecule.
+   *         If no such bond exists, the returned iterator is equal to
+   *         bond_end().
+   */
+  const_bond_iterator find_bond(Atom src, Atom dst) const {
+    return graph_.find_edge(src, dst);
+  }
+
+  /**
    * @brief Get an iterable, modifiable view over bonds of the molecule.
    */
   auto bonds() { return graph_.edges(); }
@@ -1145,6 +1169,30 @@ public:
    *         equal to \ref neighbor_end() "neighbor_end(\p src)"
    */
   const_neighbor_iterator find_neighbor(int src, int dst) const {
+    return graph_.find_adjacent(src, dst);
+  }
+
+  /**
+   * @brief Find a neighbor of the atom.
+   * @param src The source atom of the bond.
+   * @param dst The destination atom of the bond.
+   * @return An iterator to the neighbor wrapper between \p src and \p dst of
+   *         the molecule. If no such bond exists, the returned iterator is
+   *         equal to \ref neighbor_end() "neighbor_end(\p src)"
+   */
+  neighbor_iterator find_neighbor(Atom src, Atom dst) {
+    return graph_.find_adjacent(src, dst);
+  }
+
+  /**
+   * @brief Find a neighbor of the atom.
+   * @param src The source atom of the bond.
+   * @param dst The destination atom of the bond.
+   * @return An iterator to the neighbor wrapper between \p src and \p dst of
+   *         the molecule. If no such bond exists, the returned iterator is
+   *         equal to \ref neighbor_end() "neighbor_end(\p src)"
+   */
+  const_neighbor_iterator find_neighbor(Atom src, Atom dst) const {
     return graph_.find_adjacent(src, dst);
   }
 
@@ -1859,6 +1907,14 @@ public:
   void mark_atom_erase(int atom_idx) { erased_atoms_.push_back(atom_idx); }
 
   /**
+   * @brief Mark an atom to be erased.
+   * @param atom An atom to erase.
+   * @note The behavior is undefined if the atom does not belong to the
+   *       molecule.
+   */
+  void mark_atom_erase(Molecule::Atom atom) { mark_atom_erase(atom.id()); }
+
+  /**
    * @brief Clear all atoms and bonds of the molecule.
    */
   void clear_atoms() noexcept;
@@ -1908,6 +1964,23 @@ public:
   }
 
   /**
+   * @brief Add a bond to the molecule.
+   * @param src The source atom of the bond.
+   * @param dst The destination atom of the bond.
+   * @param data The data or bond of the bond to add.
+   * @return If added, pair of iterator to the added bond, and `true`. If the
+   *         bond already exists, pair of iterator to the existing bond, and
+   *         `false`.
+   * @note The behavior is undefined if any of the atom does not belong to the
+   *       molecule, or if src.id() == dst.id().
+   */
+  template <class BD>
+  std::pair<Molecule::bond_iterator, bool>
+  add_bond(Molecule::Atom src, Molecule::Atom dst, BD &&data) {
+    return add_bond(src.id(), dst.id(), std::forward<BD>(data));
+  }
+
+  /**
    * @brief Mark a bond to be erased.
    * @param bid The index of the bond to erase.
    * @note The behavior is undefined if the index is out of range.
@@ -1916,12 +1989,23 @@ public:
 
   /**
    * @brief Mark a bond to be erased.
-   * @param src Index of the source atom of the bond, after all additions.
-   * @param dst Index of the destination atom of the bond, after all additions.
+   * @param src Index of the source atom of the bond.
+   * @param dst Index of the destination atom of the bond.
    * @note The behavior is undefined if any of the atom indices is out of range.
    *       This is a no-op if the bond does not exist.
    */
   void mark_bond_erase(int src, int dst);
+
+  /**
+   * @brief Mark a bond to be erased.
+   * @param src The source atom of the bond.
+   * @param dst The destination atom of the bond.
+   * @note The behavior is undefined if any of the atom does not belong to the
+   *       molecule. This is a no-op if the bond does not exist.
+   */
+  void mark_bond_erase(Molecule::Atom src, Molecule::Atom dst) {
+    mark_bond_erase(src.id(), dst.id());
+  }
 
   /**
    * @brief Clear all bonds of the molecule.
