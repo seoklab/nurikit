@@ -1276,73 +1276,18 @@ public:
   bool is_3d() const { return !conformers_.empty(); }
 
   /**
-   * @brief Get the atomic coordinates of ith conformer.
-   *
-   * @param i Index of the conformer.
-   * @return A mutable view over the atomic coordinates of ith conformer.
-   * @note If index is out of range, the behavior is undefined.
-   * @note Resizing the returned matrix is a no-op. In debug mode, an assertion
-   *       failure will be triggered if the matrix is resized.
+   * @brief Get all atomic coordinates of the conformers.
+   * @return Atomic coordinates of the conformers of the molecule.
+   * @note If any conformer's column size is not equal to the number of atoms,
+   *       the behavior is undefined.
    */
-  Eigen::Ref<Matrix3Xd> conf(int i = 0) { return conformers_[i]; }
-
-  /**
-   * @brief Get the atomic coordinates of ith conformer.
-   *
-   * @param i Index of the conformer.
-   * @return Atomic coordinates of ith conformer.
-   * @note If index is out of range, the behavior is undefined.
-   */
-  const Matrix3Xd &conf(int i = 0) const { return cconf(i); }
-
-  /**
-   * @brief Get the atomic coordinates of ith conformer.
-   *
-   * @param i Index of the conformer.
-   * @return Atomic coordinates of ith conformer.
-   * @note If index is out of range, the behavior is undefined.
-   */
-  const Matrix3Xd &cconf(int i = 0) const { return conformers_[i]; }
-
-  /**
-   * @brief Get total number of conformers.
-   * @return The number of conformers of the molecule.
-   */
-  int num_conf() const { return static_cast<int>(conformers_.size()); }
+  std::vector<Matrix3Xd> &confs() { return conformers_; }
 
   /**
    * @brief Get all atomic coordinates of the conformers.
    * @return Atomic coordinates of the conformers of the molecule.
    */
-  const std::vector<Matrix3Xd> &all_conf() const { return conformers_; }
-
-  /**
-   * @brief Add a new conformer to the molecule.
-   *
-   * @param pos Atomic coordinates of the new conformer.
-   * @return The index of the added conformer.
-   * @note If number of cols of \p pos does not match the number of atoms in the
-   *       molecule, the behavior is undefined.
-   */
-  int add_conf(const Matrix3Xd &pos);
-
-  /**
-   * @brief Add a new conformer to the molecule.
-   *
-   * @param pos Atomic coordinates of the new conformer.
-   * @return The index of the added conformer.
-   * @note If number of cols of \p pos does not match the number of atoms in the
-   *       molecule, the behavior is undefined.
-   */
-  int add_conf(Matrix3Xd &&pos) noexcept;
-
-  /**
-   * @brief Erase a conformer from the molecule.
-   *
-   * @param idx Index of the conformer to erase.
-   * @note The behavior is undefined if the conformer index is out of range.
-   */
-  void erase_conf(int idx) { conformers_.erase(conformers_.begin() + idx); }
+  const std::vector<Matrix3Xd> &confs() const { return conformers_; }
 
   /**
    * @brief Transform the molecule with the given affine transformation.

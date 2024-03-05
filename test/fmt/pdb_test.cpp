@@ -104,7 +104,7 @@ TEST_F(PDBTest, HandleCleanPDB) {
   EXPECT_EQ(atom.data().hybridization(), constants::kSP2);
   EXPECT_TRUE(atom.data().is_conjugated());
 
-  ASSERT_EQ(mol().num_conf(), 1);
+  ASSERT_EQ(mol().confs().size(), 1);
   // 134 residues + 1 chains
   ASSERT_EQ(mol().num_substructures(), 135);
 }
@@ -123,9 +123,9 @@ TEST_F(PDBTest, HandleMultipleModels) {
   EXPECT_EQ(mol().atom(28).data().implicit_hydrogens(), 0);
   EXPECT_EQ(mol().atom(34).data().implicit_hydrogens(), 0);
 
-  ASSERT_EQ(mol().num_conf(), 2);
-  NURI_EXPECT_EIGEN_EQ(mol().conf(0).col(0), mol().conf(1).col(0));
-  NURI_EXPECT_EIGEN_NE(mol().conf(0).col(43), mol().conf(1).col(43));
+  ASSERT_EQ(mol().confs().size(), 2);
+  NURI_EXPECT_EIGEN_EQ(mol().confs()[0].col(0), mol().confs()[1].col(0));
+  NURI_EXPECT_EIGEN_NE(mol().confs()[0].col(43), mol().confs()[1].col(43));
 
   // 8 residues + 1 chain
   ASSERT_EQ(mol().num_substructures(), 9);
@@ -138,9 +138,9 @@ TEST_F(PDBTest, HandleMultipleModels) {
   EXPECT_EQ(mol().num_atoms(), 36);
   EXPECT_EQ(mol().num_bonds(), 34);
 
-  ASSERT_EQ(mol().num_conf(), 2);
-  NURI_EXPECT_EIGEN_EQ(mol().conf(0).col(0), mol().conf(1).col(0));
-  NURI_EXPECT_EIGEN_NE(mol().conf(0).col(31), mol().conf(1).col(31));
+  ASSERT_EQ(mol().confs().size(), 2);
+  NURI_EXPECT_EIGEN_EQ(mol().confs()[0].col(0), mol().confs()[1].col(0));
+  NURI_EXPECT_EIGEN_NE(mol().confs()[0].col(31), mol().confs()[1].col(31));
 
   // 5 residues + 1 chain
   ASSERT_EQ(mol().num_substructures(), 6);
@@ -178,16 +178,16 @@ private:
 };
 
 TEST_F(PDB1alxTest, HandleMultipleAltlocs) {
-  ASSERT_EQ(mol().num_conf(), 3);
+  ASSERT_EQ(mol().confs().size(), 3);
 
-  NURI_EXPECT_EIGEN_EQ(mol().conf(0).col(0), mol().conf(1).col(0));
-  NURI_EXPECT_EIGEN_EQ(mol().conf(0).col(0), mol().conf(2).col(0));
+  NURI_EXPECT_EIGEN_EQ(mol().confs()[0].col(0), mol().confs()[1].col(0));
+  NURI_EXPECT_EIGEN_EQ(mol().confs()[0].col(0), mol().confs()[2].col(0));
 
-  NURI_EXPECT_EIGEN_NE(mol().conf(0).col(31), mol().conf(1).col(31));
-  NURI_EXPECT_EIGEN_EQ(mol().conf(0).col(31), mol().conf(2).col(31));
+  NURI_EXPECT_EIGEN_NE(mol().confs()[0].col(31), mol().confs()[1].col(31));
+  NURI_EXPECT_EIGEN_EQ(mol().confs()[0].col(31), mol().confs()[2].col(31));
 
-  NURI_EXPECT_EIGEN_NE(mol().conf(0).col(72), mol().conf(1).col(72));
-  NURI_EXPECT_EIGEN_NE(mol().conf(1).col(72), mol().conf(2).col(72));
+  NURI_EXPECT_EIGEN_NE(mol().confs()[0].col(72), mol().confs()[1].col(72));
+  NURI_EXPECT_EIGEN_NE(mol().confs()[1].col(72), mol().confs()[2].col(72));
 }
 
 TEST_F(PDB1alxTest, HandleInconsistentResidues) {

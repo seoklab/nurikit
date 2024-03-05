@@ -1055,7 +1055,7 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
     }
   }
 
-  mol.add_conf(stack(pos));
+  mol.confs().push_back(stack(pos));
 
   // Only add substructures actually mentioned in the SUBSTRUCTURE block
   for (auto &[_, data]: substructs)

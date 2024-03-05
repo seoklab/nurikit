@@ -104,7 +104,7 @@ class ARGTestParam: public AATestParam {
         66.176, 9.651, 92.421,                  //
         67.344, 9.015, 90.554,                  //
         71.901, 14.320, 92.798;
-    mol.add_conf(std::move(pos));
+    mol.confs().push_back(std::move(pos));
 
     return mol;
   }
@@ -190,7 +190,7 @@ class HISTestParam: public AATestParam {
         32.251, 37.857, -7.382,                 //
         31.439, 38.453, -8.237,                 //
         34.382, 41.455, -7.879;
-    mol.add_conf(std::move(pos));
+    mol.confs().push_back(std::move(pos));
 
     return mol;
   }
@@ -258,7 +258,7 @@ class PROTestParam: public AATestParam {
         38.311, 36.445, 81.200,                 //
         38.958, 36.358, 82.579,                 //
         37.131, 40.263, 83.047;
-    mol.add_conf(std::move(pos));
+    mol.confs().push_back(std::move(pos));
 
     return mol;
   }
@@ -337,7 +337,7 @@ class TYRTestParam: public AATestParam {
         8.439, 3.756, 19.805,                 //
         8.954, 2.936, 20.781,                 //
         4.840, 8.051, 14.829;
-    mol.add_conf(std::move(pos));
+    mol.confs().push_back(std::move(pos));
 
     return mol;
   }
@@ -425,7 +425,7 @@ class TRPTestParam: public AATestParam {
         76.065, 65.776, 35.031,                 //
         77.168, 65.565, 35.884,                 //
         73.495, 60.470, 30.438;
-    mol.add_conf(std::move(pos));
+    mol.confs().push_back(std::move(pos));
 
     return mol;
   }
@@ -571,7 +571,7 @@ TEST(GuessSelectedMolecules, MetGln) {
       27.783, 33.160, 1.870,                 //
       25.562, 32.733, 1.806,                 //
       26.849, 29.656, 6.217;
-  mol.add_conf(std::move(pos));
+  mol.confs().push_back(std::move(pos));
 
   ASSERT_TRUE(guess_everything(mut));
   ASSERT_EQ(mol.num_bonds(), 17);
@@ -656,7 +656,7 @@ TEST(GuessSelectedMolecules, FUY) {
       -4.3070, -27.2710, 54.4690,                 //
       -4.5320, -26.4830, 55.6530,                 //
       -4.5690, -26.4120, 53.2330;
-  mol.add_conf(std::move(pos));
+  mol.confs().push_back(std::move(pos));
 
   ASSERT_TRUE(guess_everything(mut));
   ASSERT_EQ(mol.num_bonds(), 13);
@@ -738,7 +738,7 @@ TEST(GuessSelectedMolecules, NIM) {
       10.3580, 29.6920, -12.2730,               //
       9.0760, 29.3960, -12.7290,                //
       8.5430, 28.1400, -12.4810;
-  mol.add_conf(std::move(pos));
+  mol.confs().push_back(std::move(pos));
 
   ASSERT_TRUE(guess_everything(mut));
   ASSERT_EQ(mol.num_bonds(), 22);
@@ -867,7 +867,7 @@ TEST(GuessSelectedMolecules, GPC) {
       31.473, 47.686, 36.540,                 //
       32.337, 46.094, 35.043,                 //
       32.832, 45.818, 33.770;
-  mol.add_conf(std::move(pos));
+  mol.confs().push_back(std::move(pos));
 
   ASSERT_TRUE(guess_everything(mut));
   ASSERT_EQ(mol.num_bonds(), 44);

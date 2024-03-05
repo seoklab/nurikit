@@ -168,18 +168,6 @@ namespace {
   }
 }  // namespace
 
-int Molecule::add_conf(const Matrix3Xd &pos) {
-  const int ret = static_cast<int>(conformers_.size());
-  conformers_.push_back(pos);
-  return ret;
-}
-
-int Molecule::add_conf(Matrix3Xd &&pos) noexcept {
-  const int ret = static_cast<int>(conformers_.size());
-  conformers_.push_back(std::move(pos));
-  return ret;
-}
-
 double Molecule::distsq(int src, int dst, int conf) const {
   const Matrix3Xd &pos = conformers_[conf];
   return (pos.col(dst) - pos.col(src)).squaredNorm();
@@ -243,7 +231,7 @@ bool Molecule::rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
   std::sort(moving_atoms.begin(), moving_atoms.end());
 
   if (i < 0) {
-    for (int conf = 0; conf < num_conf(); ++conf) {
+    for (int conf = 0; conf < confs().size(); ++conf) {
       rotate_points(conformers_[conf], moving_atoms, ref_atom, pivot_atom,
                     angle);
     }

@@ -1520,12 +1520,12 @@ namespace {
 
 bool guess_connectivity(MoleculeMutator &mut, int conf, double threshold) {
   const Molecule &mol = mut.mol();
-  if (mol.num_conf() <= conf) {
+  if (mol.confs().size() <= conf) {
     ABSL_DLOG(WARNING) << "Conformer index " << conf << " is out of range.";
     return false;
   }
 
-  const Matrix3Xd &pos = mol.cconf(conf);
+  const Matrix3Xd &pos = mol.confs()[conf];
 
   // For small molecules
   ArrayXd distsq;
@@ -1545,11 +1545,11 @@ bool guess_everything(MoleculeMutator &mut, int conf, double threshold) {
 
   reset_atoms(mol);
   reset_bonds(mol);
-  return guess_types_common(mol, mol.cconf(conf));
+  return guess_types_common(mol, mol.confs()[conf]);
 }
 
 bool guess_all_types(Molecule &mol, int conf) {
-  if (mol.num_conf() <= conf) {
+  if (mol.confs().size() <= conf) {
     ABSL_DLOG(WARNING) << "Conformer index " << conf << " is out of range.";
     return false;
   }
@@ -1564,6 +1564,6 @@ bool guess_all_types(Molecule &mol, int conf) {
 
   reset_atoms(mol);
   reset_bonds(mol);
-  return guess_types_common(mol, mol.cconf(conf));
+  return guess_types_common(mol, mol.confs()[conf]);
 }
 }  // namespace nuri
