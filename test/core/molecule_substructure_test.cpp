@@ -29,25 +29,23 @@
 
 namespace nuri {
 namespace {
-const PeriodicTable &pt = PeriodicTable::get();
-
 class SubstructureTest: public ::testing::Test {
 public:
   // NOLINTBEGIN(readability-identifier-naming)
   Molecule mol_;
   // Required for default-constructing Test class
-  Substructure sub_ = mol_.substructure({});
+  Substructure sub_ = mol_.substructure();
   // NOLINTEND(readability-identifier-naming)
 
 protected:
   /**
    * This will build:
    *
-   *         H (8)  C (3) H (9) H (10) -- N- (4) -- H (5)
+   *         H (8)  C (0) H (9) H (10) -- N- (4) -- H (5)
    *             \   |
    *               C (2)              Na+ (11) (<-intentionally unconnected)
    *             /       \
-   *  H (6) --  C (0) == C (1) -- H(7)
+   *  H (6) --  C (3) == C (1) -- H(7)
    *
    */
   void SetUp() override {
@@ -56,33 +54,33 @@ protected:
     {
       auto mutator = mol_.mutator();
 
-      mutator.add_atom({ pt[6] });
-      mutator.add_atom({ pt[6] });
-      mutator.add_atom({ pt[6] });
-      mutator.add_atom({ pt[6] });
-      mutator.add_atom({ pt[7], 0, -1 });
+      mutator.add_atom({ kPt[6] });
+      mutator.add_atom({ kPt[6] });
+      mutator.add_atom({ kPt[6] });
+      mutator.add_atom({ kPt[6] });
+      mutator.add_atom({ kPt[7], 0, -1 });
       for (int i = 5; i < 11; ++i) {
-        mutator.add_atom({ pt[1] });
+        mutator.add_atom({ kPt[1] });
       }
-      mutator.add_atom({ pt[11], 0, +1 });
+      mutator.add_atom({ kPt[11], 0, +1 });
 
-      mutator.add_bond(0, 1, BondData { constants::kDoubleBond });
-      mutator.add_bond(0, 2, BondData { constants::kSingleBond });
+      mutator.add_bond(0, 4, BondData { constants::kSingleBond });
+      mutator.add_bond(3, 2, BondData { constants::kSingleBond });
+      mutator.add_bond(3, 1, BondData { constants::kDoubleBond });
       mutator.add_bond(1, 2, BondData { constants::kSingleBond });
-      mutator.add_bond(2, 3, BondData { constants::kSingleBond });
-      mutator.add_bond(3, 4, BondData { constants::kSingleBond });
+      mutator.add_bond(2, 0, BondData { constants::kSingleBond });
       mutator.add_bond(4, 5, BondData { constants::kSingleBond });
-      mutator.add_bond(0, 6, BondData { constants::kSingleBond });
+      mutator.add_bond(3, 6, BondData { constants::kSingleBond });
       mutator.add_bond(1, 7, BondData { constants::kSingleBond });
       mutator.add_bond(2, 8, BondData { constants::kSingleBond });
-      mutator.add_bond(3, 9, BondData { constants::kSingleBond });
-      mutator.add_bond(3, 10, BondData { constants::kSingleBond });
+      mutator.add_bond(0, 9, BondData { constants::kSingleBond });
+      mutator.add_bond(0, 10, BondData { constants::kSingleBond });
     }
 
     ASSERT_EQ(mol_.num_atoms(), 12);
     ASSERT_EQ(mol_.num_bonds(), 11);
 
-    sub_ = mol_.substructure({ 0, 1, 2, 10 });
+    sub_ = mol_.atom_substructure({ 1, 2, 3, 10 });
     ASSERT_FALSE(sub_.empty());
   }
 };
@@ -93,18 +91,18 @@ TEST_F(SubstructureTest, CreateSubstructure) {
   EXPECT_EQ(sub_.count_heavy_atoms(), 3);
 
   std::vector<int> tmp { 0, 1, 2, 10 };
-  Substructure sub = mol_.substructure(tmp);
+  Substructure sub = mol_.atom_substructure(tmp);
   EXPECT_EQ(sub.size(), 4);
   EXPECT_EQ(sub.num_atoms(), 4);
   EXPECT_EQ(sub.count_heavy_atoms(), 3);
 
   const Molecule &cmol = mol_;
-  ConstSubstructure csub1 = cmol.substructure({ 0, 1, 2, 10 });
+  ConstSubstructure csub1 = cmol.atom_substructure({ 0, 1, 2, 10 });
   EXPECT_EQ(csub1.size(), 4);
   EXPECT_EQ(csub1.num_atoms(), 4);
   EXPECT_EQ(csub1.count_heavy_atoms(), 3);
 
-  ConstSubstructure csub2 = cmol.substructure(tmp);
+  ConstSubstructure csub2 = cmol.atom_substructure(tmp);
   EXPECT_EQ(csub2.size(), 4);
   EXPECT_EQ(csub2.num_atoms(), 4);
   EXPECT_EQ(csub2.count_heavy_atoms(), 3);
@@ -145,29 +143,29 @@ TEST_F(SubstructureTest, ClearAtoms) {
 }
 
 TEST_F(SubstructureTest, UpdateAtoms) {
-  std::vector<int> prev { 0, 1, 2, 10 };
+  std::vector<int> prev { 1, 2, 3, 10 };
   EXPECT_TRUE(absl::c_is_permutation(sub_.atom_ids(), prev));
 
-  prev.push_back(3);
-  sub_.update(prev);
+  prev.push_back(4);
+  sub_.update_atoms(prev);
   EXPECT_TRUE(absl::c_is_permutation(sub_.atom_ids(), prev));
 
-  sub_.update({ 0 });
+  sub_.update_atoms({ 0 });
   EXPECT_TRUE(absl::c_is_permutation(sub_.atom_ids(), std::vector { 0 }));
 }
 
 TEST_F(SubstructureTest, ContainAtoms) {
-  EXPECT_TRUE(sub_.contains(0));
-  EXPECT_TRUE(sub_.contains(mol_.atom(0)));
-  EXPECT_TRUE(sub_.contains(1));
-  EXPECT_TRUE(sub_.contains(mol_.atom(1)));
-  EXPECT_TRUE(sub_.contains(2));
-  EXPECT_TRUE(sub_.contains(mol_.atom(2)));
-  EXPECT_TRUE(sub_.contains(10));
-  EXPECT_TRUE(sub_.contains(mol_.atom(10)));
+  EXPECT_TRUE(sub_.contains_atom(1));
+  EXPECT_TRUE(sub_.contains_atom(mol_.atom(1)));
+  EXPECT_TRUE(sub_.contains_atom(2));
+  EXPECT_TRUE(sub_.contains_atom(mol_.atom(2)));
+  EXPECT_TRUE(sub_.contains_atom(3));
+  EXPECT_TRUE(sub_.contains_atom(mol_.atom(3)));
+  EXPECT_TRUE(sub_.contains_atom(10));
+  EXPECT_TRUE(sub_.contains_atom(mol_.atom(10)));
 
-  EXPECT_FALSE(sub_.contains(4));
-  EXPECT_FALSE(sub_.contains(mol_.atom(4)));
+  EXPECT_FALSE(sub_.contains_atom(4));
+  EXPECT_FALSE(sub_.contains_atom(mol_.atom(4)));
 }
 
 TEST_F(SubstructureTest, GetAtoms) {
@@ -187,9 +185,9 @@ TEST_F(SubstructureTest, GetAtoms) {
 }
 
 TEST_F(SubstructureTest, FindAtoms) {
-  auto it = sub_.find_atom(0);
+  auto it = sub_.find_atom(1);
   EXPECT_NE(it, sub_.end());
-  EXPECT_EQ(it->as_parent().id(), 0);
+  EXPECT_EQ(it->as_parent().id(), 1);
 
   it = sub_.find_atom(10);
   EXPECT_NE(it, sub_.end());
@@ -199,9 +197,9 @@ TEST_F(SubstructureTest, FindAtoms) {
   EXPECT_EQ(it, sub_.end());
 
   const Substructure &csub = sub_;
-  auto cit = csub.find_atom(0);
+  auto cit = csub.find_atom(1);
   EXPECT_NE(cit, csub.end());
-  EXPECT_EQ(cit->as_parent().id(), 0);
+  EXPECT_EQ(cit->as_parent().id(), 1);
 
   cit = csub.find_atom(10);
   EXPECT_NE(cit, csub.end());
@@ -210,9 +208,9 @@ TEST_F(SubstructureTest, FindAtoms) {
   cit = csub.find_atom(4);
   EXPECT_EQ(cit, csub.end());
 
-  it = sub_.find_atom(mol_.atom(0));
+  it = sub_.find_atom(mol_.atom(1));
   EXPECT_NE(it, sub_.end());
-  EXPECT_EQ(it->as_parent().id(), 0);
+  EXPECT_EQ(it->as_parent().id(), 1);
 
   it = sub_.find_atom(mol_.atom(10));
   EXPECT_NE(it, sub_.end());
@@ -221,9 +219,9 @@ TEST_F(SubstructureTest, FindAtoms) {
   it = sub_.find_atom(mol_.atom(4));
   EXPECT_EQ(it, sub_.end());
 
-  cit = csub.find_atom(mol_.atom(0));
+  cit = csub.find_atom(mol_.atom(1));
   EXPECT_NE(cit, csub.end());
-  EXPECT_EQ(cit->as_parent().id(), 0);
+  EXPECT_EQ(cit->as_parent().id(), 1);
 
   cit = csub.find_atom(mol_.atom(10));
   EXPECT_NE(cit, csub.end());
@@ -235,11 +233,11 @@ TEST_F(SubstructureTest, FindAtoms) {
 
 TEST_F(SubstructureTest, EraseAtoms) {
   auto sub1 = sub_;
-  EXPECT_TRUE(sub1.contains(0));
-  sub1.erase_atom_of(0);
-  EXPECT_FALSE(sub1.contains(0));
-  sub1.erase_atom_of(0);
-  EXPECT_FALSE(sub1.contains(0));
+  EXPECT_TRUE(sub1.contains_atom(1));
+  sub1.erase_atom_of(1);
+  EXPECT_FALSE(sub1.contains_atom(1));
+  sub1.erase_atom_of(1);
+  EXPECT_FALSE(sub1.contains_atom(1));
   EXPECT_EQ(sub1.size(), 3);
 
   sub1.erase_atoms(sub1.begin(), --sub1.end());
@@ -252,29 +250,29 @@ TEST_F(SubstructureTest, EraseAtoms) {
   EXPECT_TRUE(sub1.empty());
 
   auto sub2 = sub_;
-  int first_id = sub_[0].id();
-  EXPECT_TRUE(sub2.contains(first_id));
+  int first_id = sub_[0].as_parent().id();
+  EXPECT_TRUE(sub2.contains_atom(first_id));
   sub2.erase_atom(sub_[0]);
-  EXPECT_FALSE(sub2.contains(first_id));
+  EXPECT_FALSE(sub2.contains_atom(first_id));
   EXPECT_EQ(sub2.size(), 3);
 
   auto sub3 = sub_;
-  sub3.erase_atom_of(mol_.atom(0));
-  EXPECT_FALSE(sub3.contains(mol_.atom(0)));
+  sub3.erase_atom_of(mol_.atom(1));
+  EXPECT_FALSE(sub3.contains_atom(mol_.atom(1)));
   EXPECT_EQ(sub3.size(), 3);
 }
 
 TEST_F(SubstructureTest, IterateAtoms) {
   int count = 0;
   for (auto atom: sub_) {
-    EXPECT_TRUE(sub_.contains(atom.as_parent().id()));
+    EXPECT_TRUE(sub_.contains_atom(atom.as_parent().id()));
     ++count;
   }
   EXPECT_EQ(count, sub_.size());
 
   count = 0;
   for (auto atom: std::as_const(sub_)) {
-    EXPECT_TRUE(sub_.contains(atom.as_parent().id()));
+    EXPECT_TRUE(sub_.contains_atom(atom.as_parent().id()));
     ++count;
   }
   EXPECT_EQ(count, sub_.size());
@@ -283,7 +281,7 @@ TEST_F(SubstructureTest, IterateAtoms) {
   for (auto rit = std::make_reverse_iterator(sub_.end()),
             rend = std::make_reverse_iterator(sub_.begin());
        rit != rend; ++rit) {
-    EXPECT_TRUE(sub_.contains(rit->as_parent().id()));
+    EXPECT_TRUE(sub_.contains_atom(rit->as_parent().id()));
     ++count;
   }
   EXPECT_EQ(count, sub_.size());
@@ -292,7 +290,7 @@ TEST_F(SubstructureTest, IterateAtoms) {
   for (auto rit = std::make_reverse_iterator(sub_.cend()),
             rend = std::make_reverse_iterator(sub_.cbegin());
        rit != rend; ++rit) {
-    EXPECT_TRUE(sub_.contains(rit->as_parent().id()));
+    EXPECT_TRUE(sub_.contains_atom(rit->as_parent().id()));
     ++count;
   }
   EXPECT_EQ(count, sub_.size());
@@ -316,38 +314,40 @@ TEST_F(SubstructureTest, CountDegrees) {
 }
 
 TEST_F(SubstructureTest, FindNeighbors) {
-  EXPECT_FALSE(sub_.find_neighbor(0, 1).end());
-  EXPECT_FALSE(sub_.find_neighbor(1, 2).end());
-  EXPECT_FALSE(sub_.find_neighbor(2, 0).end());
+  EXPECT_FALSE(sub_.find_neighbor(sub_.atom(0), sub_.atom(1)).end());
+  EXPECT_FALSE(sub_.find_neighbor(sub_.atom(1), sub_.atom(2)).end());
+  EXPECT_FALSE(sub_.find_neighbor(sub_.atom(2), sub_.atom(0)).end());
 
-  EXPECT_TRUE(sub_.find_neighbor(0, 6).end());
-  EXPECT_TRUE(sub_.find_neighbor(0, 10).end());
+  EXPECT_TRUE(sub_.find_neighbor(sub_.atom(0), sub_.atom(4)).end());
 
   const Substructure &csub = sub_;
-  EXPECT_FALSE(csub.find_neighbor(0, 1).end());
-  EXPECT_FALSE(csub.find_neighbor(1, 2).end());
-  EXPECT_FALSE(csub.find_neighbor(2, 0).end());
+  EXPECT_FALSE(csub.find_neighbor(sub_.atom(0), sub_.atom(1)).end());
+  EXPECT_FALSE(csub.find_neighbor(sub_.atom(1), sub_.atom(2)).end());
+  EXPECT_FALSE(csub.find_neighbor(sub_.atom(2), sub_.atom(0)).end());
 
-  EXPECT_TRUE(csub.find_neighbor(0, 6).end());
-  EXPECT_TRUE(csub.find_neighbor(0, 10).end());
+  EXPECT_TRUE(csub.find_neighbor(sub_.atom(0), sub_.atom(4)).end());
 }
 
 TEST_F(SubstructureTest, IterateNeighbors) {
   int cnt = 0;
   for (auto nit = sub_.neighbor_begin(0); nit != sub_.neighbor_end(0);
        ++nit, ++cnt) {
-    EXPECT_FALSE(mol_.find_neighbor(nit->src().id(), nit->dst().id()).end());
-    EXPECT_TRUE(sub_.contains(nit->src().id()));
-    EXPECT_TRUE(sub_.contains(nit->dst().id()));
+    EXPECT_FALSE(mol_.find_neighbor(nit->src().as_parent().id(),
+                                    nit->dst().as_parent().id())
+                     .end());
+    EXPECT_TRUE(sub_.contains_atom(nit->src().as_parent()));
+    EXPECT_TRUE(sub_.contains_atom(nit->dst().as_parent()));
   }
   EXPECT_EQ(cnt, sub_.degree(0));
 
   cnt = 0;
   for (auto nit = sub_.neighbor_cbegin(0); nit != sub_.neighbor_cend(0);
        ++nit, ++cnt) {
-    EXPECT_FALSE(mol_.find_neighbor(nit->src().id(), nit->dst().id()).end());
-    EXPECT_TRUE(sub_.contains(nit->src().id()));
-    EXPECT_TRUE(sub_.contains(nit->dst().id()));
+    EXPECT_FALSE(mol_.find_neighbor(nit->src().as_parent().id(),
+                                    nit->dst().as_parent().id())
+                     .end());
+    EXPECT_TRUE(sub_.contains_atom(nit->src().as_parent()));
+    EXPECT_TRUE(sub_.contains_atom(nit->dst().as_parent()));
   }
   EXPECT_EQ(cnt, sub_.degree(0));
 
@@ -355,9 +355,11 @@ TEST_F(SubstructureTest, IterateNeighbors) {
   const Substructure &csub = sub_;
   for (auto nit = csub.neighbor_begin(0); nit != csub.neighbor_end(0);
        ++nit, ++cnt) {
-    EXPECT_FALSE(mol_.find_neighbor(nit->src().id(), nit->dst().id()).end());
-    EXPECT_TRUE(csub.contains(nit->src().id()));
-    EXPECT_TRUE(csub.contains(nit->dst().id()));
+    EXPECT_FALSE(mol_.find_neighbor(nit->src().as_parent().id(),
+                                    nit->dst().as_parent().id())
+                     .end());
+    EXPECT_TRUE(csub.contains_atom(nit->src().as_parent()));
+    EXPECT_TRUE(csub.contains_atom(nit->dst().as_parent()));
   }
   EXPECT_EQ(cnt, csub.degree(0));
 }
@@ -379,11 +381,11 @@ protected:
   /**
    * This will build:
    *
-   *         H (8)  C (3) H (9) H (10) -- N- (4) -- H (5)
+   *         H (8)  C (0) H (9) H (10) -- N- (4) -- H (5)
    *             \   |
    *               C (2)              Na+ (11) (<-intentionally unconnected)
    *             /       \
-   *  H (6) --  C (0) == C (1) -- H(7)
+   *  H (6) --  C (3) == C (1) -- H(7)
    *
    */
   void SetUp() override {
@@ -392,33 +394,33 @@ protected:
     {
       auto mutator = mol_.mutator();
 
-      mutator.add_atom({ pt[6] });
-      mutator.add_atom({ pt[6] });
-      mutator.add_atom({ pt[6] });
-      mutator.add_atom({ pt[6] });
-      mutator.add_atom({ pt[7], 0, -1 });
+      mutator.add_atom({ kPt[6] });
+      mutator.add_atom({ kPt[6] });
+      mutator.add_atom({ kPt[6] });
+      mutator.add_atom({ kPt[6] });
+      mutator.add_atom({ kPt[7], 0, -1 });
       for (int i = 5; i < 11; ++i) {
-        mutator.add_atom({ pt[1] });
+        mutator.add_atom({ kPt[1] });
       }
-      mutator.add_atom({ pt[11], 0, +1 });
+      mutator.add_atom({ kPt[11], 0, +1 });
 
-      mutator.add_bond(0, 1, BondData { constants::kDoubleBond });
-      mutator.add_bond(0, 2, BondData { constants::kSingleBond });
+      mutator.add_bond(0, 4, BondData { constants::kSingleBond });
+      mutator.add_bond(3, 2, BondData { constants::kSingleBond });
+      mutator.add_bond(3, 1, BondData { constants::kDoubleBond });
       mutator.add_bond(1, 2, BondData { constants::kSingleBond });
-      mutator.add_bond(2, 3, BondData { constants::kSingleBond });
-      mutator.add_bond(3, 4, BondData { constants::kSingleBond });
+      mutator.add_bond(2, 0, BondData { constants::kSingleBond });
       mutator.add_bond(4, 5, BondData { constants::kSingleBond });
-      mutator.add_bond(0, 6, BondData { constants::kSingleBond });
+      mutator.add_bond(3, 6, BondData { constants::kSingleBond });
       mutator.add_bond(1, 7, BondData { constants::kSingleBond });
       mutator.add_bond(2, 8, BondData { constants::kSingleBond });
-      mutator.add_bond(3, 9, BondData { constants::kSingleBond });
-      mutator.add_bond(3, 10, BondData { constants::kSingleBond });
+      mutator.add_bond(0, 9, BondData { constants::kSingleBond });
+      mutator.add_bond(0, 10, BondData { constants::kSingleBond });
     }
 
     ASSERT_EQ(mol_.num_atoms(), 12);
     ASSERT_EQ(mol_.num_bonds(), 11);
 
-    mol_.add_substructure({ 0, 1, 2, 10 });
+    mol_.add_substructure(mol_.atom_substructure({ 1, 2, 3, 10 }));
   }
 };
 
@@ -426,18 +428,19 @@ TEST_F(MolSubstructureTest, AddSubstructures) {
   EXPECT_TRUE(mol_.has_substructures());
   EXPECT_EQ(mol_.num_substructures(), 1);
 
-  Substructure &sub1 = mol_.add_substructure();
+  Substructure &sub1 = mol_.add_substructure(mol_.substructure());
   EXPECT_EQ(mol_.num_substructures(), 2);
   EXPECT_TRUE(sub1.empty());
   sub1.add_atom(10);
   EXPECT_EQ(sub1.size(), 1);
 
-  Substructure &sub2 = mol_.add_substructure({ 0, 1, 2, 10 });
+  Substructure &sub2 =
+      mol_.add_substructure(mol_.atom_substructure({ 0, 1, 2, 10 }));
   EXPECT_EQ(mol_.num_substructures(), 3);
   EXPECT_EQ(sub2.size(), 4);
 
   std::vector<int> ids = { 0, 1, 2, 10 };
-  Substructure &sub3 = mol_.add_substructure(ids);
+  Substructure &sub3 = mol_.add_substructure(mol_.atom_substructure(ids));
   EXPECT_EQ(mol_.num_substructures(), 4);
   EXPECT_EQ(sub3.size(), 4);
 }
@@ -462,10 +465,12 @@ TEST_F(MolSubstructureTest, EraseSubstructures) {
   Substructure &sub = mol_.get_substructure(0);
   EXPECT_EQ(sub.size(), 4);
 
-  mol_.erase_substructure(0);
+  auto &subs = mol_.substructures();
+
+  subs.erase(subs.begin());
   EXPECT_FALSE(mol_.has_substructures());
 
-  mol_.add_substructure({ 0, 1, 2, 10 });
+  mol_.add_substructure(mol_.atom_substructure({ 0, 1, 2, 10 }));
   mol_.erase_substructures([](const auto &) { return false; });
   EXPECT_TRUE(mol_.has_substructures());
   mol_.erase_substructures([](const auto &) { return true; });
@@ -474,8 +479,8 @@ TEST_F(MolSubstructureTest, EraseSubstructures) {
 
 TEST_F(MolSubstructureTest, FindSubstructures) {
   mol_.get_substructure(0).set_id(100);
-  mol_.add_substructure().set_id(200);
-  mol_.add_substructure({ 10 }).set_id(200);
+  mol_.add_substructure(mol_.substructure()).set_id(200);
+  mol_.add_substructure(mol_.atom_substructure({ 10 })).set_id(200);
 
   {
     auto empty = mol_.find_substructures(0);
@@ -523,7 +528,7 @@ NURI_ASSERT_ONEWAY_CONVERTIBLE(substurcture iterator, Substructure::iterator,
 
 TEST_F(MolSubstructureTest, EraseAtomsFromMolecule) {
   Substructure &sub = mol_.get_substructure(0);
-  EXPECT_TRUE(sub.contains(10));
+  EXPECT_TRUE(sub.contains_atom(10));
 
   {
     auto mut = mol_.mutator();
@@ -531,16 +536,22 @@ TEST_F(MolSubstructureTest, EraseAtomsFromMolecule) {
   }
 
   EXPECT_EQ(sub.size(), 3);
-  EXPECT_FALSE(sub.contains(10));
+  EXPECT_EQ(sub.num_bonds(), 3);
+  EXPECT_FALSE(sub.contains_atom(10));
 
   {
     auto mut = mol_.mutator();
-    mut.mark_atom_erase(1);
+    mut.mark_atom_erase(2);
   }
 
   EXPECT_EQ(sub.size(), 2);
-  EXPECT_TRUE(sub.contains(1));
-  EXPECT_FALSE(sub.contains(2));
+  EXPECT_TRUE(sub.contains_atom(1));
+  EXPECT_TRUE(sub.contains_atom(2));
+
+  EXPECT_EQ(sub.num_bonds(), 1);
+  EXPECT_NE(sub.find_bond(sub.atom(0), sub.atom(1)), sub.bond_end());
+  EXPECT_EQ(sub.bond(0).as_parent().id(), 1);
+  EXPECT_EQ(sub.bond(0).data().order(), constants::kDoubleBond);
 }
 
 TEST_F(MolSubstructureTest, MergeSubstructure) {
@@ -555,9 +566,9 @@ TEST_F(MolSubstructureTest, MergeSubstructure) {
   EXPECT_EQ(mol_.atom(14).data().atomic_number(), 6);
   EXPECT_EQ(mol_.atom(15).data().atomic_number(), 1);
 
-  EXPECT_EQ(mol_.find_bond(12, 13)->data().order(), constants::kDoubleBond);
+  EXPECT_EQ(mol_.find_bond(12, 14)->data().order(), constants::kDoubleBond);
+  EXPECT_EQ(mol_.find_bond(13, 12)->data().order(), constants::kSingleBond);
   EXPECT_EQ(mol_.find_bond(13, 14)->data().order(), constants::kSingleBond);
-  EXPECT_EQ(mol_.find_bond(14, 12)->data().order(), constants::kSingleBond);
 
   EXPECT_EQ(mol_.num_sssr(), 2);
 }

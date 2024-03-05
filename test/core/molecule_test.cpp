@@ -171,7 +171,8 @@ protected:
   void add_extra_data() {
     mol_.name() = "test molecule";
     mol_.add_prop("key", "val");
-    nuri::Substructure &sub = mol_.add_substructure({ 0, 1, 2 });
+    nuri::Substructure &sub =
+        mol_.add_substructure(mol_.atom_substructure({ 0, 1, 2 }));
     sub.name() = "test substructure";
   }
 };
