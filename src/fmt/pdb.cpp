@@ -459,7 +459,7 @@ void read_misc_section(Iterator &it, const Iterator end,
       }
 
       site.name = curr_name;
-      int numres = std::max(safe_atoi(safe_slice(line, 15, 17)), 0);
+      int numres = nonnegative(safe_atoi(safe_slice(line, 15, 17)));
       site.residues.reserve(numres);
     }
 

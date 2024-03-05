@@ -854,6 +854,20 @@ inline Matrix3Xd stack(const std::vector<Vector3d> &vs) {
 constexpr inline int value_if(bool cond, int val = 1) {
   return static_cast<int>(cond) * val;
 }
+
+template <
+    class Int,
+    std::enable_if_t<std::is_integral_v<Int> && std::is_signed_v<Int>, int> = 0>
+constexpr Int nonnegative(Int x) {
+  return std::max(x, Int(0));
+}
+
+template <class UInt,
+          std::enable_if_t<std::is_integral_v<UInt> && !std::is_signed_v<UInt>,
+                           int> = 0>
+constexpr UInt nonnegative(UInt x) {
+  return x;
+}
 }  // namespace nuri
 
 #endif /* NURI_UTILS_H_ */

@@ -777,7 +777,7 @@ int guess_hydrogens_normal_atom(Molecule::Atom atom, const Element &effective) {
       cv = internal::common_valence(effective),
       max_h = atom.data().hybridization() - atom.degree();
   int num_h = std::min(max_h, cv - valence);
-  return std::max(0, num_h);
+  return nonnegative(num_h);
 }
 
 int guess_hydrogens_normal_atom(Molecule::Atom atom) {
@@ -966,7 +966,7 @@ void guess_fcharge_hydrogens(Molecule &mol) {
 
       int nbe = data.element().valence_electrons() - sum_bo;
       data.set_hybridization(
-          internal::from_degree(atom.degree(), std::max(0, nbe)));
+          internal::from_degree(atom.degree(), nonnegative(nbe)));
     } else {
       int fchg = data.element().group() > 14 ? -unused_valence : unused_valence;
       data.set_formal_charge(fchg);

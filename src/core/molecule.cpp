@@ -895,12 +895,12 @@ namespace {
 
     if (atom.data().atomic_number() == 0) {
       // Assume dummy atom always satisfies the octet rule
-      const int nbe = std::max(8 - total_valence, 0);
+      const int nbe = nonnegative(8 - total_valence);
       atom.data().set_hybridization(from_degree(total_degree, nbe));
       return true;
     }
 
-    int nbe = std::max(0, nonbonding_electrons(atom.data(), total_valence));
+    int nbe = nonnegative(nonbonding_electrons(atom.data(), total_valence));
     if (nbe < 0) {
       nbe = 0;
       ABSL_LOG(INFO) << "Valence electrons exceeded for "

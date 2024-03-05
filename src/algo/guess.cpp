@@ -507,8 +507,8 @@ namespace {
       int nnei = max_neighbors[i] - value_if(i == dnei);
       dst.data()
           .set_hybridization(constants::kSP2)
-          .set_formal_charge(std::max(dst.degree() - nnei, 0))
-          .set_implicit_hydrogens(std::max(nnei - dst.degree(), 0));
+          .set_formal_charge(nonnegative(dst.degree() - nnei))
+          .set_implicit_hydrogens(nonnegative(nnei - dst.degree()));
       nei.edge_data().set_order(i == dnei ? constants::kDoubleBond
                                           : constants::kSingleBond);
     }
