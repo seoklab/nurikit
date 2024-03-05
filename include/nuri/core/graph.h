@@ -551,6 +551,8 @@ public:
   }
 
   edge_iterator add_edge(int src, int dst, const ET &data) {
+    ABSL_DCHECK(src != dst) << "self-loop is not allowed";
+
     int eid = num_edges();
     edges_.push_back({ src, dst, data });
     add_adjacency_entry(src, dst, eid);
@@ -558,6 +560,8 @@ public:
   }
 
   edge_iterator add_edge(int src, int dst, ET &&data) noexcept {
+    ABSL_DCHECK(src != dst) << "self-loop is not allowed";
+
     int eid = num_edges();
     edges_.push_back({ src, dst, std::move(data) });
     add_adjacency_entry(src, dst, eid);

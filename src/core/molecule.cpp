@@ -383,10 +383,6 @@ MoleculeMutator::add_bond(int src, int dst, BondData &&bond) noexcept {
 }
 
 void MoleculeMutator::mark_bond_erase(int src, int dst) {
-  if (ABSL_PREDICT_FALSE(src == dst)) {
-    return;
-  }
-
   auto it = mol().find_bond(src, dst);
   if (it != mol().bond_end())
     erased_bonds_.push_back(it->id());
