@@ -8,7 +8,9 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -20,7 +22,7 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
 
-#include <absl/strings/ascii.h>
+#include <absl/log/absl_log.h>
 #include <absl/strings/str_cat.h>
 
 #include "nuri/eigen_config.h"

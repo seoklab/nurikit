@@ -5,11 +5,13 @@
 #ifndef NURI_PYTHON_CORE_CORE_MODULE_H_
 #define NURI_PYTHON_CORE_CORE_MODULE_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -20,6 +22,7 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
 
+#include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/python/core/containers.h"

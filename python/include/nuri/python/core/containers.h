@@ -7,7 +7,6 @@
 #define NURI_PYTHON_CORE_CONTAINERS_H_
 
 #include <pybind11/pybind11.h>
-#include <pybind11/pytypes.h>
 
 #include "nuri/python/utils.h"
 

@@ -23,7 +23,7 @@
 #include <absl/base/attributes.h>
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
-#include <absl/log/absl_log.h>
+#include <absl/log/absl_check.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"

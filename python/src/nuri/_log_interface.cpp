@@ -10,14 +10,12 @@
 #include <absl/base/call_once.h>
 #include <absl/base/internal/raw_logging.h>
 #include <absl/base/log_severity.h>
-#include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/log/globals.h>
 #include <absl/log/initialize.h>
 #include <absl/log/log_entry.h>
 #include <absl/log/log_sink.h>
 
-#include "absl/log/log.h"
 #ifndef __clang_analyzer__
 #include <absl/log/log_sink_registry.h>
 #endif

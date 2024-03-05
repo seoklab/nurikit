@@ -6,6 +6,7 @@
 #ifndef NURI_PYTHON_UTILS_H_
 #define NURI_PYTHON_UTILS_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -19,10 +20,9 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 
-#include <absl/debugging/stacktrace.h>
-#include <absl/debugging/symbolize.h>
 #include <absl/strings/str_cat.h>
 
+#include "nuri/eigen_config.h"
 #include "nuri/utils.h"
 
 namespace nuri {

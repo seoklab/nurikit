@@ -5,11 +5,17 @@
 
 #include "nuri/core/graph.h"
 
+#include <vector>
+
+#include <absl/algorithm/container.h>
+
+#include "nuri/utils.h"
+
 namespace nuri {
 namespace internal {
   void SortedIdxs::remap(const std::vector<int> &old_to_new) {
-    auto first = std::find_if(idxs_.begin(), idxs_.end(),
-                              [&](int id) { return old_to_new[id] < 0; });
+    auto first =
+        absl::c_find_if(idxs_, [&](int id) { return old_to_new[id] < 0; });
 
     for (auto it = idxs_.begin(); it < first; ++it)
       *it = old_to_new[*it];

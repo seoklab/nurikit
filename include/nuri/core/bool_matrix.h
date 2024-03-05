@@ -5,6 +5,7 @@
 #ifndef NURI_CORE_BOOL_MATRIX_H_
 #define NURI_CORE_BOOL_MATRIX_H_
 
+#include <cstdint>
 #include <limits>
 #include <vector>
 

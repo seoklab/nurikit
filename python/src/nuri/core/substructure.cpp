@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <optional>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -17,6 +18,7 @@
 #include <absl/cleanup/cleanup.h>
 #include <absl/strings/str_cat.h>
 
+#include "nuri/eigen_config.h"
 #include "nuri/core/graph.h"
 #include "nuri/core/molecule.h"
 #include "nuri/python/core/containers.h"
@@ -294,7 +296,7 @@ This is a read-only property.
   sub_bonds.def("__contains__", [](PySubBondsWrapper<P> &self, PyBond &bond) {
     P &psub = *self.sub;
     bond.check();
-    Substructure &substruct = *psub;
+    const Substructure &substruct = *psub;
     if (!same_parent(psub.parent(), bond.parent()))
       return false;
     return substruct.contains_bond(*bond);
@@ -848,7 +850,7 @@ The category of the substructure. This is used to categorize the substructure.
   });
   sub.def("__contains__", [](P &self, PyAtom &atom) {
     atom.check();
-    Substructure &substruct = *self;
+    const Substructure &substruct = *self;
     if (!same_parent(self.parent(), atom.parent()))
       return false;
     return substruct.contains_atom(*atom);

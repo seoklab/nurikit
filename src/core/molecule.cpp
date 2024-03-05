@@ -6,6 +6,7 @@
 #include "nuri/core/molecule.h"
 
 #include <algorithm>
+#include <numeric>
 #include <stack>
 #include <string>
 #include <tuple>
