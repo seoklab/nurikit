@@ -32,16 +32,21 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Scientific/Engineering :: Chemistry",
     "Operating System :: POSIX :: Linux",
 ]
+dependencies = ["numpy"]
 
 [project.urls]
 Documentation = "https://nurikit.seoklab.org/"
 Repository = "https://github.com/seoklab/nurikit.git"
+
+[project.optional-dependencies]
+tests = ["pytest", "pytest-xdist"]
 
 [tool.scikit-build]
 minimum-version = "0.4"
@@ -68,8 +73,9 @@ NURI_ENABLE_IPO = "@NURI_ENABLE_IPO@"
 [tool.cibuildwheel]
 build = ["cp*-manylinux_x86_64"]
 
-test-requires = ["sphinx", "urllib3<2.0"]
+test-requires = ["pytest", "pytest-xdist", "sphinx", "urllib3<2.0"]
 test-command = [
+    "pytest -v {project}/python/test -n auto",
     "cmake -S {project} -B .",
     "cmake --build . --target nuri_python_docs_doctest -j",
 ]
