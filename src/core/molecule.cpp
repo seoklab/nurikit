@@ -194,16 +194,12 @@ bool Molecule::rotate_bond(int bid, double angle) {
 
 bool Molecule::rotate_bond_conf(int i, int ref_atom, int pivot_atom,
                                 double angle) {
-  auto bit = find_bond(ref_atom, pivot_atom);
-  if (bit == bond_end()) {
-    return false;
-  }
-  return rotate_bond_common(i, *bit, ref_atom, pivot_atom, angle);
+  return rotate_bond_common(i, ref_atom, pivot_atom, angle);
 }
 
 bool Molecule::rotate_bond_conf(int i, int bid, double angle) {
   const Bond b = bond(bid);
-  return rotate_bond_common(i, b, b.src().id(), b.dst().id(), angle);
+  return rotate_bond_common(i, b.src().id(), b.dst().id(), angle);
 }
 
 void Molecule::rebind_substructs() noexcept {
@@ -211,17 +207,14 @@ void Molecule::rebind_substructs() noexcept {
     sub.rebind(graph_);
 }
 
-bool Molecule::rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
+bool Molecule::rotate_bond_common(int i, int ref_atom, int pivot_atom,
                                   double angle) {
-  if (!b.data().is_rotable())
-    return false;
-
   absl::flat_hash_set<int> connected =
       connected_components(graph_, pivot_atom, ref_atom);
   // GCOV_EXCL_START
-  if (ABSL_PREDICT_FALSE(connected.empty())) {
-    ABSL_DLOG(WARNING) << ref_atom << " -> " << pivot_atom
-                       << " bond is rotable, but the two atoms are connected.";
+  if (connected.empty()) {
+    ABSL_LOG(INFO) << ref_atom << " -> " << pivot_atom
+                   << " two atoms of bond are connected and cannot be rotated";
     return false;
   }
   // GCOV_EXCL_STOP

@@ -1371,14 +1371,18 @@ public:
    * @param pivot_atom Index of the pivot atom.
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
-   *         not applied (e.g. if the reference atom and the pivot atom are not
-   *         connected by a bond, the bond is not rotatable, etc.).
+   *         not applied.
+   * @note Rotability only considers ring membership. The user is responsible
+   *       to check bond order or other constraints.
    *
    * The rotation is applied to all conformers of the molecule.
    *
    * The part of the reference atom is fixed, and the part of the pivot atom
    * will be rotated about the reference atom -> pivot atom axis. Positive angle
    * means counter-clockwise rotation (as in the right-hand rule).
+   *
+   * The behavior is undefined if any of the indices are out of range, or if the
+   * atoms are not connected by a bond.
    */
   bool rotate_bond(int ref_atom, int pivot_atom, double angle);
 
@@ -1387,13 +1391,17 @@ public:
    * @param bid The index of bond to rotate.
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
-   *         not applied (e.g. the bond is not rotatable, etc.).
+   *         not applied.
+   * @note Rotability only considers ring membership. The user is responsible
+   *       to check bond order or other constraints.
    *
    * The rotation is applied to all conformers of the molecule.
    *
    * The source atom of the bond is fixed, and the destination atom will be
    * rotated about the source atom -> destination atom axis. Positive angle
    * means counter-clockwise rotation (as in the right-hand rule).
+   *
+   * The behavior is undefined if any of the indices are out of range.
    */
   bool rotate_bond(int bid, double angle);
 
@@ -1404,12 +1412,16 @@ public:
    * @param pivot_atom Index of the pivot atom.
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
-   *         not applied (e.g. if the pivot atom and the pivot atom are not
-   *         connected by a bond, the bond is not rotatable, etc.).
+   *         not applied.
+   * @note Rotability only considers ring membership. The user is responsible
+   *       to check bond order or other constraints.
    *
    * The part of the pivot atom is fixed, and the part of the pivot atom will be
    * rotated about the pivot atom -> pivot atom axis. Positive angle means
    * counter-clockwise rotation (as in the right-hand rule).
+   *
+   * The behavior is undefined if any of the indices are out of range, or if the
+   * atoms are not connected by a bond.
    */
   bool rotate_bond_conf(int i, int ref_atom, int pivot_atom, double angle);
 
@@ -1420,10 +1432,14 @@ public:
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
    *         not applied (e.g. the bond is not rotatable, etc.).
+   * @note Rotability only considers ring membership. The user is responsible
+   *       to check bond order or other constraints.
    *
    * The source atom of the bond is fixed, and the destination atom will be
    * rotated about the source atom -> destination atom axis. Positive angle
    * means counter-clockwise rotation (as in the right-hand rule).
+   *
+   * The behavior is undefined if any of the indices are out of range.
    */
   bool rotate_bond_conf(int i, int bid, double angle);
 
@@ -1764,8 +1780,7 @@ private:
 
   void rebind_substructs() noexcept;
 
-  bool rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
-                          double angle);
+  bool rotate_bond_common(int i, int ref_atom, int pivot_atom, double angle);
 
   GraphType graph_;
   std::vector<Matrix3Xd> conformers_;
