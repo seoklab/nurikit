@@ -736,10 +736,9 @@ template <class Container, class Comp,
               typename Container::iterator, std::random_access_iterator_tag> = 0>
 std::pair<typename Container::iterator, bool>
 insert_sorted(Container &c, const typename Container::value_type &value,
-              Comp &&comp) {
+              Comp comp) {
   // *it >= value
-  auto it =
-      std::lower_bound(c.begin(), c.end(), value, std::forward<Comp>(comp));
+  auto it = std::lower_bound(c.begin(), c.end(), value, comp);
   if (it != c.end() && !comp(value, *it)) {
     // value >= *it, i.e., value == *it
     return { it, false };
@@ -759,11 +758,9 @@ template <class Container, class Comp,
           internal::enable_if_iter_category_t<
               typename Container::iterator, std::random_access_iterator_tag> = 0>
 std::pair<typename Container::iterator, bool>
-insert_sorted(Container &c, typename Container::value_type &&value,
-              Comp &&comp) {
+insert_sorted(Container &c, typename Container::value_type &&value, Comp comp) {
   // *it >= value
-  auto it =
-      std::lower_bound(c.begin(), c.end(), value, std::forward<Comp>(comp));
+  auto it = std::lower_bound(c.begin(), c.end(), value, comp);
   if (it != c.end() && !comp(value, *it)) {
     // value >= *it, i.e., value == *it
     return { it, false };
