@@ -6,6 +6,7 @@
 #include "nuri/algo/guess.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <numeric>
 #include <tuple>
@@ -342,9 +343,10 @@ namespace {
   bool fg_sec(Molecule::MutableAtom atom, ArrayXb &visited) {
     auto n = atom[0], m = atom[1];
 
-    if (c_any_of({ atom, n.dst(), m.dst() }, [](Molecule::Atom a) {
-          return a.data().atomic_number() != 7;
-        }))
+    if (absl::c_any_of(std::array { atom, n.dst(), m.dst() },
+                       [](Molecule::Atom a) {
+                         return a.data().atomic_number() != 7;
+                       }))
       return false;
 
     // must be {2, 1} or {1, 2}, since lower bound is 1 (connected to this atom)
@@ -1454,7 +1456,7 @@ namespace {
     for (const std::vector<int> &group: groups) {
       ABSL_DCHECK(group.size() > 2) << "Group size: " << group.size();
 
-      Substructure sub = mol.substructure(group);
+      Substructure sub = mol.atom_substructure(group);
 
       for (auto atom: sub) {
         AtomData &data = atom.data();

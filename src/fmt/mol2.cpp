@@ -486,7 +486,7 @@ bool parse_substructure_block(Molecule &mol, Iter &it, const Iter end) {
       return false;
     }
 
-    Substructure &sub = mol.add_substructure();
+    Substructure &sub = mol.substructures().emplace_back(mol.substructure());
     sub.set_id(static_cast<int>(data.first));
     sub.name() = std::move(data.second);
   }
@@ -1060,7 +1060,7 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
   // Only add substructures actually mentioned in the SUBSTRUCTURE block
   for (auto &[_, data]: substructs)
     for (Substructure &sub: mol.find_substructures(data.second))
-      sub.update(std::move(data.first));
+      sub.update_atoms(std::move(data.first));
 
   return mol;
 }

@@ -12,7 +12,6 @@
 #include <cstring>
 #include <filesystem>
 #include <functional>
-#include <initializer_list>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -28,6 +27,7 @@
 #include <boost/iterator/iterator_facade.hpp>
 #include <Eigen/Dense>
 
+#include <absl/algorithm/container.h>
 #include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
 #include <absl/numeric/bits.h>
@@ -672,11 +672,6 @@ namespace internal {
     return ret;
   }
 }  // namespace internal
-
-template <class T, class... Args>
-auto c_any_of(std::initializer_list<T> &&il, Args &&...args) {
-  return std::any_of(il.begin(), il.end(), std::forward<Args>(args)...);
-}
 
 #if __cplusplus >= 202002L
 using std::erase;

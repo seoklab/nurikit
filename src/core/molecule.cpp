@@ -426,6 +426,20 @@ namespace {
       conf = std::move(updated);
     }
   }
+
+  bool prepare_remap_idxs(int prev_size, int first_erased,
+                          std::vector<int> &idxs_map) {
+    if (prev_size == first_erased)
+      return false;
+
+    if (first_erased < 0)
+      return true;
+
+    idxs_map.resize(prev_size);
+    std::iota(idxs_map.begin(), idxs_map.begin() + first_erased, 0);
+    std::fill(idxs_map.begin() + first_erased, idxs_map.end(), -1);
+    return true;
+  }
 }  // namespace
 
 void MoleculeMutator::finalize() noexcept {
@@ -436,27 +450,36 @@ void MoleculeMutator::finalize() noexcept {
     return;
 
   Molecule::GraphType &g = mol().graph_;
-  const int added_size = mol().num_atoms();
-  if (added_size > prev_num_atoms_)
+  const int added_natom = mol().num_atoms();
+  const int added_nbond = mol().num_bonds();
+  if (added_natom > prev_num_atoms_)
     for (Matrix3Xd &conf: mol().conformers_)
-      conf.conservativeResize(Eigen::NoChange, added_size);
+      conf.conservativeResize(Eigen::NoChange, added_natom);
 
   // As per the spec, the order is:
   // 1. Erase bonds
-  g.erase_edges(erased_bonds_.begin(), erased_bonds_.end());
+  std::pair<int, std::vector<int>> bond_info;
+  bond_info = g.erase_edges(erased_bonds_.begin(), erased_bonds_.end());
+  if (prepare_remap_idxs(added_nbond, bond_info.first, bond_info.second))
+    for (Substructure &sub: mol().substructs_)
+      sub.graph_.remap_edges(bond_info.second);
 
   // 2. Erase atoms
-  int last;
-  std::vector<int> map;
-  std::tie(last, map) =
+  std::pair<int, std::vector<int>> atom_info;
+  std::tie(atom_info, bond_info) =
       g.erase_nodes(erased_atoms_.begin(), erased_atoms_.end());
 
-  if (last < added_size) {
-    for (Substructure &sub: mol().substructs_)
-      sub.graph_.remap_nodes(map);
+  if (prepare_remap_idxs(added_natom, atom_info.first, atom_info.second)) {
+    if (prepare_remap_idxs(added_nbond, bond_info.first, bond_info.second)) {
+      for (Substructure &sub: mol().substructs_)
+        sub.graph_.remap(atom_info.second, bond_info.second);
+    } else {
+      for (Substructure &sub: mol().substructs_)
+        sub.graph_.remap_nodes(atom_info.second);
+    }
 
-    remap_confs(mol().conformers_, added_size, mol().num_atoms(), last >= 0,
-                map);
+    remap_confs(mol().conformers_, added_natom, mol().num_atoms(),
+                atom_info.first >= 0, atom_info.second);
   }
 
   mol().update_topology();

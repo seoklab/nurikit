@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include <absl/algorithm/container.h>
 #include <absl/log/absl_log.h>
 
 #include "nuri/eigen_config.h"

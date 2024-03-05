@@ -510,6 +510,15 @@ namespace internal {
     using atom_iterator = iterator;
     using const_atom_iterator = const_iterator;
 
+    using bond_iterator = typename SubgraphType::edge_iterator;
+    using const_bond_iterator = typename SubgraphType::const_edge_iterator;
+    using MutableBond = typename SubgraphType::EdgeRef;
+    using Bond = typename SubgraphType::ConstEdgeRef;
+
+    using BondsWrapper = typename SubgraphType::EdgesWrapper;
+    using ConstBondsWrapper = typename SubgraphType::ConstEdgesWrapper;
+
+    using MutableNeighbor = typename SubgraphType::AdjRef;
     using Neighbor = typename SubgraphType::ConstAdjRef;
     using neighbor_iterator = typename SubgraphType::adjacency_iterator;
     using const_neighbor_iterator =
@@ -568,6 +577,7 @@ namespace internal {
     bool empty() const { return graph_.empty(); }
     int size() const { return graph_.size(); }
     int num_atoms() const { return graph_.num_nodes(); }
+    int num_bonds() const { return graph_.num_edges(); }
     int count_heavy_atoms() const {
       return absl::c_count_if(graph_, [](Substructure::Atom atom) {
         return atom.data().atomic_number() != 1;
@@ -584,18 +594,46 @@ namespace internal {
 
     void clear_atoms() noexcept { graph_.clear(); }
 
-    void update(const std::vector<int> &atoms) { graph_.update(atoms); }
-    void update(std::vector<int> &&atoms) noexcept {
-      graph_.update(std::move(atoms));
+    void update(const std::vector<int> &atoms, const std::vector<int> &bonds) {
+      graph_.update(atoms, bonds);
     }
 
-    void reserve(int n) { graph_.reserve(n); }
+    void update(std::vector<int> &&atoms, std::vector<int> &&bonds) {
+      graph_.update(std::move(atoms), std::move(bonds));
+    }
+
+    void update_atoms(const std::vector<int> &atoms) {
+      graph_.update_nodes(atoms);
+    }
+
+    void update_atoms(std::vector<int> &&atoms) noexcept {
+      graph_.update_nodes(std::move(atoms));
+    }
+
+    void reserve_atoms(int n) { graph_.reserve_nodes(n); }
 
     void add_atom(int id) { graph_.add_node(id); }
 
-    bool contains(int id) const { return graph_.contains(id); }
-    bool contains(typename GraphType::ConstNodeRef atom) const {
-      return graph_.contains(atom);
+    void add_atoms(const SortedIdxs &atoms, bool bonds = false) {
+      if (bonds) {
+        graph_.add_nodes_with_edges(atoms);
+      } else {
+        graph_.add_nodes(atoms);
+      }
+    }
+
+    template <class Iter>
+    void add_atoms(Iter begin, Iter end, bool bonds = false) {
+      if (bonds) {
+        graph_.add_nodes_with_edges(begin, end);
+      } else {
+        graph_.add_nodes(begin, end);
+      }
+    }
+
+    bool contains_atom(int id) const { return graph_.contains_node(id); }
+    bool contains_atom(typename GraphType::ConstNodeRef atom) const {
+      return graph_.contains_node(atom);
     }
 
     MutableAtom operator[](int idx) { return graph_[idx]; }
@@ -641,18 +679,117 @@ namespace internal {
     const_iterator cbegin() const { return graph_.cbegin(); }
     const_iterator cend() const { return graph_.cend(); }
 
+    atom_iterator atom_begin() { return graph_.node_begin(); }
+    atom_iterator atom_end() { return graph_.node_end(); }
+
+    const_atom_iterator atom_begin() const { return atom_cbegin(); }
+    const_atom_iterator atom_end() const { return atom_cend(); }
+
+    const_atom_iterator atom_cbegin() const { return graph_.node_cbegin(); }
+    const_atom_iterator atom_cend() const { return graph_.node_cend(); }
+
     const std::vector<int> &atom_ids() const { return graph_.node_ids(); }
 
-    auto bonds() { return graph_.edges(); }
-    auto bonds() const { return graph_.edges(); }
+    BondsWrapper bonds() { return graph_.edges(); }
+    ConstBondsWrapper bonds() const { return graph_.edges(); }
+
+    void clear_bonds() noexcept { graph_.clear_edges(); }
+
+    void update_bonds(const std::vector<int> &bonds) {
+      graph_.update_edges(bonds);
+    }
+
+    void update_bonds(std::vector<int> &&bonds) noexcept {
+      graph_.update_edges(std::move(bonds));
+    }
+
+    void refresh_bonds() { graph_.refresh_edges(); }
+
+    void reserve_bonds(int n) { graph_.reserve_edges(n); }
+
+    void add_bond(int id) { graph_.add_edge(id); }
+
+    void add_bonds(const internal::SortedIdxs &bonds) {
+      graph_.add_edges(bonds);
+    }
+
+    template <class Iter>
+    void add_bonds(Iter begin, Iter end) {
+      graph_.add_edges(begin, end);
+    }
+
+    bool contains_bond(int id) const { return graph_.contains_edge(id); }
+    bool contains_bond(typename GraphType::ConstEdgeRef bond) const {
+      return graph_.contains_edge(bond);
+    }
+
+    bond_iterator find_bond(Atom src, Atom dst) {
+      return graph_.find_edge(src, dst);
+    }
+
+    const_bond_iterator find_bond(Atom src, Atom dst) const {
+      return graph_.find_edge(src, dst);
+    }
+
+    bond_iterator find_bond(typename GraphType::ConstNodeRef src,
+                            typename GraphType::ConstNodeRef dst) {
+      return graph_.find_edge(src, dst);
+    }
+
+    const_bond_iterator find_bond(typename GraphType::ConstNodeRef src,
+                                  typename GraphType::ConstNodeRef dst) const {
+      return graph_.find_edge(src, dst);
+    }
+
+    MutableBond bond(int idx) { return graph_.edge(idx); }
+    Bond bond(int idx) const { return graph_.edge(idx); }
+
+    bond_iterator find_bond(int id) { return graph_.find_edge(id); }
+    bond_iterator find_bond(typename GraphType::ConstEdgeRef bond) {
+      return graph_.find_edge(bond);
+    }
+
+    const_bond_iterator find_bond(int id) const { return graph_.find_edge(id); }
+    const_bond_iterator find_bond(typename GraphType::ConstEdgeRef bond) const {
+      return graph_.find_edge(bond);
+    }
+
+    void erase_bond(int idx) { graph_.erase_edge(idx); }
+    void erase_bond(Bond bond) { graph_.erase_edge(bond); }
+
+    void erase_bonds(const_bond_iterator begin, const_bond_iterator end) {
+      graph_.erase_edges(begin, end);
+    }
+
+    void erase_bond_of(int id) { graph_.erase_edge_of(id); }
+
+    void erase_bond_of(typename GraphType::ConstEdgeRef bond) {
+      graph_.erase_edge_of(bond);
+    }
+
+    template <class UnaryPred>
+    void erase_bonds_if(UnaryPred &&pred) {
+      graph_.erase_edges_if(std::forward<UnaryPred>(pred));
+    }
+
+    bond_iterator bond_begin() { return graph_.edge_begin(); }
+    bond_iterator bond_end() { return graph_.edge_end(); }
+
+    const_bond_iterator bond_begin() const { return bond_cbegin(); }
+    const_bond_iterator bond_end() const { return bond_cend(); }
+
+    const_bond_iterator bond_cbegin() const { return graph_.edge_cbegin(); }
+    const_bond_iterator bond_cend() const { return graph_.edge_cend(); }
+
+    const std::vector<int> &bond_ids() const { return graph_.edge_ids(); }
 
     int degree(int id) const { return graph_.degree(id); }
 
-    neighbor_iterator find_neighbor(int src, int dst) {
+    neighbor_iterator find_neighbor(Atom src, Atom dst) {
       return graph_.find_adjacent(src, dst);
     }
 
-    const_neighbor_iterator find_neighbor(int src, int dst) const {
+    const_neighbor_iterator find_neighbor(Atom src, Atom dst) const {
       return graph_.find_adjacent(src, dst);
     }
 
@@ -1149,6 +1286,15 @@ public:
   const_bond_iterator bond_end() const { return graph_.edge_end(); }
 
   /**
+   * @brief Get the explicitly connected neighbor atoms of the atom.
+   * @param atom Index of the atom.
+   * @return The number of bonds connected to the atom.
+   * @note If the atom index is out of range, the behavior is undefined.
+   * @sa all_neighbors(), count_heavy(), count_hydrogens()
+   */
+  int num_neighbors(int atom) const { return graph_.degree(atom); }
+
+  /**
    * @brief Find a neighbor of the atom.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
@@ -1450,7 +1596,7 @@ public:
    */
   Substructure
   substructure(SubstructCategory cat = SubstructCategory::kUnknown) {
-    return { Subgraph(graph_), cat };
+    return { make_subgraph(graph_), cat };
   }
 
   /**
@@ -1459,20 +1605,31 @@ public:
    * @return The new substructure.
    */
   Substructure
-  substructure(const std::vector<int> &nodes,
+  substructure(internal::SortedIdxs &&atoms, internal::SortedIdxs &&bonds,
                SubstructCategory cat = SubstructCategory::kUnknown) {
-    return { Subgraph(graph_, nodes), cat };
+    return { make_subgraph(graph_, std::move(atoms), std::move(bonds)), cat };
   }
 
   /**
    * @brief Create and return a substurcture of the molecule.
-   *
-   * @return The new substructure.
+   * @param atoms Indices of atoms in the substructure. All bonds between the
+   *        atoms will also be included in the substructure.
    */
   Substructure
-  substructure(std::vector<int> &&nodes,
-               SubstructCategory cat = SubstructCategory::kUnknown) noexcept {
-    return { Subgraph(graph_, std::move(nodes)), cat };
+  atom_substructure(internal::SortedIdxs &&atoms,
+                    SubstructCategory cat = SubstructCategory::kUnknown) {
+    return { subgraph_from_nodes(graph_, std::move(atoms)), cat };
+  }
+
+  /**
+   * @brief Create and return a substurcture of the molecule.
+   * @param bonds Indices of bonds in the substructure. All atoms connected by
+   *        the bonds will also be included in the substructure.
+   */
+  Substructure bond_substructure(
+      internal::SortedIdxs &&bonds,
+      SubstructCategory cat = SubstructCategory::kUnknown) noexcept {
+    return { subgraph_from_edges(graph_, std::move(bonds)), cat };
   }
 
   /**
@@ -1491,22 +1648,32 @@ public:
    * @return The new substructure.
    */
   ConstSubstructure
-  substructure(const std::vector<int> &nodes,
+  substructure(internal::SortedIdxs &&atoms, internal::SortedIdxs &&bonds,
                SubstructCategory cat = SubstructCategory::kUnknown) const {
-    return { Subgraph(graph_, nodes), cat };
+    return { make_subgraph(graph_, std::move(atoms), std::move(bonds)), cat };
   }
 
   /**
    * @brief Create and return a substurcture of the molecule.
-   *
-   * @return The new substructure.
+   * @param atoms Indices of atoms in the substructure. All bonds between the
+   *        atoms will also be included in the substructure.
    */
-  ConstSubstructure substructure(
-      std::vector<int> &&nodes,
-      SubstructCategory cat = SubstructCategory::kUnknown) const noexcept {
-    return { Subgraph(graph_, std::move(nodes)), cat };
+  ConstSubstructure
+  atom_substructure(internal::SortedIdxs &&atoms,
+                    SubstructCategory cat = SubstructCategory::kUnknown) const {
+    return { subgraph_from_nodes(graph_, std::move(atoms)), cat };
   }
 
+  /**
+   * @brief Create and return a substurcture of the molecule.
+   * @param bonds Indices of bonds in the substructure. All atoms connected by
+   *        the bonds will also be included in the substructure.
+   */
+  ConstSubstructure
+  bond_substructure(internal::SortedIdxs &&bonds,
+                    SubstructCategory cat = SubstructCategory::kUnknown) const {
+    return { subgraph_from_edges(graph_, std::move(bonds)), cat };
+  }
   /**
    * @brief Get a substructure of the molecule.
    *
@@ -1524,37 +1691,19 @@ public:
   const Substructure &get_substructure(int i) const { return substructs_[i]; }
 
   /**
-   * @brief Store and return a new substurcture of the molecule.
-   *
+   * @brief Store and return a substurcture of the molecule.
    * @return The new substructure.
    */
-  Substructure &
-  add_substructure(SubstructCategory cat = SubstructCategory::kUnknown) {
-    return substructs_.emplace_back(Subgraph(graph_), cat);
+  Substructure &add_substructure(const Substructure &sub) {
+    return substructs_.emplace_back(sub);
   }
 
   /**
-   * @brief Create and return a substurcture of the molecule.
-   *
-   * @param idxs Indices of atoms in the substructure.
+   * @brief Store and return a substurcture of the molecule.
    * @return The new substructure.
    */
-  Substructure &
-  add_substructure(const std::vector<int> &idxs,
-                   SubstructCategory cat = SubstructCategory::kUnknown) {
-    return substructs_.emplace_back(Subgraph(graph_, idxs), cat);
-  }
-
-  /**
-   * @brief Create and return a substurcture of the molecule.
-   *
-   * @param idxs Indices of atoms in the substructure.
-   * @return The new substructure.
-   */
-  Substructure &add_substructure(
-      std::vector<int> &&idxs,
-      SubstructCategory cat = SubstructCategory::kUnknown) noexcept {
-    return substructs_.emplace_back(Subgraph(graph_, std::move(idxs)), cat);
+  Substructure &add_substructure(Substructure &&sub) {
+    return substructs_.emplace_back(std::move(sub));
   }
 
   /**
