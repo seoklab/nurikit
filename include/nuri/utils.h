@@ -647,13 +647,23 @@ namespace internal {
   }
 
   template <class PT>
-  void set_name(PT &props, std::string_view name) {
+  void set_name(PT &props, std::string &&name) {
     auto it = find_name(props);
     if (it != props.end()) {
-      it->second = name;
+      it->second = std::move(name);
     } else {
-      props.emplace_back(kNameKey, name);
+      props.emplace_back(kNameKey, std::move(name));
     }
+  }
+
+  template <class PT>
+  void set_name(PT &props, const char *name) {
+    set_name(props, std::string(name));
+  }
+
+  template <class PT>
+  void set_name(PT &props, std::string_view name) {
+    set_name(props, std::string(name));
   }
 
   constexpr inline int negate_if_false(bool cond) {
