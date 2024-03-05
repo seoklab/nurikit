@@ -18,9 +18,9 @@ constexpr inline double kDefaultThreshold = 0.5;
  * @param threshold The threshold for guessing bonds.
  * @return true if the guessing is successful.
  *
- * This function assumes all connectivity information is missing, and all atom
- * types and implicit hydrogen counts are incorrect. The information present
- * in the molecule could be overwritten by this function.
+ * This function find extra bonds that are not in the input molecule, and add
+ * them to the molecule. The information present in the molecule will be
+ * preserved, except the newly added bonds and atoms that are connected to them.
  *
  * If connectivity information is already present and is correct, consider using
  * guess_all_types().
