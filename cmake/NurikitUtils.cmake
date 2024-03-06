@@ -113,6 +113,54 @@ function(find_or_fetch_eigen)
   endif()
 endfunction()
 
+function(find_or_fetch_boost)
+  set(BUILD_TESTING OFF)
+  set(Boost_ENABLE_CMAKE ON)
+  set(Boost_USE_STATIC_LIBS ON)
+
+  find_package(Boost 1.82)
+
+  if(Boost_FOUND)
+    message(STATUS "Found Boost ${Boost_VERSION}")
+    return()
+  endif()
+
+  message(NOTICE "Could not find compatible Boost. Fetching from boostorg.")
+  include(FetchContent)
+  FetchContent_Declare(
+    boost
+    URL https://github.com/boostorg/boost/releases/download/boost-1.82.0/boost-1.82.0.tar.xz
+  )
+  nuri_make_available_deponly(boost)
+
+  # emulate find_package(Boost) behavior
+  add_library(Boost::boost INTERFACE IMPORTED)
+  target_link_libraries(Boost::boost INTERFACE
+    Boost::iterator Boost::config # for iterators
+    Boost::spirit Boost::fusion Boost::mpl Boost::optional # For parsers
+  )
+endfunction()
+
+function(find_or_fetch_pybind11)
+  set(BUILD_TESTING OFF)
+
+  find_package(pybind11 2.10.4)
+
+  if(pybind11_FOUND)
+    message(STATUS "Found pybind11 ${pybind11_VERSION}")
+  else()
+    include(FetchContent)
+    message(NOTICE "Could not find compatible pybind11. Fetching from github.")
+
+    Fetchcontent_Declare(
+      pybind11
+      GIT_REPOSITORY https://github.com/pybind/pybind11.git
+      GIT_TAG v2.10.4
+    )
+    nuri_make_available_deponly(pybind11)
+  endif()
+endfunction()
+
 function(_target_system_include target dep)
   get_target_property(interface_include_dirs "${dep}"
     INTERFACE_INCLUDE_DIRECTORIES)
