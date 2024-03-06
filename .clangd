@@ -26,6 +26,7 @@ CompileFlags:
     - -Wno-unsafe-buffer-usage
   Remove:
     - "-fsanitize=*"
+    - "-flto*"
 Index:
   StandardLibrary: Yes
 Style:
