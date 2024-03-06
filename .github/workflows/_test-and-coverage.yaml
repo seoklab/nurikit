@@ -25,24 +25,29 @@ jobs:
         with:
           cmakeVersion: "~3.16.0" # for Ubuntu 20.04
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-
-      - name: Install gcovr
-        run: pip install gcovr
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Compile and run tests
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.8"
+
+      - run: pip install sphinx sphinx-rtd-theme
+
+      - name: Configure
         run: |
-          mkdir build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Debug -DNURI_TEST_COVERAGE=ON -G Ninja ..
-          cmake --build . -j --target nuri_all_test
-          ../scripts/check_coverage.sh . --json
+          cmake -G Ninja -S . -B build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DNURI_TEST_COVERAGE=ON \
+            -DNURI_BUILD_PYTHON=ON
+
+      - run: pip install -v '.[test,docs,coverage]'
+        env:
+          SKBUILD_BUILD_DIR: build
+
+      - run: ./scripts/check_coverage.sh --json build
 
       - uses: codecov/codecov-action@v4
         with:
