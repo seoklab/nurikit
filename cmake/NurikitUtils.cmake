@@ -115,8 +115,6 @@ endfunction()
 
 function(find_or_fetch_boost)
   set(BUILD_TESTING OFF)
-  set(Boost_ENABLE_CMAKE ON)
-  set(Boost_USE_STATIC_LIBS ON)
 
   find_package(Boost 1.82)
 
@@ -131,6 +129,9 @@ function(find_or_fetch_boost)
     boost
     URL https://github.com/boostorg/boost/releases/download/boost-1.82.0/boost-1.82.0.tar.xz
   )
+
+  set(Boost_ENABLE_CMAKE ON)
+  set(Boost_USE_STATIC_LIBS ON)
   nuri_make_available_deponly(boost)
 
   # emulate find_package(Boost) behavior
@@ -138,6 +139,10 @@ function(find_or_fetch_boost)
   target_link_libraries(Boost::boost INTERFACE
     Boost::iterator Boost::config # for iterators
     Boost::spirit Boost::fusion Boost::mpl Boost::optional # For parsers
+  )
+  target_compile_definitions(Boost::boost INTERFACE
+    BOOST_ALL_NO_LIB
+    BOOST_ERROR_CODE_HEADER_ONLY
   )
 endfunction()
 
