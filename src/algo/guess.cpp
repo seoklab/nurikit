@@ -913,7 +913,8 @@ namespace {
 
   template <auto cutoff>
   auto ordered(const AtomData &a, const AtomData &b) {
-    auto [an1, an2] = std::minmax(a.atomic_number(), b.atomic_number());
+    int an1 = a.atomic_number(), an2 = b.atomic_number();
+    std::tie(an1, an2) = std::minmax(an1, an2);
     return cutoff(an1, an2);
   }
 
@@ -1373,26 +1374,29 @@ namespace {
   void find_conjugated_groups_dfs(const Molecule &mol, const Matrix3Xd &pos,
                                   absl::flat_hash_set<int> &candidates,
                                   std::vector<std::vector<int>> &groups,
-                                  int cur, const Molecule::Neighbor *prev_nei) {
+                                  int cur,
+                                  Molecule::const_neighbor_iterator prev_nei) {
     groups.back().push_back(cur);
     candidates.erase(cur);
 
     auto src = mol.atom(cur);
-    for (auto nei: src) {
-      auto dst = nei.dst();
+    for (auto nit = src.begin(); nit != src.end(); ++nit) {
+      auto dst = nit->dst();
       if (!candidates.contains(dst.id()))
         continue;
 
-      if (prev_nei == nullptr) {
-        Molecule::Neighbor rev = *dst.find_adjacent(cur);
-        prev_nei = &rev;
-        find_conjugated_groups_dfs(mol, pos, candidates, groups, dst.id(),
-                                   &rev);
+      if (prev_nei.end()) {
+        auto rev = dst.find_adjacent(cur);
+        bool has_rev = !rev.end();
+        ABSL_ASSUME(has_rev);
+
+        prev_nei = rev;
+        find_conjugated_groups_dfs(mol, pos, candidates, groups, dst.id(), rev);
         continue;
       }
 
       if (prev_nei->edge_data().order() == constants::kSingleBond) {
-        if (nei.edge_data().order() == constants::kSingleBond
+        if (nit->edge_data().order() == constants::kSingleBond
             && src.data().atomic_number() != 0
             && dst.data().atomic_number() != 0) {
           // Single - single bond -> conjugated if curr has lone pair and
@@ -1402,9 +1406,9 @@ namespace {
           if ((src_nbe > 0 && dst_nbe > 0) || (src_nbe <= 0 && dst_nbe <= 0))
             continue;
         }
-      } else if (nei.edge_data().order() != constants::kSingleBond
+      } else if (nit->edge_data().order() != constants::kSingleBond
                  && prev_nei->edge_data().order() != constants::kAromaticBond
-                 && nei.edge_data().order() != constants::kAromaticBond) {
+                 && nit->edge_data().order() != constants::kAromaticBond) {
         // Aromatic - aromatic bond -> conjugated
         // Aromatic - double/triple bond
         //          -> exocyclic C=O like structure (technically conjugated)
@@ -1423,7 +1427,7 @@ namespace {
         continue;
       }
 
-      find_conjugated_groups_dfs(mol, pos, candidates, groups, dst.id(), &nei);
+      find_conjugated_groups_dfs(mol, pos, candidates, groups, dst.id(), nit);
     }
   }
 
@@ -1436,7 +1440,7 @@ namespace {
         continue;
 
       find_conjugated_groups_dfs(mol, pos, candidates, groups, atom.id(),
-                                 nullptr);
+                                 atom.end());
 
       if (groups.back().size() < 3) {
         candidates.insert(groups.back().begin(), groups.back().end());
