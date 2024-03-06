@@ -15,6 +15,7 @@
 #include <absl/log/initialize.h>
 #include <absl/log/log_entry.h>
 #include <absl/log/log_sink.h>
+#include <absl/log/vlog_is_on.h>
 
 #ifndef __clang_analyzer__
 #include <absl/log/log_sink_registry.h>
