@@ -618,6 +618,10 @@ namespace {
 
     visited[atom.id()] = true;
     atom.data().set_hybridization(constants::kSP3);
+
+    for (auto nei: atom)
+      nei.edge_data().set_order(constants::kSingleBond);
+
     for (int i = 0; i < ocnt; ++i) {
       auto nei = atom[oxygens[idxs[i]]];
       auto dst = nei.dst();
@@ -668,17 +672,20 @@ namespace {
                            absl::InlinedVector<PiElecArgs, 2> &pi_e) {
     ABSL_DCHECK(atom.degree() < 4);
 
-    int exo_terminal = absl::c_find_if(atom,
-                                       [](Molecule::Neighbor nei) {
-                                         return nei.dst().degree() == 1;
-                                       })
-                       - atom.begin();
+    int exo_neighbor =
+        absl::c_find_if(atom,
+                        [](Molecule::Neighbor nei) {
+                          return !nei.dst().data().is_ring_atom();
+                        })
+        - atom.begin();
 
     int exo_double_partner = -1, exo_single_partner = -1;
-    if (exo_terminal < atom.degree()) {
-      exo_single_partner = exo_terminal;
-      if (atom[exo_terminal].dst().data().atomic_number() == 8)
-        exo_double_partner = exo_terminal;
+    if (exo_neighbor < atom.degree()) {
+      auto exo = atom[exo_neighbor].dst();
+
+      exo_single_partner = exo_neighbor;
+      if (exo.data().atomic_number() == 8 && exo.degree() == 1)
+        exo_double_partner = exo_neighbor;
     }
 
     // 1. all degree 2 could also be considered as degree 3 with one implicit H,
@@ -804,14 +811,7 @@ namespace {
 
       if (pi_e.exo_single_partner >= 0) {
         auto exo = atom[pi_e.exo_single_partner];
-        exo.edge_data()
-            .set_order(constants::kSingleBond)
-            .add_flags(BondFlags::kConjugated);
-        exo.dst()
-            .data()
-            .set_formal_charge(0)
-            .set_hybridization(constants::kSP2)
-            .add_flags(AtomFlags::kConjugated);
+        exo.edge_data().set_order(constants::kSingleBond);
       } else if (pi_e.exo_double_partner >= 0) {
         auto exo = atom[pi_e.exo_double_partner];
 
