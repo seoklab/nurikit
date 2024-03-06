@@ -63,7 +63,7 @@ elseif(NURI_ENABLE_IPO)
 endif()
 
 if(NURI_ENABLE_SANITIZERS)
-  message(STATUS "Enabling sanitizers")
+  message("Enabling sanitizers as requested")
   add_compile_options(-fsanitize=address -fsanitize=undefined)
   add_link_options(-fsanitize=address -fsanitize=undefined)
 endif()
