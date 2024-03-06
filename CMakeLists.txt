@@ -56,15 +56,16 @@ endif()
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_options(-O0)
   add_compile_definitions("DEBUG")
-
-  if(NURI_ENABLE_SANITIZERS)
-    add_compile_options(-fsanitize=address -fsanitize=undefined)
-    add_link_options(-fsanitize=address -fsanitize=undefined)
-  endif()
 elseif(NURI_ENABLE_IPO)
   # Next line is required for absl, etc.
   set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+endif()
+
+if(NURI_ENABLE_SANITIZERS)
+  message(STATUS "Enabling sanitizers")
+  add_compile_options(-fsanitize=address -fsanitize=undefined)
+  add_link_options(-fsanitize=address -fsanitize=undefined)
 endif()
 
 if(CMAKE_BUILD_TYPE MATCHES "Release|MinSizeRel")
