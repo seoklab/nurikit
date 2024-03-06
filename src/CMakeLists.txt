@@ -40,3 +40,4 @@ target_system_include_directories(nuri_lib Eigen3::Eigen)
 target_link_libraries(nuri_exe PRIVATE nuri_lib)
 
 install(TARGETS nuri_lib LIBRARY)
+install(TARGETS nuri_exe RUNTIME)
