@@ -63,13 +63,16 @@ void set_log_level(int level) {
   absl::SetMinLogLevel(severity);
   ABSL_DLOG(INFO) << "Setting log level " << severity;
 
+  int prev;
   if (level > 0 && level <= 10) {
-    int prev = absl::SetGlobalVLogLevel(3);
+    prev = absl::SetGlobalVLogLevel(3);
     ABSL_DVLOG(1) << "Setting verbose log level " << prev << " -> 3";
   } else {
-    int prev = absl::SetGlobalVLogLevel(0);
+    prev = absl::SetGlobalVLogLevel(0);
     ABSL_DLOG(INFO) << "Setting verbose log level " << prev << " -> 0";
   }
+  // Silence unused variable warning
+  static_cast<void>(prev);
 }
 
 class PyLogSink: public absl::LogSink {
