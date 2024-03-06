@@ -67,7 +67,7 @@ void set_log_level(int level) {
   if (level > 0 && level <= 10) {
     prev = absl::SetGlobalVLogLevel(3);
     ABSL_DVLOG(1) << "Setting verbose log level " << prev << " -> 3";
-  } else {
+  } else if (ABSL_VLOG_IS_ON(1)) {
     prev = absl::SetGlobalVLogLevel(0);
     ABSL_DLOG(INFO) << "Setting verbose log level " << prev << " -> 0";
   }
