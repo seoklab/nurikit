@@ -14,7 +14,7 @@ FetchContent_Declare(
 set(Boost_INCLUDE_LIBRARIES spirit)
 set(Boost_ENABLE_CMAKE ON)
 set(Boost_USE_STATIC_LIBS ON)
-nurikit_make_available_deponly(boost)
+nuri_make_available_deponly(boost)
 
 include(GNUInstallDirs)
 

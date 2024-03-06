@@ -5,37 +5,21 @@
 #ifndef NURI_CORE_BOOL_MATRIX_H_
 #define NURI_CORE_BOOL_MATRIX_H_
 
-#include <climits>
+#include <cstdint>
+#include <limits>
 #include <vector>
 
 #include <Eigen/Dense>
 
-#include <absl/base/attributes.h>
-#include <absl/base/config.h>
 #include <absl/base/optimization.h>
 
 #include "nuri/eigen_config.h"
 
 namespace nuri {
-// NOLINTBEGIN(google-runtime-int)
-
 namespace internal {
-  template <class N>
-  ABSL_ATTRIBUTE_CONST_FUNCTION int ffsll(N i) {
-#if ABSL_HAVE_BUILTIN(__builtin_ffsll) || defined(__GNUC__)
-    return __builtin_ffsll(static_cast<long long>(i)) - 1;
-#else
-    for (int j = 0; j < sizeof(i) * CHAR_BIT; ++j) {
-      if ((i & static_cast<N>(1ULL << j)) != 0) {
-        return j;
-      }
-    }
-    return -1;
-#endif
-  }
-
-  using Block = unsigned long long;
-  constexpr inline Eigen::Index kBitsPerBlock = sizeof(Block) * CHAR_BIT;
+  using Block = uint64_t;
+  constexpr inline Eigen::Index kBitsPerBlock =
+      std::numeric_limits<Block>::digits;
 }  // namespace internal
 
 class BoolMatrixKey {
@@ -150,7 +134,7 @@ private:
 
   Index find_pivot(BoolMatrixKey row, const std::vector<int> &used) const {
     for (Index i = 0; i < data_.cols(); ++i)
-      if (used[i] == 0 && (data_(row.blk(), i) & row.mask()) != 0)
+      if (used[i] == 0 && (*this)(row, i))
         return i;
 
     return -1;
@@ -160,7 +144,6 @@ private:
   Matrix<internal::Block, Eigen::Dynamic, Eigen::Dynamic> data_;
   Eigen::Index rows_;
 };
-// NOLINTEND(google-runtime-int)
 }  // namespace nuri
 
 #endif /* NURI_CORE_BOOL_MATRIX_H_ */

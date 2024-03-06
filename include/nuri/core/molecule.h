@@ -23,7 +23,7 @@
 #include <absl/base/attributes.h>
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
-#include <absl/log/absl_log.h>
+#include <absl/log/absl_check.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
@@ -219,9 +219,8 @@ public:
   constants::Hybridization hybridization() const { return hyb_; }
 
   AtomData &set_implicit_hydrogens(int implicit_hydrogens) {
-    ABSL_DLOG_IF(WARNING, implicit_hydrogens < 0)
-        << "Negative implicit hydrogens are not allowed. Setting to 0.";
-    implicit_hydrogens_ = std::max(0, implicit_hydrogens);
+    ABSL_DCHECK(implicit_hydrogens >= 0);
+    implicit_hydrogens_ = implicit_hydrogens;
     return *this;
   }
 
@@ -312,8 +311,17 @@ public:
 
   std::string_view get_name() const { return internal::get_name(props_); }
 
+  AtomData &set_name(const char *name) {
+    return set_name(std::string_view(name));
+  }
+
   AtomData &set_name(std::string_view name) {
     internal::set_name(props_, name);
+    return *this;
+  }
+
+  AtomData &set_name(std::string &&name) {
+    internal::set_name(props_, std::move(name));
     return *this;
   }
 
@@ -385,8 +393,9 @@ public:
   }
 
   bool is_rotable() const {
-    return !internal::check_flag(flags_,
-                                 BondFlags::kConjugated | BondFlags::kRing);
+    return order_ <= constants::kSingleBond
+           && !internal::check_flag(flags_,
+                                    BondFlags::kConjugated | BondFlags::kRing);
   }
 
   bool is_ring_bond() const {
@@ -444,8 +453,15 @@ public:
 
   std::string_view get_name() const { return internal::get_name(props_); }
 
+  BondData &set_name(const char *name) { return set_name(std::string(name)); }
+
   BondData &set_name(std::string_view name) {
     internal::set_name(props_, name);
+    return *this;
+  }
+
+  BondData &set_name(std::string &&name) {
+    internal::set_name(props_, std::move(name));
     return *this;
   }
 
@@ -494,6 +510,15 @@ namespace internal {
     using atom_iterator = iterator;
     using const_atom_iterator = const_iterator;
 
+    using bond_iterator = typename SubgraphType::edge_iterator;
+    using const_bond_iterator = typename SubgraphType::const_edge_iterator;
+    using MutableBond = typename SubgraphType::EdgeRef;
+    using Bond = typename SubgraphType::ConstEdgeRef;
+
+    using BondsWrapper = typename SubgraphType::EdgesWrapper;
+    using ConstBondsWrapper = typename SubgraphType::ConstEdgesWrapper;
+
+    using MutableNeighbor = typename SubgraphType::AdjRef;
     using Neighbor = typename SubgraphType::ConstAdjRef;
     using neighbor_iterator = typename SubgraphType::adjacency_iterator;
     using const_neighbor_iterator =
@@ -552,6 +577,7 @@ namespace internal {
     bool empty() const { return graph_.empty(); }
     int size() const { return graph_.size(); }
     int num_atoms() const { return graph_.num_nodes(); }
+    int num_bonds() const { return graph_.num_edges(); }
     int count_heavy_atoms() const {
       return absl::c_count_if(graph_, [](Substructure::Atom atom) {
         return atom.data().atomic_number() != 1;
@@ -568,18 +594,46 @@ namespace internal {
 
     void clear_atoms() noexcept { graph_.clear(); }
 
-    void update(const std::vector<int> &atoms) { graph_.update(atoms); }
-    void update(std::vector<int> &&atoms) noexcept {
-      graph_.update(std::move(atoms));
+    void update(const std::vector<int> &atoms, const std::vector<int> &bonds) {
+      graph_.update(atoms, bonds);
     }
 
-    void reserve(int n) { graph_.reserve(n); }
+    void update(std::vector<int> &&atoms, std::vector<int> &&bonds) {
+      graph_.update(std::move(atoms), std::move(bonds));
+    }
+
+    void update_atoms(const std::vector<int> &atoms) {
+      graph_.update_nodes(atoms);
+    }
+
+    void update_atoms(std::vector<int> &&atoms) noexcept {
+      graph_.update_nodes(std::move(atoms));
+    }
+
+    void reserve_atoms(int n) { graph_.reserve_nodes(n); }
 
     void add_atom(int id) { graph_.add_node(id); }
 
-    bool contains(int id) const { return graph_.contains(id); }
-    bool contains(typename GraphType::ConstNodeRef atom) const {
-      return graph_.contains(atom);
+    void add_atoms(const SortedIdxs &atoms, bool bonds = false) {
+      if (bonds) {
+        graph_.add_nodes_with_edges(atoms);
+      } else {
+        graph_.add_nodes(atoms);
+      }
+    }
+
+    template <class Iter>
+    void add_atoms(Iter begin, Iter end, bool bonds = false) {
+      if (bonds) {
+        graph_.add_nodes_with_edges(begin, end);
+      } else {
+        graph_.add_nodes(begin, end);
+      }
+    }
+
+    bool contains_atom(int id) const { return graph_.contains_node(id); }
+    bool contains_atom(typename GraphType::ConstNodeRef atom) const {
+      return graph_.contains_node(atom);
     }
 
     MutableAtom operator[](int idx) { return graph_[idx]; }
@@ -625,18 +679,117 @@ namespace internal {
     const_iterator cbegin() const { return graph_.cbegin(); }
     const_iterator cend() const { return graph_.cend(); }
 
+    atom_iterator atom_begin() { return graph_.node_begin(); }
+    atom_iterator atom_end() { return graph_.node_end(); }
+
+    const_atom_iterator atom_begin() const { return atom_cbegin(); }
+    const_atom_iterator atom_end() const { return atom_cend(); }
+
+    const_atom_iterator atom_cbegin() const { return graph_.node_cbegin(); }
+    const_atom_iterator atom_cend() const { return graph_.node_cend(); }
+
     const std::vector<int> &atom_ids() const { return graph_.node_ids(); }
 
-    auto bonds() { return graph_.edges(); }
-    auto bonds() const { return graph_.edges(); }
+    BondsWrapper bonds() { return graph_.edges(); }
+    ConstBondsWrapper bonds() const { return graph_.edges(); }
+
+    void clear_bonds() noexcept { graph_.clear_edges(); }
+
+    void update_bonds(const std::vector<int> &bonds) {
+      graph_.update_edges(bonds);
+    }
+
+    void update_bonds(std::vector<int> &&bonds) noexcept {
+      graph_.update_edges(std::move(bonds));
+    }
+
+    void refresh_bonds() { graph_.refresh_edges(); }
+
+    void reserve_bonds(int n) { graph_.reserve_edges(n); }
+
+    void add_bond(int id) { graph_.add_edge(id); }
+
+    void add_bonds(const internal::SortedIdxs &bonds) {
+      graph_.add_edges(bonds);
+    }
+
+    template <class Iter>
+    void add_bonds(Iter begin, Iter end) {
+      graph_.add_edges(begin, end);
+    }
+
+    bool contains_bond(int id) const { return graph_.contains_edge(id); }
+    bool contains_bond(typename GraphType::ConstEdgeRef bond) const {
+      return graph_.contains_edge(bond);
+    }
+
+    bond_iterator find_bond(Atom src, Atom dst) {
+      return graph_.find_edge(src, dst);
+    }
+
+    const_bond_iterator find_bond(Atom src, Atom dst) const {
+      return graph_.find_edge(src, dst);
+    }
+
+    bond_iterator find_bond(typename GraphType::ConstNodeRef src,
+                            typename GraphType::ConstNodeRef dst) {
+      return graph_.find_edge(src, dst);
+    }
+
+    const_bond_iterator find_bond(typename GraphType::ConstNodeRef src,
+                                  typename GraphType::ConstNodeRef dst) const {
+      return graph_.find_edge(src, dst);
+    }
+
+    MutableBond bond(int idx) { return graph_.edge(idx); }
+    Bond bond(int idx) const { return graph_.edge(idx); }
+
+    bond_iterator find_bond(int id) { return graph_.find_edge(id); }
+    bond_iterator find_bond(typename GraphType::ConstEdgeRef bond) {
+      return graph_.find_edge(bond);
+    }
+
+    const_bond_iterator find_bond(int id) const { return graph_.find_edge(id); }
+    const_bond_iterator find_bond(typename GraphType::ConstEdgeRef bond) const {
+      return graph_.find_edge(bond);
+    }
+
+    void erase_bond(int idx) { graph_.erase_edge(idx); }
+    void erase_bond(Bond bond) { graph_.erase_edge(bond); }
+
+    void erase_bonds(const_bond_iterator begin, const_bond_iterator end) {
+      graph_.erase_edges(begin, end);
+    }
+
+    void erase_bond_of(int id) { graph_.erase_edge_of(id); }
+
+    void erase_bond_of(typename GraphType::ConstEdgeRef bond) {
+      graph_.erase_edge_of(bond);
+    }
+
+    template <class UnaryPred>
+    void erase_bonds_if(UnaryPred &&pred) {
+      graph_.erase_edges_if(std::forward<UnaryPred>(pred));
+    }
+
+    bond_iterator bond_begin() { return graph_.edge_begin(); }
+    bond_iterator bond_end() { return graph_.edge_end(); }
+
+    const_bond_iterator bond_begin() const { return bond_cbegin(); }
+    const_bond_iterator bond_end() const { return bond_cend(); }
+
+    const_bond_iterator bond_cbegin() const { return graph_.edge_cbegin(); }
+    const_bond_iterator bond_cend() const { return graph_.edge_cend(); }
+
+    const std::vector<int> &bond_ids() const { return graph_.edge_ids(); }
 
     int degree(int id) const { return graph_.degree(id); }
 
-    neighbor_iterator find_neighbor(int src, int dst) {
+    neighbor_iterator find_neighbor(Atom src, Atom dst) {
       return graph_.find_adjacent(src, dst);
     }
 
-    const_neighbor_iterator find_neighbor(int src, int dst) const {
+    const_neighbor_iterator find_neighbor(Atom src, Atom dst) const {
       return graph_.find_adjacent(src, dst);
     }
 
@@ -1077,6 +1230,30 @@ public:
   }
 
   /**
+   * @brief Get a bond of the molecule.
+   * @param src The source atom of the bond.
+   * @param dst The destination atom of the bond.
+   * @return An iterator to the bond between \p src and \p dst of the molecule.
+   *         If no such bond exists, the returned iterator is equal to
+   *         bond_end().
+   */
+  bond_iterator find_bond(Atom src, Atom dst) {
+    return graph_.find_edge(src, dst);
+  }
+
+  /**
+   * @brief Get a bond of the molecule.
+   * @param src The source atom of the bond.
+   * @param dst The destination atom of the bond.
+   * @return An iterator to the bond between \p src and \p dst of the molecule.
+   *         If no such bond exists, the returned iterator is equal to
+   *         bond_end().
+   */
+  const_bond_iterator find_bond(Atom src, Atom dst) const {
+    return graph_.find_edge(src, dst);
+  }
+
+  /**
    * @brief Get an iterable, modifiable view over bonds of the molecule.
    */
   auto bonds() { return graph_.edges(); }
@@ -1109,6 +1286,15 @@ public:
   const_bond_iterator bond_end() const { return graph_.edge_end(); }
 
   /**
+   * @brief Get the explicitly connected neighbor atoms of the atom.
+   * @param atom Index of the atom.
+   * @return The number of bonds connected to the atom.
+   * @note If the atom index is out of range, the behavior is undefined.
+   * @sa all_neighbors(), count_heavy(), count_hydrogens()
+   */
+  int num_neighbors(int atom) const { return graph_.degree(atom); }
+
+  /**
    * @brief Find a neighbor of the atom.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
@@ -1129,6 +1315,30 @@ public:
    *         equal to \ref neighbor_end() "neighbor_end(\p src)"
    */
   const_neighbor_iterator find_neighbor(int src, int dst) const {
+    return graph_.find_adjacent(src, dst);
+  }
+
+  /**
+   * @brief Find a neighbor of the atom.
+   * @param src The source atom of the bond.
+   * @param dst The destination atom of the bond.
+   * @return An iterator to the neighbor wrapper between \p src and \p dst of
+   *         the molecule. If no such bond exists, the returned iterator is
+   *         equal to \ref neighbor_end() "neighbor_end(\p src)"
+   */
+  neighbor_iterator find_neighbor(Atom src, Atom dst) {
+    return graph_.find_adjacent(src, dst);
+  }
+
+  /**
+   * @brief Find a neighbor of the atom.
+   * @param src The source atom of the bond.
+   * @param dst The destination atom of the bond.
+   * @return An iterator to the neighbor wrapper between \p src and \p dst of
+   *         the molecule. If no such bond exists, the returned iterator is
+   *         equal to \ref neighbor_end() "neighbor_end(\p src)"
+   */
+  const_neighbor_iterator find_neighbor(Atom src, Atom dst) const {
     return graph_.find_adjacent(src, dst);
   }
 
@@ -1212,73 +1422,18 @@ public:
   bool is_3d() const { return !conformers_.empty(); }
 
   /**
-   * @brief Get the atomic coordinates of ith conformer.
-   *
-   * @param i Index of the conformer.
-   * @return A mutable view over the atomic coordinates of ith conformer.
-   * @note If index is out of range, the behavior is undefined.
-   * @note Resizing the returned matrix is a no-op. In debug mode, an assertion
-   *       failure will be triggered if the matrix is resized.
+   * @brief Get all atomic coordinates of the conformers.
+   * @return Atomic coordinates of the conformers of the molecule.
+   * @note If any conformer's column size is not equal to the number of atoms,
+   *       the behavior is undefined.
    */
-  Eigen::Ref<Matrix3Xd> conf(int i = 0) { return conformers_[i]; }
-
-  /**
-   * @brief Get the atomic coordinates of ith conformer.
-   *
-   * @param i Index of the conformer.
-   * @return Atomic coordinates of ith conformer.
-   * @note If index is out of range, the behavior is undefined.
-   */
-  const Matrix3Xd &conf(int i = 0) const { return cconf(i); }
-
-  /**
-   * @brief Get the atomic coordinates of ith conformer.
-   *
-   * @param i Index of the conformer.
-   * @return Atomic coordinates of ith conformer.
-   * @note If index is out of range, the behavior is undefined.
-   */
-  const Matrix3Xd &cconf(int i = 0) const { return conformers_[i]; }
-
-  /**
-   * @brief Get total number of conformers.
-   * @return The number of conformers of the molecule.
-   */
-  int num_conf() const { return static_cast<int>(conformers_.size()); }
+  std::vector<Matrix3Xd> &confs() { return conformers_; }
 
   /**
    * @brief Get all atomic coordinates of the conformers.
    * @return Atomic coordinates of the conformers of the molecule.
    */
-  const std::vector<Matrix3Xd> &all_conf() const { return conformers_; }
-
-  /**
-   * @brief Add a new conformer to the molecule.
-   *
-   * @param pos Atomic coordinates of the new conformer.
-   * @return The index of the added conformer.
-   * @note If number of cols of \p pos does not match the number of atoms in the
-   *       molecule, the behavior is undefined.
-   */
-  int add_conf(const Matrix3Xd &pos);
-
-  /**
-   * @brief Add a new conformer to the molecule.
-   *
-   * @param pos Atomic coordinates of the new conformer.
-   * @return The index of the added conformer.
-   * @note If number of cols of \p pos does not match the number of atoms in the
-   *       molecule, the behavior is undefined.
-   */
-  int add_conf(Matrix3Xd &&pos) noexcept;
-
-  /**
-   * @brief Erase a conformer from the molecule.
-   *
-   * @param idx Index of the conformer to erase.
-   * @note The behavior is undefined if the conformer index is out of range.
-   */
-  void erase_conf(int idx) { conformers_.erase(conformers_.begin() + idx); }
+  const std::vector<Matrix3Xd> &confs() const { return conformers_; }
 
   /**
    * @brief Transform the molecule with the given affine transformation.
@@ -1362,14 +1517,18 @@ public:
    * @param pivot_atom Index of the pivot atom.
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
-   *         not applied (e.g. if the reference atom and the pivot atom are not
-   *         connected by a bond, the bond is not rotatable, etc.).
+   *         not applied.
+   * @note Rotability only considers ring membership. The user is responsible
+   *       to check bond order or other constraints.
    *
    * The rotation is applied to all conformers of the molecule.
    *
    * The part of the reference atom is fixed, and the part of the pivot atom
    * will be rotated about the reference atom -> pivot atom axis. Positive angle
    * means counter-clockwise rotation (as in the right-hand rule).
+   *
+   * The behavior is undefined if any of the indices are out of range, or if the
+   * atoms are not connected by a bond.
    */
   bool rotate_bond(int ref_atom, int pivot_atom, double angle);
 
@@ -1378,13 +1537,17 @@ public:
    * @param bid The index of bond to rotate.
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
-   *         not applied (e.g. the bond is not rotatable, etc.).
+   *         not applied.
+   * @note Rotability only considers ring membership. The user is responsible
+   *       to check bond order or other constraints.
    *
    * The rotation is applied to all conformers of the molecule.
    *
    * The source atom of the bond is fixed, and the destination atom will be
    * rotated about the source atom -> destination atom axis. Positive angle
    * means counter-clockwise rotation (as in the right-hand rule).
+   *
+   * The behavior is undefined if any of the indices are out of range.
    */
   bool rotate_bond(int bid, double angle);
 
@@ -1395,12 +1558,16 @@ public:
    * @param pivot_atom Index of the pivot atom.
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
-   *         not applied (e.g. if the pivot atom and the pivot atom are not
-   *         connected by a bond, the bond is not rotatable, etc.).
+   *         not applied.
+   * @note Rotability only considers ring membership. The user is responsible
+   *       to check bond order or other constraints.
    *
    * The part of the pivot atom is fixed, and the part of the pivot atom will be
    * rotated about the pivot atom -> pivot atom axis. Positive angle means
    * counter-clockwise rotation (as in the right-hand rule).
+   *
+   * The behavior is undefined if any of the indices are out of range, or if the
+   * atoms are not connected by a bond.
    */
   bool rotate_bond_conf(int i, int ref_atom, int pivot_atom, double angle);
 
@@ -1411,10 +1578,14 @@ public:
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
    *         not applied (e.g. the bond is not rotatable, etc.).
+   * @note Rotability only considers ring membership. The user is responsible
+   *       to check bond order or other constraints.
    *
    * The source atom of the bond is fixed, and the destination atom will be
    * rotated about the source atom -> destination atom axis. Positive angle
    * means counter-clockwise rotation (as in the right-hand rule).
+   *
+   * The behavior is undefined if any of the indices are out of range.
    */
   bool rotate_bond_conf(int i, int bid, double angle);
 
@@ -1425,7 +1596,7 @@ public:
    */
   Substructure
   substructure(SubstructCategory cat = SubstructCategory::kUnknown) {
-    return { Subgraph(graph_), cat };
+    return { make_subgraph(graph_), cat };
   }
 
   /**
@@ -1434,20 +1605,31 @@ public:
    * @return The new substructure.
    */
   Substructure
-  substructure(const std::vector<int> &nodes,
+  substructure(internal::SortedIdxs &&atoms, internal::SortedIdxs &&bonds,
                SubstructCategory cat = SubstructCategory::kUnknown) {
-    return { Subgraph(graph_, nodes), cat };
+    return { make_subgraph(graph_, std::move(atoms), std::move(bonds)), cat };
   }
 
   /**
    * @brief Create and return a substurcture of the molecule.
-   *
-   * @return The new substructure.
+   * @param atoms Indices of atoms in the substructure. All bonds between the
+   *        atoms will also be included in the substructure.
    */
   Substructure
-  substructure(std::vector<int> &&nodes,
-               SubstructCategory cat = SubstructCategory::kUnknown) noexcept {
-    return { Subgraph(graph_, std::move(nodes)), cat };
+  atom_substructure(internal::SortedIdxs &&atoms,
+                    SubstructCategory cat = SubstructCategory::kUnknown) {
+    return { subgraph_from_nodes(graph_, std::move(atoms)), cat };
+  }
+
+  /**
+   * @brief Create and return a substurcture of the molecule.
+   * @param bonds Indices of bonds in the substructure. All atoms connected by
+   *        the bonds will also be included in the substructure.
+   */
+  Substructure bond_substructure(
+      internal::SortedIdxs &&bonds,
+      SubstructCategory cat = SubstructCategory::kUnknown) noexcept {
+    return { subgraph_from_edges(graph_, std::move(bonds)), cat };
   }
 
   /**
@@ -1466,22 +1648,32 @@ public:
    * @return The new substructure.
    */
   ConstSubstructure
-  substructure(const std::vector<int> &nodes,
+  substructure(internal::SortedIdxs &&atoms, internal::SortedIdxs &&bonds,
                SubstructCategory cat = SubstructCategory::kUnknown) const {
-    return { Subgraph(graph_, nodes), cat };
+    return { make_subgraph(graph_, std::move(atoms), std::move(bonds)), cat };
   }
 
   /**
    * @brief Create and return a substurcture of the molecule.
-   *
-   * @return The new substructure.
+   * @param atoms Indices of atoms in the substructure. All bonds between the
+   *        atoms will also be included in the substructure.
    */
-  ConstSubstructure substructure(
-      std::vector<int> &&nodes,
-      SubstructCategory cat = SubstructCategory::kUnknown) const noexcept {
-    return { Subgraph(graph_, std::move(nodes)), cat };
+  ConstSubstructure
+  atom_substructure(internal::SortedIdxs &&atoms,
+                    SubstructCategory cat = SubstructCategory::kUnknown) const {
+    return { subgraph_from_nodes(graph_, std::move(atoms)), cat };
   }
 
+  /**
+   * @brief Create and return a substurcture of the molecule.
+   * @param bonds Indices of bonds in the substructure. All atoms connected by
+   *        the bonds will also be included in the substructure.
+   */
+  ConstSubstructure
+  bond_substructure(internal::SortedIdxs &&bonds,
+                    SubstructCategory cat = SubstructCategory::kUnknown) const {
+    return { subgraph_from_edges(graph_, std::move(bonds)), cat };
+  }
   /**
    * @brief Get a substructure of the molecule.
    *
@@ -1499,37 +1691,19 @@ public:
   const Substructure &get_substructure(int i) const { return substructs_[i]; }
 
   /**
-   * @brief Store and return a new substurcture of the molecule.
-   *
+   * @brief Store and return a substurcture of the molecule.
    * @return The new substructure.
    */
-  Substructure &
-  add_substructure(SubstructCategory cat = SubstructCategory::kUnknown) {
-    return substructs_.emplace_back(Subgraph(graph_), cat);
+  Substructure &add_substructure(const Substructure &sub) {
+    return substructs_.emplace_back(sub);
   }
 
   /**
-   * @brief Create and return a substurcture of the molecule.
-   *
-   * @param idxs Indices of atoms in the substructure.
+   * @brief Store and return a substurcture of the molecule.
    * @return The new substructure.
    */
-  Substructure &
-  add_substructure(const std::vector<int> &idxs,
-                   SubstructCategory cat = SubstructCategory::kUnknown) {
-    return substructs_.emplace_back(Subgraph(graph_, idxs), cat);
-  }
-
-  /**
-   * @brief Create and return a substurcture of the molecule.
-   *
-   * @param idxs Indices of atoms in the substructure.
-   * @return The new substructure.
-   */
-  Substructure &add_substructure(
-      std::vector<int> &&idxs,
-      SubstructCategory cat = SubstructCategory::kUnknown) noexcept {
-    return substructs_.emplace_back(Subgraph(graph_, std::move(idxs)), cat);
+  Substructure &add_substructure(Substructure &&sub) {
+    return substructs_.emplace_back(std::move(sub));
   }
 
   /**
@@ -1755,8 +1929,7 @@ private:
 
   void rebind_substructs() noexcept;
 
-  bool rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
-                          double angle);
+  bool rotate_bond_common(int i, int ref_atom, int pivot_atom, double angle);
 
   GraphType graph_;
   std::vector<Matrix3Xd> conformers_;
@@ -1843,6 +2016,14 @@ public:
   void mark_atom_erase(int atom_idx) { erased_atoms_.push_back(atom_idx); }
 
   /**
+   * @brief Mark an atom to be erased.
+   * @param atom An atom to erase.
+   * @note The behavior is undefined if the atom does not belong to the
+   *       molecule.
+   */
+  void mark_atom_erase(Molecule::Atom atom) { mark_atom_erase(atom.id()); }
+
+  /**
    * @brief Clear all atoms and bonds of the molecule.
    */
   void clear_atoms() noexcept;
@@ -1892,6 +2073,23 @@ public:
   }
 
   /**
+   * @brief Add a bond to the molecule.
+   * @param src The source atom of the bond.
+   * @param dst The destination atom of the bond.
+   * @param data The data or bond of the bond to add.
+   * @return If added, pair of iterator to the added bond, and `true`. If the
+   *         bond already exists, pair of iterator to the existing bond, and
+   *         `false`.
+   * @note The behavior is undefined if any of the atom does not belong to the
+   *       molecule, or if src.id() == dst.id().
+   */
+  template <class BD>
+  std::pair<Molecule::bond_iterator, bool>
+  add_bond(Molecule::Atom src, Molecule::Atom dst, BD &&data) {
+    return add_bond(src.id(), dst.id(), std::forward<BD>(data));
+  }
+
+  /**
    * @brief Mark a bond to be erased.
    * @param bid The index of the bond to erase.
    * @note The behavior is undefined if the index is out of range.
@@ -1900,12 +2098,23 @@ public:
 
   /**
    * @brief Mark a bond to be erased.
-   * @param src Index of the source atom of the bond, after all additions.
-   * @param dst Index of the destination atom of the bond, after all additions.
+   * @param src Index of the source atom of the bond.
+   * @param dst Index of the destination atom of the bond.
    * @note The behavior is undefined if any of the atom indices is out of range.
    *       This is a no-op if the bond does not exist.
    */
   void mark_bond_erase(int src, int dst);
+
+  /**
+   * @brief Mark a bond to be erased.
+   * @param src The source atom of the bond.
+   * @param dst The destination atom of the bond.
+   * @note The behavior is undefined if any of the atom does not belong to the
+   *       molecule. This is a no-op if the bond does not exist.
+   */
+  void mark_bond_erase(Molecule::Atom src, Molecule::Atom dst) {
+    mark_bond_erase(src.id(), dst.id());
+  }
 
   /**
    * @brief Clear all bonds of the molecule.

@@ -1,0 +1,12 @@
+#
+# Project nurikit - Copyright 2024 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+InheritParentConfig: true
+CheckOptions:
+  - key: misc-include-cleaner.IgnoreHeaders
+    value: "Eigen/.*;boost/.*;pybind11/.*;nuri/python/config\\.h"
+  - key: misc-header-include-cycle.IgnoredFilesList
+    value: "config.h"

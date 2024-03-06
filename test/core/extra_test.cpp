@@ -3,15 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "nuri/core/bool_matrix.h"
-
 #include <vector>
 
+#include <absl/algorithm/container.h>
 #include <gtest/gtest.h>
 
-namespace {
-using nuri::BoolMatrix;
+#include "nuri/core/bool_matrix.h"
+#include "nuri/utils.h"
 
+namespace nuri {
+namespace {
 TEST(BoolMatrixTest, EliminationTest) {
   /*
    * [[0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1],
@@ -48,4 +49,22 @@ TEST(BoolMatrixTest, EliminationTest) {
   for (int i = 0; i < result.size(); ++i)
     EXPECT_EQ(static_cast<bool>(result[i]), i != 4);
 }
+
+TEST(PowerSetTest, Correctness) {
+  internal::PowersetStream ps(7);
+
+  std::vector<unsigned int> gen;
+  gen.reserve(1U << 7);
+
+  unsigned int i;
+  while (ps >> i)
+    gen.push_back(i);
+
+  EXPECT_EQ(gen.size(), (1U << 7) - 1);
+
+  absl::c_sort(gen);
+  for (i = 0; i < gen.size(); ++i)
+    EXPECT_EQ(gen[i], i + 1) << i;
+}
 }  // namespace
+}  // namespace nuri

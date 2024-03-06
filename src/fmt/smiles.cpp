@@ -5,7 +5,6 @@
 
 #include "nuri/fmt/smiles.h"
 
-#include <algorithm>
 #include <cctype>
 #include <functional>
 #include <stack>
@@ -27,6 +26,7 @@
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 bool SmilesReader::getnext(std::vector<std::string> &block) {
@@ -461,7 +461,7 @@ void update_implicit_hydrogens(Molecule::MutableAtom atom) {
     normal_valence = 1;
   }
 
-  atom.data().set_implicit_hydrogens(std::max(0, normal_valence - sum_bo));
+  atom.data().set_implicit_hydrogens(nonnegative(normal_valence - sum_bo));
 }
 }  // namespace
 

@@ -12,8 +12,8 @@
 #include <cstring>
 #include <filesystem>
 #include <functional>
-#include <initializer_list>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <numeric>
 #include <queue>
@@ -27,8 +27,10 @@
 #include <boost/iterator/iterator_facade.hpp>
 #include <Eigen/Dense>
 
+#include <absl/algorithm/container.h>
 #include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
+#include <absl/numeric/bits.h>
 #include <absl/strings/ascii.h>
 
 #include "nuri/eigen_config.h"
@@ -411,17 +413,17 @@ namespace internal {
         return *this;
       }
 
-      unsigned int leading_ones = 1;
-      for (; static_cast<bool>(state_ & 1U << (n_ - leading_ones));
-           ++leading_ones)
-        ;
+      constexpr auto nbits = std::numeric_limits<decltype(state_)>::digits;
+      unsigned int shifted = state_ << (nbits - n_);
 
-      unsigned int next_one_bit = n_ - leading_ones;
-      for (; !static_cast<bool>(state_ & 1U << next_one_bit); --next_one_bit)
-        ;
+      unsigned int leading_ones = absl::countl_one(shifted);
+      unsigned int stripped = (shifted << leading_ones) >> leading_ones;
+
+      int leading_zeros = absl::countl_zero(stripped);
+      int next_one_bit = std::max(n_ - leading_zeros - 1, 0);
 
       unsigned int mask = (1U << next_one_bit) - 1;
-      state_ = ((1U << leading_ones) - 1) << (next_one_bit + 1)
+      state_ = ((1U << (leading_ones + 1)) - 1) << (next_one_bit + 1)
                | (mask & state_);
       return *this;
     }
@@ -645,13 +647,23 @@ namespace internal {
   }
 
   template <class PT>
-  void set_name(PT &props, std::string_view name) {
+  void set_name(PT &props, std::string &&name) {
     auto it = find_name(props);
     if (it != props.end()) {
-      it->second = name;
+      it->second = std::move(name);
     } else {
-      props.emplace_back(kNameKey, name);
+      props.emplace_back(kNameKey, std::move(name));
     }
+  }
+
+  template <class PT>
+  void set_name(PT &props, const char *name) {
+    set_name(props, std::string(name));
+  }
+
+  template <class PT>
+  void set_name(PT &props, std::string_view name) {
+    set_name(props, std::string(name));
   }
 
   constexpr inline int negate_if_false(bool cond) {
@@ -660,11 +672,6 @@ namespace internal {
     return ret;
   }
 }  // namespace internal
-
-template <class T, class... Args>
-auto c_any_of(std::initializer_list<T> &&il, Args &&...args) {
-  return std::any_of(il.begin(), il.end(), std::forward<Args>(args)...);
-}
 
 #if __cplusplus >= 202002L
 using std::erase;
@@ -724,10 +731,9 @@ template <class Container, class Comp,
               typename Container::iterator, std::random_access_iterator_tag> = 0>
 std::pair<typename Container::iterator, bool>
 insert_sorted(Container &c, const typename Container::value_type &value,
-              Comp &&comp) {
+              Comp comp) {
   // *it >= value
-  auto it =
-      std::lower_bound(c.begin(), c.end(), value, std::forward<Comp>(comp));
+  auto it = std::lower_bound(c.begin(), c.end(), value, comp);
   if (it != c.end() && !comp(value, *it)) {
     // value >= *it, i.e., value == *it
     return { it, false };
@@ -747,11 +753,9 @@ template <class Container, class Comp,
           internal::enable_if_iter_category_t<
               typename Container::iterator, std::random_access_iterator_tag> = 0>
 std::pair<typename Container::iterator, bool>
-insert_sorted(Container &c, typename Container::value_type &&value,
-              Comp &&comp) {
+insert_sorted(Container &c, typename Container::value_type &&value, Comp comp) {
   // *it >= value
-  auto it =
-      std::lower_bound(c.begin(), c.end(), value, std::forward<Comp>(comp));
+  auto it = std::lower_bound(c.begin(), c.end(), value, comp);
   if (it != c.end() && !comp(value, *it)) {
     // value >= *it, i.e., value == *it
     return { it, false };
@@ -851,6 +855,20 @@ inline Matrix3Xd stack(const std::vector<Vector3d> &vs) {
 
 constexpr inline int value_if(bool cond, int val = 1) {
   return static_cast<int>(cond) * val;
+}
+
+template <
+    class Int,
+    std::enable_if_t<std::is_integral_v<Int> && std::is_signed_v<Int>, int> = 0>
+constexpr Int nonnegative(Int x) {
+  return std::max(x, Int(0));
+}
+
+template <class UInt,
+          std::enable_if_t<std::is_integral_v<UInt> && !std::is_signed_v<UInt>,
+                           int> = 0>
+constexpr UInt nonnegative(UInt x) {
+  return x;
 }
 }  // namespace nuri
 

@@ -6,6 +6,7 @@
 #include "nuri/core/molecule.h"
 
 #include <algorithm>
+#include <numeric>
 #include <stack>
 #include <string>
 #include <tuple>
@@ -168,18 +169,6 @@ namespace {
   }
 }  // namespace
 
-int Molecule::add_conf(const Matrix3Xd &pos) {
-  const int ret = static_cast<int>(conformers_.size());
-  conformers_.push_back(pos);
-  return ret;
-}
-
-int Molecule::add_conf(Matrix3Xd &&pos) noexcept {
-  const int ret = static_cast<int>(conformers_.size());
-  conformers_.push_back(std::move(pos));
-  return ret;
-}
-
 double Molecule::distsq(int src, int dst, int conf) const {
   const Matrix3Xd &pos = conformers_[conf];
   return (pos.col(dst) - pos.col(src)).squaredNorm();
@@ -206,16 +195,12 @@ bool Molecule::rotate_bond(int bid, double angle) {
 
 bool Molecule::rotate_bond_conf(int i, int ref_atom, int pivot_atom,
                                 double angle) {
-  auto bit = find_bond(ref_atom, pivot_atom);
-  if (bit == bond_end()) {
-    return false;
-  }
-  return rotate_bond_common(i, *bit, ref_atom, pivot_atom, angle);
+  return rotate_bond_common(i, ref_atom, pivot_atom, angle);
 }
 
 bool Molecule::rotate_bond_conf(int i, int bid, double angle) {
   const Bond b = bond(bid);
-  return rotate_bond_common(i, b, b.src().id(), b.dst().id(), angle);
+  return rotate_bond_common(i, b.src().id(), b.dst().id(), angle);
 }
 
 void Molecule::rebind_substructs() noexcept {
@@ -223,17 +208,14 @@ void Molecule::rebind_substructs() noexcept {
     sub.rebind(graph_);
 }
 
-bool Molecule::rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
+bool Molecule::rotate_bond_common(int i, int ref_atom, int pivot_atom,
                                   double angle) {
-  if (!b.data().is_rotable())
-    return false;
-
   absl::flat_hash_set<int> connected =
       connected_components(graph_, pivot_atom, ref_atom);
   // GCOV_EXCL_START
-  if (ABSL_PREDICT_FALSE(connected.empty())) {
-    ABSL_DLOG(WARNING) << ref_atom << " -> " << pivot_atom
-                       << " bond is rotable, but the two atoms are connected.";
+  if (connected.empty()) {
+    ABSL_LOG(INFO) << ref_atom << " -> " << pivot_atom
+                   << " two atoms of bond are connected and cannot be rotated";
     return false;
   }
   // GCOV_EXCL_STOP
@@ -243,7 +225,7 @@ bool Molecule::rotate_bond_common(int i, Bond b, int ref_atom, int pivot_atom,
   std::sort(moving_atoms.begin(), moving_atoms.end());
 
   if (i < 0) {
-    for (int conf = 0; conf < num_conf(); ++conf) {
+    for (int conf = 0; conf < confs().size(); ++conf) {
       rotate_points(conformers_[conf], moving_atoms, ref_atom, pivot_atom,
                     angle);
     }
@@ -395,10 +377,6 @@ MoleculeMutator::add_bond(int src, int dst, BondData &&bond) noexcept {
 }
 
 void MoleculeMutator::mark_bond_erase(int src, int dst) {
-  if (ABSL_PREDICT_FALSE(src == dst)) {
-    return;
-  }
-
   auto it = mol().find_bond(src, dst);
   if (it != mol().bond_end())
     erased_bonds_.push_back(it->id());
@@ -449,6 +427,20 @@ namespace {
       conf = std::move(updated);
     }
   }
+
+  bool prepare_remap_idxs(int prev_size, int first_erased,
+                          std::vector<int> &idxs_map) {
+    if (prev_size == first_erased)
+      return false;
+
+    if (first_erased < 0)
+      return true;
+
+    idxs_map.resize(prev_size);
+    std::iota(idxs_map.begin(), idxs_map.begin() + first_erased, 0);
+    std::fill(idxs_map.begin() + first_erased, idxs_map.end(), -1);
+    return true;
+  }
 }  // namespace
 
 void MoleculeMutator::finalize() noexcept {
@@ -459,27 +451,36 @@ void MoleculeMutator::finalize() noexcept {
     return;
 
   Molecule::GraphType &g = mol().graph_;
-  const int added_size = mol().num_atoms();
-  if (added_size > prev_num_atoms_)
+  const int added_natom = mol().num_atoms();
+  const int added_nbond = mol().num_bonds();
+  if (added_natom > prev_num_atoms_)
     for (Matrix3Xd &conf: mol().conformers_)
-      conf.conservativeResize(Eigen::NoChange, added_size);
+      conf.conservativeResize(Eigen::NoChange, added_natom);
 
   // As per the spec, the order is:
   // 1. Erase bonds
-  g.erase_edges(erased_bonds_.begin(), erased_bonds_.end());
+  std::pair<int, std::vector<int>> bond_info;
+  bond_info = g.erase_edges(erased_bonds_.begin(), erased_bonds_.end());
+  if (prepare_remap_idxs(added_nbond, bond_info.first, bond_info.second))
+    for (Substructure &sub: mol().substructs_)
+      sub.graph_.remap_edges(bond_info.second);
 
   // 2. Erase atoms
-  int last;
-  std::vector<int> map;
-  std::tie(last, map) =
+  std::pair<int, std::vector<int>> atom_info;
+  std::tie(atom_info, bond_info) =
       g.erase_nodes(erased_atoms_.begin(), erased_atoms_.end());
 
-  if (last < added_size) {
-    for (Substructure &sub: mol().substructs_)
-      sub.graph_.remap_nodes(map);
+  if (prepare_remap_idxs(added_natom, atom_info.first, atom_info.second)) {
+    if (prepare_remap_idxs(added_nbond, bond_info.first, bond_info.second)) {
+      for (Substructure &sub: mol().substructs_)
+        sub.graph_.remap(atom_info.second, bond_info.second);
+    } else {
+      for (Substructure &sub: mol().substructs_)
+        sub.graph_.remap_nodes(atom_info.second);
+    }
 
-    remap_confs(mol().conformers_, added_size, mol().num_atoms(), last >= 0,
-                map);
+    remap_confs(mol().conformers_, added_natom, mol().num_atoms(),
+                atom_info.first >= 0, atom_info.second);
   }
 
   mol().update_topology();
@@ -895,12 +896,12 @@ namespace {
 
     if (atom.data().atomic_number() == 0) {
       // Assume dummy atom always satisfies the octet rule
-      const int nbe = std::max(8 - total_valence, 0);
+      const int nbe = nonnegative(8 - total_valence);
       atom.data().set_hybridization(from_degree(total_degree, nbe));
       return true;
     }
 
-    int nbe = std::max(0, nonbonding_electrons(atom.data(), total_valence));
+    int nbe = nonnegative(nonbonding_electrons(atom.data(), total_valence));
     if (nbe < 0) {
       nbe = 0;
       ABSL_LOG(INFO) << "Valence electrons exceeded for "

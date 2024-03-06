@@ -486,7 +486,7 @@ bool parse_substructure_block(Molecule &mol, Iter &it, const Iter end) {
       return false;
     }
 
-    Substructure &sub = mol.add_substructure();
+    Substructure &sub = mol.substructures().emplace_back(mol.substructure());
     sub.set_id(static_cast<int>(data.first));
     sub.name() = std::move(data.second);
   }
@@ -654,7 +654,7 @@ void guess_aromatic_hydrogens_updater(Molecule::MutableAtom atom,
       cv = internal::common_valence(
           internal::effective_element_or_element(atom));
   atom.data().set_implicit_hydrogens(atom.data().implicit_hydrogens()
-                                     + static_cast<int>(sbo <= cv));
+                                     + value_if(sbo <= cv));
 }
 
 int guess_aromatic_fcharge_scorer(Molecule::Atom atom) {
@@ -777,7 +777,7 @@ int guess_hydrogens_normal_atom(Molecule::Atom atom, const Element &effective) {
       cv = internal::common_valence(effective),
       max_h = atom.data().hybridization() - atom.degree();
   int num_h = std::min(max_h, cv - valence);
-  return std::max(0, num_h);
+  return nonnegative(num_h);
 }
 
 int guess_hydrogens_normal_atom(Molecule::Atom atom) {
@@ -966,7 +966,7 @@ void guess_fcharge_hydrogens(Molecule &mol) {
 
       int nbe = data.element().valence_electrons() - sum_bo;
       data.set_hybridization(
-          internal::from_degree(atom.degree(), std::max(0, nbe)));
+          internal::from_degree(atom.degree(), nonnegative(nbe)));
     } else {
       int fchg = data.element().group() > 14 ? -unused_valence : unused_valence;
       data.set_formal_charge(fchg);
@@ -1055,12 +1055,12 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
     }
   }
 
-  mol.add_conf(stack(pos));
+  mol.confs().push_back(stack(pos));
 
   // Only add substructures actually mentioned in the SUBSTRUCTURE block
   for (auto &[_, data]: substructs)
     for (Substructure &sub: mol.find_substructures(data.second))
-      sub.update(std::move(data.first));
+      sub.update_atoms(std::move(data.first));
 
   return mol;
 }

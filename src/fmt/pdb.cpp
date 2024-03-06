@@ -459,7 +459,7 @@ void read_misc_section(Iterator &it, const Iterator end,
       }
 
       site.name = curr_name;
-      int numres = std::max(safe_atoi(safe_slice(line, 15, 17)), 0);
+      int numres = nonnegative(safe_atoi(safe_slice(line, 15, 17)));
       site.residues.reserve(numres);
     }
 
@@ -1950,7 +1950,7 @@ void read_connect_section(Iterator &it, const Iterator end,
 }
 
 void remove_hbonds(MoleculeMutator &mut) {
-  const Matrix3Xd &conf = mut.mol().cconf();
+  const Matrix3Xd &conf = mut.mol().confs()[0];
 
   for (auto atom: mut.mol()) {
     if (atom.data().atomic_number() != 1 || atom.degree() <= 1)
@@ -1995,8 +1995,7 @@ void update_confs(Molecule &mol, const std::vector<PDBAtomData> &atom_data) {
   }
 
   if (altlocs->empty()) {
-    mol.add_conf(Matrix3Xd(3, atom_data.size()));
-    auto conf = mol.conf(0);
+    Matrix3Xd &conf = mol.confs().emplace_back(Matrix3Xd(3, atom_data.size()));
     for (int i = 0; i < atom_data.size(); ++i)
       atom_data[i].first().parse_coords(conf.col(i));
 
@@ -2005,24 +2004,25 @@ void update_confs(Molecule &mol, const std::vector<PDBAtomData> &atom_data) {
 
   ABSL_DCHECK(altlocs->size() > 1);
 
+  mol.confs().resize(altlocs->size());
   for (int i = 0; i < altlocs->size(); ++i)
-    mol.add_conf(Matrix3Xd(3, atom_data.size()));
+    mol.confs()[i].resize(3, static_cast<int>(atom_data.size()));
 
   for (int i = 0; i < atom_data.size(); ++i) {
     const PDBAtomData &pd = atom_data[i];
 
     if (pd.lines().size() == 1) {
-      Eigen::Ref<Vector3d> coord = mol.conf(0).col(i);
+      Eigen::Ref<Vector3d> coord = mol.confs()[0].col(i);
       pd.first().parse_coords(coord);
-      for (int j = 1; j < mol.num_conf(); ++j)
-        mol.conf(j).col(i) = coord;
+      for (int j = 1; j < mol.confs().size(); ++j)
+        mol.confs()[j].col(i) = coord;
 
       continue;
     }
 
     if (pd.lines().size() == altlocs->size()) {
-      for (int j = 0; j < mol.num_conf(); ++j)
-        pd.lines()[j].parse_coords(mol.conf(j).col(i));
+      for (int j = 0; j < mol.confs().size(); ++j)
+        pd.lines()[j].parse_coords(mol.confs()[j].col(i));
       continue;
     }
 
@@ -2031,10 +2031,10 @@ void update_confs(Molecule &mol, const std::vector<PDBAtomData> &atom_data) {
 
     int j = 0;
     for (int k = 0; k < pd.lines().size(); ++j) {
-      ABSL_DCHECK(j < mol.num_conf());
+      ABSL_DCHECK(j < mol.confs().size());
 
       const char altloc = (*altlocs)[j];
-      Eigen::Ref<Vector3d> coord = mol.conf(j).col(i);
+      Eigen::Ref<Vector3d> coord = mol.confs()[j].col(i);
 
       if (pd.lines()[k].altloc() != altloc) {
         coord = major_coord;
@@ -2044,14 +2044,15 @@ void update_confs(Molecule &mol, const std::vector<PDBAtomData> &atom_data) {
       pd.lines()[k++].parse_coords(coord);
     }
 
-    for (; j < mol.num_conf(); ++j)
-      mol.conf(j).col(i) = major_coord;
+    for (; j < mol.confs().size(); ++j)
+      mol.confs()[j].col(i) = major_coord;
   }
 }
 
 constexpr int kChainIdx = 0;
 
-void update_substructures(Molecule &mol, PDBResidueData &residue_data,
+void update_substructures(Molecule &mol, std::vector<Substructure> &subs,
+                          PDBResidueData &residue_data,
                           const std::vector<PDBAtomData> &atom_data) {
   std::vector<std::pair<char, std::vector<int>>> chains;
 
@@ -2064,7 +2065,6 @@ void update_substructures(Molecule &mol, PDBResidueData &residue_data,
     cit->second.push_back(i);
   }
 
-  std::vector<Substructure> &subs = mol.substructures();
   subs.reserve(residue_data.size() + chains.size());
   subs.resize(residue_data.size(),
               mol.substructure(SubstructCategory::kResidue));
@@ -2075,7 +2075,7 @@ void update_substructures(Molecule &mol, PDBResidueData &residue_data,
   for (int i = 0; i < residue_data.size(); ++i, ++sit) {
     auto &[id, resname, idxs] = residue_data[i];
 
-    sit->update(std::move(idxs));
+    sit->update(std::move(idxs), {});
     sit->name() = std::string(resname);
     sit->set_id(id.seqnum);
     sit->add_prop("chain", std::string(1, id.chain));
@@ -2087,16 +2087,16 @@ void update_substructures(Molecule &mol, PDBResidueData &residue_data,
 
   for (int i = 0; i < chains.size(); ++i, ++sit) {
     auto &[ch, idxs] = chains[i];
-    sit->update(std::move(idxs));
+    sit->update(std::move(idxs), {});
     sit->name().push_back(ch);
     sit->set_id(i);
   }
 }
 
-void update_std_atoms(Molecule &mol) {
-  auto residues = mol.find_substructures(SubstructCategory::kResidue);
-  for (auto it = residues.begin(); it != residues.end(); ++it) {
-    const Substructure &sub = *it;
+void update_std_atoms(Molecule &mol, const std::vector<Substructure> &subs) {
+  for (const Substructure &sub: subs) {
+    if (sub.category() != SubstructCategory::kResidue)
+      continue;
 
     std::string_view resname = sub.name();
     auto ait = kAAData.find(resname);
@@ -2134,16 +2134,17 @@ void add_inter_res_bond(MoleculeMutator &mut, const int prev_cterm,
   AtomData &ad = mut.mol().atom(nterm).data();
   ad.set_hybridization(constants::kSP2);
   ad.set_conjugated(true);
-  ad.set_implicit_hydrogens(ad.implicit_hydrogens() - 1);
+  ad.set_implicit_hydrogens(nonnegative(ad.implicit_hydrogens() - 1));
 }
 
-void add_std_bonds(MoleculeMutator &mut) {
+void add_std_bonds(MoleculeMutator &mut,
+                   const std::vector<Substructure> &subs) {
   char prev_chain = '\0';
   int prev_cterm = -1;
 
-  auto residues = mut.mol().find_substructures(SubstructCategory::kResidue);
-  for (auto it = residues.begin(); it != residues.end(); ++it) {
-    const Substructure &sub = *it;
+  for (const Substructure &sub: subs) {
+    if (sub.category() != SubstructCategory::kResidue)
+      continue;
 
     std::string_view resname = sub.name();
     auto ait = kAAData.find(resname);
@@ -2230,12 +2231,14 @@ Molecule read_pdb(const std::vector<std::string> &pdb) {
   if (!success)
     return mol;
 
+  std::vector<Substructure> subs;
+
   {
     auto mut = mol.mutator();
     for (PDBAtomData &pd: atom_data)
       mut.add_atom(pd.to_standard());
 
-    update_substructures(mol, residue_data, atom_data);
+    update_substructures(mol, subs, residue_data, atom_data);
     update_confs(mol, atom_data);
 
     bool guess_ok = guess_everything(mut);
@@ -2243,8 +2246,8 @@ Molecule read_pdb(const std::vector<std::string> &pdb) {
       ABSL_LOG(WARNING) << "Failed to guess atom/bond types; the resulting "
                            "molecule might be invalid";
       mut.clear_bonds();
-      update_std_atoms(mol);
-      add_std_bonds(mut);
+      update_std_atoms(mol, subs);
+      add_std_bonds(mut, subs);
 
       int connect_bonds_start = mol.num_bonds();
       read_connect_section(it, end, mut, serial_to_idx);
@@ -2252,6 +2255,11 @@ Molecule read_pdb(const std::vector<std::string> &pdb) {
         remove_hbonds(mut);
     }
   }
+
+  for (Substructure &sub: subs)
+    sub.refresh_bonds();
+
+  mol.substructures() = std::move(subs);
 
   return mol;
 }

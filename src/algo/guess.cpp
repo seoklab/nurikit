@@ -6,6 +6,7 @@
 #include "nuri/algo/guess.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <numeric>
 #include <tuple>
@@ -342,9 +343,10 @@ namespace {
   bool fg_sec(Molecule::MutableAtom atom, ArrayXb &visited) {
     auto n = atom[0], m = atom[1];
 
-    if (c_any_of({ atom, n.dst(), m.dst() }, [](Molecule::Atom a) {
-          return a.data().atomic_number() != 7;
-        }))
+    if (absl::c_any_of(std::array { atom, n.dst(), m.dst() },
+                       [](Molecule::Atom a) {
+                         return a.data().atomic_number() != 7;
+                       }))
       return false;
 
     // must be {2, 1} or {1, 2}, since lower bound is 1 (connected to this atom)
@@ -507,8 +509,8 @@ namespace {
       int nnei = max_neighbors[i] - value_if(i == dnei);
       dst.data()
           .set_hybridization(constants::kSP2)
-          .set_formal_charge(std::max(dst.degree() - nnei, 0))
-          .set_implicit_hydrogens(std::max(nnei - dst.degree(), 0));
+          .set_formal_charge(nonnegative(dst.degree() - nnei))
+          .set_implicit_hydrogens(nonnegative(nnei - dst.degree()));
       nei.edge_data().set_order(i == dnei ? constants::kDoubleBond
                                           : constants::kSingleBond);
     }
@@ -1454,7 +1456,7 @@ namespace {
     for (const std::vector<int> &group: groups) {
       ABSL_DCHECK(group.size() > 2) << "Group size: " << group.size();
 
-      Substructure sub = mol.substructure(group);
+      Substructure sub = mol.atom_substructure(group);
 
       for (auto atom: sub) {
         AtomData &data = atom.data();
@@ -1520,12 +1522,12 @@ namespace {
 
 bool guess_connectivity(MoleculeMutator &mut, int conf, double threshold) {
   const Molecule &mol = mut.mol();
-  if (mol.num_conf() <= conf) {
+  if (mol.confs().size() <= conf) {
     ABSL_DLOG(WARNING) << "Conformer index " << conf << " is out of range.";
     return false;
   }
 
-  const Matrix3Xd &pos = mol.cconf(conf);
+  const Matrix3Xd &pos = mol.confs()[conf];
 
   // For small molecules
   ArrayXd distsq;
@@ -1545,11 +1547,11 @@ bool guess_everything(MoleculeMutator &mut, int conf, double threshold) {
 
   reset_atoms(mol);
   reset_bonds(mol);
-  return guess_types_common(mol, mol.cconf(conf));
+  return guess_types_common(mol, mol.confs()[conf]);
 }
 
 bool guess_all_types(Molecule &mol, int conf) {
-  if (mol.num_conf() <= conf) {
+  if (mol.confs().size() <= conf) {
     ABSL_DLOG(WARNING) << "Conformer index " << conf << " is out of range.";
     return false;
   }
@@ -1564,6 +1566,6 @@ bool guess_all_types(Molecule &mol, int conf) {
 
   reset_atoms(mol);
   reset_bonds(mol);
-  return guess_types_common(mol, mol.cconf(conf));
+  return guess_types_common(mol, mol.confs()[conf]);
 }
 }  // namespace nuri

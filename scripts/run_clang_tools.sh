@@ -30,7 +30,7 @@ tmpd="$(mktemp -d)"
 trap 'rm -rf "$tmpd"' INT TERM EXIT
 
 if [[ $# -eq 0 ]]; then
-	find include src python/nuri \
+	find include src python/include python/src \
 		\( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) -print0 \
 		>"$tmpd/tidy-checks"
 

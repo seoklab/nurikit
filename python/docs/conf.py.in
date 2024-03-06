@@ -10,6 +10,7 @@
 
 import re
 
+import doctest
 from sphinx.ext import autodoc
 
 # -- Project information -----------------------------------------------------
@@ -25,15 +26,30 @@ release = "@NURI_REF@"
 
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.autosummary",
     "sphinx.ext.intersphinx",
     "sphinx.ext.doctest",
 ]
 
-autosummary_generate = True
+autodoc_member_order = "groupwise"
+autodoc_typehints = "description"
+autodoc_type_aliases = {
+    "Hyb": "nuri.core.Hyb",
+    "BondOrder": "nuri.core.BondOrder",
+    "SubstructCategory": "nuri.core.SubstructCategory",
+    "ProxySubAtom": "nuri.core.SubAtom",
+    "ProxySubBond": "nuri.core.SubBond",
+    "ProxySubNeighbor": "nuri.core.SubNeighbor",
+}
+autodoc_default_options = {
+    "members": True,
+    "undoc-members": True,
+    "show-inheritance": True,
+}
+
+python_use_unqualified_type_names = True
 
 templates_path = ["@CMAKE_CURRENT_LIST_DIR@/_templates"]
-exclude_patterns = ["Thumbs.db", ".DS_Store"]
+exclude_patterns = ["Thumbs.db", ".DS_Store", "_templates"]
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
@@ -43,13 +59,20 @@ html_static_path = ["@CMAKE_CURRENT_LIST_DIR@/_static"]
 html_css_files = [
     "css/rtd-property.css" # workaround https://github.com/readthedocs/sphinx_rtd_theme/issues/1301
 ]
+html_theme_options = {
+    'navigation_depth': -1,
+}
 
-intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "numpy": ("http://docs.scipy.org/doc/numpy", None),
+}
 
 rst_prolog = """
 .. |cppdocs| replace:: `C++ API Reference`_
 .. _C++ API Reference: https://cluster.seoklab.org:8443/docs/nurikit/main
 """
+
 
 class UnneededBaseStripDocumenter(autodoc.ClassDocumenter):
     _strip_re = re.compile(
@@ -63,3 +86,15 @@ class UnneededBaseStripDocumenter(autodoc.ClassDocumenter):
 
 
 autodoc.ClassDocumenter = UnneededBaseStripDocumenter
+
+
+class OutputChecker(doctest.OutputChecker):
+    IGNORE_RESULT = doctest.register_optionflag("IGNORE_RESULT")
+
+    def check_output(self, want, got, optionflags):
+        if optionflags & self.IGNORE_RESULT:
+            return True
+        return super().check_output(want, got, optionflags)
+
+
+doctest.OutputChecker = OutputChecker

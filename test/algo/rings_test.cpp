@@ -203,7 +203,7 @@ protected:
     m.add_bond(5, 6, BondData(kSingleBond));
     m.add_bond(6, 7, BondData(kSingleBond));
 
-    sub_.update({ 1, 2, 4, 5, 6, 7 });
+    sub_.update_atoms({ 1, 2, 4, 5, 6, 7 });
   }
 
   static const Molecule &mol() { return mol_; }
