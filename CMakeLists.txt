@@ -57,6 +57,10 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_options(-O0)
   add_compile_definitions("DEBUG")
 elseif(NURI_ENABLE_IPO)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    set(NURI_LIBRARY_FLAGS "-flto=auto")
+  endif()
+
   # Next line is required for absl, etc.
   set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)

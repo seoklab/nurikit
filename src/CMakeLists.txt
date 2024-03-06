@@ -37,6 +37,11 @@ target_link_libraries(nuri_lib
   Boost::boost)
 target_system_include_directories(nuri_lib Eigen3::Eigen)
 
+if(NURI_LIBRARY_FLAGS)
+  target_compile_options(nuri_lib PRIVATE ${NURI_LIBRARY_FLAGS})
+  target_link_options(nuri_lib PRIVATE ${NURI_LIBRARY_FLAGS})
+endif()
+
 target_link_libraries(nuri_exe PRIVATE nuri_lib)
 
 install(TARGETS nuri_lib LIBRARY)
