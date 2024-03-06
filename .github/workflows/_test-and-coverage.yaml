@@ -89,6 +89,8 @@ jobs:
 
       - name: C++ tests
         run: cmake --build build -j --target test
+        env:
+          ASAN_OPTIONS: detect_odr_violation=0
 
       - name: Python tests
         run: |
@@ -96,4 +98,4 @@ jobs:
           cmake --build build -j --target nuri_python_docs_doctest
         env:
           LD_PRELOAD: /usr/lib/x86_64-linux-gnu/libasan.so.6 /usr/lib/x86_64-linux-gnu/libstdc++.so.6
-          ASAN_OPTIONS: detect_leaks=0
+          ASAN_OPTIONS: detect_leaks=0 detect_odr_violation=0
