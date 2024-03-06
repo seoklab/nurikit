@@ -28,7 +28,6 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
     "sphinx.ext.doctest",
-    "sphinx_autodoc_typehints",
 ]
 
 autodoc_member_order = "groupwise"
@@ -48,7 +47,6 @@ autodoc_default_options = {
 }
 
 python_use_unqualified_type_names = True
-typehints_defaults = "comma"
 
 templates_path = ["@CMAKE_CURRENT_LIST_DIR@/_templates"]
 exclude_patterns = ["Thumbs.db", ".DS_Store", "_templates"]

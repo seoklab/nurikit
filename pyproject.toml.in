@@ -46,7 +46,9 @@ Documentation = "https://nurikit.seoklab.org/"
 Repository = "https://github.com/seoklab/nurikit.git"
 
 [project.optional-dependencies]
-tests = ["pytest", "pytest-xdist"]
+test = ["pytest", "pytest-xdist"]
+docs = ["sphinx", "sphinx-rtd-theme"]
+coverage = ["gcovr"]
 
 [tool.scikit-build]
 minimum-version = "0.4"
@@ -58,7 +60,6 @@ cmake.verbose = @NURI_VERBOSE_CMAKE@
 
 sdist.exclude = ["*.h", "*.cpp", "*.in", "*.so"]
 wheel.packages = ["python/src/nuri"]
-wheel.install-dir = "nuri"
 
 [tool.scikit-build.cmake.define]
 NURI_BUILD_PYTHON = "ON"
@@ -73,7 +74,7 @@ NURI_ENABLE_IPO = "@NURI_ENABLE_IPO@"
 [tool.cibuildwheel]
 build = ["cp*-manylinux_x86_64"]
 
-test-requires = ["pytest", "pytest-xdist", "sphinx", "urllib3<2.0"]
+test-extras = ["test", "docs"]
 test-command = [
     "pytest -v {project}/python/test -n auto",
     "cmake -S {project} -B .",
