@@ -58,6 +58,10 @@ jobs:
 
   test-build:
     runs-on: ubuntu-latest
+
+    env:
+      ASAN_OPTIONS: detect_odr_violation=0
+
     steps:
       - uses: lukka/get-cmake@latest
         with:
@@ -89,8 +93,6 @@ jobs:
 
       - name: C++ tests
         run: cmake --build build -j --target test
-        env:
-          ASAN_OPTIONS: detect_odr_violation=0
 
       - name: Python tests
         run: |
