@@ -54,7 +54,11 @@ class PyBond;
 class PyNeigh;
 
 class PyMol: public ParentWrapper<PyMol, Molecule> {
+  using Base = ParentWrapper<PyMol, Molecule>;
+
 public:
+  using Base::Base;
+
   PyAtom pyatom(int idx);
 
   PyBond pybond(int idx);
