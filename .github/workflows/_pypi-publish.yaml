@@ -38,8 +38,23 @@ jobs:
 
       - uses: pypa/gh-action-pypi-publish@release/v1
 
+      # https://packaging.python.org/en/latest/specifications/version-specifiers/#public-version-identifiers
+      # Check if the version ends with a/b/rc or .dev (could also include post release number)
+      - id: prerelease-check
+        run: |
+          regex='((a|b|rc)([[:digit:]]+\.post)?|\.dev)[[:digit:]]+$'
+
+          if grep -E "$regex" <<<"$GITHUB_REF"; then
+            echo prerelease=true >> $GITHUB_OUTPUT
+          else
+            echo prerelease=false >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_REF: ${{ github.ref }}
+
       - uses: softprops/action-gh-release@v1
         with:
           files: "dist/*.whl"
           fail_on_unmatched_files: true
           generate_release_notes: true
+          prerelease: ${{ steps.prerelease-check.outputs.prerelease == 'true' }}
