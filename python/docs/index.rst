@@ -23,6 +23,7 @@ C++ API:
 Indices and tables
 ==================
 
+* :doc:`bib`
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
