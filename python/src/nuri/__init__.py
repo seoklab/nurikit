@@ -9,6 +9,8 @@ Project nurikit: *the* fundamental software platform for chem- and
 bio-informatics."""
 
 __all__ = [
+    "readfile",
+    "readstring",
     "periodic_table",
     "__version__",
 ]
@@ -20,3 +22,4 @@ except ImportError:
 
 from . import _log_adapter
 from .core import periodic_table
+from .fmt import readfile, readstring

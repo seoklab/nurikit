@@ -62,6 +62,14 @@ nuri_python_add_module(_core OUTPUT_DIRECTORY "core"
   nuri/core/substructure.cpp
 )
 
+nuri_python_add_module(algo
+  nuri/algo/algo_module.cpp
+)
+
+nuri_python_add_module(fmt
+  nuri/fmt/fmt_module.cpp
+)
+
 find_program(PYBIND11_STUBGEN pybind11-stubgen)
 mark_as_advanced(PYBIND11_STUBGEN)
 
