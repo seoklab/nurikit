@@ -574,7 +574,7 @@ namespace {
                                                   begin, end, edge_map);
 
       num_used_diff = static_cast<int>(absl::c_count(used_edges, 1)) - num_used;
-    } while (num_used_diff > 0);
+    } while (num_used_diff > 0 && end < c_ip.size());
 
     return basis;
   }

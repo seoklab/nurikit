@@ -618,6 +618,10 @@ namespace {
 
     visited[atom.id()] = true;
     atom.data().set_hybridization(constants::kSP3);
+
+    for (auto nei: atom)
+      nei.edge_data().set_order(constants::kSingleBond);
+
     for (int i = 0; i < ocnt; ++i) {
       auto nei = atom[oxygens[idxs[i]]];
       auto dst = nei.dst();
@@ -668,17 +672,20 @@ namespace {
                            absl::InlinedVector<PiElecArgs, 2> &pi_e) {
     ABSL_DCHECK(atom.degree() < 4);
 
-    int exo_terminal = absl::c_find_if(atom,
-                                       [](Molecule::Neighbor nei) {
-                                         return nei.dst().degree() == 1;
-                                       })
-                       - atom.begin();
+    int exo_neighbor =
+        absl::c_find_if(atom,
+                        [](Molecule::Neighbor nei) {
+                          return !nei.dst().data().is_ring_atom();
+                        })
+        - atom.begin();
 
     int exo_double_partner = -1, exo_single_partner = -1;
-    if (exo_terminal < atom.degree()) {
-      exo_single_partner = exo_terminal;
-      if (atom[exo_terminal].dst().data().atomic_number() == 8)
-        exo_double_partner = exo_terminal;
+    if (exo_neighbor < atom.degree()) {
+      auto exo = atom[exo_neighbor].dst();
+
+      exo_single_partner = exo_neighbor;
+      if (exo.data().atomic_number() == 8 && exo.degree() == 1)
+        exo_double_partner = exo_neighbor;
     }
 
     // 1. all degree 2 could also be considered as degree 3 with one implicit H,
@@ -804,14 +811,7 @@ namespace {
 
       if (pi_e.exo_single_partner >= 0) {
         auto exo = atom[pi_e.exo_single_partner];
-        exo.edge_data()
-            .set_order(constants::kSingleBond)
-            .add_flags(BondFlags::kConjugated);
-        exo.dst()
-            .data()
-            .set_formal_charge(0)
-            .set_hybridization(constants::kSP2)
-            .add_flags(AtomFlags::kConjugated);
+        exo.edge_data().set_order(constants::kSingleBond);
       } else if (pi_e.exo_double_partner >= 0) {
         auto exo = atom[pi_e.exo_double_partner];
 
@@ -913,7 +913,8 @@ namespace {
 
   template <auto cutoff>
   auto ordered(const AtomData &a, const AtomData &b) {
-    auto [an1, an2] = std::minmax(a.atomic_number(), b.atomic_number());
+    int an1 = a.atomic_number(), an2 = b.atomic_number();
+    std::tie(an1, an2) = std::minmax(an1, an2);
     return cutoff(an1, an2);
   }
 
@@ -1373,26 +1374,29 @@ namespace {
   void find_conjugated_groups_dfs(const Molecule &mol, const Matrix3Xd &pos,
                                   absl::flat_hash_set<int> &candidates,
                                   std::vector<std::vector<int>> &groups,
-                                  int cur, const Molecule::Neighbor *prev_nei) {
+                                  int cur,
+                                  Molecule::const_neighbor_iterator prev_nei) {
     groups.back().push_back(cur);
     candidates.erase(cur);
 
     auto src = mol.atom(cur);
-    for (auto nei: src) {
-      auto dst = nei.dst();
+    for (auto nit = src.begin(); nit != src.end(); ++nit) {
+      auto dst = nit->dst();
       if (!candidates.contains(dst.id()))
         continue;
 
-      if (prev_nei == nullptr) {
-        Molecule::Neighbor rev = *dst.find_adjacent(cur);
-        prev_nei = &rev;
-        find_conjugated_groups_dfs(mol, pos, candidates, groups, dst.id(),
-                                   &rev);
+      if (prev_nei.end()) {
+        auto rev = dst.find_adjacent(cur);
+        bool has_rev = !rev.end();
+        ABSL_ASSUME(has_rev);
+
+        prev_nei = rev;
+        find_conjugated_groups_dfs(mol, pos, candidates, groups, dst.id(), rev);
         continue;
       }
 
       if (prev_nei->edge_data().order() == constants::kSingleBond) {
-        if (nei.edge_data().order() == constants::kSingleBond
+        if (nit->edge_data().order() == constants::kSingleBond
             && src.data().atomic_number() != 0
             && dst.data().atomic_number() != 0) {
           // Single - single bond -> conjugated if curr has lone pair and
@@ -1402,9 +1406,9 @@ namespace {
           if ((src_nbe > 0 && dst_nbe > 0) || (src_nbe <= 0 && dst_nbe <= 0))
             continue;
         }
-      } else if (nei.edge_data().order() != constants::kSingleBond
+      } else if (nit->edge_data().order() != constants::kSingleBond
                  && prev_nei->edge_data().order() != constants::kAromaticBond
-                 && nei.edge_data().order() != constants::kAromaticBond) {
+                 && nit->edge_data().order() != constants::kAromaticBond) {
         // Aromatic - aromatic bond -> conjugated
         // Aromatic - double/triple bond
         //          -> exocyclic C=O like structure (technically conjugated)
@@ -1423,7 +1427,7 @@ namespace {
         continue;
       }
 
-      find_conjugated_groups_dfs(mol, pos, candidates, groups, dst.id(), &nei);
+      find_conjugated_groups_dfs(mol, pos, candidates, groups, dst.id(), nit);
     }
   }
 
@@ -1436,7 +1440,7 @@ namespace {
         continue;
 
       find_conjugated_groups_dfs(mol, pos, candidates, groups, atom.id(),
-                                 nullptr);
+                                 atom.end());
 
       if (groups.back().size() < 3) {
         candidates.insert(groups.back().begin(), groups.back().end());

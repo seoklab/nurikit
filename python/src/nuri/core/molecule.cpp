@@ -575,7 +575,8 @@ Get an atom of the molecule.
 Get the number of atoms in the molecule. Equivalent to ``len(mol)``.
 )doc")
       .def(
-          "bonds", [](PyMol &self) { return PyBondsWrapper { &self }; }, R"doc(
+          "bonds", [](PyMol &self) { return PyBondsWrapper { &self }; },
+          kReturnsSubobject, R"doc(
 :rtype: collections.abc.Sequence[Bond]
 
 A wrapper object to access the bonds of the molecule. You can iterate the bonds

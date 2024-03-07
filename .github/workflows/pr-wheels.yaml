@@ -16,7 +16,7 @@ on:
       - "cmake/**"
       - "include/**"
       - "src/**"
-      - "python/nuri/**"
+      - "python/**"
       - "third-party/**"
       - "**/.clang-*"
       - "**/CMakeLists.txt"

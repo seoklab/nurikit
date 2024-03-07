@@ -47,7 +47,7 @@ Repository = "https://github.com/seoklab/nurikit.git"
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-xdist"]
-docs = ["sphinx", "sphinx-rtd-theme"]
+docs = ["sphinx", "sphinx-rtd-theme", "urllib3<2.0"]
 coverage = ["gcovr"]
 
 [tool.scikit-build]
@@ -65,6 +65,7 @@ wheel.packages = ["python/src/nuri"]
 NURI_BUILD_PYTHON = "ON"
 NURI_ENABLE_AVX2 = "OFF"
 NURI_ENABLE_ARCH_NATIVE = "OFF"
+NURI_ENABLE_SANITIZERS = "@NURI_ENABLE_SANITIZERS@"
 NURI_TEST_COVERAGE = "@NURI_TEST_COVERAGE@"
 NURI_BUILD_DOCS = "OFF"
 NURI_REF = "@NURI_REF@"

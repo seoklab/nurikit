@@ -91,6 +91,18 @@ function(nuri_make_available_deponly target)
   endif()
 endfunction()
 
+function(_target_system_include target dep)
+  get_target_property(
+    interface_include_dirs "${dep}" INTERFACE_INCLUDE_DIRECTORIES)
+  target_include_directories("${target}" SYSTEM PUBLIC ${interface_include_dirs})
+endfunction()
+
+function(target_system_include_directories target)
+  foreach(dep IN LISTS ARGN)
+    _target_system_include("${target}" "${dep}")
+  endforeach()
+endfunction()
+
 function(find_or_fetch_eigen)
   set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
   set(BUILD_TESTING OFF)
@@ -113,14 +125,56 @@ function(find_or_fetch_eigen)
   endif()
 endfunction()
 
-function(_target_system_include target dep)
-  get_target_property(interface_include_dirs "${dep}"
-    INTERFACE_INCLUDE_DIRECTORIES)
-  target_include_directories("${target}" SYSTEM PUBLIC ${interface_include_dirs})
+function(find_or_fetch_pybind11)
+  set(BUILD_TESTING OFF)
+
+  find_package(pybind11 2.10.4)
+
+  if(pybind11_FOUND)
+    message(STATUS "Found pybind11 ${pybind11_VERSION}")
+  else()
+    include(FetchContent)
+    message(NOTICE "Could not find compatible pybind11. Fetching from github.")
+
+    Fetchcontent_Declare(
+      pybind11
+      GIT_REPOSITORY https://github.com/pybind/pybind11.git
+      GIT_TAG v2.10.4
+    )
+    nuri_make_available_deponly(pybind11)
+  endif()
 endfunction()
 
-function(target_system_include_directories target)
-  foreach(dep IN LISTS ARGN)
-    _target_system_include("${target}" "${dep}")
-  endforeach()
+function(handle_boost_dependency target)
+  set(BUILD_TESTING OFF)
+
+  find_package(Boost 1.82)
+
+  if(Boost_FOUND)
+    message(STATUS "Found Boost ${Boost_VERSION}")
+    target_include_directories("${target}" SYSTEM PUBLIC ${Boost_INCLUDE_DIRS})
+    return()
+  endif()
+
+  message(NOTICE "Could not find compatible Boost. Fetching from boostorg.")
+  include(FetchContent)
+  FetchContent_Declare(
+    boost
+    URL https://github.com/boostorg/boost/releases/download/boost-1.82.0/boost-1.82.0.tar.xz
+  )
+
+  set(Boost_ENABLE_CMAKE ON)
+  set(Boost_USE_STATIC_LIBS ON)
+  nuri_make_available_deponly(boost)
+
+  target_system_include_directories(
+    "${target}"
+    Boost::spirit Boost::fusion Boost::mpl Boost::optional
+    Boost::iterator Boost::config
+  )
+  target_link_libraries(
+    "${target}"
+    PUBLIC Boost::iterator Boost::config
+    PRIVATE Boost::spirit Boost::fusion Boost::mpl Boost::optional
+  )
 endfunction()
