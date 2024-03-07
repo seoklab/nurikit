@@ -6,9 +6,7 @@
 #include "nuri/core/molecule.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
-#include <stdexcept>
 #include <string_view>
 #include <tuple>
 #include <utility>
@@ -290,55 +288,20 @@ counter-clockwise with respect to the src -> dst vector.
 }
 }  // namespace
 
-// Put here for friend declaration, don't move into the anonymous namespace.
-class PyMutator {
-public:
-  explicit PyMutator(PyMol &pm): mol_(&pm) { }
+PyAtom PyMutator::add_atom(AtomData &&data) {
+  int idx = mut().add_atom(std::move(data));
+  return mol_->pyatom(idx);
+}
 
-  PyMutator &initialize() {
-    if (mut_)
-      throw std::runtime_error("mutator is already active");
+PyBond PyMutator::add_bond(int src, int dst, BondData &&data) {
+  if (src == dst)
+    throw py::value_error("source and destination atoms are the same");
 
-    mut_ = mol_->mutator();
-    return *this;
-  }
-
-  void finalize() {
-    if (!mut_)
-      throw std::runtime_error("mutator is not active");
-
-    mut_.reset();
-    mol_->mutator_finalized();
-  }
-
-  PyAtom add_atom(AtomData &&data) {
-    int idx = mut().add_atom(std::move(data));
-    return mol_->pyatom(idx);
-  }
-
-  PyBond add_bond(int src, int dst, BondData &&data) {
-    if (src == dst)
-      throw py::value_error("source and destination atoms are the same");
-
-    auto [it, ok] = mut().add_bond(src, dst, std::move(data));
-    if (!ok)
-      throw py::value_error("duplicate bond");
-    return mol_->pybond(it->id());
-  }
-
-  MoleculeMutator &mut() {
-    if (!mut_)
-      throw std::runtime_error("mutator is already finalized or not active");
-
-    return *mut_;
-  }
-
-  Molecule &mol() { return **mol_; }
-
-private:
-  PyMol *mol_;
-  std::unique_ptr<MoleculeMutator> mut_;
-};
+  auto [it, ok] = mut().add_bond(src, dst, std::move(data));
+  if (!ok)
+    throw py::value_error("duplicate bond");
+  return mol_->pybond(it->id());
+}
 
 void PyBond::rotate(double angle, bool reverse, bool strict,
                     std::optional<int> conf) {
