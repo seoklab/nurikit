@@ -51,7 +51,7 @@ docs = ["sphinx", "sphinxcontrib-bibtex", "sphinx-rtd-theme", "urllib3<2.0"]
 coverage = ["gcovr"]
 
 [tool.scikit-build]
-minimum-version = "0.4"
+minimum-version = "0.5"
 ninja.make-fallback = false
 
 cmake.minimum-version = "@CMAKE_MINIMUM_REQUIRED_VERSION@"
@@ -62,6 +62,7 @@ sdist.include = ["*.pyi"]
 sdist.exclude = ["*.h", "*.cpp", "*.in", "*.so"]
 wheel.packages = ["python/src/nuri"]
 wheel.install-dir = "nuri"
+install.strip = true
 
 [tool.scikit-build.cmake.define]
 NURI_BUILD_PYTHON = "ON"
