@@ -18,8 +18,10 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/stl/filesystem.h>
 
+#include <absl/base/optimization.h>
 #include <absl/strings/str_cat.h>
 
+#include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 #include "nuri/python/core/core_module.h"
 #include "nuri/python/utils.h"
@@ -48,7 +50,14 @@ public:
     if (!reader_->getnext(block_))
       throw py::stop_iteration();
 
-    return PyMol(reader_->parse(block_));
+    ABSL_LOG_IF(WARNING, block_.empty())
+        << "Recieved an empty block for molecule";
+
+    Molecule mol = reader_->parse(block_);
+    if (mol.empty())
+      throw py::value_error("Failed to parse molecule or an empty molecule");
+
+    return PyMol(std::move(mol));
   }
 
 private:
