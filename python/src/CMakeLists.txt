@@ -81,9 +81,11 @@ endif()
 add_custom_command(
   TARGET nuri_python
   POST_BUILD
-  COMMAND "${CMAKE_COMMAND}" -E remove_directory
-  "${CMAKE_CURRENT_LIST_DIR}/stubs"
+  COMMAND "${CMAKE_COMMAND}"
+  -P "${PROJECT_SOURCE_DIR}/cmake/NurikitClearStubs.cmake"
+  "${CMAKE_CURRENT_LIST_DIR}"
   COMMAND "${PYBIND11_STUBGEN}"
+  -o "${CMAKE_CURRENT_LIST_DIR}"
   --enum-class-locations .*:nuri.core._core
   --numpy-array-remove-parameters
   nuri
