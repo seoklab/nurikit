@@ -112,14 +112,9 @@ void bind_element(py::module &m) {
       .def("__repr__", isotope_repr);
 
   using IsotopeList = std::vector<Isotope>;
-  PyProxyCls<IsotopeList>(m, "_IsotopeList")
-      .def("__len__", &IsotopeList::size)
-      .def(
-          "__iter__",
-          [](const IsotopeList &self) {
-            return py::make_iterator(self.begin(), self.end(), rvp::reference);
-          },
-          kReturnsSubobject)
+  PyProxyCls<IsotopeList> isl(m, "_IsotopeList");
+
+  isl.def("__len__", &IsotopeList::size)
       .def(
           "__getitem__",
           [](const IsotopeList &self, int i) -> const Isotope & {
@@ -142,6 +137,18 @@ void bind_element(py::module &m) {
                                })
                + "]>";
       });
+
+  {
+    py::options options;
+    options.disable_function_signatures();
+
+    isl.def(
+        "__iter__",
+        [](const IsotopeList &self) {
+          return py::make_iterator(self.begin(), self.end(), rvp::reference);
+        },
+        "__iter__(self) -> typing.Iterator[Isotope]");
+  }
 
   py_elem  //
       .def_property_readonly("atomic_number", &Element::atomic_number,
@@ -272,12 +279,19 @@ Refer to the ``nuri::PeriodicTable`` class in the |cppdocs| for details.
           an, rvp::reference)
       .def_static("__getitem__", element_from_symbol_or_name, asn,
                   rvp::reference)
-      .def_static("__iter__",
-                  []() {
-                    return py::make_iterator(kPt.begin(), kPt.end(),
-                                             rvp::reference);
-                  })
       .def_static("__len__", []() { return PeriodicTable::kElementCount_; });
+
+  {
+    py::options options;
+    options.disable_function_signatures();
+
+    pt.def_static(
+        "__iter__",
+        []() {
+          return py::make_iterator(kPt.begin(), kPt.end(), rvp::reference);
+        },
+        "__iter__() -> typing.Iterator[Element]");
+  }
 
   m.attr("periodic_table") = py::cast(kPt, rvp::reference);
 }
