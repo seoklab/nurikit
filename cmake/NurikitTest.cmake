@@ -30,8 +30,6 @@ function(nuri_add_test file)
     target_link_libraries("${target}" PRIVATE nuri_lib)
   endif()
 
-  set_target_properties("${target}" PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
-
   gtest_discover_tests("${target}"
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
   add_dependencies(nuri_all_test "${target}")

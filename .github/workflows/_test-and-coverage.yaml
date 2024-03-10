@@ -85,6 +85,8 @@ jobs:
       - name: Configure
         run: |
           cmake -G Ninja -S . -B build \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_CXX_FLAGS=-Werror \
             -DNURI_ENABLE_SANITIZERS=ON \
@@ -97,11 +99,13 @@ jobs:
 
       - name: C++ tests
         run: cmake --build build -j --target test
+        env:
+          LD_PRELOAD: /usr/lib/x86_64-linux-gnu/libasan.so.6 /usr/lib/x86_64-linux-gnu/libubsan.so.1
 
       - name: Python tests
         run: |
           pytest -v -s -n auto python/test
           cmake --build build -j --target nuri_python_docs_doctest
         env:
-          LD_PRELOAD: /usr/lib/x86_64-linux-gnu/libasan.so.6 /usr/lib/x86_64-linux-gnu/libstdc++.so.6
+          LD_PRELOAD: /usr/lib/x86_64-linux-gnu/libasan.so.6 /usr/lib/x86_64-linux-gnu/libubsan.so.1
           ASAN_OPTIONS: detect_leaks=0 detect_odr_violation=0

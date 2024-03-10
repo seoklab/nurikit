@@ -24,7 +24,9 @@ option(NURI_TEST_COVERAGE "Enable coverage build" OFF)
 option(NURI_BUILD_DOCS "Build documentation" OFF)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  string(APPEND CMAKE_CXX_FLAGS " -stdlib=libstdc++")
+  string(APPEND CMAKE_CXX_FLAGS
+    " -stdlib=libstdc++ -Wno-gnu-zero-variadic-macro-arguments"
+  )
 elseif(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   message(FATAL_ERROR
     "Unsupported compiler '${CMAKE_CXX_COMPILER_ID}' detected! "
