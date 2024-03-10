@@ -471,7 +471,7 @@ def test_bond_rotation(mol3d: Molecule):
         [-0.969, 0.904, 1.108],
     ]
 
-    # Rotate 0 size
+    # Rotate 0 side
     bond.rotate(30)
     assert np.allclose(mol3d.get_conf(), rotated, atol=1e-3)
     bond.rotate(-30)
