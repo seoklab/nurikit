@@ -52,7 +52,7 @@ jobs:
         env:
           GITHUB_REF: ${{ github.ref }}
 
-      - uses: softprops/action-gh-release@v1
+      - uses: softprops/action-gh-release@v2
         with:
           files: "dist/*.whl"
           fail_on_unmatched_files: true
