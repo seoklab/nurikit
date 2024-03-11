@@ -62,7 +62,6 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      ASAN_OPTIONS: detect_odr_violation=0
       CC: clang
       CXX: clang++
 
@@ -93,19 +92,31 @@ jobs:
             -DNURI_BUILD_PYTHON=ON
 
       - name: Build
-        run: pip install -v '.[test,docs]'
+        run: |
+          LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) \
+              /usr/lib/x86_64-linux-gnu/libubsan.so.1" \
+            pip install -v '.[test,docs]'
         env:
           SKBUILD_BUILD_DIR: build
+          ASAN_OPTIONS: detect_leaks=0 detect_odr_violation=0
 
       - name: C++ tests
-        run: cmake --build build -j --target test
+        run: |
+          LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) \
+            /usr/lib/x86_64-linux-gnu/libubsan.so.1"
+          export LD_PRELOAD
+
+          cd build && ctest -j$(nproc) --output-on-failure
         env:
-          LD_PRELOAD: /usr/lib/x86_64-linux-gnu/libasan.so.6 /usr/lib/x86_64-linux-gnu/libubsan.so.1
+          ASAN_OPTIONS: detect_odr_violation=0
 
       - name: Python tests
         run: |
+          LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) \
+            /usr/lib/x86_64-linux-gnu/libubsan.so.1" \
+          export LD_PRELOAD
+
           pytest -v -s -n auto python/test
           cmake --build build -j --target nuri_python_docs_doctest
         env:
-          LD_PRELOAD: /usr/lib/x86_64-linux-gnu/libasan.so.6 /usr/lib/x86_64-linux-gnu/libubsan.so.1
           ASAN_OPTIONS: detect_leaks=0 detect_odr_violation=0

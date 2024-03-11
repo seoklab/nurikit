@@ -72,6 +72,11 @@ if(NURI_ENABLE_SANITIZERS)
   message("Enabling sanitizers as requested")
   add_compile_options(-fsanitize=address -fsanitize=undefined)
   add_link_options(-fsanitize=address -fsanitize=undefined)
+
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-shared-libasan)
+    add_link_options(-shared-libasan)
+  endif()
 endif()
 
 if(CMAKE_BUILD_TYPE MATCHES "Release|MinSizeRel")
