@@ -17,7 +17,7 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/stl/filesystem.h>
 
-#include <absl/base/optimization.h>
+#include <absl/log/absl_log.h>
 #include <absl/strings/str_cat.h>
 
 #include "nuri/core/molecule.h"
