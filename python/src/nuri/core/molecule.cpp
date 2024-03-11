@@ -670,6 +670,58 @@ Get a neighbor of the molecule.
   The returned neighbor is invalidated when a mutator context is exited.
 )doc")
       .def(
+          "sanitize",
+          [](PyMol &self, bool conjugation, bool aromaticity, bool hyb,
+             bool valence) {
+            if (!conjugation && !aromaticity && !hyb && !valence) {
+              ABSL_LOG(WARNING) << "no sanitization requested";
+              return;
+            }
+
+            if (!conjugation && (aromaticity || hyb || valence)) {
+              ABSL_LOG(WARNING)
+                  << "turning conjugation on to satisfy other constraints";
+              conjugation = true;
+            }
+
+            MoleculeSanitizer san(*self);
+            if (conjugation && !san.sanitize_conjugated())
+              throw py::value_error("failed to satisfy conjugation");
+            if (aromaticity && !san.sanitize_aromaticity())
+              throw py::value_error("failed to satisfy aromaticity");
+            if (hyb && !san.sanitize_hybridization())
+              throw py::value_error("failed to satisfy hybridization");
+            if (valence && !san.sanitize_valence())
+              throw py::value_error("failed to satisfy valence");
+          },
+          py::kw_only(),  //
+          py::arg("conjugation") = true, py::arg("aromaticity") = true,
+          py::arg("hyb") = true, py::arg("valence") = true, R"doc(
+Sanitize the molecule.
+
+:param conjugation: If True, sanitize conjugation.
+:param aromaticity: If True, sanitize aromaticity.
+:param hyb: If True, sanitize hybridization.
+:param valence: If True, sanitize valence.
+:raises ValueError: If the sanitization fails.
+
+.. note::
+  The sanitization is done in the order of conjugation, aromaticity,
+  hybridization, and valence. If any of the sanitization fails, the subsequent
+  sanitization will not be attempted.
+
+.. note::
+  The sanitization is done in place. The state of molecule will be mutated even
+  if the sanitization fails.
+
+.. note::
+  If any of the other three sanitization is requested, the conjugation will be
+  automatically turned on.
+
+.. warning::
+  This interface is experimental and may change in the future.
+)doc")
+      .def(
           "get_conf",
           [](PyMol &self, int conf) {
             conf = check_conf(*self, conf);
