@@ -1,3 +1,8 @@
+#
+# Project nurikit - Copyright 2024 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
 add_custom_command(
   TARGET nuri_python
   POST_BUILD

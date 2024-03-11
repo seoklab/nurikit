@@ -1,3 +1,8 @@
+#
+# Project nurikit - Copyright 2024 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
 if(NOT CMAKE_SCRIPT_MODE_FILE)
   message(WARNING "This file must be executed with CMake in script mode, not included with include() or add_subdirectory().")
   return()
