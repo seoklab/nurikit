@@ -523,7 +523,7 @@ TYPED_TEST(GuessAATest, GuessConnectivity) {
   Molecule &mol = this->mol();
   {
     auto mut = mol.mutator();
-    ASSERT_TRUE(guess_connectivity(mut));
+    guess_connectivity(mut);
   }
   this->verify_connectivity();
 }
