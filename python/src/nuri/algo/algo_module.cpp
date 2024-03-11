@@ -227,6 +227,7 @@ void bind_guess(py::module_ &m) {
   m.def(
        "guess_everything",
        [](PyMutator &mut, int conf, double threshold) {
+         conf = check_conf(mut.mol(), conf);
          bool success = guess_everything(mut.mut(), conf, threshold);
          if (!success)
            throw py::value_error("Failed to guess");
@@ -241,6 +242,7 @@ bonds, and number of hydrogens of a molecule.
 :param threshold: The threshold for guessing connectivity. Will be added to the
   sum of two covalent radii of the atoms to determine the maximum distance
   between two atoms to be considered as bonded.
+:raises IndexError: If the conformer index is out of range.
 :raises ValueError: If the guessing fails. The state of molecule is not
   guaranteed to be preserved in this case. If you want to preserve the state,
   copy the molecule before calling this function using
@@ -260,9 +262,8 @@ efficient.
       .def(
           "guess_connectivity",
           [](PyMutator &mut, int conf, double threshold) {
-            bool success = guess_connectivity(mut.mut(), conf, threshold);
-            if (!success)
-              throw py::value_error("Failed to guess");
+            conf = check_conf(mut.mol(), conf);
+            guess_connectivity(mut.mut(), conf, threshold);
           },
           py::arg("mutator"), py::arg("conf") = 0,
           py::arg("threshold") = kDefaultThreshold, R"doc(
@@ -273,10 +274,8 @@ Guess connectivity information of a molecule.
 :param threshold: The threshold for guessing connectivity. Will be added to the
   sum of two covalent radii of the atoms to determine the maximum distance
   between two atoms to be considered as bonded.
-:raises ValueError: If the guessing fails. The state of molecule is not
-  guaranteed to be preserved in this case. If you want to preserve the state,
-  copy the molecule before calling this function using
-  :meth:`~nuri.core.Molecule.copy`.
+:raises IndexError: If the conformer index is out of range. This function never
+  fails otherwise.
 
 This function find extra bonds that are not in the input molecule. Unlike
 :func:`guess_everything()`, this function does not touch other information
@@ -289,6 +288,7 @@ present in the molecule.
       .def(
           "guess_all_types",
           [](PyMol &mol, int conf) {
+            conf = check_conf(*mol, conf);
             bool success = guess_all_types(*mol, conf);
             if (!success)
               throw py::value_error("Failed to guess");
@@ -298,6 +298,7 @@ Guess types of atoms and bonds, and number of hydrogens of a molecule.
 
 :param mol: The molecule to be guessed.
 :param conf: The index of the conformation used for guessing.
+:raises IndexError: If the conformer index is out of range.
 :raises ValueError: If the guessing fails. The state of molecule is not
   guaranteed to be preserved in this case. If you want to preserve the state,
   copy the molecule before calling this function using
