@@ -29,6 +29,8 @@ public:
 
   bool getnext(std::vector<std::string> &block) override;
 
+  bool sanitized() const override { return false; }
+
 private:
   bool read_mol_header_ = false;
 };
