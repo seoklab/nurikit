@@ -107,11 +107,12 @@ bool PDBReader::getnext(std::vector<std::string> &block) {
 
   if (header_.empty()) {
     bool has_model = pdb_next_nomodel(*is_, line, header_, rfooter_);
-    if (header_.empty()) {
-      block.clear();
-      return false;
-    }
     if (!has_model) {
+      if (header_.empty()) {
+        block.clear();
+        return false;
+      }
+
       std::swap(block, header_);
       header_.clear();
       return true;
