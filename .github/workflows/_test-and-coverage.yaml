@@ -63,6 +63,8 @@ jobs:
 
     env:
       ASAN_OPTIONS: detect_odr_violation=0
+      CC: clang
+      CXX: clang++
 
     steps:
       - run: sudo apt-get install -y libeigen3-dev
@@ -85,8 +87,6 @@ jobs:
       - name: Configure
         run: |
           cmake -G Ninja -S . -B build \
-            -DCMAKE_C_COMPILER=clang \
-            -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_CXX_FLAGS=-Werror \
             -DNURI_ENABLE_SANITIZERS=ON \

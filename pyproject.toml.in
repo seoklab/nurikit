@@ -61,8 +61,6 @@ wheel.install-dir = "nuri"
 install.strip = true
 
 [tool.scikit-build.cmake.define]
-CMAKE_C_COMPILER = "@CMAKE_C_COMPILER@"
-CMAKE_CXX_COMPILER = "@CMAKE_CXX_COMPILER@"
 NURI_BUILD_PYTHON = "ON"
 NURI_ENABLE_AVX2 = "OFF"
 NURI_ENABLE_ARCH_NATIVE = "OFF"
