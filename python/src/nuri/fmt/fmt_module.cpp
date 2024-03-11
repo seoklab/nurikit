@@ -13,7 +13,6 @@
 #include <utility>
 #include <vector>
 
-#include <pyerrors.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/stl/filesystem.h>
@@ -24,6 +23,7 @@
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 #include "nuri/python/core/core_module.h"
+#include "nuri/python/exception.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
@@ -80,10 +80,9 @@ NURI_PYTHON_MODULE(m) {
        "readfile",
        [](std::string_view fmt, const fs::path &path) {
          auto pifs = std::make_unique<std::ifstream>(path);
-         if (!*pifs) {
-           PyErr_SetFromErrnoWithFilename(PyExc_OSError, path.c_str());
-           throw py::error_already_set();
-         }
+         if (!*pifs)
+           throw file_error(path.c_str());
+
          return PyMoleculeReader(std::move(pifs), fmt);
        },
        py::arg("fmt"), py::arg("path"),
