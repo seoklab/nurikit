@@ -81,7 +81,7 @@ if(NURI_ENABLE_SANITIZERS)
     set(sanitizer_extra_args
       -shared-libasan
       -fsanitize=float-divide-by-zero,implicit-conversion,local-bounds,nullability
-      -fsanitize-recover=implicit-signed-integer-truncation # for absl
+      -fsanitize-recover=implicit-conversion # too many false positives
     )
     add_compile_options(${sanitizer_extra_args})
     add_link_options(${sanitizer_extra_args})
