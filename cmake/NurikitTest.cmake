@@ -13,6 +13,10 @@ endif()
 
 include(GoogleTest)
 
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.18)
+  set(NURI_GTEST_EXTRA_ARGS DISCOVERY_MODE PRE_TEST)
+endif()
+
 function(nuri_add_test file)
   get_filename_component(test_dir ${file} DIRECTORY)
   file(RELATIVE_PATH test_dir "${PROJECT_SOURCE_DIR}/test" "${test_dir}")
@@ -32,6 +36,7 @@ function(nuri_add_test file)
 
   gtest_discover_tests("${target}"
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
-    DISCOVERY_MODE PRE_TEST)
+    ${NURI_GTEST_EXTRA_ARGS})
+
   add_dependencies(nuri_all_test "${target}")
 endfunction()

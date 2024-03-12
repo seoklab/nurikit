@@ -1,0 +1,2 @@
+implicit-signed-integer-truncation:AsciiInAZRange
+implicit-signed-integer-truncation:NextGeneration

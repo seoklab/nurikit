@@ -65,14 +65,14 @@ jobs:
       CC: clang
       CXX: clang++
       LD_PRELOAD: /usr/lib/x86_64-linux-gnu/libubsan.so.1
-      ASAN_OPTIONS: detect_leaks=0 detect_odr_violation=0
+      UBSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/ubsanignore.txt print_stacktrace=1
 
     steps:
       - run: sudo apt-get install -y libeigen3-dev
 
       - uses: lukka/get-cmake@latest
         with:
-          cmakeVersion: "~3.16.0" # for Ubuntu 20.04
+          cmakeVersion: "~3.18.0" # required for gtest DISCOVERY_MODE
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -98,20 +98,22 @@ jobs:
           LD_LIBRARY_PATH="$(clang -print-resource-dir)/lib/linux" pip install -v '.[test,docs]'
         env:
           SKBUILD_BUILD_DIR: build
+          ASAN_OPTIONS: detect_leaks=0
 
       - name: C++ tests
         run: |
           LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) $LD_PRELOAD"
           export LD_PRELOAD
 
-          cd build && ctest -j$(nproc) --output-on-failure
-        env:
-          ASAN_OPTIONS: detect_odr_violation=0
+          cd build
+          ctest -j$(nproc) --output-on-failure
 
       - name: Python tests
         run: |
           LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) $LD_PRELOAD"
           export LD_PRELOAD
 
-          pytest -v -s -n auto python/test
+          pytest -v -s python/test
           cmake --build build -j --target nuri_python_docs_doctest
+        env:
+          ASAN_OPTIONS: detect_leaks=0

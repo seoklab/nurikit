@@ -72,12 +72,19 @@ set_sanitizer_envs()
 
 if(NURI_ENABLE_SANITIZERS)
   message("Enabling sanitizers as requested")
-  add_compile_options(-fsanitize=address -fsanitize=undefined)
-  add_link_options(-fsanitize=address -fsanitize=undefined)
+  add_compile_options(
+    -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all)
+  add_link_options(
+    -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all)
 
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    add_compile_options(-shared-libasan)
-    add_link_options(-shared-libasan)
+    set(sanitizer_extra_args
+      -shared-libasan
+      -fsanitize=float-divide-by-zero,implicit-conversion,local-bounds,nullability
+      -fsanitize-recover=implicit-signed-integer-truncation # for absl
+    )
+    add_compile_options(${sanitizer_extra_args})
+    add_link_options(${sanitizer_extra_args})
   endif()
 endif()
 
