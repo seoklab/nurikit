@@ -24,7 +24,9 @@ option(NURI_TEST_COVERAGE "Enable coverage build" OFF)
 option(NURI_BUILD_DOCS "Build documentation" OFF)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  string(APPEND CMAKE_CXX_FLAGS " -stdlib=libstdc++")
+  string(APPEND CMAKE_CXX_FLAGS
+    " -stdlib=libstdc++ -Wno-gnu-zero-variadic-macro-arguments"
+  )
 elseif(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   message(FATAL_ERROR
     "Unsupported compiler '${CMAKE_CXX_COMPILER_ID}' detected! "
@@ -66,10 +68,24 @@ elseif(NURI_ENABLE_IPO)
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 endif()
 
+set_sanitizer_envs()
+
 if(NURI_ENABLE_SANITIZERS)
   message("Enabling sanitizers as requested")
-  add_compile_options(-fsanitize=address -fsanitize=undefined)
-  add_link_options(-fsanitize=address -fsanitize=undefined)
+  add_compile_options(
+    -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all)
+  add_link_options(
+    -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all)
+
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    set(sanitizer_extra_args
+      -shared-libasan
+      -fsanitize=float-divide-by-zero,implicit-conversion,local-bounds,nullability
+      -fsanitize-recover=implicit-conversion # too many false positives
+    )
+    add_compile_options(${sanitizer_extra_args})
+    add_link_options(${sanitizer_extra_args})
+  endif()
 endif()
 
 if(CMAKE_BUILD_TYPE MATCHES "Release|MinSizeRel")

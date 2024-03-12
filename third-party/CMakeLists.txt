@@ -4,7 +4,7 @@
 #
 
 # Don't fail build on warnings from third-party code.
-add_compile_options("-Wno-error")
+add_compile_options(-Wno-error)
 
 set(ABSL_PROPAGATE_CXX_STD ON)
 set(ABSL_USE_SYSTEM_INCLUDES ON)

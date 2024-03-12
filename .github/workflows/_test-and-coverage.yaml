@@ -36,7 +36,7 @@ jobs:
         with:
           python-version: "3.8"
 
-      - run: pip install sphinx sphinx-rtd-theme
+      - run: pip install sphinx
 
       - name: Configure
         run: |
@@ -62,14 +62,17 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      ASAN_OPTIONS: detect_odr_violation=0
+      CC: clang
+      CXX: clang++
+      LD_PRELOAD: /usr/lib/x86_64-linux-gnu/libubsan.so.1
+      UBSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/ubsanignore.txt print_stacktrace=1
 
     steps:
       - run: sudo apt-get install -y libeigen3-dev
 
       - uses: lukka/get-cmake@latest
         with:
-          cmakeVersion: "~3.16.0" # for Ubuntu 20.04
+          cmakeVersion: "~3.18.0" # required for gtest DISCOVERY_MODE
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,7 +83,7 @@ jobs:
         with:
           python-version: "3.8"
 
-      - run: pip install sphinx sphinx-rtd-theme
+      - run: pip install sphinx
 
       - name: Configure
         run: |
@@ -91,17 +94,27 @@ jobs:
             -DNURI_BUILD_PYTHON=ON
 
       - name: Build
-        run: pip install -v '.[test,docs]'
+        run: |
+          LD_LIBRARY_PATH="$(clang -print-resource-dir)/lib/linux" pip install -v '.[test,docs]'
         env:
           SKBUILD_BUILD_DIR: build
+          LD_PRELOAD: ""
+          ASAN_OPTIONS: detect_leaks=0
 
       - name: C++ tests
-        run: cmake --build build -j --target test
+        run: |
+          LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) $LD_PRELOAD"
+          export LD_PRELOAD
+
+          cd build
+          ctest -j$(nproc) --output-on-failure
 
       - name: Python tests
         run: |
-          pytest -v -s -n auto python/test
+          LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) $LD_PRELOAD"
+          export LD_PRELOAD
+
+          pytest -v -s python/test
           cmake --build build -j --target nuri_python_docs_doctest
         env:
-          LD_PRELOAD: /usr/lib/x86_64-linux-gnu/libasan.so.6 /usr/lib/x86_64-linux-gnu/libstdc++.so.6
-          ASAN_OPTIONS: detect_leaks=0 detect_odr_violation=0
+          ASAN_OPTIONS: detect_leaks=0

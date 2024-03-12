@@ -35,7 +35,7 @@ namespace constants {
   /**
    * @brief The hybridization state of an atom object.
    */
-  enum Hybridization {
+  enum Hybridization : int {
     kUnbound = 0,   // Unbound
     kTerminal = 1,  // Terminal
     kSP = 2,
@@ -72,7 +72,7 @@ namespace constants {
   /**
    * @brief The bond order of a bond object.
    */
-  enum BondOrder {
+  enum BondOrder : int {
     kOtherBond = 0,
     kSingleBond = 1,
     kDoubleBond = 2,

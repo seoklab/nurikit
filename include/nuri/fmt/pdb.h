@@ -29,6 +29,8 @@ public:
 
   bool getnext(std::vector<std::string> &block) override;
 
+  bool sanitized() const override { return true; }
+
 private:
   std::vector<std::string> header_;
   std::vector<std::string> rfooter_;

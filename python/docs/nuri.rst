@@ -6,6 +6,8 @@ Nurikit Python API Reference
 ============================
 
 .. automodule:: nuri
+   :no-members:
+   :no-undoc-members:
 
 .. code-block:: python
 
@@ -19,12 +21,20 @@ Submodules
    :maxdepth: 1
 
    nuri.core
+   nuri.fmt
+   nuri.algo
+
+-------------------
+Top-level Functions
+-------------------
+
+.. autofunction:: nuri.readfile
+
+.. autofunction:: nuri.readstring
 
 --------------------
 Top-level Attributes
 --------------------
-
-.. currentmodule:: nuri
 
 .. py:data:: periodic_table
    :type: .core.PeriodicTable

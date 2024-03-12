@@ -6,9 +6,7 @@
 #include "nuri/core/molecule.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
-#include <stdexcept>
 #include <string_view>
 #include <tuple>
 #include <utility>
@@ -290,55 +288,20 @@ counter-clockwise with respect to the src -> dst vector.
 }
 }  // namespace
 
-// Put here for friend declaration, don't move into the anonymous namespace.
-class PyMutator {
-public:
-  explicit PyMutator(PyMol &pm): mol_(&pm) { }
+PyAtom PyMutator::add_atom(AtomData &&data) {
+  int idx = mut().add_atom(std::move(data));
+  return mol_->pyatom(idx);
+}
 
-  PyMutator &initialize() {
-    if (mut_)
-      throw std::runtime_error("mutator is already active");
+PyBond PyMutator::add_bond(int src, int dst, BondData &&data) {
+  if (src == dst)
+    throw py::value_error("source and destination atoms are the same");
 
-    mut_ = mol_->mutator();
-    return *this;
-  }
-
-  void finalize() {
-    if (!mut_)
-      throw std::runtime_error("mutator is not active");
-
-    mut_.reset();
-    mol_->mutator_finalized();
-  }
-
-  PyAtom add_atom(AtomData &&data) {
-    int idx = mut().add_atom(std::move(data));
-    return mol_->pyatom(idx);
-  }
-
-  PyBond add_bond(int src, int dst, BondData &&data) {
-    if (src == dst)
-      throw py::value_error("source and destination atoms are the same");
-
-    auto [it, ok] = mut().add_bond(src, dst, std::move(data));
-    if (!ok)
-      throw py::value_error("duplicate bond");
-    return mol_->pybond(it->id());
-  }
-
-  MoleculeMutator &mut() {
-    if (!mut_)
-      throw std::runtime_error("mutator is already finalized or not active");
-
-    return *mut_;
-  }
-
-  Molecule &mol() { return **mol_; }
-
-private:
-  PyMol *mol_;
-  std::unique_ptr<MoleculeMutator> mut_;
-};
+  auto [it, ok] = mut().add_bond(src, dst, std::move(data));
+  if (!ok)
+    throw py::value_error("duplicate bond");
+  return mol_->pybond(it->id());
+}
 
 void PyBond::rotate(double angle, bool reverse, bool strict,
                     std::optional<int> conf) {
@@ -705,6 +668,58 @@ Get a neighbor of the molecule.
   ``nei.src.id == src.id`` and ``nei.dst.id == dst.id``.
 .. note::
   The returned neighbor is invalidated when a mutator context is exited.
+)doc")
+      .def(
+          "sanitize",
+          [](PyMol &self, bool conjugation, bool aromaticity, bool hyb,
+             bool valence) {
+            if (!conjugation && !aromaticity && !hyb && !valence) {
+              ABSL_LOG(WARNING) << "no sanitization requested";
+              return;
+            }
+
+            if (!conjugation && (aromaticity || hyb || valence)) {
+              ABSL_LOG(WARNING)
+                  << "turning conjugation on to satisfy other constraints";
+              conjugation = true;
+            }
+
+            MoleculeSanitizer san(*self);
+            if (conjugation && !san.sanitize_conjugated())
+              throw py::value_error("failed to satisfy conjugation");
+            if (aromaticity && !san.sanitize_aromaticity())
+              throw py::value_error("failed to satisfy aromaticity");
+            if (hyb && !san.sanitize_hybridization())
+              throw py::value_error("failed to satisfy hybridization");
+            if (valence && !san.sanitize_valence())
+              throw py::value_error("failed to satisfy valence");
+          },
+          py::kw_only(),  //
+          py::arg("conjugation") = true, py::arg("aromaticity") = true,
+          py::arg("hyb") = true, py::arg("valence") = true, R"doc(
+Sanitize the molecule.
+
+:param conjugation: If True, sanitize conjugation.
+:param aromaticity: If True, sanitize aromaticity.
+:param hyb: If True, sanitize hybridization.
+:param valence: If True, sanitize valence.
+:raises ValueError: If the sanitization fails.
+
+.. note::
+  The sanitization is done in the order of conjugation, aromaticity,
+  hybridization, and valence. If any of the sanitization fails, the subsequent
+  sanitization will not be attempted.
+
+.. note::
+  The sanitization is done in place. The state of molecule will be mutated even
+  if the sanitization fails.
+
+.. note::
+  If any of the other three sanitization is requested, the conjugation will be
+  automatically turned on.
+
+.. warning::
+  This interface is experimental and may change in the future.
 )doc")
       .def(
           "get_conf",

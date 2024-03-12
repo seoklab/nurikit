@@ -4,7 +4,7 @@
 #
 
 [build-system]
-requires = ["scikit-build-core"]
+requires = ["scikit-build-core", "pybind11-stubgen"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -13,13 +13,9 @@ version = "@NURI_VERSION@"
 description = "*The* fundamental software platform for chem- and bio-informatics"
 readme = "README.md"
 requires-python = ">=3.7"
-license = {file = "LICENSE"}
-authors = [
-    {name = "Nuri Jung", email = "jnooree@snu.ac.kr"}
-]
-maintainers = [
-    {name = "Nuri Jung", email = "jnooree@snu.ac.kr"}
-]
+license = { file = "LICENSE" }
+authors = [{ name = "Nuri Jung", email = "jnooree@snu.ac.kr" }]
+maintainers = [{ name = "Nuri Jung", email = "jnooree@snu.ac.kr" }]
 classifiers = [
     "Development Status :: 1 - Planning",
     "Intended Audience :: Science/Research",
@@ -47,20 +43,22 @@ Repository = "https://github.com/seoklab/nurikit.git"
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-xdist"]
-docs = ["sphinx", "sphinx-rtd-theme", "urllib3<2.0"]
+docs = ["sphinx", "sphinxcontrib-bibtex", "sphinx-rtd-theme", "urllib3<2.0"]
 coverage = ["gcovr"]
 
 [tool.scikit-build]
-minimum-version = "0.4"
+minimum-version = "0.5"
 ninja.make-fallback = false
 
 cmake.minimum-version = "@CMAKE_MINIMUM_REQUIRED_VERSION@"
 cmake.build-type = "@CMAKE_BUILD_TYPE@"
 cmake.verbose = @NURI_VERBOSE_CMAKE@
 
+sdist.include = ["*.pyi"]
 sdist.exclude = ["*.h", "*.cpp", "*.in", "*.so"]
 wheel.packages = ["python/src/nuri"]
 wheel.install-dir = "nuri"
+install.strip = true
 
 [tool.scikit-build.cmake.define]
 NURI_BUILD_PYTHON = "ON"
@@ -78,7 +76,7 @@ build = ["cp*-manylinux_x86_64"]
 
 test-extras = ["test", "docs"]
 test-command = [
-    "pytest -v {project}/python/test -n auto",
+    "pytest -v {project}/python/test",
     "cmake -S {project} -B .",
     "cmake --build . --target nuri_python_docs_doctest -j",
 ]

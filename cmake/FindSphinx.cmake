@@ -12,7 +12,8 @@ find_package_handle_standard_args(Sphinx DEFAULT_MSG SPHINX_EXECUTABLE)
 
 function(add_sphinx_docs target)
   add_custom_target("${target}"
-    COMMAND ${SPHINX_EXECUTABLE}
+    COMMAND ${EXECUTE_WITH_SAN}
+    ${SPHINX_EXECUTABLE}
     -E
     -b html
     -c ${CMAKE_CURRENT_BINARY_DIR}
@@ -23,7 +24,8 @@ function(add_sphinx_docs target)
     VERBATIM)
 
   add_custom_target("${target}_doctest"
-    COMMAND ${SPHINX_EXECUTABLE}
+    COMMAND ${EXECUTE_WITH_SAN}
+    ${SPHINX_EXECUTABLE}
     -E
     -b doctest
     -c ${CMAKE_CURRENT_BINARY_DIR}

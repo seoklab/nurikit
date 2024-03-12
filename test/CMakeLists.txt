@@ -5,6 +5,12 @@
 
 include(NurikitTest)
 
+add_compile_options(-Wno-error)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  add_compile_options(-Wno-self-assign-overloaded)
+endif()
+
 include_directories("${CMAKE_CURRENT_LIST_DIR}/include")
 file(GLOB_RECURSE NURI_TEST_SRCS *.cpp)
 

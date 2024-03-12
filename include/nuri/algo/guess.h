@@ -17,6 +17,7 @@ constexpr inline double kDefaultThreshold = 0.5;
  * @param conf The index of the conformation used for guessing.
  * @param threshold The threshold for guessing bonds.
  * @return true if the guessing is successful.
+ * @note The behavior is undefined if the conformer index is out of range.
  *
  * This function find extra bonds that are not in the input molecule, and add
  * them to the molecule. The information present in the molecule will be
@@ -33,12 +34,12 @@ extern bool guess_everything(MoleculeMutator &mut, int conf = 0,
  * @param mut The mutator of the molecule to be guessed.
  * @param conf The index of the conformation used for guessing.
  * @param threshold The threshold for guessing bonds.
- * @return true if the guessing is successful.
+ * @note The behavior is undefined if the conformer index is out of range.
  *
  * This function assumes all connectivity information is missing. The
  * information present in the molecule could be overwritten by this function.
  */
-extern bool guess_connectivity(MoleculeMutator &mut, int conf = 0,
+extern void guess_connectivity(MoleculeMutator &mut, int conf = 0,
                                double threshold = kDefaultThreshold);
 
 /**
@@ -46,6 +47,7 @@ extern bool guess_connectivity(MoleculeMutator &mut, int conf = 0,
  * @param mol The molecule to be guessed.
  * @param conf The index of the conformation used for guessing.
  * @return true if the guessing is successful.
+ * @note The behavior is undefined if the conformer index is out of range.
  *
  * This function assumes all connectivity information is present and correct,
  * and all atom/bond types and implicit hydrogen counts are incorrect. The

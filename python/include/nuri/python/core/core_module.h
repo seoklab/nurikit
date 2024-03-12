@@ -54,7 +54,11 @@ class PyBond;
 class PyNeigh;
 
 class PyMol: public ParentWrapper<PyMol, Molecule> {
+  using Base = ParentWrapper<PyMol, Molecule>;
+
 public:
+  using Base::Base;
+
   PyAtom pyatom(int idx);
 
   PyBond pybond(int idx);
@@ -89,6 +93,44 @@ private:
 
   std::uint64_t substruct_version_ = 0;
   bool has_mutator_ = false;
+};
+
+class PyMutator {
+public:
+  explicit PyMutator(PyMol &pm): mol_(&pm) { }
+
+  PyMutator &initialize() {
+    if (mut_)
+      throw std::runtime_error("mutator is already active");
+
+    mut_ = mol_->mutator();
+    return *this;
+  }
+
+  void finalize() {
+    if (!mut_)
+      throw std::runtime_error("mutator is not active");
+
+    mut_.reset();
+    mol_->mutator_finalized();
+  }
+
+  PyAtom add_atom(AtomData &&data);
+
+  PyBond add_bond(int src, int dst, BondData &&data);
+
+  MoleculeMutator &mut() {
+    if (!mut_)
+      throw std::runtime_error("mutator is already finalized or not active");
+
+    return *mut_;
+  }
+
+  Molecule &mol() { return **mol_; }
+
+private:
+  PyMol *mol_;
+  std::unique_ptr<MoleculeMutator> mut_;
 };
 
 class PyNeigh: public ProxyWrapper<PyNeigh, std::pair<int, int>,

@@ -13,6 +13,10 @@ endif()
 
 include(GoogleTest)
 
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.18)
+  set(NURI_GTEST_EXTRA_ARGS DISCOVERY_MODE PRE_TEST)
+endif()
+
 function(nuri_add_test file)
   get_filename_component(test_dir ${file} DIRECTORY)
   file(RELATIVE_PATH test_dir "${PROJECT_SOURCE_DIR}/test" "${test_dir}")
@@ -30,9 +34,9 @@ function(nuri_add_test file)
     target_link_libraries("${target}" PRIVATE nuri_lib)
   endif()
 
-  set_target_properties("${target}" PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
-
   gtest_discover_tests("${target}"
-    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    ${NURI_GTEST_EXTRA_ARGS})
+
   add_dependencies(nuri_all_test "${target}")
 endfunction()

@@ -28,6 +28,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
     "sphinx.ext.doctest",
+    "sphinxcontrib.bibtex",
 ]
 
 autodoc_member_order = "groupwise"
@@ -50,6 +51,7 @@ python_use_unqualified_type_names = True
 
 templates_path = ["@CMAKE_CURRENT_LIST_DIR@/_templates"]
 exclude_patterns = ["Thumbs.db", ".DS_Store", "_templates"]
+bibtex_bibfiles = ["@CMAKE_CURRENT_LIST_DIR@/data/refs.bib"]
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
@@ -72,6 +74,8 @@ rst_prolog = """
 .. |cppdocs| replace:: `C++ API Reference`_
 .. _C++ API Reference: https://cluster.seoklab.org:8443/docs/nurikit/main
 """
+
+doctest_global_setup = "import nuri"
 
 
 class UnneededBaseStripDocumenter(autodoc.ClassDocumenter):

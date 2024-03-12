@@ -11,4 +11,4 @@ per-file-ignores =
 	# imported but unused
 	__init__.py: F401
     docs/conf.py*: E261,E501
-extend-exclude = build/**,dist/**,**/stubs/**,*.pyc
+extend-exclude = build/**,dist/**,**/stubs/**,*.pyc,*.pyi

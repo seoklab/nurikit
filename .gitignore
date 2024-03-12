@@ -6,7 +6,7 @@
 /coverage.info
 /pyproject.toml
 /python/src/nuri/_version.py
-/python/src/stubs/
+*.pyi
 
 # Common build directories
 .cache/

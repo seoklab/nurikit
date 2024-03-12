@@ -408,6 +408,10 @@ namespace internal {
     PowersetStream &next() {
       if (state_ >= r_max_) {
         ++r_;
+
+        if (ABSL_PREDICT_FALSE(!*this))
+          return *this;
+
         r_max_ |= 1U << (n_ - r_);
         state_ = (1U << r_) - 1;
         return *this;
@@ -848,6 +852,9 @@ namespace internal {
 }  // namespace internal
 
 inline Matrix3Xd stack(const std::vector<Vector3d> &vs) {
+  if (ABSL_PREDICT_FALSE(vs.empty()))
+    return Matrix3Xd(3, 0);
+
   Matrix3Xd m(3, vs.size());
   internal::stack_impl(m, vs);
   return m;

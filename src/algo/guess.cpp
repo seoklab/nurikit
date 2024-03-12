@@ -236,10 +236,8 @@ namespace {
 
     ABSL_DCHECK(atom.degree() == 3);
 
-    Matrix3d vectors =
-        (pos(Eigen::all, as_index(atom)).colwise() - pos.col(atom.id()))
-            .colwise()
-            .normalized();
+    Matrix3d vectors = internal::safe_colwise_normalized(
+        pos(Eigen::all, as_index(atom)).colwise() - pos.col(atom.id()));
     return hyb_from_vectors(vectors);
   }
 
@@ -273,7 +271,7 @@ namespace {
     MatrixMax36d cross(3, n);
     for (int i = 0; i < n; ++i)
       cross.col(i) = vectors.col(i).cross(vectors.col(next[i]));
-    cross.colwise().normalize();
+    internal::safe_colwise_normalize(cross);
 
     auto [ssum, csum] = sum_tan2_half(cross, next);
     if (ssum <= threshold * csum) {
@@ -1524,12 +1522,9 @@ namespace {
   }
 }  // namespace
 
-bool guess_connectivity(MoleculeMutator &mut, int conf, double threshold) {
+void guess_connectivity(MoleculeMutator &mut, int conf, double threshold) {
   const Molecule &mol = mut.mol();
-  if (mol.confs().size() <= conf) {
-    ABSL_DLOG(WARNING) << "Conformer index " << conf << " is out of range.";
-    return false;
-  }
+  ABSL_DCHECK(conf >= 0 && conf < mol.confs().size());
 
   const Matrix3Xd &pos = mol.confs()[conf];
 
@@ -1540,14 +1535,11 @@ bool guess_connectivity(MoleculeMutator &mut, int conf, double threshold) {
   prepare_conn_search(pos, distsq, tree);
   guess_connectivity(mut, pos, threshold, distsq, tree);
   mut.finalize();
-
-  return true;
 }
 
 bool guess_everything(MoleculeMutator &mut, int conf, double threshold) {
   Molecule &mol = mut.mol();
-  if (!guess_connectivity(mut, conf, threshold))
-    return false;
+  guess_connectivity(mut, conf, threshold);
 
   reset_atoms(mol);
   reset_bonds(mol);
@@ -1555,10 +1547,7 @@ bool guess_everything(MoleculeMutator &mut, int conf, double threshold) {
 }
 
 bool guess_all_types(Molecule &mol, int conf) {
-  if (mol.confs().size() <= conf) {
-    ABSL_DLOG(WARNING) << "Conformer index " << conf << " is out of range.";
-    return false;
-  }
+  ABSL_DCHECK(conf >= 0 && conf < mol.confs().size());
 
   if (!no_excess_bonds(mol, [](Molecule::Atom atom, int /* max_neighbors */) {
         ABSL_LOG(WARNING) << "Degree overflow for atom " << atom.id() << " ("
