@@ -31,6 +31,7 @@ function(nuri_add_test file)
   endif()
 
   gtest_discover_tests("${target}"
-    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    DISCOVERY_MODE PRE_TEST)
   add_dependencies(nuri_all_test "${target}")
 endfunction()

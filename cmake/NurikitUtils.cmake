@@ -178,3 +178,24 @@ function(handle_boost_dependency target)
     PRIVATE Boost::spirit Boost::fusion Boost::mpl Boost::optional
   )
 endfunction()
+
+function(set_sanitizer_envs)
+  if(NOT NURI_ENABLE_SANITIZERS)
+    set(EXECUTE_WITH_SAN PARENT_SCOPE)
+    return()
+  endif()
+
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    set(filename libasan.so)
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    set(filename libclang_rt.asan-x86_64.so)
+  endif()
+
+  execute_process(
+    COMMAND "${CMAKE_CXX_COMPILER}" "-print-file-name=${filename}"
+    OUTPUT_VARIABLE asan_lib_path
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+  set(EXECUTE_WITH_SAN
+    cmake -E env "LD_PRELOAD=${asan_lib_path} $ENV{LD_PRELOAD}" PARENT_SCOPE)
+endfunction()

@@ -64,6 +64,8 @@ jobs:
     env:
       CC: clang
       CXX: clang++
+      LD_PRELOAD: /usr/lib/x86_64-linux-gnu/libubsan.so.1
+      ASAN_OPTIONS: detect_leaks=0 detect_odr_violation=0
 
     steps:
       - run: sudo apt-get install -y libeigen3-dev
@@ -93,17 +95,13 @@ jobs:
 
       - name: Build
         run: |
-          LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) \
-              /usr/lib/x86_64-linux-gnu/libubsan.so.1" \
-            pip install -v '.[test,docs]'
+          LD_LIBRARY_PATH="$(clang -print-resource-dir)/lib/linux" pip install -v '.[test,docs]'
         env:
           SKBUILD_BUILD_DIR: build
-          ASAN_OPTIONS: detect_leaks=0 detect_odr_violation=0
 
       - name: C++ tests
         run: |
-          LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) \
-            /usr/lib/x86_64-linux-gnu/libubsan.so.1"
+          LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) $LD_PRELOAD"
           export LD_PRELOAD
 
           cd build && ctest -j$(nproc) --output-on-failure
@@ -112,11 +110,8 @@ jobs:
 
       - name: Python tests
         run: |
-          LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) \
-            /usr/lib/x86_64-linux-gnu/libubsan.so.1" \
+          LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) $LD_PRELOAD"
           export LD_PRELOAD
 
           pytest -v -s -n auto python/test
           cmake --build build -j --target nuri_python_docs_doctest
-        env:
-          ASAN_OPTIONS: detect_leaks=0 detect_odr_violation=0

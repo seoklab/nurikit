@@ -68,6 +68,8 @@ elseif(NURI_ENABLE_IPO)
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 endif()
 
+set_sanitizer_envs()
+
 if(NURI_ENABLE_SANITIZERS)
   message("Enabling sanitizers as requested")
   add_compile_options(-fsanitize=address -fsanitize=undefined)

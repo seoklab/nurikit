@@ -30,7 +30,8 @@ function(nuri_python_generate_stubs module)
   add_custom_command(
     TARGET nuri_python
     POST_BUILD
-    COMMAND "${PYBIND11_STUBGEN}"
+    COMMAND ${EXECUTE_WITH_SAN}
+    "${PYBIND11_STUBGEN}"
     -o "${CMAKE_CURRENT_LIST_DIR}"
     --enum-class-locations .*:nuri.core._core
     --numpy-array-remove-parameters
