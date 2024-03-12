@@ -43,7 +43,13 @@ Repository = "https://github.com/seoklab/nurikit.git"
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-xdist"]
-docs = ["sphinx", "sphinxcontrib-bibtex", "sphinx-rtd-theme", "urllib3<2.0"]
+docs = [
+    "sphinx",
+    "sphinxcontrib-bibtex",
+    "sphinx-rtd-theme",
+    "urllib3<2.0",
+    "setuptools",  # required for pkg_resources
+]
 coverage = ["gcovr"]
 
 [tool.scikit-build]
