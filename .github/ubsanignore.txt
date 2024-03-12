@@ -1,2 +1,2 @@
-implicit-signed-integer-truncation:AsciiInAZRange
-implicit-signed-integer-truncation:NextGeneration
+implicit-signed-integer-truncation:ascii.cc
+implicit-signed-integer-truncation:raw_hash_set.h
