@@ -22,6 +22,7 @@ option(NURI_ENABLE_SANITIZERS "Enable sanitizers for debug build" OFF)
 
 option(NURI_TEST_COVERAGE "Enable coverage build" OFF)
 option(NURI_BUILD_DOCS "Build documentation" OFF)
+option(NURI_BUILD_PYTHON_DOCS "Build python documentation" OFF)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   string(APPEND CMAKE_CXX_FLAGS
@@ -112,7 +113,7 @@ add_subdirectory(docs EXCLUDE_FROM_ALL)
 
 if(SKBUILD)
   add_subdirectory(python)
-elseif(NURI_BUILD_PYTHON)
+elseif(NURI_BUILD_PYTHON OR NURI_BUILD_PYTHON_DOCS)
   set(NURI_VERBOSE_CMAKE "false")
 
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")

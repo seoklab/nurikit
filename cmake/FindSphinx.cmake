@@ -23,7 +23,7 @@ function(add_sphinx_docs target)
     COMMENT "Building Sphinx documentation for ${target}"
     VERBATIM)
 
-  if(NURI_BUILD_PYTHON AND NURI_BUILD_DOCS)
+  if(NURI_BUILD_PYTHON_DOCS)
     set_target_properties("${target}" PROPERTIES EXCLUDE_FROM_ALL OFF)
   endif()
 
