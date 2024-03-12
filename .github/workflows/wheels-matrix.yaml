@@ -3,18 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-name: Build wheels for main branch
+name: Build wheels in matrix
 
 on:
   workflow_dispatch:
+  workflow_call:
   push:
     branches:
       - main
-      - "release/**"
-    tags:
-      - "v*"
     paths:
-      - ".github/workflows/main-wheels.yaml"
+      - ".github/workflows/wheels-matrix.yaml"
       - ".github/workflows/_wheel-build.yaml"
       - "cmake/**"
       - "include/**"
@@ -40,15 +38,6 @@ jobs:
     with:
       python: ${{ matrix.python }}
       upload: true
-
-  publish:
-    needs: [build]
-    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
-    uses: ./.github/workflows/_pypi-publish.yaml
-
-  publish-docs:
-    needs: [publish]
-    uses: ./.github/workflows/docs-python.yaml
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

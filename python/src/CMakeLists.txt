@@ -6,6 +6,10 @@
 add_custom_target(nuri_python)
 add_dependencies(nuri_python nuri_lib)
 
+if(NURI_BUILD_PYTHON)
+  set_target_properties(nuri_python PROPERTIES EXCLUDE_FROM_ALL OFF)
+endif()
+
 include(NurikitPythonUtils)
 
 nuri_python_generate_stubs(nuri)

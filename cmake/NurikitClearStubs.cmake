@@ -12,7 +12,7 @@ if(NOT CMAKE_ARGV1)
   message(FATAL_ERROR "No parent directory provided.")
 endif()
 
-file(GLOB_RECURSE nuri_stubs LIST_DIRECTORIES OFF "*.pyi")
+file(GLOB_RECURSE nuri_stubs LIST_DIRECTORIES OFF "${CMAKE_ARGV1}/*.pyi")
 
 if(nuri_stubs)
   list(JOIN nuri_stubs ", \n" nuri_stubs_msg)

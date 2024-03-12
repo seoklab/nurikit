@@ -128,7 +128,7 @@ endfunction()
 function(find_or_fetch_pybind11)
   set(BUILD_TESTING OFF)
 
-  find_package(pybind11 2.10.4)
+  find_package(pybind11 2.11.1)
 
   if(pybind11_FOUND)
     message(STATUS "Found pybind11 ${pybind11_VERSION}")
@@ -139,7 +139,7 @@ function(find_or_fetch_pybind11)
     Fetchcontent_Declare(
       pybind11
       GIT_REPOSITORY https://github.com/pybind/pybind11.git
-      GIT_TAG v2.10.4
+      GIT_TAG v2.11.1
     )
     nuri_make_available_deponly(pybind11)
   endif()
@@ -181,7 +181,7 @@ endfunction()
 
 function(set_sanitizer_envs)
   if(NOT NURI_ENABLE_SANITIZERS)
-    set(EXECUTE_WITH_SAN PARENT_SCOPE)
+    set(SANITIZER_ENVS "LD_PRELOAD=$ENV{LD_PRELOAD}" PARENT_SCOPE)
     return()
   endif()
 
@@ -201,6 +201,7 @@ function(set_sanitizer_envs)
     OUTPUT_VARIABLE ubsan_lib_path
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-  set(EXECUTE_WITH_SAN
-    cmake -E env "LD_PRELOAD=${asan_lib_path} ${ubsan_lib_path} $ENV{LD_PRELOAD}" PARENT_SCOPE)
+  set(SANITIZER_ENVS
+    "LD_PRELOAD=${asan_lib_path} ${ubsan_lib_path} $ENV{LD_PRELOAD}"
+    PARENT_SCOPE)
 endfunction()

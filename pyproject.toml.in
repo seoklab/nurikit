@@ -48,7 +48,7 @@ docs = [
     "sphinxcontrib-bibtex",
     "sphinx-rtd-theme",
     "urllib3<2.0",
-    "setuptools",  # required for pkg_resources
+    "setuptools",           # required for pkg_resources
 ]
 coverage = ["gcovr"]
 
@@ -58,7 +58,6 @@ ninja.make-fallback = false
 
 cmake.minimum-version = "@CMAKE_MINIMUM_REQUIRED_VERSION@"
 cmake.build-type = "@CMAKE_BUILD_TYPE@"
-cmake.verbose = @NURI_VERBOSE_CMAKE@
 
 sdist.include = ["*.pyi"]
 sdist.exclude = ["*.h", "*.cpp", "*.in", "*.so"]
@@ -73,12 +72,14 @@ NURI_ENABLE_ARCH_NATIVE = "OFF"
 NURI_ENABLE_SANITIZERS = "@NURI_ENABLE_SANITIZERS@"
 NURI_TEST_COVERAGE = "@NURI_TEST_COVERAGE@"
 NURI_BUILD_DOCS = "OFF"
+NURI_BUILD_PYTHON_DOCS = "OFF"
 NURI_REF = "@NURI_REF@"
 NURI_OPTIMIZATION_LEVEL = "@NURI_OPTIMIZATION_LEVEL@"
 NURI_ENABLE_IPO = "@NURI_ENABLE_IPO@"
 
 [tool.cibuildwheel]
 build = ["cp*-manylinux_x86_64"]
+build-verbosity = 1
 
 test-extras = ["test", "docs"]
 test-command = [
@@ -86,3 +87,6 @@ test-command = [
     "cmake -S {project} -B .",
     "cmake --build . --target nuri_python_docs_doctest -j",
 ]
+
+[tool.cibuildwheel.config-settings]
+"cmake.verbose" = "true"
