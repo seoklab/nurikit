@@ -13,6 +13,7 @@
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 namespace internal {
@@ -125,6 +126,48 @@ namespace internal {
   constexpr inline double safe_normalizer(double sqn, double eps = 1e-12) {
     return sqn < eps ? 1 : 1 / std::sqrt(sqn);
   }
+
+  template <class VectorLike>
+  // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
+  inline void safe_normalize(VectorLike &&m, double eps = 1e-12) {
+    m.array() *= safe_normalizer(m.squaredNorm(), eps);
+  }
+
+  template <class VectorLike>
+  inline auto safe_normalized(VectorLike &&m, double eps = 1e-12) {
+    using T = remove_cvref_t<VectorLike>;
+    using Scalar = typename T::Scalar;
+    constexpr auto size = T::SizeAtCompileTime;
+
+    Vector<Scalar, size> ret = std::forward<VectorLike>(m);
+    safe_normalize(ret, eps);
+    return ret;
+  }
+
+  template <class MatrixLike>
+  // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
+  inline void safe_colwise_normalize(MatrixLike &&m, double eps = 1e-12) {
+    using T = remove_cvref_t<MatrixLike>;
+    using Scalar = typename T::Scalar;
+
+    using ArrayLike = decltype(m.colwise().norm().array());
+    constexpr auto rows = ArrayLike::RowsAtCompileTime,
+                   cols = ArrayLike::ColsAtCompileTime;
+
+    Array<Scalar, rows, cols> norm = m.colwise().norm().array();
+    m.array().rowwise() /= (norm < eps).select(1, norm);
+  }
+
+  template <class MatrixLike>
+  inline auto safe_colwise_normalized(MatrixLike &&m, double eps = 1e-12) {
+    using T = remove_cvref_t<MatrixLike>;
+    using Scalar = typename T::Scalar;
+    constexpr auto rows = T::RowsAtCompileTime, cols = T::ColsAtCompileTime;
+
+    Matrix<Scalar, rows, cols> ret = std::forward<MatrixLike>(m);
+    safe_colwise_normalize(ret, eps);
+    return ret;
+  }
 }  // namespace internal
 
 /**
@@ -227,7 +270,7 @@ inline double cos_dihedral(const Vector3d &axis, Vector3d v, Vector3d w) {
  */
 inline double cos_dihedral(const Vector3d &a, const Vector3d &b,
                            const Vector3d &c, const Vector3d &d) {
-  Vector3d axis = (c - b).normalized();
+  Vector3d axis = internal::safe_normalized(c - b);
   return cos_dihedral(axis, a - b, d - c);
 }
 
@@ -250,7 +293,7 @@ Vector4d fit_plane(const MatrixLike &pts, bool normalize = true) {
   Vector4d ret;
   ret.head<3>() = svd.matrixU().col(2);
   if (normalize)
-    ret.head<3>().normalize();
+    internal::safe_normalize(ret.head<3>());
   ret[3] = -ret.head<3>().dot(cntr);
   return ret;
 }

@@ -236,10 +236,8 @@ namespace {
 
     ABSL_DCHECK(atom.degree() == 3);
 
-    Matrix3d vectors =
-        (pos(Eigen::all, as_index(atom)).colwise() - pos.col(atom.id()))
-            .colwise()
-            .normalized();
+    Matrix3d vectors = internal::safe_colwise_normalized(
+        pos(Eigen::all, as_index(atom)).colwise() - pos.col(atom.id()));
     return hyb_from_vectors(vectors);
   }
 
@@ -273,7 +271,7 @@ namespace {
     MatrixMax36d cross(3, n);
     for (int i = 0; i < n; ++i)
       cross.col(i) = vectors.col(i).cross(vectors.col(next[i]));
-    cross.colwise().normalize();
+    internal::safe_colwise_normalize(cross);
 
     auto [ssum, csum] = sum_tan2_half(cross, next);
     if (ssum <= threshold * csum) {

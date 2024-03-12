@@ -161,7 +161,8 @@ namespace {
     Eigen::Vector3d pv = coords.col(pivot);
     Eigen::Affine3d rotation =
         Eigen::Translation3d(pv)
-        * Eigen::AngleAxisd(deg2rad(angle), (pv - coords.col(ref)).normalized())
+        * Eigen::AngleAxisd(deg2rad(angle),
+                            internal::safe_normalized(pv - coords.col(ref)))
         * Eigen::Translation3d(-pv);
 
     auto rotate_helper = [&](auto moving) { moving = rotation * moving; };
