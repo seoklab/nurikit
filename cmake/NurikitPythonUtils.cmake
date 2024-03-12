@@ -9,7 +9,6 @@ add_custom_command(
   COMMAND "${CMAKE_COMMAND}"
   -P "${PROJECT_SOURCE_DIR}/cmake/NurikitClearStubs.cmake"
   "${CMAKE_CURRENT_SOURCE_DIR}"
-  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   VERBATIM)
 
 find_program(PYBIND11_STUBGEN pybind11-stubgen)
@@ -27,10 +26,17 @@ function(nuri_python_generate_stubs module)
     return()
   endif()
 
+  set(pypath_orig "$ENV{PYTHONPATH}")
+
+  if(pypath_orig)
+    set(pypath_orig "${pypath_orig}:")
+  endif()
+
   add_custom_command(
     TARGET nuri_python
     POST_BUILD
-    COMMAND ${EXECUTE_WITH_SAN}
+    COMMAND ${CMAKE_COMMAND}
+    -E env "PYTHONPATH=${pypath_orig}${CMAKE_CURRENT_LIST_DIR}" ${SANITIZER_ENVS}
     "${PYBIND11_STUBGEN}"
     -o "${CMAKE_CURRENT_LIST_DIR}"
     --enum-class-locations .*:nuri.core._core
@@ -86,7 +92,9 @@ function(nuri_python_add_module name)
     nuri_python_generate_stubs("${submodule}" ${ARG_STUBGEN_ARGS})
   endif()
 
-  install(TARGETS "${target_name}" LIBRARY DESTINATION "./${subdir}")
+  if(SKBUILD)
+    install(TARGETS "${target_name}" LIBRARY DESTINATION "./${subdir}")
+  endif()
 
   add_dependencies(nuri_python "${target_name}")
 endfunction()

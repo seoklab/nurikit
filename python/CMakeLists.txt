@@ -10,8 +10,11 @@ configure_file(
   "${CMAKE_CURRENT_LIST_DIR}/src/nuri/_version.py.in"
   "${CMAKE_CURRENT_LIST_DIR}/src/nuri/_version.py"
   @ONLY)
-install(FILES "${CMAKE_CURRENT_LIST_DIR}/src/nuri/_version.py"
-  DESTINATION ".")
+
+if(SKBUILD)
+  install(FILES "${CMAKE_CURRENT_LIST_DIR}/src/nuri/_version.py"
+    DESTINATION ".")
+endif()
 
 include_directories("${CMAKE_CURRENT_LIST_DIR}/include")
 add_compile_options(

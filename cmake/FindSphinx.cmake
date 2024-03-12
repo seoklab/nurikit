@@ -12,7 +12,7 @@ find_package_handle_standard_args(Sphinx DEFAULT_MSG SPHINX_EXECUTABLE)
 
 function(add_sphinx_docs target)
   add_custom_target("${target}"
-    COMMAND ${EXECUTE_WITH_SAN}
+    COMMAND ${CMAKE_COMMAND} -E env ${SANITIZER_ENVS}
     ${SPHINX_EXECUTABLE}
     -E
     -b html
@@ -23,8 +23,12 @@ function(add_sphinx_docs target)
     COMMENT "Building Sphinx documentation for ${target}"
     VERBATIM)
 
+  if(NURI_BUILD_PYTHON AND NURI_BUILD_DOCS)
+    set_target_properties("${target}" PROPERTIES EXCLUDE_FROM_ALL OFF)
+  endif()
+
   add_custom_target("${target}_doctest"
-    COMMAND ${EXECUTE_WITH_SAN}
+    COMMAND ${CMAKE_COMMAND} -E env ${SANITIZER_ENVS}
     ${SPHINX_EXECUTABLE}
     -E
     -b doctest
