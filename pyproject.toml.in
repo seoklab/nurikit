@@ -58,7 +58,6 @@ ninja.make-fallback = false
 
 cmake.minimum-version = "@CMAKE_MINIMUM_REQUIRED_VERSION@"
 cmake.build-type = "@CMAKE_BUILD_TYPE@"
-cmake.verbose = @NURI_VERBOSE_CMAKE@
 
 sdist.include = ["*.pyi"]
 sdist.exclude = ["*.h", "*.cpp", "*.in", "*.so"]
@@ -88,3 +87,6 @@ test-command = [
     "cmake -S {project} -B .",
     "cmake --build . --target nuri_python_docs_doctest -j",
 ]
+
+[tool.cibuildwheel.config-settings]
+"cmake.verbose" = "true"

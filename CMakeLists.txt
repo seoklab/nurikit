@@ -114,12 +114,6 @@ add_subdirectory(docs EXCLUDE_FROM_ALL)
 if(SKBUILD)
   add_subdirectory(python)
 elseif(NURI_BUILD_PYTHON OR NURI_BUILD_PYTHON_DOCS)
-  set(NURI_VERBOSE_CMAKE "false")
-
-  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(NURI_VERBOSE_CMAKE "true")
-  endif()
-
   configure_file(
     pyproject.toml.in "${CMAKE_CURRENT_LIST_DIR}/pyproject.toml" @ONLY)
 
