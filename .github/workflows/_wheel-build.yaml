@@ -26,6 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     name: Wheels for ${{ inputs.python }}
     steps:
+      - run: sudo apt-get install -y libeigen3-dev
+
       - uses: lukka/get-cmake@latest
         with:
           cmakeVersion: "~3.16.0" # for Ubuntu 20.04
