@@ -196,6 +196,11 @@ function(set_sanitizer_envs)
     OUTPUT_VARIABLE asan_lib_path
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 
+  execute_process(
+    COMMAND "${CMAKE_CXX_COMPILER}" "-print-file-name=libubsan.so"
+    OUTPUT_VARIABLE ubsan_lib_path
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+
   set(EXECUTE_WITH_SAN
-    cmake -E env "LD_PRELOAD=${asan_lib_path} $ENV{LD_PRELOAD}" PARENT_SCOPE)
+    cmake -E env "LD_PRELOAD=${asan_lib_path} ${ubsan_lib_path} $ENV{LD_PRELOAD}" PARENT_SCOPE)
 endfunction()

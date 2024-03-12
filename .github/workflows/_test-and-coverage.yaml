@@ -98,6 +98,7 @@ jobs:
           LD_LIBRARY_PATH="$(clang -print-resource-dir)/lib/linux" pip install -v '.[test,docs]'
         env:
           SKBUILD_BUILD_DIR: build
+          LD_PRELOAD: ""
           ASAN_OPTIONS: detect_leaks=0
 
       - name: C++ tests
