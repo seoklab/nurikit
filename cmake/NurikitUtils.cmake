@@ -128,7 +128,7 @@ endfunction()
 function(find_or_fetch_pybind11)
   set(BUILD_TESTING OFF)
 
-  find_package(pybind11 2.10.4)
+  find_package(pybind11 2.11.1)
 
   if(pybind11_FOUND)
     message(STATUS "Found pybind11 ${pybind11_VERSION}")
@@ -139,7 +139,7 @@ function(find_or_fetch_pybind11)
     Fetchcontent_Declare(
       pybind11
       GIT_REPOSITORY https://github.com/pybind/pybind11.git
-      GIT_TAG v2.10.4
+      GIT_TAG v2.11.1
     )
     nuri_make_available_deponly(pybind11)
   endif()
