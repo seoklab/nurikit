@@ -48,7 +48,7 @@ docs = [
     "sphinxcontrib-bibtex",
     "sphinx-rtd-theme",
     "urllib3<2.0",
-    "setuptools",  # required for pkg_resources
+    "setuptools",           # required for pkg_resources
 ]
 coverage = ["gcovr"]
 
@@ -79,6 +79,7 @@ NURI_ENABLE_IPO = "@NURI_ENABLE_IPO@"
 
 [tool.cibuildwheel]
 build = ["cp*-manylinux_x86_64"]
+build-verbosity = 1
 
 test-extras = ["test", "docs"]
 test-command = [
