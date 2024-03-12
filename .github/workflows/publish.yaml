@@ -1,0 +1,39 @@
+#
+# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  run-clang-tools:
+    uses: ./.github/workflows/_run-clang-tools.yaml
+    with:
+      files-changed-only: false
+      force: true
+
+  test:
+    uses: ./.github/workflows/_test-and-coverage.yaml
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  build:
+    uses: ./.github/workflows/wheels-matrix.yaml
+
+  publish:
+    needs: [run-clang-tools, test, build]
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    uses: ./.github/workflows/_pypi-publish.yaml
+
+  publish-docs:
+    needs: [publish]
+    uses: ./.github/workflows/docs-python.yaml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false

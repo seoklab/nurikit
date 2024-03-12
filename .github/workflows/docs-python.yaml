@@ -8,9 +8,6 @@ name: Build and deploy python docs
 on:
   workflow_dispatch:
   workflow_call:
-  release:
-    types:
-      - published
 
 permissions:
   contents: read

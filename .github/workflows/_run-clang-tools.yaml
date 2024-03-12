@@ -11,6 +11,9 @@ on:
       files-changed-only:
         type: boolean
         default: true
+      force:
+        type: boolean
+        default: false
       version:
         type: string
         default: "17"
@@ -29,7 +32,7 @@ jobs:
   verify-format-and-lint:
     runs-on: ubuntu-latest
     needs: [check-want-lint]
-    if: ${{ github.triggering_actor != 'dependabot[bot]' && needs.check-want-lint.outputs.want-test == 'true' }}
+    if: ${{ github.triggering_actor != 'dependabot[bot]' && (inputs.force || needs.check-want-lint.outputs.want-test == 'true') }}
 
     steps:
       - uses: lukka/get-cmake@latest
