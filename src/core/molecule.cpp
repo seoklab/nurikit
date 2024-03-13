@@ -892,9 +892,6 @@ namespace {
   bool sanitize_hyb_atom(MutableAtom atom, const int total_valence) {
     const int total_degree = all_neighbors(atom);
 
-    ABSL_DLOG(INFO)
-        << atom.id() << ": " << total_degree << ", " << total_valence;
-
     if (atom.data().atomic_number() == 0) {
       // Assume dummy atom always satisfies the octet rule
       const int nbe = nonnegative(8 - total_valence);
@@ -972,9 +969,6 @@ namespace {
   }
 
   bool sanitize_val_atom(Molecule::Atom atom, const int total_valence) {
-    ABSL_DLOG(INFO)
-        << atom.id() << ": " << all_neighbors(atom) << ", " << total_valence;
-
     if (atom.data().atomic_number() == 0) {
       // Assume dummy atom always satisfies the octet rule
       return true;
