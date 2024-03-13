@@ -835,6 +835,32 @@ inline std::string_view slice_strip(std::string_view str, std::size_t begin,
   return absl::StripAsciiWhitespace(slice(str, begin, end));
 }
 
+constexpr std::string_view safe_substr(std::string_view str, size_t begin,
+                                       size_t count) {
+  if (ABSL_PREDICT_FALSE(begin > str.size()))
+    return {};
+
+  return str.substr(begin, count);
+}
+
+constexpr std::string_view safe_slice(std::string_view str, size_t begin,
+                                      size_t end) {
+  if (ABSL_PREDICT_FALSE(begin > str.size()))
+    return {};
+
+  return slice(str, begin, end);
+}
+
+inline std::string_view safe_slice_strip(std::string_view str, size_t begin,
+                                         size_t end) {
+  return absl::StripAsciiWhitespace(safe_slice(str, begin, end));
+}
+
+inline std::string_view safe_slice_rstrip(std::string_view str, size_t begin,
+                                          size_t end) {
+  return absl::StripTrailingAsciiWhitespace(safe_slice(str, begin, end));
+}
+
 namespace internal {
   template <bool = (sizeof(double) * 3) % alignof(Vector3d) == 0>
   inline void stack_impl(Matrix3Xd &m, const std::vector<Vector3d> &vs) {

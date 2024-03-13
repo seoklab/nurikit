@@ -162,24 +162,6 @@ double safe_atod(std::string_view str, double iferr = 0) {
   return ret;
 }
 
-constexpr std::string_view safe_slice(std::string_view str, size_t begin,
-                                      size_t end) {
-  if (ABSL_PREDICT_FALSE(begin > str.size())) {
-    return {};
-  }
-  return slice(str, begin, end);
-}
-
-std::string_view safe_slice_strip(std::string_view str, size_t begin,
-                                  size_t end) {
-  return absl::StripAsciiWhitespace(safe_slice(str, begin, end));
-}
-
-std::string_view safe_slice_rstrip(std::string_view str, size_t begin,
-                                   size_t end) {
-  return absl::StripTrailingAsciiWhitespace(safe_slice(str, begin, end));
-}
-
 constexpr std::string_view kTitleSection[] = {
   "OBSLTE", "TITLE",  "SPLIT",  "CAVEAT", "COMPND",
   "SOURCE", "KEYWDS", "EXPDTA", "NUMMDL", "MDLTYP",
