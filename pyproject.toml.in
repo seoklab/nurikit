@@ -17,7 +17,7 @@ license = { file = "LICENSE" }
 authors = [{ name = "Nuri Jung", email = "jnooree@snu.ac.kr" }]
 maintainers = [{ name = "Nuri Jung", email = "jnooree@snu.ac.kr" }]
 classifiers = [
-    "Development Status :: 1 - Planning",
+    "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
