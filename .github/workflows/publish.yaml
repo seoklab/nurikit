@@ -36,5 +36,5 @@ jobs:
     uses: ./.github/workflows/docs-python.yaml
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: release-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
