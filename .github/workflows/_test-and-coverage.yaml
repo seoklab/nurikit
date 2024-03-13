@@ -114,7 +114,7 @@ jobs:
           LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) $LD_PRELOAD"
           export LD_PRELOAD
 
-          pytest -v -s python/test
+          pytest -v -s
           cmake --build build -j --target nuri_python_docs_doctest
         env:
           ASAN_OPTIONS: detect_leaks=0
