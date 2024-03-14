@@ -637,9 +637,14 @@ namespace internal {
   constexpr inline std::string_view kNameKey = "_Name";
 
   template <class PT>
+  auto find_key(PT &props, std::string_view key) {
+    return absl::c_find_if(props,
+                           [key](const auto &p) { return p.first == key; });
+  }
+
+  template <class PT>
   auto find_name(PT &props) -> decltype(props.begin()) {
-    return std::find_if(props.begin(), props.end(),
-                        [](const auto &p) { return p.first == kNameKey; });
+    return find_key(props, kNameKey);
   }
 
   template <class PT>
