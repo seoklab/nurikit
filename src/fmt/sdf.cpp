@@ -8,20 +8,24 @@
 #include <cstddef>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include <boost/fusion/include/std_pair.hpp>
 #include <boost/spirit/home/x3.hpp>
 
-#include <absl/log/absl_check.h>
+#include <absl/algorithm/container.h>
+#include <absl/container/inlined_vector.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/ascii.h>
-#include <absl/strings/match.h>
 #include <absl/strings/numbers.h>
 #include <absl/strings/str_cat.h>
 
 #include "nuri/eigen_config.h"
+#include "nuri/algo/guess.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
+#include "nuri/fmt/base.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -65,7 +69,12 @@ struct HeaderReadResult {
   operator bool() const { return version_ >= 0; }
 
 private:
+  // Clang analyzer complains about uninitialized members
+#ifdef __clang_analyzer__
+  HeaderReadResult(): version_(-1), natoms_(0), nbonds_(0) { }
+#else
   HeaderReadResult(): version_(-1) { }
+#endif
 
   HeaderReadResult(int v, int a, int b): version_(v), natoms_(a), nbonds_(b) { }
 
@@ -118,37 +127,47 @@ HeaderReadResult read_sdf_header(Molecule &mol, Iterator &it,
 void read_sdf_extra(Molecule &mol, Iterator it, const Iterator end,
                     std::string &temp) {
   constexpr auto sdf_data_header = '>' >> +x3::omit[x3::blank] >> +x3::char_;
-  constexpr auto sdf_data_field_name = '<' >> *(x3::char_ - '>') >> '>';
+  constexpr auto sdf_data_field_name =
+      +(*x3::omit[x3::char_ - '<'] >>  //
+        '<' >> +(x3::char_ - (x3::lit('<') | '>')) >> x3::matches['>']);
 
   for (; it < end;) {
     std::string_view line = *it;
-    temp.clear();
 
-    if (!x3::parse(line.begin(), line.end(), sdf_data_header, temp)) {
+    std::string header;
+    if (!x3::parse(line.begin(), line.end(), sdf_data_header, header)) {
       ABSL_LOG(INFO) << "Ignoring unknown line: " << line;
       ++it;
       continue;
     }
 
-    std::string key;
-    if (!x3::parse(temp.begin(), temp.end(), sdf_data_field_name, key)) {
-      ABSL_LOG(INFO) << "Missing field name in data block: " << line;
-      key = std::move(temp);
+    absl::StripTrailingAsciiWhitespace(&header);
+
+    absl::InlinedVector<std::pair<std::string, bool>, 1> tokens;
+    bool parser_ok =
+        x3::parse(header.begin(), header.end(), sdf_data_field_name, tokens);
+    auto kit = absl::c_find_if(tokens, [](const auto &p) { return p.second; });
+
+    if (parser_ok && kit != tokens.end()) {
+      header = std::move(kit->first);
+    } else {
+      ABSL_LOG(INFO) << "Unparseable data header: " << header;
     }
 
     temp.clear();
     for (; ++it < end;) {
-      line = *it;
-      if (line.empty() || line[0] == '>')
+      if (it->empty()) {
+        ++it;
         break;
+      }
 
-      absl::StrAppend(&temp, line, "\n");
+      absl::StrAppend(&temp, *it, "\n");
     }
 
     if (!temp.empty())
       temp.pop_back();
 
-    mol.add_prop(std::move(key), temp);
+    mol.add_prop(std::move(header), temp);
   }
 }
 
@@ -275,6 +294,20 @@ ParseLineResult try_read_v2000_atom_line(MoleculeMutator &mut,
     return ret;
   };
 
+  // clang-format off
+/*
+0        1         2         3         4         5         6         7
+1234567890123456789012345678901234567890123456789012345678901234567890
+xxxxx.xxxxyyyyy.yyyyzzzzz.zzzz aaaddcccssshhhbbbvvvHHHrrriiimmmnnneee
+
+aaa: symbol
+dd:  mass diff
+ccc: charge
+
+(the rest are unimplemented)
+*/
+  // clang-format on
+
   if (line.size() < 32)
     return test_for_other("Line too short for atom line", __LINE__);
 
@@ -300,15 +333,32 @@ ParseLineResult try_read_v2000_atom_line(MoleculeMutator &mut,
     }
   }
 
-  if (elem != nullptr) {
-    data.set_element(*elem);
-    mut.add_atom(std::move(data));
-    return ParseLineResult::kAtom;
+  if (elem == nullptr) {
+    std::string onerror =
+        absl::StrCat("Unknown element: ", slice_strip(line, 30, 34));
+    return test_for_other(onerror, __LINE__);
   }
 
-  std::string onerror =
-      absl::StrCat("Unknown element: ", slice_strip(line, 30, 34));
-  return test_for_other(onerror, __LINE__);
+  data.set_element(*elem);
+
+  if (int mass_diff;  //
+      absl::SimpleAtoi(safe_slice(line, 34, 36), &mass_diff)
+      && mass_diff != 0) {
+    data.set_isotope(data.isotope().mass_number + mass_diff);
+  }
+
+  if (int charge;
+      absl::SimpleAtoi(safe_slice(line, 36, 39), &charge) && charge != 0) {
+    // charge == 4 -> doublet radical, unimplemented
+    if (charge >= 1 && charge <= 7)
+      data.set_formal_charge(4 - charge);
+    else
+      ABSL_LOG(WARNING) << "Ignoring unknown charge attribute: " << charge;
+  }
+
+  mut.add_atom(std::move(data));
+
+  return ParseLineResult::kAtom;
 }
 
 // NOLINTBEGIN(readability-identifier-naming)
@@ -414,19 +464,19 @@ ParseLineResult read_v2000_property_block(Molecule &mol, std::string_view line,
   return ParseLineResult::kProp;
 }
 
-bool read_v2000(Molecule &mol, const HeaderReadResult result, Iterator &it,
+bool read_v2000(Molecule &mol, const HeaderReadResult metadata, Iterator &it,
                 const Iterator end) {
   auto mut = mol.mutator();
 
   ParseLineResult status = ParseLineResult::kAtom;
   std::vector<Vector3d> coords;
-  coords.reserve(result.natoms());
+  coords.reserve(metadata.natoms());
 
   std::string temp;
 
   for (; status == ParseLineResult::kAtom && it < end; ++it) {
     status = try_read_v2000_atom_line(
-        mut, *it, mol.num_atoms() < result.natoms(), coords, temp);
+        mut, *it, mol.num_atoms() < metadata.natoms(), coords, temp);
 
     if (status == ParseLineResult::kError) {
       ABSL_LOG(ERROR) << "Failed to read atom block";
@@ -441,7 +491,7 @@ bool read_v2000(Molecule &mol, const HeaderReadResult result, Iterator &it,
 
   for (int i = mol.num_bonds(); status == ParseLineResult::kBond && it < end;
        ++it) {
-    status = try_read_v2000_bond_line(mut, *it, i < result.nbonds());
+    status = try_read_v2000_bond_line(mut, *it, i < metadata.nbonds());
 
     if (status == ParseLineResult::kError) {
       ABSL_LOG(ERROR) << "Failed to read bond block";
@@ -459,6 +509,9 @@ bool read_v2000(Molecule &mol, const HeaderReadResult result, Iterator &it,
 
   for (; status == ParseLineResult::kProp && it < end; ++it) {
     status = read_v2000_property_block(mol, *it, temp);
+
+    if (status == ParseLineResult::kExtra)
+      break;
 
     if (status == ParseLineResult::kSkip) {
       ABSL_LOG(INFO) << "Skipping line: " << *it;
@@ -478,8 +531,8 @@ Molecule read_sdf(const std::vector<std::string> &sdf) {
   Molecule mol;
 
   auto it = sdf.begin();
-  auto header_result = read_sdf_header(mol, it, sdf.end());
-  if (!header_result) {
+  auto metadata = read_sdf_header(mol, it, sdf.end());
+  if (!metadata) {
     ABSL_LOG(ERROR) << "Failed to read SDF header";
     mol.clear();
     return mol;
@@ -491,16 +544,36 @@ Molecule read_sdf(const std::vector<std::string> &sdf) {
     return mol;
   }
 
-  mol.reserve(header_result.natoms());
-  mol.reserve_bonds(header_result.nbonds());
+  bool ok = false;
+  if (metadata.version() == 2000) {
+    mol.reserve(metadata.natoms());
+    mol.reserve_bonds(metadata.nbonds());
 
-  if (header_result.version() == 2000) {
-    read_v2000(mol, header_result, it, sdf.end());
+    ok = read_v2000(mol, metadata, it, sdf.end());
     // TODO(jnooree)
     // } else if (header_result.version() == 3000) {
   } else {
-    ABSL_LOG(ERROR) << "Unknown SDF version: " << header_result.version();
+    ABSL_LOG(ERROR) << "Unknown SDF version: " << metadata.version();
+  }
+
+  if (!ok) {
     mol.clear();
+    return mol;
+  }
+
+  bool has_hydrogen = absl::c_any_of(mol, [](Molecule::Atom atom) {
+    return atom.data().atomic_number() == 1;
+  });
+  bool has_fcharge = absl::c_any_of(mol, [](Molecule::Atom atom) {
+    return atom.data().formal_charge() != 0;
+  });
+
+  if (!has_hydrogen && !has_fcharge) {
+    guess_fcharge_hydrogens_2d(mol);
+  } else if (!has_hydrogen) {
+    guess_hydrogens_2d(mol);
+  } else if (!has_fcharge) {
+    guess_fcharge_2d(mol);
   }
 
   return mol;
