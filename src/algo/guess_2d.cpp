@@ -201,11 +201,29 @@ namespace {
                        guess_aromatic_hydrogens_scorer);
   }
 
+  int predict_unknown_hyb(Molecule::Atom atom) {
+    int sum_bo = internal::sum_bond_order(atom, false);
+    int neighbors = all_neighbors(atom);
+    if (sum_bo >= 4)
+      return neighbors;
+
+    int predicted = constants::kSP3 - (sum_bo - neighbors);
+
+    if (predicted == constants::kSP3 && atom.data().is_conjugated())
+      predicted = constants::kSP2;
+
+    return predicted;
+  }
+
   int guess_hydrogens_normal_atom(Molecule::Atom atom,
                                   const Element &effective) {
+    int hyb_pred = atom.data().hybridization();
+    if (hyb_pred == constants::kOtherHyb)
+      hyb_pred = predict_unknown_hyb(atom);
+
     int valence = internal::sum_bond_order(atom, false),
         cv = internal::common_valence(effective),
-        max_h = atom.data().hybridization() - atom.degree();
+        max_h = hyb_pred - atom.degree();
     int num_h = std::min(max_h, cv - valence);
     return nonnegative(num_h);
   }
