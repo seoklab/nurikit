@@ -96,7 +96,7 @@ jobs:
 
       - name: Build
         run: |
-          LD_LIBRARY_PATH="$(clang++ -print-resource-dir)/lib/linux" pip install -v '.[test,docs]'
+          LD_LIBRARY_PATH="$(clang++ -print-resource-dir)/lib/linux:$LD_LIBRARY_PATH" pip install -v '.[test,docs]'
         env:
           SKBUILD_BUILD_DIR: build
           LD_PRELOAD: ""
