@@ -6,6 +6,8 @@
 #ifndef NURI_FMT_FMT_INTERNAL_H_
 #define NURI_FMT_FMT_INTERNAL_H_
 
+#include <string>
+
 #include <boost/spirit/home/x3.hpp>
 
 namespace nuri {

@@ -5,10 +5,13 @@
 
 #include "nuri/fmt/sdf.h"
 
+#include <algorithm>
 #include <cstddef>
+#include <optional>
 #include <stack>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -18,6 +21,7 @@
 
 #include <absl/algorithm/container.h>
 #include <absl/container/inlined_vector.h>
+#include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/ascii.h>
 #include <absl/strings/match.h>
