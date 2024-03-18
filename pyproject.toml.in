@@ -83,10 +83,13 @@ build-verbosity = 1
 
 test-extras = ["test", "docs"]
 test-command = [
-    "pytest -v {project}/python/test",
+    "pytest -v -s {project}/python/test",
     "cmake -S {project} -B .",
     "cmake --build . --target nuri_python_docs_doctest -j",
 ]
 
 [tool.cibuildwheel.config-settings]
 "cmake.verbose" = "true"
+
+[tool.pytest.ini_options]
+testpaths = ["python/test"]

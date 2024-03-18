@@ -19,6 +19,8 @@
 
 #include <absl/log/absl_log.h>
 #include <absl/strings/str_cat.h>
+#include <absl/strings/str_join.h>
+#include <absl/types/span.h>
 
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
@@ -59,7 +61,17 @@ public:
 
       Molecule mol = reader_->parse(block_);
       if (mol.empty()) {
-        log_or_throw("Failed to parse molecule or an empty molecule supplied");
+        std::string text;
+        if (block_.empty()) {
+          absl::StrAppend(&text, "Empty block for molecule.");
+        } else {
+          absl::StrAppend(&text,
+                          "Failed to parse molecule or an empty molecule "
+                          "supplied. The first lines of block are: \n\n  ",
+                          absl::StrJoin(absl::MakeSpan(block_).subspan(0, 5),
+                                        "\n  "));
+        }
+        log_or_throw(text.c_str());
         continue;
       }
 
