@@ -30,12 +30,13 @@ jobs:
       keyword: "lint"
 
   verify-format-and-lint:
-    runs-on: ubuntu-latest
+    # runs-on: ubuntu-latest
+    runs-on: [self-hosted, sandbox]
     needs: [check-want-lint]
     if: ${{ github.triggering_actor != 'dependabot[bot]' && (inputs.force || needs.check-want-lint.outputs.want-test == 'true') }}
 
     steps:
-      - run: sudo apt-get install -y libeigen3-dev
+      # - run: sudo apt-get install -y libeigen3-dev
 
       - uses: lukka/get-cmake@latest
         with:
@@ -55,14 +56,14 @@ jobs:
       - name: Run clang tools to all files
         if: ${{ always() && !inputs.files-changed-only }}
         run: |
-          wget https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
+          # wget https://apt.llvm.org/llvm.sh
+          # chmod +x llvm.sh
 
-          VERS=${{ inputs.version }}
-          sudo ./llvm.sh $VERS
-          sudo apt-get install -y clang-tidy-$VERS clang-format-$VERS
-          sudo ln -sf clang-tidy-$VERS /usr/bin/clang-tidy
-          sudo ln -sf clang-format-$VERS /usr/bin/clang-format
+          # VERS=${{ inputs.version }}
+          # sudo ./llvm.sh $VERS
+          # sudo apt-get install -y clang-tidy-$VERS clang-format-$VERS
+          # sudo ln -sf clang-tidy-$VERS /usr/bin/clang-tidy
+          # sudo ln -sf clang-format-$VERS /usr/bin/clang-format
 
           ./scripts/run_clang_tools.sh -c
 
