@@ -54,6 +54,36 @@ extern void guess_connectivity(MoleculeMutator &mut, int conf = 0,
  * information present in the molecule could be overwritten by this function.
  */
 extern bool guess_all_types(Molecule &mol, int conf = 0);
+
+/**
+ * @brief Guess formal charges of a molecule.
+ * @param mol The molecule to be guessed.
+ * @pre The molecule must have correct number of hydrogens.
+ *
+ * This function assumses that all atoms >= group 15 satisfy octet rule, and <=
+ * group 13 has no non-bonding electrons. Skip charge calculation on group 3-12
+ * & 14 atoms, dummy atom, and atoms with explicit formal charge.
+ */
+extern void guess_fcharge_2d(Molecule &mol);
+
+/**
+ * @brief Guess hydrogens of a molecule.
+ * @param mol The molecule to be guessed.
+ * @pre The molecule must have correct formal charges.
+ *
+ * Assumses that all (appropriate) atoms satisfy octet rule. Add hydrogens only
+ * to the main group elements.
+ */
+extern void guess_hydrogens_2d(Molecule &mol);
+
+/**
+ * @brief Guess formal charges and implicit hydrogens of a molecule.
+ * @param mol The molecule to be guessed.
+ *
+ * This function is equivalent to calling guess_fcharge() and
+ * guess_hydrogens() in sequence.
+ */
+extern void guess_fcharge_hydrogens_2d(Molecule &mol);
 }  // namespace nuri
 
 #endif /* NURI_ALGO_GUESS_H_ */

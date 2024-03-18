@@ -121,7 +121,7 @@ public:
 
   AtomData(const Element &element, int implicit_hydrogens = 0,
            int formal_charge = 0,
-           constants::Hybridization hyb = constants::kUnbound,
+           constants::Hybridization hyb = constants::kOtherHyb,
            double partial_charge = 0.0, int mass_number = -1,
            bool is_aromatic = false, bool is_in_ring = false,
            bool is_chiral = false, bool is_right_handed = false);

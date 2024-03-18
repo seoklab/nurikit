@@ -6,7 +6,6 @@
 #include "nuri/fmt/mol2.h"
 
 #include <algorithm>
-#include <cmath>
 #include <istream>
 #include <iterator>
 #include <numeric>
@@ -21,7 +20,6 @@
 #include <boost/optional.hpp>
 #include <boost/spirit/home/x3.hpp>
 
-#include <absl/container/fixed_array.h>
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/inlined_vector.h>
 #include <absl/log/absl_check.h>
@@ -32,7 +30,8 @@
 #include <absl/strings/str_split.h>
 
 #include "nuri/eigen_config.h"
-#include "nuri/algo/rings.h"
+#include "fmt_internal.h"
+#include "nuri/algo/guess.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
@@ -176,33 +175,6 @@ void atom_data_from_subtype(AtomData &data, int i, std::string_view subtype,
 
 // NOLINTBEGIN(readability-identifier-naming)
 namespace parser {
-template <class T>
-struct TrailingBlanksRuleTag;
-
-template <class T, class Tag = TrailingBlanksRuleTag<T>>
-struct TrailingBlanksRule: public x3::rule<Tag, T> {
-  using Base = x3::rule<Tag, T>;
-  using Base::Base;
-
-  constexpr TrailingBlanksRule(): Base("") { }
-
-  template <class RHS>
-  // NOLINTNEXTLINE(misc-unconventional-assign-operator,cppcoreguidelines-c-copy-assignment-signature)
-  constexpr auto operator=(const RHS &rhs) const && {
-    return Base::operator=(rhs >> +x3::omit[x3::blank]);
-  }
-};
-
-constexpr auto nonblank_trailing_blanks =
-    TrailingBlanksRule<std::string, struct nonblank_trailing_blanks_tag>() =
-        +~x3::blank;
-
-constexpr auto double_trailing_blanks = TrailingBlanksRule<double>() =
-    x3::double_;
-
-constexpr auto uint_trailing_blanks = TrailingBlanksRule<unsigned int>() =
-    x3::uint_;
-
 constexpr auto atom_line = *x3::omit[x3::blank]         //
                            >> uint_trailing_blanks      //
                            >> nonblank_trailing_blanks  //
@@ -556,429 +528,6 @@ void fix_guadinium(Molecule &mol, const std::vector<int> &ccat) {
     }
   }
 }
-
-template <class Updater, class Scorer>
-void fix_aromatic_ring_common(Molecule &mol,
-                              std::vector<int> &adjust_candidates,
-                              const std::vector<int> &ring, Updater updater,
-                              Scorer scorer) {
-  std::vector<int> candids;
-
-  for (int id: ring) {
-    auto atom = mol.atom(id);
-    if (atom.degree() > 3)
-      return;
-
-    if (adjust_candidates[id] != 0)
-      candids.push_back(id);
-  }
-
-  if (candids.empty())
-    return;
-
-  absl::FixedArray<int> priority(candids.size(), 0);
-  for (int i = 0; i < candids.size(); ++i) {
-    Molecule::MutableAtom atom = mol.atom(candids[i]);
-    if (all_neighbors(atom) > 3) {
-      atom.data().set_implicit_hydrogens(atom.data().implicit_hydrogens() - 1);
-      priority[i] += 10000;
-    }
-  }
-
-  int sum_pi_e = 0;
-  for (int i = 0; i < ring.size(); ++i) {
-    Molecule::Atom atom = mol.atom(ring[i]);
-    if (atom.data().atomic_number() == 0)
-      return;
-
-    sum_pi_e +=
-        internal::count_pi_e(atom, internal::sum_bond_order(atom, false));
-  }
-
-  int test = sum_pi_e % 4 - 2;
-  if (test == 0)
-    return;
-
-  auto heuristic_update = [&](int id) {
-    adjust_candidates[id] = 0;
-    updater(mol.atom(id), test);
-  };
-
-  if (candids.size() == 1) {
-    heuristic_update(candids[0]);
-    return;
-  }
-
-  for (int i = 0; i < candids.size(); ++i)
-    priority[i] += scorer(mol.atom(candids[i]));
-
-  int max_idx = static_cast<int>(
-      std::max_element(priority.begin(), priority.end()) - priority.begin());
-  heuristic_update(candids[max_idx]);
-}
-
-template <class Updater, class Scorer>
-void fix_aromatic_rings(Molecule &mol, std::vector<int> &adjust_candidates,
-                        Updater updater, Scorer scorer) {
-  auto rings = find_sssr(mol);
-  for (const std::vector<int> &ring: rings) {
-    if (std::any_of(ring.begin(), ring.end(), [&](int i) {
-          return mol.atom(i).data().hybridization() > constants::kSP2;
-        })) {
-      continue;
-    }
-
-    fix_aromatic_ring_common(mol, adjust_candidates, ring, updater, scorer);
-  }
-}
-
-void guess_aromatic_fcharge_updater(Molecule::MutableAtom atom, int delta) {
-  // eg) pyrrole N will have    +1 formal charge, test = -1 (correct  0)
-  //     tropylium ion will have 0 formal charge, test = +1 (correct +1)
-  //     -> add test to formal charge
-  atom.data().set_formal_charge(atom.data().formal_charge() + delta);
-}
-
-void guess_aromatic_hydrogens_updater(Molecule::MutableAtom atom,
-                                      int /* delta */) {
-  // 1. Octet satisfied
-  //   - pyrrole N will have 0 hydrogens, and test will be nonzero
-  //   - tropylium ion will have 0 hydrogens, and test will be nonzero
-  //   -> In both cases, adding 1 hydrogen will yield the correct number of
-  //      hydrogens.
-  // 2. Octet exceeded
-  //   - thiazole S will have larger bond order sum than common valence, and
-  //     test will be nonzero
-  //   -> Don't add hydrogens in this case
-  int sbo = internal::sum_bond_order(atom, false),
-      cv = internal::common_valence(
-          internal::effective_element_or_element(atom));
-  atom.data().set_implicit_hydrogens(atom.data().implicit_hydrogens()
-                                     + value_if(sbo <= cv));
-}
-
-int guess_aromatic_fcharge_scorer(Molecule::Atom atom) {
-  // Prioritize:
-  // 1) Atom with nonzero formal charge (+100 * (formal charge))
-  // 2) Heteroatom (+10)
-  // 3) Atom of higher degree (assume degree < 10)
-  int priority = 0;
-  priority += atom.data().formal_charge() * 100;
-  priority += atom.data().atomic_number() == 6 ? 0 : 10;
-  priority += atom.degree();
-  return priority;
-}
-
-int guess_aromatic_hydrogens_scorer(Molecule::Atom atom) {
-  const Element &effective = internal::effective_element_or_element(atom);
-
-  // Prioritize:
-  // 1) (Effective) heteroatom (+10)
-  // 2) Atom of lower degree (assume degree < 10)
-  int priority = 0;
-  priority += effective.atomic_number() == 6 ? 0 : 10;
-  priority -= atom.degree();
-  return priority;
-}
-
-int guess_aromatic_fcharge_hydrogens_scorer(Molecule::Atom atom) {
-  const Element &effective = internal::effective_element_or_element(atom);
-
-  // Prioritize:
-  // 1) Higher formal charge (+100 * abs(formal charge))
-  // 2) (Effective) heteroatom (+10)
-  // 3) Atom of higher degree (assume degree < 10)
-  int priority = 0;
-  priority += 100 * std::abs(atom.data().formal_charge());
-  priority += effective.atomic_number() == 6 ? 0 : 10;
-  priority += atom.degree();
-  return priority;
-}
-
-int guess_fcharge_atom(Molecule::Atom atom, const int group) {
-  int cv = internal::common_valence(atom.data().element());
-  int sum_bo = internal::sum_bond_order(atom, false);
-
-  // Rationale:
-  //  - Group 15-17 has nonbonding electrons, so they must have extra
-  //    bonding electrons if sum of bond order > common valence
-  //    -> positive formal charge
-  //    eg) [N]H3-BF3
-  //  - Group 1, 2, 13 does not have nonbonding electrons, so they must have
-  //    dative bond(s) if sum of bond order > common valence
-  //    -> negative formal charge
-  //    eg) NH3-[B]F3
-  int fchg = sum_bo - cv;
-  fchg = group > 14 ? fchg : -fchg;
-  return fchg;
-}
-
-void guess_fcharge_aromatic_rings(Molecule &mol,
-                                  std::vector<int> &adjust_candidates) {
-  fix_aromatic_rings(mol, adjust_candidates, guess_aromatic_fcharge_updater,
-                     guess_aromatic_fcharge_scorer);
-}
-
-bool maybe_aromatic_atom(Molecule::Atom atom) {
-  return atom.data().hybridization() <= constants::kSP2
-         && atom.data().is_ring_atom()
-         && std::any_of(atom.begin(), atom.end(),
-                        [](Molecule::Neighbor nei) {
-                          return nei.edge_data().order()
-                                 == constants::kAromaticBond;
-                        })
-         && std::all_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
-              return nei.edge_data().is_ring_bond()
-                     || nei.edge_data().order() == constants::kSingleBond;
-            });
-}
-
-// Assumses that all atoms >= group 15 satisfy octet rule, and <= group 13
-// has no non-bonding electrons.
-// Skip charge calculation on group 3-12 & 14 atoms, dummy atom, and atoms
-// with explicit formal charge.
-void guess_fcharge(Molecule &mol) {
-  std::vector<int> adjust_candidates(mol.size(), 0);
-  bool has_candidate = false;
-
-  for (auto atom: mol) {
-    const int group = atom.data().element().group();
-    if (group == 14 || !atom.data().element().main_group()
-        || atom.data().atomic_number() == 0
-        // Next line is for guadinium nitrogens (already handled; see
-        // fix_guadinium)
-        || atom.data().formal_charge() != 0) {
-      continue;
-    }
-
-    // "Aromatic bonds" need special treatment (e.g. pyrrole vs pyridine)
-    if (maybe_aromatic_atom(atom)) {
-      adjust_candidates[atom.id()] = 1;
-      has_candidate = true;
-    }
-
-    atom.data().set_formal_charge(guess_fcharge_atom(atom, group));
-  }
-
-  if (!has_candidate)
-    return;
-
-  guess_fcharge_aromatic_rings(mol, adjust_candidates);
-}
-
-void guess_hydrogens_aromatic_rings(Molecule &mol,
-                                    std::vector<int> &adjust_candidates) {
-  fix_aromatic_rings(mol, adjust_candidates, guess_aromatic_hydrogens_updater,
-                     guess_aromatic_hydrogens_scorer);
-}
-
-int guess_hydrogens_normal_atom(Molecule::Atom atom, const Element &effective) {
-  int valence = internal::sum_bond_order(atom, false),
-      cv = internal::common_valence(effective),
-      max_h = atom.data().hybridization() - atom.degree();
-  int num_h = std::min(max_h, cv - valence);
-  return nonnegative(num_h);
-}
-
-int guess_hydrogens_normal_atom(Molecule::Atom atom) {
-  return guess_hydrogens_normal_atom(
-      atom, internal::effective_element_or_element(atom));
-}
-
-// Assumses that all (appropriate) atoms satisfy octet rule.
-// Add hydrogens only to the main group elements.
-void guess_hydrogens(Molecule &mol) {
-  std::vector<int> adjust_candidates(mol.size(), 0);
-  bool has_candidate = false;
-
-  for (auto atom: mol) {
-    // Skip dummy, hydrogen and helium atoms
-    if (atom.data().atomic_number() < 3)
-      continue;
-
-    const Element *elem = effective_element(atom);
-    if (elem == nullptr) {
-      ABSL_LOG(WARNING) << "Unexpected combination of element and formal "
-                           "charge; cannot add hydrogens";
-      continue;
-    }
-    if (!elem->main_group() || elem->group() == 18)
-      continue;
-
-    if (maybe_aromatic_atom(atom)) {
-      adjust_candidates[atom.id()] = 1;
-      has_candidate = true;
-    }
-
-    atom.data().set_implicit_hydrogens(
-        guess_hydrogens_normal_atom(atom, *elem));
-  }
-
-  if (!has_candidate)
-    return;
-
-  guess_hydrogens_aromatic_rings(mol, adjust_candidates);
-}
-
-int guess_fcharge_from_pcharge(Molecule::Atom atom) {
-  return internal::iround(atom.data().partial_charge());
-}
-
-// void guess_fcharge_central_atom(Molecule::MutableAtom atom,
-//                                 std::vector<int> &assigned) {
-//   double pchg_sum = std::accumulate(
-//     atom.begin(), atom.end(), 0., [](double sum, Molecule::Neighbor nei) {
-//       return sum
-//              + (nei.dst().data().hybridization() > constants::kSP2
-//                   ? 0
-//                   : nei.dst().data().partial_charge());
-//     });
-//   if (std::abs(pchg_sum) < 0.75) {
-//     return;
-//   }
-
-//   const int num_charged = internal::iround(pchg_sum);
-//   // `num_charged` neighbors must have partial charge. Priorities:
-//   // 1) Hybridization              (-10000 if >= sp3)
-//   // 2) Lower bond order           (-1000 * bond order)
-//   // 3) Lower degree               (-100 * degree)
-//   // 4) Higher abs(partial charge) (+10 * abs(partial charge))
-//   // 5) Heteroatom                 (+1)
-//   std::vector<double> priority(atom.degree(), 0.);
-//   auto pit = priority.begin();
-//   for (auto nei: atom) {
-//     double &p = *pit++;
-//     p -= nei.dst().data().hybridization() > constants::kSP2 ? 10000 : 0;
-//     p -= nei.edge_data().order() * 1000;
-//     p -= nei.dst().degree() * 100;
-//     p += std::abs(nei.dst().data().partial_charge()) * 10;
-//     p += static_cast<int>(nei.dst().data().element().atomic_number() != 6);
-//   }
-//   absl::FixedArray<int> idxs =
-//     argpartition(priority, num_charged, std::greater<>());
-
-//   const int fchg = pchg_sum < 0 ? -1 : 1;
-//   for (int i = 0; i < num_charged; ++i) {
-//     auto selected = (atom.begin() + idxs[i])->dst();
-//     selected.data().set_formal_charge(fchg);
-//     guess_hydrogens_normal_atom(selected);
-//     assigned[selected.id()] = 1;
-//   }
-// }
-
-void fix_nitro_group(Molecule::MutableAtom atom, std::vector<int> &assigned) {
-  if (atom.data().atomic_number() != 7 || all_neighbors(atom) > 3)
-    return;
-
-  auto is_matching_oxygen = [](Molecule::Neighbor nei) {
-    return nei.dst().data().atomic_number() == 8 && count_heavy(nei.dst()) == 1;
-  };
-
-  int terminal_oxygen_count =
-      std::count_if(atom.begin(), atom.end(), is_matching_oxygen);
-  if (terminal_oxygen_count != 2)
-    return;
-
-  assigned[atom.id()] = 1;
-  atom.data().set_formal_charge(static_cast<int>(atom.degree() == 3));
-  atom.data().set_implicit_hydrogens(0);
-  for (auto nei: atom) {
-    if (!is_matching_oxygen(nei))
-      continue;
-
-    auto dst = nei.dst();
-    assigned[dst.id()] = 1;
-    if (nei.edge_data().order() == constants::kSingleBond) {
-      dst.data().set_formal_charge(-1);
-      dst.data().set_implicit_hydrogens(0);
-    } else {
-      dst.data().set_formal_charge(0);
-      dst.data().set_implicit_hydrogens(0);
-    }
-  }
-}
-
-void guess_fcharge_hydrogens_aromatic_rings(
-    Molecule &mol, std::vector<int> &adjust_candidates) {
-  // Carbon with two single bonds -> update both (eg. Cp-)
-  // Carbon -> update formal charge
-  // Heteroatom -> update implicit hydrogens
-  auto updater = [](Molecule::MutableAtom atom, int delta) {
-    if (atom.data().atomic_number() == 6 || atom.data().formal_charge() != 0) {
-      guess_aromatic_fcharge_updater(atom, delta);
-    } else {
-      guess_aromatic_hydrogens_updater(atom, delta);
-    }
-  };
-
-  fix_aromatic_rings(mol, adjust_candidates, updater,
-                     guess_aromatic_fcharge_hydrogens_scorer);
-}
-
-void guess_fcharge_hydrogens(Molecule &mol) {
-  std::vector<int> adjust_candidates(mol.size(), 0), assigned(mol.size(), 0);
-  bool has_candidate = false;
-
-  for (auto atom: mol) {
-    AtomData &data = atom.data();
-    if (data.atomic_number() == 0 || !data.element().main_group()
-        || assigned[atom.id()] != 0) {
-      assigned[atom.id()] = 1;
-      continue;
-    }
-
-    if (atom.degree() == 0) {
-      data.set_formal_charge(guess_fcharge_from_pcharge(atom));
-      data.set_implicit_hydrogens(guess_hydrogens_normal_atom(atom));
-      assigned[atom.id()] = 1;
-      continue;
-    }
-
-    // "Aromatic" need special treatment (e.g. pyrrole vs pyridine)
-    if (atom.data().is_aromatic() || maybe_aromatic_atom(atom)) {
-      adjust_candidates[atom.id()] = 1;
-      has_candidate = true;
-    }
-
-    if (data.formal_charge() != 0) {
-      data.set_implicit_hydrogens(guess_hydrogens_normal_atom(atom));
-      assigned[atom.id()] = 1;
-      continue;
-    }
-
-    if (atom.degree() > 1)
-      fix_nitro_group(atom, assigned);
-
-    int cv = internal::common_valence(data.element());
-    int sum_bo = internal::sum_bond_order(atom, false);
-    int unused_valence = cv - sum_bo;
-    if (unused_valence >= 0) {
-      data.set_implicit_hydrogens(unused_valence);
-    } else if (data.element().period() > 2) {
-      ABSL_LOG_FIRST_N(WARNING, 1)
-          << "Automatic formal charge & implicit hydrogens assignment might be "
-             "incorrect if an atom could have expanded octet; explicitly "
-             "assign one of the two properties";
-
-      // Just assume expanded octet without charge
-      data.set_formal_charge(0);
-      data.set_implicit_hydrogens(0);
-
-      int nbe = data.element().valence_electrons() - sum_bo;
-      data.set_hybridization(
-          internal::from_degree(atom.degree(), nonnegative(nbe)));
-    } else {
-      int fchg = data.element().group() > 14 ? -unused_valence : unused_valence;
-      data.set_formal_charge(fchg);
-    }
-    assigned[atom.id()] = 1;
-  }
-
-  if (!has_candidate)
-    return;
-
-  guess_fcharge_hydrogens_aromatic_rings(mol, adjust_candidates);
-}
 }  // namespace
 
 Molecule read_mol2(const std::vector<std::string> &mol2) {
@@ -987,7 +536,7 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
   std::vector<int> ccat;
   absl::flat_hash_map<unsigned int, std::pair<std::vector<int>, std::string>>
       substructs;
-  bool success = true, has_hydrogens = false, has_fcharge = false;
+  bool success = true, has_hydrogen = false, has_fcharge = false;
   bool atom_parsed = false;
 
   auto it = mol2.begin();
@@ -1004,7 +553,7 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
     for (; it != mol2.end() && success;) {
       if (absl::StartsWith(*it, "@<TRIPOS>ATOM")) {
         atom_parsed = true;
-        std::tie(success, has_hydrogens) =
+        std::tie(success, has_hydrogen) =
             parse_atom_block(mutator, pos, ccat, substructs, it, mol2.end());
       } else if (absl::StartsWith(*it, "@<TRIPOS>BOND")) {
         success = parse_bond_block(mutator, it, mol2.end());
@@ -1038,13 +587,12 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
   if (!has_fcharge)
     fix_guadinium(mol, ccat);
 
-  if (has_hydrogens) {
-    if (!has_fcharge)
-      guess_fcharge(mol);
-  } else if (has_fcharge) {
-    guess_hydrogens(mol);
-  } else {
-    guess_fcharge_hydrogens(mol);
+  if (!has_hydrogen && !has_fcharge) {
+    guess_fcharge_hydrogens_2d(mol);
+  } else if (!has_hydrogen) {
+    guess_hydrogens_2d(mol);
+  } else if (!has_fcharge) {
+    guess_fcharge_2d(mol);
   }
 
   for (auto atom: mol) {

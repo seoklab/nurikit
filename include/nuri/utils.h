@@ -35,6 +35,17 @@
 
 #include "nuri/eigen_config.h"
 
+// Introduced in clang 18
+// #ifdef __clang_analyzer__
+// #define NURI_CLANG_ANALYZER_NOLINT       [[clang::suppress]]
+// #define NURI_CLANG_ANALYZER_NOLINT_BEGIN [[clang::suppress]] {
+// #define NURI_CLANG_ANALYZER_NOLINT_END   }
+// #else
+// #define NURI_CLANG_ANALYZER_NOLINT
+// #define NURI_CLANG_ANALYZER_NOLINT_BEGIN
+// #define NURI_CLANG_ANALYZER_NOLINT_END
+// #endif
+
 namespace nuri {
 namespace internal {
   // Use of std::underlying_type_t on non-enum types is UB until C++20.
@@ -637,9 +648,14 @@ namespace internal {
   constexpr inline std::string_view kNameKey = "_Name";
 
   template <class PT>
+  auto find_key(PT &props, std::string_view key) {
+    return absl::c_find_if(props,
+                           [key](const auto &p) { return p.first == key; });
+  }
+
+  template <class PT>
   auto find_name(PT &props) -> decltype(props.begin()) {
-    return std::find_if(props.begin(), props.end(),
-                        [](const auto &p) { return p.first == kNameKey; });
+    return find_key(props, kNameKey);
   }
 
   template <class PT>
@@ -833,6 +849,32 @@ constexpr inline std::string_view slice(std::string_view str, std::size_t begin,
 inline std::string_view slice_strip(std::string_view str, std::size_t begin,
                                     std::size_t end) {
   return absl::StripAsciiWhitespace(slice(str, begin, end));
+}
+
+constexpr std::string_view safe_substr(std::string_view str, size_t begin,
+                                       size_t count) {
+  if (ABSL_PREDICT_FALSE(begin > str.size()))
+    return {};
+
+  return str.substr(begin, count);
+}
+
+constexpr std::string_view safe_slice(std::string_view str, size_t begin,
+                                      size_t end) {
+  if (ABSL_PREDICT_FALSE(begin > str.size()))
+    return {};
+
+  return slice(str, begin, end);
+}
+
+inline std::string_view safe_slice_strip(std::string_view str, size_t begin,
+                                         size_t end) {
+  return absl::StripAsciiWhitespace(safe_slice(str, begin, end));
+}
+
+inline std::string_view safe_slice_rstrip(std::string_view str, size_t begin,
+                                          size_t end) {
+  return absl::StripTrailingAsciiWhitespace(safe_slice(str, begin, end));
 }
 
 namespace internal {

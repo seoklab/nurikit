@@ -41,9 +41,9 @@
                                                                                \
     EXPECT_EQ(this->mol().name(), mol_name)                                    \
         << "Molecule index: " << this->idx_;                                   \
-    EXPECT_EQ(this->mol().num_atoms(), natoms)                                 \
+    ASSERT_EQ(this->mol().num_atoms(), natoms)                                 \
         << "Molecule index: " << this->idx_;                                   \
-    EXPECT_EQ(this->mol().num_bonds(), nbonds)                                 \
+    ASSERT_EQ(this->mol().num_bonds(), nbonds)                                 \
         << "Molecule index: " << this->idx_;                                   \
                                                                                \
     if (print_) {                                                              \
