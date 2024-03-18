@@ -81,9 +81,9 @@ jobs:
     steps:
       # - run: sudo apt-get install -y libeigen3-dev
 
-      - uses: lukka/get-cmake@latest
-        with:
-          cmakeVersion: "~3.16.0" # for Ubuntu 20.04
+      # - uses: lukka/get-cmake@latest
+      #   with:
+      #     cmakeVersion: "~3.16.0" # for Ubuntu 20.04
 
       - uses: actions/setup-python@v5
         with:
@@ -111,4 +111,4 @@ jobs:
           # sudo ln -sf clang-tidy-$VERS /usr/bin/clang-tidy
           # sudo ln -sf clang-format-$VERS /usr/bin/clang-format
 
-          ./scripts/run_clang_tools.sh -c
+          ./scripts/run_clang_tools.sh -c -j24

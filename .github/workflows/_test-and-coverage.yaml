@@ -65,15 +65,16 @@ jobs:
     env:
       CC: clang
       CXX: clang++
+      CMAKE_BUILD_PARALLEL_LEVEL: "24"
       LD_PRELOAD: /usr/lib/x86_64-linux-gnu/libubsan.so.1
       UBSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/ubsanignore.txt print_stacktrace=1
 
     steps:
       # - run: sudo apt-get install -y libeigen3-dev
 
-      - uses: lukka/get-cmake@latest
-        with:
-          cmakeVersion: "~3.18.0" # required for gtest DISCOVERY_MODE
+      # - uses: lukka/get-cmake@latest
+      #   with:
+      #     cmakeVersion: "~3.18.0" # required for gtest DISCOVERY_MODE
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -108,7 +109,7 @@ jobs:
           export LD_PRELOAD
 
           cd build
-          ctest -j$(nproc) --output-on-failure
+          ctest -j24 --output-on-failure
 
       - name: Python tests
         run: |
