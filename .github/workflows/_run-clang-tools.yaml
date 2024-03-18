@@ -41,6 +41,10 @@ jobs:
         with:
           cmakeVersion: "~3.16.0" # for Ubuntu 20.04
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.8"
+
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -80,6 +84,10 @@ jobs:
       - uses: lukka/get-cmake@latest
         with:
           cmakeVersion: "~3.16.0" # for Ubuntu 20.04
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.8"
 
       - uses: actions/checkout@v4
         with:
