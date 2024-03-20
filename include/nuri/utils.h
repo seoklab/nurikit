@@ -654,16 +654,31 @@ namespace internal {
   }
 
   template <class PT>
+  bool has_key(PT &props, std::string_view key) {
+    return find_key(props, key) != props.end();
+  }
+
+  template <class PT>
+  std::string_view get_key(PT &props, std::string_view key) {
+    auto it = find_key(props, key);
+    if (it == props.end())
+      return {};
+    return it->second;
+  }
+
+  template <class PT>
   auto find_name(PT &props) -> decltype(props.begin()) {
     return find_key(props, kNameKey);
   }
 
   template <class PT>
+  bool has_name(PT &props) {
+    return has_key(props, kNameKey);
+  }
+
+  template <class PT>
   std::string_view get_name(PT &props) {
-    auto it = internal::find_name(props);
-    if (it == props.end())
-      return {};
-    return it->second;
+    return get_key(props, kNameKey);
   }
 
   template <class PT>
