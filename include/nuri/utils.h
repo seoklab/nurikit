@@ -934,6 +934,30 @@ template <class UInt,
 constexpr UInt nonnegative(UInt x) {
   return x;
 }
+
+template <class UInt,
+          std::enable_if_t<std::is_same_v<UInt, unsigned int>, int> = 0>
+constexpr int log_base10(UInt x) {
+  int lg = (x >= 1000000000)  ? 9
+           : (x >= 100000000) ? 8
+           : (x >= 10000000)  ? 7
+           : (x >= 1000000)   ? 6
+           : (x >= 100000)    ? 5
+           : (x >= 10000)     ? 4
+           : (x >= 1000)      ? 3
+           : (x >= 100)       ? 2
+           : (x >= 10)        ? 1
+                              : 0;
+  return lg;
+}
+
+template <class Int, std::enable_if_t<std::is_same_v<Int, int>, int> = 0>
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+constexpr int log_base10(Int x) {
+  int lg = value_if(x < 0);
+  lg += log_base10(static_cast<unsigned int>(x < 0 ? -x : x));
+  return lg;
+}
 }  // namespace nuri
 
 #endif /* NURI_UTILS_H_ */
