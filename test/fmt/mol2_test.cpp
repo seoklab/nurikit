@@ -15,6 +15,7 @@
 #include "nuri/algo/guess.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 namespace {
@@ -1565,6 +1566,39 @@ USER_CHARGES
     SCOPED_TRACE("Re-read");
     verify_sub();
   }
+}
+
+TEST_F(Mol2Test, ExtraProp) {
+  set_test_string(R"mol2(
+@<TRIPOS>MOLECULE
+****
+ 1 0 0 0 0
+SMALL
+GASTEIGER
+****
+
+@<TRIPOS>ATOM
+      1 N           0.0000    0.0000    0.0000 N.4     1  UNL1        1.0000
+@<TRIPOS>UNITY_ATOM_ATTR
+1 1
+test prop
+)mol2");
+
+  NURI_FMT_TEST_NEXT_MOL("", 1, 0);
+  auto atom = mol()[0];
+  auto it = internal::find_key(atom.data().props(), "test");
+  EXPECT_NE(it, atom.data().props().end());
+  EXPECT_EQ(it->second, "prop");
+
+  std::ostringstream oss;
+  write_mol2(oss, mol());
+  set_test_string(oss.str());
+
+  NURI_FMT_TEST_NEXT_MOL("", 1, 0);
+  atom = mol()[0];
+  it = internal::find_key(atom.data().props(), "test");
+  EXPECT_NE(it, atom.data().props().end());
+  EXPECT_EQ(it->second, "prop");
 }
 
 TEST_F(Mol2Test, WriteFormatCorrect) {
