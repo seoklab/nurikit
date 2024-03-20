@@ -6,6 +6,7 @@
 #ifndef NURI_FMT_MOL2_H_
 #define NURI_FMT_MOL2_H_
 
+#include <iostream>
 #include <string>
 #include <vector>
 

@@ -6,7 +6,7 @@
 #include "nuri/fmt/mol2.h"
 
 #include <algorithm>
-#include <istream>
+#include <iostream>
 #include <iterator>
 #include <numeric>
 #include <string>
@@ -21,18 +21,15 @@
 #include <boost/spirit/home/x3.hpp>
 
 #include <absl/algorithm/container.h>
-#include <absl/container/fixed_array.h>
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/inlined_vector.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/ascii.h>
-#include <absl/strings/charconv.h>
 #include <absl/strings/match.h>
 #include <absl/strings/numbers.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_format.h>
-#include <absl/strings/str_replace.h>
 #include <absl/strings/str_split.h>
 
 #include "nuri/eigen_config.h"
@@ -917,10 +914,12 @@ void write_atoms(std::ostream &os, const Molecule &mol, const int conf,
       pos = mol.confs()[conf].col(atom.id());
 
     int sub_idx = subs_info.sub_of_atom[atom.id()];
+    // NOLINTNEXTLINE(clang-diagnostic-used-but-marked-unused)
     ABSL_DCHECK_GE(sub_idx, 0);
     ABSL_DCHECK_LT(sub_idx, subs_info.sub_ids.size());
 
     int sub_id = subs_info.sub_ids[sub_idx];
+    // NOLINTNEXTLINE(clang-diagnostic-used-but-marked-unused)
     ABSL_DCHECK_GE(sub_id, 0);
 
     ABSL_DCHECK_LT(sub_idx, sub_names.size());
@@ -1033,8 +1032,10 @@ void write_mol2_single_conf(std::ostream &os, const Molecule &mol, int conf,
                             const std::vector<std::string> &atom_types,
                             const SubstructInfo &sub_info,
                             const std::vector<std::string> &sub_names) {
-  if constexpr (is_3d)
+  if constexpr (is_3d) {
+    // NOLINTNEXTLINE(clang-diagnostic-used-but-marked-unused)
     ABSL_DCHECK_LT(conf, mol.confs().size());
+  }
 
   os << absl::StreamFormat(
       // clang-format off
