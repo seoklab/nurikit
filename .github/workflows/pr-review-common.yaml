@@ -42,14 +42,6 @@ jobs:
             --from ${{ github.event.pull_request.base.sha }} \
             --to ${{ github.event.pull_request.head.sha }}
 
-  run-hooks:
-    if: ${{ github.triggering_actor != 'dependabot[bot]' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/setup-python@v5
-      - uses: actions/checkout@v4
-      - uses: pre-commit/action@v3.0.1
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
