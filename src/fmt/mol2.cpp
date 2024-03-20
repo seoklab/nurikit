@@ -417,8 +417,8 @@ std::pair<bool, bool> parse_atom_attr_block(Molecule &mol, Iter &it,
           absl::StrSplit(*it, ' ', absl::SkipEmpty());
 
       if (tokens.first != "charge") {
-        ABSL_LOG(WARNING) << "Unimplemented atom attribute " << tokens.first
-                          << "; continuing without attribute";
+        mol.atom(ids[0]).data().add_prop(std::string(tokens.first),
+                                         std::string(tokens.second));
         continue;
       }
 
