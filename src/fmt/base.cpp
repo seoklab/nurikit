@@ -17,9 +17,13 @@
 #include <utility>
 #include <vector>
 
+#include <absl/base/optimization.h>
 #include <absl/container/flat_hash_map.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
+#include <absl/strings/ascii.h>
+
+#include "fmt_internal.h"
 
 namespace nuri {
 namespace {
@@ -29,6 +33,23 @@ reader_factory_registry() {
   return ret;
 }
 }  // namespace
+
+namespace internal {
+std::string ascii_safe(std::string_view str) {
+  std::string ret(str);
+
+  for (char &c: ret) {
+    if (ABSL_PREDICT_FALSE(!absl::ascii_isascii(c)
+                           || !absl::ascii_isprint(c))) {
+      c = '?';
+    } else if (absl::ascii_isspace(c)) {
+      c = '_';
+    }
+  }
+
+  return ret;
+}
+}  // namespace internal
 
 const MoleculeReaderFactory *
 MoleculeReaderFactory::find_factory(std::string_view name) {

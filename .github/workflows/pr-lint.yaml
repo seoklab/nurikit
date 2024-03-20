@@ -36,7 +36,7 @@ jobs:
   check-files:
     runs-on: ubuntu-latest
     outputs:
-      config-changed: ${{ steps.changed-files.outputs.any_changed == 'true' }}
+      config-changed: ${{ steps.changed-files.outputs.any_changed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,7 +54,7 @@ jobs:
     needs: [check-files]
     uses: ./.github/workflows/_run-clang-tools.yaml
     with:
-      files-changed-only: ${{ !needs.check-files.outputs.config-changed }}
+      files-changed-only: ${{ needs.check-files.outputs.config-changed == 'false' }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

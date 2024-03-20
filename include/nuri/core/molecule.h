@@ -1286,6 +1286,18 @@ public:
   const_bond_iterator bond_end() const { return graph_.edge_end(); }
 
   /**
+   * @brief Get the number of bonds between heavy atoms in the molecule.
+   * @sa num_bonds()
+   * @note Time complexity is O(E).
+   */
+  int count_heavy_bonds() const {
+    return absl::c_count_if(bonds(), [](Molecule::Bond bond) {
+      return bond.src().data().atomic_number() != 1
+             && bond.dst().data().atomic_number() != 1;
+    });
+  }
+
+  /**
    * @brief Get the explicitly connected neighbor atoms of the atom.
    * @param atom Index of the atom.
    * @return The number of bonds connected to the atom.

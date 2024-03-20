@@ -6,7 +6,7 @@
 #include "nuri/fmt/mol2.h"
 
 #include <algorithm>
-#include <istream>
+#include <iostream>
 #include <iterator>
 #include <numeric>
 #include <string>
@@ -20,6 +20,7 @@
 #include <boost/optional.hpp>
 #include <boost/spirit/home/x3.hpp>
 
+#include <absl/algorithm/container.h>
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/inlined_vector.h>
 #include <absl/log/absl_check.h>
@@ -27,6 +28,8 @@
 #include <absl/strings/ascii.h>
 #include <absl/strings/match.h>
 #include <absl/strings/numbers.h>
+#include <absl/strings/str_cat.h>
+#include <absl/strings/str_format.h>
 #include <absl/strings/str_split.h>
 
 #include "nuri/eigen_config.h"
@@ -39,6 +42,8 @@
 
 namespace nuri {
 namespace {
+constexpr std::string_view kCommentIndicator = "****";
+
 bool advance_header_unread(std::istream &is, std::vector<std::string> &block,
                            bool &read_mol_header) {
   bool first = true;
@@ -120,7 +125,7 @@ void parse_mol_block(Molecule &mol, Iter &it, const Iter end) {
   if (mol2_block_end(++it, end))
     return;
 
-  mol.name() = *it == "*****" ? "" : *it;
+  mol.name() = *it == kCommentIndicator ? "" : *it;
   if (mol2_block_end(++it, end))
     return;
 
@@ -409,8 +414,8 @@ std::pair<bool, bool> parse_atom_attr_block(Molecule &mol, Iter &it,
           absl::StrSplit(*it, ' ', absl::SkipEmpty());
 
       if (tokens.first != "charge") {
-        ABSL_LOG(WARNING) << "Unimplemented atom attribute " << tokens.first
-                          << "; continuing without attribute";
+        mol.atom(ids[0]).data().add_prop(std::string(tokens.first),
+                                         std::string(tokens.second));
         continue;
       }
 
@@ -611,5 +616,508 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
       sub.update_atoms(std::move(data.first));
 
   return mol;
+}
+
+namespace {
+int width_of_size(int size) {
+  ABSL_DCHECK_GE(size, 0);
+  return log_base10(static_cast<unsigned int>(size)) + 1;
+}
+
+struct SubstructInfo {
+  std::vector<int> sub_of_atom;
+  std::vector<int> root_of_sub;
+  std::vector<int> sub_ids;
+  int num_used_subs;
+};
+
+SubstructInfo resolve_substructs(const Molecule &mol) {
+  SubstructInfo info;
+  info.sub_of_atom.resize(mol.size(), 0);
+  if (!mol.has_substructures()) {
+    info.root_of_sub.push_back(0);
+    info.sub_ids.push_back(0);
+    info.num_used_subs = 1;
+    return info;
+  }
+
+  info.root_of_sub.resize(mol.num_substructures() + 1, -1);
+
+  for (int i = 0; i < mol.num_substructures(); ++i) {
+    const auto &sub = mol.substructures()[i];
+    int &sub_root = info.root_of_sub[i + 1];
+
+    for (auto atom: sub) {
+      int id = atom.as_parent().id();
+      if (info.sub_of_atom[id] > 0)
+        continue;
+
+      info.sub_of_atom[id] = i + 1;
+      if (sub_root < 0)
+        sub_root = id;
+    }
+  }
+
+  auto it = absl::c_find(info.sub_of_atom, 0);
+  if (it == info.sub_of_atom.end()) {
+    info.root_of_sub[0] = -1;
+  } else {
+    info.root_of_sub[0] = static_cast<int>(it - info.sub_of_atom.begin());
+  }
+
+  info.sub_ids.resize(mol.num_substructures() + 1, -1);
+  info.sub_ids[0] = -1;
+  info.num_used_subs = 0;
+
+  for (int i = 0; i < info.sub_ids.size(); ++i) {
+    if (info.root_of_sub[i] < 0)
+      continue;
+
+    info.sub_ids[i] = info.num_used_subs++;
+  }
+
+  return info;
+}
+
+struct NameMapEntry {
+  int first_idx;
+  int count = 1;
+  std::string safe_name = {};
+};
+
+template <class C, class NameFunc>
+std::vector<std::string> make_names_unique(const C &cont, NameFunc ith_name) {
+  std::vector<std::string> names;
+  names.reserve(cont.size());
+
+  absl::flat_hash_map<std::string_view, NameMapEntry> name_map;
+  name_map.reserve(cont.size());
+
+  for (int i = 0; i < cont.size(); ++i) {
+    std::string_view name = ith_name(i);
+    if (name.empty()) {
+      names.push_back({});
+      continue;
+    }
+
+    auto [it, first] = name_map.try_emplace(
+        name, NameMapEntry { static_cast<int>(names.size()) });
+    if (first) {
+      it->second.safe_name = internal::ascii_safe(name);
+      names.push_back(it->second.safe_name);
+      continue;
+    }
+
+    if (it->second.count == 1)
+      names[it->second.first_idx] = absl::StrCat(it->second.safe_name, "1");
+
+    names.push_back(absl::StrCat(it->second.safe_name, ++it->second.count));
+  }
+
+  return names;
+}
+
+std::string_view sybyl_subtype_hyb(constants::Hybridization hyb) {
+  // NOLINTNEXTLINE(clang-diagnostic-switch-enum)
+  switch (hyb) {
+  case constants::kSP:
+    return ".1";
+  case constants::kSP2:
+    return ".2";
+  case constants::kSP3:
+    return ".3";
+  default:
+    return "";
+  }
+}
+
+std::string_view carbon_sybyl_subtype(Molecule::Atom atom) {
+  if (atom.data().formal_charge() == 1)
+    return ".cat";
+
+  if (atom.data().is_aromatic())
+    return ".ar";
+
+  return sybyl_subtype_hyb(atom.data().hybridization());
+}
+
+bool is_amide_nitrogen(Molecule::Atom atom) {
+  bool maybe_amide = false;
+
+  for (auto nei: atom) {
+    if (nei.edge_data().order() != constants::kSingleBond)
+      return false;
+
+    if (nei.dst().data().atomic_number() != 6)
+      continue;
+
+    for (auto mei: nei.dst()) {
+      if (mei.dst().data().atomic_number() == 8
+          && mei.edge_data().order() == constants::kDoubleBond)
+        maybe_amide = true;
+    }
+  }
+
+  return maybe_amide;
+}
+
+std::string_view nitrogen_sybyl_subtype(Molecule::Atom atom) {
+  if (atom.data().is_aromatic())
+    return ".ar";
+
+  int num_total_neighbors = all_neighbors(atom);
+
+  if (num_total_neighbors == 4 && atom.data().formal_charge() == 1)
+    return ".4";
+
+  if (is_amide_nitrogen(atom))
+    return ".am";
+
+  if (atom.data().hybridization() == constants::kSP2)
+    return num_total_neighbors == 3 ? ".pl" : ".2";
+
+  return sybyl_subtype_hyb(atom.data().hybridization());
+}
+
+std::string_view oxygen_sybyl_subtype(Molecule::Atom atom) {
+  if (atom.degree() == 1 && atom.data().implicit_hydrogens() == 0) {
+    auto nei = atom[0];
+
+    int terminal_oxygens = 0;
+    bool has_oxo = false;
+
+    for (auto mei: nei.dst()) {
+      if (mei.dst().data().atomic_number() == 8
+          && all_neighbors(mei.dst()) == 1) {
+        ++terminal_oxygens;
+        if (mei.edge_data().order() == constants::kDoubleBond)
+          has_oxo = true;
+      }
+    }
+
+    if (terminal_oxygens >= 2 && has_oxo)
+      return ".co2";
+  }
+
+  return sybyl_subtype_hyb(atom.data().hybridization());
+}
+
+std::string_view sulfur_sybyl_subtype(Molecule::Atom atom) {
+  int oxygens = absl::c_count_if(atom, [](Molecule::Neighbor nei) {
+    return nei.dst().data().atomic_number() == 8;
+  });
+
+  if (oxygens == 1)
+    return ".O";
+  if (oxygens == 2)
+    return ".O2";
+
+  return sybyl_subtype_hyb(atom.data().hybridization());
+}
+
+std::vector<std::string> sybyl_atom_types(const Molecule &mol) {
+  std::vector<std::string> types(mol.size());
+
+  for (auto atom: mol) {
+    types[atom.id()] = atom.data().element_symbol();
+    switch (atom.data().atomic_number()) {
+    case 6:
+      types[atom.id()] += carbon_sybyl_subtype(atom);
+      break;
+    case 7:
+      types[atom.id()] += nitrogen_sybyl_subtype(atom);
+      break;
+    case 8:
+      types[atom.id()] += oxygen_sybyl_subtype(atom);
+      break;
+    case 15:
+      types[atom.id()] += sybyl_subtype_hyb(atom.data().hybridization());
+      break;
+    case 16:
+      types[atom.id()] += sulfur_sybyl_subtype(atom);
+      break;
+    default:
+      break;
+    }
+  }
+
+  return types;
+}
+
+template <class C>
+int max_size_of(const C &sized) {
+  auto it = absl::c_max_element(sized, [](auto &&lhs, auto &&rhs) {
+    return lhs.size() < rhs.size();
+  });
+
+  if (it != sized.end())
+    return static_cast<int>(it->size());
+
+  return 0;
+}
+
+int double_width(double d) {
+  return static_cast<int>(absl::StrFormat("%.3f", d).size());
+}
+
+int max_width_conf(const Matrix3Xd &coords) {
+  double max = coords.maxCoeff(), min = coords.minCoeff();
+  return std::max(double_width(max), double_width(min));
+}
+
+Array4i measure_col_widths_atom(const Molecule &mol,
+                                const std::vector<std::string> &atom_names,
+                                int subs_id_width, int subs_name_width) {
+  Array4i cols;
+
+  cols[0] = max_size_of(atom_names);
+  cols[1] = subs_id_width;
+  cols[2] = subs_name_width;
+
+  cols[3] = 5;  // 0.000
+  for (auto atom: mol) {
+    // NOLINTNEXTLINE(clang-diagnostic-float-equal)
+    if (atom.data().partial_charge() == 0)
+      continue;
+
+    int width = double_width(atom.data().partial_charge());
+    cols[3] = std::max(cols[3], width);
+  }
+
+  return cols;
+}
+
+template <bool is_3d>
+void write_atoms(std::ostream &os, const Molecule &mol, const int conf,
+                 const int atom_id_width, const Array4i &extra_widths,
+                 const std::vector<std::string> &atom_names,
+                 const std::vector<std::string> &atom_types,
+                 const SubstructInfo &subs_info,
+                 const std::vector<std::string> &sub_names) {
+  int coords_width;
+  if constexpr (is_3d) {
+    const Matrix3Xd &coords = mol.confs()[conf];
+    coords_width = max_width_conf(coords);
+  } else {
+    // 0.000
+    coords_width = 5;
+  }
+
+  Vector3d pos;
+  if constexpr (!is_3d)
+    pos.setZero();
+
+  os << "@<TRIPOS>ATOM\n";
+
+  for (auto atom: mol) {
+    if constexpr (is_3d)
+      pos = mol.confs()[conf].col(atom.id());
+
+    int sub_idx = subs_info.sub_of_atom[atom.id()];
+    // NOLINTNEXTLINE(clang-diagnostic-used-but-marked-unused)
+    ABSL_DCHECK_GE(sub_idx, 0);
+    ABSL_DCHECK_LT(sub_idx, subs_info.sub_ids.size());
+
+    int sub_id = subs_info.sub_ids[sub_idx];
+    // NOLINTNEXTLINE(clang-diagnostic-used-but-marked-unused)
+    ABSL_DCHECK_GE(sub_id, 0);
+
+    ABSL_DCHECK_LT(sub_idx, sub_names.size());
+    std::string_view sub_name = sub_names[sub_idx];
+    ABSL_DCHECK(!sub_name.empty());
+
+    os << absl::StreamFormat(                                                 //
+        "%*d %-*s %*.3f %*.3f %*.3f %-5s %*d %-*s %*.3f\n",                   //
+        atom_id_width, atom.id() + 1,                                         //
+        extra_widths[0], atom_names[atom.id()],                               //
+        coords_width, pos.x(), coords_width, pos.y(), coords_width, pos.z(),  //
+        atom_types[atom.id()],                                                //
+        extra_widths[1], sub_id + 1,                                          //
+        extra_widths[2], sub_name,                                            //
+        extra_widths[3], atom.data().partial_charge());
+  }
+
+  bool need_attr_header = true;
+  for (auto atom: mol) {
+    int num_props = value_if(atom.data().formal_charge() != 0)
+                    + static_cast<int>(atom.data().props().size())
+                    - value_if(internal::has_name(atom.data().props()));
+    if (num_props <= 0)
+      continue;
+
+    if (need_attr_header) {
+      os << "@<TRIPOS>UNITY_ATOM_ATTR\n";
+      need_attr_header = false;
+    }
+
+    os << absl::StreamFormat(  //
+        "%*d %d\n", atom_id_width, atom.id() + 1, num_props);
+
+    if (atom.data().formal_charge() != 0)
+      os << absl::StreamFormat("charge %d\n", atom.data().formal_charge());
+
+    for (auto &[key, value]: atom.data().props()) {
+      if (key == internal::kNameKey)
+        continue;
+
+      os << absl::StreamFormat("%s %s\n", key, value);
+    }
+  }
+}
+
+std::string_view mol2_bond_type(Molecule::Bond bond) {
+  if ((bond.src().data().atomic_number() == 7  //
+       && is_amide_nitrogen(bond.src()))
+      || (bond.dst().data().atomic_number() == 7
+          && is_amide_nitrogen(bond.dst())))
+    return "am";
+
+  // NOLINTNEXTLINE(clang-diagnostic-switch-enum)
+  switch (bond.data().order()) {
+  case constants::kSingleBond:
+    return "1";
+  case constants::kDoubleBond:
+    return "2";
+  case constants::kTripleBond:
+    return "3";
+  case constants::kAromaticBond:
+    return "ar";
+  case constants::kOtherBond:
+    return "du";
+  default:
+    return "un";
+  }
+}
+
+void write_bonds(std::ostream &os, const Molecule &mol, const int atom_id_width,
+                 const int bond_id_width) {
+  if (mol.bond_empty())
+    return;
+
+  os << "@<TRIPOS>BOND\n";
+
+  for (auto bond: mol.bonds()) {
+    os << absl::StreamFormat("%*d %*d %*d %s\n",                  //
+                             bond_id_width, bond.id() + 1,        //
+                             atom_id_width, bond.src().id() + 1,  //
+                             atom_id_width, bond.dst().id() + 1,
+                             mol2_bond_type(bond));
+  }
+}
+
+void write_substructs(std::ostream &os, const int atom_id_width,
+                      const int sub_id_width, const int sub_name_width,
+                      const SubstructInfo &sub_info,
+                      const std::vector<std::string> &sub_names) {
+  os << "@<TRIPOS>SUBSTRUCTURE\n";
+
+  for (int i = 0; i < sub_info.sub_ids.size(); ++i) {
+    if (sub_info.root_of_sub[i] < 0)
+      continue;
+
+    os << absl::StreamFormat("%*d %-*s %*d\n",                       //
+                             sub_id_width, sub_info.sub_ids[i] + 1,  //
+                             sub_name_width, sub_names[i],           //
+                             atom_id_width, sub_info.root_of_sub[i] + 1);
+  }
+}
+
+template <bool is_3d>
+void write_mol2_single_conf(std::ostream &os, const Molecule &mol, int conf,
+                            const int atom_id_width,
+                            const Array4i &extra_atom_widths,
+                            const int bond_id_width, const int sub_id_width,
+                            const int sub_name_width,
+                            const std::vector<std::string> &atom_names,
+                            const std::vector<std::string> &atom_types,
+                            const SubstructInfo &sub_info,
+                            const std::vector<std::string> &sub_names) {
+  if constexpr (is_3d) {
+    // NOLINTNEXTLINE(clang-diagnostic-used-but-marked-unused)
+    ABSL_DCHECK_LT(conf, mol.confs().size());
+  }
+
+  os << absl::StreamFormat(
+      // clang-format off
+R"mol2(@<TRIPOS>MOLECULE
+%s
+%d %d %d 0 0
+SMALL
+NO_CHARGES
+%s
+%s
+)mol2",
+      // clang-format on
+      mol.name().empty() ? kCommentIndicator : mol.name(), mol.num_atoms(),
+      mol.num_bonds(), sub_info.num_used_subs, kCommentIndicator,
+      internal::get_key(mol.props(), "comment"));
+
+  if (mol.empty())
+    return;
+
+  write_atoms<is_3d>(os, mol, conf, atom_id_width, extra_atom_widths,
+                     atom_names, atom_types, sub_info, sub_names);
+  write_bonds(os, mol, atom_id_width, bond_id_width);
+  write_substructs(os, atom_id_width, sub_id_width, sub_name_width, sub_info,
+                   sub_names);
+}
+}  // namespace
+
+std::ostream &write_mol2(std::ostream &os, const Molecule &mol, int conf) {
+  int atom_id_width = width_of_size(mol.num_atoms()),
+      bond_id_width = width_of_size(mol.num_bonds());
+
+  std::vector atom_names = make_names_unique(mol, [&mol](int i) {
+    auto atom = mol[i];
+    std::string_view name = atom.data().get_name();
+    return name.empty() ? atom.data().element_symbol() : name;
+  });
+  std::vector atom_types = sybyl_atom_types(mol);
+
+  const SubstructInfo subs_info = resolve_substructs(mol);
+  std::vector substruct_names = make_names_unique(
+      subs_info.root_of_sub, [&mol, &subs_info](int idx) -> std::string_view {
+        int root = subs_info.root_of_sub[idx];
+        if (root < 0)
+          return {};
+
+        if (idx == 0)
+          return "UNK";
+
+        const Substructure &sub = mol.substructures()[idx - 1];
+        if (sub.name().empty())
+          return "UNK";
+
+        return sub.name();
+      });
+  int substruct_id_width = width_of_size(subs_info.num_used_subs),
+      substruct_name_width = max_size_of(substruct_names);
+
+  auto extra_atom_col_widths = measure_col_widths_atom(
+      mol, atom_names, substruct_id_width, substruct_name_width);
+
+  if (!mol.is_3d()) {
+    write_mol2_single_conf<false>(os, mol, -1, atom_id_width,
+                                  extra_atom_col_widths, bond_id_width,
+                                  substruct_id_width, substruct_name_width,
+                                  atom_names, atom_types, subs_info,
+                                  substruct_names);
+  } else if (conf < 0) {
+    for (int i = 0; i < mol.confs().size(); ++i) {
+      write_mol2_single_conf<true>(os, mol, i, atom_id_width,
+                                   extra_atom_col_widths, bond_id_width,
+                                   substruct_id_width, substruct_name_width,
+                                   atom_names, atom_types, subs_info,
+                                   substruct_names);
+    }
+  } else {
+    write_mol2_single_conf<true>(os, mol, conf, atom_id_width,
+                                 extra_atom_col_widths, bond_id_width,
+                                 substruct_id_width, substruct_name_width,
+                                 atom_names, atom_types, subs_info,
+                                 substruct_names);
+  }
+
+  return os;
 }
 }  // namespace nuri

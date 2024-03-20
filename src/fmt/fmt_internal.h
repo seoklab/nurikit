@@ -7,6 +7,7 @@
 #define NURI_FMT_FMT_INTERNAL_H_
 
 #include <string>
+#include <string_view>
 
 #include <boost/spirit/home/x3.hpp>
 
@@ -46,5 +47,16 @@ constexpr auto uint_trailing_blanks = TrailingBlanksRule<unsigned int>() =
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming,*-unused-const-variable)
 }  // namespace
+
+namespace internal {
+/**
+ * @brief Replace non-ascii and non-printable characters with '?' and replace
+ *        all whitespace characters with '_'.
+ *
+ * @param str The string to sanitize.
+ * @return The sanitized string.
+ */
+extern std::string ascii_safe(std::string_view str);
+}  // namespace internal
 }  // namespace nuri
 #endif /* NURI_FMT_FMT_INTERNAL_H_ */

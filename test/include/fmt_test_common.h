@@ -80,7 +80,10 @@ public:
   bool print_;
   // NOLINTEND(readability-identifier-naming)
 
-  void set_test_string(const std::string &str) { iss_.str(str); }
+  void set_test_string(const std::string &str) {
+    iss_.clear();
+    iss_.str(str);
+  }
 
   bool advance() {
     ++idx_;
@@ -91,7 +94,6 @@ public:
 
 protected:
   void SetUp() override {
-    iss_.clear();
     idx_ = 0;
     print_ = false;
   }

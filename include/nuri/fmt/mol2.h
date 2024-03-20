@@ -6,6 +6,7 @@
 #ifndef NURI_FMT_MOL2_H_
 #define NURI_FMT_MOL2_H_
 
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -39,6 +40,9 @@ class Mol2ReaderFactory: public DefaultReaderFactoryImpl<Mol2Reader> {
 private:
   static const bool kRegistered ABSL_ATTRIBUTE_UNUSED;
 };
+
+extern std::ostream &write_mol2(std::ostream &os, const Molecule &mol,
+                                int conf = -1);
 }  // namespace nuri
 
 #endif /* NURI_FMT_MOL2_H_ */
