@@ -5,9 +5,11 @@
 #ifndef NURI_ALGO_RINGS_H_
 #define NURI_ALGO_RINGS_H_
 
+/// @cond
 #include <memory>
 #include <utility>
 #include <vector>
+/// @endcond
 
 #include "nuri/core/molecule.h"
 

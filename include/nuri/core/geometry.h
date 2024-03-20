@@ -5,12 +5,14 @@
 #ifndef NURI_CORE_GEOMETRY_H_
 #define NURI_CORE_GEOMETRY_H_
 
+/// @cond
 #include <cmath>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include <Eigen/Dense>
+/// @endcond
 
 #include "nuri/eigen_config.h"
 #include "nuri/utils.h"
