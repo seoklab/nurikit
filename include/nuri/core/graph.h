@@ -6,6 +6,7 @@
 #ifndef NURI_CORE_GRAPH_H_
 #define NURI_CORE_GRAPH_H_
 
+/// @cond
 #include <algorithm>
 #include <cstddef>
 #include <initializer_list>
@@ -24,6 +25,7 @@
 #include <absl/container/flat_hash_set.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
+/// @endcond
 
 #include "nuri/eigen_config.h"
 #include "nuri/utils.h"

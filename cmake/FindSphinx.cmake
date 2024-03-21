@@ -16,7 +16,6 @@ function(add_sphinx_docs target)
     ${SPHINX_EXECUTABLE}
     -E
     -b html
-    -c ${CMAKE_CURRENT_BINARY_DIR}
     -d ${CMAKE_CURRENT_BINARY_DIR}/doctrees
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}/html
@@ -27,12 +26,15 @@ function(add_sphinx_docs target)
     set_target_properties("${target}" PROPERTIES EXCLUDE_FROM_ALL OFF)
   endif()
 
+  if(TARGET nuri_docs)
+    add_dependencies("${target}" nuri_docs)
+  endif()
+
   add_custom_target("${target}_doctest"
     COMMAND ${CMAKE_COMMAND} -E env ${SANITIZER_ENVS}
     ${SPHINX_EXECUTABLE}
     -E
     -b doctest
-    -c ${CMAKE_CURRENT_BINARY_DIR}
     -d ${CMAKE_CURRENT_BINARY_DIR}/doctrees
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}/doctest

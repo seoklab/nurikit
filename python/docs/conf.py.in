@@ -58,6 +58,8 @@ bibtex_bibfiles = ["@CMAKE_CURRENT_LIST_DIR@/data/refs.bib"]
 
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["@CMAKE_CURRENT_LIST_DIR@/_static"]
+if "@DOXYGEN_OUTPUT_DIR@":
+    html_extra_path = ["@DOXYGEN_OUTPUT_DIR@/html"]
 html_css_files = [
     "css/rtd-property.css" # workaround https://github.com/readthedocs/sphinx_rtd_theme/issues/1301
 ]
@@ -72,7 +74,7 @@ intersphinx_mapping = {
 
 rst_prolog = """
 .. |cppdocs| replace:: `C++ API Reference`_
-.. _C++ API Reference: https://cluster.seoklab.org:8443/docs/nurikit/main
+.. _C++ API Reference: cpp/
 """
 
 doctest_global_setup = "import nuri"

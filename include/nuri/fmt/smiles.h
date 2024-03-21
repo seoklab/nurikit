@@ -6,10 +6,12 @@
 #ifndef NURI_FMT_SMILES_H_
 #define NURI_FMT_SMILES_H_
 
+/// @cond
 #include <string>
 #include <vector>
 
 #include <absl/base/attributes.h>
+/// @endcond
 
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"

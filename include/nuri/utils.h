@@ -6,6 +6,7 @@
 #ifndef NURI_UTILS_H_
 #define NURI_UTILS_H_
 
+/// @cond
 #include <algorithm>
 #include <cstddef>
 #include <cstdlib>
@@ -32,6 +33,7 @@
 #include <absl/log/absl_check.h>
 #include <absl/numeric/bits.h>
 #include <absl/strings/ascii.h>
+/// @endcond
 
 #include "nuri/eigen_config.h"
 

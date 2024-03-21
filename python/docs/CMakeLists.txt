@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+configure_file(conf.py.in "${CMAKE_CURRENT_LIST_DIR}/conf.py" @ONLY)
+
 find_package(Sphinx)
 
 if(Sphinx_FOUND)
@@ -14,5 +16,4 @@ else()
   return()
 endif()
 
-configure_file(conf.py.in conf.py @ONLY)
 add_sphinx_docs(nuri_python_docs)

@@ -5,9 +5,11 @@
 #ifndef NURI_EIGEN_CONFIG_H_
 #define NURI_EIGEN_CONFIG_H_
 
+/// @cond
 #include <Eigen/Dense>
 
 #include <absl/log/absl_check.h>
+/// @endcond
 
 namespace nuri {
 using Eigen::Array;

@@ -2,10 +2,10 @@
 // Project nurikit - Copyright 2023 SNU Compbio Lab.
 // SPDX-License-Identifier: Apache-2.0
 //
-/** @file */
 #ifndef NURI_CORE_MOLECULE_H_
 #define NURI_CORE_MOLECULE_H_
 
+/// @cond
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -24,6 +24,7 @@
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
 #include <absl/log/absl_check.h>
+/// @endcond
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
