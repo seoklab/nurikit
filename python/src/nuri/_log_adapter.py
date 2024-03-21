@@ -1,5 +1,5 @@
 #
-# Project nurikit - Copyright 2024 SNU Compbio Lab.
+# Project NuriKit - Copyright 2024 SNU Compbio Lab.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -15,7 +15,7 @@ try:
     del _init_logging
 except Exception:
     logger.warning(
-        "failed to initialize logging for nurikit.", exc_info=True)
+        "failed to initialize logging for NuriKit.", exc_info=True)
 else:
     @functools.wraps(_setLevel)
     def set_level_wrapper(level):

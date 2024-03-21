@@ -1,5 +1,5 @@
 #
-# Project nurikit - Copyright 2024 SNU Compbio Lab.
+# Project NuriKit - Copyright 2024 SNU Compbio Lab.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -10,7 +10,7 @@ if(NURI_BUILD_PYTHON)
   set_target_properties(nuri_python PROPERTIES EXCLUDE_FROM_ALL OFF)
 endif()
 
-include(NurikitPythonUtils)
+include(NuriKitPythonUtils)
 
 nuri_python_generate_stubs(nuri)
 

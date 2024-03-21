@@ -1,5 +1,5 @@
 #
-# Project nurikit - Copyright 2024 SNU Compbio Lab.
+# Project NuriKit - Copyright 2024 SNU Compbio Lab.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -7,7 +7,7 @@ add_custom_command(
   TARGET nuri_python
   POST_BUILD
   COMMAND "${CMAKE_COMMAND}"
-  -P "${PROJECT_SOURCE_DIR}/cmake/NurikitClearStubs.cmake"
+  -P "${PROJECT_SOURCE_DIR}/cmake/NuriKitClearStubs.cmake"
   "${CMAKE_CURRENT_SOURCE_DIR}"
   VERBATIM)
 

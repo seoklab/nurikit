@@ -1,5 +1,5 @@
 #
-# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# Project NuriKit - Copyright 2023 SNU Compbio Lab.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -27,7 +27,7 @@ macro(_nuri_get_git_version_impl)
   if(git_result EQUAL 0)
     string(STRIP "${NURI_REF}" NURI_REF)
     string(REGEX REPLACE "^v" "" NURI_VERSION "${NURI_REF}")
-    message(STATUS "Nurikit version from git: ${NURI_VERSION}")
+    message(STATUS "NuriKit version from git: ${NURI_VERSION}")
   else()
     execute_process(
       COMMAND ${GIT_EXECUTABLE} symbolic-ref -q --short HEAD
@@ -47,15 +47,15 @@ function(nuri_get_version)
   if(SKBUILD)
     # Version correctly set via scikit-build-core; skip git versioning.
     set(NURI_VERSION "${SKBUILD_PROJECT_VERSION}")
-    message(STATUS "Nurikit version from scikit-build-core: ${NURI_VERSION}")
+    message(STATUS "NuriKit version from scikit-build-core: ${NURI_VERSION}")
   else()
     _nuri_get_git_version_impl()
   endif()
 
   if(NURI_REF)
-    message(STATUS "Nurikit ref from git: ${NURI_REF}")
+    message(STATUS "NuriKit ref from git: ${NURI_REF}")
   else()
-    message(NOTICE "Nurikit ref not found! Using unknown.")
+    message(NOTICE "NuriKit ref not found! Using unknown.")
     set(nuri_revision "unknown")
     set(NURI_REF "unknown")
   endif()
@@ -64,7 +64,7 @@ function(nuri_get_version)
     set(NURI_FULL_VERSION "${NURI_VERSION}")
   else()
     set(NURI_VERSION "0.1.0.dev0")
-    message(NOTICE "Nurikit version not found! Using ${NURI_VERSION}")
+    message(NOTICE "NuriKit version not found! Using ${NURI_VERSION}")
     set(NURI_FULL_VERSION "${NURI_VERSION}+${nuri_revision}")
   endif()
 

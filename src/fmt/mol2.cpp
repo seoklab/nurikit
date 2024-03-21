@@ -1,5 +1,5 @@
 //
-// Project nurikit - Copyright 2023 SNU Compbio Lab.
+// Project NuriKit - Copyright 2023 SNU Compbio Lab.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -137,7 +137,7 @@ void parse_mol_block(Molecule &mol, Iter &it, const Iter end) {
     mol.reserve_bonds(static_cast<int>(nums.second.value_or(0)));
   } else {
     ABSL_LOG(WARNING) << "Failed to parse mol block line; this file might be "
-                         "incompatible with future versions of nurikit";
+                         "incompatible with future versions of NuriKit";
     ABSL_LOG(INFO) << "The line is: " << *it;
   }
 

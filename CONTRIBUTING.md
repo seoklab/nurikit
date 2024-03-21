@@ -1,6 +1,6 @@
 # NuriKit Contributing Guidelines
 
-You'd like to contribute to nurikit? Great! We're happy to have you on board.
+You'd like to contribute to NuriKit? Great! We're happy to have you on board.
 
 ## Reporting issues
 
@@ -12,8 +12,8 @@ Please report any issues you find in the
 If you've found a bug, please create an issue including the following
 information in your report:
 
-- The version or commit SHA of nurikit you're using.
-- The version of Python you're using (if it's related to the nurikit
+- The version or commit SHA of NuriKit you're using.
+- The version of Python you're using (if it's related to the NuriKit
   python package).
 - The OS and version you're using (currently, only Ubuntu 20.04 is supported).
 - A clear and concise description of what the bug is.
@@ -43,7 +43,7 @@ In this section,
 ### Setting up the development environment
 
 Basically, you will be OK with the default packages provided by Ubuntu 20.04
-LTS. The specific requirements for building nurikit are:
+LTS. The specific requirements for building NuriKit are:
 
 - Linux (might support other OSes in the future)
 - [Git](https://git-scm.com/)
@@ -74,15 +74,15 @@ Version 15 of clang-format and clang-tidy are REQUIRED.
 latest version of pre-commit, clang-format, and clang-tidy installed. You don't
 need to install it again if you're developing on the cluster.
 
-### Building nurikit
+### Building NuriKit
 
-To build nurikit, you MUST clone the repository:
+To build NuriKit, you MUST clone the repository:
 
 ```shellscript
 git clone --recurse-submodules git@github.com:seoklab/nurikit.git
 ```
 
-Then you can build nurikit using CMake:
+Then you can build NuriKit using CMake:
 
 ```shellscript
 mkdir build && cd build

@@ -1,8 +1,8 @@
-.. Project nurikit - Copyright 2024 SNU Compbio Lab.
+.. Project NuriKit - Copyright 2024 SNU Compbio Lab.
    SPDX-License-Identifier: Apache-2.0
 
 =========================
-Nurikit C++ API Reference
+NuriKit C++ API Reference
 =========================
 
 .. raw:: html
