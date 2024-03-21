@@ -38,6 +38,24 @@ class SDFReaderFactory: public DefaultReaderFactoryImpl<SDFReader> {
 private:
   static const bool kRegistered ABSL_ATTRIBUTE_UNUSED;
 };
+
+enum class SDFVersion {
+  kAutomatic,
+  kV2000,
+  kV3000,
+};
+
+/**
+ * @brief Write a molecule to an SDF stream.
+ *
+ * @param out The string to write to.
+ * @param mol The molecule to write.
+ * @param conf The index of the conformation to write. If negative, all
+ *             conformers are written in separate blocks.
+ * @return Whether the write was successful.
+ */
+extern bool write_sdf(std::string &out, const Molecule &mol, int conf = -1,
+                      SDFVersion ver = SDFVersion::kAutomatic);
 }  // namespace nuri
 
 #endif /* NURI_FMT_SDF_H_ */

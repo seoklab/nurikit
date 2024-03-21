@@ -20,14 +20,20 @@
 #include <boost/spirit/home/x3.hpp>
 
 #include <absl/algorithm/container.h>
+#include <absl/base/optimization.h>
 #include <absl/container/inlined_vector.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/ascii.h>
+#include <absl/strings/charset.h>
 #include <absl/strings/match.h>
 #include <absl/strings/numbers.h>
 #include <absl/strings/str_cat.h>
+#include <absl/strings/str_format.h>
+#include <absl/strings/str_replace.h>
 #include <absl/strings/strip.h>
+#include <absl/time/clock.h>
+#include <absl/time/time.h>
 
 #include "nuri/eigen_config.h"
 #include "fmt_internal.h"
@@ -962,5 +968,341 @@ Molecule read_sdf(const std::vector<std::string> &sdf) {
   mol.confs().emplace_back(stack(coords));
 
   return mol;
+}
+
+namespace {
+int sdf_bond_order(constants::BondOrder order) {
+  if (order == constants::kAromaticBond)
+    return 4;
+
+  return std::clamp(static_cast<int>(order), 1, 3);
+}
+
+constexpr const absl::CharSet kNewlines("\f\n\r");
+
+std::string sdf_props_safe_key(std::string_view key) {
+  std::string result;
+  result.reserve(key.size());
+
+  absl::CharSet metachars("<>");
+
+  for (int i = 0; i < key.size(); ++i) {
+    char c = key[i];
+
+    if (absl::ascii_isspace(key[i])) {
+      c = ' ';
+    } else if (metachars.contains(key[i]) || !absl::ascii_isprint(key[i])) {
+      c = '?';
+    }
+
+    result.push_back(c);
+  }
+
+  return result;
+}
+
+std::string sdf_props_safe_value(std::string_view value) {
+  std::string result;
+  result.reserve(value.size());
+
+  bool newline = true;
+  for (int i = 0; i < value.size(); ++i) {
+    char c = value[i];
+
+    if (newline) {
+      newline = kNewlines.contains(c);
+      if (newline)
+        continue;
+
+      c = c == '$' ? '?' : c;
+    } else if (c == '\n') {
+      newline = true;
+    }
+
+    result.push_back(c);
+  }
+
+  if (absl::EndsWith(result, "\n"))
+    result.pop_back();
+
+  return result;
+}
+
+void sdf_gen_props(std::string &footer, const Molecule &mol) {
+  for (const auto &[key, value]: mol.props()) {
+    absl::StrAppend(&footer, "> <", sdf_props_safe_key(key), ">\n",
+                    sdf_props_safe_value(value), "\n\n");
+  }
+}
+
+bool v2000_can_write_coords(const Matrix3Xd &coords) {
+  bool underflow = (coords.array() <= -1e+4).any(),
+       overflow = (coords.array() >= 1e+5).any();
+  return !underflow && !overflow;
+}
+
+bool v2000_can_write(const Molecule &mol, int conf, bool log_on_fail) {
+  if (mol.num_atoms() > 999 || mol.num_bonds() > 999) {
+    ABSL_LOG_IF(ERROR, log_on_fail)
+        << "V2000 format cannot handle more than 999 atoms or bonds";
+    return false;
+  }
+
+  if (!mol.is_3d())
+    return true;
+
+  bool coords_ok = true;
+  if (conf < 0) {
+    for (const auto &c: mol.confs()) {
+      if (!v2000_can_write_coords(c)) {
+        coords_ok = false;
+        break;
+      }
+    }
+  } else {
+    ABSL_DCHECK_LT(conf, mol.confs().size());
+    coords_ok = v2000_can_write_coords(mol.confs()[conf]);
+  }
+
+  ABSL_LOG_IF(ERROR, !coords_ok && log_on_fail)
+      << "V2000 format cannot handle coordinates outside of (-1e+4, 1e+5)";
+
+  return coords_ok;
+}
+
+std::string v2000_name(std::string_view name) {
+  std::string safe_name = internal::ascii_safe(name.substr(0, 80));
+  if (absl::StartsWith(safe_name, "$"))
+    safe_name[0] = '?';
+  return safe_name;
+}
+
+int v2000_gen_mass_diff(const AtomData &data) {
+  const Element &el = data.element();
+  const Isotope &major = el.major_isotope();
+
+  int diff = data.isotope().mass_number - major.mass_number;
+  if (diff < -3 || diff > 4)
+    return 0;
+  return diff;
+}
+
+int v2000_gen_formal_charge(int fchg) {
+  int chg_annot = 4 - fchg;
+  if (chg_annot < 1 || chg_annot == 4 || chg_annot > 7)
+    return 0;
+  return chg_annot;
+}
+
+template <bool is_3d>
+void v2000_write_atoms(std::string &out, const Molecule &mol, int conf) {
+  Vector3d pos;
+  if constexpr (!is_3d)
+    pos.setZero();
+
+  for (auto atom: mol) {
+    if constexpr (is_3d)
+      pos = mol.confs()[conf].col(atom.id());
+
+    absl::StrAppendFormat(
+        &out,
+        // clang-format off
+        //                            ssshhhbbbvvvHHHrrriiimmmnnneee
+        "%10.4f%10.4f%10.4f %-3s%2d%3d  0  0  0  0  0  0  0  0  0  0\n",
+        // clang-format on
+        pos.x(), pos.y(), pos.z(), atom.data().element().symbol(),
+        v2000_gen_mass_diff(atom.data()),
+        v2000_gen_formal_charge(atom.data().formal_charge()));
+  }
+}
+
+void v2000_write_bonds(std::string &out, const Molecule &mol) {
+  for (auto bond: mol.bonds()) {
+    absl::StrAppendFormat(  //
+        &out,
+        // clang-format off
+        //        sssxxxrrrccc
+        "%3d%3d%3d  0  0  0  0\n",
+        // clang-format on
+        bond.src().id() + 1, bond.dst().id() + 1,
+        sdf_bond_order(bond.data().order()));
+  }
+}
+
+void v2000_atom_properties_common(std::string &out, std::string_view key,
+                                  const std::vector<std::pair<int, int>> &data) {
+  for (int i = 0; i < data.size(); i += 8) {
+    int cnt = std::min(8, static_cast<int>(data.size()) - i);
+    absl::StrAppendFormat(&out, "M  %s%3d", key, cnt);
+    for (int j = 0; j < cnt; ++j)
+      absl::StrAppendFormat(&out, " %3d %3d", data[i + j].first,
+                            data[i + j].second);
+    out.push_back('\n');
+  }
+}
+
+template <bool is_3d>
+void v2000_write_single_conf(std::string &out, const Molecule &mol, int conf,
+                             std::string_view header, std::string_view footer) {
+  if constexpr (is_3d) {
+    // NOLINTNEXTLINE(clang-diagnostic-used-but-marked-unused)
+    ABSL_DCHECK_LT(conf, mol.confs().size());
+  }
+
+  absl::StrAppendFormat(&out, "%s\n%3d%3d  0  0  0  0  0  0  0  0999 V2000\n",
+                        header, mol.num_atoms(), mol.num_bonds());
+  v2000_write_atoms<is_3d>(out, mol, conf);
+  v2000_write_bonds(out, mol);
+
+  std::vector<std::pair<int, int>> props;
+
+  for (auto atom: mol) {
+    if (atom.data().formal_charge() != 0)
+      props.emplace_back(atom.id() + 1, atom.data().formal_charge());
+  }
+  v2000_atom_properties_common(out, "CHG", props);
+
+  props.clear();
+  for (auto atom: mol) {
+    if (atom.data().explicit_isotope() != nullptr)
+      props.emplace_back(atom.id() + 1,
+                         atom.data().explicit_isotope()->mass_number);
+  }
+  v2000_atom_properties_common(out, "ISO", props);
+
+  absl::StrAppend(&out, footer);
+}
+
+void v2000_write_mol(std::string &out, const Molecule &mol, int conf,
+                     std::string_view header, std::string_view footer) {
+  if (!mol.is_3d()) {
+    v2000_write_single_conf<false>(out, mol, -1, header, footer);
+  } else if (conf < 0) {
+    for (int i = 0; i < mol.confs().size(); ++i) {
+      v2000_write_single_conf<true>(out, mol, i, header, footer);
+    }
+  } else {
+    v2000_write_single_conf<true>(out, mol, conf, header, footer);
+  }
+}
+
+template <bool is_3d>
+void v3000_write_atoms(std::string &out, const Molecule &mol, int conf) {
+  absl::StrAppend(&out, "M  V30 BEGIN ATOM\n");
+
+  Vector3d pos;
+  if constexpr (!is_3d)
+    pos.setZero();
+
+  for (auto atom: mol) {
+    if constexpr (is_3d)
+      pos = mol.confs()[conf].col(atom.id());
+
+    absl::StrAppendFormat(&out,                                           //
+                          "M  V30 %d %s %.4f %.4f %.4f 0",                //
+                          atom.id() + 1, atom.data().element().symbol(),  //
+                          pos.x(), pos.y(), pos.z());
+    if (atom.data().formal_charge() != 0) {
+      absl::StrAppendFormat(&out, " CHG=%d", atom.data().formal_charge());
+    }
+    if (atom.data().explicit_isotope() != nullptr) {
+      absl::StrAppendFormat(&out, " MASS=%d",
+                            atom.data().explicit_isotope()->mass_number);
+    }
+    out.push_back('\n');
+  }
+
+  absl::StrAppend(&out, "M  V30 END ATOM\n");
+}
+
+void v3000_write_bonds(std::string &out, const Molecule &mol) {
+  absl::StrAppend(&out, "M  V30 BEGIN BOND\n");
+
+  for (auto bond: mol.bonds()) {
+    absl::StrAppendFormat(  //
+        &out,
+        // clang-format off
+        //        sssxxxrrrccc
+        "M  V30 %d %d %d %d\n",
+        // clang-format on
+        bond.id() + 1, sdf_bond_order(bond.data().order()),  //
+        bond.src().id() + 1, bond.dst().id() + 1);
+  }
+
+  absl::StrAppend(&out, "M  V30 END BOND\n");
+}
+
+template <bool is_3d>
+void v3000_write_single_conf(std::string &out, const Molecule &mol, int conf,
+                             std::string_view header, std::string_view footer) {
+  if constexpr (is_3d) {
+    // NOLINTNEXTLINE(clang-diagnostic-used-but-marked-unused)
+    ABSL_DCHECK_LT(conf, mol.confs().size());
+  }
+
+  absl::StrAppendFormat(&out,
+                        R"sdf(%s
+  0  0  0  0  0  0  0  0  0  0999 V3000
+M  V30 BEGIN CTAB
+M  V30 COUNTS %d %d 0 0 0
+)sdf",
+                        header, mol.num_atoms(), mol.num_bonds());
+
+  v3000_write_atoms<is_3d>(out, mol, conf);
+  v3000_write_bonds(out, mol);
+
+  absl::StrAppend(&out, "M  V30 END CTAB\n", footer);
+}
+
+void v3000_write_mol(std::string &out, const Molecule &mol, int conf,
+                     std::string_view header, std::string_view footer) {
+  if (!mol.is_3d()) {
+    v3000_write_single_conf<false>(out, mol, -1, header, footer);
+  } else if (conf < 0) {
+    for (int i = 0; i < mol.confs().size(); ++i) {
+      v3000_write_single_conf<true>(out, mol, i, header, footer);
+    }
+  } else {
+    v3000_write_single_conf<true>(out, mol, conf, header, footer);
+  }
+}
+}  // namespace
+
+bool write_sdf(std::string &out, const Molecule &mol, int conf,
+               SDFVersion ver) {
+  bool can_v2000 = false;
+  if (ver != SDFVersion::kV3000)
+    can_v2000 = v2000_can_write(mol, conf, ver == SDFVersion::kV2000);
+
+  if (ver == SDFVersion::kV2000 && !can_v2000)
+    return false;
+
+  if (ver == SDFVersion::kAutomatic)
+    ver = can_v2000 ? SDFVersion::kV2000 : SDFVersion::kV3000;
+
+  std::string header = absl::StrFormat(
+      "%s\n   NuriKit%s%s\n%s",                                          //
+      v2000_name(mol.name()),                                            //
+      absl::FormatTime("%m%d%y%H%M", absl::Now(), absl::UTCTimeZone()),  //
+      mol.is_3d() ? "3D" : "2D",                                         //
+      absl::StrReplaceAll(internal::get_key(mol.props(), "comment"),
+                          // clang-format off
+                          { { "\n", " " } })
+      // clang-format on
+  );
+
+  std::string footer = "M  END\n";
+  sdf_gen_props(footer, mol);
+  absl::StrAppend(&footer, "$$$$\n");
+
+  if (ver == SDFVersion::kV2000) {
+    v2000_write_mol(out, mol, conf, header, footer);
+  } else if (ver == SDFVersion::kV3000) {  // GCOV_EXCL_BR_LINE
+    v3000_write_mol(out, mol, conf, header, footer);
+  } else {
+    ABSL_UNREACHABLE();  // GCOV_EXCL_LINE
+  }
+
+  return true;
 }
 }  // namespace nuri
