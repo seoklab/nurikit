@@ -1,0 +1,38 @@
+#
+# Project nurikit - Copyright 2024 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+version: 2
+
+submodules:
+  include: all
+
+build:
+  os: ubuntu-22.04
+  tools:
+    python: "3.8"
+  apt_packages:
+    - build-essential
+    - cmake
+    - ninja-build
+    - libeigen3-dev
+    - doxygen
+    - graphviz
+  jobs:
+    pre_install:
+      - |
+        cmake -S . -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    pre_build:
+      - cmake --build build --target nuri_docs
+
+python:
+  install:
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs
+
+sphinx:
+  configuration: "build/python/docs/conf.py"
