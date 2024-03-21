@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-configure_file(conf.py.in conf.py @ONLY)
+configure_file(conf.py.in "${CMAKE_CURRENT_LIST_DIR}/conf.py" @ONLY)
 
 find_package(Sphinx)
 

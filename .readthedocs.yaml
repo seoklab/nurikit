@@ -35,4 +35,4 @@ python:
         - docs
 
 sphinx:
-  configuration: "build/python/docs/conf.py"
+  configuration: "python/docs/conf.py"
