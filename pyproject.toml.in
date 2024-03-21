@@ -38,7 +38,7 @@ classifiers = [
 dependencies = ["numpy"]
 
 [project.urls]
-Documentation = "https://nurikit.seoklab.org/"
+Documentation = "https://nurikit.readthedocs.io/"
 Repository = "https://github.com/seoklab/nurikit.git"
 
 [project.optional-dependencies]
