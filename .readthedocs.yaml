@@ -22,9 +22,14 @@ build:
   jobs:
     pre_install:
       - |
+        cmake -S . -B pre-install -G Ninja \
+          -DCMAKE_BUILD_TYPE=Debug -DNURI_BUILD_PYTHON=ON
+    post_install:
+      - cmake --build pre-install --target clean
+    pre_build:
+      - |
         cmake -S . -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-    pre_build:
       - cmake --build build --target nuri_docs
 
 python:
