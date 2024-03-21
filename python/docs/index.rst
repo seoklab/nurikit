@@ -11,14 +11,9 @@ Welcome to nurikit's documentation!
 
 .. toctree::
    :maxdepth: 3
-   :caption: Python API:
 
    nuri
-
-C++ API:
---------
-
-* Nurikit |cppdocs|
+   cpp-bridge
 
 Indices and tables
 ==================
