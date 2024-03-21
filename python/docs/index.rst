@@ -1,24 +1,19 @@
-.. Project nurikit - Copyright 2023 SNU Compbio Lab.
+.. Project NuriKit - Copyright 2023 SNU Compbio Lab.
    SPDX-License-Identifier: Apache-2.0
 
-.. nurikit documentation master file, created by
+.. NuriKit documentation master file, created by
    sphinx-quickstart on Thu May 18 09:42:54 2023.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to nurikit's documentation!
+Welcome to NuriKit's documentation!
 ===================================
 
 .. toctree::
    :maxdepth: 3
-   :caption: Python API:
 
    nuri
-
-C++ API:
---------
-
-* Nurikit |cppdocs|
+   cpp-bridge
 
 Indices and tables
 ==================

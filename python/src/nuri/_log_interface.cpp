@@ -1,5 +1,5 @@
 //
-// Project nurikit - Copyright 2023 SNU Compbio Lab.
+// Project NuriKit - Copyright 2023 SNU Compbio Lab.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -97,7 +97,7 @@ public:
 #endif
       absl::SetStderrThreshold(absl::LogSeverityAtLeast::kFatal);
       set_log_level(10);
-      ABSL_DLOG(INFO) << "initialized nurikit Python logging sink.";
+      ABSL_DLOG(INFO) << "initialized NuriKit Python logging sink.";
     };
 
     absl::call_once(flag, initializer);
@@ -109,7 +109,7 @@ public:
     try {
       logger_.attr("log")(message_loglevel(entry), entry.text_message());
     } catch (py::error_already_set &e) {
-      e.discard_as_unraisable("nurikit internal logging");
+      e.discard_as_unraisable("NuriKit internal logging");
     }
   } catch (...) {
     ABSL_RAW_LOG(ERROR, "unknown error while logging (original message: %s)",

@@ -1,4 +1,4 @@
-.. Project nurikit - Copyright 2023 SNU Compbio Lab.
+.. Project NuriKit - Copyright 2023 SNU Compbio Lab.
    SPDX-License-Identifier: Apache-2.0
 
 ========

@@ -1,11 +1,11 @@
 #
-# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# Project NuriKit - Copyright 2023 SNU Compbio Lab.
 # SPDX-License-Identifier: Apache-2.0
 #
 
 # pyright: reportUnusedImport=false
 """
-Project nurikit: *the* fundamental software platform for chem- and
+Project NuriKit: *the* fundamental software platform for chem- and
 bio-informatics."""
 
 __all__ = [

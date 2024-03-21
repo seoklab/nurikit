@@ -1,15 +1,15 @@
 #
-# Project nurikit - Copyright 2023 SNU Compbio Lab.
+# Project NuriKit - Copyright 2023 SNU Compbio Lab.
 # SPDX-License-Identifier: Apache-2.0
 #
 
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR) # Version for Ubuntu 20.04 LTS
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
-include(NurikitUtils)
+include(NuriKitUtils)
 
 nuri_get_version()
-project(nurikit VERSION "${NURI_CORE_VERSION}" LANGUAGES CXX)
+project(NuriKit VERSION "${NURI_CORE_VERSION}" LANGUAGES CXX)
 
 # Compile options
 set(NURI_OPTIMIZATION_LEVEL "O3" CACHE STRING "Optimization level")
