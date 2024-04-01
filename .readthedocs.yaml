@@ -21,7 +21,7 @@ build:
     - graphviz
   jobs:
     post_checkout:
-      - (git show -s --format='%an' | grep -vqxF 'dependabot[bot]') || exit 183
+      - (git show -s --format='%an' | grep -vq '\[bot\]$') || exit 183
     pre_install:
       - |
         cmake -S . -B pre-install -G Ninja \
