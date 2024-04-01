@@ -7,7 +7,6 @@
 #define NURI_FMT_MOL2_H_
 
 /// @cond
-#include <iostream>
 #include <string>
 #include <vector>
 
@@ -43,8 +42,7 @@ private:
   static const bool kRegistered ABSL_ATTRIBUTE_UNUSED;
 };
 
-extern std::ostream &write_mol2(std::ostream &os, const Molecule &mol,
-                                int conf = -1);
+extern bool write_mol2(std::string &out, const Molecule &mol, int conf = -1);
 }  // namespace nuri
 
 #endif /* NURI_FMT_MOL2_H_ */
