@@ -17,9 +17,8 @@ defaults:
 
 jobs:
   coverage:
+    if: ${{ !endsWith(github.triggering_actor, '[bot]') }}
     runs-on: ubuntu-latest
-    if: ${{ github.triggering_actor != 'dependabot[bot]' }}
-
     steps:
       - run: sudo apt-get install -y libeigen3-dev
 
