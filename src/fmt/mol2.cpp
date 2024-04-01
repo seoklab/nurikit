@@ -888,7 +888,7 @@ Array4i measure_col_widths_atom(const Molecule &mol,
 }
 
 template <bool is_3d>
-void write_atoms(std::ostream &os, const Molecule &mol, const int conf,
+void write_atoms(std::string &out, const Molecule &mol, const int conf,
                  const int atom_id_width, const Array4i &extra_widths,
                  const std::vector<std::string> &atom_names,
                  const std::vector<std::string> &atom_types,
@@ -907,7 +907,7 @@ void write_atoms(std::ostream &os, const Molecule &mol, const int conf,
   if constexpr (!is_3d)
     pos.setZero();
 
-  os << "@<TRIPOS>ATOM\n";
+  absl::StrAppend(&out, "@<TRIPOS>ATOM\n");
 
   for (auto atom: mol) {
     if constexpr (is_3d)
@@ -926,8 +926,8 @@ void write_atoms(std::ostream &os, const Molecule &mol, const int conf,
     std::string_view sub_name = sub_names[sub_idx];
     ABSL_DCHECK(!sub_name.empty());
 
-    os << absl::StreamFormat(                                                 //
-        "%*d %-*s %*.3f %*.3f %*.3f %-5s %*d %-*s %*.3f\n",                   //
+    absl::StrAppendFormat(
+        &out, "%*d %-*s %*.3f %*.3f %*.3f %-5s %*d %-*s %*.3f\n",             //
         atom_id_width, atom.id() + 1,                                         //
         extra_widths[0], atom_names[atom.id()],                               //
         coords_width, pos.x(), coords_width, pos.y(), coords_width, pos.z(),  //
@@ -946,21 +946,21 @@ void write_atoms(std::ostream &os, const Molecule &mol, const int conf,
       continue;
 
     if (need_attr_header) {
-      os << "@<TRIPOS>UNITY_ATOM_ATTR\n";
+      absl::StrAppend(&out, "@<TRIPOS>UNITY_ATOM_ATTR\n");
       need_attr_header = false;
     }
 
-    os << absl::StreamFormat(  //
-        "%*d %d\n", atom_id_width, atom.id() + 1, num_props);
+    absl::StrAppendFormat(&out, "%*d %d\n",  //
+                          atom_id_width, atom.id() + 1, num_props);
 
     if (atom.data().formal_charge() != 0)
-      os << absl::StreamFormat("charge %d\n", atom.data().formal_charge());
+      absl::StrAppendFormat(&out, "charge %d\n", atom.data().formal_charge());
 
     for (auto &[key, value]: atom.data().props()) {
       if (key == internal::kNameKey)
         continue;
 
-      os << absl::StreamFormat("%s %s\n", key, value);
+      absl::StrAppendFormat(&out, "%s %s\n", key, value);
     }
   }
 }
@@ -989,41 +989,41 @@ std::string_view mol2_bond_type(Molecule::Bond bond) {
   }
 }
 
-void write_bonds(std::ostream &os, const Molecule &mol, const int atom_id_width,
+void write_bonds(std::string &out, const Molecule &mol, const int atom_id_width,
                  const int bond_id_width) {
   if (mol.bond_empty())
     return;
 
-  os << "@<TRIPOS>BOND\n";
+  absl::StrAppend(&out, "@<TRIPOS>BOND\n");
 
   for (auto bond: mol.bonds()) {
-    os << absl::StreamFormat("%*d %*d %*d %s\n",                  //
-                             bond_id_width, bond.id() + 1,        //
-                             atom_id_width, bond.src().id() + 1,  //
-                             atom_id_width, bond.dst().id() + 1,
-                             mol2_bond_type(bond));
+    absl::StrAppendFormat(&out, "%*d %*d %*d %s\n",            //
+                          bond_id_width, bond.id() + 1,        //
+                          atom_id_width, bond.src().id() + 1,  //
+                          atom_id_width, bond.dst().id() + 1,
+                          mol2_bond_type(bond));
   }
 }
 
-void write_substructs(std::ostream &os, const int atom_id_width,
+void write_substructs(std::string &out, const int atom_id_width,
                       const int sub_id_width, const int sub_name_width,
                       const SubstructInfo &sub_info,
                       const std::vector<std::string> &sub_names) {
-  os << "@<TRIPOS>SUBSTRUCTURE\n";
+  absl::StrAppend(&out, "@<TRIPOS>SUBSTRUCTURE\n");
 
   for (int i = 0; i < sub_info.sub_ids.size(); ++i) {
     if (sub_info.root_of_sub[i] < 0)
       continue;
 
-    os << absl::StreamFormat("%*d %-*s %*d\n",                       //
-                             sub_id_width, sub_info.sub_ids[i] + 1,  //
-                             sub_name_width, sub_names[i],           //
-                             atom_id_width, sub_info.root_of_sub[i] + 1);
+    absl::StrAppendFormat(&out, "%*d %-*s %*d\n",                 //
+                          sub_id_width, sub_info.sub_ids[i] + 1,  //
+                          sub_name_width, sub_names[i],           //
+                          atom_id_width, sub_info.root_of_sub[i] + 1);
   }
 }
 
 template <bool is_3d>
-void write_mol2_single_conf(std::ostream &os, const Molecule &mol, int conf,
+void write_mol2_single_conf(std::string &out, const Molecule &mol, int conf,
                             const int atom_id_width,
                             const Array4i &extra_atom_widths,
                             const int bond_id_width, const int sub_id_width,
@@ -1037,8 +1037,8 @@ void write_mol2_single_conf(std::ostream &os, const Molecule &mol, int conf,
     ABSL_DCHECK_LT(conf, mol.confs().size());
   }
 
-  os << absl::StreamFormat(
-      // clang-format off
+  absl::StrAppendFormat(&out,
+                        // clang-format off
 R"mol2(@<TRIPOS>MOLECULE
 %s
 %d %d %d 0 0
@@ -1047,23 +1047,24 @@ NO_CHARGES
 %s
 %s
 )mol2",
-      // clang-format on
-      mol.name().empty() ? kCommentIndicator : mol.name(), mol.num_atoms(),
-      mol.num_bonds(), sub_info.num_used_subs, kCommentIndicator,
-      internal::get_key(mol.props(), "comment"));
+                        // clang-format on
+                        mol.name().empty() ? kCommentIndicator : mol.name(),
+                        mol.num_atoms(), mol.num_bonds(),
+                        sub_info.num_used_subs, kCommentIndicator,
+                        internal::get_key(mol.props(), "comment"));
 
   if (mol.empty())
     return;
 
-  write_atoms<is_3d>(os, mol, conf, atom_id_width, extra_atom_widths,
+  write_atoms<is_3d>(out, mol, conf, atom_id_width, extra_atom_widths,
                      atom_names, atom_types, sub_info, sub_names);
-  write_bonds(os, mol, atom_id_width, bond_id_width);
-  write_substructs(os, atom_id_width, sub_id_width, sub_name_width, sub_info,
+  write_bonds(out, mol, atom_id_width, bond_id_width);
+  write_substructs(out, atom_id_width, sub_id_width, sub_name_width, sub_info,
                    sub_names);
 }
 }  // namespace
 
-std::ostream &write_mol2(std::ostream &os, const Molecule &mol, int conf) {
+bool write_mol2(std::string &out, const Molecule &mol, int conf) {
   int atom_id_width = width_of_size(mol.num_atoms()),
       bond_id_width = width_of_size(mol.num_bonds());
 
@@ -1097,27 +1098,27 @@ std::ostream &write_mol2(std::ostream &os, const Molecule &mol, int conf) {
       mol, atom_names, substruct_id_width, substruct_name_width);
 
   if (!mol.is_3d()) {
-    write_mol2_single_conf<false>(os, mol, -1, atom_id_width,
+    write_mol2_single_conf<false>(out, mol, -1, atom_id_width,
                                   extra_atom_col_widths, bond_id_width,
                                   substruct_id_width, substruct_name_width,
                                   atom_names, atom_types, subs_info,
                                   substruct_names);
   } else if (conf < 0) {
     for (int i = 0; i < mol.confs().size(); ++i) {
-      write_mol2_single_conf<true>(os, mol, i, atom_id_width,
+      write_mol2_single_conf<true>(out, mol, i, atom_id_width,
                                    extra_atom_col_widths, bond_id_width,
                                    substruct_id_width, substruct_name_width,
                                    atom_names, atom_types, subs_info,
                                    substruct_names);
     }
   } else {
-    write_mol2_single_conf<true>(os, mol, conf, atom_id_width,
+    write_mol2_single_conf<true>(out, mol, conf, atom_id_width,
                                  extra_atom_col_widths, bond_id_width,
                                  substruct_id_width, substruct_name_width,
                                  atom_names, atom_types, subs_info,
                                  substruct_names);
   }
 
-  return os;
+  return true;
 }
 }  // namespace nuri

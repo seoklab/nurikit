@@ -5,7 +5,7 @@
 
 #include "nuri/fmt/mol2.h"
 
-#include <sstream>
+#include <string>
 
 #include <absl/strings/str_cat.h>
 #include <gtest/gtest.h>
@@ -200,17 +200,17 @@ NO_CHARGES
     }
   };
 
-  std::ostringstream oss;
+  std::string mol2;
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("quaternary ammonium salt", 5, 4);
 
     SCOPED_TRACE(absl::StrCat("Initial read - ", i));
     verify_mol();
 
-    write_mol2(oss, mol());
+    write_mol2(mol2, mol());
   }
 
-  set_test_string(oss.str());
+  set_test_string(mol2);
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("quaternary ammonium salt", 5, 4);
@@ -337,7 +337,7 @@ NO_CHARGES
     EXPECT_EQ(bo_sum, 4);
   };
 
-  std::ostringstream oss;
+  std::string mol2;
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("guadinium-like", 7, 6);
@@ -345,7 +345,7 @@ NO_CHARGES
     SCOPED_TRACE(absl::StrCat("Initial read - ", i));
     verify_head();
 
-    write_mol2(oss, mol());
+    write_mol2(mol2, mol());
   }
 
   NURI_FMT_TEST_NEXT_MOL("guadinium", 4, 3);
@@ -353,9 +353,9 @@ NO_CHARGES
     SCOPED_TRACE("Initial read - 2");
     verify_tail();
   }
-  write_mol2(oss, mol());
+  write_mol2(mol2, mol());
 
-  set_test_string(oss.str());
+  set_test_string(mol2);
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("guadinium-like", 7, 6);
@@ -459,7 +459,7 @@ NO_CHARGES
     EXPECT_EQ(bo_sum, 13 * 2 + 5);
   };
 
-  std::ostringstream oss;
+  std::string mol2;
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("nitrobenzene", 9, 9);
@@ -467,10 +467,10 @@ NO_CHARGES
     SCOPED_TRACE(absl::StrCat("Initial read - ", i));
     verify_mol();
 
-    write_mol2(oss, mol());
+    write_mol2(mol2, mol());
   }
 
-  set_test_string(oss.str());
+  set_test_string(mol2);
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("nitrobenzene", 9, 9);
@@ -552,7 +552,7 @@ charge 0
     }
   };
 
-  std::ostringstream oss;
+  std::string mol2;
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("sf6", 7, 6);
@@ -560,10 +560,10 @@ charge 0
     SCOPED_TRACE(absl::StrCat("Initial read - ", i));
     verify_mol();
 
-    write_mol2(oss, mol());
+    write_mol2(mol2, mol());
   }
 
-  set_test_string(oss.str());
+  set_test_string(mol2);
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("sf6", 7, 6);
@@ -665,14 +665,14 @@ GASTEIGER
         << ", 3: " << mol().atom(3).data().implicit_hydrogens();
   };
 
-  std::ostringstream oss;
+  std::string mol2;
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("carboxylic acid", 4, 3);
 
     SCOPED_TRACE(absl::StrCat("Initial read - ", i));
     verify_head();
-    write_mol2(oss, mol());
+    write_mol2(mol2, mol());
   }
 
   for (int i = 2; i < 4; ++i) {
@@ -680,7 +680,7 @@ GASTEIGER
 
     SCOPED_TRACE(absl::StrCat("Initial read - ", i));
     verify_tail();
-    write_mol2(oss, mol());
+    write_mol2(mol2, mol());
   }
 }
 
@@ -783,22 +783,22 @@ AMBER ff14SB
     }
   };
 
-  std::ostringstream oss;
+  std::string mol2;
 
   {
     NURI_FMT_TEST_NEXT_MOL("Z337709406", 11, 12);
     SCOPED_TRACE("Initial read - 1");
     check_thiazole();
-    write_mol2(oss, mol());
+    write_mol2(mol2, mol());
   }
   {
     NURI_FMT_TEST_NEXT_MOL("Z337709406", 19, 20);
     SCOPED_TRACE("Initial read - 2");
     check_thiazole();
-    write_mol2(oss, mol());
+    write_mol2(mol2, mol());
   }
 
-  set_test_string(oss.str());
+  set_test_string(mol2);
 
   {
     NURI_FMT_TEST_NEXT_MOL("Z337709406", 11, 12);
@@ -880,16 +880,16 @@ charge -1
     EXPECT_EQ(bo_sum, 19);
   };
 
-  std::ostringstream oss;
+  std::string mol2;
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("Cyclopentadienyl anion", 5, 5);
     SCOPED_TRACE(absl::StrCat("Initial read - ", i));
     verify_mol();
-    write_mol2(oss, mol());
+    write_mol2(mol2, mol());
   }
 
-  set_test_string(oss.str());
+  set_test_string(mol2);
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("Cyclopentadienyl anion", 5, 5);
@@ -959,16 +959,16 @@ NO_CHARGES
     EXPECT_EQ(bo_sum, 19);
   };
 
-  std::ostringstream oss;
+  std::string mol2;
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("Cyclopentadienyl anion", 5, 5);
     SCOPED_TRACE(absl::StrCat("Initial read - ", i));
     verify_mol();
-    write_mol2(oss, mol());
+    write_mol2(mol2, mol());
   }
 
-  set_test_string(oss.str());
+  set_test_string(mol2);
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("Cyclopentadienyl anion", 5, 5);
@@ -1045,17 +1045,17 @@ charge 1
     EXPECT_EQ(bo_sum, 6 * 4 + 3);
   };
 
-  std::ostringstream oss;
+  std::string mol2;
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("Tropylium cation", 7, 7);
 
     SCOPED_TRACE(absl::StrCat("Initial read - ", i));
     verify_mol();
-    write_mol2(oss, mol());
+    write_mol2(mol2, mol());
   }
 
-  set_test_string(oss.str());
+  set_test_string(mol2);
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("Tropylium cation", 7, 7);
@@ -1127,17 +1127,17 @@ NO_CHARGES
     EXPECT_EQ(bo_sum, 6 * 4 + 3);
   };
 
-  std::ostringstream oss;
+  std::string mol2;
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("Tropylium cation", 7, 7);
 
     SCOPED_TRACE(absl::StrCat("Initial read - ", i));
     verify_mol();
-    write_mol2(oss, mol());
+    write_mol2(mol2, mol());
   }
 
-  set_test_string(oss.str());
+  set_test_string(mol2);
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("Tropylium cation", 7, 7);
@@ -1215,17 +1215,17 @@ charge 0
     EXPECT_EQ(bo_sum, 18);
   };
 
-  std::ostringstream oss;
+  std::string mol2;
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("imidazole", 5, 5);
 
     SCOPED_TRACE(absl::StrCat("Initial read - ", i));
     verify_mol();
-    write_mol2(oss, mol());
+    write_mol2(mol2, mol());
   }
 
-  set_test_string(oss.str());
+  set_test_string(mol2);
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("imidazole", 5, 5);
@@ -1297,17 +1297,17 @@ GASTEIGER
     EXPECT_EQ(bo_sum, 18);
   };
 
-  std::ostringstream oss;
+  std::string mol2;
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("imidazole", 5, 5);
 
     SCOPED_TRACE(absl::StrCat("Initial read - ", i));
     verify_mol();
-    write_mol2(oss, mol());
+    write_mol2(mol2, mol());
   }
 
-  set_test_string(oss.str());
+  set_test_string(mol2);
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("imidazole", 5, 5);
@@ -1396,17 +1396,17 @@ NO_CHARGES
       EXPECT_TRUE(bond.data().is_aromatic()) << bond.id();
   };
 
-  std::ostringstream oss;
+  std::string mol2;
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("indole", 9, 10);
 
     SCOPED_TRACE(absl::StrCat("Initial read - ", i));
     verify_mol();
-    write_mol2(oss, mol());
+    write_mol2(mol2, mol());
   }
 
-  set_test_string(oss.str());
+  set_test_string(mol2);
 
   for (int i = 0; i < 2; ++i) {
     NURI_FMT_TEST_NEXT_MOL("indole", 9, 10);
@@ -1550,16 +1550,16 @@ USER_CHARGES
     }
   };
 
-  std::ostringstream oss;
+  std::string mol2;
 
   NURI_FMT_TEST_NEXT_MOL("7yoo-cut", 44, 44);
   {
     SCOPED_TRACE("Initial read");
     verify_sub();
-    write_mol2(oss, mol());
+    write_mol2(mol2, mol());
   }
 
-  set_test_string(oss.str());
+  set_test_string(mol2);
 
   NURI_FMT_TEST_NEXT_MOL("7yoo-cut", 44, 44);
   {
@@ -1590,9 +1590,9 @@ test prop
   EXPECT_NE(it, atom.data().props().end());
   EXPECT_EQ(it->second, "prop");
 
-  std::ostringstream oss;
-  write_mol2(oss, mol());
-  set_test_string(oss.str());
+  std::string mol2;
+  write_mol2(mol2, mol());
+  set_test_string(mol2);
 
   NURI_FMT_TEST_NEXT_MOL("", 1, 0);
   atom = mol()[0];
@@ -1628,10 +1628,8 @@ NO_CHARGES
 
   NURI_FMT_TEST_NEXT_MOL("imidazole", 5, 5);
 
-  std::ostringstream oss;
-  write_mol2(oss, mol());
-
-  std::string mol2 = oss.str();
+  std::string mol2;
+  write_mol2(mol2, mol());
   NURI_EXPECT_STRTRIM_EQ(mol2, R"mol2(@<TRIPOS>MOLECULE
 imidazole
 5 5 1 0 0
@@ -1669,9 +1667,9 @@ TEST_F(Mol2Test, Write2D) {
   guess_hydrogens_2d(m);
   ASSERT_TRUE(MoleculeSanitizer(m).sanitize_all());
 
-  std::ostringstream oss;
-  write_mol2(oss, m);
-  set_test_string(oss.str());
+  std::string mol2;
+  write_mol2(mol2, m);
+  set_test_string(mol2);
 
   NURI_FMT_TEST_NEXT_MOL("", 6, 5);
 
