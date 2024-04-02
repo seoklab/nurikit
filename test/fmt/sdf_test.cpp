@@ -1,17 +1,28 @@
 
 #include "nuri/fmt/sdf.h"
 
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include <absl/algorithm/container.h>
+#include <absl/strings/match.h>
+#include <absl/strings/str_cat.h>
+#include <absl/strings/str_split.h>
 #include <gtest/gtest.h>
 
+#include "nuri/eigen_config.h"
 #include "fmt_test_common.h"
+#include "gtest/gtest.h"
+#include "nuri/core/element.h"
+#include "nuri/core/molecule.h"
 #include "nuri/utils.h"
 
 namespace nuri {
 namespace {
-struct SDFTest: internal::StringFormatTest<SDFReader> { };
+using SDFTest = internal::StringFormatTest<SDFReader>;
 
-TEST_F(SDFTest, BasicParsing) {
+TEST_F(SDFTest, BasicMolecule) {
   set_test_string(R"sdf(L-Alanine
   ABCDEFGH09071717443D
 Exported
@@ -69,28 +80,48 @@ PW(W)
 $$$$
 )sdf");
 
+  auto verify_mol = [this]() {
+    EXPECT_TRUE(mol()[1].data().is_conjugated());
+
+    EXPECT_EQ(mol()[2].data().isotope().mass_number, 13);
+
+    EXPECT_EQ(mol()[3].data().formal_charge(), +1);
+    EXPECT_EQ(mol()[3].data().implicit_hydrogens(), 3);
+
+    EXPECT_TRUE(mol()[4].data().is_conjugated());
+
+    EXPECT_EQ(mol()[5].data().formal_charge(), -1);
+    EXPECT_TRUE(mol()[5].data().is_conjugated());
+
+    auto mp = internal::find_key(mol().props(), "MELTING.POINT");
+    ASSERT_NE(mp, mol().props().end());
+    EXPECT_EQ(mp->second, "179.0 - 183.0");
+
+    auto desc = internal::find_key(mol().props(), "DESCRIPTION");
+    ASSERT_NE(desc, mol().props().end());
+    EXPECT_EQ(desc->second, "PW(W)");
+  };
+
+  std::string sdf;
+
   for (int vers = 2000; vers <= 3000; vers += 1000) {
     NURI_FMT_TEST_NEXT_MOL("L-Alanine", 6, 5);
 
-    EXPECT_TRUE(mol()[1].data().is_conjugated()) << "Version: " << vers;
+    SCOPED_TRACE(absl::StrCat("Initial read, version: ", vers));
+    verify_mol();
 
-    EXPECT_EQ(mol()[2].data().isotope().mass_number, 13) << "Version: " << vers;
+    bool success = write_sdf(
+        sdf, mol(), -1, vers == 2000 ? SDFVersion::kV2000 : SDFVersion::kV3000);
+    ASSERT_TRUE(success);
+  }
 
-    EXPECT_EQ(mol()[3].data().formal_charge(), +1) << "Version: " << vers;
-    EXPECT_EQ(mol()[3].data().implicit_hydrogens(), 3) << "Version: " << vers;
+  set_test_string(sdf);
 
-    EXPECT_TRUE(mol()[4].data().is_conjugated()) << "Version: " << vers;
+  for (int vers = 2000; vers <= 3000; vers += 1000) {
+    NURI_FMT_TEST_NEXT_MOL("L-Alanine", 6, 5);
 
-    EXPECT_EQ(mol()[5].data().formal_charge(), -1) << "Version: " << vers;
-    EXPECT_TRUE(mol()[5].data().is_conjugated()) << "Version: " << vers;
-
-    auto mp = internal::find_key(mol().props(), "MELTING.POINT");
-    ASSERT_NE(mp, mol().props().end()) << "Version: " << vers;
-    EXPECT_EQ(mp->second, "179.0 - 183.0") << "Version: " << vers;
-
-    auto desc = internal::find_key(mol().props(), "DESCRIPTION");
-    ASSERT_NE(desc, mol().props().end()) << "Version: " << vers;
-    EXPECT_EQ(desc->second, "PW(W)") << "Version: " << vers;
+    SCOPED_TRACE(absl::StrCat("Re-read, version: ", vers));
+    verify_mol();
   }
 }
 
@@ -161,21 +192,39 @@ M  END
 $$$$
 )sdf");
 
+  auto verify_mol = [this]() {
+    EXPECT_EQ(mol()[6].data().atomic_number(), 7);
+    EXPECT_TRUE(mol()[6].data().is_aromatic());
+    EXPECT_EQ(mol()[6].data().hybridization(), constants::kSP2);
+    EXPECT_EQ(mol()[6].data().implicit_hydrogens(), 1);
+    EXPECT_EQ(mol()[6].data().formal_charge(), 1);
+
+    EXPECT_EQ(mol()[9].data().atomic_number(), 7);
+    EXPECT_TRUE(mol()[9].data().is_aromatic());
+    EXPECT_EQ(mol()[9].data().hybridization(), constants::kSP2);
+    EXPECT_EQ(mol()[9].data().implicit_hydrogens(), 1);
+  };
+
+  std::string sdf;
+
   for (int vers = 2000; vers <= 3000; vers += 1000) {
     NURI_FMT_TEST_NEXT_MOL("HIS", 11, 11);
 
-    EXPECT_EQ(mol()[6].data().atomic_number(), 7) << "Version: " << vers;
-    EXPECT_TRUE(mol()[6].data().is_aromatic()) << "Version: " << vers;
-    EXPECT_EQ(mol()[6].data().hybridization(), constants::kSP2)
-        << "Version: " << vers;
-    EXPECT_EQ(mol()[6].data().implicit_hydrogens(), 1) << "Version: " << vers;
-    EXPECT_EQ(mol()[6].data().formal_charge(), 1) << "Version: " << vers;
+    SCOPED_TRACE(absl::StrCat("Initial read, version: ", vers));
+    verify_mol();
 
-    EXPECT_EQ(mol()[9].data().atomic_number(), 7) << "Version: " << vers;
-    EXPECT_TRUE(mol()[9].data().is_aromatic()) << "Version: " << vers;
-    EXPECT_EQ(mol()[9].data().hybridization(), constants::kSP2)
-        << "Version: " << vers;
-    EXPECT_EQ(mol()[9].data().implicit_hydrogens(), 1) << "Version: " << vers;
+    bool success = write_sdf(
+        sdf, mol(), -1, vers == 2000 ? SDFVersion::kV2000 : SDFVersion::kV3000);
+    ASSERT_TRUE(success);
+  }
+
+  set_test_string(sdf);
+
+  for (int vers = 2000; vers <= 3000; vers += 1000) {
+    NURI_FMT_TEST_NEXT_MOL("HIS", 11, 11);
+
+    SCOPED_TRACE(absl::StrCat("Re-read, version: ", vers));
+    verify_mol();
   }
 }
 
@@ -245,21 +294,39 @@ M  END
 $$$$
 )sdf");
 
+  auto verify_mol = [this]() {
+    EXPECT_EQ(mol()[6].data().atomic_number(), 7);
+    EXPECT_TRUE(mol()[6].data().is_aromatic());
+    EXPECT_EQ(mol()[6].data().hybridization(), constants::kSP2);
+    EXPECT_EQ(mol()[6].data().implicit_hydrogens(), 0);
+    EXPECT_EQ(mol()[6].data().formal_charge(), 0);
+
+    EXPECT_EQ(mol()[9].data().atomic_number(), 7);
+    EXPECT_TRUE(mol()[9].data().is_aromatic());
+    EXPECT_EQ(mol()[9].data().hybridization(), constants::kSP2);
+    EXPECT_EQ(mol()[9].data().implicit_hydrogens(), 1);
+  };
+
+  std::string sdf;
+
   for (int vers = 2000; vers <= 3000; vers += 1000) {
     NURI_FMT_TEST_NEXT_MOL("HIS", 11, 11);
 
-    EXPECT_EQ(mol()[6].data().atomic_number(), 7) << "Version: " << vers;
-    EXPECT_TRUE(mol()[6].data().is_aromatic()) << "Version: " << vers;
-    EXPECT_EQ(mol()[6].data().hybridization(), constants::kSP2)
-        << "Version: " << vers;
-    EXPECT_EQ(mol()[6].data().implicit_hydrogens(), 0) << "Version: " << vers;
-    EXPECT_EQ(mol()[6].data().formal_charge(), 0) << "Version: " << vers;
+    SCOPED_TRACE(absl::StrCat("Initial read, version: ", vers));
+    verify_mol();
 
-    EXPECT_EQ(mol()[9].data().atomic_number(), 7) << "Version: " << vers;
-    EXPECT_TRUE(mol()[9].data().is_aromatic()) << "Version: " << vers;
-    EXPECT_EQ(mol()[9].data().hybridization(), constants::kSP2)
-        << "Version: " << vers;
-    EXPECT_EQ(mol()[9].data().implicit_hydrogens(), 1) << "Version: " << vers;
+    bool success = write_sdf(
+        sdf, mol(), -1, vers == 2000 ? SDFVersion::kV2000 : SDFVersion::kV3000);
+    ASSERT_TRUE(success);
+  }
+
+  set_test_string(sdf);
+
+  for (int vers = 2000; vers <= 3000; vers += 1000) {
+    NURI_FMT_TEST_NEXT_MOL("HIS", 11, 11);
+
+    SCOPED_TRACE(absl::StrCat("Re-read, version: ", vers));
+    verify_mol();
   }
 }
 
@@ -347,14 +414,33 @@ M  END
 $$$$
 )sdf");
 
+  auto verify_mol = [this]() {
+    EXPECT_EQ(mol()[8].data().atomic_number(), 7);
+    EXPECT_TRUE(mol()[8].data().is_aromatic());
+    EXPECT_EQ(mol()[8].data().hybridization(), constants::kSP2);
+    EXPECT_EQ(mol()[8].data().implicit_hydrogens(), 1);
+  };
+
+  std::string sdf;
+
   for (int vers = 2000; vers <= 3000; vers += 1000) {
     NURI_FMT_TEST_NEXT_MOL("TRP", 15, 16);
 
-    EXPECT_EQ(mol()[8].data().atomic_number(), 7) << "Version: " << vers;
-    EXPECT_TRUE(mol()[8].data().is_aromatic()) << "Version: " << vers;
-    EXPECT_EQ(mol()[8].data().hybridization(), constants::kSP2)
-        << "Version: " << vers;
-    EXPECT_EQ(mol()[8].data().implicit_hydrogens(), 1) << "Version: " << vers;
+    SCOPED_TRACE(absl::StrCat("Initial read, version: ", vers));
+    verify_mol();
+
+    bool success = write_sdf(
+        sdf, mol(), -1, vers == 2000 ? SDFVersion::kV2000 : SDFVersion::kV3000);
+    ASSERT_TRUE(success);
+  }
+
+  set_test_string(sdf);
+
+  for (int vers = 2000; vers <= 3000; vers += 1000) {
+    NURI_FMT_TEST_NEXT_MOL("TRP", 15, 16);
+
+    SCOPED_TRACE(absl::StrCat("Re-read, version: ", vers));
+    verify_mol();
   }
 }
 
@@ -594,6 +680,164 @@ $$$$
 
   for (int i = 0; i < 12; ++i)
     NURI_FMT_TEST_PARSE_FAIL();
+}
+
+TEST_F(SDFTest, Write2D) {
+  Molecule m;
+  {
+    auto mut = m.mutator();
+    mut.add_atom(kPt[6]);
+  }
+
+  std::string sdf;
+  ASSERT_TRUE(write_sdf(sdf, m));
+  ASSERT_TRUE(write_sdf(sdf, m, -1, SDFVersion::kV2000));
+  ASSERT_TRUE(write_sdf(sdf, m, -1, SDFVersion::kV3000));
+
+  set_test_string(sdf);
+
+  NURI_FMT_TEST_NEXT_MOL("", 1, 0);
+  EXPECT_EQ(mol()[0].data().atomic_number(), 6);
+  NURI_FMT_TEST_NEXT_MOL("", 1, 0);
+  EXPECT_EQ(mol()[0].data().atomic_number(), 6);
+  NURI_FMT_TEST_NEXT_MOL("", 1, 0);
+  EXPECT_EQ(mol()[0].data().atomic_number(), 6);
+}
+
+TEST_F(SDFTest, EscapeUnsafeChars) {
+  Molecule m;
+  m.mutator().add_atom(kPt[6]);
+  m.props().emplace_back("> unsafe key\n\n", "$$$$\n> a\n\nb\n");
+
+  std::string sdf;
+  ASSERT_TRUE(write_sdf(sdf, m));
+
+  set_test_string(sdf);
+
+  NURI_FMT_TEST_NEXT_MOL("", 1, 0);
+
+  ASSERT_EQ(mol().props().size(), 2);
+  EXPECT_EQ(mol().props()[1].first, "? unsafe key  ");
+  EXPECT_EQ(mol().props()[1].second, "?$$$\n> a\nb");
+}
+
+TEST(SDFFormatTest, AutoDetect) {
+  Molecule mol;
+  mol.reserve(1000);
+  {
+    auto mut = mol.mutator();
+    for (int i = 0; i < 999; ++i)
+      mut.add_atom(kPt[6]);
+  }
+
+  std::string sdf;
+  ASSERT_TRUE(write_sdf(sdf, mol));
+
+  std::vector<std::string_view> lines =
+      absl::StrSplit(sdf, absl::MaxSplits('\n', 5));
+  EXPECT_PRED2(absl::EndsWith, lines[3], " V2000");
+
+  mol.mutator().add_atom(kPt[6]);
+  sdf.clear();
+  ASSERT_TRUE(write_sdf(sdf, mol));
+
+  lines = absl::StrSplit(sdf, absl::MaxSplits('\n', 5));
+  EXPECT_PRED2(absl::EndsWith, lines[3], " V3000");
+}
+
+TEST(SDFFormatTest, V2000Correct) {
+  Molecule mol;
+  {
+    auto mut = mol.mutator();
+    mut.add_atom(kPt[6]);
+    mut.add_atom(kPt[6]);
+    mut.add_bond(0, 1, BondData(constants::kSingleBond));
+  }
+
+  mol[1].data().set_isotope(13).set_formal_charge(1);
+
+  Matrix3Xd &conf = mol.confs().emplace_back(Matrix3Xd(3, 2));
+  conf.transpose() << 1, 2, 3, 4, 5, 6;
+
+  std::string sdf;
+  ASSERT_TRUE(write_sdf(sdf, mol, -1, SDFVersion::kV2000));
+
+  std::vector<std::string_view> lines = absl::StrSplit(sdf, '\n');
+  ASSERT_EQ(lines.size(), 12);
+
+  EXPECT_EQ(safe_substr(lines[1], 2, 8), " NuriKit");
+  EXPECT_EQ(safe_substr(lines[1], 20, 2), "3D");
+
+  EXPECT_EQ(safe_substr(lines[3], 0, 3), "  2");
+  EXPECT_EQ(safe_substr(lines[3], 3, 3), "  1");
+  EXPECT_EQ(safe_substr(lines[3], 33, 6), " V2000");
+
+  EXPECT_EQ(  //
+      lines[4],
+      "    1.0000    2.0000    3.0000 C   0  0  0  0  0  0  0  0  0  0  0  0");
+  EXPECT_EQ(  //
+      lines[5],
+      "    4.0000    5.0000    6.0000 C   1  3  0  0  0  0  0  0  0  0  0  0");
+  EXPECT_EQ(  //
+      lines[6], "  1  2  1  0  0  0  0");
+
+  for (int i = 7; i < 9; ++i) {
+    auto line = lines[i];
+    if (absl::StartsWith(line, "M  CHG")) {
+      EXPECT_EQ(line, "M  CHG  1   2   1");
+    } else if (absl::StartsWith(line, "M  ISO")) {
+      EXPECT_EQ(line, "M  ISO  1   2  13");
+    } else {
+      FAIL() << "Unexpected line: " << line;
+    }
+  }
+
+  EXPECT_EQ(lines[9], "M  END");
+  EXPECT_EQ(lines[10], "$$$$");
+}
+
+TEST(SDFFormatTest, V3000Correct) {
+  Molecule mol;
+  {
+    auto mut = mol.mutator();
+    mut.add_atom(kPt[6]);
+    mut.add_atom(kPt[6]);
+    mut.add_bond(0, 1, BondData(constants::kSingleBond));
+  }
+
+  mol[1].data().set_isotope(13).set_formal_charge(1);
+
+  Matrix3Xd &conf = mol.confs().emplace_back(Matrix3Xd(3, 2));
+  conf.transpose() << 1, 2, 3, 4, 5, 6;
+
+  std::string sdf;
+  ASSERT_TRUE(write_sdf(sdf, mol, -1, SDFVersion::kV3000));
+
+  std::vector<std::string_view> lines = absl::StrSplit(sdf, '\n');
+  ASSERT_EQ(lines.size(), 17);
+
+  EXPECT_EQ(safe_substr(lines[1], 2, 8), " NuriKit");
+  EXPECT_EQ(safe_substr(lines[1], 20, 2), "3D");
+
+  EXPECT_EQ(safe_substr(lines[3], 0, 3), "  0");
+  EXPECT_EQ(safe_substr(lines[3], 3, 3), "  0");
+  EXPECT_EQ(safe_substr(lines[3], 33, 6), " V3000");
+
+  EXPECT_EQ(lines[4], "M  V30 BEGIN CTAB");
+  EXPECT_EQ(lines[5], "M  V30 COUNTS 2 1 0 0 0");
+
+  EXPECT_EQ(lines[6], "M  V30 BEGIN ATOM");
+  EXPECT_EQ(lines[7], "M  V30 1 C 1.0000 2.0000 3.0000 0");
+  EXPECT_EQ(lines[8], "M  V30 2 C 4.0000 5.0000 6.0000 0 CHG=1 MASS=13");
+  EXPECT_EQ(lines[9], "M  V30 END ATOM");
+
+  EXPECT_EQ(lines[10], "M  V30 BEGIN BOND");
+  EXPECT_EQ(lines[11], "M  V30 1 1 1 2");
+  EXPECT_EQ(lines[12], "M  V30 END BOND");
+
+  EXPECT_EQ(lines[13], "M  V30 END CTAB");
+  EXPECT_EQ(lines[14], "M  END");
+  EXPECT_EQ(lines[15], "$$$$");
 }
 }  // namespace
 }  // namespace nuri
