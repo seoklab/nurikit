@@ -39,11 +39,10 @@ std::string ascii_safe(std::string_view str) {
   std::string ret(str);
 
   for (char &c: ret) {
-    if (ABSL_PREDICT_FALSE(!absl::ascii_isascii(c)
-                           || !absl::ascii_isprint(c))) {
-      c = '?';
-    } else if (absl::ascii_isspace(c)) {
+    if (absl::ascii_isspace(c)) {
       c = '_';
+    } else if (ABSL_PREDICT_FALSE(!absl::ascii_isprint(c))) {
+      c = '?';
     }
   }
 
