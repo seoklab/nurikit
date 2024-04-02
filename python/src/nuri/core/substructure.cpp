@@ -548,7 +548,7 @@ to the conformers to update the coordinates.
 )doc");
   sub.def(
       "add_atoms",
-      [](P &self, const py::iterable &atoms, bool add_bonds) {
+      [](P &self, const AtomsArg &atoms, bool add_bonds) {
         Substructure &substruct = *self;
         Molecule &parent = *self.parent();
 
@@ -577,7 +577,7 @@ Add atoms to the substructure.
 )doc");
   sub.def(
       "add_bonds",
-      [](P &self, const py::iterable &bonds) {
+      [](P &self, const BondsArg &bonds) {
         Substructure &substruct = *self;
         Molecule &parent = *self.parent();
 
@@ -865,8 +865,8 @@ int check_sub(const Molecule &mol, int idx) {
 }
 
 void insert_substruct(ProxySubstructContainer &cont, int idx,
-                      const std::optional<py::iterable> &atoms,
-                      const std::optional<py::iterable> &bonds,
+                      const std::optional<AtomsArg> &atoms,
+                      const std::optional<BondsArg> &bonds,
                       SubstructCategory cat) {
   Molecule &mol = *cont.mol();
   auto &substructs = mol.substructures();
@@ -920,8 +920,8 @@ SubstructCategory get_or_throw_cat(SubstructCategory cat) {
 }
 
 Substructure create_substruct(Molecule &mol,
-                              const std::optional<py::iterable> &atoms,
-                              const std::optional<py::iterable> &bonds,
+                              const std::optional<AtomsArg> &atoms,
+                              const std::optional<BondsArg> &bonds,
                               SubstructCategory cat) {
   cat = get_or_throw_cat(cat);
 
@@ -1110,8 +1110,8 @@ Remove a substructure from the collection and return it.
       .def(
           "add",
           [](ProxySubstructContainer &self,
-             const std::optional<py::iterable> &atoms,
-             const std::optional<py::iterable> &bonds, SubstructCategory cat) {
+             const std::optional<AtomsArg> &atoms,
+             const std::optional<BondsArg> &bonds, SubstructCategory cat) {
             int idx = self.size();
             insert_substruct(self, idx, atoms, bonds, cat);
             return self.get(idx);
@@ -1147,8 +1147,8 @@ This has three mode of operations:
       .def(
           "add",
           [](ProxySubstructContainer &self, int idx,
-             const std::optional<py::iterable> &atoms,
-             const std::optional<py::iterable> &bonds, SubstructCategory cat) {
+             const std::optional<AtomsArg> &atoms,
+             const std::optional<BondsArg> &bonds, SubstructCategory cat) {
             idx = wrap_insert_index(self.size(), idx);
             insert_substruct(self, idx, atoms, bonds, cat);
             self.mol().tock();

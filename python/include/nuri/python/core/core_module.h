@@ -12,6 +12,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -1407,9 +1408,12 @@ Copy the underlying :class:`BondData` object.
   return cls;
 }
 
+using AtomsArg = pyt::Iterable<std::variant<PyAtom, int>>;
+using BondsArg = pyt::Iterable<std::variant<PyBond, int>>;
+
 extern Substructure create_substruct(Molecule &mol,
-                                     const std::optional<py::iterable> &atoms,
-                                     const std::optional<py::iterable> &bonds,
+                                     const std::optional<AtomsArg> &atoms,
+                                     const std::optional<BondsArg> &bonds,
                                      SubstructCategory cat);
 
 /* Called from bind_molecule, don't call directly */

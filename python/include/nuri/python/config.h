@@ -10,6 +10,7 @@
 #include <vector>
 
 #include <pybind11/pybind11.h>
+#include <pybind11/typing.h>
 
 #include "nuri/core/element.h"
 
@@ -23,6 +24,9 @@ namespace nuri {
 namespace python_internal {
 // NOLINTNEXTLINE(misc-unused-alias-decls)
 namespace py = pybind11;
+// NOLINTNEXTLINE(misc-unused-alias-decls)
+namespace pyt = pybind11::typing;
+
 using rvp = py::return_value_policy;
 
 using PropertyMap = std::vector<std::pair<std::string, std::string>>;

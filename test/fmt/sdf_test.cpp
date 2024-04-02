@@ -13,7 +13,6 @@
 
 #include "nuri/eigen_config.h"
 #include "fmt_test_common.h"
-#include "gtest/gtest.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/utils.h"
