@@ -101,7 +101,7 @@ HeaderReadResult read_sdf_header(Molecule &mol, Iterator &it,
 
   mol.name() = absl::StripAsciiWhitespace(*it++);
 
-  if (auto stamp = absl::StripAsciiWhitespace(*it++); !stamp.empty())
+  if (auto stamp = absl::StripTrailingAsciiWhitespace(*it++); !stamp.empty())
     mol.add_prop("stamp", std::string(stamp));
 
   if (auto comment = absl::StripAsciiWhitespace(*it++); !comment.empty())
