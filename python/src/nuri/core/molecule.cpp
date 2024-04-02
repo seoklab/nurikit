@@ -19,6 +19,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
+#include <pybind11/typing.h>
 
 #include <absl/log/absl_log.h>
 #include <absl/strings/str_cat.h>
@@ -927,8 +928,8 @@ Add all atoms and bonds from a substructure to the molecule.
 )doc")
       .def(
           "sub",
-          [](PyMol &self, const std::optional<py::iterable> &as,
-             const std::optional<py::iterable> &bs, SubstructCategory cat) {
+          [](PyMol &self, const std::optional<AtomsArg> &as,
+             const std::optional<BondsArg> &bs, SubstructCategory cat) {
             return PySubstruct::from_mol(self,
                                          create_substruct(*self, as, bs, cat));
           },

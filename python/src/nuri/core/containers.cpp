@@ -14,6 +14,7 @@
 #include <pybind11/cast.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
+#include <pybind11/typing.h>
 
 #include <absl/algorithm/container.h>
 
@@ -315,11 +316,13 @@ py::class_<T> &add_map_interface(py::class_<T> &cls) {
     for (auto item: kwargs)
       map_setitem_py(map, item.first, item.second);
   });
-  cls.def("update", [](T &self, const py::iterable &other) {
-    PropertyMap &map = prolog(self);
-    for (auto item: other)
-      map_setitem_unpack(map, item);
-  });
+  cls.def("update",
+          [](T &self,
+             const pyt::Iterable<pyt::Tuple<py::str, py::str>> &other) {
+            PropertyMap &map = prolog(self);
+            for (auto item: other)
+              map_setitem_unpack(map, item);
+          });
   cls.def("setdefault", [](T &self, std::string_view key, py::str def) {
     PropertyMap &map = prolog(self);
 
