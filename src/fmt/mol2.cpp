@@ -937,12 +937,26 @@ void write_atoms(std::string &out, const Molecule &mol, const int conf,
         extra_widths[3], atom.data().partial_charge());
   }
 
+  std::string buf;
   bool need_attr_header = true;
   for (auto atom: mol) {
-    int num_props = value_if(atom.data().formal_charge() != 0)
-                    + static_cast<int>(atom.data().props().size())
-                    - value_if(internal::has_name(atom.data().props()));
-    if (num_props <= 0)
+    int num_props = 0;
+
+    if (atom.data().formal_charge() != 0) {
+      absl::StrAppendFormat(&buf, "charge %d\n", atom.data().formal_charge());
+      ++num_props;
+    }
+
+    for (auto &[key, value]: atom.data().props()) {
+      if (key == internal::kNameKey || key.empty())
+        continue;
+
+      absl::StrAppendFormat(&buf, "%s %s\n", internal::ascii_safe(key),
+                            internal::ascii_safe(value));
+      ++num_props;
+    }
+
+    if (num_props == 0)
       continue;
 
     if (need_attr_header) {
@@ -950,18 +964,9 @@ void write_atoms(std::string &out, const Molecule &mol, const int conf,
       need_attr_header = false;
     }
 
-    absl::StrAppendFormat(&out, "%*d %d\n",  //
-                          atom_id_width, atom.id() + 1, num_props);
-
-    if (atom.data().formal_charge() != 0)
-      absl::StrAppendFormat(&out, "charge %d\n", atom.data().formal_charge());
-
-    for (auto &[key, value]: atom.data().props()) {
-      if (key == internal::kNameKey)
-        continue;
-
-      absl::StrAppendFormat(&out, "%s %s\n", key, value);
-    }
+    absl::StrAppendFormat(&out, "%*d %d\n%s",  //
+                          atom_id_width, atom.id() + 1, num_props, buf);
+    buf.clear();
   }
 }
 
@@ -1037,8 +1042,9 @@ void write_mol2_single_conf(std::string &out, const Molecule &mol, int conf,
     ABSL_DCHECK_LT(conf, mol.confs().size());
   }
 
-  absl::StrAppendFormat(&out,
-                        // clang-format off
+  absl::StrAppendFormat(
+      &out,
+      // clang-format off
 R"mol2(@<TRIPOS>MOLECULE
 %s
 %d %d %d 0 0
@@ -1047,11 +1053,12 @@ NO_CHARGES
 %s
 %s
 )mol2",
-                        // clang-format on
-                        mol.name().empty() ? kCommentIndicator : mol.name(),
-                        mol.num_atoms(), mol.num_bonds(),
-                        sub_info.num_used_subs, kCommentIndicator,
-                        internal::get_key(mol.props(), "comment"));
+      // clang-format on
+      mol.name().empty() ? kCommentIndicator
+                         : internal::ascii_newline_safe(mol.name()),
+      mol.num_atoms(), mol.num_bonds(), sub_info.num_used_subs,
+      kCommentIndicator,
+      internal::ascii_newline_safe(internal::get_key(mol.props(), "comment")));
 
   if (mol.empty())
     return;
