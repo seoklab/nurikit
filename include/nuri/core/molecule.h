@@ -1424,7 +1424,14 @@ public:
   // void add_hydrogens();
 
   /**
-   * @brief Erase all hydrogens from the molecule.
+   * @brief Erase all trivial hydrogens from the molecule.
+   *
+   * Trivial hydrogens must satisfy the following conditions:
+   *
+   *   1. The hydrogen atom has single neighbor,
+   *   2. The neighbor is a heavy atom,
+   *   3. The two atoms are connected by a single bond, and
+   *   4. The hydrogen atom has no implicit hydrogens.
    */
   void erase_hydrogens();
 

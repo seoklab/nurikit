@@ -849,7 +849,11 @@ the molecule.
             self.tick();
           },
           R"doc(
-Convert all explicit hydrogen atoms of the molecule to implicit hydrogens.
+Convert trivial explicit hydrogen atoms of the molecule to implicit hydrogens.
+
+Trivial explicit hydrogen atoms are the hydrogen atoms that are connected to
+only one heavy atom with a single bond and have no other neighbors (including
+implicit hydrogens).
 
 .. note::
   Invalidates all atom and bond objects.
