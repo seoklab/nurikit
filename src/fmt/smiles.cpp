@@ -5,24 +5,34 @@
 
 #include "nuri/fmt/smiles.h"
 
+#include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <functional>
+#include <queue>
 #include <stack>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
 #include <boost/fusion/include/at_c.hpp>
 #include <boost/fusion/include/deque.hpp>
+#include <boost/iterator/counting_iterator.hpp>
 #include <boost/spirit/home/x3.hpp>
 
+#include <absl/algorithm/container.h>
+#include <absl/base/attributes.h>
 #include <absl/base/optimization.h>
 #include <absl/container/flat_hash_map.h>
+#include <absl/container/inlined_vector.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/ascii.h>
+#include <absl/strings/str_cat.h>
 
+#include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
@@ -523,5 +533,333 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
   }
 
   return mol;
+}
+
+namespace {
+void break_cycles(const Molecule &mol, ArrayXi &atom_order,
+                  ArrayXi &bond_visited, std::vector<int> &broken_bonds,
+                  absl::InlinedVector<int, 1> &roots) {
+  int atom_idx = 0;
+  auto dfs = [&](auto &self, Molecule::Atom atom, int prev) -> void {
+    atom_order[atom.id()] = atom_idx++;
+
+    for (auto nei: atom) {
+      if (nei.dst().id() == prev)
+        continue;
+
+      if (atom_order[nei.dst().id()] >= 0) {
+        if (bond_visited[nei.eid()] == 0) {
+          bond_visited[nei.eid()] = 1;
+          broken_bonds.push_back(nei.eid());
+        }
+        continue;
+      }
+
+      bond_visited[nei.eid()] = 1;
+      self(self, nei.dst(), atom.id());
+    }
+  };
+
+  for (Molecule::Atom atom: mol) {
+    if (atom_order[atom.id()] >= 0)
+      continue;
+
+    roots.push_back(atom.id());
+    dfs(dfs, atom, -1);
+
+    if (atom_idx == mol.num_atoms())
+      break;
+  }
+}
+
+bool number_rings(ArrayXi &ring_idxs, const Molecule &mol,
+                  const ArrayXi &atom_order,
+                  const std::vector<int> &broken_bonds) {
+  ArrayXi left(broken_bonds.size()), right(broken_bonds.size());
+  for (int i = 0; i < broken_bonds.size(); ++i) {
+    auto bond = mol.bond(broken_bonds[i]);
+    int src_ord = atom_order[bond.src().id()],
+        dst_ord = atom_order[bond.dst().id()];
+    std::tie(left[i], right[i]) = std::minmax(src_ord, dst_ord);
+  }
+
+  ArrayXi left_idxs_ordered = argsort<>(left);
+  if (broken_bonds.size() < 100) {
+    for (int i = 0; i < left.size(); ++i)
+      ring_idxs[broken_bonds[left_idxs_ordered[i]]] = i + 1;
+
+    return true;
+  }
+
+  ArrayXi right_idxs_ordered = argsort<>(right);
+  std::priority_queue ring_idxs_avail(boost::make_counting_iterator(1),
+                                      boost::make_counting_iterator(100),
+                                      std::greater<>());
+  int j = 0;
+  for (int lp: left_idxs_ordered) {
+    for (; right[right_idxs_ordered[j]] < left[lp]; ++j) {
+      int rp = right_idxs_ordered[j];
+      ring_idxs_avail.push(ring_idxs[broken_bonds[rp]]);
+    }
+
+    if (ring_idxs_avail.empty())
+      return false;
+
+    int idx = ring_idxs_avail.top();
+    ring_idxs_avail.pop();
+    ring_idxs[broken_bonds[lp]] = idx;
+  }
+
+  return true;
+}
+
+std::string_view smiles_symbol(const AtomData &data) {
+  if (ABSL_PREDICT_FALSE(data.atomic_number() == 0))
+    return "*";
+
+  return data.element_symbol();
+}
+
+std::string_view smiles_symbol(Molecule::Atom atom) {
+  return smiles_symbol(atom.data());
+}
+
+bool can_write_organic(Molecule::Atom atom) {
+  if (atom.data().formal_charge() != 0
+      || ABSL_PREDICT_FALSE(atom.data().explicit_isotope() != nullptr))
+    return false;
+
+  int valence = sum_bond_order(atom);
+
+  switch (atom.data().atomic_number()) {
+  case 0:
+    return true;
+  case 5:
+  case 7:
+    return valence == 3;
+  case 6:
+    return valence == 4;
+  case 8:
+    return valence == 2;
+  case 15:
+    return valence == 3 || valence == 5;
+  case 16:
+    return valence == 2 || valence == 4 || valence == 6;
+  case 9:  // halogens
+  case 17:
+  case 35:
+  case 53:
+    return valence == 1 && !atom.data().is_aromatic();
+  default:
+    return false;
+  }
+}
+
+void write_organic(std::string &out, Molecule::Atom atom) {
+  if (atom.data().is_aromatic()) {
+    ABSL_DCHECK(smiles_symbol(atom).size() == 1);
+    out.push_back(absl::ascii_tolower(smiles_symbol(atom)[0]));
+    return;
+  }
+
+  absl::StrAppend(&out, smiles_symbol(atom));
+}
+
+bool can_write_aromatic_symbol(const AtomData &data) {
+  switch (data.atomic_number()) {
+  case 5:
+  case 6:
+  case 7:
+  case 8:
+  case 15:
+  case 16:
+  case 33:
+  case 34:
+    return data.is_aromatic();
+  default:
+    return false;
+  }
+}
+
+void write_bracket_atom(std::string &out, Molecule::Atom atom) {
+  out.push_back('[');
+
+  if (atom.data().explicit_isotope() != nullptr)
+    absl::StrAppend(&out, atom.data().explicit_isotope()->mass_number);
+
+  if (can_write_aromatic_symbol(atom.data())) {
+    absl::StrAppend(&out, absl::AsciiStrToLower(smiles_symbol(atom)));
+  } else {
+    absl::StrAppend(&out, smiles_symbol(atom));
+  }
+
+  if (atom.data().atomic_number() != 1) {
+    int hcnt = atom.data().implicit_hydrogens();
+    if (hcnt > 0)
+      out.push_back('H');
+    if (hcnt > 1)
+      absl::StrAppend(&out, hcnt);
+  }
+
+  if (int fchg = atom.data().formal_charge(); fchg != 0) {
+    int magnitude = std::abs(fchg);
+    out.push_back(fchg > 0 ? '+' : '-');
+    if (magnitude > 1)
+      absl::StrAppend(&out, magnitude);
+  }
+
+  out.push_back(']');
+}
+
+void write_atom(std::string &out, Molecule::Atom atom) {
+  if (can_write_organic(atom)) {
+    write_organic(out, atom);
+  } else {
+    write_bracket_atom(out, atom);
+  }
+}
+
+char bond_to_char(constants::BondOrder order) {
+  switch (order) {
+  case constants::kOtherBond:
+    ABSL_LOG(WARNING) << "Other bond treated as single bond";
+    ABSL_FALLTHROUGH_INTENDED;
+  case constants::kSingleBond:
+    return '-';
+  case constants::kDoubleBond:
+    return '=';
+  case constants::kTripleBond:
+    return '#';
+  case constants::kQuadrupleBond:
+    return '$';
+  case constants::kAromaticBond:
+    return ':';
+  }
+
+  // GCOV_EXCL_START
+  ABSL_UNREACHABLE();
+  // GCOV_EXCL_STOP
+}
+
+void write_bond_order(std::string &out, Molecule::Bond bond) {
+  if (can_write_aromatic_symbol(bond.src().data())
+      && can_write_aromatic_symbol(bond.dst().data())) {
+    if (bond.data().order() == constants::kAromaticBond)
+      return;
+  } else if (bond.data().order() == constants::kSingleBond) {
+    return;
+  }
+
+  out.push_back(bond_to_char(bond.data().order()));
+}
+
+void write_ring_index(std::string &out, int ring_idx) {
+  if (ring_idx < 10) {
+    out.push_back(static_cast<char>('0' + ring_idx));
+  } else {
+    absl::StrAppend(&out, "%", ring_idx);
+  }
+}
+
+void do_write_smiles_simple(std::string &out, const Molecule &mol,
+                            const absl::InlinedVector<int, 1> &roots,
+                            const ArrayXi &ring_idxs, ArrayXi &atom_visited) {
+  auto write = [&](auto &self, Molecule::Atom atom,
+                   Molecule::const_neighbor_iterator prev_it) -> void {
+    atom_visited[atom.id()] = 1;
+
+    int prev;
+    if (!prev_it.end()) {
+      prev = prev_it->src().id();
+      write_bond_order(out, mol.bond(prev_it->eid()));
+    } else {
+      prev = -1;
+    }
+
+    write_atom(out, atom);
+
+    for (auto nei: atom) {
+      int ring_idx = ring_idxs[nei.eid()];
+      if (ring_idx == 0)
+        continue;
+
+      write_bond_order(out, mol.bond(nei.eid()));
+      write_ring_index(out, ring_idx);
+    }
+
+    auto will_write = [&](Molecule::Neighbor nei) {
+      return nei.dst().id() != prev && atom_visited[nei.dst().id()] == 0
+             && ring_idxs[nei.eid()] == 0;
+    };
+    int implicit_hydrogen_write_count =
+        atom.data().atomic_number() == 1 ? atom.data().implicit_hydrogens() : 0;
+
+    int branch_count =
+        absl::c_count_if(atom, will_write) + implicit_hydrogen_write_count;
+
+    for (int i = 0; i < implicit_hydrogen_write_count; ++i) {
+      bool need_parens = --branch_count > 0;
+      absl::StrAppend(&out, need_parens ? "([H])" : "[H]");
+    }
+
+    for (auto nit = atom.begin(); nit != atom.end(); ++nit) {
+      if (!will_write(*nit))
+        continue;
+
+      if (--branch_count > 0) {
+        out.push_back('(');
+        self(self, nit->dst(), nit);
+        out.push_back(')');
+      } else {
+        self(self, nit->dst(), nit);
+      }
+    }
+  };
+
+  bool first = true;
+  for (int root: roots) {
+    if (!first)
+      out.push_back('.');
+
+    write(write, mol.atom(root), mol.atom(root).end());
+    first = false;
+  }
+}
+
+bool write_smiles_simple(std::string &out, const Molecule &mol) {
+  ArrayXi atom_order = ArrayXi::Constant(mol.num_atoms(), -1),
+          ring_idxs = ArrayXi::Zero(mol.num_bonds());
+
+  std::vector<int> broken_bonds;
+  absl::InlinedVector<int, 1> roots;
+  break_cycles(mol, atom_order, ring_idxs, broken_bonds, roots);
+
+  ring_idxs.setZero();
+  bool can_write_ring = number_rings(ring_idxs, mol, atom_order, broken_bonds);
+  if (!can_write_ring) {
+    ABSL_LOG(WARNING) << "Ring number exceeds 100";
+    return false;
+  }
+
+  atom_order.setZero();
+  do_write_smiles_simple(out, mol, roots, ring_idxs, atom_order);
+  return true;
+}
+}  // namespace
+
+bool write_smiles(std::string &out, const Molecule &mol, bool canonical) {
+  if (canonical) {
+    ABSL_LOG(ERROR) << "Canonical SMILES is not implemented yet";
+    return false;
+  }
+
+  bool ok = write_smiles_simple(out, mol);
+  if (!ok) {
+    ABSL_LOG(ERROR) << "Failed to write SMILES";
+    return false;
+  }
+
+  absl::StrAppend(&out, "\t", internal::ascii_newline_safe(mol.name()), "\n");
+  return true;
 }
 }  // namespace nuri
