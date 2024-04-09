@@ -11,8 +11,6 @@
 
 #include <gtest/gtest.h>
 
-#include "../src/fmt/fmt_internal.h"
-
 namespace nuri {
 namespace {
 TEST(ReversedStreamTest, HandleEmptyFile) {

@@ -24,8 +24,6 @@
 #include <absl/strings/ascii.h>
 #include <absl/strings/charset.h>
 
-#include "fmt_internal.h"
-
 namespace nuri {
 namespace {
 absl::flat_hash_map<std::string, const MoleculeReaderFactory *> &
