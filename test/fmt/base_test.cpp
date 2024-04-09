@@ -6,9 +6,12 @@
 #include "nuri/fmt/base.h"
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <gtest/gtest.h>
+
+#include "../src/fmt/fmt_internal.h"
 
 namespace nuri {
 namespace {
@@ -84,6 +87,20 @@ TEST(ReversedStreamTest, ReadBackwardsMixed) {
   for (size_t i = 0; i < forward.size(); ++i) {
     EXPECT_EQ(forward[i], backward[backward.size() - i - 1]);
   }
+}
+
+TEST(EscapeTest, EscapeAll) {
+  // unicode thumbs up emoji (utf8)
+  std::string_view unsafe = "  a\nb\tc\rd e \xf0\x9f\x91\x8d  ";
+  std::string escaped = internal::ascii_safe(unsafe);
+  EXPECT_EQ(escaped, "__a_b_c_d_e_????__");
+}
+
+TEST(EscapeTest, EscapeNewlines) {
+  // unicode thumbs up emoji (utf8)
+  std::string_view unsafe = "  a\nb\tc\rd e \xf0\x9f\x91\x8d  ";
+  std::string escaped = internal::ascii_newline_safe(unsafe);
+  EXPECT_EQ(escaped, "  a b\tc d e ????  ");
 }
 }  // namespace
 }  // namespace nuri
