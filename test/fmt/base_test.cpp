@@ -5,6 +5,8 @@
 
 #include "nuri/fmt/base.h"
 
+#include <cstddef>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
