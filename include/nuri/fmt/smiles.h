@@ -40,6 +40,9 @@ class SmilesReaderFactory: public DefaultReaderFactoryImpl<SmilesReader> {
 private:
   static const bool kRegistered ABSL_ATTRIBUTE_UNUSED;
 };
+
+extern bool write_smiles(std::string &out, const Molecule &mol,
+                         bool canonical = false);
 }  // namespace nuri
 
 #endif /* NURI_FMT_SMILES_H_ */

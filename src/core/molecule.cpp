@@ -822,7 +822,7 @@ namespace {
       return;
     }
 
-    auto [subrings, success] = find_all_rings(mol);
+    auto [subrings, success] = find_all_rings(mol, 12);
     // Almost impossible, don't include in coverage report
     // GCOV_EXCL_START
     if (ABSL_PREDICT_TRUE(success)) {
@@ -834,7 +834,7 @@ namespace {
         << "Ring finding exceeds threshold, falling back to SSSR-based "
            "aromaticity detection: the result may be incorrect";
 
-    mark_aromatic_for(find_sssr(mol));
+    mark_aromatic_for(find_sssr(mol, 12));
     // GCOV_EXCL_STOP
   }
 }  // namespace
