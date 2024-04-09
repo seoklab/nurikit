@@ -381,6 +381,49 @@ TEST_F(MoleculeTest, EraseHydrogensTest) {
   }
 }
 
+TEST(EraseNontrivialHydrogensTest, ExplicitH2) {
+  Molecule mol;
+  {
+    auto mut = mol.mutator();
+    mut.add_atom(pt[1]);
+    mut.add_atom(pt[1]);
+    mut.add_bond(0, 1, BondData(kSingleBond));
+  }
+
+  mol.erase_hydrogens();
+  EXPECT_EQ(mol.size(), 2);
+  EXPECT_EQ(mol.num_bonds(), 1);
+}
+
+TEST(EraseNontrivialHydrogensTest, ImplicitH2) {
+  Molecule mol;
+  {
+    auto mut = mol.mutator();
+    mut.add_atom(pt[1]);
+  }
+
+  mol[0].data().set_implicit_hydrogens(1);
+
+  mol.erase_hydrogens();
+  EXPECT_EQ(mol.size(), 1);
+}
+
+TEST(EraseNontrivialHydrogensTest, BridgingH) {
+  Molecule mol;
+  {
+    auto mut = mol.mutator();
+    mut.add_atom(pt[5]);
+    mut.add_atom(pt[1]);
+    mut.add_atom(pt[5]);
+    mut.add_bond(0, 1, BondData(kSingleBond));
+    mut.add_bond(1, 2, BondData(kSingleBond));
+  }
+
+  mol.erase_hydrogens();
+  EXPECT_EQ(mol.size(), 3);
+  EXPECT_EQ(mol.num_bonds(), 2);
+}
+
 void verify_clear_all(const Molecule &mol) {
   EXPECT_EQ(mol.size(), 0);
   EXPECT_EQ(mol.num_atoms(), 0);
