@@ -144,14 +144,18 @@ void Molecule::clear_bonds() noexcept {
 
 void Molecule::erase_hydrogens() {
   MoleculeMutator m = mutator();
+
   for (auto atom: *this) {
-    if (atom.data().atomic_number() == 1) {
-      m.mark_atom_erase(atom.id());
-      for (auto nei: atom) {
-        AtomData &data = nei.dst().data();
-        data.set_implicit_hydrogens(data.implicit_hydrogens() + 1);
-      }
-    }
+    if (atom.data().atomic_number() != 1 || atom.degree() != 1
+        || atom.data().implicit_hydrogens() != 0
+        || atom[0].edge_data().order() != constants::kSingleBond
+        || atom[0].dst().data().atomic_number() == 1)
+      continue;
+
+    m.mark_atom_erase(atom.id());
+
+    AtomData &heavy_data = atom[0].dst().data();
+    heavy_data.set_implicit_hydrogens(heavy_data.implicit_hydrogens() + 1);
   }
 }
 
