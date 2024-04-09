@@ -22,6 +22,7 @@
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/ascii.h>
+#include <absl/strings/charset.h>
 
 #include "fmt_internal.h"
 
@@ -42,6 +43,23 @@ std::string ascii_safe(std::string_view str) {
     if (absl::ascii_isspace(c)) {
       c = '_';
     } else if (ABSL_PREDICT_FALSE(!absl::ascii_isprint(c))) {
+      c = '?';
+    }
+  }
+
+  return ret;
+}
+
+constexpr static const absl::CharSet kNewlines("\f\n\r");
+
+std::string ascii_newline_safe(std::string_view str) {
+  std::string ret(str);
+
+  for (char &c: ret) {
+    if (kNewlines.contains(c)) {
+      c = ' ';
+    } else if (!absl::ascii_isspace(c)
+               && ABSL_PREDICT_FALSE(!absl::ascii_isprint(c))) {
       c = '?';
     }
   }

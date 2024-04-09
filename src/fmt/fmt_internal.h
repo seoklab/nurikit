@@ -57,6 +57,15 @@ namespace internal {
  * @return The sanitized string.
  */
 extern std::string ascii_safe(std::string_view str);
+
+/**
+ * @brief Replace non-ascii and non-printable characters with '?' and replace
+ *        all newline characters with ' '.
+ *
+ * @param str The string to sanitize.
+ * @return The sanitized string.
+ */
+extern std::string ascii_newline_safe(std::string_view str);
 }  // namespace internal
 }  // namespace nuri
 #endif /* NURI_FMT_FMT_INTERNAL_H_ */
