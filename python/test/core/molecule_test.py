@@ -44,6 +44,15 @@ def test_mutator_errors():
         mut1.add_atom(6)
 
         with pytest.raises(RuntimeError):
+            mol.clear()
+
+        with pytest.raises(RuntimeError):
+            mol.clear_atoms()
+
+        with pytest.raises(RuntimeError):
+            mol.clear_bonds()
+
+        with pytest.raises(RuntimeError):
             with mol.mutator():
                 pass
 
@@ -322,6 +331,39 @@ def test_clear_atoms(mol: Molecule):
     assert not mol
     assert not mol.bonds()
     assert mol.name == "test"
+
+
+def test_clear_bonds_mutator(mol: Molecule):
+    mol.name = "test"
+
+    with mol.mutator() as mut:
+        mut.clear_bonds()
+
+    assert not mol.bonds()
+    assert mol.num_atoms() == 11
+    assert mol.name == "test"
+
+
+def test_clear_atoms_mutator(mol: Molecule):
+    mol.name = "test"
+
+    with mol.mutator() as mut:
+        mut.clear_atoms()
+
+    assert not mol
+    assert not mol.bonds()
+    assert mol.name == "test"
+
+
+def test_clear_mutator(mol: Molecule):
+    mol.name = "test"
+
+    with mol.mutator() as mut:
+        mut.clear()
+
+    assert not mol
+    assert not mol.bonds()
+    assert not mol.name
 
 
 def test_add_other(mol: Molecule):
