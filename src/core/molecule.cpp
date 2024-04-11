@@ -31,7 +31,7 @@
 #include "nuri/utils.h"
 
 namespace nuri {
-using internal::count_pi_e;
+using internal::aromatic_pi_e;
 using internal::effective_element_or_element;
 using internal::from_degree;
 using internal::nonbonding_electrons;
@@ -521,9 +521,12 @@ namespace internal {
         << " aromatic bonds";
 
     if (num_aromatic == 1) {
-      ABSL_LOG(INFO) << "Atom with single aromatic bond; assuming double bond "
+      ABSL_LOG(INFO) << "Atom with single aromatic bond; assuming single bond "
                         "for bond order calculation";
-    } else if (num_aromatic > 3) {
+      return sum_order + 1;
+    }
+
+    if (num_aromatic > 3) {
       // Aromatic atom with >= 4 aromatic bonds is very unlikely;
       // just log it and fall through
       ABSL_LOG(WARNING) << "Cannot correctly determine total bond order for "
@@ -531,8 +534,7 @@ namespace internal {
     }
 
     // The logic here:
-    //   - for 1 aromatic bond, assume it's a double bond (e.g. carboxylate C-O
-    //     bond has "aromatic" bond order in some Mol2 files) = 2
+    //   - for 1 aromatic bond, assume it's a single bond
     //   - for 2 aromatic bonds, each will contribute 1.5 to the total bond
     //     order (e.g. benzene) = 3
     //   - for 3 aromatic bonds, assume 2, 1, 1 for the bond orders (this is
@@ -589,6 +591,34 @@ namespace {
       }
     }
   }
+
+  bool path_can_conjugate(const BondData &prev, Molecule::Neighbor curr,
+                          const absl::FixedArray<int> &valences) {
+    auto src = curr.src(), dst = curr.dst();
+
+    if (prev.order() == constants::kSingleBond) {
+      if (curr.edge_data().order() == constants::kSingleBond
+          && src.data().atomic_number() != 0
+          && dst.data().atomic_number() != 0) {
+        // Single - single bond -> conjugated if curr has lone pair and
+        // next doesn't, or vice versa, or any of them is dummy
+        int src_nbe = nonbonding_electrons(src.data(), valences[src.id()]),
+            dst_nbe = nonbonding_electrons(dst.data(), valences[dst.id()]);
+
+        if ((src_nbe > 0 && dst_nbe > 0) || (src_nbe <= 0 && dst_nbe <= 0))
+          return false;
+      }
+    } else if (curr.edge_data().order() != constants::kSingleBond
+               && (prev.order() != constants::kAromaticBond
+                   || curr.edge_data().order() != constants::kAromaticBond)) {
+      // Aromatic - aromatic bond -> conjugated
+      // double~triple - double~triple bond -> allene-like
+      // aromatic - double~triple bond -> not conjugated (erroneous?)
+      return false;
+    }
+
+    return true;
+  }
 }  // namespace
 
 bool MoleculeSanitizer::sanitize_conjugated() {
@@ -619,31 +649,8 @@ bool MoleculeSanitizer::sanitize_conjugated() {
 
       if (prev_bond == nullptr) {
         prev_bond = &nei.edge_data();
-      } else {
-        if (prev_bond->order() == constants::kSingleBond) {
-          if (nei.edge_data().order() == constants::kSingleBond
-              && src.data().atomic_number() != 0
-              && dst.data().atomic_number() != 0) {
-            // Single - single bond -> conjugated if curr has lone pair and
-            // next doesn't, or vice versa, or any of them is dummy
-            const int src_nbe =
-                          nonbonding_electrons(src.data(), valences_[curr]),
-                      dst_nbe =
-                          nonbonding_electrons(dst.data(), valences_[dst.id()]);
-            if ((src_nbe > 0 && dst_nbe > 0)
-                || (src_nbe <= 0 && dst_nbe <= 0)) {
-              continue;
-            }
-          }
-        } else if (nei.edge_data().order() != constants::kSingleBond
-                   && (prev_bond->order() != constants::kAromaticBond
-                       || nei.edge_data().order()
-                              != constants::kAromaticBond)) {
-          // Aromatic - aromatic bond -> conjugated
-          // double~triple - double~triple bond -> allene-like
-          // aromatic - double~triple bond -> not conjugated (erroneous?)
-          continue;
-        }
+      } else if (!path_can_conjugate(*prev_bond, nei, valences_)) {
+        continue;
       }
 
       self(self, dst.id(), &nei.edge_data());
@@ -729,6 +736,18 @@ namespace internal {
     return pie_estimate;
   }
 
+  int aromatic_pi_e(Molecule::Atom atom, int total_valence) {
+    if (std::any_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
+          return !nei.edge_data().is_ring_bond()
+                 && nei.edge_data().order() > constants::kSingleBond;
+        })) {
+      // Exocyclic multiple bond, don't contribute to pi electrons
+      return 0;
+    }
+
+    return count_pi_e(atom, total_valence);
+  }
+
   int steric_number(const int total_degree, const int nb_electrons) {
     const int lone_pairs = nb_electrons / 2;
     return total_degree + lone_pairs;
@@ -754,38 +773,59 @@ namespace {
                               return nei.edge_data().order()
                                      == constants::kDoubleBond;
                             })
-                  < 2
-           // No exocyclic high-order bonds
-           && std::all_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
-                return nei.edge_data().is_ring_bond()
-                       || nei.edge_data().order() == constants::kSingleBond;
-              });
+                  < 2;
   }
 
   bool is_ring_aromatic(const Molecule &mol, const std::vector<int> &ring,
-                        const int pi_e_sum) {
-    return pi_e_sum % 4 == 2
-           // Dummy atoms are always allowed in aromatic rings
-           || std::any_of(ring.begin(), ring.end(), [&](int id) {
-                return mol.atom(id).data().atomic_number() == 0;
-              });
+                        const std::vector<int> &pi_es,
+                        const absl::FixedArray<int> &valences) {
+    const int pi_e_sum = std::accumulate(pi_es.begin(), pi_es.end(), 0);
+    bool initial = pi_e_sum % 4 == 2
+                   // Dummy atoms are always allowed in aromatic rings
+                   || std::any_of(ring.begin(), ring.end(), [&](int id) {
+                        return mol.atom(id).data().atomic_number() == 0;
+                      });
+    if (!initial)
+      return false;
+
+    const BondData *prev_data = nullptr;
+
+    for (int i = 0; i < ring.size(); ++i) {
+      const int src = ring[i],
+                dst = ring[(i + 1) % static_cast<int>(ring.size())];
+
+      auto curr = mol.find_neighbor(src, dst);
+      ABSL_DCHECK(!curr.end());
+
+      if (prev_data != nullptr
+          && !path_can_conjugate(*prev_data, *curr, valences))
+        return false;
+
+      prev_data = &curr->edge_data();
+    }
+
+    return true;
   }
 
   void mark_aromatic_ring(Molecule &mol, const std::vector<int> &ring,
-                          const absl::flat_hash_map<int, int> &pi_e) {
-    int pi_e_sum = 0;
+                          const absl::flat_hash_map<int, int> &pi_e,
+                          const absl::FixedArray<int> &valences) {
+    std::vector<int> ring_pi_e;
+    ring_pi_e.reserve(ring.size());
+
     for (int i = 0; i < ring.size(); ++i) {
       auto it = pi_e.find(ring[i]);
       if (it == pi_e.end()) {
         return;
       }
-      pi_e_sum += it->second;
+
+      int ne = it->second;
+      ring_pi_e.push_back(ne);
     }
 
-    const bool this_aromatic = is_ring_aromatic(mol, ring, pi_e_sum);
-    if (!this_aromatic) {
+    const bool this_aromatic = is_ring_aromatic(mol, ring, ring_pi_e, valences);
+    if (!this_aromatic)
       return;
-    }
 
     for (int i = 0; i < ring.size(); ++i) {
       const int src = ring[i],
@@ -804,13 +844,13 @@ namespace {
 
     for (auto atom: mol) {
       if (is_aromatic_candidate(atom)) {
-        pi_e.insert({ atom.id(), count_pi_e(atom, valences[atom.id()]) });
+        pi_e.insert({ atom.id(), aromatic_pi_e(atom, valences[atom.id()]) });
       }
     }
 
     auto mark_aromatic_for = [&](const std::vector<std::vector<int>> &rs) {
       for (const std::vector<int> &ring: rs) {
-        mark_aromatic_ring(mol, ring, pi_e);
+        mark_aromatic_ring(mol, ring, pi_e, valences);
       }
     };
 

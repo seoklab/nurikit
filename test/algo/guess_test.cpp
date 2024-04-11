@@ -910,7 +910,7 @@ TEST(GuessSelectedMolecules, GPC) {
     const AtomData &data = mol.atom(i).data();
     EXPECT_EQ(data.hybridization(), constants::kSP2);
     EXPECT_TRUE(data.is_aromatic());
-    EXPECT_EQ(data.implicit_hydrogens(), i == 38 || i == 39);
+    EXPECT_EQ(data.implicit_hydrogens(), i == 38 || i == 39) << i;
   }
   EXPECT_EQ(mol.atom(34).data().hybridization(), constants::kTerminal);
   EXPECT_EQ(mol.atom(34).data().implicit_hydrogens(), 0);

@@ -5,6 +5,7 @@
 
 #include "nuri/core/molecule.h"
 
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -1075,6 +1076,80 @@ TEST(SanitizeTest, FusedAromaticTest) {
           mol.find_bond(6, 7)->data().order() =
               mol.find_bond(8, 9)->data().order() = kSingleBond;
   verify_azulene();
+}
+
+TEST(SanitizeTest, Samples) {
+  Molecule mol;
+
+  {
+    auto mut = mol.mutator();
+
+    mut.add_atom(pt[8]);
+    mut.add_atom(pt[6]);
+    mut.add_atom(pt[6]);
+    mut.add_atom(pt[6]);
+    mut.add_atom(pt[6]);
+
+    mut.add_atom(pt[16]);
+    mut.add_atom(pt[6]);
+    mut.add_atom(pt[7]);
+    mut.add_atom(pt[6]);
+    mut.add_atom(pt[7]);
+
+    mut.add_bond(0, 1, BondData(kDoubleBond));
+    mut.add_bond(1, 2, BondData(kAromaticBond));
+    mut.add_bond(2, 3, BondData(kAromaticBond));
+    mut.add_bond(3, 4, BondData(kAromaticBond));
+    mut.add_bond(4, 5, BondData(kAromaticBond));
+    mut.add_bond(5, 6, BondData(kAromaticBond));
+    mut.add_bond(6, 2, BondData(kAromaticBond));
+    mut.add_bond(6, 7, BondData(kAromaticBond));
+    mut.add_bond(7, 8, BondData(kAromaticBond));
+    mut.add_bond(8, 9, BondData(kAromaticBond));
+    mut.add_bond(9, 1, BondData(kAromaticBond));
+  }
+
+  for (int i: { 3, 4, 8, 9 })
+    mol.atom(i).data().set_implicit_hydrogens(1);
+
+  {
+    MoleculeSanitizer sanitizer(mol);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+  }
+
+  for (auto atom: mol)
+    EXPECT_EQ(atom.data().is_aromatic(), atom.id() != 0) << atom.id();
+
+  mol.clear();
+
+  {
+    auto mut = mol.mutator();
+
+    mut.add_atom(pt[16]);
+    mut.add_atom(pt[6]);
+    mut.add_atom(pt[16]);
+    mut.add_atom(pt[6]);
+    mut.add_atom(pt[7]);
+    mut.add_atom(pt[7]);
+
+    mut.add_bond(0, 1, BondData(kDoubleBond));
+    mut.add_bond(1, 2, BondData(kAromaticBond));
+    mut.add_bond(2, 3, BondData(kAromaticBond));
+    mut.add_bond(3, 4, BondData(kAromaticBond));
+    mut.add_bond(4, 5, BondData(kAromaticBond));
+    mut.add_bond(5, 1, BondData(kAromaticBond));
+  }
+
+  for (int i: { 3, 5 })
+    mol.atom(i).data().set_implicit_hydrogens(1);
+
+  {
+    MoleculeSanitizer sanitizer(mol);
+    ASSERT_TRUE(sanitizer.sanitize_all());
+  }
+
+  for (auto atom: mol)
+    EXPECT_EQ(atom.data().is_aromatic(), atom.id() != 0) << atom.id();
 }
 
 TEST(SanitizeTest, NonstandardTest) {

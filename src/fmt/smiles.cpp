@@ -165,7 +165,7 @@ constexpr auto update_hydrogen = [](auto &ctx) {
   const int last_idx = get_last_idx(ctx),
             h_count = char_to_int(x3::_attr(ctx).value_or('1'));
 
-  ABSL_DLOG(INFO) << "Adding " << h_count << " hydrogens to atom " << last_idx;
+  ABSL_DVLOG(3) << "Adding " << h_count << " hydrogens to atom " << last_idx;
   mutator.mol().atom(last_idx).data().set_implicit_hydrogens(h_count);
 };
 
@@ -178,7 +178,7 @@ void set_charge(Ctx &ctx, bool positive, int abs_charge) {
             charge = positive ? abs_charge : -abs_charge;
   mutator.mol().atom(last_idx).data().set_formal_charge(charge);
 
-  ABSL_DLOG(INFO) << "Setting charge of atom " << last_idx << " to " << charge;
+  ABSL_DVLOG(3) << "Setting charge of atom " << last_idx << " to " << charge;
 }
 
 constexpr auto update_charge_number = [](auto &ctx) {
@@ -228,8 +228,8 @@ bool add_bond(MoleculeMutator &mutator, ImplicitAromatics &aromatics,
 
   BondData bond_data;
 
-  // Automatic bond
-  if (bond_repr == '\0') {
+  // Automatic bond or up/down bond
+  if (bond_repr == '\0' || bond_repr == '\\' || bond_repr == '/') {
     const AtomData &last_atom_data = mutator.mol().atom(prev).data(),
                    &atom_data = mutator.mol().atom(curr).data();
     bond_data.order() = last_atom_data.is_aromatic() && atom_data.is_aromatic()
@@ -239,8 +239,8 @@ bool add_bond(MoleculeMutator &mutator, ImplicitAromatics &aromatics,
     bond_data.order() = char_to_bond(bond_repr);
   }
 
-  ABSL_DLOG(INFO) << "Trying to add bond " << prev << " -> " << curr << ": "
-                  << bond_data.order();
+  ABSL_DVLOG(3) << "Trying to add bond " << prev << " -> " << curr << ": "
+                << bond_data.order();
 
   auto [it, success] = mutator.add_bond(prev, curr, bond_data);
   if (bond_repr == '\0' && bond_data.order() == constants::kAromaticBond)
@@ -255,8 +255,8 @@ int add_atom(Ctx &ctx, const Element *elem, bool aromatic) {
   const int idx = mutator.add_atom(AtomData(*elem));
   mutator.mol().atom(idx).data().set_aromatic(aromatic);
 
-  ABSL_DLOG(INFO) << "Adding " << (aromatic ? "aromatic " : "") << "atom "
-                  << idx << " (" << elem->symbol() << ')';
+  ABSL_DVLOG(3) << "Adding " << (aromatic ? "aromatic " : "") << "atom " << idx
+                << " (" << elem->symbol() << ')';
 
   const int last_idx = get_last_idx(ctx);
   const char last_bond_data = x3::get<last_bond_data_tag>(ctx);
@@ -310,8 +310,8 @@ constexpr auto bracket_atom_adder(bool is_aromatic) {
 constexpr auto set_chirality = [](auto &ctx) {
   const int idx = get_last_idx(ctx);
   x3::get<chirality_map_tag>(ctx).get()[idx] = x3::_attr(ctx);
-  ABSL_DLOG(INFO) << "Setting chirality of atom " << idx << " to "
-                  << static_cast<int>(x3::_attr(ctx));
+  ABSL_DVLOG(3) << "Setting chirality of atom " << idx << " to "
+                << static_cast<int>(x3::_attr(ctx));
 };
 
 constexpr auto set_atom_class = [](auto &) {
@@ -327,12 +327,12 @@ const auto bracket_atom =  //
 
 constexpr auto set_last_bond_data = [](auto &ctx) {
   x3::get<last_bond_data_tag>(ctx).get() = x3::_attr(ctx);
-  ABSL_DLOG(INFO) << "Setting last bond data to " << x3::_attr(ctx);
+  ABSL_DVLOG(3) << "Setting last bond data to " << x3::_attr(ctx);
 };
 
 constexpr auto set_last_bond_auto = [](auto &ctx) {
   x3::get<last_bond_data_tag>(ctx).get() = '\0';
-  ABSL_DLOG(INFO) << "Setting last bond data to auto";
+  ABSL_DVLOG(3) << "Setting last bond data to auto";
 };
 
 const auto bond = x3::char_("-=#$:/\\")[set_last_bond_data];
@@ -352,8 +352,8 @@ void handle_ring(Ctx &ctx, int ring_idx) {
 
   // New ring index, nothing to do.
   if (is_new) {
-    ABSL_DLOG(INFO) << "Adding ring index " << ring_idx
-                    << ", src: " << current_idx << ", " << bond_data;
+    ABSL_DVLOG(3) << "Adding ring index " << ring_idx
+                  << ", src: " << current_idx << ", " << bond_data;
     return;
   }
 
