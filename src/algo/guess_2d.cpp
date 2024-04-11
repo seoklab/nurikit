@@ -224,7 +224,7 @@ namespace {
     int valence = internal::sum_bond_order(atom, false),
         cv = internal::common_valence(effective),
         max_h = hyb_pred - atom.degree();
-    int num_h = std::min(max_h, cv - valence);
+    int num_h = nuri::min(max_h, cv - valence);
     return nonnegative(num_h);
   }
 

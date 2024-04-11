@@ -504,7 +504,7 @@ namespace internal {
       unsigned int stripped = (shifted << leading_ones) >> leading_ones;
 
       int leading_zeros = absl::countl_zero(stripped);
-      int next_one_bit = std::max(n_ - leading_zeros - 1, 0);
+      int next_one_bit = nuri::max(n_ - leading_zeros - 1, 0);
 
       unsigned int mask = (1U << next_one_bit) - 1;
       state_ = ((1U << (leading_ones + 1)) - 1) << (next_one_bit + 1)

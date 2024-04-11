@@ -1087,7 +1087,7 @@ namespace {
     int unused_valence = cv - sum_bo;
     int pred_h = data.implicit_hydrogens() + unused_valence;
 
-    data.set_implicit_hydrogens(std::max(pred_h, 0));
+    data.set_implicit_hydrogens(nuri::max(pred_h, 0));
 
     sum_bo = sum_bond_order(atom);
     int nbe = effective.valence_electrons() - sum_bo;
@@ -1156,7 +1156,7 @@ namespace {
         ABSL_DCHECK(data.implicit_hydrogens() == 0);
 
         data.set_hybridization(static_cast<constants::Hybridization>(
-            std::max(hyb, atom.degree())));
+            nuri::max(hyb, atom.degree())));
         continue;
       }
 
@@ -1463,7 +1463,8 @@ namespace {
       for (auto atom: sub) {
         AtomData &data = atom.data();
         data.add_flags(AtomFlags::kConjugated)
-            .set_hybridization(std::min(constants::kSP2, data.hybridization()));
+            .set_hybridization(
+                nuri::min(constants::kSP2, data.hybridization()));
 
         auto it = conflicts.find(atom.as_parent().id());
         if (it != conflicts.end() && it->second.why == Conflict::kHybConflict) {

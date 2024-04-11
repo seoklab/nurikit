@@ -24,6 +24,8 @@
 #include <absl/strings/ascii.h>
 #include <absl/strings/charset.h>
 
+#include "nuri/utils.h"
+
 namespace nuri {
 namespace {
 absl::flat_hash_map<std::string, const MoleculeReaderFactory *> &
@@ -163,7 +165,7 @@ void ReversedStream::read_block() {
   }
 
   const size_t unread = is_->tellg();
-  size_t read_size = std::min(unread, buf_.size());
+  size_t read_size = nuri::min(unread, buf_.size());
   std::ios::off_type offset = -static_cast<std::ios::off_type>(read_size);
 
   is_->seekg(offset, std::ios::cur);

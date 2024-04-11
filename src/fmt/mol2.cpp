@@ -862,7 +862,7 @@ int double_width(double d) {
 
 int max_width_conf(const Matrix3Xd &coords) {
   double max = coords.maxCoeff(), min = coords.minCoeff();
-  return std::max(double_width(max), double_width(min));
+  return nuri::max(double_width(max), double_width(min));
 }
 
 Array4i measure_col_widths_atom(const Molecule &mol,
