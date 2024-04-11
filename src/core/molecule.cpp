@@ -521,9 +521,12 @@ namespace internal {
         << " aromatic bonds";
 
     if (num_aromatic == 1) {
-      ABSL_LOG(INFO) << "Atom with single aromatic bond; assuming double bond "
+      ABSL_LOG(INFO) << "Atom with single aromatic bond; assuming single bond "
                         "for bond order calculation";
-    } else if (num_aromatic > 3) {
+      return sum_order + 1;
+    }
+
+    if (num_aromatic > 3) {
       // Aromatic atom with >= 4 aromatic bonds is very unlikely;
       // just log it and fall through
       ABSL_LOG(WARNING) << "Cannot correctly determine total bond order for "
@@ -531,8 +534,7 @@ namespace internal {
     }
 
     // The logic here:
-    //   - for 1 aromatic bond, assume it's a double bond (e.g. carboxylate C-O
-    //     bond has "aromatic" bond order in some Mol2 files) = 2
+    //   - for 1 aromatic bond, assume it's a single bond
     //   - for 2 aromatic bonds, each will contribute 1.5 to the total bond
     //     order (e.g. benzene) = 3
     //   - for 3 aromatic bonds, assume 2, 1, 1 for the bond orders (this is
