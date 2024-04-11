@@ -8,7 +8,7 @@ requires = ["scikit-build-core", "pybind11-stubgen"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "@PROJECT_NAME@"
+name = "nurikit"
 version = "@NURI_VERSION@"
 description = "*The* fundamental software platform for chem- and bio-informatics"
 readme = "README.md"
