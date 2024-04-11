@@ -83,7 +83,7 @@ namespace {
   template <class Updater, class Scorer>
   void fix_aromatic_rings(Molecule &mol, std::vector<int> &adjust_candidates,
                           Updater updater, Scorer scorer) {
-    auto rings = find_sssr(mol);
+    auto rings = find_sssr(mol, 12);
     for (const std::vector<int> &ring: rings)
       fix_aromatic_ring_common(mol, adjust_candidates, ring, updater, scorer);
   }
