@@ -228,8 +228,8 @@ bool add_bond(MoleculeMutator &mutator, ImplicitAromatics &aromatics,
 
   BondData bond_data;
 
-  // Automatic bond
-  if (bond_repr == '\0') {
+  // Automatic bond or up/down bond
+  if (bond_repr == '\0' || bond_repr == '\\' || bond_repr == '/') {
     const AtomData &last_atom_data = mutator.mol().atom(prev).data(),
                    &atom_data = mutator.mol().atom(curr).data();
     bond_data.order() = last_atom_data.is_aromatic() && atom_data.is_aromatic()
