@@ -6,6 +6,9 @@
 from pathlib import Path
 from typing import List
 
+import numpy as np
+import pytest
+
 import nuri
 from nuri.core import Molecule, Hyb
 
@@ -108,3 +111,22 @@ def test_mol2_file(tmp_path: Path):
 def test_mol2_str():
     mols = list(nuri.readstring("mol2", mol2_data))
     _verify_mols(mols)
+
+    mol2_re = "".join(map(nuri.to_mol2, mols))
+    mols_re = list(nuri.readstring("mol2", mol2_re))
+    _verify_mols(mols_re)
+
+
+def test_mol2_options(mol3d: Molecule):
+    mol2s = nuri.to_mol2(mol3d)
+
+    mols = list(nuri.readstring("mol2", mol2s))
+    assert len(mols) == 2
+
+    mol2s = nuri.to_mol2(mol3d, conf=1)
+    mols = list(nuri.readstring("mol2", mol2s))
+    assert len(mols) == 1
+    assert np.allclose(mol3d.get_conf(1), mols[0].get_conf(0), atol=1e-3)
+
+    with pytest.raises(IndexError):
+        mol2s = nuri.to_mol2(mol3d, conf=2)

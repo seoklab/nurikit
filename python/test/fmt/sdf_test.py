@@ -6,6 +6,9 @@
 from pathlib import Path
 from typing import List
 
+import numpy as np
+import pytest
+
 import nuri
 from nuri.core import Molecule, Hyb
 
@@ -102,3 +105,33 @@ def test_sdf_file(tmp_path: Path):
 def test_sdf_str():
     mols = list(nuri.readstring("sdf", sdf_data))
     _verify_mols(mols)
+
+    sdf_re = "".join(map(nuri.to_sdf, mols))
+    mols_re = list(nuri.readstring("sdf", sdf_re))
+    _verify_mols(mols_re)
+
+
+def test_sdf_options(mol3d: Molecule):
+    sdfs = nuri.to_sdf(mol3d)
+
+    mols = list(nuri.readstring("sdf", sdfs))
+    assert len(mols) == 2
+
+    sdfs = nuri.to_sdf(mol3d, version=2000)
+    mols = list(nuri.readstring("sdf", sdfs))
+    assert len(mols) == 2
+
+    sdfs = nuri.to_sdf(mol3d, version=3000)
+    mols = list(nuri.readstring("sdf", sdfs))
+    assert len(mols) == 2
+
+    sdfs = nuri.to_sdf(mol3d, conf=1)
+    mols = list(nuri.readstring("sdf", sdfs))
+    assert len(mols) == 1
+    assert np.allclose(mol3d.get_conf(1), mols[0].get_conf(0), atol=1e-3)
+
+    with pytest.raises(IndexError):
+        sdfs = nuri.to_sdf(mol3d, conf=2)
+
+    with pytest.raises(ValueError, match="Invalid SDF version"):
+        sdfs = nuri.to_sdf(mol3d, version=9999)
