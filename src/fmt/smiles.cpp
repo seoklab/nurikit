@@ -141,8 +141,10 @@ struct last_bond_data_tag;
 struct chirality_map_tag;
 struct ring_map_tag;
 struct bond_geometry_tag;
+struct implicit_aromatics_tag;
 
 using HydrogenIdx = std::vector<int>;
+using ImplicitAromatics = std::vector<int>;
 using AtomIdxStack = std::stack<int, std::vector<int>>;
 using ChiralityMap = absl::flat_hash_map<int, Chirality>;
 using RingMap = absl::flat_hash_map<int, RingData>;
@@ -218,8 +220,8 @@ constants::BondOrder char_to_bond(char b) {
   }
 }
 
-bool add_bond(MoleculeMutator &mutator, const int prev, const int curr,
-              const char bond_repr) {
+bool add_bond(MoleculeMutator &mutator, ImplicitAromatics &aromatics,
+              const int prev, const int curr, const char bond_repr) {
   if (prev == curr) {
     return false;
   }
@@ -240,7 +242,9 @@ bool add_bond(MoleculeMutator &mutator, const int prev, const int curr,
   ABSL_DLOG(INFO) << "Trying to add bond " << prev << " -> " << curr << ": "
                   << bond_data.order();
 
-  auto [_, success] = mutator.add_bond(prev, curr, bond_data);
+  auto [it, success] = mutator.add_bond(prev, curr, bond_data);
+  if (bond_repr == '\0' && bond_data.order() == constants::kAromaticBond)
+    aromatics.push_back(it->id());
   return success;
 }
 
@@ -257,7 +261,9 @@ int add_atom(Ctx &ctx, const Element *elem, bool aromatic) {
   const int last_idx = get_last_idx(ctx);
   const char last_bond_data = x3::get<last_bond_data_tag>(ctx);
   if (ABSL_PREDICT_TRUE(last_bond_data != '.')) {
-    const bool success = add_bond(mutator, last_idx, idx, last_bond_data);
+    ImplicitAromatics &aromatics = x3::get<implicit_aromatics_tag>(ctx);
+    const bool success =
+        add_bond(mutator, aromatics, last_idx, idx, last_bond_data);
 
     if (ABSL_PREDICT_FALSE(!success)) {
       x3::_pass(ctx) = false;
@@ -369,8 +375,9 @@ void handle_ring(Ctx &ctx, int ring_idx) {
   }
 
   MoleculeMutator &mutator = x3::get<mutator_tag>(ctx);
-  const bool success =
-      add_bond(mutator, data.atom_idx, current_idx, resolved_bond_data);
+  ImplicitAromatics &aromatics = x3::get<implicit_aromatics_tag>(ctx);
+  const bool success = add_bond(mutator, aromatics, data.atom_idx, current_idx,
+                                resolved_bond_data);
   if (ABSL_PREDICT_FALSE(!success)) {
     x3::_pass(ctx) = false;
     ABSL_LOG(WARNING) << "Failed to add ring bond from " << data.atom_idx
@@ -485,31 +492,53 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
   const std::string &smiles = smi_block[0];
 
   // Context variables
-  MoleculeMutator mutator = mol.mutator();
   parser::HydrogenIdx has_hydrogens;
   parser::AtomIdxStack stack;
   char last_bond_data = '.';
   parser::ChiralityMap chirality_map;
   parser::RingMap ring_map;
   parser::BondGeometryMap bond_geometry_map;
+  parser::ImplicitAromatics implicit_aromatics;
 
   stack.push(-1);
 
-  auto parser = x3::with<parser::mutator_tag>(
-      std::ref(mutator))[x3::with<parser::has_hydrogens_tag>(
-      std::ref(has_hydrogens))[x3::with<parser::last_atom_stack_tag>(
-      std::ref(stack))[x3::with<parser::last_bond_data_tag>(
-      std::ref(last_bond_data))[x3::with<parser::chirality_map_tag>(
-      std::ref(chirality_map))[x3::with<parser::ring_map_tag>(
-      std::ref(ring_map))[x3::with<parser::bond_geometry_tag>(
-      std::ref(bond_geometry_map))[parser::smiles]]]]]]];
-
   auto begin = smiles.begin();
-  bool success = x3::parse_main(begin, smiles.end(), parser, x3::unused);
+  bool success;
 
-  if (success && !ring_map.empty()) {
-    ABSL_LOG(WARNING) << "Unresolved ring bonds: " << ring_map.size();
-    success = false;
+  {
+    MoleculeMutator mutator = mol.mutator();
+
+    auto parser = x3::with<parser::mutator_tag>(
+        std::ref(mutator))[x3::with<parser::has_hydrogens_tag>(
+        std::ref(has_hydrogens))[x3::with<parser::last_atom_stack_tag>(
+        std::ref(stack))[x3::with<parser::last_bond_data_tag>(
+        std::ref(last_bond_data))[x3::with<parser::chirality_map_tag>(
+        std::ref(chirality_map))[x3::with<parser::ring_map_tag>(
+        std::ref(ring_map))[x3::with<parser::bond_geometry_tag>(
+        std::ref(bond_geometry_map))[x3::with<parser::implicit_aromatics_tag>(
+        std::ref(implicit_aromatics))[parser::smiles]]]]]]]];
+
+    success = x3::parse_main(begin, smiles.end(), parser, x3::unused);
+
+    if (success && !ring_map.empty()) {
+      ABSL_LOG(WARNING) << "Unresolved ring bonds: " << ring_map.size();
+      success = false;
+    }
+
+    if (!success) {
+      ABSL_LOG(ERROR) << "Parsing failed: " << smiles;
+      mutator.clear();
+      return mol;
+    }
+  }
+
+  for (int bid: implicit_aromatics) {
+    if (!mol.bond(bid).data().is_ring_bond()) {
+      mol.bond(bid)
+          .data()
+          .set_order(constants::kSingleBond)
+          .del_flags(BondFlags::kAromatic);
+    }
   }
 
   auto hit = has_hydrogens.begin();
@@ -522,15 +551,9 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
     update_implicit_hydrogens(atom);
   }
 
-  if (success) {
-    while (begin != smiles.end() && std::isspace(*begin) != 0) {
-      ++begin;
-    }
-    mol.name() = std::string_view(&*begin, smiles.end() - begin);
-  } else {
-    ABSL_LOG(ERROR) << "Parsing failed: " << smiles;
-    mol.clear();
-  }
+  while (begin != smiles.end() && std::isspace(*begin) != 0)
+    ++begin;
+  mol.name() = std::string_view(&*begin, smiles.end() - begin);
 
   return mol;
 }
