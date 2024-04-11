@@ -188,7 +188,8 @@ constexpr auto atom_line = *x3::omit[x3::blank]         //
                            >> -(+x3::omit[x3::blank]              //
                                 >> uint_trailing_blanks           //
                                 >> -(nonblank_trailing_blanks     //
-                                     >> -x3::double_));
+                                     >> -x3::double_))
+                           >> *x3::omit[x3::blank];
 using AtomLine = std::tuple<
     unsigned int, std::string, absl::InlinedVector<double, 3>, std::string,
     boost::optional<std::string>,
