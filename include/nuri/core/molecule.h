@@ -2301,6 +2301,8 @@ namespace internal {
   extern int nonbonding_electrons(const AtomData &data, int total_valence);
 
   extern int count_pi_e(Molecule::Atom atom, int total_valence);
+
+  extern int aromatic_pi_e(Molecule::Atom atom, int total_valence);
 }  // namespace internal
 
 /**

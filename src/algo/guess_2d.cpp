@@ -55,7 +55,7 @@ namespace {
         return;
 
       sum_pi_e +=
-          internal::count_pi_e(atom, internal::sum_bond_order(atom, false));
+          internal::aromatic_pi_e(atom, internal::sum_bond_order(atom, false));
     }
 
     int test = sum_pi_e % 4 - 2;
