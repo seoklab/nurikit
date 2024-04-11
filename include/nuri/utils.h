@@ -128,6 +128,73 @@ namespace internal {
   using extract_if_enum_t = typename extract_if_enum<T>::type;
 }  // namespace internal
 
+template <class T, std::enable_if_t<std::is_trivial_v<T>, int> = 0>
+constexpr T min(T a, T b) {
+  return std::min(a, b);
+}
+
+template <
+    class L, class R,
+    std::enable_if_t<
+        std::is_same_v<internal::remove_cvref_t<L>, internal::remove_cvref_t<R>>
+            && !std::is_trivial_v<internal::remove_cvref_t<L>>
+            && std::is_lvalue_reference_v<L> && std::is_lvalue_reference_v<R>,
+        int> = 0>
+constexpr const L &min(L &&a, R &&b) {
+  return std::min(std::forward<L>(a), std::forward<R>(b));
+}
+
+template <class T, std::enable_if_t<std::is_trivial_v<T>, int> = 0>
+constexpr T max(T a, T b) {
+  return std::max(a, b);
+}
+
+template <
+    class L, class R,
+    std::enable_if_t<
+        std::is_same_v<internal::remove_cvref_t<L>, internal::remove_cvref_t<R>>
+            && !std::is_trivial_v<internal::remove_cvref_t<L>>
+            && std::is_lvalue_reference_v<L> && std::is_lvalue_reference_v<R>,
+        int> = 0>
+constexpr const L &max(L &&a, R &&b) {
+  return std::max(std::forward<L>(a), std::forward<R>(b));
+}
+
+template <class T, std::enable_if_t<std::is_trivial_v<T>, int> = 0>
+constexpr std::pair<T, T> minmax(T a, T b) {
+  return std::minmax(a, b);
+}
+
+template <
+    class L, class R,
+    std::enable_if_t<
+        std::is_same_v<internal::remove_cvref_t<L>, internal::remove_cvref_t<R>>
+            && !std::is_trivial_v<internal::remove_cvref_t<L>>
+            && std::is_lvalue_reference_v<L> && std::is_lvalue_reference_v<R>,
+        int> = 0>
+constexpr std::pair<const L &, const L &> minmax(L &&a, R &&b) {
+  return std::minmax(std::forward<L>(a), std::forward<R>(b));
+}
+
+template <class T, std::enable_if_t<std::is_trivial_v<T>, int> = 0>
+constexpr T clamp(T v, T l, T h) {
+  return std::clamp(v, l, h);
+}
+
+template <
+    class T, class L, class H,
+    std::enable_if_t<
+        std::is_same_v<internal::remove_cvref_t<T>, internal::remove_cvref_t<L>>
+            && std::is_same_v<internal::remove_cvref_t<L>,
+                              internal::remove_cvref_t<H>>
+            && !std::is_trivial_v<internal::remove_cvref_t<T>>
+            && std::is_lvalue_reference_v<T> && std::is_lvalue_reference_v<L>
+            && std::is_lvalue_reference_v<H>,
+        int> = 0>
+constexpr const T &minmax(T &&v, L &&l, H &&h) {
+  return std::clamp(std::forward<T>(v), std::forward<L>(l), std::forward<H>(h));
+}
+
 namespace internal {
   template <class T, class C = std::less<>, class S = std::vector<T>>
   struct ClearablePQ: public std::priority_queue<T, S, C> {
