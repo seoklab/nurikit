@@ -45,3 +45,7 @@ def test_smiles_file(tmp_path: Path):
 def test_smiles_str():
     mols = list(nuri.readstring("smi", smi_data))
     _verify_mols(mols)
+
+    smiles_re = "".join(map(nuri.to_smiles, mols))
+    mols_re = list(nuri.readstring("smi", smiles_re))
+    _verify_mols(mols_re)

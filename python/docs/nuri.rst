@@ -28,9 +28,24 @@ Submodules
 Top-level Functions
 -------------------
 
+Readers
+-------
+
 .. autofunction:: nuri.readfile
 
 .. autofunction:: nuri.readstring
+
+Writers
+-------
+
+These functions all release the GIL and are thread-safe. Thread-based
+parallelism is recommended for writing multiple molecules in parallel.
+
+.. autofunction:: nuri.to_smiles
+
+.. autofunction:: nuri.to_mol2
+
+.. autofunction:: nuri.to_sdf
 
 --------------------
 Top-level Attributes

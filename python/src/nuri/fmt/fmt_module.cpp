@@ -7,6 +7,7 @@
 #include <fstream>
 #include <istream>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -24,6 +25,9 @@
 
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
+#include "nuri/fmt/mol2.h"
+#include "nuri/fmt/sdf.h"
+#include "nuri/fmt/smiles.h"
 #include "nuri/python/core/core_module.h"
 #include "nuri/python/exception.h"
 #include "nuri/python/utils.h"
@@ -101,6 +105,21 @@ private:
   bool skip_on_error_;
 };
 
+template <class F, class... Args>
+std::string try_write(const Molecule &mol, std::string_view fmt, F writer,
+                      Args &&...args) {
+  std::string buf;
+  if (!writer(buf, mol, std::forward<Args>(args)...))
+    throw py::value_error(absl::StrCat("Failed to convert molecule to ", fmt));
+  return buf;
+}
+
+int writer_check_conf(const Molecule &mol, std::optional<int> oconf) {
+  if (!oconf)
+    return -1;
+  return check_conf(mol, *oconf);
+}
+
 namespace fs = std::filesystem;
 
 NURI_PYTHON_MODULE(m) {
@@ -167,6 +186,67 @@ The returned object is an iterable of molecules.
 >>> for mol in nuri.readstring("smi", "C"):
 ...     print(mol[0].atomic_number)
 6
+)doc");
+
+  m.def(
+       "to_smiles",
+       [](const PyMol &mol) {
+         return try_write(*mol, "smiles", write_smiles, false);
+       },
+       py::arg("mol"), kThreadSafe, R"doc(
+Convert a molecule to SMILES string.
+
+:param mol: The molecule to convert.
+:raises ValueError: If the conversion fails.
+)doc")
+      .def(
+          "to_mol2",
+          [](const PyMol &mol, std::optional<int> oconf) {
+            int conf = writer_check_conf(*mol, oconf);
+            return try_write(*mol, "Mol2", write_mol2, conf);
+          },
+          py::arg("mol"), py::arg("conf") = py::none(), kThreadSafe, R"doc(
+Convert a molecule to Mol2 string.
+
+:param mol: The molecule to convert.
+:param conf: The conformation to convert. If not specified, writes all
+  conformations. Ignored if the molecule has no conformations.
+:raises IndexError: If the molecule has any conformations and `conf` is out of
+  range.
+:raises ValueError: If the conversion fails.
+)doc")
+      .def(
+          "to_sdf",
+          [](const PyMol &mol, std::optional<int> oconf,
+             std::optional<int> oversion) {
+            int conf = writer_check_conf(*mol, oconf);
+
+            SDFVersion version = SDFVersion::kAutomatic;
+            if (oversion) {
+              int user_version = *oversion;
+              if (user_version == 2000)
+                version = SDFVersion::kV2000;
+              else if (user_version == 3000)
+                version = SDFVersion::kV3000;
+              else
+                throw py::value_error(
+                    absl::StrCat("Invalid SDF version: ", user_version));
+            }
+
+            return try_write(*mol, "SDF", write_sdf, conf, version);
+          },
+          py::arg("mol"), py::arg("conf") = py::none(),
+          py::arg("version") = py::none(), kThreadSafe, R"doc(
+Convert a molecule to SDF string.
+
+:param mol: The molecule to convert.
+:param conf: The conformation to convert. If not specified, writes all
+  conformations. Ignored if the molecule has no conformations.
+:param version: The SDF version to write. If not specified, the version is
+  automatically determined. Only 2000 and 3000 are supported.
+:raises IndexError: If the molecule has any conformations and `conf` is out of
+  range.
+:raises ValueError: If the conversion fails, or if the version is invalid.
 )doc");
 }
 }  // namespace

@@ -11,6 +11,9 @@ bio-informatics."""
 __all__ = [
     "readfile",
     "readstring",
+    "to_smiles",
+    "to_mol2",
+    "to_sdf",
     "periodic_table",
     "__version__",
 ]
@@ -22,4 +25,4 @@ except ImportError:
 
 from . import _log_adapter
 from .core import periodic_table
-from .fmt import readfile, readstring
+from .fmt import readfile, readstring, to_smiles, to_mol2, to_sdf
