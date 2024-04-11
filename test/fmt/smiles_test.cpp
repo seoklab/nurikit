@@ -428,7 +428,7 @@ TEST_F(SmilesTest, AromaticityTest) {
       "O=C1C=CC(=O)C2=C1OC=CO2 aromatic test\n"
       // Extra
       "c1[cH-]ccc1 cyclopenadienyl anion\n"
-      "c1ccccc1c2ccccc2 biphenyl error\n");
+      "c1ccccc1:c2ccccc2 biphenyl error\n");
 
   std::string smi;
 
@@ -685,6 +685,20 @@ TEST_F(SmilesTest, EnamineRealExamplesTest) {
   NURI_FMT_TEST_NEXT_MOL("Z2719008285", 27, 29);
   EXPECT_EQ(mol().num_fragments(), 1);
   EXPECT_EQ(mol().num_sssr(), 3);
+}
+
+TEST_F(SmilesTest, DUDEExamplesTest) {
+  set_test_string(  // Taken from DUD-E set
+      "Cc1ccc(cc1)n2c(=O)c3c4c(sc3nc2SCC=C)CCC[C@@H]4C C02302104\n");
+
+  std::string smi;
+
+  NURI_FMT_TEST_NEXT_MOL("C02302104", 26, 29);
+  write_smiles(smi, mol());
+
+  set_test_string(smi);
+
+  NURI_FMT_TEST_NEXT_MOL("C02302104", 26, 29);
 }
 
 TEST_F(SmilesTest, ManyRings) {
