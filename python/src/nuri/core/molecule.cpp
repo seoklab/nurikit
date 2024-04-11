@@ -858,41 +858,39 @@ implicit hydrogens).
 .. note::
   Invalidates all atom and bond objects.
 )doc")
-      .def(
-          "clear_atoms",
-          [](PyMol &self) {
-            self->clear_atoms();
-            self.tick();
-          },
-          R"doc(
+      .def("clear_atoms", &PyMol::clear_atoms,
+           R"doc(
 Clear all atoms and bonds of the molecule. Other metadata are left unmodified.
 
 .. note::
   Invalidates all atom and bond objects.
+.. warning::
+  Molecules with active mutator context cannot clear atoms.
+.. seealso::
+  :meth:`Mutator.clear_atoms`
 )doc")
-      .def(
-          "clear_bonds",
-          [](PyMol &self) {
-            self->clear_bonds();
-            self.tick();
-          },
-          R"doc(
+      .def("clear_bonds", &PyMol::clear_bonds,
+           R"doc(
 Clear all bonds of the molecule. Atoms and other metadata are left unmodified.
 
 .. note::
   Invalidates all atom and bond objects.
+.. warning::
+  Molecules with active mutator context cannot clear bonds.
+.. seealso::
+  :meth:`Mutator.clear_bonds`
 )doc")
-      .def(
-          "clear",
-          [](PyMol &self) {
-            self->clear();
-            self.tick();
-          },
-          R"doc(
+      .def("clear", &PyMol::clear,
+           R"doc(
 Effectively resets the molecule to an empty state.
 
 .. note::
   Invalidates all atom and bond objects.
+
+.. warning::
+  Molecules with active mutator context cannot be cleared.
+.. seealso::
+  :meth:`Mutator.clear`
 )doc")
       .def(
           "add_from",
@@ -1178,6 +1176,24 @@ Mark a bond to be erased from the molecule. The bond is not erased until the
 context manager is exited.
 
 :param bond: The bond to erase.
+)doc")
+      .def("clear_atoms", &PyMutator::clear_atoms, R"doc(
+Clear all atoms and bonds of the molecule. Other metadata are left unmodified.
+
+.. note::
+  Invalidates all atom and bond objects.
+)doc")
+      .def("clear_bonds", &PyMutator::clear_bonds, R"doc(
+Clear all bonds of the molecule. Atoms and other metadata are left unmodified.
+
+.. note::
+  Invalidates all atom and bond objects.
+)doc")
+      .def("clear", &PyMutator::clear, R"doc(
+Effectively resets the molecule to an empty state.
+
+.. note::
+  Invalidates all atom and bond objects.
 )doc")
       .def("__enter__", &PyMutator::initialize)
       .def("__exit__",
