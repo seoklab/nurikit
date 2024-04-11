@@ -937,5 +937,138 @@ TEST(GuessSelectedMolecules, GPC) {
     EXPECT_EQ(bond.data().order(), 1);
   }
 }
+
+TEST(GuessFchargeOnly, ChargedPhosphorus) {
+  Molecule mol;
+  {
+    auto mut = mol.mutator();
+    mut.add_atom(kPt[15]);
+  }
+
+  mol.atom(0).data().set_implicit_hydrogens(4);
+
+  guess_fcharge_2d(mol);
+
+  EXPECT_EQ(mol[0].data().formal_charge(), +1);
+}
+
+TEST(GuessFchargeOnly, Sulfonyl) {
+  Molecule mol;
+  {
+    auto mut = mol.mutator();
+
+    mut.add_atom(kPt[16]);
+    mut.add_atom(kPt[8]);
+    mut.add_atom(kPt[8]);
+    mut.add_atom(kPt[6]);
+    mut.add_atom(kPt[7]);
+
+    mut.add_bond(0, 1, BondData(constants::kDoubleBond));
+    mut.add_bond(0, 2, BondData(constants::kDoubleBond));
+    mut.add_bond(0, 3, BondData(constants::kSingleBond));
+    mut.add_bond(0, 4, BondData(constants::kSingleBond));
+  }
+
+  mol.atom(3).data().set_implicit_hydrogens(3);
+  mol.atom(4).data().set_implicit_hydrogens(3);
+
+  guess_fcharge_2d(mol);
+
+  for (int i = 0; i < 4; ++i)
+    EXPECT_EQ(mol[i].data().formal_charge(), 0);
+
+  EXPECT_EQ(mol[4].data().formal_charge(), +1);
+}
+
+TEST(GuessFchargeOnly, Thiophene) {
+  Molecule mol;
+  {
+    auto mut = mol.mutator();
+    mut.add_atom(kPt[16]);
+    mut.add_atom(kPt[6]);
+    mut.add_atom(kPt[6]);
+    mut.add_atom(kPt[6]);
+    mut.add_atom(kPt[6]);
+
+    mut.add_bond(0, 1,
+                 BondData(constants::kSingleBond)
+                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
+    mut.add_bond(1, 2,
+                 BondData(constants::kDoubleBond)
+                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
+    mut.add_bond(2, 3,
+                 BondData(constants::kSingleBond)
+                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
+    mut.add_bond(3, 4,
+                 BondData(constants::kDoubleBond)
+                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
+    mut.add_bond(4, 0,
+                 BondData(constants::kSingleBond)
+                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
+  }
+
+  for (int i = 1; i < 4; ++i)
+    mol.atom(i).data().set_implicit_hydrogens(1);
+
+  guess_fcharge_2d(mol);
+
+  for (auto atom: mol)
+    EXPECT_EQ(atom.data().formal_charge(), 0) << atom.id();
+
+  for (auto bond: mol.bonds())
+    bond.data().set_order(constants::kAromaticBond);
+
+  guess_fcharge_2d(mol);
+
+  for (auto atom: mol)
+    EXPECT_EQ(atom.data().formal_charge(), 0) << atom.id();
+}
+
+TEST(GuessFchargeOnly, ChargedThiophene) {
+  Molecule mol;
+  {
+    auto mut = mol.mutator();
+    mut.add_atom(kPt[16]);
+    mut.add_atom(kPt[6]);
+    mut.add_atom(kPt[6]);
+    mut.add_atom(kPt[6]);
+    mut.add_atom(kPt[6]);
+
+    mut.add_bond(0, 1,
+                 BondData(constants::kSingleBond)
+                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
+    mut.add_bond(1, 2,
+                 BondData(constants::kDoubleBond)
+                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
+    mut.add_bond(2, 3,
+                 BondData(constants::kSingleBond)
+                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
+    mut.add_bond(3, 4,
+                 BondData(constants::kDoubleBond)
+                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
+    mut.add_bond(4, 0,
+                 BondData(constants::kSingleBond)
+                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
+  }
+
+  for (auto atom: mol)
+    atom.data().set_implicit_hydrogens(1);
+
+  guess_fcharge_2d(mol);
+
+  EXPECT_EQ(mol[0].data().formal_charge(), +1);
+  for (int i = 1; i < 4; ++i)
+    EXPECT_EQ(mol[i].data().formal_charge(), 0);
+
+  mol[0].data().set_formal_charge(0);
+  for (auto bond: mol.bonds())
+    bond.data().set_order(constants::kAromaticBond);
+
+  guess_fcharge_2d(mol);
+
+  EXPECT_EQ(mol[0].data().formal_charge(), +1);
+  for (int i = 1; i < 4; ++i)
+    EXPECT_EQ(mol[i].data().formal_charge(), 0);
+}
 }  // namespace
 }  // namespace nuri
