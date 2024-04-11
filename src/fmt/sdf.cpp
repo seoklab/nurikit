@@ -953,17 +953,9 @@ Molecule read_sdf(const std::vector<std::string> &sdf) {
   bool has_hydrogen = absl::c_any_of(mol, [](Molecule::Atom atom) {
     return atom.data().atomic_number() == 1;
   });
-  bool has_fcharge = absl::c_any_of(mol, [](Molecule::Atom atom) {
-    return atom.data().formal_charge() != 0;
-  });
 
-  if (!has_hydrogen && !has_fcharge) {
-    guess_fcharge_hydrogens_2d(mol);
-  } else if (!has_hydrogen) {
+  if (!has_hydrogen)
     guess_hydrogens_2d(mol);
-  } else if (!has_fcharge) {
-    guess_fcharge_2d(mol);
-  }
 
   mol.confs().emplace_back(stack(coords));
 
