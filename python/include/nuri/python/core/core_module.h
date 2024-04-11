@@ -76,6 +76,32 @@ public:
 
   std::uint64_t sub_version() const { return substruct_version_; }
 
+  void clear_atoms() {
+    if (has_mutator_)
+      throw std::runtime_error(
+          "cannot clear atoms/bonds of molecule with active mutator");
+
+    (**this).clear_atoms();
+    tick();
+  }
+
+  void clear_bonds() {
+    if (has_mutator_)
+      throw std::runtime_error(
+          "cannot clear bonds of molecule with active mutator");
+
+    (**this).clear_bonds();
+    tick();
+  }
+
+  void clear() {
+    if (has_mutator_)
+      throw std::runtime_error("cannot clear molecule with active mutator");
+
+    (**this).clear();
+    tick();
+  }
+
   auto mutator() {
     if (has_mutator_)
       throw std::runtime_error("molecule already has a mutator");
@@ -119,6 +145,21 @@ public:
   PyAtom add_atom(AtomData &&data);
 
   PyBond add_bond(int src, int dst, BondData &&data);
+
+  void clear_atoms() {
+    mut().clear_atoms();
+    mol_->tick();
+  }
+
+  void clear_bonds() {
+    mut().clear_bonds();
+    mol_->tick();
+  }
+
+  void clear() {
+    mut().clear();
+    mol_->tick();
+  }
 
   MoleculeMutator &mut() {
     if (!mut_)
