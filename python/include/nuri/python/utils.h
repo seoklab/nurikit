@@ -324,6 +324,7 @@ inline int py_check_index(int size, int idx, const char *onerror) {
 }
 
 constexpr inline static py::keep_alive<0, 1> kReturnsSubobject {};
+constexpr inline static py::call_guard<py::gil_scoped_release> kThreadSafe {};
 
 template <class T, class Size, class Getter, class Iter>
 py::class_<T> &add_sequence_interface(py::class_<T> &cls, Size size,
