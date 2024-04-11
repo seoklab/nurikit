@@ -953,17 +953,9 @@ Molecule read_sdf(const std::vector<std::string> &sdf) {
   bool has_hydrogen = absl::c_any_of(mol, [](Molecule::Atom atom) {
     return atom.data().atomic_number() == 1;
   });
-  bool has_fcharge = absl::c_any_of(mol, [](Molecule::Atom atom) {
-    return atom.data().formal_charge() != 0;
-  });
 
-  if (!has_hydrogen && !has_fcharge) {
-    guess_fcharge_hydrogens_2d(mol);
-  } else if (!has_hydrogen) {
+  if (!has_hydrogen)
     guess_hydrogens_2d(mol);
-  } else if (!has_fcharge) {
-    guess_fcharge_2d(mol);
-  }
 
   mol.confs().emplace_back(stack(coords));
 
@@ -975,7 +967,7 @@ int sdf_bond_order(constants::BondOrder order) {
   if (order == constants::kAromaticBond)
     return 4;
 
-  return std::clamp(static_cast<int>(order), 1, 3);
+  return nuri::clamp(static_cast<int>(order), 1, 3);
 }
 
 constexpr const absl::CharSet kNewlines("\f\n\r");
@@ -1132,7 +1124,7 @@ void v2000_write_bonds(std::string &out, const Molecule &mol) {
 void v2000_atom_properties_common(std::string &out, std::string_view key,
                                   const std::vector<std::pair<int, int>> &data) {
   for (int i = 0; i < data.size(); i += 8) {
-    int cnt = std::min(8, static_cast<int>(data.size()) - i);
+    int cnt = nuri::min(8, static_cast<int>(data.size()) - i);
     absl::StrAppendFormat(&out, "M  %s%3d", key, cnt);
     for (int j = 0; j < cnt; ++j)
       absl::StrAppendFormat(&out, " %3d %3d", data[i + j].first,

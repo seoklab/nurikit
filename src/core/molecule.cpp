@@ -506,7 +506,7 @@ namespace internal {
       if (adj.edge_data().order() == constants::kAromaticBond) {
         ++num_aromatic;
       } else {
-        sum_order += std::max(adj.edge_data().order(), constants::kSingleBond);
+        sum_order += nuri::max(adj.edge_data().order(), constants::kSingleBond);
         num_multiple_bond +=
             static_cast<int>(adj.edge_data().order() > constants::kSingleBond);
       }
@@ -725,7 +725,7 @@ namespace internal {
     }
 
     // E.g. N in pyrrole
-    const int pie_estimate = std::min(nb_electrons, 2);
+    const int pie_estimate = nuri::min(nb_electrons, 2);
     return pie_estimate;
   }
 
@@ -738,7 +738,7 @@ namespace internal {
                                        const int nb_electrons) {
     int sn = steric_number(total_degree, nb_electrons);
     return static_cast<constants::Hybridization>(
-        std::min(sn, static_cast<int>(constants::kOtherHyb)));
+        nuri::min(sn, static_cast<int>(constants::kOtherHyb)));
   }
 }  // namespace internal
 
@@ -933,7 +933,7 @@ namespace {
     } else {
       // Assume non-main-group atoms does not have lone pairs
       atom.data().set_hybridization(
-          std::min(hyb, from_degree(total_degree, 0)));
+          nuri::min(hyb, from_degree(total_degree, 0)));
     }
 
     return true;

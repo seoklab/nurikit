@@ -5,7 +5,6 @@
 
 #include "nuri/core/molecule.h"
 
-#include <algorithm>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -982,7 +981,7 @@ TEST(SanitizeTest, FusedAromaticTest) {
       EXPECT_TRUE(atom.data().is_aromatic());
     }
     for (auto bond: mol.bonds()) {
-      auto [src, dst] = std::minmax({ bond.src().id(), bond.dst().id() });
+      auto [src, dst] = nuri::minmax(bond.src().id(), bond.dst().id());
       if ((src == 0 && dst == 11) || (src == 5 && dst == 6)) {
         EXPECT_FALSE(bond.data().is_aromatic());
       } else {
@@ -1036,7 +1035,7 @@ TEST(SanitizeTest, FusedAromaticTest) {
       EXPECT_TRUE(atom.data().is_aromatic());
     }
     for (auto bond: mol.bonds()) {
-      auto [src, dst] = std::minmax({ bond.src().id(), bond.dst().id() });
+      auto [src, dst] = nuri::minmax(bond.src().id(), bond.dst().id());
       if (src == 0 && dst == 6) {
         EXPECT_FALSE(bond.data().is_aromatic());
       } else {

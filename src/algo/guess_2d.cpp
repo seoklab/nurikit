@@ -7,6 +7,7 @@
 #include <cmath>
 #include <vector>
 
+#include <absl/algorithm/container.h>
 #include <absl/container/fixed_array.h>
 #include <absl/log/absl_log.h>
 
@@ -82,16 +83,9 @@ namespace {
   template <class Updater, class Scorer>
   void fix_aromatic_rings(Molecule &mol, std::vector<int> &adjust_candidates,
                           Updater updater, Scorer scorer) {
-    auto rings = find_sssr(mol);
-    for (const std::vector<int> &ring: rings) {
-      if (std::any_of(ring.begin(), ring.end(), [&](int i) {
-            return mol.atom(i).data().hybridization() > constants::kSP2;
-          })) {
-        continue;
-      }
-
+    auto rings = find_sssr(mol, 12);
+    for (const std::vector<int> &ring: rings)
       fix_aromatic_ring_common(mol, adjust_candidates, ring, updater, scorer);
-    }
   }
 
   void guess_aromatic_fcharge_updater(Molecule::MutableAtom atom, int delta) {
@@ -172,6 +166,19 @@ namespace {
     //    eg) NH3-[B]F3
     int fchg = sum_bo - cv;
     fchg = group > 14 ? fchg : -fchg;
+
+    // Check for octet expansion of group 15~17 elements that does not have
+    // aromatic bonds. If they have any aromatic bonds, they should not have
+    // octet expansion, so we exclude them here.
+    // Most of the time, they don't have radicals and using fchg % 2 is enough.
+    if (atom.data().element().period() > 2 && group > 14
+        && absl::c_any_of(atom, [](Molecule::Neighbor nei) {
+             return nei.edge_data().order() == constants::kDoubleBond
+                    || nei.edge_data().order() == constants::kTripleBond;
+           })) {
+      return fchg % 2;
+    }
+
     return fchg;
   }
 
@@ -182,8 +189,8 @@ namespace {
   }
 
   bool maybe_aromatic_atom(Molecule::Atom atom) {
-    return atom.data().hybridization() <= constants::kSP2
-           && atom.data().is_ring_atom()
+    // Cannot use hybridization here because it's might not valid
+    return atom.data().is_ring_atom() && all_neighbors(atom) <= 3
            && std::any_of(atom.begin(), atom.end(),
                           [](Molecule::Neighbor nei) {
                             return nei.edge_data().order()
@@ -224,7 +231,7 @@ namespace {
     int valence = internal::sum_bond_order(atom, false),
         cv = internal::common_valence(effective),
         max_h = hyb_pred - atom.degree();
-    int num_h = std::min(max_h, cv - valence);
+    int num_h = nuri::min(max_h, cv - valence);
     return nonnegative(num_h);
   }
 
