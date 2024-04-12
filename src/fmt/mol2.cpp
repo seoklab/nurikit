@@ -775,7 +775,7 @@ std::string_view nitrogen_sybyl_subtype(Molecule::Atom atom) {
     return ".am";
 
   if (atom.data().hybridization() == constants::kSP2)
-    return num_total_neighbors == 3 ? ".pl" : ".2";
+    return num_total_neighbors == 3 ? ".pl3" : ".2";
 
   return sybyl_subtype_hyb(atom.data().hybridization());
 }
