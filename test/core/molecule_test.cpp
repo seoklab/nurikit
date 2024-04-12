@@ -1120,6 +1120,13 @@ TEST(SanitizeTest, Samples) {
   for (auto atom: mol)
     EXPECT_EQ(atom.data().is_aromatic(), atom.id() != 0) << atom.id();
 
+  for (int i: { 1, 2, 5, 6, 7 }) {
+    auto atom = mol.atom(i);
+    EXPECT_EQ(atom.data().hybridization(), kSP2) << i;
+    EXPECT_EQ(atom.data().implicit_hydrogens(), 0) << i;
+    EXPECT_EQ(atom.data().formal_charge(), 0) << i;
+  }
+
   mol.clear();
 
   {
