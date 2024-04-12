@@ -694,6 +694,11 @@ TEST_F(SmilesTest, DUDEExamplesTest) {
   std::string smi;
 
   NURI_FMT_TEST_NEXT_MOL("C02302104", 26, 29);
+
+  // GH-298
+  EXPECT_EQ(mol()[13].data().implicit_hydrogens(), 0);
+  EXPECT_EQ(mol()[13].data().formal_charge(), 0);
+
   write_smiles(smi, mol());
 
   set_test_string(smi);
