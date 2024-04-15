@@ -9,19 +9,7 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - ".github/workflows/pr-test.yaml"
-      - ".github/workflows/_test-and-coverage.yaml"
-      - "cmake/**"
-      - "include/**"
-      - "scripts/check_coverage.sh"
-      - "src/**"
-      - "test/**"
-      - "python/include/**"
-      - "python/src/**"
-      - "python/test/**"
-      - "third-party/**"
-      - "CMakeLists.txt"
+      - "release/**"
     types:
       - opened
       - reopened

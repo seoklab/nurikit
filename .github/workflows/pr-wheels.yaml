@@ -10,17 +10,6 @@ on:
     branches:
       - main
       - "release/**"
-    paths:
-      - ".github/workflows/pr-wheels.yaml"
-      - ".github/workflows/_wheel-build.yaml"
-      - "cmake/**"
-      - "include/**"
-      - "src/**"
-      - "python/**"
-      - "third-party/**"
-      - "**/.clang-*"
-      - "**/CMakeLists.txt"
-      - pyproject.toml.in
     types:
       - opened
       - reopened
