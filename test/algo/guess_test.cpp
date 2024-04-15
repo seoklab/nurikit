@@ -938,6 +938,80 @@ TEST(GuessSelectedMolecules, GPC) {
   }
 }
 
+// GH-302
+TEST(GuessSelectedMolecules, PDB6xmk) {
+  Molecule mol;
+  mol.reserve(33);
+
+  auto mut = mol.mutator();
+
+  mut.add_atom(kPt[6]);
+  mut.add_atom(kPt[16]);
+  for (int i = 0; i < 21; ++i)
+    mut.add_atom(kPt[6]);
+  for (int i = 0; i < 2; ++i)
+    mut.add_atom(kPt[9]);
+  for (int i = 0; i < 3; ++i)
+    mut.add_atom(kPt[7]);
+  for (int i = 0; i < 5; ++i)
+    mut.add_atom(kPt[8]);
+
+  Matrix3Xd pos(3, mol.size());
+  pos.transpose() << 10.290, 15.829, 27.600,  //
+      10.374, 17.435, 26.821,                 //
+      10.655, 30.154, 23.992,                 //
+      9.358, 29.459, 23.448,                  //
+      9.109, 28.075, 24.025,                  //
+      10.325, 27.117, 24.014,                 //
+      10.035, 25.811, 24.817,                 //
+      11.408, 24.001, 25.646,                 //
+      12.440, 22.085, 26.767,                 //
+      13.590, 21.827, 27.785,                 //
+      14.951, 22.333, 27.321,                 //
+      16.072, 22.070, 28.371,                 //
+      15.321, 21.714, 25.972,                 //
+      11.126, 21.566, 27.314,                 //
+      9.317, 19.931, 27.372,                  //
+      8.223, 19.796, 26.192,                  //
+      7.777, 21.146, 25.652,                  //
+      6.832, 21.040, 24.469,                  //
+      5.849, 22.685, 25.853,                  //
+      6.982, 21.976, 26.669,                  //
+      9.568, 18.547, 28.025,                  //
+      11.582, 27.781, 24.564,                 //
+      11.877, 29.222, 24.125,                 //
+      10.975, 31.209, 23.207,                 //
+      10.425, 30.759, 25.194,                 //
+      12.332, 23.532, 26.492,                 //
+      10.536, 20.420, 26.876,                 //
+      5.784, 21.883, 24.588,                  //
+      11.169, 25.347, 25.570,                 //
+      7.086, 20.253, 23.535,                  //
+      8.348, 18.039, 28.498,                  //
+      10.543, 22.261, 28.153,                 //
+      10.753, 23.234, 24.926;
+  mol.confs().push_back(std::move(pos));
+
+  ASSERT_TRUE(guess_everything(mut));
+
+  EXPECT_EQ(mol.num_bonds(), 34);
+
+  std::vector<int> sp2_atoms = { 7, 25, 28, 17, 27, 13, 26 };
+  absl::c_sort(sp2_atoms);
+
+  for (auto atom: mol) {
+    EXPECT_EQ(atom.data().formal_charge(), 0);
+
+    if (all_neighbors(atom) == 1) {
+      EXPECT_EQ(atom.data().hybridization(), constants::kTerminal);
+    } else if (absl::c_binary_search(sp2_atoms, atom.id())) {
+      EXPECT_EQ(atom.data().hybridization(), constants::kSP2);
+    } else {
+      EXPECT_EQ(atom.data().hybridization(), constants::kSP3);
+    }
+  }
+}
+
 TEST(GuessFchargeOnly, ChargedPhosphorus) {
   Molecule mol;
   {
