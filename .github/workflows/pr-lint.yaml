@@ -9,19 +9,7 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - ".github/workflows/pr-lint.yaml"
-      - ".github/workflows/_run-clang-tools.yaml"
-      - "cmake/**"
-      - "include/**"
-      - "scripts/run_clang_tools.sh"
-      - "src/**"
-      - "test/**"
-      - "python/include/**"
-      - "python/src/**"
-      - "python/test/**"
-      - "CMakeLists.txt"
-      - "**.clang-*"
+      - "release/**"
     types:
       - opened
       - reopened
