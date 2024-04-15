@@ -26,6 +26,7 @@ jobs:
   check-want-lint:
     uses: ./.github/workflows/_check-want-test.yaml
     with:
+      skip-bots: true
       keyword: "lint"
 
   format-and-lint-changed:

@@ -11,6 +11,9 @@ on:
       keyword:
         type: string
         default: "test"
+      skip-bots:
+        type: boolean
+        default: false
     outputs:
       want-test:
         value: ${{ jobs.check-want-test.outputs.want-test }}
@@ -26,13 +29,13 @@ jobs:
       want-test: ${{ steps.check-want-test.outputs.want-test }}
     steps:
       - name: Skip for draft PR or bot
-        if: ${{ github.event.pull_request.draft || endsWith(github.triggering_actor, '[bot]') }}
+        if: ${{ github.event.pull_request.draft || (inputs.skip-bots && endsWith(github.triggering_actor, '[bot]')) }}
         id: always-false
         run: echo "want-test=false" >> $GITHUB_OUTPUT
 
       - uses: actions/checkout@v4
         id: checkout
-        if: ${{ !github.event.pull_request.draft && !endsWith(github.triggering_actor, '[bot]') }}
+        if: ${{ !github.event.pull_request.draft && (!inputs.skip-bots || !endsWith(github.triggering_actor, '[bot]')) }}
         with:
           fetch-depth: 0
 
