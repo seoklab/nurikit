@@ -24,7 +24,6 @@ defaults:
 
 jobs:
   check-want-lint:
-    if: ${{ !github.event.pull_request.draft && !endsWith(github.triggering_actor, '[bot]') }}
     uses: ./.github/workflows/_check-want-test.yaml
     with:
       keyword: "lint"
