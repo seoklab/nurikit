@@ -25,11 +25,19 @@ jobs:
     outputs:
       want-test: ${{ steps.check-want-test.outputs.want-test }}
     steps:
+      - name: Skip for draft PR or bot
+        if: ${{ github.event.pull_request.draft || endsWith(github.triggering_actor, '[bot]') }}
+        id: always-false
+        run: echo "want-test=false" >> $GITHUB_OUTPUT
+
       - uses: actions/checkout@v4
+        id: checkout
+        if: ${{ !github.event.pull_request.draft && !endsWith(github.triggering_actor, '[bot]') }}
         with:
           fetch-depth: 0
 
       - name: Get commit message
+        if: ${{ steps.checkout.outcome == 'success' }}
         id: get-commit-msg
         run: |
           if [[ ${{ github.event_name }} == pull_request ]]; then
@@ -45,4 +53,8 @@ jobs:
       - name: Set output
         id: check-want-test
         run: |
-          echo "want-test=${{ !contains(steps.get-commit-msg.outputs.commit-msg, format('[skip {0}]', inputs.keyword)) && !contains(steps.get-commit-msg.outputs.commit-msg, format('[{0} skip]', inputs.keyword)) }}" >> $GITHUB_OUTPUT
+          if [[ "${{ steps.always-false.outputs.want-test }}" == 'false' ]]; then
+            echo "want-test=false" >> $GITHUB_OUTPUT
+          else
+            echo "want-test=${{ !contains(steps.get-commit-msg.outputs.commit-msg, format('[skip {0}]', inputs.keyword)) && !contains(steps.get-commit-msg.outputs.commit-msg, format('[{0} skip]', inputs.keyword)) }}" >> $GITHUB_OUTPUT
+          fi
