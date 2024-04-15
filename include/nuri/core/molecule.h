@@ -105,6 +105,16 @@ namespace constants {
                                                           3.0, 4.0, 1.5 };
 }  // namespace constants
 
+inline constants::Hybridization clamp_hyb(int hyb) {
+  return nuri::clamp(static_cast<constants::Hybridization>(hyb),
+                     constants::kTerminal, constants::kSP3D2);
+}
+
+inline constants::BondOrder clamp_ord(int ord) {
+  return nuri::clamp(static_cast<constants::BondOrder>(ord),
+                     constants::kSingleBond, constants::kTripleBond);
+}
+
 enum class AtomFlags : std::uint32_t {
   kAromatic = 0x1,
   kConjugated = 0x2,
