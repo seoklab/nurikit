@@ -153,6 +153,8 @@ def test_add_bond():
     assert {bond.src.id, bond.dst.id} == {0, 1}
     assert bond.src.atomic_number == 6
     assert bond.dst.atomic_number == 6
+    assert mol.has_bond(0, 1)
+    assert mol.has_bond(bond.src, bond.dst)
 
     i = -1
     for i, bond in enumerate(mol.bonds(), 1):
@@ -164,6 +166,9 @@ def test_add_bond():
     with mol.mutator() as mut:
         a3 = mut.add_atom(6)
         a4 = mut.add_atom(6)
+
+        assert not mol.has_bond(a3.id, a4.id)
+        assert not mol.has_bond(a3, a4)
 
         mut.add_bond(a3, a4, BondData(BondOrder.Triple))
         mut.add_bond(1, 3, BondData(BondOrder.Aromatic))
