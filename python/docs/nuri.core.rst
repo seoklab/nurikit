@@ -18,6 +18,7 @@ nuri.core
       .. automethod:: num_atoms
       .. automethod:: bonds
       .. automethod:: bond
+      .. automethod:: has_bond
       .. automethod:: num_bonds
       .. automethod:: neighbor
       .. automethod:: mutator
