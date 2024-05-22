@@ -211,14 +211,17 @@ def test_neighbors(molsub: Molecule):
 def test_find_bond(molsub: Molecule):
     sub = molsub.subs[0]
 
+    assert not sub.has_bond(sub[0], sub[2])
     with pytest.raises(ValueError, match="no such bond"):
         sub.bond(sub[0], sub[2])
 
     bond_01 = sub.bond(sub[0], sub[1])
     bond_10 = sub.bond(sub[1], sub[0])
+    assert sub.has_bond(sub[0], sub[1])
 
     bond_01_atoms = sub.bond(sub[0].as_parent(), sub[1].as_parent())
     bond_10_atoms = sub.bond(sub[1].as_parent(), sub[0].as_parent())
+    assert sub.has_bond(sub[0].as_parent(), sub[1].as_parent())
 
     assert bond_01.src.id == bond_10.src.id
     assert bond_01.dst.id == bond_10.dst.id

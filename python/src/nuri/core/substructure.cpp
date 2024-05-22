@@ -432,6 +432,34 @@ Get a bond of the substructure. ``src`` and ``dst`` are interchangeable.
   data first.
 )doc");
   sub.def(
+      "has_bond",
+      [](P &self, PySubAtom<P> &src, PySubAtom<P> &dst) {
+        auto [sa, da] = check_subbond_ends(*self, src, dst);
+        return self->find_bond(sa, da) != self->bond_end();
+      },
+      py::arg("src"), py::arg("dst"), R"doc(
+Check if two atoms are connected by a bond.
+
+:param src: The source sub-atom of the bond.
+:param dst: The destination sub-atom of the bond.
+:returns: Whether the source and destination atoms are connected by a bond.
+:raises ValueError: If any of the sub-atoms does not belong to the substructure.
+)doc");
+  sub.def(
+      "has_bond",
+      [](P &self, PyAtom &src, PyAtom &dst) {
+        auto [sa, da] = check_bond_ends(*self.parent(), src, dst);
+        return self->find_bond(sa, da) != self->bond_end();
+      },
+      py::arg("src"), py::arg("dst"), R"doc(
+Check if two atoms are connected by a bond.
+
+:param src: The source atom of the bond.
+:param dst: The destination atom of the bond.
+:returns: Whether the source and destination atoms are connected by a bond.
+:raises ValueError: If any of the atoms does not belong to the molecule.
+)doc");
+  sub.def(
       "num_bonds", [](P &self) { return self->num_bonds(); },
       R"doc(
 The number of bonds in the substructure. Equivalent to ``len(sub.bonds)``.
