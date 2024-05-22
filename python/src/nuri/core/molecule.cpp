@@ -837,7 +837,7 @@ Remove a conformation from the molecule.
 Get the number of conformations of the molecule.
 )doc")
       .def(
-          "clear_confs", [](PyMol &self) { return self->confs().clear(); },
+          "clear_confs", [](PyMol &self) { self->confs().clear(); },
           R"doc(
 Remove all conformations from the molecule.
 )doc")
