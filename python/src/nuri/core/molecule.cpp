@@ -619,6 +619,34 @@ Get a bond of the molecule. ``src`` and ``dst`` are interchangeable.
   method.
 )doc")
       .def(
+          "has_bond",
+          [](PyMol &self, int src, int dst) {
+            std::tie(src, dst) = check_bond_ends(*self, src, dst);
+            return self->find_bond(src, dst) != self->bond_end();
+          },
+          py::arg("src"), py::arg("dst"), R"doc(
+Check if two atoms are connected by a bond.
+
+:param src: The source atom of the bond.
+:param dst: The destination atom of the bond.
+:returns: Whether the source and destination atoms are connected by a bond.
+:raises IndexError: If the source or destination atom does not exist.
+)doc")
+      .def(
+          "has_bond",
+          [](PyMol &self, PyAtom &src, PyAtom &dst) {
+            auto [sa, da] = check_bond_ends(*self, src, dst);
+            return self->find_bond(sa, da) != self->bond_end();
+          },
+          py::arg("src"), py::arg("dst"), R"doc(
+Check if two atoms are connected by a bond.
+
+:param src: The source atom of the bond.
+:param dst: The destination atom of the bond.
+:returns: Whether the source and destination atoms are connected by a bond.
+:raises ValueError: If any of the atoms does not belong to the molecule.
+)doc")
+      .def(
           "num_bonds", [](PyMol &self) { return self->num_bonds(); }, R"doc(
 Get the number of bonds in the molecule. Equivalent to ``len(mol.bonds)``.
 )doc")
