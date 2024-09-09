@@ -226,12 +226,41 @@ namespace {
     return constants::kSP;
   }
 
+  bool torsion_can_sp2(const Matrix3Xd &pos, int a, int b, int c, int d) {
+    auto cos = cos_dihedral(pos.col(a), pos.col(b), pos.col(c), pos.col(d));
+    return cos >= kCos12 || cos <= -kCos12;
+  }
+
   constants::Hybridization hyb_common(Molecule::Atom atom,
                                       const Matrix3Xd &pos) {
     if (atom.degree() == 2) {
       double cos = cos_angle(pos.col(atom.id()), pos.col(atom[0].dst().id()),
                              pos.col(atom[1].dst().id()));
-      return hyb_from_cos(cos);
+      constants::Hybridization hyb = hyb_from_cos(cos);
+
+      if (hyb == constants::kSP2) {
+        for (int i = 0; i < 2; ++i) {
+          auto nei = atom[i];
+          if (nei.dst().degree() < 2)
+            return constants::kSP2;
+
+          if (nei.dst().degree() > 3)
+            continue;
+
+          auto oei = atom[1 - i];
+          if (absl::c_all_of(nei.dst(), [&](Molecule::Neighbor mei) {
+                return mei.dst().id() == atom.id()
+                       || torsion_can_sp2(pos, oei.dst().id(), atom.id(),
+                                          nei.dst().id(), mei.dst().id());
+              })) {
+            return constants::kSP2;
+          }
+        }
+
+        return constants::kSP3;
+      }
+
+      return hyb;
     }
 
     ABSL_DCHECK(atom.degree() == 3);
@@ -1213,11 +1242,6 @@ namespace {
     }
 
     return true;
-  }
-
-  bool torsion_can_sp2(const Matrix3Xd &pos, int a, int b, int c, int d) {
-    auto cos = cos_dihedral(pos.col(a), pos.col(b), pos.col(c), pos.col(d));
-    return cos >= kCos12 || cos <= -kCos12;
   }
 
   bool try_fix_overflow(
