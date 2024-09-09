@@ -992,6 +992,9 @@ namespace {
       if (nei.dst().degree() > 1
           && nei.dst().data().hybridization() != atom.data().hybridization())
         continue;
+      if (sum_bond_order(nei.dst()) >= internal::common_valence(
+              internal::effective_element_or_element(nei.dst())))
+        continue;
 
       double distsq =
                  (pos.col(nei.dst().id()) - pos.col(atom.id())).squaredNorm(),
