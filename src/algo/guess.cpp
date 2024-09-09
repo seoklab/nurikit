@@ -375,7 +375,7 @@ namespace {
   // carbon with three heteroatom, double/single/single
   bool fg_guanidinium_like(Molecule::MutableAtom atom, const Vector3d &dsqs,
                            ArrayXb &visited) {
-    if (absl::c_any_of(atom, [](auto nei) { return nei.dst().degree() > 2; }))
+    if (absl::c_any_of(atom, [](auto nei) { return nei.dst().degree() > 3; }))
       return false;
 
     // Now we favor double bonds on: terminal O > S > N > internal N > S > O
