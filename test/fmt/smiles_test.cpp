@@ -428,7 +428,12 @@ TEST_F(SmilesTest, AromaticityTest) {
       "O=C1C=CC(=O)C2=C1OC=CO2 aromatic test\n"
       // Extra
       "c1[cH-]ccc1 cyclopenadienyl anion\n"
-      "c1ccccc1:c2ccccc2 biphenyl error\n");
+      "c1ccccc1:c2ccccc2 biphenyl error\n"
+      // GH-364
+      "c1cc[nH]c1 pyrrole\n"
+      "C1C=CNC=1 pyrrole\n"
+      "c1c[nH]cn1 imidazole\n"
+      "C1=CNC=N1 imidazole\n");
 
   std::string smi;
 
@@ -505,6 +510,30 @@ TEST_F(SmilesTest, AromaticityTest) {
     EXPECT_EQ(total_nh, 5);
   };
 
+  auto test_pyrrole = [&]() {
+    NURI_FMT_TEST_NEXT_MOL("pyrrole", 5, 5);
+    EXPECT_EQ(mol().num_sssr(), 1);
+
+    int total_nh = 0;
+    for (auto atom: mol()) {
+      EXPECT_TRUE(atom.data().is_aromatic());
+      total_nh += atom.data().implicit_hydrogens();
+    }
+    EXPECT_EQ(total_nh, 5);
+  };
+
+  auto test_imidazole = [&]() {
+    NURI_FMT_TEST_NEXT_MOL("imidazole", 5, 5);
+    EXPECT_EQ(mol().num_sssr(), 1);
+
+    int total_nh = 0;
+    for (auto atom: mol()) {
+      EXPECT_TRUE(atom.data().is_aromatic());
+      total_nh += atom.data().implicit_hydrogens();
+    }
+    EXPECT_EQ(total_nh, 4);
+  };
+
   {
     SCOPED_TRACE("Initial read");
 
@@ -536,6 +565,16 @@ TEST_F(SmilesTest, AromaticityTest) {
     write_smiles(smi, mol());
 
     NURI_FMT_TEST_ERROR_MOL();
+
+    test_pyrrole();
+    write_smiles(smi, mol());
+    test_pyrrole();
+    write_smiles(smi, mol());
+
+    test_imidazole();
+    write_smiles(smi, mol());
+    test_imidazole();
+    write_smiles(smi, mol());
   }
 
   set_test_string(smi);
@@ -558,6 +597,12 @@ TEST_F(SmilesTest, AromaticityTest) {
     test_rdkit_aromatic2();
 
     test_cyclopentadienyl();
+
+    test_pyrrole();
+    test_pyrrole();
+
+    test_imidazole();
+    test_imidazole();
   }
 }
 
