@@ -930,30 +930,57 @@ namespace {
     return true;
   }
 
+  bool aromatic_can_pair_doubles(Array<int, Eigen::Dynamic, 1, 0, 7, 1> db_cnt,
+                                 int start) {
+    int size = static_cast<int>(db_cnt.size());
+    for (int i = start; i < size + start; i++) {
+      int curr = i % size, next = (i + 1) % size;
+      int sub = nuri::min(db_cnt[curr], db_cnt[next]);
+      db_cnt[curr] -= sub;
+      db_cnt[next] -= sub;
+    }
+    return (db_cnt == 0).all();
+  }
+
+  bool aromatic_can_conjugate(
+      const Array<int, Eigen::Dynamic, 1, 0, 7, 1> &pie_cnt) {
+    for (int i = 0; i < pie_cnt.size(); ++i) {
+      // 1 - 1, 1 - 0, 1 - 2 are all allowed
+      // benzene, tropylium ion, pyrrole are examples
+      if (pie_cnt[i] == 1)
+        continue;
+
+      // 0 == 0 or 2 == 2, forbidden
+      if (pie_cnt[i] == pie_cnt[(i + 1) % pie_cnt.size()])
+        return false;
+    }
+
+    return true;
+  }
+
   void test_ring_aromatic(
       Molecule &mol, const std::vector<int> &ring,
       absl::flat_hash_map<int, absl::InlinedVector<PiElecArgs, 2>>
           &pi_e_estimates) {
     absl::FixedArray<absl::InlinedVector<PiElecArgs, 2> *> args(ring.size());
     absl::InlinedVector<int, 7> variable;
-    int pie_sum_fixed = 0, db_cnt_fixed = 0, pie_sum_var = 0, db_cnt_var = 0;
+    Array<int, Eigen::Dynamic, 1, 0, 7, 1> pie_cnt(ring.size()),
+        db_cnt(ring.size());
 
     for (int i = 0; i < ring.size(); ++i) {
       auto &pi_e = pi_e_estimates.find(ring[i])->second;
       args[i] = &pi_e;
-      if (pi_e.size() == 1) {
-        pie_sum_fixed += pi_e[0].pi_e;
-        db_cnt_fixed += pi_e[0].endo_double;
-      } else {
-        pie_sum_var += pi_e[0].pi_e;
-        db_cnt_var += pi_e[0].endo_double;
+
+      pie_cnt[i] = pi_e[0].pi_e;
+      db_cnt[i] = pi_e[0].endo_double;
+      if (pi_e.size() > 1)
         variable.push_back(i);
-      }
     }
 
     auto is_aromatic = [&]() {
-      return (pie_sum_fixed + pie_sum_var) % 4 == 2
-             && (db_cnt_fixed + db_cnt_var) % 2 == 0;
+      return pie_cnt.sum() % 4 == 2 && aromatic_can_conjugate(pie_cnt)
+             && (aromatic_can_pair_doubles(db_cnt, 0)
+                 || aromatic_can_pair_doubles(db_cnt, 1));
     };
 
     unsigned int selected = 0U;
@@ -967,13 +994,11 @@ namespace {
       bool aromatic = false;
 
       while (!aromatic && ps >> selected) {
-        pie_sum_var = db_cnt_var = 0;
-
         for (int i = 0; i < variable.size(); ++i) {
           const auto &pi_e = *args[variable[i]];
           int idx = static_cast<int>(static_cast<bool>(selected & 1U << i));
-          pie_sum_var += pi_e[idx].pi_e;
-          db_cnt_var += pi_e[idx].endo_double;
+          pie_cnt[variable[i]] = pi_e[idx].pi_e;
+          db_cnt[variable[i]] = pi_e[idx].endo_double;
         }
 
         aromatic = is_aromatic();
