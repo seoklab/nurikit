@@ -842,7 +842,8 @@ namespace {
   };
 
   // We will just assume formal charges are incorrect yet
-  void count_pi_e_possible(Molecule::Atom atom,
+  // NOTE: also update test_ring_aromatic if you change this
+  bool count_pi_e_possible(Molecule::MutableAtom atom, const Matrix3Xd &pos,
                            absl::InlinedVector<PiElecArgs, 2> &pi_e) {
     ABSL_DCHECK(atom.degree() < 4);
 
@@ -853,13 +854,21 @@ namespace {
                         })
         - atom.begin();
 
-    int exo_double_partner = -1, exo_single_partner = -1;
+    int exo_oxy_double = -1, exo_single_partner = -1;
     if (exo_neighbor < atom.degree()) {
-      auto exo = atom[exo_neighbor].dst();
+      auto enei = atom[exo_neighbor];
+      auto exo = enei.dst();
+
+      assign_priority_double_sp2(exo, pos);
+      // Carbon with exocyclic double bond is unlikely to be aromatic
+      if (exo.data().atomic_number() == 6
+          && enei.edge_data().order() == constants::kDoubleBond) {
+        return false;
+      }
 
       exo_single_partner = exo_neighbor;
       if (exo.data().atomic_number() == 8 && exo.degree() == 1)
-        exo_double_partner = exo_neighbor;
+        exo_oxy_double = exo_neighbor;
     }
 
     // 1. all degree 2 could also be considered as degree 3 with one implicit H,
@@ -876,11 +885,21 @@ namespace {
       // Nothing special for explicit degree 3
       break;
     case 4:
-      if (atom.degree() == 3 && exo_double_partner >= 0)
-        // C=O possible
-        pi_e.push_back({ 0, 0, exo_double_partner, -1, 0, 3, 0 });
+      // C=O
+      if (exo_oxy_double >= 0) {
+        pi_e.push_back({ 0, 0, exo_oxy_double, -1, 0, 3, 1 });
+        // lactone-like or lactam-like, unlikely to be C-OH
+        if (absl::c_any_of(atom, [&](Molecule::Neighbor nei) {
+              return nei.dst().id() != atom[exo_oxy_double].dst().id()
+                     && nei.dst().data().atomic_number() != 6;
+            })) {
+          break;
+        }
+      }
+
       // C, degree 3 (possibly one implicit H)
       pi_e.push_back({ 1, 1, -1, exo_single_partner, 0, 3, 1 });  // benzene
+
       // C with only 2 neighbors is very unlikely to be aromatic
       break;
     case 5:
@@ -888,8 +907,8 @@ namespace {
       pi_e.push_back({ 2, 0, -1, exo_single_partner, 0, 3, 1 });  // pyrrole
       if (atom.degree() == 2) {
         pi_e.push_back({ 1, 1, -1, exo_single_partner, 0, 2, 1 });  // pyridine
-      } else if (/* atom.degree() == 3 && */ exo_double_partner >= 0) {
-        pi_e.push_back({ 1, 1, exo_double_partner, -1, +1, 3, 0 });  // N-oxide
+      } else if (/* atom.degree() == 3 && */ exo_oxy_double >= 0) {
+        pi_e.push_back({ 1, 1, exo_oxy_double, -1, +1, 3, 0 });  // N-oxide
       }
       break;
     case 6:
@@ -908,6 +927,7 @@ namespace {
     }
 
     ABSL_DCHECK(pi_e.size() <= 2);
+    return true;
   }
 
   void test_ring_aromatic(
@@ -1008,27 +1028,32 @@ namespace {
     }
   }
 
-  void find_aromatics(Molecule &mol,
+  void find_aromatics(Molecule &mol, const Matrix3Xd &pos,
                       const std::vector<std::vector<int>> &rings) {
     absl::flat_hash_map<int, absl::InlinedVector<PiElecArgs, 2>> pi_e_estimates;
-
-    for (auto &ring: mol.ring_groups()) {
-      for (int i: ring) {
-        auto atom = mol.atom(i);
-        if (is_aromatic_candidate(atom))
-          count_pi_e_possible(atom, pi_e_estimates[i]);
-      }
-    }
 
     for (auto &ring: rings) {
       if (ring.size() < 5 || ring.size() > 7)
         continue;
 
-      if (absl::c_any_of(ring,
-                         [&](int i) { return !pi_e_estimates.contains(i); }))
-        continue;
+      bool all_cnd = true;
+      for (int i: ring) {
+        if (pi_e_estimates.contains(i))
+          continue;
 
-      test_ring_aromatic(mol, ring, pi_e_estimates);
+        auto atom = mol[i];
+        if (!is_aromatic_candidate(atom)) {
+          all_cnd = false;
+          break;
+        }
+
+        all_cnd = count_pi_e_possible(atom, pos, pi_e_estimates[i]);
+        if (!all_cnd)
+          break;
+      }
+
+      if (all_cnd)
+        test_ring_aromatic(mol, ring, pi_e_estimates);
     }
   }
 
@@ -1714,7 +1739,7 @@ namespace {
     guess_hyb_nonterminal(mol, pos, rings);
     recognize_fg(mol, pos);
     assign_priority_bonds(mol, pos);
-    find_aromatics(mol, rings);
+    find_aromatics(mol, pos, rings);
     assign_bond_orders(mol, pos);
 
     Conflicts conflicts;
