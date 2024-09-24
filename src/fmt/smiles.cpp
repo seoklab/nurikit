@@ -442,10 +442,7 @@ BOOST_SPIRIT_DEFINE(smiles)
 // NOLINTEND(readability-identifier-naming,clang-diagnostic-unused-template)
 
 void update_implicit_hydrogens(Molecule::MutableAtom atom) {
-  // Required for correct bond order calculation
-  atom.data().set_implicit_hydrogens(0);
-
-  int sum_bo = sum_bond_order(atom), normal_valence;
+  int sum_bo = internal::sum_bond_order_raw(atom, 0, true), normal_valence;
 
   switch (atom.data().atomic_number()) {
   case 0:
@@ -650,22 +647,30 @@ bool can_write_organic(Molecule::Atom atom) {
       || ABSL_PREDICT_FALSE(atom.data().explicit_isotope() != nullptr))
     return false;
 
-  int valence = sum_bond_order(atom);
+  // See update_implicit_hydrogens()
+  int valence = internal::sum_bond_order_raw(atom, 0, true), pred_implicit_h;
 
   switch (atom.data().atomic_number()) {
   case 0:
     return true;
   case 5:
   case 7:
-    return valence == 3;
+    pred_implicit_h = 3 - valence;
+    break;
   case 6:
-    return valence == 4;
+    pred_implicit_h = 4 - valence;
+    break;
   case 8:
-    return valence == 2;
+    pred_implicit_h = 2 - valence;
+    break;
   case 15:
-    return valence == 3 || valence == 5;
+    pred_implicit_h = valence > 3 ? valence - 5 : valence - 3;
+    break;
   case 16:
-    return valence == 2 || valence == 4 || valence == 6;
+    pred_implicit_h = valence > 4   ? 6 - valence
+                      : valence > 2 ? 4 - valence
+                                    : 2 - valence;
+    break;
   case 9:  // halogens
   case 17:
   case 35:
@@ -674,6 +679,8 @@ bool can_write_organic(Molecule::Atom atom) {
   default:
     return false;
   }
+
+  return pred_implicit_h == atom.data().implicit_hydrogens();
 }
 
 void write_organic(std::string &out, Molecule::Atom atom) {
