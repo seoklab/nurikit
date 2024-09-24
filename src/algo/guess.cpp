@@ -1172,15 +1172,18 @@ namespace {
   };
 
   template <auto thres>
-  void mark_multiple_bonds_hyb(Molecule::MutableAtom atom, const Matrix3Xd &pos,
-                               constants::BondOrder ifshort) {
+  int mark_multiple_bonds_hyb(Molecule::MutableAtom atom, const Matrix3Xd &pos,
+                              constants::BondOrder ifshort, int max_allowed) {
+    if (max_allowed <= 0)
+      return 0;
+
     absl::InlinedVector<MultipleBondFindParams, 3> candidates;
     for (int i = 0; i < atom.degree(); ++i) {
       auto nei = atom[i];
       if (nei.edge_data().order() != constants::kOtherBond)
         continue;
       if (all_neighbors(nei.dst()) > 1
-          && nei.dst().data().hybridization() != atom.data().hybridization())
+          && nei.dst().data().hybridization() > atom.data().hybridization())
         continue;
       if (sum_bond_order(nei.dst()) >= internal::common_valence(
               internal::effective_element_or_element(nei.dst())))
@@ -1189,29 +1192,32 @@ namespace {
       double distsq =
                  (pos.col(nei.dst().id()) - pos.col(atom.id())).squaredNorm(),
              cuttofsq = ordered<thres>(atom.data(), nei.dst().data());
-      if (distsq <= cuttofsq)
+      if (distsq <= cuttofsq && ifshort == constants::kDoubleBond
+          && torsion_can_double_bond(pos, nei))
         candidates.push_back({ i, distsq, cuttofsq });
       else
         nei.edge_data().set_order(constants::kSingleBond);
     }
 
     if (candidates.empty())
-      return;
+      return 0;
 
-    if (candidates.size() > 1) {
+    if (candidates.size() > max_allowed) {
       for (auto &arg: candidates) {
         arg.distsq = std::sqrt(arg.distsq);
         arg.cuttofsq = std::sqrt(arg.cuttofsq);
       }
-      absl::c_sort(candidates, [](const auto &lhs, const auto &rhs) {
+      absl::c_sort(candidates, [](const MultipleBondFindParams &lhs,
+                                  const MultipleBondFindParams &rhs) {
         return lhs.distsq - lhs.cuttofsq < rhs.distsq - rhs.cuttofsq;
       });
-
-      for (int i = 1; i < candidates.size(); ++i)
-        atom[candidates[i].idx].edge_data().set_order(constants::kSingleBond);
+      candidates.resize(max_allowed);
     }
 
-    atom[candidates[0].idx].edge_data().set_order(ifshort);
+    for (const auto &cnd: candidates)
+      atom[cnd.idx].edge_data().set_order(ifshort);
+
+    return std::min(static_cast<int>(candidates.size()), max_allowed);
   }
 
   void find_multiple_bonds(Molecule::MutableAtom atom, const Matrix3Xd &pos) {
@@ -1224,24 +1230,39 @@ namespace {
       return;
     }
 
-    if (atom.data().hybridization() > constants::kSP2
-        || absl::c_any_of(atom, [](auto nei) {
-             return nei.edge_data().order() >= constants::kDoubleBond;
-           }))
+    if (atom.data().hybridization() > constants::kSP2)
       return;
+
+    int multi_bonds = sum_bond_order(atom) - total_degree;
+    int multi_avail;
 
     // NOLINTNEXTLINE(clang-diagnostic-switch-enum)
     switch (atom.data().hybridization()) {
     case constants::kSP:
-      mark_multiple_bonds_hyb<triple_bond_distsq_approx>(
-          atom, pos, constants::kTripleBond);
-      ABSL_FALLTHROUGH_INTENDED;
+      multi_avail = 2 - multi_bonds;
+      multi_avail -= mark_multiple_bonds_hyb<triple_bond_distsq_approx>(
+                         atom, pos, constants::kTripleBond, multi_avail / 2)
+                     * 2;
+      if (multi_avail <= 0)
+        break;
+
+      multi_avail -= mark_multiple_bonds_hyb<double_bond_distsq_approx>(
+          atom, pos, constants::kDoubleBond, multi_avail);
+      break;
     case constants::kSP2:
-      mark_multiple_bonds_hyb<double_bond_distsq_approx>(
-          atom, pos, constants::kDoubleBond);
+      multi_avail = 1 - multi_bonds;
+      multi_avail -= mark_multiple_bonds_hyb<double_bond_distsq_approx>(
+          atom, pos, constants::kDoubleBond, multi_avail);
       break;
     default:
+      multi_avail = 0;
       break;
+    }
+
+    if (multi_avail == 0) {
+      for (auto nei: atom)
+        if (nei.edge_data().order() == constants::kOtherBond)
+          nei.edge_data().set_order(constants::kSingleBond);
     }
   }
 
