@@ -719,6 +719,49 @@ namespace {
     }
   }
 
+  void assign_priority_bonds(Molecule &mol) {
+    // Assign confident single bonds
+    for (auto atom: mol) {
+      if (atom.degree() < 3 || atom.data().hybridization() != constants::kSP3
+          || atom.data().element().period() > 2)
+        continue;
+
+      for (auto nei: atom)
+        nei.edge_data().set_order(constants::kSingleBond);
+    }
+
+    // Assign double bonds if no other choice
+    for (auto atom: mol) {
+      if (atom.data().atomic_number() != 6 || atom.degree() < 3
+          || atom.data().hybridization() != constants::kSP2)
+        continue;
+
+      int sel = -1;
+      for (int i = 0; i < atom.degree(); ++i) {
+        auto nei = atom[i];
+        if (nei.edge_data().order() > constants::kSingleBond) {
+          sel = -1;
+          break;
+        }
+
+        if (nei.edge_data().order() == constants::kOtherBond) {
+          if (sel < 0) {
+            sel = i;
+          } else {
+            sel = -1;
+            break;
+          }
+        }
+      }
+      if (sel < 0)
+        continue;
+
+      auto cnd = atom[sel];
+      if (cnd.dst().data().hybridization() <= constants::kSP2)
+        cnd.edge_data().set_order(constants::kDoubleBond);
+    }
+  }
+
   bool is_aromatic_candidate(Molecule::Atom ring_atom) {
     const AtomData &data = ring_atom.data();
     return 3 <= data.element().valence_electrons()
@@ -1608,6 +1651,7 @@ namespace {
 
     guess_hyb_nonterminal(mol, pos, rings);
     recognize_fg(mol, pos);
+    assign_priority_bonds(mol);
     find_aromatics(mol, rings);
     assign_bond_orders(mol, pos);
 
