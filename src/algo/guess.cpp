@@ -380,7 +380,7 @@ namespace {
     if (n.dst().degree() + m.dst().degree() != 3)
       return false;
 
-    auto [terminal, internal] = std::minmax(n, m, [](auto l, auto r) {
+    auto [terminal, internal] = nuri::minmax(n, m, [](auto l, auto r) {
       return l.dst().degree() < r.dst().degree();
     });
 
@@ -568,7 +568,7 @@ namespace {
       return false;
 
     auto [near, far] =
-        std::minmax(oxygens[0], oxygens[1], [&](auto lhs, auto rhs) {
+        nuri::minmax(oxygens[0], oxygens[1], [&](auto lhs, auto rhs) {
           return (pos.col(lhs.dst().id()) - pos.col(atom.id())).squaredNorm()
                  < (pos.col(rhs.dst().id()) - pos.col(atom.id())).squaredNorm();
         });
@@ -947,8 +947,7 @@ namespace {
 
   template <auto cutoff>
   auto ordered(const AtomData &a, const AtomData &b) {
-    int an1 = a.atomic_number(), an2 = b.atomic_number();
-    std::tie(an1, an2) = std::minmax(an1, an2);
+    auto [an1, an2] = nuri::minmax(a.atomic_number(), b.atomic_number());
     return cutoff(an1, an2);
   }
 
