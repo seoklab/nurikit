@@ -1630,8 +1630,11 @@ namespace {
                                            - allowed);
 
         nei.edge_data().order() = new_ord;
-        nei_data.set_implicit_hydrogens(nei_data.implicit_hydrogens() - allowed)
-            .set_hybridization(clamp_hyb(nei_data.hybridization() - allowed));
+        nei_data.set_implicit_hydrogens(nei_data.implicit_hydrogens()
+                                        - allowed);
+        // No need for conjugation check, at least one multiple bond exists
+        nei_data.set_hybridization(internal::from_degree(
+            sum_bond_order(nei.dst()), nonbonding_electrons(nei.dst())));
 
         required -= allowed;
         if (required <= 0)
