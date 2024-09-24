@@ -366,10 +366,36 @@ namespace {
     hyb_antialiasing(mol);
   }
 
-  // * - N = N(+) = N(-)
-  bool fg_sec(Molecule::MutableAtom atom, ArrayXb &visited) {
+  bool fg_nitrile(Molecule::MutableAtom atom) {
     auto n = atom[0], m = atom[1];
 
+    auto is_nitrile_nitrogen = [](Molecule::Atom a) {
+      return a.data().atomic_number() == 7 && all_neighbors(a) == 1;
+    };
+
+    bool is_n = is_nitrile_nitrogen(n.dst()),
+         is_m = is_nitrile_nitrogen(m.dst());
+    if (is_n == is_m)
+      return false;
+
+    if (is_m)
+      std::swap(n, m);
+
+    n.edge_data().set_order(constants::kTripleBond);
+    n.dst().data().set_hybridization(constants::kTerminal);
+
+    m.edge_data().set_order(constants::kSingleBond);
+    return true;
+  }
+
+  // * - N = N(+) = N(-) or - C # N
+  bool fg_sec(Molecule::MutableAtom atom, ArrayXb &visited) {
+    if (atom.data().hybridization() == constants::kSP
+        && atom.data().atomic_number() == 6) {
+      return fg_nitrile(atom);
+    }
+
+    auto n = atom[0], m = atom[1];
     if (absl::c_any_of(std::array { atom, n.dst(), m.dst() },
                        [](Molecule::Atom a) {
                          return a.data().atomic_number() != 7;
