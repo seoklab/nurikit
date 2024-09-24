@@ -16,7 +16,6 @@
 #include <Eigen/Dense>
 
 #include <absl/algorithm/container.h>
-#include <absl/base/attributes.h>
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
 #include <absl/container/flat_hash_map.h>
