@@ -1924,12 +1924,16 @@ namespace {
     guess_hyb_fcharge_hydrogens(mol, conflicts);
     guess_conjugated(mol, pos, conflicts);
 
+    for (int prev_conflicts = conflicts.size() + 1;
+         !conflicts.empty() && conflicts.size() < prev_conflicts;) {
+      prev_conflicts = conflicts.size();
+      try_fix_conflicts(mol, pos, conflicts);
+      guess_conjugated(mol, pos, conflicts);
+    }
+
     if (!conflicts.empty()) {
-      bool success = try_fix_conflicts(mol, pos, conflicts);
-      if (!success) {
-        ABSL_LOG(WARNING) << "Failed to fix conflicts.";
-        return false;
-      }
+      ABSL_LOG(WARNING) << "Failed to fix conflicts.";
+      return false;
     }
 
     return true;
