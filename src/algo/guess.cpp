@@ -231,6 +231,29 @@ namespace {
     return cos >= kCos15 || cos <= -kCos15;
   }
 
+  bool torsion_can_double_bond(const Matrix3Xd &pos, Molecule::Neighbor nei) {
+    auto a = nei.src(), b = nei.dst();
+
+    if (a.data().hybridization() <= constants::kSP
+        || b.data().hybridization() <= constants::kSP)
+      return true;
+
+    for (auto anei: a) {
+      if (anei.dst().id() == b.id())
+        continue;
+
+      if (absl::c_any_of(b, [&](Molecule::Neighbor bnei) {
+            return bnei.dst().id() != a.id()
+                   && !torsion_can_sp2(pos, anei.dst().id(), a.id(), b.id(),
+                                       bnei.dst().id());
+          })) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   constants::Hybridization hyb_common(Molecule::Atom atom,
                                       const Matrix3Xd &pos) {
     if (atom.degree() == 2) {
