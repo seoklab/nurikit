@@ -185,18 +185,18 @@ namespace {
    *  https://web.archive.org/web/20231205050012/https://www.daylight.com/meetings/mug01/Sayle/m4xbondage.html
    */
   // NOLINTBEGIN(*-identifier-naming)
-  constexpr double kCos12 =
-      0.9781476007338056379285667478695995324597378088626771078851776636;
+  constexpr double kCos15 =
+      0.9659258262890682867497431997288973676339048390084045504023430763;
   constexpr double kCos115 =
       -0.422618261740699436186978489647730181563129301194864623444415159;
   constexpr double kCos155 =
       -0.906307787036649963242552656754316983267712625175864680871298408;
-  constexpr double kTan7_5_2 =
-      0.0655434628152382285645437248799427949221949914029802006303100545;
-  constexpr double kTan12_2 =
-      0.1051042352656764625115023801398819152502466495456868828786615681;
-  constexpr double kTan115_2 =
-      1.5696855771174903493169008981422644345880067331018642430094409448;
+  constexpr double kTan10_2 =
+      0.0874886635259240052220186694349614581194542763681082291452366622;
+  constexpr double kTan15_2 =
+      0.1316524975873958534715264574097171035928141022232375735535653257;
+  constexpr double kTan116_2 =
+      1.6003345290410503553267330811833575255040718469227591484115002297;
   constexpr double kTan155_2 =
       4.5107085036620571342899391172547519686713241944553043587162345185;
   // NOLINTEND(*-identifier-naming)
@@ -215,9 +215,9 @@ namespace {
 
   constants::Hybridization hyb_from_vectors(const Matrix3d &vectors) {
     auto [ssum, csum] = sum_tan2_half(vectors);
-    double sum_sin_115_2 = kTan115_2 * csum, sum_sin_155_2 = kTan155_2 * csum;
+    double sum_sin_116_2 = kTan116_2 * csum, sum_sin_155_2 = kTan155_2 * csum;
 
-    if (ssum <= sum_sin_115_2)
+    if (ssum <= sum_sin_116_2)
       return constants::kSP3;
 
     if (ssum <= sum_sin_155_2)
@@ -228,7 +228,7 @@ namespace {
 
   bool torsion_can_sp2(const Matrix3Xd &pos, int a, int b, int c, int d) {
     auto cos = cos_dihedral(pos.col(a), pos.col(b), pos.col(c), pos.col(d));
-    return cos >= kCos12 || cos <= -kCos12;
+    return cos >= kCos15 || cos <= -kCos15;
   }
 
   constants::Hybridization hyb_common(Molecule::Atom atom,
@@ -357,9 +357,9 @@ namespace {
 
     for (auto &ring: rings) {
       if (ring.size() == 5) {
-        hyb_ring(mol, pos, ring, kTan7_5_2);
+        hyb_ring(mol, pos, ring, kTan10_2);
       } else if (ring.size() == 6) {
-        hyb_ring(mol, pos, ring, kTan12_2);
+        hyb_ring(mol, pos, ring, kTan15_2);
       }
     }
 
