@@ -434,7 +434,7 @@ namespace {
       return false;
 
     // Now we favor double bonds on: terminal O > S > N > internal N > S > O
-    //                                        0   1   2            3   4   5
+    //                                        0   1   2           21  22  23
     // If the carbon is in a ring, add penalty (10) to ring bonds
     Array3i penalty;
     for (int i = 0; i < atom.degree(); ++i) {
@@ -443,13 +443,13 @@ namespace {
 
       switch (dst.data().atomic_number()) {
       case 7:
-        penalty[i] = 2 + value_if(dst.degree() > 1, 1);
+        penalty[i] = 2 + value_if(dst.degree() > 2, 19);
         break;
       case 8:
-        penalty[i] = 0 + value_if(dst.degree() > 1, 5);
+        penalty[i] = 0 + value_if(dst.degree() > 1, 23);
         break;
       case 16:
-        penalty[i] = 1 + value_if(dst.degree() > 1, 3);
+        penalty[i] = 1 + value_if(dst.degree() > 1, 21);
         break;
       default:
         penalty[i] = 100;
@@ -571,8 +571,17 @@ namespace {
           .set_hybridization(constants::kSP2)
           .set_formal_charge(nonnegative(dst.degree() - nnei))
           .set_implicit_hydrogens(nonnegative(nnei - dst.degree()));
-      nei.edge_data().set_order(i == dnei ? constants::kDoubleBond
-                                          : constants::kSingleBond);
+
+      for (auto mei: dst)
+        if (mei.edge_data().order() == constants::kOtherBond)
+          mei.edge_data().set_order(constants::kSingleBond);
+    }
+
+    atom[dnei].edge_data().set_order(constants::kDoubleBond);
+
+    if (ordered.size() == 3) {
+      auto nei = atom[ordered[2]];
+      nei.edge_data().set_order(constants::kSingleBond);
     }
 
     return true;
