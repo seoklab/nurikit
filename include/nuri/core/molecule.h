@@ -2301,7 +2301,13 @@ namespace internal {
   extern const Element &
   effective_element_or_element(Molecule::Atom atom) noexcept;
 
-  extern int sum_bond_order(Molecule::Atom atom, bool aromatic_correct);
+  extern int sum_bond_order_raw(Molecule::Atom atom, int implicit_hydrogens,
+                                bool aromatic_correct);
+
+  inline int sum_bond_order(Molecule::Atom atom, bool aromatic_correct) {
+    return sum_bond_order_raw(atom, atom.data().implicit_hydrogens(),
+                              aromatic_correct);
+  }
 
   extern int steric_number(int total_degree, int nb_electrons);
 

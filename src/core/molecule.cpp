@@ -498,9 +498,9 @@ void MoleculeMutator::finalize() noexcept {
 /* MoleculeSanitizer definitions */
 
 namespace internal {
-  int sum_bond_order(Molecule::Atom atom, bool aromatic_correct) {
-    int sum_order = atom.data().implicit_hydrogens(), num_aromatic = 0,
-        num_multiple_bond = 0;
+  int sum_bond_order_raw(Molecule::Atom atom, int implicit_hydrogens,
+                         bool aromatic_correct) {
+    int sum_order = implicit_hydrogens, num_aromatic = 0, num_multiple_bond = 0;
 
     for (auto adj: atom) {
       if (adj.edge_data().order() == constants::kAromaticBond) {
