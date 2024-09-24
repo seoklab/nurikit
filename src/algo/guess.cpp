@@ -1906,6 +1906,153 @@ namespace {
     mark_conjugated(mol, groups, conflicts);
   }
 
+  enum class Carbonyl {
+    kNone,
+    kAldehyde,
+    kKetone,
+    kAcidEster,
+    kAmide,
+    kOther,
+  };
+
+  void adjust_tautomers(Molecule &mol, const Matrix3Xd &pos) {
+    absl::FixedArray<std::pair<int, Carbonyl>> carbonyls(
+        mol.size(), { -1, Carbonyl::kNone });
+
+    for (auto atom: mol) {
+      if (atom.data().atomic_number() != 8
+          || atom.data().hybridization() != constants::kTerminal
+          || atom.data().formal_charge() != 0
+          || atom[0].edge_data().order() != constants::kDoubleBond
+          || atom[0].dst().data().hybridization() != constants::kSP2
+          || atom[0].dst().data().formal_charge() != 0
+          || atom[0].dst().data().atomic_number() != 6
+          || all_neighbors(atom[0].dst()) != 3) {
+        continue;
+      }
+
+      auto carbonyl = atom[0].dst();
+      int idx = -1;
+      int hcnt = carbonyl.data().implicit_hydrogens(), ncnt = 0, ocnt = 0,
+          other_cnt = 0;
+      for (int i = 0; i < carbonyl.degree(); ++i) {
+        auto nei = carbonyl[i];
+
+        if (nei.dst().id() == atom.id()) {
+          idx = i;
+          continue;
+        }
+
+        // Aromatic ring possible
+        if (nei.edge_data().order() > constants::kSingleBond) {
+          idx = -1;
+          break;
+        }
+
+        switch (nei.dst().data().atomic_number()) {
+        case 1:
+          ++hcnt;
+          break;
+        case 6:
+          break;
+        case 7:
+          ++ncnt;
+          break;
+        case 8:
+          ++ocnt;
+          break;
+        default:
+          ++other_cnt;
+          break;
+        }
+      }
+      if (idx < 0)
+        continue;
+
+      // guanidinium-like structure
+      if (ocnt + ncnt + other_cnt > 1)
+        continue;
+
+      Carbonyl type;
+      if (hcnt > 0) {
+        type = Carbonyl::kAldehyde;
+      } else if (ocnt > 0) {
+        type = Carbonyl::kAcidEster;
+      } else if (ncnt > 0) {
+        type = Carbonyl::kAmide;
+      } else if (other_cnt > 0) {
+        type = Carbonyl::kOther;
+      } else {
+        type = Carbonyl::kKetone;
+      }
+
+      carbonyls[carbonyl.id()] = { idx, type };
+    }
+
+    for (auto atom: mol) {
+      // degree >= 3 should already have correct multiple bonds
+      if (atom.degree() != 2)
+        continue;
+
+      auto n1 = atom[0], n2 = atom[1];
+      auto c1_data = carbonyls[n1.dst().id()],
+           c2_data = carbonyls[n2.dst().id()];
+      if (c1_data.first < 0 || c2_data.first < 0)
+        continue;
+
+      if (c1_data.second > c2_data.second) {
+        std::swap(n1, n2);
+        std::swap(c1_data, c2_data);
+      }
+
+      // Consider beta-keto acids/esters or beta-diketones
+      if (c1_data.second != Carbonyl::kKetone
+          || c2_data.second >= Carbonyl::kAmide)
+        continue;
+
+      if (!torsion_can_sp2(pos, n1.dst()[c1_data.first].dst().id(),
+                           n1.dst().id(), atom.id(), n2.dst().id())
+          || !torsion_can_sp2(pos, n1.dst().id(), atom.id(), n2.dst().id(),
+                              n2.dst()[c2_data.first].dst().id())) {
+        continue;
+      }
+
+      if (c2_data.second == Carbonyl::kKetone
+          && (pos.col(n1.dst()[c1_data.first].dst().id())
+              - pos.col(n1.dst().id()))
+                     .squaredNorm()
+                 < (pos.col(n2.dst()[c2_data.first].dst().id())
+                    - pos.col(n2.dst().id()))
+                       .squaredNorm()) {
+        std::swap(n1, n2);
+        std::swap(c1_data, c2_data);
+      }
+
+      n1.dst()[c1_data.first]
+          .dst()
+          .data()
+          .set_conjugated(true)
+          .set_hybridization(constants::kSP2)
+          .set_implicit_hydrogens(1);
+      n1.dst()[c1_data.first].edge_data().set_conjugated(true).set_order(
+          constants::kSingleBond);
+
+      n1.dst().data().set_conjugated(true);
+      n1.edge_data().set_conjugated(true).set_order(constants::kDoubleBond);
+
+      atom.data()
+          .set_conjugated(true)
+          .set_hybridization(constants::kSP2)
+          .set_implicit_hydrogens(atom.data().implicit_hydrogens() - 1);
+
+      n2.edge_data().set_conjugated(true);
+      n2.dst().data().set_conjugated(true);
+
+      n2.dst()[c2_data.first].edge_data().set_conjugated(true);
+      n2.dst()[c2_data.first].dst().data().set_conjugated(true);
+    }
+  }
+
   bool guess_types_common(Molecule &mol, const Matrix3Xd &pos) {
     Rings rings;
     bool ok;
@@ -1936,6 +2083,7 @@ namespace {
       return false;
     }
 
+    adjust_tautomers(mol, pos);
     return true;
   }
 }  // namespace
