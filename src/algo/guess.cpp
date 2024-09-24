@@ -1314,6 +1314,10 @@ namespace {
 
     iterator find(int idx) { return data_.find(idx); }
 
+    bool contains(int idx) const { return data_.contains(idx); }
+
+    int size() const { return static_cast<int>(data_.size()); }
+
     bool empty() const { return data_.empty(); }
 
     auto begin() { return data_.begin(); }
