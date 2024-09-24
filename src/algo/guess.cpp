@@ -244,7 +244,7 @@ namespace {
           if (nei.dst().degree() < 2)
             return constants::kSP2;
 
-          if (nei.dst().degree() > 3)
+          if (all_neighbors(nei.dst()) > 3)
             continue;
 
           auto oei = atom[1 - i];
@@ -897,7 +897,8 @@ namespace {
       return false;
 
     auto nit = absl::c_find_if(atom, [](Molecule::Neighbor nei) {
-      return nei.dst().data().atomic_number() == 8 && nei.dst().degree() == 1
+      return nei.dst().data().atomic_number() == 8
+             && all_neighbors(nei.dst()) == 1
              && nei.edge_data().order() == constants::kOtherBond;
     });
     if (nit == atom.end())
@@ -955,7 +956,7 @@ namespace {
                                         const Matrix3Xd &pos) {
     auto nei = atom[0];
     if (nei.edge_data().order() != constants::kOtherBond
-        || nei.dst().degree() != 1)
+        || all_neighbors(nei.dst()) != 1)
       return;
 
     double distsq =
@@ -988,7 +989,7 @@ namespace {
       auto nei = atom[i];
       if (nei.edge_data().order() != constants::kOtherBond)
         continue;
-      if (nei.dst().degree() > 1
+      if (all_neighbors(nei.dst()) > 1
           && nei.dst().data().hybridization() != atom.data().hybridization())
         continue;
       if (sum_bond_order(nei.dst()) >= internal::common_valence(
@@ -1027,7 +1028,8 @@ namespace {
     if (atom.degree() == 0)
       return;
 
-    if (atom.degree() == 1) {
+    int total_degree = all_neighbors(atom);
+    if (total_degree == 1) {
       mark_multiple_bonds_all_terminal(atom, pos);
       return;
     }
