@@ -5,7 +5,6 @@
 
 #include "nuri/fmt/smiles.h"
 
-#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <functional>
@@ -601,9 +600,8 @@ bool number_rings(ArrayXi &ring_idxs, const Molecule &mol,
   ArrayXi left(broken_bonds.size()), right(broken_bonds.size());
   for (int i = 0; i < broken_bonds.size(); ++i) {
     auto bond = mol.bond(broken_bonds[i]);
-    int src_ord = atom_order[bond.src().id()],
-        dst_ord = atom_order[bond.dst().id()];
-    std::tie(left[i], right[i]) = std::minmax(src_ord, dst_ord);
+    std::tie(left[i], right[i]) =
+        nuri::minmax(atom_order[bond.src().id()], atom_order[bond.dst().id()]);
   }
 
   ArrayXi left_idxs_ordered = argsort<>(left);

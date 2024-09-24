@@ -16,7 +16,6 @@
 #include <Eigen/Dense>
 
 #include <absl/algorithm/container.h>
-#include <absl/base/attributes.h>
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
 #include <absl/container/flat_hash_map.h>
@@ -185,18 +184,18 @@ namespace {
    *  https://web.archive.org/web/20231205050012/https://www.daylight.com/meetings/mug01/Sayle/m4xbondage.html
    */
   // NOLINTBEGIN(*-identifier-naming)
-  constexpr double kCos12 =
-      0.9781476007338056379285667478695995324597378088626771078851776636;
+  constexpr double kCos15 =
+      0.9659258262890682867497431997288973676339048390084045504023430763;
   constexpr double kCos115 =
       -0.422618261740699436186978489647730181563129301194864623444415159;
   constexpr double kCos155 =
       -0.906307787036649963242552656754316983267712625175864680871298408;
-  constexpr double kTan7_5_2 =
-      0.0655434628152382285645437248799427949221949914029802006303100545;
-  constexpr double kTan12_2 =
-      0.1051042352656764625115023801398819152502466495456868828786615681;
-  constexpr double kTan115_2 =
-      1.5696855771174903493169008981422644345880067331018642430094409448;
+  constexpr double kTan10_2 =
+      0.0874886635259240052220186694349614581194542763681082291452366622;
+  constexpr double kTan15_2 =
+      0.1316524975873958534715264574097171035928141022232375735535653257;
+  constexpr double kTan116_2 =
+      1.6003345290410503553267330811833575255040718469227591484115002297;
   constexpr double kTan155_2 =
       4.5107085036620571342899391172547519686713241944553043587162345185;
   // NOLINTEND(*-identifier-naming)
@@ -215,9 +214,9 @@ namespace {
 
   constants::Hybridization hyb_from_vectors(const Matrix3d &vectors) {
     auto [ssum, csum] = sum_tan2_half(vectors);
-    double sum_sin_115_2 = kTan115_2 * csum, sum_sin_155_2 = kTan155_2 * csum;
+    double sum_sin_116_2 = kTan116_2 * csum, sum_sin_155_2 = kTan155_2 * csum;
 
-    if (ssum <= sum_sin_115_2)
+    if (ssum <= sum_sin_116_2)
       return constants::kSP3;
 
     if (ssum <= sum_sin_155_2)
@@ -226,12 +225,64 @@ namespace {
     return constants::kSP;
   }
 
+  bool torsion_can_sp2(const Matrix3Xd &pos, int a, int b, int c, int d) {
+    auto cos = cos_dihedral(pos.col(a), pos.col(b), pos.col(c), pos.col(d));
+    return cos >= kCos15 || cos <= -kCos15;
+  }
+
+  bool torsion_can_double_bond(const Matrix3Xd &pos, Molecule::Neighbor nei) {
+    auto a = nei.src(), b = nei.dst();
+
+    if (a.data().hybridization() <= constants::kSP
+        || b.data().hybridization() <= constants::kSP)
+      return true;
+
+    for (auto anei: a) {
+      if (anei.dst().id() == b.id())
+        continue;
+
+      if (absl::c_any_of(b, [&](Molecule::Neighbor bnei) {
+            return bnei.dst().id() != a.id()
+                   && !torsion_can_sp2(pos, anei.dst().id(), a.id(), b.id(),
+                                       bnei.dst().id());
+          })) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   constants::Hybridization hyb_common(Molecule::Atom atom,
                                       const Matrix3Xd &pos) {
     if (atom.degree() == 2) {
       double cos = cos_angle(pos.col(atom.id()), pos.col(atom[0].dst().id()),
                              pos.col(atom[1].dst().id()));
-      return hyb_from_cos(cos);
+      constants::Hybridization hyb = hyb_from_cos(cos);
+
+      if (hyb == constants::kSP2) {
+        for (int i = 0; i < 2; ++i) {
+          auto nei = atom[i];
+          if (nei.dst().degree() < 2)
+            return constants::kSP2;
+
+          if (all_neighbors(nei.dst()) > 3)
+            continue;
+
+          auto oei = atom[1 - i];
+          if (absl::c_all_of(nei.dst(), [&](Molecule::Neighbor mei) {
+                return mei.dst().id() == atom.id()
+                       || torsion_can_sp2(pos, oei.dst().id(), atom.id(),
+                                          nei.dst().id(), mei.dst().id());
+              })) {
+            return constants::kSP2;
+          }
+        }
+
+        return constants::kSP3;
+      }
+
+      return hyb;
     }
 
     ABSL_DCHECK(atom.degree() == 3);
@@ -328,19 +379,45 @@ namespace {
 
     for (auto &ring: rings) {
       if (ring.size() == 5) {
-        hyb_ring(mol, pos, ring, kTan7_5_2);
+        hyb_ring(mol, pos, ring, kTan10_2);
       } else if (ring.size() == 6) {
-        hyb_ring(mol, pos, ring, kTan12_2);
+        hyb_ring(mol, pos, ring, kTan15_2);
       }
     }
 
     hyb_antialiasing(mol);
   }
 
-  // * - N = N(+) = N(-)
-  bool fg_sec(Molecule::MutableAtom atom, ArrayXb &visited) {
+  bool fg_nitrile(Molecule::MutableAtom atom) {
     auto n = atom[0], m = atom[1];
 
+    auto is_nitrile_nitrogen = [](Molecule::Atom a) {
+      return a.data().atomic_number() == 7 && all_neighbors(a) == 1;
+    };
+
+    bool is_n = is_nitrile_nitrogen(n.dst()),
+         is_m = is_nitrile_nitrogen(m.dst());
+    if (is_n == is_m)
+      return false;
+
+    if (is_m)
+      std::swap(n, m);
+
+    n.edge_data().set_order(constants::kTripleBond);
+    n.dst().data().set_hybridization(constants::kTerminal);
+
+    m.edge_data().set_order(constants::kSingleBond);
+    return true;
+  }
+
+  // * - N = N(+) = N(-) or - C # N
+  bool fg_sec(Molecule::MutableAtom atom, ArrayXb &visited) {
+    if (atom.data().hybridization() == constants::kSP
+        && atom.data().atomic_number() == 6) {
+      return fg_nitrile(atom);
+    }
+
+    auto n = atom[0], m = atom[1];
     if (absl::c_any_of(std::array { atom, n.dst(), m.dst() },
                        [](Molecule::Atom a) {
                          return a.data().atomic_number() != 7;
@@ -351,7 +428,7 @@ namespace {
     if (n.dst().degree() + m.dst().degree() != 3)
       return false;
 
-    auto [terminal, internal] = std::minmax(n, m, [](auto l, auto r) {
+    auto [terminal, internal] = nuri::minmax(n, m, [](auto l, auto r) {
       return l.dst().degree() < r.dst().degree();
     });
 
@@ -375,11 +452,11 @@ namespace {
   // carbon with three heteroatom, double/single/single
   bool fg_guanidinium_like(Molecule::MutableAtom atom, const Vector3d &dsqs,
                            ArrayXb &visited) {
-    if (absl::c_any_of(atom, [](auto nei) { return nei.dst().degree() > 2; }))
+    if (absl::c_any_of(atom, [](auto nei) { return nei.dst().degree() > 3; }))
       return false;
 
     // Now we favor double bonds on: terminal O > S > N > internal N > S > O
-    //                                        0   1   2            3   4   5
+    //                                        0   1   2           21  22  23
     // If the carbon is in a ring, add penalty (10) to ring bonds
     Array3i penalty;
     for (int i = 0; i < atom.degree(); ++i) {
@@ -388,13 +465,13 @@ namespace {
 
       switch (dst.data().atomic_number()) {
       case 7:
-        penalty[i] = 2 + value_if(dst.degree() > 1, 1);
+        penalty[i] = 2 + value_if(dst.degree() > 2, 19);
         break;
       case 8:
-        penalty[i] = 0 + value_if(dst.degree() > 1, 5);
+        penalty[i] = 0 + value_if(dst.degree() > 1, 23);
         break;
       case 16:
-        penalty[i] = 1 + value_if(dst.degree() > 1, 3);
+        penalty[i] = 1 + value_if(dst.degree() > 1, 21);
         break;
       default:
         penalty[i] = 100;
@@ -516,8 +593,17 @@ namespace {
           .set_hybridization(constants::kSP2)
           .set_formal_charge(nonnegative(dst.degree() - nnei))
           .set_implicit_hydrogens(nonnegative(nnei - dst.degree()));
-      nei.edge_data().set_order(i == dnei ? constants::kDoubleBond
-                                          : constants::kSingleBond);
+
+      for (auto mei: dst)
+        if (mei.edge_data().order() == constants::kOtherBond)
+          mei.edge_data().set_order(constants::kSingleBond);
+    }
+
+    atom[dnei].edge_data().set_order(constants::kDoubleBond);
+
+    if (ordered.size() == 3) {
+      auto nei = atom[ordered[2]];
+      nei.edge_data().set_order(constants::kSingleBond);
     }
 
     return true;
@@ -539,7 +625,7 @@ namespace {
       return false;
 
     auto [near, far] =
-        std::minmax(oxygens[0], oxygens[1], [&](auto lhs, auto rhs) {
+        nuri::minmax(oxygens[0], oxygens[1], [&](auto lhs, auto rhs) {
           return (pos.col(lhs.dst().id()) - pos.col(atom.id())).squaredNorm()
                  < (pos.col(rhs.dst().id()) - pos.col(atom.id())).squaredNorm();
         });
@@ -655,6 +741,88 @@ namespace {
     }
   }
 
+  void assign_priority_single(Molecule::MutableAtom atom) {
+    if (atom.degree() < 3 || atom.data().hybridization() != constants::kSP3
+        || atom.data().element().period() > 2)
+      return;
+
+    for (auto nei: atom)
+      nei.edge_data().set_order(constants::kSingleBond);
+  }
+
+  void assign_priority_double_sp2(Molecule::MutableAtom atom,
+                                  const Matrix3Xd &pos) {
+    if (atom.degree() < 2 || atom.data().hybridization() != constants::kSP2
+        || atom.data().atomic_number() != 6)
+      return;
+
+    int sel = -1;
+    for (int i = 0; i < atom.degree(); ++i) {
+      auto nei = atom[i];
+      if (nei.edge_data().order() > constants::kSingleBond)
+        return;
+
+      if (nei.edge_data().order() == constants::kOtherBond) {
+        auto nei_hyb = nei.dst().data().hybridization();
+        if ((nei_hyb > constants::kSP2 && nei_hyb != constants::kOtherHyb)
+            || !torsion_can_double_bond(pos, nei))
+          continue;
+
+        if (sel >= 0)
+          return;
+
+        sel = i;
+      }
+    }
+    if (sel < 0)
+      return;
+
+    for (int i = 0; i < atom.degree(); ++i) {
+      atom[i].edge_data().set_order(i == sel ? constants::kDoubleBond
+                                             : constants::kSingleBond);
+    }
+  }
+
+  void assign_priority_multiple_sp(Molecule::MutableAtom atom) {
+    if (atom.degree() != 2 || atom.data().hybridization() != constants::kSP
+        || atom.data().atomic_number() != 6)
+      return;
+
+    auto [n1, n2] = nuri::minmax(
+        atom[0], atom[1], [](Molecule::Neighbor l, Molecule::Neighbor r) {
+          return l.edge_data().order() < r.edge_data().order();
+        });
+
+    if (n2.edge_data().order() == constants::kOtherBond
+        || n1.edge_data().order() != constants::kOtherBond)
+      return;
+
+    auto bo_req = static_cast<constants::BondOrder>(4 - n2.edge_data().order());
+    // triple -> max sp (2), double -> sp2 (3), single -> sp3 (4)
+    auto max_hyb = static_cast<constants::Hybridization>(5 - bo_req);
+    if (n1.dst().data().hybridization() != constants::kOtherHyb
+        && n1.dst().data().hybridization() > max_hyb)
+      return;
+
+    n1.edge_data().set_order(bo_req);
+  }
+
+  void assign_priority_bonds(Molecule &mol, const Matrix3Xd &pos) {
+    // Assign confident single bonds
+    for (auto atom: mol)
+      assign_priority_single(atom);
+
+    // Assign multiple bonds if no other choice
+    for (auto atom: mol) {
+      // degree 2 might have incorrect hybridization, skip here for now
+      if (atom.degree() == 3) {
+        assign_priority_double_sp2(atom, pos);
+      } else {
+        assign_priority_multiple_sp(atom);
+      }
+    }
+  }
+
   bool is_aromatic_candidate(Molecule::Atom ring_atom) {
     const AtomData &data = ring_atom.data();
     return 3 <= data.element().valence_electrons()
@@ -673,7 +841,8 @@ namespace {
   };
 
   // We will just assume formal charges are incorrect yet
-  void count_pi_e_possible(Molecule::Atom atom,
+  // NOTE: also update test_ring_aromatic if you change this
+  bool count_pi_e_possible(Molecule::MutableAtom atom, const Matrix3Xd &pos,
                            absl::InlinedVector<PiElecArgs, 2> &pi_e) {
     ABSL_DCHECK(atom.degree() < 4);
 
@@ -684,13 +853,21 @@ namespace {
                         })
         - atom.begin();
 
-    int exo_double_partner = -1, exo_single_partner = -1;
+    int exo_oxy_double = -1, exo_single_partner = -1;
     if (exo_neighbor < atom.degree()) {
-      auto exo = atom[exo_neighbor].dst();
+      auto enei = atom[exo_neighbor];
+      auto exo = enei.dst();
+
+      assign_priority_double_sp2(exo, pos);
+      // Carbon with exocyclic double bond is unlikely to be aromatic
+      if (exo.data().atomic_number() == 6
+          && enei.edge_data().order() == constants::kDoubleBond) {
+        return false;
+      }
 
       exo_single_partner = exo_neighbor;
       if (exo.data().atomic_number() == 8 && exo.degree() == 1)
-        exo_double_partner = exo_neighbor;
+        exo_oxy_double = exo_neighbor;
     }
 
     // 1. all degree 2 could also be considered as degree 3 with one implicit H,
@@ -707,11 +884,21 @@ namespace {
       // Nothing special for explicit degree 3
       break;
     case 4:
-      if (atom.degree() == 3 && exo_double_partner >= 0)
-        // C=O possible
-        pi_e.push_back({ 0, 0, exo_double_partner, -1, 0, 3, 0 });
+      // C=O
+      if (exo_oxy_double >= 0) {
+        pi_e.push_back({ 0, 0, exo_oxy_double, -1, 0, 3, 1 });
+        // lactone-like or lactam-like, unlikely to be C-OH
+        if (absl::c_any_of(atom, [&](Molecule::Neighbor nei) {
+              return nei.dst().id() != atom[exo_oxy_double].dst().id()
+                     && nei.dst().data().atomic_number() != 6;
+            })) {
+          break;
+        }
+      }
+
       // C, degree 3 (possibly one implicit H)
       pi_e.push_back({ 1, 1, -1, exo_single_partner, 0, 3, 1 });  // benzene
+
       // C with only 2 neighbors is very unlikely to be aromatic
       break;
     case 5:
@@ -719,8 +906,8 @@ namespace {
       pi_e.push_back({ 2, 0, -1, exo_single_partner, 0, 3, 1 });  // pyrrole
       if (atom.degree() == 2) {
         pi_e.push_back({ 1, 1, -1, exo_single_partner, 0, 2, 1 });  // pyridine
-      } else if (/* atom.degree() == 3 && */ exo_double_partner >= 0) {
-        pi_e.push_back({ 1, 1, exo_double_partner, -1, +1, 3, 0 });  // N-oxide
+      } else if (/* atom.degree() == 3 && */ exo_oxy_double >= 0) {
+        pi_e.push_back({ 1, 1, exo_oxy_double, -1, +1, 3, 0 });  // N-oxide
       }
       break;
     case 6:
@@ -739,6 +926,35 @@ namespace {
     }
 
     ABSL_DCHECK(pi_e.size() <= 2);
+    return true;
+  }
+
+  bool aromatic_can_pair_doubles(Array<int, Eigen::Dynamic, 1, 0, 7, 1> db_cnt,
+                                 int start) {
+    int size = static_cast<int>(db_cnt.size());
+    for (int i = start; i < size + start; i++) {
+      int curr = i % size, next = (i + 1) % size;
+      int sub = nuri::min(db_cnt[curr], db_cnt[next]);
+      db_cnt[curr] -= sub;
+      db_cnt[next] -= sub;
+    }
+    return (db_cnt == 0).all();
+  }
+
+  bool aromatic_can_conjugate(
+      const Array<int, Eigen::Dynamic, 1, 0, 7, 1> &pie_cnt) {
+    for (int i = 0; i < pie_cnt.size(); ++i) {
+      // 1 - 1, 1 - 0, 1 - 2 are all allowed
+      // benzene, tropylium ion, pyrrole are examples
+      if (pie_cnt[i] == 1)
+        continue;
+
+      // 0 == 0 or 2 == 2, forbidden
+      if (pie_cnt[i] == pie_cnt[(i + 1) % pie_cnt.size()])
+        return false;
+    }
+
+    return true;
   }
 
   void test_ring_aromatic(
@@ -747,24 +963,23 @@ namespace {
           &pi_e_estimates) {
     absl::FixedArray<absl::InlinedVector<PiElecArgs, 2> *> args(ring.size());
     absl::InlinedVector<int, 7> variable;
-    int pie_sum_fixed = 0, db_cnt_fixed = 0, pie_sum_var = 0, db_cnt_var = 0;
+    Array<int, Eigen::Dynamic, 1, 0, 7, 1> pie_cnt(ring.size()),
+        db_cnt(ring.size());
 
     for (int i = 0; i < ring.size(); ++i) {
       auto &pi_e = pi_e_estimates.find(ring[i])->second;
       args[i] = &pi_e;
-      if (pi_e.size() == 1) {
-        pie_sum_fixed += pi_e[0].pi_e;
-        db_cnt_fixed += pi_e[0].endo_double;
-      } else {
-        pie_sum_var += pi_e[0].pi_e;
-        db_cnt_var += pi_e[0].endo_double;
+
+      pie_cnt[i] = pi_e[0].pi_e;
+      db_cnt[i] = pi_e[0].endo_double;
+      if (pi_e.size() > 1)
         variable.push_back(i);
-      }
     }
 
     auto is_aromatic = [&]() {
-      return (pie_sum_fixed + pie_sum_var) % 4 == 2
-             && (db_cnt_fixed + db_cnt_var) % 2 == 0;
+      return pie_cnt.sum() % 4 == 2 && aromatic_can_conjugate(pie_cnt)
+             && (aromatic_can_pair_doubles(db_cnt, 0)
+                 || aromatic_can_pair_doubles(db_cnt, 1));
     };
 
     unsigned int selected = 0U;
@@ -778,13 +993,11 @@ namespace {
       bool aromatic = false;
 
       while (!aromatic && ps >> selected) {
-        pie_sum_var = db_cnt_var = 0;
-
         for (int i = 0; i < variable.size(); ++i) {
           const auto &pi_e = *args[variable[i]];
           int idx = static_cast<int>(static_cast<bool>(selected & 1U << i));
-          pie_sum_var += pi_e[idx].pi_e;
-          db_cnt_var += pi_e[idx].endo_double;
+          pie_cnt[variable[i]] = pi_e[idx].pi_e;
+          db_cnt[variable[i]] = pi_e[idx].endo_double;
         }
 
         aromatic = is_aromatic();
@@ -839,27 +1052,32 @@ namespace {
     }
   }
 
-  void find_aromatics(Molecule &mol,
+  void find_aromatics(Molecule &mol, const Matrix3Xd &pos,
                       const std::vector<std::vector<int>> &rings) {
     absl::flat_hash_map<int, absl::InlinedVector<PiElecArgs, 2>> pi_e_estimates;
-
-    for (auto &ring: mol.ring_groups()) {
-      for (int i: ring) {
-        auto atom = mol.atom(i);
-        if (is_aromatic_candidate(atom))
-          count_pi_e_possible(atom, pi_e_estimates[i]);
-      }
-    }
 
     for (auto &ring: rings) {
       if (ring.size() < 5 || ring.size() > 7)
         continue;
 
-      if (absl::c_any_of(ring,
-                         [&](int i) { return !pi_e_estimates.contains(i); }))
-        continue;
+      bool all_cnd = true;
+      for (int i: ring) {
+        if (pi_e_estimates.contains(i))
+          continue;
 
-      test_ring_aromatic(mol, ring, pi_e_estimates);
+        auto atom = mol[i];
+        if (!is_aromatic_candidate(atom)) {
+          all_cnd = false;
+          break;
+        }
+
+        all_cnd = count_pi_e_possible(atom, pos, pi_e_estimates[i]);
+        if (!all_cnd)
+          break;
+      }
+
+      if (all_cnd)
+        test_ring_aromatic(mol, ring, pi_e_estimates);
     }
   }
 
@@ -868,7 +1086,8 @@ namespace {
       return false;
 
     auto nit = absl::c_find_if(atom, [](Molecule::Neighbor nei) {
-      return nei.dst().data().atomic_number() == 8 && nei.dst().degree() == 1
+      return nei.dst().data().atomic_number() == 8
+             && all_neighbors(nei.dst()) == 1
              && nei.edge_data().order() == constants::kOtherBond;
     });
     if (nit == atom.end())
@@ -918,8 +1137,7 @@ namespace {
 
   template <auto cutoff>
   auto ordered(const AtomData &a, const AtomData &b) {
-    int an1 = a.atomic_number(), an2 = b.atomic_number();
-    std::tie(an1, an2) = std::minmax(an1, an2);
+    auto [an1, an2] = nuri::minmax(a.atomic_number(), b.atomic_number());
     return cutoff(an1, an2);
   }
 
@@ -927,7 +1145,7 @@ namespace {
                                         const Matrix3Xd &pos) {
     auto nei = atom[0];
     if (nei.edge_data().order() != constants::kOtherBond
-        || nei.dst().degree() != 1)
+        || all_neighbors(nei.dst()) != 1)
       return;
 
     double distsq =
@@ -953,72 +1171,97 @@ namespace {
   };
 
   template <auto thres>
-  void mark_multiple_bonds_hyb(Molecule::MutableAtom atom, const Matrix3Xd &pos,
-                               constants::BondOrder ifshort) {
+  int mark_multiple_bonds_hyb(Molecule::MutableAtom atom, const Matrix3Xd &pos,
+                              constants::BondOrder ifshort, int max_allowed) {
+    if (max_allowed <= 0)
+      return 0;
+
     absl::InlinedVector<MultipleBondFindParams, 3> candidates;
     for (int i = 0; i < atom.degree(); ++i) {
       auto nei = atom[i];
       if (nei.edge_data().order() != constants::kOtherBond)
         continue;
-      if (nei.dst().degree() > 1
-          && nei.dst().data().hybridization() != atom.data().hybridization())
+      if (all_neighbors(nei.dst()) > 1
+          && nei.dst().data().hybridization() > atom.data().hybridization())
+        continue;
+      if (sum_bond_order(nei.dst()) >= internal::common_valence(
+              internal::effective_element_or_element(nei.dst())))
         continue;
 
       double distsq =
                  (pos.col(nei.dst().id()) - pos.col(atom.id())).squaredNorm(),
              cuttofsq = ordered<thres>(atom.data(), nei.dst().data());
-      if (distsq <= cuttofsq)
+      if (distsq <= cuttofsq && ifshort == constants::kDoubleBond
+          && torsion_can_double_bond(pos, nei))
         candidates.push_back({ i, distsq, cuttofsq });
       else
         nei.edge_data().set_order(constants::kSingleBond);
     }
 
     if (candidates.empty())
-      return;
+      return 0;
 
-    if (candidates.size() > 1) {
+    if (candidates.size() > max_allowed) {
       for (auto &arg: candidates) {
         arg.distsq = std::sqrt(arg.distsq);
         arg.cuttofsq = std::sqrt(arg.cuttofsq);
       }
-      absl::c_sort(candidates, [](const auto &lhs, const auto &rhs) {
+      absl::c_sort(candidates, [](const MultipleBondFindParams &lhs,
+                                  const MultipleBondFindParams &rhs) {
         return lhs.distsq - lhs.cuttofsq < rhs.distsq - rhs.cuttofsq;
       });
-
-      for (int i = 1; i < candidates.size(); ++i)
-        atom[candidates[i].idx].edge_data().set_order(constants::kSingleBond);
+      candidates.resize(max_allowed);
     }
 
-    atom[candidates[0].idx].edge_data().set_order(ifshort);
+    for (const auto &cnd: candidates)
+      atom[cnd.idx].edge_data().set_order(ifshort);
+
+    return std::min(static_cast<int>(candidates.size()), max_allowed);
   }
 
   void find_multiple_bonds(Molecule::MutableAtom atom, const Matrix3Xd &pos) {
     if (atom.degree() == 0)
       return;
 
-    if (atom.degree() == 1) {
+    int total_degree = all_neighbors(atom);
+    if (total_degree == 1) {
       mark_multiple_bonds_all_terminal(atom, pos);
       return;
     }
 
-    if (atom.data().hybridization() > constants::kSP2
-        || absl::c_any_of(atom, [](auto nei) {
-             return nei.edge_data().order() >= constants::kDoubleBond;
-           }))
+    if (atom.data().hybridization() > constants::kSP2)
       return;
+
+    int multi_bonds = sum_bond_order(atom) - total_degree;
+    int multi_avail;
 
     // NOLINTNEXTLINE(clang-diagnostic-switch-enum)
     switch (atom.data().hybridization()) {
     case constants::kSP:
-      mark_multiple_bonds_hyb<triple_bond_distsq_approx>(
-          atom, pos, constants::kTripleBond);
-      ABSL_FALLTHROUGH_INTENDED;
+      multi_avail = 2 - multi_bonds;
+      multi_avail -= mark_multiple_bonds_hyb<triple_bond_distsq_approx>(
+                         atom, pos, constants::kTripleBond, multi_avail / 2)
+                     * 2;
+      if (multi_avail <= 0)
+        break;
+
+      multi_avail -= mark_multiple_bonds_hyb<double_bond_distsq_approx>(
+          atom, pos, constants::kDoubleBond, multi_avail);
+      break;
     case constants::kSP2:
-      mark_multiple_bonds_hyb<double_bond_distsq_approx>(
-          atom, pos, constants::kDoubleBond);
+      multi_avail = 1 - multi_bonds;
+      multi_avail -= mark_multiple_bonds_hyb<double_bond_distsq_approx>(
+          atom, pos, constants::kDoubleBond, multi_avail);
       break;
     default:
+      multi_avail = 0;
       break;
+    }
+
+    if (multi_avail == 0) {
+      for (auto nei: atom)
+        if (nei.edge_data().order() == constants::kOtherBond)
+          nei.edge_data().set_order(constants::kSingleBond);
     }
   }
 
@@ -1049,7 +1292,8 @@ namespace {
 
   enum class Conflict {
     kValenceOverflow,
-    kHybConflict,
+    kHybTooSmall,
+    kHybTooLarge,
   };
 
   struct ConflictInfo {
@@ -1069,6 +1313,10 @@ namespace {
     void mark_resolved(iterator it) { data_.erase(it); }
 
     iterator find(int idx) { return data_.find(idx); }
+
+    bool contains(int idx) const { return data_.contains(idx); }
+
+    int size() const { return static_cast<int>(data_.size()); }
 
     bool empty() const { return data_.empty(); }
 
@@ -1126,10 +1374,21 @@ namespace {
           return;
       }
 
-      conflicts.add(atom.id(), Conflict::kHybConflict, effective,
+      conflicts.add(atom.id(), Conflict::kHybTooSmall, effective,
                     extra_bonds_required);
-    } else {
-      ABSL_DCHECK(sn == data.hybridization());
+    } else if (sn < data.hybridization()) {
+      int extra_bonds = data.hybridization() - sn;
+      int extra_bonds_unresolvable = extra_bonds - (sum_bo - total_degree);
+
+      if (extra_bonds_unresolvable > 0) {
+        data.set_hybridization(
+            clamp_hyb(data.hybridization() - extra_bonds_unresolvable));
+        extra_bonds -= extra_bonds_unresolvable;
+        if (extra_bonds <= 0)
+          return;
+      }
+
+      conflicts.add(atom.id(), Conflict::kHybTooLarge, effective, -extra_bonds);
     }
   }
 
@@ -1215,30 +1474,29 @@ namespace {
     return true;
   }
 
-  bool torsion_can_sp2(const Matrix3Xd &pos, int a, int b, int c, int d) {
-    auto cos = cos_dihedral(pos.col(a), pos.col(b), pos.col(c), pos.col(d));
-    return cos >= kCos12 || cos <= -kCos12;
-  }
+  struct NeighborConflict {
+    int idx;
+    int penalty;
+    Conflicts::iterator cit;
+  };
 
-  bool try_fix_overflow(
-      Molecule::MutableAtom atom, Conflicts::iterator &it, Conflicts &conflicts,
-      std::vector<std::pair<int, Conflicts::iterator>> &nei_conflict) {
-    const ConflictInfo &info = it->second;
+  bool try_fix_overflow(Molecule::MutableAtom atom, const ConflictInfo &info,
+                        Conflicts &conflicts,
+                        std::vector<NeighborConflict> &nei_conflict) {
     int overflowed = info.overflowed;
 
     // pre: implicit H count == 0
     // Might be resolved by removing multiple bonds if neighbor is also
     // overflowing, or by updating formal charge (max +-2)
-    absl::c_sort(
-        nei_conflict, [&](const std::pair<int, Conflicts::iterator> &lhs,
-                          const std::pair<int, Conflicts::iterator> &rhs) {
-          auto ln = atom[lhs.first], rn = atom[rhs.first];
-          return ln.dst().degree() > rn.dst().degree()
-                 || (ln.dst().degree() == rn.dst().degree()
-                     && ln.edge_data().order() > rn.edge_data().order());
-        });
+    absl::c_sort(nei_conflict, [&](const NeighborConflict &lhs,
+                                   const NeighborConflict &rhs) {
+      auto ln = atom[lhs.idx], rn = atom[rhs.idx];
+      return ln.dst().degree() > rn.dst().degree()
+             || (ln.dst().degree() == rn.dst().degree()
+                 && ln.edge_data().order() > rn.edge_data().order());
+    });
 
-    for (auto [i, jt]: nei_conflict) {
+    for (auto [i, _, jt]: nei_conflict) {
       auto nei = atom[i];
       int nei_req = jt->second.overflowed;
       int available = std::min(overflowed, nei_req);
@@ -1254,10 +1512,8 @@ namespace {
         conflicts.mark_resolved(jt);
 
       overflowed -= available;
-      if (overflowed == 0) {
-        conflicts.mark_resolved(it++);
+      if (overflowed == 0)
         return true;
-      }
     }
 
     int fchg = atom.data().formal_charge();
@@ -1283,51 +1539,29 @@ namespace {
       return false;
 
     atom.data().set_formal_charge(fchg);
-    conflicts.mark_resolved(it++);
     return true;
   }
 
-  bool hyb_conflict_can_sp2(const Matrix3Xd &pos, Molecule::Neighbor nei) {
-    auto src = nei.src(), dst = nei.dst();
-    auto prev = absl::c_find_if(src, [&](Molecule::Neighbor n) {
-                  return n.dst().id() != dst.id();
-                })->dst();
-    auto next = absl::c_find_if(dst, [&](Molecule::Neighbor n) {
-                  return n.dst().id() != src.id();
-                })->dst();
-
-    return torsion_can_sp2(pos, prev.id(), src.id(), dst.id(), next.id());
-  }
-
-  bool try_fix_hyb_conflict(
-      const Matrix3Xd &pos, Molecule::MutableAtom atom, Conflicts::iterator &it,
-      Conflicts &conflicts,
-      std::vector<std::pair<int, Conflicts::iterator>> &nei_conflict) {
-    // steric number != hybridization
-    // 1. Missing multiple bond, if neighbor also has conflicts (conjugation
-    //    already marked)
+  bool try_fix_hyb_too_small(const Matrix3Xd &pos, Molecule::MutableAtom atom,
+                             const ConflictInfo &info, Conflicts &conflicts,
+                             std::vector<NeighborConflict> &nei_conflict) {
+    // steric number > hybridization
+    // 1. Missing multiple bond, if (conjugation already marked)
+    //      - neighbor also has conflicts, or
+    //      - has implicit Hs (only for sp -> degree 2, sp2 -> degree 3)
     // 2. Wrong hybridization, if no neighbor has conflicts
 
-    absl::c_sort(
-        nei_conflict, [&](const std::pair<int, Conflicts::iterator> &lhs,
-                          const std::pair<int, Conflicts::iterator> &rhs) {
-          auto ln = atom[lhs.first], rn = atom[rhs.first];
-          return ln.dst().degree() < rn.dst().degree()
-                 || (ln.dst().degree() == rn.dst().degree()
-                     && ln.edge_data().order() < rn.edge_data().order());
-        });
+    absl::c_sort(nei_conflict, [&](const NeighborConflict &lhs,
+                                   const NeighborConflict &rhs) {
+      auto ln = atom[lhs.idx], rn = atom[rhs.idx];
+      return ln.dst().degree() < rn.dst().degree()
+             || (ln.dst().degree() == rn.dst().degree()
+                 && ln.edge_data().order() < rn.edge_data().order());
+    });
 
-    const ConflictInfo &info = it->second;
     int required = info.overflowed;
-    for (auto [i, jt]: nei_conflict) {
+    for (auto [i, _, jt]: nei_conflict) {
       auto nei = atom[i];
-
-      if (atom.degree() > 1 && nei.dst().degree() > 1
-          && atom.data().hybridization() == constants::kSP2
-          && nei.dst().data().hybridization() == constants::kSP2) {
-        if (!hyb_conflict_can_sp2(pos, nei))
-          continue;
-      }
 
       int nei_req = jt->second.overflowed;
       int available = std::min(
@@ -1335,6 +1569,9 @@ namespace {
             nonnegative(constants::kTripleBond - nei.edge_data().order()) });
       auto ord = static_cast<constants::BondOrder>(nei.edge_data().order()
                                                    + available);
+
+      if (ord == constants::kDoubleBond && !torsion_can_double_bond(pos, nei))
+        continue;
 
       ABSL_DCHECK(nei.src().data().implicit_hydrogens() >= available);
       ABSL_DCHECK(nei.dst().data().implicit_hydrogens() >= available);
@@ -1351,52 +1588,187 @@ namespace {
 
       required -= available;
       if (required <= 0)
+        return true;
+    }
+
+    // Check for neighbors that:
+    //   1. Have implicit Hs
+    //   2. Are degree <= 2 (higher possibility of incorrect hybridization)
+    //
+    // Constraints:
+    //   Degree 1 => max triple bond - sum of existing multiple bonds
+    //   Degree 2 => max double bond - sum of existing multiple bonds
+    if (atom.degree() == atom.data().hybridization()) {
+      int max_multiple = 4 - atom.data().hybridization();
+      for (auto nei: atom) {
+        if (nei.dst().data().implicit_hydrogens() <= 0
+            || nei.dst().degree() > 2)
+          continue;
+
+        AtomData &nei_data = nei.dst().data();
+        auto max_nei_order =
+            4 - sum_bond_order(nei.dst()) + nei_data.implicit_hydrogens();
+        int allowed = std::min({
+            required,
+            max_multiple,
+            max_nei_order - nei.edge_data().order(),
+            atom.data().implicit_hydrogens(),
+            nei_data.implicit_hydrogens(),
+        });
+        if (allowed <= 0)
+          continue;
+
+        auto new_ord = static_cast<constants::BondOrder>(nei.edge_data().order()
+                                                         + allowed);
+        if (new_ord == constants::kDoubleBond
+            && !torsion_can_double_bond(pos, nei)) {
+          continue;
+        }
+
+        atom.data().set_implicit_hydrogens(atom.data().implicit_hydrogens()
+                                           - allowed);
+
+        nei.edge_data().order() = new_ord;
+        nei_data.set_implicit_hydrogens(nei_data.implicit_hydrogens()
+                                        - allowed);
+        // No need for conjugation check, at least one multiple bond exists
+        nei_data.set_hybridization(internal::from_degree(
+            sum_bond_order(nei.dst()), nonbonding_electrons(nei.dst())));
+
+        required -= allowed;
+        if (required <= 0)
+          return true;
+      }
+    }
+
+    int pred_hyb = atom.data().hybridization() + required;
+    if (pred_hyb > constants::kSP3D2)
+      return false;
+
+    atom.data().set_hybridization(
+        static_cast<constants::Hybridization>(pred_hyb));
+    return true;
+  }
+
+  bool try_fix_hyb_too_large(Molecule::MutableAtom atom,
+                             const ConflictInfo &info, Conflicts &conflicts,
+                             std::vector<NeighborConflict> &nei_conflict) {
+    // steric number < hybridization
+    // 1. Superflous multiple bond, if neighbor also has conflicts
+    // 2. Wrong hybridization, if no neighbor has conflicts
+
+    absl::c_sort(nei_conflict, [&](const NeighborConflict &lhs,
+                                   const NeighborConflict &rhs) {
+      auto ln = atom[lhs.idx], rn = atom[rhs.idx];
+      return ln.dst().degree() > rn.dst().degree()
+             || (ln.dst().degree() == rn.dst().degree()
+                 && ln.edge_data().order() > rn.edge_data().order());
+    });
+
+    int required = -info.overflowed;
+    for (auto [i, _, jt]: nei_conflict) {
+      auto nei = atom[i];
+
+      int nei_req = -jt->second.overflowed;
+      int available =
+          std::min({ required, nei_req, nei.edge_data().order() - 1 });
+      auto ord = static_cast<constants::BondOrder>(nei.edge_data().order()
+                                                   - available);
+
+      nei.edge_data().order() = ord;
+      nei.src().data().set_implicit_hydrogens(
+          nei.src().data().implicit_hydrogens() + available);
+      nei.dst().data().set_implicit_hydrogens(
+          nei.dst().data().implicit_hydrogens() + available);
+
+      jt->second.overflowed += available;
+      if (nei_req == 0)
+        conflicts.mark_resolved(jt);
+
+      required -= available;
+      if (required <= 0)
         break;
     }
 
     if (required > 0) {
-      int pred_hyb = atom.data().hybridization() + required;
-      if (pred_hyb > constants::kSP3D2)
+      int pred_hyb = atom.data().hybridization() - required;
+
+      if (pred_hyb < atom.degree())
         return false;
 
       atom.data().set_hybridization(
           static_cast<constants::Hybridization>(pred_hyb));
     }
 
-    conflicts.mark_resolved(it++);
     return true;
   }
 
   bool try_fix_conflicts(Molecule &mol, const Matrix3Xd &pos,
                          Conflicts &conflicts) {
-    std::vector<std::pair<int, Conflicts::iterator>> nei_conflict;
+    absl::FixedArray<std::pair<int, int>> conflicts_penaltied(conflicts.size());
+    std::vector<NeighborConflict> nei_conflict;
 
-    for (auto it = conflicts.begin(); it != conflicts.end();) {
+    auto penalty = [&conflicts](Molecule::Atom atom) {
+      return absl::c_count_if(atom,
+                              [&](Molecule::Neighbor nei) {
+                                return conflicts.contains(nei.dst().id());
+                              })
+                 * 10
+             - atom.degree();
+    };
+
+    auto it = conflicts.begin();
+    for (int i = 0; i < conflicts.size(); ++i, ++it) {
+      int id = it->first;
+      conflicts_penaltied[i] = { id, penalty(mol[id]) };
+    }
+
+    absl::c_sort(conflicts_penaltied, [](const std::pair<int, int> &lhs,
+                                         const std::pair<int, int> &rhs) {
+      return lhs.second < rhs.second;
+    });
+
+    for (int i = 0; i < conflicts_penaltied.size(); ++i) {
+      it = conflicts.find(conflicts_penaltied[i].first);
+      if (it == conflicts.end())
+        continue;
+
       auto atom = mol.atom(it->first);
 
       nei_conflict.clear();
-      for (int i = 0; i < atom.degree(); ++i) {
-        auto jt = conflicts.find(atom[i].dst().id());
-        if (jt != conflicts.end() && jt->second.why == it->second.why)
-          nei_conflict.push_back({ i, jt });
+      for (int j = 0; j < atom.degree(); ++j) {
+        auto jt = conflicts.find(atom[j].dst().id());
+        if (jt != conflicts.end() && jt->second.why == it->second.why) {
+          nei_conflict.push_back({ j, penalty(atom[j].dst()), jt });
+        }
       }
 
+      absl::c_sort(nei_conflict, [](const NeighborConflict &lhs,
+                                    const NeighborConflict &rhs) {
+        return lhs.penalty < rhs.penalty;
+      });
+
+      const ConflictInfo &info = it->second;
       bool resolved = false;
-      switch (it->second.why) {
+      switch (info.why) {
       case Conflict::kValenceOverflow:
-        resolved = try_fix_overflow(atom, it, conflicts, nei_conflict);
+        resolved = try_fix_overflow(atom, info, conflicts, nei_conflict);
         break;
-      case Conflict::kHybConflict:
-        resolved = try_fix_hyb_conflict(pos, atom, it, conflicts, nei_conflict);
+      case Conflict::kHybTooSmall:
+        resolved =
+            try_fix_hyb_too_small(pos, atom, info, conflicts, nei_conflict);
+        break;
+      case Conflict::kHybTooLarge:
+        resolved = try_fix_hyb_too_large(atom, info, conflicts, nei_conflict);
         break;
       }
 
-      if (!resolved)
-        ++it;
+      if (resolved)
+        conflicts.mark_resolved(it);
     }
 
     return conflicts.empty();
-  }
+  }  // namespace
 
   bool hyb_incorrect_atom_can_conjugate(Molecule::Atom atom) {
     bool any_multiple = absl::c_any_of(atom, [](Molecule::Neighbor nei) {
@@ -1409,7 +1781,8 @@ namespace {
   bool is_conjugated_candidate(Molecule::Atom atom) {
     return atom.data().is_conjugated()
            || (atom.degree() == 3
-               && atom.data().hybridization() <= constants::kSP2)
+               && atom.data().hybridization() <= constants::kSP2
+               && atom.data().implicit_hydrogens() == 0)
            || (atom.degree() <= 2 && hyb_incorrect_atom_can_conjugate(atom));
   }
 
@@ -1510,7 +1883,7 @@ namespace {
                 nuri::min(constants::kSP2, data.hybridization()));
 
         auto it = conflicts.find(atom.as_parent().id());
-        if (it != conflicts.end() && it->second.why == Conflict::kHybConflict) {
+        if (it != conflicts.end() && it->second.why == Conflict::kHybTooSmall) {
           --it->second.overflowed;
           if (it->second.overflowed <= 0)
             conflicts.mark_resolved(it);
@@ -1535,6 +1908,153 @@ namespace {
     mark_conjugated(mol, groups, conflicts);
   }
 
+  enum class Carbonyl {
+    kNone,
+    kAldehyde,
+    kKetone,
+    kAcidEster,
+    kAmide,
+    kOther,
+  };
+
+  void adjust_tautomers(Molecule &mol, const Matrix3Xd &pos) {
+    absl::FixedArray<std::pair<int, Carbonyl>> carbonyls(
+        mol.size(), { -1, Carbonyl::kNone });
+
+    for (auto atom: mol) {
+      if (atom.data().atomic_number() != 8
+          || atom.data().hybridization() != constants::kTerminal
+          || atom.data().formal_charge() != 0
+          || atom[0].edge_data().order() != constants::kDoubleBond
+          || atom[0].dst().data().hybridization() != constants::kSP2
+          || atom[0].dst().data().formal_charge() != 0
+          || atom[0].dst().data().atomic_number() != 6
+          || all_neighbors(atom[0].dst()) != 3) {
+        continue;
+      }
+
+      auto carbonyl = atom[0].dst();
+      int idx = -1;
+      int hcnt = carbonyl.data().implicit_hydrogens(), ncnt = 0, ocnt = 0,
+          other_cnt = 0;
+      for (int i = 0; i < carbonyl.degree(); ++i) {
+        auto nei = carbonyl[i];
+
+        if (nei.dst().id() == atom.id()) {
+          idx = i;
+          continue;
+        }
+
+        // Aromatic ring possible
+        if (nei.edge_data().order() > constants::kSingleBond) {
+          idx = -1;
+          break;
+        }
+
+        switch (nei.dst().data().atomic_number()) {
+        case 1:
+          ++hcnt;
+          break;
+        case 6:
+          break;
+        case 7:
+          ++ncnt;
+          break;
+        case 8:
+          ++ocnt;
+          break;
+        default:
+          ++other_cnt;
+          break;
+        }
+      }
+      if (idx < 0)
+        continue;
+
+      // guanidinium-like structure
+      if (ocnt + ncnt + other_cnt > 1)
+        continue;
+
+      Carbonyl type;
+      if (hcnt > 0) {
+        type = Carbonyl::kAldehyde;
+      } else if (ocnt > 0) {
+        type = Carbonyl::kAcidEster;
+      } else if (ncnt > 0) {
+        type = Carbonyl::kAmide;
+      } else if (other_cnt > 0) {
+        type = Carbonyl::kOther;
+      } else {
+        type = Carbonyl::kKetone;
+      }
+
+      carbonyls[carbonyl.id()] = { idx, type };
+    }
+
+    for (auto atom: mol) {
+      // degree >= 3 should already have correct multiple bonds
+      if (atom.degree() != 2)
+        continue;
+
+      auto n1 = atom[0], n2 = atom[1];
+      auto c1_data = carbonyls[n1.dst().id()],
+           c2_data = carbonyls[n2.dst().id()];
+      if (c1_data.first < 0 || c2_data.first < 0)
+        continue;
+
+      if (c1_data.second > c2_data.second) {
+        std::swap(n1, n2);
+        std::swap(c1_data, c2_data);
+      }
+
+      // Consider beta-keto acids/esters or beta-diketones
+      if (c1_data.second != Carbonyl::kKetone
+          || c2_data.second >= Carbonyl::kAmide)
+        continue;
+
+      if (!torsion_can_sp2(pos, n1.dst()[c1_data.first].dst().id(),
+                           n1.dst().id(), atom.id(), n2.dst().id())
+          || !torsion_can_sp2(pos, n1.dst().id(), atom.id(), n2.dst().id(),
+                              n2.dst()[c2_data.first].dst().id())) {
+        continue;
+      }
+
+      if (c2_data.second == Carbonyl::kKetone
+          && (pos.col(n1.dst()[c1_data.first].dst().id())
+              - pos.col(n1.dst().id()))
+                     .squaredNorm()
+                 < (pos.col(n2.dst()[c2_data.first].dst().id())
+                    - pos.col(n2.dst().id()))
+                       .squaredNorm()) {
+        std::swap(n1, n2);
+        std::swap(c1_data, c2_data);
+      }
+
+      n1.dst()[c1_data.first]
+          .dst()
+          .data()
+          .set_conjugated(true)
+          .set_hybridization(constants::kSP2)
+          .set_implicit_hydrogens(1);
+      n1.dst()[c1_data.first].edge_data().set_conjugated(true).set_order(
+          constants::kSingleBond);
+
+      n1.dst().data().set_conjugated(true);
+      n1.edge_data().set_conjugated(true).set_order(constants::kDoubleBond);
+
+      atom.data()
+          .set_conjugated(true)
+          .set_hybridization(constants::kSP2)
+          .set_implicit_hydrogens(atom.data().implicit_hydrogens() - 1);
+
+      n2.edge_data().set_conjugated(true);
+      n2.dst().data().set_conjugated(true);
+
+      n2.dst()[c2_data.first].edge_data().set_conjugated(true);
+      n2.dst()[c2_data.first].dst().data().set_conjugated(true);
+    }
+  }
+
   bool guess_types_common(Molecule &mol, const Matrix3Xd &pos) {
     Rings rings;
     bool ok;
@@ -1545,21 +2065,27 @@ namespace {
 
     guess_hyb_nonterminal(mol, pos, rings);
     recognize_fg(mol, pos);
-    find_aromatics(mol, rings);
+    assign_priority_bonds(mol, pos);
+    find_aromatics(mol, pos, rings);
     assign_bond_orders(mol, pos);
 
     Conflicts conflicts;
     guess_hyb_fcharge_hydrogens(mol, conflicts);
     guess_conjugated(mol, pos, conflicts);
 
-    if (!conflicts.empty()) {
-      bool success = try_fix_conflicts(mol, pos, conflicts);
-      if (!success) {
-        ABSL_LOG(WARNING) << "Failed to fix conflicts.";
-        return false;
-      }
+    for (int prev_conflicts = conflicts.size() + 1;
+         !conflicts.empty() && conflicts.size() < prev_conflicts;) {
+      prev_conflicts = conflicts.size();
+      try_fix_conflicts(mol, pos, conflicts);
+      guess_conjugated(mol, pos, conflicts);
     }
 
+    if (!conflicts.empty()) {
+      ABSL_LOG(WARNING) << "Failed to fix conflicts.";
+      return false;
+    }
+
+    adjust_tautomers(mol, pos);
     return true;
   }
 }  // namespace

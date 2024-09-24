@@ -742,6 +742,14 @@ std::string_view carbon_sybyl_subtype(Molecule::Atom atom) {
   return sybyl_subtype_hyb(atom.data().hybridization());
 }
 
+bool is_carbonyl_carbon(Molecule::Atom atom) {
+  return absl::c_any_of(atom, [](Molecule::Neighbor nei) {
+    return nei.dst().data().atomic_number() == 8
+           && nei.edge_data().order() == constants::kDoubleBond
+           && nei.edge_data().is_conjugated();
+  });
+}
+
 bool is_amide_nitrogen(Molecule::Atom atom) {
   bool maybe_amide = false;
 
@@ -752,11 +760,7 @@ bool is_amide_nitrogen(Molecule::Atom atom) {
     if (nei.dst().data().atomic_number() != 6)
       continue;
 
-    for (auto mei: nei.dst()) {
-      if (mei.dst().data().atomic_number() == 8
-          && mei.edge_data().order() == constants::kDoubleBond)
-        maybe_amide = true;
-    }
+    maybe_amide |= is_carbonyl_carbon(nei.dst());
   }
 
   return maybe_amide;
@@ -971,11 +975,24 @@ void write_atoms(std::string &out, const Molecule &mol, const int conf,
   }
 }
 
+bool is_amide_bond(Molecule::Bond bond) {
+  if (bond.data().order() != constants::kSingleBond
+      || !bond.data().is_conjugated())
+    return false;
+
+  auto src = bond.src(), dst = bond.dst();
+  if (src.data().atomic_number() == 7 && dst.data().atomic_number() == 6) {
+    std::swap(src, dst);
+  } else if (src.data().atomic_number() != 6
+             || dst.data().atomic_number() != 7) {
+    return false;
+  }
+
+  return is_carbonyl_carbon(src) && is_amide_nitrogen(dst);
+}
+
 std::string_view mol2_bond_type(Molecule::Bond bond) {
-  if ((bond.src().data().atomic_number() == 7  //
-       && is_amide_nitrogen(bond.src()))
-      || (bond.dst().data().atomic_number() == 7
-          && is_amide_nitrogen(bond.dst())))
+  if (is_amide_bond(bond))
     return "am";
 
   // NOLINTNEXTLINE(clang-diagnostic-switch-enum)

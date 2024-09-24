@@ -5,11 +5,20 @@
 
 #include "nuri/algo/guess.h"
 
+#include <fstream>
+#include <string>
+#include <string_view>
+
 #include <absl/algorithm/container.h>
+#include <absl/strings/ascii.h>
+#include <absl/strings/str_split.h>
 #include <gtest/gtest.h>
 
 #include "nuri/eigen_config.h"
+#include "fmt_test_common.h"
 #include "nuri/core/molecule.h"
+#include "nuri/fmt/pdb.h"
+#include "nuri/fmt/smiles.h"
 
 namespace nuri {
 namespace {
@@ -1010,6 +1019,54 @@ TEST(GuessSelectedMolecules, PDB6xmk) {
       EXPECT_EQ(atom.data().hybridization(), constants::kSP3);
     }
   }
+}
+
+TEST(GuessSelectedMolecules, GH358) {
+  std::vector<std::string_view> smiles_answers {
+    // clang-format off
+    "CSC(CS(c1ccccc1)(=O)=O)C(NC(C(NC(N2CCNCC2)=O)CC(C)C)=O)CCc3ccccc3	1mem_lig",
+    "CSC(=N)C(COCc1ccccc1)NC(C(NC(=O)N2CCOCC2)CC(C)C)=O	1ms6_lig",
+    "CSC(C(CCCC)NC(=O)OC1CN(CC1(C)C)C(=O)Nc2c(C)noc2C)(O)C(=O)NC(C)c3ccccc3	2bdl_lig",
+    "N1(CCOCC1)C(=O)NC(C(=O)NC(CCc2ccccc2)CCS(c3ccccc3)(=O)=O)CS(CC=4C(C)ONC=4C)(=O)=O	2fye_lig-bcq",
+    "CSC(CS(c1ccccc1)(=O)=O)C(NC(C(NC(N2CCOCC2)=O)CCS(c3ccccc3)(=O)=O)=O)CCc4ccccc4	2g6d_lig",
+    "CSC=1CC(OC(c2c(cc(cc2O)OC)C=CCC(C(C(=O)C=1)O)O)=O)C	4gs6_lig",
+    "CSC1C2(C(C(C(O)=C1C#N)C)CCc3c(-c4cccnc4)n(C)nc32)C	5daf_lig",
+    "COC(C(C1SCC(C)=C(C(O)=O)N1)NC(=O)Cc2cccs2)=O	5zg6_lig",
+    "C(=O)(N1C(CCC1)C(O)=CC(=O)O)O	6m06_lig-bwf",
+    "C(=C1N=C(C(=C1CCC(=O)O)C)C=C2NC(C(=C2C)CC)=O)c3nc(C=C4NC(C(C4CC)C)=O)c(c3CCC(=O)O)C	6oap_lig-cyc",
+    "COC(C(NC(=O)C(c1csc(N)n1)=NOC)C2SCC(=C(N2)C(O)=O)CSC=3N(C)NC(C(N=3)=O)=O)=O	6p54_lig",
+    "COC(C(NC(C(=NOCC(=O)O)c1csc(N)n1)=O)C2NC(=C(CS2)C=C)C(=O)O)=O	6p55_lig",
+    "CSCCC(Nc1c(Nc2cc(N(CCCN3CCN(C)CC3)C(=O)Nc4c(Cl)c(cc(c4Cl)OC)OC)ncn2)cccc1)=O	6p69_lig",
+    "COC(=O)C(C(C)O)C1NC(C(O)=O)=C(SC2CNC(CNS(N)(=O)=O)C2)C1C	6p9c_lig",
+    "COC(C(C1NC(=C(SC2CC(NC2)C(N(C)C)=O)C1C)C(=O)O)C(O)C)=O	6pt1_lig",
+    "O=C1c2cc(O)c(O)cc2C(=O)N1CCNC(=O)C=3CN(NC=3C(=O)O)CC(C=O)NC(=O)C(=NOC(C)(C)C(=O)O)c4nc(N)sc4	6vot_lig-r7g",
+    "CSC(c1c(CN2C(=O)CN(C)CC2)cc3c(n1)N(CCC3)C(=O)Nc4cc(c(cn4)C#N)NCCOC)O	6yi8_lig",
+    "COC(C(C1C(C(SC2CC(C(N(C)C)=O)NC2)C(C(=O)O)=N1)C)C(C)O)=O	6zrp_lig",
+    "COC(=O)C=CNCC(=O)CCO	7l5t_lig",
+    "COC(C(C1N=C(C(SCCNC=N)C1)C(=O)O)C(O)C)=O	7rp8_lig",
+    "COC(C(C1N=C(C(SCC)C1)C(O)=O)C(O)C)=O	7rp9_lig",
+    "CSC(C(NC(C(NC(N1CCN(C)CC1)=O)Cc2ccccc2)=O)CCc3ccccc3)CS(=O)(=O)c4ccccc4	8qkb_lig",
+    // clang-format on
+  };
+
+  std::ifstream ifs(internal::test_data("gh-358.pdb"));
+  PDBReader reader(ifs);
+  std::vector<std::string> blk;
+
+  int i = 0;
+  for (; i < smiles_answers.size() && reader.getnext(blk); ++i) {
+    Molecule mol = reader.parse(blk);
+    std::string smi;
+    write_smiles(smi, mol);
+    absl::StripAsciiWhitespace(&smi);
+
+    std::pair<std::string_view, std::string_view> ans_split =
+        absl::StrSplit(smiles_answers[i], '\t');
+    EXPECT_EQ(smi, ans_split.first)
+        << "Different SMILES for " << ans_split.second;
+  }
+
+  EXPECT_EQ(i, smiles_answers.size());
 }
 
 TEST(GuessFchargeOnly, ChargedPhosphorus) {
