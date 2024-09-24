@@ -1779,7 +1779,8 @@ namespace {
   bool is_conjugated_candidate(Molecule::Atom atom) {
     return atom.data().is_conjugated()
            || (atom.degree() == 3
-               && atom.data().hybridization() <= constants::kSP2)
+               && atom.data().hybridization() <= constants::kSP2
+               && atom.data().implicit_hydrogens() == 0)
            || (atom.degree() <= 2 && hyb_incorrect_atom_can_conjugate(atom));
   }
 
