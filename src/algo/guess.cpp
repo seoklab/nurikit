@@ -742,46 +742,85 @@ namespace {
     }
   }
 
-  void assign_priority_bonds(Molecule &mol) {
-    // Assign confident single bonds
-    for (auto atom: mol) {
-      if (atom.degree() < 3 || atom.data().hybridization() != constants::kSP3
-          || atom.data().element().period() > 2)
-        continue;
+  void assign_priority_single(Molecule::MutableAtom atom) {
+    if (atom.degree() < 3 || atom.data().hybridization() != constants::kSP3
+        || atom.data().element().period() > 2)
+      return;
 
-      for (auto nei: atom)
-        nei.edge_data().set_order(constants::kSingleBond);
-    }
+    for (auto nei: atom)
+      nei.edge_data().set_order(constants::kSingleBond);
+  }
 
-    // Assign double bonds if no other choice
-    for (auto atom: mol) {
-      if (atom.data().atomic_number() != 6 || atom.degree() < 3
-          || atom.data().hybridization() != constants::kSP2)
-        continue;
+  void assign_priority_double_sp2(Molecule::MutableAtom atom,
+                                  const Matrix3Xd &pos) {
+    if (atom.degree() < 2 || atom.data().hybridization() != constants::kSP2
+        || atom.data().atomic_number() != 6)
+      return;
 
-      int sel = -1;
-      for (int i = 0; i < atom.degree(); ++i) {
-        auto nei = atom[i];
-        if (nei.edge_data().order() > constants::kSingleBond) {
-          sel = -1;
-          break;
-        }
+    int sel = -1;
+    for (int i = 0; i < atom.degree(); ++i) {
+      auto nei = atom[i];
+      if (nei.edge_data().order() > constants::kSingleBond)
+        return;
 
-        if (nei.edge_data().order() == constants::kOtherBond) {
-          if (sel < 0) {
-            sel = i;
-          } else {
-            sel = -1;
-            break;
-          }
-        }
+      if (nei.edge_data().order() == constants::kOtherBond) {
+        auto nei_hyb = nei.dst().data().hybridization();
+        if ((nei_hyb > constants::kSP2 && nei_hyb != constants::kOtherHyb)
+            || !torsion_can_double_bond(pos, nei))
+          continue;
+
+        if (sel >= 0)
+          return;
+
+        sel = i;
       }
-      if (sel < 0)
-        continue;
+    }
+    if (sel < 0)
+      return;
 
-      auto cnd = atom[sel];
-      if (cnd.dst().data().hybridization() <= constants::kSP2)
-        cnd.edge_data().set_order(constants::kDoubleBond);
+    for (int i = 0; i < atom.degree(); ++i) {
+      atom[i].edge_data().set_order(i == sel ? constants::kDoubleBond
+                                             : constants::kSingleBond);
+    }
+  }
+
+  void assign_priority_multiple_sp(Molecule::MutableAtom atom) {
+    if (atom.degree() != 2 || atom.data().hybridization() != constants::kSP
+        || atom.data().atomic_number() != 6)
+      return;
+
+    auto [n1, n2] = nuri::minmax(
+        atom[0], atom[1], [](Molecule::Neighbor l, Molecule::Neighbor r) {
+          return l.edge_data().order() < r.edge_data().order();
+        });
+
+    if (n2.edge_data().order() == constants::kOtherBond
+        || n1.edge_data().order() != constants::kOtherBond)
+      return;
+
+    auto bo_req = static_cast<constants::BondOrder>(4 - n2.edge_data().order());
+    // triple -> max sp (2), double -> sp2 (3), single -> sp3 (4)
+    auto max_hyb = static_cast<constants::Hybridization>(5 - bo_req);
+    if (n1.dst().data().hybridization() != constants::kOtherHyb
+        && n1.dst().data().hybridization() > max_hyb)
+      return;
+
+    n1.edge_data().set_order(bo_req);
+  }
+
+  void assign_priority_bonds(Molecule &mol, const Matrix3Xd &pos) {
+    // Assign confident single bonds
+    for (auto atom: mol)
+      assign_priority_single(atom);
+
+    // Assign multiple bonds if no other choice
+    for (auto atom: mol) {
+      // degree 2 might have incorrect hybridization, skip here for now
+      if (atom.degree() == 3) {
+        assign_priority_double_sp2(atom, pos);
+      } else {
+        assign_priority_multiple_sp(atom);
+      }
     }
   }
 
@@ -1674,7 +1713,7 @@ namespace {
 
     guess_hyb_nonterminal(mol, pos, rings);
     recognize_fg(mol, pos);
-    assign_priority_bonds(mol);
+    assign_priority_bonds(mol, pos);
     find_aromatics(mol, rings);
     assign_bond_orders(mol, pos);
 
