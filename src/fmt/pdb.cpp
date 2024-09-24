@@ -1676,9 +1676,9 @@ public:
     for (const AtomicLine &l: lines_) {
       data.add_prop(as_key("serial", l.altloc()), absl::StrCat(l.serial()));
       data.add_prop(as_key("occupancy", l.altloc()),
-                    safe_slice(l.line(), 54, 60));
+                    safe_slice_strip(l.line(), 54, 60));
       data.add_prop(as_key("tempfactor", l.altloc()),
-                    safe_slice(l.line(), 60, 66));
+                    safe_slice_strip(l.line(), 60, 66));
     }
     data.props().insert(data.props().end(),
                         std::make_move_iterator(extra_.begin()),
