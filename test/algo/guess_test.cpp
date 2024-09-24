@@ -1033,7 +1033,7 @@ TEST(GuessSelectedMolecules, GH358) {
     "CSC1C2(C(C(C(O)=C1C#N)C)CCc3c(-c4cccnc4)n(C)nc32)C	5daf_lig",
     "COC(C(C1SCC(C)=C(C(O)=O)N1)NC(=O)Cc2cccs2)=O	5zg6_lig",
     "C(=O)(N1C(CCC1)C(O)=CC(=O)O)O	6m06_lig-bwf",
-    "C(=C1N=C(C(=C1CCC(=O)O)C)C=C2NC(C(=C2C)CC)=O)c3nc(C=C4NC(C(C4CC)C)=O)c(c3CCC(=O)O)C	6oap_lig-cyc",
+    "C(=C1N=C(C(=C1CCC(=O)O)C)C=C2NC(C(=C2C)CC)=O)c3[nH]c(C=C4NC(C(C4CC)C)=O)c(c3CCC(=O)O)C	6oap_lig-cyc",
     "COC(C(NC(=O)C(c1csc(N)n1)=NOC)C2SCC(=C(N2)C(O)=O)CSC=3N(C)NC(C(N=3)=O)=O)=O	6p54_lig",
     "COC(C(NC(C(=NOCC(=O)O)c1csc(N)n1)=O)C2NC(=C(CS2)C=C)C(=O)O)=O	6p55_lig",
     "CSCCC(Nc1c(Nc2cc(N(CCCN3CCN(C)CC3)C(=O)Nc4c(Cl)c(cc(c4Cl)OC)OC)ncn2)cccc1)=O	6p69_lig",
