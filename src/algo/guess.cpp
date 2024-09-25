@@ -1544,7 +1544,8 @@ namespace {
 
   bool try_fix_hyb_too_small(const Matrix3Xd &pos, Molecule::MutableAtom atom,
                              const ConflictInfo &info, Conflicts &conflicts,
-                             std::vector<NeighborConflict> &nei_conflict) {
+                             std::vector<NeighborConflict> &nei_conflict,
+                             bool check_torsion) {
     // steric number > hybridization
     // 1. Missing multiple bond, if (conjugation already marked)
     //      - neighbor also has conflicts, or
@@ -1570,7 +1571,8 @@ namespace {
       auto ord = static_cast<constants::BondOrder>(nei.edge_data().order()
                                                    + available);
 
-      if (ord == constants::kDoubleBond && !torsion_can_double_bond(pos, nei))
+      if (check_torsion && ord == constants::kDoubleBond
+          && !torsion_can_double_bond(pos, nei))
         continue;
 
       ABSL_DCHECK(nei.src().data().implicit_hydrogens() >= available);
@@ -1622,7 +1624,7 @@ namespace {
 
         auto new_ord = static_cast<constants::BondOrder>(nei.edge_data().order()
                                                          + allowed);
-        if (new_ord == constants::kDoubleBond
+        if (check_torsion && new_ord == constants::kDoubleBond
             && !torsion_can_double_bond(pos, nei)) {
           continue;
         }
@@ -1642,6 +1644,10 @@ namespace {
           return true;
       }
     }
+
+    // Will get another chance after this point
+    if (check_torsion)
+      return false;
 
     int pred_hyb = atom.data().hybridization() + required;
     if (pred_hyb > constants::kSP3D2)
@@ -1757,14 +1763,40 @@ namespace {
         resolved = try_fix_overflow(atom, info, conflicts, nei_conflict);
         break;
       case Conflict::kHybTooSmall:
-        resolved =
-            try_fix_hyb_too_small(pos, atom, info, conflicts, nei_conflict);
+        resolved = try_fix_hyb_too_small(pos, atom, info, conflicts,
+                                         nei_conflict, true);
         break;
       case Conflict::kHybTooLarge:
         resolved = try_fix_hyb_too_large(atom, info, conflicts, nei_conflict);
         break;
       }
 
+      if (resolved)
+        conflicts.mark_resolved(it);
+    }
+
+    // Retry without torsion angle check
+    for (int i = 0; i < conflicts_penaltied.size(); ++i) {
+      it = conflicts.find(conflicts_penaltied[i].first);
+      if (it == conflicts.end() || it->second.why != Conflict::kHybTooSmall)
+        continue;
+
+      auto atom = mol.atom(it->first);
+
+      nei_conflict.clear();
+      for (int j = 0; j < atom.degree(); ++j) {
+        auto jt = conflicts.find(atom[j].dst().id());
+        if (jt != conflicts.end() && jt->second.why == it->second.why) {
+          nei_conflict.push_back({ j, penalty(atom[j].dst()), jt });
+        }
+      }
+
+      absl::c_sort(nei_conflict, [](const NeighborConflict &lhs,
+                                    const NeighborConflict &rhs) {
+        return lhs.penalty < rhs.penalty;
+      });
+      bool resolved = try_fix_hyb_too_small(pos, atom, it->second, conflicts,
+                                            nei_conflict, false);
       if (resolved)
         conflicts.mark_resolved(it);
     }
