@@ -1069,6 +1069,33 @@ TEST(GuessSelectedMolecules, GH358) {
   EXPECT_EQ(i, smiles_answers.size());
 }
 
+TEST(GuessSelectedMolecules, GH367) {
+  std::vector<std::string_view> smiles_answers {
+    // clang-format off
+    "COC(C(CN1CC(C(NCCN2C(=O)c3cc(O)c(O)cc3C2=O)=O)=C(C(O)=O)N1)NC(=O)C(=NOC(C)(C)C(O)=O)c4nc(N)sc4)=O	6vot_lig",
+    // clang-format on
+  };
+
+  std::ifstream ifs(internal::test_data("gh-367.pdb"));
+  PDBReader reader(ifs);
+  std::vector<std::string> blk;
+
+  int i = 0;
+  for (; i < smiles_answers.size() && reader.getnext(blk); ++i) {
+    Molecule mol = reader.parse(blk);
+    std::string smi;
+    write_smiles(smi, mol);
+    absl::StripAsciiWhitespace(&smi);
+
+    std::pair<std::string_view, std::string_view> ans_split =
+        absl::StrSplit(smiles_answers[i], '\t');
+    EXPECT_EQ(smi, ans_split.first)
+        << "Different SMILES for " << ans_split.second;
+  }
+
+  EXPECT_EQ(i, smiles_answers.size());
+}
+
 TEST(GuessFchargeOnly, ChargedPhosphorus) {
   Molecule mol;
   {
