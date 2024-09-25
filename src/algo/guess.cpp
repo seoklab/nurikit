@@ -1601,17 +1601,19 @@ namespace {
     if (atom.degree() == atom.data().hybridization()) {
       int max_multiple = 4 - atom.data().hybridization();
       for (auto nei: atom) {
-        if (nei.dst().data().implicit_hydrogens() <= 0
-            || nei.dst().degree() > 2)
+        if (nei.dst().data().implicit_hydrogens() <= 0 || nei.dst().degree() > 2
+            || !nei.dst().data().element().main_group())
           continue;
 
         AtomData &nei_data = nei.dst().data();
-        auto max_nei_order =
-            4 - sum_bond_order(nei.dst()) + nei_data.implicit_hydrogens();
+        int nei_order_margin =
+            internal::common_valence(
+                internal::effective_element_or_element(nei.dst()))
+            - sum_bond_order(nei.dst()) + nei_data.implicit_hydrogens();
         int allowed = std::min({
             required,
             max_multiple,
-            max_nei_order - nei.edge_data().order(),
+            nei_order_margin,
             atom.data().implicit_hydrogens(),
             nei_data.implicit_hydrogens(),
         });
