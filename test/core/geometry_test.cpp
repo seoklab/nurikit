@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <vector>
 
+#include <Eigen/Dense>
+
 #include <absl/strings/str_cat.h>
 #include <gtest/gtest.h>
 
@@ -240,83 +242,104 @@ TEST(FitPlaneTest, CheckCorrectness) {
 
 class KabschTest: public ::testing::Test {
 public:
-  Matrix3Xd query_;
-  Matrix3Xd templ_;
-  double msd_;
-  inline static Affine3d xform_;
+  // Random rotation matrix
+  inline static const Affine3d xform_ {
+    Matrix4d {{ 0.82743922, 0.54630659, 0.12997477, -10 },
+              { 0.05113706, 0.15719006, -0.98624352, 20 },
+              { -0.55922208, 0.8227031, 0.10212871, 30 },
+              { 0, 0, 0, 1 }},
+  };
 
-protected:
-  static void SetUpTestSuite() {
-    // Random rotation matrix
-    xform_.linear().transpose() << 0.82743922, 0.54630659, 0.12997477,  //
-        0.05113706, 0.15719006, -0.98624352,                            //
-        -0.55922208, 0.8227031, 0.10212871;
-    xform_.translation() << -10, 20, 30;
-  }
+  // reflected
+  inline static const Matrix3Xd query_ =
+      -1
+      * MatrixX3d {
+          {-18.3397, 72.5541, 64.7727},
+          {-17.5457, 72.7646, 65.8591},
+          {-17.5263, 71.9973, 66.9036},
+          {-18.3203, 70.8982, 66.9881},
+          {-19.2153, 70.5869, 65.8606},
+          {-19.1851, 71.4993, 64.7091},
+          {-19.8932, 71.3140, 63.7366},
+          {-19.8586, 69.4953, 66.1942},
+          {-19.4843, 69.0910, 67.3570},
+          {-18.5535, 69.9074, 67.8928},
+          {-17.8916, 69.7493, 69.2373},
+          {-16.7519, 70.7754, 69.3878},
+          {-15.5030, 70.1100, 69.5871},
+          {-17.1385, 71.5903, 70.6459},
+          {-15.9909, 71.8532, 71.4558},
+          {-18.1166, 70.6286, 71.3678},
+          {-18.8422, 70.0100, 70.2837},
+          {-19.0679, 71.4098, 72.2764},
+          {-20.1784, 71.8813, 71.5104},
+  }.transpose();
 
-  void SetUp() override {
-    query_.resize(3, 19);
-    query_.transpose() << -18.3397, 72.5541, 64.7727,  //
-        -17.5457, 72.7646, 65.8591,                    //
-        -17.5263, 71.9973, 66.9036,                    //
-        -18.3203, 70.8982, 66.9881,                    //
-        -19.2153, 70.5869, 65.8606,                    //
-        -19.1851, 71.4993, 64.7091,                    //
-        -19.8932, 71.3140, 63.7366,                    //
-        -19.8586, 69.4953, 66.1942,                    //
-        -19.4843, 69.0910, 67.3570,                    //
-        -18.5535, 69.9074, 67.8928,                    //
-        -17.8916, 69.7493, 69.2373,                    //
-        -16.7519, 70.7754, 69.3878,                    //
-        -15.5030, 70.1100, 69.5871,                    //
-        -17.1385, 71.5903, 70.6459,                    //
-        -15.9909, 71.8532, 71.4558,                    //
-        -18.1166, 70.6286, 71.3678,                    //
-        -18.8422, 70.0100, 70.2837,                    //
-        -19.0679, 71.4098, 72.2764,                    //
-        -20.1784, 71.8813, 71.5104;
+  // transformed
+  inline static const Matrix3Xd templ_ =
+      xform_
+      * MatrixX3d {
+          {-18.6290, 72.4960, 64.7810},
+          {-17.6590, 72.8430, 65.6920},
+          {-17.4340, 72.1880, 66.8280},
+          {-18.2650, 71.1350, 66.9710},
+          {-19.2640, 70.7080, 66.1180},
+          {-19.4960, 71.4120, 64.9200},
+          {-20.3350, 71.1770, 64.0460},
+          {-19.9000, 69.5840, 66.6230},
+          {-19.2890, 69.3560, 67.7600},
+          {-18.2820, 70.2630, 68.0340},
+          {-17.5510, 69.7970, 69.2390},
+          {-16.4120, 70.7300, 69.6340},
+          {-15.2040, 69.9950, 69.6560},
+          {-16.8460, 71.3300, 70.9950},
+          {-16.1160, 70.8000, 72.1220},
+          {-18.3190, 70.9540, 71.1130},
+          {-18.4590, 69.7460, 70.3290},
+          {-19.2870, 72.0220, 70.6090},
+          {-20.6560, 71.5800, 70.5560},
+  }.transpose();
 
-    templ_.resize(3, 19);
-    templ_.transpose() << -18.6290, 72.4960, 64.7810,  //
-        -17.6590, 72.8430, 65.6920,                    //
-        -17.4340, 72.1880, 66.8280,                    //
-        -18.2650, 71.1350, 66.9710,                    //
-        -19.2640, 70.7080, 66.1180,                    //
-        -19.4960, 71.4120, 64.9200,                    //
-        -20.3350, 71.1770, 64.0460,                    //
-        -19.9000, 69.5840, 66.6230,                    //
-        -19.2890, 69.3560, 67.7600,                    //
-        -18.2820, 70.2630, 68.0340,                    //
-        -17.5510, 69.7970, 69.2390,                    //
-        -16.4120, 70.7300, 69.6340,                    //
-        -15.2040, 69.9950, 69.6560,                    //
-        -16.8460, 71.3300, 70.9950,                    //
-        -16.1160, 70.8000, 72.1220,                    //
-        -18.3190, 70.9540, 71.1130,                    //
-        -18.4590, 69.7460, 70.3290,                    //
-        -19.2870, 72.0220, 70.6090,                    //
-        -20.6560, 71.5800, 70.5560;
-
-    msd_ = (query_ - templ_).colwise().squaredNorm().mean();
-    templ_ = xform_ * templ_;
-  }
+  // Below all calculated manually
+  inline static const double msd_ = 0.4516332;
+  constexpr inline static double msd_reflected_ = 3.9094217;
+  inline static const Affine3d xform_reflected_ {
+    Matrix4d {{ -0.994979, 0.091884, -0.0396638, 44.5055 },
+              { -0.0531631, -0.149479, 0.987335, 20.6586 },
+              { 0.0847914, 0.984486, 0.153613, 184.346 },
+              { 0, 0, 0, 1 }},
+  };
 };
 
 TEST_F(KabschTest, CalculateMSDOnly) {
   auto [_, msd] = kabsch(query_, templ_, KabschMode::kMsdOnly);
+  EXPECT_NEAR(msd, msd_reflected_, 1e-6);
+
+  std::tie(_, msd) = kabsch(query_, templ_, KabschMode::kMsdOnly, true);
   EXPECT_NEAR(msd, msd_, 1e-6);
 }
 
 TEST_F(KabschTest, CalculateXformOnly) {
   auto [xform, flag] = kabsch(query_, templ_, KabschMode::kXformOnly);
   ASSERT_GE(flag, 0);
-  NURI_EXPECT_EIGEN_EQ_TOL(xform.matrix(), xform_.matrix(), 1e-3);
+  NURI_EXPECT_EIGEN_EQ_TOL(xform.matrix(), xform_reflected_.matrix(), 1e-3);
+
+  std::tie(xform, flag) = kabsch(query_, templ_, KabschMode::kXformOnly, true);
+  ASSERT_GE(flag, 0);
+  NURI_EXPECT_EIGEN_EQ_TOL(xform.linear(), -xform_.linear(), 1e-3);
+  NURI_EXPECT_EIGEN_EQ_TOL(xform.translation(), xform_.translation(), 1e-3);
 }
 
 TEST_F(KabschTest, CalculateBoth) {
   auto [xform, msd] = kabsch(query_, templ_, KabschMode::kBoth);
   ASSERT_GE(msd, 0);
-  NURI_EXPECT_EIGEN_EQ_TOL(xform.matrix(), xform_.matrix(), 1e-3);
+  NURI_EXPECT_EIGEN_EQ_TOL(xform.matrix(), xform_reflected_.matrix(), 1e-3);
+  EXPECT_NEAR(msd, msd_reflected_, 1e-6);
+
+  std::tie(xform, msd) = kabsch(query_, templ_, KabschMode::kBoth, true);
+  ASSERT_GE(msd, 0);
+  NURI_EXPECT_EIGEN_EQ_TOL(xform.linear(), -xform_.linear(), 1e-3);
+  NURI_EXPECT_EIGEN_EQ_TOL(xform.translation(), xform_.translation(), 1e-3);
   EXPECT_NEAR(msd, msd_, 1e-6);
 }
 }  // namespace
