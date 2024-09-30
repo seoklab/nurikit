@@ -12,6 +12,10 @@
 #define NURI_VERSION_MINOR @NuriKit_VERSION_MINOR@
 #define NURI_VERSION_PATCH @NuriKit_VERSION_PATCH@
 
+#if defined(DEBUG) && !defined(NDEBUG)
+#define NURI_DEBUG
+#endif
+
 namespace nuri {
 constexpr inline std::string_view kNuriVersion = "@NURI_VERSION@";
 constexpr inline std::string_view kNuriFullVersion = "@NURI_FULL_VERSION@";
