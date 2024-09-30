@@ -126,6 +126,40 @@ auto pdist(const MatrixLike &m) {
   return ret;
 }
 
+template <class ArrayLike>
+auto to_square_form(const ArrayLike &pdists, Eigen::Index n) {
+  using DT = typename ArrayLike::Scalar;
+
+  MatrixX<DT> dists(n, n);
+  dists.diagonal().setZero();
+
+  for (Eigen::Index i = 0, k = 0; i < n - 1; ++i)
+    for (Eigen::Index j = i + 1; j < n; ++j, ++k)
+      dists(i, j) = dists(j, i) = pdists[k];
+
+  return dists;
+}
+
+template <
+    class ML1, class ML2,
+    std::enable_if_t<std::is_same_v<typename ML1::Scalar, typename ML2::Scalar>,
+                     int> = 0>
+auto cdistsq(const ML1 &a, const ML2 &b) {
+  using DT = typename ML1::Scalar;
+
+  MatrixX<DT> distsq(a.cols(), b.cols());
+  for (Eigen::Index j = 0; j < b.cols(); ++j)
+    distsq.col(j) = (a.colwise() - b.col(j)).colwise().squaredNorm();
+  return distsq;
+}
+
+template <class ML1, class ML2>
+auto cdist(const ML1 &a, const ML2 &b) {
+  auto ret = cdistsq(a, b);
+  ret = ret.sqrt();
+  return ret;
+}
+
 namespace internal {
   constexpr inline double safe_normalizer(double sqn, double eps = 1e-12) {
     return sqn < eps ? 1 : 1 / std::sqrt(sqn);
