@@ -395,6 +395,7 @@ enum class KabschMode : std::uint8_t {
  * @param mode Selects the return value. Defaults to KabschMode::kBoth. Note
  *        that even if kXformOnly is selected, the MSD value will report a
  *        negative value if the calculation fails.
+ * @param reflection Whether to allow reflection. Defaults to false.
  * @return A pair of (transformation matrix, MSD). When this function fails, MSD
  *         is set to a negative value (-1), and the state of the transformation
  *         matrix is left unspecified. This never fails when mode is kMsdOnly.
@@ -405,7 +406,7 @@ enum class KabschMode : std::uint8_t {
 extern std::pair<Affine3d, double>
 kabsch(const Eigen::Ref<const Matrix3Xd> &query,
        const Eigen::Ref<const Matrix3Xd> &templ,
-       KabschMode mode = KabschMode::kBoth);
+       KabschMode mode = KabschMode::kBoth, bool reflection = false);
 }  // namespace nuri
 
 #endif /* NURI_CORE_GEOMETRY_H_ */

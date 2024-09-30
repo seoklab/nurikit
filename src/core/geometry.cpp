@@ -348,11 +348,17 @@ namespace {
   double kabsch_calculate_msd(const Eigen::Ref<const Matrix3Xd> &query,
                               const Eigen::Ref<const Matrix3Xd> &templ,
                               const Vector3d &qm, const Vector3d &tm, Array3d e,
-                              const double det) {
+                              const double det, const bool reflection) {
     double sd = (query.colwise() - qm).cwiseAbs2().sum()
                 + (templ.colwise() - tm).cwiseAbs2().sum();
     e = e.cwiseMax(0).sqrt();
-    double d = e[0] + e[1] + std::copysign(e[2], det);
+
+    double d;
+    if (reflection) {
+      d = e.sum();
+    } else {
+      d = e[0] + e[1] + std::copysign(e[2], det);
+    }
 
     sd -= d * 2;
     sd = nonnegative(sd);
@@ -495,7 +501,7 @@ namespace {
 
 std::pair<Affine3d, double> kabsch(const Eigen::Ref<const Matrix3Xd> &query,
                                    const Eigen::Ref<const Matrix3Xd> &templ,
-                                   KabschMode mode) {
+                                   KabschMode mode, const bool reflection) {
   std::pair<Affine3d, double> ret { {}, 0.0 };
 
   Vector3d qs = query.rowwise().sum();
@@ -519,8 +525,10 @@ std::pair<Affine3d, double> kabsch(const Eigen::Ref<const Matrix3Xd> &query,
   if (ABSL_PREDICT_TRUE(spur > 0)) {
     const bool A_ident = kabsch_prepare_e(e, rr, spur, det);
 
-    if (mode != KabschMode::kXformOnly)
-      ret.second = kabsch_calculate_msd(query, templ, qm, tm, e, det);
+    if (mode != KabschMode::kXformOnly) {
+      ret.second =
+          kabsch_calculate_msd(query, templ, qm, tm, e, det, reflection);
+    }
 
     if (mode == KabschMode::kMsdOnly)
       return ret;
@@ -533,13 +541,16 @@ std::pair<Affine3d, double> kabsch(const Eigen::Ref<const Matrix3Xd> &query,
     if (ABSL_PREDICT_FALSE(!kabsch_calculate_B(B, A, R)))
       goto failure;
 
+    if (reflection && det < 0)
+      B.col(2) *= -1;
+
     ret.first.linear() = B * A.transpose();
     ret.first.translation().noalias() = tm - ret.first.linear() * qm;
     return ret;
   }
 
   if (mode == KabschMode::kMsdOnly) {
-    ret.second = kabsch_calculate_msd(query, templ, qm, tm, e, det);
+    ret.second = kabsch_calculate_msd(query, templ, qm, tm, e, det, reflection);
     return ret;
   }
 
