@@ -6,10 +6,20 @@
 #define NURI_EIGEN_CONFIG_H_
 
 /// @cond
+#include <type_traits>  // IWYU pragma: keep, required for is_class_v
+
 #include <Eigen/Dense>
 
 #include <absl/log/absl_check.h>
 /// @endcond
+
+#ifdef NURI_DEBUG
+#define NURI_EIGEN_TMP(type) Eigen::type
+#else
+#define NURI_EIGEN_TMP(type)                                                   \
+  { static_assert(std::is_class_v<Eigen::type>); }                             \
+  auto
+#endif
 
 namespace nuri {
 using Eigen::Array;
@@ -20,11 +30,15 @@ using Eigen::ArrayX;
 using ArrayXb = Eigen::ArrayX<bool>;
 using Eigen::ArrayXd;
 using Eigen::ArrayXi;
+using Eigen::ArrayXX;
 
 using Eigen::Matrix;
 using Eigen::Matrix3;
 using Eigen::Matrix3d;
+using Eigen::Matrix4d;
 using Eigen::Matrix3Xd;
+using Eigen::MatrixX;
+using Eigen::MatrixX3d;
 using Eigen::MatrixXd;
 
 using Eigen::Vector;
@@ -32,6 +46,8 @@ using Eigen::Vector3;
 using Eigen::Vector3d;
 using Eigen::Vector4d;
 using Eigen::VectorXd;
+
+using Eigen::Affine3d;
 
 /**
  * @brief Cyclic indexer for Eigen types with a given offset.
