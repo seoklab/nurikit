@@ -421,23 +421,16 @@ namespace {
 
     double p = A.col(c1).squaredNorm();
     if (p <= kTol) {
-      p = 1.0;
-      Array3d a_abs = A.col(c).array().abs();
-      int idx = 0;
-      for (int i = 0; i < 3; i++) {
-        if (p < a_abs[i])
-          continue;
-        p = a_abs[i];
-        idx = i;
-      }
+      int minrow;
+      A.col(c).array().abs().minCoeff(&minrow);
 
-      int l = kIp2312[idx];
-      int m = kIp2312[idx + 1];
+      int l = kIp2312[minrow];
+      int m = kIp2312[minrow + 1];
       p = std::sqrt(A(l, c) * A(l, c) + A(m, c) * A(m, c));
       if (p <= kTol)
         return false;
 
-      A(idx, c1) = 0.0;
+      A(minrow, c1) = 0.0;
       A(l, c1) = -A(m, c) / p;
       A(m, c1) = A(l, c) / p;
     } else {
@@ -468,24 +461,16 @@ namespace {
 
     double p = B.col(1).squaredNorm();
     if (p <= kTol) {
-      p = 1.0;
-      Array3d b_abs = B.col(0).array().abs();
-      int idx = 0;
-      for (int i = 0; i < 3; i++) {
-        if (p < b_abs[i])
-          continue;
+      int minrow;
+      B.col(0).array().abs().minCoeff(&minrow);
 
-        p = b_abs[i];
-        idx = i;
-      }
-
-      int k = kIp2312[idx];
-      int l = kIp2312[idx + 1];
+      int k = kIp2312[minrow];
+      int l = kIp2312[minrow + 1];
       p = std::sqrt(B(k, 0) * B(k, 0) + B(l, 0) * B(l, 0));
       if (p <= kTol)
         return false;
 
-      B(idx, 1) = 0.0;
+      B(minrow, 1) = 0.0;
       B(k, 1) = -B(l, 0) / p;
       B(l, 1) = B(k, 0) / p;
     } else {
