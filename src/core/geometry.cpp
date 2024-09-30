@@ -421,12 +421,13 @@ namespace {
 
     double p = A.col(c1).squaredNorm();
     if (p <= kTol) {
+      Array3d ac_sq = A.col(c).array().square();
       int minrow;
-      A.col(c).array().abs().minCoeff(&minrow);
+      ac_sq.minCoeff(&minrow);
 
       int l = kIp2312[minrow];
       int m = kIp2312[minrow + 1];
-      p = std::sqrt(A(l, c) * A(l, c) + A(m, c) * A(m, c));
+      p = std::sqrt(ac_sq[l] + ac_sq[m]);
       if (p <= kTol)
         return false;
 
@@ -461,12 +462,13 @@ namespace {
 
     double p = B.col(1).squaredNorm();
     if (p <= kTol) {
+      Array3d b0_sq = B.col(0).array().square();
       int minrow;
-      B.col(0).array().abs().minCoeff(&minrow);
+      b0_sq.minCoeff(&minrow);
 
       int k = kIp2312[minrow];
       int l = kIp2312[minrow + 1];
-      p = std::sqrt(B(k, 0) * B(k, 0) + B(l, 0) * B(l, 0));
+      p = std::sqrt(b0_sq[k] + b0_sq[l]);
       if (p <= kTol)
         return false;
 
