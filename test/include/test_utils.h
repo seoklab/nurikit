@@ -12,16 +12,26 @@
 #include <absl/strings/str_split.h>
 
 #define NURI_EXPECT_EIGEN_EQ(a, b)                                             \
-  EXPECT_PRED2((nuri::internal::eigen_eq<decltype(a), decltype(b)>), (a), (b))
+  EXPECT_PRED2(                                                                \
+      (nuri::internal::eigen_eq<std::remove_reference_t<decltype(a)>,          \
+                                std::remove_reference_t<decltype(b)>>),        \
+      (a), (b))
 #define NURI_EXPECT_EIGEN_NE(a, b)                                             \
-  EXPECT_PRED2((nuri::internal::eigen_ne<decltype(a), decltype(b)>), (a), (b))
+  EXPECT_PRED2(                                                                \
+      (nuri::internal::eigen_ne<std::remove_reference_t<decltype(a)>,          \
+                                std::remove_reference_t<decltype(b)>>),        \
+      (a), (b))
 
 #define NURI_EXPECT_EIGEN_EQ_TOL(a, b, tol)                                    \
-  EXPECT_PRED3((nuri::internal::eigen_eq_tol<decltype(a), decltype(b)>), (a),  \
-               (b), (tol))
+  EXPECT_PRED3(                                                                \
+      (nuri::internal::eigen_eq_tol<std::remove_reference_t<decltype(a)>,      \
+                                    std::remove_reference_t<decltype(b)>>),    \
+      (a), (b), (tol))
 #define NURI_EXPECT_EIGEN_NE_TOL(a, b, tol)                                    \
-  EXPECT_PRED3((nuri::internal::eigen_ne_tol<decltype(a), decltype(b)>), (a),  \
-               (b), (tol))
+  EXPECT_PRED3(                                                                \
+      (nuri::internal::eigen_ne_tol<std::remove_reference_t<decltype(a)>,      \
+                                    std::remove_reference_t<decltype(b)>>),    \
+      (a), (b), (tol))
 
 #define NURI_EXPECT_STRTRIM_EQ(a, b)                                           \
   EXPECT_PRED2(nuri::internal::expect_line_eq_trim, (a), (b))
