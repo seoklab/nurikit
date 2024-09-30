@@ -994,11 +994,12 @@ constexpr inline int value_if(bool cond, int val = 1) {
   return static_cast<int>(cond) * val;
 }
 
-template <
-    class Int,
-    std::enable_if_t<std::is_integral_v<Int> && std::is_signed_v<Int>, int> = 0>
-constexpr Int nonnegative(Int x) {
-  return std::max(x, Int(0));
+template <class Scalar, std::enable_if_t<std::is_arithmetic_v<Scalar>
+                                             && (!std::is_integral_v<Scalar>
+                                                 || std::is_signed_v<Scalar>),
+                                         int> = 0>
+constexpr Scalar nonnegative(Scalar x) {
+  return nuri::max(x, static_cast<Scalar>(0));
 }
 
 template <class UInt,
