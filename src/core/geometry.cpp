@@ -9,11 +9,16 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <exception>
 #include <numeric>
 #include <utility>
 #include <vector>
 
 #include <Eigen/Dense>
+#include <Spectra/MatOp/DenseSymMatProd.h>
+#include <Spectra/SymEigsSolver.h>
+#include <Spectra/Util/CompInfo.h>
+#include <Spectra/Util/SelectionRule.h>
 
 #include <absl/base/optimization.h>
 #include <absl/log/absl_log.h>
@@ -758,4 +763,53 @@ std::pair<Affine3d, double> qcp(const Eigen::Ref<const Matrix3Xd> &query,
   return ret;
 }
 // NOLINTEND(readability-identifier-naming,*-avoid-goto)
+
+bool embed_distances(Eigen::Ref<Matrix3Xd> pts, MatrixXd dsqs) {
+  using Spectra::CompInfo;
+  using Spectra::SortRule;
+
+  if (dsqs.cols() != dsqs.rows() || dsqs.cols() != pts.cols()) {
+    ABSL_LOG(WARNING) << "size mismatch; cannot embed distances";
+    return false;
+  }
+
+  const int n = static_cast<int>(dsqs.cols());
+
+  double norm_dist = 0;
+  for (int i = 1; i < dsqs.cols(); ++i)
+    norm_dist += dsqs.col(i).head(i).sum();
+  norm_dist /= n * n;
+
+  VectorXd d0sq = dsqs.colwise().mean().array() - norm_dist;
+
+  dsqs *= -1;
+  dsqs.colwise() += d0sq;
+  dsqs.rowwise() += d0sq.transpose();
+  dsqs /= 2;
+
+  try {
+    Spectra::DenseSymMatProd<double> op(dsqs);
+    // This constructor might throw
+    Spectra::SymEigsSolver<decltype(op)> eigs(op, 3, 6);
+    eigs.init();
+    auto nconv = eigs.compute();
+    if (eigs.info() != CompInfo::Successful || nconv < 3) {
+      ABSL_LOG(WARNING) << "solver failed";
+      return false;
+    }
+
+    Array3d evals_sqrt = eigs.eigenvalues().head<3>();
+    if ((evals_sqrt < 0).any())
+      return false;
+    evals_sqrt = evals_sqrt.sqrt();
+
+    pts = (eigs.eigenvectors(3).transpose().array().colwise() * evals_sqrt)
+              .matrix();
+  } catch (const std::exception &e) {
+    ABSL_LOG(WARNING) << "solver failed: " << e.what();
+    return false;
+  }
+
+  return true;
+}
 }  // namespace nuri

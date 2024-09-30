@@ -519,6 +519,22 @@ extern std::pair<Affine3d, double>
 qcp(const Eigen::Ref<const Matrix3Xd> &query,
     const Eigen::Ref<const Matrix3Xd> &templ, AlignMode mode = AlignMode::kBoth,
     double evalprec = 1e-11, double evecprec = 1e-6, int maxiter = 50);
+
+/**
+ * @brief A routine for converting squared pairwise distances to cartesian
+ *        coordinates.
+ * @param pts Destination to which save the generated coordinates.
+ * @param dsqs The squared distances between points.
+ * @return Whether the embedding was successful.
+ *
+ * @note The squared distance matrix must be a N x N symmetric pairwise
+ *       squared-distance matrix, where N is the number of points.
+ *
+ * This implementation is based on the following reference: TF Havel, ID Kuntz,
+ * and GM Crippen. *Bull. Math. Biol.* **1983**, *45* (5), 665-720.
+ * DOI:[10.1007/BF02460044](https://doi.org/10.1007/BF02460044)
+ */
+extern bool embed_distances(Eigen::Ref<Matrix3Xd> pts, MatrixXd dsqs);
 }  // namespace nuri
 
 #endif /* NURI_CORE_GEOMETRY_H_ */
