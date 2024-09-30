@@ -125,6 +125,26 @@ function(find_or_fetch_eigen)
   endif()
 endfunction()
 
+function(find_or_fetch_spectra)
+  set(BUILD_TESTING OFF)
+
+  find_package(Spectra 1.0 QUIET)
+
+  if(Spectra_FOUND)
+    message(STATUS "Found Spectra ${Spectra_VERSION}")
+  else()
+    include(FetchContent)
+    message(NOTICE "Could not find compatible Spectra. Fetching from github.")
+
+    FetchContent_Declare(
+      spectra
+      GIT_REPOSITORY https://github.com/yixuan/spectra.git
+      GIT_TAG v1.0.1)
+    nuri_make_available_deponly(spectra)
+    add_library(Spectra::Spectra ALIAS Spectra)
+  endif()
+endfunction()
+
 function(find_or_fetch_pybind11)
   set(BUILD_TESTING OFF)
 
