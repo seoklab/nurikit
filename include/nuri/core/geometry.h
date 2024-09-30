@@ -7,6 +7,7 @@
 
 /// @cond
 #include <cmath>
+#include <cstdint>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -379,6 +380,32 @@ Vector4d fit_plane(const MatrixLike &pts, bool normalize = true) {
   ret[3] = -ret.head<3>().dot(cntr);
   return ret;
 }
+
+enum class KabschMode : std::uint8_t {
+  kMsdOnly = 0x1,
+  kXformOnly = 0x2,
+  kBoth = kMsdOnly | kXformOnly,
+};
+
+/**
+ * @brief An implementation of the Kabsch algorithm for aligning two sets of
+ *        points. This algorithm is based on the implementation in TMalign.
+ * @param query The query points.
+ * @param templ The template points.
+ * @param mode Selects the return value. Defaults to KabschMode::kBoth. Note
+ *        that even if kXformOnly is selected, the MSD value will report a
+ *        negative value if the calculation fails.
+ * @return A pair of (transformation matrix, MSD). When this function fails, MSD
+ *         is set to a negative value (-1), and the state of the transformation
+ *         matrix is left unspecified. This never fails when mode is kMsdOnly.
+ *
+ * Reference: Y Zhang and J Skolnick. *Nucleic Acids Res.* **2005**, *33*,
+ * 2302-2309. DOI:[10.1093/nar/gki524](https://doi.org/10.1093/nar/gki524)
+ */
+extern std::pair<Affine3d, double>
+kabsch(const Eigen::Ref<const Matrix3Xd> &query,
+       const Eigen::Ref<const Matrix3Xd> &templ,
+       KabschMode mode = KabschMode::kBoth);
 }  // namespace nuri
 
 #endif /* NURI_CORE_GEOMETRY_H_ */
