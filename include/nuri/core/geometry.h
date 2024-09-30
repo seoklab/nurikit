@@ -121,7 +121,9 @@ auto pdistsq(const MatrixLike &m) {
 
 template <class MatrixLike>
 auto pdist(const MatrixLike &m) {
-  return pdistsq(m).sqrt();
+  auto ret = pdistsq(m);
+  ret = ret.sqrt();
+  return ret;
 }
 
 namespace internal {
