@@ -105,12 +105,13 @@ constexpr double deg2rad(DT deg) {
 template <class MatrixLike>
 auto pdistsq(const MatrixLike &m) {
   using DT = typename MatrixLike::Scalar;
+  constexpr Eigen::Index rows = MatrixLike::RowsAtCompileTime;
 
   const Eigen::Index n = m.cols();
   ArrayX<DT> distsq(n * (n - 1) / 2);
 
   for (Eigen::Index i = 0, k = 0; i < n - 1; ++i) {
-    Vector3<DT> v = m.col(i);
+    Vector<DT, rows> v = m.col(i);
     for (Eigen::Index j = i + 1; j < n; ++j, ++k) {
       distsq[k] = (v - m.col(j)).squaredNorm();
     }
@@ -142,7 +143,8 @@ auto to_square_form(const ArrayLike &pdists, Eigen::Index n) {
 
 template <
     class ML1, class ML2,
-    std::enable_if_t<std::is_same_v<typename ML1::Scalar, typename ML2::Scalar>,
+    std::enable_if_t<std::is_same_v<typename ML1::Scalar, typename ML2::Scalar>
+                         && ML1::RowsAtCompileTime == ML2::RowsAtCompileTime,
                      int> = 0>
 auto cdistsq(const ML1 &a, const ML2 &b) {
   using DT = typename ML1::Scalar;
