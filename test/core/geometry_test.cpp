@@ -446,7 +446,7 @@ TEST(EmbedTest, FromDistance) {
 
   MatrixXd dsqs = to_square_form(pdistsq(orig), orig.cols());
   Matrix3Xd pts(orig.rows(), orig.cols());
-  ASSERT_TRUE(embed_distances(pts, dsqs));
+  ASSERT_TRUE(embed_distances_3d(pts, dsqs));
 
   auto [xform, msd] = kabsch(pts, orig, AlignMode::kBoth, true);
   ASSERT_GE(msd, 0);
