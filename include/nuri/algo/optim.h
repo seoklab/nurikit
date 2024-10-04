@@ -96,6 +96,15 @@ namespace internal {
                             const MatrixXd &ws, const MatrixXd &wy,
                             const MatrixXd &sy, const MatrixXd &wt,
                             double sbgnrm, double theta);
+
+  extern bool lbfgsb_formk(MatrixXd &wnt, MatrixXd &wn1,
+                           Eigen::LLT<MatrixXd> &llt,
+                           const Eigen::Ref<const ArrayXi> &free,
+                           const Eigen::Ref<const ArrayXi> &bound,
+                           const std::vector<int> &enter,
+                           const std::vector<int> &leave, const MatrixXd &ws,
+                           const MatrixXd &wy, const MatrixXd &sy, double theta,
+                           bool updated);
 }  // namespace internal
 }  // namespace nuri
 
