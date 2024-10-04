@@ -268,6 +268,156 @@ namespace internal {
 
     return true;
   }
+
+  namespace {
+    void formk_shift_wn1(MatrixXd &wn1) {
+      const auto m = wn1.cols() / 2, mm1 = m - 1;
+
+      //  Shift old part of WN1.
+      wn1.topLeftCorner(mm1, mm1).triangularView<Eigen::Lower>() =
+          wn1.block(1, 1, mm1, mm1).triangularView<Eigen::Lower>();
+      wn1.block(m, m, mm1, mm1).triangularView<Eigen::Lower>() =
+          wn1.block(m + 1, m + 1, mm1, mm1).triangularView<Eigen::Lower>();
+      wn1.block(m, 0, mm1, mm1) = wn1.block(m + 1, 1, mm1, mm1);
+    }
+
+    void formk_add_new_wn1(MatrixXd &wn1, const Eigen::Ref<const ArrayXi> &free,
+                           const Eigen::Ref<const ArrayXi> &bound,
+                           const MatrixXd &ws, const MatrixXd &wy) {
+      const auto m = wn1.cols() / 2, col = ws.cols(), cm1 = col - 1;
+
+      if (m == col)
+        formk_shift_wn1(wn1);
+
+      // Put new rows in blocks (1,1), (2,1) and (2,2).
+      wn1.row(cm1).head(col).noalias() =
+          wy(free, cm1).transpose() * wy(free, Eigen::all);
+      wn1.row(m + cm1).head(col).noalias() =
+          ws(bound, cm1).transpose() * wy(bound, Eigen::all);
+      wn1.row(m + cm1).segment(m, col).noalias() =
+          ws(bound, cm1).transpose() * ws(bound, Eigen::all);
+
+      // Put new column in block (2,1)
+      wn1.col(cm1).segment(m, col).noalias() =
+          ws(free, Eigen::all).transpose() * wy(free, cm1);
+    }
+
+    void formk_update_wn1(MatrixXd &wn1, const std::vector<int> &enter,
+                          const std::vector<int> &leave, const MatrixXd &ws,
+                          const MatrixXd &wy) {
+      const auto m = wn1.cols() / 2, col = ws.cols();
+      const auto upcl = nuri::min(m, col) - 1;
+
+      // modify the old parts in blocks (1,1) and (2,2) due to changes
+      // in the set of free variables.
+      for (int j = 0; j < upcl; ++j) {
+        wn1.col(j).segment(j, upcl - j).noalias() +=
+            wy(enter, Eigen::all).transpose().middleRows(j, upcl - j)
+                * wy(enter, j)
+            - wy(leave, Eigen::all).transpose().middleRows(j, upcl - j)
+                  * wy(leave, j);
+      }
+      for (int j = 0; j < upcl; ++j) {
+        wn1.col(m + j).segment(m + j, upcl - j).noalias() -=
+            ws(enter, Eigen::all).transpose().middleRows(j, upcl - j)
+                * ws(enter, j)
+            - ws(leave, Eigen::all).transpose().middleRows(j, upcl - j)
+                  * ws(leave, j);
+      }
+
+      // Modify the old parts in block (2,1)
+      for (int j = 0; j < upcl; ++j) {
+        wn1.col(j).segment(m, j + 1).noalias() +=
+            ws(enter, Eigen::all).transpose().topRows(j + 1) * wy(enter, j)
+            - ws(leave, Eigen::all).transpose().topRows(j + 1) * wy(leave, j);
+
+        wn1.col(j).segment(m + j + 1, upcl - j - 1).noalias() -=
+            ws(enter, Eigen::all).transpose().middleRows(j + 1, upcl - j - 1)
+                * wy(enter, j)
+            - ws(leave, Eigen::all).transpose().middleRows(j + 1, upcl - j - 1)
+                  * wy(leave, j);
+      }
+    }
+
+    void formk_update_wn(MatrixXd &wnt, const MatrixXd &wn1, const MatrixXd &sy,
+                         const double theta) {
+      const auto m = wn1.cols() / 2, col = wnt.cols() / 2;
+
+      for (int j = 0; j < col; ++j) {
+        wnt.col(j).segment(j, col - j) = wn1.col(j).segment(j, col - j) / theta;
+
+        wnt.col(j).segment(col, j + 1) = wn1.col(j).segment(m, j + 1);
+        wnt.col(j).segment(col + j + 1, col - j - 1) =
+            -wn1.col(j).segment(m + j + 1, col - j - 1);
+      }
+
+      wnt.diagonal().head(col) += sy.diagonal();
+
+      for (int j = 0; j < col; ++j) {
+        wnt.col(col + j).segment(col + j, col - j) =
+            wn1.col(m + j).segment(m + j, col - j) * theta;
+      }
+    }
+
+    bool formk_factorize_wn(MatrixXd &wnt, Eigen::LLT<MatrixXd> &llt) {
+      const auto col = wnt.cols() / 2;
+
+      //    first Cholesky factor (1,1) block of wn to get LL'
+      //                      with L stored in the lower triangle of wn_t.
+      llt.compute(wnt.topLeftCorner(col, col));
+      if (llt.info() != Eigen::Success)
+        return false;
+      wnt.topLeftCorner(col, col).triangularView<Eigen::Lower>() =
+          llt.matrixL();
+
+      // Then form L^-1(-L_a'+R_z') in the (2,1) block.
+      wnt.topLeftCorner(col, col).triangularView<Eigen::Lower>().solveInPlace(
+          wnt.bottomLeftCorner(col, col).transpose());
+
+      // Form S'AA'S*theta + (L^-1(-L_a'+R_z'))'L^-1(-L_a'+R_z') in the lower
+      //  triangle of (2,2) block of wn_t.
+      for (int i = 0; i < col; ++i) {
+        wnt.col(col + i).tail(col - i).noalias() +=
+            wnt.row(col + i).head(col)
+            * wnt.bottomLeftCorner(col - i, col).transpose();
+      }
+
+      //     Cholesky factorization of (2,2) block of wn_t.
+      llt.compute(wnt.bottomRightCorner(col, col));
+      if (llt.info() != Eigen::Success)
+        return false;
+      wnt.bottomRightCorner(col, col).triangularView<Eigen::Lower>() =
+          llt.matrixL();
+
+      return true;
+    }
+  }  // namespace
+
+  bool lbfgsb_formk(MatrixXd &wnt, MatrixXd &wn1, Eigen::LLT<MatrixXd> &llt,
+                    const Eigen::Ref<const ArrayXi> &free,
+                    const Eigen::Ref<const ArrayXi> &bound,
+                    const std::vector<int> &enter,
+                    const std::vector<int> &leave, const MatrixXd &ws,
+                    const MatrixXd &wy, const MatrixXd &sy, const double theta,
+                    const bool updated) {
+    // Form the lower triangular part of
+    //           WN1 = [Y' ZZ'Y   L_a'+R_z']
+    //                 [L_a+R_z   S'AA'S   ]
+    //    where L_a is the strictly lower triangular part of S'AA'Y
+    //          R_z is the upper triangular part of S'ZZ'Y.
+    if (updated)
+      formk_add_new_wn1(wn1, free, bound, ws, wy);
+
+    formk_update_wn1(wn1, enter, leave, ws, wy);
+
+    // Form the upper triangle of WN = [D+Y' ZZ'Y/theta   -L_a'+R_z' ]
+    //                                 [-L_a +R_z        S'AA'S*theta]
+    formk_update_wn(wnt, wn1, sy, theta);
+
+    // Form the upper triangle of WN= [  LL'            L^-1(-L_a'+R_z')]
+    //                                [(-L_a +R_z)L'^-1   S'AA'S*theta  ]
+    return formk_factorize_wn(wnt, llt);
+  }
 }  // namespace internal
 }  // namespace nuri
 
