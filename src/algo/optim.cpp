@@ -339,9 +339,9 @@ namespace internal {
       }
     }
 
-    void formk_update_wn(MatrixXd &wnt, const MatrixXd &wn1, const MatrixXd &sy,
-                         const double theta) {
-      const auto m = wn1.cols() / 2, col = wnt.cols() / 2;
+    void formk_prepare_wn(MatrixXd &wnt, const MatrixXd &wn1,
+                          const MatrixXd &sy, const double theta) {
+      const auto m = wn1.cols() / 2, col = sy.cols();
 
       for (int j = 0; j < col; ++j) {
         wnt.col(j).segment(j, col - j) = wn1.col(j).segment(j, col - j) / theta;
@@ -412,7 +412,7 @@ namespace internal {
 
     // Form the upper triangle of WN = [D+Y' ZZ'Y/theta   -L_a'+R_z' ]
     //                                 [-L_a +R_z        S'AA'S*theta]
-    formk_update_wn(wnt, wn1, sy, theta);
+    formk_prepare_wn(wnt, wn1, sy, theta);
 
     // Form the upper triangle of WN= [  LL'            L^-1(-L_a'+R_z')]
     //                                [(-L_a +R_z)L'^-1   S'AA'S*theta  ]
