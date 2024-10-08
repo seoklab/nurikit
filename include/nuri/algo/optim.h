@@ -34,6 +34,8 @@ namespace internal {
 
     bool has_both(int i) const { return nbd_[i] == (0x1 | 0x2); }
 
+    int raw_nbd(int i) const { return nbd_[i]; }
+
     double lb(int i) const {
       ABSL_DCHECK(has_lb(i));
       return bds_(0, i);
@@ -105,6 +107,20 @@ namespace internal {
                            const std::vector<int> &leave, const MatrixXd &ws,
                            const MatrixXd &wy, const MatrixXd &sy, double theta,
                            bool updated);
+
+  extern bool lbfgsb_cmprlb(ArrayXd &r, VectorXd &p, const VectorXd &c,
+                            const Eigen::Ref<const ArrayXi> &free,
+                            const ArrayXd &x, const ArrayXd &z,
+                            const ArrayXd &gx, const MatrixXd &ws,
+                            const MatrixXd &wy, const MatrixXd &sy,
+                            const MatrixXd &wt, double theta, bool constrained);
+
+  extern bool lbfgsb_subsm(ArrayXd &x, ArrayXd &xp, Eigen::Ref<ArrayXd> d,
+                           VectorXd &wv, const MatrixXd &wnt,
+                           const Eigen::Ref<const ArrayXi> &free,
+                           const ArrayXd &xx, const ArrayXd &gg,
+                           const MatrixXd &ws, const MatrixXd &wy,
+                           const LbgfsbBounds &bounds, double theta);
 }  // namespace internal
 }  // namespace nuri
 
