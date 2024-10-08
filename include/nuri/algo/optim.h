@@ -32,7 +32,7 @@ namespace internal {
 
     bool has_ub(int i) const { return (nbd_[i] & 0x2) != 0; }
 
-    bool is_boxed(int i) const { return nbd_[i] == (0x1 | 0x2); }
+    bool has_both(int i) const { return nbd_[i] == (0x1 | 0x2); }
 
     double lb(int i) const {
       ABSL_DCHECK(has_lb(i));

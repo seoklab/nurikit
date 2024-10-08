@@ -25,7 +25,7 @@ namespace internal {
         ret.projected = true;
       }
 
-      if (!bounds.is_boxed(i))
+      if (!bounds.has_both(i))
         ret.boxed = false;
 
       if (!bounds.has_bound(i)) {
@@ -34,7 +34,7 @@ namespace internal {
       }
 
       ret.constrained = true;
-      if (bounds.is_boxed(i) && bounds.ub(i) - bounds.lb(i) <= 0.0)
+      if (bounds.has_both(i) && bounds.ub(i) - bounds.lb(i) <= 0.0)
         ret.iwhere[i] = 3;
     }
 
