@@ -13,6 +13,8 @@
 #include <absl/log/absl_check.h>
 /// @endcond
 
+#include "nuri/meta.h"
+
 #ifdef NURI_DEBUG
 #define NURI_EIGEN_TMP(type) Eigen::type
 #else
@@ -52,6 +54,19 @@ using Eigen::Vector4d;
 using Eigen::VectorXd;
 
 using Eigen::Affine3d;
+
+template <class Raw, int Options = 0,
+          class StrideType =
+              std::conditional_t<Raw::IsVectorAtCompileTime,
+                                 Eigen::InnerStride<1>, Eigen::OuterStride<>>>
+using MutRef = Eigen::Ref<internal::remove_cvref_t<Raw>, Options, StrideType>;
+
+template <class Raw, int Options = 0,
+          class StrideType =
+              std::conditional_t<Raw::IsVectorAtCompileTime,
+                                 Eigen::InnerStride<1>, Eigen::OuterStride<>>>
+using ConstRef =
+    const Eigen::Ref<const internal::remove_cvref_t<Raw>, Options, StrideType> &;
 
 /**
  * @brief Cyclic indexer for Eigen types with a given offset.
