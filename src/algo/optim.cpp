@@ -36,7 +36,7 @@ namespace internal {
   }
 
   std::pair<bool, bool> lbfgsb_active(MutRef<ArrayXd> &x, ArrayXi &iwhere,
-                                      const LbgfsbBounds &bounds) {
+                                      const LbfgsbBounds &bounds) {
     bool constrained = false, boxed = false;
 
     for (int i = 0; i < x.size(); ++i) {
@@ -63,7 +63,7 @@ namespace internal {
   }
 
   double lbfgsb_projgr(ConstRef<ArrayXd> x, const ArrayXd &gx,
-                       const LbgfsbBounds &bounds) {
+                       const LbfgsbBounds &bounds) {
     double norm = 0.0;
 
     for (int i = 0; i < gx.size(); ++i) {
@@ -117,7 +117,7 @@ namespace internal {
                                              std::vector<CauchyBrkpt> &brks,
                                              ConstRef<ArrayXd> x,
                                              const ArrayXd &gx,
-                                             const LbgfsbBounds &bounds) {
+                                             const LbfgsbBounds &bounds) {
       bool any_free = false, bounded = true;
 
       brks.clear();
@@ -163,7 +163,7 @@ namespace internal {
         MutRef<VectorXd> &c, ArrayXd &d, MutRef<VectorXd> &wbp,
         MutRef<ArrayXd> &smul, double &f1, double &f2, double &dtm,
         double &tsum, ClearablePQ<CauchyBrkpt, std::greater<>> &pq,
-        ConstRef<ArrayXd> x, const LbgfsbBounds &bounds, ConstRef<MatrixXd> ws,
+        ConstRef<ArrayXd> x, const LbfgsbBounds &bounds, ConstRef<MatrixXd> ws,
         ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy, ConstRef<MatrixXd> wtt,
         const double theta, const double f2_org, const bool bounded) {
       const auto nbreaks = pq.size();
@@ -233,7 +233,7 @@ namespace internal {
                      MutRef<VectorXd> &wbp, MutRef<ArrayXd> &smul,
                      ClearablePQ<CauchyBrkpt, std::greater<>> &brks,
                      ConstRef<ArrayXd> x, const ArrayXd &gx,
-                     const LbgfsbBounds &bounds, ConstRef<MatrixXd> ws,
+                     const LbfgsbBounds &bounds, ConstRef<MatrixXd> ws,
                      ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy,
                      ConstRef<MatrixXd> wtt, const double sbgnrm,
                      const double theta) {
@@ -497,7 +497,7 @@ namespace internal {
                     MutRef<VectorXd> &wv, ConstRef<MatrixXd> wnt,
                     ConstRef<ArrayXi> free, ConstRef<ArrayXd> xx,
                     const ArrayXd &gg, ConstRef<MatrixXd> ws,
-                    ConstRef<MatrixXd> wy, const LbgfsbBounds &bounds,
+                    ConstRef<MatrixXd> wy, const LbfgsbBounds &bounds,
                     const double theta) {
     const auto col = ws.cols(), nsub = free.size();
     if (nsub <= 0)
@@ -774,7 +774,7 @@ namespace internal {
 
   LbfgsbLnsrch::LbfgsbLnsrch(MutRef<ArrayXd> &x, const ArrayXd &t,
                              const ArrayXd &z, const ArrayXd &d,
-                             const LbgfsbBounds &bounds, const double f0,
+                             const LbfgsbBounds &bounds, const double f0,
                              const double g0, const int iter,
                              const bool constrained, const bool boxed,
                              const double ftol, const double gtol,
@@ -927,7 +927,7 @@ namespace internal {
       VectorXd &v_d, VectorXd &c_d, VectorXd &wbp_d, ArrayXi &free_bound,
       int &nfree, ArrayXi &enter_leave, int &nenter, int &nleave,
       ClearablePQ<CauchyBrkpt, std::greater<>> &brks, Eigen::LLT<MatrixXd> &llt,
-      const ArrayXd &gx, const LbgfsbBounds &bounds, const double sbgnrm,
+      const ArrayXd &gx, const LbfgsbBounds &bounds, const double sbgnrm,
       const double theta, const bool updated, const bool constrained,
       const int iter, const int col) {
     const auto n = x.size();

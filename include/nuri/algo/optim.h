@@ -27,14 +27,14 @@ namespace internal {
    *        0x2 if has upper bound,
    *        0x1 | 0x2 if both
    */
-  class LbgfsbBounds {
+  class LbfgsbBounds {
   public:
-    LbgfsbBounds(const ArrayXi &nbd, const Array2Xd &bounds)
+    LbfgsbBounds(const ArrayXi &nbd, const Array2Xd &bounds)
         : nbd_(&nbd), bds_(&bounds) {
       check_sizes();
     }
 
-    LbgfsbBounds(ArrayXi &&nbd, Array2Xd &&bounds) = delete;
+    LbfgsbBounds(ArrayXi &&nbd, Array2Xd &&bounds) = delete;
 
     bool has_bound(int i) const { return nbd()[i] != 0; }
 
@@ -74,7 +74,7 @@ namespace internal {
   class LbfgsbLnsrch {
   public:
     LbfgsbLnsrch(MutRef<ArrayXd> &x, const ArrayXd &t, const ArrayXd &z,
-                 const ArrayXd &d, const LbgfsbBounds &bounds, double f0,
+                 const ArrayXd &d, const LbfgsbBounds &bounds, double f0,
                  double g0, int iter, bool constrained, bool boxed,
                  double ftol = 1e-3, double gtol = 0.9,
                  double xtol = 0.1) noexcept;
@@ -100,7 +100,7 @@ namespace internal {
 
     const ArrayXd &d() const { return *d_; }
 
-    const LbgfsbBounds &bounds() const { return *bounds_; }
+    const LbfgsbBounds &bounds() const { return *bounds_; }
 
     enum class DcsrchStatus : std::uint8_t;
     DcsrchStatus dcsrch(double f, double g);
@@ -110,7 +110,7 @@ namespace internal {
 
     MutRef<ArrayXd> *x_;
     const ArrayXd *t_, *z_, *d_;
-    const LbgfsbBounds *bounds_;
+    const LbfgsbBounds *bounds_;
     double dtd_, dnorm_;
 
     double stepmax_;
@@ -135,10 +135,10 @@ namespace internal {
 
   extern std::pair<bool, bool> lbfgsb_active(MutRef<ArrayXd> &x,
                                              ArrayXi &iwhere,
-                                             const LbgfsbBounds &bounds);
+                                             const LbfgsbBounds &bounds);
 
   extern double lbfgsb_projgr(ConstRef<ArrayXd> x, const ArrayXd &gx,
-                              const LbgfsbBounds &bounds);
+                              const LbfgsbBounds &bounds);
 
   extern bool lbfgsb_bmv(MutRef<VectorXd> &p, MutRef<ArrayXd> &smul,
                          ConstRef<VectorXd> v, ConstRef<MatrixXd> sy,
@@ -157,7 +157,7 @@ namespace internal {
       ArrayXd &xcp, ArrayXi &iwhere, MutRef<VectorXd> &p, MutRef<VectorXd> &v,
       MutRef<VectorXd> &c, ArrayXd &d, MutRef<VectorXd> &wbp,
       MutRef<ArrayXd> &smul, ClearablePQ<CauchyBrkpt, std::greater<>> &brks,
-      ConstRef<ArrayXd> x, const ArrayXd &gx, const LbgfsbBounds &bounds,
+      ConstRef<ArrayXd> x, const ArrayXd &gx, const LbfgsbBounds &bounds,
       ConstRef<MatrixXd> ws, ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy,
       ConstRef<MatrixXd> wtt, double sbgnrm, double theta);
 
@@ -180,7 +180,7 @@ namespace internal {
                            MutRef<VectorXd> &wv, ConstRef<MatrixXd> wnt,
                            ConstRef<ArrayXi> free, ConstRef<ArrayXd> xx,
                            const ArrayXd &gg, ConstRef<MatrixXd> ws,
-                           ConstRef<MatrixXd> wy, const LbgfsbBounds &bounds,
+                           ConstRef<MatrixXd> wy, const LbfgsbBounds &bounds,
                            double theta);
 
   extern bool lbfgsb_prepare_lnsrch(
@@ -190,7 +190,7 @@ namespace internal {
       VectorXd &v_d, VectorXd &c_d, VectorXd &wbp_d, ArrayXi &free_bound,
       int &nfree, ArrayXi &enter_leave, int &nenter, int &nleave,
       ClearablePQ<CauchyBrkpt, std::greater<>> &brks, Eigen::LLT<MatrixXd> &llt,
-      const ArrayXd &gx, const LbgfsbBounds &bounds, double sbgnrm,
+      const ArrayXd &gx, const LbfgsbBounds &bounds, double sbgnrm,
       double theta, bool updated, bool constrained, int iter, int col);
 
   extern bool lbfgsb_prepare_next_iter(ArrayXd &r, ArrayXd &d, MatrixXd &ws_d,
@@ -202,7 +202,7 @@ namespace internal {
                                        double dtd);
 
   template <class FuncGrad>
-  bool lbfgsb_main(FuncGrad fg, MutRef<ArrayXd> x, const LbgfsbBounds &bounds,
+  bool lbfgsb_main(FuncGrad fg, MutRef<ArrayXd> x, const LbfgsbBounds &bounds,
                    const int m, const double factr, const int maxiter,
                    const int maxls, const double pgtol) {
     const auto n = x.size();
@@ -307,7 +307,7 @@ bool l_bfgs_b(FuncGrad &&fg, MutRef<ArrayXd> x, const ArrayXi &nbd,
   if (!args_ok)
     return false;
 
-  internal::LbgfsbBounds bds(nbd, bounds);
+  internal::LbfgsbBounds bds(nbd, bounds);
   return internal::lbfgsb_main(std::forward<FuncGrad>(fg), x, bds, m, factr,
                                maxiter, maxls, pgtol);
 }
