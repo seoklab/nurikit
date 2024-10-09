@@ -129,12 +129,16 @@ namespace internal {
     using Base::Base;
 
     T pop_get() noexcept {
-      T v = std::move(this->c.front());
+      T v = std::move(data().front());
       this->pop();
       return v;
     }
 
-    void clear() noexcept { this->c.clear(); }
+    void clear() noexcept { data().clear(); }
+
+    auto &data() { return this->c; }
+
+    void rebuild() noexcept { absl::c_make_heap(data(), C()); }
   };
 
   template <class Derived, class RefLike, class Category,
