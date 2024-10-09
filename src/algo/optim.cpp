@@ -6,42 +6,46 @@
 #include "nuri/algo/optim.h"
 
 #include <cstdlib>
+#include <functional>
+#include <vector>
 
+#include <Eigen/Dense>
+
+#include <absl/algorithm/container.h>
+
+#include "nuri/eigen_config.h"
 #include "nuri/utils.h"
 
 namespace nuri {
 namespace internal {
-  LbfgsbActiveOut lbfgsb_active(ArrayXd &x, const LbgfsbBounds &bounds) {
-    LbfgsbActiveOut ret { ArrayXi::Zero(x.size()) };
+  std::pair<bool, bool> lbfgsb_active(MutRef<ArrayXd> &x, ArrayXi &iwhere,
+                                      const LbgfsbBounds &bounds) {
+    bool constrained = false, boxed = false;
 
     for (int i = 0; i < x.size(); ++i) {
-      if (bounds.has_lb(i) && x[i] < bounds.lb(i)) {
+      if (bounds.has_lb(i) && x[i] < bounds.lb(i))
         x[i] = bounds.lb(i);
-        ret.projected = true;
-      }
 
-      if (bounds.has_ub(i) && x[i] > bounds.ub(i)) {
+      if (bounds.has_ub(i) && x[i] > bounds.ub(i))
         x[i] = bounds.ub(i);
-        ret.projected = true;
-      }
 
       if (!bounds.has_both(i))
-        ret.boxed = false;
+        boxed = false;
 
       if (!bounds.has_bound(i)) {
-        ret.iwhere[i] = -1;
+        iwhere[i] = -1;
         continue;
       }
 
-      ret.constrained = true;
+      constrained = true;
       if (bounds.has_both(i) && bounds.ub(i) - bounds.lb(i) <= 0.0)
-        ret.iwhere[i] = 3;
+        iwhere[i] = 3;
     }
 
-    return ret;
+    return { constrained, boxed };
   }
 
-  double lbfgsb_projgr(const ArrayXd &x, const ArrayXd &gx,
+  double lbfgsb_projgr(ConstRef<ArrayXd> x, const ArrayXd &gx,
                        const LbgfsbBounds &bounds) {
     double norm = 0.0;
 
@@ -62,24 +66,24 @@ namespace internal {
     return norm;
   }
 
-  bool lbfgsb_bmv(VectorXd &p, const VectorXd &v, const MatrixXd &sy,
-                  const MatrixXd &wt) {
+  bool lbfgsb_bmv(MutRef<VectorXd> &p, MutRef<ArrayXd> &smul,
+                  ConstRef<VectorXd> v, ConstRef<MatrixXd> sy,
+                  ConstRef<MatrixXd> wtt) {
     const auto col = sy.cols();
     ABSL_DCHECK(col > 0);
 
     if ((sy.diagonal().array() == 0).any()
-        || (wt.diagonal().array() == 0).any())
+        || (wtt.diagonal().array() == 0).any())
       return false;
 
-    ArrayXd smul =
-        v.head(col - 1).array() / sy.diagonal().head(col - 1).array();
+    smul = v.head(col - 1).array() / sy.diagonal().head(col - 1).array();
     for (int i = 0; i < col; ++i) {
       double ssum =
           (sy.row(i).head(i).array() * smul.head(i).transpose()).sum();
       p[col + i] = v[col + i] + ssum;
     }
-    wt.triangularView<Eigen::Upper>().transpose().solveInPlace(p.tail(col));
-    wt.triangularView<Eigen::Upper>().solveInPlace(p.tail(col));
+    wtt.triangularView<Eigen::Lower>().solveInPlace(p.tail(col));
+    wtt.triangularView<Eigen::Lower>().transpose().solveInPlace(p.tail(col));
 
     p.head(col) = -v.head(col).array() / sy.diagonal().array();
     for (int i = 0; i < col; ++i) {
@@ -92,17 +96,14 @@ namespace internal {
   }
 
   namespace {
-    struct CauchyFindBreaksOut {
-      std::vector<std::pair<int, double>> breaks;
-      bool any_free = false;
-      bool bounded = true;
-    };
+    std::pair<bool, bool> cauchy_find_breaks(ArrayXi &iwhere,
+                                             std::vector<CauchyBrkpt> &brks,
+                                             ConstRef<ArrayXd> x,
+                                             const ArrayXd &gx,
+                                             const LbgfsbBounds &bounds) {
+      bool any_free = false, bounded = true;
 
-    CauchyFindBreaksOut cauchy_find_breaks(ArrayXi &iwhere, const ArrayXd &x,
-                                           const ArrayXd &gx,
-                                           const LbgfsbBounds &bounds) {
-      CauchyFindBreaksOut ret;
-
+      brks.clear();
       for (int i = 0; i < x.size(); ++i) {
         const double neg_gxi = -gx[i];
 
@@ -127,49 +128,40 @@ namespace internal {
           continue;
 
         if (bounds.has_lb(i) && neg_gxi < 0) {
-          ret.breaks.push_back({ i, (x[i] - bounds.lb(i)) / -neg_gxi });
+          brks.push_back({ i, (x[i] - bounds.lb(i)) / -neg_gxi });
         } else if (bounds.has_ub(i) && neg_gxi > 0) {
-          ret.breaks.push_back({ i, (bounds.ub(i) - x[i]) / neg_gxi });
+          brks.push_back({ i, (bounds.ub(i) - x[i]) / neg_gxi });
         } else {
-          ret.any_free = true;
+          any_free = true;
           if (neg_gxi != 0)  // NOLINT(clang-diagnostic-float-equal)
-            ret.bounded = false;
+            bounded = false;
         }
       }
 
-      return ret;
+      return { any_free, bounded };
     }
 
     std::pair<bool, bool> cauchy_handle_breaks(
-        ArrayXd &xcp, ArrayXi &iwhere, VectorXd &p, VectorXd &v, VectorXd &c,
-        VectorXd &d, double &f1, double &f2, double &dtm, double &tsum,
-        std::vector<std::pair<int, double>> &&breaks, const ArrayXd &x,
-        const LbgfsbBounds &bounds, const MatrixXd &ws, const MatrixXd &wy,
-        const MatrixXd &sy, const MatrixXd &wt, const double theta,
-        const double f2_org, const bool bounded) {
-      if (breaks.empty())
-        return { true, false };
-
-      const auto nbreaks = breaks.size();
+        ArrayXd &xcp, ArrayXi &iwhere, MutRef<VectorXd> &p, MutRef<VectorXd> &v,
+        MutRef<VectorXd> &c, ArrayXd &d, MutRef<VectorXd> &wbp,
+        MutRef<ArrayXd> &smul, double &f1, double &f2, double &dtm,
+        double &tsum, ClearablePQ<CauchyBrkpt, std::greater<>> &pq,
+        ConstRef<ArrayXd> x, const LbgfsbBounds &bounds, ConstRef<MatrixXd> ws,
+        ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy, ConstRef<MatrixXd> wtt,
+        const double theta, const double f2_org, const bool bounded) {
+      const auto nbreaks = pq.size();
       const auto col = wy.cols();
 
-      auto cmp = [](std::pair<int, double> lhs, std::pair<int, double> rhs) {
-        return lhs.second > rhs.second;
-      };
-      internal::ClearablePQ<std::pair<int, double>, decltype(cmp)> pq(
-          cmp, std::move(breaks));
-      VectorXd wbp(2 * col);
+      pq.rebuild();
 
-      double tj = 0;
+      double tj0 = 0;
       while (!pq.empty()) {
-        int ibp;
-
-        double tj0 = tj;
-        std::tie(ibp, tj) = pq.pop_get();
-
+        auto [ibp, tj] = pq.pop_get();
         double dt = tj - tj0;
         if (dtm < dt)
           return { true, false };
+
+        tj0 = tj;
 
         tsum += dt;
         double dibp = d[ibp];
@@ -196,7 +188,7 @@ namespace internal {
         if (col > 0) {
           wbp.head(col) = wy.row(ibp);
           wbp.tail(col) = theta * ws.row(ibp);
-          if (!lbfgsb_bmv(v, wbp, sy, wt))
+          if (!lbfgsb_bmv(v, smul, wbp, sy, wtt))
             return { false, false };
 
           c += dt * p;
@@ -219,31 +211,35 @@ namespace internal {
     }
   }  // namespace
 
-  bool lbfgsb_cauchy(ArrayXd &xcp, ArrayXi &iwhere, VectorXd &p, VectorXd &v,
-                     VectorXd &c, const ArrayXd &x, const ArrayXd &gx,
-                     const LbgfsbBounds &bounds, const MatrixXd &ws,
-                     const MatrixXd &wy, const MatrixXd &sy, const MatrixXd &wt,
-                     const double sbgnrm, const double theta) {
+  bool lbfgsb_cauchy(ArrayXd &xcp, ArrayXi &iwhere, MutRef<VectorXd> &p,
+                     MutRef<VectorXd> &v, MutRef<VectorXd> &c, ArrayXd &d,
+                     MutRef<VectorXd> &wbp, MutRef<ArrayXd> &smul,
+                     ClearablePQ<CauchyBrkpt, std::greater<>> &brks,
+                     ConstRef<ArrayXd> x, const ArrayXd &gx,
+                     const LbgfsbBounds &bounds, ConstRef<MatrixXd> ws,
+                     ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy,
+                     ConstRef<MatrixXd> wtt, const double sbgnrm,
+                     const double theta) {
     const auto col = wy.cols();
 
     xcp = x;
     if (sbgnrm <= 0)
       return true;
 
-    auto [breaks, any_free, bounded] =
-        cauchy_find_breaks(iwhere, x, gx, bounds);
-    if (breaks.empty() && !any_free)
+    auto [any_free, bounded] =
+        cauchy_find_breaks(iwhere, brks.data(), x, gx, bounds);
+    if (brks.empty() && !any_free)
       return true;
 
-    VectorXd d = (iwhere != 0 && iwhere != -1).select(0, -gx);
-    p.head(col).noalias() = wy.transpose() * d;
-    p.tail(col).noalias() = theta * ws.transpose() * d;
+    d = (iwhere != 0 && iwhere != -1).select(0, -gx);
+    p.head(col).noalias() = wy.transpose() * d.matrix();
+    p.tail(col).noalias() = theta * ws.transpose() * d.matrix();
 
-    double f1 = -d.squaredNorm();
+    double f1 = -d.matrix().squaredNorm();
     double f2 = -theta * f1;
     const double f2_org = f2;
     if (col > 0) {
-      if (!lbfgsb_bmv(v, p, sy, wt))
+      if (!lbfgsb_bmv(v, smul, p, sy, wtt))
         return false;
       f2 -= v.dot(p);
     }
@@ -252,8 +248,8 @@ namespace internal {
 
     double dtm = -f1 / f2, tsum = 0;
     auto [success, z_is_gcp] = cauchy_handle_breaks(
-        xcp, iwhere, p, v, c, d, f1, f2, dtm, tsum, std::move(breaks), x,
-        bounds, ws, wy, sy, wt, theta, f2_org, bounded);
+        xcp, iwhere, p, v, c, d, wbp, smul, f1, f2, dtm, tsum, brks, x, bounds,
+        ws, wy, sy, wtt, theta, f2_org, bounded);
     if (!success)
       return false;
 
@@ -281,9 +277,9 @@ namespace internal {
       wn1.block(m, 0, mm1, mm1) = wn1.block(m + 1, 1, mm1, mm1);
     }
 
-    void formk_add_new_wn1(MatrixXd &wn1, const Eigen::Ref<const ArrayXi> &free,
-                           const Eigen::Ref<const ArrayXi> &bound,
-                           const MatrixXd &ws, const MatrixXd &wy) {
+    void formk_add_new_wn1(MatrixXd &wn1, ConstRef<ArrayXi> free,
+                           ConstRef<ArrayXi> bound, ConstRef<MatrixXd> ws,
+                           ConstRef<MatrixXd> wy) {
       const auto m = wn1.cols() / 2, col = ws.cols(), cm1 = col - 1;
 
       if (m == col)
@@ -302,9 +298,9 @@ namespace internal {
           ws(free, Eigen::all).transpose() * wy(free, cm1);
     }
 
-    void formk_update_wn1(MatrixXd &wn1, const std::vector<int> &enter,
-                          const std::vector<int> &leave, const MatrixXd &ws,
-                          const MatrixXd &wy) {
+    void formk_update_wn1(MatrixXd &wn1, ConstRef<ArrayXi> enter,
+                          ConstRef<ArrayXi> leave, ConstRef<MatrixXd> ws,
+                          ConstRef<MatrixXd> wy) {
       const auto m = wn1.cols() / 2, col = ws.cols();
       const auto upcl = nuri::min(m, col) - 1;
 
@@ -339,8 +335,8 @@ namespace internal {
       }
     }
 
-    void formk_prepare_wn(MatrixXd &wnt, const MatrixXd &wn1,
-                          const MatrixXd &sy, const double theta) {
+    void formk_prepare_wn(MutRef<MatrixXd> &wnt, const MatrixXd &wn1,
+                          ConstRef<MatrixXd> sy, const double theta) {
       const auto m = wn1.cols() / 2, col = sy.cols();
 
       for (int j = 0; j < col; ++j) {
@@ -359,7 +355,7 @@ namespace internal {
       }
     }
 
-    bool formk_factorize_wn(MatrixXd &wnt, Eigen::LLT<MatrixXd> &llt) {
+    bool formk_factorize_wn(MutRef<MatrixXd> &wnt, Eigen::LLT<MatrixXd> &llt) {
       const auto col = wnt.cols() / 2;
 
       //    first Cholesky factor (1,1) block of wn to get LL'
@@ -393,13 +389,12 @@ namespace internal {
     }
   }  // namespace
 
-  bool lbfgsb_formk(MatrixXd &wnt, MatrixXd &wn1, Eigen::LLT<MatrixXd> &llt,
-                    const Eigen::Ref<const ArrayXi> &free,
-                    const Eigen::Ref<const ArrayXi> &bound,
-                    const std::vector<int> &enter,
-                    const std::vector<int> &leave, const MatrixXd &ws,
-                    const MatrixXd &wy, const MatrixXd &sy, const double theta,
-                    const bool updated) {
+  bool lbfgsb_formk(MutRef<MatrixXd> &wnt, MatrixXd &wn1,
+                    Eigen::LLT<MatrixXd> &llt, ConstRef<ArrayXi> free,
+                    ConstRef<ArrayXi> bound, ConstRef<ArrayXi> enter,
+                    ConstRef<ArrayXi> leave, ConstRef<MatrixXd> ws,
+                    ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy,
+                    const double theta, const bool updated) {
     // Form the lower triangular part of
     //           WN1 = [Y' ZZ'Y   L_a'+R_z']
     //                 [L_a+R_z   S'AA'S   ]
@@ -419,11 +414,13 @@ namespace internal {
     return formk_factorize_wn(wnt, llt);
   }
 
-  bool lbfgsb_cmprlb(ArrayXd &r, VectorXd &p, const VectorXd &c,
-                     const Eigen::Ref<const ArrayXi> &free, const ArrayXd &x,
-                     const ArrayXd &z, const ArrayXd &gx, const MatrixXd &ws,
-                     const MatrixXd &wy, const MatrixXd &sy, const MatrixXd &wt,
-                     const double theta, const bool constrained) {
+  bool lbfgsb_cmprlb(MutRef<VectorXd> &r, MutRef<VectorXd> &p,
+                     MutRef<ArrayXd> &smul, ConstRef<VectorXd> c,
+                     ConstRef<ArrayXi> free, ConstRef<ArrayXd> x,
+                     const ArrayXd &z, const ArrayXd &gx, ConstRef<MatrixXd> ws,
+                     ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy,
+                     ConstRef<MatrixXd> wtt, const double theta,
+                     const bool constrained) {
     const auto col = ws.cols();
 
     if (!constrained && col > 0) {
@@ -431,32 +428,30 @@ namespace internal {
       return true;
     }
 
-    r.head(free.size()) = theta * (x(free) - z(free)) - gx(free);
+    r = theta * (x(free) - z(free)) - gx(free);
 
-    if (!lbfgsb_bmv(p, c, sy, wt))
+    if (!lbfgsb_bmv(p, smul, c, sy, wtt))
       return false;
 
-    r.head(free.size()).matrix().noalias() +=
-        wy(free, Eigen::all) * p.head(col)
-        + ws(free, Eigen::all) * p.tail(col) * theta;
+    r.noalias() += wy(free, Eigen::all) * p.head(col)
+                   + ws(free, Eigen::all) * p.tail(col) * theta;
 
     return true;
   }
 
-  bool lbfgsb_subsm(ArrayXd &x, ArrayXd &xp, Eigen::Ref<ArrayXd> d,
-                    VectorXd &wv, const MatrixXd &wnt,
-                    const Eigen::Ref<const ArrayXi> &free, const ArrayXd &xx,
-                    const ArrayXd &gg, const MatrixXd &ws, const MatrixXd &wy,
-                    const LbgfsbBounds &bounds, const double theta) {
+  bool lbfgsb_subsm(ArrayXd &x, ArrayXd &xp, MutRef<VectorXd> &d,
+                    MutRef<VectorXd> &wv, ConstRef<MatrixXd> wnt,
+                    ConstRef<ArrayXi> free, ConstRef<ArrayXd> xx,
+                    const ArrayXd &gg, ConstRef<MatrixXd> ws,
+                    ConstRef<MatrixXd> wy, const LbgfsbBounds &bounds,
+                    const double theta) {
     const auto col = ws.cols(), nsub = free.size();
-
     if (nsub <= 0)
       return true;
 
     // Compute wv = W'Zd.
-    wv.head(col).noalias() = wy(free, Eigen::all).transpose() * d.matrix();
-    wv.tail(col).noalias() =
-        ws(free, Eigen::all).transpose() * d.matrix() * theta;
+    wv.head(col).noalias() = wy(free, Eigen::all).transpose() * d;
+    wv.tail(col).noalias() = ws(free, Eigen::all).transpose() * d * theta;
 
     // Compute wv:=K^(-1)wv.
     if ((wnt.diagonal().array() == 0).any())
@@ -466,8 +461,8 @@ namespace internal {
     wnt.triangularView<Eigen::Lower>().transpose().solveInPlace(wv);
 
     // Compute d = (1/theta)d + (1/theta**2)Z'W wv.
-    d.matrix().noalias() += wy(free, Eigen::all) * wv.head(col) / theta
-                            + ws(free, Eigen::all) * wv.tail(col);
+    d.noalias() += wy(free, Eigen::all) * wv.head(col) / theta
+                   + ws(free, Eigen::all) * wv.tail(col);
     d /= theta;
 
     // -----------------------------------------------------
@@ -555,7 +550,7 @@ namespace internal {
       d[ibd] = 0;
     }
 
-    x(free) += alpha * d;
+    x(free) += alpha * d.array();
 
     return true;
   }
