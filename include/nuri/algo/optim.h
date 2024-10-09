@@ -16,6 +16,20 @@
 #include "nuri/utils.h"
 
 namespace nuri {
+enum class LbfgsbResultCode {
+  kSuccess,
+  kMaxIterReached,
+  kInvalidInput,
+  kAbnormalTerm,
+};
+
+struct LbfgsbResult {
+  LbfgsbResultCode code;
+  int niter;
+  double fx;
+  ArrayXd gx;
+};
+
 namespace internal {
   constexpr double kEpsMach = 2.220446049250313e-16;
 
@@ -202,9 +216,10 @@ namespace internal {
                                        double dtd);
 
   template <class FuncGrad>
-  bool lbfgsb_main(FuncGrad fg, MutRef<ArrayXd> x, const LbfgsbBounds &bounds,
-                   const int m, const double factr, const int maxiter,
-                   const int maxls, const double pgtol) {
+  LbfgsbResult lbfgsb_main(FuncGrad fg, MutRef<ArrayXd> x,
+                           const LbfgsbBounds &bounds, const int m,
+                           const double factr, const int maxiter,
+                           const int maxls, const double pgtol) {
     const auto n = x.size();
     const double tol = factr * kEpsMach;
 
@@ -215,7 +230,7 @@ namespace internal {
     double fx = fg(gx, x);
     double sbgnrm = lbfgsb_projgr(x, gx, bounds);
     if (sbgnrm <= pgtol)
-      return true;
+      return { LbfgsbResultCode::kSuccess, 0, fx, std::move(gx) };
 
     MatrixXd wnt(2 * m, 2 * m), wn1(2 * m, 2 * m);
     MatrixXd ws(n, m), wy(n, m);
@@ -238,7 +253,8 @@ namespace internal {
       updated = false;
     };
 
-    for (int iter = 0; iter < maxiter; ++iter) {
+    int iter = 0;
+    for (; iter < maxiter; ++iter) {
       if (!lbfgsb_prepare_lnsrch(
               x, z, t, r, d, iwhere, wnt, wn1, ws, wy, sy, wtt, p, v, c, wbp,
               free_bound, nfree, enter_leave, nenter, nleave, brks, llt, gx,
@@ -271,9 +287,8 @@ namespace internal {
         fx = lnsrlb.finit();
         gx = r;
 
-        // Abnormal termination
         if (col == 0)
-          return false;
+          return { LbfgsbResultCode::kAbnormalTerm, iter, fx, std::move(gx) };
 
         reset_memory();
         continue;
@@ -281,11 +296,11 @@ namespace internal {
 
       sbgnrm = lbfgsb_projgr(x, gx, bounds);
       if (sbgnrm <= pgtol)
-        return true;
+        return { LbfgsbResultCode::kSuccess, iter, fx, std::move(gx) };
 
       double ddum = std::max({ std::abs(lnsrlb.finit()), std::abs(fx), 1.0 });
       if (lnsrlb.finit() - fx <= tol * ddum)
-        return true;
+        return { LbfgsbResultCode::kSuccess, iter, fx, std::move(gx) };
 
       r = gx - r;
       if (!lbfgsb_prepare_next_iter(r, d, ws, wy, ss, sy, wtt, wnt, theta, col,
@@ -295,17 +310,18 @@ namespace internal {
       }
     }
 
-    return false;
+    return { LbfgsbResultCode::kMaxIterReached, iter, fx, std::move(gx) };
   }
 }  // namespace internal
 
 template <class FuncGrad>
-bool l_bfgs_b(FuncGrad &&fg, MutRef<ArrayXd> x, const ArrayXi &nbd,
-              const Array2Xd &bounds, const int m, const double factr,
-              const int maxiter, const int maxls, const double pgtol) {
+LbfgsbResult l_bfgs_b(FuncGrad &&fg, MutRef<ArrayXd> x, const ArrayXi &nbd,
+                      const Array2Xd &bounds, const int m = 10,
+                      const double factr = 1e+7, const double pgtol = 1e-5,
+                      const int maxiter = 15000, const int maxls = 20) {
   bool args_ok = internal::lbfgsb_errclb(x, nbd, bounds, m, factr);
   if (!args_ok)
-    return false;
+    return { LbfgsbResultCode::kInvalidInput, 0, 0, {} };
 
   internal::LbfgsbBounds bds(nbd, bounds);
   return internal::lbfgsb_main(std::forward<FuncGrad>(fg), x, bds, m, factr,
