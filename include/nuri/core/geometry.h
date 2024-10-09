@@ -15,7 +15,7 @@
 /// @endcond
 
 #include "nuri/eigen_config.h"
-#include "nuri/utils.h"
+#include "nuri/meta.h"
 
 namespace nuri {
 namespace internal {
