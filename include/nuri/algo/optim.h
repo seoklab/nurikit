@@ -138,7 +138,7 @@ namespace internal {
 
     double stepmax_ = 1e+10;
     double finit_, ginit_, gtest_;
-    double ftol_, gtol_, xtol_;
+    double gtol_, xtol_;
 
     double step_;
 

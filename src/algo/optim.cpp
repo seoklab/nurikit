@@ -811,8 +811,8 @@ namespace internal {
                              const double xtol) noexcept
       : x_(&x), t_(&t), z_(&z), d_(&d), bounds_(&bounds),
         dtd_(d.matrix().squaredNorm()), dnorm_(std::sqrt(dtd_)), finit_(f0),
-        ginit_(g0), gtest_(ftol * ginit_), ftol_(ftol), gtol_(gtol),
-        xtol_(xtol), fx_(f0), gx_(g0), fy_(f0), gy_(g0) {
+        ginit_(g0), gtest_(ftol * ginit_), gtol_(gtol), xtol_(xtol), fx_(f0),
+        gx_(g0), fy_(f0), gy_(g0) {
     const auto n = x.size();
 
     if (constrained && iter == 0) {
