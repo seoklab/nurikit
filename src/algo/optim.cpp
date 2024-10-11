@@ -6,14 +6,17 @@
 #include "nuri/algo/optim.h"
 
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <functional>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 #include <Eigen/Dense>
 
-#include <absl/algorithm/container.h>
 #include <absl/base/optimization.h>
+#include <absl/log/absl_check.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/utils.h"

@@ -6,11 +6,17 @@
 #ifndef NURI_ALGO_OPTIM_H_
 #define NURI_ALGO_OPTIM_H_
 
+/// @cond
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <functional>
+#include <utility>
 
 #include <Eigen/Dense>
+
+#include <absl/log/absl_check.h>
+/// @endcond
 
 #include "nuri/eigen_config.h"
 #include "nuri/utils.h"
