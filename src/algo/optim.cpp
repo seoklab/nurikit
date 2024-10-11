@@ -5,6 +5,7 @@
 
 #include "nuri/algo/optim.h"
 
+#include <cmath>
 #include <cstdlib>
 #include <functional>
 #include <vector>
@@ -12,6 +13,7 @@
 #include <Eigen/Dense>
 
 #include <absl/algorithm/container.h>
+#include <absl/base/optimization.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/utils.h"
@@ -37,7 +39,7 @@ namespace internal {
 
   std::pair<bool, bool> lbfgsb_active(MutRef<ArrayXd> &x, ArrayXi &iwhere,
                                       const LbfgsbBounds &bounds) {
-    bool constrained = false, boxed = false;
+    bool constrained = false, boxed = true;
 
     for (int i = 0; i < x.size(); ++i) {
       if (bounds.has_lb(i) && x[i] < bounds.lb(i))
@@ -144,6 +146,7 @@ namespace internal {
         if (iwhere[i] != 0 && iwhere[i] != -1)
           continue;
 
+        ABSL_ASSUME(brks.size() < brks.capacity());
         if (bounds.has_lb(i) && neg_gxi < 0) {
           brks.push_back({ i, (x[i] - bounds.lb(i)) / -neg_gxi });
         } else if (bounds.has_ub(i) && neg_gxi > 0) {
@@ -170,6 +173,7 @@ namespace internal {
       const auto col = wy.cols();
 
       pq.rebuild();
+      c.setZero();
 
       double tj0 = 0;
       while (!pq.empty()) {
@@ -215,14 +219,12 @@ namespace internal {
           f2 += dibp * 2 * wmp - dibp2 * wmw;
         }
 
-        if (bounded) {
-          f1 = f2 = dtm = 0;
-          return { true, false };
-        }
-
         f2 = nuri::max(kEpsMach * f2_org, f2);
         dtm = -f1 / f2;
       }
+
+      if (bounded)
+        f1 = f2 = dtm = 0;
 
       return { true, false };
     }
@@ -250,7 +252,7 @@ namespace internal {
 
     d = (iwhere != 0 && iwhere != -1).select(0, -gx);
     p.head(col).noalias() = wy.transpose() * d.matrix();
-    p.tail(col).noalias() = theta * ws.transpose() * d.matrix();
+    p.tail(col).noalias() = ws.transpose() * d.matrix() * theta;
 
     double f1 = -d.matrix().squaredNorm();
     double f2 = -theta * f1;
@@ -260,8 +262,6 @@ namespace internal {
         return false;
       f2 -= v.dot(p);
     }
-
-    c.setZero();
 
     double dtm = -f1 / f2, tsum = 0;
     auto [success, z_is_gcp] = cauchy_handle_breaks(
@@ -276,8 +276,7 @@ namespace internal {
       xcp += tsum * d.array();
     }
 
-    if (col > 0)
-      c += dtm * p;
+    c += dtm * p;
 
     return true;
   }
@@ -333,10 +332,10 @@ namespace internal {
 
     void formk_add_new_wn1(MatrixXd &wn1, ConstRef<ArrayXi> free,
                            ConstRef<ArrayXi> bound, ConstRef<MatrixXd> ws,
-                           ConstRef<MatrixXd> wy) {
+                           ConstRef<MatrixXd> wy, const int prev_col) {
       const auto m = wn1.cols() / 2, col = ws.cols(), cm1 = col - 1;
 
-      if (m == col)
+      if (prev_col == m)
         formk_shift_wn1(wn1);
 
       // Put new rows in blocks (1,1), (2,1) and (2,2).
@@ -354,9 +353,8 @@ namespace internal {
 
     void formk_update_wn1(MatrixXd &wn1, ConstRef<ArrayXi> enter,
                           ConstRef<ArrayXi> leave, ConstRef<MatrixXd> ws,
-                          ConstRef<MatrixXd> wy) {
-      const auto m = wn1.cols() / 2, col = ws.cols();
-      const auto upcl = nuri::min(m, col) - 1;
+                          ConstRef<MatrixXd> wy, const Eigen::Index upcl) {
+      const auto m = wn1.cols() / 2;
 
       // modify the old parts in blocks (1,1) and (2,2) due to changes
       // in the set of free variables.
@@ -448,16 +446,17 @@ namespace internal {
                     ConstRef<ArrayXi> bound, ConstRef<ArrayXi> enter,
                     ConstRef<ArrayXi> leave, ConstRef<MatrixXd> ws,
                     ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy,
-                    const double theta, const bool updated) {
+                    const double theta, const int prev_col,
+                    const bool updated) {
     // Form the lower triangular part of
     //           WN1 = [Y' ZZ'Y   L_a'+R_z']
     //                 [L_a+R_z   S'AA'S   ]
     //    where L_a is the strictly lower triangular part of S'AA'Y
     //          R_z is the upper triangular part of S'ZZ'Y.
     if (updated)
-      formk_add_new_wn1(wn1, free, bound, ws, wy);
+      formk_add_new_wn1(wn1, free, bound, ws, wy, prev_col);
 
-    formk_update_wn1(wn1, enter, leave, ws, wy);
+    formk_update_wn1(wn1, enter, leave, ws, wy, ws.cols() - value_if(updated));
 
     // Form the upper triangle of WN = [D+Y' ZZ'Y/theta   -L_a'+R_z' ]
     //                                 [-L_a +R_z        S'AA'S*theta]
@@ -610,16 +609,19 @@ namespace internal {
   }
 
   namespace {
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void dcstep(double &stx, double &fx, double &dx, double &sty, double &fy,
                 double &dy, double &stp, bool &brackt, const double fp,
                 const double dp, const double stpmin, const double stpmax) {
-      const double sgnd = dp * dx;
+      const double sgnd = dp * std::copysign(1.0, dx);
 
       auto theta_gamma_common = [&]() {
         double theta = 3 * (fx - fp) / (stp - stx) + dx + dp;
-        double gamma = std::sqrt(nonnegative(theta * theta - dx * dp));
-        if (stp < stx)
-          gamma = -gamma;
+        double s = Array3d { theta, dx, dp }.abs().maxCoeff();
+        double theta_scaled = theta / s;
+        double gamma = s
+                       * std::sqrt(nonnegative(theta_scaled * theta_scaled
+                                               - dx / s * dp / s));
         return std::make_pair(theta, gamma);
       };
 
@@ -648,6 +650,9 @@ namespace internal {
       // quadratic steps is taken.
       if (fp > fx) {
         auto [theta, gamma] = theta_gamma_common();
+        if (stp < stx)
+          gamma = -gamma;
+
         double p = (gamma - dx) + theta;
         double q = ((gamma - dx) + gamma) + dp;
         double r = p / q;
@@ -672,6 +677,9 @@ namespace internal {
       // secant step is taken.
       if (sgnd < 0.0) {
         auto [theta, gamma] = theta_gamma_common();
+        if (stp > stx)
+          gamma = -gamma;
+
         double p = (gamma - dp) + theta;
         double q = ((gamma - dp) + gamma) + dx;
         double r = p / q;
@@ -698,6 +706,9 @@ namespace internal {
       // secant step.
       if (std::abs(dp) < std::abs(dx)) {
         auto [theta, gamma] = theta_gamma_common();
+        if (stp > stx)
+          gamma = -gamma;
+
         double p = (gamma - dp) + theta;
         double q = (gamma + (dx - dp)) + gamma;
         double r = p / q;
@@ -749,7 +760,11 @@ namespace internal {
       // otherwise the cubic step is taken.
       if (brackt) {
         double theta = 3 * (fp - fy) / (sty - stp) + dy + dp;
-        double gamma = std::sqrt(nonnegative(theta * theta - dy * dp));
+        double s = Array3d { theta, dy, dp }.abs().maxCoeff();
+        double theta_scaled = theta / s;
+        double gamma = s
+                       * std::sqrt(nonnegative(theta_scaled * theta_scaled
+                                               - dy / s * dp / s));
         if (stp > sty)
           gamma = -gamma;
 
@@ -824,6 +839,8 @@ namespace internal {
     width_ = stepmax_ - stepmin_;
     width1_ = 2 * width_;
     stmax_ = step_ + xtrapu_ * step_;
+
+    step_x();
   }
 
   bool LbfgsbLnsrch::search(const double f, const double g) {
@@ -831,21 +848,7 @@ namespace internal {
     if (status == DcsrchStatus::kConverged)
       return true;
 
-    if (step_ == 1) {  // NOLINT(clang-diagnostic-float-equal)
-      x() = z();
-      return status == DcsrchStatus::kFound;
-    }
-
-    x() = step_ * d() + t();
-    for (int i = 0; i < x().size(); ++i) {
-      if (bounds().has_lb(i)) {
-        x()[i] = nuri::max(bounds().lb(i), x()[i]);
-      }
-      if (bounds().has_ub(i)) {
-        x()[i] = nuri::min(bounds().ub(i), x()[i]);
-      }
-    }
-
+    step_x();
     return status == DcsrchStatus::kFound;
   }
 
@@ -920,6 +923,23 @@ namespace internal {
     return DcsrchStatus::kContinue;
   }
 
+  void LbfgsbLnsrch::step_x() {
+    if (step_ == 1) {  // NOLINT(clang-diagnostic-float-equal)
+      x() = z();
+      return;
+    }
+
+    x() = step_ * d() + t();
+    for (int i = 0; i < x().size(); ++i) {
+      if (bounds().has_lb(i)) {
+        x()[i] = nuri::max(bounds().lb(i), x()[i]);
+      }
+      if (bounds().has_ub(i)) {
+        x()[i] = nuri::min(bounds().ub(i), x()[i]);
+      }
+    }
+  }
+
   bool lbfgsb_prepare_lnsrch(
       MutRef<ArrayXd> x, ArrayXd &z, ArrayXd &xp, ArrayXd &r, ArrayXd &d,
       ArrayXi &iwhere, MatrixXd &wnt_d, MatrixXd &wn1, MatrixXd &ws_d,
@@ -929,7 +949,7 @@ namespace internal {
       ClearablePQ<CauchyBrkpt, std::greater<>> &brks, Eigen::LLT<MatrixXd> &llt,
       const ArrayXd &gx, const LbfgsbBounds &bounds, const double sbgnrm,
       const double theta, const bool updated, const bool constrained,
-      const int iter, const int col) {
+      const int iter, const int col, const int prev_col) {
     const auto n = x.size();
 
     MutRef<MatrixXd> wnt(wnt_d.topLeftCorner(2 * col, 2 * col));
@@ -939,7 +959,7 @@ namespace internal {
     MutRef<VectorXd> p(p_d.head(2 * col)), v(v_d.head(2 * col)),
         c(c_d.head(2 * col)), wbp = wbp_d.head(2 * col);
 
-    MutRef<ArrayXd> smul = wbp_d.tail(col - 1).array();
+    MutRef<ArrayXd> smul = wbp_d.tail(nonnegative(col - 1)).array();
 
     bool need_k;
     if (!constrained && col > 0) {
@@ -958,7 +978,8 @@ namespace internal {
       if (need_k) {
         if (!lbfgsb_formk(wnt, wn1, llt, free_bound.head(nfree),
                           free_bound.tail(n - nfree), enter_leave.head(nenter),
-                          enter_leave.tail(nleave), ws, wy, sy, theta, updated))
+                          enter_leave.tail(nleave), ws, wy, sy, theta, prev_col,
+                          updated))
           return false;
       }
 
@@ -979,16 +1000,17 @@ namespace internal {
                       const ArrayXd &d, const ArrayXd &r, const double dr,
                       const double step, const double dtd, const int pcol) {
       const int m = static_cast<int>(ws.cols());
-      int col, ci;
+      ABSL_ASSUME(pcol <= m);
 
+      int col, ci;
       if (pcol < m) {
         col = pcol + 1;
         ci = pcol;
       } else {
-        ws.leftCols(m - 1) = ws.rightCols(m - 1);
-        wy.leftCols(m - 1) = wy.rightCols(m - 1);
         col = m;
         ci = m - 1;
+        ws.leftCols(ci) = ws.rightCols(ci);
+        wy.leftCols(ci) = wy.rightCols(ci);
       }
 
       ws.col(ci) = d;
@@ -997,13 +1019,18 @@ namespace internal {
       // Form the middle matrix in B.
       // update the upper triangle of SS (m,m), and the lower triangle of SY
       // (m,m):
-      ss.topLeftCorner(pcol - 1, pcol - 1).triangularView<Eigen::Upper>() =
-          ss.block(1, 1, pcol - 1, pcol - 1).triangularView<Eigen::Upper>();
-      sy.topLeftCorner(pcol - 1, pcol - 1).triangularView<Eigen::Lower>() =
-          sy.block(1, 1, pcol - 1, pcol - 1).triangularView<Eigen::Lower>();
+      if (pcol == m) {
+        ABSL_ASSUME(ci == m - 1);
+        ss.topLeftCorner(ci, ci).triangularView<Eigen::Upper>() =
+            ss.bottomRightCorner(ci, ci).triangularView<Eigen::Upper>();
+        sy.topLeftCorner(ci, ci).triangularView<Eigen::Lower>() =
+            sy.bottomRightCorner(ci, ci).triangularView<Eigen::Lower>();
+      }
 
-      ss.col(ci).head(col) = ws.leftCols(col).transpose() * d.matrix();
-      sy.row(ci).head(col) = d.transpose().matrix() * wy.leftCols(col);
+      ss.col(ci).head(col).noalias() =
+          ws.leftCols(col).transpose() * d.matrix();
+      sy.row(ci).head(col).noalias() =
+          d.transpose().matrix() * wy.leftCols(col);
 
       ss(ci, ci) = step * step * dtd;
       sy(ci, ci) = dr;
@@ -1021,10 +1048,12 @@ namespace internal {
       wtt.triangularView<Eigen::Lower>() =
           (theta * ss.transpose()).triangularView<Eigen::Lower>();
 
-      sy_scaled.array() = sy.array().colwise() / sy.diagonal().array();
+      sy_scaled.array() =
+          sy.array().rowwise() / sy.diagonal().array().transpose();
       for (int i = 1; i < col; ++i) {
-        wtt.col(i).tail(col - i) += sy.bottomLeftCorner(col - i, i)
-                                    * sy_scaled.row(i).head(i).transpose();
+        wtt.col(i).tail(col - i).noalias() +=
+            sy.bottomLeftCorner(col - i, i)
+            * sy_scaled.row(i).head(i).transpose();
       }
 
       llt.compute(wtt);

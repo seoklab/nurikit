@@ -119,6 +119,8 @@ namespace internal {
     enum class DcsrchStatus : std::uint8_t;
     DcsrchStatus dcsrch(double f, double g);
 
+    void step_x();
+
     // NOLINTNEXTLINE(readability-identifier-naming)
     constexpr static double xtrapl_ = 1.1, xtrapu_ = 4, stepmin_ = 0;
 
@@ -167,6 +169,9 @@ namespace internal {
     return lhs.tj > rhs.tj;
   }
 
+  /**
+   * @warning brks must have capacity >= n, otherwise the behavior is undefined.
+   */
   extern bool lbfgsb_cauchy(
       ArrayXd &xcp, ArrayXi &iwhere, MutRef<VectorXd> &p, MutRef<VectorXd> &v,
       MutRef<VectorXd> &c, ArrayXd &d, MutRef<VectorXd> &wbp,
@@ -180,7 +185,7 @@ namespace internal {
                            ConstRef<ArrayXi> bound, ConstRef<ArrayXi> enter,
                            ConstRef<ArrayXi> leave, ConstRef<MatrixXd> ws,
                            ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy,
-                           double theta, bool updated);
+                           double theta, int prev_col, bool updated);
 
   extern bool lbfgsb_cmprlb(MutRef<VectorXd> &r, MutRef<VectorXd> &p,
                             MutRef<ArrayXd> &smul, ConstRef<VectorXd> c,
@@ -205,7 +210,8 @@ namespace internal {
       int &nfree, ArrayXi &enter_leave, int &nenter, int &nleave,
       ClearablePQ<CauchyBrkpt, std::greater<>> &brks, Eigen::LLT<MatrixXd> &llt,
       const ArrayXd &gx, const LbfgsbBounds &bounds, double sbgnrm,
-      double theta, bool updated, bool constrained, int iter, int col);
+      double theta, bool updated, bool constrained, int iter, int col,
+      int prev_col);
 
   extern bool lbfgsb_prepare_next_iter(ArrayXd &r, ArrayXd &d, MatrixXd &ws_d,
                                        MatrixXd &wy_d, MatrixXd &ss_d,
@@ -243,43 +249,51 @@ namespace internal {
     ClearablePQ<CauchyBrkpt, std::greater<>> brks;
     brks.data().reserve(n);
 
-    int nfree = static_cast<int>(n), nenter = 0, nleave = 0, col = 0;
+    int nfree = static_cast<int>(n), nenter = 0, nleave = 0, col = 0,
+        prev_col = 0;
     double theta = 1;
     bool updated = false;
 
     auto reset_memory = [&]() {
-      col = 0;
+      col = prev_col = 0;
       theta = 1.0;
       updated = false;
     };
 
     int iter = 0;
     for (; iter < maxiter; ++iter) {
-      if (!lbfgsb_prepare_lnsrch(
-              x, z, t, r, d, iwhere, wnt, wn1, ws, wy, sy, wtt, p, v, c, wbp,
-              free_bound, nfree, enter_leave, nenter, nleave, brks, llt, gx,
-              bounds, sbgnrm, theta, updated, constrained, iter, col)) {
+      if (!lbfgsb_prepare_lnsrch(x, z, t, r, d, iwhere, wnt, wn1, ws, wy, sy,
+                                 wtt, p, v, c, wbp, free_bound, nfree,
+                                 enter_leave, nenter, nleave, brks, llt, gx,
+                                 bounds, sbgnrm, theta, updated, constrained,
+                                 iter, col, prev_col)) {
         reset_memory();
         continue;
       }
 
       d = z - x;
+
+      double gd = gx.matrix().dot(d.matrix());
+      if (gd >= 0) {
+        if (col == 0)
+          return { LbfgsbResultCode::kAbnormalTerm, iter + 1, fx,
+                   std::move(gx) };
+
+        reset_memory();
+        continue;
+      }
+
       t = x;
       r = gx;
 
-      double gd = gx.matrix().dot(d.matrix());
       LbfgsbLnsrch lnsrlb(x, t, z, d, bounds, fx, gd, iter, constrained, boxed);
       bool converged = false;
       for (int i = 0; i < maxls; ++i) {
-        if (gd >= 0)
-          break;
-
+        fx = fg(gx, x);
+        gd = gx.matrix().dot(d.matrix());
         converged = lnsrlb.search(fx, gd);
         if (converged)
           break;
-
-        fx = fg(gx, x);
-        gd = gx.matrix().dot(d.matrix());
       }
 
       if (!converged) {
@@ -288,7 +302,8 @@ namespace internal {
         gx = r;
 
         if (col == 0)
-          return { LbfgsbResultCode::kAbnormalTerm, iter, fx, std::move(gx) };
+          return { LbfgsbResultCode::kAbnormalTerm, iter + 1, fx,
+                   std::move(gx) };
 
         reset_memory();
         continue;
@@ -296,13 +311,14 @@ namespace internal {
 
       sbgnrm = lbfgsb_projgr(x, gx, bounds);
       if (sbgnrm <= pgtol)
-        return { LbfgsbResultCode::kSuccess, iter, fx, std::move(gx) };
+        return { LbfgsbResultCode::kSuccess, iter + 1, fx, std::move(gx) };
 
       double ddum = std::max({ std::abs(lnsrlb.finit()), std::abs(fx), 1.0 });
       if (lnsrlb.finit() - fx <= tol * ddum)
-        return { LbfgsbResultCode::kSuccess, iter, fx, std::move(gx) };
+        return { LbfgsbResultCode::kSuccess, iter + 1, fx, std::move(gx) };
 
       r = gx - r;
+      prev_col = col;
       if (!lbfgsb_prepare_next_iter(r, d, ws, wy, ss, sy, wtt, wnt, theta, col,
                                     updated, llt, gd, lnsrlb.ginit(),
                                     lnsrlb.step(), lnsrlb.dtd())) {
@@ -310,7 +326,7 @@ namespace internal {
       }
     }
 
-    return { LbfgsbResultCode::kMaxIterReached, iter, fx, std::move(gx) };
+    return { LbfgsbResultCode::kMaxIterReached, maxiter, fx, std::move(gx) };
   }
 }  // namespace internal
 
