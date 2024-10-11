@@ -295,12 +295,10 @@ namespace internal {
 
       LbfgsbLnsrch lnsrlb(x, t, z, d, bounds, fx, gd, iter, constrained, boxed);
       bool converged = false;
-      for (int i = 0; i < maxls; ++i) {
+      for (int i = 0; !converged && i < maxls; ++i) {
         fx = fg(gx, x);
         gd = gx.matrix().dot(d.matrix());
         converged = lnsrlb.search(fx, gd);
-        if (converged)
-          break;
       }
 
       if (!converged) {
