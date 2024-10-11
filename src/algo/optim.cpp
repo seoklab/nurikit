@@ -34,7 +34,8 @@ namespace internal {
 
     if (x.size() != nbd.size() || ((nbd < 0) || (nbd > 3)).any())
       return false;
-    if (x.size() != bounds.cols() || (bounds.row(0) > bounds.row(1)).any())
+    if (x.size() != bounds.cols()
+        || ((nbd == 3).transpose() && bounds.row(0) > bounds.row(1)).any())
       return false;
 
     return true;
@@ -806,7 +807,6 @@ namespace internal {
     if (constrained && iter == 0) {
       stepmax_ = 1;
     } else if (constrained) {
-      stepmax_ = 1e+10;
       for (int i = 0; i < n; ++i) {
         if (!bounds.has_bound(i))
           continue;

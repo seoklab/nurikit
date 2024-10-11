@@ -84,7 +84,8 @@ namespace internal {
     void check_sizes() const {
       ABSL_DCHECK(nbd().size() == bds().cols());
       ABSL_DCHECK(((nbd() >= 0) && (nbd() <= 3)).all());
-      ABSL_DCHECK((bds().row(0) <= bds().row(1)).all());
+      ABSL_DCHECK(
+          ((nbd() != 3).transpose() || bds().row(0) <= bds().row(1)).all());
     }
 
     const ArrayXi *nbd_;
@@ -135,7 +136,7 @@ namespace internal {
     const LbfgsbBounds *bounds_;
     double dtd_, dnorm_;
 
-    double stepmax_;
+    double stepmax_ = 1e+10;
     double finit_, ginit_, gtest_;
     double ftol_, gtol_, xtol_;
 
