@@ -165,16 +165,25 @@ namespace internal {
       return { any_free, bounded };
     }
 
-    std::pair<bool, bool> cauchy_handle_breaks(
+    struct CauchyHandleBreaksResult {
+      double dtm;
+      double tsum = 0;
+      bool success = true;
+      bool z_is_gcp = false;
+    };
+
+    CauchyHandleBreaksResult cauchy_handle_breaks(
         ArrayXd &xcp, ArrayXi &iwhere, MutRef<VectorXd> &p, MutRef<VectorXd> &v,
         MutRef<VectorXd> &c, ArrayXd &d, MutRef<VectorXd> &wbp,
-        MutRef<ArrayXd> &smul, double &f1, double &f2, double &dtm,
-        double &tsum, ClearablePQ<CauchyBrkpt, std::greater<>> &pq,
-        ConstRef<ArrayXd> x, const LbfgsbBounds &bounds, ConstRef<MatrixXd> ws,
-        ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy, ConstRef<MatrixXd> wtt,
-        const double theta, const double f2_org, const bool bounded) {
+        MutRef<ArrayXd> &smul, ClearablePQ<CauchyBrkpt, std::greater<>> &pq,
+        double f1, double f2, ConstRef<ArrayXd> x, const LbfgsbBounds &bounds,
+        ConstRef<MatrixXd> ws, ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy,
+        ConstRef<MatrixXd> wtt, const double theta, const double f2_org,
+        const bool bounded) {
       const auto nbreaks = pq.size();
       const auto col = wy.cols();
+
+      CauchyHandleBreaksResult ret { -f1 / f2 };
 
       pq.rebuild();
       c.setZero();
@@ -183,12 +192,12 @@ namespace internal {
       while (!pq.empty()) {
         auto [ibp, tj] = pq.pop_get();
         double dt = tj - tj0;
-        if (dtm < dt)
-          return { true, false };
+        if (ret.dtm < dt)
+          return ret;
 
         tj0 = tj;
 
-        tsum += dt;
+        ret.tsum += dt;
         double dibp = d[ibp];
         d[ibp] = 0;
         double zibp;
@@ -203,8 +212,9 @@ namespace internal {
         }
 
         if (pq.empty() && nbreaks == x.size()) {
-          dtm = dt;
-          return { true, true };
+          ret.dtm = dt;
+          ret.z_is_gcp = true;
+          return ret;
         }
 
         double dibp2 = dibp * dibp;
@@ -213,8 +223,10 @@ namespace internal {
         if (col > 0) {
           wbp.head(col) = wy.row(ibp);
           wbp.tail(col) = theta * ws.row(ibp);
-          if (!lbfgsb_bmv(v, smul, wbp, sy, wtt))
-            return { false, false };
+          if (!lbfgsb_bmv(v, smul, wbp, sy, wtt)) {
+            ret.success = false;
+            return ret;
+          }
 
           c += dt * p;
           double wmc = c.dot(v), wmp = p.dot(v), wmw = wbp.dot(v);
@@ -224,13 +236,13 @@ namespace internal {
         }
 
         f2 = nuri::max(kEpsMach * f2_org, f2);
-        dtm = -f1 / f2;
+        ret.dtm = -f1 / f2;
       }
 
       if (bounded)
-        f1 = f2 = dtm = 0;
+        ret.dtm = 0;
 
-      return { true, false };
+      return ret;
     }
   }  // namespace
 
@@ -267,10 +279,9 @@ namespace internal {
       f2 -= v.dot(p);
     }
 
-    double dtm = -f1 / f2, tsum = 0;
-    auto [success, z_is_gcp] = cauchy_handle_breaks(
-        xcp, iwhere, p, v, c, d, wbp, smul, f1, f2, dtm, tsum, brks, x, bounds,
-        ws, wy, sy, wtt, theta, f2_org, bounded);
+    auto [dtm, tsum, success, z_is_gcp] = cauchy_handle_breaks(
+        xcp, iwhere, p, v, c, d, wbp, smul, brks, f1, f2, x, bounds, ws, wy, sy,
+        wtt, theta, f2_org, bounded);
     if (!success)
       return false;
 
@@ -1102,5 +1113,3 @@ namespace internal {
   }
 }  // namespace internal
 }  // namespace nuri
-
-// #include "nuri/algo/optim.h"
