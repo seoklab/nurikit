@@ -150,7 +150,8 @@ namespace internal {
         if (iwhere[i] != 0 && iwhere[i] != -1)
           continue;
 
-        ABSL_ASSUME(brks.size() < brks.capacity());
+        const auto size = brks.size(), capacity = brks.capacity();
+        ABSL_ASSUME(size < capacity);
         if (bounds.has_lb(i) && neg_gxi < 0) {
           brks.push_back({ i, (x[i] - bounds.lb(i)) / -neg_gxi });
         } else if (bounds.has_ub(i) && neg_gxi > 0) {
