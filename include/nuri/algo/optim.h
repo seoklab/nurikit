@@ -175,6 +175,8 @@ namespace internal {
                         ConstRef<MatrixXd> wtt);
 
   extern bool lbfgsb_cauchy(LBfgsB &lbfgsb, const ArrayXd &gx, double sbgnrm);
+
+  extern bool lbfgsb_subsm(LBfgsB &lbfgsb, const ArrayXd &gg);
 }  // namespace internal
 
 class LBfgsB {
@@ -262,6 +264,10 @@ public:
   void update_col(int col) { col_ = col; }
 
   void update_theta(double theta) { theta_ = theta; }
+
+  auto &free_bound() { return free_bound_; }
+
+  void update_nfree(int nfree) { nfree_ = nfree; }
 
 private:
   bool freev(int iter);

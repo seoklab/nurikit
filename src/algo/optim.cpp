@@ -290,6 +290,131 @@ namespace internal {
     return true;
   }
 
+  bool lbfgsb_subsm(LBfgsB &lbfgsb, const ArrayXd &gg) {
+    // NOLINTNEXTLINE(readability-identifier-naming)
+    auto &L = lbfgsb;
+
+    auto &xx = L.x();
+    const auto &bounds = L.bounds();
+    auto wnt = L.wnt();
+    auto ws = L.ws(), wy = L.wy();
+    auto wv = L.p();
+    auto &x = L.z(), &xp = L.xp();
+    auto d = L.rfree();
+    auto free = L.free();
+    const double theta = L.theta();
+
+    const int col = L.col();
+    const auto nsub = L.free().size();
+    if (nsub <= 0)
+      return true;
+
+    // Compute wv = W'Zd.
+    wv.head(col).noalias() = wy(free, Eigen::all).transpose() * d;
+    wv.tail(col).noalias() = theta * (ws(free, Eigen::all).transpose() * d);
+
+    // Compute wv:=K^(-1)wv.
+    if ((wnt.diagonal().array() == 0).any())
+      return false;
+    wnt.triangularView<Eigen::Lower>().solveInPlace(wv);
+    wv.head(col) = -wv.head(col);
+    wnt.triangularView<Eigen::Lower>().transpose().solveInPlace(wv);
+
+    // Compute d = (1/theta)d + (1/theta**2)Z'W wv.
+    d.noalias() += (1 / theta) * (wy(free, Eigen::all) * wv.head(col));
+    d.noalias() += ws(free, Eigen::all) * wv.tail(col);
+    d /= theta;
+
+    // -----------------------------------------------------
+    // Let us try the projection, d is the Newton direction.
+    xp = x;
+
+    bool bounded = false;
+    for (int i = 0; i < nsub; ++i) {
+      int k = free[i];
+      const double xk_new = xp[k] + d[i];
+      switch (bounds.raw_nbd(k)) {
+      case 0:
+        x[k] = xk_new;
+        break;
+      case 1:
+        x[k] = nuri::max(bounds.lb(k), xk_new);
+        if (x[k] <= bounds.lb(k))
+          bounded = true;
+        break;
+      case 2:
+        x[k] = nuri::min(bounds.ub(k), xk_new);
+        if (x[k] >= bounds.ub(k))
+          bounded = true;
+        break;
+      case 3:
+        x[k] = nuri::clamp(xk_new, bounds.lb(k), bounds.ub(k));
+        if (x[k] <= bounds.lb(k) || x[k] >= bounds.ub(k))
+          bounded = true;
+        break;
+      default:
+        ABSL_UNREACHABLE();
+        break;
+      }
+    }
+    if (!bounded)
+      return true;
+
+    // Check sign of the directional derivative
+    double dd_p = (x - xx).matrix().dot(gg.matrix());
+    if (dd_p <= 0)
+      return true;
+
+    x = xp;
+    double alpha = 1, curr_alpha = alpha;
+    int ibd = -1;
+    for (int i = 0; i < nsub; ++i) {
+      const int k = free[i];
+      const double dk = d[i];
+      if (!bounds.has_bound(k))
+        continue;
+
+      if (dk < 0 && bounds.has_lb(k)) {
+        double diff = bounds.lb(k) - x[k];
+        if (diff >= 0) {
+          curr_alpha = 0;
+        } else if (dk * alpha < diff) {
+          curr_alpha = diff / dk;
+        }
+      } else if (dk > 0 && bounds.has_ub(k)) {
+        double diff = bounds.ub(k) - x[k];
+        if (diff <= 0) {
+          curr_alpha = 0;
+        } else if (dk * alpha > diff) {
+          curr_alpha = diff / dk;
+        }
+      }
+
+      if (curr_alpha < alpha) {
+        alpha = curr_alpha;
+        ibd = i;
+      }
+    }
+
+    if (alpha < 1) {
+      ABSL_ASSUME(ibd >= 0);
+
+      const int k = free[ibd];
+      const double dk = d[ibd];
+      if (dk > 0) {
+        x[k] = bounds.ub(k);
+      } else if (dk < 0) {
+        x[k] = bounds.lb(k);
+      }
+
+      d[ibd] = 0;
+    }
+
+    x(free) += alpha * d.array();
+
+    return true;
+  }
+
   namespace {
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void dcstep(double &stx, double &fx, double &dx, double &sty, double &fy,
@@ -860,128 +985,6 @@ namespace {
 
     return true;
   }
-
-  bool lbfgsb_subsm(LBfgsB &L, const ArrayXd &gg) {
-    auto &xx = L.x();
-    const auto &bounds = L.bounds();
-    auto wnt = L.wnt();
-    auto ws = L.ws(), wy = L.wy();
-    auto wv = L.p();
-    auto &x = L.z(), &xp = L.xp();
-    auto d = L.rfree();
-    auto free = L.free();
-    const double theta = L.theta();
-
-    const int col = L.col();
-    const auto nsub = L.free().size();
-    if (nsub <= 0)
-      return true;
-
-    // Compute wv = W'Zd.
-    wv.head(col).noalias() = wy(free, Eigen::all).transpose() * d;
-    wv.tail(col).noalias() = theta * (ws(free, Eigen::all).transpose() * d);
-
-    // Compute wv:=K^(-1)wv.
-    if ((wnt.diagonal().array() == 0).any())
-      return false;
-    wnt.triangularView<Eigen::Lower>().solveInPlace(wv);
-    wv.head(col) *= -1;
-    wnt.triangularView<Eigen::Lower>().transpose().solveInPlace(wv);
-
-    // Compute d = (1/theta)d + (1/theta**2)Z'W wv.
-    d.noalias() += (1 / theta) * (wy(free, Eigen::all) * wv.head(col));
-    d.noalias() += ws(free, Eigen::all) * wv.tail(col);
-    d /= theta;
-
-    // -----------------------------------------------------
-    // Let us try the projection, d is the Newton direction.
-    xp = x;
-
-    bool bounded = false;
-    for (int i = 0; i < nsub; ++i) {
-      int k = free[i];
-      const double xk_new = xp[k] + d[i];
-      switch (bounds.raw_nbd(k)) {
-      case 0:
-        x[k] = xk_new;
-        break;
-      case 1:
-        x[k] = nuri::max(bounds.lb(k), xk_new);
-        if (x[k] <= bounds.lb(k))
-          bounded = true;
-        break;
-      case 2:
-        x[k] = nuri::min(bounds.ub(k), xk_new);
-        if (x[k] >= bounds.ub(k))
-          bounded = true;
-        break;
-      case 3:
-        x[k] = nuri::clamp(xk_new, bounds.lb(k), bounds.ub(k));
-        if (x[k] <= bounds.lb(k) || x[k] >= bounds.ub(k))
-          bounded = true;
-        break;
-      default:
-        ABSL_UNREACHABLE();
-        break;
-      }
-    }
-    if (!bounded)
-      return true;
-
-    // Check sign of the directional derivative
-    double dd_p = (x - xx).matrix().dot(gg.matrix());
-    if (dd_p <= 0)
-      return true;
-
-    x = xp;
-    double alpha = 1, curr_alpha = alpha;
-    int ibd = -1;
-    for (int i = 0; i < nsub; ++i) {
-      const int k = free[i];
-      const double dk = d[i];
-      if (!bounds.has_bound(k))
-        continue;
-
-      if (dk < 0 && bounds.has_lb(k)) {
-        double diff = bounds.lb(k) - x[k];
-        if (diff >= 0) {
-          curr_alpha = 0;
-        } else if (dk * alpha < diff) {
-          curr_alpha = diff / dk;
-        }
-      } else if (dk > 0 && bounds.has_ub(k)) {
-        double diff = bounds.ub(k) - x[k];
-        if (diff <= 0) {
-          curr_alpha = 0;
-        } else if (dk * alpha > diff) {
-          curr_alpha = diff / dk;
-        }
-      }
-
-      if (curr_alpha < alpha) {
-        alpha = curr_alpha;
-        ibd = i;
-      }
-    }
-
-    if (alpha < 1) {
-      ABSL_ASSUME(ibd >= 0);
-
-      const int k = free[ibd];
-      const double dk = d[ibd];
-      if (dk > 0) {
-        x[k] = bounds.ub(k);
-      } else if (dk < 0) {
-        x[k] = bounds.lb(k);
-      }
-
-      d[ibd] = 0;
-    }
-
-    x(free) += alpha * d.array();
-
-    return true;
-  }
 }  // namespace
 
 bool LBfgsB::prepare_lnsrch(const ArrayXd &gx, const double sbgnrm,
@@ -1005,7 +1008,7 @@ bool LBfgsB::prepare_lnsrch(const ArrayXd &gx, const double sbgnrm,
 
     if (!lbfgsb_cmprlb(*this, gx))
       return false;
-    if (!lbfgsb_subsm(*this, gx))
+    if (!internal::lbfgsb_subsm(*this, gx))
       return false;
   }
 
