@@ -179,10 +179,66 @@ namespace internal {
   extern bool lbfgsb_subsm(LBfgsB &lbfgsb, const ArrayXd &gg);
 }  // namespace internal
 
+/**
+ * @brief L-BFGS-B minimizer
+ * @sa l_bfgs_b
+ * @note This implementation is based on the C implementation of L-BFGS-B
+ *       in the SciPy library, which is a translation of the original Fortran
+ *       code by Ciyou Zhu, Richard Byrd, and Jorge Noceda. Both are released
+ *       under the BSD 3-Clause License and the original license is included
+ *       below.
+ *
+ *       Copyright (c) 2011 Ciyou Zhu, Richard Byrd, Jorge Nocedal and
+ *                     Jose Luis Morales.
+ *       Copyright (c) 2001-2002 Enthought, Inc. 2003-2024, SciPy Developers.
+ *       All rights reserved.
+ *
+ *       Redistribution and use in source and binary forms, with or without
+ *       modification, are permitted provided that the following conditions
+ *       are met:
+ *
+ *       1. Redistributions of source code must retain the above copyright
+ *          notice, this list of conditions and the following disclaimer.
+ *
+ *       2. Redistributions in binary form must reproduce the above
+ *          copyright notice, this list of conditions and the following
+ *          disclaimer in the documentation and/or other materials provided
+ *          with the distribution.
+ *
+ *       3. Neither the name of the copyright holder nor the names of its
+ *          contributors may be used to endorse or promote products derived
+ *          from this software without specific prior written permission.
+ *
+ *       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ *       A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *       OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *       SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ *       LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *       DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ *       THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *       (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 class LBfgsB {
 public:
   LBfgsB(MutRef<ArrayXd> x, internal::LbfgsbBounds bounds, int m);
 
+  /**
+   * @brief Minimize a function using L-BFGS-B algorithm.
+   * @tparam FuncGrad Function object that computes the function value and
+   *         gradient. Function value should be returned and gradient should be
+   *         updated in the input gradient vector.
+   * @param fg Function object.
+   * @param factr Stop when function value changes by less than this factor
+   *        times the machine precision.
+   * @param pgtol Stop when the projected gradient is less than this value.
+   * @param maxiter Maximum number of iterations.
+   * @param maxls Maximum number of line search steps.
+   * @return A struct with the result code, number of iterations, final function
+   *         value, and final gradient.
+   */
   template <class FuncGrad>
   LbfgsbResult minimize(FuncGrad fg, double factr, int maxiter, int maxls,
                         double pgtol);
@@ -396,6 +452,70 @@ LbfgsbResult LBfgsB::minimize(FuncGrad fg, const double factr,
   return { LbfgsbResultCode::kMaxIterReached, maxiter, fx, std::move(gx) };
 }
 
+/**
+ * @brief Minimize a function using L-BFGS-B algorithm.
+ *
+ * @tparam FuncGrad Function object that computes the function value and
+ *         gradient. Function value should be returned and gradient should be
+ *         updated in the input gradient vector.
+ * @param fg Function object.
+ * @param x Initial guess. Will be modified in-place.
+ * @param nbd Bound type for each variable. 0x1 if has lower bound, 0x2 if has
+ *        upper bound, 0x1 | 0x2 if both.
+ * @param bounds Bounds for each variable. First row is lower bound and second
+ *        row is upper bound.
+ * @param m The maximum number of variable metric corrections used to define the
+ *          limited memory matrix.
+ * @param factr Stop when function value changes by less than this factor times
+ *        the machine precision.
+ * @param pgtol Stop when the projected gradient is less than this value.
+ * @param maxiter Maximum number of iterations.
+ * @param maxls Maximum number of line search steps.
+ * @return A struct with the result code, number of iterations, final function
+ *         value, and final gradient.
+ *
+ * @note The input `x` will be modified in-place.
+ * @sa LBfgsB
+ *
+ * @note This implementation is based on the C implementation of L-BFGS-B
+ *       in the SciPy library, which is a translation of the original Fortran
+ *       code by Ciyou Zhu, Richard Byrd, and Jorge Noceda. Both are released
+ *       under the BSD 3-Clause License and the original license is included
+ *       below.
+ *
+ *       Copyright (c) 2011 Ciyou Zhu, Richard Byrd, Jorge Nocedal and
+ *                     Jose Luis Morales.
+ *       Copyright (c) 2001-2002 Enthought, Inc. 2003-2024, SciPy Developers.
+ *       All rights reserved.
+ *
+ *       Redistribution and use in source and binary forms, with or without
+ *       modification, are permitted provided that the following conditions
+ *       are met:
+ *
+ *       1. Redistributions of source code must retain the above copyright
+ *          notice, this list of conditions and the following disclaimer.
+ *
+ *       2. Redistributions in binary form must reproduce the above
+ *          copyright notice, this list of conditions and the following
+ *          disclaimer in the documentation and/or other materials provided
+ *          with the distribution.
+ *
+ *       3. Neither the name of the copyright holder nor the names of its
+ *          contributors may be used to endorse or promote products derived
+ *          from this software without specific prior written permission.
+ *
+ *       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ *       A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *       OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *       SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ *       LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *       DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ *       THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *       (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 template <class FuncGrad>
 LbfgsbResult l_bfgs_b(FuncGrad &&fg, MutRef<ArrayXd> x, const ArrayXi &nbd,
                       const Array2Xd &bounds, const int m = 10,
