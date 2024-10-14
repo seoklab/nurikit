@@ -809,6 +809,73 @@ TEST(LBFGSBTest, LbfgsbCorrelated) {
   NURI_EXPECT_EIGEN_EQ(gx.reshaped(3, 20).matrix(), gans.transpose());
 }
 
+TEST(LBFGSBTest, LbfgsbReference) {
+  constexpr int n = 25;
+  ArrayXd t(n);
+
+  // Taken from the reference implementation (driver1.f90)
+  auto fg = [&](ArrayXd &g, ConstRef<ArrayXd> x) -> double {
+    t[0] = x[0] - 1;
+    t.tail(n - 1) = 2 * (x.tail(n - 1) - x.head(n - 1).square());
+    const double fx = t.square().sum();
+
+    t.tail(n - 1) *= 4;
+
+    g[0] = 2 * (t[0] - x[0] * t[1]);
+    g.segment(1, n - 2) =
+        t.segment(1, n - 2) - 2 * (x.segment(1, n - 2) * t.tail(n - 2));
+    g[n - 1] = t[n - 1];
+
+    return fx;
+  };
+
+  ArrayXd x = ArrayXd::Constant(n, 3);
+
+  ArrayXi nbd = ArrayXi::Constant(n, 3);
+  Array2Xd bounds(2, n);
+  bounds(0, Eigen::seq(0, n - 1, 2)) = 1;
+  bounds(0, Eigen::seq(1, n - 1, 2)) = -100;
+  bounds.row(1) = 100;
+
+  auto [code, iter, fx, gx] = l_bfgs_b(fg, x, nbd, bounds, 5);
+  ASSERT_EQ(code, LbfgsbResultCode::kSuccess);
+
+  ArrayXd xans {
+    {
+     1.0000023258771837, 1.0000030446388724, 1.0000045143926761,
+     1.0000050772587232, 1.0000058193063399, 1.0000070253663254,
+     1.0000083438107843, 1.0000120681556417, 1.0000196904590828,
+     1.0000374605368185, 1.0000770108551211, 1.0001583814754376,
+     1.0003231605131711, 1.0006492825285076, 1.0013006127613451,
+     1.002601944378863, 1.0052112931969246, 1.010449820256067,
+     1.0210095629751152, 1.0424600004275, 1.086723474398011,
+     1.1809686991764257, 1.394691851289783, 1.9451626718243049,
+     3.7836626570644625, }
+  };
+  double fans = 1.0834900834300615e-09;
+  ArrayXd gans {
+    {
+     3.0365748651745088e-05, 1.234141889728772e-05,
+     5.0625882852877512e-05, 3.7751766268700644e-05,
+     3.9131017956764807e-05, 5.4405939303440887e-05,
+     2.8257415671835532e-05, 3.4180539567112549e-05,
+     -4.8350726165878632e-06, -4.8781455271871458e-05,
+     -5.2959691520253405e-05, -6.7145113998150568e-05,
+     5.2519369914780871e-06, -3.1785220170763878e-06,
+     2.8593132814416504e-05, -1.795750106352732e-05,
+     3.8476695147693124e-06, -1.1090233921327606e-05,
+     1.4403142695957529e-05, -1.4591078955444807e-05,
+     -8.7499549958468529e-06, -8.4059488955526312e-05,
+     9.8250878119067711e-05, -0.00017205227288462103,
+     3.8697646353114123e-05, }
+  };
+
+  EXPECT_EQ(iter, 23);
+  NURI_EXPECT_EIGEN_EQ(x, xans);
+  EXPECT_NEAR(fx, fans, 1e-12);
+  NURI_EXPECT_EIGEN_EQ_TOL(gx, gans, 1e-9);
+}
+
 TEST(LBFGSBTest, LbfgsbUnbounded) {
   // Distance maximization problem (e.g. forcefield)
   auto fg = [](ArrayXd &gx, ConstRef<ArrayXd> xa) -> double {
