@@ -128,6 +128,11 @@ endfunction()
 function(find_or_fetch_pybind11)
   set(BUILD_TESTING OFF)
 
+  # FindPythonInterp/FindPythonLibs deprecated since cmake 3.12
+  if(POLICY CMP0148)
+    cmake_policy(SET CMP0148 NEW)
+  endif()
+
   find_package(pybind11 2.12.0)
 
   if(pybind11_FOUND)
@@ -147,6 +152,11 @@ endfunction()
 
 function(handle_boost_dependency target)
   set(BUILD_TESTING OFF)
+
+  # FindBoost deprecated since cmake 3.30
+  if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 NEW)
+  endif()
 
   find_package(Boost 1.82)
 

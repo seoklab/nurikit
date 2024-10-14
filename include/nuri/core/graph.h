@@ -28,6 +28,7 @@
 /// @endcond
 
 #include "nuri/eigen_config.h"
+#include "nuri/meta.h"
 #include "nuri/utils.h"
 
 namespace nuri {

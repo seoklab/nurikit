@@ -12,10 +12,12 @@
 #include <vector>
 
 #include <Eigen/Dense>
+
+#include <absl/log/absl_check.h>
 /// @endcond
 
 #include "nuri/eigen_config.h"
-#include "nuri/utils.h"
+#include "nuri/meta.h"
 
 namespace nuri {
 namespace internal {
@@ -103,25 +105,103 @@ constexpr double deg2rad(DT deg) {
 }
 
 template <class MatrixLike>
+void pdistsq(MutRef<ArrayX<typename MatrixLike::Scalar>> distsq,
+             const MatrixLike &m) {
+  using DT = typename MatrixLike::Scalar;
+  constexpr Eigen::Index rows = MatrixLike::RowsAtCompileTime;
+
+  const Eigen::Index n = m.cols();
+  ABSL_DCHECK(distsq.size() == n * (n - 1) / 2);
+
+  Vector<DT, rows> v(m.rows());
+  for (Eigen::Index i = 1, k = 0; i < n; ++i) {
+    v = m.col(i);
+    for (Eigen::Index j = 0; j < i; ++j, ++k) {
+      distsq[k] = (v - m.col(j)).squaredNorm();
+    }
+  }
+}
+
+template <class MatrixLike>
 auto pdistsq(const MatrixLike &m) {
   using DT = typename MatrixLike::Scalar;
 
   const Eigen::Index n = m.cols();
   ArrayX<DT> distsq(n * (n - 1) / 2);
-
-  for (Eigen::Index i = 0, k = 0; i < n - 1; ++i) {
-    Vector3<DT> v = m.col(i);
-    for (Eigen::Index j = i + 1; j < n; ++j, ++k) {
-      distsq[k] = (v - m.col(j)).squaredNorm();
-    }
-  }
-
+  pdistsq(distsq, m);
   return distsq;
 }
 
 template <class MatrixLike>
+void pdist(MutRef<ArrayX<typename MatrixLike::Scalar>> dist,
+           const MatrixLike &m) {
+  pdistsq(dist, m);
+  dist = dist.sqrt();
+}
+
+template <class MatrixLike>
 auto pdist(const MatrixLike &m) {
-  return pdistsq(m).sqrt();
+  auto ret = pdistsq(m);
+  ret = ret.sqrt();
+  return ret;
+}
+
+template <class ArrayLike>
+void to_square_form(MutRef<MatrixX<typename ArrayLike::Scalar>> dists,
+                    const ArrayLike &pdists, Eigen::Index n) {
+  ABSL_DCHECK(dists.rows() == n);
+  ABSL_DCHECK(dists.cols() == n);
+
+  dists.diagonal().setZero();
+  for (Eigen::Index i = 1, k = 0; i < n; ++i)
+    for (Eigen::Index j = 0; j < i; ++j, ++k)
+      dists(i, j) = dists(j, i) = pdists[k];
+}
+
+template <class ArrayLike>
+auto to_square_form(const ArrayLike &pdists, Eigen::Index n) {
+  using DT = typename ArrayLike::Scalar;
+
+  MatrixX<DT> dists(n, n);
+  to_square_form(dists, pdists, n);
+  return dists;
+}
+
+template <
+    class ML1, class ML2,
+    std::enable_if_t<std::is_same_v<typename ML1::Scalar, typename ML2::Scalar>
+                         && ML1::RowsAtCompileTime == ML2::RowsAtCompileTime,
+                     int> = 0>
+void cdistsq(MutRef<MatrixX<typename ML1::Scalar>> distsq, const ML1 &a,
+             const ML2 &b) {
+  ABSL_DCHECK(distsq.rows() == a.cols());
+  ABSL_DCHECK(distsq.cols() == b.cols());
+
+  for (Eigen::Index j = 0; j < b.cols(); ++j)
+    distsq.col(j) = (a.colwise() - b.col(j)).colwise().squaredNorm();
+}
+
+template <class ML1, class ML2>
+auto cdistsq(const ML1 &a, const ML2 &b) {
+  using DT = typename ML1::Scalar;
+
+  MatrixX<DT> distsq(a.cols(), b.cols());
+  cdistsq(distsq, a, b);
+  return distsq;
+}
+
+template <class ML1, class ML2>
+void cdist(MutRef<MatrixX<typename ML1::Scalar>> dist, const ML1 &a,
+           const ML2 &b) {
+  cdistsq(dist, a, b);
+  dist = dist.sqrt();
+}
+
+template <class ML1, class ML2>
+auto cdist(const ML1 &a, const ML2 &b) {
+  auto ret = cdistsq(a, b);
+  ret = ret.sqrt();
+  return ret;
 }
 
 namespace internal {

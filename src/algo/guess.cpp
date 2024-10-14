@@ -81,12 +81,14 @@ namespace {
     const Molecule &mol = mut.mol();
 
     const int n = mol.size();
-    for (int i = 0, k = 0; i < n - 1; ++i) {
+    for (int i = 1, k = 0; i < n; ++i) {
       const Element &e = mol.atom(i).data().element();
-      if (e.type() == Element::Type::kMetal)
+      if (e.type() == Element::Type::kMetal) {
+        k += i;
         continue;
+      }
 
-      for (int j = i + 1; j < n; ++j, ++k) {
+      for (int j = 0; j < i; ++j, ++k) {
         const Element &f = mol.atom(j).data().element();
         if (f.type() == Element::Type::kMetal)
           continue;
