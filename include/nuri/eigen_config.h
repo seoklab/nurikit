@@ -23,6 +23,15 @@
   auto
 #endif
 
+#ifdef EIGEN_RUNTIME_NO_MALLOC
+#define NURI_EIGEN_ALLOW_MALLOC(flag)                                          \
+  Eigen::internal::set_is_malloc_allowed(flag)
+#define NURI_EIGEN_MALLOC_ALLOWED() Eigen::internal::is_malloc_allowed()
+#else
+#define NURI_EIGEN_ALLOW_MALLOC(flag) static_cast<void>(flag)
+#define NURI_EIGEN_MALLOC_ALLOWED()   true
+#endif
+
 namespace nuri {
 using Eigen::Array;
 using Eigen::Array3d;
@@ -149,6 +158,33 @@ private:
   int offset_;
   int zero_at_;
 };
+
+namespace internal {
+  template <bool Allowed>
+  class AllowEigenMallocScoped {
+  public:
+    AllowEigenMallocScoped(const AllowEigenMallocScoped &) = delete;
+    AllowEigenMallocScoped(AllowEigenMallocScoped &&) = delete;
+    AllowEigenMallocScoped &operator=(const AllowEigenMallocScoped &) = delete;
+    AllowEigenMallocScoped &operator=(AllowEigenMallocScoped &&) = delete;
+
+#ifdef EIGEN_RUNTIME_NO_MALLOC
+    AllowEigenMallocScoped(): state_(Eigen::internal::is_malloc_allowed()) {
+      Eigen::internal::set_is_malloc_allowed(Allowed);
+    }
+
+    ~AllowEigenMallocScoped() {
+      Eigen::internal::set_is_malloc_allowed(state_);
+    }
+
+  private:
+    bool state_;
+#else
+    AllowEigenMallocScoped() = default;
+    ~AllowEigenMallocScoped() { }
+#endif
+  };
+}  // namespace internal
 }  // namespace nuri
 
 #endif /* NURI_EIGEN_CONFIG_H_ */
