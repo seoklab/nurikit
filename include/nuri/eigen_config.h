@@ -68,6 +68,23 @@ template <class Raw, int Options = 0,
 using ConstRef =
     const Eigen::Ref<const internal::remove_cvref_t<Raw>, Options, StrideType> &;
 
+template <class Raw, int BlockRows = Eigen::Dynamic,
+          int BlockCols = Eigen::Dynamic, bool InnerPanel = false>
+using MutBlock = Eigen::Block<internal::remove_cvref_t<Raw>, BlockRows,
+                              BlockCols, InnerPanel>;
+
+template <class Raw, int BlockRows = Eigen::Dynamic,
+          int BlockCols = Eigen::Dynamic, bool InnerPanel = false>
+using ConstBlock = const Eigen::Block<const internal::remove_cvref_t<Raw>,
+                                      BlockRows, BlockCols, InnerPanel> &;
+
+template <class Raw, int Size = Eigen::Dynamic>
+using MutVecBlock = Eigen::VectorBlock<internal::remove_cvref_t<Raw>, Size>;
+
+template <class Raw, int Size = Eigen::Dynamic>
+using ConstVecBlock =
+    const Eigen::VectorBlock<const internal::remove_cvref_t<Raw>, Size> &;
+
 /**
  * @brief Cyclic indexer for Eigen types with a given offset.
  * @tparam O Offset of the cyclic index. If 0, it is determined at runtime.
