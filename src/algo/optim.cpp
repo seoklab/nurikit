@@ -8,7 +8,6 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
-#include <functional>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -41,33 +40,6 @@ namespace internal {
     return true;
   }
 
-  std::pair<bool, bool> lbfgsb_active(MutRef<ArrayXd> &x, ArrayXi &iwhere,
-                                      const LbfgsbBounds &bounds) {
-    bool constrained = false, boxed = true;
-
-    for (int i = 0; i < x.size(); ++i) {
-      if (bounds.has_lb(i) && x[i] < bounds.lb(i))
-        x[i] = bounds.lb(i);
-
-      if (bounds.has_ub(i) && x[i] > bounds.ub(i))
-        x[i] = bounds.ub(i);
-
-      if (!bounds.has_both(i))
-        boxed = false;
-
-      if (!bounds.has_bound(i)) {
-        iwhere[i] = -1;
-        continue;
-      }
-
-      constrained = true;
-      if (bounds.has_both(i) && bounds.ub(i) - bounds.lb(i) <= 0.0)
-        iwhere[i] = 3;
-    }
-
-    return { constrained, boxed };
-  }
-
   double lbfgsb_projgr(ConstRef<ArrayXd> x, const ArrayXd &gx,
                        const LbfgsbBounds &bounds) {
     double norm = 0.0;
@@ -89,33 +61,42 @@ namespace internal {
     return norm;
   }
 
-  bool lbfgsb_bmv(MutRef<VectorXd> &p, MutRef<ArrayXd> &smul,
-                  ConstRef<VectorXd> v, ConstRef<MatrixXd> sy,
-                  ConstRef<MatrixXd> wtt) {
-    const auto col = sy.cols();
-    ABSL_DCHECK(col > 0);
+  namespace {
+    template <class VT, class SYT, class WTT>
+    bool lbfgs_bmv_impl(MutVecBlock<VectorXd> p, MutVecBlock<ArrayXd> smul,
+                        const VT &v, const SYT &sy, const WTT &wtt) {
+      const auto col = sy.cols();
+      ABSL_DCHECK(col > 0);
 
-    if ((sy.diagonal().array() == 0).any()
-        || (wtt.diagonal().array() == 0).any())
-      return false;
+      if ((sy.diagonal().array() == 0).any()
+          || (wtt.diagonal().array() == 0).any())
+        return false;
 
-    smul = v.head(col - 1).array() / sy.diagonal().head(col - 1).array();
-    for (int i = 0; i < col; ++i) {
-      double ssum =
-          (sy.row(i).head(i).array() * smul.head(i).transpose()).sum();
-      p[col + i] = v[col + i] + ssum;
+      smul = v.head(col - 1).array() / sy.diagonal().head(col - 1).array();
+      for (int i = 0; i < col; ++i) {
+        double ssum =
+            (sy.row(i).head(i).array() * smul.head(i).transpose()).sum();
+        p[col + i] = v[col + i] + ssum;
+      }
+      wtt.template triangularView<Eigen::Lower>().solveInPlace(p.tail(col));
+      wtt.template triangularView<Eigen::Lower>().transpose().solveInPlace(
+          p.tail(col));
+
+      p.head(col) = -v.head(col).array() / sy.diagonal().array();
+      for (int i = 0; i < col; ++i) {
+        double ssum =
+            sy.col(i).tail(col - i - 1).dot(p.tail(col - i - 1)) / sy(i, i);
+        p[i] += ssum;
+      }
+
+      return true;
     }
-    wtt.triangularView<Eigen::Lower>().solveInPlace(p.tail(col));
-    wtt.triangularView<Eigen::Lower>().transpose().solveInPlace(p.tail(col));
+  }  // namespace
 
-    p.head(col) = -v.head(col).array() / sy.diagonal().array();
-    for (int i = 0; i < col; ++i) {
-      double ssum =
-          sy.col(i).tail(col - i - 1).dot(p.tail(col - i - 1)) / sy(i, i);
-      p[i] += ssum;
-    }
-
-    return true;
+  bool lbfgs_bmv(MutVecBlock<VectorXd> p, MutVecBlock<ArrayXd> smul,
+                 ConstRef<VectorXd> v, ConstRef<MatrixXd> sy,
+                 ConstRef<MatrixXd> wtt) {
+    return lbfgs_bmv_impl(p, smul, v, sy, wtt);
   }
 
   namespace {
@@ -173,17 +154,24 @@ namespace internal {
       bool z_is_gcp = false;
     };
 
-    CauchyHandleBreaksResult cauchy_handle_breaks(
-        ArrayXd &xcp, ArrayXi &iwhere, MutRef<VectorXd> &p, MutRef<VectorXd> &v,
-        MutRef<VectorXd> &c, ArrayXd &d, MutRef<VectorXd> &wbp,
-        MutRef<ArrayXd> &smul, ClearablePQ<CauchyBrkpt, std::greater<>> &pq,
-        double f1, double f2, ConstRef<ArrayXd> x, const LbfgsbBounds &bounds,
-        ConstRef<MatrixXd> ws, ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy,
-        ConstRef<MatrixXd> wtt, const double theta, const double f2_org,
-        const bool bounded) {
-      const auto nbreaks = pq.size();
-      const auto col = wy.cols();
+    CauchyHandleBreaksResult cauchy_handle_breaks(LBfgsB &L, double f1,
+                                                  double f2,
+                                                  const double f2_org,
+                                                  const bool bounded) {
+      const auto &x = L.x();
+      const auto &bounds = L.bounds();
 
+      auto ws = L.ws(), wy = L.wy();
+      auto sy = L.sy(), wtt = L.wtt();
+      auto p = L.p(), v = L.v(), c = L.c(), wbp = L.wbp();
+      auto &xcp = L.z(), &d = L.d();
+      auto smul = L.smul();
+      auto &iwhere = L.iwhere();
+      auto &pq = L.brks();
+      const double theta = L.theta();
+      const int col = L.col();
+
+      const auto nbreaks = pq.size();
       CauchyHandleBreaksResult ret { -f1 / f2 };
 
       pq.rebuild();
@@ -224,7 +212,7 @@ namespace internal {
         if (col > 0) {
           wbp.head(col) = wy.row(ibp);
           wbp.tail(col) = theta * ws.row(ibp);
-          if (!lbfgsb_bmv(v, smul, wbp, sy, wtt)) {
+          if (!lbfgs_bmv(v, smul, wbp, sy, wtt)) {
             ret.success = false;
             return ret;
           }
@@ -247,16 +235,22 @@ namespace internal {
     }
   }  // namespace
 
-  bool lbfgsb_cauchy(ArrayXd &xcp, ArrayXi &iwhere, MutRef<VectorXd> &p,
-                     MutRef<VectorXd> &v, MutRef<VectorXd> &c, ArrayXd &d,
-                     MutRef<VectorXd> &wbp, MutRef<ArrayXd> &smul,
-                     ClearablePQ<CauchyBrkpt, std::greater<>> &brks,
-                     ConstRef<ArrayXd> x, const ArrayXd &gx,
-                     const LbfgsbBounds &bounds, ConstRef<MatrixXd> ws,
-                     ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy,
-                     ConstRef<MatrixXd> wtt, const double sbgnrm,
-                     const double theta) {
-    const auto col = wy.cols();
+  bool lbfgsb_cauchy(LBfgsB &lbfgsb, const ArrayXd &gx, const double sbgnrm) {
+    // NOLINTNEXTLINE(readability-identifier-naming)
+    auto &L = lbfgsb;
+
+    const auto &x = L.x();
+    const auto &bounds = L.bounds();
+
+    auto ws = L.ws(), wy = L.wy();
+    auto sy = L.sy(), wtt = L.wtt();
+    auto p = L.p(), v = L.v(), c = L.c();
+    auto &xcp = L.xcp(), &d = L.d();
+    auto smul = L.smul();
+    auto &iwhere = L.iwhere();
+    auto &brks = L.brks();
+    const double theta = L.theta();
+    const int col = L.col();
 
     xcp = x;
     if (sbgnrm <= 0)
@@ -269,20 +263,19 @@ namespace internal {
 
     d = (iwhere != 0 && iwhere != -1).select(0, -gx);
     p.head(col).noalias() = wy.transpose() * d.matrix();
-    p.tail(col).noalias() = ws.transpose() * d.matrix() * theta;
+    p.tail(col).noalias() = theta * (ws.transpose() * d.matrix());
 
     double f1 = -d.matrix().squaredNorm();
     double f2 = -theta * f1;
     const double f2_org = f2;
     if (col > 0) {
-      if (!lbfgsb_bmv(v, smul, p, sy, wtt))
+      if (!lbfgs_bmv(v, smul, p, sy, wtt))
         return false;
       f2 -= v.dot(p);
     }
 
-    auto [dtm, tsum, success, z_is_gcp] = cauchy_handle_breaks(
-        xcp, iwhere, p, v, c, d, wbp, smul, brks, f1, f2, x, bounds, ws, wy, sy,
-        wtt, theta, f2_org, bounded);
+    auto [dtm, tsum, success, z_is_gcp] =
+        cauchy_handle_breaks(L, f1, f2, f2_org, bounded);
     if (!success)
       return false;
 
@@ -293,333 +286,6 @@ namespace internal {
     }
 
     c += dtm * p;
-
-    return true;
-  }
-
-  namespace {
-    bool lbfgsb_freev(ArrayXi &free_bound, int &nfree, ArrayXi &enter_leave,
-                      int &nenter, int &nleave, const ArrayXi &iwhere,
-                      const int iter, const bool constrained,
-                      const bool updated) {
-      const auto n = free_bound.size();
-
-      if (iter > 0 && constrained) {
-        nenter = nleave = 0;
-
-        for (int i = 0; i < nfree; ++i) {
-          int k = free_bound[i];
-          if (iwhere[k] > 0)
-            enter_leave[n - ++nleave] = k;
-        }
-
-        for (int i = nfree; i < free_bound.size(); ++i) {
-          int k = free_bound[i];
-          if (iwhere[k] <= 0)
-            enter_leave[nenter++] = k;
-        }
-      }
-
-      nfree = 0;
-      auto iact = free_bound.size();
-      for (int i = 0; i < free_bound.size(); ++i) {
-        if (iwhere[i] <= 0) {
-          free_bound[nfree] = i;
-          ++nfree;
-        } else {
-          --iact;
-          free_bound[iact] = i;
-        }
-      }
-
-      return nenter + nleave > 0 || updated;
-    }
-
-    void formk_shift_wn1(MatrixXd &wn1) {
-      const auto m = wn1.cols() / 2, mm1 = m - 1;
-
-      //  Shift old part of WN1.
-      wn1.topLeftCorner(mm1, mm1).triangularView<Eigen::Lower>() =
-          wn1.block(1, 1, mm1, mm1).triangularView<Eigen::Lower>();
-      wn1.block(m, m, mm1, mm1).triangularView<Eigen::Lower>() =
-          wn1.block(m + 1, m + 1, mm1, mm1).triangularView<Eigen::Lower>();
-      wn1.block(m, 0, mm1, mm1) = wn1.block(m + 1, 1, mm1, mm1);
-    }
-
-    void formk_add_new_wn1(MatrixXd &wn1, ConstRef<ArrayXi> free,
-                           ConstRef<ArrayXi> bound, ConstRef<MatrixXd> ws,
-                           ConstRef<MatrixXd> wy, const int prev_col) {
-      const auto m = wn1.cols() / 2, col = ws.cols(), cm1 = col - 1;
-
-      if (prev_col == m)
-        formk_shift_wn1(wn1);
-
-      // Put new rows in blocks (1,1), (2,1) and (2,2).
-      wn1.row(cm1).head(col).noalias() =
-          wy(free, cm1).transpose() * wy(free, Eigen::all);
-      wn1.row(m + cm1).head(col).noalias() =
-          ws(bound, cm1).transpose() * wy(bound, Eigen::all);
-      wn1.row(m + cm1).segment(m, col).noalias() =
-          ws(bound, cm1).transpose() * ws(bound, Eigen::all);
-
-      // Put new column in block (2,1)
-      wn1.col(cm1).segment(m, col).noalias() =
-          ws(free, Eigen::all).transpose() * wy(free, cm1);
-    }
-
-    void formk_update_wn1(MatrixXd &wn1, ConstRef<ArrayXi> enter,
-                          ConstRef<ArrayXi> leave, ConstRef<MatrixXd> ws,
-                          ConstRef<MatrixXd> wy, const Eigen::Index upcl) {
-      const auto m = wn1.cols() / 2;
-
-      // modify the old parts in blocks (1,1) and (2,2) due to changes
-      // in the set of free variables.
-      for (int j = 0; j < upcl; ++j) {
-        wn1.col(j).segment(j, upcl - j).noalias() +=
-            wy(enter, Eigen::all).transpose().middleRows(j, upcl - j)
-                * wy(enter, j)
-            - wy(leave, Eigen::all).transpose().middleRows(j, upcl - j)
-                  * wy(leave, j);
-      }
-      for (int j = 0; j < upcl; ++j) {
-        wn1.col(m + j).segment(m + j, upcl - j).noalias() -=
-            ws(enter, Eigen::all).transpose().middleRows(j, upcl - j)
-                * ws(enter, j)
-            - ws(leave, Eigen::all).transpose().middleRows(j, upcl - j)
-                  * ws(leave, j);
-      }
-
-      // Modify the old parts in block (2,1)
-      for (int j = 0; j < upcl; ++j) {
-        wn1.col(j).segment(m, j + 1).noalias() +=
-            ws(enter, Eigen::all).transpose().topRows(j + 1) * wy(enter, j)
-            - ws(leave, Eigen::all).transpose().topRows(j + 1) * wy(leave, j);
-
-        wn1.col(j).segment(m + j + 1, upcl - j - 1).noalias() -=
-            ws(enter, Eigen::all).transpose().middleRows(j + 1, upcl - j - 1)
-                * wy(enter, j)
-            - ws(leave, Eigen::all).transpose().middleRows(j + 1, upcl - j - 1)
-                  * wy(leave, j);
-      }
-    }
-
-    void formk_prepare_wn(MutRef<MatrixXd> &wnt, const MatrixXd &wn1,
-                          ConstRef<MatrixXd> sy, const double theta) {
-      const auto m = wn1.cols() / 2, col = sy.cols();
-
-      for (int j = 0; j < col; ++j) {
-        wnt.col(j).segment(j, col - j) = wn1.col(j).segment(j, col - j) / theta;
-
-        wnt.col(j).segment(col, j + 1) = wn1.col(j).segment(m, j + 1);
-        wnt.col(j).segment(col + j + 1, col - j - 1) =
-            -wn1.col(j).segment(m + j + 1, col - j - 1);
-      }
-
-      wnt.diagonal().head(col) += sy.diagonal();
-
-      for (int j = 0; j < col; ++j) {
-        wnt.col(col + j).segment(col + j, col - j) =
-            wn1.col(m + j).segment(m + j, col - j) * theta;
-      }
-    }
-
-    bool formk_factorize_wn(MutRef<MatrixXd> &wnt, Eigen::LLT<MatrixXd> &llt) {
-      const auto col = wnt.cols() / 2;
-
-      //    first Cholesky factor (1,1) block of wn to get LL'
-      //                      with L stored in the lower triangle of wn_t.
-      llt.compute(wnt.topLeftCorner(col, col));
-      if (llt.info() != Eigen::Success)
-        return false;
-      wnt.topLeftCorner(col, col).triangularView<Eigen::Lower>() =
-          llt.matrixL();
-
-      // Then form L^-1(-L_a'+R_z') in the (2,1) block.
-      wnt.topLeftCorner(col, col).triangularView<Eigen::Lower>().solveInPlace(
-          wnt.bottomLeftCorner(col, col).transpose());
-
-      // Form S'AA'S*theta + (L^-1(-L_a'+R_z'))'L^-1(-L_a'+R_z') in the lower
-      //  triangle of (2,2) block of wn_t.
-      for (int i = 0; i < col; ++i) {
-        wnt.col(col + i).tail(col - i).noalias() +=
-            wnt.row(col + i).head(col)
-            * wnt.bottomLeftCorner(col - i, col).transpose();
-      }
-
-      //     Cholesky factorization of (2,2) block of wn_t.
-      llt.compute(wnt.bottomRightCorner(col, col));
-      if (llt.info() != Eigen::Success)
-        return false;
-      wnt.bottomRightCorner(col, col).triangularView<Eigen::Lower>() =
-          llt.matrixL();
-
-      return true;
-    }
-  }  // namespace
-
-  bool lbfgsb_formk(MutRef<MatrixXd> &wnt, MatrixXd &wn1,
-                    Eigen::LLT<MatrixXd> &llt, ConstRef<ArrayXi> free,
-                    ConstRef<ArrayXi> bound, ConstRef<ArrayXi> enter,
-                    ConstRef<ArrayXi> leave, ConstRef<MatrixXd> ws,
-                    ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy,
-                    const double theta, const int prev_col,
-                    const bool updated) {
-    // Form the lower triangular part of
-    //           WN1 = [Y' ZZ'Y   L_a'+R_z']
-    //                 [L_a+R_z   S'AA'S   ]
-    //    where L_a is the strictly lower triangular part of S'AA'Y
-    //          R_z is the upper triangular part of S'ZZ'Y.
-    if (updated)
-      formk_add_new_wn1(wn1, free, bound, ws, wy, prev_col);
-
-    formk_update_wn1(wn1, enter, leave, ws, wy, ws.cols() - value_if(updated));
-
-    // Form the upper triangle of WN = [D+Y' ZZ'Y/theta   -L_a'+R_z' ]
-    //                                 [-L_a +R_z        S'AA'S*theta]
-    formk_prepare_wn(wnt, wn1, sy, theta);
-
-    // Form the upper triangle of WN= [  LL'            L^-1(-L_a'+R_z')]
-    //                                [(-L_a +R_z)L'^-1   S'AA'S*theta  ]
-    return formk_factorize_wn(wnt, llt);
-  }
-
-  bool lbfgsb_cmprlb(MutRef<VectorXd> &r, MutRef<VectorXd> &p,
-                     MutRef<ArrayXd> &smul, ConstRef<VectorXd> c,
-                     ConstRef<ArrayXi> free, ConstRef<ArrayXd> x,
-                     const ArrayXd &z, const ArrayXd &gx, ConstRef<MatrixXd> ws,
-                     ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy,
-                     ConstRef<MatrixXd> wtt, const double theta,
-                     const bool constrained) {
-    const auto col = ws.cols();
-
-    if (!constrained && col > 0) {
-      r = -gx;
-      return true;
-    }
-
-    r = theta * (x(free) - z(free)) - gx(free);
-
-    if (!lbfgsb_bmv(p, smul, c, sy, wtt))
-      return false;
-
-    r.noalias() += wy(free, Eigen::all) * p.head(col)
-                   + ws(free, Eigen::all) * p.tail(col) * theta;
-
-    return true;
-  }
-
-  bool lbfgsb_subsm(ArrayXd &x, ArrayXd &xp, MutRef<VectorXd> &d,
-                    MutRef<VectorXd> &wv, ConstRef<MatrixXd> wnt,
-                    ConstRef<ArrayXi> free, ConstRef<ArrayXd> xx,
-                    const ArrayXd &gg, ConstRef<MatrixXd> ws,
-                    ConstRef<MatrixXd> wy, const LbfgsbBounds &bounds,
-                    const double theta) {
-    const auto col = ws.cols(), nsub = free.size();
-    if (nsub <= 0)
-      return true;
-
-    // Compute wv = W'Zd.
-    wv.head(col).noalias() = wy(free, Eigen::all).transpose() * d;
-    wv.tail(col).noalias() = ws(free, Eigen::all).transpose() * d * theta;
-
-    // Compute wv:=K^(-1)wv.
-    if ((wnt.diagonal().array() == 0).any())
-      return false;
-    wnt.triangularView<Eigen::Lower>().solveInPlace(wv);
-    wv.head(col) *= -1;
-    wnt.triangularView<Eigen::Lower>().transpose().solveInPlace(wv);
-
-    // Compute d = (1/theta)d + (1/theta**2)Z'W wv.
-    d.noalias() += wy(free, Eigen::all) * wv.head(col) / theta
-                   + ws(free, Eigen::all) * wv.tail(col);
-    d /= theta;
-
-    // -----------------------------------------------------
-    // Let us try the projection, d is the Newton direction.
-    xp = x;
-
-    bool bounded = false;
-    for (int i = 0; i < nsub; ++i) {
-      int k = free[i];
-      const double xk_new = xp[k] + d[i];
-      switch (bounds.raw_nbd(k)) {
-      case 0:
-        x[k] = xk_new;
-        break;
-      case 1:
-        x[k] = nuri::max(bounds.lb(k), xk_new);
-        if (x[k] <= bounds.lb(k))
-          bounded = true;
-        break;
-      case 2:
-        x[k] = nuri::min(bounds.ub(k), xk_new);
-        if (x[k] >= bounds.ub(k))
-          bounded = true;
-        break;
-      case 3:
-        x[k] = nuri::clamp(xk_new, bounds.lb(k), bounds.ub(k));
-        if (x[k] <= bounds.lb(k) || x[k] >= bounds.ub(k))
-          bounded = true;
-        break;
-      default:
-        ABSL_UNREACHABLE();
-        break;
-      }
-    }
-    if (!bounded)
-      return true;
-
-    // Check sign of the directional derivative
-    double dd_p = (x - xx).matrix().dot(gg.matrix());
-    if (dd_p <= 0)
-      return true;
-
-    x = xp;
-    double alpha = 1, curr_alpha = alpha;
-    int ibd = -1;
-    for (int i = 0; i < nsub; ++i) {
-      const int k = free[i];
-      const double dk = d[i];
-      if (!bounds.has_bound(k))
-        continue;
-
-      if (dk < 0 && bounds.has_lb(k)) {
-        double diff = bounds.lb(k) - x[k];
-        if (diff >= 0) {
-          curr_alpha = 0;
-        } else if (dk * alpha < diff) {
-          curr_alpha = diff / dk;
-        }
-      } else if (dk > 0 && bounds.has_ub(k)) {
-        double diff = bounds.ub(k) - x[k];
-        if (diff <= 0) {
-          curr_alpha = 0;
-        } else if (dk * alpha > diff) {
-          curr_alpha = diff / dk;
-        }
-      }
-
-      if (curr_alpha < alpha) {
-        alpha = curr_alpha;
-        ibd = i;
-      }
-    }
-
-    if (alpha < 1) {
-      ABSL_ASSUME(ibd >= 0);
-
-      const int k = free[ibd];
-      const double dk = d[ibd];
-      if (dk > 0) {
-        x[k] = bounds.ub(k);
-      } else if (dk < 0) {
-        x[k] = bounds.lb(k);
-      }
-
-      d[ibd] = 0;
-    }
-
-    x(free) += alpha * d.array();
 
     return true;
   }
@@ -954,163 +620,488 @@ namespace internal {
       }
     }
   }
+}  // namespace internal
 
-  bool lbfgsb_prepare_lnsrch(
-      MutRef<ArrayXd> x, ArrayXd &z, ArrayXd &xp, ArrayXd &r, ArrayXd &d,
-      ArrayXi &iwhere, MatrixXd &wnt_d, MatrixXd &wn1, MatrixXd &ws_d,
-      MatrixXd &wy_d, MatrixXd &sy_d, MatrixXd &wtt_d, VectorXd &p_d,
-      VectorXd &v_d, VectorXd &c_d, VectorXd &wbp_d, ArrayXi &free_bound,
-      int &nfree, ArrayXi &enter_leave, int &nenter, int &nleave,
-      ClearablePQ<CauchyBrkpt, std::greater<>> &brks, Eigen::LLT<MatrixXd> &llt,
-      const ArrayXd &gx, const LbfgsbBounds &bounds, const double sbgnrm,
-      const double theta, const bool updated, const bool constrained,
-      const int iter, const int col, const int prev_col) {
-    const auto n = x.size();
+LBfgsB::LBfgsB(MutRef<ArrayXd> x, internal::LbfgsbBounds bounds, const int m)
+    : x_(x), bounds_(bounds), wnt_(2 * m, 2 * m), wn1_(2 * m, 2 * m),
+      ws_(n(), m), wy_(n(), m), ss_(m, m), sy_(m, m), wtt_(m, m), p_(2 * m),
+      v_(2 * m), c_(2 * m), wbp_(2 * m), z_(n()), r_(n()), t_(n()), d_(n()),
+      smul_(m - 1), iwhere_(ArrayXi::Zero(n())), free_bound_(n()),
+      enter_leave_(n()), constrained_(false), boxed_(true) {
+  brks().data().reserve(n());
 
-    MutRef<MatrixXd> wnt(wnt_d.topLeftCorner(2 * col, 2 * col));
-    MutRef<MatrixXd> ws(ws_d.leftCols(col)), wy(wy_d.leftCols(col));
-    MutRef<MatrixXd> sy(sy_d.topLeftCorner(col, col)),
-        wtt(wtt_d.topLeftCorner(col, col));
-    MutRef<VectorXd> p(p_d.head(2 * col)), v(v_d.head(2 * col)),
-        c(c_d.head(2 * col)), wbp = wbp_d.head(2 * col);
+  for (int i = 0; i < n(); ++i) {
+    if (bounds_.has_lb(i) && x_[i] < bounds_.lb(i))
+      x_[i] = bounds_.lb(i);
 
-    MutRef<ArrayXd> smul = wbp_d.tail(nonnegative(col - 1)).array();
+    if (bounds_.has_ub(i) && x_[i] > bounds_.ub(i))
+      x_[i] = bounds_.ub(i);
 
-    bool need_k;
-    if (!constrained && col > 0) {
-      z = x;
-      need_k = updated;
+    if (!bounds_.has_both(i))
+      boxed_ = false;
+
+    if (!bounds_.has_bound(i)) {
+      iwhere_[i] = -1;
+      continue;
+    }
+
+    constrained_ = true;
+    if (bounds_.has_both(i) && bounds_.ub(i) - bounds_.lb(i) <= 0.0)
+      iwhere_[i] = 3;
+  }
+}
+
+bool LBfgsB::freev(const int iter) {
+  const auto n = free_bound_.size();
+
+  if (iter > 0 && constrained()) {
+    nenter_ = nleave_ = 0;
+
+    for (int i = 0; i < nfree_; ++i) {
+      int k = free_bound_[i];
+      if (iwhere()[k] > 0)
+        enter_leave_[n - ++nleave_] = k;
+    }
+
+    for (int i = nfree_; i < free_bound_.size(); ++i) {
+      int k = free_bound_[i];
+      if (iwhere()[k] <= 0)
+        enter_leave_[nenter_++] = k;
+    }
+  }
+
+  nfree_ = 0;
+  auto iact = free_bound_.size();
+  for (int i = 0; i < free_bound_.size(); ++i) {
+    if (iwhere()[i] <= 0) {
+      free_bound_[nfree_] = i;
+      ++nfree_;
     } else {
-      if (!lbfgsb_cauchy(z, iwhere, p, v, c, d, wbp, smul, brks, x, gx, bounds,
-                         ws, wy, sy, wtt, sbgnrm, theta))
-        return false;
+      --iact;
+      free_bound_[iact] = i;
+    }
+  }
 
-      need_k = lbfgsb_freev(free_bound, nfree, enter_leave, nenter, nleave,
-                            iwhere, iter, constrained, updated);
+  return nenter_ + nleave_ > 0 || updated();
+}
+
+namespace {
+  void formk_shift_wn1(MatrixXd &wn1, const int m) {
+    const auto mm1 = m - 1;
+
+    //  Shift old part of WN1.
+    wn1.topLeftCorner(mm1, mm1).triangularView<Eigen::Lower>() =
+        wn1.block(1, 1, mm1, mm1).triangularView<Eigen::Lower>();
+    wn1.block(m, m, mm1, mm1).triangularView<Eigen::Lower>() =
+        wn1.block(m + 1, m + 1, mm1, mm1).triangularView<Eigen::Lower>();
+    wn1.block(m, 0, mm1, mm1) = wn1.block(m + 1, 1, mm1, mm1);
+  }
+
+  void formk_add_new_wn1(LBfgsB &L) {
+    auto &wn1 = L.wn1();
+    auto ws = L.ws(), wy = L.wy();
+    auto free = L.free(), bound = L.bound();
+    const auto prev_col = L.prev_col();
+
+    const auto m = L.m(), col = L.col(), cm1 = col - 1;
+
+    if (prev_col == m)
+      formk_shift_wn1(wn1, m);
+
+    // Put new rows in blocks (1,1), (2,1) and (2,2).
+    wn1.row(cm1).head(col).noalias() =
+        wy(free, cm1).transpose() * wy(free, Eigen::all);
+    wn1.row(m + cm1).head(col).noalias() =
+        ws(bound, cm1).transpose() * wy(bound, Eigen::all);
+    wn1.row(m + cm1).segment(m, col).noalias() =
+        ws(bound, cm1).transpose() * ws(bound, Eigen::all);
+
+    // Put new column in block (2,1)
+    wn1.col(cm1).segment(m, col).noalias() =
+        ws(free, Eigen::all).transpose() * wy(free, cm1);
+  }
+
+  void formk_update_wn1(LBfgsB &L) {
+    auto &wn1 = L.wn1();
+    auto ws = L.ws(), wy = L.wy();
+    auto enter = L.enter(), leave = L.leave();
+
+    const auto m = L.m(), upcl = L.col() - value_if(L.updated());
+
+    // modify the old parts in blocks (1,1) and (2,2) due to changes
+    // in the set of free variables.
+    for (int j = 0; j < upcl; ++j) {
+      wn1.col(j).segment(j, upcl - j).noalias() +=
+          wy(enter, Eigen::all).transpose().middleRows(j, upcl - j)
+          * wy(enter, j);
+      wn1.col(j).segment(j, upcl - j).noalias() -=
+          wy(leave, Eigen::all).transpose().middleRows(j, upcl - j)
+          * wy(leave, j);
+    }
+    for (int j = 0; j < upcl; ++j) {
+      wn1.col(m + j).segment(m + j, upcl - j).noalias() -=
+          ws(enter, Eigen::all).transpose().middleRows(j, upcl - j)
+          * ws(enter, j);
+      wn1.col(m + j).segment(m + j, upcl - j).noalias() +=
+          ws(leave, Eigen::all).transpose().middleRows(j, upcl - j)
+          * ws(leave, j);
     }
 
-    if (nfree > 0 && col > 0) {
-      if (need_k) {
-        if (!lbfgsb_formk(wnt, wn1, llt, free_bound.head(nfree),
-                          free_bound.tail(n - nfree), enter_leave.head(nenter),
-                          enter_leave.tail(nleave), ws, wy, sy, theta, prev_col,
-                          updated))
-          return false;
-      }
+    // Modify the old parts in block (2,1)
+    for (int j = 0; j < upcl; ++j) {
+      wn1.col(j).segment(m, j + 1).noalias() +=
+          ws(enter, Eigen::all).transpose().topRows(j + 1) * wy(enter, j);
+      wn1.col(j).segment(m, j + 1).noalias() -=
+          ws(leave, Eigen::all).transpose().topRows(j + 1) * wy(leave, j);
 
-      MutRef<VectorXd> rfree(r.head(nfree).matrix());
-      if (!lbfgsb_cmprlb(rfree, p, smul, c, free_bound.head(nfree), x, z, gx,
-                         ws, wy, sy, wtt, theta, constrained))
-        return false;
-      if (!lbfgsb_subsm(z, xp, rfree, p, wnt, free_bound.head(nfree), x, gx, ws,
-                        wy, bounds, theta))
-        return false;
+      wn1.col(j).segment(m + j + 1, upcl - j - 1).noalias() -=
+          ws(enter, Eigen::all).transpose().middleRows(j + 1, upcl - j - 1)
+          * wy(enter, j);
+      wn1.col(j).segment(m + j + 1, upcl - j - 1).noalias() +=
+          ws(leave, Eigen::all).transpose().middleRows(j + 1, upcl - j - 1)
+          * wy(leave, j);
     }
+  }
+
+  template <class SYT>
+  void formk_prepare_wn(MutBlock<MatrixXd> wnt, const MatrixXd &wn1, SYT sy,
+                        const double theta, const int m, const int col) {
+    for (int j = 0; j < col; ++j) {
+      wnt.col(j).segment(j, col - j) = wn1.col(j).segment(j, col - j) / theta;
+
+      wnt.col(j).segment(col, j + 1) = wn1.col(j).segment(m, j + 1);
+      wnt.col(j).segment(col + j + 1, col - j - 1) =
+          -wn1.col(j).segment(m + j + 1, col - j - 1);
+    }
+
+    wnt.diagonal().head(col) += sy.diagonal();
+
+    for (int j = 0; j < col; ++j) {
+      wnt.col(col + j).segment(col + j, col - j) =
+          wn1.col(m + j).segment(m + j, col - j) * theta;
+    }
+  }
+
+  bool formk_factorize_wn(MutBlock<MatrixXd> wnt, const int col) {
+    //    first Cholesky factor (1,1) block of wn to get LL'
+    //                      with L stored in the lower triangle of wn_t.
+
+    // This is required because inplace llt ctor does not accept rvalue.
+    auto wnt_11 = wnt.topLeftCorner(col, col);
+    Eigen::LLT<Eigen::Ref<MatrixXd>> llt_11(wnt_11);
+    if (llt_11.info() != Eigen::Success)
+      return false;
+
+    // Then form L^-1(-L_a'+R_z') in the (2,1) block.
+    wnt.topLeftCorner(col, col).triangularView<Eigen::Lower>().solveInPlace(
+        wnt.bottomLeftCorner(col, col).transpose());
+
+    // Form S'AA'S*theta + (L^-1(-L_a'+R_z'))'L^-1(-L_a'+R_z') in the lower
+    //  triangle of (2,2) block of wn_t.
+    for (int i = 0; i < col; ++i) {
+      wnt.col(col + i).tail(col - i).noalias() +=
+          wnt.row(col + i).head(col)
+          * wnt.bottomLeftCorner(col - i, col).transpose();
+    }
+
+    //     Cholesky factorization of (2,2) block of wn_t.
+
+    // Same here.
+    auto wnt_22 = wnt.bottomRightCorner(col, col);
+    Eigen::LLT<Eigen::Ref<MatrixXd>> llt_22(wnt_22);
+    return llt_22.info() == Eigen::Success;
+  }
+
+  bool lbfgsb_formk(LBfgsB &L) {
+    // Form the lower triangular part of
+    //           WN1 = [Y' ZZ'Y   L_a'+R_z']
+    //                 [L_a+R_z   S'AA'S   ]
+    //    where L_a is the strictly lower triangular part of S'AA'Y
+    //          R_z is the upper triangular part of S'ZZ'Y.
+    if (L.updated())
+      formk_add_new_wn1(L);
+
+    formk_update_wn1(L);
+
+    // Form the upper triangle of WN = [D+Y' ZZ'Y/theta   -L_a'+R_z' ]
+    //                                 [-L_a +R_z        S'AA'S*theta]
+    formk_prepare_wn(L.wnt(), L.wn1(), L.sy(), L.theta(), L.m(), L.col());
+
+    // Form the upper triangle of WN= [  LL'            L^-1(-L_a'+R_z')]
+    //                                [(-L_a +R_z)L'^-1   S'AA'S*theta  ]
+    return formk_factorize_wn(L.wnt(), L.col());
+  }
+
+  bool lbfgsb_cmprlb(LBfgsB &L, const ArrayXd &gx) {
+    const auto &x = L.x();
+    auto ws = L.ws(), wy = L.wy();
+    auto sy = L.sy(), wtt = L.wtt();
+    auto p = L.p(), c = L.c();
+    const auto &z = L.z();
+    auto r = L.rfree();
+    auto smul = L.smul();
+    auto free = L.free();
+    const double theta = L.theta();
+    const auto col = L.col();
+    const bool constrained = L.constrained();
+
+    if (!constrained && col > 0) {
+      r = -gx;
+      return true;
+    }
+
+    r = (theta * (x - z) - gx)(free);
+
+    if (!internal::lbfgs_bmv(p, smul, c, sy, wtt))
+      return false;
+
+    r.noalias() += wy(free, Eigen::all) * p.head(col);
+    r.noalias() += theta * (ws(free, Eigen::all) * p.tail(col));
 
     return true;
   }
 
-  namespace {
-    int lbfgsb_matupd(MatrixXd &ws, MatrixXd &wy, MatrixXd &ss, MatrixXd &sy,
-                      const ArrayXd &d, const ArrayXd &r, const double dr,
-                      const double step, const double dtd, const int pcol) {
-      const int m = static_cast<int>(ws.cols());
-      ABSL_ASSUME(pcol <= m);
+  bool lbfgsb_subsm(LBfgsB &L, const ArrayXd &gg) {
+    auto &xx = L.x();
+    const auto &bounds = L.bounds();
+    auto wnt = L.wnt();
+    auto ws = L.ws(), wy = L.wy();
+    auto wv = L.p();
+    auto &x = L.z(), &xp = L.xp();
+    auto d = L.rfree();
+    auto free = L.free();
+    const double theta = L.theta();
 
-      int col, ci;
-      if (pcol < m) {
-        col = pcol + 1;
-        ci = pcol;
-      } else {
-        col = m;
-        ci = m - 1;
-        ws.leftCols(ci) = ws.rightCols(ci);
-        wy.leftCols(ci) = wy.rightCols(ci);
-      }
-
-      ws.col(ci) = d;
-      wy.col(ci) = r;
-
-      // Form the middle matrix in B.
-      // update the upper triangle of SS (m,m), and the lower triangle of SY
-      // (m,m):
-      if (pcol == m) {
-        ABSL_ASSUME(ci == m - 1);
-        ss.topLeftCorner(ci, ci).triangularView<Eigen::Upper>() =
-            ss.bottomRightCorner(ci, ci).triangularView<Eigen::Upper>();
-        sy.topLeftCorner(ci, ci).triangularView<Eigen::Lower>() =
-            sy.bottomRightCorner(ci, ci).triangularView<Eigen::Lower>();
-      }
-
-      ss.col(ci).head(col).noalias() =
-          ws.leftCols(col).transpose() * d.matrix();
-      sy.row(ci).head(col).noalias() =
-          d.transpose().matrix() * wy.leftCols(col);
-
-      ss(ci, ci) = step * step * dtd;
-      sy(ci, ci) = dr;
-
-      return col;
-    }
-
-    bool lbfgsb_formt(MutRef<MatrixXd> wtt, Eigen::LLT<MatrixXd> &llt,
-                      MutRef<MatrixXd> sy_scaled, ConstRef<MatrixXd> sy,
-                      ConstRef<MatrixXd> ss, const double theta) {
-      const auto col = ss.cols();
-
-      // Form the upper half of  T = theta*SS + L*D^(-1)*L', store T in the
-      // upper triangle of the array wt.
-      wtt.triangularView<Eigen::Lower>() =
-          (theta * ss.transpose()).triangularView<Eigen::Lower>();
-
-      sy_scaled.array() =
-          sy.array().rowwise() / sy.diagonal().array().transpose();
-      for (int i = 1; i < col; ++i) {
-        wtt.col(i).tail(col - i).noalias() +=
-            sy.bottomLeftCorner(col - i, i)
-            * sy_scaled.row(i).head(i).transpose();
-      }
-
-      llt.compute(wtt);
-      if (llt.info() != Eigen::Success)
-        return false;
-
-      wtt.triangularView<Eigen::Lower>() = llt.matrixL();
+    const int col = L.col();
+    const auto nsub = L.free().size();
+    if (nsub <= 0)
       return true;
-    }
-  }  // namespace
 
-  bool lbfgsb_prepare_next_iter(ArrayXd &r, ArrayXd &d, MatrixXd &ws_d,
-                                MatrixXd &wy_d, MatrixXd &ss_d, MatrixXd &sy_d,
-                                MatrixXd &wtt_d, MatrixXd &wnt_d, double &theta,
-                                int &col, bool &updated,
-                                Eigen::LLT<MatrixXd> &llt, const double gd,
-                                const double ginit, const double step,
-                                const double dtd) {
-    double rr = r.matrix().squaredNorm(), dr, ddum;
-    if (step == 1) {  // NOLINT(clang-diagnostic-float-equal)
-      dr = gd - ginit;
-      ddum = -ginit;
-    } else {
-      dr = (gd - ginit) * step;
-      d *= step;
-      ddum = -ginit * step;
-    }
+    // Compute wv = W'Zd.
+    wv.head(col).noalias() = wy(free, Eigen::all).transpose() * d;
+    wv.tail(col).noalias() = theta * (ws(free, Eigen::all).transpose() * d);
 
-    if (dr <= kEpsMach * ddum) {
-      updated = false;
+    // Compute wv:=K^(-1)wv.
+    if ((wnt.diagonal().array() == 0).any())
+      return false;
+    wnt.triangularView<Eigen::Lower>().solveInPlace(wv);
+    wv.head(col) *= -1;
+    wnt.triangularView<Eigen::Lower>().transpose().solveInPlace(wv);
+
+    // Compute d = (1/theta)d + (1/theta**2)Z'W wv.
+    d.noalias() += (1 / theta) * (wy(free, Eigen::all) * wv.head(col));
+    d.noalias() += ws(free, Eigen::all) * wv.tail(col);
+    d /= theta;
+
+    // -----------------------------------------------------
+    // Let us try the projection, d is the Newton direction.
+    xp = x;
+
+    bool bounded = false;
+    for (int i = 0; i < nsub; ++i) {
+      int k = free[i];
+      const double xk_new = xp[k] + d[i];
+      switch (bounds.raw_nbd(k)) {
+      case 0:
+        x[k] = xk_new;
+        break;
+      case 1:
+        x[k] = nuri::max(bounds.lb(k), xk_new);
+        if (x[k] <= bounds.lb(k))
+          bounded = true;
+        break;
+      case 2:
+        x[k] = nuri::min(bounds.ub(k), xk_new);
+        if (x[k] >= bounds.ub(k))
+          bounded = true;
+        break;
+      case 3:
+        x[k] = nuri::clamp(xk_new, bounds.lb(k), bounds.ub(k));
+        if (x[k] <= bounds.lb(k) || x[k] >= bounds.ub(k))
+          bounded = true;
+        break;
+      default:
+        ABSL_UNREACHABLE();
+        break;
+      }
+    }
+    if (!bounded)
       return true;
+
+    // Check sign of the directional derivative
+    double dd_p = (x - xx).matrix().dot(gg.matrix());
+    if (dd_p <= 0)
+      return true;
+
+    x = xp;
+    double alpha = 1, curr_alpha = alpha;
+    int ibd = -1;
+    for (int i = 0; i < nsub; ++i) {
+      const int k = free[i];
+      const double dk = d[i];
+      if (!bounds.has_bound(k))
+        continue;
+
+      if (dk < 0 && bounds.has_lb(k)) {
+        double diff = bounds.lb(k) - x[k];
+        if (diff >= 0) {
+          curr_alpha = 0;
+        } else if (dk * alpha < diff) {
+          curr_alpha = diff / dk;
+        }
+      } else if (dk > 0 && bounds.has_ub(k)) {
+        double diff = bounds.ub(k) - x[k];
+        if (diff <= 0) {
+          curr_alpha = 0;
+        } else if (dk * alpha > diff) {
+          curr_alpha = diff / dk;
+        }
+      }
+
+      if (curr_alpha < alpha) {
+        alpha = curr_alpha;
+        ibd = i;
+      }
     }
 
-    updated = true;
-    theta = rr / dr;
-    col = lbfgsb_matupd(ws_d, wy_d, ss_d, sy_d, d, r, dr, step, dtd, col);
-    // wn will be recalculated in the next iteration, use for temporary
-    // storage
-    return lbfgsb_formt(wtt_d.topLeftCorner(col, col), llt,
-                        wnt_d.topLeftCorner(col, col),
-                        sy_d.topLeftCorner(col, col),
-                        ss_d.topLeftCorner(col, col), theta);
+    if (alpha < 1) {
+      ABSL_ASSUME(ibd >= 0);
+
+      const int k = free[ibd];
+      const double dk = d[ibd];
+      if (dk > 0) {
+        x[k] = bounds.ub(k);
+      } else if (dk < 0) {
+        x[k] = bounds.lb(k);
+      }
+
+      d[ibd] = 0;
+    }
+
+    x(free) += alpha * d.array();
+
+    return true;
   }
-}  // namespace internal
+}  // namespace
+
+bool LBfgsB::prepare_lnsrch(const ArrayXd &gx, const double sbgnrm,
+                            const int iter) {
+  bool need_k;
+  if (!constrained() && col() > 0) {
+    z() = x();
+    need_k = updated();
+  } else {
+    if (!internal::lbfgsb_cauchy(*this, gx, sbgnrm))
+      return false;
+
+    need_k = freev(iter);
+  }
+
+  if (nfree_ > 0 && col() > 0) {
+    if (need_k) {
+      if (!lbfgsb_formk(*this))
+        return false;
+    }
+
+    if (!lbfgsb_cmprlb(*this, gx))
+      return false;
+    if (!lbfgsb_subsm(*this, gx))
+      return false;
+  }
+
+  return true;
+}
+
+namespace {
+  int lbfgs_matupd(MatrixXd &ws, MatrixXd &wy, MatrixXd &ss, MatrixXd &sy,
+                   const ArrayXd &d, const ArrayXd &r, const double dr,
+                   const double step, const double dtd, const int pcol) {
+    const int m = static_cast<int>(ws.cols());
+    ABSL_ASSUME(pcol <= m);
+
+    int col, ci;
+    if (pcol < m) {
+      col = pcol + 1;
+      ci = pcol;
+    } else {
+      col = m;
+      ci = m - 1;
+      ws.leftCols(ci) = ws.rightCols(ci);
+      wy.leftCols(ci) = wy.rightCols(ci);
+    }
+
+    ws.col(ci) = d;
+    wy.col(ci) = r;
+
+    // Form the middle matrix in B.
+    // update the upper triangle of SS (m,m), and the lower triangle of SY
+    // (m,m):
+    if (pcol == m) {
+      ABSL_ASSUME(ci == m - 1);
+      ss.topLeftCorner(ci, ci).triangularView<Eigen::Upper>() =
+          ss.bottomRightCorner(ci, ci).triangularView<Eigen::Upper>();
+      sy.topLeftCorner(ci, ci).triangularView<Eigen::Lower>() =
+          sy.bottomRightCorner(ci, ci).triangularView<Eigen::Lower>();
+    }
+
+    ss.col(ci).head(col).noalias() = ws.leftCols(col).transpose() * d.matrix();
+    sy.row(ci).head(col).noalias() = d.transpose().matrix() * wy.leftCols(col);
+
+    ss(ci, ci) = step * step * dtd;
+    sy(ci, ci) = dr;
+
+    return col;
+  }
+
+  template <class WTT, class SYST, class SYT, class SST>
+  bool lbfgs_formt(WTT wtt, SYST sy_scaled, SYT sy, SST ss,
+                   const double theta) {
+    const auto col = ss.cols();
+
+    // Form the upper half of  T = theta*SS + L*D^(-1)*L', store T in the
+    // upper triangle of the array wt.
+    wtt.template triangularView<Eigen::Lower>() =
+        (theta * ss.transpose()).template triangularView<Eigen::Lower>();
+
+    sy_scaled.array() =
+        sy.array().rowwise() / sy.diagonal().array().transpose();
+    for (int i = 1; i < col; ++i) {
+      wtt.col(i).tail(col - i).noalias() +=
+          sy.bottomLeftCorner(col - i, i)
+          * sy_scaled.row(i).head(i).transpose();
+    }
+
+    Eigen::LLT<Eigen::Ref<MatrixXd>> llt(wtt);
+    return llt.info() == Eigen::Success;
+  }
+}  // namespace
+
+bool LBfgsB::prepare_next_iter(const double gd, const double ginit,
+                               const double step, const double dtd) {
+  double rr = r().matrix().squaredNorm(), dr, ddum;
+
+  if (step == 1) {  // NOLINT(clang-diagnostic-float-equal)
+    dr = gd - ginit;
+    ddum = -ginit;
+  } else {
+    dr = (gd - ginit) * step;
+    d() *= step;
+    ddum = -ginit * step;
+  }
+
+  if (dr <= internal::kEpsMach * ddum) {
+    updated_ = false;
+    return true;
+  }
+
+  updated_ = true;
+  theta_ = rr / dr;
+  prev_col_ = col();
+  col_ = lbfgs_matupd(ws_, wy_, ss_, sy_, d(), r(), dr, step, dtd, col());
+  // wn will be recalculated in the next iteration, use for temporary storage
+  return lbfgs_formt(wtt_.topLeftCorner(col(), col()),
+                     wnt_.topLeftCorner(col(), col()),
+                     sy_.topLeftCorner(col(), col()),
+                     ss_.topLeftCorner(col(), col()), theta());
+}
 }  // namespace nuri

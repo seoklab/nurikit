@@ -36,11 +36,10 @@ struct LbfgsbResult {
   ArrayXd gx;
 };
 
+class LBfgsB;
+
 namespace internal {
   constexpr double kEpsMach = 2.220446049250313e-16;
-
-  extern bool lbfgsb_errclb(const ArrayXd &x, const ArrayXi &nbd,
-                            const Array2Xd &bounds, int m, double factr);
 
   /**
    * nbd == 0x1 if has lower bound,
@@ -156,17 +155,6 @@ namespace internal {
     bool brackt_ = false, stage1_ = true;
   };
 
-  extern std::pair<bool, bool> lbfgsb_active(MutRef<ArrayXd> &x,
-                                             ArrayXi &iwhere,
-                                             const LbfgsbBounds &bounds);
-
-  extern double lbfgsb_projgr(ConstRef<ArrayXd> x, const ArrayXd &gx,
-                              const LbfgsbBounds &bounds);
-
-  extern bool lbfgsb_bmv(MutRef<VectorXd> &p, MutRef<ArrayXd> &smul,
-                         ConstRef<VectorXd> v, ConstRef<MatrixXd> sy,
-                         ConstRef<MatrixXd> wtt);
-
   struct CauchyBrkpt {
     int ibp;
     double tj;
@@ -176,164 +164,231 @@ namespace internal {
     return lhs.tj > rhs.tj;
   }
 
-  /**
-   * @warning brks must have capacity >= n, otherwise the behavior is undefined.
-   */
-  extern bool lbfgsb_cauchy(
-      ArrayXd &xcp, ArrayXi &iwhere, MutRef<VectorXd> &p, MutRef<VectorXd> &v,
-      MutRef<VectorXd> &c, ArrayXd &d, MutRef<VectorXd> &wbp,
-      MutRef<ArrayXd> &smul, ClearablePQ<CauchyBrkpt, std::greater<>> &brks,
-      ConstRef<ArrayXd> x, const ArrayXd &gx, const LbfgsbBounds &bounds,
-      ConstRef<MatrixXd> ws, ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy,
-      ConstRef<MatrixXd> wtt, double sbgnrm, double theta);
+  extern bool lbfgsb_errclb(const ArrayXd &x, const ArrayXi &nbd,
+                            const Array2Xd &bounds, int m, double factr);
 
-  extern bool lbfgsb_formk(MutRef<MatrixXd> &wnt, MatrixXd &wn1,
-                           Eigen::LLT<MatrixXd> &llt, ConstRef<ArrayXi> free,
-                           ConstRef<ArrayXi> bound, ConstRef<ArrayXi> enter,
-                           ConstRef<ArrayXi> leave, ConstRef<MatrixXd> ws,
-                           ConstRef<MatrixXd> wy, ConstRef<MatrixXd> sy,
-                           double theta, int prev_col, bool updated);
+  extern double lbfgsb_projgr(ConstRef<ArrayXd> x, const ArrayXd &gx,
+                              const LbfgsbBounds &bounds);
 
-  extern bool lbfgsb_cmprlb(MutRef<VectorXd> &r, MutRef<VectorXd> &p,
-                            MutRef<ArrayXd> &smul, ConstRef<VectorXd> c,
-                            ConstRef<ArrayXi> free, ConstRef<ArrayXd> x,
-                            const ArrayXd &z, const ArrayXd &gx,
-                            ConstRef<MatrixXd> ws, ConstRef<MatrixXd> wy,
-                            ConstRef<MatrixXd> sy, ConstRef<MatrixXd> wtt,
-                            double theta, bool constrained);
+  extern bool lbfgs_bmv(MutVecBlock<VectorXd> p, MutVecBlock<ArrayXd> smul,
+                        ConstRef<VectorXd> v, ConstRef<MatrixXd> sy,
+                        ConstRef<MatrixXd> wtt);
 
-  extern bool lbfgsb_subsm(ArrayXd &x, ArrayXd &xp, MutRef<VectorXd> &d,
-                           MutRef<VectorXd> &wv, ConstRef<MatrixXd> wnt,
-                           ConstRef<ArrayXi> free, ConstRef<ArrayXd> xx,
-                           const ArrayXd &gg, ConstRef<MatrixXd> ws,
-                           ConstRef<MatrixXd> wy, const LbfgsbBounds &bounds,
-                           double theta);
+  extern bool lbfgsb_cauchy(LBfgsB &lbfgsb, const ArrayXd &gx, double sbgnrm);
+}  // namespace internal
 
-  extern bool lbfgsb_prepare_lnsrch(
-      MutRef<ArrayXd> x, ArrayXd &z, ArrayXd &xp, ArrayXd &r, ArrayXd &d,
-      ArrayXi &iwhere, MatrixXd &wnt_d, MatrixXd &wn1, MatrixXd &ws_d,
-      MatrixXd &wy_d, MatrixXd &sy_d, MatrixXd &wtt_d, VectorXd &p_d,
-      VectorXd &v_d, VectorXd &c_d, VectorXd &wbp_d, ArrayXi &free_bound,
-      int &nfree, ArrayXi &enter_leave, int &nenter, int &nleave,
-      ClearablePQ<CauchyBrkpt, std::greater<>> &brks, Eigen::LLT<MatrixXd> &llt,
-      const ArrayXd &gx, const LbfgsbBounds &bounds, double sbgnrm,
-      double theta, bool updated, bool constrained, int iter, int col,
-      int prev_col);
-
-  extern bool lbfgsb_prepare_next_iter(ArrayXd &r, ArrayXd &d, MatrixXd &ws_d,
-                                       MatrixXd &wy_d, MatrixXd &ss_d,
-                                       MatrixXd &sy_d, MatrixXd &wtt_d,
-                                       MatrixXd &wnt_d, double &theta, int &col,
-                                       bool &updated, Eigen::LLT<MatrixXd> &llt,
-                                       double gd, double ginit, double step,
-                                       double dtd);
+class LBfgsB {
+public:
+  LBfgsB(MutRef<ArrayXd> x, internal::LbfgsbBounds bounds, int m);
 
   template <class FuncGrad>
-  LbfgsbResult lbfgsb_main(FuncGrad fg, MutRef<ArrayXd> x,
-                           const LbfgsbBounds &bounds, const int m,
-                           const double factr, const int maxiter,
-                           const int maxls, const double pgtol) {
-    const auto n = x.size();
-    const double tol = factr * kEpsMach;
+  LbfgsbResult minimize(FuncGrad fg, double factr, int maxiter, int maxls,
+                        double pgtol);
 
-    ArrayXi iwhere = ArrayXi::Zero(n);
-    auto [constrained, boxed] = lbfgsb_active(x, iwhere, bounds);
+  /* State modifiers, only for implementations */
 
-    ArrayXd gx(n);
-    double fx = fg(gx, x);
-    double sbgnrm = lbfgsb_projgr(x, gx, bounds);
-    if (sbgnrm <= pgtol)
-      return { LbfgsbResultCode::kSuccess, 0, fx, std::move(gx) };
+  int n() const { return static_cast<int>(x_.size()); }
 
-    MatrixXd wnt(2 * m, 2 * m), wn1(2 * m, 2 * m);
-    MatrixXd ws(n, m), wy(n, m);
-    MatrixXd ss(m, m), sy(m, m), wtt(m, m);
-    VectorXd p(2 * m), v(2 * m), c(2 * m), wbp(3 * m - 1);
-    ArrayXd z(n), r(n), t(n), d(n);
-    Eigen::LLT<MatrixXd> llt(1);
+  int m() const { return static_cast<int>(ws_.cols()); }
 
-    ArrayXi free_bound(n), enter_leave(n);
-    ClearablePQ<CauchyBrkpt, std::greater<>> brks;
-    brks.data().reserve(n);
+  auto &x() { return x_; }
 
-    int nfree = static_cast<int>(n), nenter = 0, nleave = 0, col = 0,
-        prev_col = 0;
-    double theta = 1;
-    bool updated = false;
+  const auto &x() const { return x_; }
 
-    auto reset_memory = [&]() {
-      col = prev_col = 0;
-      theta = 1.0;
-      updated = false;
-    };
+  const internal::LbfgsbBounds &bounds() const { return bounds_; }
 
-    int iter = 0;
-    for (; iter < maxiter; ++iter) {
-      if (!lbfgsb_prepare_lnsrch(x, z, t, r, d, iwhere, wnt, wn1, ws, wy, sy,
-                                 wtt, p, v, c, wbp, free_bound, nfree,
-                                 enter_leave, nenter, nleave, brks, llt, gx,
-                                 bounds, sbgnrm, theta, updated, constrained,
-                                 iter, col, prev_col)) {
-        reset_memory();
-        continue;
-      }
+  bool constrained() const { return constrained_; }
 
-      d = z - x;
+  bool boxed() const { return boxed_; }
 
-      double gd = gx.matrix().dot(d.matrix());
-      if (gd >= 0) {
-        if (col == 0)
-          return { LbfgsbResultCode::kAbnormalTerm, iter + 1, fx,
-                   std::move(gx) };
+  auto wnt() { return wnt_.topLeftCorner(2 * col_, 2 * col_); }
+  auto &wnt_raw() { return wnt_; }
 
-        reset_memory();
-        continue;
-      }
+  auto &wn1() { return wn1_; }
 
-      t = x;
-      r = gx;
+  auto ws() { return ws_.leftCols(col_); }
 
-      LbfgsbLnsrch lnsrlb(x, t, z, d, bounds, fx, gd, iter, constrained, boxed);
-      bool converged = false;
-      for (int i = 0; !converged && i < maxls; ++i) {
-        fx = fg(gx, x);
-        gd = gx.matrix().dot(d.matrix());
-        converged = lnsrlb.search(fx, gd);
-      }
+  auto wy() { return wy_.leftCols(col_); }
 
-      if (!converged) {
-        x = t;
-        fx = lnsrlb.finit();
-        gx = r;
+  auto ss() { return ss_.topLeftCorner(col_, col_); }
 
-        if (col == 0)
-          return { LbfgsbResultCode::kAbnormalTerm, iter + 1, fx,
-                   std::move(gx) };
+  auto sy() { return sy_.topLeftCorner(col_, col_); }
 
-        reset_memory();
-        continue;
-      }
+  auto wtt() { return wtt_.topLeftCorner(col_, col_); }
 
-      sbgnrm = lbfgsb_projgr(x, gx, bounds);
-      if (sbgnrm <= pgtol)
-        return { LbfgsbResultCode::kSuccess, iter + 1, fx, std::move(gx) };
+  auto p() { return p_.head(2 * col_); }
 
-      double ddum = std::max({ std::abs(lnsrlb.finit()), std::abs(fx), 1.0 });
-      if (lnsrlb.finit() - fx <= tol * ddum)
-        return { LbfgsbResultCode::kSuccess, iter + 1, fx, std::move(gx) };
+  auto v() { return v_.head(2 * col_); }
 
-      r = gx - r;
-      prev_col = col;
-      if (!lbfgsb_prepare_next_iter(r, d, ws, wy, ss, sy, wtt, wnt, theta, col,
-                                    updated, llt, gd, lnsrlb.ginit(),
-                                    lnsrlb.step(), lnsrlb.dtd())) {
-        reset_memory();
-      }
+  auto c() { return c_.head(2 * col_); }
+
+  auto wbp() { return wbp_.head(2 * col_); }
+
+  auto smul() { return smul_.head(nonnegative(col_ - 1)); }
+
+  auto &z() { return z_; }
+  auto &xcp() { return z_; }
+
+  auto &r() { return r_; }
+  auto rfree() { return r_.head(nfree_).matrix(); }
+
+  auto &t() { return t_; }
+  auto &xp() { return t_; }
+
+  auto &d() { return d_; }
+
+  auto &iwhere() { return iwhere_; }
+
+  auto free() const { return free_bound_.head(nfree_); }
+
+  auto bound() const { return free_bound_.tail(n() - nfree_); }
+
+  auto enter() const { return enter_leave_.head(nenter_); }
+
+  auto leave() const { return enter_leave_.tail(nleave_); }
+
+  auto &brks() { return brks_; }
+
+  double theta() const { return theta_; }
+
+  int col() const { return col_; }
+
+  int prev_col() const { return prev_col_; }
+
+  bool updated() const { return updated_; }
+
+  /* Test utils; normally not used */
+
+  void update_col(int col) { col_ = col; }
+
+  void update_theta(double theta) { theta_ = theta; }
+
+private:
+  bool freev(int iter);
+
+  bool formk();
+
+  bool prepare_lnsrch(const ArrayXd &gx, double sbgnrm, int iter);
+
+  bool prepare_next_iter(double gd, double ginit, double step, double dtd);
+
+  double d_dot(const ArrayXd &gx) const { return gx.matrix().dot(d_.matrix()); }
+
+  void reset_memory() {
+    theta_ = 1.0;
+    col_ = prev_col_ = 0;
+    updated_ = false;
+  }
+
+  /*  System, size n */
+  MutRef<ArrayXd> x_;
+  /* Bound constraints */
+  internal::LbfgsbBounds bounds_;
+
+  /* (2m, 2m) */
+  MatrixXd wnt_, wn1_;
+  /* (n, m) */
+  MatrixXd ws_, wy_;
+  /* (m, m) */
+  MatrixXd ss_, sy_, wtt_;
+  /* 2*m */
+  VectorXd p_, v_, c_, wbp_;
+  /* n */
+  ArrayXd z_, r_, t_, d_;
+  /* m-1 */
+  ArrayXd smul_;
+
+  /* n */
+  ArrayXi iwhere_, free_bound_, enter_leave_;
+
+  internal::ClearablePQ<internal::CauchyBrkpt, std::greater<>> brks_;
+
+  double theta_;
+  int col_, prev_col_;
+  bool constrained_, boxed_, updated_;
+
+  int nfree_, nenter_, nleave_;
+};
+
+template <class FuncGrad>
+LbfgsbResult LBfgsB::minimize(FuncGrad fg, const double factr,
+                              const int maxiter, const int maxls,
+                              const double pgtol) {
+  const double tol = factr * internal::kEpsMach;
+
+  ArrayXd gx(n());
+  double fx = fg(gx, x());
+
+  internal::AllowEigenMallocScoped<false> ems;
+
+  double sbgnrm = internal::lbfgsb_projgr(x(), gx, bounds());
+  if (sbgnrm <= pgtol)
+    return { LbfgsbResultCode::kSuccess, 0, fx, std::move(gx) };
+
+  reset_memory();
+  nfree_ = n();
+  nenter_ = nleave_ = 0;
+
+  int iter = 0;
+  for (; iter < maxiter; ++iter) {
+    if (!prepare_lnsrch(gx, sbgnrm, iter)) {
+      reset_memory();
+      continue;
     }
 
-    return { LbfgsbResultCode::kMaxIterReached, maxiter, fx, std::move(gx) };
+    d() = z() - x();
+
+    double gd = d_dot(gx);
+    if (gd >= 0) {
+      if (col() == 0)
+        return { LbfgsbResultCode::kAbnormalTerm, iter + 1, fx, std::move(gx) };
+
+      reset_memory();
+      continue;
+    }
+
+    t() = x();
+    r() = gx;
+
+    internal::LbfgsbLnsrch lnsrlb(x(), t(), z(), d(), bounds(), fx, gd, iter,
+                                  constrained(), boxed());
+    bool converged = false;
+    for (int i = 0; !converged && i < maxls; ++i) {
+      NURI_EIGEN_ALLOW_MALLOC(true);
+      fx = fg(gx, x());
+      NURI_EIGEN_ALLOW_MALLOC(false);
+
+      gd = d_dot(gx);
+      converged = lnsrlb.search(fx, gd);
+    }
+
+    if (!converged) {
+      x() = t();
+      fx = lnsrlb.finit();
+      gx = r();
+
+      if (col() == 0)
+        return { LbfgsbResultCode::kAbnormalTerm, iter + 1, fx, std::move(gx) };
+
+      reset_memory();
+      continue;
+    }
+
+    sbgnrm = internal::lbfgsb_projgr(x(), gx, bounds());
+    if (sbgnrm <= pgtol)
+      return { LbfgsbResultCode::kSuccess, iter + 1, fx, std::move(gx) };
+
+    double ddum = std::max({ std::abs(lnsrlb.finit()), std::abs(fx), 1.0 });
+    if (lnsrlb.finit() - fx <= tol * ddum)
+      return { LbfgsbResultCode::kSuccess, iter + 1, fx, std::move(gx) };
+
+    r() = gx - r();
+    if (!prepare_next_iter(gd, lnsrlb.ginit(), lnsrlb.step(), lnsrlb.dtd()))
+      reset_memory();
   }
-}  // namespace internal
+
+  return { LbfgsbResultCode::kMaxIterReached, maxiter, fx, std::move(gx) };
+}
 
 template <class FuncGrad>
 LbfgsbResult l_bfgs_b(FuncGrad &&fg, MutRef<ArrayXd> x, const ArrayXi &nbd,
@@ -344,9 +399,9 @@ LbfgsbResult l_bfgs_b(FuncGrad &&fg, MutRef<ArrayXd> x, const ArrayXi &nbd,
   if (!args_ok)
     return { LbfgsbResultCode::kInvalidInput, 0, 0, {} };
 
-  internal::LbfgsbBounds bds(nbd, bounds);
-  return internal::lbfgsb_main(std::forward<FuncGrad>(fg), x, bds, m, factr,
-                               maxiter, maxls, pgtol);
+  LBfgsB lbfgsb(x, { nbd, bounds }, m);
+  return lbfgsb.minimize(std::forward<FuncGrad>(fg), factr, maxiter, maxls,
+                         pgtol);
 }
 }  // namespace nuri
 
