@@ -207,7 +207,7 @@ auto cdist(const ML1 &a, const ML2 &b) {
 
 namespace internal {
   constexpr inline double safe_normalizer(double sqn, double eps = 1e-12) {
-    return sqn < eps ? 1 : 1 / std::sqrt(sqn);
+    return sqn > eps ? 1 / std::sqrt(sqn) : 0;
   }
 
   template <class VectorLike>
@@ -233,12 +233,12 @@ namespace internal {
     using T = remove_cvref_t<MatrixLike>;
     using Scalar = typename T::Scalar;
 
-    using ArrayLike = decltype(m.colwise().norm().array());
+    using ArrayLike = decltype(m.colwise().squaredNorm().array());
     constexpr auto rows = ArrayLike::RowsAtCompileTime,
                    cols = ArrayLike::ColsAtCompileTime;
 
-    Array<Scalar, rows, cols> norm = m.colwise().norm().array();
-    m.array().rowwise() /= (norm < eps).select(1, norm);
+    Array<Scalar, rows, cols> norm = m.colwise().squaredNorm().array();
+    m.array().rowwise() *= (norm > eps).select(norm.sqrt().inverse(), 0);
   }
 
   template <class MatrixLike>
