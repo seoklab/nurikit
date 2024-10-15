@@ -316,15 +316,19 @@ namespace {
       kSqrt3 =
           1.7320508075688772935274463415058723669428052538103806280558069794,
       kTol = 1e-2, kEps = 1e-8, kEps2 = 1e-16;
-  constexpr int kIp[] = { 0, 1, 3, 1, 2, 4, 3, 4, 5 },
-                kIp2312[] = { 1, 2, 0, 1 };
+  constexpr int kIp[3][3] = {
+    {0, 1, 3},
+    {1, 2, 4},
+    {3, 4, 5},
+  };
+  constexpr int kIp2312[] = { 1, 2, 0, 1 };
 
-  bool kabsch_prepare_e(Array3d &e, const Array9d &rr, const double spur,
-                        const double det) {
-    double cof =
-        (((((rr[2] * rr[5] - rr[8]) + rr[0] * rr[5]) - rr[7]) + rr[0] * rr[2])
-         - rr[6])
-        / 3.0;
+  bool kabsch_calculate_eigs(Array3d &eigs, const Matrix3d &RtR,
+                             const double spur, const double det) {
+    const double cof =
+        (RtR(0, 0) * RtR(1, 1) - RtR(0, 1) + RtR(0, 0) * RtR(2, 2) - RtR(0, 2)
+         + RtR(1, 1) * RtR(2, 2) - RtR(1, 2))
+        / 3;
 
     double h = spur * spur - cof;
     if (h <= 0)
@@ -338,9 +342,9 @@ namespace {
     double cth = sqrth * std::cos(d);
     double sth = sqrth * kSqrt3 * std::sin(d);
 
-    e[0] += cth + cth;
-    e[1] += -cth + sth;
-    e[2] += -cth - sth;
+    eigs[0] += cth + cth;
+    eigs[1] += -cth + sth;
+    eigs[2] += -cth - sth;
 
     return false;
   }
@@ -351,7 +355,7 @@ namespace {
                               const double det, const bool reflection) {
     double sd = (query.colwise() - qm).cwiseAbs2().sum()
                 + (templ.colwise() - tm).cwiseAbs2().sum();
-    e = e.cwiseMax(0).sqrt();
+    e = e.max(0).sqrt();
 
     double d;
     if (reflection) {
@@ -365,123 +369,78 @@ namespace {
     return sd / static_cast<double>(templ.cols());
   }
 
-  bool kabsch_calculate_A(Matrix3d &A, const Array9d &rr, const Array3d &e) {
+  bool safe_gram_schmidt(Matrix3d &m, const int pivot, const int axis) {
+    const double d = m.col(pivot).dot(m.col(axis));
+    m.col(pivot) -= d * m.col(axis);
+
+    const double p = m.col(pivot).squaredNorm();
+    if (p > kTol) {
+      m.col(pivot) /= std::sqrt(p);
+    } else {
+      Array3d axis_sq = m.col(axis).array().square();
+      int rmin;
+      axis_sq.minCoeff(&rmin);
+
+      const int k = kIp2312[rmin], l = kIp2312[rmin + 1];
+      const double q = std::sqrt(axis_sq[k] + axis_sq[l]);
+      if (q <= kTol)
+        return false;
+
+      m(rmin, pivot) = 0.0;
+      m(k, pivot) = -m(l, axis) / q;
+      m(l, pivot) = m(k, axis) / q;
+    }
+
+    return true;
+  }
+
+  bool kabsch_form_At(Matrix3d &At, const Matrix3d &RtR, const Array3d &eigs) {
+    // Cofactor matrix of R^T * R (lower triangular part)
     Array6d ss, ss_sq;
 
     for (const int col: { 0, 2 }) {
-      double ei = e[col];
-      ss[0] = (ei - rr[2]) * (ei - rr[5]) - rr[8];
-      ss[1] = (ei - rr[5]) * rr[1] + rr[3] * rr[4];
-      ss[2] = (ei - rr[0]) * (ei - rr[5]) - rr[7];
-      ss[3] = (ei - rr[2]) * rr[3] + rr[1] * rr[4];
-      ss[4] = (ei - rr[0]) * rr[4] + rr[1] * rr[3];
-      ss[5] = (ei - rr[0]) * (ei - rr[2]) - rr[6];
+      double ei = eigs[col];
+      ss[0] = (ei - RtR(1, 1)) * (ei - RtR(2, 2)) - RtR(1, 2);
+      ss[1] = (ei - RtR(2, 2)) * RtR(1, 0) + RtR(2, 0) * RtR(2, 1);
+      ss[2] = (ei - RtR(0, 0)) * (ei - RtR(2, 2)) - RtR(0, 2);
+      ss[3] = (ei - RtR(1, 1)) * RtR(2, 0) + RtR(1, 0) * RtR(2, 1);
+      ss[4] = (ei - RtR(0, 0)) * RtR(2, 1) + RtR(1, 0) * RtR(2, 0);
+      ss[5] = (ei - RtR(0, 0)) * (ei - RtR(1, 1)) - RtR(0, 1);
 
       ss_sq = ss.square();
-      ss_sq = (ss_sq <= kEps2).select(0, ss_sq);
-      int idx;
-      if (ss_sq[0] >= ss_sq[2]) {
-        idx = 0;
-        if (ss_sq[0] < ss_sq[5])
-          idx = 2;
-      } else if (ss_sq[2] >= ss_sq[5]) {
-        idx = 1;
-      } else {
-        idx = 2;
-      }
+      ss_sq = (ss_sq > kEps2).select(ss_sq, 0);
 
-      double ss_sum = 0.0;
-      idx *= 3;
-      for (int i = 0; i < 3; i++) {
-        int k = kIp[i + idx];
-        A(i, col) = ss[k];
-        ss_sum += ss_sq[k];
-      }
+      int rmax;
+      ss_sq({ 0, 2, 5 }).maxCoeff(&rmax);
 
-      if (ss_sum > kEps) {
-        ss_sum = 1.0 / std::sqrt(ss_sum);
-      } else {
-        ss_sum = 0.0;
-      }
-
-      A.col(col) *= ss_sum;
+      const double normalizer =
+          internal::safe_normalizer(ss_sq(kIp[rmax]).sum(), kEps);
+      At.col(col) = normalizer * ss(kIp[rmax]);
     }
 
     int c1, c;
-    if ((e[0] - e[1]) > (e[1] - e[2])) {
+    if ((eigs[0] - eigs[1]) > (eigs[1] - eigs[2])) {
       c1 = 2;
       c = 0;
     } else {
       c1 = 0;
       c = 2;
     }
+    if (!safe_gram_schmidt(At, c1, c))
+      return false;
 
-    double d = A.col(0).dot(A.col(2));
-    A.col(c1) = A.col(c1) - d * A.col(c);
-
-    double p = A.col(c1).squaredNorm();
-    if (p <= kTol) {
-      Array3d ac_sq = A.col(c).array().square();
-      int minrow;
-      ac_sq.minCoeff(&minrow);
-
-      int l = kIp2312[minrow];
-      int m = kIp2312[minrow + 1];
-      p = std::sqrt(ac_sq[l] + ac_sq[m]);
-      if (p <= kTol)
-        return false;
-
-      A(minrow, c1) = 0.0;
-      A(l, c1) = -A(m, c) / p;
-      A(m, c1) = A(l, c) / p;
-    } else {
-      p = 1.0 / std::sqrt(p);
-      A.col(c1) *= p;
-    }
-
-    A.col(1) = A.col(2).cross(A.col(0));
-
+    At.col(1) = At.col(2).cross(At.col(0));
     return true;
   }
 
-  bool kabsch_calculate_B(Matrix3d &B, const Matrix3d &A, const Matrix3d &R) {
-    for (const int col: { 0, 1 }) {
-      B.col(col) = R * A.col(col);
+  bool kabsch_form_Bt(Matrix3d &Bt, const Matrix3d &At, const Matrix3d &R) {
+    Bt.leftCols<2>().noalias() = R * At.leftCols<2>();
+    internal::safe_colwise_normalize(Bt.leftCols<2>(), kEps);
 
-      double d = B.col(col).squaredNorm();
-      if (d > kEps)
-        d = 1.0 / std::sqrt(d);
-      else
-        d = 0.0;
+    if (!safe_gram_schmidt(Bt, 1, 0))
+      return false;
 
-      B.col(col) *= d;
-    }
-
-    double d = B.col(0).dot(B.col(1));
-    B.col(1) = B.col(1) - d * B.col(0);
-
-    double p = B.col(1).squaredNorm();
-    if (p <= kTol) {
-      Array3d b0_sq = B.col(0).array().square();
-      int minrow;
-      b0_sq.minCoeff(&minrow);
-
-      int k = kIp2312[minrow];
-      int l = kIp2312[minrow + 1];
-      p = std::sqrt(b0_sq[k] + b0_sq[l]);
-      if (p <= kTol)
-        return false;
-
-      B(minrow, 1) = 0.0;
-      B(k, 1) = -B(l, 0) / p;
-      B(l, 1) = B(k, 0) / p;
-    } else {
-      p = 1.0 / std::sqrt(p);
-      B.col(1) *= p;
-    }
-
-    B.col(2) = B.col(0).cross(B.col(1));
-
+    Bt.col(2) = Bt.col(0).cross(Bt.col(1));
     return true;
   }
 }  // namespace
@@ -494,50 +453,48 @@ std::pair<Affine3d, double> kabsch(const Eigen::Ref<const Matrix3Xd> &query,
   Vector3d qs = query.rowwise().sum();
   Vector3d qm = qs.array() / query.cols(), tm = templ.rowwise().mean();
 
-  NURI_EIGEN_TMP(Matrix3d) s = templ * query.transpose();
-  Matrix3d R = s - tm * qs.transpose();
-
-  // first 6: lower triangle of R^T * R
-  //  last 3: squared off-diagonal elements of R^T * R
-  Array9d rr;
-  for (int i = 0, k = 0; i < 3; ++i)
-    for (int j = 0; j <= i; ++j, ++k)
-      rr[k] = R.col(i).dot(R.col(j));
-  rr.tail<3>() = rr({ 1, 3, 4 }).square();
-
-  double spur = (rr[0] + rr[2] + rr[5]) / 3.0;
-  Array3d e = Array3d::Constant(spur);
+  Matrix3d R = templ * query.transpose();
+  R.noalias() -= tm * qs.transpose();
   const double det = R.determinant();
 
+  Matrix3d RtR;
+  RtR.triangularView<Eigen::Lower>() = R.transpose() * R;
+  RtR.triangularView<Eigen::StrictlyUpper>() = RtR.transpose().cwiseAbs2();
+  const double spur = RtR.trace() / 3;
+
+  Array3d eigs = Array3d::Constant(spur);
+
   if (ABSL_PREDICT_TRUE(spur > 0)) {
-    const bool A_ident = kabsch_prepare_e(e, rr, spur, det);
+    const bool A_ident = kabsch_calculate_eigs(eigs, RtR, spur, det);
 
     if (mode != KabschMode::kXformOnly) {
       ret.second =
-          kabsch_calculate_msd(query, templ, qm, tm, e, det, reflection);
+          kabsch_calculate_msd(query, templ, qm, tm, eigs, det, reflection);
     }
 
     if (mode == KabschMode::kMsdOnly)
       return ret;
 
-    Matrix3d A = Matrix3d::Identity();
-    if (!A_ident && ABSL_PREDICT_FALSE(!kabsch_calculate_A(A, rr, e)))
+    Matrix3d At = Matrix3d::Identity();
+    if (!A_ident && ABSL_PREDICT_FALSE(!kabsch_form_At(At, RtR, eigs)))
       goto failure;
 
-    Matrix3d B = Matrix3d::Zero();
-    if (ABSL_PREDICT_FALSE(!kabsch_calculate_B(B, A, R)))
+    Matrix3d Bt = Matrix3d::Zero();
+    if (ABSL_PREDICT_FALSE(!kabsch_form_Bt(Bt, At, R)))
       goto failure;
 
     if (reflection && det < 0)
-      B.col(2) *= -1;
+      Bt.col(2) *= -1;
 
-    ret.first.linear() = B * A.transpose();
-    ret.first.translation().noalias() = tm - ret.first.linear() * qm;
+    ret.first.linear() = Bt * At.transpose();
+    ret.first.translation().noalias() = -(ret.first.linear() * qm);
+    ret.first.translation() += tm;
     return ret;
   }
 
   if (mode == KabschMode::kMsdOnly) {
-    ret.second = kabsch_calculate_msd(query, templ, qm, tm, e, det, reflection);
+    ret.second =
+        kabsch_calculate_msd(query, templ, qm, tm, eigs, det, reflection);
     return ret;
   }
 
