@@ -393,12 +393,13 @@ enum class KabschMode : std::uint8_t {
  * @param query The query points.
  * @param templ The template points.
  * @param mode Selects the return value. Defaults to KabschMode::kBoth. Note
- *        that even if kXformOnly is selected, the MSD value will report a
- *        negative value if the calculation fails.
+ *        that even if KabschMode::kXformOnly is selected, the MSD value will
+ *        report a negative value if the calculation fails.
  * @param reflection Whether to allow reflection. Defaults to false.
  * @return A pair of (transformation matrix, MSD). When this function fails, MSD
  *         is set to a negative value (-1), and the state of the transformation
- *         matrix is left unspecified. This never fails when mode is kMsdOnly.
+ *         matrix is left unspecified. This never fails when mode is
+ *         KabschMode::kMsdOnly.
  *
  * References:
  * - Y Zhang and J Skolnick. *Nucleic Acids Res.* **2005**, *33*, 2302-2309.
