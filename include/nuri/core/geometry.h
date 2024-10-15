@@ -389,7 +389,7 @@ enum class KabschMode : std::uint8_t {
 
 /**
  * @brief An implementation of the Kabsch algorithm for aligning two sets of
- *        points. This algorithm is based on the implementation in TMalign.
+ *        points. This algorithm is based on the implementation in TM-align.
  * @param query The query points.
  * @param templ The template points.
  * @param mode Selects the return value. Defaults to KabschMode::kBoth. Note
@@ -400,8 +400,30 @@ enum class KabschMode : std::uint8_t {
  *         is set to a negative value (-1), and the state of the transformation
  *         matrix is left unspecified. This never fails when mode is kMsdOnly.
  *
- * Reference: Y Zhang and J Skolnick. *Nucleic Acids Res.* **2005**, *33*,
- * 2302-2309. DOI:[10.1093/nar/gki524](https://doi.org/10.1093/nar/gki524)
+ * References:
+ * - Y Zhang and J Skolnick. *Nucleic Acids Res.* **2005**, *33*, 2302-2309.
+ *   DOI:[10.1093/nar/gki524](https://doi.org/10.1093/nar/gki524)
+ * - W Kabsch. *Acta Crystallogr. A* **1978**, *34*, 827-828.
+ *   DOI:[10.1107/S0567739478001680](https://doi.org/10.1107/S0567739478001680)
+ * - W Kabsch. *Acta Crystallogr. A* **1976**, *32*, 922-923.
+ *   DOI:[10.1107/S0567739476001873](https://doi.org/10.1107/S0567739476001873)
+ *
+ * The following is the full license text for the TM-align code:
+ *
+ * \code{.unparsed}
+ * TM-align: sequence-independent structure alignment of monomer proteins by
+ * TM-score superposition. Please report issues to yangzhanglab@umich.edu
+ *
+ * References to cite:
+ * Y Zhang, J Skolnick. Nucl Acids Res 33, 2302-9 (2005)
+ *
+ * DISCLAIMER:
+ * Permission to use, copy, modify, and distribute the Software for any
+ * purpose, with or without fee, is hereby granted, provided that the
+ * notices on the head, the reference information, and this copyright
+ * notice appear in all copies or substantial portions of the Software.
+ * It is provided "as is" without express or implied warranty.
+ * \endcode
  */
 extern std::pair<Affine3d, double>
 kabsch(const Eigen::Ref<const Matrix3Xd> &query,

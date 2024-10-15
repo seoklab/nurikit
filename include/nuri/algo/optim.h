@@ -182,44 +182,54 @@ namespace internal {
 /**
  * @brief L-BFGS-B minimizer
  * @sa l_bfgs_b
- * @note This implementation is based on the C implementation of L-BFGS-B
- *       in the SciPy library, which is a translation of the original Fortran
- *       code by Ciyou Zhu, Richard Byrd, and Jorge Noceda. Both are released
- *       under the BSD 3-Clause License and the original license is included
- *       below.
  *
- *       Copyright (c) 2011 Ciyou Zhu, Richard Byrd, Jorge Nocedal and
- *                     Jose Luis Morales.
- *       Copyright (c) 2001-2002 Enthought, Inc. 2003-2024, SciPy Developers.
- *       All rights reserved.
+ * References:
+ * - RH Byrd, P Lu, J Nocedal and C Zhu. *SIAM J. Sci. Stat. Comput.* **1995**,
+ *   *16* (5), 1190-1208. DOI:[10.1137/0916069](https://doi.org/10.1137/0916069)
+ * - C Zhu, RH Byrd, J Nocedal. *ACM Trans. Math. Softw.* **1997**, *23* (4),
+ *   550-560. DOI:[10.1145/279232.279236](https://doi.org/10.1145/279232.279236)
+ * - JL Morales, J Nocedal. *ACM Trans. Math. Softw.* **2011**, *38* (1), 7.
+ *   DOI:[10.1145/2049662.2049669](https://doi.org/10.1145/2049662.2049669)
  *
- *       Redistribution and use in source and binary forms, with or without
- *       modification, are permitted provided that the following conditions
- *       are met:
+ * This implementation is based on the C implementation of L-BFGS-B in the SciPy
+ * library, which is a translation of the original Fortran code by Ciyou Zhu,
+ * Richard Byrd, and Jorge Noceda. Both are released under the BSD 3-Clause
+ * License and the original license is included below.
  *
- *       1. Redistributions of source code must retain the above copyright
- *          notice, this list of conditions and the following disclaimer.
+ * \code{.unparsed}
+ * Copyright (c) 2011 Ciyou Zhu, Richard Byrd, Jorge Nocedal and Jose Luis
+ * Morales.
+ * Copyright (c) 2001-2002 Enthought, Inc. 2003-2024, SciPy Developers.
+ * All rights reserved.
  *
- *       2. Redistributions in binary form must reproduce the above
- *          copyright notice, this list of conditions and the following
- *          disclaimer in the documentation and/or other materials provided
- *          with the distribution.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
  *
- *       3. Neither the name of the copyright holder nor the names of its
- *          contributors may be used to endorse or promote products derived
- *          from this software without specific prior written permission.
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
  *
- *       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *       A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *       OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *       SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *       LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *       DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *       THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *       (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * \endcode
  */
 class LBfgsB {
 public:
@@ -477,44 +487,53 @@ LbfgsbResult LBfgsB::minimize(FuncGrad fg, const double factr,
  * @note The input `x` will be modified in-place.
  * @sa LBfgsB
  *
- * @note This implementation is based on the C implementation of L-BFGS-B
- *       in the SciPy library, which is a translation of the original Fortran
- *       code by Ciyou Zhu, Richard Byrd, and Jorge Noceda. Both are released
- *       under the BSD 3-Clause License and the original license is included
- *       below.
+ * References:
+ * - RH Byrd, P Lu, J Nocedal and C Zhu. *SIAM J. Sci. Stat. Comput.* **1995**,
+ *   *16* (5), 1190-1208. DOI:[10.1137/0916069](https://doi.org/10.1137/0916069)
+ * - C Zhu, RH Byrd, J Nocedal. *ACM Trans. Math. Softw.* **1997**, *23* (4),
+ *   550-560. DOI:[10.1145/279232.279236](https://doi.org/10.1145/279232.279236)
+ * - JL Morales, J Nocedal. *ACM Trans. Math. Softw.* **2011**, *38* (1), 7.
+ *   DOI:[10.1145/2049662.2049669](https://doi.org/10.1145/2049662.2049669)
  *
- *       Copyright (c) 2011 Ciyou Zhu, Richard Byrd, Jorge Nocedal and
- *                     Jose Luis Morales.
- *       Copyright (c) 2001-2002 Enthought, Inc. 2003-2024, SciPy Developers.
- *       All rights reserved.
+ * This implementation is based on the C implementation of L-BFGS-B in the SciPy
+ * library, which is a translation of the original Fortran code by Ciyou Zhu,
+ * Richard Byrd, and Jorge Noceda. Both are released under the BSD 3-Clause
+ * License and the original license is included below.
  *
- *       Redistribution and use in source and binary forms, with or without
- *       modification, are permitted provided that the following conditions
- *       are met:
+ * \code{.unparsed}
+ * Copyright (c) 2011 Ciyou Zhu, Richard Byrd, Jorge Nocedal and Jose Luis
+ * Morales.
+ * Copyright (c) 2001-2002 Enthought, Inc. 2003-2024, SciPy Developers.
+ * All rights reserved.
  *
- *       1. Redistributions of source code must retain the above copyright
- *          notice, this list of conditions and the following disclaimer.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
  *
- *       2. Redistributions in binary form must reproduce the above
- *          copyright notice, this list of conditions and the following
- *          disclaimer in the documentation and/or other materials provided
- *          with the distribution.
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
  *
- *       3. Neither the name of the copyright holder nor the names of its
- *          contributors may be used to endorse or promote products derived
- *          from this software without specific prior written permission.
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
  *
- *       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *       A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *       OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *       SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *       LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *       DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *       THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *       (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * \endcode
  */
 template <class FuncGrad>
 LbfgsbResult l_bfgs_b(FuncGrad &&fg, MutRef<ArrayXd> x, const ArrayXi &nbd,

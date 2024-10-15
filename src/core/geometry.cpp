@@ -299,15 +299,6 @@ void OCTree::find_neighbors_d(const Vector3d &pt, const double cutoff,
 }
 
 // NOLINTBEGIN(readability-identifier-naming,*-avoid-goto)
-/*
- * TMalign license text:
- *
- *   Permission to use, copy, modify, and distribute the Software for any
- *   purpose, with or without fee, is hereby granted, provided that the
- *   notices on the head, the reference information, and this copyright
- *   notice appear in all copies or substantial portions of the Software.
- *   It is provided "as is" without express or implied warranty.
- */
 namespace {
   using Array6d = Array<double, 6, 1>;
   using Array9d = Array<double, 9, 1>;
