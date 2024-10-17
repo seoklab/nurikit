@@ -213,6 +213,55 @@ project.
     limitations under the License.
   ```
 
+## Eigen
+
+- Project URL: <http://eigen.tuxfamily.org>
+
+Eigen uses multiple licenses. See the
+[Eigen website](http://eigen.tuxfamily.org) for more information.
+
+## Spectra
+
+- Project URL: <https://spectralib.org>
+
+Spectra is under the MPLv2 license.
+
+## GoogleTest
+
+- Project URL: <https://github.com/google/googletest>
+- Full license text:
+
+  ```txt
+  Copyright 2008, Google Inc.
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
+  met:
+
+      * Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+      * Redistributions in binary form must reproduce the above
+  copyright notice, this list of conditions and the following disclaimer
+  in the documentation and/or other materials provided with the
+  distribution.
+      * Neither the name of Google Inc. nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  ```
+
 ## pybind11
 
 - Project URL: <https://github.com/pybind/pybind11>
@@ -313,12 +362,87 @@ project.
 
 ### L-BFGS-B
 
-- Project URL: <http://github.com/scipy/scipy>, <http://users.iems.northwestern.edu/~nocedal/lbfgsb.html>
+- Project URL: <http://github.com/scipy/scipy>,
+  <http://users.iems.northwestern.edu/~nocedal/lbfgsb.html>
 - Full license text:
 
   ```txt
   Copyright (c) 2011 Ciyou Zhu, Richard Byrd, Jorge Nocedal and Jose Luis Morales.
   Copyright (c) 2001-2002 Enthought, Inc. 2003-2024, SciPy Developers.
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions
+  are met:
+
+  1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+
+  2. Redistributions in binary form must reproduce the above
+    copyright notice, this list of conditions and the following
+    disclaimer in the documentation and/or other materials provided
+    with the distribution.
+
+  3. Neither the name of the copyright holder nor the names of its
+    contributors may be used to endorse or promote products derived
+    from this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  ```
+
+### Kabsch
+
+Our implementation of the Kabsch algorithm is based on the TM-align software.
+
+- Project URL: <https://zhanggroup.org/TM-align>
+- Full license text:
+
+  ```txt
+  TM-align: sequence-independent structure alignment of monomer proteins by
+  TM-score superposition. Please report issues to yangzhanglab@umich.edu
+
+  References to cite:
+  Y Zhang, J Skolnick. Nucl Acids Res 33, 2302-9 (2005)
+
+  DISCLAIMER:
+  Permission to use, copy, modify, and distribute the Software for any
+  purpose, with or without fee, is hereby granted, provided that the
+  notices on the head, the reference information, and this copyright
+  notice appear in all copies or substantial portions of the Software.
+  It is provided "as is" without express or implied warranty.
+  ```
+
+Also, D Eberly's eigenvector solver is integrated into the Kabsch algorithm.
+
+- Project URL: <https://www.geometrictools.com/Documentation/RobustEigenSymmetric3x3.pdf>
+- Full license text:
+
+  ```txt
+   David Eberly, Geometric Tools, Redmond WA 98052
+   Copyright (c) 1998-2024
+   Distributed under the Boost Software License, Version 1.0.
+   https://www.boost.org/LICENSE_1_0.txt
+   https://www.geometrictools.com/License/Boost/LICENSE_1_0.txt
+   Version: 6.0.2023.08.08
+   ```
+
+### QCP
+
+- Project URL: <https://theobald.brandeis.edu/qcp>
+- Full license text:
+
+  ```txt
+  Copyright (c) 2009-2016 Pu Liu and Douglas L. Theobald
   All rights reserved.
 
   Redistribution and use in source and binary forms, with or without

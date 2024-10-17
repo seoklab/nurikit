@@ -7,6 +7,7 @@
 
 /// @cond
 #include <cmath>
+#include <cstdint>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -206,7 +207,7 @@ auto cdist(const ML1 &a, const ML2 &b) {
 
 namespace internal {
   constexpr inline double safe_normalizer(double sqn, double eps = 1e-12) {
-    return sqn < eps ? 1 : 1 / std::sqrt(sqn);
+    return sqn > eps ? 1 / std::sqrt(sqn) : 0;
   }
 
   template <class VectorLike>
@@ -232,12 +233,12 @@ namespace internal {
     using T = remove_cvref_t<MatrixLike>;
     using Scalar = typename T::Scalar;
 
-    using ArrayLike = decltype(m.colwise().norm().array());
+    using ArrayLike = decltype(m.colwise().squaredNorm().array());
     constexpr auto rows = ArrayLike::RowsAtCompileTime,
                    cols = ArrayLike::ColsAtCompileTime;
 
-    Array<Scalar, rows, cols> norm = m.colwise().norm().array();
-    m.array().rowwise() /= (norm < eps).select(1, norm);
+    Array<Scalar, rows, cols> norm = m.colwise().squaredNorm().array();
+    m.array().rowwise() *= (norm > eps).select(norm.sqrt().inverse(), 0);
   }
 
   template <class MatrixLike>
@@ -379,6 +380,145 @@ Vector4d fit_plane(const MatrixLike &pts, bool normalize = true) {
   ret[3] = -ret.head<3>().dot(cntr);
   return ret;
 }
+
+enum class AlignMode : std::uint8_t {
+  kMsdOnly = 0x1,
+  kXformOnly = 0x2,
+  kBoth = kMsdOnly | kXformOnly,
+};
+
+/**
+ * @brief An implementation of the Kabsch algorithm for aligning two sets of
+ *        points. This algorithm is based on the implementation in TM-align.
+ * @param query The query points.
+ * @param templ The template points.
+ * @param mode Selects the return value. Defaults to AlignMode::kBoth. Note that
+ *        even if AlignMode::kXformOnly is selected, the MSD value will report a
+ *        negative value if the calculation fails.
+ * @param reflection Whether to allow reflection. Defaults to false.
+ * @return A pair of (transformation matrix, MSD). When this function fails, MSD
+ *         is set to a negative value (-1), and the state of the transformation
+ *         matrix is left unspecified. This never fails when mode is
+ *         AlignMode::kMsdOnly.
+ *
+ * This implementation has improved stability compared to the TM-align code by
+ * integrating a slightly modified version of the *A Robust Eigensover for 3 x 3
+ * Symmetric Matrices* algorithm proposed by D Eberly (see more details in the
+ * following references) and by improving the pivot selection strategy in the B
+ * matrix calculation step.
+ *
+ * References:
+ * - D Eberly.
+ *   https://www.geometrictools.com/Documentation/RobustEigenSymmetric3x3.pdf
+ *   (Accessed 2024-10-17)
+ * - Y Zhang and J Skolnick. *Nucleic Acids Res.* **2005**, *33*, 2302-2309.
+ *   DOI:[10.1093/nar/gki524](https://doi.org/10.1093/nar/gki524)
+ * - W Kabsch. *Acta Crystallogr. A* **1978**, *34*, 827-828.
+ *   DOI:[10.1107/S0567739478001680](https://doi.org/10.1107/S0567739478001680)
+ * - W Kabsch. *Acta Crystallogr. A* **1976**, *32*, 922-923.
+ *   DOI:[10.1107/S0567739476001873](https://doi.org/10.1107/S0567739476001873)
+ *
+ * The following is the full license text for the TM-align code:
+ *
+ * \code{.unparsed}
+ * TM-align: sequence-independent structure alignment of monomer proteins by
+ * TM-score superposition. Please report issues to yangzhanglab@umich.edu
+ *
+ * References to cite:
+ * Y Zhang, J Skolnick. Nucl Acids Res 33, 2302-9 (2005)
+ *
+ * DISCLAIMER:
+ * Permission to use, copy, modify, and distribute the Software for any
+ * purpose, with or without fee, is hereby granted, provided that the
+ * notices on the head, the reference information, and this copyright
+ * notice appear in all copies or substantial portions of the Software.
+ * It is provided "as is" without express or implied warranty.
+ * \endcode
+ *
+ * This is the copyright text of D Eberly's algorithm:
+ *
+ * \code{.unparsed}
+ * David Eberly, Geometric Tools, Redmond WA 98052
+ * Copyright (c) 1998-2024
+ * Distributed under the Boost Software License, Version 1.0.
+ * https://www.boost.org/LICENSE_1_0.txt
+ * https://www.geometrictools.com/License/Boost/LICENSE_1_0.txt
+ * Version: 6.0.2023.08.08
+ * \endcode
+ */
+extern std::pair<Affine3d, double>
+kabsch(const Eigen::Ref<const Matrix3Xd> &query,
+       const Eigen::Ref<const Matrix3Xd> &templ,
+       AlignMode mode = AlignMode::kBoth, bool reflection = false);
+
+/**
+ * @brief Perform quaternion-based superposition of two sets of points.
+ * @param query The query points.
+ * @param templ The template points.
+ * @param mode Selects the return value. Defaults to AlignMode::kBoth. Note that
+ *        even if AlignMode::kXformOnly is selected, the MSD value will report a
+ *        negative value if the calculation fails.
+ * @param evalprec The precision of eigenvalue calculation. Defaults to 1e-11.
+ * @param evecprec The precision of eigenvector calculation. Defaults to 1e-6.
+ * @param maxiter The maximum number of Newton-Raphson iterations. Defaults
+ *        to 50.
+ * @return A pair of (transformation matrix, MSD). When this function fails, MSD
+ *         is set to a negative value (-1), and the state of the transformation
+ *         matrix is left unspecified. Unlike kabsch(), this function may fail
+ *         even when mode is AlignMode::kMsdOnly due to the iterative
+ *         root-finding process. Any sufficiently large value of maxiter will
+ *         guarantee convergence.
+ *
+ * This implementation is based on the reference implementation by P Liu and DL
+ * Theobald, but modified for better stability and error handling.
+ *
+ * References:
+ * - P Liu, DK Agrafiotis, and DL Theobald. *J. Comput. Chem.* **2011**, *32*
+ *   (1), 185-186. DOI:[10.1002/jcc.21607](https://doi.org/10.1002/jcc.21607)
+ * - P Liu, DK Agrafiotis, and DL Theobald. *J. Comput. Chem.* **2010**, *31*
+ *   (7), 1561-1563. DOI:[10.1002/jcc.21439](https://doi.org/10.1002/jcc.21439)
+ * - DL Theobald. *Acta Crystallogr. A* **2005**, *61* (4), 478-480.
+ *   DOI:[10.1107/S0108767305015266](https://doi.org/10.1107/S0108767305015266)
+ *
+ * The following is the full license text for the reference implementation:
+ *
+ * \code{.unparsed}
+ * Copyright (c) 2009-2016 Pu Liu and Douglas L. Theobald
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * \endcode
+ */
+extern std::pair<Affine3d, double>
+qcp(const Eigen::Ref<const Matrix3Xd> &query,
+    const Eigen::Ref<const Matrix3Xd> &templ, AlignMode mode = AlignMode::kBoth,
+    double evalprec = 1e-11, double evecprec = 1e-6, int maxiter = 50);
 }  // namespace nuri
 
 #endif /* NURI_CORE_GEOMETRY_H_ */
