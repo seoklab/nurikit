@@ -240,7 +240,7 @@ TEST(FitPlaneTest, CheckCorrectness) {
   EXPECT_TRUE(p.isApprox(ans, 1e-6));
 }
 
-class KabschTest: public ::testing::Test {
+class AlignTest: public ::testing::Test {
 public:
   // Random rotation matrix
   inline static const Affine3d xform_ {
@@ -311,7 +311,7 @@ public:
   };
 };
 
-TEST_F(KabschTest, CalculateMSDOnly) {
+TEST_F(AlignTest, KabschMSDOnly) {
   auto [_, msd] = kabsch(query_, templ_, AlignMode::kMsdOnly);
   EXPECT_NEAR(msd, msd_reflected_, 1e-6);
 
@@ -319,7 +319,7 @@ TEST_F(KabschTest, CalculateMSDOnly) {
   EXPECT_NEAR(msd, msd_, 1e-6);
 }
 
-TEST_F(KabschTest, CalculateXformOnly) {
+TEST_F(AlignTest, KabschXformOnly) {
   auto [xform, flag] = kabsch(query_, templ_, AlignMode::kXformOnly);
   ASSERT_GE(flag, 0);
   NURI_EXPECT_EIGEN_EQ_TOL(xform.matrix(), xform_reflected_.matrix(), 1e-3);
@@ -330,7 +330,7 @@ TEST_F(KabschTest, CalculateXformOnly) {
   NURI_EXPECT_EIGEN_EQ_TOL(xform.translation(), xform_.translation(), 1e-3);
 }
 
-TEST_F(KabschTest, CalculateBoth) {
+TEST_F(AlignTest, KabschBoth) {
   auto [xform, msd] = kabsch(query_, templ_, AlignMode::kBoth);
   ASSERT_GE(msd, 0);
   NURI_EXPECT_EIGEN_EQ_TOL(xform.matrix(), xform_reflected_.matrix(), 1e-3);
@@ -341,6 +341,85 @@ TEST_F(KabschTest, CalculateBoth) {
   NURI_EXPECT_EIGEN_EQ_TOL(xform.linear(), -xform_.linear(), 1e-3);
   NURI_EXPECT_EIGEN_EQ_TOL(xform.translation(), xform_.translation(), 1e-3);
   EXPECT_NEAR(msd, msd_, 1e-6);
+}
+
+TEST_F(AlignTest, QcpMSDOnly) {
+  auto [_, msd] = qcp(query_, templ_, AlignMode::kMsdOnly);
+  EXPECT_NEAR(msd, msd_reflected_, 1e-6);
+}
+
+TEST_F(AlignTest, QcpXformOnly) {
+  auto [xform, flag] = qcp(query_, templ_, AlignMode::kXformOnly);
+  ASSERT_GE(flag, 0);
+  NURI_EXPECT_EIGEN_EQ_TOL(xform.matrix(), xform_reflected_.matrix(), 1e-3);
+}
+
+TEST_F(AlignTest, QcpBoth) {
+  auto [xform, msd] = qcp(query_, templ_, AlignMode::kBoth);
+  ASSERT_GE(msd, 0);
+  NURI_EXPECT_EIGEN_EQ_TOL(xform.matrix(), xform_reflected_.matrix(), 1e-3);
+  EXPECT_NEAR(msd, msd_reflected_, 1e-6);
+}
+
+class AlignSingularTest: public ::testing::Test {
+public:
+  template <class TFunc>
+  static void run_test(TFunc f) {
+    Matrix3Xd query(3, 20), templ(3, 20);
+
+    for (int axis = 0; axis < 3; ++axis) {
+      query.setZero();
+      query.row(axis).setRandom();
+      query.row(axis).array() -= query.row(axis).mean();
+      double msd_ref = query.row(axis).array().square().mean();
+
+      for (int i = 1; i < 3; ++i) {
+        Affine3d xform_ref =
+            Affine3d::Identity()
+            * Eigen::AngleAxisd(constants::kPi, Vector3d::Unit((axis + i) % 3));
+
+        templ.noalias() = 2 * (xform_ref * query);
+
+        auto [xform, msd] = f(query, templ, AlignMode::kBoth);
+        ASSERT_GE(msd, 0);
+
+        EXPECT_NEAR(msd, msd_ref, 1e-4) << "axis = " << axis << ", i = " << i;
+        NURI_EXPECT_EIGEN_EQ_TOL(2 * (xform * query), templ, 1e-4)
+            << "axis = " << axis << ", i = " << i;
+      }
+
+      const int a2 = (axis + 1) % 3, a3 = (axis + 2) % 3;
+
+      query.row(a2).setRandom();
+      query.row(a2).array() -= query.row(a2).mean();
+      msd_ref += query.row(a2).array().square().mean();
+
+      Affine3d xform_ref =
+          Affine3d::Identity()
+          * Eigen::AngleAxisd(constants::kPi, Vector3d::Unit(a2))
+          * Eigen::AngleAxisd(constants::kPi, Vector3d::Unit(a3));
+
+      templ.noalias() = 2 * (xform_ref * query);
+
+      auto [xform, msd] = f(query, templ, AlignMode::kBoth);
+      ASSERT_GE(msd, 0);
+
+      EXPECT_NEAR(msd, msd_ref, 1e-4) << "axis = " << axis << ", both";
+      NURI_EXPECT_EIGEN_EQ_TOL(2 * (xform * query), templ, 1e-4)
+          << "axis = " << axis << ", both";
+    }
+  }
+};
+
+TEST_F(AlignSingularTest, Kabsch) {
+  run_test([](const auto &q, const auto &t, auto mode) {
+    return kabsch(q, t, mode);
+  });
+}
+
+TEST_F(AlignSingularTest, Qcp) {
+  run_test(
+      [](const auto &q, const auto &t, auto mode) { return qcp(q, t, mode); });
 }
 }  // namespace
 }  // namespace nuri
