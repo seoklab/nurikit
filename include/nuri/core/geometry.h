@@ -430,6 +430,11 @@ extern std::pair<Affine3d, double>
 kabsch(const Eigen::Ref<const Matrix3Xd> &query,
        const Eigen::Ref<const Matrix3Xd> &templ,
        AlignMode mode = AlignMode::kBoth, bool reflection = false);
+
+extern std::pair<Affine3d, double>
+qcp(const Eigen::Ref<const Matrix3Xd> &query,
+    const Eigen::Ref<const Matrix3Xd> &templ, AlignMode mode = AlignMode::kBoth,
+    double evalprec = 1e-11, double evecprec = 1e-6, int maxiter = 50);
 }  // namespace nuri
 
 #endif /* NURI_CORE_GEOMETRY_H_ */

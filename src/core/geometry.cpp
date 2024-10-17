@@ -8,12 +8,14 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdlib>
 #include <numeric>
 #include <utility>
 #include <vector>
 
 #include <Eigen/Dense>
 
+#include <absl/base/optimization.h>
 #include <absl/log/absl_log.h>
 
 #include "nuri/eigen_config.h"
@@ -491,6 +493,202 @@ std::pair<Affine3d, double> kabsch(const Eigen::Ref<const Matrix3Xd> &query,
 
 failure:
   ret.second = -1.0;
+  return ret;
+}
+
+namespace {
+  double qcp_find_largest_eig(const Matrix3d &R, const double e0,
+                              const double evalprec, const int maxiter) {
+    const Matrix3d Rsq = R.cwiseAbs2();
+
+    double F = (-(R(0, 2) + R(2, 0)) * (R(1, 2) - R(2, 1))
+                + (R(0, 1) - R(1, 0)) * (R(0, 0) - R(1, 1) - R(2, 2)))
+               * (-(R(0, 2) - R(2, 0)) * (R(1, 2) + R(2, 1))
+                  + (R(0, 1) - R(1, 0)) * (R(0, 0) - R(1, 1) + R(2, 2)));
+
+    double G = (-(R(0, 2) + R(2, 0)) * (R(1, 2) + R(2, 1))
+                - (R(0, 1) + R(1, 0)) * (R(0, 0) + R(1, 1) - R(2, 2)))
+               * (-(R(0, 2) - R(2, 0)) * (R(1, 2) - R(2, 1))
+                  - (R(0, 1) + R(1, 0)) * (R(0, 0) + R(1, 1) + R(2, 2)));
+
+    double H = ((R(0, 1) + R(1, 0)) * (R(1, 2) + R(2, 1))
+                + (R(0, 2) + R(2, 0)) * (R(0, 0) - R(1, 1) + R(2, 2)))
+               * (-(R(0, 1) - R(1, 0)) * (R(1, 2) - R(2, 1))
+                  + (R(0, 2) + R(2, 0)) * (R(0, 0) + R(1, 1) + R(2, 2)));
+
+    double I = ((R(0, 1) + R(1, 0)) * (R(1, 2) - R(2, 1))
+                + (R(0, 2) - R(2, 0)) * (R(0, 0) - R(1, 1) - R(2, 2)))
+               * (-(R(0, 1) - R(1, 0)) * (R(1, 2) + R(2, 1))
+                  + (R(0, 2) - R(2, 0)) * (R(0, 0) + R(1, 1) - R(2, 2)));
+
+    double Dsqrt = Rsq(0, 1) + Rsq(0, 2) - Rsq(1, 0) - Rsq(2, 0);
+
+    double E1 = -Rsq(0, 0) + Rsq(1, 1) + Rsq(2, 2) + Rsq(1, 2) + Rsq(2, 1),
+           E2 = 2 * (R(1, 1) * R(2, 2) - R(1, 2) * R(2, 1)),
+           E = (E1 - E2) * (E1 + E2);
+
+    const double c2 = -2 * Rsq.sum(), c1 = -8 * R.determinant(),
+                 c0 = Dsqrt * Dsqrt + E + F + G + H + I;
+
+    double eig = e0, oldeig;
+    for (int i = 0; i < maxiter; ++i) {
+      oldeig = eig;
+
+      const double esq = eig * eig;
+      const double df = 4 * esq * eig + 2 * c2 * eig + c1;
+      const double f = esq * esq + c2 * esq + c1 * eig + c0;
+      if (ABSL_PREDICT_FALSE(std::abs(df) <= kEps)) {
+        // singular; test for convergence
+        return std::abs(f) <= evalprec ? eig : -1;
+      }
+
+      eig -= f / df;
+
+      if (std::abs(oldeig - eig) < std::abs(evalprec * eig))
+        return eig;
+    }
+
+    return -1;
+  }
+
+  std::pair<Eigen::Quaterniond, bool>
+  qcp_unit_quat(const Matrix3d &R, const double eig, const double precsq) {
+    // Upper triangle stores 2x2 minors with some sign changes
+    Matrix4d a;
+    a(0, 0) = R(0, 0) + R(1, 1) + R(2, 2) - eig;
+    a(1, 0) = R(1, 2) - R(2, 1);
+    a(2, 0) = R(2, 0) - R(0, 2);
+    a(3, 0) = R(0, 1) - R(1, 0);
+
+    a(1, 1) = R(0, 0) - R(1, 1) - R(2, 2) - eig;
+    a(2, 1) = R(0, 1) + R(1, 0);
+    a(3, 1) = R(0, 2) + R(2, 0);
+
+    a(2, 2) = -R(0, 0) + R(1, 1) - R(2, 2) - eig;
+    a(3, 2) = R(1, 2) + R(2, 1);
+
+    a(3, 3) = -R(0, 0) - R(1, 1) + R(2, 2) - eig;
+
+    // -a3344_4334 = a4334_3344
+    a(0, 1) = a(3, 2) * a(3, 2) - a(2, 2) * a(3, 3);
+    // a3244_4234
+    a(0, 2) = a(2, 1) * a(3, 3) - a(3, 1) * a(3, 2);
+    // -a3243_4233 = a4233_3243
+    a(0, 3) = a(3, 1) * a(2, 2) - a(2, 1) * a(3, 2);
+    // a3144_4134
+    a(1, 2) = a(2, 0) * a(3, 3) - a(3, 0) * a(3, 2);
+    // a3143_4133
+    a(1, 3) = a(2, 0) * a(3, 2) - a(3, 0) * a(2, 2);
+    // a3142_4132
+    a(2, 3) = a(2, 0) * a(3, 1) - a(3, 0) * a(2, 1);
+
+    // Note the original algorithm produced rotation matrix in a row-major order
+    // while eigen uses column-major order, so we must produce a complex
+    // conjugate of the quaternion calculated by the original algorithm. To
+    // simplify the calculation, we just negate the real part of the quaternion,
+    // so the resulting quaternion is a negative complex conjugate of the
+    // quaternion calculated by the original algorithm.
+    //
+    // Also note that q1 = w, q2 = x, q3 = y, q4 = z in eigen quaternion.
+    Eigen::Quaterniond q;
+    double qsqnrm;
+
+    q.x() = a(1, 0) * a(0, 1) + a(2, 1) * a(1, 2) - a(3, 1) * a(1, 3);
+    q.y() = a(1, 0) * a(0, 2) - a(1, 1) * a(1, 2) + a(3, 1) * a(2, 3);
+    q.z() = a(1, 0) * a(0, 3) + a(1, 1) * a(1, 3) - a(2, 1) * a(2, 3);
+    q.w() = a(1, 1) * a(0, 1) + a(2, 1) * a(0, 2) + a(3, 1) * a(0, 3);
+    qsqnrm = q.squaredNorm();
+    if (ABSL_PREDICT_TRUE(qsqnrm >= precsq))
+      goto normalize;
+
+    q.x() = a(0, 0) * a(0, 1) + a(2, 0) * a(1, 2) - a(3, 0) * a(1, 3);
+    q.y() = a(0, 0) * a(0, 2) - a(1, 0) * a(1, 2) + a(3, 0) * a(2, 3);
+    q.z() = a(0, 0) * a(0, 3) + a(1, 0) * a(1, 3) - a(2, 0) * a(2, 3);
+    q.w() = a(1, 0) * a(0, 1) + a(2, 0) * a(0, 2) + a(3, 0) * a(0, 3);
+    qsqnrm = q.squaredNorm();
+    if (ABSL_PREDICT_TRUE(qsqnrm >= precsq))
+      goto normalize;
+
+    // -a1324_1423 = a1423_1324
+    a(0, 1) = a(3, 0) * a(2, 1) - a(2, 0) * a(3, 1);
+    // a1224_1422
+    a(0, 2) = a(1, 0) * a(3, 1) - a(3, 0) * a(1, 1);
+    // -a1223_1322 = a1322_1223
+    a(0, 3) = a(2, 0) * a(1, 1) - a(1, 0) * a(2, 1);
+    // a1124_1421
+    a(1, 2) = a(0, 0) * a(3, 1) - a(3, 0) * a(1, 0);
+    // a1123_1321
+    a(1, 3) = a(0, 0) * a(2, 1) - a(2, 0) * a(1, 0);
+    // a1122_1221
+    a(2, 3) = a(0, 0) * a(1, 1) - a(1, 0) * a(1, 0);
+
+    q.x() = a(3, 0) * a(0, 1) + a(3, 2) * a(1, 2) - a(3, 3) * a(1, 3);
+    q.y() = a(3, 0) * a(0, 2) - a(3, 1) * a(1, 2) + a(3, 3) * a(2, 3);
+    q.z() = a(3, 0) * a(0, 3) + a(3, 1) * a(1, 3) - a(3, 2) * a(2, 3);
+    q.w() = a(3, 1) * a(0, 1) + a(3, 2) * a(0, 2) + a(3, 3) * a(0, 3);
+    qsqnrm = q.squaredNorm();
+    if (ABSL_PREDICT_TRUE(qsqnrm >= precsq))
+      goto normalize;
+
+    q.x() = a(2, 0) * a(0, 1) + a(2, 2) * a(1, 2) - a(3, 2) * a(1, 3);
+    q.y() = a(2, 0) * a(0, 2) - a(2, 1) * a(1, 2) + a(3, 2) * a(2, 3);
+    q.z() = a(2, 0) * a(0, 3) + a(2, 1) * a(1, 3) - a(2, 2) * a(2, 3);
+    q.w() = a(2, 1) * a(0, 1) + a(2, 2) * a(0, 2) + a(3, 2) * a(0, 3);
+    qsqnrm = q.squaredNorm();
+    if (ABSL_PREDICT_TRUE(qsqnrm >= precsq))
+      goto normalize;
+
+    // Now it seems we only have trivial solutions, algorithm failed
+    return { q, false };
+
+  normalize:
+    q.coeffs() /= std::sqrt(qsqnrm);
+    return { q, true };
+  }
+}  // namespace
+
+std::pair<Affine3d, double> qcp(const Eigen::Ref<const Matrix3Xd> &query,
+                                const Eigen::Ref<const Matrix3Xd> &templ,
+                                AlignMode mode, const double evalprec,
+                                const double evecprec, const int maxiter) {
+  std::pair<Affine3d, double> ret { {}, 0.0 };
+
+  MatrixX3d qt = query.transpose();
+  Eigen::RowVector3d qm = qt.colwise().mean();
+
+  MatrixX3d tt = templ.transpose();
+  Eigen::RowVector3d tm = tt.colwise().mean();
+
+  qt.rowwise() -= qm;
+  tt.rowwise() -= tm;
+
+  const Matrix3d R = tt.transpose() * qt;
+  const double GA = tt.cwiseAbs2().sum(), GB = qt.cwiseAbs2().sum();
+
+  const double eig = qcp_find_largest_eig(R, (GA + GB) / 2, evalprec, maxiter);
+  if (eig < 0) {
+    ret.second = -1;
+    return ret;
+  }
+
+  if (mode != AlignMode::kXformOnly) {
+    double msd =
+        nonnegative(GA + GB - 2 * eig) / static_cast<double>(templ.cols());
+    ret.second = msd;
+  }
+
+  if (mode == AlignMode::kMsdOnly)
+    return ret;
+
+  auto [qhat, success] = qcp_unit_quat(R, eig, evecprec * evecprec);
+  if (!success) {
+    ret.second = -1;
+    return ret;
+  }
+
+  ret.first.linear() = qhat.toRotationMatrix();
+  ret.first.translation().noalias() = -(ret.first.linear() * qm.transpose());
+  ret.first.translation() += tm.transpose();
   return ret;
 }
 // NOLINTEND(readability-identifier-naming,*-avoid-goto)
