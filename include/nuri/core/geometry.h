@@ -381,7 +381,7 @@ Vector4d fit_plane(const MatrixLike &pts, bool normalize = true) {
   return ret;
 }
 
-enum class KabschMode : std::uint8_t {
+enum class AlignMode : std::uint8_t {
   kMsdOnly = 0x1,
   kXformOnly = 0x2,
   kBoth = kMsdOnly | kXformOnly,
@@ -392,14 +392,14 @@ enum class KabschMode : std::uint8_t {
  *        points. This algorithm is based on the implementation in TM-align.
  * @param query The query points.
  * @param templ The template points.
- * @param mode Selects the return value. Defaults to KabschMode::kBoth. Note
- *        that even if KabschMode::kXformOnly is selected, the MSD value will
- *        report a negative value if the calculation fails.
+ * @param mode Selects the return value. Defaults to AlignMode::kBoth. Note that
+ *        even if AlignMode::kXformOnly is selected, the MSD value will report a
+ *        negative value if the calculation fails.
  * @param reflection Whether to allow reflection. Defaults to false.
  * @return A pair of (transformation matrix, MSD). When this function fails, MSD
  *         is set to a negative value (-1), and the state of the transformation
  *         matrix is left unspecified. This never fails when mode is
- *         KabschMode::kMsdOnly.
+ *         AlignMode::kMsdOnly.
  *
  * References:
  * - Y Zhang and J Skolnick. *Nucleic Acids Res.* **2005**, *33*, 2302-2309.
@@ -429,7 +429,7 @@ enum class KabschMode : std::uint8_t {
 extern std::pair<Affine3d, double>
 kabsch(const Eigen::Ref<const Matrix3Xd> &query,
        const Eigen::Ref<const Matrix3Xd> &templ,
-       KabschMode mode = KabschMode::kBoth, bool reflection = false);
+       AlignMode mode = AlignMode::kBoth, bool reflection = false);
 }  // namespace nuri
 
 #endif /* NURI_CORE_GEOMETRY_H_ */

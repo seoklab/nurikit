@@ -312,31 +312,31 @@ public:
 };
 
 TEST_F(KabschTest, CalculateMSDOnly) {
-  auto [_, msd] = kabsch(query_, templ_, KabschMode::kMsdOnly);
+  auto [_, msd] = kabsch(query_, templ_, AlignMode::kMsdOnly);
   EXPECT_NEAR(msd, msd_reflected_, 1e-6);
 
-  std::tie(_, msd) = kabsch(query_, templ_, KabschMode::kMsdOnly, true);
+  std::tie(_, msd) = kabsch(query_, templ_, AlignMode::kMsdOnly, true);
   EXPECT_NEAR(msd, msd_, 1e-6);
 }
 
 TEST_F(KabschTest, CalculateXformOnly) {
-  auto [xform, flag] = kabsch(query_, templ_, KabschMode::kXformOnly);
+  auto [xform, flag] = kabsch(query_, templ_, AlignMode::kXformOnly);
   ASSERT_GE(flag, 0);
   NURI_EXPECT_EIGEN_EQ_TOL(xform.matrix(), xform_reflected_.matrix(), 1e-3);
 
-  std::tie(xform, flag) = kabsch(query_, templ_, KabschMode::kXformOnly, true);
+  std::tie(xform, flag) = kabsch(query_, templ_, AlignMode::kXformOnly, true);
   ASSERT_GE(flag, 0);
   NURI_EXPECT_EIGEN_EQ_TOL(xform.linear(), -xform_.linear(), 1e-3);
   NURI_EXPECT_EIGEN_EQ_TOL(xform.translation(), xform_.translation(), 1e-3);
 }
 
 TEST_F(KabschTest, CalculateBoth) {
-  auto [xform, msd] = kabsch(query_, templ_, KabschMode::kBoth);
+  auto [xform, msd] = kabsch(query_, templ_, AlignMode::kBoth);
   ASSERT_GE(msd, 0);
   NURI_EXPECT_EIGEN_EQ_TOL(xform.matrix(), xform_reflected_.matrix(), 1e-3);
   EXPECT_NEAR(msd, msd_reflected_, 1e-6);
 
-  std::tie(xform, msd) = kabsch(query_, templ_, KabschMode::kBoth, true);
+  std::tie(xform, msd) = kabsch(query_, templ_, AlignMode::kBoth, true);
   ASSERT_GE(msd, 0);
   NURI_EXPECT_EIGEN_EQ_TOL(xform.linear(), -xform_.linear(), 1e-3);
   NURI_EXPECT_EIGEN_EQ_TOL(xform.translation(), xform_.translation(), 1e-3);

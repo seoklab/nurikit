@@ -438,7 +438,7 @@ namespace {
 
 std::pair<Affine3d, double> kabsch(const Eigen::Ref<const Matrix3Xd> &query,
                                    const Eigen::Ref<const Matrix3Xd> &templ,
-                                   KabschMode mode, const bool reflection) {
+                                   AlignMode mode, const bool reflection) {
   std::pair<Affine3d, double> ret { {}, 0.0 };
 
   Vector3d qs = query.rowwise().sum();
@@ -458,12 +458,12 @@ std::pair<Affine3d, double> kabsch(const Eigen::Ref<const Matrix3Xd> &query,
   if (ABSL_PREDICT_TRUE(spur > 0)) {
     const bool A_ident = kabsch_calculate_eigs(eigs, RtR, spur, det);
 
-    if (mode != KabschMode::kXformOnly) {
+    if (mode != AlignMode::kXformOnly) {
       ret.second =
           kabsch_calculate_msd(query, templ, qm, tm, eigs, det, reflection);
     }
 
-    if (mode == KabschMode::kMsdOnly)
+    if (mode == AlignMode::kMsdOnly)
       return ret;
 
     Matrix3d At = Matrix3d::Identity();
@@ -483,7 +483,7 @@ std::pair<Affine3d, double> kabsch(const Eigen::Ref<const Matrix3Xd> &query,
     return ret;
   }
 
-  if (mode == KabschMode::kMsdOnly) {
+  if (mode == AlignMode::kMsdOnly) {
     ret.second =
         kabsch_calculate_msd(query, templ, qm, tm, eigs, det, reflection);
     return ret;
