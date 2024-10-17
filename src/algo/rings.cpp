@@ -289,9 +289,9 @@ namespace {
   }
 
   template <class MoleculeLike, class Iter>
-  auto make_dst_iterator(Iter it) {
+  auto make_dst_iterator(Iter &&it) {
     return internal::make_transform_iterator<
-        extract_did<typename MoleculeLike::Neighbor>>(it);
+        extract_did<typename MoleculeLike::Neighbor>>(std::forward<Iter>(it));
   }
 
   template <class MoleculeLike, class Pred>

@@ -683,7 +683,7 @@ SubstructInfo resolve_substructs(const Molecule &mol) {
 struct NameMapEntry {
   int first_idx;
   int count = 1;
-  std::string safe_name = {};
+  std::string safe_name = {};  // NOLINT(readability-redundant-member-init)
 };
 
 template <class C, class NameFunc>

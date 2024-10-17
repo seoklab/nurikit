@@ -24,6 +24,7 @@ CompileFlags:
     - -Wno-unused-macros
     - -Wno-disabled-macro-expansion
     - -Wno-unsafe-buffer-usage
+    - -Wno-switch-default
   Remove:
     - "-fsanitize=*"
     - "-flto*"
@@ -43,3 +44,9 @@ InlayHints:
   Enabled: Yes
   ParameterNames: Yes
   DeducedTypes: Yes
+---
+If:
+  PathMatch: "third_party/.*"
+Diagnostics:
+  Suppress: "*"
+  UnusedIncludes: None

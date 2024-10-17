@@ -1003,8 +1003,8 @@ NodesErased Graph<NT, ET>::erase_nodes(Iterator begin, Iterator end) {
   // E = O(V).
   if (begin == end) {
     return {
-      {num_nodes(), {}},
-      {num_edges(), {}},
+      { num_nodes(), {} },
+      { num_edges(), {} },
     };
   }
 
@@ -1028,7 +1028,7 @@ NodesErased Graph<NT, ET>::erase_nodes(Iterator begin, Iterator end) {
   auto edge_info =
       erase_nodes_common(node_keep, first_erased_id, erase_trailing);
   return {
-    {erase_trailing ? first_erased_id : -1, std::move(node_keep)},
+    { erase_trailing ? first_erased_id : -1, std::move(node_keep) },
     std::move(edge_info),
   };
 }
@@ -1044,8 +1044,8 @@ NodesErased Graph<NT, ET>::erase_nodes(const const_iterator begin,
   // This will also handle size() == 0 case correctly.
   if (begin >= end) {
     return {
-      {num_nodes(), {}},
-      {num_edges(), {}},
+      { num_nodes(), {} },
+      { num_edges(), {} },
     };
   }
 
@@ -1073,7 +1073,7 @@ NodesErased Graph<NT, ET>::erase_nodes(const const_iterator begin,
   auto edge_info =
       erase_nodes_common(node_keep, first_erased_id, erase_trailing);
   return {
-    {erase_trailing ? first_erased_id : -1, std::move(node_keep)},
+    { erase_trailing ? first_erased_id : -1, std::move(node_keep) },
     std::move(edge_info),
   };
 }
@@ -2170,7 +2170,7 @@ public:
    * @note If the node is already in the subgraph, this is a no-op. If the
    * node id is out of range, the behavior is undefined.
    */
-  void add_node(int id) { return nodes_.insert(id); }
+  void add_node(int id) { nodes_.insert(id); }
 
   /**
    * @brief Add nodes to the subgraph

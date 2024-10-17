@@ -70,8 +70,7 @@ struct HeaderReadResult {
   static HeaderReadResult failure() { return HeaderReadResult(); }
 
   static HeaderReadResult success(int version, int natoms, int nbonds) {
-    return HeaderReadResult(static_cast<int>(version), static_cast<int>(natoms),
-                            static_cast<int>(nbonds));
+    return HeaderReadResult(version, natoms, nbonds);
   }
 
   int version() const { return version_; }
