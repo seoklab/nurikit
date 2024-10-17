@@ -2170,7 +2170,7 @@ public:
    * @note If the node is already in the subgraph, this is a no-op. If the
    * node id is out of range, the behavior is undefined.
    */
-  void add_node(int id) { return nodes_.insert(id); }
+  void add_node(int id) { nodes_.insert(id); }
 
   /**
    * @brief Add nodes to the subgraph

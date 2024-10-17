@@ -485,7 +485,7 @@ struct PDBAtomInfoTemplate {
   std::string_view name;
   int atomic_number;
   int implicit_hydrogens;
-  std::string_view altname {};
+  std::string_view altname {};  // NOLINT(readability-redundant-member-init)
   constants::Hybridization hyb = constants::kSP3;
   int formal_charge = 0;
   bool conjugated = false;
@@ -2042,9 +2042,10 @@ void update_substructures(Molecule &mol, std::vector<Substructure> &subs,
   for (int i = 0; i < atom_data.size(); ++i) {
     ResidueId id = atom_data[i].first().id().res;
 
-    auto [cit, _] = insert_sorted(chains, { id.chain, {} }, [](auto a, auto b) {
-      return a.first < b.first;
-    });
+    auto [cit, _] = insert_sorted(chains, { id.chain, {} },
+                                  [](const auto &a, const auto &b) {
+                                    return a.first < b.first;
+                                  });
     cit->second.push_back(i);
   }
 

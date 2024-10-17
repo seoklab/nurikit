@@ -302,7 +302,7 @@ public:
 
   // Below all calculated manually
   inline static const double msd_ = 0.4516332;
-  constexpr inline static double msd_reflected_ = 3.9094217;
+  constexpr static double msd_reflected_ = 3.9094217;
   inline static const Affine3d xform_reflected_ {
     Matrix4d {{ -0.994979, 0.091884, -0.0396638, 44.5055 },
               { -0.0531631, -0.149479, 0.987335, 20.6586 },

@@ -206,7 +206,7 @@ auto cdist(const ML1 &a, const ML2 &b) {
 }
 
 namespace internal {
-  constexpr inline double safe_normalizer(double sqn, double eps = 1e-12) {
+  constexpr double safe_normalizer(double sqn, double eps = 1e-12) {
     return sqn > eps ? 1 / std::sqrt(sqn) : 0;
   }
 
