@@ -311,14 +311,14 @@ namespace {
       kTol = 1e-2, kEps = 1e-8, kEps2 = 1e-16;
 
   constexpr int kIp2[2][2] = {
-    {0, 1},
-    {1, 2},
+    { 0, 1 },
+    { 1, 2 },
   };
 
   constexpr int kIp3[3][3] = {
-    {0, 1, 3},
-    {1, 2, 4},
-    {3, 4, 5},
+    { 0, 1, 3 },
+    { 1, 2, 4 },
+    { 3, 4, 5 },
   };
   constexpr int kIp2312[] = { 1, 2, 0, 1 };
 

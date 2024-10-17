@@ -346,7 +346,7 @@ void handle_ring(Ctx &ctx, int ring_idx) {
   const char bond_data = x3::get<last_bond_data_tag>(ctx);
   RingMap &map = x3::get<ring_map_tag>(ctx);
   auto [it, is_new] = map.insert({
-      ring_idx, {bond_data, current_idx}
+      ring_idx, { bond_data, current_idx }
   });
 
   // New ring index, nothing to do.

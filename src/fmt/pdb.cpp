@@ -1597,7 +1597,7 @@ class AtomicLine {
 public:
   AtomicLine(std::string_view line, int serial)
       : serial_(serial), line_(line), id_ {
-          {safe_atoi(slice(line_, 22, 26)), line_[21], line_[26]},
+          { safe_atoi(slice(line_, 22, 26)), line_[21], line_[26] },
           slice_strip(line_, 11, 16)
   } {
     ABSL_DCHECK(line.size() >= 47) << "Invalid ATOM/HETATM record: " << line;
