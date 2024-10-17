@@ -309,12 +309,39 @@ namespace {
       kSqrt3 =
           1.7320508075688772935274463415058723669428052538103806280558069794,
       kTol = 1e-2, kEps = 1e-8, kEps2 = 1e-16;
-  constexpr int kIp[3][3] = {
+
+  constexpr int kIp2[2][2] = {
+    {0, 1},
+    {1, 2},
+  };
+
+  constexpr int kIp3[3][3] = {
     {0, 1, 3},
     {1, 2, 4},
     {3, 4, 5},
   };
   constexpr int kIp2312[] = { 1, 2, 0, 1 };
+
+  template <bool Check, class VL1, class VL2, class ArrayLike>
+  // NOLINTNEXTLINE(*-missing-std-forward)
+  bool generate_perpendicular(VL1 &&v, const VL2 &other,
+                              const ArrayLike &sqsum) {
+    int rmin;
+    sqsum.minCoeff(&rmin);
+
+    const int k = kIp2312[rmin], l = kIp2312[rmin + 1];
+    const double q = std::sqrt(sqsum[k] + sqsum[l]);
+
+    if constexpr (Check) {
+      if (q <= kTol)
+        return false;
+    }
+
+    v[rmin] = 0;
+    v[k] = -other[l] / q;
+    v[l] = other[k] / q;
+    return true;
+  }
 
   bool kabsch_calculate_eigs(Array3d &eigs, const Matrix3d &RtR,
                              const double spur, const double det) {
@@ -324,7 +351,7 @@ namespace {
         / 3;
 
     double h = spur * spur - cof;
-    if (h <= 0)
+    if (h <= kEps2)
       return true;
 
     double g = (spur * cof - det * det) / 2.0 - spur * h;
@@ -362,6 +389,85 @@ namespace {
     return sd / static_cast<double>(templ.cols());
   }
 
+  bool kabsch_rtr_eigenvectors(Matrix3d &At, const Matrix3d &RtR,
+                               const double e0, const int c0, const double e1,
+                               const int c1) {
+    // Cofactor matrix of R^T * R (lower triangular part)
+    Array6d ss;
+    ss[0] = (e0 - RtR(1, 1)) * (e0 - RtR(2, 2)) - RtR(1, 2);
+    ss[1] = (e0 - RtR(2, 2)) * RtR(1, 0) + RtR(2, 0) * RtR(2, 1);
+    ss[2] = (e0 - RtR(0, 0)) * (e0 - RtR(2, 2)) - RtR(0, 2);
+    ss[3] = (e0 - RtR(1, 1)) * RtR(2, 0) + RtR(1, 0) * RtR(2, 1);
+    ss[4] = (e0 - RtR(0, 0)) * RtR(2, 1) + RtR(1, 0) * RtR(2, 0);
+    ss[5] = (e0 - RtR(0, 0)) * (e0 - RtR(1, 1)) - RtR(0, 1);
+
+    Array6d ss_sq = ss.square();
+    ss_sq = (ss_sq > kEps2).select(ss_sq, 0);
+
+    Array3d ss_sqsum;
+    ss_sqsum[0] = ss_sq(kIp3[0]).sum();
+    ss_sqsum[1] = ss_sq(kIp3[1]).sum();
+    ss_sqsum[2] = ss_sq(kIp3[2]).sum();
+
+    int cmax;
+    double sqsum = ss_sqsum.maxCoeff(&cmax);
+    if (ABSL_PREDICT_FALSE(sqsum <= kEps2))
+      return false;
+
+    At.col(c0) = ss(kIp3[cmax]);
+
+    Matrix<double, 3, 2> uv;
+    generate_perpendicular<false>(uv.col(0), At.col(c0), ss_sq(kIp3[cmax]));
+
+    At.col(c0) /= std::sqrt(sqsum);
+    uv.col(1) = At.col(c0).cross(uv.col(0));
+
+    Eigen::Matrix2d m;
+    m.triangularView<Eigen::Lower>() =
+        uv.transpose() * RtR.selfadjointView<Eigen::Lower>() * uv;
+    m(0, 1) = m(1, 0);
+    m.diagonal().array() -= e1;
+
+    Array3d msq;
+    msq[0] = m(0, 0);
+    msq[1] = m(1, 0);
+    msq[2] = m(1, 1);
+    msq = msq.square();
+    msq = (msq > kEps2).select(msq, 0);
+
+    msq({ 0, 2 }).maxCoeff(&cmax);
+
+    sqsum = msq(kIp2[cmax]).sum();
+    if (sqsum <= kEps2) {
+      At.col(c1) = uv.col(0);
+      return true;
+    }
+
+    m.col(cmax) /= std::sqrt(sqsum);
+    m(0, cmax) = -m(0, cmax);
+    At.col(c1) = uv * m.col(cmax).reverse();
+
+    return true;
+  }
+
+  bool kabsch_form_At(Matrix3d &At, const Matrix3d &RtR, const Array3d &eigs) {
+    // At is not an identity matrix (already filtered out)
+    //   -> we have at least one non-degenerate eigenvalue
+    int maxsep = 0, minsep = 2;
+    // eigs is sorted algebraically in descending order
+    if ((eigs[1] - eigs[2]) > (eigs[0] - eigs[1])) {
+      // eigenvalue 0 ~ 1, try eigenvector for eigenvalue 2 instead
+      std::swap(maxsep, minsep);
+    }
+
+    if (ABSL_PREDICT_FALSE(!kabsch_rtr_eigenvectors(
+            At, RtR, eigs[maxsep], maxsep, eigs[minsep], minsep)))
+      return false;
+
+    At.col(1) = At.col(2).cross(At.col(0));
+    return true;
+  }
+
   bool safe_gram_schmidt(Matrix3d &m, const int pivot, const int axis) {
     const double d = m.col(pivot).dot(m.col(axis));
     m.col(pivot) -= d * m.col(axis);
@@ -369,71 +475,28 @@ namespace {
     const double p = m.col(pivot).squaredNorm();
     if (p > kTol) {
       m.col(pivot) /= std::sqrt(p);
-    } else {
-      Array3d axis_sq = m.col(axis).array().square();
-      int rmin;
-      axis_sq.minCoeff(&rmin);
-
-      const int k = kIp2312[rmin], l = kIp2312[rmin + 1];
-      const double q = std::sqrt(axis_sq[k] + axis_sq[l]);
-      if (q <= kTol)
-        return false;
-
-      m(rmin, pivot) = 0.0;
-      m(k, pivot) = -m(l, axis) / q;
-      m(l, pivot) = m(k, axis) / q;
+      return true;
     }
 
-    return true;
+    Array3d axis_sq = m.col(axis).array().square();
+    return generate_perpendicular<true>(m.col(pivot), m.col(axis), axis_sq);
   }
 
-  bool kabsch_form_At(Matrix3d &At, const Matrix3d &RtR, const Array3d &eigs) {
-    // Cofactor matrix of R^T * R (lower triangular part)
-    Array6d ss, ss_sq;
+  bool kabsch_form_Bt(Matrix3d &Bt, const Matrix3d &At, const Matrix3d &R,
+                      const double det) {
+    Bt.noalias() = R * At;
+    Bt.col(2) *= std::copysign(1, det);
 
-    for (const int col: { 0, 2 }) {
-      double ei = eigs[col];
-      ss[0] = (ei - RtR(1, 1)) * (ei - RtR(2, 2)) - RtR(1, 2);
-      ss[1] = (ei - RtR(2, 2)) * RtR(1, 0) + RtR(2, 0) * RtR(2, 1);
-      ss[2] = (ei - RtR(0, 0)) * (ei - RtR(2, 2)) - RtR(0, 2);
-      ss[3] = (ei - RtR(1, 1)) * RtR(2, 0) + RtR(1, 0) * RtR(2, 1);
-      ss[4] = (ei - RtR(0, 0)) * RtR(2, 1) + RtR(1, 0) * RtR(2, 0);
-      ss[5] = (ei - RtR(0, 0)) * (ei - RtR(1, 1)) - RtR(0, 1);
+    auto bsqnrm = Bt.colwise().squaredNorm().array().eval();
+    Eigen::Array3i idxs = argsort<3>(bsqnrm);
 
-      ss_sq = ss.square();
-      ss_sq = (ss_sq > kEps2).select(ss_sq, 0);
-
-      int rmax;
-      ss_sq({ 0, 2, 5 }).maxCoeff(&rmax);
-
-      const double normalizer =
-          internal::safe_normalizer(ss_sq(kIp[rmax]).sum(), kEps);
-      At.col(col) = normalizer * ss(kIp[rmax]);
-    }
-
-    int c1, c;
-    if ((eigs[0] - eigs[1]) > (eigs[1] - eigs[2])) {
-      c1 = 2;
-      c = 0;
-    } else {
-      c1 = 0;
-      c = 2;
-    }
-    if (!safe_gram_schmidt(At, c1, c))
+    Bt(Eigen::all, idxs).array().rowwise() *=
+        (bsqnrm > kEps).select(bsqnrm.sqrt().inverse(), 0)(idxs);
+    if (!safe_gram_schmidt(Bt, idxs[1], idxs[2]))
       return false;
 
-    At.col(1) = At.col(2).cross(At.col(0));
-    return true;
-  }
-
-  bool kabsch_form_Bt(Matrix3d &Bt, const Matrix3d &At, const Matrix3d &R) {
-    Bt.leftCols<2>().noalias() = R * At.leftCols<2>();
-    internal::safe_colwise_normalize(Bt.leftCols<2>(), kEps);
-
-    if (!safe_gram_schmidt(Bt, 1, 0))
-      return false;
-
-    Bt.col(2) = Bt.col(0).cross(Bt.col(1));
+    const int cm = idxs[0];
+    Bt.col(cm) = Bt.col(kIp2312[cm]).cross(Bt.col(kIp2312[cm + 1]));
     return true;
   }
 }  // namespace
@@ -468,18 +531,21 @@ std::pair<Affine3d, double> kabsch(const Eigen::Ref<const Matrix3Xd> &query,
     if (mode == AlignMode::kMsdOnly)
       return ret;
 
-    Matrix3d At = Matrix3d::Identity();
-    if (!A_ident && ABSL_PREDICT_FALSE(!kabsch_form_At(At, RtR, eigs)))
+    Matrix3d At;
+    if (ABSL_PREDICT_FALSE(A_ident)) {
+      At.setIdentity();
+    } else if (ABSL_PREDICT_FALSE(!kabsch_form_At(At, RtR, eigs))) {
       goto failure;
+    }
 
-    Matrix3d Bt = Matrix3d::Zero();
-    if (ABSL_PREDICT_FALSE(!kabsch_form_Bt(Bt, At, R)))
+    Matrix3d Bt;
+    if (ABSL_PREDICT_FALSE(!kabsch_form_Bt(Bt, At, R, det)))
       goto failure;
 
     if (reflection && det < 0)
-      Bt.col(2) *= -1;
+      Bt.col(2) = -Bt.col(2);
 
-    ret.first.linear() = Bt * At.transpose();
+    ret.first.linear().noalias() = Bt * At.transpose();
     ret.first.translation().noalias() = -(ret.first.linear() * qm);
     ret.first.translation() += tm;
     return ret;
