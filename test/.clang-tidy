@@ -7,3 +7,4 @@ InheritParentConfig: true
 ExtraArgsBefore:
   - -Wno-gnu-zero-variadic-macro-arguments
   - -Wno-unused-member-function
+  - -Wno-c++20-extensions
