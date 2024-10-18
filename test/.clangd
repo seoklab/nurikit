@@ -5,3 +5,4 @@
 CompileFlags:
   Add:
     - -Wno-gnu-zero-variadic-macro-arguments
+    - -Wno-c++20-extensions

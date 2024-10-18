@@ -11,6 +11,16 @@
 #include <type_traits>
 /// @endcond
 
+#if defined(__clang_analyzer__) && __clang_major__ >= 18
+#define NURI_CLANG_ANALYZER_NOLINT       [[clang::suppress]]
+#define NURI_CLANG_ANALYZER_NOLINT_BEGIN [[clang::suppress]] {
+#define NURI_CLANG_ANALYZER_NOLINT_END   }
+#else
+#define NURI_CLANG_ANALYZER_NOLINT
+#define NURI_CLANG_ANALYZER_NOLINT_BEGIN
+#define NURI_CLANG_ANALYZER_NOLINT_END
+#endif
+
 namespace nuri {
 namespace internal {
   // Use of std::underlying_type_t on non-enum types is UB until C++20.

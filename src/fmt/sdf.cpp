@@ -41,6 +41,7 @@
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
+#include "nuri/meta.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -67,10 +68,12 @@ namespace x3 = boost::spirit::x3;
 using Iterator = std::vector<std::string>::const_iterator;
 
 struct HeaderReadResult {
-  static HeaderReadResult failure() { return HeaderReadResult(); }
+  static HeaderReadResult failure() { return {}; }
 
-  static HeaderReadResult success(int version, int natoms, int nbonds) {
-    return HeaderReadResult(version, natoms, nbonds);
+  template <class N1, class N2, class N3>
+  static HeaderReadResult success(N1 version, N2 natoms, N3 nbonds) {
+    return { static_cast<int>(version), static_cast<int>(natoms),
+             static_cast<int>(nbonds) };
   }
 
   int version() const { return version_; }
@@ -83,11 +86,7 @@ struct HeaderReadResult {
 
 private:
   // Clang analyzer complains about uninitialized members
-#ifdef __clang_analyzer__
-  HeaderReadResult(): version_(-1), natoms_(0), nbonds_(0) { }
-#else
-  HeaderReadResult(): version_(-1) { }
-#endif
+  NURI_CLANG_ANALYZER_NOLINT HeaderReadResult(): version_(-1) { }
 
   HeaderReadResult(int v, int a, int b): version_(v), natoms_(a), nbonds_(b) { }
 
@@ -664,8 +663,7 @@ bool try_read_v3000_header(HeaderReadResult &metadata, Iterator &it,
 
   ABSL_DCHECK(counts.size() >= 2);
 
-  metadata = HeaderReadResult::success(3000, static_cast<int>(counts[0]),
-                                       static_cast<int>(counts[1]));
+  metadata = HeaderReadResult::success(3000, counts[0], counts[1]);
   return true;
 }
 
