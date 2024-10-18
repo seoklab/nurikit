@@ -37,17 +37,6 @@
 #include "nuri/eigen_config.h"
 #include "nuri/meta.h"
 
-// Introduced in clang 18
-// #ifdef __clang_analyzer__
-// #define NURI_CLANG_ANALYZER_NOLINT       [[clang::suppress]]
-// #define NURI_CLANG_ANALYZER_NOLINT_BEGIN [[clang::suppress]] {
-// #define NURI_CLANG_ANALYZER_NOLINT_END   }
-// #else
-// #define NURI_CLANG_ANALYZER_NOLINT
-// #define NURI_CLANG_ANALYZER_NOLINT_BEGIN
-// #define NURI_CLANG_ANALYZER_NOLINT_END
-// #endif
-
 namespace nuri {
 template <class T, std::enable_if_t<std::is_trivially_copyable_v<T>, int> = 0>
 constexpr T min(T a, T b) {
