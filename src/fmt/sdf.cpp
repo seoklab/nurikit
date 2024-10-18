@@ -41,6 +41,7 @@
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
+#include "nuri/meta.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -83,11 +84,7 @@ struct HeaderReadResult {
 
 private:
   // Clang analyzer complains about uninitialized members
-#ifdef __clang_analyzer__
-  HeaderReadResult(): version_(-1), natoms_(0), nbonds_(0) { }
-#else
-  HeaderReadResult(): version_(-1) { }
-#endif
+  NURI_CLANG_ANALYZER_NOLINT HeaderReadResult(): version_(-1) { }
 
   HeaderReadResult(int v, int a, int b): version_(v), natoms_(a), nbonds_(b) { }
 
