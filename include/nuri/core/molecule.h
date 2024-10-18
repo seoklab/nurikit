@@ -2327,7 +2327,7 @@ namespace internal {
  * @param atom An atom.
  * @return Number of all neighbors of the atom, including implicit hydrogens.
  */
-extern inline int all_neighbors(Molecule::Atom atom) {
+inline int all_neighbors(Molecule::Atom atom) {
   return atom.degree() + atom.data().implicit_hydrogens();
 }
 

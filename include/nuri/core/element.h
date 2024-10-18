@@ -31,13 +31,11 @@ struct Isotope {
   double abundance;
 };
 
-constexpr inline bool operator==(const Isotope &lhs,
-                                 const Isotope &rhs) noexcept {
+constexpr bool operator==(const Isotope &lhs, const Isotope &rhs) noexcept {
   return &lhs == &rhs;
 }
 
-constexpr inline bool operator!=(const Isotope &lhs,
-                                 const Isotope &rhs) noexcept {
+constexpr bool operator!=(const Isotope &lhs, const Isotope &rhs) noexcept {
   return &lhs != &rhs;
 }
 
@@ -360,13 +358,11 @@ private:
   std::vector<Isotope> isotopes_;
 };
 
-constexpr inline bool operator==(const Element &lhs,
-                                 const Element &rhs) noexcept {
+constexpr bool operator==(const Element &lhs, const Element &rhs) noexcept {
   return lhs.atomic_number() == rhs.atomic_number();
 }
 
-constexpr inline bool operator!=(const Element &lhs,
-                                 const Element &rhs) noexcept {
+constexpr bool operator!=(const Element &lhs, const Element &rhs) noexcept {
   return lhs.atomic_number() != rhs.atomic_number();
 }
 
@@ -488,7 +484,7 @@ public:
 
   // 118 elements + dummy
   // NOLINTNEXTLINE(readability-identifier-naming)
-  constexpr inline static int kElementCount_ = 118 + 1;
+  constexpr static int kElementCount_ = 118 + 1;
 
 private:
   PeriodicTable() noexcept;

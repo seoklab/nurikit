@@ -566,43 +566,43 @@ constexpr auto make_zipped_iterator(Iters... iters) {
 }
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
-constexpr inline E operator|(E lhs, E rhs) {
+constexpr E operator|(E lhs, E rhs) {
   return static_cast<E>(static_cast<U>(lhs) | static_cast<U>(rhs));
 }
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
-constexpr inline E &operator|=(E &self, E rhs) {
+constexpr E &operator|=(E &self, E rhs) {
   return self = self | rhs;
 }
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
-constexpr inline E operator&(E lhs, E rhs) {
+constexpr E operator&(E lhs, E rhs) {
   return static_cast<E>(static_cast<U>(lhs) & static_cast<U>(rhs));
 }
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
-constexpr inline E &operator&=(E &self, E rhs) {
+constexpr E &operator&=(E &self, E rhs) {
   return self = self & rhs;
 }
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
-constexpr inline E operator^(E lhs, E rhs) {
+constexpr E operator^(E lhs, E rhs) {
   return static_cast<E>(static_cast<U>(lhs) ^ static_cast<U>(rhs));
 }
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
-constexpr inline E &operator^=(E &self, E rhs) {
+constexpr E &operator^=(E &self, E rhs) {
   return self = self ^ rhs;
 }
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
-constexpr inline E operator~(E val) {
+constexpr E operator~(E val) {
   return static_cast<E>(~static_cast<U>(val));
 }
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0,
           std::enable_if_t<std::is_unsigned_v<U>, int> = 0>
-constexpr inline E operator-(E val) {
+constexpr E operator-(E val) {
   return static_cast<E>(-static_cast<U>(val));
 }
 
@@ -699,7 +699,7 @@ namespace internal {
     set_name(props, std::string(name));
   }
 
-  constexpr inline int negate_if_false(bool cond) {
+  constexpr int negate_if_false(bool cond) {
     int ret = (static_cast<int>(cond) << 1) - 1;
     ABSL_ASSUME(ret == 1 || ret == -1);
     return ret;
@@ -854,8 +854,8 @@ inline std::string_view extension_no_dot(const std::filesystem::path &ext) {
   return ext_view;
 }
 
-constexpr inline std::string_view slice(std::string_view str, std::size_t begin,
-                                        std::size_t end) {
+constexpr std::string_view slice(std::string_view str, std::size_t begin,
+                                 std::size_t end) {
   return str.substr(begin, end - begin);
 }
 
@@ -915,7 +915,7 @@ inline Matrix3Xd stack(const std::vector<Vector3d> &vs) {
   return m;
 }
 
-constexpr inline int value_if(bool cond, int val = 1) {
+constexpr int value_if(bool cond, int val = 1) {
   return static_cast<int>(cond) * val;
 }
 
