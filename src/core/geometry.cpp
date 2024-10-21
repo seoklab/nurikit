@@ -817,11 +817,11 @@ namespace {
   }
 }  // namespace
 
-bool embed_distances_3d(Eigen::Ref<Matrix3Xd> pts, MatrixXd dsqs) {
+bool embed_distances_3d(Eigen::Ref<Matrix3Xd> pts, MatrixXd &dsqs) {
   return embed_distances_impl(pts, dsqs);
 }
 
-extern bool embed_distances_4d(Eigen::Ref<Matrix4Xd> pts, MatrixXd dsqs) {
+extern bool embed_distances_4d(Eigen::Ref<Matrix4Xd> pts, MatrixXd &dsqs) {
   return embed_distances_impl(pts, dsqs);
 }
 }  // namespace nuri
