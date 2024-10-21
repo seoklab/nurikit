@@ -922,9 +922,11 @@ namespace {
   bool is_pyrrole_like(Molecule::Atom atom, const Element &effective,
                        const int nbe, const int total_valence) {
     return nbe > 0 && internal::common_valence(effective) < total_valence
-           && std::any_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
-                return nei.edge_data().order() == constants::kAromaticBond;
-              });
+           && std::any_of(
+               atom.begin(), atom.end(),
+               [](Molecule::Neighbor nei) {
+                 return nei.edge_data().order() == constants::kAromaticBond;
+               });
   }
 
   std::string format_atom_common(Molecule::Atom atom, bool caps) {

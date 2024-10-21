@@ -6,6 +6,7 @@
 include(NuriKitUtils)
 
 find_or_fetch_eigen()
+find_or_fetch_spectra()
 
 include(GNUInstallDirs)
 
@@ -25,9 +26,13 @@ add_library(nuri_lib SHARED "${NURI_SRCS}")
 set_target_properties(nuri_lib PROPERTIES OUTPUT_NAME nuri)
 target_link_libraries(nuri_lib
   PUBLIC
-  absl::strings absl::flat_hash_map absl::absl_check absl::absl_log
+  absl::strings
+  absl::flat_hash_map
+  absl::random_random
+  absl::absl_check
+  absl::absl_log
 )
-target_system_include_directories(nuri_lib Eigen3::Eigen)
+target_system_include_directories(nuri_lib Eigen3::Eigen Spectra::Spectra)
 handle_boost_dependency(nuri_lib)
 
 if(NURI_LIBRARY_FLAGS)

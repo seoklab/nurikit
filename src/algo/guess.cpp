@@ -182,25 +182,16 @@ namespace {
   }
 
   /*
-   * Cutoff values taken from:
+   * Cutoff values taken and modified from:
    *  https://web.archive.org/web/20231205050012/https://www.daylight.com/meetings/mug01/Sayle/m4xbondage.html
    */
-  // NOLINTBEGIN(*-identifier-naming)
-  constexpr double kCos15 =
-      0.9659258262890682867497431997288973676339048390084045504023430763;
-  constexpr double kCos115 =
-      -0.422618261740699436186978489647730181563129301194864623444415159;
-  constexpr double kCos155 =
-      -0.906307787036649963242552656754316983267712625175864680871298408;
-  constexpr double kTan10_2 =
-      0.0874886635259240052220186694349614581194542763681082291452366622;
-  constexpr double kTan15_2 =
-      0.1316524975873958534715264574097171035928141022232375735535653257;
-  constexpr double kTan116_2 =
-      1.6003345290410503553267330811833575255040718469227591484115002297;
-  constexpr double kTan155_2 =
-      4.5107085036620571342899391172547519686713241944553043587162345185;
-  // NOLINTEND(*-identifier-naming)
+  using constants::kCos115;
+  using constants::kCos15;
+  using constants::kCos155;
+  using constants::kTan10_2;
+  using constants::kTan116_2;
+  using constants::kTan155_2;
+  using constants::kTan15_2;
 
   constants::Hybridization hyb_from_cos(double avg_cos_angle) {
     // Cosine is decreasing in [0, 180] degree.

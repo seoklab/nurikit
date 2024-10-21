@@ -82,12 +82,11 @@ namespace internal {
       wtt.template triangularView<Eigen::Lower>().transpose().solveInPlace(
           p.tail(col));
 
-      p.head(col) = -v.head(col).array() / sy.diagonal().array();
-      for (int i = 0; i < col; ++i) {
-        double ssum =
-            sy.col(i).tail(col - i - 1).dot(p.tail(col - i - 1)) / sy(i, i);
-        p[i] += ssum;
-      }
+      p.head(col).noalias() =
+          sy.transpose().template triangularView<Eigen::StrictlyUpper>()
+          * p.tail(col);
+      p.head(col) -= v.head(col);
+      p.head(col).array() /= sy.diagonal().array();
 
       return true;
     }
@@ -816,9 +815,9 @@ namespace {
 
     //  Shift old part of WN1.
     wn1.topLeftCorner(mm1, mm1).triangularView<Eigen::Lower>() =
-        wn1.block(1, 1, mm1, mm1).triangularView<Eigen::Lower>();
+        wn1.block(1, 1, mm1, mm1);
     wn1.block(m, m, mm1, mm1).triangularView<Eigen::Lower>() =
-        wn1.block(m + 1, m + 1, mm1, mm1).triangularView<Eigen::Lower>();
+        wn1.block(m + 1, m + 1, mm1, mm1);
     wn1.block(m, 0, mm1, mm1) = wn1.block(m + 1, 1, mm1, mm1);
   }
 
@@ -848,42 +847,38 @@ namespace {
 
   void formk_update_wn1(LBfgsB &L) {
     auto &wn1 = L.wn1();
-    auto ws = L.ws(), wy = L.wy();
     auto enter = L.enter(), leave = L.leave();
 
     const auto m = L.m(), upcl = L.col() - value_if(L.updated());
+    auto ws = L.ws().leftCols(upcl), wy = L.wy().leftCols(upcl);
 
     // modify the old parts in blocks (1,1) and (2,2) due to changes
     // in the set of free variables.
     for (int j = 0; j < upcl; ++j) {
       wn1.col(j).segment(j, upcl - j).noalias() +=
-          wy(enter, Eigen::all).transpose().middleRows(j, upcl - j)
-          * wy(enter, j);
+          wy(enter, Eigen::all).transpose().bottomRows(upcl - j) * wy(enter, j);
       wn1.col(j).segment(j, upcl - j).noalias() -=
-          wy(leave, Eigen::all).transpose().middleRows(j, upcl - j)
-          * wy(leave, j);
+          wy(leave, Eigen::all).transpose().bottomRows(upcl - j) * wy(leave, j);
     }
     for (int j = 0; j < upcl; ++j) {
       wn1.col(m + j).segment(m + j, upcl - j).noalias() -=
-          ws(enter, Eigen::all).transpose().middleRows(j, upcl - j)
-          * ws(enter, j);
+          ws(enter, Eigen::all).transpose().bottomRows(upcl - j) * ws(enter, j);
       wn1.col(m + j).segment(m + j, upcl - j).noalias() +=
-          ws(leave, Eigen::all).transpose().middleRows(j, upcl - j)
-          * ws(leave, j);
+          ws(leave, Eigen::all).transpose().bottomRows(upcl - j) * ws(leave, j);
     }
 
     // Modify the old parts in block (2,1)
     for (int j = 0; j < upcl; ++j) {
       wn1.col(j).segment(m, j + 1).noalias() +=
           ws(enter, Eigen::all).transpose().topRows(j + 1) * wy(enter, j);
+      wn1.col(j).segment(m + j + 1, upcl - j - 1).noalias() -=
+          ws(enter, Eigen::all).transpose().bottomRows(upcl - j - 1)
+          * wy(enter, j);
+
       wn1.col(j).segment(m, j + 1).noalias() -=
           ws(leave, Eigen::all).transpose().topRows(j + 1) * wy(leave, j);
-
-      wn1.col(j).segment(m + j + 1, upcl - j - 1).noalias() -=
-          ws(enter, Eigen::all).transpose().middleRows(j + 1, upcl - j - 1)
-          * wy(enter, j);
       wn1.col(j).segment(m + j + 1, upcl - j - 1).noalias() +=
-          ws(leave, Eigen::all).transpose().middleRows(j + 1, upcl - j - 1)
+          ws(leave, Eigen::all).transpose().bottomRows(upcl - j - 1)
           * wy(leave, j);
     }
   }
@@ -1042,9 +1037,9 @@ namespace {
     if (pcol == m) {
       ABSL_ASSUME(ci == m - 1);
       ss.topLeftCorner(ci, ci).triangularView<Eigen::Upper>() =
-          ss.bottomRightCorner(ci, ci).triangularView<Eigen::Upper>();
+          ss.bottomRightCorner(ci, ci);
       sy.topLeftCorner(ci, ci).triangularView<Eigen::Lower>() =
-          sy.bottomRightCorner(ci, ci).triangularView<Eigen::Lower>();
+          sy.bottomRightCorner(ci, ci);
     }
 
     ss.col(ci).head(col).noalias() = ws.leftCols(col).transpose() * d.matrix();
@@ -1061,13 +1056,12 @@ namespace {
                    const double theta) {
     const auto col = ss.cols();
 
-    // Form the upper half of  T = theta*SS + L*D^(-1)*L', store T in the
-    // upper triangle of the array wt.
-    wtt.template triangularView<Eigen::Lower>() =
-        (theta * ss.transpose()).template triangularView<Eigen::Lower>();
-
     sy_scaled.array() =
         sy.array().rowwise() / sy.diagonal().array().transpose();
+
+    // Form the upper half of  T = theta*SS + L*D^(-1)*L', store T in the
+    // upper triangle of the array wt.
+    wtt.template triangularView<Eigen::Lower>() = theta * ss.transpose();
     for (int i = 1; i < col; ++i) {
       wtt.col(i).tail(col - i).noalias() +=
           sy.bottomLeftCorner(col - i, i)

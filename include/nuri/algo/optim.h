@@ -233,7 +233,7 @@ namespace internal {
  */
 class LBfgsB {
 public:
-  LBfgsB(MutRef<ArrayXd> x, internal::LbfgsbBounds bounds, int m);
+  LBfgsB(MutRef<ArrayXd> x, internal::LbfgsbBounds bounds, int m = 10);
 
   /**
    * @brief Minimize a function using L-BFGS-B algorithm.
@@ -250,8 +250,8 @@ public:
    *         value, and final gradient.
    */
   template <class FuncGrad>
-  LbfgsbResult minimize(FuncGrad fg, double factr, int maxiter, int maxls,
-                        double pgtol);
+  LbfgsbResult minimize(FuncGrad fg, double factr = 1e+7, double pgtol = 1e-5,
+                        int maxiter = 15000, int maxls = 20);
 
   /* State modifiers, only for implementations */
 
@@ -384,8 +384,8 @@ private:
 
 template <class FuncGrad>
 LbfgsbResult LBfgsB::minimize(FuncGrad fg, const double factr,
-                              const int maxiter, const int maxls,
-                              const double pgtol) {
+                              const double pgtol, const int maxiter,
+                              const int maxls) {
   const double tol = factr * internal::kEpsMach;
 
   ArrayXd gx(n());
@@ -545,8 +545,8 @@ LbfgsbResult l_bfgs_b(FuncGrad &&fg, MutRef<ArrayXd> x, const ArrayXi &nbd,
     return { LbfgsbResultCode::kInvalidInput, 0, 0, {} };
 
   LBfgsB lbfgsb(x, { nbd, bounds }, m);
-  return lbfgsb.minimize(std::forward<FuncGrad>(fg), factr, maxiter, maxls,
-                         pgtol);
+  return lbfgsb.minimize(std::forward<FuncGrad>(fg), factr, pgtol, maxiter,
+                         maxls);
 }
 }  // namespace nuri
 

@@ -36,10 +36,14 @@ namespace nuri {
 using Eigen::Array;
 using Eigen::Array3d;
 using Eigen::Array3i;
+using Eigen::Array4d;
 using Eigen::Array4i;
 using Eigen::ArrayX;
 using ArrayXb = Eigen::ArrayX<bool>;
 using Eigen::Array2Xd;
+using Eigen::Array3Xd;
+using Eigen::Array4Xd;
+using Eigen::ArrayX2d;
 using Eigen::ArrayXd;
 using Eigen::ArrayXi;
 using Eigen::ArrayXX;

@@ -93,6 +93,35 @@ namespace constants {
 
   extern constexpr inline double kTwoPi =
       6.2831853071795864769252867665590057683943387987502116419498891846156328;
+
+  // NOLINTBEGIN(*-identifier-naming)
+  extern constexpr inline double kCos15 =
+      0.9659258262890682867497431997288973676339048390084045504023430763;
+  extern constexpr inline double kCos75 =
+      0.2588190451025207623488988376240483283490689013199305138140032073;
+  extern constexpr inline double kCos100 =
+      -0.173648177666930348851716626769314796000375677184069387236241378;
+  extern constexpr inline double kCos102 =
+      -0.207911690817759337101742284405125166216584760627723836407181973;
+  extern constexpr inline double kCos112 =
+      -0.374606593415912035414963774501195131000158922253676174103440371;
+  extern constexpr inline double kCos115 =
+      -0.422618261740699436186978489647730181563129301194864623444415159;
+  extern constexpr inline double kCos125 =
+      -0.573576436351046096108031912826157864620433371450986351081027118;
+  extern constexpr inline double kCos155 =
+      -0.906307787036649963242552656754316983267712625175864680871298408;
+  extern constexpr inline double kCos175 =
+      -0.996194698091745532295010402473888046183562672645850974525442277;
+  extern constexpr inline double kTan10_2 =
+      0.0874886635259240052220186694349614581194542763681082291452366622;
+  extern constexpr inline double kTan15_2 =
+      0.1316524975873958534715264574097171035928141022232375735535653257;
+  extern constexpr inline double kTan116_2 =
+      1.6003345290410503553267330811833575255040718469227591484115002297;
+  extern constexpr inline double kTan155_2 =
+      4.5107085036620571342899391172547519686713241944553043587162345185;
+  // NOLINTEND(*-identifier-naming)
 }  // namespace constants
 
 template <class DT, std::enable_if_t<std::is_floating_point_v<DT>, int> = 0>
@@ -519,6 +548,38 @@ extern std::pair<Affine3d, double>
 qcp(const Eigen::Ref<const Matrix3Xd> &query,
     const Eigen::Ref<const Matrix3Xd> &templ, AlignMode mode = AlignMode::kBoth,
     double evalprec = 1e-11, double evecprec = 1e-6, int maxiter = 50);
+
+/**
+ * @brief A routine for converting squared pairwise distances to cartesian
+ *        coordinates.
+ * @param pts Destination to which save the generated coordinates (3d).
+ * @param dsqs The squared distances between points. Will be modified in-place.
+ * @return Whether the embedding was successful.
+ *
+ * @note The squared distance matrix must be a N x N symmetric pairwise
+ *       squared-distance matrix, where N is the number of points.
+ *
+ * This implementation is based on the following reference: TF Havel, ID Kuntz,
+ * and GM Crippen. *Bull. Math. Biol.* **1983**, *45* (5), 665-720.
+ * DOI:[10.1007/BF02460044](https://doi.org/10.1007/BF02460044)
+ */
+extern bool embed_distances_3d(Eigen::Ref<Matrix3Xd> pts, MatrixXd &dsqs);
+
+/**
+ * @brief A routine for converting squared pairwise distances to cartesian
+ *        coordinates.
+ * @param pts Destination to which save the generated coordinates (4d).
+ * @param dsqs The squared distances between points. Will be modified in-place.
+ * @return Whether the embedding was successful.
+ *
+ * @note The squared distance matrix must be a N x N symmetric pairwise
+ *       squared-distance matrix, where N is the number of points.
+ *
+ * This implementation is based on the following reference: TF Havel, ID Kuntz,
+ * and GM Crippen. *Bull. Math. Biol.* **1983**, *45* (5), 665-720.
+ * DOI:[10.1007/BF02460044](https://doi.org/10.1007/BF02460044)
+ */
+extern bool embed_distances_4d(Eigen::Ref<Matrix4Xd> pts, MatrixXd &dsqs);
 }  // namespace nuri
 
 #endif /* NURI_CORE_GEOMETRY_H_ */
