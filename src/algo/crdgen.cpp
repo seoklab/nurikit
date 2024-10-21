@@ -5,6 +5,9 @@
 
 #include "nuri/algo/crdgen.h"
 
+#include <algorithm>
+#include <cmath>
+#include <utility>
 #include <vector>
 
 #include <Eigen/Dense>
