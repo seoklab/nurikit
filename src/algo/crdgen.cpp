@@ -470,8 +470,7 @@ namespace {
   // NOLINTNEXTLINE(clang-diagnostic-unneeded-internal-declaration)
   double distance_error(MutRef<Array4Xd> &g, ConstRef<Array4Xd> x,
                         Array4Xd &diffs, ArrayXd &t1, ArrayXd &t2,
-                        Array4Xd &buf, const ArrayXd &lbsq,
-                        const ArrayXd &ubsq) {
+                        const ArrayXd &lbsq, const ArrayXd &ubsq) {
     const auto n = x.cols();
 
     for (int i = 1, k = 0; i < n; ++i)
@@ -481,24 +480,25 @@ namespace {
     t1 = diffs.matrix().colwise().squaredNorm().transpose();
 
     t2 = (t1 / ubsq - 1).max(0);
-    for (int i = 1, k = 0; i < n; k += i, ++i) {
-      buf.leftCols(i) =
-          diffs.middleCols(k, i).rowwise()
-          * (4 * t2.segment(k, i) / ubsq.segment(k, i)).transpose();
-      g.col(i) += buf.leftCols(i).rowwise().sum();
-      g.leftCols(i) -= buf.leftCols(i);
+    for (int i = 1, k = 0; i < n; ++i) {
+      for (int j = 0; j < i; ++j, ++k) {
+        Array4d grad = 4 / ubsq[k] * t2[k] * diffs.col(k);
+        g.col(i) += grad;
+        g.col(j) -= grad;
+      }
     }
     const double ub_err = t2.square().sum();
 
     t2 = 1 + t1 / lbsq;
     t1 = (2 / t2 - 1).max(0);
-    for (int i = 1, k = 0; i < n; k += i, ++i) {
-      buf.leftCols(i) = diffs.middleCols(k, i).rowwise()
-                        * (-8 * t1.segment(k, i) / t2.segment(k, i).square()
-                           / lbsq.segment(k, i))
-                              .transpose();
-      g.col(i) += buf.leftCols(i).rowwise().sum();
-      g.leftCols(i) -= buf.leftCols(i);
+
+    t2 = t2.square();
+    for (int i = 1, k = 0; i < n; ++i) {
+      for (int j = 0; j < i; ++j, ++k) {
+        Array4d grad = -8 * t1[k] / t2[k] / lbsq[k] * diffs.col(k);
+        g.col(i) += grad;
+        g.col(j) -= grad;
+      }
     }
     const double lb_err = t1.square().sum();
 
@@ -514,16 +514,16 @@ namespace {
   template <bool MinimizeFourth>
   // NOLINTNEXTLINE(clang-diagnostic-unused-template)
   double error_funcgrad(ArrayXd &ga, ConstRef<ArrayXd> xa, Array4Xd &diffs,
-                        ArrayXd &t1, ArrayXd &t2, Array4Xd &buf,
-                        const std::pair<ArrayXd, ArrayXd> &bounds_squared) {
+                        ArrayXd &t1, ArrayXd &t2,
+                        const std::pair<ArrayXd, ArrayXd> &bounds_squared,
+                        const int n) {
     ga.setZero();
 
-    const auto n = buf.cols() + 1;
     MutRef<Array4Xd> g = ga.reshaped(4, n);
     ConstRef<Array4Xd> x = xa.reshaped(4, n);
 
-    const double e1 = distance_error(
-        g, x, diffs, t1, t2, buf, bounds_squared.first, bounds_squared.second);
+    const double e1 = distance_error(g, x, diffs, t1, t2, bounds_squared.first,
+                                     bounds_squared.second);
     if constexpr (!MinimizeFourth)
       return e1;
 
@@ -556,15 +556,15 @@ bool generate_coords(const Molecule &mol, Matrix3Xd &conf, int max_trial) {
   LBfgsB optim(trial.reshaped().array(), { nbd, dummy_bds });
 
   const auto nc2 = bounds_squared.first.size();
-  Array4Xd diffs(4, nc2), buf(4, n - 1);
+  Array4Xd diffs(4, nc2);
   ArrayXd t1(nc2), t2(nc2);
 
   auto first_fg = [&](ArrayXd &ga, const auto &xa) {
-    return error_funcgrad<false>(ga, xa, diffs, t1, t2, buf, bounds_squared);
+    return error_funcgrad<false>(ga, xa, diffs, t1, t2, bounds_squared, n);
   };
 
   auto second_fg = [&](ArrayXd &ga, const auto &xa) {
-    return error_funcgrad<true>(ga, xa, diffs, t1, t2, buf, bounds_squared);
+    return error_funcgrad<true>(ga, xa, diffs, t1, t2, bounds_squared, n);
   };
 
   double beta = 0.5;
