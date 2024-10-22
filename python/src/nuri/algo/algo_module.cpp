@@ -4,11 +4,15 @@
 //
 
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include <absl/log/absl_check.h>
+#include <absl/strings/ascii.h>
+#include <absl/strings/str_cat.h>
 
+#include "nuri/algo/crdgen.h"
 #include "nuri/algo/guess.h"
 #include "nuri/algo/rings.h"
 #include "nuri/core/molecule.h"
@@ -310,12 +314,40 @@ Guess types of atoms and bonds, and number of hydrogens of a molecule.
 )doc");
 }
 
+void bind_crdgen(py::module_ &m) {
+  using std::operator""s;
+
+  m.def(
+      "generate_coords",
+      [](PyMol &mol, std::string_view method, int trial) {
+        if (absl::AsciiStrToUpper(method) != "DG")
+          throw py::value_error(absl::StrCat("Unsupported method: ", method));
+
+        bool success = generate_coords(*mol, trial);
+        if (!success)
+          throw py::value_error("Failed to generate coordinates");
+      },
+      py::arg("mol"), py::arg("method") = "DG", py::arg("max_trial") = 10,
+      R"doc(
+Generate 3D coordinates of a molecule. The generated coordinates are stored in
+the last conformer of the molecule if the generation is successful.
+
+:param mol: The molecule to generate coordinates.
+:param method: The method to use for coordinate generation (case insensitive).
+  Currently, only ``DG`` (distance geometry) is supported.
+:param max_trial: The maximum number of trials to generate trial distances.
+:raises ValueError: If the generation fails. On exception, the molecule is left
+  unmodified.
+)doc");
+}
+
 NURI_PYTHON_MODULE(m) {
   // For types
   py::module_::import("nuri.core");
 
   bind_guess(m);
   bind_rings(m);
+  bind_crdgen(m);
 }
 }  // namespace
 }  // namespace python_internal
