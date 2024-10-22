@@ -27,7 +27,7 @@ macro(_nuri_get_git_version_impl)
   if(git_result EQUAL 0)
     string(STRIP "${NURI_REF}" NURI_REF)
     string(REGEX REPLACE "^v" "" NURI_VERSION "${NURI_REF}")
-    set(NURI_FULL_VERSION "${NURI_VERSION}+${NURI_REV}")
+    set(NURI_FULL_VERSION "${NURI_VERSION}")
     message(STATUS "NuriKit version from git: ${NURI_FULL_VERSION}")
   else()
     execute_process(
