@@ -14,9 +14,9 @@ macro(_nuri_get_git_version_impl)
   execute_process(
     COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
     RESULT_VARIABLE git_result
-    OUTPUT_VARIABLE NURI_REV
+    OUTPUT_VARIABLE nuri_revision
     ERROR_QUIET)
-  string(STRIP "${NURI_REV}" NURI_REV)
+  string(STRIP "${nuri_revision}" nuri_revision)
 
   execute_process(
     COMMAND ${GIT_EXECUTABLE} describe --tags --exact-match --abbrev=0
@@ -37,7 +37,7 @@ macro(_nuri_get_git_version_impl)
       ERROR_QUIET)
 
     if(NOT git_result EQUAL 0)
-      set(NURI_REF "${NURI_REV}")
+      set(NURI_REF "${nuri_revision}")
     endif()
 
     string(STRIP "${NURI_REF}" NURI_REF)
@@ -62,16 +62,16 @@ function(nuri_get_version)
     set(NURI_REF "unknown")
   endif()
 
-  if(NURI_REV)
-    message(STATUS "NuriKit revision from git: ${NURI_REV}")
+  if(nuri_revision)
+    message(STATUS "NuriKit revision from git: ${nuri_revision}")
   else()
     message(NOTICE "NuriKit revision not found! Using unknown.")
-    set(NURI_REV "unknown")
+    set(nuri_revision "unknown")
   endif()
 
   if(NOT NURI_FULL_VERSION)
     set(NURI_VERSION "0.1.0.dev0")
-    set(NURI_FULL_VERSION "${NURI_VERSION}+${NURI_REV}")
+    set(NURI_FULL_VERSION "${NURI_VERSION}+${nuri_revision}")
     message(NOTICE "NuriKit version not found! Using ${NURI_FULL_VERSION}")
   endif()
 
@@ -84,7 +84,6 @@ function(nuri_get_version)
   set(NURI_CORE_VERSION "${NURI_CORE_VERSION}" PARENT_SCOPE)
   set(NURI_FULL_VERSION "${NURI_FULL_VERSION}" PARENT_SCOPE)
   set(NURI_REF "${NURI_REF}" PARENT_SCOPE)
-  set(NURI_REV "${NURI_REV}" PARENT_SCOPE)
 endfunction()
 
 function(nuri_make_available_deponly target)
