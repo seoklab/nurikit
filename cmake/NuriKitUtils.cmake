@@ -48,7 +48,7 @@ function(nuri_get_version)
   if(SKBUILD)
     # Version correctly set via scikit-build-core; skip git versioning.
     set(NURI_FULL_VERSION "${SKBUILD_PROJECT_VERSION_FULL}")
-    string(REGEX REPLACE "\+.+$" "" NURI_VERSION "${NURI_FULL_VERSION}")
+    string(REGEX REPLACE "\\+.+$" "" NURI_VERSION "${NURI_FULL_VERSION}")
     message(
       STATUS "NuriKit version from scikit-build-core: ${NURI_FULL_VERSION}")
   else()
