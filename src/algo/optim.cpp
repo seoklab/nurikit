@@ -326,28 +326,32 @@ namespace internal {
 
     // -----------------------------------------------------
     // Let us try the projection, d is the Newton direction.
+    if (!L.constrained()) {
+      x(free) += d.array();
+      return true;
+    }
+
     xp = x;
+    x(free) += d.array();
 
     bool bounded = false;
     for (int i = 0; i < nsub; ++i) {
-      int k = free[i];
-      const double xk_new = xp[k] + d[i];
+      const int k = free[i];
       switch (bounds.raw_nbd(k)) {
       case 0:
-        x[k] = xk_new;
         break;
       case 1:
-        x[k] = nuri::max(bounds.lb(k), xk_new);
+        x[k] = nuri::max(bounds.lb(k), x[k]);
         if (x[k] <= bounds.lb(k))
           bounded = true;
         break;
       case 2:
-        x[k] = nuri::min(bounds.ub(k), xk_new);
+        x[k] = nuri::min(bounds.ub(k), x[k]);
         if (x[k] >= bounds.ub(k))
           bounded = true;
         break;
       case 3:
-        x[k] = nuri::clamp(xk_new, bounds.lb(k), bounds.ub(k));
+        x[k] = nuri::clamp(x[k], bounds.lb(k), bounds.ub(k));
         if (x[k] <= bounds.lb(k) || x[k] >= bounds.ub(k))
           bounded = true;
         break;
@@ -1056,16 +1060,14 @@ namespace {
                    const double theta) {
     const auto col = ss.cols();
 
-    sy_scaled.array() =
-        sy.array().rowwise() / sy.diagonal().array().transpose();
-
     // Form the upper half of  T = theta*SS + L*D^(-1)*L', store T in the
     // upper triangle of the array wt.
     wtt.template triangularView<Eigen::Lower>() = theta * ss.transpose();
     for (int i = 1; i < col; ++i) {
+      sy_scaled.head(i).array() =
+          sy.row(i).head(i).transpose().array() / sy.diagonal().head(i).array();
       wtt.col(i).tail(col - i).noalias() +=
-          sy.bottomLeftCorner(col - i, i)
-          * sy_scaled.row(i).head(i).transpose();
+          sy.bottomLeftCorner(col - i, i) * sy_scaled.head(i);
     }
 
     Eigen::LLT<Eigen::Ref<MatrixXd>> llt(wtt);
@@ -1096,8 +1098,7 @@ bool LBfgsB::prepare_next_iter(const double gd, const double ginit,
   prev_col_ = col();
   col_ = lbfgs_matupd(ws_, wy_, ss_, sy_, d(), r(), dr, step, dtd, col());
   // wn will be recalculated in the next iteration, use for temporary storage
-  return lbfgs_formt(wtt_.topLeftCorner(col(), col()),
-                     wnt_.topLeftCorner(col(), col()),
+  return lbfgs_formt(wtt_.topLeftCorner(col(), col()), wnt_.col(0),
                      sy_.topLeftCorner(col(), col()),
                      ss_.topLeftCorner(col(), col()), theta());
 }
