@@ -14,9 +14,9 @@ macro(_nuri_get_git_version_impl)
   execute_process(
     COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
     RESULT_VARIABLE git_result
-    OUTPUT_VARIABLE nuri_revision
+    OUTPUT_VARIABLE NURI_REV
     ERROR_QUIET)
-  string(STRIP "${nuri_revision}" nuri_revision)
+  string(STRIP "${NURI_REV}" NURI_REV)
 
   execute_process(
     COMMAND ${GIT_EXECUTABLE} describe --tags --exact-match --abbrev=0
@@ -27,7 +27,8 @@ macro(_nuri_get_git_version_impl)
   if(git_result EQUAL 0)
     string(STRIP "${NURI_REF}" NURI_REF)
     string(REGEX REPLACE "^v" "" NURI_VERSION "${NURI_REF}")
-    message(STATUS "NuriKit version from git: ${NURI_VERSION}")
+    set(NURI_FULL_VERSION "${NURI_VERSION}+${NURI_REV}")
+    message(STATUS "NuriKit version from git: ${NURI_FULL_VERSION}")
   else()
     execute_process(
       COMMAND ${GIT_EXECUTABLE} symbolic-ref -q --short HEAD
@@ -36,7 +37,7 @@ macro(_nuri_get_git_version_impl)
       ERROR_QUIET)
 
     if(NOT git_result EQUAL 0)
-      set(NURI_REF "${nuri_revision}")
+      set(NURI_REF "${NURI_REV}")
     endif()
 
     string(STRIP "${NURI_REF}" NURI_REF)
@@ -46,8 +47,10 @@ endmacro()
 function(nuri_get_version)
   if(SKBUILD)
     # Version correctly set via scikit-build-core; skip git versioning.
-    set(NURI_VERSION "${SKBUILD_PROJECT_VERSION}")
-    message(STATUS "NuriKit version from scikit-build-core: ${NURI_VERSION}")
+    set(NURI_FULL_VERSION "${SKBUILD_PROJECT_VERSION_FULL}")
+    string(REGEX REPLACE "\+.+$" "" NURI_VERSION "${NURI_FULL_VERSION}")
+    message(
+      STATUS "NuriKit version from scikit-build-core: ${NURI_FULL_VERSION}")
   else()
     _nuri_get_git_version_impl()
   endif()
@@ -56,16 +59,20 @@ function(nuri_get_version)
     message(STATUS "NuriKit ref from git: ${NURI_REF}")
   else()
     message(NOTICE "NuriKit ref not found! Using unknown.")
-    set(nuri_revision "unknown")
     set(NURI_REF "unknown")
   endif()
 
-  if(NURI_VERSION)
-    set(NURI_FULL_VERSION "${NURI_VERSION}")
+  if(NURI_REV)
+    message(STATUS "NuriKit revision from git: ${NURI_REV}")
   else()
+    message(NOTICE "NuriKit revision not found! Using unknown.")
+    set(NURI_REV "unknown")
+  endif()
+
+  if(NOT NURI_FULL_VERSION)
     set(NURI_VERSION "0.1.0.dev0")
-    message(NOTICE "NuriKit version not found! Using ${NURI_VERSION}")
-    set(NURI_FULL_VERSION "${NURI_VERSION}+${nuri_revision}")
+    set(NURI_FULL_VERSION "${NURI_VERSION}+${NURI_REV}")
+    message(NOTICE "NuriKit version not found! Using ${NURI_FULL_VERSION}")
   endif()
 
   string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+"
@@ -77,6 +84,7 @@ function(nuri_get_version)
   set(NURI_CORE_VERSION "${NURI_CORE_VERSION}" PARENT_SCOPE)
   set(NURI_FULL_VERSION "${NURI_FULL_VERSION}" PARENT_SCOPE)
   set(NURI_REF "${NURI_REF}" PARENT_SCOPE)
+  set(NURI_REV "${NURI_REV}" PARENT_SCOPE)
 endfunction()
 
 function(nuri_make_available_deponly target)
