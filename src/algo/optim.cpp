@@ -82,12 +82,11 @@ namespace internal {
       wtt.template triangularView<Eigen::Lower>().transpose().solveInPlace(
           p.tail(col));
 
-      p.head(col) = -v.head(col).array() / sy.diagonal().array();
-      for (int i = 0; i < col; ++i) {
-        double ssum =
-            sy.col(i).tail(col - i - 1).dot(p.tail(col - i - 1)) / sy(i, i);
-        p[i] += ssum;
-      }
+      p.head(col).noalias() =
+          sy.transpose().template triangularView<Eigen::StrictlyUpper>()
+          * p.tail(col);
+      p.head(col) -= v.head(col);
+      p.head(col).array() /= sy.diagonal().array();
 
       return true;
     }
@@ -327,28 +326,32 @@ namespace internal {
 
     // -----------------------------------------------------
     // Let us try the projection, d is the Newton direction.
+    if (!L.constrained()) {
+      x(free) += d.array();
+      return true;
+    }
+
     xp = x;
+    x(free) += d.array();
 
     bool bounded = false;
     for (int i = 0; i < nsub; ++i) {
-      int k = free[i];
-      const double xk_new = xp[k] + d[i];
+      const int k = free[i];
       switch (bounds.raw_nbd(k)) {
       case 0:
-        x[k] = xk_new;
         break;
       case 1:
-        x[k] = nuri::max(bounds.lb(k), xk_new);
+        x[k] = nuri::max(bounds.lb(k), x[k]);
         if (x[k] <= bounds.lb(k))
           bounded = true;
         break;
       case 2:
-        x[k] = nuri::min(bounds.ub(k), xk_new);
+        x[k] = nuri::min(bounds.ub(k), x[k]);
         if (x[k] >= bounds.ub(k))
           bounded = true;
         break;
       case 3:
-        x[k] = nuri::clamp(xk_new, bounds.lb(k), bounds.ub(k));
+        x[k] = nuri::clamp(x[k], bounds.lb(k), bounds.ub(k));
         if (x[k] <= bounds.lb(k) || x[k] >= bounds.ub(k))
           bounded = true;
         break;
@@ -816,9 +819,9 @@ namespace {
 
     //  Shift old part of WN1.
     wn1.topLeftCorner(mm1, mm1).triangularView<Eigen::Lower>() =
-        wn1.block(1, 1, mm1, mm1).triangularView<Eigen::Lower>();
+        wn1.block(1, 1, mm1, mm1);
     wn1.block(m, m, mm1, mm1).triangularView<Eigen::Lower>() =
-        wn1.block(m + 1, m + 1, mm1, mm1).triangularView<Eigen::Lower>();
+        wn1.block(m + 1, m + 1, mm1, mm1);
     wn1.block(m, 0, mm1, mm1) = wn1.block(m + 1, 1, mm1, mm1);
   }
 
@@ -848,42 +851,38 @@ namespace {
 
   void formk_update_wn1(LBfgsB &L) {
     auto &wn1 = L.wn1();
-    auto ws = L.ws(), wy = L.wy();
     auto enter = L.enter(), leave = L.leave();
 
     const auto m = L.m(), upcl = L.col() - value_if(L.updated());
+    auto ws = L.ws().leftCols(upcl), wy = L.wy().leftCols(upcl);
 
     // modify the old parts in blocks (1,1) and (2,2) due to changes
     // in the set of free variables.
     for (int j = 0; j < upcl; ++j) {
       wn1.col(j).segment(j, upcl - j).noalias() +=
-          wy(enter, Eigen::all).transpose().middleRows(j, upcl - j)
-          * wy(enter, j);
+          wy(enter, Eigen::all).transpose().bottomRows(upcl - j) * wy(enter, j);
       wn1.col(j).segment(j, upcl - j).noalias() -=
-          wy(leave, Eigen::all).transpose().middleRows(j, upcl - j)
-          * wy(leave, j);
+          wy(leave, Eigen::all).transpose().bottomRows(upcl - j) * wy(leave, j);
     }
     for (int j = 0; j < upcl; ++j) {
       wn1.col(m + j).segment(m + j, upcl - j).noalias() -=
-          ws(enter, Eigen::all).transpose().middleRows(j, upcl - j)
-          * ws(enter, j);
+          ws(enter, Eigen::all).transpose().bottomRows(upcl - j) * ws(enter, j);
       wn1.col(m + j).segment(m + j, upcl - j).noalias() +=
-          ws(leave, Eigen::all).transpose().middleRows(j, upcl - j)
-          * ws(leave, j);
+          ws(leave, Eigen::all).transpose().bottomRows(upcl - j) * ws(leave, j);
     }
 
     // Modify the old parts in block (2,1)
     for (int j = 0; j < upcl; ++j) {
       wn1.col(j).segment(m, j + 1).noalias() +=
           ws(enter, Eigen::all).transpose().topRows(j + 1) * wy(enter, j);
+      wn1.col(j).segment(m + j + 1, upcl - j - 1).noalias() -=
+          ws(enter, Eigen::all).transpose().bottomRows(upcl - j - 1)
+          * wy(enter, j);
+
       wn1.col(j).segment(m, j + 1).noalias() -=
           ws(leave, Eigen::all).transpose().topRows(j + 1) * wy(leave, j);
-
-      wn1.col(j).segment(m + j + 1, upcl - j - 1).noalias() -=
-          ws(enter, Eigen::all).transpose().middleRows(j + 1, upcl - j - 1)
-          * wy(enter, j);
       wn1.col(j).segment(m + j + 1, upcl - j - 1).noalias() +=
-          ws(leave, Eigen::all).transpose().middleRows(j + 1, upcl - j - 1)
+          ws(leave, Eigen::all).transpose().bottomRows(upcl - j - 1)
           * wy(leave, j);
     }
   }
@@ -1042,9 +1041,9 @@ namespace {
     if (pcol == m) {
       ABSL_ASSUME(ci == m - 1);
       ss.topLeftCorner(ci, ci).triangularView<Eigen::Upper>() =
-          ss.bottomRightCorner(ci, ci).triangularView<Eigen::Upper>();
+          ss.bottomRightCorner(ci, ci);
       sy.topLeftCorner(ci, ci).triangularView<Eigen::Lower>() =
-          sy.bottomRightCorner(ci, ci).triangularView<Eigen::Lower>();
+          sy.bottomRightCorner(ci, ci);
     }
 
     ss.col(ci).head(col).noalias() = ws.leftCols(col).transpose() * d.matrix();
@@ -1063,15 +1062,12 @@ namespace {
 
     // Form the upper half of  T = theta*SS + L*D^(-1)*L', store T in the
     // upper triangle of the array wt.
-    wtt.template triangularView<Eigen::Lower>() =
-        (theta * ss.transpose()).template triangularView<Eigen::Lower>();
-
-    sy_scaled.array() =
-        sy.array().rowwise() / sy.diagonal().array().transpose();
+    wtt.template triangularView<Eigen::Lower>() = theta * ss.transpose();
     for (int i = 1; i < col; ++i) {
+      sy_scaled.head(i).array() =
+          sy.row(i).head(i).transpose().array() / sy.diagonal().head(i).array();
       wtt.col(i).tail(col - i).noalias() +=
-          sy.bottomLeftCorner(col - i, i)
-          * sy_scaled.row(i).head(i).transpose();
+          sy.bottomLeftCorner(col - i, i) * sy_scaled.head(i);
     }
 
     Eigen::LLT<Eigen::Ref<MatrixXd>> llt(wtt);
@@ -1102,8 +1098,7 @@ bool LBfgsB::prepare_next_iter(const double gd, const double ginit,
   prev_col_ = col();
   col_ = lbfgs_matupd(ws_, wy_, ss_, sy_, d(), r(), dr, step, dtd, col());
   // wn will be recalculated in the next iteration, use for temporary storage
-  return lbfgs_formt(wtt_.topLeftCorner(col(), col()),
-                     wnt_.topLeftCorner(col(), col()),
+  return lbfgs_formt(wtt_.topLeftCorner(col(), col()), wnt_.col(0),
                      sy_.topLeftCorner(col(), col()),
                      ss_.topLeftCorner(col(), col()), theta());
 }

@@ -421,5 +421,36 @@ TEST_F(AlignSingularTest, Qcp) {
   run_test(
       [](const auto &q, const auto &t, auto mode) { return qcp(q, t, mode); });
 }
+
+TEST(EmbedTest, FromDistance) {
+  Matrix3Xd orig(3, 19);
+  orig.transpose() << -18.3397, 72.5541, 64.7727,  //
+      -17.5457, 72.7646, 65.8591,                  //
+      -17.5263, 71.9973, 66.9036,                  //
+      -18.3203, 70.8982, 66.9881,                  //
+      -19.2153, 70.5869, 65.8606,                  //
+      -19.1851, 71.4993, 64.7091,                  //
+      -19.8932, 71.3140, 63.7366,                  //
+      -19.8586, 69.4953, 66.1942,                  //
+      -19.4843, 69.0910, 67.3570,                  //
+      -18.5535, 69.9074, 67.8928,                  //
+      -17.8916, 69.7493, 69.2373,                  //
+      -16.7519, 70.7754, 69.3878,                  //
+      -15.5030, 70.1100, 69.5871,                  //
+      -17.1385, 71.5903, 70.6459,                  //
+      -15.9909, 71.8532, 71.4558,                  //
+      -18.1166, 70.6286, 71.3678,                  //
+      -18.8422, 70.0100, 70.2837,                  //
+      -19.0679, 71.4098, 72.2764,                  //
+      -20.1784, 71.8813, 71.5104;
+
+  MatrixXd dsqs = to_square_form(pdistsq(orig), orig.cols());
+  Matrix3Xd pts(orig.rows(), orig.cols());
+  ASSERT_TRUE(embed_distances_3d(pts, dsqs));
+
+  auto [xform, msd] = kabsch(pts, orig, AlignMode::kBoth, true);
+  ASSERT_GE(msd, 0);
+  EXPECT_NEAR(msd, 0, 1e-6);
+}
 }  // namespace
 }  // namespace nuri
