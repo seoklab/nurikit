@@ -503,7 +503,7 @@ namespace {
   template <bool MinimizeFourth>
   // NOLINTNEXTLINE(clang-diagnostic-unused-template)
   double error_funcgrad(ArrayXd &ga, ConstRef<ArrayXd> xa,
-                        const Array2Xd &bsq_inv, const int n) {
+                        const Array2Xd &bsq_inv, const Eigen::Index n) {
     ga.setZero();
 
     MutRef<Array4Xd> g = ga.reshaped(4, n);
