@@ -37,7 +37,6 @@ jobs:
     uses: ./.github/workflows/_wheel-build.yaml
     with:
       python: ${{ matrix.python }}
-      upload: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
