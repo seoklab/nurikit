@@ -19,7 +19,7 @@
 
 namespace nuri {
 namespace {
-TEST(Strgen, Playground) {
+TEST(Crdgen, CHEMBL2228334) {
   Molecule mol = read_smiles({ "CC(=O)OC1CCCC2COC(=O)C21" });
   ASSERT_TRUE(MoleculeSanitizer(mol).sanitize_all());
 
