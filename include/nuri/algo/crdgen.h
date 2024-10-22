@@ -36,7 +36,7 @@ extern bool generate_coords(const Molecule &mol, Matrix3Xd &conf,
  *       molecule is not modified otherwise.
  */
 inline bool generate_coords(Molecule &mol, int max_trial = 10) {
-  Matrix3Xd conf;
+  Matrix3Xd conf(3, mol.num_atoms());
   bool success = generate_coords(mol, conf, max_trial);
   if (success)
     mol.confs().push_back(std::move(conf));

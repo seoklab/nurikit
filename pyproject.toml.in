@@ -93,3 +93,57 @@ test-command = [
 
 [tool.pytest.ini_options]
 testpaths = ["python/test"]
+
+[tool.ruff]
+line-length = 79
+
+target-version = "py37"
+
+src = ["python/src"]
+extend-include = ["*.ipynb"]
+extend-exclude = [".github/**", "*.pyc", "*.pyi"]
+
+[tool.ruff.lint]
+extend-select = [
+    "W6",
+    "I",
+    "N80",
+    "S102",
+    "S108",
+    "S306",
+    "S307",
+    "S60",
+    "B",
+    "A",
+    "PT",
+    "PTH",
+    "PLE",
+    "PLW",
+    "NPY",
+    "RUF",
+]
+ignore = [
+    "E74",
+    "F403",
+    "F405",
+    "N803",
+    "N806",
+    "S603",
+    "S607",
+    "B008",
+    "B905",
+    "PTH123",
+    "PLW2901",
+]
+
+dummy-variable-rgx = "^_$"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+no-lines-before = ["local-folder"]
+
+[tool.ruff.lint.flake8-pytest-style]
+fixture-parentheses = true
+mark-parentheses = true
