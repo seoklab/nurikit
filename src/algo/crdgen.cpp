@@ -7,7 +7,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <utility>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -43,7 +42,7 @@ namespace {
       bounds_.matrix().diagonal().setZero();
     }
 
-    std::pair<ArrayXd, ArrayXd> lbsq_ubsq() const;
+    Array2Xd bsq_inv() const;
 
     // Havel's distribution function:
     // Eq. 43, Distance Geometry: Theory, Algorithms, and Chemical Applications.
@@ -129,23 +128,21 @@ namespace {
       return bounds_.row(i).head(i + offset).transpose();
     }
 
-    const ArrayXXd &data() const { return bounds_; }
-
   private:
     // lower triangle is upper bound, upper triangle is lower bound
     ArrayXXd bounds_;
   };
 
-  std::pair<ArrayXd, ArrayXd> DistanceBounds::lbsq_ubsq() const {
+  Array2Xd DistanceBounds::bsq_inv() const {
     const auto nc2 = n() * (n() - 1) / 2;
-    ArrayXd lbsq(nc2), ubsq(nc2);
+    Array2Xd bsq(2, nc2);
 
     for (int i = 1, k = 0; i < n(); k += i, ++i) {
-      lbsq.segment(k, i) = lb_head(i).square();
-      ubsq.segment(k, i) = ub_head(i).square();
+      bsq.row(0).segment(k, i) = lb_head(i).transpose().square().inverse();
+      bsq.row(1).segment(k, i) = ub_head(i).transpose().square().inverse();
     }
 
-    return { lbsq, ubsq };
+    return bsq;
   }
 
   struct PQEntry {
@@ -469,38 +466,30 @@ namespace {
   // E3 in Distance Geometry in Molecular Modeling, 1994, Ch.6, p. 311.
   // NOLINTNEXTLINE(clang-diagnostic-unneeded-internal-declaration)
   double distance_error(MutRef<Array4Xd> &g, ConstRef<Array4Xd> x,
-                        Array4Xd &diffs, ArrayXd &t1, ArrayXd &t2,
-                        const ArrayXd &lbsq, const ArrayXd &ubsq) {
-    const auto n = x.cols();
+                        const Array2Xd &bsq_inv) {
+    double ub_err = 0, lb_err = 0;
 
-    for (int i = 1, k = 0; i < n; ++i)
-      for (int j = 0; j < i; ++j, ++k)
-        diffs.col(k) = x.col(i) - x.col(j);
-
-    t1 = diffs.matrix().colwise().squaredNorm().transpose();
-
-    t2 = (t1 / ubsq - 1).max(0);
-    for (int i = 1, k = 0; i < n; ++i) {
+    for (int i = 1, k = 0; i < x.cols(); ++i) {
       for (int j = 0; j < i; ++j, ++k) {
-        Array4d grad = 4 / ubsq[k] * t2[k] * diffs.col(k);
-        g.col(i) += grad;
-        g.col(j) -= grad;
+        const double lbsq_inv = bsq_inv(0, k), ubsq_inv = bsq_inv(1, k);
+
+        Array4d diff = x.col(i) - x.col(j);
+        const double dsq = diff.matrix().squaredNorm();
+
+        const double ub_term = nonnegative(dsq * ubsq_inv - 1);
+
+        const double lb_inner_inv = 1 / (1 + dsq * lbsq_inv);
+        const double lb_term = nonnegative(2 * lb_inner_inv - 1);
+
+        diff *= 4 * ubsq_inv * ub_term
+                - 8 * (lb_inner_inv * lb_inner_inv) * lbsq_inv * lb_term;
+        g.col(i) += diff;
+        g.col(j) -= diff;
+
+        ub_err += ub_term * ub_term;
+        lb_err += lb_term * lb_term;
       }
     }
-    const double ub_err = t2.square().sum();
-
-    t2 = 1 + t1 / lbsq;
-    t1 = (2 / t2 - 1).max(0);
-
-    t2 = t2.square();
-    for (int i = 1, k = 0; i < n; ++i) {
-      for (int j = 0; j < i; ++j, ++k) {
-        Array4d grad = -8 * t1[k] / t2[k] / lbsq[k] * diffs.col(k);
-        g.col(i) += grad;
-        g.col(j) -= grad;
-      }
-    }
-    const double lb_err = t1.square().sum();
 
     return ub_err + lb_err;
   }
@@ -513,17 +502,14 @@ namespace {
 
   template <bool MinimizeFourth>
   // NOLINTNEXTLINE(clang-diagnostic-unused-template)
-  double error_funcgrad(ArrayXd &ga, ConstRef<ArrayXd> xa, Array4Xd &diffs,
-                        ArrayXd &t1, ArrayXd &t2,
-                        const std::pair<ArrayXd, ArrayXd> &bounds_squared,
-                        const int n) {
+  double error_funcgrad(ArrayXd &ga, ConstRef<ArrayXd> xa,
+                        const Array2Xd &bsq_inv, const int n) {
     ga.setZero();
 
     MutRef<Array4Xd> g = ga.reshaped(4, n);
     ConstRef<Array4Xd> x = xa.reshaped(4, n);
 
-    const double e1 = distance_error(g, x, diffs, t1, t2, bounds_squared.first,
-                                     bounds_squared.second);
+    const double e1 = distance_error(g, x, bsq_inv);
     if constexpr (!MinimizeFourth)
       return e1;
 
@@ -545,8 +531,7 @@ bool generate_coords(const Molecule &mol, Matrix3Xd &conf, int max_trial) {
   }
 
   DistanceBounds bounds = init_bounds(mol);
-  const std::pair bounds_squared = bounds.lbsq_ubsq();
-  ABSL_DLOG(INFO) << "initial bounds:\n" << bounds.data() << "\n";
+  const auto bsq_inv = bounds.bsq_inv();
 
   Matrix4Xd trial(4, n);
   MatrixXd dists(mol.size(), mol.size());
@@ -555,16 +540,12 @@ bool generate_coords(const Molecule &mol, Matrix3Xd &conf, int max_trial) {
   Array2Xd dummy_bds(2, 4 * n);
   LBfgsB optim(trial.reshaped().array(), { nbd, dummy_bds });
 
-  const auto nc2 = bounds_squared.first.size();
-  Array4Xd diffs(4, nc2);
-  ArrayXd t1(nc2), t2(nc2);
-
   auto first_fg = [&](ArrayXd &ga, const auto &xa) {
-    return error_funcgrad<false>(ga, xa, diffs, t1, t2, bounds_squared, n);
+    return error_funcgrad<false>(ga, xa, bsq_inv, n);
   };
 
   auto second_fg = [&](ArrayXd &ga, const auto &xa) {
-    return error_funcgrad<true>(ga, xa, diffs, t1, t2, bounds_squared, n);
+    return error_funcgrad<true>(ga, xa, bsq_inv, n);
   };
 
   double beta = 0.5;
