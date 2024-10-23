@@ -28,7 +28,6 @@ target_link_libraries(nuri_lib
   PUBLIC
   absl::strings
   absl::flat_hash_map
-  absl::random_random
   absl::absl_check
   absl::absl_log
 )
