@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <random>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -15,7 +16,6 @@
 #include <absl/base/attributes.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
-#include <absl/random/random.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/algo/optim.h"
@@ -36,6 +36,30 @@ namespace {
   constexpr double kVdwRadDownscale = 0.85;
   constexpr double kMaxInterAtomDist = 5.0;
 
+  class RandomSource {
+  public:
+    RandomSource(int seed): seed_(seed) { }
+
+    void ensure_seeded() {
+      if (seeded_)
+        return;
+
+      rng.seed(seed_);
+      seeded_ = true;
+    }
+
+    double uniform_real(double lo, double hi) const {
+      ABSL_DCHECK(seeded_);
+      return std::uniform_real_distribution<double>(lo, hi)(rng);
+    }
+
+  private:
+    inline static thread_local std::mt19937 rng;
+
+    int seed_;
+    bool seeded_ = false;
+  };
+
   class DistanceBounds {
   public:
     DistanceBounds(const int n): bounds_(n, n) {
@@ -44,29 +68,13 @@ namespace {
 
     Array2Xd bsq_inv() const;
 
-    // Havel's distribution function:
-    // Eq. 43, Distance Geometry: Theory, Algorithms, and Chemical Applications.
-    // In Encycl. Comput. Chem., 1998, p. 731.
-    void fill_trial_distances(MatrixXd &dists, const double ubeta) const {
-      dists.diagonal().setZero();
-
-      const double lbeta = 1 - ubeta;
-      ABSL_DCHECK(ubeta >= 0);
-      ABSL_DCHECK(lbeta >= 0);
-
-      for (int i = 0; i < n() - 1; ++i) {
-        for (int j = i + 1; j < n(); ++j) {
-          double ub_tet = ub(i, j);
-          ub_tet *= ub_tet;
-          ub_tet *= ub_tet;
-
-          double lb_tet = lb(i, j);
-          lb_tet *= lb_tet;
-          lb_tet *= lb_tet;
-
-          dists(i, j) = dists(j, i) =
-              std::sqrt(std::sqrt(lbeta * lb_tet + ubeta * ub_tet));
-        }
+    void fill_trial_distances(MatrixXd &dists, RandomSource &rng) {
+      if (init_) {
+        fill_trial_distances_impl<true>(dists, rng);
+        init_ = false;
+      } else {
+        rng.ensure_seeded();
+        fill_trial_distances_impl<false>(dists, rng);
       }
     }
 
@@ -129,8 +137,34 @@ namespace {
     }
 
   private:
+    // Havel's distribution function:
+    // Eq. 43, Distance Geometry: Theory, Algorithms, and Chemical Applications.
+    // In Encycl. Comput. Chem., 1998, p. 731.
+    template <bool first>
+    void fill_trial_distances_impl(MatrixXd &dists,
+                                   const RandomSource &rng) const {
+      dists.diagonal().setZero();
+
+      for (int i = 0; i < n() - 1; ++i) {
+        for (int j = i + 1; j < n(); ++j) {
+          double luq = lb(i, j) / ub(i, j);
+          luq *= luq;
+          luq *= luq;
+
+          double dq;
+          if constexpr (first) {
+            dq = (1 + luq) * 0.5;
+          } else {
+            dq = rng.uniform_real(luq, 1.0);
+          }
+          dists(i, j) = dists(j, i) = ub(i, j) * std::sqrt(std::sqrt(dq));
+        }
+      }
+    }
+
     // lower triangle is upper bound, upper triangle is lower bound
     ArrayXXd bounds_;
+    bool init_ = true;
   };
 
   Array2Xd DistanceBounds::bsq_inv() const {
@@ -527,11 +561,69 @@ namespace {
     return e1 + e2;
   }
 
-  // NOLINTNEXTLINE(*-non-const-global-variables)
-  thread_local absl::InsecureBitGen rng;
+  template <bool init_random>
+  bool generate_coords_impl(const Molecule &mol, Matrix3Xd &conf, int max_trial,
+                            int seed) {
+    const Eigen::Index n = mol.num_atoms();
+
+    DistanceBounds bounds = init_bounds(mol);
+    const auto bsq_inv = bounds.bsq_inv();
+
+    Matrix4Xd trial(4, n);
+    MatrixXd dists(mol.size(), mol.size());
+
+    ArrayXi nbd = ArrayXi::Zero(4 * n);
+    Array2Xd dummy_bds(2, 4 * n);
+    LBfgsB optim(trial.reshaped().array(), { nbd, dummy_bds });
+
+    auto first_fg = [&](ArrayXd &ga, const auto &xa) {
+      return error_funcgrad<false>(ga, xa, bsq_inv, n);
+    };
+
+    auto second_fg = [&](ArrayXd &ga, const auto &xa) {
+      return error_funcgrad<true>(ga, xa, bsq_inv, n);
+    };
+
+    RandomSource rng(seed);
+    bool success = false;
+    for (int iter = 0; iter < max_trial; ++iter) {
+      if constexpr (init_random) {
+        rng.ensure_seeded();
+        for (int j = 0; j < n; ++j) {
+          for (int i = 0; i < 4; ++i) {
+            trial(i, j) = rng.uniform_real(static_cast<double>(-3 * n),
+                                           static_cast<double>(3 * n));
+          }
+        }
+      } else {
+        bounds.fill_trial_distances(dists, rng);
+        dists.cwiseAbs2();
+
+        if (!embed_distances_4d(trial, dists))
+          continue;
+      }
+
+      LbfgsbResult res = optim.minimize(first_fg, 1e+10, 1e-3);
+      if (res.code != LbfgsbResultCode::kSuccess)
+        continue;
+
+      res = optim.minimize(second_fg);
+      if (res.code != LbfgsbResultCode::kSuccess)
+        continue;
+
+      success = true;
+      break;
+    }
+    if (!success)
+      return false;
+
+    conf = trial.topRows(3);
+    return true;
+  }
 }  // namespace
 
-bool generate_coords(const Molecule &mol, Matrix3Xd &conf, int max_trial) {
+bool generate_coords(const Molecule &mol, Matrix3Xd &conf, int max_trial,
+                     int seed) {
   const Eigen::Index n = mol.num_atoms();
 
   if (n != conf.cols()) {
@@ -540,50 +632,11 @@ bool generate_coords(const Molecule &mol, Matrix3Xd &conf, int max_trial) {
     return false;
   }
 
-  DistanceBounds bounds = init_bounds(mol);
-  const auto bsq_inv = bounds.bsq_inv();
-
-  Matrix4Xd trial(4, n);
-  MatrixXd dists(mol.size(), mol.size());
-
-  ArrayXi nbd = ArrayXi::Zero(4 * n);
-  Array2Xd dummy_bds(2, 4 * n);
-  LBfgsB optim(trial.reshaped().array(), { nbd, dummy_bds });
-
-  auto first_fg = [&](ArrayXd &ga, const auto &xa) {
-    return error_funcgrad<false>(ga, xa, bsq_inv, n);
-  };
-
-  auto second_fg = [&](ArrayXd &ga, const auto &xa) {
-    return error_funcgrad<true>(ga, xa, bsq_inv, n);
-  };
-
-  double beta = 0.5;
-  bool success = false;
-
-  for (int iter = 0; iter < max_trial;
-       beta = absl::Uniform(absl::IntervalClosed, rng, 0.0, 1.0), ++iter) {
-    bounds.fill_trial_distances(dists, beta);
-    dists.cwiseAbs2();
-
-    if (!embed_distances_4d(trial, dists))
-      continue;
-
-    LbfgsbResult res = optim.minimize(first_fg, 1e+10, 1e-3);
-    if (res.code != LbfgsbResultCode::kSuccess)
-      continue;
-
-    res = optim.minimize(second_fg);
-    if (res.code != LbfgsbResultCode::kSuccess)
-      continue;
-
-    success = true;
-    break;
+  if (n <= 4) {
+    ABSL_LOG(INFO) << "too few atoms; randomly initializing trial coordinates";
+    return generate_coords_impl<true>(mol, conf, max_trial, seed);
   }
-  if (!success)
-    return false;
 
-  conf = trial.topRows(3);
-  return true;
+  return generate_coords_impl<false>(mol, conf, max_trial, seed);
 }
 }  // namespace nuri
