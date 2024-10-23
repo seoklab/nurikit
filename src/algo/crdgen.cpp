@@ -160,12 +160,9 @@ namespace {
                        ArrayXd &radii) {
     const int n = mol.num_atoms();
 
-    for (int i = 0; i < n; ++i)
-      radii[i] = mol.atom(i).data().element().vdw_radius() * kVdwRadDownscale;
-
-    double max_upper = n * kMaxInterAtomDist;
+    const double max_upper = n * kMaxInterAtomDist;
     for (int i = 0; i < n; ++i) {
-      bounds.lb_head(i) = radii[i] + radii.head(i);
+      bounds.lb_head(i).setZero();
       bounds.ub_tail(i) = max_upper;
     }
 
@@ -254,6 +251,15 @@ namespace {
               std::sqrt(bdsqsum - bdmul * cos_lower), bounds.lb(ni, nj), ub);
         }
       }
+    }
+
+    for (int i = 0; i < n; ++i)
+      radii[i] = mol.atom(i).data().element().vdw_radius() * kVdwRadDownscale;
+
+    for (int i = 0; i < n; ++i) {
+      bounds.lb_head(i) =
+          (bounds.lb_head(i) > 0)
+              .select(bounds.lb_head(i), radii[i] + radii.head(i));
     }
   }
 
