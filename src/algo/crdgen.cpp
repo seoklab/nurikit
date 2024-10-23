@@ -301,7 +301,8 @@ namespace {
     ABSL_DVLOG(2) << "after bond angle constraints:\n" << bounds;
 
     for (int i = 0; i < n; ++i)
-      radii[i] = mol.atom(i).data().element().vdw_radius() * kVdwRadDownscale;
+      radii[i] = mol.atom(i).data().element().vdw_radius();
+    radii *= kVdwRadDownscale;
 
     for (int i = 0; i < n; ++i) {
       bounds.lb_head(i) =
