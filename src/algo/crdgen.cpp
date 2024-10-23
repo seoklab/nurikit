@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <ostream>
 #include <random>
 #include <vector>
 
@@ -76,6 +77,8 @@ namespace {
         rng.ensure_seeded();
         fill_trial_distances_impl<false>(dists, rng);
       }
+
+      ABSL_DVLOG(1) << "trial distances:\n" << dists;
     }
 
     int n() const { return static_cast<int>(bounds_.cols()); }
@@ -134,6 +137,12 @@ namespace {
     auto ub_head(int i) const {
       static_assert(offset <= 1);
       return bounds_.row(i).head(i + offset).transpose();
+    }
+
+    // NOLINTNEXTLINE(clang-diagnostic-unused-function)
+    friend std::ostream &operator<<(std::ostream &os,
+                                    const DistanceBounds &db) {
+      return os << db.bounds_.transpose();
     }
 
   private:
@@ -234,6 +243,8 @@ namespace {
           pred_bond_len;
     }
 
+    ABSL_DVLOG(2) << "after bond length constraints:\n" << bounds;
+
     ArrayXd bdsq = bds.square();
     for (auto atom: mol) {
       if (atom.degree() < 2)
@@ -286,6 +297,8 @@ namespace {
         }
       }
     }
+
+    ABSL_DVLOG(2) << "after bond angle constraints:\n" << bounds;
 
     for (int i = 0; i < n; ++i)
       radii[i] = mol.atom(i).data().element().vdw_radius() * kVdwRadDownscale;
@@ -353,6 +366,8 @@ namespace {
             bounds.ub(i, j) + bounds.ub_tail(i).tail(n - j - 1));
       }
     }
+
+    ABSL_DVLOG(2) << "after forward upper bound update:\n" << bounds;
 
     const int mid = static_cast<int>(roots.size());
     visited.setZero();
@@ -458,6 +473,8 @@ namespace {
       }
     }
 
+    ABSL_DVLOG(2) << "after forward lower bound update:\n" << bounds;
+
     for (int r = mid; r < roots.size(); ++r) {
       int i = roots[r];
 
@@ -499,9 +516,13 @@ namespace {
     ArrayXd temp(n);
 
     set_constraints(mol, bounds, temp);
+    ABSL_DVLOG(1) << "initial bounds matrix:\n" << bounds;
 
     std::vector roots = update_upper_bounds(bounds, mol, temp);
+    ABSL_DVLOG(1) << "after upper bound update:\n" << bounds;
+
     update_lower_bounds(bounds, mol, roots, temp);
+    ABSL_DVLOG(1) << "after lower bound update:\n" << bounds;
 
     return bounds;
   }
@@ -553,6 +574,8 @@ namespace {
     MutRef<Array4Xd> g = ga.reshaped(4, n);
     ConstRef<Array4Xd> x = xa.reshaped(4, n);
 
+    ABSL_DVLOG(3) << "current coordinates:\n" << x.transpose();
+
     const double e1 = distance_error(g, x, bsq_inv);
     if constexpr (!MinimizeFourth)
       return e1;
@@ -603,13 +626,19 @@ namespace {
           continue;
       }
 
+      ABSL_DVLOG(1) << "initial trial coordinates:\n" << trial;
+
       LbfgsbResult res = optim.minimize(first_fg, 1e+10, 1e-3);
       if (res.code != LbfgsbResultCode::kSuccess)
         continue;
 
+      ABSL_DVLOG(1) << "after 4D minimization:\n" << trial;
+
       res = optim.minimize(second_fg);
       if (res.code != LbfgsbResultCode::kSuccess)
         continue;
+
+      ABSL_DVLOG(1) << "after 3D projection:\n" << trial;
 
       success = true;
       break;
