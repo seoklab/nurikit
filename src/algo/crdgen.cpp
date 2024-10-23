@@ -299,8 +299,10 @@ namespace {
           if (visited[next])
             continue;
 
-          auto [ni, nj] = nuri::minmax(prev, next);
-          double new_ub = prev_len + bounds.ub(ni, nj);
+          auto [ni, nk1] = nuri::minmax(prev, next);
+          auto [nj, nk2] = nuri::minmax(curr, next);
+          double new_ub = nuri::min(prev_len + bounds.ub(ni, nk1),
+                                    curr_len + bounds.ub(nj, nk2));
           double &ref_ub = bounds.ub(root, next);
           if (new_ub <= ref_ub) {
             ref_ub = new_ub;
@@ -351,8 +353,10 @@ namespace {
           if (visited[next])
             continue;
 
-          auto [ni, nj] = nuri::minmax(prev, next);
-          double new_ub = prev_len + bounds.ub(ni, nj);
+          auto [ni, nk1] = nuri::minmax(prev, next);
+          auto [nj, nk2] = nuri::minmax(curr, next);
+          double new_ub = nuri::min(prev_len + bounds.ub(ni, nk1),
+                                    curr_len + bounds.ub(nj, nk2));
           double &ref_ub = u_r[next];
           if (new_ub < ref_ub) {
             ref_ub = new_ub;
