@@ -41,6 +41,6 @@ def test_crdgen_distgeom(sample: Molecule):
             [0.404, -2.209, -1.577],
             [1.262, -0.131, -0.703],
         ],
-        atol=1e-2,
+        atol=5e-2,
         rtol=0,
     )

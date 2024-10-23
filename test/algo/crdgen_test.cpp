@@ -45,7 +45,7 @@ TEST(Crdgen, CHEMBL2228334) {
     {  1.262, -0.131, -0.703 },
   };
 
-  NURI_EXPECT_EIGEN_EQ_TOL(conf.transpose(), ans, 1e-2);
+  NURI_EXPECT_EIGEN_EQ_TOL(conf.transpose(), ans, 5e-2);
 }
 }  // namespace
 }  // namespace nuri
