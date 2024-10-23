@@ -34,6 +34,20 @@ target_link_libraries(nuri_lib
 target_system_include_directories(nuri_lib Eigen3::Eigen Spectra::Spectra)
 handle_boost_dependency(nuri_lib)
 
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+  list(APPEND NURI_LIBRARY_FLAGS
+    -fno-math-errno
+    -fno-signed-zeros
+    -fno-trapping-math
+    -fassociative-math
+    -freciprocal-math
+    -fno-rounding-math
+    -fno-signaling-nans
+    -fexcess-precision=fast
+    -ffp-contract=fast
+  )
+endif()
+
 if(NURI_LIBRARY_FLAGS)
   target_compile_options(nuri_lib PRIVATE ${NURI_LIBRARY_FLAGS})
   target_link_options(nuri_lib PRIVATE ${NURI_LIBRARY_FLAGS})
@@ -44,7 +58,7 @@ set_target_properties(nuri_exe
   PROPERTIES
   OUTPUT_NAME nuri
   INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
-target_link_libraries(nuri_exe PRIVATE nuri_lib)
+target_link_libraries(nuri_exe PRIVATE nuri_lib absl::log_initialize)
 
 install(TARGETS nuri_lib LIBRARY)
 install(TARGETS nuri_exe RUNTIME)
