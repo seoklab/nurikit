@@ -21,7 +21,7 @@
 namespace nuri {
 namespace internal {
   // Value taken from https://physics.nist.gov/cgi-bin/cuu/Value?are
-  extern constexpr inline double kElectronMass = 5.48579909065e-4;
+  constexpr double kElectronMass = 5.48579909065e-4;
 }  // namespace internal
 
 struct Isotope {

@@ -88,38 +88,38 @@ private:
 };
 
 namespace constants {
-  extern constexpr inline double kPi =
+  constexpr double kPi =
       3.1415926535897932384626433832795028841971693993751058209749445923078164;
 
-  extern constexpr inline double kTwoPi =
+  constexpr double kTwoPi =
       6.2831853071795864769252867665590057683943387987502116419498891846156328;
 
   // NOLINTBEGIN(*-identifier-naming)
-  extern constexpr inline double kCos15 =
+  constexpr double kCos15 =
       0.9659258262890682867497431997288973676339048390084045504023430763;
-  extern constexpr inline double kCos75 =
+  constexpr double kCos75 =
       0.2588190451025207623488988376240483283490689013199305138140032073;
-  extern constexpr inline double kCos100 =
+  constexpr double kCos100 =
       -0.173648177666930348851716626769314796000375677184069387236241378;
-  extern constexpr inline double kCos102 =
+  constexpr double kCos102 =
       -0.207911690817759337101742284405125166216584760627723836407181973;
-  extern constexpr inline double kCos112 =
+  constexpr double kCos112 =
       -0.374606593415912035414963774501195131000158922253676174103440371;
-  extern constexpr inline double kCos115 =
+  constexpr double kCos115 =
       -0.422618261740699436186978489647730181563129301194864623444415159;
-  extern constexpr inline double kCos125 =
+  constexpr double kCos125 =
       -0.573576436351046096108031912826157864620433371450986351081027118;
-  extern constexpr inline double kCos155 =
+  constexpr double kCos155 =
       -0.906307787036649963242552656754316983267712625175864680871298408;
-  extern constexpr inline double kCos175 =
+  constexpr double kCos175 =
       -0.996194698091745532295010402473888046183562672645850974525442277;
-  extern constexpr inline double kTan10_2 =
+  constexpr double kTan10_2 =
       0.0874886635259240052220186694349614581194542763681082291452366622;
-  extern constexpr inline double kTan15_2 =
+  constexpr double kTan15_2 =
       0.1316524975873958534715264574097171035928141022232375735535653257;
-  extern constexpr inline double kTan116_2 =
+  constexpr double kTan116_2 =
       1.6003345290410503553267330811833575255040718469227591484115002297;
-  extern constexpr inline double kTan155_2 =
+  constexpr double kTan155_2 =
       4.5107085036620571342899391172547519686713241944553043587162345185;
   // NOLINTEND(*-identifier-naming)
 }  // namespace constants

@@ -381,7 +381,7 @@ public:
         templ.noalias() = 2 * (xform_ref * query);
 
         auto [xform, msd] = f(query, templ, AlignMode::kBoth);
-        ASSERT_GE(msd, 0);
+        ASSERT_GE(msd, 0) << "axis = " << axis << ", i = " << i;
 
         EXPECT_NEAR(msd, msd_ref, 1e-4) << "axis = " << axis << ", i = " << i;
         NURI_EXPECT_EIGEN_EQ_TOL(2 * (xform * query), templ, 1e-4)
@@ -402,7 +402,7 @@ public:
       templ.noalias() = 2 * (xform_ref * query);
 
       auto [xform, msd] = f(query, templ, AlignMode::kBoth);
-      ASSERT_GE(msd, 0);
+      ASSERT_GE(msd, 0) << "axis = " << axis << ", both";
 
       EXPECT_NEAR(msd, msd_ref, 1e-4) << "axis = " << axis << ", both";
       NURI_EXPECT_EIGEN_EQ_TOL(2 * (xform * query), templ, 1e-4)
@@ -418,8 +418,10 @@ TEST_F(AlignSingularTest, Kabsch) {
 }
 
 TEST_F(AlignSingularTest, Qcp) {
-  run_test(
-      [](const auto &q, const auto &t, auto mode) { return qcp(q, t, mode); });
+  run_test([](const auto &q, const auto &t, auto mode) {
+    // might fail on optimized builds if evecprec is too high
+    return qcp(q, t, mode, 1e-11, 1e-8);
+  });
 }
 
 TEST(EmbedTest, FromDistance) {

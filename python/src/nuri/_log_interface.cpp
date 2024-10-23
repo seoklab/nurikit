@@ -15,11 +15,10 @@
 #include <absl/log/initialize.h>
 #include <absl/log/log_entry.h>
 #include <absl/log/log_sink.h>
+#include <absl/log/log_sink_registry.h>
 #include <absl/log/vlog_is_on.h>
 
-#ifndef __clang_analyzer__
-#include <absl/log/log_sink_registry.h>
-#endif
+#include "nuri/meta.h"
 
 namespace nuri {
 namespace python_internal {
@@ -90,11 +89,8 @@ public:
       logger_ = py::module_::import("logging").attr("getLogger")("nuri");
       logger_.inc_ref();
 
-      // Why no nolint for clang static analyzer?
-#ifndef __clang_analyzer__
       // NOLINTNEXTLINE(*-owning-memory)
-      absl::AddLogSink(new PyLogSink);
-#endif
+      NURI_CLANG_ANALYZER_NOLINT absl::AddLogSink(new PyLogSink);
       absl::SetStderrThreshold(absl::LogSeverityAtLeast::kFatal);
       set_log_level(10);
       ABSL_DLOG(INFO) << "initialized NuriKit Python logging sink.";

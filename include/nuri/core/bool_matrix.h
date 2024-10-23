@@ -20,8 +20,7 @@
 namespace nuri {
 namespace internal {
   using Block = uint64_t;
-  constexpr inline Eigen::Index kBitsPerBlock =
-      std::numeric_limits<Block>::digits;
+  constexpr Eigen::Index kBitsPerBlock = std::numeric_limits<Block>::digits;
 }  // namespace internal
 
 class BoolMatrixKey {

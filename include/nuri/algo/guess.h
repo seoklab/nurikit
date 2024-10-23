@@ -9,7 +9,7 @@
 #include "nuri/core/molecule.h"
 
 namespace nuri {
-constexpr inline double kDefaultThreshold = 0.5;
+constexpr double kDefaultThreshold = 0.5;
 
 /**
  * @brief Guess bonds, types of atoms, and number of hydrogens of a molecule.

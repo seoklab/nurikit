@@ -102,8 +102,7 @@ namespace constants {
     return os << "other";
   }
 
-  extern constexpr inline double kBondOrderToDouble[] = { 0.0, 1.0, 2.0,
-                                                          3.0, 4.0, 1.5 };
+  constexpr double kBondOrderToDouble[] = { 0.0, 1.0, 2.0, 3.0, 4.0, 1.5 };
 }  // namespace constants
 
 inline constants::Hybridization clamp_hyb(int hyb) {

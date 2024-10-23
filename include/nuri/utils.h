@@ -632,7 +632,7 @@ namespace internal {
   }
 
   // RDKit-compatible key for name
-  constexpr inline std::string_view kNameKey = "_Name";
+  constexpr std::string_view kNameKey = "_Name";
 
   template <class PT>
   auto find_key(PT &props, std::string_view key) {

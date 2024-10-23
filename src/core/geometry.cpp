@@ -793,7 +793,8 @@ namespace {
     try {
       Spectra::DenseSymMatProd<double> op(dsqs);
       // This constructor might throw
-      Spectra::SymEigsSolver<decltype(op)> eigs(op, ndim, ndim * 2);
+      Spectra::SymEigsSolver<decltype(op)> eigs(
+          op, ndim, std::min(dsqs.cols(), ndim * 2));
       eigs.init();
       auto nconv = eigs.compute(SortRule::LargestAlge);
       if (eigs.info() != CompInfo::Successful || nconv < ndim) {
