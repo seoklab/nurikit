@@ -286,7 +286,7 @@ namespace {
         pq.push({ next, root, bounds.ub(root, next) });
       }
 
-      do {
+      while (!pq.empty()) {
         auto [curr, prev, curr_len] = pq.pop_get();
         if (curr_len > bounds.ub(root, curr))
           continue;
@@ -307,7 +307,7 @@ namespace {
             pq.push({ next, curr, new_ub });
           }
         }
-      } while (!pq.empty());
+      }
     }
 
     // i < j < k
@@ -338,7 +338,7 @@ namespace {
         pq.push({ next, root, bounds.ub(next, root) });
       }
 
-      do {
+      while (!pq.empty()) {
         auto [curr, prev, curr_len] = pq.pop_get();
         if (curr_len > u_r[curr])
           continue;
@@ -359,7 +359,7 @@ namespace {
             pq.push({ next, curr, new_ub });
           }
         }
-      } while (!pq.empty());
+      }
 
       bounds.ub_head(root) = bounds.ub_head(root).min(u_r.head(root));
     }
