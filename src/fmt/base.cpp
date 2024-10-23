@@ -50,7 +50,7 @@ std::string ascii_safe(std::string_view str) {
   return ret;
 }
 
-constexpr static const absl::CharSet kNewlines("\f\n\r");
+constexpr absl::CharSet kNewlines("\f\n\r");
 
 std::string ascii_newline_safe(std::string_view str) {
   std::string ret(str);
