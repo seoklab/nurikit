@@ -319,15 +319,16 @@ void bind_crdgen(py::module_ &m) {
 
   m.def(
       "generate_coords",
-      [](PyMol &mol, std::string_view method, int trial) {
+      [](PyMol &mol, std::string_view method, int trial, int seed) {
         if (absl::AsciiStrToUpper(method) != "DG")
           throw py::value_error(absl::StrCat("Unsupported method: ", method));
 
-        bool success = generate_coords(*mol, trial);
+        bool success = generate_coords(*mol, trial, seed);
         if (!success)
           throw py::value_error("Failed to generate coordinates");
       },
       py::arg("mol"), py::arg("method") = "DG", py::arg("max_trial") = 10,
+      py::arg("seed") = 0,
       R"doc(
 Generate 3D coordinates of a molecule. The generated coordinates are stored in
 the last conformer of the molecule if the generation is successful.
@@ -336,6 +337,9 @@ the last conformer of the molecule if the generation is successful.
 :param method: The method to use for coordinate generation (case insensitive).
   Currently, only ``DG`` (distance geometry) is supported.
 :param max_trial: The maximum number of trials to generate trial distances.
+:param seed: The seed for the random number generator. Might not be used
+  depending on the method used or if the algorithm succeeds before random
+  initialization.
 :raises ValueError: If the generation fails. On exception, the molecule is left
   unmodified.
 )doc");
