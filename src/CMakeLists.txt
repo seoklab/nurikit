@@ -42,10 +42,12 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     -fassociative-math
     -freciprocal-math
     -fno-rounding-math
-    -fno-signaling-nans
-    -fexcess-precision=fast
     -ffp-contract=fast
   )
+
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    list(APPEND NURI_LIBRARY_FLAGS -fno-signaling-nans -fexcess-precision=fast)
+  endif()
 endif()
 
 if(NURI_LIBRARY_FLAGS)
