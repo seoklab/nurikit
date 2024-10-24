@@ -790,6 +790,8 @@ namespace {
     dsqs.rowwise() += d0sq.transpose();
     dsqs /= 2;
 
+    ABSL_DVLOG(1) << "metric matrix:\n" << dsqs;
+
     try {
       Spectra::DenseSymMatProd<double> op(dsqs);
       // This constructor might throw
