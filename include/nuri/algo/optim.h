@@ -41,6 +41,49 @@ class LBfgsB;
 namespace internal {
   constexpr double kEpsMach = 2.220446049250313e-16;
 
+  enum class DcsrchStatus : std::uint8_t {
+    kFound,
+    kConverged,
+    kContinue,
+  };
+
+  class Dcsrch {
+  public:
+    Dcsrch(double f0, double g0, double step0, double stepmin = 0,
+           double stepmax = 1e+10, double ftol = 1e-3, double gtol = 0.9,
+           double xtol = 0.1) noexcept;
+
+    DcsrchStatus operator()(double f, double g);
+
+    double step() const { return step_; }
+
+    double finit() const { return finit_; }
+
+    double ginit() const { return ginit_; }
+
+  private:
+    constexpr static double kXTrapL = 1.1, kXTrapU = 4;
+
+    double finit_, ginit_;
+    double stepmin_, stepmax_;
+    double gtest_, gtol_, xtol_;
+
+    double step_;
+
+    // The variables stx, fx, gx contain the values of the step, function,
+    // and derivative at the best step.
+    // The variables sty, fy, gy contain the value of the step, function,
+    // and derivative at sty.
+    // The variables stp, f, g contain the values of the step, function,
+    // and derivative at stp.
+    double stx_ = 0, fx_, gx_;
+    double sty_ = 0, fy_, gy_;
+    double stmin_ = 0, stmax_;
+    double width_, width1_;
+
+    bool brackt_ = false, bisect_ = false;
+  };
+
   /**
    * nbd == 0x1 if has lower bound,
    *        0x2 if has upper bound,
@@ -103,13 +146,15 @@ namespace internal {
 
     double dtd() const { return dtd_; }
 
-    double step() const { return step_; }
+    double step() const { return dcsrch_.step(); }
 
-    double xstep() const { return step_ * dnorm_; }
+    double xstep() const { return step() * dnorm_; }
 
-    double finit() const { return finit_; }
+    double finit() const { return dcsrch_.finit(); }
 
-    double ginit() const { return ginit_; }
+    double ginit() const { return dcsrch_.ginit(); }
+
+    constexpr static double kStepMin = 0, kStepMax = 1e+10;
 
   private:
     MutRef<ArrayXd> &x() { return *x_; }
@@ -122,37 +167,14 @@ namespace internal {
 
     const LbfgsbBounds &bounds() const { return *bounds_; }
 
-    enum class DcsrchStatus : std::uint8_t;
-    DcsrchStatus dcsrch(double f, double g);
-
     void step_x();
-
-    // NOLINTNEXTLINE(readability-identifier-naming)
-    constexpr static double xtrapl_ = 1.1, xtrapu_ = 4, stepmin_ = 0;
 
     MutRef<ArrayXd> *x_;
     const ArrayXd *t_, *z_, *d_;
     const LbfgsbBounds *bounds_;
     double dtd_, dnorm_;
 
-    double stepmax_ = 1e+10;
-    double finit_, ginit_, gtest_;
-    double gtol_, xtol_;
-
-    double step_;
-
-    // The variables stx, fx, gx contain the values of the step, function,
-    // and derivative at the best step.
-    // The variables sty, fy, gy contain the value of the step, function,
-    // and derivative at sty.
-    // The variables stp, f, g contain the values of the step, function,
-    // and derivative at stp.
-    double stx_ = 0, fx_, gx_;
-    double sty_ = 0, fy_, gy_;
-    double stmin_ = 0, stmax_;
-    double width_, width1_;
-
-    bool brackt_ = false, stage1_ = true;
+    Dcsrch dcsrch_;
   };
 
   struct CauchyBrkpt {
