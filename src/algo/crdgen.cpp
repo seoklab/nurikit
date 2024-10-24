@@ -544,11 +544,11 @@ namespace {
 
         const double ub_term = nonnegative(dsq * ubsq_inv - 1);
 
-        const double lb_inner_inv = 1 / (1 + dsq * lbsq_inv);
-        const double lb_term = nonnegative(2 * lb_inner_inv - 1);
+        const double lb_inner_inv = 2 / (1 + dsq * lbsq_inv);
+        const double lb_term = nonnegative(lb_inner_inv - 1);
 
         diff *= 4 * ubsq_inv * ub_term
-                - 8 * (lb_inner_inv * lb_inner_inv) * lbsq_inv * lb_term;
+                - 2 * (lb_inner_inv * lb_inner_inv) * lbsq_inv * lb_term;
         g.col(i) += diff;
         g.col(j) -= diff;
 
