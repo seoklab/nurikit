@@ -19,10 +19,10 @@ __all__ = [
 ]
 
 try:
-    from ._version import __version__, __full_version__
+    from ._version import __full_version__, __version__
 except ImportError:
     __version__ = __full_version__ = "unknown"
 
 from . import _log_adapter
 from .core import periodic_table
-from .fmt import readfile, readstring, to_smiles, to_mol2, to_sdf
+from .fmt import readfile, readstring, to_mol2, to_sdf, to_smiles

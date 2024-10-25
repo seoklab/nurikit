@@ -3,11 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import numpy as np
 import pytest
 
-import numpy as np
-
-from nuri.core import Molecule, AtomData, BondData, Hyb, BondOrder
+from nuri.core import AtomData, BondData, BondOrder, Hyb, Molecule
 
 
 def test_empty():
@@ -195,7 +194,7 @@ def test_add_conformer():
     assert conf[0, 2] == 2
 
     pos = mol[0].get_pos()
-    assert pos.shape == (3, )
+    assert pos.shape == (3,)
     assert np.allclose(pos, conf[0])
 
     with pytest.raises(IndexError):
@@ -502,7 +501,7 @@ def test_bond_length(mol3d: Molecule):
     assert l1 == pytest.approx(l2)
 
     lsq1 = bond.sqlen()
-    assert lsq1 == pytest.approx(l2 ** 2)
+    assert lsq1 == pytest.approx(l2**2)
 
 
 def test_bond_rotation(mol3d: Molecule):

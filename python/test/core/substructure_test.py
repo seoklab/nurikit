@@ -3,11 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import numpy as np
 import pytest
 
-import numpy as np
-
-from nuri.core import Molecule, BondOrder
+from nuri.core import BondOrder, Molecule
 
 
 def test_empty():
@@ -201,8 +200,10 @@ def test_neighbors(molsub: Molecule):
     with pytest.raises(ValueError, match="not a neighbor"):
         sub.neighbor(sub[0], sub[1])
 
-    assert (molsub.bond(sub[0].as_parent(), sub[1].as_parent()).order
-            == BondOrder.Single)
+    assert (
+        molsub.bond(sub[0].as_parent(), sub[1].as_parent()).order
+        == BondOrder.Single
+    )
 
     sub.add_bonds([3])
     assert sub.neighbor(sub[0], sub[1]).bond.order == BondOrder.Single
@@ -260,8 +261,12 @@ def test_find_neighbor(molsub: Molecule):
     assert nei_10_atoms.src.id == 1
     assert nei_10_atoms.dst.id == 0
 
-    assert (nei_01.bond.id == nei_10.bond.id
-            == nei_01_atoms.bond.id == nei_10_atoms.bond.id)
+    assert (
+        nei_01.bond.id
+        == nei_10.bond.id
+        == nei_01_atoms.bond.id
+        == nei_10_atoms.bond.id
+    )
 
 
 def test_erase_atom(molsub: Molecule):
@@ -430,7 +435,7 @@ def test_bond_length(mol3dsub: Molecule):
     assert l1 == pytest.approx(l2)
 
     lsq1 = bond.sqlen()
-    assert lsq1 == pytest.approx(l2 ** 2)
+    assert lsq1 == pytest.approx(l2**2)
 
 
 def test_iter_substruct(molsub: Molecule):

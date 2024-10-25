@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List
 
 import nuri
-from nuri.core import Molecule, Hyb
+from nuri.core import Hyb, Molecule
 
 smi_data = """\
 C
