@@ -336,6 +336,12 @@ template <auto Rows, auto Cols, class Scalar = double>
 using TransposedView =
     Eigen::Map<const Matrix<Scalar, Rows, Cols, Eigen::RowMajor>>;
 
+template <class ML>
+using Transposed =
+    Eigen::Matrix<typename ML::Scalar, ML::ColsAtCompileTime,
+                  ML::RowsAtCompileTime,
+                  ML::IsRowMajor ? Eigen::ColMajor : Eigen::RowMajor>;
+
 template <class MatrixLike>
 auto transpose_view(const MatrixLike &mat) {
   // Swapped rows and cols for the transposed view
