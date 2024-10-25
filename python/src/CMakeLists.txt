@@ -25,6 +25,10 @@ nuri_python_add_module(_core OUTPUT_DIRECTORY "core"
   nuri/core/substructure.cpp
 )
 
+nuri_python_add_module(geometry OUTPUT_DIRECTORY "core"
+  nuri/core/geometry_module.cpp
+)
+
 nuri_python_add_module(algo
   nuri/algo/algo_module.cpp
 )
