@@ -346,12 +346,20 @@ TEST_F(AlignTest, KabschBoth) {
 TEST_F(AlignTest, QcpMSDOnly) {
   auto [_, msd] = qcp(query_, templ_, AlignMode::kMsdOnly);
   EXPECT_NEAR(msd, msd_reflected_, 1e-6);
+
+  std::tie(_, msd) = qcp(query_, templ_, AlignMode::kMsdOnly, true);
+  EXPECT_NEAR(msd, msd_, 1e-6);
 }
 
 TEST_F(AlignTest, QcpXformOnly) {
   auto [xform, flag] = qcp(query_, templ_, AlignMode::kXformOnly);
   ASSERT_GE(flag, 0);
   NURI_EXPECT_EIGEN_EQ_TOL(xform.matrix(), xform_reflected_.matrix(), 1e-3);
+
+  std::tie(xform, flag) = qcp(query_, templ_, AlignMode::kXformOnly, true);
+  ASSERT_GE(flag, 0);
+  NURI_EXPECT_EIGEN_EQ_TOL(xform.linear(), -xform_.linear(), 1e-3);
+  NURI_EXPECT_EIGEN_EQ_TOL(xform.translation(), xform_.translation(), 1e-3);
 }
 
 TEST_F(AlignTest, QcpBoth) {
@@ -359,6 +367,12 @@ TEST_F(AlignTest, QcpBoth) {
   ASSERT_GE(msd, 0);
   NURI_EXPECT_EIGEN_EQ_TOL(xform.matrix(), xform_reflected_.matrix(), 1e-3);
   EXPECT_NEAR(msd, msd_reflected_, 1e-6);
+
+  std::tie(xform, msd) = qcp(query_, templ_, AlignMode::kBoth, true);
+  ASSERT_GE(msd, 0);
+  NURI_EXPECT_EIGEN_EQ_TOL(xform.linear(), -xform_.linear(), 1e-3);
+  NURI_EXPECT_EIGEN_EQ_TOL(xform.translation(), xform_.translation(), 1e-3);
+  EXPECT_NEAR(msd, msd_, 1e-6);
 }
 
 class AlignSingularTest: public ::testing::Test {
@@ -420,7 +434,7 @@ TEST_F(AlignSingularTest, Kabsch) {
 TEST_F(AlignSingularTest, Qcp) {
   run_test([](const auto &q, const auto &t, auto mode) {
     // might fail on optimized builds if evecprec is too high
-    return qcp(q, t, mode, 1e-11, 1e-8);
+    return qcp(q, t, mode, false, 1e-11, 1e-8);
   });
 }
 

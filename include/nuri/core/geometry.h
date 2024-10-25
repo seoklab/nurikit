@@ -487,6 +487,7 @@ kabsch(const Eigen::Ref<const Matrix3Xd> &query,
  * @param mode Selects the return value. Defaults to AlignMode::kBoth. Note that
  *        even if AlignMode::kXformOnly is selected, the MSD value will report a
  *        negative value if the calculation fails.
+ * @param reflection Whether to allow reflection. Defaults to false.
  * @param evalprec The precision of eigenvalue calculation. Defaults to 1e-11.
  * @param evecprec The precision of eigenvector calculation. Defaults to 1e-6.
  * @param maxiter The maximum number of Newton-Raphson iterations. Defaults
@@ -499,9 +500,13 @@ kabsch(const Eigen::Ref<const Matrix3Xd> &query,
  *         guarantee convergence.
  *
  * This implementation is based on the reference implementation by P Liu and DL
- * Theobald, but modified for better stability and error handling.
+ * Theobald, but modified for better stability and error handling. Also, an
+ * option to allow reflection is added based on observations of EA Coutsias, C
+ * Seok, and KA Dill (see more details in the following references).
  *
  * References:
+ * - EA Coutsias, C Seok, and KA Dill. *J. Comput. Chem.* **2004**, *25* (15),
+ *   1849-1857. DOI:[10.1002/jcc.20110](https://doi.org/10.1002/jcc.20110)
  * - P Liu, DK Agrafiotis, and DL Theobald. *J. Comput. Chem.* **2011**, *32*
  *   (1), 185-186. DOI:[10.1002/jcc.21607](https://doi.org/10.1002/jcc.21607)
  * - P Liu, DK Agrafiotis, and DL Theobald. *J. Comput. Chem.* **2010**, *31*
@@ -547,7 +552,8 @@ kabsch(const Eigen::Ref<const Matrix3Xd> &query,
 extern std::pair<Affine3d, double>
 qcp(const Eigen::Ref<const Matrix3Xd> &query,
     const Eigen::Ref<const Matrix3Xd> &templ, AlignMode mode = AlignMode::kBoth,
-    double evalprec = 1e-11, double evecprec = 1e-6, int maxiter = 50);
+    bool reflection = false, double evalprec = 1e-11, double evecprec = 1e-6,
+    int maxiter = 50);
 
 /**
  * @brief A routine for converting squared pairwise distances to cartesian
