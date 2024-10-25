@@ -3,9 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <cmath>
+#include <tuple>
+#include <utility>
+
 #include <absl/log/absl_check.h>
 
 #include "nuri/algo/optim.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 namespace internal {

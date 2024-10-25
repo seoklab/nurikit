@@ -3,12 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <cmath>
+
 #include <Eigen/Dense>
 
+#include <absl/base/optimization.h>
 #include <absl/log/absl_log.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/algo/optim.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 using internal::Dcsrch;
