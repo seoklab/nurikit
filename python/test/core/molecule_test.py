@@ -182,10 +182,10 @@ def test_add_conformer():
 
     mol.add_conf(np.arange(6).reshape(2, 3))
 
-    with pytest.raises(ValueError, match="size mismatch"):
+    with pytest.raises(ValueError, match="expected 3 columns"):
         mol.add_conf(np.arange(6).reshape(3, 2))
 
-    with pytest.raises(ValueError, match="size mismatch"):
+    with pytest.raises(ValueError, match="different number of atoms"):
         mol.add_conf(np.arange(9).reshape(3, 3))
 
     assert mol.num_confs() == 1
