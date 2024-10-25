@@ -40,6 +40,8 @@ class LBfgsB;
 
 namespace internal {
   constexpr double kEpsMach = 2.220446049250313e-16;
+  constexpr double kSqrtEpsMach =
+      1.4901161193847655978721599999999997530663236602513281125266e-8;
 
   enum class DcsrchStatus : std::uint8_t {
     kFound,
@@ -569,6 +571,115 @@ LbfgsbResult l_bfgs_b(FuncGrad &&fg, MutRef<ArrayXd> x, const ArrayXi &nbd,
   LBfgsB lbfgsb(x, { nbd, bounds }, m);
   return lbfgsb.minimize(std::forward<FuncGrad>(fg), factr, pgtol, maxiter,
                          maxls);
+}
+
+enum class BfgsResultCode {
+  kSuccess,
+  kMaxIterReached,
+  kInvalidInput,
+  kAbnormalTerm,
+};
+
+struct BfgsResult {
+  BfgsResultCode code;
+  int niter;
+  double fx;
+  ArrayXd gx;
+};
+
+class Bfgs {
+public:
+  Bfgs(MutRef<ArrayXd> x);
+
+  template <class FuncGrad>
+  BfgsResult minimize(FuncGrad fg, const double pgtol = 1e-5,
+                      const double xrtol = 0, int maxiter = -1,
+                      const int maxls = 100, const double ftol = 1e-4,
+                      const double gtol = 0.9, const double xtol = 1e-14) {
+    using internal::Dcsrch;
+    using internal::DcsrchStatus;
+
+    if (maxiter < 0)
+      maxiter = 200 * static_cast<int>(x().size());
+
+    Hk_.setIdentity();
+
+    ArrayXd gfk(x().size());
+
+    const double f0 = fg(gfk, x());
+    double gnorm = gfk.abs().maxCoeff();
+    if (gnorm <= pgtol)
+      return { BfgsResultCode::kSuccess, 0, f0, std::move(gfk) };
+
+    int k = 0;
+    double fk = f0, fkm1 = fk + gfk.matrix().norm() * 0.5;
+    for (; k < maxiter; ++k) {
+      Dcsrch dcsrch = prepare_lnsrch(gfk, fk, fkm1, ftol, gtol, xtol);
+      fkm1 = fk;
+
+      bool success = false;
+      for (int iter = 0; iter < maxls; ++iter) {
+        xk() = x() + dcsrch.step() * pk().array();
+        fk = fg(gfkp1(), xk());
+
+        auto status = dcsrch(fk, gfkp1().matrix().dot(pk()));
+        if (status == DcsrchStatus::kContinue)
+          continue;
+
+        success = true;
+        break;
+      }
+      if (!success)
+        return { BfgsResultCode::kAbnormalTerm, k + 1, fk, std::move(gfk) };
+
+      bool converged = prepare_next_iter(gfk, dcsrch.step(), pgtol, xrtol);
+      if (converged)
+        return { BfgsResultCode::kSuccess, k + 1, fk, std::move(gfk) };
+    }
+
+    return { BfgsResultCode::kMaxIterReached, maxiter, fk, std::move(gfk) };
+  }
+
+private:
+  internal::Dcsrch prepare_lnsrch(const ArrayXd &gfk, double fk, double fkm1,
+                                  double ftol, double gtol, double xtol);
+
+  bool prepare_next_iter(ArrayXd &gfk, double step, double pgtol, double xrtol);
+
+  MutRef<ArrayXd> &x() { return x_; }
+
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  Eigen::SelfAdjointView<MatrixXd, Eigen::Upper> Hk() {
+    return Hk_.selfadjointView<Eigen::Upper>();
+  }
+
+  VectorXd &pk() { return pk_; }
+
+  ArrayXd &xk() { return xk_; }
+  Eigen::MatrixWrapper<ArrayXd> sk() { return xk_.matrix(); }
+
+  VectorXd &yk() { return yk_; }
+
+  ArrayXd &gfkp1() { return gfkp1_; }
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  Eigen::MatrixWrapper<ArrayXd> Hk_yk() { return gfkp1_.matrix(); }
+
+  MutRef<ArrayXd> x_;
+  ArrayXd xk_, gfkp1_;
+
+  MatrixXd Hk_;
+  VectorXd pk_, yk_;
+};
+
+template <class FuncGrad>
+inline BfgsResult bfgs(FuncGrad &&fg, MutRef<ArrayXd> x,
+                       const double pgtol = 1e-5, const double xrtol = 0,
+                       int maxiter = -1, const int maxls = 100,
+                       const double ftol = 1e-4, const double gtol = 0.9,
+                       const double xtol = 1e-14) {
+  Bfgs bfgs(x);
+  return bfgs.minimize(std::forward<FuncGrad>(fg), pgtol, xrtol, maxiter, maxls,
+                       ftol, gtol, xtol);
 }
 }  // namespace nuri
 
