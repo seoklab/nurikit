@@ -2,6 +2,7 @@
 # Project NuriKit - Copyright 2024 SNU Compbio Lab.
 # SPDX-License-Identifier: Apache-2.0
 #
+# pyright: reportAttributeAccessIssue=false
 
 import numpy as np
 import pytest
@@ -104,7 +105,7 @@ def test_add_atom():
     assert atom.atomic_number == 6
 
     i = -1
-    for i, atom in enumerate(mol, 1):
+    for i, atom in enumerate(mol, 1):  # noqa: B007
         assert atom.atomic_number == 6
     assert i == 1
 
@@ -215,7 +216,7 @@ def test_neighbors(mol: Molecule):
     assert len(c0) == 3
 
     i = -1
-    for i, nei in enumerate(c0, 1):
+    for i, nei in enumerate(c0, 1):  # noqa: B007
         assert nei.src.id == 0
         assert nei.dst.id in (2, 8, 9)
     assert i == 3
