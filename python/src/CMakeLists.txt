@@ -14,11 +14,11 @@ include(NuriKitPythonUtils)
 
 nuri_python_generate_stubs(nuri)
 
-nuri_python_add_module(_log_interface nuri/_log_interface.cpp)
+nuri_python_add_module(_log_interface nuri/_log_interface_module.cpp)
 target_link_libraries(nuri_python_log_interface PRIVATE absl::log_initialize)
 
 nuri_python_add_module(_core OUTPUT_DIRECTORY "core"
-  nuri/core/_core.cpp
+  nuri/core/_core_module.cpp
   nuri/core/containers.cpp
   nuri/core/element.cpp
   nuri/core/molecule.cpp
