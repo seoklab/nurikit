@@ -568,8 +568,9 @@ failure:
 }
 
 namespace {
-  double qcp_find_largest_eig(const Matrix3d &R, const double e0,
-                              const double evalprec, const int maxiter) {
+  std::pair<double, bool>
+  qcp_find_nearest_eig(const Matrix3d &R, const double det, const double e0,
+                       const double evalprec, const int maxiter) {
     const Matrix3d Rsq = R.cwiseAbs2();
 
     double F = (-(R(0, 2) + R(2, 0)) * (R(1, 2) - R(2, 1))
@@ -598,7 +599,7 @@ namespace {
            E2 = 2 * (R(1, 1) * R(2, 2) - R(1, 2) * R(2, 1)),
            E = (E1 - E2) * (E1 + E2);
 
-    const double c2 = -2 * Rsq.sum(), c1 = -8 * R.determinant(),
+    const double c2 = -2 * Rsq.sum(), c1 = -8 * det,
                  c0 = Dsqrt * Dsqrt + E + F + G + H + I;
 
     double eig = e0, oldeig;
@@ -610,16 +611,16 @@ namespace {
       const double f = esq * esq + c2 * esq + c1 * eig + c0;
       if (ABSL_PREDICT_FALSE(std::abs(df) <= kEps)) {
         // singular; test for convergence
-        return std::abs(f) <= evalprec ? eig : -1;
+        return { eig, std::abs(f) <= evalprec };
       }
 
       eig -= f / df;
 
       if (std::abs(oldeig - eig) < std::abs(evalprec * eig))
-        return eig;
+        return { eig, true };
     }
 
-    return -1;
+    return { eig, false };
   }
 
   std::pair<Eigen::Quaterniond, bool>
@@ -720,8 +721,9 @@ namespace {
 
 std::pair<Affine3d, double> qcp(const Eigen::Ref<const Matrix3Xd> &query,
                                 const Eigen::Ref<const Matrix3Xd> &templ,
-                                AlignMode mode, const double evalprec,
-                                const double evecprec, const int maxiter) {
+                                AlignMode mode, bool reflection,
+                                const double evalprec, const double evecprec,
+                                const int maxiter) {
   std::pair<Affine3d, double> ret { {}, 0.0 };
 
   MatrixX3d qt = query.transpose();
@@ -734,17 +736,22 @@ std::pair<Affine3d, double> qcp(const Eigen::Ref<const Matrix3Xd> &query,
   tt.rowwise() -= tm;
 
   const Matrix3d R = tt.transpose() * qt;
-  const double GA = tt.cwiseAbs2().sum(), GB = qt.cwiseAbs2().sum();
+  const double GA = tt.cwiseAbs2().sum(), GB = qt.cwiseAbs2().sum(),
+               det = R.determinant();
 
-  const double eig = qcp_find_largest_eig(R, (GA + GB) / 2, evalprec, maxiter);
-  if (eig < 0) {
+  double e0 = (GA + GB) / 2;
+  if (reflection)
+    e0 = std::copysign(e0, det);
+
+  const auto [eig, ok] = qcp_find_nearest_eig(R, det, e0, evalprec, maxiter);
+  if (!ok) {
     ret.second = -1;
     return ret;
   }
 
   if (mode != AlignMode::kXformOnly) {
-    double msd =
-        nonnegative(GA + GB - 2 * eig) / static_cast<double>(templ.cols());
+    double msd = nonnegative(GA + GB - 2 * std::abs(eig))
+                 / static_cast<double>(templ.cols());
     ret.second = msd;
   }
 
@@ -758,6 +765,9 @@ std::pair<Affine3d, double> qcp(const Eigen::Ref<const Matrix3Xd> &query,
   }
 
   ret.first.linear() = qhat.toRotationMatrix();
+  if (reflection)
+    ret.first.linear() *= std::copysign(1, det);
+
   ret.first.translation().noalias() =
       -1 * (ret.first.linear() * qm.transpose());
   ret.first.translation() += tm.transpose();
