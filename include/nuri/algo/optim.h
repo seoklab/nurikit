@@ -587,6 +587,53 @@ struct BfgsResult {
   ArrayXd gx;
 };
 
+/**
+ * @brief BFGS minimizer
+ * @sa bfgs
+ *
+ * References:
+ *   - "Broyden-Fletcher-Goldfarb-Shanno algorithm",
+ *     [Wikipedia](https://en.wikipedia.org/wiki/Broyden%E2%80%93Fletcher%E2%80%93Goldfarb%E2%80%93Shanno_algorithm)
+ *     (Accessed 2024-10-25).
+ *
+ * This implementation is based on the Python implementation of BFGS in the
+ * SciPy library, with optimized Hessian update step suggested by the linked
+ * Wikipedia page. The original implementation is released under the BSD
+ * 3-Clause License (included below).
+ *
+ * \code{.unparsed}
+ * Copyright (c) 2001-2002 Enthought, Inc. 2003-2024, SciPy Developers.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * \endcode
+ */
 class Bfgs {
 public:
   Bfgs(MutRef<ArrayXd> x);
@@ -671,6 +718,68 @@ private:
   VectorXd pk_, yk_;
 };
 
+/**
+ * @brief Minimize a function using BFGS algorithm.
+ *
+ * @tparam FuncGrad Function object that computes the function value and
+ *         gradient. Function value should be returned and gradient should be
+ *         updated in the input gradient vector.
+ * @param fg Function object.
+ * @param x Initial guess. Will be modified in-place.
+ * @param pgtol Stop when the projected gradient is less than this value.
+ * @param xrtol Stop when the relative change in x is less than this value.
+ * @param maxiter Maximum number of iterations. If negative, it will be set to
+ *        200 times the number of variables.
+ * @param maxls Maximum number of line search steps.
+ * @return A struct with the result code, number of iterations, final function
+ *         value, and final gradient.
+ *
+ * @note The input `x` will be modified in-place.
+ * @sa Bfgs
+ *
+ * References:
+ *   - "Broyden-Fletcher-Goldfarb-Shanno algorithm",
+ *     [Wikipedia](https://en.wikipedia.org/wiki/Broyden%E2%80%93Fletcher%E2%80%93Goldfarb%E2%80%93Shanno_algorithm)
+ *     (Accessed 2024-10-25).
+ *
+ * This implementation is based on the Python implementation of BFGS in the
+ * SciPy library, with optimized Hessian update step suggested by the linked
+ * Wikipedia page. The original implementation is released under the BSD
+ * 3-Clause License (included below).
+ *
+ * \code{.unparsed}
+ * Copyright (c) 2001-2002 Enthought, Inc. 2003-2024, SciPy Developers.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * \endcode
+ */
 template <class FuncGrad>
 inline BfgsResult bfgs(FuncGrad &&fg, MutRef<ArrayXd> x,
                        const double pgtol = 1e-5, const double xrtol = 0,
