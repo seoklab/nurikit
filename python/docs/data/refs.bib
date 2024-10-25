@@ -24,3 +24,96 @@
   year    = {1997},
   doi     = {10.37236/1294}
 }
+
+@article{tm-align,
+  author   = {Zhang, Yang and Skolnick, Jeffrey},
+  title    = {{TM-align: a protein structure alignment algorithm based on the TM-score}},
+  journal  = {Nucleic Acids Research},
+  volume   = {33},
+  number   = {7},
+  pages    = {2302-2309},
+  year     = {2005},
+  month    = {01},
+  abstract = {{ We have developed TM-align, a new algorithm to identify the best structural alignment between protein pairs that combines the TM-score rotation matrix and Dynamic Programming (DP). The algorithm is ∼4 times faster than CE and 20 times faster than DALI and SAL. On average, the resulting structure alignments have higher accuracy and coverage than those provided by these most often-used methods. TM-align is applied to an all-against-all structure comparison of 10 515 representative protein chains from the Protein Data Bank (PDB) with a sequence identity cutoff \&lt;95\%: 1996 distinct folds are found when a TM-score threshold of 0.5 is used. We also use TM-align to match the models predicted by TASSER for solved non-homologous proteins in PDB. For both folded and misfolded models, TM-align can almost always find close structural analogs, with an average root mean square deviation, RMSD, of 3 Å and 87\% alignment coverage. Nevertheless, there exists a significant correlation between the correctness of the predicted structure and the structural similarity of the model to the other proteins in the PDB. This correlation could be used to assist in model selection in blind protein structure predictions. The TM-align program is freely downloadable at http://bioinformatics.buffalo.edu/TM-align . }},
+  issn     = {0305-1048},
+  doi      = {10.1093/nar/gki524}
+}
+
+@article{core:geom:kabsch-1976,
+  author   = {Kabsch, W.},
+  title    = {{A solution for the best rotation to relate two sets of vectors}},
+  journal  = {Acta Crystallographica Section A},
+  year     = {1976},
+  volume   = {32},
+  number   = {5},
+  pages    = {922--923},
+  month    = {Sep},
+  doi      = {10.1107/S0567739476001873},
+  abstract = {A simple procedure is derived which determines a best rotation of a given vector set into a second vector set by minimizing the weighted sum of squared deviations. The method is generalized for any given metric constraint on the transformation.}
+}
+
+@article{core:geom:kabsch-1978,
+  author   = {Kabsch, W.},
+  title    = {{A discussion of the solution for the best rotation to relate two sets of vectors}},
+  journal  = {Acta Crystallographica Section A},
+  year     = {1978},
+  volume   = {34},
+  number   = {5},
+  pages    = {827--828},
+  month    = {Sep},
+  doi      = {10.1107/S0567739478001680},
+  abstract = {A method is discussed for obtaining the best proper rotation to relate two sets of vectors.}
+}
+
+@article{core:geom:qcp-2004,
+  author   = {Coutsias, Evangelos A. and Seok, Chaok and Dill, Ken A.},
+  title    = {Using quaternions to calculate RMSD},
+  journal  = {Journal of Computational Chemistry},
+  volume   = {25},
+  number   = {15},
+  pages    = {1849-1857},
+  keywords = {quarternions, RMSD},
+  doi      = {10.1002/jcc.20110},
+  abstract = {Abstract A widely used way to compare the structures of biomolecules or solid bodies is to translate and rotate one structure with respect to the other to minimize the root-mean-square deviation (RMSD). We present a simple derivation, based on quaternions, for the optimal solid body transformation (rotation-translation) that minimizes the RMSD between two sets of vectors. We prove that the quaternion method is equivalent to the well-known formula due to Kabsch. We analyze the various cases that may arise, and give a complete enumeration of the special cases in terms of the arrangement of the eigenvalues of a traceless, 4 × 4 symmetric matrix. A key result here is an expression for the gradient of the RMSD as a function of model parameters. This can be useful, for example, in finding the minimum energy path of a reaction using the elastic band methods or in optimizing model parameters to best fit a target structure. © 2004 Wiley Periodicals, Inc. J Comput Chem 25: 1849–1857, 2004},
+  year     = {2004}
+}
+
+@article{core:geom:qcp-2005,
+  author   = {Theobald, Douglas L.},
+  title    = {{Rapid calculation of RMSDs using a quaternion-based characteristic polynomial}},
+  journal  = {Acta Crystallographica Section A},
+  year     = {2005},
+  volume   = {61},
+  number   = {4},
+  pages    = {478--480},
+  month    = {Jul},
+  doi      = {10.1107/S0108767305015266},
+  abstract = {A common measure of conformational similarity in structural bioinformatics is the minimum root mean square deviation (RMSD) between the coordinates of two macromolecules. In many applications, the rotations relating the structures are not needed. Several common algorithms for calculating RMSDs require the computationally costly procedures of determining either the eigen decomposition or matrix inversion of a 3\times3 or 4\times4 matrix. Using a quaternion-based method, here a simple algorithm is developed that rapidly and stably determines RMSDs by circumventing the decomposition and inversion problems.},
+  keywords = {characteristic equation, quartic polynomial, quaternion, RMSD, superposition}
+}
+
+@article{core:geom:qcp-2010,
+  author   = {Liu, Pu and Agrafiotis, Dimitris K. and Theobald, Douglas L.},
+  title    = {Fast determination of the optimal rotational matrix for macromolecular superpositions},
+  journal  = {Journal of Computational Chemistry},
+  volume   = {31},
+  number   = {7},
+  pages    = {1561-1563},
+  keywords = {rotational matrix, superposition, RMSD, quaternion, adjoint matrix, root mean squared deviation, protein structure alignment, fragment-assembly, conformational sampling},
+  doi      = {10.1002/jcc.21439},
+  abstract = {Abstract Finding the rotational matrix that minimizes the sum of squared deviations between two vectors is an important problem in bioinformatics and crystallography. Traditional algorithms involve the inversion or decomposition of a 3 × 3 or 4 × 4 matrix, which can be computationally expensive and numerically unstable in certain cases. Here, we present a simple and robust algorithm to rapidly determine the optimal rotation using a Newton-Raphson quaternion-based method and an adjoint matrix. Our method is at least an order of magnitude more efficient than conventional inversion/decomposition methods, and it should be particularly useful for high-throughput analyses of molecular conformations. © 2009 Wiley Periodicals, Inc. J Comput Chem, 2010},
+  year     = {2010}
+}
+
+@article{core:geom:qcp-2011,
+  author   = {Kneller, Gerald R.},
+  title    = {Comment on “Fast determination of the optimal rotational matrix for macromolecular superpositions” [J. Comp. Chem. 31, 1561 (2010)]},
+  journal  = {Journal of Computational Chemistry},
+  volume   = {32},
+  number   = {1},
+  pages    = {183-184},
+  keywords = {rotational superposition, structural alignment, quaternions},
+  doi      = {10.1002/jcc.21607},
+  abstract = {Abstract Recently Liu et al. published a fast algorithm to solve the eigenvector problem arising in the quaternion-based method for the rotational superposition of molecular structures (J Comput Chem 2010, 31, 1561.). In this Comment, it is shown that the construction of the 4 × 4 matrix to be diagonalized—and not the diagonalization itself—represents the dominating part of the computational effort for the quaternion-based solution of the rotational superposition problem if molecules with more than about 100 atoms are considered. © 2010 Wiley Periodicals, Inc. J Comput Chem, 2010},
+  year     = {2011}
+}
