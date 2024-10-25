@@ -61,6 +61,9 @@ check_convert_points(const py::handle &py_q, const py::handle &py_t) {
   if (query.cols() < 3)
     throw py::value_error("too few points to align, need at least 3 points");
 
+  if (!query.array().isFinite().all() || !templ.array().isFinite().all())
+    throw py::value_error("NaN or infinite values in the points");
+
   return { query, templ };
 }
 
