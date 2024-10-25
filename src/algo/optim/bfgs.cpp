@@ -41,9 +41,12 @@ Dcsrch Bfgs::prepare_lnsrch(const ArrayXd &gfk, const double fk,
 
 namespace {
   void swap_gfks(ArrayXd &gfk, ArrayXd &gfkp1) noexcept {
-    ABSL_ASSUME(gfk.size() == gfkp1.size());
-    ABSL_ASSUME(gfk.rows() == gfkp1.rows());
-    ABSL_ASSUME(gfk.cols() == gfkp1.cols());
+    const auto s1 = gfk.size(), s2 = gfkp1.size();
+    const auto r1 = gfk.rows(), r2 = gfkp1.rows();
+    const auto c1 = gfk.cols(), c2 = gfkp1.cols();
+    ABSL_ASSUME(s1 == s2);
+    ABSL_ASSUME(r1 == r2);
+    ABSL_ASSUME(c1 == c2);
 
     gfk.swap(gfkp1);
   }
