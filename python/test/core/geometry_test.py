@@ -52,3 +52,26 @@ def test_align(points: Tuple[np.ndarray, np.ndarray], method: str):
 
     rmsd2 = ngeom.align_rmsd(q, t, method=method, reflection=True)
     assert np.allclose(rmsd, rmsd2, atol=1e-6)
+
+
+@pytest.mark.parametrize(
+    "method",
+    ["qcp", "kabsch"],
+)
+def test_align_nonfinite(method: str):
+    q = np.ones((10, 3))
+    q[0, 0] = np.nan
+
+    t = np.ones((10, 3))
+
+    with pytest.raises(ValueError, match="NaN or infinite values"):
+        ngeom.align_points(q, t, method=method, reflection=False)
+
+    with pytest.raises(ValueError, match="NaN or infinite values"):
+        ngeom.align_points(q, t, method=method, reflection=True)
+
+    with pytest.raises(ValueError, match="NaN or infinite values"):
+        ngeom.align_rmsd(q, t, method=method, reflection=False)
+
+    with pytest.raises(ValueError, match="NaN or infinite values"):
+        ngeom.align_rmsd(q, t, method=method, reflection=True)
