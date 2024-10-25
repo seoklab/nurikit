@@ -606,12 +606,13 @@ extern void log_aromatic_warning(const BondData &bond);
 
 template <class MatrixLike>
 void assign_conf(MatrixLike &conf, const py::handle &obj) {
-  auto mat = map_py_matrix(obj);
+  static_assert(MatrixLike::RowsAtCompileTime == 3);
+  auto mat = map_py_matrix<3>(obj);
 
-  if (mat.rows() != conf.rows() || mat.cols() != conf.cols()) {
-    throw py::value_error(absl::StrCat(
-        "conformer size mismatch: expected (", conf.rows(), ", ", conf.cols(),
-        "), got (", mat.rows(), ", ", mat.cols(), ")"));
+  if (mat.cols() != conf.cols()) {
+    throw py::value_error(
+        absl::StrCat("conformer has different number of atoms: expected ",
+                     conf.cols(), ", got ", mat.cols()));
   }
 
   conf = mat;
@@ -1136,10 +1137,7 @@ Get the position of the atom.
   cls.def(
       "set_pos",
       [](T &self, const py::handle &obj, int conf) {
-        auto vec = map_py_vector(obj);
-        if (vec.size() != 3)
-          throw py::value_error("position must be a 3D vector");
-
+        auto vec = map_py_vector<3>(obj);
         auto blk = self.pos(conf);
         blk = vec;
       },

@@ -3,11 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import numpy as np
 import pytest
 
-import numpy as np
-
-from nuri.core import Molecule, BondOrder
+from nuri.core import BondOrder, Molecule
 
 
 def test_empty():
@@ -58,7 +57,7 @@ def test_add_atom(mol: Molecule):
 
     sa = sub.atom(0)
     with pytest.raises(TypeError):
-        sub.add_atoms(["test"])
+        sub.add_atoms(["test"])  # pyright: ignore[reportArgumentType]
 
     assert sa.atomic_number == 6
     assert sub.num_atoms() == 4
@@ -87,7 +86,7 @@ def test_add_bond(mol: Molecule):
 
     sb = sub.bond(0)
     with pytest.raises(TypeError):
-        sub.add_bonds(["test"])
+        sub.add_bonds(["test"])  # pyright: ignore[reportArgumentType]
 
     assert sb.order == BondOrder.Single
     assert sub.num_atoms() == 4
@@ -107,7 +106,7 @@ def test_atom(mol3dsub: Molecule):
     assert mol3dsub[2].formal_charge == +1
 
     i = -1
-    for i, atom in enumerate(sub, 1):
+    for i, atom in enumerate(sub, 1):  # noqa: B007
         assert atom.atomic_number == 6 or atom.atomic_number == 1
     assert i == 3
 
@@ -145,7 +144,7 @@ def test_bond(molsub: Molecule):
     assert molsub.bond(1).order == BondOrder.Single
 
     i = -1
-    for i, bond in enumerate(bonds, 1):
+    for i, bond in enumerate(bonds, 1):  # noqa: B007
         assert bond.order == BondOrder.Single
     assert i == 1
 
@@ -194,15 +193,17 @@ def test_neighbors(molsub: Molecule):
     assert sub.parent_atoms() == [1, 2, 3, 7]
 
     i = -1
-    for i, nei in enumerate(sub[1], 1):
+    for i, nei in enumerate(sub[1], 1):  # noqa: B007
         assert nei.dst.id == 2
     assert i == 1
 
     with pytest.raises(ValueError, match="not a neighbor"):
         sub.neighbor(sub[0], sub[1])
 
-    assert (molsub.bond(sub[0].as_parent(), sub[1].as_parent()).order
-            == BondOrder.Single)
+    assert (
+        molsub.bond(sub[0].as_parent(), sub[1].as_parent()).order
+        == BondOrder.Single
+    )
 
     sub.add_bonds([3])
     assert sub.neighbor(sub[0], sub[1]).bond.order == BondOrder.Single
@@ -260,8 +261,12 @@ def test_find_neighbor(molsub: Molecule):
     assert nei_10_atoms.src.id == 1
     assert nei_10_atoms.dst.id == 0
 
-    assert (nei_01.bond.id == nei_10.bond.id
-            == nei_01_atoms.bond.id == nei_10_atoms.bond.id)
+    assert (
+        nei_01.bond.id
+        == nei_10.bond.id
+        == nei_01_atoms.bond.id
+        == nei_10_atoms.bond.id
+    )
 
 
 def test_erase_atom(molsub: Molecule):
@@ -415,7 +420,7 @@ def test_conformers(mol3dsub: Molecule):
     sub = mol3dsub.subs[0]
 
     i = -1
-    for i, conf in enumerate(sub.conformers(), 1):
+    for i, conf in enumerate(sub.conformers(), 1):  # noqa: B007
         assert conf.shape == (sub.num_atoms(), 3)
     assert i == 2
 
@@ -430,7 +435,7 @@ def test_bond_length(mol3dsub: Molecule):
     assert l1 == pytest.approx(l2)
 
     lsq1 = bond.sqlen()
-    assert lsq1 == pytest.approx(l2 ** 2)
+    assert lsq1 == pytest.approx(l2**2)
 
 
 def test_iter_substruct(molsub: Molecule):
@@ -487,7 +492,7 @@ def test_insert_substruct(molsub: Molecule):
     assert len(subs) == 2
 
     with pytest.raises(RuntimeError):
-        sub.id
+        assert sub.id is not None
 
     subs.insert(2, sub_copy)
     assert len(subs) == 3
@@ -504,7 +509,7 @@ def test_set_substruct(molsub: Molecule):
     subs[0] = sub
 
     with pytest.raises(RuntimeError):
-        sub.id
+        assert sub.id is not None
 
     newsub = subs[0]
     assert len(newsub) == 3

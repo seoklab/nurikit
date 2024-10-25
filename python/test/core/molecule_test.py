@@ -2,12 +2,12 @@
 # Project NuriKit - Copyright 2024 SNU Compbio Lab.
 # SPDX-License-Identifier: Apache-2.0
 #
-
-import pytest
+# pyright: reportAttributeAccessIssue=false
 
 import numpy as np
+import pytest
 
-from nuri.core import Molecule, AtomData, BondData, Hyb, BondOrder
+from nuri.core import AtomData, BondData, BondOrder, Hyb, Molecule
 
 
 def test_empty():
@@ -105,7 +105,7 @@ def test_add_atom():
     assert atom.atomic_number == 6
 
     i = -1
-    for i, atom in enumerate(mol, 1):
+    for i, atom in enumerate(mol, 1):  # noqa: B007
         assert atom.atomic_number == 6
     assert i == 1
 
@@ -182,10 +182,10 @@ def test_add_conformer():
 
     mol.add_conf(np.arange(6).reshape(2, 3))
 
-    with pytest.raises(ValueError, match="size mismatch"):
+    with pytest.raises(ValueError, match="expected 3 columns"):
         mol.add_conf(np.arange(6).reshape(3, 2))
 
-    with pytest.raises(ValueError, match="size mismatch"):
+    with pytest.raises(ValueError, match="different number of atoms"):
         mol.add_conf(np.arange(9).reshape(3, 3))
 
     assert mol.num_confs() == 1
@@ -195,7 +195,7 @@ def test_add_conformer():
     assert conf[0, 2] == 2
 
     pos = mol[0].get_pos()
-    assert pos.shape == (3, )
+    assert pos.shape == (3,)
     assert np.allclose(pos, conf[0])
 
     with pytest.raises(IndexError):
@@ -216,7 +216,7 @@ def test_neighbors(mol: Molecule):
     assert len(c0) == 3
 
     i = -1
-    for i, nei in enumerate(c0, 1):
+    for i, nei in enumerate(c0, 1):  # noqa: B007
         assert nei.src.id == 0
         assert nei.dst.id in (2, 8, 9)
     assert i == 3
@@ -502,7 +502,7 @@ def test_bond_length(mol3d: Molecule):
     assert l1 == pytest.approx(l2)
 
     lsq1 = bond.sqlen()
-    assert lsq1 == pytest.approx(l2 ** 2)
+    assert lsq1 == pytest.approx(l2**2)
 
 
 def test_bond_rotation(mol3d: Molecule):

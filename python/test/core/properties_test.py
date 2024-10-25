@@ -6,7 +6,7 @@
 import pytest
 
 from nuri import periodic_table
-from nuri.core import Molecule, AtomData, BondData, Hyb, BondOrder
+from nuri.core import AtomData, BondData, BondOrder, Hyb, Molecule
 from nuri.core._core import _PropertyMap
 
 
@@ -35,17 +35,21 @@ def _get_subatom_external():
     return s[0]
 
 
-@pytest.mark.parametrize("datalike", [
-    AtomData(),
-    _get_atom(),
-    _get_subatom(),
-    _get_subatom_external(),
-], ids=[
-    "AtomData",
-    "Atom",
-    "ProxySubAtom",
-    "SubAtom",
-])
+@pytest.mark.parametrize(
+    "datalike",
+    [
+        AtomData(),
+        _get_atom(),
+        _get_subatom(),
+        _get_subatom_external(),
+    ],
+    ids=[
+        "AtomData",
+        "Atom",
+        "ProxySubAtom",
+        "SubAtom",
+    ],
+)
 def test_atom_data_interface(datalike: AtomData):
     datalike.hyb = Hyb.SP3D2
     assert datalike.hyb == Hyb.SP3D2
@@ -158,17 +162,21 @@ def _get_subbond_external():
     return s.bonds()[0]
 
 
-@pytest.mark.parametrize("datalike", [
-    BondData(),
-    _get_bond(),
-    _get_subbond(),
-    _get_subbond_external(),
-], ids=[
-    "BondData",
-    "Bond",
-    "ProxySubBond",
-    "SubBond",
-])
+@pytest.mark.parametrize(
+    "datalike",
+    [
+        BondData(),
+        _get_bond(),
+        _get_subbond(),
+        _get_subbond_external(),
+    ],
+    ids=[
+        "BondData",
+        "Bond",
+        "ProxySubBond",
+        "SubBond",
+    ],
+)
 def test_bond_data_interface(datalike: BondData):
     datalike.order = BondOrder.Double
     assert datalike.order == BondOrder.Double
@@ -208,13 +216,17 @@ def test_bond_data_interface(datalike: BondData):
     assert bd.order == datalike.order
 
 
-@pytest.mark.parametrize("maplike", [
-    _PropertyMap(),
-    Molecule().props,
-], ids=[
-    "PropertyMap",
-    "ProxyPropertyMap",
-])
+@pytest.mark.parametrize(
+    "maplike",
+    [
+        _PropertyMap(),
+        Molecule().props,
+    ],
+    ids=[
+        "PropertyMap",
+        "ProxyPropertyMap",
+    ],
+)
 def test_propertymap_interface(maplike: _PropertyMap):
     maplike["test"] = "1"
     assert maplike["test"] == "1"

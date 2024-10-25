@@ -259,22 +259,33 @@ private:
 };
 
 using DynamicStrides = Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>;
-using PyVectorMap = Eigen::Map<const Vector<double, Eigen::Dynamic>,
-                               Eigen::Unaligned, Eigen::InnerStride<>>;
-using PyMatrixMap =
-    Eigen::Map<const Matrix<double, Eigen::Dynamic, Eigen::Dynamic>,
-               Eigen::Unaligned, DynamicStrides>;
 
-inline PyVectorMap map_py_vector(const py::handle &buf) {
+template <Eigen::Index Rows = Eigen::Dynamic>
+using PyVectorMap = Eigen::Map<const Vector<double, Rows>, Eigen::Unaligned,
+                               Eigen::InnerStride<>>;
+
+template <Eigen::Index Rows = Eigen::Dynamic, Eigen::Index Cols = Eigen::Dynamic>
+using PyMatrixMap = Eigen::Map<const Matrix<double, Rows, Cols>,
+                               Eigen::Unaligned, DynamicStrides>;
+
+template <Eigen::Index Rows = Eigen::Dynamic>
+inline PyVectorMap<Rows> map_py_vector(const py::handle &buf) {
   auto arr = py::array_t<double>::ensure(buf);
   if (arr.ndim() != 1) {
     throw py::value_error(
         absl::StrCat("expected 1-dimensional array, got ", arr.ndim()));
   }
 
+  if constexpr (Rows != Eigen::Dynamic) {
+    if (arr.size() != Rows) {
+      throw py::value_error(
+          absl::StrCat("expected ", Rows, " elements, got ", arr.size()));
+    }
+  }
+
   Eigen::InnerStride<> stride(arr.strides()[0]
                               / static_cast<py::ssize_t>(sizeof(double)));
-  PyVectorMap map(arr.data(), arr.size(), stride);
+  PyVectorMap<Rows> map(arr.data(), arr.size(), stride);
   return map;
 }
 
@@ -288,23 +299,48 @@ inline PyVectorMap map_py_vector(const py::handle &buf) {
  *         For example, if the buffer is a 4x3 array, the resulting matrix will
  *         be a 3x4 matrix.
  */
-inline PyMatrixMap map_py_matrix(const py::handle &buf) {
+template <Eigen::Index Rows = Eigen::Dynamic, Eigen::Index Cols = Eigen::Dynamic>
+inline Eigen::Map<const Matrix<double, Rows, Cols>, Eigen::Unaligned,
+                  DynamicStrides>
+map_py_matrix(const py::handle &buf) {
   auto arr = py::array_t<double>::ensure(buf);
   if (arr.ndim() != 2) {
     throw py::value_error(
         absl::StrCat("expected 2-dimensional array, got ", arr.ndim()));
   }
 
+  const auto py_rows = arr.shape()[0], py_cols = arr.shape()[1];
+
+  if constexpr (Cols != Eigen::Dynamic) {
+    if (Cols != py_rows) {
+      throw py::value_error(
+          absl::StrCat("expected ", Cols, " rows, got ", py_rows));
+    }
+  }
+
+  if constexpr (Rows != Eigen::Dynamic) {
+    if (Rows != py_cols) {
+      throw py::value_error(
+          absl::StrCat("expected ", Rows, " columns, got ", py_cols));
+    }
+  }
+
   DynamicStrides strides(
       arr.strides()[0] / static_cast<py::ssize_t>(sizeof(double)),
       arr.strides()[1] / static_cast<py::ssize_t>(sizeof(double)));
-  PyMatrixMap map(arr.data(), arr.shape()[1], arr.shape()[0], strides);
+  PyMatrixMap<Rows, Cols> map(arr.data(), py_cols, py_rows, strides);
   return map;
 }
 
 template <auto Rows, auto Cols, class Scalar = double>
 using TransposedView =
     Eigen::Map<const Matrix<Scalar, Rows, Cols, Eigen::RowMajor>>;
+
+template <class ML>
+using Transposed =
+    Eigen::Matrix<typename ML::Scalar, ML::ColsAtCompileTime,
+                  ML::RowsAtCompileTime,
+                  ML::IsRowMajor ? Eigen::ColMajor : Eigen::RowMajor>;
 
 template <class MatrixLike>
 auto transpose_view(const MatrixLike &mat) {

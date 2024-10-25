@@ -74,3 +74,15 @@ nuri.core
    .. autoclass:: BondData
 
       .. automethod:: __init__
+
+------------------
+Geometry Utilities
+------------------
+
+.. code-block:: python
+
+   from nuri.core import geometry as ngeo
+
+.. automodule:: nuri.core.geometry
+
+.. footbibliography::

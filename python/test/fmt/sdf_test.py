@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 import nuri
-from nuri.core import Molecule, Hyb
+from nuri.core import Hyb, Molecule
 
 sdf_data = """\
 L-Alanine

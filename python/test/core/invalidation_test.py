@@ -26,21 +26,25 @@ def _remove_bond(mol: Molecule):
         mut.mark_bond_erase(2)
 
 
-@pytest.mark.parametrize("modify", [
-    _remove_atom,
-    _remove_bond,
-    Molecule.clear,
-    Molecule.clear_atoms,
-    Molecule.clear_bonds,
-    Molecule.hide_hydrogens,
-], ids=[
-    "remove_atom",
-    "remove_bond",
-    "clear",
-    "clear_atoms",
-    "clear_bonds",
-    "hide_hydrogens",
-])
+@pytest.mark.parametrize(
+    "modify",
+    [
+        _remove_atom,
+        _remove_bond,
+        Molecule.clear,
+        Molecule.clear_atoms,
+        Molecule.clear_bonds,
+        Molecule.hide_hydrogens,
+    ],
+    ids=[
+        "remove_atom",
+        "remove_bond",
+        "clear",
+        "clear_atoms",
+        "clear_bonds",
+        "hide_hydrogens",
+    ],
+)
 def test_invalidation_all(molsub: Molecule, modify):
     p = molsub.props
     atom = molsub.atom(0)
@@ -95,114 +99,6 @@ def test_invalidation_all(molsub: Molecule, modify):
         pass
 
 
-def test_invalidation_mol_sub(molsub: Molecule):
-    p = molsub.props
-    atom = molsub.atom(0)
-    a_p = atom.props
-    bond = molsub.bond(0)
-    b_p = bond.props
-    neig = atom[0]
-
-    msub = molsub.subs[0]
-    m_p = msub.props
-    ma = msub.atom(0)
-    ma_p = ma.props
-    mb = msub.bond(0)
-    mb_p = mb.props
-    mn = msub.neighbor(mb.src, mb.dst)
-
-    sub = molsub.sub(bonds=[1])
-    s_p = sub.props
-    sa = sub.atom(0)
-    sa_p = sa.props
-    sb = sub.bond(0)
-    sb_p = sb.props
-    sn = sub.neighbor(sb.src, sb.dst)
-
-    msub.hide_hydrogens()
-
-    _assert_invalidated(lambda: atom.atomic_number)
-    _assert_invalidated(lambda: iter(a_p))
-    _assert_invalidated(lambda: bond.order)
-    _assert_invalidated(lambda: iter(b_p))
-    _assert_invalidated(lambda: neig.src)
-
-    assert len(msub) is not None
-    _assert_invalidated(lambda: iter(m_p))
-    _assert_invalidated(lambda: ma.atomic_number)
-    _assert_invalidated(lambda: iter(ma_p))
-    _assert_invalidated(lambda: mb.order)
-    _assert_invalidated(lambda: iter(mb_p))
-    _assert_invalidated(lambda: mn.src)
-
-    _assert_invalidated(lambda: len(sub))
-    _assert_invalidated(lambda: sa.atomic_number)
-    _assert_invalidated(lambda: iter(sa_p))
-    _assert_invalidated(lambda: sb.order)
-    _assert_invalidated(lambda: iter(sb_p))
-    _assert_invalidated(lambda: sn.src)
-
-    for _ in p:
-        pass
-
-    for _ in s_p:
-        pass
-
-
-def test_invalidation_sub(molsub: Molecule):
-    p = molsub.props
-    atom = molsub.atom(0)
-    a_p = atom.props
-    bond = molsub.bond(0)
-    b_p = bond.props
-    neig = atom[0]
-
-    msub = molsub.subs[0]
-    m_p = msub.props
-    ma = msub.atom(0)
-    ma_p = ma.props
-    mb = msub.bond(0)
-    mb_p = mb.props
-    mn = msub.neighbor(mb.src, mb.dst)
-
-    sub = molsub.sub(bonds=[1])
-    s_p = sub.props
-    sa = sub.atom(0)
-    sa_p = sa.props
-    sb = sub.bond(0)
-    sb_p = sb.props
-    sn = sub.neighbor(sb.src, sb.dst)
-
-    sub.hide_hydrogens()
-
-    _assert_invalidated(lambda: atom.atomic_number)
-    _assert_invalidated(lambda: iter(a_p))
-    _assert_invalidated(lambda: bond.order)
-    _assert_invalidated(lambda: iter(b_p))
-    _assert_invalidated(lambda: neig.src)
-
-    _assert_invalidated(lambda: len(msub))
-    _assert_invalidated(lambda: iter(m_p))
-    _assert_invalidated(lambda: ma.atomic_number)
-    _assert_invalidated(lambda: iter(ma_p))
-    _assert_invalidated(lambda: mb.order)
-    _assert_invalidated(lambda: iter(mb_p))
-    _assert_invalidated(lambda: mn.src)
-
-    assert lambda: len(sub) is not None
-    _assert_invalidated(lambda: sa.atomic_number)
-    _assert_invalidated(lambda: iter(sa_p))
-    _assert_invalidated(lambda: sb.order)
-    _assert_invalidated(lambda: iter(sb_p))
-    _assert_invalidated(lambda: sn.src)
-
-    for _ in p:
-        pass
-
-    for _ in s_p:
-        pass
-
-
 def _remove_atom_sub(sub: Substructure):
     sub.erase_atom(sub.atom(0))
 
@@ -211,19 +107,23 @@ def _remove_bond_sub(sub: Substructure):
     sub.erase_bond(sub.bond(0))
 
 
-@pytest.mark.parametrize("modify_msub", [
-    _remove_atom_sub,
-    _remove_bond_sub,
-    ProxySubstructure.clear,
-    ProxySubstructure.clear_atoms,
-    ProxySubstructure.clear_bonds,
-], ids=[
-    "remove_atom",
-    "remove_bond",
-    "clear",
-    "clear_atoms",
-    "clear_bonds",
-])
+@pytest.mark.parametrize(
+    "modify_msub",
+    [
+        _remove_atom_sub,
+        _remove_bond_sub,
+        ProxySubstructure.clear,
+        ProxySubstructure.clear_atoms,
+        ProxySubstructure.clear_bonds,
+    ],
+    ids=[
+        "remove_atom",
+        "remove_bond",
+        "clear",
+        "clear_atoms",
+        "clear_bonds",
+    ],
+)
 def test_invalidation_mol_sub(molsub: Molecule, modify_msub):
     p = molsub.props
     atom = molsub.atom(0)
@@ -283,19 +183,23 @@ def test_invalidation_mol_sub(molsub: Molecule, modify_msub):
         pass
 
 
-@pytest.mark.parametrize("modify_sub", [
-    _remove_atom_sub,
-    _remove_bond_sub,
-    Substructure.clear,
-    Substructure.clear_atoms,
-    Substructure.clear_bonds,
-], ids=[
-    "remove_atom",
-    "remove_bond",
-    "clear",
-    "clear_atoms",
-    "clear_bonds",
-])
+@pytest.mark.parametrize(
+    "modify_sub",
+    [
+        _remove_atom_sub,
+        _remove_bond_sub,
+        Substructure.clear,
+        Substructure.clear_atoms,
+        Substructure.clear_bonds,
+    ],
+    ids=[
+        "remove_atom",
+        "remove_bond",
+        "clear",
+        "clear_atoms",
+        "clear_bonds",
+    ],
+)
 def test_invalidation_sub(molsub: Molecule, modify_sub):
     p = molsub.props
     atom = molsub.atom(0)
@@ -373,53 +277,39 @@ def test_invalidation_iterator(mol3dsub: Molecule):
         mol3dsub.props.keys(),
         mol3dsub.props.values(),
         mol3dsub.props.items(),
-
         iter(mol3dsub),
         iter(mol3dsub.bonds()),
         iter(mol3dsub.atom(0)),
-
         iter(mol3dsub.atom(0).props.keys()),
         iter(mol3dsub.atom(0).props.values()),
         iter(mol3dsub.atom(0).props.items()),
-
         iter(mol3dsub.bond(0).props.keys()),
         iter(mol3dsub.bond(0).props.values()),
         iter(mol3dsub.bond(0).props.items()),
-
         mol3dsub.conformers(),
-
         iter(mol3dsub.subs),
-
         iter(mol3dsub.subs[0]),
         iter(mol3dsub.subs[0].bonds()),
         iter(mol3dsub.subs[0].atom(0)),
-
         iter(mol3dsub.subs[0].props.keys()),
         iter(mol3dsub.subs[0].props.values()),
         iter(mol3dsub.subs[0].props.items()),
-
         iter(mol3dsub.subs[0].atom(0).props.keys()),
         iter(mol3dsub.subs[0].atom(0).props.values()),
         iter(mol3dsub.subs[0].atom(0).props.items()),
-
         iter(mol3dsub.subs[0].bond(0).props.keys()),
         iter(mol3dsub.subs[0].bond(0).props.values()),
         iter(mol3dsub.subs[0].bond(0).props.items()),
-
         mol3dsub.subs[0].conformers(),
-
         iter(sub),
         iter(sub.bonds()),
         iter(sub.atom(0)),
-
         iter(sub.atom(0).props.keys()),
         iter(sub.atom(0).props.values()),
         iter(sub.atom(0).props.items()),
-
         iter(sub.bond(0).props.keys()),
         iter(sub.bond(0).props.values()),
         iter(sub.bond(0).props.items()),
-
         sub.conformers(),
     ]
 
