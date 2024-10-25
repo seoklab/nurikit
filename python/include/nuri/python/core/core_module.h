@@ -606,12 +606,13 @@ extern void log_aromatic_warning(const BondData &bond);
 
 template <class MatrixLike>
 void assign_conf(MatrixLike &conf, const py::handle &obj) {
+  static_assert(MatrixLike::RowsAtCompileTime == 3);
   auto mat = map_py_matrix<3>(obj);
 
-  if (mat.rows() != conf.rows() || mat.cols() != conf.cols()) {
-    throw py::value_error(absl::StrCat(
-        "conformer size mismatch: expected (", conf.rows(), ", ", conf.cols(),
-        "), got (", mat.rows(), ", ", mat.cols(), ")"));
+  if (mat.cols() != conf.cols()) {
+    throw py::value_error(
+        absl::StrCat("conformer has different number of atoms: expected ",
+                     conf.cols(), ", got ", mat.cols()));
   }
 
   conf = mat;
