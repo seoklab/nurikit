@@ -551,7 +551,7 @@ std::pair<Affine3d, double> kabsch(const Eigen::Ref<const Matrix3Xd> &query,
       Bt.col(2) = -Bt.col(2);
 
     ret.first.linear().noalias() = Bt * At.transpose();
-    ret.first.translation().noalias() = -(ret.first.linear() * qm);
+    ret.first.translation().noalias() = -1 * (ret.first.linear() * qm);
     ret.first.translation() += tm;
     return ret;
   }
@@ -758,7 +758,8 @@ std::pair<Affine3d, double> qcp(const Eigen::Ref<const Matrix3Xd> &query,
   }
 
   ret.first.linear() = qhat.toRotationMatrix();
-  ret.first.translation().noalias() = -(ret.first.linear() * qm.transpose());
+  ret.first.translation().noalias() =
+      -1 * (ret.first.linear() * qm.transpose());
   ret.first.translation() += tm.transpose();
   return ret;
 }
@@ -789,6 +790,8 @@ namespace {
     dsqs.colwise() += d0sq;
     dsqs.rowwise() += d0sq.transpose();
     dsqs /= 2;
+
+    ABSL_DVLOG(1) << "metric matrix:\n" << dsqs;
 
     try {
       Spectra::DenseSymMatProd<double> op(dsqs);

@@ -544,11 +544,11 @@ namespace {
 
         const double ub_term = nonnegative(dsq * ubsq_inv - 1);
 
-        const double lb_inner_inv = 1 / (1 + dsq * lbsq_inv);
-        const double lb_term = nonnegative(2 * lb_inner_inv - 1);
+        const double lb_inner_inv = 2 / (1 + dsq * lbsq_inv);
+        const double lb_term = nonnegative(lb_inner_inv - 1);
 
         diff *= 4 * ubsq_inv * ub_term
-                - 8 * (lb_inner_inv * lb_inner_inv) * lbsq_inv * lb_term;
+                - 2 * (lb_inner_inv * lb_inner_inv) * lbsq_inv * lb_term;
         g.col(i) += diff;
         g.col(j) -= diff;
 
@@ -596,9 +596,7 @@ namespace {
     Matrix4Xd trial(4, n);
     MatrixXd dists(mol.size(), mol.size());
 
-    ArrayXi nbd = ArrayXi::Zero(4 * n);
-    Array2Xd dummy_bds(2, 4 * n);
-    LBfgsB optim(trial.reshaped().array(), { nbd, dummy_bds });
+    Bfgs optim(trial.reshaped().array());
 
     auto first_fg = [&](ArrayXd &ga, const auto &xa) {
       return error_funcgrad<false>(ga, xa, bsq_inv, n);
@@ -629,14 +627,14 @@ namespace {
 
       ABSL_DVLOG(1) << "initial trial coordinates:\n" << trial;
 
-      LbfgsbResult res = optim.minimize(first_fg, 1e+10, 1e-3);
-      if (res.code != LbfgsbResultCode::kSuccess)
+      BfgsResult res = optim.minimize(first_fg, 1e-3, 1e-6);
+      if (res.code != BfgsResultCode::kSuccess)
         continue;
 
       ABSL_DVLOG(1) << "after 4D minimization:\n" << trial;
 
       res = optim.minimize(second_fg);
-      if (res.code != LbfgsbResultCode::kSuccess)
+      if (res.code != BfgsResultCode::kSuccess)
         continue;
 
       ABSL_DVLOG(1) << "after 3D projection:\n" << trial;

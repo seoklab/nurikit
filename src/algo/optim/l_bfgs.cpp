@@ -3,12 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "nuri/algo/optim.h"
-
 #include <cmath>
-#include <cstdint>
 #include <cstdlib>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -18,6 +14,7 @@
 #include <absl/log/absl_check.h>
 
 #include "nuri/eigen_config.h"
+#include "nuri/algo/optim.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -419,183 +416,54 @@ namespace internal {
   }
 
   namespace {
-    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-    void dcstep(double &stx, double &fx, double &dx, double &sty, double &fy,
-                double &dy, double &stp, bool &brackt, const double fp,
-                const double dp, const double stpmin, const double stpmax) {
-      const double sgnd = dp * std::copysign(1.0, dx);
+    Dcsrch lbfgsb_dcsrch_init(MutRef<ArrayXd> &x, const ArrayXd &d,
+                              const LbfgsbBounds &bounds, const double dnorm,
+                              const int iter, const bool constrained,
+                              const bool boxed, const double f0,
+                              const double g0, const double ftol,
+                              const double gtol, const double xtol) {
+      const auto n = x.size();
 
-      auto theta_gamma_common = [&]() {
-        double theta = 3 * (fx - fp) / (stp - stx) + dx + dp;
-        double s = Array3d { theta, dx, dp }.abs().maxCoeff();
-        double theta_scaled = theta / s;
-        double gamma = s
-                       * std::sqrt(nonnegative(theta_scaled * theta_scaled
-                                               - dx / s * dp / s));
-        return std::make_pair(theta, gamma);
-      };
+      double stepmax = LbfgsbLnsrch::kStepMax;
+      if (constrained && iter == 0) {
+        stepmax = 1;
+      } else if (constrained) {
+        for (int i = 0; i < n; ++i) {
+          if (!bounds.has_bound(i))
+            continue;
 
-      auto update_intervals = [&](double new_step) {
-        if (fp > fx) {
-          sty = stp;
-          fy = fp;
-          dy = dp;
-        } else {
-          if (sgnd < 0) {
-            sty = stx;
-            fy = fx;
-            dy = dx;
+          double a1 = d[i];
+          if (a1 < 0 && bounds.has_lb(i)) {
+            double a2 = bounds.lb(i) - x[i];
+            if (a2 >= 0) {
+              stepmax = 0;
+              break;
+            }
+            if (a1 * stepmax < a2)
+              stepmax = a2 / a1;
+          } else if (a1 > 0 && bounds.has_ub(i)) {
+            double a2 = bounds.ub(i) - x[i];
+            if (a2 <= 0) {
+              stepmax = 0;
+              break;
+            }
+            if (a1 * stepmax > a2)
+              stepmax = a2 / a1;
           }
-          stx = stp;
-          fx = fp;
-          dx = dp;
         }
-
-        stp = new_step;
-      };
-
-      // First case: A higher function value. The minimum is bracketed.
-      // If the cubic step is closer to stx than the quadratic step, the
-      // cubic step is taken, otherwise the average of the cubic and
-      // quadratic steps is taken.
-      if (fp > fx) {
-        auto [theta, gamma] = theta_gamma_common();
-        if (stp < stx)
-          gamma = -gamma;
-
-        double p = (gamma - dx) + theta;
-        double q = ((gamma - dx) + gamma) + dp;
-        double r = p / q;
-
-        double stpc = stx + r * (stp - stx);
-        double stpq =
-            stx + dx / ((fx - fp) / (stp - stx) + dx) / 2 * (stp - stx);
-
-        brackt = true;
-        if (std::abs(stpc - stx) < std::abs(stpq - stx)) {
-          update_intervals(stpc);
-        } else {
-          update_intervals(stpc + (stpq - stpc) / 2);
-        }
-
-        return;
       }
 
-      // Second case: A lower function value and derivatives of opposite
-      // sign. The minimum is bracketed. If the cubic step is farther from
-      // stp than the secant step, the cubic step is taken, otherwise the
-      // secant step is taken.
-      if (sgnd < 0.0) {
-        auto [theta, gamma] = theta_gamma_common();
-        if (stp > stx)
-          gamma = -gamma;
-
-        double p = (gamma - dp) + theta;
-        double q = ((gamma - dp) + gamma) + dx;
-        double r = p / q;
-
-        double stpc = stp + r * (stx - stp);
-        double stpq = stp + dp / (dp - dx) * (stx - stp);
-
-        brackt = true;
-        if (std::abs(stpc - stp) > std::abs(stpq - stp)) {
-          update_intervals(stpc);
-        } else {
-          update_intervals(stpq);
-        }
-
-        return;
-      }
-
-      // Third case: A lower function value, derivatives of the same sign,
-      // and the magnitude of the derivative decreases.
-
-      // The cubic step is computed only if the cubic tends to infinity
-      // in the direction of the step or if the minimum of the cubic
-      // is beyond stp. Otherwise the cubic step is defined to be the
-      // secant step.
-      if (std::abs(dp) < std::abs(dx)) {
-        auto [theta, gamma] = theta_gamma_common();
-        if (stp > stx)
-          gamma = -gamma;
-
-        double p = (gamma - dp) + theta;
-        double q = (gamma + (dx - dp)) + gamma;
-        double r = p / q;
-
-        double stpc;
-        if (r < 0 && gamma != 0) {  // NOLINT(clang-diagnostic-float-equal)
-          stpc = stp + r * (stx - stp);
-        } else if (stp > stx) {
-          stpc = stpmax;
-        } else {
-          stpc = stpmin;
-        }
-        double stpq = stp + dp / (dp - dx) * (stx - stp);
-
-        double stpf;
-        if (brackt) {
-          // A minimizer has been bracketed. If the cubic step is
-          // closer to stp than the secant step, the cubic step is
-          // taken, otherwise the secant step is taken.
-          if (std::abs(stpc - stp) < std::abs(stpq - stp)) {
-            stpf = stpc;
-          } else {
-            stpf = stpq;
-          }
-          if (stp > stx) {
-            stpf = nuri::min(stp + 0.66 * (sty - stp), stpf);
-          } else {
-            stpf = nuri::max(stp + 0.66 * (sty - stp), stpf);
-          }
-        } else {
-          // A minimizer has not been bracketed. If the cubic step is
-          // farther from stp than the secant step, the cubic step is
-          // taken, otherwise the secant step is taken.
-          if (std::abs(stpc - stp) > std::abs(stpq - stp)) {
-            stpf = stpc;
-          } else {
-            stpf = stpq;
-          }
-          stpf = nuri::clamp(stpf, stpmin, stpmax);
-        }
-        update_intervals(stpf);
-
-        return;
-      }
-
-      // Fourth case: A lower function value, derivatives of the same sign,
-      // and the magnitude of the derivative does not decrease. If the
-      // minimum is not bracketed, the step is either stpmin or stpmax,
-      // otherwise the cubic step is taken.
-      if (brackt) {
-        double theta = 3 * (fp - fy) / (sty - stp) + dy + dp;
-        double s = Array3d { theta, dy, dp }.abs().maxCoeff();
-        double theta_scaled = theta / s;
-        double gamma = s
-                       * std::sqrt(nonnegative(theta_scaled * theta_scaled
-                                               - dy / s * dp / s));
-        if (stp > sty)
-          gamma = -gamma;
-
-        double p = (gamma - dp) + theta;
-        double q = ((gamma - dp) + gamma) + dy;
-        double r = p / q;
-        double stpc = stp + r * (sty - stp);
-        update_intervals(stpc);
-      } else if (stp > stx) {
-        update_intervals(stpmax);
+      double step0;
+      if (iter == 0 && !boxed) {
+        step0 = nuri::min(1 / dnorm, stepmax);
       } else {
-        update_intervals(stpmin);
+        step0 = 1;
       }
+
+      return Dcsrch(f0, g0, step0, LbfgsbLnsrch::kStepMin, stepmax, ftol, gtol,
+                    xtol);
     }
   }  // namespace
-
-  enum class LbfgsbLnsrch::DcsrchStatus : std::uint8_t {
-    kFound,
-    kConverged,
-    kContinue,
-  };
 
   LbfgsbLnsrch::LbfgsbLnsrch(MutRef<ArrayXd> &x, const ArrayXd &t,
                              const ArrayXd &z, const ArrayXd &d,
@@ -605,55 +473,14 @@ namespace internal {
                              const double ftol, const double gtol,
                              const double xtol) noexcept
       : x_(&x), t_(&t), z_(&z), d_(&d), bounds_(&bounds),
-        dtd_(d.matrix().squaredNorm()), dnorm_(std::sqrt(dtd_)), finit_(f0),
-        ginit_(g0), gtest_(ftol * ginit_), gtol_(gtol), xtol_(xtol), fx_(f0),
-        gx_(g0), fy_(f0), gy_(g0) {
-    const auto n = x.size();
-
-    if (constrained && iter == 0) {
-      stepmax_ = 1;
-    } else if (constrained) {
-      for (int i = 0; i < n; ++i) {
-        if (!bounds.has_bound(i))
-          continue;
-
-        double a1 = d[i];
-        if (a1 < 0 && bounds.has_lb(i)) {
-          double a2 = bounds.lb(i) - x[i];
-          if (a2 >= 0) {
-            stepmax_ = 0;
-            break;
-          }
-          if (a1 * stepmax_ < a2)
-            stepmax_ = a2 / a1;
-        } else if (a1 > 0 && bounds.has_ub(i)) {
-          double a2 = bounds.ub(i) - x[i];
-          if (a2 <= 0) {
-            stepmax_ = 0;
-            break;
-          }
-          if (a1 * stepmax_ > a2)
-            stepmax_ = a2 / a1;
-        }
-      }
-    }
-
-    if (iter == 0 && !boxed) {
-      step_ = nuri::min(1 / dnorm_, stepmax_);
-    } else {
-      step_ = 1;
-    }
-
-    // init for dcsrch
-    width_ = stepmax_ - stepmin_;
-    width1_ = 2 * width_;
-    stmax_ = step_ + xtrapu_ * step_;
-
+        dtd_(d.matrix().squaredNorm()), dnorm_(std::sqrt(dtd_)),
+        dcsrch_(lbfgsb_dcsrch_init(x, d, bounds, dnorm_, iter, constrained,
+                                   boxed, f0, g0, ftol, gtol, xtol)) {
     step_x();
   }
 
   bool LbfgsbLnsrch::search(const double f, const double g) {
-    auto status = dcsrch(f, g);
+    auto status = dcsrch_(f, g);
     if (status == DcsrchStatus::kConverged)
       return true;
 
@@ -661,84 +488,13 @@ namespace internal {
     return status == DcsrchStatus::kFound;
   }
 
-  LbfgsbLnsrch::DcsrchStatus LbfgsbLnsrch::dcsrch(const double f,
-                                                  const double g) {
-    double ftest = finit() + step_ * gtest_;
-
-    // Termination check conditions
-    if ((step_ >= stepmax_ && f <= ftest && g <= gtest_)
-        || (step_ <= stepmin_ && (f > ftest || g >= gtest_)))
-      return DcsrchStatus::kConverged;
-    if (f <= ftest && std::abs(g) <= -gtol_ * ginit())
-      return DcsrchStatus::kConverged;
-
-    // If psi(stp) <= 0 and f'(stp) >= 0 for some step, then the algorithm
-    // enters the second stage.
-    if (stage1_ && f <= ftest && g >= 0)
-      stage1_ = false;
-
-    // A modified function is used to predict the step during the first stage
-    // if a lower function value has been obtained but the decrease is not
-    // sufficient.
-
-    if (stage1_ && f <= fx_ && f > ftest) {
-      double fm = f - step_ * gtest_;
-      double fxm = fx_ - stx_ * gtest_;
-      double fym = fy_ - sty_ * gtest_;
-      double gm = g - gtest_;
-      double gxm = gx_ - gtest_;
-      double gym = gy_ - gtest_;
-
-      dcstep(stx_, fxm, gxm, sty_, fym, gym, step_, brackt_, fm, gm, stmin_,
-             stmax_);
-
-      fx_ = fxm + stx_ * gtest_;
-      fy_ = fym + sty_ * gtest_;
-      gx_ = gxm + gtest_;
-      gy_ = gym + gtest_;
-    } else {
-      dcstep(stx_, fx_, gx_, sty_, fy_, gy_, step_, brackt_, f, g, stmin_,
-             stmax_);
-    }
-
-    // Decide if a bisection step is needed.
-    if (brackt_) {
-      if (std::abs(sty_ - stx_) >= 0.66 * width1_)
-        step_ = stx_ + 0.5 * (sty_ - stx_);
-      width1_ = width_;
-      width_ = std::abs(sty_ - stx_);
-    }
-
-    // Set the minimum and maximum steps allowed for stp.
-    if (brackt_) {
-      std::tie(stmin_, stmax_) = nuri::minmax(stx_, sty_);
-    } else {
-      stmin_ = step_ * xtrapl_ * (step_ - stx_);
-      stmax_ = step_ + xtrapu_ * (step_ - stx_);
-    }
-
-    step_ = nuri::clamp(step_, stepmin_, stepmax_);
-
-    // If further progress is not possible, let stp be the best point obtained
-    // during the search.
-
-    if (brackt_
-        && (step_ <= stmin_ || step_ >= stmax_
-            || stmax_ - stmin_ <= xtol_ * stmax_)) {
-      step_ = stx_;
-      return DcsrchStatus::kFound;
-    }
-
-    return DcsrchStatus::kContinue;
-  }
-
   void LbfgsbLnsrch::step_x() {
-    if (step_ == 1) {  // NOLINT(clang-diagnostic-float-equal)
+    if (step() == 1) {  // NOLINT(clang-diagnostic-float-equal)
       x() = z();
       return;
     }
 
-    x() = step_ * d() + t();
+    x() = step() * d() + t();
     for (int i = 0; i < x().size(); ++i) {
       if (bounds().has_lb(i)) {
         x()[i] = nuri::max(bounds().lb(i), x()[i]);
