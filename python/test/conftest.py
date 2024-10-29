@@ -87,7 +87,7 @@ def molsub(mol: Molecule):
 
 @pytest.fixture()
 def mol3dsub(mol3d: Molecule):
-    sub = mol3d.subs.add([2, 3, 7])
-    assert sub.num_atoms() == 3
+    sub = mol3d.subs.add([2, 3, 7, 10])
+    assert sub.num_atoms() == 4
     assert sub.num_bonds() == 1
     return mol3d
