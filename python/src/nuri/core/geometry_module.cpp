@@ -49,9 +49,11 @@ align_both(Impl impl, std::string_view name, const PyMatrixMap<3> &query,
 }
 
 std::pair<PyMatrixMap<3>, PyMatrixMap<3>>
-check_convert_points(const py::handle &py_q, const py::handle &py_t) {
-  PyMatrixMap<3> query = map_py_matrix<3>(py_q), templ = map_py_matrix<3>(py_t);
+check_convert_points(const py::handle &q_py, const py::handle &t_py) {
+  auto q_arr = ensure_array<double>(q_py), t_arr = ensure_array<double>(t_py);
 
+  PyMatrixMap<3> query = map_py_matrix<3>(q_arr),
+                 templ = map_py_matrix<3>(t_arr);
   if (query.cols() != templ.cols()) {
     throw py::value_error(
         absl::StrCat("two sets of points must have the same size; got ",
@@ -167,8 +169,11 @@ Calculate the RMSD of the best-fit rigid-body alignment of ``query`` to
   m.def(
       "transform",
       [](const py::handle &obj, const py::handle &py_pts) {
-        auto mat_t = map_py_matrix<4, 4>(obj);
-        auto pts = map_py_matrix<3>(py_pts);
+        auto mat_arr = ensure_array<double>(obj),
+             pts_arr = ensure_array<double>(py_pts);
+
+        auto mat_t = map_py_matrix<4, 4>(mat_arr);
+        auto pts = map_py_matrix<3>(pts_arr);
 
         // unlike most operations that simply transposing the matrix gives the
         // correct column-major matrix, the transformation matrix should not

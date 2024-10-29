@@ -292,8 +292,7 @@ using PyMatrixMap = Eigen::Map<const Matrix<double, Rows, Cols>,
                                Eigen::Unaligned, DynamicStrides>;
 
 template <Eigen::Index Rows = Eigen::Dynamic>
-inline PyVectorMap<Rows> map_py_vector(const py::handle &buf) {
-  auto arr = ensure_array<double>(buf);
+inline PyVectorMap<Rows> map_py_vector(const py::array_t<double> &arr) {
   if (arr.ndim() != 1)
     throw py::value_error(
         absl::StrCat("expected 1D array, got ", arr.ndim(), "D"));
@@ -311,21 +310,23 @@ inline PyVectorMap<Rows> map_py_vector(const py::handle &buf) {
   return map;
 }
 
+template <Eigen::Index Rows = Eigen::Dynamic>
+PyVectorMap<Rows> map_py_vector(py::array_t<double> &&arr) = delete;
+
 /**
- * @brief Converts a buffer object to an Eigen matrix.
+ * @brief Converts a numpy array to an Eigen matrix.
  *
- * @param buf buffer object to convert.
- * @return "Transposed" Eigen matrix mapped from the buffer object. Effectively,
- *         the matrix is mapped from the buffer which is row-major, so the
+ * @param arr The numpy array to convert.
+ * @return "Transposed" Eigen matrix mapped from the array object. Effectively,
+ *         the matrix is mapped from the array which is row-major, so the
  *         resulting matrix is column-major (Eigen-style).
- *         For example, if the buffer is a 4x3 array, the resulting matrix will
+ *         For example, if the array is a 4x3 array, the resulting matrix will
  *         be a 3x4 matrix.
  */
 template <Eigen::Index Rows = Eigen::Dynamic, Eigen::Index Cols = Eigen::Dynamic>
 inline Eigen::Map<const Matrix<double, Rows, Cols>, Eigen::Unaligned,
                   DynamicStrides>
-map_py_matrix(const py::handle &buf) {
-  auto arr = ensure_array<double>(buf);
+map_py_matrix(const py::array_t<double> &arr) {
   if (arr.ndim() != 2)
     throw py::value_error(
         absl::StrCat("expected 2D array, got ", arr.ndim(), "D"));
@@ -352,6 +353,10 @@ map_py_matrix(const py::handle &buf) {
   PyMatrixMap<Rows, Cols> map(arr.data(), py_cols, py_rows, strides);
   return map;
 }
+
+template <Eigen::Index Rows = Eigen::Dynamic, Eigen::Index Cols = Eigen::Dynamic>
+Eigen::Map<const Matrix<double, Rows, Cols>, Eigen::Unaligned, DynamicStrides>
+map_py_matrix(py::array_t<double> &&arr) = delete;
 
 template <auto Rows, auto Cols, class Scalar = double>
 using TransposedView =
