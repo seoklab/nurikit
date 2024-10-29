@@ -258,6 +258,29 @@ private:
   int size_;
 };
 
+template <class DT>
+class array_caster: private py::array_t<DT> {
+  using Impl = py::array_t<DT>;
+
+public:
+  static Impl ensure(py::handle h) {
+    PyObject *result = Impl::raw_array_t(h.ptr());
+    if (result == nullptr) {
+      py::error_already_set current_exc;
+      py::raise_from(current_exc, PyExc_ValueError,
+                     "cannot convert object to numpy array");
+      throw py::error_already_set();
+    }
+
+    return py::reinterpret_steal<Impl>(result);
+  }
+};
+
+template <class DT>
+inline py::array_t<DT> ensure_array(py::handle h) {
+  return array_caster<DT>::ensure(h);
+}
+
 using DynamicStrides = Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>;
 
 template <Eigen::Index Rows = Eigen::Dynamic>
@@ -270,11 +293,10 @@ using PyMatrixMap = Eigen::Map<const Matrix<double, Rows, Cols>,
 
 template <Eigen::Index Rows = Eigen::Dynamic>
 inline PyVectorMap<Rows> map_py_vector(const py::handle &buf) {
-  auto arr = py::array_t<double>::ensure(buf);
-  if (arr.ndim() != 1) {
+  auto arr = ensure_array<double>(buf);
+  if (arr.ndim() != 1)
     throw py::value_error(
-        absl::StrCat("expected 1-dimensional array, got ", arr.ndim()));
-  }
+        absl::StrCat("expected 1D array, got ", arr.ndim(), "D"));
 
   if constexpr (Rows != Eigen::Dynamic) {
     if (arr.size() != Rows) {
@@ -303,11 +325,10 @@ template <Eigen::Index Rows = Eigen::Dynamic, Eigen::Index Cols = Eigen::Dynamic
 inline Eigen::Map<const Matrix<double, Rows, Cols>, Eigen::Unaligned,
                   DynamicStrides>
 map_py_matrix(const py::handle &buf) {
-  auto arr = py::array_t<double>::ensure(buf);
-  if (arr.ndim() != 2) {
+  auto arr = ensure_array<double>(buf);
+  if (arr.ndim() != 2)
     throw py::value_error(
-        absl::StrCat("expected 2-dimensional array, got ", arr.ndim()));
-  }
+        absl::StrCat("expected 2D array, got ", arr.ndim(), "D"));
 
   const auto py_rows = arr.shape()[0], py_cols = arr.shape()[1];
 
