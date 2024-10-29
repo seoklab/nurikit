@@ -17,8 +17,10 @@ if(SKBUILD)
 endif()
 
 include_directories("${CMAKE_CURRENT_LIST_DIR}/include")
-add_compile_options(
-  -include "${CMAKE_CURRENT_LIST_DIR}/include/nuri/python/config.h")
+string(APPEND CMAKE_CXX_FLAGS
+  " -include"
+  " ${CMAKE_CURRENT_LIST_DIR}/include/nuri/python/config.h"
+)
 
 add_subdirectory(src)
 add_subdirectory(docs EXCLUDE_FROM_ALL)
