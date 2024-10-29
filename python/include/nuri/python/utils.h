@@ -13,16 +13,21 @@
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include <Eigen/Dense>
 #include <pybind11/attr.h>
+#include <pybind11/eigen.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 
+#include <absl/log/absl_check.h>
+#include <absl/log/absl_log.h>
 #include <absl/strings/str_cat.h>
 
 #include "nuri/eigen_config.h"
+#include "nuri/meta.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -258,123 +263,184 @@ private:
   int size_;
 };
 
-template <class DT>
-class array_caster: private py::array_t<DT> {
-  using Impl = py::array_t<DT>;
+template <class DT, int Flags>
+py::ssize_t eigen_stride(const py::array_t<DT, Flags> &arr, int dim) {
+  ABSL_DCHECK_LT(dim, arr.ndim());
+  return arr.strides()[dim] / static_cast<py::ssize_t>(sizeof(DT));
+}
+
+template <Eigen::Index Rows = Eigen::Dynamic, class DT = double,
+          bool Const = true>
+using PyVectorMap = Eigen::Map<internal::const_if_t<Const, Vector<DT, Rows>>>;
+
+template <Eigen::Index Rows = Eigen::Dynamic, Eigen::Index Cols = Eigen::Dynamic,
+          class DT = double, bool Const = true>
+using PyMatrixMap =
+    Eigen::Map<internal::const_if_t<Const, Matrix<DT, Rows, Cols>>,
+               Eigen::Unaligned, Eigen::OuterStride<>>;
+
+template <Eigen::Index Rows = Eigen::Dynamic,
+          Eigen::Index Cols = Eigen::Dynamic, class DT = double>
+class NpArrayWrapper: private py::array_t<DT> {
+private:
+  using Parent = py::array_t<DT>;
+
+  constexpr static Eigen::Index kSize =
+      Rows == Eigen::Dynamic || Cols == Eigen::Dynamic ? Eigen::Dynamic
+                                                       : Rows * Cols;
+  constexpr static bool kIsVector = Rows == 1 || Cols == 1;
+
+  template <class Ptr>
+  decltype(auto) eigen_helper(Ptr *data) const {
+    if constexpr (kIsVector) {
+      PyVectorMap<kSize, DT, std::is_const_v<Ptr>> map(data, this->size());
+      return map;
+    } else {
+      PyMatrixMap<Rows, Cols, DT, std::is_const_v<Ptr>> map(
+          data, this->shape()[1], this->shape()[0],
+          Eigen::OuterStride<> { eigen_stride(*this, 0) });
+      return map;
+    }
+  }
 
 public:
-  static Impl ensure(py::handle h) {
-    PyObject *result = Impl::raw_array_t(h.ptr());
-    if (result == nullptr) {
-      py::error_already_set current_exc;
-      py::raise_from(current_exc, PyExc_ValueError,
-                     "cannot convert object to numpy array");
-      throw py::error_already_set();
-    }
+  decltype(auto) eigen() & { return eigen_helper(this->mutable_data()); }
 
-    return py::reinterpret_steal<Impl>(result);
+  decltype(auto) eigen() const & { return eigen_helper(this->data()); }
+
+  // Temporary lifetime extension does not work here
+  decltype(auto) eigen() && = delete;
+
+  Parent numpy() const & { return *this; }
+
+  Parent numpy() && { return std::move(*this); }
+
+private:
+  explicit NpArrayWrapper(const Parent &arr): Parent(arr) {
+    check_invariants();
   }
+
+  explicit NpArrayWrapper(Parent &&arr): Parent(std::move(arr)) {
+    check_invariants();
+  }
+
+  explicit NpArrayWrapper(std::vector<py::ssize_t> &&shape)
+      : Parent(std::move(shape)) {
+    check_invariants();
+  }
+
+  void check_invariants() const {
+#ifdef NURI_DEBUG
+    int req_ndim = kIsVector ? 1 : 2;
+
+    ABSL_DCHECK_EQ(this->ndim(), req_ndim);
+    ABSL_DCHECK_EQ(eigen_stride(*this, req_ndim - 1), 1);
+#endif
+  }
+
+  template <Eigen::Index R, Eigen::Index C, class DU>
+  friend NpArrayWrapper<R, C, DU> py_array_cast(py::handle h);
+
+  template <class ML>
+  NpArrayWrapper<ML::RowsAtCompileTime, ML::ColsAtCompileTime,
+                 typename ML::Scalar>  //
+      friend empty_like(const ML &mat);
 };
 
-template <class DT>
-inline py::array_t<DT> ensure_array(py::handle h) {
-  return array_caster<DT>::ensure(h);
-}
+template <class ML>
+NpArrayWrapper<ML::RowsAtCompileTime, ML::ColsAtCompileTime, typename ML::Scalar>
+empty_like(const ML &mat) {
+  using DT = typename ML::Scalar;
 
-using DynamicStrides = Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>;
-
-template <Eigen::Index Rows = Eigen::Dynamic>
-using PyVectorMap = Eigen::Map<const Vector<double, Rows>, Eigen::Unaligned,
-                               Eigen::InnerStride<>>;
-
-template <Eigen::Index Rows = Eigen::Dynamic, Eigen::Index Cols = Eigen::Dynamic>
-using PyMatrixMap = Eigen::Map<const Matrix<double, Rows, Cols>,
-                               Eigen::Unaligned, DynamicStrides>;
-
-template <Eigen::Index Rows = Eigen::Dynamic>
-inline PyVectorMap<Rows> map_py_vector(const py::array_t<double> &arr) {
-  if (arr.ndim() != 1)
-    throw py::value_error(
-        absl::StrCat("expected 1D array, got ", arr.ndim(), "D"));
-
-  if constexpr (Rows != Eigen::Dynamic) {
-    if (arr.size() != Rows) {
-      throw py::value_error(
-          absl::StrCat("expected ", Rows, " elements, got ", arr.size()));
-    }
+  std::vector<py::ssize_t> shape;
+  if constexpr (ML::RowsAtCompileTime == 1 || ML::ColsAtCompileTime == 1) {
+    shape = { mat.size() };
+  } else {
+    shape = { mat.cols(), mat.rows() };
   }
 
-  Eigen::InnerStride<> stride(arr.strides()[0]
-                              / static_cast<py::ssize_t>(sizeof(double)));
-  PyVectorMap<Rows> map(arr.data(), arr.size(), stride);
-  return map;
+  return NpArrayWrapper<ML::RowsAtCompileTime, ML::ColsAtCompileTime, DT>(
+      std::move(shape));
 }
 
-template <Eigen::Index Rows = Eigen::Dynamic>
-PyVectorMap<Rows> map_py_vector(py::array_t<double> &&arr) = delete;
-
-/**
- * @brief Converts a numpy array to an Eigen matrix.
- *
- * @param arr The numpy array to convert.
- * @return "Transposed" Eigen matrix mapped from the array object. Effectively,
- *         the matrix is mapped from the array which is row-major, so the
- *         resulting matrix is column-major (Eigen-style).
- *         For example, if the array is a 4x3 array, the resulting matrix will
- *         be a 3x4 matrix.
- */
-template <Eigen::Index Rows = Eigen::Dynamic, Eigen::Index Cols = Eigen::Dynamic>
-inline Eigen::Map<const Matrix<double, Rows, Cols>, Eigen::Unaligned,
-                  DynamicStrides>
-map_py_matrix(const py::array_t<double> &arr) {
-  if (arr.ndim() != 2)
-    throw py::value_error(
-        absl::StrCat("expected 2D array, got ", arr.ndim(), "D"));
-
-  const auto py_rows = arr.shape()[0], py_cols = arr.shape()[1];
-
-  if constexpr (Cols != Eigen::Dynamic) {
-    if (Cols != py_rows) {
-      throw py::value_error(
-          absl::StrCat("expected ", Cols, " rows, got ", py_rows));
-    }
+template <Eigen::Index Rows = Eigen::Dynamic,
+          Eigen::Index Cols = Eigen::Dynamic, class DT = double>
+NpArrayWrapper<Rows, Cols, DT> py_array_cast(py::handle h) {
+  PyObject *result = py::array_t<DT>::raw_array_t(h.ptr());
+  if (result == nullptr) {
+    py::error_already_set current_exc;
+    py::raise_from(current_exc, PyExc_ValueError,
+                   "cannot convert object to numpy array");
+    throw py::error_already_set();
   }
 
-  if constexpr (Rows != Eigen::Dynamic) {
-    if (Rows != py_cols) {
-      throw py::value_error(
-          absl::StrCat("expected ", Rows, " columns, got ", py_cols));
-    }
-  }
+  py::array_t<DT> arr = py::reinterpret_steal<py::array_t<DT>>(result);
 
-  DynamicStrides strides(
-      arr.strides()[0] / static_cast<py::ssize_t>(sizeof(double)),
-      arr.strides()[1] / static_cast<py::ssize_t>(sizeof(double)));
-  PyMatrixMap<Rows, Cols> map(arr.data(), py_cols, py_rows, strides);
-  return map;
+  auto maybe_copy = [&arr](Eigen::Index rows, Eigen::Index cols, auto strides) {
+    if (strides.inner() == 1)
+      return NpArrayWrapper<Rows, Cols, DT> { std::move(arr) };
+
+    ABSL_DLOG(INFO) << "copy triggered";
+
+    Eigen::Map<const Matrix<DT, Rows, Cols>, Eigen::Unaligned, decltype(strides)>
+        data(arr.data(), rows, cols, strides);
+
+    auto wrapper = empty_like(data);
+    wrapper.eigen() = data;
+    return wrapper;
+  };
+
+  constexpr bool is_vector = Rows == 1 || Cols == 1;
+  constexpr Eigen::Index size = Rows == Eigen::Dynamic || Cols == Eigen::Dynamic
+                                    ? Eigen::Dynamic
+                                    : Rows * Cols;
+
+  if constexpr (is_vector) {
+    if (arr.ndim() != 1)
+      throw py::value_error(
+          absl::StrCat("expected 1D array, got ", arr.ndim(), "D"));
+
+    if constexpr (size != Eigen::Dynamic) {
+      if (arr.size() != size) {
+        throw py::value_error(
+            absl::StrCat("expected ", size, " elements, got ", arr.size()));
+      }
+    }
+
+    return maybe_copy(arr.size(), 1,
+                      Eigen::InnerStride<> { eigen_stride(arr, 0) });
+  } else {
+    if (arr.ndim() != 2)
+      throw py::value_error(
+          absl::StrCat("expected 2D array, got ", arr.ndim(), "D"));
+
+    auto py_rows = arr.shape()[0], py_cols = arr.shape()[1];
+
+    if constexpr (Cols != Eigen::Dynamic) {
+      if (Cols != py_rows) {
+        throw py::value_error(
+            absl::StrCat("expected ", Cols, " rows, got ", py_rows));
+      }
+    }
+
+    if constexpr (Rows != Eigen::Dynamic) {
+      if (Rows != py_cols) {
+        throw py::value_error(
+            absl::StrCat("expected ", Rows, " columns, got ", py_cols));
+      }
+    }
+
+    return maybe_copy(py_cols, py_rows,
+                      py::EigenDStride { eigen_stride(arr, 0),
+                                         eigen_stride(arr, 1) });
+  }
 }
-
-template <Eigen::Index Rows = Eigen::Dynamic, Eigen::Index Cols = Eigen::Dynamic>
-Eigen::Map<const Matrix<double, Rows, Cols>, Eigen::Unaligned, DynamicStrides>
-map_py_matrix(py::array_t<double> &&arr) = delete;
-
-template <auto Rows, auto Cols, class Scalar = double>
-using TransposedView =
-    Eigen::Map<const Matrix<Scalar, Rows, Cols, Eigen::RowMajor>>;
 
 template <class ML>
-using Transposed =
-    Eigen::Matrix<typename ML::Scalar, ML::ColsAtCompileTime,
-                  ML::RowsAtCompileTime,
-                  ML::IsRowMajor ? Eigen::ColMajor : Eigen::RowMajor>;
-
-template <class MatrixLike>
-auto transpose_view(const MatrixLike &mat) {
-  // Swapped rows and cols for the transposed view
-  constexpr auto rows = MatrixLike::RowsAtCompileTime;
-  constexpr auto cols = MatrixLike::ColsAtCompileTime;
-  return TransposedView<cols, rows, typename MatrixLike::Scalar>(
-      mat.data(), mat.cols(), mat.rows());
+decltype(auto) eigen_as_numpy(const ML &mat) {
+  auto arr = empty_like(mat);
+  arr.eigen() = mat;
+  return std::move(arr).numpy();
 }
 
 inline int py_check_index(int size, int idx, const char *onerror) {

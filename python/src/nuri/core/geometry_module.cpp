@@ -49,11 +49,9 @@ align_both(Impl impl, std::string_view name, const PyMatrixMap<3> &query,
 }
 
 std::pair<PyMatrixMap<3>, PyMatrixMap<3>>
-check_convert_points(const py::handle &q_py, const py::handle &t_py) {
-  auto q_arr = ensure_array<double>(q_py), t_arr = ensure_array<double>(t_py);
-
-  PyMatrixMap<3> query = map_py_matrix<3>(q_arr),
-                 templ = map_py_matrix<3>(t_arr);
+check_convert_points(const NpArrayWrapper<3> &q_arr,
+                     const NpArrayWrapper<3> &t_arr) {
+  auto query = q_arr.eigen(), templ = t_arr.eigen();
   if (query.cols() != templ.cols()) {
     throw py::value_error(
         absl::StrCat("two sets of points must have the same size; got ",
@@ -77,9 +75,10 @@ auto default_qcp(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
 NURI_PYTHON_MODULE(m) {
   m.def(
       "align_points",
-      [](const py::handle &py_q, const py::handle &py_t,
+      [](const py::handle &q_py, const py::handle &t_py,
          std::string_view method, bool reflection) {
-        auto [query, templ] = check_convert_points(py_q, py_t);
+        auto q_arr = py_array_cast<3>(q_py), t_arr = py_array_cast<3>(t_py);
+        auto [query, templ] = check_convert_points(q_arr, t_arr);
 
         std::pair<Affine3d, double> result;
         if (method == "qcp") {
@@ -91,9 +90,12 @@ NURI_PYTHON_MODULE(m) {
               absl::StrCat("Unknown alignment method: ", method));
         }
 
-        Eigen::Matrix<double, 4, 4, Eigen::RowMajor> xform =
-            result.first.matrix();
-        return std::make_pair(xform, result.second);
+        auto xform = empty_like(result.first.matrix());
+        // Unlike most operations that simply transposing the matrix gives the
+        // correct column-major matrix, the transformation matrix should not
+        // be transposed.
+        xform.eigen().transpose() = result.first.matrix();
+        return std::make_pair(std::move(xform).numpy(), result.second);
       },
       py::arg("query"), py::arg("template"), py::arg("method") = "qcp",
       py::arg("reflection") = false, R"doc(
@@ -125,9 +127,10 @@ Find a 4x4 best-fit rigid-body transformation tensor, to align ``query`` to
 
   m.def(
       "align_rmsd",
-      [](const py::handle &py_q, const py::handle &py_t,
+      [](const py::handle &q_py, const py::handle &t_py,
          std::string_view method, bool reflection) {
-        auto [query, templ] = check_convert_points(py_q, py_t);
+        auto q_arr = py_array_cast<3>(q_py), t_arr = py_array_cast<3>(t_py);
+        auto [query, templ] = check_convert_points(q_arr, t_arr);
 
         if (method == "qcp")
           return align_rmsd(default_qcp, method, query, templ, reflection);
@@ -169,11 +172,8 @@ Calculate the RMSD of the best-fit rigid-body alignment of ``query`` to
   m.def(
       "transform",
       [](const py::handle &obj, const py::handle &py_pts) {
-        auto mat_arr = ensure_array<double>(obj),
-             pts_arr = ensure_array<double>(py_pts);
-
-        auto mat_t = map_py_matrix<4, 4>(mat_arr);
-        auto pts = map_py_matrix<3>(pts_arr);
+        auto mat_arr = py_array_cast<4, 4>(obj);
+        auto mat_t = mat_arr.eigen();
 
         // unlike most operations that simply transposing the matrix gives the
         // correct column-major matrix, the transformation matrix should not
@@ -181,9 +181,11 @@ Calculate the RMSD of the best-fit rigid-body alignment of ``query`` to
         Affine3d xform;
         xform.matrix() = mat_t.transpose();
 
-        Transposed<Matrix3Xd> result(pts.cols(), 3);
-        result.transpose().noalias() = xform * pts;
-        return result;
+        auto pts_arr = py_array_cast<3>(py_pts);
+        auto pts = pts_arr.eigen();
+        auto result = empty_like(pts);
+        result.eigen().noalias() = xform * pts;
+        return std::move(result).numpy();
       },
       py::arg("tensor"), py::arg("pts"), R"doc(
 Transform a set of points using a 4x4 transformation tensor.
