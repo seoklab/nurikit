@@ -283,6 +283,13 @@ using PyMatrixMap =
 
 template <Eigen::Index Rows = Eigen::Dynamic,
           Eigen::Index Cols = Eigen::Dynamic, class DT = double>
+class NpArrayWrapper;
+
+template <class ML>
+using NpArrayLike = NpArrayWrapper<ML::RowsAtCompileTime, ML::ColsAtCompileTime,
+                                   typename ML::Scalar>;
+
+template <Eigen::Index Rows, Eigen::Index Cols, class DT>
 class NpArrayWrapper: private py::array_t<DT> {
 private:
   using Parent = py::array_t<DT>;
@@ -341,25 +348,18 @@ private:
   friend NpArrayWrapper<R, C, DU> py_array_cast(py::handle h);
 
   template <class ML>
-  NpArrayWrapper<ML::RowsAtCompileTime, ML::ColsAtCompileTime,
-                 typename ML::Scalar>  //
-      friend empty_like(const ML &mat);
+  friend NpArrayLike<ML> empty_like(const ML &mat);
 };
 
 template <class ML>
-NpArrayWrapper<ML::RowsAtCompileTime, ML::ColsAtCompileTime, typename ML::Scalar>
-empty_like(const ML &mat) {
-  using DT = typename ML::Scalar;
-
+NpArrayLike<ML> empty_like(const ML &mat) {
   std::vector<py::ssize_t> shape;
   if constexpr (ML::RowsAtCompileTime == 1 || ML::ColsAtCompileTime == 1) {
     shape = { mat.size() };
   } else {
     shape = { mat.cols(), mat.rows() };
   }
-
-  return NpArrayWrapper<ML::RowsAtCompileTime, ML::ColsAtCompileTime, DT>(
-      std::move(shape));
+  return NpArrayLike<ML>(std::move(shape));
 }
 
 template <Eigen::Index Rows = Eigen::Dynamic,
