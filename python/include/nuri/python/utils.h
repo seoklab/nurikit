@@ -269,9 +269,11 @@ py::ssize_t eigen_stride(const py::array_t<DT, Flags> &arr, int dim) {
   return arr.strides()[dim] / static_cast<py::ssize_t>(sizeof(DT));
 }
 
-template <Eigen::Index Rows = Eigen::Dynamic, class DT = double,
-          bool Const = true>
-using PyVectorMap = Eigen::Map<internal::const_if_t<Const, Vector<DT, Rows>>>;
+template <Eigen::Index Rows = Eigen::Dynamic, Eigen::Index Cols = 1,
+          class DT = double, bool Const = true>
+using PyVectorMap = std::enable_if_t<
+    Rows == 1 || Cols == 1,
+    Eigen::Map<internal::const_if_t<Const, Matrix<DT, Rows, Cols>>>>;
 
 template <Eigen::Index Rows = Eigen::Dynamic, Eigen::Index Cols = Eigen::Dynamic,
           class DT = double, bool Const = true>
@@ -285,15 +287,12 @@ class NpArrayWrapper: private py::array_t<DT> {
 private:
   using Parent = py::array_t<DT>;
 
-  constexpr static Eigen::Index kSize =
-      Rows == Eigen::Dynamic || Cols == Eigen::Dynamic ? Eigen::Dynamic
-                                                       : Rows * Cols;
   constexpr static bool kIsVector = Rows == 1 || Cols == 1;
 
   template <class Ptr>
   decltype(auto) eigen_helper(Ptr *data) const {
     if constexpr (kIsVector) {
-      PyVectorMap<kSize, DT, std::is_const_v<Ptr>> map(data, this->size());
+      PyVectorMap<Rows, Cols, DT, std::is_const_v<Ptr>> map(data, this->size());
       return map;
     } else {
       PyMatrixMap<Rows, Cols, DT, std::is_const_v<Ptr>> map(
@@ -407,7 +406,16 @@ NpArrayWrapper<Rows, Cols, DT> py_array_cast(py::handle h) {
       }
     }
 
-    return maybe_copy(arr.size(), 1,
+    Eigen::Index rows, cols;
+    if constexpr (Cols == 1) {
+      rows = arr.size();
+      cols = 1;
+    } else {
+      rows = 1;
+      cols = arr.size();
+    }
+
+    return maybe_copy(rows, cols,
                       Eigen::InnerStride<> { eigen_stride(arr, 0) });
   } else {
     if (arr.ndim() != 2)
