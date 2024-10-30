@@ -101,7 +101,7 @@ public:
   using Base::Base;
 
   static auto bind(py::module &m) {
-    return Base::bind(m, "_ConformerIterator", rvp::copy);
+    return Base::bind(m, "_ConformerIterator");
   }
 
 private:
@@ -111,9 +111,9 @@ private:
     return confs.size();
   }
 
-  static TransposedView<Eigen::Dynamic, 3>
-  deref(const std::vector<Matrix3Xd> &confs, int idx) {
-    return transpose_view(confs[idx]);
+  static py::array_t<double> deref(const std::vector<Matrix3Xd> &confs,
+                                   int idx) {
+    return eigen_as_numpy(confs[idx]);
   }
 };
 
@@ -754,9 +754,9 @@ Sanitize the molecule.
           "get_conf",
           [](PyMol &self, int conf) {
             conf = check_conf(*self, conf);
-            return transpose_view(self->confs()[conf]);
+            return eigen_as_numpy(self->confs()[conf]);
           },
-          py::arg("conf") = 0, rvp::copy, R"doc(
+          py::arg("conf") = 0, R"doc(
 Get the coordinates of the atoms in a conformation.
 
 :param conf: The index of the conformation to get the coordinates from.

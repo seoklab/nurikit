@@ -11,6 +11,8 @@
 
 #include <Eigen/Dense>
 #include <pybind11/cast.h>
+#include <pybind11/eigen.h>
+#include <pybind11/numpy.h>
 #include <pybind11/options.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
@@ -100,7 +102,7 @@ public:
       : Base(confs), sub_(&sub) { }
 
   static auto bind(py::module &m, const char *name) {
-    return Base::bind(m, name, rvp::copy);
+    return Base::bind(m, name);
   }
 
 private:
@@ -111,8 +113,8 @@ private:
   }
 
   auto deref(const std::vector<Matrix3Xd> &confs, int idx) const {
-    auto view = transpose_view(confs[idx]);
-    return view((**sub_).atom_ids(), Eigen::all);
+    auto sub = confs[idx](Eigen::all, (**sub_).atom_ids());
+    return eigen_as_numpy(sub);
   }
 
   P *sub_;
@@ -520,10 +522,9 @@ Get a neighbor of the substructure.
       [](P &self, int conf) {
         Molecule &mol = *self.parent();
         conf = check_conf(mol, conf);
-        auto view = transpose_view(mol.confs()[conf]);
-        return view(self->atom_ids(), Eigen::all);
+        return eigen_as_numpy(mol.confs()[conf](Eigen::all, self->atom_ids()));
       },
-      py::arg("conf") = 0, rvp::copy, R"doc(
+      py::arg("conf") = 0, R"doc(
 Get the coordinates of the atoms in a conformation of the substructure.
 
 :param conf: The index of the conformation to get the coordinates from.

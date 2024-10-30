@@ -107,8 +107,8 @@ def test_atom(mol3dsub: Molecule):
 
     i = -1
     for i, atom in enumerate(sub, 1):  # noqa: B007
-        assert atom.atomic_number == 6 or atom.atomic_number == 1
-    assert i == 3
+        assert atom.atomic_number in (1, 6, 11)
+    assert i == 4
 
     assert np.allclose(atom.get_pos(), atom.as_parent().get_pos())
 

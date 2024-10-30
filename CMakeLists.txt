@@ -106,6 +106,10 @@ endif()
 
 add_subdirectory(include)
 include_directories(${NURI_INCLUDE_DIRECTORIES})
+string(APPEND CMAKE_CXX_FLAGS
+  " -include"
+  " ${CMAKE_CURRENT_BINARY_DIR}/include/generated/include/nuri/nurikit_config.h"
+)
 
 add_subdirectory(src)
 add_subdirectory(docs EXCLUDE_FROM_ALL)

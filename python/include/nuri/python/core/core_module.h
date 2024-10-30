@@ -607,8 +607,9 @@ extern void log_aromatic_warning(const BondData &bond);
 template <class MatrixLike>
 void assign_conf(MatrixLike &conf, const py::handle &obj) {
   static_assert(MatrixLike::RowsAtCompileTime == 3);
-  auto mat = map_py_matrix<3>(obj);
 
+  auto arr = py_array_cast<3>(obj);
+  auto mat = arr.eigen();
   if (mat.cols() != conf.cols()) {
     throw py::value_error(
         absl::StrCat("conformer has different number of atoms: expected ",
@@ -1121,9 +1122,9 @@ py::class_<T> &add_common_atom_interface(py::class_<T> &cls) {
       "get_pos",
       [](T &self, int conf) {
         auto blk = self.pos(conf);
-        return transpose_view(blk);
+        return eigen_as_numpy(blk);
       },
-      rvp::copy, py::arg("conf") = 0, R"doc(
+      py::arg("conf") = 0, R"doc(
 Get the position of the atom.
 
 :param conf: The index of the conformation to get the position from. Defaults to
@@ -1137,9 +1138,9 @@ Get the position of the atom.
   cls.def(
       "set_pos",
       [](T &self, const py::handle &obj, int conf) {
-        auto vec = map_py_vector<3>(obj);
+        auto arr = py_array_cast<3, 1>(obj);
         auto blk = self.pos(conf);
-        blk = vec;
+        blk = arr.eigen();
       },
       py::arg("pos"), py::arg("conf") = 0, R"doc(
 Set the position of the atom.
