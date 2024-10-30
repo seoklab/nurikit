@@ -15,6 +15,8 @@
 #include <utility>
 #include <vector>
 
+#include <object.h>
+#include <pyerrors.h>
 #include <Eigen/Dense>
 #include <pybind11/attr.h>
 #include <pybind11/eigen.h>
@@ -365,7 +367,7 @@ NpArrayLike<ML> empty_like(const ML &mat) {
 template <Eigen::Index Rows = Eigen::Dynamic,
           Eigen::Index Cols = Eigen::Dynamic, class DT = double>
 NpArrayWrapper<Rows, Cols, DT> py_array_cast(py::handle h) {
-  PyObject *result = py::array_t<DT>::raw_array_t(h.ptr());
+  PyObject *result = NpArrayWrapper<Rows, Cols, DT>::raw_array_t(h.ptr());
   if (result == nullptr) {
     py::error_already_set current_exc;
     py::raise_from(current_exc, PyExc_ValueError,
