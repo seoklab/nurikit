@@ -195,9 +195,9 @@ Effectively, this function is roughly equivalent to the following Python code:
 .. code-block:: python
 
   def transform(tensor, pts):
-    rotated = tensor[:3, :3] @ pts.T
-    translated = rotated + tensor[:3, 3, None]
-    return translated.T
+      rotated = tensor[:3, :3] @ pts.T
+      translated = rotated + tensor[:3, 3, None]
+      return translated.T
 
 :param tensor: The transformation tensor. Must be representable by a 2D numpy
   array of shape ``(4, 4)``.
