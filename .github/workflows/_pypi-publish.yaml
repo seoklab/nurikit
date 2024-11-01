@@ -36,9 +36,10 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - uses: pypa/gh-action-pypi-publish@v1.10.3
+      - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           verbose: true
+          attestations: false
 
       # https://packaging.python.org/en/latest/specifications/version-specifiers/#public-version-identifiers
       # Check if the version ends with a/b/rc or .dev (could also include post release number)
