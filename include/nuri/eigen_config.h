@@ -67,6 +67,7 @@ using Eigen::Vector4d;
 using Eigen::VectorXd;
 
 using Eigen::Affine3d;
+using Eigen::Translation3d;
 
 template <class Raw, int Options = 0,
           class StrideType =

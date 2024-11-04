@@ -438,6 +438,57 @@ TEST_F(AlignSingularTest, Qcp) {
   });
 }
 
+TEST(AlignFewPointsTest, ZeroPoints) {
+  Matrix3Xd query(3, 0), templ(3, 0);
+
+  {
+    auto [xform, msd] = kabsch(query, templ, AlignMode::kBoth);
+    EXPECT_TRUE(xform.matrix().isIdentity());
+    EXPECT_EQ(msd, 0);
+  }
+
+  {
+    auto [xform, msd] = qcp(query, templ, AlignMode::kBoth);
+    EXPECT_TRUE(xform.matrix().isIdentity());
+    EXPECT_EQ(msd, 0);
+  }
+}
+
+TEST(AlignFewPointsTest, OnePoint) {
+  Matrix3Xd query = Matrix3Xd::Random(3, 1), templ = Matrix3Xd::Random(3, 1);
+
+  {
+    auto [xform, msd] = kabsch(query, templ, AlignMode::kBoth);
+    EXPECT_TRUE(xform.linear().isIdentity());
+    NURI_EXPECT_EIGEN_EQ(xform.translation(), templ.col(0) - query.col(0));
+    EXPECT_EQ(msd, 0);
+  }
+
+  {
+    auto [xform, msd] = qcp(query, templ, AlignMode::kBoth);
+    EXPECT_TRUE(xform.linear().isIdentity());
+    NURI_EXPECT_EIGEN_EQ(xform.translation(), templ.col(0) - query.col(0));
+    EXPECT_EQ(msd, 0);
+  }
+}
+
+TEST(AlignFewPointsTest, TwoPoint) {
+  Matrix3Xd query = Matrix3Xd::Random(3, 2), templ(3, 2);
+  templ.noalias() = AlignTest::xform_ * query;
+
+  {
+    auto [xform, msd] = kabsch(query, templ, AlignMode::kBoth);
+    EXPECT_NEAR(msd, 0, 1e-6);
+    NURI_EXPECT_EIGEN_EQ_TOL(xform * query, templ, 1e-6);
+  }
+
+  {
+    // qcp fails on two points
+    auto [xform, msd] = qcp(query, templ, AlignMode::kMsdOnly);
+    EXPECT_NEAR(msd, 0, 1e-6);
+  }
+}
+
 TEST(EmbedTest, FromDistance) {
   Matrix3Xd orig(3, 19);
   orig.transpose() << -18.3397, 72.5541, 64.7727,  //
