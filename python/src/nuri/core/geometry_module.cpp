@@ -22,25 +22,31 @@ namespace nuri {
 namespace python_internal {
 namespace {
 template <class Impl>
-double align_rmsd(Impl impl, std::string_view name, const PyMatrixMap<3> &query,
-                  const PyMatrixMap<3> &templ, bool reflection) {
+double align_rmsd(Impl impl, std::string_view method,
+                  const PyMatrixMap<3> &query, const PyMatrixMap<3> &templ,
+                  bool reflection) {
   auto [_, msd] = impl(query, templ, AlignMode::kMsdOnly, reflection);
   if (msd < 0)
-    throw std::runtime_error(
-        absl::StrCat("Alignment method '", name, "' failed to calculate RMSD"));
+    throw std::runtime_error(absl::StrCat("Alignment method '", method,
+                                          "' failed to calculate RMSD"));
 
   return std::sqrt(msd);
 }
 
 template <class Impl>
 std::pair<Affine3d, double>
-align_both(Impl impl, std::string_view name, const PyMatrixMap<3> &query,
+align_both(Impl impl, std::string_view method, const PyMatrixMap<3> &query,
            const PyMatrixMap<3> &templ, bool reflection) {
+  // cols < 2 already handled in implementations
+  if (method == "qcp" && query.cols() == 2)
+    throw std::runtime_error(absl::StrCat("Alignment method '", method,
+                                          "' requires at least 3 points"));
+
   std::pair<Affine3d, double> result =
       impl(query, templ, AlignMode::kBoth, reflection);
   if (result.second < 0) {
     throw std::runtime_error(
-        absl::StrCat("Alignment method '", name,
+        absl::StrCat("Alignment method '", method,
                      "' failed to calculate transformation tensor"));
   }
 
@@ -57,9 +63,6 @@ check_convert_points(const NpArrayWrapper<3> &q_arr,
         absl::StrCat("two sets of points must have the same size; got ",
                      query.cols(), " and ", templ.cols()));
   }
-
-  if (query.cols() < 3)
-    throw py::value_error("too few points to align, need at least 3 points");
 
   if (!query.array().isFinite().all() || !templ.array().isFinite().all())
     throw py::value_error("NaN or infinite values in the points");

@@ -307,6 +307,22 @@ void OCTree::find_neighbors_d(const Vector3d &pt, const double cutoff,
 
 // NOLINTBEGIN(readability-identifier-naming,*-avoid-goto)
 namespace {
+  bool align_singular_common(std::pair<Affine3d, double> &result,
+                             const Eigen::Ref<const Matrix3Xd> &query,
+                             const Eigen::Ref<const Matrix3Xd> &templ,
+                             AlignMode mode) {
+    if (ABSL_PREDICT_FALSE(query.cols() < 2)) {
+      if (mode != AlignMode::kMsdOnly) {
+        result.first.setIdentity();
+        if (query.cols() == 1)
+          result.first.translation() = templ.col(0) - query.col(0);
+      }
+      return true;
+    }
+
+    return false;
+  }
+
   using Array6d = Array<double, 6, 1>;
   using Array9d = Array<double, 9, 1>;
 
@@ -510,6 +526,8 @@ std::pair<Affine3d, double> kabsch(const Eigen::Ref<const Matrix3Xd> &query,
                                    const Eigen::Ref<const Matrix3Xd> &templ,
                                    AlignMode mode, const bool reflection) {
   std::pair<Affine3d, double> ret { {}, 0.0 };
+  if (align_singular_common(ret, query, templ, mode))
+    return ret;
 
   Vector3d qs = query.rowwise().sum();
   Vector3d qm = qs.array() / query.cols(), tm = templ.rowwise().mean();
@@ -725,6 +743,8 @@ std::pair<Affine3d, double> qcp(const Eigen::Ref<const Matrix3Xd> &query,
                                 const double evalprec, const double evecprec,
                                 const int maxiter) {
   std::pair<Affine3d, double> ret { {}, 0.0 };
+  if (align_singular_common(ret, query, templ, mode))
+    return ret;
 
   MatrixX3d qt = query.transpose();
   Eigen::RowVector3d qm = qt.colwise().mean();
