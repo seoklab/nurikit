@@ -807,16 +807,13 @@ Whether the atom is chiral.
   :meth:`update`
 )doc");
   cls.def_property(
-      "right_handed",
-      [](T &self) { return atom_prolog(self).is_right_handed(); },
-      [](T &self, bool is_right) {
-        atom_prolog(self).set_right_handed(is_right);
-      },
+      "clockwise", [](T &self) { return atom_prolog(self).is_clockwise(); },
+      [](T &self, bool is_right) { atom_prolog(self).set_clockwise(is_right); },
       rvp::automatic,
       R"doc(
 :type: bool
 
-Whether the atom is right-handed.
+Whether the atom has clockwise chirality, as in the SMILES definition.
 
 .. seealso::
   :meth:`update`
@@ -988,7 +985,7 @@ The name of the atom. Returns an empty string if the name is not set.
          std::optional<int> atomic_number, const Element *element,
          std::optional<bool> ar, std::optional<bool> conj,
          std::optional<bool> ring, std::optional<bool> chiral,
-         std::optional<bool> right, std::optional<std::string> name) -> T & {
+         std::optional<bool> cw, std::optional<std::string> name) -> T & {
         // Possibly throwing functions
 
         AtomData &data = atom_prolog(self);
@@ -1030,8 +1027,8 @@ The name of the atom. Returns an empty string if the name is not set.
           data.set_ring_atom(*ring);
         if (chiral)
           data.set_chiral(*chiral);
-        if (right)
-          data.set_right_handed(*right);
+        if (cw)
+          data.set_clockwise(*cw);
 
         log_aromatic_warning(data);
 
@@ -1051,7 +1048,7 @@ The name of the atom. Returns an empty string if the name is not set.
       py::arg("conjugated") = py::none(),          //
       py::arg("ring") = py::none(),                //
       py::arg("chiral") = py::none(),              //
-      py::arg("right_handed") = py::none(),        //
+      py::arg("clockwise") = py::none(),           //
       py::arg("name") = py::none(),                //
       R"doc(
 Update the atom data. If any of the arguments are not given, the corresponding
@@ -1274,13 +1271,41 @@ Whether the atom is conjugated.
   :meth:`update`
 )doc");
   cls.def_property(
+      "has_config", [](T &self) { return bond_prolog(self).has_config(); },
+      [](T &self, bool config) { bond_prolog(self).set_config(config); },
+      rvp::automatic,
+      R"doc(
+:type: bool
+
+Whether the bond has an explicit cis-trans configuration.
+
+.. seealso::
+  :meth:`update`
+)doc");
+  cls.def_property(
       "trans", [](T &self) { return bond_prolog(self).is_trans(); },
       [](T &self, bool is_trans) { bond_prolog(self).set_trans(is_trans); },
       rvp::automatic,
       R"doc(
 :type: bool
 
-Whether the bond is *(E)*-configured.
+Whether the bond is in trans configuration.
+
+.. note::
+  For bonds with more than 3 neighboring atoms, "trans" configuration is not a
+  well defined term. In such cases, this will return whether the first two
+  neighbors are on the same side of the bond. For example, in the following
+  structure, the bond between atoms 0 and 1 is considered to be in a trans
+  configuration (assuming the neighbors are ordered in the same way as the
+  atoms).
+
+  .. code-block:: none
+
+     2       4
+      \     /
+       0 = 1
+      /     \
+     3       5
 
 .. seealso::
   :meth:`update`
@@ -1301,8 +1326,8 @@ The name of the bond. Returns an empty string if the name is not set.
       "update",
       [](T &self, std::optional<constants::BondOrder> ord,
          std::optional<bool> ar, std::optional<bool> conj,
-         std::optional<bool> ring, std::optional<bool> trans,
-         std::optional<std::string> name) -> T & {
+         std::optional<bool> ring, std::optional<bool> config,
+         std::optional<bool> trans, std::optional<std::string> name) -> T & {
         BondData &data = bond_prolog(self);
 
         // Possibly throwing, must be done first
@@ -1315,6 +1340,8 @@ The name of the bond. Returns an empty string if the name is not set.
           data.set_conjugated(*conj);
         if (ring)
           data.set_ring_bond(*ring);
+        if (config)
+          data.set_config(*config);
         if (trans)
           data.set_trans(*trans);
 
@@ -1330,6 +1357,7 @@ The name of the bond. Returns an empty string if the name is not set.
       py::arg("aromatic") = py::none(),    //
       py::arg("conjugated") = py::none(),  //
       py::arg("ring") = py::none(),        //
+      py::arg("config") = py::none(),      //
       py::arg("trans") = py::none(),       //
       py::arg("name") = py::none(),        //
       R"doc(

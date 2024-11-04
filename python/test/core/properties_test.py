@@ -75,8 +75,8 @@ def test_atom_data_interface(datalike: AtomData):
     datalike.chiral = True
     assert datalike.chiral
 
-    datalike.right_handed = True
-    assert datalike.right_handed
+    datalike.clockwise = True
+    assert datalike.clockwise
 
     datalike.name = "test"
     assert datalike.name == "test"
@@ -119,7 +119,7 @@ def test_atom_data_interface(datalike: AtomData):
         conjugated=False,
         ring=False,
         chiral=False,
-        right_handed=False,
+        clockwise=False,
         name="test2",
     )
     assert datalike.hyb == Hyb.SP3
@@ -131,7 +131,7 @@ def test_atom_data_interface(datalike: AtomData):
     assert not datalike.conjugated
     assert not datalike.ring
     assert not datalike.chiral
-    assert not datalike.right_handed
+    assert not datalike.clockwise
     assert datalike.name == "test2"
 
     with pytest.raises(ValueError, match="mutually exclusive"):
@@ -193,6 +193,9 @@ def test_bond_data_interface(datalike: BondData):
     datalike.conjugated = True
     assert datalike.conjugated
 
+    datalike.has_config = True
+    assert datalike.has_config
+
     datalike.trans = True
     assert datalike.trans
 
@@ -201,6 +204,7 @@ def test_bond_data_interface(datalike: BondData):
         aromatic=False,
         conjugated=False,
         ring=False,
+        config=False,
         trans=False,
         name="test2",
     )
@@ -208,6 +212,7 @@ def test_bond_data_interface(datalike: BondData):
     assert not datalike.aromatic
     assert not datalike.conjugated
     assert not datalike.ring
+    assert not datalike.has_config
     assert not datalike.trans
     assert datalike.name == "test2"
 
