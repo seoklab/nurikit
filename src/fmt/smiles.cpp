@@ -7,6 +7,7 @@
 
 #include <cctype>
 #include <cmath>
+#include <cstdint>
 #include <functional>
 #include <queue>
 #include <stack>
@@ -24,6 +25,7 @@
 #include <absl/algorithm/container.h>
 #include <absl/base/attributes.h>
 #include <absl/base/optimization.h>
+#include <absl/container/fixed_array.h>
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/inlined_vector.h>
 #include <absl/log/absl_check.h>
@@ -63,6 +65,17 @@ enum class Chirality {
 // NOLINTNEXTLINE(clang-diagnostic-unused-function)
 constexpr int char_to_int(char c) {
   return c - '0';
+}
+
+char flip_bond_updown(char orig) {
+  switch (orig) {
+  case '/':
+    return '\\';
+  case '\\':
+    return '/';
+  default:
+    ABSL_UNREACHABLE();
+  }
 }
 
 // NOLINTBEGIN(readability-identifier-naming,clang-diagnostic-unused-template)
@@ -147,7 +160,8 @@ using ImplicitAromatics = std::vector<int>;
 using AtomIdxStack = std::stack<int, std::vector<int>>;
 using ChiralityMap = absl::flat_hash_map<int, Chirality>;
 using RingMap = absl::flat_hash_map<int, RingData>;
-using BondGeometryMap = absl::flat_hash_map<std::pair<int, int>, char>;
+using BondGeometryMap =
+    absl::flat_hash_map<int, std::vector<std::pair<int, char>>>;
 
 template <class Ctx>
 int get_last_idx(Ctx &ctx) {
@@ -228,13 +242,15 @@ bool add_bond(MoleculeMutator &mutator, ImplicitAromatics &aromatics,
   BondData bond_data;
 
   // Automatic bond or up/down bond
+  bool implicit_aromatic;
   if (bond_repr == '\0' || bond_repr == '\\' || bond_repr == '/') {
     const AtomData &last_atom_data = mutator.mol().atom(prev).data(),
                    &atom_data = mutator.mol().atom(curr).data();
-    bond_data.order() = last_atom_data.is_aromatic() && atom_data.is_aromatic()
-                            ? constants::kAromaticBond
-                            : constants::kSingleBond;
+    implicit_aromatic = last_atom_data.is_aromatic() && atom_data.is_aromatic();
+    bond_data.order() = implicit_aromatic ? constants::kAromaticBond
+                                          : constants::kSingleBond;
   } else {
+    implicit_aromatic = false;
     bond_data.order() = char_to_bond(bond_repr);
   }
 
@@ -242,7 +258,7 @@ bool add_bond(MoleculeMutator &mutator, ImplicitAromatics &aromatics,
                 << bond_data.order();
 
   auto [it, success] = mutator.add_bond(prev, curr, bond_data);
-  if (bond_repr == '\0' && bond_data.order() == constants::kAromaticBond)
+  if (implicit_aromatic)
     aromatics.push_back(it->id());
   return success;
 }
@@ -273,7 +289,9 @@ int add_atom(Ctx &ctx, const Element *elem, bool aromatic) {
 
     if (last_bond_data == '/' || last_bond_data == '\\') {
       BondGeometryMap &bond_geometry_map = x3::get<bond_geometry_tag>(ctx);
-      bond_geometry_map[std::make_pair(last_idx, idx)] = last_bond_data;
+      bond_geometry_map[last_idx].push_back({ idx, last_bond_data });
+      bond_geometry_map[idx].push_back(
+          { last_idx, flip_bond_updown(last_bond_data) });
     }
   }
 
@@ -306,11 +324,19 @@ constexpr auto bracket_atom_adder(bool is_aromatic) {
   };
 }
 
-constexpr auto set_chirality = [](auto &ctx) {
+constexpr auto update_chirality = [](auto &ctx) {
+  MoleculeMutator &mutator = x3::get<mutator_tag>(ctx);
   const int idx = get_last_idx(ctx);
-  x3::get<chirality_map_tag>(ctx).get()[idx] = x3::_attr(ctx);
+  const Chirality chiral_kind = x3::_attr(ctx);
   ABSL_DVLOG(3) << "Setting chirality of atom " << idx << " to "
-                << static_cast<int>(x3::_attr(ctx));
+                << static_cast<int>(chiral_kind);
+
+  if (chiral_kind == Chirality::kCW) {
+    mutator.mol().atom(idx).data().add_flags(AtomFlags::kChiral
+                                             | AtomFlags::kClockWise);
+  } else if (chiral_kind == Chirality::kCCW) {
+    mutator.mol().atom(idx).data().add_flags(AtomFlags::kChiral);
+  }
 };
 
 constexpr auto set_atom_class = [](auto &) {
@@ -321,7 +347,7 @@ const auto bracket_atom =  //
     x3::lit('[')
     >> ((-x3::uint_ >> element_symbol)[bracket_atom_adder(false)]
         | (-x3::uint_ >> aromatic_symbol)[bracket_atom_adder(true)])
-    >> -chirality[set_chirality] >> -hydrogen >> -charge
+    >> -chirality[update_chirality] >> -hydrogen >> -charge
     >> -(x3::lit(':') >> x3::int_)[set_atom_class] >> x3::lit(']');
 
 constexpr auto set_last_bond_data = [](auto &ctx) {
@@ -360,7 +386,31 @@ void handle_ring(Ctx &ctx, int ring_idx) {
   const RingData &data = it->second;
 
   char resolved_bond_data;
-  if (data.bond_data == bond_data || bond_data == '\0') {
+
+  if (data.bond_data == '/' || data.bond_data == '\\' || bond_data == '/'
+      || bond_data == '\\') {
+    if (bond_data == '=' || bond_data == '#' || bond_data == '$'
+        || data.bond_data == '=' || data.bond_data == '#'
+        || data.bond_data == '$') {
+      x3::_pass(ctx) = false;
+      ABSL_LOG(WARNING)
+          << "Conflicting ring bond specification: " << data.bond_data << " vs "
+          << bond_data;
+      return;
+    }
+
+    if (data.bond_data == '/' || data.bond_data == '\\') {
+      BondGeometryMap &bond_geometry_map = x3::get<bond_geometry_tag>(ctx);
+      bond_geometry_map[data.atom_idx].push_back(
+          { current_idx, data.bond_data });
+    }
+    if (bond_data == '/' || bond_data == '\\') {
+      BondGeometryMap &bond_geometry_map = x3::get<bond_geometry_tag>(ctx);
+      bond_geometry_map[current_idx].push_back({ data.atom_idx, bond_data });
+    }
+
+    resolved_bond_data = '\0';
+  } else if (data.bond_data == bond_data || bond_data == '\0') {
     resolved_bond_data = data.bond_data;
   } else if (data.bond_data == '\0') {
     resolved_bond_data = bond_data;
@@ -382,12 +432,6 @@ void handle_ring(Ctx &ctx, int ring_idx) {
     ABSL_LOG(WARNING) << "Failed to add ring bond from " << data.atom_idx
                       << " to " << current_idx;
     return;
-  }
-
-  if (resolved_bond_data == '/' || resolved_bond_data == '\\') {
-    BondGeometryMap &bond_geometry_map = x3::get<bond_geometry_tag>(ctx);
-    bond_geometry_map[std::make_pair(data.atom_idx, current_idx)] =
-        resolved_bond_data;
   }
 
   map.erase(it);
@@ -440,6 +484,69 @@ BOOST_SPIRIT_DEFINE(smiles)
 
 // NOLINTEND(clang-diagnostic-unneeded-internal-declaration)
 // NOLINTEND(readability-identifier-naming,clang-diagnostic-unused-template)
+
+char resolve_bond_updown_atom(Molecule::Atom atom, Molecule::Atom other,
+                              const std::vector<std::pair<int, char>> &cfgs) {
+  // both bonds are annotated, so first one is the first neighbor (degree <= 3)
+  if (cfgs.size() == 2)
+    return cfgs[0].second;
+
+  auto first_nei = absl::c_find_if(atom, [&](Molecule::Neighbor nei) {
+    return nei.dst().id() != other.id();
+  });
+  ABSL_DCHECK(!first_nei.end());
+
+  if (cfgs[0].first == first_nei->dst().id())
+    return cfgs[0].second;
+
+  return flip_bond_updown(cfgs[0].second);
+}
+
+bool update_bond_configuration(Molecule &mol,
+                               const parser::BondGeometryMap &configs) {
+  if (configs.empty())
+    return true;
+
+  // NOLINTNEXTLINE(readability-use-anyofallof)
+  for (auto bond: mol.bonds()) {
+    if ((bond.data().order() != constants::kDoubleBond
+         && bond.data().order() != constants::kAromaticBond)
+        || all_neighbors(bond.src()) > 3 || all_neighbors(bond.dst()) > 3) {
+      continue;
+    }
+
+    auto it = configs.find(bond.src().id()), jt = configs.find(bond.dst().id());
+    if (it == configs.end() || jt == configs.end())
+      continue;
+
+    auto &src_cfgs = it->second, &dst_cfgs = jt->second;
+    ABSL_ASSUME(!src_cfgs.empty());
+    ABSL_ASSUME(!dst_cfgs.empty());
+    if (src_cfgs.size() > 2 || dst_cfgs.size() > 2) {
+      ABSL_LOG(INFO) << "too many bond configurations specified on bond "
+                     << bond.id() << "; ignoring";
+      continue;
+    }
+
+    if ((src_cfgs.size() == 2 && src_cfgs[0].second == src_cfgs[1].second)
+        || (dst_cfgs.size() == 2 && dst_cfgs[0].second == dst_cfgs[1].second)) {
+      ABSL_LOG(WARNING)
+          << "conflicting bond configuration specified on bond " << bond.id();
+      return false;
+    }
+
+    const char src_cfg =
+                   resolve_bond_updown_atom(bond.src(), bond.dst(), src_cfgs),
+               dst_cfg =
+                   resolve_bond_updown_atom(bond.dst(), bond.src(), dst_cfgs);
+
+    // C/C=C/C or C\C=C\C  // NOLINT
+    bool trans = src_cfg != dst_cfg;
+    bond.data().add_flags(BondFlags::kConfigSpecified).set_trans(trans);
+  }
+
+  return true;
+}
 
 void update_implicit_hydrogens(Molecule::MutableAtom atom) {
   int sum_bo = internal::sum_bond_order_raw(atom, 0, true), normal_valence;
@@ -499,8 +606,6 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
   stack.push(-1);
 
   auto begin = smiles.begin();
-  bool success;
-
   {
     MoleculeMutator mutator = mol.mutator();
 
@@ -514,7 +619,7 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
         std::ref(bond_geometry_map))[x3::with<parser::implicit_aromatics_tag>(
         std::ref(implicit_aromatics))[parser::smiles]]]]]]]];
 
-    success = x3::parse_main(begin, smiles.end(), parser, x3::unused);
+    bool success = x3::parse_main(begin, smiles.end(), parser, x3::unused);
 
     if (success && !ring_map.empty()) {
       ABSL_LOG(WARNING) << "Unresolved ring bonds: " << ring_map.size();
@@ -535,6 +640,12 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
           .set_order(constants::kSingleBond)
           .del_flags(BondFlags::kAromatic);
     }
+  }
+
+  if (!update_bond_configuration(mol, bond_geometry_map)) {
+    ABSL_LOG(ERROR) << "Parsing failed: " << smiles;
+    mol.clear();
+    return mol;
   }
 
   auto hit = has_hydrogens.begin();
@@ -631,6 +742,219 @@ bool number_rings(ArrayXi &ring_idxs, const Molecule &mol,
   return true;
 }
 
+enum class BondConfig : std::uint8_t {
+  kNone = 0,
+  // xor 1 to flip up/down
+  kUp = 0b10,
+  kDown = 0b11,
+};
+
+BondConfig flip_updown(BondConfig kind) {
+  ABSL_DCHECK(kind == BondConfig::kUp || kind == BondConfig::kDown);
+  return kind ^ static_cast<BondConfig>(0b1);
+}
+
+BondConfig updown_other(BondConfig kind, bool trans) {
+  ABSL_DCHECK(kind == BondConfig::kUp || kind == BondConfig::kDown);
+  return trans ? flip_updown(kind) : kind;
+}
+
+class NeighborBondConfig {
+public:
+  // NOLINTNEXTLINE(clang-diagnostic-unused-member-function)
+  NeighborBondConfig(Molecule::Atom atom)
+      : cfgs_(atom.degree(), BondConfig::kNone) {
+    for (int i = 0; i < atom.degree(); ++i) {
+      auto nei = atom[i];
+      if (nei.edge_data().has_config()) {
+        ++nconf_;
+        first_config_ = i;
+      } else if ((atom[i].edge_data().order() == constants::kSingleBond
+                  || atom[i].edge_data().order() == constants::kAromaticBond)) {
+        if (free_nei_[0] < 0) {
+          free_nei_[0] = i;
+        } else if (free_nei_[1] < 0) {
+          free_nei_[1] = i;
+        }
+      }
+    }
+  }
+
+  BondConfig src_updown(Molecule::Atom src, BondConfig kind) {
+    ABSL_DCHECK_EQ(nconf_, 1);
+
+    if (kind == BondConfig::kNone) {
+      kind = src.id() < src[first_free()].dst().id() ? BondConfig::kUp
+                                                     : BondConfig::kDown;
+    }
+
+    cfgs_[first_free()] = kind;
+    if (second_free() >= 0)
+      cfgs_[second_free()] = flip_updown(kind);
+
+    return kind;
+  }
+
+  bool dst_updown(Molecule::Neighbor nei, BondConfig kind) {
+    ABSL_DCHECK(kind == BondConfig::kUp || kind == BondConfig::kDown);
+
+    auto src = nei.src(), dst = nei.dst();
+    const int srci = dst.find_adjacent(src) - dst.begin();
+    ABSL_DCHECK_LT(srci, cfgs_.size());
+
+    if (cfgs_[srci] != BondConfig::kNone && cfgs_[srci] != kind)
+      return false;
+
+    cfgs_[srci] = kind;
+
+    if (nconf_ == 1) {
+      int other_idx = free_nei_[value_if(srci == first_free())];
+      if (other_idx >= 0) {
+        kind = flip_updown(kind);
+        ABSL_DCHECK(cfgs_[other_idx] == BondConfig::kNone
+                    || cfgs_[other_idx] == kind);
+        cfgs_[other_idx] = kind;
+      }
+    }
+
+    return true;
+  }
+
+  BondConfig updown() const {
+    ABSL_DCHECK_EQ(nconf_, 1);
+    return cfgs_[first_free()];
+  }
+
+  const std::vector<BondConfig> &cfgs() const { return cfgs_; }
+
+  int first_free() const {
+    ABSL_DCHECK_GE(free_nei_[0], 0);
+    return free_nei_[0];
+  }
+
+  int second_free() const { return free_nei_[1]; }
+
+  int first_config() const { return first_config_; }
+
+  int nconf() const { return nconf_; }
+
+private:
+  std::vector<BondConfig> cfgs_;
+  int free_nei_[2] = { -1, -1 };
+  int first_config_ = -1;
+  int nconf_ = 0;
+};
+
+class BondConfigResolver {
+public:
+  BondConfigResolver(const Molecule &mol, const ArrayXi &ring_idxs)
+      : data_(mol.begin(), mol.end()), ring_idxs_(&ring_idxs) { }
+
+  const NeighborBondConfig &cfg(Molecule::Atom atom) const {
+    return data_[atom.id()];
+  }
+
+  bool resolve_updown(Molecule::Atom atom, BondConfig req) {
+    NeighborBondConfig &cfg = mcfg(atom);
+    ABSL_DCHECK_EQ(cfg.nconf(), 1);
+
+    if (cfg.updown() != BondConfig::kNone) {
+      bool consistent = req == BondConfig::kNone || req == cfg.updown();
+      ABSL_LOG_IF(WARNING, !consistent)
+          << "conflicting bond up/down configuration specified on atom "
+          << atom.id();
+      return consistent;
+    }
+
+    BondConfig kind = cfg.src_updown(atom, req);
+
+    bool success = dst_updown(atom[cfg.first_free()], flip_updown(kind));
+
+    if (ABSL_PREDICT_TRUE(success) && cfg.second_free() >= 0)
+      success = dst_updown(atom[cfg.second_free()], kind);
+
+    return success;
+  }
+
+  BondConfig updown(Molecule::Atom atom) const { return cfg(atom).updown(); }
+
+private:
+  bool dst_updown(Molecule::Neighbor nei, BondConfig kind) {
+    if (is_broken(nei.eid()))
+      return true;
+
+    if (!mcfg(nei.dst()).dst_updown(nei, kind)) {
+      ABSL_LOG(WARNING)
+          << "conflicting bond up/down configuration specified on atom "
+          << nei.dst().id();
+      return false;
+    }
+
+    return true;
+  }
+
+  NeighborBondConfig &mcfg(Molecule::Atom atom) { return data_[atom.id()]; }
+
+  bool is_broken(int eid) const { return (*ring_idxs_)[eid] > 0; }
+
+  absl::FixedArray<NeighborBondConfig> data_;
+  const ArrayXi *ring_idxs_;
+};
+
+bool smiles_resolve_bond_updown(const Molecule &mol,
+                                const absl::InlinedVector<int, 1> &roots,
+                                ArrayXi &visited,
+                                BondConfigResolver &resolver) {
+  auto dfs = [&](auto &self, int curr) -> bool {
+    visited[curr] = 1;
+
+    auto atom = mol.atom(curr);
+    auto &info = resolver.cfg(atom);
+    if (info.nconf() > 2) {
+      ABSL_LOG(WARNING)
+          << "too many bond configurations specified on atom " << curr;
+      return false;
+    }
+
+    if (info.nconf() == 1) {
+      if (all_neighbors(atom) > 3) {
+        ABSL_LOG(WARNING) << "cannot determine bond configuration for atom "
+                          << curr << " with more than 3 neighbors";
+        return false;
+      }
+
+      auto cfg_nei = atom[info.first_config()];
+
+      BondConfig req;
+      if (visited[cfg_nei.dst().id()] == 0) {
+        req = BondConfig::kNone;
+      } else {
+        req = updown_other(resolver.updown(cfg_nei.dst()),
+                           cfg_nei.edge_data().is_trans());
+      }
+      if (!resolver.resolve_updown(atom, req))
+        return false;
+    }
+
+    for (auto nit = atom.begin(); nit != atom.end(); ++nit) {
+      if (visited[nit->dst().id()] != 0)
+        continue;
+
+      if (!self(self, nit->dst().id()))
+        return false;
+    }
+    return true;
+  };
+
+  for (int root: roots)
+    if (!dfs(dfs, root))
+      return false;
+
+  ABSL_DCHECK(visited.cast<bool>().all());
+
+  return true;
+}
+
 std::string_view smiles_symbol(const AtomData &data) {
   if (ABSL_PREDICT_FALSE(data.atomic_number() == 0))
     return "*";
@@ -643,7 +967,7 @@ std::string_view smiles_symbol(Molecule::Atom atom) {
 }
 
 bool can_write_organic(Molecule::Atom atom) {
-  if (atom.data().formal_charge() != 0
+  if (atom.data().formal_charge() != 0 || atom.data().is_chiral()
       || ABSL_PREDICT_FALSE(atom.data().explicit_isotope() != nullptr))
     return false;
 
@@ -721,6 +1045,12 @@ void write_bracket_atom(std::string &out, Molecule::Atom atom) {
     absl::StrAppend(&out, smiles_symbol(atom));
   }
 
+  if (atom.data().is_chiral()) {
+    out.push_back('@');
+    if (atom.data().is_clockwise())
+      out.push_back('@');
+  }
+
   if (atom.data().atomic_number() != 1) {
     int hcnt = atom.data().implicit_hydrogens();
     if (hcnt > 0)
@@ -769,16 +1099,29 @@ char bond_to_char(constants::BondOrder order) {
   // GCOV_EXCL_STOP
 }
 
-void write_bond_order(std::string &out, Molecule::Bond bond) {
-  if (can_write_aromatic_symbol(bond.src().data())
-      && can_write_aromatic_symbol(bond.dst().data())) {
-    if (bond.data().order() == constants::kAromaticBond)
+void write_bond_order(std::string &out, Molecule::Neighbor nei) {
+  if (can_write_aromatic_symbol(nei.src().data())
+      && can_write_aromatic_symbol(nei.dst().data())) {
+    if (nei.edge_data().order() == constants::kAromaticBond)
       return;
-  } else if (bond.data().order() == constants::kSingleBond) {
+  } else if (nei.edge_data().order() == constants::kSingleBond) {
     return;
   }
 
-  out.push_back(bond_to_char(bond.data().order()));
+  out.push_back(bond_to_char(nei.edge_data().order()));
+}
+
+void smiles_write_bond(std::string &out, Molecule::Atom src, int nidx,
+                       const BondConfigResolver &resolver) {
+  BondConfig kind = resolver.cfg(src).cfgs()[nidx];
+  if (kind == BondConfig::kNone) {
+    write_bond_order(out, src[nidx]);
+    return;
+  }
+
+  ABSL_ASSUME(kind == BondConfig::kUp || kind == BondConfig::kDown);
+  char updown = kind == BondConfig::kUp ? '/' : '\\';
+  out.push_back(updown);
 }
 
 void write_ring_index(std::string &out, int ring_idx) {
@@ -791,7 +1134,8 @@ void write_ring_index(std::string &out, int ring_idx) {
 
 void do_write_smiles_simple(std::string &out, const Molecule &mol,
                             const absl::InlinedVector<int, 1> &roots,
-                            const ArrayXi &ring_idxs, ArrayXi &atom_visited) {
+                            const ArrayXi &ring_idxs, ArrayXi &atom_visited,
+                            const BondConfigResolver &resolver) {
   auto write = [&](auto &self, Molecule::Atom atom,
                    Molecule::const_neighbor_iterator prev_it) -> void {
     atom_visited[atom.id()] = 1;
@@ -799,19 +1143,20 @@ void do_write_smiles_simple(std::string &out, const Molecule &mol,
     int prev;
     if (!prev_it.end()) {
       prev = prev_it->src().id();
-      write_bond_order(out, mol.bond(prev_it->eid()));
+      smiles_write_bond(out, prev_it->src(), prev_it - prev_it->src().begin(),
+                        resolver);
     } else {
       prev = -1;
     }
 
     write_atom(out, atom);
 
-    for (auto nei: atom) {
-      int ring_idx = ring_idxs[nei.eid()];
+    for (auto nit = atom.begin(); nit != atom.end(); ++nit) {
+      int ring_idx = ring_idxs[nit->eid()];
       if (ring_idx == 0)
         continue;
 
-      write_bond_order(out, mol.bond(nei.eid()));
+      smiles_write_bond(out, atom, nit - atom.begin(), resolver);
       write_ring_index(out, ring_idx);
     }
 
@@ -870,7 +1215,14 @@ bool write_smiles_simple(std::string &out, const Molecule &mol) {
   }
 
   atom_order.setZero();
-  do_write_smiles_simple(out, mol, roots, ring_idxs, atom_order);
+  BondConfigResolver resolver(mol, ring_idxs);
+  bool can_write_cfg =
+      smiles_resolve_bond_updown(mol, roots, atom_order, resolver);
+  if (!can_write_cfg)
+    return false;
+
+  atom_order.setZero();
+  do_write_smiles_simple(out, mol, roots, ring_idxs, atom_order, resolver);
   return true;
 }
 }  // namespace
