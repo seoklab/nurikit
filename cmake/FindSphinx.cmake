@@ -7,6 +7,10 @@ find_program(SPHINX_EXECUTABLE
   NAMES sphinx-build)
 mark_as_advanced(SPHINX_EXECUTABLE)
 
+option(NURI_PYDOC_DEPEND_PYTHON
+  "Auto-rebuild python module before building docs" OFF)
+mark_as_advanced(NURI_PYDOC_DEPEND_PYTHON)
+
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Sphinx DEFAULT_MSG SPHINX_EXECUTABLE)
 
@@ -28,6 +32,11 @@ function(add_sphinx_docs target)
 
   if(TARGET nuri_docs)
     add_dependencies("${target}" nuri_docs)
+  endif()
+
+  if(NURI_PYDOC_DEPEND_PYTHON)
+    message("${target} will rebuild python modules")
+    add_dependencies("${target}" nuri_python)
   endif()
 
   add_custom_target("${target}_doctest"

@@ -660,20 +660,123 @@ TEST_F(SmilesTest, DotBondTest) {
 TEST_F(SmilesTest, BondGeometryTest) {
   set_test_string(  // Taken from opensmiles spec
       "F/C=C/F trans-difluoride\n"
-      "C(/F)=C/F cis-difluoride\n");
+      "C(/F)=C/F cis-difluoride\n"
+      "C/1=C/C=C\\C=C/C=C\\1 cyclooctatetraene\n"
+      "C/C=C/C(/C=C(CC)\\C)=C(/C=C/C)\\C(\\C)=C\\CC sample1\n"
+      "C/C=C/C(/C=C/C)(/C=C/C)/C=C/C sample2\n");
 
   std::string smi;
 
   NURI_FMT_TEST_NEXT_MOL("trans-difluoride", 4, 3);
+  EXPECT_TRUE(mol().bond(1).data().has_config());
+  EXPECT_TRUE(mol().bond(1).data().is_trans());
   write_smiles(smi, mol());
 
   NURI_FMT_TEST_NEXT_MOL("cis-difluoride", 4, 3);
+  EXPECT_TRUE(mol().bond(1).data().has_config());
+  EXPECT_FALSE(mol().bond(1).data().is_trans());
+  write_smiles(smi, mol());
+
+  NURI_FMT_TEST_NEXT_MOL("cyclooctatetraene", 8, 8);
+  for (auto bond: mol().bonds()) {
+    if (bond.data().order() == constants::kDoubleBond) {
+      EXPECT_TRUE(bond.data().has_config());
+      EXPECT_FALSE(bond.data().is_trans());
+    } else {
+      EXPECT_FALSE(bond.data().has_config());
+    }
+  }
+  write_smiles(smi, mol());
+
+  NURI_FMT_TEST_NEXT_MOL("sample1", 18, 17);
+  for (auto bond: mol().bonds()) {
+    if (bond.data().order() == constants::kDoubleBond) {
+      EXPECT_TRUE(bond.data().has_config());
+      EXPECT_TRUE(bond.data().is_trans());
+    } else {
+      EXPECT_FALSE(bond.data().has_config());
+    }
+  }
+  write_smiles(smi, mol());
+
+  NURI_FMT_TEST_NEXT_MOL("sample2", 13, 12);
+  for (auto bond: mol().bonds()) {
+    if (bond.data().order() == constants::kDoubleBond) {
+      EXPECT_TRUE(bond.data().has_config());
+      EXPECT_TRUE(bond.data().is_trans());
+    } else {
+      EXPECT_FALSE(bond.data().has_config());
+    }
+  }
   write_smiles(smi, mol());
 
   set_test_string(smi);
 
   NURI_FMT_TEST_NEXT_MOL("trans-difluoride", 4, 3);
+  EXPECT_TRUE(mol().bond(1).data().has_config());
+  EXPECT_TRUE(mol().bond(1).data().is_trans());
+
   NURI_FMT_TEST_NEXT_MOL("cis-difluoride", 4, 3);
+  EXPECT_TRUE(mol().bond(1).data().has_config());
+  EXPECT_FALSE(mol().bond(1).data().is_trans());
+
+  NURI_FMT_TEST_NEXT_MOL("cyclooctatetraene", 8, 8);
+  for (auto bond: mol().bonds()) {
+    if (bond.data().order() == constants::kDoubleBond) {
+      EXPECT_TRUE(bond.data().has_config());
+      EXPECT_FALSE(bond.data().is_trans());
+    } else {
+      EXPECT_FALSE(bond.data().has_config());
+    }
+  }
+
+  NURI_FMT_TEST_NEXT_MOL("sample1", 18, 17);
+  for (auto bond: mol().bonds()) {
+    if (bond.data().order() == constants::kDoubleBond) {
+      EXPECT_TRUE(bond.data().has_config());
+      EXPECT_TRUE(bond.data().is_trans());
+    } else {
+      EXPECT_FALSE(bond.data().has_config());
+    }
+  }
+
+  NURI_FMT_TEST_NEXT_MOL("sample2", 13, 12);
+  for (auto bond: mol().bonds()) {
+    if (bond.data().order() == constants::kDoubleBond) {
+      EXPECT_TRUE(bond.data().has_config());
+      EXPECT_TRUE(bond.data().is_trans());
+    } else {
+      EXPECT_FALSE(bond.data().has_config());
+    }
+  }
+}
+
+TEST_F(SmilesTest, ChiralityTest) {
+  set_test_string(  // Taken from opensmiles spec
+      "C[C@@H](C(=O)O)N alanine\n"
+      "C[C@H](N)C(=O)O alanine-reversed\n");
+
+  std::string smi;
+
+  NURI_FMT_TEST_NEXT_MOL("alanine", 6, 5);
+  EXPECT_TRUE(mol().atom(1).data().is_chiral());
+  EXPECT_TRUE(mol().atom(1).data().is_clockwise());
+  write_smiles(smi, mol());
+
+  NURI_FMT_TEST_NEXT_MOL("alanine-reversed", 6, 5);
+  EXPECT_TRUE(mol().atom(1).data().is_chiral());
+  EXPECT_FALSE(mol().atom(1).data().is_clockwise());
+  write_smiles(smi, mol());
+
+  set_test_string(smi);
+
+  NURI_FMT_TEST_NEXT_MOL("alanine", 6, 5);
+  EXPECT_TRUE(mol().atom(1).data().is_chiral());
+  EXPECT_TRUE(mol().atom(1).data().is_clockwise());
+
+  NURI_FMT_TEST_NEXT_MOL("alanine-reversed", 6, 5);
+  EXPECT_TRUE(mol().atom(1).data().is_chiral());
+  EXPECT_FALSE(mol().atom(1).data().is_clockwise());
 }
 
 TEST_F(SmilesTest, EnamineRealExamplesTest) {

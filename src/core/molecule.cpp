@@ -39,7 +39,7 @@ using internal::nonbonding_electrons;
 AtomData::AtomData(const Element &element, int implicit_hydrogens,
                    int formal_charge, constants::Hybridization hyb,
                    double partial_charge, int mass_number, bool is_aromatic,
-                   bool is_in_ring, bool is_chiral, bool is_right_handed)
+                   bool is_in_ring, bool is_chiral, bool is_clockwise)
     : element_(&element), implicit_hydrogens_(implicit_hydrogens),
       formal_charge_(formal_charge), hyb_(hyb),
       flags_(static_cast<AtomFlags>(0)), partial_charge_(partial_charge),
@@ -62,7 +62,7 @@ AtomData::AtomData(const Element &element, int implicit_hydrogens,
                             | AtomFlags::kRing);
   internal::set_flag_if(flags_, is_in_ring, AtomFlags::kRing);
   internal::set_flag_if(flags_, is_chiral, AtomFlags::kChiral);
-  internal::set_flag_if(flags_, is_right_handed, AtomFlags::kRightHanded);
+  internal::set_flag_if(flags_, is_clockwise, AtomFlags::kClockWise);
 }
 
 /* Molecule definitions */

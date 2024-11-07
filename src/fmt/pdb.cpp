@@ -491,7 +491,6 @@ struct PDBAtomInfoTemplate {
   bool conjugated = false;
   bool aromatic = false;
   bool chiral = false;
-  bool right_handed = false;
 };
 
 struct PDBBondInfoTemplate {
@@ -531,7 +530,6 @@ AtomData from_template(const PDBAtomInfoTemplate &templ) {
   data.set_conjugated(templ.conjugated);
   data.set_aromatic(templ.aromatic);
   data.set_chiral(templ.chiral);
-  data.set_right_handed(templ.right_handed);
   return data;
 }
 
@@ -843,7 +841,7 @@ const absl::flat_hash_map<std::string_view, AminoAcid> kAAData {
   { "CYS", {
     {
       { "N", 7, 2 },
-      { "CA", 6, 1, {}, constants::kSP3, 0, false, false, true, true },
+      { "CA", 6, 1, {}, constants::kSP3, 0, false, false, true },
       { "C", 6, 0, {}, constants::kSP2, 0, true },
       { "O", 8, 0, {}, constants::kTerminal, 0, true },
       { "CB", 6, 2 },
@@ -1363,7 +1361,7 @@ const absl::flat_hash_map<std::string_view, AminoAcid> kAAData {
       { "CA", 6, 1, {}, constants::kSP3, 0, false, false, true },
       { "C", 6, 0, {}, constants::kSP2, 0, true },
       { "O", 8, 0, {}, constants::kTerminal, 0, true },
-      { "CB", 6, 1, {}, constants::kSP3, 0, false, false, true, true },
+      { "CB", 6, 1, {}, constants::kSP3, 0, false, false, true },
       { "OG1", 8, 1 },
       { "CG2", 6, 3 },
       { "OXT", 8, 1, {}, constants::kSP2, 0, true },
@@ -2237,6 +2235,8 @@ Molecule read_pdb(const std::vector<std::string> &pdb) {
       read_connect_section(it, end, mut, serial_to_idx);
       if (mol.num_bonds() != connect_bonds_start)
         remove_hbonds(mut);
+
+      // TODO(jnooree): handle stereochemistry correctly
     }
   }
 

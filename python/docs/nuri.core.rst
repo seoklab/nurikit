@@ -11,7 +11,7 @@ nuri.core
 
    .. autoclass:: Molecule
       :exclude-members: atom, bond, neighbor, bonds, mutator,
-         num_atoms, num_bonds, get_conf, set_conf, num_confs
+         num_atoms, num_bonds, get_conf, set_conf, num_confs, has_bond
 
       .. automethod:: __init__
       .. automethod:: atom

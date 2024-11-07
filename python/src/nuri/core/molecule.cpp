@@ -145,6 +145,20 @@ void bind_enums(py::module &m) {
       .value("Aromatic", constants::BondOrder::kAromaticBond);
 
   py::implicitly_convertible<int, constants::BondOrder>();
+
+  py::enum_<Chirality>(m, "Chirality")
+      .value("Unknown", Chirality::kNone)
+      .value("CW", Chirality::kCW)
+      .value("CCW", Chirality::kCCW);
+
+  py::implicitly_convertible<int, Chirality>();
+
+  py::enum_<BondConfig>(m, "BondConfig")
+      .value("Unknown", BondConfig::kNone)
+      .value("Trans", BondConfig::kTrans)
+      .value("Cis", BondConfig::kCis);
+
+  py::implicitly_convertible<int, BondConfig>();
 }
 
 void bind_atom(py::class_<AtomData> &atom_data, py::class_<PyAtom> &atom) {

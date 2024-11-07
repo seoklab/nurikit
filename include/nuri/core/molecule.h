@@ -120,7 +120,7 @@ enum class AtomFlags : std::uint32_t {
   kConjugated = 0x2,
   kRing = 0x4,
   kChiral = 0x8,
-  kRightHanded = 0x10,
+  kClockWise = 0x10,
 };
 
 class AtomData {
@@ -135,7 +135,7 @@ public:
            constants::Hybridization hyb = constants::kOtherHyb,
            double partial_charge = 0.0, int mass_number = -1,
            bool is_aromatic = false, bool is_in_ring = false,
-           bool is_chiral = false, bool is_right_handed = false);
+           bool is_chiral = false, bool is_clockwise = false);
 
   /**
    * @brief Get the atomic number of the atom.
@@ -273,8 +273,8 @@ public:
     return internal::check_flag(flags_, AtomFlags::kChiral);
   }
 
-  AtomData &set_right_handed(bool is_right_handed) {
-    internal::update_flag(flags_, is_right_handed, AtomFlags::kRightHanded);
+  AtomData &set_clockwise(bool is_clockwise) {
+    internal::update_flag(flags_, is_clockwise, AtomFlags::kClockWise);
     return *this;
   }
 
@@ -282,11 +282,11 @@ public:
    * @brief Get handedness of a chiral atom.
    *
    * @pre is_chiral() == `true`, otherwise return value would be meaningless.
-   * @return Whether the chiral atom is "right-handed," i.e., `true` for (R)
-   *         and `false` for (S).
+   * @return Whether the chiral atom is "clockwise." See stereochemistry
+   *         definition of SMILES for more information.
    */
-  bool is_right_handed() const {
-    return internal::check_flag(flags_, AtomFlags::kRightHanded);
+  bool is_clockwise() const {
+    return internal::check_flag(flags_, AtomFlags::kClockWise);
   }
 
   AtomFlags flags() const { return flags_; }
@@ -372,7 +372,8 @@ enum class BondFlags : std::uint32_t {
   kRing = 0x1,
   kAromatic = 0x2,
   kConjugated = 0x4,
-  kEConfig = 0x8,
+  kConfigSpecified = 0x8,
+  kTransConfig = 0x10,
 };
 
 class BondData {
@@ -436,12 +437,55 @@ public:
     return *this;
   }
 
-  bool is_trans() const {
-    return internal::check_flag(flags_, BondFlags::kEConfig);
+  /**
+   * @brief Test if the bond configuration is explicitly specified.
+   */
+  bool has_config() const {
+    return internal::check_flag(flags_, BondFlags::kConfigSpecified);
   }
 
+  /**
+   * @brief Set whether the bond configuration is explicitly specified.
+   */
+  BondData &set_config(bool config) {
+    internal::update_flag(flags_, config, BondFlags::kConfigSpecified);
+    return *this;
+  }
+
+  /**
+   * @brief Get the cis-trans configuration of the bond.
+   * @return Whether the bond is in trans configuration.
+   *
+   * @pre has_config(), otherwise return value would be meaningless.
+   * @note This flag is only meaningful for torsionally restricted bonds, such
+   *       as double bonds.
+   *
+   * For bonds with more than 3 neighboring atoms, "trans" configuration is not
+   * a well defined term. In such cases, this will return whether the first two
+   * neighbors are on the same side of the bond. For example, in the following
+   * structure, the bond between atoms 0 and 1 is considered to be in a cis
+   * configuration (assuming the neighbors are ordered in the same way as the
+   * atoms).
+   *
+   * \code{.unparsed}
+   *  2       4
+   *   \     /
+   *    0 = 1
+   *   /     \
+   *  3       5
+   * \endcode
+   */
+  bool is_trans() const {
+    return internal::check_flag(flags_, BondFlags::kTransConfig);
+  }
+
+  /**
+   * @brief Set cis-trans configuration of the bond.
+   * @param trans Whether the bond is in trans configuration or not.
+   * @pre has_config()
+   */
   BondData &set_trans(bool trans) {
-    internal::update_flag(flags_, trans, BondFlags::kEConfig);
+    internal::update_flag(flags_, trans, BondFlags::kTransConfig);
     return *this;
   }
 
