@@ -520,8 +520,8 @@ bool update_bond_configuration(Molecule &mol,
       continue;
 
     auto &src_cfgs = it->second, &dst_cfgs = jt->second;
-    ABSL_ASSUME(!src_cfgs.empty());
-    ABSL_ASSUME(!dst_cfgs.empty());
+    const bool src_empty = src_cfgs.empty(), dst_empty = dst_cfgs.empty();
+    ABSL_ASSUME(!src_empty && !dst_empty);
     if (src_cfgs.size() > 2 || dst_cfgs.size() > 2) {
       ABSL_LOG(INFO) << "too many bond configurations specified on bond "
                      << bond.id() << "; ignoring";
