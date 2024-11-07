@@ -26,6 +26,8 @@ __all__ = [
     "PeriodicTable",
     "Hyb",
     "BondOrder",
+    "Chirality",
+    "BondConfig",
     "SubstructureCategory",
     "AtomData",
     "BondData",

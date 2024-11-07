@@ -31,6 +31,42 @@
 
 namespace nuri {
 namespace python_internal {
+enum class Chirality : int {
+  kNone,
+  kCW,
+  kCCW,
+};
+
+inline Chirality chirality_of(const AtomData &data) {
+  if (!data.is_chiral())
+    return Chirality::kNone;
+
+  return data.is_clockwise() ? Chirality::kCW : Chirality::kCCW;
+}
+
+inline void update_chirality(AtomData &data, Chirality kind) {
+  data.set_chiral(kind != Chirality::kNone)
+      .set_clockwise(kind == Chirality::kCW);
+}
+
+enum class BondConfig : int {
+  kNone,
+  kCis,
+  kTrans,
+};
+
+inline BondConfig config_of(const BondData &data) {
+  if (!data.has_config())
+    return BondConfig::kNone;
+
+  return data.is_trans() ? BondConfig::kTrans : BondConfig::kCis;
+}
+
+inline void update_config(BondData &data, BondConfig kind) {
+  data.set_config(kind != BondConfig::kNone)
+      .set_trans(kind == BondConfig::kTrans);
+}
+
 inline int check_conf(const Molecule &mol, int idx) {
   return py_check_index(static_cast<int>(mol.confs().size()), idx,
                         "conformer index out of range");
@@ -795,25 +831,19 @@ Whether the atom is a ring atom.
   :meth:`update`
 )doc");
   cls.def_property(
-      "chiral", [](T &self) { return atom_prolog(self).is_chiral(); },
-      [](T &self, bool is_chiral) { atom_prolog(self).set_chiral(is_chiral); },
+      "chirality", [](T &self) { return chirality_of(atom_prolog(self)); },
+      [](T &self, std::optional<Chirality> kind) {
+        update_chirality(atom_prolog(self), kind.value_or(Chirality::kNone));
+      },
       rvp::automatic,
       R"doc(
-:type: bool
+:type: Chirality
 
-Whether the atom is chiral.
+Explicit chirality of the atom. Note that this does *not* imply the atom is a
+stereocenter chemically.
 
-.. seealso::
-  :meth:`update`
-)doc");
-  cls.def_property(
-      "clockwise", [](T &self) { return atom_prolog(self).is_clockwise(); },
-      [](T &self, bool is_right) { atom_prolog(self).set_clockwise(is_right); },
-      rvp::automatic,
-      R"doc(
-:type: bool
-
-Whether the atom has clockwise chirality, as in the SMILES definition.
+.. tip::
+  Assigning :obj:`None` clears the explicit chirality.
 
 .. seealso::
   :meth:`update`
@@ -984,8 +1014,8 @@ The name of the atom. Returns an empty string if the name is not set.
          std::optional<int> formal_charge, std::optional<double> partial_charge,
          std::optional<int> atomic_number, const Element *element,
          std::optional<bool> ar, std::optional<bool> conj,
-         std::optional<bool> ring, std::optional<bool> chiral,
-         std::optional<bool> cw, std::optional<std::string> name) -> T & {
+         std::optional<bool> ring, std::optional<Chirality> chirality,
+         std::optional<std::string> name) -> T & {
         // Possibly throwing functions
 
         AtomData &data = atom_prolog(self);
@@ -1025,10 +1055,8 @@ The name of the atom. Returns an empty string if the name is not set.
           data.set_conjugated(*conj);
         if (ring)
           data.set_ring_atom(*ring);
-        if (chiral)
-          data.set_chiral(*chiral);
-        if (cw)
-          data.set_clockwise(*cw);
+        if (chirality)
+          update_chirality(data, *chirality);
 
         log_aromatic_warning(data);
 
@@ -1047,8 +1075,7 @@ The name of the atom. Returns an empty string if the name is not set.
       py::arg("aromatic") = py::none(),            //
       py::arg("conjugated") = py::none(),          //
       py::arg("ring") = py::none(),                //
-      py::arg("chiral") = py::none(),              //
-      py::arg("clockwise") = py::none(),           //
+      py::arg("chirality") = py::none(),           //
       py::arg("name") = py::none(),                //
       R"doc(
 Update the atom data. If any of the arguments are not given, the corresponding
@@ -1271,41 +1298,43 @@ Whether the atom is conjugated.
   :meth:`update`
 )doc");
   cls.def_property(
-      "has_config", [](T &self) { return bond_prolog(self).has_config(); },
-      [](T &self, bool config) { bond_prolog(self).set_config(config); },
+      "config", [](T &self) { return config_of(bond_prolog(self)); },
+      [](T &self, std::optional<BondConfig> cfg) {
+        update_config(bond_prolog(self), cfg.value_or(BondConfig::kNone));
+      },
       rvp::automatic,
       R"doc(
-:type: bool
+:type: BondConfig
 
-Whether the bond has an explicit cis-trans configuration.
-
-.. seealso::
-  :meth:`update`
-)doc");
-  cls.def_property(
-      "trans", [](T &self) { return bond_prolog(self).is_trans(); },
-      [](T &self, bool is_trans) { bond_prolog(self).set_trans(is_trans); },
-      rvp::automatic,
-      R"doc(
-:type: bool
-
-Whether the bond is in trans configuration.
+The explicit configuration of the bond. Note that this does *not* imply the bond
+is a torsionally restricted bond chemically.
 
 .. note::
-  For bonds with more than 3 neighboring atoms, "trans" configuration is not a
-  well defined term. In such cases, this will return whether the first two
-  neighbors are on the same side of the bond. For example, in the following
-  structure, the bond between atoms 0 and 1 is considered to be in a trans
-  configuration (assuming the neighbors are ordered in the same way as the
-  atoms).
+  For bonds with more than 3 neighboring atoms, :attr:`BondConfig.Cis` or
+  :attr:`BondConfig.Trans` configurations are not well defined terms. In such
+  cases, this will return whether **the first neighbors are on the same side of
+  the bond**. For example, in the following structure (assuming the neighbors
+  are ordered in the same way as the atoms), the bond between atoms 0 and 1 is
+  considered to be in a cis configuration (first neighbors are marked with angle
+  brackets)::
 
-  .. code-block:: none
-
-     2       4
+    <2>     <4>
       \     /
        0 = 1
       /     \
      3       5
+
+  On the other hand, when the neighbors are ordered in the opposite way, the
+  bond between atoms 0 and 1 is considered to be in a trans configuration::
+
+    <2>      5
+      \     /
+       0 = 1
+      /     \
+     3      <4>
+
+.. tip::
+  Assigning :obj:`None` clears the explicit bond configuration.
 
 .. seealso::
   :meth:`update`
@@ -1326,8 +1355,8 @@ The name of the bond. Returns an empty string if the name is not set.
       "update",
       [](T &self, std::optional<constants::BondOrder> ord,
          std::optional<bool> ar, std::optional<bool> conj,
-         std::optional<bool> ring, std::optional<bool> config,
-         std::optional<bool> trans, std::optional<std::string> name) -> T & {
+         std::optional<bool> ring, std::optional<BondConfig> cfg,
+         std::optional<std::string> name) -> T & {
         BondData &data = bond_prolog(self);
 
         // Possibly throwing, must be done first
@@ -1340,10 +1369,8 @@ The name of the bond. Returns an empty string if the name is not set.
           data.set_conjugated(*conj);
         if (ring)
           data.set_ring_bond(*ring);
-        if (config)
-          data.set_config(*config);
-        if (trans)
-          data.set_trans(*trans);
+        if (cfg)
+          update_config(data, *cfg);
 
         log_aromatic_warning(data);
 
@@ -1358,7 +1385,6 @@ The name of the bond. Returns an empty string if the name is not set.
       py::arg("conjugated") = py::none(),  //
       py::arg("ring") = py::none(),        //
       py::arg("config") = py::none(),      //
-      py::arg("trans") = py::none(),       //
       py::arg("name") = py::none(),        //
       R"doc(
 Update the bond data. If any of the arguments are not given, the corresponding
