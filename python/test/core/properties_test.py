@@ -6,7 +6,15 @@
 import pytest
 
 from nuri import periodic_table
-from nuri.core import AtomData, BondData, BondOrder, Hyb, Molecule
+from nuri.core import (
+    AtomData,
+    BondConfig,
+    BondData,
+    BondOrder,
+    Chirality,
+    Hyb,
+    Molecule,
+)
 from nuri.core._core import _PropertyMap
 
 
@@ -72,11 +80,13 @@ def test_atom_data_interface(datalike: AtomData):
     datalike.ring = True
     assert datalike.ring
 
-    datalike.chiral = True
-    assert datalike.chiral
+    datalike.chirality = Chirality.Unknown
+    assert datalike.chirality == Chirality.Unknown
+    datalike.chirality = None
+    assert datalike.chirality == Chirality.Unknown
 
-    datalike.clockwise = True
-    assert datalike.clockwise
+    datalike.chirality = Chirality.CW
+    assert datalike.chirality == Chirality.CW
 
     datalike.name = "test"
     assert datalike.name == "test"
@@ -118,8 +128,7 @@ def test_atom_data_interface(datalike: AtomData):
         aromatic=False,
         conjugated=False,
         ring=False,
-        chiral=False,
-        clockwise=False,
+        chirality=Chirality.Unknown,
         name="test2",
     )
     assert datalike.hyb == Hyb.SP3
@@ -130,8 +139,7 @@ def test_atom_data_interface(datalike: AtomData):
     assert not datalike.aromatic
     assert not datalike.conjugated
     assert not datalike.ring
-    assert not datalike.chiral
-    assert not datalike.clockwise
+    assert datalike.chirality == Chirality.Unknown
     assert datalike.name == "test2"
 
     with pytest.raises(ValueError, match="mutually exclusive"):
@@ -193,27 +201,27 @@ def test_bond_data_interface(datalike: BondData):
     datalike.conjugated = True
     assert datalike.conjugated
 
-    datalike.has_config = True
-    assert datalike.has_config
+    datalike.config = BondConfig.Unknown
+    assert datalike.config == BondConfig.Unknown
+    datalike.config = None
+    assert datalike.config == BondConfig.Unknown
 
-    datalike.trans = True
-    assert datalike.trans
+    datalike.config = BondConfig.Cis
+    assert datalike.config == BondConfig.Cis
 
     datalike.update(
         order=BondOrder.Single,
         aromatic=False,
         conjugated=False,
         ring=False,
-        config=False,
-        trans=False,
+        config=BondConfig.Unknown,
         name="test2",
     )
     assert datalike.order == BondOrder.Single
     assert not datalike.aromatic
     assert not datalike.conjugated
     assert not datalike.ring
-    assert not datalike.has_config
-    assert not datalike.trans
+    assert datalike.config == BondConfig.Unknown
     assert datalike.name == "test2"
 
     bd = BondData()
