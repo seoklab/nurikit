@@ -463,7 +463,7 @@ public:
    * For bonds with more than 3 neighboring atoms, "trans" configuration is not
    * a well defined term. In such cases, this will return whether the first two
    * neighbors are on the same side of the bond. For example, in the following
-   * structure, the bond between atoms 0 and 1 is considered to be in a trans
+   * structure, the bond between atoms 0 and 1 is considered to be in a cis
    * configuration (assuming the neighbors are ordered in the same way as the
    * atoms).
    *
