@@ -12,6 +12,7 @@
 #include <initializer_list>
 #include <istream>
 #include <iterator>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -214,6 +215,13 @@ struct ResidueId {
   char chain;
   char icode;
 };
+
+std::ostream &operator<<(std::ostream &os, const ResidueId &id) {
+  os << id.chain << id.seqnum;
+  if (id.icode != ' ')
+    os << id.icode;
+  return os;
+}
 
 struct AtomId {
   ResidueId res;
@@ -1637,7 +1645,7 @@ public:
     });
 
     ABSL_LOG_IF(INFO, !first)
-        << "Duplicate atom altloc " << line.altloc() << "; ignoring";
+        << "Duplicate atom altloc '" << line.altloc() << "'; ignoring";
     return first;
   }
 
@@ -1790,11 +1798,17 @@ bool read_atom_or_hetatom_line(std::string_view line, const int serial,
 
   if (!first_id) {
     if (ABSL_PREDICT_FALSE(!first_ser)) {
-      ABSL_LOG(WARNING) << "Duplicate atom serial number: " << serial;
-      return false;
+      ABSL_LOG(WARNING)
+          << "Duplicate atom serial number " << serial << "; ignoring";
+      return true;
     }
 
-    return data[idx].add_line(al);
+    bool new_altloc = data[idx].add_line(al);
+    ABSL_LOG_IF(WARNING, !new_altloc)
+        << "Duplicate atom " << al.id().name << " of residue " << al.id().res
+        << " (" << al.resname() << ") with serial number " << serial
+        << " and altloc '" << al.altloc() << "'; ignoring";
+    return true;
   }
 
   data.emplace_back(al);
