@@ -348,7 +348,8 @@ void read_seqres_record(Iterator &it, const Iterator end, std::string &buf,
   for (; is_record(it, end, "SEQRES"); ++it) {
     std::string_view line = *it;
     if (line.size() < 12) {
-      ABSL_LOG(INFO) << "Invalid SEQRES record: " << line;
+      ABSL_LOG(INFO) << "Invalid SEQRES record: line too short (" << line.size()
+                     << " < 12)";
       continue;
     }
 
@@ -384,13 +385,15 @@ void read_modres_record(Iterator &it, const Iterator end,
   for (; is_record(it, end, "MODRES"); ++it) {
     std::string_view line = *it;
     if (line.size() < 27) {
-      ABSL_LOG(INFO) << "Invalid MODRES record: " << line;
+      ABSL_LOG(INFO) << "Invalid MODRES record: line too short (" << line.size()
+                     << " < 27)";
       continue;
     }
 
     Modres &mod = modres.emplace_back();
     if (!absl::SimpleAtoi(slice(line, 18, 22), &mod.id.seqnum)) {
-      ABSL_LOG(INFO) << "Invalid MODRES sequence number: " << line;
+      ABSL_LOG(INFO)
+          << "Invalid MODRES sequence number: " << slice(line, 18, 22);
       modres.pop_back();
       continue;
     }
@@ -1606,7 +1609,8 @@ public:
   static std::optional<AtomicLine> parse(std::string_view line, int serial) {
     // At least 47 characters (for three coordinates) required for useful data
     if (line.size() < 47) {
-      ABSL_LOG(WARNING) << "Invalid ATOM/HETATM record: " << line;
+      ABSL_LOG(WARNING) << "Invalid ATOM/HETATM record: line too short ("
+                        << line.size() << " < 47)";
       return std::nullopt;
     }
 
@@ -1621,7 +1625,7 @@ public:
 
     id.name = slice_strip(line, 11, 16);
     if (id.name.empty()) {
-      ABSL_LOG(WARNING) << "Empty atom name: " << line;
+      ABSL_LOG(WARNING) << "Empty atom name supplied";
       return std::nullopt;
     }
 
@@ -1864,7 +1868,7 @@ bool read_coord_section(Iterator &it, const Iterator end,
       std::string_view err = slice_strip(line, 6, 11);
 
       if (is_atom || is_hetatom) {
-        ABSL_LOG(ERROR) << "invalid atom serial number: " << err;
+        ABSL_LOG(WARNING) << "invalid atom serial number: " << err;
         return false;
       }
 
@@ -2240,8 +2244,14 @@ Molecule read_pdb(const std::vector<std::string> &pdb) {
   internal::CompactMap<int, int> serial_to_idx(last_serial(pdb) + 1);
   bool success =
       read_coord_section(it, end, atom_data, residue_data, serial_to_idx);
-  if (!success)
+  if (!success) {
+    std::string_view line;
+    if (it != end)
+      line = *it;
+
+    ABSL_LOG(ERROR) << "Invalid coordinate section record: " << line;
     return mol;
+  }
 
   std::vector<Substructure> subs;
 
