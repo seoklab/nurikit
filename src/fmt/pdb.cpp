@@ -12,6 +12,8 @@
 #include <initializer_list>
 #include <istream>
 #include <iterator>
+#include <optional>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -208,19 +210,24 @@ NURI_FIND_SECTION_IDX(kTitleSection, REMARK);
 
 #undef NURI_FIND_SECTION_IDX
 
-// NOLINTNEXTLINE(*-macro-usage)
+// NOLINTBEGIN(*-identifier-naming,*-unused-function,*-unused-template)
 struct ResidueId {
   int seqnum;
   char chain;
   char icode;
 };
 
+std::ostream &operator<<(std::ostream &os, const ResidueId &id) {
+  os << id.chain << id.seqnum;
+  if (id.icode != ' ')
+    os << id.icode;
+  return os;
+}
+
 struct AtomId {
   ResidueId res;
   std::string_view name;
 };
-
-// NOLINTBEGIN(*-identifier-naming,*-unused-function,*-unused-template)
 
 template <class Hash>
 Hash AbslHashValue(Hash h, ResidueId id) {
@@ -341,7 +348,8 @@ void read_seqres_record(Iterator &it, const Iterator end, std::string &buf,
   for (; is_record(it, end, "SEQRES"); ++it) {
     std::string_view line = *it;
     if (line.size() < 12) {
-      ABSL_LOG(INFO) << "Invalid SEQRES record: " << line;
+      ABSL_LOG(INFO) << "Invalid SEQRES record: line too short (" << line.size()
+                     << " < 12)";
       continue;
     }
 
@@ -377,13 +385,15 @@ void read_modres_record(Iterator &it, const Iterator end,
   for (; is_record(it, end, "MODRES"); ++it) {
     std::string_view line = *it;
     if (line.size() < 27) {
-      ABSL_LOG(INFO) << "Invalid MODRES record: " << line;
+      ABSL_LOG(INFO) << "Invalid MODRES record: line too short (" << line.size()
+                     << " < 27)";
       continue;
     }
 
     Modres &mod = modres.emplace_back();
     if (!absl::SimpleAtoi(slice(line, 18, 22), &mod.id.seqnum)) {
-      ABSL_LOG(INFO) << "Invalid MODRES sequence number: " << line;
+      ABSL_LOG(INFO)
+          << "Invalid MODRES sequence number: " << slice(line, 18, 22);
       modres.pop_back();
       continue;
     }
@@ -1593,12 +1603,33 @@ std::string as_key(std::string_view prefix, char altloc) {
 
 class AtomicLine {
 public:
-  AtomicLine(std::string_view line, int serial)
-      : serial_(serial), line_(line), id_ {
-          { safe_atoi(slice(line_, 22, 26)), line_[21], line_[26] },
-          slice_strip(line_, 11, 16)
-  } {
-    ABSL_DCHECK(line.size() >= 47) << "Invalid ATOM/HETATM record: " << line;
+  AtomicLine(int serial, AtomId id, std::string_view line)
+      : serial_(serial), line_(line), id_(id) { }
+
+  static std::optional<AtomicLine> parse(std::string_view line, int serial) {
+    // At least 47 characters (for three coordinates) required for useful data
+    if (line.size() < 47) {
+      ABSL_LOG(WARNING) << "Invalid ATOM/HETATM record: line too short ("
+                        << line.size() << " < 47)";
+      return std::nullopt;
+    }
+
+    AtomId id;
+    if (!absl::SimpleAtoi(safe_slice(line, 22, 26), &id.res.seqnum)) {
+      ABSL_LOG(WARNING) << "Invalid residue sequence number: "
+                        << safe_slice_strip(line, 22, 26);
+      return std::nullopt;
+    }
+    id.res.chain = line[21];
+    id.res.icode = line[26];
+
+    id.name = slice_strip(line, 11, 16);
+    if (id.name.empty()) {
+      ABSL_LOG(WARNING) << "Empty atom name supplied";
+      return std::nullopt;
+    }
+
+    return AtomicLine(serial, id, line);
   }
 
   int serial() const { return serial_; }
@@ -1637,7 +1668,7 @@ public:
     });
 
     ABSL_LOG_IF(INFO, !first)
-        << "Duplicate atom altloc " << line.altloc() << "; ignoring";
+        << "Duplicate atom altloc '" << line.altloc() << "'; ignoring";
     return first;
   }
 
@@ -1771,14 +1802,11 @@ bool read_atom_or_hetatom_line(std::string_view line, const int serial,
                                internal::CompactMap<int, int> &serial_map,
                                std::vector<PDBAtomData> &data,
                                PDBResidueData &residue_data) {
-  // At least 47 characters (for three coordinates) required for useful data
-  if (line.size() < 47) {
-    ABSL_LOG(INFO) << "Invalid ATOM/HETATM record: " << line;
-    return true;
-  }
+  auto maybe_atom = AtomicLine::parse(line, serial);
+  if (!maybe_atom)
+    return false;
 
-  AtomicLine al(line, serial);
-
+  AtomicLine al = *maybe_atom;
   int res_idx = residue_data.prepare_add_atom(al);
   if (res_idx < 0)
     return true;
@@ -1790,11 +1818,17 @@ bool read_atom_or_hetatom_line(std::string_view line, const int serial,
 
   if (!first_id) {
     if (ABSL_PREDICT_FALSE(!first_ser)) {
-      ABSL_LOG(WARNING) << "Duplicate atom serial number: " << serial;
-      return false;
+      ABSL_LOG(WARNING)
+          << "Duplicate atom serial number " << serial << "; ignoring";
+      return true;
     }
 
-    return data[idx].add_line(al);
+    bool new_altloc = data[idx].add_line(al);
+    ABSL_LOG_IF(WARNING, !new_altloc)
+        << "Duplicate atom " << al.id().name << " of residue " << al.id().res
+        << " (" << al.resname() << ") with serial number " << serial
+        << " and altloc '" << al.altloc() << "'; ignoring";
+    return true;
   }
 
   data.emplace_back(al);
@@ -1834,7 +1868,7 @@ bool read_coord_section(Iterator &it, const Iterator end,
       std::string_view err = slice_strip(line, 6, 11);
 
       if (is_atom || is_hetatom) {
-        ABSL_LOG(ERROR) << "invalid atom serial number: " << err;
+        ABSL_LOG(WARNING) << "invalid atom serial number: " << err;
         return false;
       }
 
@@ -2210,8 +2244,14 @@ Molecule read_pdb(const std::vector<std::string> &pdb) {
   internal::CompactMap<int, int> serial_to_idx(last_serial(pdb) + 1);
   bool success =
       read_coord_section(it, end, atom_data, residue_data, serial_to_idx);
-  if (!success)
+  if (!success) {
+    std::string_view line;
+    if (it != end)
+      line = *it;
+
+    ABSL_LOG(ERROR) << "Invalid coordinate section record: " << line;
     return mol;
+  }
 
   std::vector<Substructure> subs;
 

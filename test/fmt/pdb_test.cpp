@@ -6,6 +6,7 @@
 #include "nuri/fmt/pdb.h"
 
 #include <fstream>
+#include <sstream>
 #include <vector>
 
 #include <absl/algorithm/container.h>
@@ -146,6 +147,50 @@ TEST_F(PDBTest, HandleMultipleModels) {
   ASSERT_EQ(mol().num_substructures(), 6);
   EXPECT_EQ(mol().get_substructure(0).name(), "VAL");
   EXPECT_EQ(mol().get_substructure(0).num_atoms(), 7);
+}
+
+TEST(PDBErrorTest, HandleSyntaxErrors) {
+  // parser ignores contents after model index, use remaining for comments
+  std::istringstream iss(R"pdb(
+MODEL        1  // Missing coordinates
+ATOM      1  N   ALA A   1
+ENDMDL
+MODEL        2  // Invalid serial number
+ATOM      A  N   ALA A   1      11.104   6.134  -6.504  1.00  0.00           N
+ENDMDL
+MODEL        3  // Invalid residue number
+ATOM      1  N   ALA A   A      11.104   6.134  -6.504  1.00  0.00           N
+ENDMDL
+MODEL        4  // Missing atom name
+ATOM      1      ALA A   1      11.104   6.134  -6.504  1.00  0.00           N
+ENDMDL
+)pdb");
+  PDBReader reader(iss);
+  auto ms = reader.stream();
+
+  while (ms.advance()) {
+    const Molecule &mol = ms.current();
+    EXPECT_TRUE(mol.empty());
+  }
+}
+
+// GH-402
+TEST(PDBErrorTest, HandleSemanticErrors) {
+  // parser ignores contents after model index, use remaining for comments
+  std::istringstream iss(R"pdb(
+MODEL        1  // Duplicate atom records (one with same serial, other with same id)
+ATOM   9006  H   SER B 153      30.485  52.658  25.676  1.00 58.61           H
+ATOM   9006  H   SER B 153      30.485  52.658  25.676  1.00 58.61           H
+ATOM   9007  H   SER B 153      30.485  52.658  25.676  0.00 58.61           H
+ENDMDL
+)pdb");
+  PDBReader reader(iss);
+  auto ms = reader.stream();
+
+  while (ms.advance()) {
+    const Molecule &mol = ms.current();
+    EXPECT_EQ(mol.num_atoms(), 1);
+  }
 }
 
 class PDB1alxTest: public testing::Test {
