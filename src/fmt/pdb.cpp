@@ -12,6 +12,7 @@
 #include <initializer_list>
 #include <istream>
 #include <iterator>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -209,7 +210,7 @@ NURI_FIND_SECTION_IDX(kTitleSection, REMARK);
 
 #undef NURI_FIND_SECTION_IDX
 
-// NOLINTNEXTLINE(*-macro-usage)
+// NOLINTBEGIN(*-identifier-naming,*-unused-function,*-unused-template)
 struct ResidueId {
   int seqnum;
   char chain;
@@ -227,8 +228,6 @@ struct AtomId {
   ResidueId res;
   std::string_view name;
 };
-
-// NOLINTBEGIN(*-identifier-naming,*-unused-function,*-unused-template)
 
 template <class Hash>
 Hash AbslHashValue(Hash h, ResidueId id) {
@@ -1601,12 +1600,32 @@ std::string as_key(std::string_view prefix, char altloc) {
 
 class AtomicLine {
 public:
-  AtomicLine(std::string_view line, int serial)
-      : serial_(serial), line_(line), id_ {
-          { safe_atoi(slice(line_, 22, 26)), line_[21], line_[26] },
-          slice_strip(line_, 11, 16)
-  } {
-    ABSL_DCHECK(line.size() >= 47) << "Invalid ATOM/HETATM record: " << line;
+  AtomicLine(int serial, AtomId id, std::string_view line)
+      : serial_(serial), line_(line), id_(id) { }
+
+  static std::optional<AtomicLine> parse(std::string_view line, int serial) {
+    // At least 47 characters (for three coordinates) required for useful data
+    if (line.size() < 47) {
+      ABSL_LOG(WARNING) << "Invalid ATOM/HETATM record: " << line;
+      return std::nullopt;
+    }
+
+    AtomId id;
+    if (!absl::SimpleAtoi(safe_slice(line, 22, 26), &id.res.seqnum)) {
+      ABSL_LOG(WARNING) << "Invalid residue sequence number: "
+                        << safe_slice_strip(line, 22, 26);
+      return std::nullopt;
+    }
+    id.res.chain = line[21];
+    id.res.icode = line[26];
+
+    id.name = slice_strip(line, 11, 16);
+    if (id.name.empty()) {
+      ABSL_LOG(WARNING) << "Empty atom name: " << line;
+      return std::nullopt;
+    }
+
+    return AtomicLine(serial, id, line);
   }
 
   int serial() const { return serial_; }
@@ -1779,14 +1798,11 @@ bool read_atom_or_hetatom_line(std::string_view line, const int serial,
                                internal::CompactMap<int, int> &serial_map,
                                std::vector<PDBAtomData> &data,
                                PDBResidueData &residue_data) {
-  // At least 47 characters (for three coordinates) required for useful data
-  if (line.size() < 47) {
-    ABSL_LOG(INFO) << "Invalid ATOM/HETATM record: " << line;
-    return true;
-  }
+  auto maybe_atom = AtomicLine::parse(line, serial);
+  if (!maybe_atom)
+    return false;
 
-  AtomicLine al(line, serial);
-
+  AtomicLine al = *maybe_atom;
   int res_idx = residue_data.prepare_add_atom(al);
   if (res_idx < 0)
     return true;
