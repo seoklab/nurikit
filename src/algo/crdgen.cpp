@@ -15,12 +15,15 @@
 
 #include <absl/algorithm/container.h>
 #include <absl/base/attributes.h>
+#include <absl/container/fixed_array.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/algo/optim.h"
+#include "nuri/core/element.h"
 #include "nuri/core/geometry.h"
+#include "nuri/core/graph.h"
 #include "nuri/core/molecule.h"
 #include "nuri/utils.h"
 
@@ -566,10 +569,47 @@ namespace {
     return x.row(3).square().sum();
   }
 
+  template <class Indexer>
+  double tetrad_volume_loss(MutRef<Array4Xd> &g, ConstRef<Array4Xd> x,
+                            const Indexer &idxs, const double ref_vol,
+                            const double weight) {
+    ABSL_DCHECK(idxs.size() == 4);
+
+    auto x3d = x.topRows(3);
+
+    Matrix<double, 3, 4> zs = x3d(Eigen::all, idxs);
+    zs.leftCols<3>().colwise() -= zs.col(3);
+
+    Matrix<double, 3, 4> grad;
+    for (int i = 0; i < 3; ++i)
+      grad.col(i) = zs.col((i + 1) % 3).cross(zs.col((i + 2) % 3));
+
+    double vol_err = nonnegative(ref_vol - zs.col(0).dot(grad.col(0)));
+
+    grad.leftCols<3>() *= -2 * vol_err;
+    grad.col(3) = -grad.leftCols<3>().rowwise().sum();
+    g.topRows(3)(Eigen::all, idxs) += grad.array() * weight;
+
+    return vol_err * vol_err * weight;
+  }
+
+  double
+  // NOLINTNEXTLINE(clang-diagnostic-unneeded-internal-declaration)
+  volumetric_error(MutRef<Array4Xd> &g, ConstRef<Array4Xd> x,
+                   const std::vector<std::pair<Array4i, double>> &tetrads,
+                   const double weight) {
+    double loss = 0;
+    for (const auto &tetrad: tetrads)
+      loss += tetrad_volume_loss(g, x, tetrad.first, tetrad.second, weight);
+    return loss;
+  }
+
   template <bool MinimizeFourth>
   // NOLINTNEXTLINE(clang-diagnostic-unused-template)
   double error_funcgrad(ArrayXd &ga, ConstRef<ArrayXd> xa,
-                        const Array2Xd &bsq_inv, const Eigen::Index n) {
+                        const Array2Xd &bsq_inv,
+                        const std::vector<std::pair<Array4i, double>> &tetrads,
+                        const Eigen::Index n, const double volume_weight) {
     ga.setZero();
 
     MutRef<Array4Xd> g = ga.reshaped(4, n);
@@ -578,11 +618,40 @@ namespace {
     ABSL_DVLOG(3) << "current coordinates:\n" << x.transpose();
 
     const double e1 = distance_error(g, x, bsq_inv);
+    const double e2 = volumetric_error(g, x, tetrads, volume_weight);
     if constexpr (!MinimizeFourth)
-      return e1;
+      return e1 + e2;
 
-    const double e2 = extra_dimension_error(g, x);
-    return e1 + e2;
+    const double e3 = extra_dimension_error(g, x);
+    return e1 + e2 + e3;
+  }
+
+  Array4i chiral_tetrad_ids(Molecule::Atom atom) {
+    ABSL_DCHECK(atom.degree() == 3 || atom.degree() == 4);
+
+    Array4i idxs;
+    for (int i = 0; i < atom.degree(); ++i)
+      idxs[i] = atom[i].dst().id();
+    if (atom.degree() == 3)
+      idxs[3] = atom.id();
+    return idxs;
+  }
+
+  std::pair<Array4i, double> chiral_ref_tetrad(Molecule::Atom atom,
+                                               const MatrixXd &dsqs) {
+    Array4i idxs = chiral_tetrad_ids(atom);
+
+    // Cayley-Menger determinant
+    Matrix<double, 5, 5> cm;
+    cm.col(0).setOnes();
+    cm.row(0).setOnes();
+    cm.bottomRightCorner<4, 4>() = dsqs(idxs, idxs);
+    cm.diagonal().setConstant(0);
+    const double vol = std::sqrt(nonnegative(cm.determinant()) / 288);
+
+    // CW -> negative, CCW -> positive
+    const double sgn = atom.data().is_clockwise() ? -1 : +1;
+    return { idxs, std::copysign(vol, sgn) };
   }
 
   template <bool init_random>
@@ -593,22 +662,49 @@ namespace {
     DistanceBounds bounds = init_bounds(mol);
     const auto bsq_inv = bounds.bsq_inv();
 
+    std::vector<std::pair<Array4i, double>> tetrads;
+    std::vector<int> chiral_atoms;
+    for (auto atom: mol) {
+      if (!atom.data().is_chiral())
+        continue;
+      if (atom.degree() < 3) {
+        ABSL_LOG(INFO) << "chiral atom " << atom.id() << " has only "
+                       << atom.degree() << " neighbors; skipping";
+        continue;
+      }
+
+      chiral_atoms.push_back(atom.id());
+    }
+
     Matrix4Xd trial(4, n);
-    MatrixXd dists(mol.size(), mol.size());
+    MatrixXd dists(n, n);
 
     Bfgs optim(trial.reshaped().array());
 
     auto first_fg = [&](ArrayXd &ga, const auto &xa) {
-      return error_funcgrad<false>(ga, xa, bsq_inv, n);
+      return error_funcgrad<false>(ga, xa, bsq_inv, tetrads, n, 10.0);
     };
 
     auto second_fg = [&](ArrayXd &ga, const auto &xa) {
-      return error_funcgrad<true>(ga, xa, bsq_inv, n);
+      return error_funcgrad<true>(ga, xa, bsq_inv, tetrads, n, 10.0);
     };
+
+    // TODO(jnooree): handle planar ...
+
+    const auto chiral_start = tetrads.size();
+    tetrads.resize(chiral_start + chiral_atoms.size());
 
     RandomSource rng(seed);
     bool success = false;
     for (int iter = 0; iter < max_trial; ++iter) {
+      bounds.fill_trial_distances(dists, rng);
+      dists = dists.cwiseAbs2();
+
+      for (int i = 0; i < chiral_atoms.size(); ++i) {
+        auto atom = mol[chiral_atoms[i]];
+        tetrads[chiral_start + i] = chiral_ref_tetrad(atom, dists);
+      }
+
       if constexpr (init_random) {
         rng.ensure_seeded();
         for (int j = 0; j < n; ++j) {
@@ -617,12 +713,8 @@ namespace {
                                            static_cast<double>(3 * n));
           }
         }
-      } else {
-        bounds.fill_trial_distances(dists, rng);
-        dists = dists.cwiseAbs2();
-
-        if (!embed_distances_4d(trial, dists))
-          continue;
+      } else if (!embed_distances_4d(trial, dists)) {
+        continue;
       }
 
       ABSL_DVLOG(1) << "initial trial coordinates:\n" << trial;
