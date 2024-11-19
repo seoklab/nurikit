@@ -619,7 +619,7 @@ namespace {
         }
       } else {
         bounds.fill_trial_distances(dists, rng);
-        dists.cwiseAbs2();
+        dists = dists.cwiseAbs2();
 
         if (!embed_distances_4d(trial, dists))
           continue;
