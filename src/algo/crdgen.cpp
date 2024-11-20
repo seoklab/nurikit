@@ -9,13 +9,13 @@
 #include <cmath>
 #include <ostream>
 #include <random>
+#include <tuple>
 #include <vector>
 
 #include <Eigen/Dense>
 
 #include <absl/algorithm/container.h>
 #include <absl/base/attributes.h>
-#include <absl/container/fixed_array.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 

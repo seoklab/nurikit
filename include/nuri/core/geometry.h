@@ -249,8 +249,8 @@ namespace internal {
   inline auto safe_normalized(VectorLike &&m, double eps = 1e-12) {
     using T = remove_cvref_t<VectorLike>;
     using Scalar = typename T::Scalar;
-    constexpr auto size = T::SizeAtCompileTime,
-                   max_size = T::MaxSizeAtCompileTime;
+    constexpr auto size = T::SizeAtCompileTime;
+    constexpr auto max_size = T::MaxSizeAtCompileTime;
 
     Matrix<Scalar, size, 1, 0, max_size, 1> ret = std::forward<VectorLike>(m);
     safe_normalize(ret, eps);
@@ -264,8 +264,8 @@ namespace internal {
     using Scalar = typename T::Scalar;
 
     using ArrayLike = decltype(m.colwise().squaredNorm().array());
-    constexpr auto cols = ArrayLike::ColsAtCompileTime,
-                   max_cols = ArrayLike::MaxColsAtCompileTime;
+    constexpr auto cols = ArrayLike::ColsAtCompileTime;
+    constexpr auto max_cols = ArrayLike::MaxColsAtCompileTime;
 
     Array<Scalar, 1, cols, Eigen::RowMajor, 1, max_cols> norm =
         m.colwise().squaredNorm().array();
@@ -276,8 +276,8 @@ namespace internal {
   inline auto safe_colwise_normalized(MatrixLike &&m, double eps = 1e-12) {
     using T = remove_cvref_t<MatrixLike>;
     using Scalar = typename T::Scalar;
-    constexpr auto rows = T::RowsAtCompileTime, cols = T::ColsAtCompileTime,
-                   max_rows = T::MaxRowsAtCompileTime,
+    constexpr auto rows = T::RowsAtCompileTime, cols = T::ColsAtCompileTime;
+    constexpr auto max_rows = T::MaxRowsAtCompileTime,
                    max_cols = T::MaxColsAtCompileTime;
 
     Matrix<Scalar, rows, cols, 0, max_rows, max_cols> ret =
