@@ -626,10 +626,6 @@ void smiles_ordering_chirality(Molecule::Atom atom, std::vector<int> &ordering,
     if (nei.dst().id() > atom.id() && !is_broken_bond(nei.eid()))
       ordering.push_back(i);
   }
-
-  ABSL_LOG_IF(INFO, ordering.size() != 4)
-      << "Atom " << atom.id() << " has total " << ordering.size()
-      << " neighbors (not 4) but marked chiral";
 }
 
 /**
@@ -637,6 +633,9 @@ void smiles_ordering_chirality(Molecule::Atom atom, std::vector<int> &ordering,
  * true.
  */
 bool chiral_order_consistent(const std::vector<int> &ordering) {
+  const auto ord_size = ordering.size();
+  ABSL_ASSUME(ord_size == 4);
+
   // Handedness change by axis. 0, 2 -> same, 1, 3 -> opposite
   bool consistent = ordering[0] % 2 == 0;
 
@@ -645,7 +644,7 @@ bool chiral_order_consistent(const std::vector<int> &ordering) {
   const int n = static_cast<int>(nbs.size());
 
   // Now check if order is consistent
-  for (int i = 1; i < nbs.size(); ++i) {
+  for (int i = 1; i < n; ++i) {
     int left = (start + i - 1) % n;
     int right = (start + i) % n;
     if (nbs[left] > nbs[right]) {
@@ -657,11 +656,35 @@ bool chiral_order_consistent(const std::vector<int> &ordering) {
   return consistent;
 }
 
+/**
+ * Resolve chirality of the atom based on the "SMILES ordering" of neighbors.
+ * Will pass-through the current chirality if the atom has less than 3 neighbors
+ * or has more than 1 implicit hydrogens (not a stereocenter).
+ */
 template <class Pred>
 bool smiles_resolve_is_clockwise(Molecule::Atom atom,
                                  std::vector<int> &ordering,
                                  Pred &&is_ring_bond) {
+  if (atom.degree() < 3) {
+    ABSL_LOG(INFO) << "Atom " << atom.id() << " has degree " << atom.degree()
+                   << " (< 3), but is marked chiral";
+    return atom.data().is_clockwise();
+  }
+
+  if (atom.data().implicit_hydrogens() > 1) {
+    ABSL_LOG(INFO)
+        << "Atom " << atom.id() << " has " << atom.data().implicit_hydrogens()
+        << " implicit hydrogens (> 1), but is marked chiral";
+    return atom.data().is_clockwise();
+  }
+
   smiles_ordering_chirality(atom, ordering, std::forward<Pred>(is_ring_bond));
+
+  if (ordering.size() != 4) {
+    ABSL_LOG(INFO) << "Atom " << atom.id() << " has total " << ordering.size()
+                   << " neighbors (!= 4), but is marked chiral";
+    return atom.data().is_clockwise();
+  }
 
   const bool consistent = chiral_order_consistent(ordering);
   // consistent (T) and CW (T) -> CW (T)
@@ -679,12 +702,8 @@ void convert_chirality(Molecule &mol, const parser::RingBonds &ring_bonds) {
   smiles_order.reserve(4);
 
   for (auto atom: mol) {
-    if (!atom.data().is_chiral() || atom.degree() < 3) {
-      ABSL_LOG_IF(INFO, atom.data().is_chiral() && atom.degree() < 3)
-          << "Atom " << atom.id() << " has degree " << atom.degree()
-          << " < 3, but is marked chiral";
+    if (!atom.data().is_chiral())
       continue;
-    }
 
     bool clockwise =
         smiles_resolve_is_clockwise(atom, smiles_order, is_ring_bond);
