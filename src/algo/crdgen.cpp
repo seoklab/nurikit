@@ -740,19 +740,19 @@ namespace {
           continue;
       }
 
-      ABSL_DVLOG(1) << "initial trial coordinates:\n" << trial;
+      ABSL_DVLOG(1) << "initial trial coordinates:\n" << trial.transpose();
 
       BfgsResult res = optim.minimize(first_fg, 1e-3, 1e-6);
       if (res.code != BfgsResultCode::kSuccess)
         continue;
 
-      ABSL_DVLOG(1) << "after 4D minimization:\n" << trial;
+      ABSL_DVLOG(1) << "after 4D minimization:\n" << trial.transpose();
 
       res = optim.minimize(second_fg);
       if (res.code != BfgsResultCode::kSuccess)
         continue;
 
-      ABSL_DVLOG(1) << "after 3D projection:\n" << trial;
+      ABSL_DVLOG(1) << "after 3D projection:\n" << trial.transpose();
 
       success = true;
       break;
