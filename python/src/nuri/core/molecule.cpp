@@ -146,7 +146,77 @@ void bind_enums(py::module &m) {
 
   py::implicitly_convertible<int, constants::BondOrder>();
 
-  py::enum_<Chirality>(m, "Chirality")
+  py::enum_<Chirality>(m, "Chirality", R"doc(
+Chirality of an atom.
+
+When viewed from the first neighboring atom of a "chiral" atom, the chirality
+is determined by the spatial arrangement of the remaining neighbors. That is,
+when the remaining neighbors are arranged in a clockwise direction, the
+chirality is "clockwise" (:attr:`CW`), and when they are arranged in a
+counter-clockwise direction, the chirality is "counter-clockwise" (:attr:`CCW`).
+If the atom is not a stereocenter or the chirality is unspecified, the chirality
+is "unknown" (:attr:`Unknown`).
+
+If the atom has an implicit hydrogen, it will be always placed at the end of the
+neighbor list. This is to ensure that the chirality of the atom is not affected
+by adding back the implicit hydrogen (which will be placed at the end).
+
+.. note::
+  It is worth noting that this chirality definition ("NuriKit Chirality") is not
+  strictly equivalent to the chirality definition in SMILES ("SMILES
+  Chirality"), although it appears to be similar and often resolves to the same
+  chirality.
+
+  One notable difference is that most SMILES parser implementations place the
+  implicit hydrogen where it appears in the SMILES string. [#fn-non-conforming]_
+  For example, consider the stereocenter in the following SMILES string::
+
+    [C@@H](F)(Cl)Br
+
+  The SMILES Chirality of the atom is "clockwise" because the implicit hydrogen
+  is interpreted as the first neighbor. On the other hand, the NuriKit Chirality
+  of the atom is "counter-clockwise" because the implicit hydrogen is
+  interpreted as the last neighbor.
+
+  This is not a problem in most cases, because when the stereocenter is not the
+  first atom of a fragment, the SMILES Chirality and the NuriKit Chirality are
+  consistent. For example, a slightly modified SMILES string of the above
+  example will result in a "counter-clockwise" configuration in both
+  definitions::
+
+    F[C@H](Cl)Br
+
+  Another neighbor ordering inconsistency might occur when ring closure is
+  involved. This is because a ring-closing bond **addition** could only be done
+  after the partner atom is added, but the SMILES Chirality is resolved in the
+  order of the **appearance** of the bonds in the SMILES string. For example,
+  consider the following SMILES string, in which the two stereocenters are both
+  "clockwise" in terms of the SMILES Chirality (atoms are numbered for
+  reference)::
+
+    1 2  3  4 5     6 7
+    C[C@@H]1C[C@@]1(F)C
+
+  The NuriKit Chirality of atom 2 is "counter-clockwise" because the order of
+  the neighbors is 1, 3, 5, 4 in the SMILES Chirality (atom 5 precedes atom 4
+  because the ring-closing bond between atoms 2 and 5 *appears before* the bond
+  between atoms 2 and 4), but 1, 3, 4, 5 in the NuriKit Chirality (atom 4
+  precedes atom 5 because the ring-closing bond is *added after* the bond
+  between atoms 2 and 4).
+
+  On the other hand, the NuriKit Chirality of atom 5 is "clockwise" because the
+  order of the neighbors is 4, 2, 6, 7 in both definitions. Unlike the other
+  stereocenter, the partner of the ring-closing bond (atom 2) is already added,
+  and the ring-closing bond can now be added where it appears in the SMILES
+  string.
+
+  .. rubric:: Footnotes
+
+  .. [#fn-non-conforming] Note that this behavior of the implementations is not
+     strictly conforming to the OpenSMILES specification, which states that the
+     implicit hydrogen should be considered to be the **first atom in the
+     clockwise or anticlockwise accounting**.
+)doc")
       .value("Unknown", Chirality::kNone)
       .value("CW", Chirality::kCW)
       .value("CCW", Chirality::kCCW);
