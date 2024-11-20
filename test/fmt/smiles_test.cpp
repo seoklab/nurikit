@@ -754,7 +754,11 @@ TEST_F(SmilesTest, BondGeometryTest) {
 TEST_F(SmilesTest, ChiralityTest) {
   set_test_string(  // Taken from opensmiles spec
       "C[C@@H](C(=O)O)N alanine\n"
-      "C[C@H](N)C(=O)O alanine-reversed\n");
+      "C[C@H](N)C(=O)O alanine-reversed\n"
+      "[C@@H](F)(Cl)Br test first\n"
+      "F[C@H](Cl)Br test not-first\n"
+      "C[C@@H]1C[C@@]1(F)C test ring closing\n"
+      "CC[C@@H]1C.[C@@H]1(F)C test ring closing disconnected\n");
 
   std::string smi;
 
@@ -768,6 +772,30 @@ TEST_F(SmilesTest, ChiralityTest) {
   EXPECT_FALSE(mol().atom(1).data().is_clockwise());
   write_smiles(smi, mol());
 
+  NURI_FMT_TEST_NEXT_MOL("test first", 4, 3);
+  EXPECT_TRUE(mol().atom(0).data().is_chiral());
+  EXPECT_FALSE(mol().atom(0).data().is_clockwise());
+  write_smiles(smi, mol());
+
+  NURI_FMT_TEST_NEXT_MOL("test not-first", 4, 3);
+  EXPECT_TRUE(mol().atom(1).data().is_chiral());
+  EXPECT_FALSE(mol().atom(1).data().is_clockwise());
+  write_smiles(smi, mol());
+
+  NURI_FMT_TEST_NEXT_MOL("test ring closing", 6, 6);
+  EXPECT_TRUE(mol().atom(1).data().is_chiral());
+  EXPECT_FALSE(mol().atom(1).data().is_clockwise());
+  EXPECT_TRUE(mol().atom(3).data().is_chiral());
+  EXPECT_TRUE(mol().atom(3).data().is_clockwise());
+  write_smiles(smi, mol());
+
+  NURI_FMT_TEST_NEXT_MOL("test ring closing disconnected", 7, 6);
+  EXPECT_TRUE(mol().atom(2).data().is_chiral());
+  EXPECT_FALSE(mol().atom(2).data().is_clockwise());
+  EXPECT_TRUE(mol().atom(4).data().is_chiral());
+  EXPECT_FALSE(mol().atom(4).data().is_clockwise());
+  write_smiles(smi, mol());
+
   set_test_string(smi);
 
   NURI_FMT_TEST_NEXT_MOL("alanine", 6, 5);
@@ -775,6 +803,64 @@ TEST_F(SmilesTest, ChiralityTest) {
   EXPECT_TRUE(mol().atom(1).data().is_clockwise());
 
   NURI_FMT_TEST_NEXT_MOL("alanine-reversed", 6, 5);
+  EXPECT_TRUE(mol().atom(1).data().is_chiral());
+  EXPECT_FALSE(mol().atom(1).data().is_clockwise());
+
+  NURI_FMT_TEST_NEXT_MOL("test first", 4, 3);
+  EXPECT_TRUE(mol().atom(0).data().is_chiral());
+  EXPECT_FALSE(mol().atom(0).data().is_clockwise());
+
+  NURI_FMT_TEST_NEXT_MOL("test not-first", 4, 3);
+  EXPECT_TRUE(mol().atom(1).data().is_chiral());
+  EXPECT_FALSE(mol().atom(1).data().is_clockwise());
+
+  NURI_FMT_TEST_NEXT_MOL("test ring closing", 6, 6);
+  EXPECT_TRUE(mol().atom(1).data().is_chiral());
+  EXPECT_FALSE(mol().atom(1).data().is_clockwise());
+  EXPECT_TRUE(mol().atom(3).data().is_chiral());
+  EXPECT_TRUE(mol().atom(3).data().is_clockwise());
+
+  NURI_FMT_TEST_NEXT_MOL("test ring closing disconnected", 7, 6);
+  EXPECT_TRUE(mol().atom(2).data().is_chiral());
+  EXPECT_FALSE(mol().atom(2).data().is_clockwise());
+  EXPECT_TRUE(mol().atom(4).data().is_chiral());
+  EXPECT_FALSE(mol().atom(4).data().is_clockwise());
+}
+
+TEST_F(SmilesTest, InvalidChiralityTest) {
+  set_test_string(  //
+      "C[C@H]=C too few explicit neighbors\n"
+      "C[P@H2](F)Cl too many implicit hydrogens\n"
+      "C[B@](F)Cl too few total neighbors\n");
+
+  std::string smi;
+
+  NURI_FMT_TEST_NEXT_MOL("too few explicit neighbors", 3, 2);
+  EXPECT_TRUE(mol().atom(1).data().is_chiral());
+  EXPECT_FALSE(mol().atom(1).data().is_clockwise());
+  write_smiles(smi, mol());
+
+  NURI_FMT_TEST_NEXT_MOL("too many implicit hydrogens", 4, 3);
+  EXPECT_TRUE(mol().atom(1).data().is_chiral());
+  EXPECT_FALSE(mol().atom(1).data().is_clockwise());
+  write_smiles(smi, mol());
+
+  NURI_FMT_TEST_NEXT_MOL("too few total neighbors", 4, 3);
+  EXPECT_TRUE(mol().atom(1).data().is_chiral());
+  EXPECT_FALSE(mol().atom(1).data().is_clockwise());
+  write_smiles(smi, mol());
+
+  set_test_string(smi);
+
+  NURI_FMT_TEST_NEXT_MOL("too few explicit neighbors", 3, 2);
+  EXPECT_TRUE(mol().atom(1).data().is_chiral());
+  EXPECT_FALSE(mol().atom(1).data().is_clockwise());
+
+  NURI_FMT_TEST_NEXT_MOL("too many implicit hydrogens", 4, 3);
+  EXPECT_TRUE(mol().atom(1).data().is_chiral());
+  EXPECT_FALSE(mol().atom(1).data().is_clockwise());
+
+  NURI_FMT_TEST_NEXT_MOL("too few total neighbors", 4, 3);
   EXPECT_TRUE(mol().atom(1).data().is_chiral());
   EXPECT_FALSE(mol().atom(1).data().is_clockwise());
 }
