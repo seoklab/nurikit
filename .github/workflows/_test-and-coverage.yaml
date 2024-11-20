@@ -50,7 +50,7 @@ jobs:
 
       - run: ./scripts/check_coverage.sh --json build
 
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: build/coverage/json/coverage.json
