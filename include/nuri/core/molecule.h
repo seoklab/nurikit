@@ -284,6 +284,9 @@ public:
    * @pre is_chiral() == `true`, otherwise return value would be meaningless.
    * @return Whether the chiral atom is "clockwise." See stereochemistry
    *         definition of SMILES for more information.
+   * @note Unlike the SMILES convention, implicit hydrogen is placed at the
+   *       *end* of the neighbor list. This is to ensure that the chirality of
+   *       the atom is unchanged when the hydrogen is removed or added.
    */
   bool is_clockwise() const {
     return internal::check_flag(flags_, AtomFlags::kClockWise);

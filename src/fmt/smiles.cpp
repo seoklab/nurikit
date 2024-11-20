@@ -32,6 +32,7 @@
 #include <absl/log/absl_log.h>
 #include <absl/strings/ascii.h>
 #include <absl/strings/str_cat.h>
+#include <absl/types/span.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
@@ -150,16 +151,16 @@ struct mutator_tag;
 struct has_hydrogens_tag;
 struct last_atom_stack_tag;
 struct last_bond_data_tag;
-struct chirality_map_tag;
 struct ring_map_tag;
+struct ring_bonds_tag;
 struct bond_geometry_tag;
 struct implicit_aromatics_tag;
 
 using HydrogenIdx = std::vector<int>;
 using ImplicitAromatics = std::vector<int>;
 using AtomIdxStack = std::stack<int, std::vector<int>>;
-using ChiralityMap = absl::flat_hash_map<int, Chirality>;
 using RingMap = absl::flat_hash_map<int, RingData>;
+using RingBonds = std::vector<int>;
 using BondGeometryMap =
     absl::flat_hash_map<int, std::vector<std::pair<int, char>>>;
 
@@ -233,11 +234,10 @@ constants::BondOrder char_to_bond(char b) {
   }
 }
 
-bool add_bond(MoleculeMutator &mutator, ImplicitAromatics &aromatics,
-              const int prev, const int curr, const char bond_repr) {
-  if (prev == curr) {
-    return false;
-  }
+int add_bond(MoleculeMutator &mutator, ImplicitAromatics &aromatics,
+             const int prev, const int curr, const char bond_repr) {
+  if (prev == curr)
+    return -1;
 
   BondData bond_data;
 
@@ -260,7 +260,7 @@ bool add_bond(MoleculeMutator &mutator, ImplicitAromatics &aromatics,
   auto [it, success] = mutator.add_bond(prev, curr, bond_data);
   if (implicit_aromatic)
     aromatics.push_back(it->id());
-  return success;
+  return success ? it->id() : -1;
 }
 
 template <class Ctx>
@@ -278,7 +278,7 @@ int add_atom(Ctx &ctx, const Element *elem, bool aromatic) {
   if (ABSL_PREDICT_TRUE(last_bond_data != '.')) {
     ImplicitAromatics &aromatics = x3::get<implicit_aromatics_tag>(ctx);
     const bool success =
-        add_bond(mutator, aromatics, last_idx, idx, last_bond_data);
+        add_bond(mutator, aromatics, last_idx, idx, last_bond_data) >= 0;
 
     if (ABSL_PREDICT_FALSE(!success)) {
       x3::_pass(ctx) = false;
@@ -425,9 +425,9 @@ void handle_ring(Ctx &ctx, int ring_idx) {
 
   MoleculeMutator &mutator = x3::get<mutator_tag>(ctx);
   ImplicitAromatics &aromatics = x3::get<implicit_aromatics_tag>(ctx);
-  const bool success = add_bond(mutator, aromatics, data.atom_idx, current_idx,
-                                resolved_bond_data);
-  if (ABSL_PREDICT_FALSE(!success)) {
+  const int bond_id = add_bond(mutator, aromatics, data.atom_idx, current_idx,
+                               resolved_bond_data);
+  if (ABSL_PREDICT_FALSE(bond_id < 0)) {
     x3::_pass(ctx) = false;
     ABSL_LOG(WARNING) << "Failed to add ring bond from " << data.atom_idx
                       << " to " << current_idx;
@@ -435,6 +435,9 @@ void handle_ring(Ctx &ctx, int ring_idx) {
   }
 
   map.erase(it);
+
+  RingBonds &ring_bonds = x3::get<ring_bonds_tag>(ctx);
+  ring_bonds.push_back(bond_id);
 }
 
 constexpr auto set_ring_digit = [](auto &ctx) {
@@ -583,6 +586,130 @@ void update_implicit_hydrogens(Molecule::MutableAtom atom) {
 
   atom.data().set_implicit_hydrogens(nonnegative(normal_valence - sum_bo));
 }
+
+/**
+ * Smiles orders bonds in this order:
+ *   1) Previous atom (max 1)
+ *   2) Implicit hydrogen (max 1 if chiral)
+ *   3) Broken bonds
+ *   4) Others
+ *
+ * On the other hand, we order bonds in this order:
+ *   1) we place implicit hydrogen (if present) last. This is to preserve
+ *      chirality when the implicit hydrogen is made explicit.
+ *   2) we place broken bonds at unknown order. This is because the broken bonds
+ *      could not be added before the partner atom is added.
+ */
+template <class Pred>
+void smiles_ordering_chirality(Molecule::Atom atom, std::vector<int> &ordering,
+                               const Pred &is_broken_bond) {
+  ordering.clear();
+
+  // 1) Previous atom (must be the first neighbor if present)
+  if (atom[0].dst().id() < atom.id() && !is_broken_bond(atom[0].eid()))
+    ordering.push_back(0);
+
+  // 2) Implicit hydrogen
+  if (atom.data().implicit_hydrogens() > 0)
+    ordering.push_back(atom.degree());
+
+  // 3) Broken bonds
+  for (int i = 0; i < atom.degree(); ++i) {
+    auto nei = atom[i];
+    if (is_broken_bond(nei.eid()))
+      ordering.push_back(i);
+  }
+
+  // 4) Others (always id > atom.id())
+  for (int i = 0; i < atom.degree(); ++i) {
+    auto nei = atom[i];
+    if (nei.dst().id() > atom.id() && !is_broken_bond(nei.eid()))
+      ordering.push_back(i);
+  }
+}
+
+/**
+ * If i and ordering[i] is consistent in terms of chirality resolution, return
+ * true.
+ */
+bool chiral_order_consistent(const std::vector<int> &ordering) {
+  const auto ord_size = ordering.size();
+  ABSL_ASSUME(ord_size == 4);
+
+  // Handedness change by axis. 0, 2 -> same, 1, 3 -> opposite
+  bool consistent = ordering[0] % 2 == 0;
+
+  auto nbs = absl::MakeConstSpan(ordering).subspan(1);
+  const int start = static_cast<int>(absl::c_min_element(nbs) - nbs.begin());
+  const int n = static_cast<int>(nbs.size());
+
+  // Now check if order is consistent
+  for (int i = 1; i < n; ++i) {
+    int left = (start + i - 1) % n;
+    int right = (start + i) % n;
+    if (nbs[left] > nbs[right]) {
+      consistent = !consistent;
+      break;
+    }
+  }
+
+  return consistent;
+}
+
+/**
+ * Resolve chirality of the atom based on the "SMILES ordering" of neighbors.
+ * Will pass-through the current chirality if the atom has less than 3 neighbors
+ * or has more than 1 implicit hydrogens (not a stereocenter).
+ */
+template <class Pred>
+bool smiles_resolve_is_clockwise(Molecule::Atom atom,
+                                 std::vector<int> &ordering,
+                                 Pred &&is_ring_bond) {
+  if (atom.degree() < 3) {
+    ABSL_LOG(INFO) << "Atom " << atom.id() << " has degree " << atom.degree()
+                   << " (< 3), but is marked chiral";
+    return atom.data().is_clockwise();
+  }
+
+  if (atom.data().implicit_hydrogens() > 1) {
+    ABSL_LOG(INFO)
+        << "Atom " << atom.id() << " has " << atom.data().implicit_hydrogens()
+        << " implicit hydrogens (> 1), but is marked chiral";
+    return atom.data().is_clockwise();
+  }
+
+  smiles_ordering_chirality(atom, ordering, std::forward<Pred>(is_ring_bond));
+
+  if (ordering.size() != 4) {
+    ABSL_LOG(INFO) << "Atom " << atom.id() << " has total " << ordering.size()
+                   << " neighbors (!= 4), but is marked chiral";
+    return atom.data().is_clockwise();
+  }
+
+  const bool consistent = chiral_order_consistent(ordering);
+  // consistent (T) and CW (T) -> CW (T)
+  // consistent (T) and CCW (F) -> CCW (F)
+  // inconsistent (F) and CW (T) -> CCW (F)
+  // inconsistent (F) and CCW (F) -> CW (T)
+  return consistent == atom.data().is_clockwise();
+}
+
+void convert_chirality(Molecule &mol, const parser::RingBonds &ring_bonds) {
+  ArrayXb is_ring_bond = ArrayXb::Zero(mol.num_bonds());
+  is_ring_bond(ring_bonds) = true;
+
+  std::vector<int> smiles_order;
+  smiles_order.reserve(4);
+
+  for (auto atom: mol) {
+    if (!atom.data().is_chiral())
+      continue;
+
+    bool clockwise =
+        smiles_resolve_is_clockwise(atom, smiles_order, is_ring_bond);
+    atom.data().set_clockwise(clockwise);
+  }
+}
 }  // namespace
 
 Molecule read_smiles(const std::vector<std::string> &smi_block) {
@@ -598,8 +725,8 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
   parser::HydrogenIdx has_hydrogens;
   parser::AtomIdxStack stack;
   char last_bond_data = '.';
-  parser::ChiralityMap chirality_map;
   parser::RingMap ring_map;
+  parser::RingBonds ring_bonds;
   parser::BondGeometryMap bond_geometry_map;
   parser::ImplicitAromatics implicit_aromatics;
 
@@ -609,15 +736,17 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
   {
     MoleculeMutator mutator = mol.mutator();
 
-    auto parser = x3::with<parser::mutator_tag>(
-        std::ref(mutator))[x3::with<parser::has_hydrogens_tag>(
-        std::ref(has_hydrogens))[x3::with<parser::last_atom_stack_tag>(
-        std::ref(stack))[x3::with<parser::last_bond_data_tag>(
-        std::ref(last_bond_data))[x3::with<parser::chirality_map_tag>(
-        std::ref(chirality_map))[x3::with<parser::ring_map_tag>(
-        std::ref(ring_map))[x3::with<parser::bond_geometry_tag>(
-        std::ref(bond_geometry_map))[x3::with<parser::implicit_aromatics_tag>(
-        std::ref(implicit_aromatics))[parser::smiles]]]]]]]];
+    // clang-format off
+    auto parser = x3::with<parser::mutator_tag>(std::ref(mutator))
+        [x3::with<parser::has_hydrogens_tag>(std::ref(has_hydrogens))
+        [x3::with<parser::last_atom_stack_tag>(std::ref(stack))
+        [x3::with<parser::last_bond_data_tag>(std::ref(last_bond_data))
+        [x3::with<parser::ring_map_tag>(std::ref(ring_map))
+        [x3::with<parser::ring_bonds_tag>(std::ref(ring_bonds))
+        [x3::with<parser::bond_geometry_tag>(std::ref(bond_geometry_map))
+        [x3::with<parser::implicit_aromatics_tag>(std::ref(implicit_aromatics))
+        [parser::smiles]]]]]]]];
+    // clang-format on
 
     bool success = x3::parse_main(begin, smiles.end(), parser, x3::unused);
 
@@ -657,6 +786,8 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
 
     update_implicit_hydrogens(atom);
   }
+
+  convert_chirality(mol, ring_bonds);
 
   while (begin != smiles.end() && std::isspace(*begin) != 0)
     ++begin;
@@ -1033,7 +1164,9 @@ bool can_write_aromatic_symbol(const AtomData &data) {
   }
 }
 
-void write_bracket_atom(std::string &out, Molecule::Atom atom) {
+void write_bracket_atom(std::string &out, Molecule::Atom atom,
+                        std::vector<int> &smiles_order,
+                        const ArrayXi &ring_idxs) {
   out.push_back('[');
 
   if (atom.data().explicit_isotope() != nullptr)
@@ -1046,8 +1179,11 @@ void write_bracket_atom(std::string &out, Molecule::Atom atom) {
   }
 
   if (atom.data().is_chiral()) {
+    const bool clockwise = smiles_resolve_is_clockwise(
+        atom, smiles_order, [&](int eid) { return ring_idxs[eid] > 0; });
+
     out.push_back('@');
-    if (atom.data().is_clockwise())
+    if (clockwise)
       out.push_back('@');
   }
 
@@ -1069,11 +1205,12 @@ void write_bracket_atom(std::string &out, Molecule::Atom atom) {
   out.push_back(']');
 }
 
-void write_atom(std::string &out, Molecule::Atom atom) {
+void write_atom(std::string &out, Molecule::Atom atom,
+                std::vector<int> &smiles_order, const ArrayXi &ring_idxs) {
   if (can_write_organic(atom)) {
     write_organic(out, atom);
   } else {
-    write_bracket_atom(out, atom);
+    write_bracket_atom(out, atom, smiles_order, ring_idxs);
   }
 }
 
@@ -1136,6 +1273,9 @@ void do_write_smiles_simple(std::string &out, const Molecule &mol,
                             const absl::InlinedVector<int, 1> &roots,
                             const ArrayXi &ring_idxs, ArrayXi &atom_visited,
                             const BondConfigResolver &resolver) {
+  std::vector<int> smiles_order;
+  smiles_order.reserve(4);
+
   auto write = [&](auto &self, Molecule::Atom atom,
                    Molecule::const_neighbor_iterator prev_it) -> void {
     atom_visited[atom.id()] = 1;
@@ -1149,7 +1289,7 @@ void do_write_smiles_simple(std::string &out, const Molecule &mol,
       prev = -1;
     }
 
-    write_atom(out, atom);
+    write_atom(out, atom, smiles_order, ring_idxs);
 
     for (auto nit = atom.begin(); nit != atom.end(); ++nit) {
       int ring_idx = ring_idxs[nit->eid()];

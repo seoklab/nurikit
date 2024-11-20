@@ -840,13 +840,14 @@ Whether the atom is a ring atom.
 :type: Chirality
 
 Explicit chirality of the atom. Note that this does *not* imply the atom is a
-stereocenter chemically.
+stereocenter chemically and might not correspond to the geometry of the
+molecule. See :class:`Chirality` for formal definition.
 
 .. tip::
   Assigning :obj:`None` clears the explicit chirality.
 
 .. seealso::
-  :meth:`update`
+  :class:`Chirality`, :meth:`update`
 )doc");
   cls.def_property_readonly(
       "atomic_number",
