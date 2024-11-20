@@ -606,14 +606,16 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
   {
     MoleculeMutator mutator = mol.mutator();
 
-    auto parser = x3::with<parser::mutator_tag>(
-        std::ref(mutator))[x3::with<parser::has_hydrogens_tag>(
-        std::ref(has_hydrogens))[x3::with<parser::last_atom_stack_tag>(
-        std::ref(stack))[x3::with<parser::last_bond_data_tag>(
-        std::ref(last_bond_data))[x3::with<parser::ring_map_tag>(
-        std::ref(ring_map))[x3::with<parser::bond_geometry_tag>(
-        std::ref(bond_geometry_map))[x3::with<parser::implicit_aromatics_tag>(
-        std::ref(implicit_aromatics))[parser::smiles]]]]]]];
+    // clang-format off
+    auto parser = x3::with<parser::mutator_tag>(std::ref(mutator))
+        [x3::with<parser::has_hydrogens_tag>(std::ref(has_hydrogens))
+        [x3::with<parser::last_atom_stack_tag>(std::ref(stack))
+        [x3::with<parser::last_bond_data_tag>(std::ref(last_bond_data))
+        [x3::with<parser::ring_map_tag>(std::ref(ring_map))
+        [x3::with<parser::bond_geometry_tag>(std::ref(bond_geometry_map))
+        [x3::with<parser::implicit_aromatics_tag>(std::ref(implicit_aromatics))
+        [parser::smiles]]]]]]];
+    // clang-format on
 
     bool success = x3::parse_main(begin, smiles.end(), parser, x3::unused);
 
