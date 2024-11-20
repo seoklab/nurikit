@@ -47,5 +47,34 @@ TEST(Crdgen, CHEMBL2228334) {
 
   NURI_EXPECT_EIGEN_EQ_TOL(conf.transpose(), ans, 5e-2);
 }
+
+TEST(Crdgen, CHEMBL2228334Chiral) {
+  Molecule mol = read_smiles({ "CC(=O)O[C@H]1CCC[C@@H]2COC(=O)[C@@H]21" });
+  ASSERT_TRUE(MoleculeSanitizer(mol).sanitize_all());
+
+  Matrix3Xd &conf = mol.confs().emplace_back(3, mol.num_atoms());
+  ASSERT_TRUE(generate_coords(mol, conf));
+
+  // XXX: The algorithm is basically deterministic on first pass, so just
+  // compare it with the reference output. Should be changed later on?
+  MatrixX3d ans {
+    {  -3.70254,   1.36343,   -0.631601 },
+    {  -2.72728,   0.38195, -0.00235632 },
+    {  -3.18834, -0.427798,    0.808779 },
+    {  -1.57831,  0.856477,     0.29421 },
+    { -0.476699,  0.486279,    -0.52175 },
+    {  0.397502,   1.72502,   -0.618426 },
+    {   1.15448,   1.99352,    0.673924 },
+    {   1.94115,  0.777206,     1.13475 },
+    {   1.08813, -0.472856,     1.22981 },
+    {   2.14736,  -1.55996,     1.09125 },
+    {   2.30371,  -1.70828,   -0.315881 },
+    {   1.28956,  -1.26622,    -0.96453 },
+    {   1.10924,  -1.42605,     -2.1762 },
+    {  0.242056, -0.722701,  -0.0019777 },
+  };
+
+  NURI_EXPECT_EIGEN_EQ_TOL(conf.transpose(), ans, 5e-2);
+}
 }  // namespace
 }  // namespace nuri
