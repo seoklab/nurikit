@@ -9,6 +9,7 @@
 #include <cmath>
 #include <ostream>
 #include <random>
+#include <tuple>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -20,7 +21,9 @@
 
 #include "nuri/eigen_config.h"
 #include "nuri/algo/optim.h"
+#include "nuri/core/element.h"
 #include "nuri/core/geometry.h"
+#include "nuri/core/graph.h"
 #include "nuri/core/molecule.h"
 #include "nuri/utils.h"
 
@@ -138,6 +141,8 @@ namespace {
       static_assert(offset <= 1);
       return bounds_.row(i).head(i + offset).transpose();
     }
+
+    const ArrayXXd &data() const { return bounds_; }
 
     // NOLINTNEXTLINE(clang-diagnostic-unused-function)
     friend std::ostream &operator<<(std::ostream &os,
@@ -566,10 +571,57 @@ namespace {
     return x.row(3).square().sum();
   }
 
+  struct RefTetrad {
+    Array4i idxs;
+    double v_lb;
+    double v_ub;
+  };
+
+  double tetrad_volume_loss(MutRef<Array4Xd> &g, ConstRef<Array4Xd> x,
+                            const RefTetrad &tetrad) {
+    auto x3d = x.topRows(3);
+
+    Matrix<double, 3, 4> zs = x3d(Eigen::all, tetrad.idxs);
+    zs.leftCols<3>().colwise() -= zs.col(3);
+
+    Matrix<double, 3, 4> grad;
+    grad.col(0) = zs.col(1).cross(zs.col(2));
+
+    double vol = zs.col(0).dot(grad.col(0));
+    double vol_err;
+    if (vol < tetrad.v_lb) {
+      vol_err = vol - tetrad.v_lb;
+    } else if (vol > tetrad.v_ub) {
+      vol_err = vol - tetrad.v_ub;
+    } else {
+      return 0;
+    }
+
+    grad.col(1) = zs.col(2).cross(zs.col(0));
+    grad.col(2) = zs.col(0).cross(zs.col(1));
+    grad.leftCols<3>() *= 2 * vol_err;
+
+    grad.col(3) = -grad.leftCols<3>().rowwise().sum();
+
+    g.topRows(3)(Eigen::all, tetrad.idxs) += grad.array();
+
+    return vol_err * vol_err;
+  }
+
+  // NOLINTNEXTLINE(clang-diagnostic-unneeded-internal-declaration)
+  double volumetric_error(MutRef<Array4Xd> &g, ConstRef<Array4Xd> x,
+                          const std::vector<RefTetrad> &tetrads) {
+    double loss = 0;
+    for (const auto &tetrad: tetrads)
+      loss += tetrad_volume_loss(g, x, tetrad);
+    return loss;
+  }
+
   template <bool MinimizeFourth>
+  double
   // NOLINTNEXTLINE(clang-diagnostic-unused-template)
-  double error_funcgrad(ArrayXd &ga, ConstRef<ArrayXd> xa,
-                        const Array2Xd &bsq_inv, const Eigen::Index n) {
+  error_funcgrad(ArrayXd &ga, ConstRef<ArrayXd> xa, const Array2Xd &bsq_inv,
+                 const std::vector<RefTetrad> &tetrads, const Eigen::Index n) {
     ga.setZero();
 
     MutRef<Array4Xd> g = ga.reshaped(4, n);
@@ -578,11 +630,60 @@ namespace {
     ABSL_DVLOG(3) << "current coordinates:\n" << x.transpose();
 
     const double e1 = distance_error(g, x, bsq_inv);
+    const double e2 = volumetric_error(g, x, tetrads);
     if constexpr (!MinimizeFourth)
-      return e1;
+      return e1 + e2;
 
-    const double e2 = extra_dimension_error(g, x);
-    return e1 + e2;
+    const double e3 = extra_dimension_error(g, x);
+    return e1 + e2 + e3;
+  }
+
+  Array4i chiral_tetrad_ids(Molecule::Atom atom) {
+    ABSL_DCHECK(atom.degree() == 3 || atom.degree() == 4);
+
+    Array4i idxs;
+    for (int i = 0; i < atom.degree(); ++i)
+      idxs[i] = atom[i].dst().id();
+    if (atom.degree() == 3)
+      idxs[3] = atom.id();
+    return idxs;
+  }
+
+  constexpr double k6OverSqrt288 =
+      0.3535533905932737622004221810524245196424179688442370182941699344;
+
+  RefTetrad chiral_ref_tetrad(Molecule::Atom atom,
+                              const DistanceBounds &bounds) {
+    Array4i idxs = chiral_tetrad_ids(atom);
+
+    Matrix4d bdsq = bounds.data()(idxs, idxs).cwiseAbs2();
+    bdsq.diagonal().setZero();
+
+    // Tetrad volume with Cayley-Menger determinant
+    // Divide by sqrt(288) / 6 to be consistent with the error function which
+    // omits the 1/6 factor of the tetrahedron volume
+    Matrix<double, 5, 5> cm;
+    cm.col(0).setOnes();
+    cm.row(0).setOnes();
+    cm.diagonal().setConstant(0);
+
+    cm.bottomRightCorner<4, 4>() = bdsq.selfadjointView<Eigen::Upper>();
+    double v_lb = std::sqrt(nonnegative(cm.determinant())) * k6OverSqrt288;
+
+    cm.bottomRightCorner<4, 4>() = bdsq.selfadjointView<Eigen::Lower>();
+    double v_ub = std::sqrt(nonnegative(cm.determinant())) * k6OverSqrt288;
+
+    // Might be inconsistent due to incomplete triangle inequality smoothing
+    std::tie(v_lb, v_ub) = nuri::minmax(v_lb, v_ub);
+
+    // CW -> negative, CCW -> positive
+    if (atom.data().is_clockwise()) {
+      v_lb = -v_lb;
+      v_ub = -v_ub;
+      std::swap(v_lb, v_ub);
+    }
+
+    return { idxs, v_lb, v_ub };
   }
 
   template <bool init_random>
@@ -593,17 +694,32 @@ namespace {
     DistanceBounds bounds = init_bounds(mol);
     const auto bsq_inv = bounds.bsq_inv();
 
+    std::vector<RefTetrad> tetrads;
+    for (auto atom: mol) {
+      if (!atom.data().is_chiral())
+        continue;
+      if (atom.degree() < 3) {
+        ABSL_LOG(INFO) << "chiral atom " << atom.id() << " has only "
+                       << atom.degree() << " neighbors; skipping";
+        continue;
+      }
+
+      tetrads.push_back(chiral_ref_tetrad(atom, bounds));
+    }
+
+    // TODO(jnooree): handle coplanar groups
+
     Matrix4Xd trial(4, n);
-    MatrixXd dists(mol.size(), mol.size());
+    MatrixXd dists(n, n);
 
     Bfgs optim(trial.reshaped().array());
 
     auto first_fg = [&](ArrayXd &ga, const auto &xa) {
-      return error_funcgrad<false>(ga, xa, bsq_inv, n);
+      return error_funcgrad<false>(ga, xa, bsq_inv, tetrads, n);
     };
 
     auto second_fg = [&](ArrayXd &ga, const auto &xa) {
-      return error_funcgrad<true>(ga, xa, bsq_inv, n);
+      return error_funcgrad<true>(ga, xa, bsq_inv, tetrads, n);
     };
 
     RandomSource rng(seed);
@@ -619,25 +735,24 @@ namespace {
         }
       } else {
         bounds.fill_trial_distances(dists, rng);
-        dists.cwiseAbs2();
-
+        dists = dists.cwiseAbs2();
         if (!embed_distances_4d(trial, dists))
           continue;
       }
 
-      ABSL_DVLOG(1) << "initial trial coordinates:\n" << trial;
+      ABSL_DVLOG(1) << "initial trial coordinates:\n" << trial.transpose();
 
       BfgsResult res = optim.minimize(first_fg, 1e-3, 1e-6);
       if (res.code != BfgsResultCode::kSuccess)
         continue;
 
-      ABSL_DVLOG(1) << "after 4D minimization:\n" << trial;
+      ABSL_DVLOG(1) << "after 4D minimization:\n" << trial.transpose();
 
       res = optim.minimize(second_fg);
       if (res.code != BfgsResultCode::kSuccess)
         continue;
 
-      ABSL_DVLOG(1) << "after 3D projection:\n" << trial;
+      ABSL_DVLOG(1) << "after 3D projection:\n" << trial.transpose();
 
       success = true;
       break;
