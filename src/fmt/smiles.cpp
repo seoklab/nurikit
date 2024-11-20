@@ -150,7 +150,6 @@ struct mutator_tag;
 struct has_hydrogens_tag;
 struct last_atom_stack_tag;
 struct last_bond_data_tag;
-struct chirality_map_tag;
 struct ring_map_tag;
 struct bond_geometry_tag;
 struct implicit_aromatics_tag;
@@ -158,7 +157,6 @@ struct implicit_aromatics_tag;
 using HydrogenIdx = std::vector<int>;
 using ImplicitAromatics = std::vector<int>;
 using AtomIdxStack = std::stack<int, std::vector<int>>;
-using ChiralityMap = absl::flat_hash_map<int, Chirality>;
 using RingMap = absl::flat_hash_map<int, RingData>;
 using BondGeometryMap =
     absl::flat_hash_map<int, std::vector<std::pair<int, char>>>;
@@ -598,7 +596,6 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
   parser::HydrogenIdx has_hydrogens;
   parser::AtomIdxStack stack;
   char last_bond_data = '.';
-  parser::ChiralityMap chirality_map;
   parser::RingMap ring_map;
   parser::BondGeometryMap bond_geometry_map;
   parser::ImplicitAromatics implicit_aromatics;
@@ -613,11 +610,10 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
         std::ref(mutator))[x3::with<parser::has_hydrogens_tag>(
         std::ref(has_hydrogens))[x3::with<parser::last_atom_stack_tag>(
         std::ref(stack))[x3::with<parser::last_bond_data_tag>(
-        std::ref(last_bond_data))[x3::with<parser::chirality_map_tag>(
-        std::ref(chirality_map))[x3::with<parser::ring_map_tag>(
+        std::ref(last_bond_data))[x3::with<parser::ring_map_tag>(
         std::ref(ring_map))[x3::with<parser::bond_geometry_tag>(
         std::ref(bond_geometry_map))[x3::with<parser::implicit_aromatics_tag>(
-        std::ref(implicit_aromatics))[parser::smiles]]]]]]]];
+        std::ref(implicit_aromatics))[parser::smiles]]]]]]];
 
     bool success = x3::parse_main(begin, smiles.end(), parser, x3::unused);
 
