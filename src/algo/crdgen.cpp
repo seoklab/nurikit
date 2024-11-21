@@ -686,6 +686,14 @@ namespace {
     return { idxs, v_lb, v_ub };
   }
 
+  RefTetrad planar_ref_tetrad(Molecule::Atom atom) {
+    ABSL_DCHECK(atom.degree() == 3);
+
+    Array4i idxs { atom[0].dst().id(), atom[1].dst().id(), atom[2].dst().id(),
+                   atom.id() };
+    return { idxs, -0.1, +0.1 };
+  }
+
   template <bool init_random>
   bool generate_coords_impl(const Molecule &mol, Matrix3Xd &conf, int max_trial,
                             int seed) {
@@ -696,15 +704,20 @@ namespace {
 
     std::vector<RefTetrad> tetrads;
     for (auto atom: mol) {
-      if (!atom.data().is_chiral())
-        continue;
-      if (atom.degree() < 3) {
-        ABSL_LOG(INFO) << "chiral atom " << atom.id() << " has only "
-                       << atom.degree() << " neighbors; skipping";
-        continue;
+      if (atom.data().hybridization() == constants::kSP2
+          && atom.degree() == 3) {
+        ABSL_LOG_IF(INFO, atom.data().is_chiral())
+            << "atom " << atom.id()
+            << " has planar geometry but is marked chiral";
+        tetrads.push_back(planar_ref_tetrad(atom));
+      } else if (atom.data().is_chiral()) {
+        if (atom.degree() < 3) {
+          ABSL_LOG(INFO) << "chiral atom " << atom.id() << " has only "
+                         << atom.degree() << " neighbors; skipping";
+          continue;
+        }
+        tetrads.push_back(chiral_ref_tetrad(atom, bounds));
       }
-
-      tetrads.push_back(chiral_ref_tetrad(atom, bounds));
     }
 
     // TODO(jnooree): handle coplanar groups
