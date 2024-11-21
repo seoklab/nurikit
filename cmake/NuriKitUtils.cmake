@@ -86,12 +86,6 @@ function(nuri_get_version)
   set(NURI_REF "${NURI_REF}" PARENT_SCOPE)
 endfunction()
 
-macro(nuri_set_cxx_standard)
-  set(CMAKE_CXX_STANDARD 17)
-  set(CMAKE_CXX_EXTENSIONS OFF)
-  set(CMAKE_CXX_STANDARD_REQUIRED ON)
-endmacro()
-
 function(nuri_make_available_deponly target)
   include(FetchContent)
 
@@ -117,8 +111,6 @@ function(target_system_include_directories target)
 endfunction()
 
 function(find_or_fetch_eigen)
-  nuri_set_cxx_standard()
-
   set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
   set(BUILD_TESTING OFF)
   set(EIGEN_BUILD_DOC OFF)
@@ -141,7 +133,6 @@ function(find_or_fetch_eigen)
 endfunction()
 
 function(find_or_fetch_spectra)
-  nuri_set_cxx_standard()
   set(BUILD_TESTING OFF)
 
   find_package(Spectra 1.0 QUIET)
@@ -162,7 +153,6 @@ function(find_or_fetch_spectra)
 endfunction()
 
 function(find_or_fetch_pybind11)
-  nuri_set_cxx_standard()
   set(BUILD_TESTING OFF)
 
   # FindPythonInterp/FindPythonLibs deprecated since cmake 3.12
@@ -188,7 +178,6 @@ function(find_or_fetch_pybind11)
 endfunction()
 
 function(handle_boost_dependency target)
-  nuri_set_cxx_standard()
   set(BUILD_TESTING OFF)
 
   # FindBoost deprecated since cmake 3.30

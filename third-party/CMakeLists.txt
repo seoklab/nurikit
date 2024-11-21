@@ -3,9 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-include(NuriKitUtils)
-nuri_set_cxx_standard()
-
 # Don't fail build on warnings from third-party code.
 add_compile_options(-Wno-error)
 
