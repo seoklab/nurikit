@@ -34,8 +34,9 @@ elseif(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     "Please use clang or gcc as a compiler.")
 endif()
 
-# for math optimization flags
-string(APPEND CMAKE_CXX_FLAGS " -std=c++17")
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(NURI_GLOBAL_OPTFLAGS " -${NURI_OPTIMIZATION_LEVEL}")
