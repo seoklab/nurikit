@@ -561,6 +561,82 @@ qcp(const Eigen::Ref<const Matrix3Xd> &query,
     int maxiter = 50);
 
 /**
+ * @brief In-place version of qcp().
+ * @param query The query points. On return, the points will be centered at the
+ *        origin (unless only single point is given).
+ * @param templ The template points. On return, the points will be centered at
+ *        the origin (unless only single point is given).
+ * @param mode Selects the return value. Defaults to AlignMode::kBoth. Note that
+ *        even if AlignMode::kXformOnly is selected, the MSD value will report a
+ *        negative value if the calculation fails.
+ * @param reflection Whether to allow reflection. Defaults to false.
+ * @param evalprec The precision of eigenvalue calculation. Defaults to 1e-11.
+ * @param evecprec The precision of eigenvector calculation. Defaults to 1e-6.
+ * @param maxiter The maximum number of Newton-Raphson iterations. Defaults
+ *        to 50.
+ * @return A pair of (transformation matrix, MSD). When this function fails, MSD
+ *         is set to a negative value (-1), and the state of the transformation
+ *         matrix is left unspecified. Unlike kabsch(), this function may fail
+ *         even when mode is AlignMode::kMsdOnly due to the iterative
+ *         root-finding process. Any sufficiently large value of maxiter will
+ *         guarantee convergence.
+ *
+ * This implementation is based on the reference implementation by P Liu and DL
+ * Theobald, but modified for better stability and error handling. Also, an
+ * option to allow reflection is added based on observations of EA Coutsias, C
+ * Seok, and KA Dill (see more details in the following references).
+ *
+ * References:
+ * - EA Coutsias, C Seok, and KA Dill. *J. Comput. Chem.* **2004**, *25* (15),
+ *   1849-1857. DOI:[10.1002/jcc.20110](https://doi.org/10.1002/jcc.20110)
+ * - P Liu, DK Agrafiotis, and DL Theobald. *J. Comput. Chem.* **2011**, *32*
+ *   (1), 185-186. DOI:[10.1002/jcc.21607](https://doi.org/10.1002/jcc.21607)
+ * - P Liu, DK Agrafiotis, and DL Theobald. *J. Comput. Chem.* **2010**, *31*
+ *   (7), 1561-1563. DOI:[10.1002/jcc.21439](https://doi.org/10.1002/jcc.21439)
+ * - DL Theobald. *Acta Crystallogr. A* **2005**, *61* (4), 478-480.
+ *   DOI:[10.1107/S0108767305015266](https://doi.org/10.1107/S0108767305015266)
+ *
+ * The following is the full license text for the reference implementation:
+ *
+ * \code{.unparsed}
+ * Copyright (c) 2009-2016 Pu Liu and Douglas L. Theobald
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * \endcode
+ */
+extern std::pair<Affine3d, double>
+qcp_inplace(MutRef<Matrix3Xd> query, MutRef<Matrix3Xd> templ,
+            AlignMode mode = AlignMode::kBoth, bool reflection = false,
+            double evalprec = 1e-11, double evecprec = 1e-6, int maxiter = 50);
+
+/**
  * @brief A routine for converting squared pairwise distances to cartesian
  *        coordinates.
  * @param pts Destination to which save the generated coordinates (3d).

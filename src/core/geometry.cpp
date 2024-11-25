@@ -735,11 +735,49 @@ namespace {
     q.coeffs() /= std::sqrt(qsqnrm);
     return { q, true };
   }
+
+  void qcp_impl(std::pair<Affine3d, double> &ret, const Vector3d &qm,
+                const Vector3d &tm, const Matrix3d &R, const double GA,
+                const double GB, const double det, const int n,
+                const AlignMode mode, const bool reflection,
+                const double evalprec, const double evecprec,
+                const int maxiter) {
+    double e0 = (GA + GB) / 2;
+    if (reflection)
+      e0 = std::copysign(e0, det);
+
+    const auto [eig, ok] = qcp_find_nearest_eig(R, det, e0, evalprec, maxiter);
+    if (!ok) {
+      ret.second = -1;
+      return;
+    }
+
+    if (mode != AlignMode::kXformOnly) {
+      double msd = nonnegative(GA + GB - 2 * std::abs(eig)) / n;
+      ret.second = msd;
+    }
+
+    if (mode == AlignMode::kMsdOnly)
+      return;
+
+    auto [qhat, success] = qcp_unit_quat(R, eig, evecprec * evecprec);
+    if (!success) {
+      ret.second = -1;
+      return;
+    }
+
+    ret.first.linear() = qhat.toRotationMatrix();
+    if (reflection)
+      ret.first.linear() *= std::copysign(1, det);
+
+    ret.first.translation().noalias() = -1 * (ret.first.linear() * qm);
+    ret.first.translation() += tm;
+  }
 }  // namespace
 
 std::pair<Affine3d, double> qcp(const Eigen::Ref<const Matrix3Xd> &query,
                                 const Eigen::Ref<const Matrix3Xd> &templ,
-                                AlignMode mode, bool reflection,
+                                const AlignMode mode, const bool reflection,
                                 const double evalprec, const double evecprec,
                                 const int maxiter) {
   std::pair<Affine3d, double> ret { {}, 0.0 };
@@ -759,38 +797,32 @@ std::pair<Affine3d, double> qcp(const Eigen::Ref<const Matrix3Xd> &query,
   const double GA = tt.cwiseAbs2().sum(), GB = qt.cwiseAbs2().sum(),
                det = R.determinant();
 
-  double e0 = (GA + GB) / 2;
-  if (reflection)
-    e0 = std::copysign(e0, det);
+  qcp_impl(ret, qm.transpose(), tm.transpose(), R, GA, GB, det,
+           static_cast<int>(query.cols()), mode, reflection, evalprec, evecprec,
+           maxiter);
+  return ret;
+}
 
-  const auto [eig, ok] = qcp_find_nearest_eig(R, det, e0, evalprec, maxiter);
-  if (!ok) {
-    ret.second = -1;
-    return ret;
-  }
-
-  if (mode != AlignMode::kXformOnly) {
-    double msd = nonnegative(GA + GB - 2 * std::abs(eig))
-                 / static_cast<double>(templ.cols());
-    ret.second = msd;
-  }
-
-  if (mode == AlignMode::kMsdOnly)
+std::pair<Affine3d, double>
+qcp_inplace(MutRef<Matrix3Xd> query, MutRef<Matrix3Xd> templ,
+            const AlignMode mode, const bool reflection, const double evalprec,
+            const double evecprec, const int maxiter) {
+  std::pair<Affine3d, double> ret { {}, 0.0 };
+  if (align_singular_common(ret, query, templ, mode))
     return ret;
 
-  auto [qhat, success] = qcp_unit_quat(R, eig, evecprec * evecprec);
-  if (!success) {
-    ret.second = -1;
-    return ret;
-  }
+  Vector3d qm = query.rowwise().mean();
+  query.colwise() -= qm;
 
-  ret.first.linear() = qhat.toRotationMatrix();
-  if (reflection)
-    ret.first.linear() *= std::copysign(1, det);
+  Vector3d tm = templ.rowwise().mean();
+  templ.colwise() -= tm;
 
-  ret.first.translation().noalias() =
-      -1 * (ret.first.linear() * qm.transpose());
-  ret.first.translation() += tm.transpose();
+  const Matrix3d R = templ * query.transpose();
+  const double GA = templ.cwiseAbs2().sum(), GB = query.cwiseAbs2().sum(),
+               det = R.determinant();
+
+  qcp_impl(ret, qm, tm, R, GA, GB, det, static_cast<int>(query.cols()), mode,
+           reflection, evalprec, evecprec, maxiter);
   return ret;
 }
 // NOLINTEND(readability-identifier-naming,*-avoid-goto)
