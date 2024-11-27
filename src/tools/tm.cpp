@@ -184,24 +184,25 @@ namespace internal {
       return { n_sel, tmscore };
     }
 
-    template <bool use_d8sq, class ML1, class ML2, class AL1, class AL2,
-              class AL3>
+    template <bool use_d8sq, class ML1, class ML2, class AL1, class AL2>
     int tmscore_greedy_iter(std::pair<Affine3d, double> &result, ML1 rx, ML1 ry,
-                            AL1 &&dsqs, const AL2 &i_ali, AL3 &&j_ali,
+                            AL1 &&dsqs, const AL2 &i_ali, ArrayXi &j_ali,
                             const ML2 &x, const ML2 &y, const double d_cutoff,
                             const double score_d8sq_cutoff,
                             const double d0sq_inv) {
-      rx = x(Eigen::all, i_ali);
-      ry = y(Eigen::all, i_ali);
+      rx.leftCols(i_ali.size()) = x(Eigen::all, i_ali);
+      ry.leftCols(i_ali.size()) = y(Eigen::all, i_ali);
 
-      auto [xform, flag] = qcp_inplace(rx, ry, AlignMode::kXformOnly);
+      auto [xform, flag] = qcp_inplace(rx.leftCols(i_ali.size()),
+                                       ry.leftCols(i_ali.size()),
+                                       AlignMode::kXformOnly);
       ABSL_DCHECK_GE(flag, 0);
 
-      inplace_transform(rx, xform, x(Eigen::all, i_ali));
+      inplace_transform(rx, xform, x);
 
-      auto [n_ali, tmscore] = collect_res_tmscore<use_d8sq>(
-          rx, y(Eigen::all, i_ali), std::forward<AL1>(dsqs),
-          std::forward<AL3>(j_ali), d_cutoff, score_d8sq_cutoff, d0sq_inv);
+      auto [n_ali, tmscore] =
+          collect_res_tmscore<use_d8sq>(rx, y, std::forward<AL1>(dsqs), j_ali,
+                                        d_cutoff, score_d8sq_cutoff, d0sq_inv);
 
       if (tmscore > result.second) {
         result.first = xform;
@@ -234,6 +235,9 @@ namespace internal {
       if (ABSL_PREDICT_FALSE(l_ini_min < 3))
         return result;
 
+      auto rx_ali = rx.leftCols(l_ali), ry_ali = ry.leftCols(l_ali);
+      auto dsqs_ali = dsqs.head(l_ali);
+
       unsigned int n_ali_start = l_ali;
       for (int i_init = 0; i_init < n_init_max; ++i_init) {
         int l_frag = static_cast<int>(n_ali_start >> i_init);
@@ -250,10 +254,9 @@ namespace internal {
 
           for (int iter = 0; iter < max_iter; ++iter) {
             int m_ali = tmscore_greedy_iter<use_d8sq>(
-                result, rx.leftCols(n_ali), ry.leftCols(n_ali),
-                dsqs.head(n_ali), i_ali.head(n_ali), j_ali, xy.xtm(), xy.ytm(),
-                d_cutoff, score_d8sq_cutoff, d0sq_inv);
-            if (absl::c_equal(i_ali.head(n_ali), j_ali.head(m_ali)))
+                result, rx_ali, ry_ali, dsqs_ali, i_ali.head(n_ali), j_ali,
+                xy.xtm(), xy.ytm(), d_cutoff, score_d8sq_cutoff, d0sq_inv);
+            if (iter > 0 && absl::c_equal(i_ali.head(n_ali), j_ali.head(m_ali)))
               break;
 
             if (ABSL_PREDICT_FALSE(m_ali < 3)) {
