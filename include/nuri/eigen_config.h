@@ -168,6 +168,13 @@ private:
   int zero_at_;
 };
 
+template <class ML1, class ML2>
+// NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
+void inplace_transform(ML1 &&m_out, const Affine3d &xform, const ML2 &m) {
+  m_out.noalias() = xform.linear() * m;
+  m_out.colwise() += xform.translation();
+}
+
 namespace internal {
   template <bool Allowed>
   class AllowEigenMallocScoped {
