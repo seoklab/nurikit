@@ -42,6 +42,8 @@ namespace internal {
 
     int l_ali() const { return l_ali_; }
 
+    int l_min() const { return static_cast<int>(xtm_.cols()); }
+
     ArrayXi &y2x() { return y2x_; }
     const ArrayXi &y2x() const { return y2x_; }
 
@@ -85,6 +87,32 @@ namespace internal {
    */
   extern ArrayXc assign_secstr_approx_full(ConstRef<Matrix3Xd> pts,
                                            Matrix3Xd &buf);
+
+  extern void tm_initial_gt(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
+                            ConstRef<Matrix3Xd> x, ConstRef<Matrix3Xd> y,
+                            ArrayXi &y2x, double d0sq_inv, double d0_search);
+
+  extern void tm_initial_ss(ArrayXi &y2x, ArrayXXc &path, ArrayXXd &val,
+                            const ArrayXc &secx, const ArrayXc &secy);
+
+  extern bool tm_initial_local(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
+                               ArrayXXc &path, ArrayXXd &val, AlignedXY &xy,
+                               ArrayXi &y2x, ArrayXi &buf, double d0sq_inv,
+                               double d01sq_inv, double d0sq_search, int l_min);
+
+  extern void tm_initial_ssplus(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXXc &path,
+                                ArrayXXd &val, const AlignedXY &xy,
+                                ArrayXi &y2x, const ArrayXc &secx,
+                                const ArrayXc &secy, double d01sq_inv);
+
+  extern bool tm_initial_fgt(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
+                             ConstRef<Matrix3Xd> x, ConstRef<Matrix3Xd> y,
+                             ArrayXi &y2x, double dcu0_sq, double d0sq_inv,
+                             double d0_search);
+
+  extern double tm_realign_calculate_msd(AlignedXY &xy, Matrix3Xd &rx,
+                                         Matrix3Xd &ry, const Affine3d &xform,
+                                         double score_d8sq);
 }  // namespace internal
 
 class TMAlign {
@@ -142,6 +170,7 @@ private:
   double aligned_msd_;
 
   Matrix3Xd rx_, ry_;
+  ArrayXd dsqs_;
   ArrayXi y2x_buf1_, y2x_buf2_;
 };
 
@@ -152,11 +181,34 @@ struct TMAlignResult {
   double tm_score;
 };
 
+// test utils
 namespace internal {
-  // test utils
-  extern double tmscore_fast(Matrix3Xd &x0, Matrix3Xd &y0, const Matrix3Xd &x,
-                             const Matrix3Xd &y, double d0sq_inv,
-                             double d0sq_search);
+  extern std::pair<int, double>
+  tmalign_score_fun8(const Matrix3Xd &x, const Matrix3Xd &y, ArrayXi &aligned,
+                     double d_cutoff, double d0sq_inv,
+                     double score_d8sq_cutoff);
+
+  extern std::pair<int, double>
+  tmalign_score_fun8(const Matrix3Xd &x, const Matrix3Xd &y, ArrayXi &aligned,
+                     double d_cutoff, double d0sq_inv);
+
+  extern std::pair<Affine3d, double>
+  tmalign_tmscore8_search(const AlignedXY &xy, int simplify_step,
+                          double local_d0_search, double score_d8sq_cutoff,
+                          double d0sq_inv);
+
+  extern std::pair<Affine3d, double>
+  tmalign_tmscore8_search(const AlignedXY &xy, int simplify_step,
+                          double local_d0_search, double d0sq_inv);
+
+  extern void tmalign_dp_iter(Affine3d &xform_best, double &tmscore_max,
+                              AlignedXY &xy, ArrayXi &y2x_best, int g1, int g2,
+                              int max_iter, int simplify_step,
+                              double local_d0_search, double score_d8sq_cutoff,
+                              double d0sq_inv);
+
+  extern double tmalign_get_score_fast(const Matrix3Xd &x, const Matrix3Xd &y,
+                                       double d0sq_inv, double d0_search);
 }  // namespace internal
 }  // namespace nuri
 

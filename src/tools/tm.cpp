@@ -24,50 +24,9 @@ namespace nuri {
 namespace {
   using Array6d = Array<double, 6, 1>;
   using Array6i = Array<int, 6, 1>;
-
-  using internal::AlignedXY;
 }  // namespace
 
 namespace internal {
-  void AlignedXY::remap(ArrayXi &y2x) noexcept {
-    l_ali_ = 0;
-    for (int j = 0; j < y2x.size(); ++j) {
-      const int i = y2x[j];
-      if (i >= 0) {
-        xtm_.col(l_ali_) = x_.col(i);
-        ytm_.col(l_ali_) = y_.col(j);
-        ++l_ali_;
-      }
-    }
-
-    swap_align_with(y2x);
-  }
-
-  void AlignedXY::remap_final(ConstRef<Matrix3Xd> x_aln,
-                              const double score_d8sq) noexcept {
-    l_ali_ = 0;
-
-    for (int j = 0; j < y2x_.size(); ++j) {
-      const int i = y2x_[j];
-      if (i >= 0) {
-        const double dsq = (x_aln.col(i) - y_.col(j)).squaredNorm();
-        if (dsq <= score_d8sq) {
-          xtm_.col(l_ali_) = x_aln.col(i);
-          ytm_.col(l_ali_) = y_.col(j);
-          ++l_ali_;
-        } else {
-          y2x_[j] = -1;
-        }
-      }
-    }
-  }
-
-  void AlignedXY::swap_align_with(ArrayXi &y2x) noexcept {
-    const auto my_sz = y2x_.size(), other_sz = y2x.size();
-    ABSL_ASSUME(my_sz == other_sz);
-    y2x_.swap(y2x);
-  }
-
   namespace {
     // 1-3, 1-4, 1-5, 2-4, 2-5, 3-5
     const Array6d kHelixRefs { 5.45, 5.18, 6.37, 5.45, 5.18, 5.45 };
@@ -125,343 +84,406 @@ namespace internal {
 
     return sec;
   }
-}  // namespace internal
 
-namespace {
-  template <class AL>
-  double raw_tmscore(AL &&dsqs, const double d0sq_inv) {
-    double tmscore = (1 + std::forward<AL>(dsqs) * d0sq_inv).inverse().sum();
-    return tmscore;
-  }
-
-  std::pair<int, double> find_aligned_cutoff(ConstRef<ArrayXd> dsqs,
-                                             double d0sq_cutoff) {
-    d0sq_cutoff = nuri::max(d0sq_cutoff, dsqs.minCoeff());
-
-    while (true) {
-      const int selected = (dsqs <= d0sq_cutoff).cast<int>().sum();
-      if (selected >= 3)
-        return { selected, d0sq_cutoff };
-
-      d0sq_cutoff += 0.5;
-    }
-  }
-
-  template <bool use_d8sq, class ML1, class ML2>
-  std::pair<int, double>
-  collect_res_tmscore(const ML1 &x, const ML2 &y, ArrayXi &aligned,
-                      double dsq_cutoff, const double score_d8sq_cutoff,
-                      const double d0sq_inv) {
-    ArrayXd dsqs = (x - y).colwise().squaredNorm().transpose();
-
-    int n_sel;
-    dsq_cutoff = nuri::max(dsq_cutoff, dsqs.minCoeff());
-    std::tie(n_sel, dsq_cutoff) = find_aligned_cutoff(dsqs, dsq_cutoff);
-
-    for (int i = 0, j = 0; i < n_sel; ++j) {
-      if (dsqs[j] <= dsq_cutoff)
-        aligned[i++] = j;
-    }
-
-    double tmscore;
-    if constexpr (use_d8sq) {
-      tmscore = 0;
-      for (int i = 0; i < dsqs.size(); ++i) {
-        if (dsqs[i] <= score_d8sq_cutoff)
-          tmscore += 1 / (1 + dsqs[i] * d0sq_inv);
+  void AlignedXY::remap(ArrayXi &y2x) noexcept {
+    l_ali_ = 0;
+    for (int j = 0; j < y2x.size(); ++j) {
+      const int i = y2x[j];
+      if (i >= 0) {
+        xtm_.col(l_ali_) = x_.col(i);
+        ytm_.col(l_ali_) = y_.col(j);
+        ++l_ali_;
       }
-    } else {
-      tmscore = raw_tmscore(dsqs, d0sq_inv);
     }
 
-    return { n_sel, tmscore };
+    swap_align_with(y2x);
   }
 
-  template <bool use_d8sq, class ML1, class ML2, class AL1, class AL2>
-  int tmscore_greedy_iter(std::pair<Affine3d, double> &result, ML1 rx, ML1 ry,
-                          const AL1 &i_ali, AL2 &&j_ali, const ML2 &x,
-                          const ML2 &y, const double dsq_cutoff,
+  void AlignedXY::remap_final(ConstRef<Matrix3Xd> x_aln,
+                              const double score_d8sq) noexcept {
+    l_ali_ = 0;
+
+    for (int j = 0; j < y2x_.size(); ++j) {
+      const int i = y2x_[j];
+      if (i >= 0) {
+        const double dsq = (x_aln.col(i) - y_.col(j)).squaredNorm();
+        if (dsq <= score_d8sq) {
+          xtm_.col(l_ali_) = x_aln.col(i);
+          ytm_.col(l_ali_) = y_.col(j);
+          ++l_ali_;
+        } else {
+          y2x_[j] = -1;
+        }
+      }
+    }
+  }
+
+  void AlignedXY::swap_align_with(ArrayXi &y2x) noexcept {
+    const auto my_sz = y2x_.size(), other_sz = y2x.size();
+    ABSL_ASSUME(my_sz == other_sz);
+    y2x_.swap(y2x);
+  }
+
+  namespace {
+    template <class AL>
+    double raw_tmscore(AL &&dsqs, const double d0sq_inv) {
+      double tmscore = (1 + std::forward<AL>(dsqs) * d0sq_inv).inverse().sum();
+      return tmscore;
+    }
+
+    template <bool squared, class AL>
+    std::pair<int, double> find_aligned_cutoff(const AL &dsqs,
+                                               double d_or_dsq) {
+      ABSL_DCHECK_GE(dsqs.size(), 3);
+
+      double dsq_cutoff = dsqs.minCoeff();
+      if constexpr (squared) {
+        dsq_cutoff = nuri::max(d_or_dsq, dsq_cutoff);
+      } else {
+        dsq_cutoff = nuri::max(d_or_dsq * d_or_dsq, dsq_cutoff);
+      }
+
+      while (true) {
+        const int selected = (dsqs <= dsq_cutoff).template cast<int>().sum();
+        if (selected >= 3)
+          return { selected, dsq_cutoff };
+
+        if constexpr (squared) {
+          dsq_cutoff += 0.5;
+        } else {
+          d_or_dsq += 0.5;
+          dsq_cutoff = d_or_dsq * d_or_dsq;
+        }
+      }
+    }
+
+    template <bool use_d8sq, class AL, class ML1, class ML2>
+    std::pair<int, double>
+    collect_res_tmscore(const ML1 &x, const ML2 &y, AL dsqs, ArrayXi &aligned,
+                        const double d_cutoff, const double score_d8sq_cutoff,
+                        const double d0sq_inv) {
+      dsqs = (x - y).colwise().squaredNorm().transpose();
+
+      auto [n_sel, dsq_cutoff] = find_aligned_cutoff<false>(dsqs, d_cutoff);
+      for (int i = 0, j = 0; i < n_sel; ++j) {
+        if (dsqs[j] <= dsq_cutoff)
+          aligned[i++] = j;
+      }
+
+      double tmscore;
+      if constexpr (use_d8sq) {
+        tmscore = 0;
+        for (int i = 0; i < dsqs.size(); ++i) {
+          if (dsqs[i] <= score_d8sq_cutoff)
+            tmscore += 1 / (1 + dsqs[i] * d0sq_inv);
+        }
+      } else {
+        tmscore = raw_tmscore(dsqs, d0sq_inv);
+      }
+
+      return { n_sel, tmscore };
+    }
+
+    template <bool use_d8sq, class ML1, class ML2, class AL1, class AL2,
+              class AL3>
+    int tmscore_greedy_iter(std::pair<Affine3d, double> &result, ML1 rx, ML1 ry,
+                            AL1 &&dsqs, const AL2 &i_ali, AL3 &&j_ali,
+                            const ML2 &x, const ML2 &y, const double d_cutoff,
+                            const double score_d8sq_cutoff,
+                            const double d0sq_inv) {
+      rx = x(Eigen::all, i_ali);
+      ry = y(Eigen::all, i_ali);
+
+      auto [xform, flag] = qcp_inplace(rx, ry, AlignMode::kXformOnly);
+      ABSL_DCHECK_GE(flag, 0);
+
+      inplace_transform(rx, xform, x(Eigen::all, i_ali));
+
+      auto [n_ali, tmscore] = collect_res_tmscore<use_d8sq>(
+          rx, y(Eigen::all, i_ali), std::forward<AL1>(dsqs),
+          std::forward<AL3>(j_ali), d_cutoff, score_d8sq_cutoff, d0sq_inv);
+
+      if (tmscore > result.second) {
+        result.first = xform;
+        result.second = tmscore;
+      }
+
+      return n_ali;
+    }
+
+    template <bool use_d8sq>
+    std::pair<Affine3d, double>
+    tmscore_greedy_search(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
+                          ArrayXi &i_ali, ArrayXi &j_ali, const AlignedXY &xy,
+                          const int simplify_step, const double local_d0_search,
                           const double score_d8sq_cutoff,
                           const double d0sq_inv) {
-    rx = x(Eigen::all, i_ali);
-    ry = y(Eigen::all, i_ali);
+      // original TMalign iterates 20 times *after* initialization
+      // this implementation merges the initialization and iteration
+      constexpr int max_iter = 20 + 1;
+      constexpr int n_init_max = 6;
 
-    auto [xform, flag] = qcp_inplace(rx, ry, AlignMode::kXformOnly);
-    ABSL_DCHECK_GE(flag, 0);
+      const double d_cutoff_init = local_d0_search - 1,
+                   d_cutoff_sub = local_d0_search + 1;
 
-    inplace_transform(rx, xform, x(Eigen::all, i_ali));
+      std::pair<Affine3d, double> result;
+      result.second = -1;
 
-    auto [n_ali, tmscore] = collect_res_tmscore<use_d8sq>(
-        rx, y(Eigen::all, i_ali), std::forward<AL2>(j_ali), dsq_cutoff,
-        score_d8sq_cutoff, d0sq_inv);
+      const int l_ali = xy.l_ali();
+      const int l_ini_min = nuri::min(l_ali, 4);
+      if (ABSL_PREDICT_FALSE(l_ini_min < 3))
+        return result;
 
-    if (tmscore > result.second) {
-      result.first = xform;
-      result.second = tmscore;
-    }
+      unsigned int n_ali_start = l_ali;
+      for (int i_init = 0; i_init < n_init_max; ++i_init) {
+        int l_frag = static_cast<int>(n_ali_start >> i_init);
+        if (l_frag <= l_ini_min || i_init == n_init_max - 1)
+          l_frag = l_ini_min;
 
-    return n_ali;
-  }
+        int il_max = l_ali - l_frag + 1;
+        for (int i = 0;;) {
+          double d_cutoff = d_cutoff_init;
+          int n_ali = l_frag;
 
-  template <bool use_d8sq>
-  std::pair<Affine3d, double>
-  tmscore_greedy_search(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXi &i_ali,
-                        ArrayXi &j_ali, const AlignedXY &xy,
-                        const int simplify_step, const double local_d0_search,
-                        const double score_d8sq_cutoff, const double d0sq_inv) {
-    // original TMalign iterates 20 times *after* initialization
-    // this implementation merges the initialization and iteration
-    constexpr int max_iter = 20 + 1;
-    constexpr int n_init_max = 6;
+          auto i_frag = i_ali.head(l_frag);
+          absl::c_iota(i_frag, i);
 
-    const int l_ali = xy.l_ali();
-    unsigned int n_ali_start = l_ali;
-    int l_ini_min = nuri::min(l_ali, 4);
+          for (int iter = 0; iter < max_iter; ++iter) {
+            int m_ali = tmscore_greedy_iter<use_d8sq>(
+                result, rx.leftCols(n_ali), ry.leftCols(n_ali),
+                dsqs.head(n_ali), i_ali.head(n_ali), j_ali, xy.xtm(), xy.ytm(),
+                d_cutoff, score_d8sq_cutoff, d0sq_inv);
+            if (absl::c_equal(i_ali.head(n_ali), j_ali.head(m_ali)))
+              break;
 
-    double dsq_cutoff_init = local_d0_search - 1,
-           dsq_cutoff_sub = local_d0_search + 1;
-    dsq_cutoff_init *= dsq_cutoff_init;
-    dsq_cutoff_sub *= dsq_cutoff_sub;
+            if (ABSL_PREDICT_FALSE(m_ali < 3)) {
+              ABSL_LOG(WARNING) << "Too few aligned residues while searching "
+                                   "for optimal TM-score";
+              break;
+            }
 
-    std::pair<Affine3d, double> result;
-    result.second = -1;
+            n_ali = m_ali;
+            d_cutoff = d_cutoff_sub;
 
-    for (int i_init = 0; i_init < n_init_max; ++i_init) {
-      int l_frag = static_cast<int>(n_ali_start >> i_init);
-      if (l_frag <= l_ini_min || i_init == n_init_max - 1)
-        l_frag = l_ini_min;
+            const auto my_sz = i_ali.size(), other_sz = j_ali.size();
+            ABSL_ASSUME(my_sz == other_sz);
+            i_ali.swap(j_ali);
+          }
 
-      int il_max = l_ali - l_frag + 1;
-      for (int i = 0;;) {
-        double dsq_cutoff = dsq_cutoff_init;
-        int n_ali = l_frag;
-
-        auto i_frag = i_ali.head(l_frag);
-        absl::c_iota(i_frag, i);
-
-        for (int iter = 0; iter < max_iter; ++iter) {
-          int m_ali = tmscore_greedy_iter<use_d8sq>(
-              result, rx.leftCols(n_ali), ry.leftCols(n_ali), i_ali.head(n_ali),
-              j_ali, xy.xtm(), xy.ytm(), dsq_cutoff, score_d8sq_cutoff,
-              d0sq_inv);
-          if (absl::c_equal(i_ali.head(n_ali), j_ali.head(m_ali)))
+          if (i == il_max - 1)
             break;
 
-          n_ali = m_ali;
-          dsq_cutoff = dsq_cutoff_sub;
-
-          const auto my_sz = i_ali.size(), other_sz = j_ali.size();
-          ABSL_ASSUME(my_sz == other_sz);
-          i_ali.swap(j_ali);
+          i = nuri::min(i + simplify_step, il_max - 1);
         }
 
-        if (i == il_max - 1)
+        if (l_frag == l_ini_min)
           break;
-
-        i = nuri::min(i + simplify_step, il_max - 1);
       }
 
-      if (l_frag == l_ini_min)
-        break;
+      return result;
     }
 
-    return result;
-  }
+    // path: 0 -> horizontal, 1 -> vertical, 2 -> diagonal
+    template <class Scorer>
+    void tm_nwdp(ArrayXi &y2x, ArrayXXc &path, ArrayXXd &val,
+                 const double gap_open, Scorer scorer) {
+      const int lx = static_cast<int>(path.rows() - 1),
+                ly = static_cast<int>(path.cols() - 1);
 
-  // path: 0 -> horizontal, 1 -> vertical, 2 -> diagonal
-  template <class Scorer>
-  void tm_nwdp(ArrayXi &y2x, ArrayXXc &path, ArrayXXd &val,
-               const double gap_open, Scorer scorer) {
-    const int lx = static_cast<int>(path.rows() - 1),
-              ly = static_cast<int>(path.cols() - 1);
+      ABSL_DCHECK_EQ(lx + 1, val.rows());
 
-    ABSL_DCHECK_EQ(lx + 1, val.rows());
+      ABSL_DCHECK_EQ(ly, y2x.size());
+      ABSL_DCHECK_EQ(ly + 1, val.cols());
 
-    ABSL_DCHECK_EQ(ly, y2x.size());
-    ABSL_DCHECK_EQ(ly + 1, val.cols());
+      y2x.fill(-1);
 
-    y2x.fill(-1);
+      for (int j = 0; j < ly; ++j) {
+        for (int i = 0; i < lx; ++i) {
+          double d = val(i, j) + scorer(i, j);
 
-    for (int j = 0; j < ly; ++j) {
-      for (int i = 0; i < lx; ++i) {
-        double d = val(i, j) + scorer(i, j);
+          double h = val(i, j + 1);
+          if (path(i, j + 1) == 2)
+            h += gap_open;
 
-        double h = val(i, j + 1);
-        if (path(i, j + 1) == 2)
-          h += gap_open;
+          double v = val(i + 1, j);
+          if (path(i + 1, j) == 2)
+            v += gap_open;
 
-        double v = val(i + 1, j);
-        if (path(i + 1, j) == 2)
-          v += gap_open;
+          Array3d vals { h, v, d };
+          std::int8_t idx;
+          val(i + 1, j + 1) = vals.maxCoeff(&idx);
+          path(i + 1, j + 1) = idx;
+        }
+      }
 
-        Array3d vals { h, v, d };
-        std::int8_t idx;
-        val(i + 1, j + 1) = vals.maxCoeff(&idx);
-        path(i + 1, j + 1) = idx;
+      for (int i = lx - 1, j = ly - 1; i >= 0 && j >= 0;) {
+        switch (path(i + 1, j + 1)) {
+        case 0:
+          --i;
+          break;
+        case 1:
+          --j;
+          break;
+        case 2:
+          y2x[j] = i;
+          --i;
+          --j;
+          break;
+        default:
+          ABSL_UNREACHABLE();
+        }
       }
     }
 
-    for (int i = lx - 1, j = ly - 1; i >= 0 && j >= 0;) {
-      switch (path(i + 1, j + 1)) {
-      case 0:
-        --i;
-        break;
-      case 1:
-        --j;
-        break;
-      case 2:
-        y2x[j] = i;
-        --i;
-        --j;
-        break;
-      default:
-        ABSL_UNREACHABLE();
+    void tm_find_best_alignment(Affine3d &xform_best, double &tmscore_max,
+                                Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
+                                ArrayXXc &path, ArrayXXd &val, AlignedXY &xy,
+                                ArrayXi &y2x_best, ArrayXi &buf1, ArrayXi &buf2,
+                                const int g1, const int g2, const int max_iter,
+                                const int simplify_step,
+                                const double local_d0_search,
+                                const double score_d8sq_cutoff,
+                                const double d0sq_inv) {
+      constexpr double gap_open[] = { -0.6, 0 };
+
+      ABSL_DCHECK_GE(g1, 0);
+      ABSL_DCHECK_LE(g2, 2);
+      ABSL_DCHECK_LT(g1, g2);
+
+      Affine3d xform = xform_best;
+      double tmscore_old = 0;
+      for (int g = g1; g < g2; ++g) {
+        for (int iter = 0; iter < max_iter; ++iter) {
+          inplace_transform(rx, xform, xy.x());
+
+          tm_nwdp(buf1, path, val, gap_open[g], [&](int i, int j) {
+            double dsq = (rx.col(i) - xy.y().col(j)).squaredNorm();
+            return 1 / (1 + dsq * d0sq_inv);
+          });
+          xy.remap(buf1);
+
+          double tmscore;
+          std::tie(xform, tmscore) = tmscore_greedy_search<true>(
+              rx, ry, dsqs, buf1, buf2, xy, simplify_step, local_d0_search,
+              score_d8sq_cutoff, d0sq_inv);
+          if (tmscore > tmscore_max) {
+            tmscore_max = tmscore;
+            xform_best = xform;
+            xy.swap_align_with(y2x_best);
+          }
+
+          if (iter > 0 && std::abs(tmscore - tmscore_old) < 1e-6)
+            break;
+
+          tmscore_old = tmscore;
+        }
       }
     }
-  }
 
-  void tm_find_best_alignment(
-      Affine3d &xform_best, double &tmscore_max, Matrix3Xd &rx, Matrix3Xd &ry,
-      ArrayXXc &path, ArrayXXd &val, AlignedXY &xy, ArrayXi &y2x_best,
-      ArrayXi &buf1, ArrayXi &buf2, const int g1, const int g2,
-      const int max_iter, const int simplify_step, const double local_d0_search,
-      const double score_d8sq_cutoff, const double d0sq_inv) {
-    constexpr double gap_open[] = { -0.6, 0 };
+    template <class AL, class ML1, class ML2, class ML3>
+    double tmscore_fast(ML1 x0, ML1 y0, AL dsqs, const ML2 &x, const ML3 &y,
+                        const double d0sq_inv, const double d0sq_search) {
+      auto align_sub_tmscore = [&](const double n_sel,
+                                   const double dsq_cutoff) {
+        auto x0_sel = x0.leftCols(n_sel), y0_sel = y0.leftCols(n_sel);
+        int i = 0;
+        for (bool sel: dsqs <= dsq_cutoff) {
+          if (!sel)
+            continue;
 
-    ABSL_DCHECK_GE(g1, 0);
-    ABSL_DCHECK_LE(g2, 2);
-    ABSL_DCHECK_LT(g1, g2);
-
-    Affine3d xform = xform_best;
-    double tmscore_old = 0;
-    for (int g = g1; g < g2; ++g) {
-      for (int iter = 0; iter < max_iter; ++iter) {
-        inplace_transform(rx, xform, xy.x());
-
-        tm_nwdp(buf1, path, val, gap_open[g], [&](int i, int j) {
-          double dsq = (rx.col(i) - xy.y().col(j)).squaredNorm();
-          return 1 / (1 + dsq * d0sq_inv);
-        });
-        xy.remap(buf1);
-
-        double tmscore;
-        std::tie(xform, tmscore) = tmscore_greedy_search<true>(
-            rx, ry, buf1, buf2, xy, simplify_step, local_d0_search,
-            score_d8sq_cutoff, d0sq_inv);
-        if (tmscore > tmscore_max) {
-          tmscore_max = tmscore;
-          xform_best = xform;
-          xy.swap_align_with(y2x_best);
+          x0_sel.col(i) = x.col(i);
+          y0_sel.col(i) = y.col(i);
+          ++i;
         }
 
-        if (iter > 0 && std::abs(tmscore - tmscore_old) < 1e-6)
-          break;
+        auto [xform_sel, flag_sel] =
+            qcp_inplace(x0_sel, y0_sel, AlignMode::kXformOnly);
+        ABSL_DCHECK_GE(flag_sel, 0);
 
-        tmscore_old = tmscore;
-      }
-    }
-  }
+        inplace_transform(x0, xform_sel, x);
 
-  template <class ML1, class ML2, class ML3>
-  double tmscore_fast(ML1 x0, ML1 y0, const ML2 &x, const ML3 &y,
-                      const double d0sq_inv, const double d0sq_search) {
-    auto align_sub_tmscore = [&](const double n_sel, const double dsq_cutoff,
-                                 ArrayXd &dsqs) {
-      auto x0_sel = x0.leftCols(n_sel), y0_sel = y0.leftCols(n_sel);
-      int i = 0;
-      for (bool sel: dsqs <= dsq_cutoff) {
-        if (!sel)
-          continue;
+        dsqs = (x0 - y).colwise().squaredNorm().transpose();
+        return raw_tmscore(dsqs, d0sq_inv);
+      };
 
-        x0_sel.col(i) = x.col(i);
-        y0_sel.col(i) = y.col(i);
-        ++i;
-      }
+      int n_ali = static_cast<int>(x0.cols());
+      ABSL_DCHECK_EQ(n_ali, y0.cols());
+      ABSL_DCHECK_EQ(n_ali, x.cols());
+      ABSL_DCHECK_EQ(n_ali, y.cols());
 
-      auto [xform_sel, flag_sel] =
-          qcp_inplace(x0_sel, y0_sel, AlignMode::kXformOnly);
-      ABSL_DCHECK_GE(flag_sel, 0);
+      x0 = x;
+      y0 = y;
+      auto [xform, flag] = qcp_inplace(x0, y0, AlignMode::kXformOnly);
+      ABSL_DCHECK_GE(flag, 0);
 
-      inplace_transform(x0, xform_sel, x);
+      inplace_transform(x0, xform, x);
 
       dsqs = (x0 - y).colwise().squaredNorm().transpose();
-      return raw_tmscore(dsqs, d0sq_inv);
-    };
+      double tmscore = raw_tmscore(dsqs, d0sq_inv);
 
-    int n_ali = static_cast<int>(x0.cols());
-    ABSL_DCHECK_EQ(n_ali, y0.cols());
-    ABSL_DCHECK_EQ(n_ali, x.cols());
-    ABSL_DCHECK_EQ(n_ali, y.cols());
+      auto [n_sel, dsq_cutoff] = find_aligned_cutoff<true>(dsqs, d0sq_search);
+      if (n_sel == n_ali)
+        return tmscore;
 
-    x0 = x;
-    y0 = y;
-    auto [xform, flag] = qcp_inplace(x0, y0, AlignMode::kXformOnly);
-    ABSL_DCHECK_GE(flag, 0);
+      double tmscore1 = align_sub_tmscore(n_sel, dsq_cutoff);
 
-    inplace_transform(x0, xform, x);
+      std::tie(n_sel, dsq_cutoff) =
+          find_aligned_cutoff<true>(dsqs, d0sq_search + 1);
+      double tmscore2 = n_sel == n_ali ? tmscore
+                                       : align_sub_tmscore(n_sel, dsq_cutoff);
 
-    ArrayXd dsqs = (x0 - y).colwise().squaredNorm().transpose();
-    double tmscore = raw_tmscore(dsqs, d0sq_inv);
-
-    auto [n_sel, dsq_cutoff] = find_aligned_cutoff(dsqs, d0sq_search);
-    if (n_sel == n_ali)
-      return tmscore;
-
-    double tmscore1 = align_sub_tmscore(n_sel, dsq_cutoff, dsqs);
-
-    std::tie(n_sel, dsq_cutoff) = find_aligned_cutoff(dsqs, d0sq_search + 1);
-    double tmscore2 =
-        n_sel == n_ali ? tmscore : align_sub_tmscore(n_sel, dsq_cutoff, dsqs);
-
-    return std::max({ tmscore, tmscore1, tmscore2 });
-  }
-
-  template <class ML1, class ML2>
-  std::pair<int, double>
-  // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
-  tm_gt_find_best_alignment(Matrix3Xd &rx, Matrix3Xd &ry, ML1 &&x, ML2 &&y,
-                            const double d0sq_inv, const double d0sq_search,
-                            const int min_frag) {
-    const int lx = static_cast<int>(x.cols());
-    const int ly = static_cast<int>(y.cols());
-
-    int n1 = min_frag - ly, n2 = lx - min_frag + 1;
-
-    int k_max = n1;
-    double tmscore_max = -1;
-    for (int k = n1; k < n2; ++k) {
-      const int x_start = nuri::clamp(k, 0, lx),
-                y_start = nuri::clamp(-k, 0, ly);
-      const int n_overlap = nuri::min(lx - x_start, ly - y_start);
-
-      double tmscore =
-          tmscore_fast(rx.leftCols(n_overlap), ry.leftCols(n_overlap),
-                       x.middleCols(x_start, n_overlap),
-                       y.middleCols(y_start, n_overlap), d0sq_inv, d0sq_search);
-      if (tmscore > tmscore_max) {
-        tmscore_max = tmscore;
-        k_max = k;
-      }
+      return std::max({ tmscore, tmscore1, tmscore2 });
     }
 
-    return { k_max, tmscore_max };
-  }
+    template <class ML1, class ML2>
+    std::pair<int, double> tm_gt_find_best_alignment(
+        Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
+        // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
+        ML1 &&x, ML2 &&y, const double d0sq_inv, const double d0sq_search,
+        const int min_frag) {
+      const int lx = static_cast<int>(x.cols());
+      const int ly = static_cast<int>(y.cols());
 
-  void fill_map_fragment(ArrayXi &y2x, const int x_begin, const int y_begin,
-                         const int n_frag) {
-    const int ly = static_cast<int>(y2x.size());
+      int n1 = min_frag - ly, n2 = lx - min_frag + 1;
 
-    y2x.head(y_begin).setConstant(-1);
+      int k_max = n1;
+      double tmscore_max = -1;
+      for (int k = n1; k < n2; ++k) {
+        const int x_start = nuri::clamp(k, 0, lx),
+                  y_start = nuri::clamp(-k, 0, ly);
+        const int n_overlap = nuri::min(lx - x_start, ly - y_start);
+        if (n_overlap < 3)
+          continue;
 
-    auto aligned = y2x.segment(y_begin, n_frag);
-    absl::c_iota(aligned, x_begin);
+        double tmscore = tmscore_fast(
+            rx.leftCols(n_overlap), ry.leftCols(n_overlap),
+            dsqs.head(n_overlap), x.middleCols(x_start, n_overlap),
+            y.middleCols(y_start, n_overlap), d0sq_inv, d0sq_search);
+        if (tmscore > tmscore_max) {
+          tmscore_max = tmscore;
+          k_max = k;
+        }
+      }
 
-    y2x.tail(ly - y_begin - n_frag).setConstant(-1);
-  }
+      return { k_max, tmscore_max };
+    }
 
-  void tm_initial_gt(Matrix3Xd &rx, Matrix3Xd &ry, ConstRef<Matrix3Xd> x,
-                     ConstRef<Matrix3Xd> y, ArrayXi &y2x, const double d0sq_inv,
-                     const double d0sq_search) {
+    void fill_map_fragment(ArrayXi &y2x, const int x_begin, const int y_begin,
+                           const int n_frag) {
+      const int ly = static_cast<int>(y2x.size());
+
+      y2x.head(y_begin).setConstant(-1);
+
+      auto aligned = y2x.segment(y_begin, n_frag);
+      absl::c_iota(aligned, x_begin);
+
+      y2x.tail(ly - y_begin - n_frag).setConstant(-1);
+    }
+  }  // namespace
+
+  void tm_initial_gt(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
+                     ConstRef<Matrix3Xd> x, ConstRef<Matrix3Xd> y, ArrayXi &y2x,
+                     const double d0sq_inv, const double d0_search) {
     const int lmin = static_cast<int>(rx.cols());
     ABSL_DCHECK_GE(ry.cols(), lmin);
 
@@ -470,8 +492,8 @@ namespace {
     ABSL_DCHECK_EQ(y2x.size(), ly);
 
     const int min_frag = nuri::max(lmin / 2, 5);
-    auto [k, _] = tm_gt_find_best_alignment(rx, ry, x, y, d0sq_inv, d0sq_search,
-                                            min_frag);
+    auto [k, _] = tm_gt_find_best_alignment(rx, ry, dsqs, x, y, d0sq_inv,
+                                            d0_search, min_frag);
 
     const int x_begin = nuri::clamp(k, 0, lx), y_begin = nuri::clamp(-k, 0, ly);
     const int n_overlap = nuri::min(lx - x_begin, ly - y_begin);
@@ -484,11 +506,11 @@ namespace {
             [&](int i, int j) { return value_if(secx[i] == secy[j], 1.0); });
   }
 
-  bool tm_initial_local(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXXc &path,
-                        ArrayXXd &val, AlignedXY &xy, ArrayXi &y2x,
-                        ArrayXi &buf, const double d0sq_inv,
+  bool tm_initial_local(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
+                        ArrayXXc &path, ArrayXXd &val, AlignedXY &xy,
+                        ArrayXi &y2x, ArrayXi &buf, const double d0sq_inv,
                         const double d01sq_inv, const double d0sq_search,
-                        const int lmin) {
+                        const int l_min) {
     const int lx = static_cast<int>(rx.cols()),
               ly = static_cast<int>(ry.cols());
 
@@ -499,7 +521,10 @@ namespace {
 
     double gl_max = 0;
     for (const int n_frag:
-         { nuri::min(20, lmin / 3), nuri::min(100, lmin / 2) }) {
+         { nuri::min(20, l_min / 3), nuri::min(100, l_min / 2) }) {
+      if (ABSL_PREDICT_FALSE(n_frag < 3))
+        continue;
+
       auto rx_frag = rx.leftCols(n_frag), ry_frag = ry.leftCols(n_frag);
 
       for (int i = 0; i < lx - n_frag + 1; i += jmp_x) {
@@ -519,8 +544,15 @@ namespace {
           });
           xy.remap(buf);
 
+          if (ABSL_PREDICT_FALSE(xy.l_ali() < 3)) {
+            ABSL_LOG(WARNING) << "Too few aligned residues while searching for "
+                                 "optimal alignment";
+            continue;
+          }
+
           const double gl = tmscore_fast(rx.leftCols(xy.l_ali()),
-                                         ry.leftCols(xy.l_ali()), xy.xtm(),
+                                         ry.leftCols(xy.l_ali()),
+                                         dsqs.head(xy.l_ali()), xy.xtm(),
                                          xy.ytm(), d0sq_inv, d0sq_search);
           if (gl > gl_max) {
             gl_max = gl;
@@ -552,48 +584,52 @@ namespace {
     });
   }
 
-  std::pair<int, int> find_max_frag(ConstRef<Matrix3Xd> pts,
-                                    const double dcu0_sq, const int min_frag) {
-    constexpr double multipler = 1.1 * 1.1;
+  namespace {
+    std::pair<int, int> find_max_frag(ConstRef<Matrix3Xd> pts,
+                                      const double dcu0_sq,
+                                      const int min_frag) {
+      constexpr double multipler = 1.1 * 1.1;
 
-    const int n = static_cast<int>(pts.cols());
-    const int r_min = nuri::min(min_frag, n / 3);
+      const int n = static_cast<int>(pts.cols());
+      const int r_min = nuri::min(min_frag, n / 3);
 
-    int max_begin = 0, max_len = 1;
-    for (double dcu_cut = dcu0_sq; max_len < r_min; dcu_cut *= multipler) {
-      int begin = 0, len = 1;
-      for (int i = 1; i < n; ++i) {
-        if ((pts.col(i) - pts.col(i - 1)).squaredNorm() < dcu_cut) {
-          ++len;
-        } else {
-          if (len > max_len) {
-            max_begin = begin;
-            max_len = len;
+      int max_begin = 0, max_len = 1;
+      for (double dcu_cut = dcu0_sq; max_len < r_min; dcu_cut *= multipler) {
+        int begin = 0, len = 1;
+        for (int i = 1; i < n; ++i) {
+          if ((pts.col(i) - pts.col(i - 1)).squaredNorm() < dcu_cut) {
+            ++len;
+          } else {
+            if (len > max_len) {
+              max_begin = begin;
+              max_len = len;
+            }
+
+            begin = i;
+            len = 1;
           }
-
-          begin = i;
-          len = 1;
+        }
+        if (len > max_len) {
+          max_begin = begin;
+          max_len = len;
         }
       }
-      if (len > max_len) {
-        max_begin = begin;
-        max_len = len;
+
+      // this is to avoid redundant initial alignment with the full structure
+      if (max_begin == 0 && max_len == n) {
+        // see the original TMalign code for the following numbers
+        max_begin = static_cast<int>(n * 0.1);
+        max_len = static_cast<int>(n * 0.89) - max_begin + 1;
       }
+
+      return { max_begin, max_len };
     }
+  }  // namespace
 
-    // this is to avoid redundant initial alignment with the full structure
-    if (max_begin == 0 && max_len == n) {
-      // see the original TMalign code for the following numbers
-      max_begin = static_cast<int>(n * 0.1);
-      max_len = static_cast<int>(n * 0.89) - max_begin + 1;
-    }
-
-    return { max_begin, max_len };
-  }
-
-  bool tm_initial_fgt(Matrix3Xd &rx, Matrix3Xd &ry, ConstRef<Matrix3Xd> x,
-                      ConstRef<Matrix3Xd> y, ArrayXi &y2x, const double dcu0_sq,
-                      const double d0sq_inv, const double d0sq_search) {
+  bool tm_initial_fgt(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
+                      ConstRef<Matrix3Xd> x, ConstRef<Matrix3Xd> y,
+                      ArrayXi &y2x, const double dcu0_sq, const double d0sq_inv,
+                      const double d0_search) {
     constexpr int min_frag = 4;
 
     const int lx = static_cast<int>(x.cols()), ly = static_cast<int>(y.cols());
@@ -611,9 +647,9 @@ namespace {
     // asymmetric results
 
     if (std::make_pair(xf_len, lx) <= std::make_pair(yf_len, ly)) {
-      auto [k, tmscore] =
-          tm_gt_find_best_alignment(rx, ry, x.middleCols(xf_begin, xf_len), y,
-                                    d0sq_inv, d0sq_search, min_ali);
+      auto [k, tmscore] = tm_gt_find_best_alignment(
+          rx, ry, dsqs, x.middleCols(xf_begin, xf_len), y, d0sq_inv, d0_search,
+          min_ali);
       if (tmscore > tmscore_max) {
         tmscore_max = tmscore;
 
@@ -623,9 +659,9 @@ namespace {
     }
 
     if (std::make_pair(xf_len, lx) >= std::make_pair(yf_len, ly)) {
-      auto [k, tmscore] =
-          tm_gt_find_best_alignment(rx, ry, x, y.middleCols(yf_begin, yf_len),
-                                    d0sq_inv, d0sq_search, min_ali);
+      auto [k, tmscore] = tm_gt_find_best_alignment(
+          rx, ry, dsqs, x, y.middleCols(yf_begin, yf_len), d0sq_inv, d0_search,
+          min_ali);
       if (tmscore > tmscore_max) {
         tmscore_max = tmscore;
 
@@ -642,8 +678,9 @@ namespace {
     return true;
   }
 
-  double realign_calculate_msd(AlignedXY &xy, Matrix3Xd &rx, Matrix3Xd &ry,
-                               const Affine3d &xform, const double score_d8sq) {
+  double tm_realign_calculate_msd(AlignedXY &xy, Matrix3Xd &rx, Matrix3Xd &ry,
+                                  const Affine3d &xform,
+                                  const double score_d8sq) {
     auto query_xformed = rx.leftCols(xy.x().cols());
     inplace_transform(query_xformed, xform, xy.x());
     xy.remap_final(query_xformed, score_d8sq);
@@ -655,7 +692,7 @@ namespace {
                            AlignMode::kMsdOnly);
     return msd;
   }
-}  // namespace
+}  // namespace internal
 
 TMAlign::TMAlign(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ)
     : l_minmax_(nuri::minmax(static_cast<int>(query.cols()),
@@ -741,9 +778,9 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
 
     xy_.remap(y2x_local());
 
-    auto [xform, tmscore] = tmscore_greedy_search<true>(
-        rx_, ry_, i_ali(), j_ali(), xy_, simplify_step, d0_search, score_d8sq,
-        d0sq_inv);
+    auto [xform, tmscore] = internal::tmscore_greedy_search<true>(
+        rx_, ry_, dsqs_, i_ali(), j_ali(), xy_, simplify_step, d0_search,
+        score_d8sq, d0sq_inv);
     if (tmscore > raw_tm_max) {
       best_xform_ = xform;
       raw_tm_max = tmscore;
@@ -751,17 +788,18 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
     }
 
     if (tmscore > try_align_cutoff) {
-      tm_find_best_alignment(xform, raw_tm_max, rx_, ry_, path, val, xy_,
-                             y2x_best, i_ali(), j_ali(), g1, g2, max_iter,
-                             simplify_step, d0_search, score_d8sq, d0sq_inv);
+      internal::tm_find_best_alignment(xform, raw_tm_max, rx_, ry_, dsqs_, path,
+                                       val, xy_, y2x_best, i_ali(), j_ali(), g1,
+                                       g2, max_iter, simplify_step, d0_search,
+                                       score_d8sq, d0sq_inv);
     }
   };
 
   tm_try_init(
       InitFlags::kGaplessThreading,
       [&]() {
-        tm_initial_gt(rx_, ry_, query(), templ(), y2x_local(), d01sq_inv,
-                      d0sq_search);
+        internal::tm_initial_gt(rx_, ry_, dsqs_, query(), templ(), y2x_local(),
+                                d01sq_inv, d0sq_search);
         return true;
       },
       0, 2, max_iter_full, 1.0);
@@ -769,7 +807,7 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
   tm_try_init(
       InitFlags::kSecStr,
       [&]() {
-        tm_initial_ss(y2x_local(), path, val, secx, secy);
+        internal::tm_initial_ss(y2x_local(), path, val, secx, secy);
         return true;
       },
       0, 2, max_iter_full, 0.2);
@@ -777,17 +815,17 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
   tm_try_init(
       InitFlags::kLocal,
       [&]() {
-        return tm_initial_local(rx_, ry_, path, val, xy_, y2x_local(),
-                                y2x_buf(), d0sq_inv, d01sq_inv, d0sq_search,
-                                l_min());
+        return internal::tm_initial_local(rx_, ry_, dsqs_, path, val, xy_,
+                                          y2x_local(), y2x_buf(), d0sq_inv,
+                                          d01sq_inv, d0sq_search, l_min());
       },
       0, 2, max_iter_short, ddcc);
 
   tm_try_init(
       InitFlags::kLocalPlusSecStr,
       [&]() {
-        tm_initial_ssplus(rx_, ry_, path, val, xy_, y2x_local(), secx, secy,
-                          d01sq_inv);
+        internal::tm_initial_ssplus(rx_, ry_, path, val, xy_, y2x_local(), secx,
+                                    secy, d01sq_inv);
         return true;
       },
       0, 2, max_iter_full, ddcc);
@@ -795,8 +833,9 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
   tm_try_init(
       InitFlags::kFragmentGaplessThreading,
       [&]() {
-        return tm_initial_fgt(rx_, ry_, query(), templ(), y2x_local(), dcu0_sq,
-                              d0sq_inv, d0sq_search);
+        return internal::tm_initial_fgt(rx_, ry_, dsqs_, query(), templ(),
+                                        y2x_local(), dcu0_sq, d0sq_inv,
+                                        d0sq_search);
       },
       1, 2, max_iter_short, ddcc);
 
@@ -810,16 +849,17 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
   ABSL_DCHECK_GT(raw_tm_max, 0);
 
   {
-    auto [xform_ali, raw_tm_ali] = tmscore_greedy_search<true>(
-        rx_, ry_, y2x_local(), y2x_buf(), xy_, simplify_step_full, d0_search,
-        score_d8sq, d0sq_inv);
+    auto [xform_ali, raw_tm_ali] = internal::tmscore_greedy_search<true>(
+        rx_, ry_, dsqs_, y2x_local(), y2x_buf(), xy_, simplify_step_full,
+        d0_search, score_d8sq, d0sq_inv);
     ABSL_DCHECK_GE(raw_tm_ali, raw_tm_max);
 
     best_xform_ = xform_ali;
     raw_tm_max = raw_tm_ali;
   }
 
-  aligned_msd_ = realign_calculate_msd(xy_, rx_, ry_, best_xform_, score_d8sq);
+  aligned_msd_ = internal::tm_realign_calculate_msd(xy_, rx_, ry_, best_xform_,
+                                                    score_d8sq);
   return true;
 }
 
@@ -847,9 +887,88 @@ std::pair<Affine3d, double> TMAlign::tm_score(const int l_norm, double d0) {
   const double d0sq_inv = 1 / (d0 * d0);
   const double d0_search = nuri::clamp(d0, 4.5, 8.0);
 
-  result = tmscore_greedy_search<false>(rx_, ry_, i_ali(), j_ali(), xy_, 1,
-                                        d0_search, 0, d0sq_inv);
+  result = internal::tmscore_greedy_search<false>(
+      rx_, ry_, dsqs_, i_ali(), j_ali(), xy_, 1, d0_search, 0, d0sq_inv);
   result.second /= l_norm;
   return result;
 }
+
+namespace internal {
+  std::pair<int, double> tmalign_score_fun8(const Matrix3Xd &x,
+                                            const Matrix3Xd &y,
+                                            ArrayXi &aligned, double d_cutoff,
+                                            double d0sq_inv,
+                                            double score_d8sq_cutoff) {
+    ArrayXd dsqs(x.cols());
+    return collect_res_tmscore<true, ArrayXd &>(x, y, dsqs, aligned, d_cutoff,
+                                                score_d8sq_cutoff, d0sq_inv);
+  }
+
+  std::pair<int, double> tmalign_score_fun8(const Matrix3Xd &x,
+                                            const Matrix3Xd &y,
+                                            ArrayXi &aligned, double d_cutoff,
+                                            double d0sq_inv) {
+    ArrayXd dsqs(x.cols());
+    return collect_res_tmscore<false, ArrayXd &>(x, y, dsqs, aligned, d_cutoff,
+                                                 0, d0sq_inv);
+  }
+
+  std::pair<Affine3d, double> tmalign_tmscore8_search(const AlignedXY &xy,
+                                                      int simplify_step,
+                                                      double local_d0_search,
+                                                      double score_d8sq_cutoff,
+                                                      double d0sq_inv) {
+    Matrix3Xd rx(3, xy.l_ali()), ry(3, xy.l_ali());
+    ArrayXd dsqs(xy.l_ali());
+    ArrayXi i_ali(xy.l_ali()), j_ali(xy.l_ali());
+    return tmscore_greedy_search<true>(rx, ry, dsqs, i_ali, j_ali, xy,
+                                       simplify_step, local_d0_search,
+                                       score_d8sq_cutoff, d0sq_inv);
+  }
+
+  std::pair<Affine3d, double> tmalign_tmscore8_search(const AlignedXY &xy,
+                                                      int simplify_step,
+                                                      double local_d0_search,
+                                                      double d0sq_inv) {
+    Matrix3Xd rx(3, xy.l_ali()), ry(3, xy.l_ali());
+    ArrayXd dsqs(xy.l_ali());
+    ArrayXi i_ali(xy.l_ali()), j_ali(xy.l_ali());
+    return tmscore_greedy_search<false>(rx, ry, dsqs, i_ali, j_ali, xy,
+                                        simplify_step, local_d0_search, 0,
+                                        d0sq_inv);
+  }
+
+  void tmalign_dp_iter(Affine3d &xform_best, double &tmscore_max, AlignedXY &xy,
+                       ArrayXi &y2x_best, int g1, int g2, int max_iter,
+                       int simplify_step, double local_d0_search,
+                       double score_d8sq_cutoff, double d0sq_inv) {
+    Matrix3Xd rx(3, xy.l_min()), ry(3, xy.l_min());
+
+    ArrayXXc path(xy.x().cols() + 1, xy.y().cols() + 1);
+    path.row(0).fill(1);
+    path.col(0).fill(0);
+
+    ArrayXXd val(xy.x().cols() + 1, xy.y().cols() + 1);
+    val.col(0).fill(0);
+    val.row(0).fill(0);
+
+    ArrayXd dsqs(xy.l_min());
+    ArrayXi buf1(xy.y().cols()), buf2(xy.y().cols());
+
+    tm_find_best_alignment(xform_best, tmscore_max, rx, ry, dsqs, path, val, xy,
+                           y2x_best, buf1, buf2, g1, g2, max_iter,
+                           simplify_step, local_d0_search, score_d8sq_cutoff,
+                           d0sq_inv);
+  }
+
+  double tmalign_get_score_fast(const Matrix3Xd &x, const Matrix3Xd &y,
+                                double d0sq_inv, double d0_search) {
+    const auto l_min = nuri::min(x.cols(), y.cols());
+
+    Matrix3Xd rx(3, l_min), ry(3, l_min);
+    ArrayXd dsqs(l_min);
+    return tmscore_fast<ArrayXd &, Matrix3Xd &>(rx, ry, dsqs, x, y, d0sq_inv,
+                                                d0_search * d0_search);
+  }
+}  // namespace internal
 }  // namespace nuri
