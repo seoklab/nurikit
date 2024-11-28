@@ -181,8 +181,8 @@ private:
 };
 
 struct TMAlignResult {
-  ArrayXi templ_to_query;
   Affine3d xform;
+  ArrayXi templ_to_query;
   double msd;
   double tm_score = -1;
 };

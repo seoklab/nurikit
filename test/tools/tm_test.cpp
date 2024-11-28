@@ -679,7 +679,7 @@ TEST_F(TMAlignTest, Wrapper) {
       8, -1, -1, -1, -1,      //
       -1, 15, 16, 17, 18;
 
-  auto [y2x, xform, msd, tmscore] = tm_align(x(), y());
+  auto [xform, y2x, msd, tmscore] = tm_align(x(), y());
 
   for (int i = 0; i < ly; ++i)
     EXPECT_EQ(y2x[i], y2x_ref[i]);
