@@ -503,7 +503,7 @@ namespace internal {
   }
 
   void tm_initial_ss(ArrayXi &y2x, ArrayXXc &path, ArrayXXd &val,
-                     const ArrayXc &secx, const ArrayXc &secy) {
+                     ConstRef<ArrayXc> secx, ConstRef<ArrayXc> secy) {
     tm_nwdp(y2x, path, val, -1,
             [&](int i, int j) { return value_if(secx[i] == secy[j], 1.0); });
   }
@@ -566,7 +566,7 @@ namespace internal {
 
   bool tm_initial_ssplus(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXXc &path,
                          ArrayXXd &val, const AlignedXY &xy, ArrayXi &y2x,
-                         const ArrayXc &secx, const ArrayXc &secy,
+                         ConstRef<ArrayXc> secx, ConstRef<ArrayXc> secy,
                          const double d01sq_inv) {
     rx.leftCols(xy.l_ali()) = xy.xtm();
     ry.leftCols(xy.l_ali()) = xy.ytm();
@@ -768,6 +768,8 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
   ArrayXXd val(ly + 1, lx + 1);
   val.col(0).fill(0);
   val.row(0).fill(0);
+
+  internal::AllowEigenMallocScoped<false> ems;
 
   double raw_tm_max = -1;
   auto tm_try_init = [&](InitFlags test, auto init, const int g1, const int g2,

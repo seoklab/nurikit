@@ -95,7 +95,7 @@ namespace internal {
                               double d0sq_search);
 
   extern void tm_initial_ss(ArrayXi &y2x, ArrayXXc &path, ArrayXXd &val,
-                            const ArrayXc &secx, const ArrayXc &secy);
+                            ConstRef<ArrayXc> secx, ConstRef<ArrayXc> secy);
 
   ABSL_MUST_USE_RESULT
   extern double tm_initial_local(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
@@ -106,8 +106,8 @@ namespace internal {
   ABSL_MUST_USE_RESULT
   extern bool tm_initial_ssplus(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXXc &path,
                                 ArrayXXd &val, const AlignedXY &xy,
-                                ArrayXi &y2x, const ArrayXc &secx,
-                                const ArrayXc &secy, double d01sq_inv);
+                                ArrayXi &y2x, ConstRef<ArrayXc> secx,
+                                ConstRef<ArrayXc> secy, double d01sq_inv);
 
   ABSL_MUST_USE_RESULT
   extern double tm_initial_fgt(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
