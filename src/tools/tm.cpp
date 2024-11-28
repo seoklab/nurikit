@@ -45,7 +45,7 @@ namespace internal {
     if (((ds - kStrandRefs).abs() < 1.42).all())
       return SecStr::kStrand;
 
-    if (ds[0] < 8)
+    if (ds[2] < 8)
       return SecStr::kTurn;
 
     return SecStr::kCoil;
