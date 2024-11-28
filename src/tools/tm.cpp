@@ -286,51 +286,53 @@ namespace internal {
       return result;
     }
 
-    // path: 0 -> horizontal, 1 -> vertical, 2 -> diagonal
+    constexpr std::int8_t kPathDiag = 0, kPathVert = 1, kPathHorz = 2;
+
     template <class Scorer>
+    // path, val arrays are transposed (x -> cols, y -> rows)
     void tm_nwdp(ArrayXi &y2x, ArrayXXc &path, ArrayXXd &val,
                  const double gap_open, Scorer scorer) {
-      const int lx = static_cast<int>(path.rows() - 1),
-                ly = static_cast<int>(path.cols() - 1);
+      const int lx = static_cast<int>(path.cols() - 1),
+                ly = static_cast<int>(path.rows() - 1);
 
-      ABSL_DCHECK_EQ(lx + 1, val.rows());
+      ABSL_DCHECK_EQ(lx + 1, val.cols());
 
       ABSL_DCHECK_EQ(ly, y2x.size());
-      ABSL_DCHECK_EQ(ly + 1, val.cols());
+      ABSL_DCHECK_EQ(ly + 1, val.rows());
 
-      y2x.fill(-1);
+      for (int i = 0; i < lx; ++i) {
+        for (int j = 0; j < ly; ++j) {
+          Array3d vals;
 
-      for (int j = 0; j < ly; ++j) {
-        for (int i = 0; i < lx; ++i) {
-          double d = val(i, j) + scorer(i, j);
+          vals[kPathDiag] = val(j, i) + scorer(i, j);
 
-          double h = val(i, j + 1);
-          if (path(i, j + 1) == 2)
-            h += gap_open;
+          vals[kPathVert] = val(j, i + 1);
+          if (path(j, i + 1) == kPathDiag)
+            vals[kPathVert] += gap_open;
 
-          double v = val(i + 1, j);
-          if (path(i + 1, j) == 2)
-            v += gap_open;
+          vals[kPathHorz] = val(j + 1, i);
+          if (path(j + 1, i) == kPathDiag)
+            vals[kPathHorz] += gap_open;
 
-          Array3d vals { h, v, d };
-          std::int8_t idx;
-          val(i + 1, j + 1) = vals.maxCoeff(&idx);
-          path(i + 1, j + 1) = idx;
+          std::int8_t p;
+          val(j + 1, i + 1) = vals.maxCoeff(&p);
+          path(j + 1, i + 1) = p;
         }
       }
 
+      y2x.fill(-1);
       for (int i = lx - 1, j = ly - 1; i >= 0 && j >= 0;) {
-        switch (path(i + 1, j + 1)) {
-        case 0:
-          --i;
-          break;
-        case 1:
-          --j;
-          break;
-        case 2:
+        switch (path(j + 1, i + 1)) {
+        case kPathDiag:
           y2x[j] = i;
           --i;
           --j;
+          break;
+        case kPathVert:
+          --j;
+          break;
+        case kPathHorz:
+          --i;
           break;
         default:
           ABSL_UNREACHABLE();
@@ -758,11 +760,11 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
 
   ArrayXi y2x_best = ArrayXi::Constant(ly, -1);
 
-  ArrayXXc path(lx + 1, ly + 1);
-  path.row(0).fill(1);
-  path.col(0).fill(0);
+  ArrayXXc path(ly + 1, lx + 1);
+  path.col(0).fill(internal::kPathHorz);
+  path.row(0).fill(internal::kPathVert);
 
-  ArrayXXd val(lx + 1, ly + 1);
+  ArrayXXd val(ly + 1, lx + 1);
   val.col(0).fill(0);
   val.row(0).fill(0);
 
@@ -933,11 +935,11 @@ namespace internal {
                        double score_d8sq_cutoff, double d0sq_inv) {
     Matrix3Xd rx(3, xy.l_min()), ry(3, xy.l_min());
 
-    ArrayXXc path(xy.x().cols() + 1, xy.y().cols() + 1);
-    path.row(0).fill(1);
-    path.col(0).fill(0);
+    ArrayXXc path(xy.y().cols() + 1, xy.x().cols() + 1);
+    path.col(0).fill(kPathHorz);
+    path.row(0).fill(kPathVert);
 
-    ArrayXXd val(xy.x().cols() + 1, xy.y().cols() + 1);
+    ArrayXXd val(xy.y().cols() + 1, xy.x().cols() + 1);
     val.col(0).fill(0);
     val.row(0).fill(0);
 
