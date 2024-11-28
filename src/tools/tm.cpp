@@ -842,7 +842,8 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
   tm_try_init(
       InitFlags::kLocalPlusSecStr,
       [&]() {
-        xy_.remap(y2x_best);
+        y2x_local() = y2x_best;
+        xy_.remap(y2x_local());
         return internal::tm_initial_ssplus(rx_, ry_, path, val, xy_,
                                            y2x_local(), secx, secy, d01sq_inv);
       },
