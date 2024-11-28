@@ -138,7 +138,7 @@ public:
   };
 
   ABSL_MUST_USE_RESULT
-  bool initialize(InitFlags flags);
+  bool initialize(InitFlags flags = InitFlags::kDefault);
 
   ABSL_MUST_USE_RESULT
   bool initialize(InitFlags flags, ConstRef<ArrayXc> secx,
@@ -149,6 +149,8 @@ public:
   std::pair<Affine3d, double> tm_score(int l_norm, double d0 = -1);
 
   const ArrayXi &templ_to_query() const { return xy_.y2x(); }
+
+  int l_ali() const { return xy_.l_ali(); }
 
   double aligned_msd() const { return aligned_msd_; }
 
