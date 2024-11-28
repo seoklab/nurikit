@@ -869,7 +869,7 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
   return true;
 }
 
-std::pair<Affine3d, double> TMAlign::tm_score(const int l_norm, double d0) {
+std::pair<Affine3d, double> TMAlign::tm_score(int l_norm, double d0) {
   std::pair<Affine3d, double> result;
   result.second = -1;
 
@@ -879,10 +879,16 @@ std::pair<Affine3d, double> TMAlign::tm_score(const int l_norm, double d0) {
     return result;
   }
 
-  if (ABSL_PREDICT_FALSE(l_norm <= 0)) {
-    ABSL_LOG(ERROR) << "l_norm must be positive (got " << l_norm << ")";
+  if (ABSL_PREDICT_FALSE(l_norm == 0)) {
+    ABSL_LOG(ERROR) << "l_norm must be positive or set to a negative value to "
+                       "request automatic l_norm selection (got "
+                    << l_norm << ")";
     return result;
   }
+
+  // Default is to use the length of the reference structure
+  if (l_norm < 0)
+    l_norm = static_cast<int>(templ().cols());
 
   if (d0 <= 0) {
     constexpr double d0_min = 0.5;
@@ -897,6 +903,35 @@ std::pair<Affine3d, double> TMAlign::tm_score(const int l_norm, double d0) {
       rx_, ry_, dsqs_, i_ali(), j_ali(), xy_, 1, d0_search, 0, d0sq_inv);
   result.second /= l_norm;
   return result;
+}
+
+namespace {
+  TMAlignResult tm_align_wrapper(TMAlign &&tm, int l_norm, double d0) {
+    TMAlignResult result;
+    result.msd = tm.aligned_msd();
+    std::tie(result.xform, result.tm_score) = tm.tm_score(l_norm, d0);
+    result.templ_to_query = std::move(tm).templ_to_query();
+    return result;
+  }
+}  // namespace
+
+TMAlignResult tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
+                       TMAlign::InitFlags flags, int l_norm, double d0) {
+  TMAlign tm(query, templ);
+  if (!tm.initialize(flags))
+    return {};
+
+  return tm_align_wrapper(std::move(tm), l_norm, d0);
+}
+
+TMAlignResult tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
+                       TMAlign::InitFlags flags, ConstRef<ArrayXc> secx,
+                       ConstRef<ArrayXc> secy, int l_norm, double d0) {
+  TMAlign tm(query, templ);
+  if (!tm.initialize(flags, secx, secy))
+    return {};
+
+  return tm_align_wrapper(std::move(tm), l_norm, d0);
 }
 
 namespace internal {

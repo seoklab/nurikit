@@ -148,7 +148,9 @@ public:
 
   std::pair<Affine3d, double> tm_score(int l_norm, double d0 = -1);
 
-  const ArrayXi &templ_to_query() const { return xy_.y2x(); }
+  const ArrayXi &templ_to_query() const & { return xy_.y2x(); }
+
+  ArrayXi &&templ_to_query() && { return std::move(xy_.y2x()); }
 
   int l_ali() const { return xy_.l_ali(); }
 
@@ -183,10 +185,21 @@ private:
 
 struct TMAlignResult {
   ArrayXi templ_to_query;
-  double msd;
   Affine3d xform;
-  double tm_score;
+  double msd;
+  double tm_score = -1;
 };
+
+extern TMAlignResult
+tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
+         TMAlign::InitFlags flags = TMAlign::InitFlags::kDefault,
+         int l_norm = -1, double d0 = -1);
+
+extern TMAlignResult tm_align(ConstRef<Matrix3Xd> query,
+                              ConstRef<Matrix3Xd> templ,
+                              TMAlign::InitFlags flags, ConstRef<ArrayXc> secx,
+                              ConstRef<ArrayXc> secy, int l_norm = -1,
+                              double d0 = -1);
 
 // test utils
 namespace internal {
