@@ -545,10 +545,12 @@ namespace internal {
 
           inplace_transform(rx, xform, xy.x());
 
-          tm_nwdp(buf, path, val, 0, [&](int xi, int yi) {
-            double dsq = (rx.col(xi) - xy.y().col(yi)).squaredNorm();
-            return 1 / (1 + dsq * d01sq_inv);
-          });
+          auto scores = val.bottomRightCorner(ly, lx);
+          cdistsq(scores, xy.y(), rx);
+          scores = (1 + scores * d01sq_inv).inverse();
+
+          tm_nwdp(buf, path, val, 0,
+                  [&](int xi, int yi) { return scores(yi, xi); });
           xy.remap(buf);
 
           const double gl = tmscore_fast(rx.leftCols(xy.l_ali()),
@@ -583,9 +585,12 @@ namespace internal {
 
     inplace_transform(rx, xform, xy.x());
 
+    auto scores = val.bottomRightCorner(xy.y().cols(), xy.x().cols());
+    cdistsq(scores, xy.y(), rx);
+    scores = (1 + scores * d01sq_inv).inverse();
+
     tm_nwdp(y2x, path, val, -1, [&](int i, int j) {
-      const double dsq = (rx.col(i) - xy.y().col(j)).squaredNorm();
-      return 1 / (1 + dsq * d01sq_inv) + value_if(secx[i] == secy[j], 0.5);
+      return scores(j, i) + value_if(secx[i] == secy[j], 0.5);
     });
 
     return true;
