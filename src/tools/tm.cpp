@@ -519,8 +519,10 @@ namespace internal {
 
     // l > 250 -> 45, 250 >= l > 200 -> 35, 200 >= l > 150 -> 25, 150 >= l -> 15
     // then bounded by l / 3 (as in the original TMalign code)
-    const int jmp_x = nuri::clamp((lx - 101) / 50 * 10 + 15, 15, lx / 3),
-              jmp_y = nuri::clamp((ly - 101) / 50 * 10 + 15, 15, ly / 3);
+    const int jmp_x = nuri::min(lx / 3,
+                                nuri::clamp((lx - 101) / 50 * 10 + 15, 15, 45)),
+              jmp_y = nuri::min(ly / 3,
+                                nuri::clamp((ly - 101) / 50 * 10 + 15, 15, 45));
 
     double gl_max = 0;
     for (const int n_frag:
