@@ -8,6 +8,7 @@
 
 /// @cond
 #include <cstdint>
+#include <utility>
 
 #include <Eigen/Dense>
 
