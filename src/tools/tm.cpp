@@ -859,6 +859,8 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
       d0_search, score_d8sq, d0sq_inv);
   if (ABSL_PREDICT_FALSE(raw_tm_max <= 0)) {
     ABSL_LOG(ERROR) << "TMscore is zero or negative after initialization";
+    y2x_best.setConstant(-1);
+    xy_.remap(y2x_best);
     return false;
   }
 
