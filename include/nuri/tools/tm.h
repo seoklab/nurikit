@@ -88,27 +88,32 @@ namespace internal {
   extern ArrayXc assign_secstr_approx_full(ConstRef<Matrix3Xd> pts,
                                            Matrix3Xd &buf);
 
-  extern void tm_initial_gt(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
-                            ConstRef<Matrix3Xd> x, ConstRef<Matrix3Xd> y,
-                            ArrayXi &y2x, double d0sq_inv, double d0_search);
+  ABSL_MUST_USE_RESULT
+  extern double tm_initial_gt(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
+                              ConstRef<Matrix3Xd> x, ConstRef<Matrix3Xd> y,
+                              ArrayXi &y2x, double d0sq_inv,
+                              double d0sq_search);
 
   extern void tm_initial_ss(ArrayXi &y2x, ArrayXXc &path, ArrayXXd &val,
                             const ArrayXc &secx, const ArrayXc &secy);
 
-  extern bool tm_initial_local(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
-                               ArrayXXc &path, ArrayXXd &val, AlignedXY &xy,
-                               ArrayXi &y2x, ArrayXi &buf, double d0sq_inv,
-                               double d01sq_inv, double d0sq_search, int l_min);
+  ABSL_MUST_USE_RESULT
+  extern double tm_initial_local(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
+                                 ArrayXXc &path, ArrayXXd &val, AlignedXY &xy,
+                                 ArrayXi &y2x, ArrayXi &buf, double d0sq_inv,
+                                 double d01sq_inv, double d0sq_search);
 
-  extern void tm_initial_ssplus(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXXc &path,
+  ABSL_MUST_USE_RESULT
+  extern bool tm_initial_ssplus(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXXc &path,
                                 ArrayXXd &val, const AlignedXY &xy,
                                 ArrayXi &y2x, const ArrayXc &secx,
                                 const ArrayXc &secy, double d01sq_inv);
 
-  extern bool tm_initial_fgt(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
-                             ConstRef<Matrix3Xd> x, ConstRef<Matrix3Xd> y,
-                             ArrayXi &y2x, double dcu0_sq, double d0sq_inv,
-                             double d0_search);
+  ABSL_MUST_USE_RESULT
+  extern double tm_initial_fgt(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
+                               ConstRef<Matrix3Xd> x, ConstRef<Matrix3Xd> y,
+                               ArrayXi &y2x, double dcu0_sq, double d0sq_inv,
+                               double d0sq_search);
 
   extern double tm_realign_calculate_msd(AlignedXY &xy, Matrix3Xd &rx,
                                          Matrix3Xd &ry, const Affine3d &xform,
