@@ -866,16 +866,13 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
         << "TMscore is positive despite no alignment found";
     return false;
   }
-  ABSL_DCHECK_GT(raw_tm_max, 0);
 
-  {
-    auto [xform_ali, raw_tm_ali] = internal::tmscore_greedy_search<true>(
-        rx_, ry_, dsqs_, y2x_local(), y2x_buf(), xy_, simplify_step_full,
-        d0_search, score_d8sq, d0sq_inv);
-    ABSL_DCHECK_GE(raw_tm_ali, raw_tm_max);
-
-    best_xform_ = xform_ali;
-    raw_tm_max = raw_tm_ali;
+  std::tie(best_xform_, raw_tm_max) = internal::tmscore_greedy_search<true>(
+      rx_, ry_, dsqs_, y2x_local(), y2x_buf(), xy_, simplify_step_full,
+      d0_search, score_d8sq, d0sq_inv);
+  if (ABSL_PREDICT_FALSE(raw_tm_max <= 0)) {
+    ABSL_LOG(ERROR) << "TMscore is zero or negative after initialization";
+    return false;
   }
 
   aligned_msd_ = internal::tm_realign_calculate_msd(xy_, rx_, ry_, best_xform_,
