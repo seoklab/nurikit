@@ -252,9 +252,6 @@ namespace internal {
           absl::c_iota(i_frag, i);
 
           for (int iter = 0; iter < max_iter; ++iter) {
-            if (ABSL_PREDICT_FALSE(n_ali <= 0))
-              break;
-
             int m_ali = tmscore_greedy_iter<use_d8sq>(
                 result, rx_ali, ry_ali, dsqs_ali, i_ali.head(n_ali), j_ali,
                 xy.xtm(), xy.ytm(), d_cutoff, score_d8sq_cutoff, d0sq_inv);
@@ -530,9 +527,6 @@ namespace internal {
     double gl_max = 0;
     for (const int n_frag:
          { nuri::min(20, l_min / 3), nuri::min(100, l_min / 2) }) {
-      if (ABSL_PREDICT_FALSE(n_frag <= 0))
-        continue;
-
       auto rx_frag = rx.leftCols(n_frag), ry_frag = ry.leftCols(n_frag);
 
       for (int i = 0; i < lx - n_frag + 1; i += jmp_x) {
@@ -574,13 +568,6 @@ namespace internal {
                          ArrayXXd &val, const AlignedXY &xy, ArrayXi &y2x,
                          const ArrayXc &secx, const ArrayXc &secy,
                          const double d01sq_inv) {
-    if (ABSL_PREDICT_FALSE(xy.l_ali() <= 0)) {
-      ABSL_LOG(WARNING) << "Too few aligned residues (" << xy.l_ali()
-                        << " <= 0); local structure plus secondary "
-                           "structure-based initialization will be skipped";
-      return false;
-    }
-
     rx.leftCols(xy.l_ali()) = xy.xtm();
     ry.leftCols(xy.l_ali()) = xy.ytm();
 
