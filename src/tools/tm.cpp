@@ -686,9 +686,8 @@ namespace internal {
   double tm_realign_calculate_msd(AlignedXY &xy, Matrix3Xd &rx, Matrix3Xd &ry,
                                   const Affine3d &xform,
                                   const double score_d8sq) {
-    auto query_xformed = rx.leftCols(xy.x().cols());
-    inplace_transform(query_xformed, xform, xy.x());
-    xy.remap_final(query_xformed, score_d8sq);
+    inplace_transform(rx, xform, xy.x());
+    xy.remap_final(rx, score_d8sq);
 
     rx.leftCols(xy.l_ali()) = xy.xtm();
     ry.leftCols(xy.l_ali()) = xy.ytm();
