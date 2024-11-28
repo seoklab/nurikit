@@ -300,13 +300,13 @@ namespace internal {
 
           vals[kPathDiag] = val(j, i) + scorer(i, j);
 
-          vals[kPathVert] = val(j, i + 1);
-          if (path(j, i + 1) == kPathDiag)
-            vals[kPathVert] += gap_open;
-
           vals[kPathHorz] = val(j + 1, i);
           if (path(j + 1, i) == kPathDiag)
             vals[kPathHorz] += gap_open;
+
+          vals[kPathVert] = val(j, i + 1);
+          if (path(j, i + 1) == kPathDiag)
+            vals[kPathVert] += gap_open;
 
           std::int8_t p;
           val(j + 1, i + 1) = vals.maxCoeff(&p);
