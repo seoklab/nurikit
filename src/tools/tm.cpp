@@ -108,7 +108,7 @@ namespace internal {
       if (i >= 0) {
         const double dsq = (x_aln.col(i) - y_.col(j)).squaredNorm();
         if (dsq <= score_d8sq) {
-          xtm_.col(l_ali_) = x_aln.col(i);
+          xtm_.col(l_ali_) = x_.col(i);
           ytm_.col(l_ali_) = y_.col(j);
           ++l_ali_;
         } else {
