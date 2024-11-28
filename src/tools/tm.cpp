@@ -803,7 +803,7 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
       InitFlags::kGaplessThreading,
       [&]() {
         return internal::tm_initial_gt(rx_, ry_, dsqs_, query(), templ(),
-                                       y2x_local(), d01sq_inv, d0sq_search)
+                                       y2x_local(), d0sq_inv, d0sq_search)
                > 0;
       },
       0, 2, max_iter_full, 1.0);
