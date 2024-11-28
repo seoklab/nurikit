@@ -386,19 +386,7 @@ namespace internal {
     template <class AL, class ML1, class ML2, class ML3>
     double tmscore_fast(ML1 x0, ML1 y0, AL dsqs, const ML2 &x, const ML3 &y,
                         const double d0sq_inv, const double d0sq_search) {
-      auto align_sub_tmscore = [&](const double n_sel,
-                                   const double dsq_cutoff) {
-        auto x0_sel = x0.leftCols(n_sel), y0_sel = y0.leftCols(n_sel);
-        int i = 0;
-        for (bool sel: dsqs <= dsq_cutoff) {
-          if (!sel)
-            continue;
-
-          x0_sel.col(i) = x.col(i);
-          y0_sel.col(i) = y.col(i);
-          ++i;
-        }
-
+      auto align_tmscore = [&](auto &&x0_sel, auto &&y0_sel) {
         auto [xform_sel, flag_sel] =
             qcp_inplace(x0_sel, y0_sel, AlignMode::kXformOnly);
         ABSL_DCHECK_GE(flag_sel, 0);
@@ -409,6 +397,22 @@ namespace internal {
         return raw_tmscore(dsqs, d0sq_inv);
       };
 
+      auto align_sub_tmscore = [&](const double n_sel,
+                                   const double dsq_cutoff) {
+        auto x0_sel = x0.leftCols(n_sel), y0_sel = y0.leftCols(n_sel);
+
+        int j = 0;
+        for (int k = 0; k < dsqs.size(); ++k) {
+          if (dsqs[k] <= dsq_cutoff) {
+            x0_sel.col(j) = x.col(k);
+            y0_sel.col(j) = y.col(k);
+            ++j;
+          }
+        }
+
+        return align_tmscore(x0_sel, y0_sel);
+      };
+
       int n_ali = static_cast<int>(x0.cols());
       ABSL_DCHECK_EQ(n_ali, y0.cols());
       ABSL_DCHECK_EQ(n_ali, x.cols());
@@ -416,24 +420,18 @@ namespace internal {
 
       x0 = x;
       y0 = y;
-      auto [xform, flag] = qcp_inplace(x0, y0, AlignMode::kXformOnly);
-      ABSL_DCHECK_GE(flag, 0);
-
-      inplace_transform(x0, xform, x);
-
-      dsqs = (x0 - y).colwise().squaredNorm().transpose();
-      double tmscore = raw_tmscore(dsqs, d0sq_inv);
+      const double tmscore = align_tmscore(x0, y0);
 
       auto [n_sel, dsq_cutoff] = find_aligned_cutoff<true>(dsqs, d0sq_search);
       if (n_sel == n_ali)
         return tmscore;
 
-      double tmscore1 = align_sub_tmscore(n_sel, dsq_cutoff);
+      const double tmscore1 = align_sub_tmscore(n_sel, dsq_cutoff);
 
       std::tie(n_sel, dsq_cutoff) =
           find_aligned_cutoff<true>(dsqs, d0sq_search + 1);
-      double tmscore2 = n_sel == n_ali ? tmscore
-                                       : align_sub_tmscore(n_sel, dsq_cutoff);
+      const double tmscore2 =
+          n_sel == n_ali ? tmscore : align_sub_tmscore(n_sel, dsq_cutoff);
 
       return std::max({ tmscore, tmscore1, tmscore2 });
     }
@@ -954,10 +952,10 @@ namespace internal {
 
   double tmalign_get_score_fast(const Matrix3Xd &x, const Matrix3Xd &y,
                                 double d0sq_inv, double d0_search) {
-    const auto l_min = nuri::min(x.cols(), y.cols());
+    const auto n_overlap = x.cols();
 
-    Matrix3Xd rx(3, l_min), ry(3, l_min);
-    ArrayXd dsqs(l_min);
+    Matrix3Xd rx(3, n_overlap), ry(3, n_overlap);
+    ArrayXd dsqs(n_overlap);
     return tmscore_fast<ArrayXd &, Matrix3Xd &>(rx, ry, dsqs, x, y, d0sq_inv,
                                                 d0_search * d0_search);
   }
