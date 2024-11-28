@@ -482,14 +482,14 @@ namespace internal {
                        ConstRef<Matrix3Xd> x, ConstRef<Matrix3Xd> y,
                        ArrayXi &y2x, const double d0sq_inv,
                        const double d0sq_search) {
-    const int lmin = static_cast<int>(rx.cols());
-    ABSL_DCHECK_GE(ry.cols(), lmin);
-
     const int lx = static_cast<int>(x.cols());
     const int ly = static_cast<int>(y.cols());
     ABSL_DCHECK_EQ(y2x.size(), ly);
 
-    const int min_frag = nuri::max(lmin / 2, 5);
+    const int l_min = static_cast<int>(dsqs.size());
+    ABSL_DCHECK_EQ(l_min, nuri::min(lx, ly));
+
+    const int min_frag = nuri::max(l_min / 2, 5);
     auto [k, tmscore] = tm_gt_find_best_alignment(rx, ry, dsqs, x, y, d0sq_inv,
                                                   d0sq_search, min_frag);
     if (tmscore > 0) {
@@ -702,7 +702,7 @@ namespace internal {
 TMAlign::TMAlign(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ)
     : l_minmax_(nuri::minmax(static_cast<int>(query.cols()),
                              static_cast<int>(templ.cols()))),
-      xy_(query, templ, l_min()), rx_(3, l_min()), ry_(3, l_max()),
+      xy_(query, templ, l_min()), rx_(3, query.cols()), ry_(3, templ.cols()),
       dsqs_(l_min()), y2x_buf1_(templ.cols()), y2x_buf2_(templ.cols()) { }
 
 bool TMAlign::initialize(const InitFlags flags) {
@@ -710,8 +710,8 @@ bool TMAlign::initialize(const InitFlags flags) {
 
   if ((flags & (InitFlags::kSecStr | InitFlags::kLocalPlusSecStr))
       != InitFlags::kNone) {
-    secx = internal::assign_secstr_approx_full(query(), r_max());
-    secy = internal::assign_secstr_approx_full(templ(), r_max());
+    secx = internal::assign_secstr_approx_full(query(), rx_);
+    secy = internal::assign_secstr_approx_full(templ(), ry_);
   }
 
   return initialize(flags, secx, secy);
@@ -971,7 +971,7 @@ namespace internal {
                        ArrayXi &y2x_best, int g1, int g2, int max_iter,
                        int simplify_step, double local_d0_search,
                        double score_d8sq_cutoff, double d0sq_inv) {
-    Matrix3Xd rx(3, xy.l_min()), ry(3, xy.l_min());
+    Matrix3Xd rx(3, xy.x().cols()), ry(3, xy.y().cols());
 
     ArrayXXc path(xy.y().cols() + 1, xy.x().cols() + 1);
     path.col(0).fill(kPathHorz);

@@ -163,9 +163,6 @@ private:
   int l_min() const { return l_minmax_.first; }
   int l_max() const { return l_minmax_.second; }
 
-  Matrix3Xd &r_min() { return rx_; }
-  Matrix3Xd &r_max() { return ry_; }
-
   ArrayXi &y2x_local() { return y2x_buf1_; }
   ArrayXi &y2x_buf() { return y2x_buf2_; }
 
