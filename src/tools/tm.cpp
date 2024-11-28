@@ -929,18 +929,6 @@ namespace internal {
                                        score_d8sq_cutoff, d0sq_inv);
   }
 
-  std::pair<Affine3d, double> tmalign_tmscore8_search(const AlignedXY &xy,
-                                                      int simplify_step,
-                                                      double local_d0_search,
-                                                      double d0sq_inv) {
-    Matrix3Xd rx(3, xy.l_ali()), ry(3, xy.l_ali());
-    ArrayXd dsqs(xy.l_ali());
-    ArrayXi i_ali(xy.l_ali()), j_ali(xy.l_ali());
-    return tmscore_greedy_search<false>(rx, ry, dsqs, i_ali, j_ali, xy,
-                                        simplify_step, local_d0_search, 0,
-                                        d0sq_inv);
-  }
-
   void tmalign_dp_iter(Affine3d &xform_best, double &tmscore_max, AlignedXY &xy,
                        ArrayXi &y2x_best, int g1, int g2, int max_iter,
                        int simplify_step, double local_d0_search,

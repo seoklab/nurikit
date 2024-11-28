@@ -197,10 +197,6 @@ namespace internal {
                           double local_d0_search, double score_d8sq_cutoff,
                           double d0sq_inv);
 
-  extern std::pair<Affine3d, double>
-  tmalign_tmscore8_search(const AlignedXY &xy, int simplify_step,
-                          double local_d0_search, double d0sq_inv);
-
   extern void tmalign_dp_iter(Affine3d &xform_best, double &tmscore_max,
                               AlignedXY &xy, ArrayXi &y2x_best, int g1, int g2,
                               int max_iter, int simplify_step,
