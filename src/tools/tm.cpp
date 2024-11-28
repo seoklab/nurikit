@@ -703,7 +703,7 @@ TMAlign::TMAlign(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ)
     : l_minmax_(nuri::minmax(static_cast<int>(query.cols()),
                              static_cast<int>(templ.cols()))),
       xy_(query, templ, l_min()), rx_(3, l_min()), ry_(3, l_max()),
-      y2x_buf1_(templ.cols()), y2x_buf2_(templ.cols()) { }
+      dsqs_(l_min()), y2x_buf1_(templ.cols()), y2x_buf2_(templ.cols()) { }
 
 bool TMAlign::initialize(const InitFlags flags) {
   ArrayXc secx, secy;
