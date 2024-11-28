@@ -382,8 +382,8 @@ public:
     y2x_.setConstant(ly, -1);
     y2x_ref_.setConstant(ly, lx);
 
-    rx_.resize(3, l_min);
-    ry_.resize(3, l_min);
+    rx_.resize(3, lx);
+    ry_.resize(3, ly);
     dsqs_.resize(l_min);
 
     path_.resize(ly + 1, lx + 1);
