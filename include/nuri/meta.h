@@ -99,6 +99,12 @@ namespace internal {
 
   template <class T>
   using extract_if_enum_t = typename extract_if_enum<T>::type;
+
+  template <class T, std::enable_if_t<
+                         std::is_enum_v<T> || std::is_arithmetic_v<T>, int> = 0>
+  constexpr auto extract_if_enum_v(T val) {
+    return static_cast<extract_if_enum_t<T>>(val);
+  }
 }  // namespace internal
 }  // namespace nuri
 
