@@ -147,7 +147,7 @@ public:
 
   bool initialized() const { return xy_.l_ali() > 0; }
 
-  std::pair<Affine3d, double> tm_score(int l_norm, double d0 = -1);
+  std::pair<Affine3d, double> tm_score(int l_norm = -1, double d0 = -1);
 
   const ArrayXi &templ_to_query() const & { return xy_.y2x(); }
 
