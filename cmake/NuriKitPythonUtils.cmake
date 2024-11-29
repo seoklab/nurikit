@@ -63,7 +63,8 @@ function(nuri_python_add_module name)
     set(subdir "")
   endif()
 
-  set(target_name "nuri_python_${name}")
+  set(target_name "nuri_python_${subdir}_${name}")
+  string(REGEX REPLACE "/+" "_" target_name "${target_name}")
   string(REGEX REPLACE "_+" "_" target_name "${target_name}")
 
   file(RELATIVE_PATH dir_inv
