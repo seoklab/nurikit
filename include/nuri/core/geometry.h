@@ -197,11 +197,12 @@ auto to_square_form(const ArrayLike &pdists, Eigen::Index n) {
   return dists;
 }
 
-template <
-    class ML1, class ML2,
-    std::enable_if_t<std::is_same_v<typename ML1::Scalar, typename ML2::Scalar>
-                         && ML1::RowsAtCompileTime == ML2::RowsAtCompileTime,
-                     int> = 0>
+template <class ML1, class ML2,
+          std::enable_if_t<
+              std::is_same_v<typename ML1::Scalar, typename ML2::Scalar>
+                  && internal::extract_if_enum_v(ML1::RowsAtCompileTime)
+                         == internal::extract_if_enum_v(ML2::RowsAtCompileTime),
+              int> = 0>
 void cdistsq(MutRef<MatrixX<typename ML1::Scalar>> distsq, const ML1 &a,
              const ML2 &b) {
   ABSL_DCHECK(distsq.rows() == a.cols());
