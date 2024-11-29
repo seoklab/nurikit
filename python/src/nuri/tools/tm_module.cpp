@@ -3,9 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <cmath>
+#include <cstdint>
 #include <optional>
 #include <stdexcept>
 #include <string_view>
+#include <utility>
 
 #include <Eigen/Dense>
 #include <pybind11/pybind11.h>

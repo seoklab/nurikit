@@ -383,7 +383,7 @@ private:
 
     numpy_to_eigen_check_compat<Rows, Cols, DT>(*this);
 
-    const int inner_stride = eigen_stride(*this, req_ndim - 1);
+    const auto inner_stride = eigen_stride(*this, req_ndim - 1);
     if (inner_stride != 1) {
       throw std::runtime_error(
           absl::StrCat("Unexpected inner stride (", inner_stride, " != 1)"));
