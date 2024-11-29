@@ -933,8 +933,8 @@ TMAlignResult tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
 }
 
 TMAlignResult tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
-                       TMAlign::InitFlags flags, ConstRef<ArrayXc> secx,
-                       ConstRef<ArrayXc> secy, int l_norm, double d0) {
+                       ConstRef<ArrayXc> secx, ConstRef<ArrayXc> secy,
+                       TMAlign::InitFlags flags, int l_norm, double d0) {
   TMAlign tm(query, templ);
   if (!tm.initialize(flags, secx, secy))
     return {};

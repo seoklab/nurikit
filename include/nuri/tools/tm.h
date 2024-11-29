@@ -193,11 +193,11 @@ tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
          TMAlign::InitFlags flags = TMAlign::InitFlags::kDefault,
          int l_norm = -1, double d0 = -1);
 
-extern TMAlignResult tm_align(ConstRef<Matrix3Xd> query,
-                              ConstRef<Matrix3Xd> templ,
-                              TMAlign::InitFlags flags, ConstRef<ArrayXc> secx,
-                              ConstRef<ArrayXc> secy, int l_norm = -1,
-                              double d0 = -1);
+extern TMAlignResult
+tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
+         ConstRef<ArrayXc> secx, ConstRef<ArrayXc> secy,
+         TMAlign::InitFlags flags = TMAlign::InitFlags::kDefault,
+         int l_norm = -1, double d0 = -1);
 
 // test utils
 namespace internal {
