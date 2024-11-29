@@ -19,17 +19,31 @@
 
 namespace nuri {
 namespace internal {
+  class AlignedXY;
+
+  template <class Pred>
+  void remap_helper(AlignedXY &xy, const Pred &pred) noexcept;
+
   class AlignedXY {
   public:
     AlignedXY(ConstRef<Matrix3Xd> x, ConstRef<Matrix3Xd> y, const int l_min)
         : x_(x), y_(y), xtm_(3, l_min), ytm_(3, l_min), y2x_(y.cols()),
           l_ali_(0) { }
 
-    void remap(ArrayXi &y2x) noexcept;
+    void remap(ConstRef<ArrayXi> y2x) noexcept;
+
+    void remap(ArrayXi &&y2x) noexcept;
 
     void remap_final(ConstRef<Matrix3Xd> x_aln, double score_d8sq) noexcept;
 
+    void swap_remap(ArrayXi &y2x) noexcept;
+
     void swap_align_with(ArrayXi &y2x) noexcept;
+
+    void reset() noexcept {
+      y2x_.setConstant(-1);
+      l_ali_ = 0;
+    }
 
     ConstRef<Matrix3Xd> x() const { return x_; }
 
@@ -49,6 +63,9 @@ namespace internal {
     const ArrayXi &y2x() const { return y2x_; }
 
   private:
+    template <class Pred>
+    friend void remap_helper(AlignedXY &xy, const Pred &pred) noexcept;
+
     Eigen::Ref<const Matrix3Xd> x_;
     Eigen::Ref<const Matrix3Xd> y_;
 
@@ -229,14 +246,13 @@ public:
    * @param y2x A map of the template structure to the query structure. Negative
    *        values indicate that the corresponding residue in the template
    *        structure is not aligned to any residue in the query structure.
-   *        Will be invalidated after this call.
    * @return Whether the initialization was successful.
    * @note If size of y2x is not equal to the length of the template structure
    *       or any value of y2x is larger than or equal to the length of the
    *       query structure, the behavior is undefined.
    */
   ABSL_MUST_USE_RESULT
-  bool initialize(ArrayXi &y2x);
+  bool initialize(ConstRef<ArrayXi> y2x);
 
   bool initialized() const { return xy_.l_ali() > 0; }
 
@@ -394,7 +410,7 @@ tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
  *       structure, the behavior is undefined.
  */
 extern TMAlignResult tm_align(ConstRef<Matrix3Xd> query,
-                              ConstRef<Matrix3Xd> templ, ArrayXi &y2x,
+                              ConstRef<Matrix3Xd> templ, ConstRef<ArrayXi> y2x,
                               int l_norm = -1, double d0 = -1);
 
 // test utils
