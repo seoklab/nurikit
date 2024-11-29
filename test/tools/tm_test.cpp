@@ -165,7 +165,7 @@ TEST(TMAlignComponentTest, TMScore8SearchWithd8) {
       14, 15, 16, 17, 18;
 
   AlignedXY xy(x, y, 19);
-  xy.remap(aligned);
+  xy.swap_remap(aligned);
 
   auto [xform, tmscore] =
       tmalign_tmscore8_search(xy, 4, kD0Search, kD8ScoreSq, kD0SqInv);
@@ -230,7 +230,7 @@ TEST(TMAlignComponentTest, DpIter) {
       -1, -1, -1, -1, -1;
 
   AlignedXY xy(x, y, 19);
-  xy.remap(aligned);
+  xy.swap_remap(aligned);
 
   Affine3d xform;
   xform.matrix() << 0.193389, -0.980792, -0.0254527, 130.005,  //
@@ -454,7 +454,7 @@ TEST_F(TMAlignInitTest, LocalPlusSs) {
       4, -1, 5, 6, 7,     //
       8, 9, 10, 12, 13,   //
       14, 15, 16, 17, 18;
-  xy_.remap(xy0);
+  xy_.swap_remap(xy0);
 
   bool success = tm_initial_ssplus(rx_, ry_, path_, val_, xy_, y2x_, secx(),
                                    secy(), kD01SqInv);

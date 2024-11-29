@@ -87,37 +87,46 @@ namespace internal {
     return sec;
   }
 
-  void AlignedXY::remap(ArrayXi &y2x) noexcept {
-    l_ali_ = 0;
-    for (int j = 0; j < y2x.size(); ++j) {
-      const int i = y2x[j];
+  template <class Pred>
+  void remap_helper(AlignedXY &xy, const Pred &pred) noexcept {
+    ABSL_DCHECK_EQ(xy.y2x_.size(), xy.y_.cols());
+    ABSL_DCHECK((xy.y2x_ < static_cast<int>(xy.x_.cols())).all());
+
+    xy.l_ali_ = 0;
+    for (int j = 0; j < xy.y2x_.size(); ++j) {
+      const int i = xy.y2x_[j];
       if (i >= 0) {
-        xtm_.col(l_ali_) = x_.col(i);
-        ytm_.col(l_ali_) = y_.col(j);
-        ++l_ali_;
+        if (pred(i, j)) {
+          xy.xtm_.col(xy.l_ali_) = xy.x_.col(i);
+          xy.ytm_.col(xy.l_ali_) = xy.y_.col(j);
+          ++xy.l_ali_;
+        } else {
+          xy.y2x_[j] = -1;
+        }
       }
     }
+  }
 
+  void AlignedXY::remap(ConstRef<ArrayXi> y2x) noexcept {
+    y2x_ = y2x;
+    remap_helper(*this, [](int, int) { return true; });
+  }
+
+  void AlignedXY::remap(ArrayXi &&y2x) noexcept {
+    y2x_ = std::move(y2x);
+    remap_helper(*this, [](int, int) { return true; });
+  }
+
+  void AlignedXY::swap_remap(ArrayXi &y2x) noexcept {
     swap_align_with(y2x);
+    remap_helper(*this, [](int, int) { return true; });
   }
 
   void AlignedXY::remap_final(ConstRef<Matrix3Xd> x_aln,
                               const double score_d8sq) noexcept {
-    l_ali_ = 0;
-
-    for (int j = 0; j < y2x_.size(); ++j) {
-      const int i = y2x_[j];
-      if (i >= 0) {
-        const double dsq = (x_aln.col(i) - y_.col(j)).squaredNorm();
-        if (dsq <= score_d8sq) {
-          xtm_.col(l_ali_) = x_.col(i);
-          ytm_.col(l_ali_) = y_.col(j);
-          ++l_ali_;
-        } else {
-          y2x_[j] = -1;
-        }
-      }
-    }
+    remap_helper(*this, [&](int i, int j) {
+      return (x_aln.col(i) - y_.col(j)).squaredNorm() <= score_d8sq;
+    });
   }
 
   void AlignedXY::swap_align_with(ArrayXi &y2x) noexcept {
@@ -361,7 +370,7 @@ namespace internal {
             double dsq = (rx.col(i) - xy.y().col(j)).squaredNorm();
             return 1 / (1 + dsq * d0sq_inv);
           });
-          xy.remap(buf1);
+          xy.swap_remap(buf1);
 
           double tmscore;
           std::tie(xform, tmscore) = tmscore_greedy_search<true>(
@@ -551,7 +560,7 @@ namespace internal {
 
           tm_nwdp(buf, path, val, 0,
                   [&](int xi, int yi) { return scores(yi, xi); });
-          xy.remap(buf);
+          xy.swap_remap(buf);
 
           const double gl = tmscore_fast(rx.leftCols(xy.l_ali()),
                                          ry.leftCols(xy.l_ali()),
@@ -712,13 +721,14 @@ TMAlign::TMAlign(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ)
       dsqs_(l_min()), y2x_buf1_(templ.cols()), y2x_buf2_(templ.cols()) { }
 
 namespace {
+  template <class AL>
   bool tmalign_conclude_init(Affine3d &best_xform, double &aligned_msd,
-                             internal::AlignedXY &xy, ArrayXi &y2x_best,
+                             internal::AlignedXY &xy, AL &&y2x_best,
                              Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
                              ArrayXi &i_ali, ArrayXi &j_ali, double tm_max,
                              const double d0_search, const double score_d8sq,
                              const double d0sq_inv) {
-    xy.remap(y2x_best);
+    xy.remap(std::forward<AL>(y2x_best));
 
     if (ABSL_PREDICT_FALSE(xy.l_ali() <= 0)) {
       ABSL_LOG(ERROR) << "No alignment found between the input structures";
@@ -731,8 +741,7 @@ namespace {
         rx, ry, dsqs, i_ali, j_ali, xy, 1, d0_search, score_d8sq, d0sq_inv);
     if (ABSL_PREDICT_FALSE(tm_max <= 0)) {
       ABSL_LOG(ERROR) << "TMscore is zero or negative after initialization";
-      y2x_best.setConstant(-1);
-      xy.remap(y2x_best);
+      xy.reset();
       return false;
     }
 
@@ -818,7 +827,7 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
     if (!init())
       return;
 
-    xy_.remap(y2x_local());
+    xy_.swap_remap(y2x_local());
 
     auto [xform, tmscore] = internal::tmscore_greedy_search<true>(
         rx_, ry_, dsqs_, i_ali(), j_ali(), xy_, simplify_step, d0_search,
@@ -868,8 +877,7 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
   tm_try_init(
       InitFlags::kLocalPlusSecStr,
       [&]() {
-        y2x_local() = y2x_best;
-        xy_.remap(y2x_local());
+        xy_.remap(y2x_best);
         return internal::tm_initial_ssplus(rx_, ry_, path, val, xy_,
                                            y2x_local(), secx, secy, d01sq_inv);
       },
@@ -885,12 +893,13 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
       },
       1, 2, max_iter_short, ddcc);
 
-  return tmalign_conclude_init(best_xform_, aligned_msd_, xy_, y2x_best, rx_,
-                               ry_, dsqs_, y2x_local(), y2x_buf(), raw_tm_max,
-                               d0_search, score_d8sq, d0sq_inv);
+  return tmalign_conclude_init(best_xform_, aligned_msd_, xy_,
+                               std::move(y2x_best), rx_, ry_, dsqs_,
+                               y2x_local(), y2x_buf(), raw_tm_max, d0_search,
+                               score_d8sq, d0sq_inv);
 }
 
-bool TMAlign::initialize(ArrayXi &y2x) {
+bool TMAlign::initialize(ConstRef<ArrayXi> y2x) {
   const double d0 = l_min() < 20 ? 0.968 : 1.24 * std::cbrt(l_min() - 15) - 1;
   const double d0sq_inv = 1 / (d0 * d0);
 
@@ -969,7 +978,7 @@ TMAlignResult tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
 }
 
 TMAlignResult tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
-                       ArrayXi &y2x, int l_norm, double d0) {
+                       ConstRef<ArrayXi> y2x, int l_norm, double d0) {
   TMAlign tm(query, templ);
   if (!tm.initialize(y2x))
     return {};
