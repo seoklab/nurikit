@@ -511,3 +511,25 @@ Also, D Eberly's eigenvector solver is integrated into the Kabsch algorithm.
   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   ```
+
+### TM-align
+
+Our implementation is based on the original TM-align software (version 20220412).
+
+- Project URL: <https://zhanggroup.org/TM-align>
+- Full license text:
+
+  ```txt
+  TM-align: sequence-independent structure alignment of monomer proteins by
+  TM-score superposition. Please report issues to yangzhanglab@umich.edu
+
+  References to cite:
+  Y Zhang, J Skolnick. Nucl Acids Res 33, 2302-9 (2005)
+
+  DISCLAIMER:
+  Permission to use, copy, modify, and distribute the Software for any
+  purpose, with or without fee, is hereby granted, provided that the
+  notices on the head, the reference information, and this copyright
+  notice appear in all copies or substantial portions of the Software.
+  It is provided "as is" without express or implied warranty.
+  ```

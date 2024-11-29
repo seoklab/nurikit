@@ -121,40 +121,150 @@ namespace internal {
                                          double score_d8sq);
 }  // namespace internal
 
+/**
+ * @brief TM-align algorithm.
+ *
+ * This is a ground-up implementation of TM-align algorithm based on the
+ * original TM-align code (version 20220412) by Yang Zhang. This implementation
+ * aims to reproduce the results of the original code while providing improved
+ * user interface and maintainability. Refer to the following paper for details
+ * of the algorithm.
+ *
+ * Reference:
+ * - Y Zhang and J Skolnick. *Nucleic Acids Res.* **2005**, *33*, 2302-2309.
+ *   DOI:[10.1093/nar/gki524](https://doi.org/10.1093/nar/gki524)
+ *
+ * Here follows the full license text for the TM-align code:
+ *
+ * \code{.unparsed}
+ * TM-align: sequence-independent structure alignment of monomer proteins by
+ * TM-score superposition. Please report issues to yangzhanglab@umich.edu
+ *
+ * References to cite:
+ * Y Zhang, J Skolnick. Nucl Acids Res 33, 2302-9 (2005)
+ *
+ * DISCLAIMER:
+ * Permission to use, copy, modify, and distribute the Software for any
+ * purpose, with or without fee, is hereby granted, provided that the
+ * notices on the head, the reference information, and this copyright
+ * notice appear in all copies or substantial portions of the Software.
+ * It is provided "as is" without express or implied warranty.
+ * \endcode
+ *
+ * @sa tm_align()
+ */
 class TMAlign {
 public:
-  TMAlign(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ);
-
+  /**
+   * @brief Initialization flags for TM-align algorithm.
+   */
   enum class InitFlags : std::uint32_t {
     kNone = 0x0,
 
+    //! Enable gapless threading.
     kGaplessThreading = 0x1,
+
+    //! Enable secondary structure-based alignment. Requires secondary structure
+    //! assignment.
     kSecStr = 0x2,
+
+    //! Enable alignment based on local superposition. This initialization is
+    //! the most time-consuming method due to the exhaustive pairwise distance
+    //! calculation.
     kLocal = 0x4,
+
+    //! Enable local superposition with secondary structure-based alignment.
+    //! Requires secondary structure assignment.
     kLocalPlusSecStr = 0x8,
+
+    //! Enable fragment gapless threading.
     kFragmentGaplessThreading = 0x10,
 
+    //! Default initialization flags, combination of all initialization methods.
     kDefault = kGaplessThreading | kSecStr | kLocal | kLocalPlusSecStr
                | kFragmentGaplessThreading,
   };
 
+  /**
+   * @brief Prepare TM-align algorithm with the given structures.
+   *
+   * @param query The query structure.
+   * @param templ The template structure.
+   * @note If any of the structures contain less than 5 residues, all
+   *       initialization and alignment attempts will fail.
+   */
+  TMAlign(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ);
+
+  /**
+   * @brief Initialize the TM-align algorithm.
+   *
+   * @param flags Initialization flags.
+   * @return Whether the initialization was successful.
+   * @note If any of kSecStr or kLocalPlusSecStr flags are set, the secondary
+   *       structures of the input structures will be assigned using the
+   *       approximate secondary structure assignment algorithm in the
+   *       TM-align code.
+   */
   ABSL_MUST_USE_RESULT
   bool initialize(InitFlags flags = InitFlags::kDefault);
 
+  /**
+   * @brief Initialize the TM-align algorithm with user-provided secondary
+   *        structures.
+   *
+   * @param flags Initialization flags.
+   * @param secx Secondary structure of the query structure.
+   * @param secy Secondary structure of the template structure.
+   * @return Whether the initialization was successful.
+   * @note If none of kSecStr or kLocalPlusSecStr flags are set, secondary
+   *       structures are ignored.
+   */
   ABSL_MUST_USE_RESULT
   bool initialize(InitFlags flags, ConstRef<ArrayXc> secx,
                   ConstRef<ArrayXc> secy);
 
   bool initialized() const { return xy_.l_ali() > 0; }
 
+  /**
+   * @brief Calculate TM-score using the current alignment.
+   *
+   * @param l_norm Length normalization factor. If negative, the length of the
+   *        template structure is used.
+   * @param d0 Distance cutoff. If negative, the default value is calculated
+   *        based on the length normalization factor.
+   * @return A pair of best transformation matrix and TM-score. If the alignment
+   *         failed for any reason, the TM-score is set to a negative value and
+   *         the transformation matrix is left unspecified.
+   */
   std::pair<Affine3d, double> tm_score(int l_norm = -1, double d0 = -1);
 
+  /**
+   * @brief Final alignment of the structures.
+   * @return A map of the template structure to the query structure. Negative
+   *         values indicate that the corresponding residue in the template
+   *         structure is not aligned to any residue in the query structure.
+   */
   const ArrayXi &templ_to_query() const & { return xy_.y2x(); }
 
+  /**
+   * @brief Final alignment of the structures (move version).
+   * @return A map of the template structure to the query structure. Negative
+   *         values indicate that the corresponding residue in the template
+   *         structure is not aligned to any residue in the query structure.
+   * @note TMAlign class is invalidated after this call.
+   */
   ArrayXi &&templ_to_query() && { return std::move(xy_.y2x()); }
 
+  /**
+   * @brief Get the length of the aligned region.
+   * @return The length of the aligned region.
+   */
   int l_ali() const { return xy_.l_ali(); }
 
+  /**
+   * @brief Get the mean square deviation of the aligned region.
+   * @return The mean square deviation of the aligned region.
+   */
   double aligned_msd() const { return aligned_msd_; }
 
 private:
@@ -181,18 +291,66 @@ private:
   ArrayXi y2x_buf1_, y2x_buf2_;
 };
 
+/**
+ * @brief Result of TM-align algorithm.
+ * @sa tm_align()
+ * @note The TM-score is set to a negative value if the alignment failed for any
+ *       reason. In such cases, other fields will be left unspecified.
+ */
 struct TMAlignResult {
+  //! The transformation matrix.
   Affine3d xform;
+
+  //! A map of the template structure to the query structure. Negative values
+  //! indicate no alignment.
   ArrayXi templ_to_query;
+
+  //! The mean square deviation of the aligned region.
   double msd;
+
+  //! The TM-score of the alignment.
   double tm_score = -1;
 };
 
+/**
+ * @brief Align two structures using TM-align algorithm.
+ *
+ * @param query The query structure.
+ * @param templ The template structure.
+ * @param flags Initialization flags.
+ * @param l_norm Length normalization factor. If negative, the length of the
+ *        template structure is used.
+ * @param d0 Distance cutoff. If negative, the default value is calculated based
+ *        on the length normalization factor.
+ * @return The result of the alignment. If the alignment failed for any reason,
+ *         the TM-score is set to a negative value.
+ * @note If any of kSecStr or kLocalPlusSecStr flags are set, the secondary
+ *       structures of the input structures will be assigned using the
+ *       approximate secondary structure assignment algorithm in the TM-align
+ *       code.
+ */
 extern TMAlignResult
 tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
          TMAlign::InitFlags flags = TMAlign::InitFlags::kDefault,
          int l_norm = -1, double d0 = -1);
 
+/**
+ * @brief Align two structures using TM-align algorithm.
+ *
+ * @param query The query structure.
+ * @param templ The template structure.
+ * @param secx Secondary structure of the query structure.
+ * @param secy Secondary structure of the template structure.
+ * @param flags Initialization flags.
+ * @param l_norm Length normalization factor. If negative, the length of the
+ *        template structure is used.
+ * @param d0 Distance cutoff. If negative, the default value is calculated based
+ *        on the length normalization factor.
+ * @return The result of the alignment. If the alignment failed for any reason,
+ *         the TM-score is set to a negative value.
+ * @note If none of kSecStr or kLocalPlusSecStr flags are set, the secondary
+ *       structures will be ignored.
+ */
 extern TMAlignResult
 tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
          ConstRef<ArrayXc> secx, ConstRef<ArrayXc> secy,
