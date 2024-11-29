@@ -24,6 +24,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 
+#include <absl/algorithm/container.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/str_cat.h>
@@ -287,6 +288,46 @@ template <Eigen::Index Rows = Eigen::Dynamic,
           Eigen::Index Cols = Eigen::Dynamic, class DT = double>
 class NpArrayWrapper;
 
+template <Eigen::Index Rows, Eigen::Index Cols, class DT>
+void numpy_to_eigen_check_compat(const py::array_t<DT> &arr) {
+  constexpr bool is_vector = Rows == 1 || Cols == 1;
+  constexpr Eigen::Index size = Rows == Eigen::Dynamic || Cols == Eigen::Dynamic
+                                    ? Eigen::Dynamic
+                                    : Rows * Cols;
+
+  if constexpr (is_vector) {
+    if (arr.ndim() != 1)
+      throw py::value_error(
+          absl::StrCat("expected 1D array, got ", arr.ndim(), "D"));
+
+    if constexpr (size != Eigen::Dynamic) {
+      if (arr.size() != size)
+        throw py::value_error(
+            absl::StrCat("expected ", size, " elements, got ", arr.size()));
+    }
+  } else {
+    if (arr.ndim() != 2)
+      throw py::value_error(
+          absl::StrCat("expected 2D array, got ", arr.ndim(), "D"));
+
+    const auto py_rows = arr.shape()[0], py_cols = arr.shape()[1];
+
+    if constexpr (Cols != Eigen::Dynamic) {
+      if (Cols != py_rows) {
+        throw py::value_error(
+            absl::StrCat("expected ", Cols, " rows, got ", py_rows));
+      }
+    }
+
+    if constexpr (Rows != Eigen::Dynamic) {
+      if (Rows != py_cols) {
+        throw py::value_error(
+            absl::StrCat("expected ", Rows, " columns, got ", py_cols));
+      }
+    }
+  }
+}
+
 template <class ML>
 using NpArrayLike = NpArrayWrapper<ML::RowsAtCompileTime, ML::ColsAtCompileTime,
                                    typename ML::Scalar>;
@@ -324,6 +365,11 @@ public:
   Parent numpy() && { return std::move(*this); }
 
 private:
+  explicit NpArrayWrapper(std::vector<py::ssize_t> &&shape)
+      : Parent(std::move(shape)) {
+    check_invariants();
+  }
+
   explicit NpArrayWrapper(const Parent &arr): Parent(arr) {
     check_invariants();
   }
@@ -332,26 +378,36 @@ private:
     check_invariants();
   }
 
-  explicit NpArrayWrapper(std::vector<py::ssize_t> &&shape)
-      : Parent(std::move(shape)) {
-    check_invariants();
-  }
-
   void check_invariants() const {
-#ifdef NURI_DEBUG
-    int req_ndim = kIsVector ? 1 : 2;
+    constexpr int req_ndim = kIsVector ? 1 : 2;
 
-    ABSL_DCHECK_EQ(this->ndim(), req_ndim);
-    ABSL_DCHECK_EQ(eigen_stride(*this, req_ndim - 1), 1);
-#endif
+    numpy_to_eigen_check_compat<Rows, Cols, DT>(*this);
+
+    const int inner_stride = eigen_stride(*this, req_ndim - 1);
+    if (inner_stride != 1) {
+      throw std::runtime_error(
+          absl::StrCat("Unexpected inner stride (", inner_stride, " != 1)"));
+    }
   }
 
   template <Eigen::Index R, Eigen::Index C, class DU>
-  friend NpArrayWrapper<R, C, DU> py_array_cast(py::handle h);
+  friend NpArrayWrapper<R, C, DU>
+  empty_numpy(std::vector<py::ssize_t> &&eigen_shape);
 
   template <class ML>
   friend NpArrayLike<ML> empty_like(const ML &mat);
+
+  template <Eigen::Index R, Eigen::Index C, class DU>
+  friend NpArrayWrapper<R, C, DU> py_array_cast(py::handle h);
 };
+
+template <Eigen::Index Rows = Eigen::Dynamic,
+          Eigen::Index Cols = Eigen::Dynamic, class DT = double>
+NpArrayWrapper<Rows, Cols, DT>
+empty_numpy(std::vector<py::ssize_t> &&eigen_shape) {
+  absl::c_reverse(eigen_shape);
+  return NpArrayWrapper<Rows, Cols, DT>(std::move(eigen_shape));
+}
 
 template <class ML>
 NpArrayLike<ML> empty_like(const ML &mat) {
@@ -376,6 +432,7 @@ NpArrayWrapper<Rows, Cols, DT> py_array_cast(py::handle h) {
   }
 
   py::array_t<DT> arr = py::reinterpret_steal<py::array_t<DT>>(result);
+  numpy_to_eigen_check_compat<Rows, Cols, DT>(arr);
 
   auto maybe_copy = [&arr](Eigen::Index rows, Eigen::Index cols, auto strides) {
     if (strides.inner() == 1)
@@ -391,23 +448,7 @@ NpArrayWrapper<Rows, Cols, DT> py_array_cast(py::handle h) {
     return wrapper;
   };
 
-  constexpr bool is_vector = Rows == 1 || Cols == 1;
-  constexpr Eigen::Index size = Rows == Eigen::Dynamic || Cols == Eigen::Dynamic
-                                    ? Eigen::Dynamic
-                                    : Rows * Cols;
-
-  if constexpr (is_vector) {
-    if (arr.ndim() != 1)
-      throw py::value_error(
-          absl::StrCat("expected 1D array, got ", arr.ndim(), "D"));
-
-    if constexpr (size != Eigen::Dynamic) {
-      if (arr.size() != size) {
-        throw py::value_error(
-            absl::StrCat("expected ", size, " elements, got ", arr.size()));
-      }
-    }
-
+  if constexpr (Rows == 1 || Cols == 1) {
     Eigen::Index rows, cols;
     if constexpr (Cols == 1) {
       rows = arr.size();
@@ -416,31 +457,10 @@ NpArrayWrapper<Rows, Cols, DT> py_array_cast(py::handle h) {
       rows = 1;
       cols = arr.size();
     }
-
     return maybe_copy(rows, cols,
                       Eigen::InnerStride<> { eigen_stride(arr, 0) });
   } else {
-    if (arr.ndim() != 2)
-      throw py::value_error(
-          absl::StrCat("expected 2D array, got ", arr.ndim(), "D"));
-
-    auto py_rows = arr.shape()[0], py_cols = arr.shape()[1];
-
-    if constexpr (Cols != Eigen::Dynamic) {
-      if (Cols != py_rows) {
-        throw py::value_error(
-            absl::StrCat("expected ", Cols, " rows, got ", py_rows));
-      }
-    }
-
-    if constexpr (Rows != Eigen::Dynamic) {
-      if (Rows != py_cols) {
-        throw py::value_error(
-            absl::StrCat("expected ", Rows, " columns, got ", py_cols));
-      }
-    }
-
-    return maybe_copy(py_cols, py_rows,
+    return maybe_copy(arr.shape()[1], arr.shape()[0],
                       py::EigenDStride { eigen_stride(arr, 0),
                                          eigen_stride(arr, 1) });
   }
