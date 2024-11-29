@@ -691,6 +691,36 @@ TEST_F(TMAlignTest, Wrapper) {
 
   EXPECT_NEAR(tmscore, 0.19080501444867484, 1e-6);
 }
+
+TEST_F(TMAlignTest, InitUserWrapper) {
+  ArrayXi y2x(ly);
+  y2x << -1, 0, 1, 2, 3,  //
+      4, -1, 5, 6, 7,     //
+      8, 9, 10, 12, 13,   //
+      14, 15, 16, 17, 18;
+
+  Affine3d xform_ref;
+  xform_ref.matrix() << 0.234082, -0.966243, -0.107608, 128.475,  //
+      -0.563769, -0.225079, 0.794672, 36.6465,                    //
+      -0.792067, -0.125353, -0.597425, 29.295,                    //
+      0, 0, 0, 1;
+
+  auto [xform, y2x_out, msd, tmscore] = tm_align(x(), y(), y2x);
+  EXPECT_NEAR(tmscore, 0.19080501444867484, 1e-6);
+
+  NURI_EXPECT_EIGEN_EQ_TOL(xform.linear(), xform_ref.linear(), 1e-5);
+  NURI_EXPECT_EIGEN_EQ_TOL(xform.translation(), xform_ref.translation(), 1e-2);
+
+  y2x << -1, 0, 1, 2, 3,  //
+      4, -1, 5, 6, 7,     //
+      8, -1, -1, -1, -1,  //
+      -1, 15, 16, 17, 18;
+  for (int i = 0; i < ly; ++i)
+    EXPECT_EQ(y2x_out[i], y2x[i]);
+
+  EXPECT_NEAR(msd, 3.6508720456913579, 1e-5);
+}
+
 }  // namespace
 }  // namespace internal
 }  // namespace nuri
