@@ -124,7 +124,7 @@ namespace internal {
 /**
  * @brief TM-align algorithm.
  *
- * This is a ground-up implementation of TM-align algorithm based on the
+ * This is a ground-up reimplementation of TM-align algorithm based on the
  * original TM-align code (version 20220412) by Yang Zhang. This implementation
  * aims to reproduce the results of the original code while providing improved
  * user interface and maintainability. Refer to the following paper for details
@@ -231,9 +231,9 @@ public:
    *        structure is not aligned to any residue in the query structure.
    *        Will be invalidated after this call.
    * @return Whether the initialization was successful.
-   * @note If size of y2x is not equal to the length of the query structure or
-   *       any value of y2x is larger than or equal to the length of the query
-   *       structure, the behavior is undefined.
+   * @note If size of y2x is not equal to the length of the template structure
+   *       or any value of y2x is larger than or equal to the length of the
+   *       query structure, the behavior is undefined.
    */
   ABSL_MUST_USE_RESULT
   bool initialize(ArrayXi &y2x);
@@ -245,8 +245,8 @@ public:
    *
    * @param l_norm Length normalization factor. If negative, the length of the
    *        template structure is used.
-   * @param d0 Distance cutoff. If negative, the default value is calculated
-   *        based on the length normalization factor.
+   * @param d0 Distance scale factor. If negative, the default value is
+   *        calculated based on the length normalization factor.
    * @return A pair of best transformation matrix and TM-score. If the alignment
    *         failed for any reason, the TM-score is set to a negative value and
    *         the transformation matrix is left unspecified.
@@ -335,8 +335,8 @@ struct TMAlignResult {
  * @param flags Initialization flags.
  * @param l_norm Length normalization factor. If negative, the length of the
  *        template structure is used.
- * @param d0 Distance cutoff. If negative, the default value is calculated based
- *        on the length normalization factor.
+ * @param d0 Distance scale factor. If negative, the default value is calculated
+ *        based on the length normalization factor.
  * @return The result of the alignment. If the alignment failed for any reason,
  *         the TM-score is set to a negative value.
  * @note If any of kSecStr or kLocalPlusSecStr flags are set, the secondary
@@ -359,8 +359,8 @@ tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
  * @param flags Initialization flags.
  * @param l_norm Length normalization factor. If negative, the length of the
  *        template structure is used.
- * @param d0 Distance cutoff. If negative, the default value is calculated based
- *        on the length normalization factor.
+ * @param d0 Distance scale factor. If negative, the default value is calculated
+ *        based on the length normalization factor.
  * @return The result of the alignment. If the alignment failed for any reason,
  *         the TM-score is set to a negative value.
  * @note If none of kSecStr or kLocalPlusSecStr flags are set, the secondary
@@ -384,12 +384,12 @@ tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
  *        structure is not aligned to any residue in the query structure.
  * @param l_norm Length normalization factor. If negative, the length of the
  *        template structure is used.
- * @param d0 Distance cutoff. If negative, the default value is calculated based
- *        on the length normalization factor.
+ * @param d0 Distance scale factor. If negative, the default value is calculated
+ *        based on the length normalization factor.
  * @return The result of the alignment. If the alignment failed for any reason,
  *         the TM-score is set to a negative value.
  *
- * @note If size of y2x is not equal to the length of the query structure or
+ * @note If size of y2x is not equal to the length of the template structure or
  *       any value of y2x is larger than or equal to the length of the query
  *       structure, the behavior is undefined.
  */
