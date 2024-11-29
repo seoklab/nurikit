@@ -40,15 +40,19 @@ using Eigen::Array4d;
 using Eigen::Array4i;
 using Eigen::ArrayX;
 using ArrayXb = Eigen::ArrayX<bool>;
+using ArrayXc = ArrayX<std::int8_t>;
 using Eigen::Array2Xd;
+using Eigen::Array33d;
 using Eigen::Array3Xd;
 using Eigen::Array4Xd;
 using Eigen::ArrayX2d;
+using Eigen::ArrayX2i;
 using Eigen::ArrayXd;
 using Eigen::ArrayXi;
 using Eigen::ArrayXX;
 using Eigen::ArrayXXd;
 using Eigen::ArrayXXi;
+using ArrayXXc = ArrayXX<std::int8_t>;
 
 using Eigen::Matrix;
 using Eigen::Matrix3;
@@ -163,6 +167,16 @@ private:
   int offset_;
   int zero_at_;
 };
+
+template <class ML1, class ML2>
+// NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
+void inplace_transform(ML1 &&m_out, const Affine3d &xform, const ML2 &m) {
+  ABSL_DCHECK_EQ(m_out.rows(), m.rows());
+  ABSL_DCHECK_EQ(m_out.cols(), m.cols());
+
+  m_out.noalias() = xform.linear() * m;
+  m_out.colwise() += xform.translation();
+}
 
 namespace internal {
   template <bool Allowed>
