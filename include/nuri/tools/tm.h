@@ -223,6 +223,21 @@ public:
   bool initialize(InitFlags flags, ConstRef<ArrayXc> secx,
                   ConstRef<ArrayXc> secy);
 
+  /**
+   * @brief Initialize the TM-align algorithm with user-provided alignment.
+   *
+   * @param y2x A map of the template structure to the query structure. Negative
+   *        values indicate that the corresponding residue in the template
+   *        structure is not aligned to any residue in the query structure.
+   *        Will be invalidated after this call.
+   * @return Whether the initialization was successful.
+   * @note If size of y2x is not equal to the length of the query structure or
+   *       any value of y2x is larger than or equal to the length of the query
+   *       structure, the behavior is undefined.
+   */
+  ABSL_MUST_USE_RESULT
+  bool initialize(ArrayXi &y2x);
+
   bool initialized() const { return xy_.l_ali() > 0; }
 
   /**
@@ -356,6 +371,31 @@ tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
          ConstRef<ArrayXc> secx, ConstRef<ArrayXc> secy,
          TMAlign::InitFlags flags = TMAlign::InitFlags::kDefault,
          int l_norm = -1, double d0 = -1);
+
+/**
+ * @brief Align two structures using TM-align algorithm, with the given
+ *        alignment. This is also known as the "TM-score" program in the
+ *        TM-tools suite.
+ *
+ * @param query The query structure.
+ * @param templ The template structure.
+ * @param y2x A map of the template structure to the query structure. Negative
+ *        values indicate that the corresponding residue in the template
+ *        structure is not aligned to any residue in the query structure.
+ * @param l_norm Length normalization factor. If negative, the length of the
+ *        template structure is used.
+ * @param d0 Distance cutoff. If negative, the default value is calculated based
+ *        on the length normalization factor.
+ * @return The result of the alignment. If the alignment failed for any reason,
+ *         the TM-score is set to a negative value.
+ *
+ * @note If size of y2x is not equal to the length of the query structure or
+ *       any value of y2x is larger than or equal to the length of the query
+ *       structure, the behavior is undefined.
+ */
+extern TMAlignResult tm_align(ConstRef<Matrix3Xd> query,
+                              ConstRef<Matrix3Xd> templ, ArrayXi &y2x,
+                              int l_norm = -1, double d0 = -1);
 
 // test utils
 namespace internal {

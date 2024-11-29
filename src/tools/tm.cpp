@@ -711,6 +711,37 @@ TMAlign::TMAlign(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ)
       xy_(query, templ, l_min()), rx_(3, query.cols()), ry_(3, templ.cols()),
       dsqs_(l_min()), y2x_buf1_(templ.cols()), y2x_buf2_(templ.cols()) { }
 
+namespace {
+  bool tmalign_conclude_init(Affine3d &best_xform, double &aligned_msd,
+                             internal::AlignedXY &xy, ArrayXi &y2x_best,
+                             Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
+                             ArrayXi &i_ali, ArrayXi &j_ali, double tm_max,
+                             const double d0_search, const double score_d8sq,
+                             const double d0sq_inv) {
+    xy.remap(y2x_best);
+
+    if (ABSL_PREDICT_FALSE(xy.l_ali() <= 0)) {
+      ABSL_LOG(ERROR) << "No alignment found between the input structures";
+      ABSL_DLOG_IF(WARNING, tm_max > 0)
+          << "TMscore is positive despite no alignment found";
+      return false;
+    }
+
+    std::tie(best_xform, tm_max) = internal::tmscore_greedy_search<true>(
+        rx, ry, dsqs, i_ali, j_ali, xy, 1, d0_search, score_d8sq, d0sq_inv);
+    if (ABSL_PREDICT_FALSE(tm_max <= 0)) {
+      ABSL_LOG(ERROR) << "TMscore is zero or negative after initialization";
+      y2x_best.setConstant(-1);
+      xy.remap(y2x_best);
+      return false;
+    }
+
+    aligned_msd =
+        internal::tm_realign_calculate_msd(xy, rx, ry, best_xform, score_d8sq);
+    return true;
+  }
+}  // namespace
+
 bool TMAlign::initialize(const InitFlags flags) {
   ArrayXc secx, secy;
 
@@ -752,7 +783,7 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
   }
 
   constexpr double dcu0 = 4.25, dcu0_sq = dcu0 * dcu0;
-  constexpr int simplify_step = 40, simplify_step_full = 1;
+  constexpr int simplify_step = 40;
   constexpr int max_iter_full = 30, max_iter_short = 2;
 
   const double d0 = l_min() < 20 ? 0.968 : 1.24 * std::cbrt(l_min() - 15) - 1,
@@ -854,27 +885,22 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
       },
       1, 2, max_iter_short, ddcc);
 
-  xy_.remap(y2x_best);
-  if (ABSL_PREDICT_FALSE(xy_.l_ali() <= 0)) {
-    ABSL_LOG(ERROR) << "No alignment found between the input structures";
-    ABSL_DLOG_IF(WARNING, raw_tm_max > 0)
-        << "TMscore is positive despite no alignment found";
-    return false;
-  }
+  return tmalign_conclude_init(best_xform_, aligned_msd_, xy_, y2x_best, rx_,
+                               ry_, dsqs_, y2x_local(), y2x_buf(), raw_tm_max,
+                               d0_search, score_d8sq, d0sq_inv);
+}
 
-  std::tie(best_xform_, raw_tm_max) = internal::tmscore_greedy_search<true>(
-      rx_, ry_, dsqs_, y2x_local(), y2x_buf(), xy_, simplify_step_full,
-      d0_search, score_d8sq, d0sq_inv);
-  if (ABSL_PREDICT_FALSE(raw_tm_max <= 0)) {
-    ABSL_LOG(ERROR) << "TMscore is zero or negative after initialization";
-    y2x_best.setConstant(-1);
-    xy_.remap(y2x_best);
-    return false;
-  }
+bool TMAlign::initialize(ArrayXi &y2x) {
+  const double d0 = l_min() < 20 ? 0.968 : 1.24 * std::cbrt(l_min() - 15) - 1;
+  const double d0sq_inv = 1 / (d0 * d0);
 
-  aligned_msd_ = internal::tm_realign_calculate_msd(xy_, rx_, ry_, best_xform_,
-                                                    score_d8sq);
-  return true;
+  const double d0_search = nuri::clamp(d0, 4.5, 8.0);
+  const double score_d8 = 1.5 * std::pow(l_min(), 0.3) + 3.5,
+               score_d8sq = score_d8 * score_d8;
+
+  return tmalign_conclude_init(best_xform_, aligned_msd_, xy_, y2x, rx_, ry_,
+                               dsqs_, y2x_local(), y2x_buf(), -1, d0_search,
+                               score_d8sq, d0sq_inv);
 }
 
 std::pair<Affine3d, double> TMAlign::tm_score(int l_norm, double d0) {
@@ -937,6 +963,15 @@ TMAlignResult tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
                        TMAlign::InitFlags flags, int l_norm, double d0) {
   TMAlign tm(query, templ);
   if (!tm.initialize(flags, secx, secy))
+    return {};
+
+  return tm_align_wrapper(std::move(tm), l_norm, d0);
+}
+
+TMAlignResult tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
+                       ArrayXi &y2x, int l_norm, double d0) {
+  TMAlign tm(query, templ);
+  if (!tm.initialize(y2x))
     return {};
 
   return tm_align_wrapper(std::move(tm), l_norm, d0);
