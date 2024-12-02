@@ -1833,7 +1833,7 @@ namespace {
         ABSL_ASSUME(has_rev);
 
         prev_nei = rev;
-        find_conjugated_groups_dfs(mol, pos, candidates, groups, dst.id(), rev);
+        find_conjugated_groups_dfs(mol, pos, candidates, groups, dst.id(), nit);
         continue;
       }
 
