@@ -678,14 +678,14 @@ bool MoleculeSanitizer::sanitize_conjugated() {
 }
 
 namespace internal {
-  const Element &effective_element_or_element(Molecule::Atom atom) noexcept {
-    const Element *elem = effective_element(atom);
+  const Element &effective_element_or_element(const AtomData &data) noexcept {
+    const Element *elem = effective_element(data);
     if (ABSL_PREDICT_FALSE(elem == nullptr)) {
       ABSL_LOG(WARNING)
           << "Unexpected atomic number & formal charge combination: "
-          << atom.data().atomic_number() << ", " << atom.data().formal_charge()
+          << data.atomic_number() << ", " << data.formal_charge()
           << ". The result may be incorrect.";
-      elem = &atom.data().element();
+      elem = &data.element();
     }
     return *elem;
   }
@@ -1062,9 +1062,8 @@ int count_hydrogens(Molecule::Atom atom) {
   return count;
 }
 
-const Element *effective_element(Molecule::Atom atom) {
-  const int effective_z =
-      atom.data().atomic_number() - atom.data().formal_charge();
+const Element *effective_element(const AtomData &data) {
+  const int effective_z = data.atomic_number() - data.formal_charge();
   return PeriodicTable::get().find_element(effective_z);
 }
 

@@ -2346,7 +2346,12 @@ namespace internal {
   }
 
   extern const Element &
-  effective_element_or_element(Molecule::Atom atom) noexcept;
+  effective_element_or_element(const AtomData &data) noexcept;
+
+  inline const Element &
+  effective_element_or_element(Molecule::Atom atom) noexcept {
+    return effective_element_or_element(atom.data());
+  }
 
   extern int sum_bond_order_raw(Molecule::Atom atom, int implicit_hydrogens,
                                 bool aromatic_correct);
@@ -2432,12 +2437,23 @@ inline int steric_number(Molecule::Atom atom) {
 
 /**
  * @brief Get "effective" element of the atom.
+ * @param data Data of the atom.
+ * @return "Effective" element of the atom: the returned element has atomic
+ *         number of (original atomic number) - (formal charge). If the
+ *         resulting atomic number is out of range, returns nullptr.
+ */
+extern const Element *effective_element(const AtomData &data);
+
+/**
+ * @brief Get "effective" element of the atom.
  * @param atom An atom.
  * @return "Effective" element of the atom: the returned element has atomic
  *         number of (original atomic number) - (formal charge). If the
  *         resulting atomic number is out of range, returns nullptr.
  */
-extern const Element *effective_element(Molecule::Atom atom);
+inline const Element *effective_element(Molecule::Atom atom) {
+  return effective_element(atom.data());
+}
 
 /**
  * @brief Get fragments of the molecule.
