@@ -154,6 +154,7 @@ endfunction()
 
 function(find_or_fetch_pybind11)
   set(BUILD_TESTING OFF)
+  set(PYBIND11_FINDPYTHON ON)
 
   # FindPythonInterp/FindPythonLibs deprecated since cmake 3.12
   if(POLICY CMP0148)
