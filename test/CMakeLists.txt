@@ -7,7 +7,7 @@ include(NuriKitTest)
 
 add_compile_options(-Wno-error)
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wno-self-assign-overloaded)
 endif()
 

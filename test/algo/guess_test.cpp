@@ -12,6 +12,7 @@
 #include <absl/algorithm/container.h>
 #include <absl/strings/ascii.h>
 #include <absl/strings/str_split.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include "nuri/eigen_config.h"
@@ -1062,8 +1063,21 @@ TEST(GuessSelectedMolecules, GH358) {
 
     std::pair<std::string_view, std::string_view> ans_split =
         absl::StrSplit(smiles_answers[i], '\t');
-    EXPECT_EQ(smi, ans_split.first)
-        << "Different SMILES for " << ans_split.second;
+    if (ans_split.second == "6oap_lig-cyc") {
+      // Due to tautomerization, any of the two SMILES is correct
+      EXPECT_THAT(  //
+          smi,      //
+          testing::AnyOf(testing::Eq(ans_split.first),
+                         testing::Eq(
+                             // clang-format off
+"C(c1[nH]c(c(c1CCC(=O)O)C)C=C2NC(C(=C2C)CC)=O)=C3N=C(C=C4NC(C(C4CC)C)=O)C(=C3CCC(=O)O)C"
+                             // clang-format on
+                             ))  //
+      );
+    } else {
+      EXPECT_EQ(smi, ans_split.first)
+          << "Different SMILES for " << ans_split.second;
+    }
   }
 
   EXPECT_EQ(i, smiles_answers.size());

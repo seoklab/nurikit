@@ -19,14 +19,28 @@ defaults:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ contains(inputs.python, 'linux')  && 'ubuntu-latest' || 'macos-latest' }}
     name: Wheels for ${{ inputs.python }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "10.15"
     steps:
-      - run: sudo apt-get install -y libeigen3-dev
+      - if: ${{ contains(inputs.python, 'linux') }}
+        run: sudo apt-get install -y libeigen3-dev
+
+      - if: ${{ contains(inputs.python, 'macosx') }}
+        run: brew install eigen spectra boost pybind11 ninja
+
+      # https://github.com/pypa/cibuildwheel/issues/954
+      - if: ${{ inputs.python == 'cp38-macosx_arm64' }}
+        run: |
+          curl -o python-3.8.10-macos11.pkg https://www.python.org/ftp/python/3.8.10/python-3.8.10-macos11.pkg
+          sudo installer -pkg python-3.8.10-macos11.pkg -target /
 
       - uses: lukka/get-cmake@latest
         with:
-          cmakeVersion: "~3.16.0" # for Ubuntu 20.04
+          # Linux -> for Ubuntu 20.04
+          # macOS -> universal binary at least from 3.19.7
+          cmakeVersion: ${{ contains(inputs.python, 'linux')  && '~3.16.0' || '3.19.7' }}
 
       - uses: actions/checkout@v4
         with:
@@ -34,14 +48,12 @@ jobs:
 
       - name: Configure with cmake
         run: |
-          cmake \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -S . -B build -G Ninja
+          cmake -DCMAKE_BUILD_TYPE=Release -S . -B build -G Ninja
 
       - uses: pypa/cibuildwheel@v2.22.0
         env:
-          CIBW_BUILD: ${{ inputs.python }}-manylinux_x86_64
+          CIBW_BUILD: ${{ inputs.python }}
+          CIBW_ARCHS: "all"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4

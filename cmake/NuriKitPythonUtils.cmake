@@ -80,7 +80,7 @@ function(nuri_python_add_module name)
     PROPERTIES
     OUTPUT_NAME "${name}"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/nuri/${subdir}"
-    INSTALL_RPATH "$ORIGIN/${dir_inv}${CMAKE_INSTALL_LIBDIR}"
+    INSTALL_RPATH "${NURI_RPATH_PREFIX}/${dir_inv}${CMAKE_INSTALL_LIBDIR}"
   )
 
   if(PYBIND11_STUBGEN_FOUND)

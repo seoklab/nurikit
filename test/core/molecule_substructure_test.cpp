@@ -281,7 +281,7 @@ TEST_F(SubstructureTest, IterateAtoms) {
   for (auto rit = std::make_reverse_iterator(sub_.end()),
             rend = std::make_reverse_iterator(sub_.begin());
        rit != rend; ++rit) {
-    EXPECT_TRUE(sub_.contains_atom(rit->as_parent().id()));
+    EXPECT_TRUE(sub_.contains_atom((*rit).as_parent().id()));
     ++count;
   }
   EXPECT_EQ(count, sub_.size());
@@ -290,7 +290,7 @@ TEST_F(SubstructureTest, IterateAtoms) {
   for (auto rit = std::make_reverse_iterator(sub_.cend()),
             rend = std::make_reverse_iterator(sub_.cbegin());
        rit != rend; ++rit) {
-    EXPECT_TRUE(sub_.contains_atom(rit->as_parent().id()));
+    EXPECT_TRUE(sub_.contains_atom((*rit).as_parent().id()));
     ++count;
   }
   EXPECT_EQ(count, sub_.size());

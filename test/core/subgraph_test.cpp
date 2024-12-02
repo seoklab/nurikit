@@ -253,9 +253,9 @@ TEST(BasicSubgraphTest, IterateNodes) {
   for (auto rit = std::make_reverse_iterator(sg1.end());
        rit != std::make_reverse_iterator(sg1.begin()); rit++) {
     --i;
-    EXPECT_EQ(rit->as_parent().id(), i);
-    EXPECT_EQ(rit->data(), i);
-    static_assert(std::is_assignable_v<decltype(rit->data()), int>,
+    EXPECT_EQ((*rit).as_parent().id(), i);
+    EXPECT_EQ((*rit).data(), i);
+    static_assert(std::is_assignable_v<decltype((*rit).data()), int>,
                   "Subgraph iterator must be mutable");
   }
 
@@ -271,9 +271,9 @@ TEST(BasicSubgraphTest, IterateNodes) {
   for (auto rit = std::make_reverse_iterator(csg1.end());
        rit != std::make_reverse_iterator(csg1.begin()); rit++) {
     --i;
-    EXPECT_EQ(rit->as_parent().id(), i);
-    EXPECT_EQ(rit->data(), i);
-    static_assert(!std::is_assignable_v<decltype(rit->data()), int>,
+    EXPECT_EQ((*rit).as_parent().id(), i);
+    EXPECT_EQ((*rit).data(), i);
+    static_assert(!std::is_assignable_v<decltype((*rit).data()), int>,
                   "Subgraph const_iterator must be immutable");
   }
 
@@ -310,9 +310,9 @@ TEST(BasicSubgraphTest, IterateNodes) {
   for (auto rit = std::make_reverse_iterator(csg2.end());
        rit != std::make_reverse_iterator(csg2.begin()); ++rit) {
     --i;
-    EXPECT_EQ(rit->as_parent().id(), i);
-    EXPECT_EQ(rit->data(), i);
-    static_assert(!std::is_assignable_v<decltype(rit->data()), int>,
+    EXPECT_EQ((*rit).as_parent().id(), i);
+    EXPECT_EQ((*rit).data(), i);
+    static_assert(!std::is_assignable_v<decltype((*rit).data()), int>,
                   "ConstSubGraph iterator must be immutable");
   }
 

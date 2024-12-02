@@ -59,7 +59,7 @@ add_executable(nuri_exe "main.cpp")
 set_target_properties(nuri_exe
   PROPERTIES
   OUTPUT_NAME nuri
-  INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
+  INSTALL_RPATH "${NURI_RPATH_PREFIX}/../${CMAKE_INSTALL_LIBDIR}")
 target_link_libraries(nuri_exe PRIVATE nuri_lib absl::log_initialize)
 
 install(TARGETS nuri_lib LIBRARY)
