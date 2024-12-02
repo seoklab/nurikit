@@ -18,29 +18,17 @@ defaults:
     shell: bash
 
 jobs:
-  build:
-    runs-on: ${{ contains(inputs.python, 'linux')  && 'ubuntu-latest' || 'macos-latest' }}
-    name: Wheels for ${{ inputs.python }}
-    env:
-      MACOSX_DEPLOYMENT_TARGET: "10.15"
+  build-linux:
+    name: Wheel for ${{ inputs.python }}
+    if: ${{ contains(inputs.python, 'linux') }}
+    runs-on: "ubuntu-latest"
     steps:
-      - if: ${{ contains(inputs.python, 'linux') }}
-        run: sudo apt-get install -y libeigen3-dev
-
-      - if: ${{ contains(inputs.python, 'macosx') }}
-        run: brew install eigen spectra boost pybind11 ninja
-
-      # https://github.com/pypa/cibuildwheel/issues/954
-      - if: ${{ inputs.python == 'cp38-macosx_arm64' }}
-        run: |
-          curl -o python-3.8.10-macos11.pkg https://www.python.org/ftp/python/3.8.10/python-3.8.10-macos11.pkg
-          sudo installer -pkg python-3.8.10-macos11.pkg -target /
+      - run: sudo apt-get install -y libeigen3-dev
 
       - uses: lukka/get-cmake@latest
         with:
-          # Linux -> for Ubuntu 20.04
-          # macOS -> universal binary at least from 3.19.7
-          cmakeVersion: ${{ contains(inputs.python, 'linux')  && '~3.16.0' || '3.19.7' }}
+          # For Ubuntu 20.04
+          cmakeVersion: "~3.16.0"
 
       - uses: actions/checkout@v4
         with:
@@ -51,6 +39,57 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=Release -S . -B build -G Ninja
 
       - uses: pypa/cibuildwheel@v2.22.0
+        env:
+          CIBW_BUILD: ${{ inputs.python }}
+          CIBW_ARCHS: "all"
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: cibw-wheels-${{ inputs.python }}
+          path: wheelhouse/*.whl
+
+  build-macos:
+    name: Wheel for ${{ inputs.python }}
+    if: ${{ contains(inputs.python, 'macosx') }}
+    runs-on: "macos-latest"
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "10.15"
+    steps:
+      - run: brew install eigen spectra boost pybind11 ninja
+
+      # https://github.com/pypa/cibuildwheel/issues/954
+      - if: ${{ inputs.python == 'cp38-macosx_arm64' }}
+        run: |
+          curl -o python-3.8.10-macos11.pkg https://www.python.org/ftp/python/3.8.10/python-3.8.10-macos11.pkg
+          sudo installer -pkg python-3.8.10-macos11.pkg -target /
+
+      - uses: lukka/get-cmake@latest
+        with:
+          # Universal binary at least from 3.19.7
+          cmakeVersion: "3.19.7"
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - run: |
+          if [[ ${{ inputs.python }} == *x86_64 ]]; then
+            echo "BLD_ARCH=x86_64" >>$GITHUB_ENV
+          elif [[ ${{ inputs.python }} == *arm64 ]]; then
+            echo "BLD_ARCH=arm64" >>$GITHUB_ENV
+          else
+            echo "Unknown architecture: ${{ inputs.python }}" >&2
+            exit 1
+          fi
+
+      - name: Configure with cmake
+        run: |
+          arch "-$BLD_ARCH" cmake -DCMAKE_BUILD_TYPE=Release -S . -B build -G Ninja
+
+      - run: |
+          arch "-$BLD_ARCH" python3 -m pip install -U cibuildwheel
+          arch "-$BLD_ARCH" python3 -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: ${{ inputs.python }}
           CIBW_ARCHS: "all"
