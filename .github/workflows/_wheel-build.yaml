@@ -38,7 +38,9 @@ jobs:
 
       - uses: lukka/get-cmake@latest
         with:
-          cmakeVersion: "~3.16.0" # for Ubuntu 20.04
+          # Linux -> for Ubuntu 20.04
+          # macOS -> universal binary at least from 3.19.7
+          cmakeVersion: ${{ contains(inputs.python, 'linux')  && '~3.16.0' || '3.19.7' }}
 
       - uses: actions/checkout@v4
         with:
