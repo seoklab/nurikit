@@ -73,15 +73,22 @@ jobs:
         with:
           submodules: recursive
 
-      - run: |
+      - id: set-arch
+        run: |
           if [[ ${{ inputs.python }} == *x86_64 ]]; then
             echo "BLD_ARCH=x86_64" >>$GITHUB_ENV
+            echo "python_arch=x64" >>$GITHUB_OUTPUT
           elif [[ ${{ inputs.python }} == *arm64 ]]; then
             echo "BLD_ARCH=arm64" >>$GITHUB_ENV
+            echo "python_arch=arm64" >>$GITHUB_OUTPUT
           else
             echo "Unknown architecture: ${{ inputs.python }}" >&2
             exit 1
           fi
+
+      - uses: actions/setup-python@v5
+        with:
+          architecture: ${{ steps.set-arch.outputs.python_arch }}
 
       - name: Configure with cmake
         run: |
