@@ -1813,75 +1813,46 @@ namespace {
            || (atom.degree() <= 2 && hyb_incorrect_atom_can_conjugate(atom));
   }
 
-  void find_conjugated_groups_dfs(const Molecule &mol, const Matrix3Xd &pos,
-                                  absl::flat_hash_set<int> &candidates,
-                                  std::vector<std::vector<int>> &groups,
-                                  int cur,
-                                  Molecule::const_neighbor_iterator prev_nei) {
-    groups.back().push_back(cur);
-    candidates.erase(cur);
+  template <class BinaryPred>
+  std::vector<std::vector<int>>
+  find_groups_pred(const Molecule &mol, absl::flat_hash_set<int> &candidates,
+                   const BinaryPred &test_ok) {
+    std::vector<std::vector<int>> groups;
 
-    auto src = mol.atom(cur);
-    for (auto nit = src.begin(); nit != src.end(); ++nit) {
-      auto dst = nit->dst();
-      if (!candidates.contains(dst.id()))
-        continue;
+    auto dfs = [&](auto &self, int cur,
+                   Molecule::const_neighbor_iterator prev_nei) -> void {
+      groups.back().push_back(cur);
+      candidates.erase(cur);
 
-      if (prev_nei.end()) {
-        auto rev = dst.find_adjacent(cur);
-        bool has_rev = !rev.end();
-        ABSL_ASSUME(has_rev);
+      auto src = mol.atom(cur);
+      for (auto nit = src.begin(); nit != src.end(); ++nit) {
+        auto dst = nit->dst();
+        if (!candidates.contains(dst.id()))
+          continue;
 
-        prev_nei = rev;
-        find_conjugated_groups_dfs(mol, pos, candidates, groups, dst.id(), nit);
-        continue;
-      }
+        if (prev_nei.end()) {
+          auto rev = dst.find_adjacent(cur);
+          bool has_rev = !rev.end();
+          ABSL_ASSUME(has_rev);
+          prev_nei = rev;
 
-      if (prev_nei->edge_data().order() == constants::kSingleBond) {
-        if (nit->edge_data().order() == constants::kSingleBond
-            && src.data().atomic_number() != 0
-            && dst.data().atomic_number() != 0) {
-          // Single - single bond -> conjugated if curr has lone pair and
-          // next doesn't, or vice versa, or any of them is dummy
-          const int src_nbe = nonbonding_electrons(src),
-                    dst_nbe = nonbonding_electrons(dst);
-          if ((src_nbe > 0 && dst_nbe > 0) || (src_nbe <= 0 && dst_nbe <= 0))
-            continue;
+          self(self, dst.id(), nit);
+          continue;
         }
-      } else if (nit->edge_data().order() != constants::kSingleBond
-                 && prev_nei->edge_data().order() != constants::kAromaticBond
-                 && nit->edge_data().order() != constants::kAromaticBond) {
-        // Aromatic - aromatic bond -> conjugated
-        // Aromatic - double/triple bond
-        //          -> exocyclic C=O like structure (technically conjugated)
-        // double/triple - double/triple bond -> allene-like
-        continue;
+
+        if (!test_ok(*prev_nei, *nit))
+          continue;
+
+        self(self, dst.id(), nit);
       }
+    };
 
-      Molecule::const_neighbor_iterator next_nei =
-          std::find_if(dst.begin(), dst.end(), [&](Molecule::Neighbor n) {
-            return n.dst().id() != cur;
-          });
-      if (!next_nei.end()
-          && !torsion_can_sp2(pos, prev_nei->src().id(), prev_nei->dst().id(),
-                              next_nei->src().id(), next_nei->dst().id())) {
-        continue;
-      }
-
-      find_conjugated_groups_dfs(mol, pos, candidates, groups, dst.id(), nit);
-    }
-  }
-
-  void find_conjugated_groups(const Molecule &mol, const Matrix3Xd &pos,
-                              absl::flat_hash_set<int> &candidates,
-                              std::vector<std::vector<int>> &groups) {
     groups.emplace_back();
     for (auto atom: mol) {
       if (!candidates.contains(atom.id()))
         continue;
 
-      find_conjugated_groups_dfs(mol, pos, candidates, groups, atom.id(),
-                                 atom.end());
+      dfs(dfs, atom.id(), atom.end());
 
       if (groups.back().size() < 3) {
         candidates.insert(groups.back().begin(), groups.back().end());
@@ -1893,6 +1864,46 @@ namespace {
 
     if (groups.back().empty())
       groups.pop_back();
+
+    return groups;
+  }
+
+  bool test_bond_order_can_conjugate(Molecule::Neighbor prev,
+                                     Molecule::Neighbor curr) {
+    auto src = curr.src(), dst = curr.dst();
+
+    if (prev.edge_data().order() == constants::kSingleBond) {
+      if (curr.edge_data().order() == constants::kSingleBond
+          && src.data().atomic_number() != 0
+          && dst.data().atomic_number() != 0) {
+        // Single - single bond -> conjugated if curr has lone pair and
+        // next doesn't, or vice versa, or any of them is dummy
+        const int src_nbe = nonbonding_electrons(src),
+                  dst_nbe = nonbonding_electrons(dst);
+        if ((src_nbe > 0 && dst_nbe > 0) || (src_nbe <= 0 && dst_nbe <= 0))
+          return false;
+      }
+    } else if (curr.edge_data().order() != constants::kSingleBond
+               && prev.edge_data().order() != constants::kAromaticBond
+               && curr.edge_data().order() != constants::kAromaticBond) {
+      // Aromatic - aromatic bond -> conjugated
+      // Aromatic - double/triple bond
+      //          -> exocyclic C=O like structure (technically conjugated)
+      // double/triple - double/triple bond -> allene-like
+      return false;
+    }
+
+    return true;
+  }
+
+  bool test_torsion_can_conjugate(const Matrix3Xd &pos, Molecule::Neighbor prev,
+                                  Molecule::Neighbor curr) {
+    auto src = curr.src(), dst = curr.dst();
+    Molecule::const_neighbor_iterator next_nei = absl::c_find_if(
+        dst, [&](Molecule::Neighbor n) { return n.dst().id() != src.id(); });
+    return next_nei.end()
+           || torsion_can_sp2(pos, prev.src().id(), prev.dst().id(),
+                              next_nei->src().id(), next_nei->dst().id());
   }
 
   void mark_conjugated(Molecule &mol,
@@ -1925,13 +1936,15 @@ namespace {
   void guess_conjugated(Molecule &mol, const Matrix3Xd &pos,
                         Conflicts &conflicts) {
     absl::flat_hash_set<int> candidates;
-    std::vector<std::vector<int>> groups;
-
     for (auto atom: mol)
       if (is_conjugated_candidate(atom))
         candidates.insert(atom.id());
 
-    find_conjugated_groups(mol, pos, candidates, groups);
+    std::vector<std::vector<int>> groups = find_groups_pred(
+        mol, candidates, [&](Molecule::Neighbor prev, Molecule::Neighbor curr) {
+          return test_bond_order_can_conjugate(prev, curr)
+                 && test_torsion_can_conjugate(pos, prev, curr);
+        });
     mark_conjugated(mol, groups, conflicts);
   }
 
