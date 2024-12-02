@@ -19,10 +19,14 @@ defaults:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ contains(inputs.python, 'linux')  && 'ubuntu-latest' || 'macos-latest' }}
     name: Wheels for ${{ inputs.python }}
     steps:
-      - run: sudo apt-get install -y libeigen3-dev
+      - if: ${{ contains(inputs.python, 'linux') }}
+        run: sudo apt-get install -y libeigen3-dev
+
+      - if: ${{ contains(inputs.python, 'macosx') }}
+        run: brew install eigen ninja
 
       - uses: lukka/get-cmake@latest
         with:
@@ -34,14 +38,12 @@ jobs:
 
       - name: Configure with cmake
         run: |
-          cmake \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -S . -B build -G Ninja
+          cmake -DCMAKE_BUILD_TYPE=Release -S . -B build -G Ninja
 
       - uses: pypa/cibuildwheel@v2.22.0
         env:
-          CIBW_BUILD: ${{ inputs.python }}-manylinux_x86_64
+          CIBW_BUILD: ${{ inputs.python }}
+          CIBW_ARCHS: "all"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
