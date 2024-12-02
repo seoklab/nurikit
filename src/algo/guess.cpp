@@ -1795,7 +1795,7 @@ namespace {
     }
 
     return conflicts.empty();
-  }  // namespace
+  }
 
   bool hyb_incorrect_atom_can_conjugate(Molecule::Atom atom) {
     bool any_multiple = absl::c_any_of(atom, [](Molecule::Neighbor nei) {
