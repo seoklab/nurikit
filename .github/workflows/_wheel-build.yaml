@@ -18,45 +18,15 @@ defaults:
     shell: bash
 
 jobs:
-  build-linux:
+  build:
     name: Wheel for ${{ inputs.python }}
-    if: ${{ contains(inputs.python, 'linux') }}
-    runs-on: "ubuntu-latest"
+    runs-on: ${{ contains(inputs.python, 'linux') && 'ubuntu-latest' || 'macos-latest' }}
     steps:
-      - run: sudo apt-get install -y libeigen3-dev
+      - if: ${{ contains(inputs.python, 'linux') }}
+        run: sudo apt-get install -y libeigen3-dev
 
-      - uses: lukka/get-cmake@latest
-        with:
-          # For Ubuntu 20.04
-          cmakeVersion: "~3.16.0"
-
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Configure with cmake
-        run: |
-          cmake -DCMAKE_BUILD_TYPE=Release -S . -B build -G Ninja
-
-      - uses: pypa/cibuildwheel@v2.22.0
-        env:
-          CIBW_BUILD: ${{ inputs.python }}
-          CIBW_ARCHS: "all"
-
-      - name: Upload wheels
-        uses: actions/upload-artifact@v4
-        with:
-          name: cibw-wheels-${{ inputs.python }}
-          path: wheelhouse/*.whl
-
-  build-macos:
-    name: Wheel for ${{ inputs.python }}
-    if: ${{ contains(inputs.python, 'macosx') }}
-    runs-on: "macos-latest"
-    env:
-      MACOSX_DEPLOYMENT_TARGET: "10.15"
-    steps:
-      - run: brew install eigen spectra boost pybind11 ninja
+      - if: ${{ contains(inputs.python, 'macosx') }}
+        run: brew install eigen spectra boost pybind11 ninja
 
       # https://github.com/pypa/cibuildwheel/issues/954
       - if: ${{ inputs.python == 'cp38-macosx_arm64' }}
@@ -66,14 +36,26 @@ jobs:
 
       - uses: lukka/get-cmake@latest
         with:
-          # Universal binary at least from 3.19.7
-          cmakeVersion: "3.19.7"
+          # Linux -> for Ubuntu 20.04
+          # macOS -> universal binary at least from 3.19.7
+          cmakeVersion: ${{ contains(inputs.python, 'linux') && '~3.16.0' || '3.19.7' }}
 
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - id: set-arch
+      - name: Configure with cmake
+        run: |
+          cmake -DCMAKE_BUILD_TYPE=Release -S . -B build -G Ninja
+
+      - if: ${{ contains(inputs.python, 'linux') }}
+        uses: pypa/cibuildwheel@v2.22.0
+        env:
+          CIBW_BUILD: ${{ inputs.python }}
+          CIBW_ARCHS: "all"
+
+      - if: ${{ contains(inputs.python, 'macosx') }}
+        id: set-arch
         run: |
           if [[ ${{ inputs.python }} == *x86_64 ]]; then
             echo "BLD_ARCH=x86_64" >>$GITHUB_ENV
@@ -86,21 +68,20 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/setup-python@v5
+      - if: ${{ contains(inputs.python, 'macosx') }}
+        uses: actions/setup-python@v5
         with:
           python-version: "3.x"
           architecture: ${{ steps.set-arch.outputs.python_arch }}
 
-      - name: Configure with cmake
+      - if: ${{ contains(inputs.python, 'macosx') }}
         run: |
-          arch "-$BLD_ARCH" cmake -DCMAKE_BUILD_TYPE=Release -S . -B build -G Ninja
-
-      - run: |
           arch "-$BLD_ARCH" python3 -m pip install -U cibuildwheel
           arch "-$BLD_ARCH" python3 -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: ${{ inputs.python }}
           CIBW_ARCHS: "all"
+          MACOSX_DEPLOYMENT_TARGET: "10.15"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
