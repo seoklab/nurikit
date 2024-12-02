@@ -33,7 +33,10 @@ jobs:
       fail-fast: false
       matrix:
         pyver: ["cp37", "cp38", "cp39", "cp310", "cp311", "cp312"]
-        os: ["manylinux_x86_64", "macosx_x86_64"]
+        os: ["manylinux_x86_64", "macosx_x86_64", "macosx_arm64"]
+        exclude:
+          - pyver: "cp37"
+            os: "macosx_arm64"
 
     uses: ./.github/workflows/_wheel-build.yaml
     with:

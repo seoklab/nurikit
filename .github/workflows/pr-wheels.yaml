@@ -32,12 +32,19 @@ jobs:
     with:
       python: cp38-manylinux_x86_64
 
-  test-build-macos:
+  test-build-mac-intel:
     needs: [check-want-test]
     if: ${{ needs.check-want-test.outputs.want-test == 'true' }}
     uses: ./.github/workflows/_wheel-build.yaml
     with:
       python: cp38-macosx_x86_64
+
+  test-build-mac-arm:
+    needs: [check-want-test]
+    if: ${{ needs.check-want-test.outputs.want-test == 'true' }}
+    uses: ./.github/workflows/_wheel-build.yaml
+    with:
+      python: cp38-macosx_arm64
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
