@@ -24,6 +24,16 @@ option(NURI_TEST_COVERAGE "Enable coverage build" OFF)
 option(NURI_BUILD_DOCS "Build documentation" OFF)
 option(NURI_BUILD_PYTHON_DOCS "Build python documentation" OFF)
 
+if(CMAKE_SYSTEM_NAME MATCHES Linux)
+  set(NURI_RPATH_PREFIX "$ORIGIN")
+elseif(CMAKE_SYSTEM_NAME MATCHES Darwin)
+  set(NURI_RPATH_PREFIX "@loader_path")
+else()
+  message(FATAL_ERROR
+    "Unsupported system '${CMAKE_SYSTEM_NAME}' detected! "
+    "Only Linux and macOS are supported.")
+endif()
+
 if(CMAKE_CXX_COMPILER_ID MATCHES Clang)
   if(CMAKE_SYSTEM_NAME MATCHES Linux)
     string(APPEND CMAKE_CXX_FLAGS " -stdlib=libstdc++")
