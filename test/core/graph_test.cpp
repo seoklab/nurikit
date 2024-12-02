@@ -451,7 +451,7 @@ TYPED_TEST(AdvancedGraphTest, EdgeIteratorTest) {
   cnt = 0;
   for (auto it = std::make_reverse_iterator(graph.edge_end());
        it != std::make_reverse_iterator(graph.edge_begin()); ++it) {
-    it->data() = { -10 };
+    (*it).data() = { -10 };
     cnt++;
   }
   ASSERT_EQ(cnt, graph.num_edges());

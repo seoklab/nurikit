@@ -522,15 +522,15 @@ void fix_guadinium(Molecule &mol, const std::vector<int> &ccat) {
 
     if (!any_double) {
       // Why last? Because rdkit does it.
-      auto last_lowest_degree = std::min_element(
+      auto last_lowest_degree = *std::min_element(
           std::make_reverse_iterator(atom.end()),
           std::make_reverse_iterator(atom.begin()),
           [](Molecule::Neighbor lhs, Molecule::Neighbor rhs) {
             return count_heavy(lhs.dst()) < count_heavy(rhs.dst());
           });
 
-      last_lowest_degree->dst().data().set_formal_charge(1);
-      last_lowest_degree->edge_data().order() = constants::kDoubleBond;
+      last_lowest_degree.dst().data().set_formal_charge(1);
+      last_lowest_degree.edge_data().order() = constants::kDoubleBond;
     }
   }
 }
