@@ -44,9 +44,7 @@
         "editor.tabSize": 2,
     },
     "cmake.copyCompileCommands": "${workspaceFolder}/build/compile_commands.json",
-    "cmake.configureArgs": [
-        "-DNURI_TEST_COVERAGE=ON",
-    ],
+    "cmake.generator": "Ninja",
     "editor.unicodeHighlight.allowedCharacters": {
         "©": true,
         "Å": true,
@@ -68,4 +66,5 @@
     "licenser.disableAutoSave": false,
     "licenser.license": "Custom",
     "licenser.projectName": "NuriKit",
+    "python.testing.pytestEnabled": true,
 }
