@@ -21,6 +21,8 @@ jobs:
   build:
     runs-on: ${{ contains(inputs.python, 'linux')  && 'ubuntu-latest' || 'macos-latest' }}
     name: Wheels for ${{ inputs.python }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "10.15"
     steps:
       - if: ${{ contains(inputs.python, 'linux') }}
         run: sudo apt-get install -y libeigen3-dev
