@@ -19,10 +19,8 @@ defaults:
 
 jobs:
   build:
-    runs-on: ${{ contains(inputs.python, 'linux')  && 'ubuntu-latest' || 'macos-latest' }}
-    name: Wheels for ${{ inputs.python }}
-    env:
-      MACOSX_DEPLOYMENT_TARGET: "10.15"
+    name: Wheel for ${{ inputs.python }}
+    runs-on: ${{ contains(inputs.python, 'linux') && 'ubuntu-latest' || 'macos-latest' }}
     steps:
       - if: ${{ contains(inputs.python, 'linux') }}
         run: sudo apt-get install -y libeigen3-dev
@@ -40,7 +38,7 @@ jobs:
         with:
           # Linux -> for Ubuntu 20.04
           # macOS -> universal binary at least from 3.19.7
-          cmakeVersion: ${{ contains(inputs.python, 'linux')  && '~3.16.0' || '3.19.7' }}
+          cmakeVersion: ${{ contains(inputs.python, 'linux') && '~3.16.0' || '3.19.7' }}
 
       - uses: actions/checkout@v4
         with:
@@ -50,10 +48,40 @@ jobs:
         run: |
           cmake -DCMAKE_BUILD_TYPE=Release -S . -B build -G Ninja
 
-      - uses: pypa/cibuildwheel@v2.22.0
+      - if: ${{ contains(inputs.python, 'linux') }}
+        uses: pypa/cibuildwheel@v2.22.0
         env:
           CIBW_BUILD: ${{ inputs.python }}
           CIBW_ARCHS: "all"
+
+      - if: ${{ contains(inputs.python, 'macosx') }}
+        id: set-arch
+        run: |
+          if [[ ${{ inputs.python }} == *x86_64 ]]; then
+            echo "BLD_ARCH=x86_64" >>$GITHUB_ENV
+            echo "python_arch=x64" >>$GITHUB_OUTPUT
+          elif [[ ${{ inputs.python }} == *arm64 ]]; then
+            echo "BLD_ARCH=arm64" >>$GITHUB_ENV
+            echo "python_arch=arm64" >>$GITHUB_OUTPUT
+          else
+            echo "Unknown architecture: ${{ inputs.python }}" >&2
+            exit 1
+          fi
+
+      - if: ${{ contains(inputs.python, 'macosx') }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+          architecture: ${{ steps.set-arch.outputs.python_arch }}
+
+      - if: ${{ contains(inputs.python, 'macosx') }}
+        run: |
+          arch "-$BLD_ARCH" python3 -m pip install -U cibuildwheel
+          arch "-$BLD_ARCH" python3 -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_BUILD: ${{ inputs.python }}
+          CIBW_ARCHS: "all"
+          MACOSX_DEPLOYMENT_TARGET: "10.15"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
