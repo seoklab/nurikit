@@ -15,7 +15,7 @@ project(NuriKit VERSION "${NURI_CORE_VERSION}" LANGUAGES CXX)
 set(NURI_OPTIMIZATION_LEVEL "O3" CACHE STRING "Optimization level")
 option(NURI_BUILD_PYTHON "Build Python bindings" ON)
 option(NURI_ENABLE_IPO "Do interprocedural optimization" ON)
-option(NURI_ENABLE_AVX2 "Use -mavx2 flag for optimization" ON)
+option(NURI_ENABLE_AVX2 "Use -mavx2 flag for optimization" OFF)
 option(NURI_ENABLE_ARCH_NATIVE "Use -march=native flag for optimization" OFF)
 
 option(NURI_ENABLE_SANITIZERS "Enable sanitizers for debug build" OFF)
@@ -24,11 +24,16 @@ option(NURI_TEST_COVERAGE "Enable coverage build" OFF)
 option(NURI_BUILD_DOCS "Build documentation" OFF)
 option(NURI_BUILD_PYTHON_DOCS "Build python documentation" OFF)
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  string(APPEND CMAKE_CXX_FLAGS
-    " -stdlib=libstdc++ -Wno-gnu-zero-variadic-macro-arguments"
-  )
-elseif(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES Clang)
+  if(CMAKE_SYSTEM_NAME MATCHES Linux)
+    string(APPEND CMAKE_CXX_FLAGS " -stdlib=libstdc++")
+  endif()
+  string(APPEND CMAKE_CXX_FLAGS " -Wno-gnu-zero-variadic-macro-arguments")
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL GNU)
+  if(CMAKE_SYSTEM_NAME MATCHES Darwin)
+    string(APPEND CMAKE_CXX_FLAGS " -stdlib=libc++")
+  endif()
+else()
   message(FATAL_ERROR
     "Unsupported compiler '${CMAKE_CXX_COMPILER_ID}' detected! "
     "Please use clang or gcc as a compiler.")
