@@ -154,8 +154,7 @@ if(BUILD_TESTING AND NURI_POSTINSTALL_TEST)
   install(CODE
     "execute_process(
       COMMAND \"\${CMAKE_CTEST_COMMAND}\" -T test -j ${NPROC} --output-on-failure
-      WORKING_DIRECTORY
-        \"$<PATH:ABSOLUTE_PATH,NORMALIZE,${CMAKE_CURRENT_BINARY_DIR},/>\"
+      WORKING_DIRECTORY \"$<1:${CMAKE_CURRENT_BINARY_DIR}>\"
     )"
   )
 endif()
