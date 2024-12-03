@@ -38,6 +38,7 @@ jobs:
     uses: ./.github/workflows/_wheel-build.yaml
     with:
       python: cp38-macosx_x86_64
+      cpp_test: true
 
   test-build-mac-arm:
     needs: [check-want-test]
@@ -45,6 +46,7 @@ jobs:
     uses: ./.github/workflows/_wheel-build.yaml
     with:
       python: cp38-macosx_arm64
+      cpp_test: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
