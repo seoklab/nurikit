@@ -54,7 +54,9 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=Release -S . -B build -G Ninja
 
       - if: ${{ inputs.cpp_test }}
-        run: echo "SKBUILD_CMAKE_DEFINE=NURI_POSTINSTALL_TEST=ON" >>$GITHUB_ENV
+        run: |
+          echo "SKBUILD_CMAKE_DEFINE=NURI_POSTINSTALL_TEST=ON" >>$GITHUB_ENV
+          echo "CIBW_ENVIRONMENT_PASS_LINUX=SKBUILD_CMAKE_DEFINE" >>$GITHUB_ENV
 
       - if: ${{ contains(inputs.python, 'linux') }}
         uses: pypa/cibuildwheel@v2.22.0
