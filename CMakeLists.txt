@@ -148,9 +148,12 @@ add_subdirectory(test EXCLUDE_FROM_ALL)
 
 if(BUILD_TESTING AND NURI_POSTINSTALL_TEST)
   message(NOTICE "Running tests after post-installation step")
+  include(ProcessorCount)
+
+  ProcessorCount(NPROC)
   install(CODE
     "execute_process(
-      COMMAND \"\${CMAKE_CTEST_COMMAND}\" -T test -j --output-on-failure
+      COMMAND \"\${CMAKE_CTEST_COMMAND}\" -T test -j ${NPROC} --output-on-failure
       WORKING_DIRECTORY
         \"$<PATH:ABSOLUTE_PATH,NORMALIZE,${CMAKE_CURRENT_BINARY_DIR},/>\"
     )"
