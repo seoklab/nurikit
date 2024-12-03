@@ -24,6 +24,9 @@ option(NURI_TEST_COVERAGE "Enable coverage build" OFF)
 option(NURI_BUILD_DOCS "Build documentation" OFF)
 option(NURI_BUILD_PYTHON_DOCS "Build python documentation" OFF)
 
+option(NURI_POSTINSTALL_TEST "Run tests after installation" OFF)
+mark_as_advanced(NURI_POSTINSTALL_TEST)
+
 if(CMAKE_SYSTEM_NAME MATCHES Linux)
   set(NURI_RPATH_PREFIX "$ORIGIN")
 elseif(CMAKE_SYSTEM_NAME MATCHES Darwin)
@@ -142,3 +145,16 @@ endif()
 
 include(CTest)
 add_subdirectory(test EXCLUDE_FROM_ALL)
+
+if(BUILD_TESTING AND NURI_POSTINSTALL_TEST)
+  message(NOTICE "Running tests after post-installation step")
+  include(ProcessorCount)
+
+  ProcessorCount(NPROC)
+  install(CODE
+    "execute_process(
+      COMMAND \"\${CMAKE_CTEST_COMMAND}\" -T test -j ${NPROC} --output-on-failure
+      WORKING_DIRECTORY \"$<1:${CMAKE_CURRENT_BINARY_DIR}>\"
+    )"
+  )
+endif()

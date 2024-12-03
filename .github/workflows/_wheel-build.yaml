@@ -12,6 +12,11 @@ on:
         type: string
         description: "Python version"
         required: true
+      cpp_test:
+        type: boolean
+        description: "Run C++ tests"
+        required: false
+        default: false
 
 defaults:
   run:
@@ -47,6 +52,9 @@ jobs:
       - name: Configure with cmake
         run: |
           cmake -DCMAKE_BUILD_TYPE=Release -S . -B build -G Ninja
+
+      - if: ${{ inputs.cpp_test }}
+        run: echo "SKBUILD_CMAKE_DEFINE=NURI_POSTINSTALL_TEST=ON" >>$GITHUB_ENV
 
       - if: ${{ contains(inputs.python, 'linux') }}
         uses: pypa/cibuildwheel@v2.22.0

@@ -41,6 +41,7 @@ jobs:
     uses: ./.github/workflows/_wheel-build.yaml
     with:
       python: ${{ matrix.pyver }}-${{ matrix.os }}
+      cpp_test: ${{ matrix.pyver == 'cp38' }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
