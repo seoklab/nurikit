@@ -150,6 +150,13 @@ def test_tm_score(
     assert score == pytest.approx(score_ref, rel=1e-5)
 
 
+def test_tm_score_self(query: np.ndarray):
+    xform, score = tmtools.tm_score(query, query)
+
+    assert xform == pytest.approx(np.eye(4), rel=1e-5)
+    assert score == pytest.approx(1.0, rel=1e-5)
+
+
 def test_tm_align_full(
     query: np.ndarray,
     templ: np.ndarray,
@@ -196,3 +203,6 @@ def test_tm_errors():
 
     with pytest.raises(ValueError, match="out-of-range"):
         tmtools.tm_score(np.zeros((11, 3)), np.zeros((10, 3)), [(0, 10)])
+
+    with pytest.raises(ValueError, match="must have the same length"):
+        tmtools.tm_score(np.zeros((11, 3)), np.zeros((10, 3)))
