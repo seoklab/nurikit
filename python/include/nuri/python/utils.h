@@ -423,6 +423,9 @@ NpArrayLike<ML> empty_like(const ML &mat) {
 template <Eigen::Index Rows = Eigen::Dynamic,
           Eigen::Index Cols = Eigen::Dynamic, class DT = double>
 NpArrayWrapper<Rows, Cols, DT> py_array_cast(py::handle h) {
+  if (h.is_none())
+    throw py::type_error("expected array-like object, got None");
+
   PyObject *result = NpArrayWrapper<Rows, Cols, DT>::raw_array_t(h.ptr());
   if (result == nullptr) {
     py::error_already_set current_exc;

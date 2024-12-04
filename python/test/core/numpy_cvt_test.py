@@ -114,3 +114,6 @@ def test_cast_convert_failed():
 
     with pytest.raises(ValueError, match="cannot convert"):
         cast_test_helper(obj, "dynamic")
+
+    with pytest.raises(TypeError, match="got None"):
+        cast_test_helper(None, "dynamic")

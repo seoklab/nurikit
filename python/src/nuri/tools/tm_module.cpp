@@ -15,6 +15,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/typing.h>
 
+#include <absl/algorithm/container.h>
 #include <absl/strings/str_cat.h>
 
 #include "nuri/eigen_config.h"
@@ -100,12 +101,25 @@ TMAlign tmalign_init(py::handle query, py::handle templ,
 
 TMAlign tmalign_init_aln(py::handle query, py::handle templ, py::handle aln) {
   auto xa = py_array_cast<3>(query), ya = py_array_cast<3>(templ);
-  auto xya = py_array_cast<2, Eigen::Dynamic, int>(aln);
-
   auto x = xa.eigen(), y = ya.eigen();
+  ArrayXi y2x(y.cols());
+
+  if (aln.is_none()) {
+    if (x.cols() != y.cols()) {
+      throw py::value_error(
+          absl::StrCat("Query and template structures must have the same "
+                       "length when no alignment is provided (got ",
+                       x.cols(), " != ", y.cols(), ")"));
+    }
+
+    absl::c_iota(y2x, 0);
+    return tmalign_try_construct_init(x, y, y2x);
+  }
+
+  auto xya = py_array_cast<2, Eigen::Dynamic, int>(aln);
   auto xy = xya.eigen();
 
-  ArrayXi y2x = ArrayXi::Constant(y.cols(), -1);
+  y2x.setConstant(-1);
   for (Eigen::Index k = 0; k < xy.cols(); ++k) {
     const int i = xy(0, k), j = xy(1, k);
     if (i < 0 || i >= x.cols() || j < 0 || j >= y.cols()) {
@@ -113,8 +127,9 @@ TMAlign tmalign_init_aln(py::handle query, py::handle templ, py::handle aln) {
           "Alignment contains out-of-range indice(s) at row ", k, " (got ", i,
           " -> ", j, ", expected [0, ", x.cols(), ") -> [0, ", y.cols(), "))"));
     }
-    y2x(j) = i;
+    y2x[j] = i;
   }
+
   return tmalign_try_construct_init(x, y, y2x);
 }
 
@@ -170,28 +185,35 @@ Prepare TM-align algorithm with the given structures.
   secondary structures are ignored.
 )doc")
       .def_static("from_alignment", tmalign_init_aln, py::arg("query"),
-                  py::arg("templ"), py::arg("alignment"), R"doc(
+                  py::arg("templ"), py::arg("alignment") = py::none(),
+                  R"doc(
 Prepare TM-align algorithm with the given structures and user-provided alignment.
 
 :param query: The query structure. Must be representable by a 2D numpy array of
   shape ``(N, 3)``.
 :param templ: The template structure. Must be representable by a 2D numpy array
   of shape ``(M, 3)``.
-:param alignment: Pairwise alignment of the query and template structures, in
-  the form representable by a 2D numpy array of shape ``(L, 2)``. Each row must
-  contain (query index, template index) pairs. Duplicate values are not checked
-  and may result in invalid alignment.
+:param alignment: Pairwise alignment of the query and template structures. Must
+  be in a form representable by a 2D numpy array of shape ``(L, 2)``, of which
+  rows must contain (query index, template index) pairs. If not provided, query
+  and template must have same length and assumed to be aligned in order.
 :returns: A :class:`TMAlign` object initialized with the given alignment.
 
 :raises ValueError: If:
 
   - The query or template structure has less than 5 residues.
   - The alignment contains out-of-range indices.
+  - Alignment is not provided and the query and template structures have
+    different lengths.
   - The initialization fails (for any other reason).
 
-.. note::
+.. tip::
   When initialized by this method, the result is equivalent to the "TM-score"
   program in the TM-tools suite.
+
+.. note::
+  Duplicate values in ``alignment`` are not checked and may result in invalid
+  alignment.
 )doc")
       .def(
           "score",
@@ -332,23 +354,23 @@ Run TM-align algorithm with the given structures and parameters.
             return tmalign_convert_result(
                 tm.tm_score(l_norm.value_or(-1), d0.value_or(-1)));
           },
-          py::arg("query"), py::arg("templ"), py::arg("alignment"),
+          py::arg("query"), py::arg("templ"), py::arg("alignment") = py::none(),
           py::arg("l_norm") = py::none(),
           py::kw_only(),  //
           py::arg("d0") = py::none(),
           R"doc(
 Run TM-align algorithm with the given structures and alignment. This is also
-known as the "TM-score" program in the TM-tools suite, from which this function
+known as the "TM-score" program in the TM-tools suite, from which the function
 got its name.
 
 :param query: The query structure. Must be representable by a 2D numpy array of
   shape ``(N, 3)``.
 :param templ: The template structure. Must be representable by a 2D numpy array
   of shape ``(M, 3)``.
-:param alignment: Pairwise alignment of the query and template structures, in
-  the form representable by a 2D numpy array of shape ``(L, 2)``. Each row must
-  contain (query index, template index) pairs. Duplicate values are not checked
-  and may result in invalid alignment.
+:param alignment: Pairwise alignment of the query and template structures. Must
+  be in a form representable by a 2D numpy array of shape ``(L, 2)``, of which
+  rows must contain (query index, template index) pairs. If not provided, query
+  and template must have same length and assumed to be aligned in order.
 :param l_norm: Length normalization factor. If not specified, the length of the
   template structure is used.
 :param d0: Distance scale factor. If not specified, calculated based on the
@@ -359,12 +381,19 @@ got its name.
 
   - The query or template structure has less than 5 residues.
   - The alignment contains out-of-range indices.
+  - Alignment is not provided and the query and template structures have
+    different lengths.
   - The initialization fails (for any other reason).
+
 
 .. tip::
   If want to calculate TM-score for multiple ``l_norm`` or ``d0`` values, or
   want more details such as RMSD or aligned pairs, consider using the
   :class:`TMAlign` object directly.
+
+.. note::
+  Duplicate values in ``alignment`` are not checked and may result in invalid
+  alignment.
 
 .. seealso::
   :class:`TMAlign`, :meth:`TMAlign.from_alignment`, :meth:`TMAlign.score`
