@@ -8,9 +8,9 @@
 #include <algorithm>
 #include <vector>
 
+#include <absl/strings/str_cat.h>
 #include <Eigen/Dense>
 
-#include <absl/strings/str_cat.h>
 #include <gtest/gtest.h>
 
 #include "nuri/eigen_config.h"

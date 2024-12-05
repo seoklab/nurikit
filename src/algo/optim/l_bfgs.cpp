@@ -8,10 +8,9 @@
 #include <utility>
 #include <vector>
 
-#include <Eigen/Dense>
-
 #include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
+#include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
 #include "nuri/algo/optim.h"

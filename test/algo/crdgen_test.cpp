@@ -5,11 +5,11 @@
 
 #include "nuri/algo/crdgen.h"
 
-#include <Eigen/Dense>
-
 #include <absl/algorithm/container.h>
 #include <absl/base/attributes.h>
 #include <absl/log/absl_check.h>
+#include <Eigen/Dense>
+
 #include <gtest/gtest.h>
 
 #include "nuri/eigen_config.h"

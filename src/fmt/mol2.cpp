@@ -15,11 +15,6 @@
 #include <utility>
 #include <vector>
 
-#include <boost/fusion/include/std_pair.hpp>
-#include <boost/fusion/include/std_tuple.hpp>
-#include <boost/optional.hpp>
-#include <boost/spirit/home/x3.hpp>
-
 #include <absl/algorithm/container.h>
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/inlined_vector.h>
@@ -31,6 +26,10 @@
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_format.h>
 #include <absl/strings/str_split.h>
+#include <boost/fusion/include/std_pair.hpp>
+#include <boost/fusion/include/std_tuple.hpp>
+#include <boost/optional.hpp>
+#include <boost/spirit/home/x3.hpp>
 
 #include "nuri/eigen_config.h"
 #include "fmt_internal.h"

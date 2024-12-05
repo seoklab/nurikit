@@ -7,12 +7,11 @@
 #include <string_view>
 #include <utility>
 
+#include <absl/strings/str_cat.h>
 #include <Eigen/Dense>
 #include <pybind11/eigen.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
-
-#include <absl/strings/str_cat.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/geometry.h"

@@ -10,9 +10,8 @@
 #include <limits>
 #include <vector>
 
-#include <Eigen/Dense>
-
 #include <absl/base/optimization.h>
+#include <Eigen/Dense>
 /// @endcond
 
 #include "nuri/eigen_config.h"

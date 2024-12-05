@@ -12,6 +12,8 @@
 #include <utility>
 #include <vector>
 
+#include <absl/log/absl_log.h>
+#include <absl/strings/str_cat.h>
 #include <Eigen/Dense>
 #include <pybind11/attr.h>
 #include <pybind11/cast.h>
@@ -20,9 +22,6 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
 #include <pybind11/typing.h>
-
-#include <absl/log/absl_log.h>
-#include <absl/strings/str_cat.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"

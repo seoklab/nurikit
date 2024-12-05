@@ -6,6 +6,7 @@
 #include <vector>
 
 #include <absl/algorithm/container.h>
+
 #include <gtest/gtest.h>
 
 #include "nuri/core/bool_matrix.h"

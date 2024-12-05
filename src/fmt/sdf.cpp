@@ -15,10 +15,6 @@
 #include <utility>
 #include <vector>
 
-#include <boost/fusion/include/std_pair.hpp>
-#include <boost/fusion/include/std_tuple.hpp>
-#include <boost/spirit/home/x3.hpp>
-
 #include <absl/algorithm/container.h>
 #include <absl/base/optimization.h>
 #include <absl/container/inlined_vector.h>
@@ -34,6 +30,9 @@
 #include <absl/strings/strip.h>
 #include <absl/time/clock.h>
 #include <absl/time/time.h>
+#include <boost/fusion/include/std_pair.hpp>
+#include <boost/fusion/include/std_tuple.hpp>
+#include <boost/spirit/home/x3.hpp>
 
 #include "nuri/eigen_config.h"
 #include "fmt_internal.h"

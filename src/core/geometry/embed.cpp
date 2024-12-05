@@ -6,13 +6,12 @@
 #include <algorithm>
 #include <exception>
 
+#include <absl/log/absl_log.h>
 #include <Eigen/Dense>
 #include <Spectra/MatOp/DenseSymMatProd.h>
 #include <Spectra/SymEigsSolver.h>
 #include <Spectra/Util/CompInfo.h>
 #include <Spectra/Util/SelectionRule.h>
-
-#include <absl/log/absl_log.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/geometry.h"

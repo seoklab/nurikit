@@ -12,6 +12,7 @@
 #include <absl/container/flat_hash_set.h>
 #include <absl/log/absl_check.h>
 #include <absl/strings/str_join.h>
+
 #include <gtest/gtest.h>
 
 #include "nuri/core/molecule.h"

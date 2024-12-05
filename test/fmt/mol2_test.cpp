@@ -8,6 +8,7 @@
 #include <string>
 
 #include <absl/strings/str_cat.h>
+
 #include <gtest/gtest.h>
 
 #include "fmt_test_common.h"
