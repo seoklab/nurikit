@@ -20,7 +20,7 @@ build:
   jobs:
     post_checkout:
       - (git show -s --format='%an' | grep -vq '\[bot\]$') || exit 183
-    pre_create_environment:
+    pre_install:
       - |
         cmake -S . -B pre-install -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
@@ -40,6 +40,13 @@ build:
 
 conda:
   environment: docs/environment.yaml
+
+python:
+  install:
+    - method: pip
+      path: "."
+      extra_requirements:
+        - docs
 
 sphinx:
   configuration: "python/docs/conf.py"
