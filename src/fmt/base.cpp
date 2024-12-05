@@ -140,28 +140,13 @@ MoleculeReaderFactory::find_factory(std::string_view name) {
 bool MoleculeReaderFactory::register_factory(
     std::unique_ptr<MoleculeReaderFactory> factory,
     const std::vector<std::string> &names) {
-  MoleculeReaderFactory *f =
-      reader_factory_source().first.emplace_back(std::move(factory)).get();
-  // GCOV_EXCL_START
-  ABSL_LOG_IF(WARNING, names.empty()) << "Empty name list for factory";
-  // GCOV_EXCL_STOP
-
-  for (const auto &name: names) {
-    register_for_name(f, name);
-  }
-
-  return true;
+  auto [factories, registry] = reader_factory_source();
+  return register_factory_impl(factories, registry, std::move(factory), names);
 }
 
 void MoleculeReaderFactory::register_for_name(
     const MoleculeReaderFactory *factory, std::string_view name) {
-  auto [_, inserted] =
-      reader_factory_registry().insert_or_assign(name, factory);
-  // GCOV_EXCL_START
-  ABSL_LOG_IF(WARNING, !inserted)
-      << "Duplicate factory name: " << name
-      << ". Overwriting existing factory (is this intended?).";
-  // GCOV_EXCL_STOP
+  register_for_name_impl(reader_factory_registry(), factory, name);
 }
 
 namespace {
