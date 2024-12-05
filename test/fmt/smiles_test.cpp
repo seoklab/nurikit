@@ -28,6 +28,7 @@ TEST_F(SmilesTest, SingleAtomTest) {
       "[U] uranium\n"
       "[Pb] lead\n"
       "[He] helium\n"
+      "[Uuo] oganesson\n"
       "[*] unknown atom\n");
 
   std::string smi;
@@ -44,6 +45,10 @@ TEST_F(SmilesTest, SingleAtomTest) {
   EXPECT_EQ(mol().atom(0).data().atomic_number(), 2);
   write_smiles(smi, mol());
 
+  NURI_FMT_TEST_NEXT_MOL("oganesson", 1, 0);
+  EXPECT_EQ(mol().atom(0).data().atomic_number(), 118);
+  write_smiles(smi, mol());
+
   NURI_FMT_TEST_NEXT_MOL("unknown atom", 1, 0);
   EXPECT_EQ(mol().atom(0).data().atomic_number(), 0);
   write_smiles(smi, mol());
@@ -58,6 +63,9 @@ TEST_F(SmilesTest, SingleAtomTest) {
 
   NURI_FMT_TEST_NEXT_MOL("helium", 1, 0);
   EXPECT_EQ(mol().atom(0).data().atomic_number(), 2);
+
+  NURI_FMT_TEST_NEXT_MOL("oganesson", 1, 0);
+  EXPECT_EQ(mol().atom(0).data().atomic_number(), 118);
 
   NURI_FMT_TEST_NEXT_MOL("unknown atom", 1, 0);
   EXPECT_EQ(mol().atom(0).data().atomic_number(), 0);
