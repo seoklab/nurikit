@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "nuri/algo/guess.h"
-
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -25,6 +23,7 @@
 #include <absl/log/absl_log.h>
 
 #include "nuri/eigen_config.h"
+#include "nuri/algo/guess.h"
 #include "nuri/algo/rings.h"
 #include "nuri/core/element.h"
 #include "nuri/core/geometry.h"
