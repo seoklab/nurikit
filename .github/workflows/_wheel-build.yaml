@@ -31,7 +31,7 @@ jobs:
         run: sudo apt-get install -y libeigen3-dev
 
       - if: ${{ contains(inputs.python, 'macosx') }}
-        run: brew install eigen spectra boost pybind11 ninja
+        run: brew install eigen spectra boost pybind11 abseil ninja
 
       # https://github.com/pypa/cibuildwheel/issues/954
       - if: ${{ inputs.python == 'cp38-macosx_arm64' }}
