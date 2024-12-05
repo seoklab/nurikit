@@ -34,6 +34,17 @@ target_link_libraries(nuri_lib
 target_system_include_directories(nuri_lib Eigen3::Eigen Spectra::Spectra)
 handle_boost_dependency(nuri_lib)
 
+if(NURI_TEST_COVERAGE)
+  add_custom_command(
+    TARGET nuri_lib
+    PRE_LINK
+    COMMAND "${CMAKE_COMMAND}"
+    "-DNURI_COVERAGE_DATA_DIR=${CMAKE_CURRENT_BINARY_DIR}"
+    -P "${PROJECT_SOURCE_DIR}/cmake/NuriKitClearCoverage.cmake"
+    VERBATIM
+  )
+endif()
+
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
   list(APPEND NURI_LIBRARY_FLAGS
     -fno-math-errno

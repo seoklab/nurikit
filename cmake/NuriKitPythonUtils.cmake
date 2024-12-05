@@ -7,9 +7,10 @@ add_custom_command(
   TARGET nuri_python
   POST_BUILD
   COMMAND "${CMAKE_COMMAND}"
+  "-DNURI_STUBS_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
   -P "${PROJECT_SOURCE_DIR}/cmake/NuriKitClearStubs.cmake"
-  "${CMAKE_CURRENT_SOURCE_DIR}"
-  VERBATIM)
+  VERBATIM
+)
 
 find_program(PYBIND11_STUBGEN pybind11-stubgen)
 mark_as_advanced(PYBIND11_STUBGEN)
