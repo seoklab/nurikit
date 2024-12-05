@@ -20,7 +20,7 @@ build:
   jobs:
     post_checkout:
       - (git show -s --format='%an' | grep -vq '\[bot\]$') || exit 183
-    pre_install:
+    pre_create_environment:
       - |
         cmake -S . -B pre-install -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
