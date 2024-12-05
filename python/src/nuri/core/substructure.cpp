@@ -9,6 +9,8 @@
 #include <utility>
 #include <vector>
 
+#include <absl/cleanup/cleanup.h>
+#include <absl/strings/str_cat.h>
 #include <Eigen/Dense>
 #include <pybind11/cast.h>
 #include <pybind11/eigen.h>
@@ -16,9 +18,6 @@
 #include <pybind11/options.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
-
-#include <absl/cleanup/cleanup.h>
-#include <absl/strings/str_cat.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/graph.h"

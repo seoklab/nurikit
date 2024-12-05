@@ -9,9 +9,8 @@
 #include <utility>
 #include <vector>
 
-#include <Eigen/Dense>
-
 #include <absl/log/absl_log.h>
+#include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/geometry.h"

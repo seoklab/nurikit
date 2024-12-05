@@ -17,14 +17,13 @@
 #include <utility>
 #include <vector>
 
-#include <boost/iterator/iterator_facade.hpp>
-#include <Eigen/Dense>
-
 #include <absl/algorithm/container.h>
 #include <absl/base/optimization.h>
 #include <absl/container/flat_hash_set.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
+#include <boost/iterator/iterator_facade.hpp>
+#include <Eigen/Dense>
 /// @endcond
 
 #include "nuri/eigen_config.h"

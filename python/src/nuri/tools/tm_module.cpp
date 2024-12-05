@@ -10,13 +10,12 @@
 #include <string_view>
 #include <utility>
 
+#include <absl/algorithm/container.h>
+#include <absl/strings/str_cat.h>
 #include <Eigen/Dense>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/typing.h>
-
-#include <absl/algorithm/container.h>
-#include <absl/strings/str_cat.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/python/utils.h"

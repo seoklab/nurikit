@@ -17,17 +17,16 @@
 
 #include <object.h>
 #include <pyerrors.h>
+#include <absl/algorithm/container.h>
+#include <absl/log/absl_check.h>
+#include <absl/log/absl_log.h>
+#include <absl/strings/str_cat.h>
 #include <Eigen/Dense>
 #include <pybind11/attr.h>
 #include <pybind11/eigen.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
-
-#include <absl/algorithm/container.h>
-#include <absl/log/absl_check.h>
-#include <absl/log/absl_log.h>
-#include <absl/strings/str_cat.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/meta.h"

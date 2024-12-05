@@ -17,11 +17,6 @@
 #include <utility>
 #include <vector>
 
-#include <boost/fusion/include/at_c.hpp>
-#include <boost/fusion/include/deque.hpp>
-#include <boost/iterator/counting_iterator.hpp>
-#include <boost/spirit/home/x3.hpp>
-
 #include <absl/algorithm/container.h>
 #include <absl/base/attributes.h>
 #include <absl/base/optimization.h>
@@ -33,6 +28,10 @@
 #include <absl/strings/ascii.h>
 #include <absl/strings/str_cat.h>
 #include <absl/types/span.h>
+#include <boost/fusion/include/at_c.hpp>
+#include <boost/fusion/include/deque.hpp>
+#include <boost/iterator/counting_iterator.hpp>
+#include <boost/spirit/home/x3.hpp>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"

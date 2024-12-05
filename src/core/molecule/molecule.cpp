@@ -12,12 +12,11 @@
 #include <utility>
 #include <vector>
 
-#include <Eigen/Dense>
-
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
 #include <absl/container/flat_hash_set.h>
 #include <absl/log/absl_log.h>
+#include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"

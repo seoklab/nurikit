@@ -3,10 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include <pybind11/gil.h>
-#include <pybind11/pybind11.h>
-#include <pybind11/pytypes.h>
-
 #include <absl/base/call_once.h>
 #include <absl/base/internal/raw_logging.h>
 #include <absl/base/log_severity.h>
@@ -17,6 +13,9 @@
 #include <absl/log/log_sink.h>
 #include <absl/log/log_sink_registry.h>
 #include <absl/log/vlog_is_on.h>
+#include <pybind11/gil.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/pytypes.h>
 
 #include "nuri/meta.h"
 

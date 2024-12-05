@@ -14,14 +14,13 @@
 #include <utility>
 #include <vector>
 
-#include <pybind11/pybind11.h>
-#include <pybind11/pytypes.h>
-#include <pybind11/stl/filesystem.h>
-
 #include <absl/log/absl_log.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
 #include <absl/types/span.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/pytypes.h>
+#include <pybind11/stl/filesystem.h>
 
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"

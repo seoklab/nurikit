@@ -8,9 +8,8 @@
 /// @cond
 #include <type_traits>  // IWYU pragma: keep, required for is_class_v
 
-#include <Eigen/Dense>
-
 #include <absl/log/absl_check.h>
+#include <Eigen/Dense>
 /// @endcond
 
 #include "nuri/meta.h"

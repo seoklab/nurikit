@@ -31,7 +31,14 @@ target_link_libraries(nuri_lib
   absl::absl_check
   absl::absl_log
 )
-target_system_include_directories(nuri_lib Eigen3::Eigen Spectra::Spectra)
+target_system_include_directories(nuri_lib
+  Eigen3::Eigen
+  Spectra::Spectra
+  absl::strings
+  absl::flat_hash_map
+  absl::absl_log
+  absl::absl_check
+)
 handle_boost_dependency(nuri_lib)
 clear_coverage_data(nuri_lib)
 

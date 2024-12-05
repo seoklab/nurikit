@@ -10,9 +10,8 @@
 #include <cstdint>
 #include <utility>
 
-#include <Eigen/Dense>
-
 #include <absl/base/attributes.h>
+#include <Eigen/Dense>
 /// @endcond
 
 #include "nuri/eigen_config.h"

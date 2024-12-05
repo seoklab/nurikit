@@ -9,8 +9,6 @@
 #include <utility>
 #include <vector>
 
-#include <Eigen/Dense>
-
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
 #include <absl/container/flat_hash_map.h>
@@ -18,6 +16,7 @@
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/str_cat.h>
+#include <Eigen/Dense>
 
 #include "nuri/algo/rings.h"
 #include "nuri/core/element.h"

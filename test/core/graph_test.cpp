@@ -10,6 +10,7 @@
 #include <vector>
 
 #include <absl/container/flat_hash_set.h>
+
 #include <gtest/gtest.h>
 
 #define NURI_TEST_CONVERTIBILITY(from_name, from_expr, to_name, to_expr,       \

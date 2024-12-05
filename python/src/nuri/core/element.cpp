@@ -9,12 +9,11 @@
 #include <string_view>
 #include <vector>
 
-#include <pybind11/pybind11.h>
-#include <pybind11/pytypes.h>
-
 #include <absl/strings/ascii.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/pytypes.h>
 
 #include "nuri/python/core/core_module.h"
 #include "nuri/python/utils.h"

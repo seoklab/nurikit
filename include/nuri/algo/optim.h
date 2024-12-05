@@ -13,9 +13,8 @@
 #include <functional>
 #include <utility>
 
-#include <Eigen/Dense>
-
 #include <absl/log/absl_check.h>
+#include <Eigen/Dense>
 /// @endcond
 
 #include "nuri/eigen_config.h"

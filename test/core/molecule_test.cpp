@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <absl/algorithm/container.h>
+
 #include <gtest/gtest.h>
 
 #include "nuri/eigen_config.h"

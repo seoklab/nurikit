@@ -17,11 +17,8 @@ else()
 endif()
 
 set(nuri_public_include_dirs "${NURI_INCLUDE_DIRECTORIES}")
-get_target_property(nuri_lib_include_dirs
-  nuri_lib INTERFACE_INCLUDE_DIRECTORIES)
-list(APPEND nuri_public_include_dirs
-  ${nuri_lib_include_dirs}
-  "${PROJECT_SOURCE_DIR}/third-party/abseil-cpp")
+get_target_property(nuri_lib_include_dirs nuri_lib INTERFACE_INCLUDE_DIRECTORIES)
+list(APPEND nuri_public_include_dirs ${nuri_lib_include_dirs})
 list(JOIN nuri_public_include_dirs " " NURI_INCLUDE_PATHS)
 
 set(DOXYGEN_IN ${CMAKE_CURRENT_LIST_DIR}/Doxyfile.in)

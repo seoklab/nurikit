@@ -11,12 +11,11 @@
 #include <tuple>
 #include <utility>
 
-#include <Eigen/Dense>
-
 #include <absl/algorithm/container.h>
 #include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
+#include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/geometry.h"

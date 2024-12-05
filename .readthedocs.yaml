@@ -11,12 +11,10 @@ submodules:
 build:
   os: ubuntu-22.04
   tools:
-    python: "3.8"
+    python: "mambaforge-23.11"
   apt_packages:
     - build-essential
-    - cmake
     - ninja-build
-    - libeigen3-dev
     - doxygen
     - graphviz
   jobs:
@@ -40,10 +38,13 @@ build:
           -DNURI_OPTIMIZATION_LEVEL=O0
       - cmake --build build --target nuri_docs
 
+conda:
+  environment: docs/environment.yaml
+
 python:
   install:
     - method: pip
-      path: .
+      path: "."
       extra_requirements:
         - docs
 

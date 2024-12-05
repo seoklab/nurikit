@@ -19,8 +19,6 @@
 #include <utility>
 #include <vector>
 
-#include <Eigen/Dense>
-
 #include <absl/algorithm/container.h>
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
@@ -33,6 +31,7 @@
 #include <absl/strings/numbers.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_format.h>
+#include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
 #include "nuri/algo/guess.h"

@@ -113,6 +113,7 @@ if(CMAKE_BUILD_TYPE MATCHES "Release|MinSizeRel")
 endif()
 
 add_subdirectory(third-party EXCLUDE_FROM_ALL)
+find_or_fetch_abseil()
 
 add_compile_options(
   -pedantic

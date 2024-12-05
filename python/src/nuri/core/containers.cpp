@@ -10,13 +10,12 @@
 #include <utility>
 #include <vector>
 
+#include <absl/algorithm/container.h>
 #include <pybind11/attr.h>
 #include <pybind11/cast.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/typing.h>
-
-#include <absl/algorithm/container.h>
 
 #include "nuri/python/config.h"
 #include "nuri/python/utils.h"

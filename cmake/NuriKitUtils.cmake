@@ -7,7 +7,6 @@ macro(_nuri_get_git_version_impl)
   find_package(Git)
 
   if(NOT Git_FOUND)
-    message(WARNING "Git not found!")
     return()
   endif()
 
@@ -161,7 +160,7 @@ function(find_or_fetch_pybind11)
     cmake_policy(SET CMP0148 NEW)
   endif()
 
-  find_package(pybind11 2.13)
+  find_package(pybind11 2.13 QUIET)
 
   if(pybind11_FOUND)
     message(STATUS "Found pybind11 ${pybind11_VERSION}")
@@ -178,6 +177,37 @@ function(find_or_fetch_pybind11)
   endif()
 endfunction()
 
+function(find_or_fetch_abseil)
+  set(BUILD_TESTING OFF)
+  set(BUILD_SHARED_LIBS OFF)
+  set(ABSL_BUILD_TESTING OFF)
+  set(ABSL_PROPAGATE_CXX_STD ON)
+  set(ABSL_USE_SYSTEM_INCLUDES ON)
+
+  if(NURI_ENABLE_SANITIZERS)
+    message(
+      NOTICE
+      "abseil must be built with sanitizers enabled; ignoring system abseil"
+    )
+  else()
+    find_package(absl QUIET)
+  endif()
+
+  # 20240116 required for VLOG()
+  if(absl_FOUND AND absl_VERSION VERSION_GREATER_EQUAL 20240116)
+    message(STATUS "Found abseil ${absl_VERSION}")
+  else()
+    include(FetchContent)
+    message(NOTICE "Could not find compatible abseil. Fetching from github.")
+
+    Fetchcontent_Declare(
+      absl
+      URL https://github.com/abseil/abseil-cpp/releases/download/20240722.0/abseil-cpp-20240722.0.tar.gz
+    )
+    nuri_make_available_deponly(absl)
+  endif()
+endfunction()
+
 function(handle_boost_dependency target)
   set(BUILD_TESTING OFF)
 
@@ -186,7 +216,7 @@ function(handle_boost_dependency target)
     cmake_policy(SET CMP0167 NEW)
   endif()
 
-  find_package(Boost 1.82)
+  find_package(Boost 1.82 QUIET)
 
   if(Boost_FOUND)
     message(STATUS "Found Boost ${Boost_VERSION}")
