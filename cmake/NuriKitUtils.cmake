@@ -179,11 +179,19 @@ endfunction()
 
 function(find_or_fetch_abseil)
   set(BUILD_TESTING OFF)
+  set(BUILD_SHARED_LIBS ON)
   set(ABSL_BUILD_TESTING OFF)
   set(ABSL_PROPAGATE_CXX_STD ON)
   set(ABSL_USE_SYSTEM_INCLUDES ON)
 
-  find_package(absl QUIET)
+  if(NURI_ENABLE_SANITIZERS)
+    message(
+      NOTICE
+      "abseil must be built with sanitizers enabled; ignoring system abseil"
+    )
+  else()
+    find_package(absl QUIET)
+  endif()
 
   # 20240116 required for VLOG()
   if(absl_FOUND AND absl_VERSION VERSION_GREATER_EQUAL 20240116)
@@ -196,7 +204,7 @@ function(find_or_fetch_abseil)
       absl
       URL https://github.com/abseil/abseil-cpp/releases/download/20240722.0/abseil-cpp-20240722.0.tar.gz
     )
-    nuri_make_available_deponly(absl)
+    FetchContent_MakeAvailable(absl)
   endif()
 endfunction()
 
