@@ -243,3 +243,18 @@ function(set_sanitizer_envs)
     "LD_PRELOAD=${asan_lib_path} ${ubsan_lib_path} $ENV{LD_PRELOAD}"
     PARENT_SCOPE)
 endfunction()
+
+function(clear_coverage_data target)
+  if(NOT NURI_TEST_COVERAGE)
+    return()
+  endif()
+
+  add_custom_command(
+    TARGET "${target}"
+    POST_BUILD
+    COMMAND "${CMAKE_COMMAND}"
+    "-DNURI_COVERAGE_DATA_DIR=${CMAKE_CURRENT_BINARY_DIR}"
+    -P "${PROJECT_SOURCE_DIR}/cmake/NuriKitClearCoverage.cmake"
+    VERBATIM
+  )
+endfunction()
