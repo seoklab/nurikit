@@ -177,6 +177,29 @@ function(find_or_fetch_pybind11)
   endif()
 endfunction()
 
+function(find_or_fetch_abseil)
+  set(BUILD_TESTING OFF)
+  set(ABSL_BUILD_TESTING OFF)
+  set(ABSL_PROPAGATE_CXX_STD ON)
+  set(ABSL_USE_SYSTEM_INCLUDES ON)
+
+  find_package(absl QUIET)
+
+  # 20240116 required for VLOG()
+  if(absl_FOUND AND absl_VERSION VERSION_GREATER_EQUAL 20240116)
+    message(STATUS "Found abseil ${absl_VERSION}")
+  else()
+    include(FetchContent)
+    message(NOTICE "Could not find compatible abseil. Fetching from github.")
+
+    Fetchcontent_Declare(
+      absl
+      URL https://github.com/abseil/abseil-cpp/releases/download/20240722.0/abseil-cpp-20240722.0.tar.gz
+    )
+    nuri_make_available_deponly(absl)
+  endif()
+endfunction()
+
 function(handle_boost_dependency target)
   set(BUILD_TESTING OFF)
 
