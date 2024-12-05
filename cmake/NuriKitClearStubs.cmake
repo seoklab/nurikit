@@ -8,14 +8,14 @@ if(NOT CMAKE_SCRIPT_MODE_FILE)
   return()
 endif()
 
-if(NOT CMAKE_ARGV1)
+if(NOT NURI_STUBS_DIR)
   message(FATAL_ERROR "No parent directory provided.")
 endif()
 
-file(GLOB_RECURSE nuri_stubs LIST_DIRECTORIES OFF "${CMAKE_ARGV1}/*.pyi")
+file(GLOB_RECURSE nuri_stubs LIST_DIRECTORIES OFF "${NURI_STUBS_DIR}/*.pyi")
 
 if(nuri_stubs)
-  list(JOIN nuri_stubs ", \n" nuri_stubs_msg)
-  message(NOTICE "Removing the following stubs:\n${nuri_stubs_msg}")
+  list(JOIN nuri_stubs "\n\t" nuri_stubs_msg)
+  message(NOTICE "Removing the following stubs:\n\t${nuri_stubs_msg}")
   file(REMOVE ${nuri_stubs})
 endif()
