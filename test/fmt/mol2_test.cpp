@@ -1652,6 +1652,29 @@ NO_CHARGES
 @<TRIPOS>SUBSTRUCTURE
 1 UNK 1
 )mol2");
+
+  mol2.clear();
+  write_mol2(mol2, mol(), -1, false);
+  NURI_EXPECT_STRTRIM_EQ(mol2, R"mol2(@<TRIPOS>MOLECULE
+imidazole
+5 5 1 0 0
+SMALL
+NO_CHARGES
+****
+
+@<TRIPOS>ATOM
+1 N1  0.002 -0.004  0.002 N.ar  1 UNK 0.000
+2 C1 -0.017  1.365  0.009 C.ar  1 UNK 0.000
+3 C2  1.267  1.772 -0.001 C.ar  1 UNK 0.000
+4 N2  2.048  0.681 -0.014 N.ar  1 UNK 0.000
+5 C3  1.297 -0.386 -0.012 C.ar  1 UNK 0.000
+@<TRIPOS>BOND
+1 1 5 1
+2 1 2 1
+3 2 3 2
+4 3 4 1
+5 4 5 2
+)mol2");
 }
 
 TEST_F(Mol2Test, Write2D) {
