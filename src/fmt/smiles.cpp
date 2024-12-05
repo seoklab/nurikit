@@ -50,9 +50,6 @@ bool SmilesReader::getnext(std::vector<std::string> &block) {
   return static_cast<bool>(*is_);
 }
 
-const bool SmilesReaderFactory::kRegistered =
-    register_reader_factory<SmilesReaderFactory>({ "smi", "smiles" });
-
 namespace {
 namespace x3 = boost::spirit::x3;
 

@@ -9,8 +9,6 @@
 /// @cond
 #include <string>
 #include <vector>
-
-#include <absl/base/attributes.h>
 /// @endcond
 
 #include "nuri/core/molecule.h"
@@ -38,10 +36,7 @@ private:
   std::vector<std::string> rfooter_;
 };
 
-class PDBReaderFactory: public DefaultReaderFactoryImpl<PDBReader> {
-private:
-  static const bool kRegistered ABSL_ATTRIBUTE_UNUSED;
-};
+class PDBReaderFactory: public DefaultReaderFactoryImpl<PDBReader> { };
 }  // namespace nuri
 
 #endif /* NURI_FMT_PDB_H_ */

@@ -9,8 +9,6 @@
 /// @cond
 #include <string>
 #include <vector>
-
-#include <absl/base/attributes.h>
 /// @endcond
 
 #include "nuri/core/molecule.h"
@@ -34,10 +32,7 @@ public:
   bool sanitized() const override { return false; }
 };
 
-class SDFReaderFactory: public DefaultReaderFactoryImpl<SDFReader> {
-private:
-  static const bool kRegistered ABSL_ATTRIBUTE_UNUSED;
-};
+class SDFReaderFactory: public DefaultReaderFactoryImpl<SDFReader> { };
 
 enum class SDFVersion {
   kAutomatic,

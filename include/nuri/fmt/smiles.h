@@ -9,8 +9,6 @@
 /// @cond
 #include <string>
 #include <vector>
-
-#include <absl/base/attributes.h>
 /// @endcond
 
 #include "nuri/core/molecule.h"
@@ -36,10 +34,7 @@ public:
   bool sanitized() const override { return false; }
 };
 
-class SmilesReaderFactory: public DefaultReaderFactoryImpl<SmilesReader> {
-private:
-  static const bool kRegistered ABSL_ATTRIBUTE_UNUSED;
-};
+class SmilesReaderFactory: public DefaultReaderFactoryImpl<SmilesReader> { };
 
 extern bool write_smiles(std::string &out, const Molecule &mol,
                          bool canonical = false);

@@ -101,9 +101,6 @@ bool Mol2Reader::getnext(std::vector<std::string> &block) {
   return advance_header_unread(*is_, block, read_mol_header_);
 }
 
-const bool Mol2ReaderFactory::kRegistered =
-    register_reader_factory<Mol2ReaderFactory>({ "mol2" });
-
 namespace {
 namespace x3 = boost::spirit::x3;
 

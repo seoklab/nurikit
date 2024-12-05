@@ -58,9 +58,6 @@ bool SDFReader::getnext(std::vector<std::string> &block) {
   return !block.empty();
 }
 
-const bool SDFReaderFactory::kRegistered =
-    register_reader_factory<SDFReaderFactory>({ "mol", "sdf" });
-
 namespace {
 namespace x3 = boost::spirit::x3;
 

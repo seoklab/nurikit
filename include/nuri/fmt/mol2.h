@@ -9,8 +9,6 @@
 /// @cond
 #include <string>
 #include <vector>
-
-#include <absl/base/attributes.h>
 /// @endcond
 
 #include "nuri/core/molecule.h"
@@ -37,10 +35,7 @@ private:
   bool read_mol_header_ = false;
 };
 
-class Mol2ReaderFactory: public DefaultReaderFactoryImpl<Mol2Reader> {
-private:
-  static const bool kRegistered ABSL_ATTRIBUTE_UNUSED;
-};
+class Mol2ReaderFactory: public DefaultReaderFactoryImpl<Mol2Reader> { };
 
 extern bool write_mol2(std::string &out, const Molecule &mol, int conf = -1,
                        bool write_sub = true);

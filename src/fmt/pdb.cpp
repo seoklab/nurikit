@@ -2286,7 +2286,4 @@ Molecule read_pdb(const std::vector<std::string> &pdb) {
 
   return mol;
 }
-
-const bool PDBReaderFactory::kRegistered =
-    register_reader_factory<PDBReaderFactory>({ "pdb" });
 }  // namespace nuri
