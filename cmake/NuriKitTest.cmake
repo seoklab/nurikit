@@ -5,6 +5,7 @@
 
 if(NOT TARGET nuri_all_test)
   add_custom_target(nuri_all_test)
+  clear_coverage_data(nuri_all_test)
 
   if(BUILD_TESTING)
     set_target_properties(nuri_all_test PROPERTIES EXCLUDE_FROM_ALL OFF)
