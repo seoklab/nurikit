@@ -13,6 +13,8 @@
 
 #include <gtest/gtest.h>
 
+#include "nuri/fmt/sdf.h"
+
 namespace nuri {
 namespace {
 TEST(ReversedStreamTest, HandleEmptyFile) {
@@ -101,6 +103,47 @@ TEST(EscapeTest, EscapeNewlines) {
   std::string_view unsafe = "  a\nb\tc\rd e \xf0\x9f\x91\x8d  ";
   std::string escaped = internal::ascii_newline_safe(unsafe);
   EXPECT_EQ(escaped, "  a b\tc d e ????  ");
+}
+
+class DummyReader: public MoleculeReader {
+public:
+  DummyReader(std::istream & /* is */) { }
+
+  bool getnext(std::vector<std::string> & /* block */) override {
+    return false;
+  }
+
+  Molecule parse(const std::vector<std::string> & /* block */) const override {
+    return {};
+  }
+
+  bool sanitized() const override { return true; }
+};
+
+class DummyReaderFactory: public DefaultReaderFactoryImpl<DummyReader> { };
+
+TEST(ReaderFactoryTest, CanFindFactory) {
+  const MoleculeReaderFactory *factory =
+      MoleculeReaderFactory::find_factory("sdf");
+  ASSERT_NE(factory, nullptr);
+  EXPECT_EQ(typeid(*factory), typeid(SDFReaderFactory));
+}
+
+TEST(ReaderFactoryTest, CanRegisterFactory) {
+  const MoleculeReaderFactory *factory =
+      MoleculeReaderFactory::find_factory("dummy");
+  ASSERT_EQ(factory, nullptr);
+
+  MoleculeReaderFactory::register_factory(
+      std::make_unique<DummyReaderFactory>(), { "dummy" });
+  factory = MoleculeReaderFactory::find_factory("dummy");
+  ASSERT_NE(factory, nullptr);
+  EXPECT_EQ(typeid(*factory), typeid(DummyReaderFactory));
+
+  factory->register_for("also-dummy");
+  factory = MoleculeReaderFactory::find_factory("also-dummy");
+  ASSERT_NE(factory, nullptr);
+  EXPECT_EQ(typeid(*factory), typeid(DummyReaderFactory));
 }
 }  // namespace
 }  // namespace nuri
