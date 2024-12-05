@@ -178,12 +178,6 @@ function(find_or_fetch_pybind11)
 endfunction()
 
 function(find_or_fetch_abseil)
-  set(BUILD_TESTING OFF)
-  set(BUILD_SHARED_LIBS ON)
-  set(ABSL_BUILD_TESTING OFF)
-  set(ABSL_PROPAGATE_CXX_STD ON)
-  set(ABSL_USE_SYSTEM_INCLUDES ON)
-
   if(NURI_ENABLE_SANITIZERS)
     message(
       NOTICE
@@ -200,11 +194,17 @@ function(find_or_fetch_abseil)
     include(FetchContent)
     message(NOTICE "Could not find compatible abseil. Fetching from github.")
 
+    set(BUILD_TESTING OFF)
+    set(BUILD_SHARED_LIBS OFF)
+    set(ABSL_BUILD_TESTING OFF)
+    set(ABSL_PROPAGATE_CXX_STD ON)
+    set(ABSL_USE_SYSTEM_INCLUDES ON)
+
     Fetchcontent_Declare(
       absl
       URL https://github.com/abseil/abseil-cpp/releases/download/20240722.0/abseil-cpp-20240722.0.tar.gz
     )
-    FetchContent_MakeAvailable(absl)
+    nuri_make_available_deponly(absl)
   endif()
 endfunction()
 
