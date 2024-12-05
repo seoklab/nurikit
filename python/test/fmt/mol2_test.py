@@ -130,3 +130,6 @@ def test_mol2_options(mol3d: Molecule):
 
     with pytest.raises(IndexError):
         mol2s = nuri.to_mol2(mol3d, conf=2)
+
+    mol2s = nuri.to_mol2(mol3d, write_sub=False)
+    assert "@<TRIPOS>SUBSTRUCTURE" not in mol2s
