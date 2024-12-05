@@ -42,7 +42,8 @@ private:
   static const bool kRegistered ABSL_ATTRIBUTE_UNUSED;
 };
 
-extern bool write_mol2(std::string &out, const Molecule &mol, int conf = -1);
+extern bool write_mol2(std::string &out, const Molecule &mol, int conf = -1,
+                       bool write_sub = true);
 }  // namespace nuri
 
 #endif /* NURI_FMT_MOL2_H_ */
