@@ -47,17 +47,20 @@ namespace {
       if (seeded_)
         return;
 
-      rng.seed(seed_);
+      rng().seed(seed_);
       seeded_ = true;
     }
 
     double uniform_real(double lo, double hi) const {
       ABSL_DCHECK(seeded_);
-      return std::uniform_real_distribution<double>(lo, hi)(rng);
+      return std::uniform_real_distribution<double>(lo, hi)(rng());
     }
 
   private:
-    inline static thread_local std::mt19937 rng;
+    static std::mt19937 &rng() {
+      thread_local std::mt19937 my_rng;
+      return my_rng;
+    }
 
     int seed_;
     bool seeded_ = false;

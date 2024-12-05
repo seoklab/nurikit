@@ -27,6 +27,7 @@
 #include <absl/log/absl_log.h>
 #include <absl/strings/ascii.h>
 #include <absl/strings/str_cat.h>
+#include <absl/strings/str_format.h>
 #include <absl/types/span.h>
 #include <boost/fusion/include/at_c.hpp>
 #include <boost/fusion/include/deque.hpp>
@@ -79,54 +80,43 @@ char flip_bond_updown(char orig) {
 // NOLINTBEGIN(clang-diagnostic-unneeded-internal-declaration)
 
 namespace parser {
-const struct aliphatic_organic_: public x3::symbols<const Element *> {
+const struct aliphatic_organic_: public x3::symbols<int> {
   aliphatic_organic_() {
-    for (const std::string_view symbol:
-         { "Cl", "Br", "B", "C", "N", "O", "F", "P", "S", "I", "*" }) {
-      const Element *elem = PeriodicTable::get().find_element(symbol);
-      // GCOV_EXCL_START
-      ABSL_DCHECK(elem != nullptr) << "Element not found: " << symbol;
-      // GCOV_EXCL_STOP
-      add(symbol, elem);
-    }
+    add("Cl", 17);
+    add("Br", 35);
+    add("B", 5);
+    add("C", 6);
+    add("N", 7);
+    add("O", 8);
+    add("F", 9);
+    add("P", 15);
+    add("S", 16);
+    add("I", 53);
+    add("*", 0);
   }
 } aliphatic_organic;
 
-const struct aromatic_organic_: public x3::symbols<const Element *> {
+const struct aromatic_organic_: public x3::symbols<int> {
   aromatic_organic_() {
-    for (const std::string_view symbol: { "B", "C", "N", "O", "P", "S" }) {
-      const Element *elem = PeriodicTable::get().find_element(symbol);
-      // GCOV_EXCL_START
-      ABSL_DCHECK(elem != nullptr) << "Element not found: " << symbol;
-      // GCOV_EXCL_STOP
-      add(absl::AsciiStrToLower(symbol), elem);
-    }
+    add("b", 5);
+    add("c", 6);
+    add("n", 7);
+    add("o", 8);
+    add("p", 15);
+    add("s", 16);
   }
 } aromatic_organic;
 
-const struct element_symbol_: public x3::symbols<const Element *> {
-  element_symbol_() {
-    // General element symbols
-    for (const Element &e: PeriodicTable::get()) {
-      add(e.symbol(), &e);
-    }
-
-    // Dummy atom
-    add("*", &PeriodicTable::get()[0]);
-  }
-} element_symbol;
-
-const struct aromatic_symbol_: public x3::symbols<const Element *> {
+const struct aromatic_symbol_: public x3::symbols<int> {
   aromatic_symbol_() {
-    // Aromatic symbols
-    for (const std::string_view symbol:
-         { "Se", "As", "B", "C", "N", "O", "P", "S" }) {
-      const Element *elem = PeriodicTable::get().find_element(symbol);
-      // GCOV_EXCL_START
-      ABSL_DCHECK(elem != nullptr) << "Element not found: " << symbol;
-      // GCOV_EXCL_STOP
-      add(absl::AsciiStrToLower(symbol), elem);
-    }
+    add("se", 34);
+    add("as", 33);
+    add("b", 5);
+    add("c", 6);
+    add("n", 7);
+    add("o", 8);
+    add("p", 15);
+    add("s", 16);
   }
 } aromatic_symbol;
 
@@ -260,14 +250,14 @@ int add_bond(MoleculeMutator &mutator, ImplicitAromatics &aromatics,
 }
 
 template <class Ctx>
-int add_atom(Ctx &ctx, const Element *elem, bool aromatic) {
+int add_atom(Ctx &ctx, const Element &elem, bool aromatic) {
   MoleculeMutator &mutator = x3::get<mutator_tag>(ctx);
 
-  const int idx = mutator.add_atom(AtomData(*elem));
+  const int idx = mutator.add_atom(AtomData(elem));
   mutator.mol().atom(idx).data().set_aromatic(aromatic);
 
   ABSL_DVLOG(3) << "Adding " << (aromatic ? "aromatic " : "") << "atom " << idx
-                << " (" << elem->symbol() << ')';
+                << " (" << elem.symbol() << ')';
 
   const int last_idx = get_last_idx(ctx);
   const char last_bond_data = x3::get<last_bond_data_tag>(ctx);
@@ -295,11 +285,11 @@ int add_atom(Ctx &ctx, const Element *elem, bool aromatic) {
   return idx;
 }
 
-template <class Ctx, class Payload>
-void add_bracket_atom(Ctx &ctx, const Payload &payload, bool aromatic) {
-  using boost::fusion::at_c;
-
-  const int idx = add_atom(ctx, at_c<1>(payload), aromatic);
+template <class Ctx>
+void add_bracket_atom(Ctx &ctx,
+                      const boost::optional<unsigned int> &maybe_isotope,
+                      const Element &elem, bool aromatic) {
+  const int idx = add_atom(ctx, elem, aromatic);
   if (ABSL_PREDICT_FALSE(idx < 0)) {
     // Failed to add atom.
     return;
@@ -307,17 +297,11 @@ void add_bracket_atom(Ctx &ctx, const Payload &payload, bool aromatic) {
 
   x3::get<has_hydrogens_tag>(ctx).get().push_back(idx);
 
-  auto &maybe_isotope = at_c<0>(x3::_attr(ctx));
   if (maybe_isotope) {
     MoleculeMutator &mutator = x3::get<mutator_tag>(ctx);
-    mutator.mol().atom(idx).data().set_isotope(*maybe_isotope);
+    mutator.mol().atom(idx).data().set_isotope(
+        static_cast<int>(*maybe_isotope));
   }
-}
-
-constexpr auto bracket_atom_adder(bool is_aromatic) {
-  return [is_aromatic](auto &ctx) {
-    add_bracket_atom(ctx, x3::_attr(ctx), is_aromatic);
-  };
 }
 
 constexpr auto update_chirality = [](auto &ctx) {
@@ -339,10 +323,40 @@ constexpr auto set_atom_class = [](auto &) {
   ABSL_LOG(WARNING) << "Atom classes are currently not implemented";
 };
 
+constexpr auto add_element_bracket = [](auto &ctx) {
+  using boost::fusion::at_c;
+  auto &payload = x3::_attr(ctx);
+
+  std::string symbol =
+      absl::StrFormat("%c%s", at_c<1>(payload), at_c<2>(payload));
+  const Element *elem = PeriodicTable::get().find_element(symbol);
+  if (ABSL_PREDICT_FALSE(elem == nullptr)) {
+    ABSL_LOG(WARNING) << "Failed to find element " << symbol;
+    x3::_pass(ctx) = false;
+    return;
+  }
+
+  add_bracket_atom(ctx, at_c<0>(payload), *elem, false);
+};
+
+constexpr auto add_dummy_bracket = [](auto &ctx) {
+  add_bracket_atom(ctx, x3::_attr(ctx), PeriodicTable::get()[0], false);
+};
+
+constexpr auto add_aromatic_bracket = [](auto &ctx) {
+  using boost::fusion::at_c;
+  auto &payload = x3::_attr(ctx);
+
+  const PeriodicTable &pt = PeriodicTable::get();
+  add_bracket_atom(ctx, at_c<0>(payload), pt[at_c<1>(payload)], true);
+};
+
 const auto bracket_atom =  //
-    x3::lit('[')
-    >> ((-x3::uint_ >> element_symbol)[bracket_atom_adder(false)]
-        | (-x3::uint_ >> aromatic_symbol)[bracket_atom_adder(true)])
+    x3::lit('[') >> (      //
+        (-x3::uint_ >> aromatic_symbol)[add_aromatic_bracket]
+        | (-x3::uint_ >> x3::upper
+           >> x3::repeat(0, 2)[x3::lower])[add_element_bracket]
+        | (-x3::uint_ >> "*")[add_dummy_bracket])
     >> -chirality[update_chirality] >> -hydrogen >> -charge
     >> -(x3::lit(':') >> x3::int_)[set_atom_class] >> x3::lit(']');
 
@@ -452,8 +466,10 @@ const auto ring_bond = (bond | implicit_bond)
                            | '%' >> (x3::digit >> x3::digit)[set_ring_digits]);
 
 constexpr auto organic_atom_adder(bool is_aromatic) {
-  return
-      [is_aromatic](auto &ctx) { add_atom(ctx, x3::_attr(ctx), is_aromatic); };
+  return [is_aromatic](auto &ctx) {
+    const PeriodicTable &pt = PeriodicTable::get();
+    add_atom(ctx, pt[x3::_attr(ctx)], is_aromatic);
+  };
 }
 
 const auto atom = aliphatic_organic[organic_atom_adder(false)]
