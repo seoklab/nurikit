@@ -228,6 +228,8 @@ std::pair<bool, bool> parse_atom_block(
     absl::flat_hash_map<unsigned int, std::pair<std::vector<int>, std::string>>
         &substructs,
     Iter &it, const Iter end) {
+  const PeriodicTable &pt = PeriodicTable::get();
+
   parser::AtomLine tokens;
   bool has_hydrogen = false;
 
@@ -251,10 +253,10 @@ std::pair<bool, bool> parse_atom_block(
     pos.push_back(Vector3d(std::get<2>(tokens).data()));
 
     std::string_view atom_sym = std::get<3>(tokens);
-    const Element *elem = PeriodicTable::get().find_element(atom_sym);
+    const Element *elem = pt.find_element(atom_sym);
     if (elem == nullptr) {
       std::string sym_upper = absl::AsciiStrToUpper(atom_sym);
-      elem = PeriodicTable::get().find_element(sym_upper);
+      elem = pt.find_element(sym_upper);
       if (elem == nullptr) {
         if (sym_upper == "LP") {
           ABSL_LOG(INFO) << "Lone pair support not implemented yet";
@@ -267,7 +269,7 @@ std::pair<bool, bool> parse_atom_block(
           return { false, false };
         }
 
-        elem = &PeriodicTable::get()[0];
+        elem = &pt[0];
       }
     }
 
