@@ -7,7 +7,6 @@ macro(_nuri_get_git_version_impl)
   find_package(Git)
 
   if(NOT Git_FOUND)
-    message(WARNING "Git not found!")
     return()
   endif()
 
@@ -161,7 +160,7 @@ function(find_or_fetch_pybind11)
     cmake_policy(SET CMP0148 NEW)
   endif()
 
-  find_package(pybind11 2.13)
+  find_package(pybind11 2.13 QUIET)
 
   if(pybind11_FOUND)
     message(STATUS "Found pybind11 ${pybind11_VERSION}")
@@ -186,7 +185,7 @@ function(handle_boost_dependency target)
     cmake_policy(SET CMP0167 NEW)
   endif()
 
-  find_package(Boost 1.82)
+  find_package(Boost 1.82 QUIET)
 
   if(Boost_FOUND)
     message(STATUS "Found Boost ${Boost_VERSION}")
