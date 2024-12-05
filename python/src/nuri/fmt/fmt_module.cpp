@@ -201,16 +201,18 @@ Convert a molecule to SMILES string.
 )doc")
       .def(
           "to_mol2",
-          [](const PyMol &mol, std::optional<int> oconf) {
+          [](const PyMol &mol, std::optional<int> oconf, bool write_sub) {
             int conf = writer_check_conf(*mol, oconf);
-            return try_write(*mol, "Mol2", write_mol2, conf);
+            return try_write(*mol, "Mol2", write_mol2, conf, write_sub);
           },
-          py::arg("mol"), py::arg("conf") = py::none(), kThreadSafe, R"doc(
+          py::arg("mol"), py::arg("conf") = py::none(),
+          py::arg("write_sub") = true, kThreadSafe, R"doc(
 Convert a molecule to Mol2 string.
 
 :param mol: The molecule to convert.
 :param conf: The conformation to convert. If not specified, writes all
   conformations. Ignored if the molecule has no conformations.
+:param write_sub: Whether to write the substructures.
 :raises IndexError: If the molecule has any conformations and `conf` is out of
   range.
 :raises ValueError: If the conversion fails.

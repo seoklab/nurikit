@@ -1047,7 +1047,7 @@ void write_substructs(std::string &out, const int atom_id_width,
 
 template <bool is_3d>
 void write_mol2_single_conf(std::string &out, const Molecule &mol, int conf,
-                            const int atom_id_width,
+                            const bool write_sub, const int atom_id_width,
                             const Array4i &extra_atom_widths,
                             const int bond_id_width, const int sub_id_width,
                             const int sub_name_width,
@@ -1084,12 +1084,15 @@ NO_CHARGES
   write_atoms<is_3d>(out, mol, conf, atom_id_width, extra_atom_widths,
                      atom_names, atom_types, sub_info, sub_names);
   write_bonds(out, mol, atom_id_width, bond_id_width);
-  write_substructs(out, atom_id_width, sub_id_width, sub_name_width, sub_info,
-                   sub_names);
+
+  if (write_sub)
+    write_substructs(out, atom_id_width, sub_id_width, sub_name_width, sub_info,
+                     sub_names);
 }
 }  // namespace
 
-bool write_mol2(std::string &out, const Molecule &mol, int conf) {
+bool write_mol2(std::string &out, const Molecule &mol, int conf,
+                bool write_sub) {
   int atom_id_width = width_of_size(mol.num_atoms()),
       bond_id_width = width_of_size(mol.num_bonds());
 
@@ -1123,21 +1126,21 @@ bool write_mol2(std::string &out, const Molecule &mol, int conf) {
       mol, atom_names, substruct_id_width, substruct_name_width);
 
   if (!mol.is_3d()) {
-    write_mol2_single_conf<false>(out, mol, -1, atom_id_width,
+    write_mol2_single_conf<false>(out, mol, -1, write_sub, atom_id_width,
                                   extra_atom_col_widths, bond_id_width,
                                   substruct_id_width, substruct_name_width,
                                   atom_names, atom_types, subs_info,
                                   substruct_names);
   } else if (conf < 0) {
     for (int i = 0; i < mol.confs().size(); ++i) {
-      write_mol2_single_conf<true>(out, mol, i, atom_id_width,
+      write_mol2_single_conf<true>(out, mol, i, write_sub, atom_id_width,
                                    extra_atom_col_widths, bond_id_width,
                                    substruct_id_width, substruct_name_width,
                                    atom_names, atom_types, subs_info,
                                    substruct_names);
     }
   } else {
-    write_mol2_single_conf<true>(out, mol, conf, atom_id_width,
+    write_mol2_single_conf<true>(out, mol, conf, write_sub, atom_id_width,
                                  extra_atom_col_widths, bond_id_width,
                                  substruct_id_width, substruct_name_width,
                                  atom_names, atom_types, subs_info,
