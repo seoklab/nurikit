@@ -114,7 +114,13 @@ endif()
 
 add_subdirectory(third-party EXCLUDE_FROM_ALL)
 
-add_compile_options(-pedantic -Wall -Wextra -Wno-sign-compare)
+add_compile_options(
+  -pedantic
+  -Wall
+  -Wextra
+  -Wno-sign-compare
+  -Wno-nullable-to-nonnull-conversion # abseil/abseil-cpp#1793
+)
 set(NURI_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_LIST_DIR}/include")
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug"

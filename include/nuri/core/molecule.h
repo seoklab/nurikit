@@ -2442,7 +2442,10 @@ inline int steric_number(Molecule::Atom atom) {
  *         number of (original atomic number) - (formal charge). If the
  *         resulting atomic number is out of range, returns nullptr.
  */
-extern const Element *effective_element(const AtomData &data);
+inline const Element *effective_element(const AtomData &data) {
+  const int effective_z = data.atomic_number() - data.formal_charge();
+  return kPt.find_element(effective_z);
+}
 
 /**
  * @brief Get "effective" element of the atom.
