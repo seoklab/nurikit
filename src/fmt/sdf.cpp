@@ -135,13 +135,15 @@ HeaderReadResult read_sdf_header(Molecule &mol, Iterator &it,
 }
 
 bool parse_sdf_atom(AtomData &data, std::string_view elem_str) {
-  const Element *elem = kPt.find_element(elem_str);
+  const PeriodicTable &pt = PeriodicTable::get();
+
+  const Element *elem = pt.find_element(elem_str);
   if (elem == nullptr) {
     if (elem_str == "D") {
-      elem = &kPt[1];
+      elem = &pt[1];
       data.set_isotope(*elem->find_isotope(2));
     } else if (elem_str == "T") {
-      elem = &kPt[1];
+      elem = &pt[1];
       data.set_isotope(*elem->find_isotope(3));
     }
   }

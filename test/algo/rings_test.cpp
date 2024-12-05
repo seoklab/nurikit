@@ -26,12 +26,14 @@ class IndoleRingTest: public ::testing::Test {
 protected:
   static void SetUpTestSuite() {
     {
+      const PeriodicTable &pt = PeriodicTable::get();
+
       auto m = mol_.mutator();
 
       for (int i = 0; i < 8; ++i) {
-        m.add_atom(kPt[6]);
+        m.add_atom(pt[6]);
       }
-      m.add_atom(kPt[7]);
+      m.add_atom(pt[7]);
       for (int i = 0; i < 9; ++i) {
         mol_.atom(i).data().set_implicit_hydrogens(1);
       }
@@ -183,7 +185,7 @@ protected:
   static void SetUpTestSuite() {
     auto m = mol_.mutator();
     for (int i = 0; i < 8; ++i) {
-      m.add_atom(kPt[6]);
+      m.add_atom(PeriodicTable::get()[6]);
     }
     for (int i = 0; i < 8; ++i) {
       mol_.atom(i).data().set_implicit_hydrogens(1);

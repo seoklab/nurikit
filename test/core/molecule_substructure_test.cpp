@@ -50,20 +50,22 @@ protected:
    *
    */
   void SetUp() override {
+    const PeriodicTable &pt = PeriodicTable::get();
+
     mol_ = Molecule();
 
     {
       auto mutator = mol_.mutator();
 
-      mutator.add_atom({ kPt[6] });
-      mutator.add_atom({ kPt[6] });
-      mutator.add_atom({ kPt[6] });
-      mutator.add_atom({ kPt[6] });
-      mutator.add_atom({ kPt[7], 0, -1 });
+      mutator.add_atom({ pt[6] });
+      mutator.add_atom({ pt[6] });
+      mutator.add_atom({ pt[6] });
+      mutator.add_atom({ pt[6] });
+      mutator.add_atom({ pt[7], 0, -1 });
       for (int i = 5; i < 11; ++i) {
-        mutator.add_atom({ kPt[1] });
+        mutator.add_atom({ pt[1] });
       }
-      mutator.add_atom({ kPt[11], 0, +1 });
+      mutator.add_atom({ pt[11], 0, +1 });
 
       mutator.add_bond(0, 4, BondData { constants::kSingleBond });
       mutator.add_bond(3, 2, BondData { constants::kSingleBond });
@@ -390,20 +392,22 @@ protected:
    *
    */
   void SetUp() override {
+    const PeriodicTable &pt = PeriodicTable::get();
+
     mol_ = Molecule();
 
     {
       auto mutator = mol_.mutator();
 
-      mutator.add_atom({ kPt[6] });
-      mutator.add_atom({ kPt[6] });
-      mutator.add_atom({ kPt[6] });
-      mutator.add_atom({ kPt[6] });
-      mutator.add_atom({ kPt[7], 0, -1 });
+      mutator.add_atom({ pt[6] });
+      mutator.add_atom({ pt[6] });
+      mutator.add_atom({ pt[6] });
+      mutator.add_atom({ pt[6] });
+      mutator.add_atom({ pt[7], 0, -1 });
       for (int i = 5; i < 11; ++i) {
-        mutator.add_atom({ kPt[1] });
+        mutator.add_atom({ pt[1] });
       }
-      mutator.add_atom({ kPt[11], 0, +1 });
+      mutator.add_atom({ pt[11], 0, +1 });
 
       mutator.add_bond(0, 4, BondData { constants::kSingleBond });
       mutator.add_bond(3, 2, BondData { constants::kSingleBond });

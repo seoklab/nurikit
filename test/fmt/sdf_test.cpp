@@ -686,7 +686,7 @@ TEST_F(SDFTest, Write2D) {
   Molecule m;
   {
     auto mut = m.mutator();
-    mut.add_atom(kPt[6]);
+    mut.add_atom(PeriodicTable::get()[6]);
   }
 
   std::string sdf;
@@ -706,7 +706,7 @@ TEST_F(SDFTest, Write2D) {
 
 TEST_F(SDFTest, EscapeUnsafeChars) {
   Molecule m;
-  m.mutator().add_atom(kPt[6]);
+  m.mutator().add_atom(PeriodicTable::get()[6]);
   m.props().emplace_back("> unsafe key\n\n", "$$$$\n> a\n\nb\n");
 
   std::string sdf;
@@ -727,7 +727,7 @@ TEST(SDFFormatTest, AutoDetect) {
   {
     auto mut = mol.mutator();
     for (int i = 0; i < 999; ++i)
-      mut.add_atom(kPt[6]);
+      mut.add_atom(PeriodicTable::get()[6]);
   }
 
   std::string sdf;
@@ -737,7 +737,7 @@ TEST(SDFFormatTest, AutoDetect) {
       absl::StrSplit(sdf, absl::MaxSplits('\n', 5));
   EXPECT_PRED2(absl::EndsWith, lines[3], " V2000");
 
-  mol.mutator().add_atom(kPt[6]);
+  mol.mutator().add_atom(PeriodicTable::get()[6]);
   sdf.clear();
   ASSERT_TRUE(write_sdf(sdf, mol));
 
@@ -749,8 +749,8 @@ TEST(SDFFormatTest, V2000Correct) {
   Molecule mol;
   {
     auto mut = mol.mutator();
-    mut.add_atom(kPt[6]);
-    mut.add_atom(kPt[6]);
+    mut.add_atom(PeriodicTable::get()[6]);
+    mut.add_atom(PeriodicTable::get()[6]);
     mut.add_bond(0, 1, BondData(constants::kSingleBond));
   }
 
@@ -800,8 +800,8 @@ TEST(SDFFormatTest, V3000Correct) {
   Molecule mol;
   {
     auto mut = mol.mutator();
-    mut.add_atom(kPt[6]);
-    mut.add_atom(kPt[6]);
+    mut.add_atom(PeriodicTable::get()[6]);
+    mut.add_atom(PeriodicTable::get()[6]);
     mut.add_bond(0, 1, BondData(constants::kSingleBond));
   }
 

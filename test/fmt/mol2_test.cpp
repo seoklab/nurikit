@@ -1683,7 +1683,7 @@ TEST_F(Mol2Test, Write2D) {
   {
     auto mut = m.mutator();
     for (int i = 0; i < 6; ++i)
-      mut.add_atom(kPt[6]);
+      mut.add_atom(PeriodicTable::get()[6]);
     for (int i = 0; i < 5; ++i)
       mut.add_bond(i, i + 1, BondData { constants::kSingleBond });
   }

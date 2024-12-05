@@ -31,9 +31,11 @@ const Element &element_from_symbol_or_name(std::string_view symbol_or_name) {
   std::string arg(symbol_or_name);
   absl::AsciiStrToUpper(&arg);
 
-  const Element *elem = kPt.find_element(arg);
+  const PeriodicTable &pt = PeriodicTable::get();
+
+  const Element *elem = pt.find_element(arg);
   if (elem == nullptr) {
-    elem = kPt.find_element_of_name(arg);
+    elem = pt.find_element_of_name(arg);
     if (elem == nullptr)
       throw py::key_error(std::string(symbol_or_name));
   }
@@ -81,7 +83,7 @@ void bind_element(py::module &m) {
       .def_property_readonly(
           "element",
           [](const Isotope &self) -> const Element & {
-            return kPt[self.atomic_number];
+            return PeriodicTable::get()[self.atomic_number];
           },
           rvp::reference,
           R"doc(
@@ -264,13 +266,14 @@ Refer to the ``nuri::PeriodicTable`` class in the |cppdocs| for details.
           "__contains__",
           [](std::string arg) {
             absl::AsciiStrToUpper(&arg);
-            return kPt.has_element(arg) || kPt.has_element_of_name(arg);
+            const PeriodicTable &cpp_pt = PeriodicTable::get();
+            return cpp_pt.has_element(arg) || cpp_pt.has_element_of_name(arg);
           },
           asn)
       .def_static(
           "__getitem__",
           [](int z) {
-            const Element *elem = kPt.find_element(z);
+            const Element *elem = PeriodicTable::get().find_element(z);
             if (elem == nullptr)
               throw py::key_error(absl::StrCat(z));
             return elem;
@@ -287,12 +290,14 @@ Refer to the ``nuri::PeriodicTable`` class in the |cppdocs| for details.
     pt.def_static(
         "__iter__",
         []() {
-          return py::make_iterator(kPt.begin(), kPt.end(), rvp::reference);
+          const PeriodicTable &cpp_pt = PeriodicTable::get();
+          return py::make_iterator(cpp_pt.begin(), cpp_pt.end(),
+                                   rvp::reference);
         },
         "__iter__() -> typing.Iterator[Element]");
   }
 
-  m.attr("periodic_table") = py::cast(kPt, rvp::reference);
+  m.attr("periodic_table") = py::cast(PeriodicTable::get(), rvp::reference);
 }
 }  // namespace python_internal
 }  // namespace nuri

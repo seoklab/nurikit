@@ -410,7 +410,7 @@ void PyBond::rotate(double angle, bool reverse, bool strict,
 }
 
 const Element &get_or_throw_z(int z) {
-  const Element *elem = kPt.find_element(z);
+  const Element *elem = PeriodicTable::get().find_element(z);
   if (elem == nullptr)
     throw py::value_error(absl::StrCat("invalid atomic number: ", z));
   return *elem;

@@ -18,6 +18,7 @@
 
 #include "nuri/eigen_config.h"
 #include "fmt_test_common.h"
+#include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/pdb.h"
 #include "nuri/fmt/smiles.h"
@@ -82,24 +83,26 @@ class ARGTestParam: public AATestParam {
   const char *name() const override { return "ARG"; }
 
   Molecule templ() const override {
+    const PeriodicTable &pt = PeriodicTable::get();
+
     Molecule mol;
 
     auto mut = mol.mutator();
     mol.reserve(12);
     mol.reserve_bonds(11);
 
-    mut.add_atom(kPt[7]);  // N   (0)
-    mut.add_atom(kPt[6]);  // CA  (1)
-    mut.add_atom(kPt[6]);  // C   (2)
-    mut.add_atom(kPt[8]);  // O   (3)
-    mut.add_atom(kPt[6]);  // CB  (4)
-    mut.add_atom(kPt[6]);  // CG  (5)
-    mut.add_atom(kPt[6]);  // CD  (6)
-    mut.add_atom(kPt[7]);  // NE  (7)
-    mut.add_atom(kPt[6]);  // CZ  (8)
-    mut.add_atom(kPt[7]);  // NH1 (9)
-    mut.add_atom(kPt[7]);  // NH2 (10)
-    mut.add_atom(kPt[8]);  // OXT (11)
+    mut.add_atom(pt[7]);  // N   (0)
+    mut.add_atom(pt[6]);  // CA  (1)
+    mut.add_atom(pt[6]);  // C   (2)
+    mut.add_atom(pt[8]);  // O   (3)
+    mut.add_atom(pt[6]);  // CB  (4)
+    mut.add_atom(pt[6]);  // CG  (5)
+    mut.add_atom(pt[6]);  // CD  (6)
+    mut.add_atom(pt[7]);  // NE  (7)
+    mut.add_atom(pt[6]);  // CZ  (8)
+    mut.add_atom(pt[7]);  // NH1 (9)
+    mut.add_atom(pt[7]);  // NH2 (10)
+    mut.add_atom(pt[8]);  // OXT (11)
 
     // Taken from pdb standard AA data
     Matrix3Xd pos(3, mol.size());
@@ -170,23 +173,25 @@ class HISTestParam: public AATestParam {
   const char *name() const override { return "HIS"; }
 
   Molecule templ() const override {
+    const PeriodicTable &pt = PeriodicTable::get();
+
     Molecule mol;
 
     auto mut = mol.mutator();
     mol.reserve(11);
     mol.reserve_bonds(11);
 
-    mut.add_atom(kPt[7]);  // N   (0)
-    mut.add_atom(kPt[6]);  // CA  (1)
-    mut.add_atom(kPt[6]);  // C   (2)
-    mut.add_atom(kPt[8]);  // O   (3)
-    mut.add_atom(kPt[6]);  // CB  (4)
-    mut.add_atom(kPt[6]);  // CG  (5)
-    mut.add_atom(kPt[7]);  // ND1 (6)
-    mut.add_atom(kPt[6]);  // CD2 (7)
-    mut.add_atom(kPt[6]);  // CE1 (8)
-    mut.add_atom(kPt[7]);  // NE2 (9)
-    mut.add_atom(kPt[8]);  // OXT (10)
+    mut.add_atom(pt[7]);  // N   (0)
+    mut.add_atom(pt[6]);  // CA  (1)
+    mut.add_atom(pt[6]);  // C   (2)
+    mut.add_atom(pt[8]);  // O   (3)
+    mut.add_atom(pt[6]);  // CB  (4)
+    mut.add_atom(pt[6]);  // CG  (5)
+    mut.add_atom(pt[7]);  // ND1 (6)
+    mut.add_atom(pt[6]);  // CD2 (7)
+    mut.add_atom(pt[6]);  // CE1 (8)
+    mut.add_atom(pt[7]);  // NE2 (9)
+    mut.add_atom(pt[8]);  // OXT (10)
 
     // Taken from pdb standard AA data
     Matrix3Xd pos(3, mol.size());
@@ -244,20 +249,22 @@ class PROTestParam: public AATestParam {
   const char *name() const override { return "PRO"; }
 
   Molecule templ() const override {
+    const PeriodicTable &pt = PeriodicTable::get();
+
     Molecule mol;
 
     auto mut = mol.mutator();
     mol.reserve(8);
     mol.reserve_bonds(8);
 
-    mut.add_atom(kPt[7]);  // N   (0)
-    mut.add_atom(kPt[6]);  // CA  (1)
-    mut.add_atom(kPt[6]);  // C   (2)
-    mut.add_atom(kPt[8]);  // O   (3)
-    mut.add_atom(kPt[6]);  // CB  (4)
-    mut.add_atom(kPt[6]);  // CG  (5)
-    mut.add_atom(kPt[6]);  // CD  (6)
-    mut.add_atom(kPt[8]);  // OXT (7)
+    mut.add_atom(pt[7]);  // N   (0)
+    mut.add_atom(pt[6]);  // CA  (1)
+    mut.add_atom(pt[6]);  // C   (2)
+    mut.add_atom(pt[8]);  // O   (3)
+    mut.add_atom(pt[6]);  // CB  (4)
+    mut.add_atom(pt[6]);  // CG  (5)
+    mut.add_atom(pt[6]);  // CD  (6)
+    mut.add_atom(pt[8]);  // OXT (7)
 
     // Taken from pdb standard AA data
     Matrix3Xd pos(3, mol.size());
@@ -313,25 +320,27 @@ class TYRTestParam: public AATestParam {
   const char *name() const override { return "TYR"; }
 
   Molecule templ() const override {
+    const PeriodicTable &pt = PeriodicTable::get();
+
     Molecule mol;
 
     auto mut = mol.mutator();
     mol.reserve(13);
     mol.reserve_bonds(13);
 
-    mut.add_atom(kPt[7]);  // N   (0)
-    mut.add_atom(kPt[6]);  // CA  (1)
-    mut.add_atom(kPt[6]);  // C   (2)
-    mut.add_atom(kPt[8]);  // O   (3)
-    mut.add_atom(kPt[6]);  // CB  (4)
-    mut.add_atom(kPt[6]);  // CG  (5)
-    mut.add_atom(kPt[6]);  // CD1 (6)
-    mut.add_atom(kPt[6]);  // CD2 (7)
-    mut.add_atom(kPt[6]);  // CE1 (8)
-    mut.add_atom(kPt[6]);  // CE2 (9)
-    mut.add_atom(kPt[6]);  // CZ  (10)
-    mut.add_atom(kPt[8]);  // OH  (11)
-    mut.add_atom(kPt[8]);  // OXT (12)
+    mut.add_atom(pt[7]);  // N   (0)
+    mut.add_atom(pt[6]);  // CA  (1)
+    mut.add_atom(pt[6]);  // C   (2)
+    mut.add_atom(pt[8]);  // O   (3)
+    mut.add_atom(pt[6]);  // CB  (4)
+    mut.add_atom(pt[6]);  // CG  (5)
+    mut.add_atom(pt[6]);  // CD1 (6)
+    mut.add_atom(pt[6]);  // CD2 (7)
+    mut.add_atom(pt[6]);  // CE1 (8)
+    mut.add_atom(pt[6]);  // CE2 (9)
+    mut.add_atom(pt[6]);  // CZ  (10)
+    mut.add_atom(pt[8]);  // OH  (11)
+    mut.add_atom(pt[8]);  // OXT (12)
 
     // Taken from pdb standard AA data
     Matrix3Xd pos(3, mol.size());
@@ -397,27 +406,29 @@ class TRPTestParam: public AATestParam {
   const char *name() const override { return "TRP"; }
 
   Molecule templ() const override {
+    const PeriodicTable &pt = PeriodicTable::get();
+
     Molecule mol;
 
     auto mut = mol.mutator();
     mol.reserve(15);
     mol.reserve_bonds(16);
 
-    mut.add_atom(kPt[7]);  // N   (0)
-    mut.add_atom(kPt[6]);  // CA  (1)
-    mut.add_atom(kPt[6]);  // C   (2)
-    mut.add_atom(kPt[8]);  // O   (3)
-    mut.add_atom(kPt[6]);  // CB  (4)
-    mut.add_atom(kPt[6]);  // CG  (5)
-    mut.add_atom(kPt[6]);  // CD1 (6)
-    mut.add_atom(kPt[6]);  // CD2 (7)
-    mut.add_atom(kPt[7]);  // NE1 (8)
-    mut.add_atom(kPt[6]);  // CE2 (9)
-    mut.add_atom(kPt[6]);  // CE3 (10)
-    mut.add_atom(kPt[6]);  // CZ2 (11)
-    mut.add_atom(kPt[6]);  // CZ3 (12)
-    mut.add_atom(kPt[6]);  // CH2 (13)
-    mut.add_atom(kPt[8]);  // OXT (14)
+    mut.add_atom(pt[7]);  // N   (0)
+    mut.add_atom(pt[6]);  // CA  (1)
+    mut.add_atom(pt[6]);  // C   (2)
+    mut.add_atom(pt[8]);  // O   (3)
+    mut.add_atom(pt[6]);  // CB  (4)
+    mut.add_atom(pt[6]);  // CG  (5)
+    mut.add_atom(pt[6]);  // CD1 (6)
+    mut.add_atom(pt[6]);  // CD2 (7)
+    mut.add_atom(pt[7]);  // NE1 (8)
+    mut.add_atom(pt[6]);  // CE2 (9)
+    mut.add_atom(pt[6]);  // CE3 (10)
+    mut.add_atom(pt[6]);  // CZ2 (11)
+    mut.add_atom(pt[6]);  // CZ3 (12)
+    mut.add_atom(pt[6]);  // CH2 (13)
+    mut.add_atom(pt[8]);  // OXT (14)
 
     // Taken from pdb standard AA data
     Matrix3Xd pos(3, mol.size());
@@ -556,12 +567,14 @@ TYPED_TEST(GuessAATest, GuessEverything) {
 
 // MET-GLN, taken from 1UBQ (last oxygen was ILE N in the original file)
 TEST(GuessSelectedMolecules, MetGln) {
+  const PeriodicTable &pt = PeriodicTable::get();
+
   Molecule mol;
   mol.reserve(18);
 
   auto mut = mol.mutator();
   for (int z: { 7, 6, 6, 8, 6, 6, 16, 6, 7, 6, 6, 8, 6, 6, 6, 8, 7, 8 })
-    mut.add_atom(kPt[z]);
+    mut.add_atom(pt[z]);
 
   Matrix3Xd pos(3, mol.size());
   pos.transpose() << 27.340, 24.430, 2.614,  //
@@ -633,24 +646,26 @@ TEST(GuessSelectedMolecules, MetGln) {
 
 // beta-L-Fucosylazide
 TEST(GuessSelectedMolecules, FUY) {
+  const PeriodicTable &pt = PeriodicTable::get();
+
   Molecule mol;
   mol.reserve(13);
 
   auto mut = mol.mutator();
 
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[7]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[7]);
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[7]);
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[6]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[7]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[7]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[7]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[6]);
 
   // Taken from rcsb
   Matrix3Xd pos(3, mol.size());
@@ -697,34 +712,36 @@ TEST(GuessSelectedMolecules, FUY) {
 
 // 4-Nitro-2-phenoxymethanesulfonanilide
 TEST(GuessSelectedMolecules, NIM) {
+  const PeriodicTable &pt = PeriodicTable::get();
+
   Molecule mol;
   mol.reserve(21);
 
   auto mut = mol.mutator();
 
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[7]);
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[7]);
-  mut.add_atom(kPt[16]);
-  mut.add_atom(kPt[8]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[7]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[7]);
+  mut.add_atom(pt[16]);
+  mut.add_atom(pt[8]);
 
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[6]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[6]);
 
-  mut.add_atom(kPt[6]);
+  mut.add_atom(pt[6]);
 
   // Taken from rcsb
   Matrix3Xd pos(3, mol.size());
@@ -787,54 +804,56 @@ TEST(GuessSelectedMolecules, NIM) {
 
 // 2'-Fluoroguanylyl-(3'-5')-phosphocytidine
 TEST(GuessSelectedMolecules, GPC) {
+  const PeriodicTable &pt = PeriodicTable::get();
+
   Molecule mol;
   mol.reserve(40);
 
   auto mut = mol.mutator();
 
-  mut.add_atom(kPt[7]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[7]);
-  mut.add_atom(kPt[7]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[7]);
-  mut.add_atom(kPt[6]);
+  mut.add_atom(pt[7]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[7]);
+  mut.add_atom(pt[7]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[7]);
+  mut.add_atom(pt[6]);
 
-  mut.add_atom(kPt[7]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[9]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[8]);
+  mut.add_atom(pt[7]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[9]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[8]);
 
-  mut.add_atom(kPt[15]);
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[6]);
+  mut.add_atom(pt[15]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[6]);
 
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[7]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[8]);
-  mut.add_atom(kPt[7]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[7]);
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[6]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[7]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[8]);
+  mut.add_atom(pt[7]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[7]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[6]);
 
   // Taken from pdb 1rds
   Matrix3Xd pos(3, mol.size());
@@ -951,21 +970,23 @@ TEST(GuessSelectedMolecules, GPC) {
 
 // GH-302
 TEST(GuessSelectedMolecules, PDB6xmk) {
+  const PeriodicTable &pt = PeriodicTable::get();
+
   Molecule mol;
   mol.reserve(33);
 
   auto mut = mol.mutator();
 
-  mut.add_atom(kPt[6]);
-  mut.add_atom(kPt[16]);
+  mut.add_atom(pt[6]);
+  mut.add_atom(pt[16]);
   for (int i = 0; i < 21; ++i)
-    mut.add_atom(kPt[6]);
+    mut.add_atom(pt[6]);
   for (int i = 0; i < 2; ++i)
-    mut.add_atom(kPt[9]);
+    mut.add_atom(pt[9]);
   for (int i = 0; i < 3; ++i)
-    mut.add_atom(kPt[7]);
+    mut.add_atom(pt[7]);
   for (int i = 0; i < 5; ++i)
-    mut.add_atom(kPt[8]);
+    mut.add_atom(pt[8]);
 
   Matrix3Xd pos(3, mol.size());
   pos.transpose() << 10.290, 15.829, 27.600,  //
@@ -1112,10 +1133,12 @@ TEST(GuessSelectedMolecules, GH367) {
 }
 
 TEST(GuessFchargeOnly, ChargedPhosphorus) {
+  const PeriodicTable &pt = PeriodicTable::get();
+
   Molecule mol;
   {
     auto mut = mol.mutator();
-    mut.add_atom(kPt[15]);
+    mut.add_atom(pt[15]);
   }
 
   mol.atom(0).data().set_implicit_hydrogens(4);
@@ -1126,15 +1149,17 @@ TEST(GuessFchargeOnly, ChargedPhosphorus) {
 }
 
 TEST(GuessFchargeOnly, Sulfonyl) {
+  const PeriodicTable &pt = PeriodicTable::get();
+
   Molecule mol;
   {
     auto mut = mol.mutator();
 
-    mut.add_atom(kPt[16]);
-    mut.add_atom(kPt[8]);
-    mut.add_atom(kPt[8]);
-    mut.add_atom(kPt[6]);
-    mut.add_atom(kPt[7]);
+    mut.add_atom(pt[16]);
+    mut.add_atom(pt[8]);
+    mut.add_atom(pt[8]);
+    mut.add_atom(pt[6]);
+    mut.add_atom(pt[7]);
 
     mut.add_bond(0, 1, BondData(constants::kDoubleBond));
     mut.add_bond(0, 2, BondData(constants::kDoubleBond));
@@ -1154,14 +1179,16 @@ TEST(GuessFchargeOnly, Sulfonyl) {
 }
 
 TEST(GuessFchargeOnly, Thiophene) {
+  const PeriodicTable &pt = PeriodicTable::get();
+
   Molecule mol;
   {
     auto mut = mol.mutator();
-    mut.add_atom(kPt[16]);
-    mut.add_atom(kPt[6]);
-    mut.add_atom(kPt[6]);
-    mut.add_atom(kPt[6]);
-    mut.add_atom(kPt[6]);
+    mut.add_atom(pt[16]);
+    mut.add_atom(pt[6]);
+    mut.add_atom(pt[6]);
+    mut.add_atom(pt[6]);
+    mut.add_atom(pt[6]);
 
     mut.add_bond(0, 1,
                  BondData(constants::kSingleBond)
@@ -1198,14 +1225,16 @@ TEST(GuessFchargeOnly, Thiophene) {
 }
 
 TEST(GuessFchargeOnly, ChargedThiophene) {
+  const PeriodicTable &pt = PeriodicTable::get();
+
   Molecule mol;
   {
     auto mut = mol.mutator();
-    mut.add_atom(kPt[16]);
-    mut.add_atom(kPt[6]);
-    mut.add_atom(kPt[6]);
-    mut.add_atom(kPt[6]);
-    mut.add_atom(kPt[6]);
+    mut.add_atom(pt[16]);
+    mut.add_atom(pt[6]);
+    mut.add_atom(pt[6]);
+    mut.add_atom(pt[6]);
+    mut.add_atom(pt[6]);
 
     mut.add_bond(0, 1,
                  BondData(constants::kSingleBond)

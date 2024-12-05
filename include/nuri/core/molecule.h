@@ -2443,7 +2443,7 @@ inline int steric_number(Molecule::Atom atom) {
  */
 inline const Element *effective_element(const AtomData &data) {
   const int effective_z = data.atomic_number() - data.formal_charge();
-  return kPt.find_element(effective_z);
+  return PeriodicTable::get().find_element(effective_z);
 }
 
 /**

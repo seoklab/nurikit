@@ -1524,7 +1524,7 @@ namespace {
       return false;
 
     const Element *new_effective =
-        kPt.find_element(atom.data().atomic_number() - fchg);
+        PeriodicTable::get().find_element(atom.data().atomic_number() - fchg);
     if (new_effective == nullptr
         || new_effective->period() != atom.data().element().period())
       return false;
