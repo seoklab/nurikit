@@ -189,23 +189,53 @@ function(find_or_fetch_abseil)
       NOTICE
       "abseil must be built with sanitizers enabled; ignoring system abseil"
     )
-  else()
-    find_package(absl QUIET)
-  endif()
-
-  # 20240116 required for VLOG()
-  if(absl_FOUND AND absl_VERSION VERSION_GREATER_EQUAL 20240116)
-    message(STATUS "Found abseil ${absl_VERSION}")
-  else()
+  elseif(NURI_PREBUILT_ABSL AND NOT absl_ROOT)
     include(FetchContent)
-    message(NOTICE "Could not find compatible abseil. Fetching from github.")
+    message(NOTICE "Fetching prebuilt abseil binary.")
+
+    if(CMAKE_SYSTEM_NAME MATCHES Linux)
+      set(os_arch "manylinux2014_x86_64")
+    elseif(CMAKE_SYSTEM_NAME MATCHES Darwin)
+      set(os_arch "macosx_universal2")
+    endif()
 
     Fetchcontent_Declare(
       absl
-      URL https://github.com/abseil/abseil-cpp/releases/download/20240722.0/abseil-cpp-20240722.0.tar.gz
+      URL "https://github.com/jnooree/abseil-cpp/releases/latest/download/libabsl-static-${os_arch}.tar.gz"
     )
-    nuri_make_available_deponly(absl)
+    Fetchcontent_MakeAvailable(absl)
+
+    set(absl_ROOT "${absl_SOURCE_DIR}")
+    find_package(absl)
+
+    if(absl_FOUND AND absl_VERSION VERSION_GREATER_EQUAL 20240116)
+      message(STATUS "Found abseil ${absl_VERSION}")
+
+      if(CMAKE_SYSTEM_NAME MATCHES Linux)
+        string(APPEND CMAKE_CXX_FLAGS " -D_GLIBCXX_USE_CXX11_ABI=0")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}" PARENT_SCOPE)
+      endif()
+
+      return()
+    endif()
+  else()
+    find_package(absl QUIET)
+
+    # 20240116 required for VLOG()
+    if(absl_FOUND AND absl_VERSION VERSION_GREATER_EQUAL 20240116)
+      message(STATUS "Found abseil ${absl_VERSION}")
+      return()
+    endif()
   endif()
+
+  include(FetchContent)
+  message(NOTICE "Could not find compatible abseil. Fetching from github.")
+
+  Fetchcontent_Declare(
+    absl
+    URL https://github.com/abseil/abseil-cpp/releases/download/20240722.0/abseil-cpp-20240722.0.tar.gz
+  )
+  nuri_make_available_deponly(absl)
 endfunction()
 
 function(handle_boost_dependency target)

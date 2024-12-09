@@ -19,6 +19,7 @@ option(NURI_ENABLE_AVX2 "Use -mavx2 flag for optimization" OFF)
 option(NURI_ENABLE_ARCH_NATIVE "Use -march=native flag for optimization" OFF)
 
 option(NURI_ENABLE_SANITIZERS "Enable sanitizers for debug build" OFF)
+option(NURI_PREBUILT_ABSL "Download prebuilt abseil binary" ON)
 
 option(NURI_TEST_COVERAGE "Enable coverage build" OFF)
 option(NURI_BUILD_DOCS "Build documentation" OFF)
@@ -112,8 +113,8 @@ if(CMAKE_BUILD_TYPE MATCHES "Release|MinSizeRel")
   add_link_options(-s)
 endif()
 
-add_subdirectory(third-party EXCLUDE_FROM_ALL)
 find_or_fetch_abseil()
+add_subdirectory(third-party EXCLUDE_FROM_ALL)
 
 add_compile_options(
   -pedantic

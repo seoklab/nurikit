@@ -33,6 +33,12 @@ jobs:
       - if: ${{ contains(inputs.python, 'macosx') }}
         run: brew install eigen spectra boost pybind11 ninja
 
+      - if: ${{ contains(inputs.python, 'macosx') }}
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          # XCode 15.4 fails to build abseil correctly
+          xcode-version: latest-stable
+
       # https://github.com/pypa/cibuildwheel/issues/954
       - if: ${{ inputs.python == 'cp38-macosx_arm64' }}
         run: |
