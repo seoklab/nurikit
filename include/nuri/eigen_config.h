@@ -40,6 +40,7 @@ using Eigen::Array4i;
 using Eigen::ArrayX;
 using ArrayXb = Eigen::ArrayX<bool>;
 using ArrayXc = ArrayX<std::int8_t>;
+using Eigen::Array2Xi;
 using Eigen::Array2Xd;
 using Eigen::Array33d;
 using Eigen::Array3Xd;
