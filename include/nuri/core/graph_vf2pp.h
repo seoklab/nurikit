@@ -78,10 +78,11 @@ namespace internal {
     return i;
   }
 
-  template <class NT, class ET, class AL1, class AL2, class AL3>
-  ArrayXi vf2pp_init_order(const Graph<NT, ET> &query, const AL1 &qlbl,
-                           const AL2 &tlbl, ArrayXi &target_lcnt,
-                           AL3 &curr_conn) {
+  template <class NT, class ET, class AL>
+  ArrayXi vf2pp_init_order(const Graph<NT, ET> &query, ConstRef<ArrayXi> qlbl,
+                           ConstRef<ArrayXi> tlbl, ArrayXi &target_lcnt,
+                           // NOLINTNEXTLINE(*-missing-std-forward)
+                           AL &&curr_conn) {
     ArrayXi order = ArrayXi::Constant(query.size(), -1);
 
     for (int l: tlbl)
@@ -116,11 +117,12 @@ namespace internal {
   using Vf2ppLabels = std::vector<std::pair<int, int>>;
   using Vf2ppLabelMap = std::vector<Vf2ppLabels>;
 
-  template <class NT, class ET, class AL1, class AL2>
+  template <class NT, class ET, class AL>
   std::pair<Vf2ppLabelMap, Vf2ppLabelMap>
-  vf2pp_init_r_new_r_inout(const Graph<NT, ET> &query, const AL1 &qlbl,
+  vf2pp_init_r_new_r_inout(const Graph<NT, ET> &query, ConstRef<ArrayXi> qlbl,
                            const ArrayXi &order, ArrayXi &r_inout,
-                           ArrayXi &r_new, AL2 &visit_count) {
+                           // NOLINTNEXTLINE(*-missing-std-forward)
+                           ArrayXi &r_new, AL &&visit_count) {
     // r_inout == _labelTmp1, r_new == _labelTmp2
     ABSL_DCHECK_EQ(r_inout.size(), r_new.size());
 
@@ -161,108 +163,236 @@ namespace internal {
     return { r_inout_labels, r_new_labels };
   }
 
-  template <class NT, class ET, class AL>
-  void vf2pp_add_pair(const Graph<NT, ET> &target, ArrayXi &q2t, AL &conn,
-                      const int qi, const int ti) {
-    ABSL_DCHECK_GE(ti, 0);
-    ABSL_DCHECK_LT(ti, target.size());
-
-    q2t[qi] = ti;
-    conn[ti] = -1;
-
-    for (auto nei: target.node(ti)) {
-      if (conn[nei.dst().id()] != -1)
-        ++conn[nei.dst().id()];
-    }
-  }
-
-  template <class NT, class ET, class AL>
-  void vf2pp_sub_pair(const Graph<NT, ET> &target, ArrayXi &q2t, AL &conn,
-                      const int qi, const int ti) {
-    ABSL_DCHECK_GE(ti, 0);
-    ABSL_DCHECK_LT(ti, target.size());
-
-    q2t[qi] = -1;
-    conn[ti] = 0;
-
-    for (auto nei: target.node(ti)) {
-      int curr_conn = conn[nei.dst().id()];
-      if (curr_conn > 0) {
-        --conn[nei.dst().id()];
-      } else if (curr_conn == -1) {
-        ++conn[ti];
-      }
-    }
-  }
-
   template <MappingType kMt>
-  bool vf2pp_r_matches(const std::vector<std::pair<int, int>> &r_node,
-                       const ArrayXi &label_tmp) {
+  bool vf2pp_r_matches(const Vf2ppLabels &r_node, const ArrayXi &label_tmp) {
     return absl::c_none_of(r_node, [&](std::pair<int, int> p) {
       return kMt == MappingType::kIsomorphism ? label_tmp[p.first] != 0
                                               : label_tmp[p.first] > 0;
     });
   }
+}  // namespace internal
 
-  template <MappingType kMt, class NT, class ET, class AL1, class AL2>
-  bool vf2pp_cut_by_labels(typename Graph<NT, ET>::ConstNodeRef tn,
-                           const AL1 &tlbl, ArrayXi &r_inout_cnt,
-                           ArrayXi &r_new_cnt, const Vf2ppLabels &r_inout,
-                           const Vf2ppLabels &r_new, const AL2 &conn) {
+template <MappingType kMt, class N1, class E1, class N2, class E2>
+class VF2pp {
+private:
+  const Graph<N1, E1> &query() const { return *query_; }
+  const Graph<N2, E2> &target() const { return *target_; }
+
+  auto query_tmp() { return node_tmp_.head(query_->size()); }
+
+  auto conn() { return node_tmp_.head(target_->size()); }
+
+  auto curr_query() const { return query_->node(order_[depth_]); }
+
+  int mapped_target() const { return mapping_[curr_query().id()]; }
+
+  int target_src() const { return src_nei_(0, depth_); }
+  void update_target_src(int idx) {
+    ABSL_DCHECK_GE(idx, 0);
+    ABSL_DCHECK_LT(idx, target().size());
+
+    src_nei_(0, depth_) = idx;
+  }
+
+  int target_nei_idx() const { return src_nei_(1, depth_); }
+  void update_target_nei_idx(int idx) {
+    ABSL_DCHECK_GE(target_src(), 0);
+    ABSL_DCHECK_LT(target_src(), target().size());
+
+    ABSL_DCHECK_GE(idx, 0);
+    ABSL_DCHECK_LT(idx, target().degree(target_src()));
+
+    src_nei_(1, depth_) = idx;
+  }
+  void invalidate_target_nei_idx() { src_nei_(1, depth_) = -1; }
+
+  ArrayXi &r_inout_cnt() { return label_tmp1_; }
+  ArrayXi &r_new_cnt() { return label_tmp2_; }
+
+public:
+  template <class AL1, class AL2>
+  VF2pp(const Graph<N1, E1> &query, const Graph<N2, E2> &target,
+        AL1 &&query_lbl, AL2 &&target_lbl)
+      : query_(&query), target_(&target),  //
+        qlbl_(std::forward<AL1>(query_lbl)),
+        tlbl_(std::forward<AL2>(target_lbl)),
+        mapping_(ArrayXi::Constant(query.size(), -1)),
+        src_nei_(Array2Xi::Constant(2, target.size(), -1)),
+        node_tmp_(ArrayXi::Zero(nuri::max(query.size(), target.size()))) {
+    const int nlabel = nuri::max(qlbl_.maxCoeff(), tlbl_.maxCoeff()) + 1;
+
+    label_tmp1_ = ArrayXi::Zero(nlabel);
+    label_tmp2_ = ArrayXi::Zero(nlabel);
+
+    order_ = internal::vf2pp_init_order(query, qlbl_, tlbl_, label_tmp1_,
+                                        query_tmp());
+    std::tie(r_inout_, r_new_) = internal::vf2pp_init_r_new_r_inout(
+        query, qlbl_, order_, r_inout_cnt(), r_new_cnt(), query_tmp());
+
+    node_tmp_.head(nuri::min(query.size(), target.size())).setZero();
+  }
+
+  template <class BinaryPred>
+  bool next(const BinaryPred &match) {
+    while (depth_ >= 0) {
+      if (depth_ == query().size()) {
+        --depth_;
+        return true;
+      }
+
+      const auto qn = curr_query();
+      const int ti = mapped_target();
+
+      int tj = target_src(), tk = target_nei_idx();
+      if (tk >= 0) {
+        ABSL_DCHECK_NE(ti, tj);
+        sub_pair(qn.id(), ti);
+        ++tk;
+      } else {
+        int qk = 0;
+        if (ti < 0) {
+          qk = absl::c_find_if(
+                   qn, [&](auto nei) { return mapping_[nei.dst().id()] >= 0; })
+               - qn.begin();
+        } else {
+          sub_pair(qn.id(), ti);
+        }
+
+        if (qk == qn.degree() || ti >= 0) {
+          const int ti2 =
+              std::find_if(target().begin() + ti + 1, target().end(),
+                           [&](auto tn) {
+                             bool candidate = kMt == MappingType::kSubgraph
+                                                  ? conn()[tn.id()] >= 0
+                                                  : conn()[tn.id()] == 0;
+                             return candidate && feas(qn, tn, match);
+                           })
+              - target().begin();
+
+          if (ti2 < target().size()) {
+            add_pair(qn.id(), ti2);
+            ++depth_;
+          } else {
+            --depth_;
+          }
+
+          continue;
+        }
+
+        tj = mapping_[qn[qk].dst().id()];
+        tk = 0;
+        update_target_src(tj);
+      }
+
+      for (; tk < target().degree(tj); ++tk) {
+        auto tn = target().node(tj)[tk].dst();
+        if (conn()[tn.id()] > 0 && feas(qn, tn, match)) {
+          add_pair(qn.id(), tn.id());
+          break;
+        }
+      }
+
+      if (tk < target().degree(tj)) {
+        update_target_nei_idx(tk);
+        ++depth_;
+      } else {
+        invalidate_target_nei_idx();
+        --depth_;
+      }
+    }
+
+    return false;
+  }
+
+  const ArrayXi &mapping() const & { return mapping_; }
+
+  ArrayXi &&mapping() && { return std::move(mapping_); }
+
+private:
+  void add_pair(const int qi, const int ti) {
+    ABSL_DCHECK_GE(ti, 0);
+    ABSL_DCHECK_LT(ti, target().size());
+
+    mapping_[qi] = ti;
+    conn()[ti] = -1;
+
+    for (auto nei: target().node(ti)) {
+      if (conn()[nei.dst().id()] != -1)
+        ++conn()[nei.dst().id()];
+    }
+  }
+
+  void sub_pair(const int qi, const int ti) {
+    ABSL_DCHECK_GE(ti, 0);
+    ABSL_DCHECK_LT(ti, target().size());
+
+    mapping_[qi] = -1;
+    conn()[ti] = 0;
+
+    for (auto nei: target().node(ti)) {
+      int curr_conn = conn()[nei.dst().id()];
+      if (curr_conn > 0) {
+        --conn()[nei.dst().id()];
+      } else if (curr_conn == -1) {
+        ++conn()[ti];
+      }
+    }
+  }
+
+  bool cut_by_labels(const typename Graph<N1, E1>::ConstNodeRef qn,
+                     const typename Graph<N2, E2>::ConstNodeRef tn) {
     // zero init
-    r_inout_cnt(tlbl)(as_index(tn)).setZero();
-    for (auto [lbl, cnt]: r_inout)
-      r_inout_cnt[lbl] = 0;
+    r_inout_cnt()(tlbl_)(as_index(tn)).setZero();
+    for (auto [lbl, cnt]: r_inout_[qn.id()])
+      r_inout_cnt()[lbl] = 0;
     if constexpr (kMt != MappingType::kSubgraph) {
-      r_new_cnt(tlbl)(as_index(tn)).setZero();
-      for (auto [lbl, cnt]: r_new)
-        r_new_cnt[lbl] = 0;
+      r_new_cnt()(tlbl_)(as_index(tn)).setZero();
+      for (auto [lbl, cnt]: r_new_[qn.id()])
+        r_new_cnt()[lbl] = 0;
     }
 
     for (auto tnei: tn) {
       const int curr = tnei.dst().id();
-      if (conn[curr] > 0)
-        --r_inout_cnt[tlbl[curr]];
+      if (conn()[curr] > 0)
+        --r_inout_cnt()[tlbl_[curr]];
       else if constexpr (kMt != MappingType::kSubgraph) {
-        if (conn[curr] == 0)
-          --r_new_cnt[tlbl[curr]];
+        if (conn()[curr] == 0)
+          --r_new_cnt()[tlbl_[curr]];
       }
     }
 
-    for (auto [lbl, cnt]: r_inout)
-      r_inout_cnt[lbl] += cnt;
+    for (auto [lbl, cnt]: r_inout_[qn.id()])
+      r_inout_cnt()[lbl] += cnt;
     if constexpr (kMt != MappingType::kSubgraph) {
-      for (auto [lbl, cnt]: r_new)
-        r_new_cnt[lbl] += cnt;
+      for (auto [lbl, cnt]: r_new_[qn.id()])
+        r_new_cnt()[lbl] += cnt;
     }
 
-    const bool r_inout_match = vf2pp_r_matches<kMt>(r_inout, r_inout_cnt);
+    const bool r_inout_match =
+        internal::vf2pp_r_matches<kMt>(r_inout_[qn.id()], r_inout_cnt());
     if constexpr (kMt == MappingType::kSubgraph)
       return r_inout_match;
 
-    return r_inout_match && vf2pp_r_matches<kMt>(r_new, r_new_cnt);
+    return r_inout_match
+           && internal::vf2pp_r_matches<kMt>(r_new_[qn.id()], r_new_cnt());
   }
 
-  template <MappingType kMt, class BinaryPred, class N1, class E1, class N2,
-            class E2, class AL1, class AL2, class AL3>
-  bool vf2pp_feas(typename Graph<N1, E1>::ConstNodeRef qn,
-                  typename Graph<N2, E2>::ConstNodeRef tn,
-                  const BinaryPred &match, const AL1 &qlbl, const AL2 &tlbl,
-                  ArrayXi &q2t, AL3 &conn, ArrayXi &r_inout_cnt,
-                  ArrayXi &r_new_cnt, const Vf2ppLabelMap &r_inout,
-                  const Vf2ppLabelMap &r_new) {
-    if (qlbl[qn.id()] != tlbl[tn.id()])
+  template <class BinaryPred>
+  bool feas(const typename Graph<N1, E1>::ConstNodeRef qn,
+            const typename Graph<N2, E2>::ConstNodeRef tn,
+            const BinaryPred &match) {
+    if (qlbl_[qn.id()] != tlbl_[tn.id()])
       return false;
 
     for (auto qnei: qn)
-      if (q2t[qnei.dst().id()] >= 0)
-        --conn[q2t[qnei.dst().id()]];
+      if (mapping_[qnei.dst().id()] >= 0)
+        --conn()[mapping_[qnei.dst().id()]];
 
     bool is_iso = true;
     for (auto tnei: tn) {
-      const int curr_conn = conn[tnei.dst().id()];
+      const int curr_conn = conn()[tnei.dst().id()];
       if (curr_conn < -1)
-        ++conn[tnei.dst().id()];
+        ++conn()[tnei.dst().id()];
       else if constexpr (kMt != MappingType::kSubgraph) {
         if (curr_conn == -1)
           is_iso = false;
@@ -271,20 +401,20 @@ namespace internal {
 
     if (!is_iso) {
       for (auto qnei: qn) {
-        const int ti = q2t[qnei.dst().id()];
+        const int ti = mapping_[qnei.dst().id()];
         if (ti >= 0)
-          conn[ti] = -1;
+          conn()[ti] = -1;
       }
       return false;
     }
 
     for (auto qnei: qn) {
-      const int ti = q2t[qnei.dst().id()];
-      if (ti < 0 || conn[ti] == -1)
+      const int ti = mapping_[qnei.dst().id()];
+      if (ti < 0 || conn()[ti] == -1)
         continue;
 
-      const int curr_conn = conn[ti];
-      conn[ti] = -1;
+      const int curr_conn = conn()[ti];
+      conn()[ti] = -1;
       if constexpr (kMt == MappingType::kSubgraph) {
         if (curr_conn < -1)
           return false;
@@ -293,134 +423,88 @@ namespace internal {
       }
     }
 
-    return match(qn, tn)
-           && vf2pp_cut_by_labels<kMt, N2, E2>(tn, tlbl, r_inout_cnt, r_new_cnt,
-                                               r_inout[qn.id()], r_new[qn.id()],
-                                               conn);
+    return match(qn, tn) && cut_by_labels(qn, tn);
   }
 
-  template <MappingType kMt, class BinaryPred, class N1, class E1, class N2,
-            class E2, class AL1, class AL2, class AL3>
-  std::pair<ArrayXi, bool>
-  vf2pp_ext_match(const Graph<N1, E1> &query, const Graph<N2, E2> &target,
-                  const BinaryPred &match, const AL1 &qlbl, const AL2 &tlbl,
-                  const ArrayXi &order, AL3 &conn, ArrayXi &r_inout_cnt,
-                  ArrayXi &r_new_cnt, const Vf2ppLabelMap &r_inout,
-                  const Vf2ppLabelMap &r_new) {
-    ArrayXi q2t = ArrayXi::Constant(query.size(), -1);
+  const Graph<N1, E1> *query_;
+  const Graph<N2, E2> *target_;
 
-    Array2Xi src_nei = Array2Xi::Constant(2, target.size(), -1);
-    for (int depth = 0; depth >= 0;) {
-      if (depth == order.size())
-        return { q2t, true };
+  Eigen::Ref<const ArrayXi> qlbl_, tlbl_;
 
-      const auto qn = query.node(order[depth]);
-      const int ti = q2t[qn.id()];
+  // query.size()
+  ArrayXi mapping_, order_;
+  internal::Vf2ppLabelMap r_inout_, r_new_;
 
-      int tj = src_nei(0, depth), tk = src_nei(1, depth);
-      if (tk >= 0) {
-        ABSL_DCHECK_NE(ti, tj);
-        vf2pp_sub_pair(target, q2t, conn, qn.id(), ti);
-        ++tk;
-      } else {
-        int qk = 0;
-        if (ti < 0) {
-          qk = absl::c_find_if(
-                   qn, [&](auto nei) { return q2t[nei.dst().id()] >= 0; })
-               - qn.begin();
-        } else {
-          vf2pp_sub_pair(target, q2t, conn, qn.id(), ti);
-        }
+  // (2, target.size())
+  Array2Xi src_nei_;
 
-        if (qk == qn.degree() || ti >= 0) {
-          const int ti2 =
-              std::find_if(
-                  target.begin() + ti + 1, target.end(),
-                  [&](auto tn) {
-                    bool candidate = kMt == MappingType::kSubgraph
-                                         ? conn[tn.id()] >= 0
-                                         : conn[tn.id()] == 0;
-                    return candidate
-                           && vf2pp_feas<kMt, BinaryPred, N1, E1, N2, E2>(
-                               qn, tn, match, qlbl, tlbl, q2t, conn,
-                               r_inout_cnt, r_new_cnt, r_inout, r_new);
-                  })
-              - target.begin();
+  // max(label) + 1
+  ArrayXi label_tmp1_, label_tmp2_;
 
-          if (ti2 < target.size()) {
-            vf2pp_add_pair(target, q2t, conn, qn.id(), ti2);
-            ++depth;
-          } else {
-            --depth;
-          }
+  // max(query.size(), target.size())
+  ArrayXi node_tmp_;
 
-          continue;
-        }
+  int depth_ = 0;
+};
 
-        src_nei(0, depth) = tj = q2t[qn[qk].dst().id()];
-        tk = 0;
-      }
+template <MappingType kMt, class N1, class E1, class N2, class E2,  //
+          class AL1, class AL2>
+VF2pp<kMt, N1, E1, N2, E2> make_vf2pp(const Graph<N1, E1> &query,
+                                      const Graph<N2, E2> &target, AL1 &&qlbl,
+                                      AL2 &&tlbl) {
+  return VF2pp<kMt, N1, E1, N2, E2>(query, target, std::forward<AL1>(qlbl),
+                                    std::forward<AL2>(tlbl));
+}
 
-      for (; tk < target.degree(tj); ++tk) {
-        auto tn = target.node(tj)[tk].dst();
-        if (conn[tn.id()] > 0
-            && vf2pp_feas<kMt, BinaryPred, N1, E1, N2, E2>(
-                qn, tn, match, qlbl, tlbl, q2t, conn, r_inout_cnt, r_new_cnt,
-                r_inout, r_new)) {
-          vf2pp_add_pair(target, q2t, conn, qn.id(), tn.id());
-          break;
-        }
-      }
-
-      if (tk < target.degree(tj)) {
-        src_nei(1, depth++) = tk;
-      } else {
-        src_nei(1, depth--) = -1;
-      }
-    }
-
-    return { q2t, false };
-  }
-}  // namespace internal
+template <MappingType kMt, class N1, class E1, class N2, class E2, class AL1,
+          class AL2, class BinaryPred>
+std::pair<ArrayXi, bool> vf2pp(const Graph<N1, E1> &query,
+                               const Graph<N2, E2> &target, AL1 &&qlbl,
+                               AL2 &&tlbl, const BinaryPred &match) {
+  VF2pp<kMt, N1, E1, N2, E2> vf2pp = make_vf2pp<kMt>(
+      query, target, std::forward<AL1>(qlbl), std::forward<AL2>(tlbl));
+  bool found = vf2pp.next(match);
+  return { std::move(vf2pp).mapping(), found };
+}
 
 template <class N1, class E1, class N2, class E2, class BinaryPred, class AL1,
           class AL2>
-std::pair<ArrayXi, bool> vf2pp(const Graph<N1, E1> &query,
-                               const Graph<N2, E2> &target,
-                               const BinaryPred &match, const AL1 &qlbl,
-                               const AL2 &tlbl, MappingType mt) {
-  const int nlabel = nuri::max(qlbl.maxCoeff(), tlbl.maxCoeff()) + 1;
-
-  ArrayXi label_tmp1 = ArrayXi::Zero(nlabel),
-          label_tmp2 = ArrayXi::Zero(nlabel);
-  ArrayXi node_tmp = ArrayXi::Zero(nuri::max(query.size(), target.size()));
-
-  auto query_tmp = node_tmp.head(query.size());
-  // _order
-  ArrayXi order =
-      internal::vf2pp_init_order(query, qlbl, tlbl, label_tmp1, query_tmp);
-  // _rInOutLabels1, _rNewLabels1
-  auto [r_inout, r_new] = internal::vf2pp_init_r_new_r_inout(
-      query, qlbl, order, label_tmp1, label_tmp2, query_tmp);
-
-  node_tmp.head(nuri::min(query.size(), target.size())).setZero();
-  auto target_tmp = node_tmp.head(target.size());
+std::pair<ArrayXi, bool>
+vf2pp(const Graph<N1, E1> &query, const Graph<N2, E2> &target, AL1 &&qlbl,
+      AL2 &&tlbl, const BinaryPred &match, MappingType mt) {
   switch (mt) {
   case MappingType::kSubgraph:
-    return internal::vf2pp_ext_match<MappingType::kSubgraph>(
-        query, target, match, qlbl, tlbl, order, target_tmp, label_tmp1,
-        label_tmp2, r_inout, r_new);
+    return vf2pp<MappingType::kSubgraph>(query, target, std::forward<AL1>(qlbl),
+                                         std::forward<AL2>(tlbl), match);
   case MappingType::kInduced:
-    return internal::vf2pp_ext_match<MappingType::kInduced>(
-        query, target, match, qlbl, tlbl, order, target_tmp, label_tmp1,
-        label_tmp2, r_inout, r_new);
+    return vf2pp<MappingType::kInduced>(query, target, std::forward<AL1>(qlbl),
+                                        std::forward<AL2>(tlbl), match);
   case MappingType::kIsomorphism:
-    return internal::vf2pp_ext_match<MappingType::kIsomorphism>(
-        query, target, match, qlbl, tlbl, order, target_tmp, label_tmp1,
-        label_tmp2, r_inout, r_new);
+    return vf2pp<MappingType::kIsomorphism>(
+        query, target, std::forward<AL1>(qlbl), std::forward<AL2>(tlbl), match);
   }
 
-  ABSL_UNREACHABLE();
+  ABSL_LOG(ERROR) << "Invalid mapping type (" << static_cast<int>(mt) << ")";
+  return { {}, false };
+}
+
+template <MappingType kMt, class N1, class E1, class N2, class E2,
+          class BinaryPred>
+std::pair<ArrayXi, bool> vf2pp(const Graph<N1, E1> &query,
+                               const Graph<N2, E2> &target,
+                               const BinaryPred &match) {
+  ArrayXi label = ArrayXi::Zero(nuri::max(query.size(), target.size()));
+  return vf2pp<kMt>(query, target, label.head(query.size()),
+                    label.head(target.size()), match);
+}
+
+template <class N1, class E1, class N2, class E2, class BinaryPred>
+std::pair<ArrayXi, bool> vf2pp(const Graph<N1, E1> &query,
+                               const Graph<N2, E2> &target,
+                               const BinaryPred &match, MappingType mt) {
+  ArrayXi label = ArrayXi::Zero(nuri::max(query.size(), target.size()));
+  return vf2pp(query, target, label.head(query.size()),
+               label.head(target.size()), match, mt);
 }
 }  // namespace nuri
 
