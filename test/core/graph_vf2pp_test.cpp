@@ -232,13 +232,11 @@ TEST(VF2PPComponentTest, InitRNewRInoutC5Petersen) {
 
 TEST(VF2PPSingleLabelSimpleMatchTest, PetersenSubgraph) {
   GT target = lemon_petersen();
-  ArrayXi qlbl = ArrayXi::Zero(10), tlbl = ArrayXi::Zero(target.size());
   ArrayXi expected_map(10);
 
   auto run_vf2pp = [&](const GT &query) {
     return vf2pp(
-        query, target, [](auto, auto) { return true; }, qlbl.head(query.size()),
-        tlbl, MappingType::kSubgraph);
+        query, target, [](auto, auto) { return true; }, MappingType::kSubgraph);
   };
 
   {
@@ -285,13 +283,11 @@ TEST(VF2PPSingleLabelSimpleMatchTest, PetersenSubgraph) {
 
 TEST(VF2PPSingleLabelSimpleMatchTest, PetersenInduced) {
   GT target = lemon_petersen();
-  ArrayXi qlbl = ArrayXi::Zero(10), tlbl = ArrayXi::Zero(target.size());
   ArrayXi expected_map(10);
 
   auto run_vf2pp = [&](const GT &query) {
     return vf2pp(
-        query, target, [](auto, auto) { return true; }, qlbl.head(query.size()),
-        tlbl, MappingType::kInduced);
+        query, target, [](auto, auto) { return true; }, MappingType::kInduced);
   };
 
   {
@@ -334,13 +330,12 @@ TEST(VF2PPSingleLabelSimpleMatchTest, PetersenInduced) {
 
 TEST(VF2PPSingleLabelSimpleMatchTest, PetersenIsomorphism) {
   GT target = lemon_petersen();
-  ArrayXi qlbl = ArrayXi::Zero(10), tlbl = ArrayXi::Zero(target.size());
   ArrayXi expected_map(10);
 
   auto run_vf2pp = [&](const GT &query) {
     return vf2pp(
-        query, target, [](auto, auto) { return true; }, qlbl.head(query.size()),
-        tlbl, MappingType::kIsomorphism);
+        query, target, [](auto, auto) { return true; },
+        MappingType::kIsomorphism);
   };
 
   {
@@ -379,13 +374,10 @@ TEST(VF2PPSingleLabelSimpleMatchTest, PetersenIsomorphism) {
 
 TEST(VF2PPSingleLabelSimpleMatchTest, C10P10) {
   GT target = lemon_c_n(10);
-  ArrayXi qlbl = ArrayXi::Zero(10), tlbl = ArrayXi::Zero(target.size());
   ArrayXi expected_map(10);
 
   auto run_vf2pp = [&](const GT &query, MappingType mt) {
-    return vf2pp(
-        query, target, [](auto, auto) { return true; }, qlbl.head(query.size()),
-        tlbl, mt);
+    return vf2pp(query, target, [](auto, auto) { return true; }, mt);
   };
 
   {
@@ -411,7 +403,7 @@ TEST(VF2PPSingleLabelSimpleMatchTest, C10P10) {
 
     // NOLINTNEXTLINE(*-suspicious-call-argument)
     std::tie(std::ignore, ok) = vf2pp(
-        target, p10, [](auto, auto) { return true; }, qlbl, tlbl,
+        target, p10, [](auto, auto) { return true; },
         MappingType::kIsomorphism);
     EXPECT_FALSE(ok);
   }
@@ -442,14 +434,14 @@ TEST(VF2PPMultiLabelSimpleMatchTest, C5Petersen) {
 
   {
     auto [_, ok] = vf2pp(
-        c5, petersen, [](auto, auto) { return true; }, c5_lbl, petersen_lbl1,
+        c5, petersen, c5_lbl, petersen_lbl1, [](auto, auto) { return true; },
         MappingType::kSubgraph);
     EXPECT_FALSE(ok);
   }
 
   {
     auto [map, ok] = vf2pp(
-        c5, petersen, [](auto, auto) { return true; }, c5_lbl, petersen_lbl2,
+        c5, petersen, c5_lbl, petersen_lbl2, [](auto, auto) { return true; },
         MappingType::kSubgraph);
     ASSERT_TRUE(ok);
 
@@ -477,8 +469,8 @@ TEST(VF2PPMultiLabelSimpleMatchTest, PetersenPetersen) {
   for (MappingType mt: { MappingType::kSubgraph, MappingType::kInduced,
                          MappingType::kIsomorphism }) {
     auto [map, ok] = vf2pp(
-        petersen, petersen, [](auto, auto) { return true; }, petersen_lbl1,
-        petersen_lbl1, mt);
+        petersen, petersen, petersen_lbl1, petersen_lbl1,
+        [](auto, auto) { return true; }, mt);
     ASSERT_TRUE(ok) << static_cast<int>(mt);
 
     for (int i = 0; i < map.size(); ++i)
@@ -486,8 +478,8 @@ TEST(VF2PPMultiLabelSimpleMatchTest, PetersenPetersen) {
           << static_cast<int>(mt);
 
     std::tie(map, ok) = vf2pp(
-        petersen, petersen, [](auto, auto) { return true; }, petersen_lbl2,
-        petersen_lbl2, mt);
+        petersen, petersen, petersen_lbl2, petersen_lbl2,
+        [](auto, auto) { return true; }, mt);
     ASSERT_TRUE(ok) << static_cast<int>(mt);
 
     for (int i = 0; i < map.size(); ++i)
@@ -495,13 +487,13 @@ TEST(VF2PPMultiLabelSimpleMatchTest, PetersenPetersen) {
           << static_cast<int>(mt);
 
     std::tie(std::ignore, ok) = vf2pp(
-        petersen, petersen, [](auto, auto) { return true; }, petersen_lbl1,
-        petersen_lbl2, mt);
+        petersen, petersen, petersen_lbl1, petersen_lbl2,
+        [](auto, auto) { return true; }, mt);
     EXPECT_FALSE(ok) << static_cast<int>(mt);
 
     std::tie(std::ignore, ok) = vf2pp(
-        petersen, petersen, [](auto, auto) { return true; }, petersen_lbl2,
-        petersen_lbl1, mt);
+        petersen, petersen, petersen_lbl2, petersen_lbl1,
+        [](auto, auto) { return true; }, mt);
     EXPECT_FALSE(ok) << static_cast<int>(mt);
   }
 }
