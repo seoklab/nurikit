@@ -213,14 +213,15 @@ private:
 
   ArrayXi &conn() { return node_tmp_; }
 
-  auto curr_query() const { return query_->node(order_[depth_]); }
+  auto curr_node() const { return query_->node(order_[depth_]); }
 
-  int mapped_target() const { return mapping_[curr_query().id()]; }
+  int mapped_node() const { return node_map_[curr_node().id()]; }
 
-  auto target_ait() const { return target_ait_[depth_]; }
-  void update_target_ait(typename GU::const_adjacency_iterator ait) {
-    target_ait_[depth_] = ait;
-    ait.end() ? --depth_ : ++depth_;
+  auto query_target_ait() const { return query_target_ait_[depth_]; }
+  void update_ait(typename GT::const_adjacency_iterator qa,
+                  typename GU::const_adjacency_iterator ta) {
+    query_target_ait_[depth_] = { qa, ta };
+    ta.end() ? --depth_ : ++depth_;
   }
 
   ArrayXi &r_inout_cnt() { return label_tmp1_; }
@@ -232,10 +233,13 @@ public:
       : query_(&query), target_(&target),  //
         qlbl_(std::forward<AL1>(query_lbl)),
         tlbl_(std::forward<AL2>(target_lbl)),
-        mapping_(ArrayXi::Constant(query.size(), -1)),
-        target_ait_(target.size(), target.adj_end(0)),
+        node_map_(ArrayXi::Constant(query.size(), -1)),
+        edge_map_(ArrayXi::Constant(query.num_edges(), -1)),
+        query_target_ait_(query.size(),
+                          { query.adj_end(0), target.adj_end(0) }),
         node_tmp_(ArrayXi::Zero(target.size())) {
-    ABSL_DCHECK(query.size() <= target.size());
+    ABSL_DCHECK(!query.empty());
+    ABSL_DCHECK_LE(query.size(), target.size());
 
     const int nlabel = nuri::max(qlbl_.maxCoeff(), tlbl_.maxCoeff()) + 1;
 
@@ -250,45 +254,50 @@ public:
     query_tmp().setZero();
   }
 
-  template <class BinaryPred>
-  bool next(const BinaryPred &match) {
+  template <class NodeMatch, class EdgeMatch>
+  bool next(const NodeMatch &node_match, const EdgeMatch &edge_match) {
     while (depth_ >= 0) {
       if (depth_ == query().size()) {
         --depth_;
-        return true;
+
+        if (map_remaining_edges(edge_match))
+          return true;
       }
 
-      const auto qn = curr_query();
-      const int ti = mapped_target();
+      const auto qn = curr_node();
+      const int ti = mapped_node();
 
-      auto ta = target_ait();
+      auto [qa, ta] = query_target_ait();
       if (!ta.end()) {
+        ABSL_DCHECK(!qa.end());
         ABSL_DCHECK_NE(ti, ta->src().id());
-        sub_pair(qn.id(), ti);
+
+        sub_pair(qn.id(), ti, qa->eid());
         ++ta;
       } else {
-        auto qa = qn.begin();
         if (ti < 0) {
-          qa = absl::c_find_if(qn, [&](auto nei) {
-            return mapping_[nei.dst().id()] >= 0;
+          auto qb = absl::c_find_if(qn, [&](auto nei) {
+            return node_map_[nei.dst().id()] >= 0;
           });
+          if (!qb.end())
+            qa = qb->dst().find_adjacent(qn);
         } else {
-          sub_pair(qn.id(), ti);
+          sub_pair(qn.id(), ti, qa.end() ? -1 : qa->eid());
         }
 
         if (qa.end() || ti >= 0) {
-          const int tj = std::find_if(target().begin() + ti + 1, target().end(),
-                                      [&](auto tn) {
-                                        bool candidate =
-                                            kMt == MappingType::kSubgraph
-                                                ? conn()[tn.id()] >= 0
-                                                : conn()[tn.id()] == 0;
-                                        return candidate && feas(qn, tn, match);
-                                      })
-                         - target().begin();
+          const int tj =
+              std::find_if(target().begin() + ti + 1, target().end(),
+                           [&](auto tn) {
+                             bool candidate = kMt == MappingType::kSubgraph
+                                                  ? conn()[tn.id()] >= 0
+                                                  : conn()[tn.id()] == 0;
+                             return candidate && feas(qn, tn, node_match);
+                           })
+              - target().begin();
 
           if (tj < target().size()) {
-            add_pair(qn.id(), tj);
+            add_pair(qn.id(), tj, -1, -1);
             ++depth_;
           } else {
             --depth_;
@@ -297,54 +306,64 @@ public:
           continue;
         }
 
-        ta = target().adj_begin(mapping_[qa->dst().id()]);
+        ta = target().adj_begin(node_map_[qa->src().id()]);
       }
+
+      ABSL_DCHECK(ta.end() || !qa.end());
 
       for (; !ta.end(); ++ta) {
         auto tn = ta->dst();
-        if (conn()[tn.id()] > 0 && feas(qn, tn, match)) {
-          add_pair(qn.id(), tn.id());
+        if (conn()[tn.id()] > 0  //
+            && feas(qn, tn, node_match)
+            && edge_match(query().edge(qa->eid()), target().edge(ta->eid()))) {
+          add_pair(qn.id(), tn.id(), qa->eid(), ta->eid());
           break;
         }
       }
 
-      update_target_ait(ta);
+      update_ait(qa, ta);
     }
 
     return false;
   }
 
-  const ArrayXi &mapping() const & { return mapping_; }
+  const ArrayXi &node_map() const & { return node_map_; }
+  ArrayXi &&node_map() && { return std::move(node_map_); }
 
-  ArrayXi &&mapping() && { return std::move(mapping_); }
+  const ArrayXi &edge_map() const & { return edge_map_; }
+  ArrayXi &&edge_map() && { return std::move(edge_map_); }
 
 private:
-  void add_pair(const int qi, const int ti) {
-    ABSL_DCHECK_GE(ti, 0);
-    ABSL_DCHECK_LT(ti, target().size());
+  void add_pair(const int qn, const int tn, const int qe, const int te) {
+    ABSL_DCHECK_GE(tn, 0);
+    ABSL_DCHECK_LT(tn, target().size());
 
-    mapping_[qi] = ti;
-    conn()[ti] = -1;
+    node_map_[qn] = tn;
+    if (qe >= 0)
+      edge_map_[qe] = te;
 
-    for (auto nei: target().node(ti)) {
+    conn()[tn] = -1;
+    for (auto nei: target().node(tn)) {
       if (conn()[nei.dst().id()] != -1)
         ++conn()[nei.dst().id()];
     }
   }
 
-  void sub_pair(const int qi, const int ti) {
-    ABSL_DCHECK_GE(ti, 0);
-    ABSL_DCHECK_LT(ti, target().size());
+  void sub_pair(const int qn, const int tn, const int qe) {
+    ABSL_DCHECK_GE(tn, 0);
+    ABSL_DCHECK_LT(tn, target().size());
 
-    mapping_[qi] = -1;
-    conn()[ti] = 0;
+    node_map_[qn] = -1;
+    if (qe >= 0)
+      edge_map_[qe] = -1;
 
-    for (auto nei: target().node(ti)) {
+    conn()[tn] = 0;
+    for (auto nei: target().node(tn)) {
       int curr_conn = conn()[nei.dst().id()];
       if (curr_conn > 0) {
         --conn()[nei.dst().id()];
       } else if (curr_conn == -1) {
-        ++conn()[ti];
+        ++conn()[tn];
       }
     }
   }
@@ -385,15 +404,15 @@ private:
            && internal::vf2pp_r_matches<kMt>(r_new_[qn.id()], r_new_cnt());
   }
 
-  template <class BinaryPred>
+  template <class NodeMatch>
   bool feas(const typename GT::ConstNodeRef qn,
-            const typename GU::ConstNodeRef tn, const BinaryPred &match) {
+            const typename GU::ConstNodeRef tn, const NodeMatch &node_match) {
     if (qlbl_[qn.id()] != tlbl_[tn.id()])
       return false;
 
     for (auto qnei: qn)
-      if (mapping_[qnei.dst().id()] >= 0)
-        --conn()[mapping_[qnei.dst().id()]];
+      if (node_map_[qnei.dst().id()] >= 0)
+        --conn()[node_map_[qnei.dst().id()]];
 
     bool is_iso = true;
     for (auto tnei: tn) {
@@ -410,7 +429,7 @@ private:
 
     if (!is_iso) {
       for (auto qnei: qn) {
-        const int ti = mapping_[qnei.dst().id()];
+        const int ti = node_map_[qnei.dst().id()];
         if (ti >= 0)
           conn()[ti] = -1;
       }
@@ -418,7 +437,7 @@ private:
     }
 
     for (auto qnei: qn) {
-      const int ti = mapping_[qnei.dst().id()];
+      const int ti = node_map_[qnei.dst().id()];
       if (ti < 0 || conn()[ti] == -1)
         continue;
 
@@ -431,7 +450,26 @@ private:
         return false;
     }
 
-    return match(qn, tn) && cut_by_labels(qn, tn);
+    return node_match(qn, tn) && cut_by_labels(qn, tn);
+  }
+
+  template <class EdgeMatch>
+  bool map_remaining_edges(const EdgeMatch &edge_match) {
+    for (auto qe: query().edges()) {
+      if (edge_map_[qe.id()] >= 0)
+        continue;
+
+      auto teit = target().find_edge(target().node(node_map_[qe.src().id()]),
+                                     target().node(node_map_[qe.dst().id()]));
+      ABSL_DCHECK(teit != target().edge_end());
+
+      if (!edge_match(qe, *teit))
+        return false;
+
+      edge_map_[qe.id()] = teit->id();
+    }
+
+    return true;
   }
 
   const GT *query_;
@@ -439,12 +477,14 @@ private:
 
   Eigen::Ref<const ArrayXi> qlbl_, tlbl_;
 
-  // query.size()
-  ArrayXi mapping_, order_;
-  internal::Vf2ppLabelMap r_inout_, r_new_;
+  ArrayXi node_map_, edge_map_;
 
-  // target.size()
-  std::vector<typename GU::const_adjacency_iterator> target_ait_;
+  // query.size()
+  ArrayXi order_;
+  internal::Vf2ppLabelMap r_inout_, r_new_;
+  std::vector<std::pair<typename GT::const_adjacency_iterator,
+                        typename GU::const_adjacency_iterator>>
+      query_target_ait_;
 
   // max(label) + 1
   ArrayXi label_tmp1_, label_tmp2_;
@@ -462,49 +502,63 @@ VF2pp<kMt, GT, GU> make_vf2pp(const GT &query, const GU &target, AL1 &&qlbl,
                             std::forward<AL2>(tlbl));
 }
 
+struct VF2ppResult {
+  ArrayXi node_map;
+  ArrayXi edge_map;
+  bool found;
+};
+
 template <MappingType kMt, class GT, class GU, class AL1, class AL2,
-          class BinaryPred>
-std::pair<ArrayXi, bool> vf2pp(const GT &query, const GU &target, AL1 &&qlbl,
-                               AL2 &&tlbl, const BinaryPred &match) {
+          class NodeMatch, class EdgeMatch>
+VF2ppResult vf2pp(const GT &query, const GU &target, AL1 &&qlbl, AL2 &&tlbl,
+                  const NodeMatch &node_match, const EdgeMatch &edge_match) {
   VF2pp<kMt, GT, GU> vf2pp = make_vf2pp<kMt>(
       query, target, std::forward<AL1>(qlbl), std::forward<AL2>(tlbl));
-  bool found = vf2pp.next(match);
-  return { std::move(vf2pp).mapping(), found };
+  bool found = vf2pp.next(node_match, edge_match);
+  return { std::move(vf2pp).node_map(), std::move(vf2pp).edge_map(), found };
 }
 
-template <class GT, class GU, class BinaryPred, class AL1, class AL2>
-std::pair<ArrayXi, bool> vf2pp(const GT &query, const GU &target, AL1 &&qlbl,
-                               AL2 &&tlbl, const BinaryPred &match,
-                               MappingType mt) {
+template <class GT, class GU, class NodeMatch, class EdgeMatch, class AL1,
+          class AL2>
+VF2ppResult vf2pp(const GT &query, const GU &target, AL1 &&qlbl, AL2 &&tlbl,
+                  const NodeMatch &node_match, const EdgeMatch &edge_match,
+                  MappingType mt) {
   switch (mt) {
   case MappingType::kSubgraph:
-    return vf2pp<MappingType::kSubgraph>(query, target, std::forward<AL1>(qlbl),
-                                         std::forward<AL2>(tlbl), match);
+    return vf2pp<MappingType::kSubgraph>(                  //
+        query, target,                                     //
+        std::forward<AL1>(qlbl), std::forward<AL2>(tlbl),  //
+        node_match, edge_match);
   case MappingType::kInduced:
-    return vf2pp<MappingType::kInduced>(query, target, std::forward<AL1>(qlbl),
-                                        std::forward<AL2>(tlbl), match);
+    return vf2pp<MappingType::kInduced>(                   //
+        query, target,                                     //
+        std::forward<AL1>(qlbl), std::forward<AL2>(tlbl),  //
+        node_match, edge_match);
   case MappingType::kIsomorphism:
-    return vf2pp<MappingType::kIsomorphism>(
-        query, target, std::forward<AL1>(qlbl), std::forward<AL2>(tlbl), match);
+    return vf2pp<MappingType::kIsomorphism>(               //
+        query, target,                                     //
+        std::forward<AL1>(qlbl), std::forward<AL2>(tlbl),  //
+        node_match, edge_match);
   }
 
   ABSL_UNREACHABLE();
 }
 
-template <MappingType kMt, class GT, class GU, class BinaryPred>
-std::pair<ArrayXi, bool> vf2pp(const GT &query, const GU &target,
-                               const BinaryPred &match) {
+template <MappingType kMt, class GT, class GU, class NodeMatch, class EdgeMatch>
+VF2ppResult vf2pp(const GT &query, const GU &target,
+                  const NodeMatch &node_match, const EdgeMatch &edge_match) {
   ArrayXi label = ArrayXi::Zero(nuri::max(query.size(), target.size()));
   return vf2pp<kMt>(query, target, label.head(query.size()),
-                    label.head(target.size()), match);
+                    label.head(target.size()), node_match, edge_match);
 }
 
-template <class GT, class GU, class BinaryPred>
-std::pair<ArrayXi, bool> vf2pp(const GT &query, const GU &target,
-                               const BinaryPred &match, MappingType mt) {
+template <class GT, class GU, class NodeMatch, class EdgeMatch>
+VF2ppResult vf2pp(const GT &query, const GU &target,
+                  const NodeMatch &node_match, const EdgeMatch &edge_match,
+                  MappingType mt) {
   ArrayXi label = ArrayXi::Zero(nuri::max(query.size(), target.size()));
   return vf2pp(query, target, label.head(query.size()),
-               label.head(target.size()), match, mt);
+               label.head(target.size()), node_match, edge_match, mt);
 }
 }  // namespace nuri
 
