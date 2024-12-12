@@ -487,8 +487,7 @@ std::pair<ArrayXi, bool> vf2pp(const GT &query, const GU &target, AL1 &&qlbl,
         query, target, std::forward<AL1>(qlbl), std::forward<AL2>(tlbl), match);
   }
 
-  ABSL_LOG(ERROR) << "Invalid mapping type (" << static_cast<int>(mt) << ")";
-  return { {}, false };
+  ABSL_UNREACHABLE();
 }
 
 template <MappingType kMt, class GT, class GU, class BinaryPred>
