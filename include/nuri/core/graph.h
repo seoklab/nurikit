@@ -1582,10 +1582,17 @@ namespace internal {
     }
 
   private:
+    friend SGT;
+
     template <class, bool>
     friend class SubAdjIterator;
 
     friend class boost::iterator_core_access;
+
+    constexpr SubAdjIterator(parent_type &subgraph, int src, int dst, int eid,
+                             int parent_idx) noexcept
+        : subgraph_(&subgraph), src_(src), dst_(dst), eid_(eid),
+          parent_idx_(parent_idx) { }
 
     auto parent_iter() const {
       return subgraph_->parent_node(src_).begin() + parent_idx_;
@@ -2995,31 +3002,37 @@ private:
   }
 
   adjacency_iterator find_adjacent(int src, int dst) {
-    return find_adj_helper(*this, src, dst);
+    return find_adj_helper<adjacency_iterator>(*this, src, dst);
   }
 
   const_adjacency_iterator find_adjacent(int src, int dst) const {
-    return find_adj_helper(*this, src, dst);
+    return find_adj_helper<const_adjacency_iterator>(*this, src, dst);
   }
 
-  template <class SGT>
-  static auto find_adj_helper(SGT &graph, int src, int dst) {
-    auto ret = graph.adj_begin(src);
+  template <class AIT, class SGT>
+  static AIT find_adj_helper(SGT &graph, int src, int dst) {
+    auto pait = graph.parent_node(src).find_adjacent(graph.parent_node(dst));
+    if (pait.end())
+      return graph.adj_end(src);
 
-    for (; ret != graph.adj_end(src); ++ret)
-      if (ret->dst().id() == dst)
-        break;
+    auto eit = graph.find_edge(pait->eid());
+    if (eit == graph.edge_end())
+      return graph.adj_end(src);
 
-    return ret;
+    return { graph, src, dst, eit->id(),
+             pait - graph.parent_node(src).begin() };
   }
 
   template <class SGT>
   static auto find_edge_helper(SGT &graph, int src, int dst) {
-    auto it = find_adj_helper(graph, src, dst);
-    if (it.end())
+    if (graph.parent_node(src).degree() > graph.parent_node(dst).degree())
+      std::swap(src, dst);
+
+    auto ait = graph.find_adjacent(src, dst);
+    if (ait.end())
       return graph.edge_end();
 
-    return graph.edge_begin() + it->eid();
+    return graph.edge_begin() + ait->eid();
   }
 
   parent_type *parent_;
