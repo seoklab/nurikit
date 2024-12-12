@@ -1297,11 +1297,14 @@ namespace internal {
   // NOLINTBEGIN(readability-identifier-naming)
 
   template <class NT, class ET>
-  struct GraphTraits<Graph<NT, ET>> { };
+  struct GraphTraits<Graph<NT, ET>> {
+    constexpr static bool is_degree_constant_time = true;
+  };
 
   template <class NT, class ET, bool subg_const>
   struct GraphTraits<Subgraph<NT, ET, subg_const>> {
     constexpr static bool is_const = subg_const;
+    constexpr static bool is_degree_constant_time = false;
   };
 
   template <class SGT, bool subg_const>
