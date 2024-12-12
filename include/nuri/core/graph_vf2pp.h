@@ -8,6 +8,7 @@
 
 /// @cond
 #include <algorithm>
+#include <tuple>
 #include <utility>
 #include <vector>
 
