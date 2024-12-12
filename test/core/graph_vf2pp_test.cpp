@@ -104,7 +104,7 @@ GT lemon_c5_petersen() {
   return g;
 }
 
-TEST(VF2PPComponentTest, ProcessBfsTreePetersenSingleLabel) {
+TEST(VF2ppComponentTest, ProcessBfsTreePetersenSingleLabel) {
   GT g = lemon_petersen();
 
   ArrayXi order = ArrayXi::Constant(g.size(), -1);
@@ -127,7 +127,7 @@ TEST(VF2PPComponentTest, ProcessBfsTreePetersenSingleLabel) {
     EXPECT_EQ(lid(g, order[i]), expected_order[i]);
 }
 
-TEST(VF2PPComponentTest, ProcessBfsTreePetersenMultiLabel) {
+TEST(VF2ppComponentTest, ProcessBfsTreePetersenMultiLabel) {
   GT g = lemon_petersen();
 
   ArrayXi order = ArrayXi::Constant(g.size(), -1);
@@ -154,7 +154,7 @@ TEST(VF2PPComponentTest, ProcessBfsTreePetersenMultiLabel) {
     EXPECT_EQ(lid(g, order[i]), expected_order[i]);
 }
 
-TEST(VF2PPComponentTest, InitOrderC5Petersen) {
+TEST(VF2ppComponentTest, InitOrderC5Petersen) {
   GT g = lemon_c5_petersen();
 
   ArrayXi lbl(g.size());
@@ -171,7 +171,7 @@ TEST(VF2PPComponentTest, InitOrderC5Petersen) {
     EXPECT_EQ(lid(g, order[i]), expected_order[i]);
 }
 
-TEST(VF2PPComponentTest, InitRNewRInoutC5Petersen) {
+TEST(VF2ppComponentTest, InitRNewRInoutC5Petersen) {
   GT g = lemon_c5_petersen();
   ArrayXi lbl(g.size());
   lbl << 1, 1, 1, 1, 1,  //
@@ -231,7 +231,7 @@ TEST(VF2PPComponentTest, InitRNewRInoutC5Petersen) {
   }
 }
 
-TEST(VF2PPSingleLabelSimpleMatchTest, PetersenSubgraph) {
+TEST(VF2ppSingleLabelSimpleMatchTest, PetersenSubgraph) {
   GT target = lemon_petersen();
   ArrayXi expected_map(10);
 
@@ -282,7 +282,7 @@ TEST(VF2PPSingleLabelSimpleMatchTest, PetersenSubgraph) {
   }
 }
 
-TEST(VF2PPSingleLabelSimpleMatchTest, PetersenInduced) {
+TEST(VF2ppSingleLabelSimpleMatchTest, PetersenInduced) {
   GT target = lemon_petersen();
   ArrayXi expected_map(10);
 
@@ -329,7 +329,7 @@ TEST(VF2PPSingleLabelSimpleMatchTest, PetersenInduced) {
   }
 }
 
-TEST(VF2PPSingleLabelSimpleMatchTest, PetersenIsomorphism) {
+TEST(VF2ppSingleLabelSimpleMatchTest, PetersenIsomorphism) {
   GT target = lemon_petersen();
   ArrayXi expected_map(10);
 
@@ -373,7 +373,7 @@ TEST(VF2PPSingleLabelSimpleMatchTest, PetersenIsomorphism) {
   }
 }
 
-TEST(VF2PPSingleLabelSimpleMatchTest, C10P10) {
+TEST(VF2ppSingleLabelSimpleMatchTest, C10P10) {
   GT target = lemon_c_n(10);
   ArrayXi expected_map(10);
 
@@ -419,7 +419,7 @@ TEST(VF2PPSingleLabelSimpleMatchTest, C10P10) {
   }
 }
 
-TEST(VF2PPMultiLabelSimpleMatchTest, C5Petersen) {
+TEST(VF2ppMultiLabelSimpleMatchTest, C5Petersen) {
   GT c5 = lemon_c_n(5), petersen = lemon_petersen();
 
   ArrayXi c5_lbl(5);
@@ -453,7 +453,7 @@ TEST(VF2PPMultiLabelSimpleMatchTest, C5Petersen) {
   }
 }
 
-TEST(VF2PPMultiLabelSimpleMatchTest, PetersenPetersen) {
+TEST(VF2ppMultiLabelSimpleMatchTest, PetersenPetersen) {
   GT petersen = lemon_petersen();
 
   ArrayXi petersen_lbl1(10);
