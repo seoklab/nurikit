@@ -235,7 +235,7 @@ constexpr auto dummy_match = [](auto, auto) { return true; };
 
 TEST(VF2ppSingleLabelSimpleMatchTest, PetersenSubgraph) {
   GT target = lemon_petersen();
-  ArrayXi expected_map(10);
+  ArrayXi expected_map(15);
 
   auto run_vf2pp = [&](const GT &query) {
     return vf2pp(query, target, dummy_match, dummy_match,
@@ -250,6 +250,11 @@ TEST(VF2ppSingleLabelSimpleMatchTest, PetersenSubgraph) {
     expected_map.head(5) << 7, 5, 8, 6, 9;
     for (int i = 0; i < nmap.size(); ++i)
       EXPECT_EQ(lid(target, nmap[lid(c5, i)]), expected_map[i]);
+
+    // lemon: 4-0, 3-4, 2-3, 1-2, 0-1
+    expected_map.head(5) << 1, 2, 0, 4, 3;
+    for (int i = 0; i < emap.size(); ++i)
+      EXPECT_EQ(emap[i], expected_map[i]);
   }
 
   {
@@ -263,9 +268,14 @@ TEST(VF2ppSingleLabelSimpleMatchTest, PetersenSubgraph) {
     auto [nmap, emap, ok] = run_vf2pp(p10);
     EXPECT_TRUE(ok);
 
-    expected_map << 2, 1, 0, 4, 3, 8, 5, 7, 9, 6;
+    expected_map.head(10) << 2, 1, 0, 4, 3, 8, 5, 7, 9, 6;
     for (int i = 0; i < nmap.size(); ++i)
       EXPECT_EQ(lid(target, nmap[lid(p10, i)]), expected_map[i]);
+
+    // lemon: 8-9, 7-8, ..., 0-1
+    expected_map.head(9) << 2, 1, 3, 4, 6, 11, 10, 14, 13;
+    for (int i = 0; i < emap.size(); ++i)
+      EXPECT_EQ(emap[i], expected_map[i]);
   }
 
   {
@@ -279,14 +289,18 @@ TEST(VF2ppSingleLabelSimpleMatchTest, PetersenSubgraph) {
     EXPECT_TRUE(ok);
 
     absl::c_iota(expected_map, 0);
+
     for (int i = 0; i < nmap.size(); ++i)
       EXPECT_EQ(lid(target, nmap[lid(target, i)]), expected_map[i]);
+
+    for (int i = 0; i < emap.size(); ++i)
+      EXPECT_EQ(emap[i], expected_map[i]);
   }
 }
 
 TEST(VF2ppSingleLabelSimpleMatchTest, PetersenInduced) {
   GT target = lemon_petersen();
-  ArrayXi expected_map(10);
+  ArrayXi expected_map(15);
 
   auto run_vf2pp = [&](const GT &query) {
     return vf2pp(query, target, dummy_match, dummy_match,
@@ -301,6 +315,11 @@ TEST(VF2ppSingleLabelSimpleMatchTest, PetersenInduced) {
     expected_map.head(5) << 7, 5, 8, 6, 9;
     for (int i = 0; i < nmap.size(); ++i)
       EXPECT_EQ(lid(target, nmap[lid(c5, i)]), expected_map[i]);
+
+    // lemon: 4-0, 3-4, 2-3, 1-2, 0-1
+    expected_map.head(5) << 1, 2, 0, 4, 3;
+    for (int i = 0; i < emap.size(); ++i)
+      EXPECT_EQ(emap[i], expected_map[i]);
   }
 
   {
@@ -326,14 +345,18 @@ TEST(VF2ppSingleLabelSimpleMatchTest, PetersenInduced) {
     EXPECT_TRUE(ok);
 
     absl::c_iota(expected_map, 0);
+
     for (int i = 0; i < nmap.size(); ++i)
       EXPECT_EQ(lid(target, nmap[lid(target, i)]), expected_map[i]);
+
+    for (int i = 0; i < emap.size(); ++i)
+      EXPECT_EQ(emap[i], expected_map[i]);
   }
 }
 
 TEST(VF2ppSingleLabelSimpleMatchTest, PetersenIsomorphism) {
   GT target = lemon_petersen();
-  ArrayXi expected_map(10);
+  ArrayXi expected_map(15);
 
   auto run_vf2pp = [&](const GT &query) {
     return vf2pp(query, target, dummy_match, dummy_match,
@@ -369,8 +392,12 @@ TEST(VF2ppSingleLabelSimpleMatchTest, PetersenIsomorphism) {
     EXPECT_TRUE(ok);
 
     absl::c_iota(expected_map, 0);
+
     for (int i = 0; i < nmap.size(); ++i)
       EXPECT_EQ(lid(target, nmap[lid(target, i)]), expected_map[i]);
+
+    for (int i = 0; i < emap.size(); ++i)
+      EXPECT_EQ(emap[i], expected_map[i]);
   }
 }
 
@@ -394,6 +421,9 @@ TEST(VF2ppSingleLabelSimpleMatchTest, C10P10) {
     expected_map << 7, 6, 5, 4, 3, 2, 1, 0, 9, 8;
     for (int i = 0; i < nmap.size(); ++i)
       EXPECT_EQ(lid(target, nmap[lid(p10, i)]), expected_map[i]);
+
+    for (int i = 0; i < emap.size(); ++i)
+      EXPECT_EQ(emap[i], nmap[i]);
   }
 
   {
@@ -417,8 +447,12 @@ TEST(VF2ppSingleLabelSimpleMatchTest, C10P10) {
     EXPECT_TRUE(ok);
 
     absl::c_iota(expected_map, 0);
+
     for (int i = 0; i < nmap.size(); ++i)
       EXPECT_EQ(lid(target, nmap[lid(target, i)]), expected_map[i]);
+
+    for (int i = 0; i < emap.size(); ++i)
+      EXPECT_EQ(emap[i], expected_map[i]);
   }
 }
 
@@ -449,9 +483,14 @@ TEST(VF2ppMultiLabelSimpleMatchTest, C5Petersen) {
     ASSERT_TRUE(ok);
 
     ArrayXi expected_map(5);
+
     expected_map << 0, 1, 2, 3, 4;
     for (int i = 0; i < nmap.size(); ++i)
       EXPECT_EQ(lid(petersen, nmap[lid(c5, i)]), expected_map[i]);
+
+    expected_map << 10, 11, 12, 13, 14;
+    for (int i = 0; i < emap.size(); ++i)
+      EXPECT_EQ(emap[i], expected_map[i]);
   }
 }
 
@@ -466,7 +505,7 @@ TEST(VF2ppMultiLabelSimpleMatchTest, PetersenPetersen) {
   petersen_lbl2.head(5) << 4, 3, 2, 1, 0;
   petersen_lbl2.tail(5) = petersen_lbl2.head(5);
 
-  ArrayXi expected_map(10);
+  ArrayXi expected_map(15);
   absl::c_iota(expected_map, 0);
 
   for (MappingType mt: { MappingType::kSubgraph, MappingType::kInduced,
@@ -480,6 +519,9 @@ TEST(VF2ppMultiLabelSimpleMatchTest, PetersenPetersen) {
       for (int i = 0; i < nmap.size(); ++i)
         EXPECT_EQ(lid(petersen, nmap[lid(petersen, i)]), expected_map[i])
             << static_cast<int>(mt);
+
+      for (int i = 0; i < emap.size(); ++i)
+        EXPECT_EQ(emap[i], expected_map[i]) << static_cast<int>(mt);
     }
 
     {
@@ -491,6 +533,9 @@ TEST(VF2ppMultiLabelSimpleMatchTest, PetersenPetersen) {
       for (int i = 0; i < nmap.size(); ++i)
         EXPECT_EQ(lid(petersen, nmap[lid(petersen, i)]), expected_map[i])
             << static_cast<int>(mt);
+
+      for (int i = 0; i < emap.size(); ++i)
+        EXPECT_EQ(emap[i], expected_map[i]) << static_cast<int>(mt);
     }
 
     {
@@ -511,9 +556,11 @@ TEST(VF2ppPetersenSubgraphSimpleMatchTest, SingleLabel) {
   GT petersen = lemon_petersen();
   ArrayXi idxs(5), expected_map(5);
 
+  //                                1   3   9   10
   //                              0   1   2   4   3
   // {0, 2, 4, 5, 9}, connection: 0 - 2 - 4 - 9 - 5
   auto p5 = subgraph_from_edges(petersen, { 1, 3, 9, 10 });
+  //                                4   3   7   12  6
   //                              0   2   1   4   3   0
   // {1, 2, 4, 6, 7}, connection: 1 - 4 - 2 - 7 - 6 - 1
   auto c5 = subgraph_from_edges(petersen, { 3, 4, 6, 7, 12 });
@@ -527,6 +574,10 @@ TEST(VF2ppPetersenSubgraphSimpleMatchTest, SingleLabel) {
     expected_map << 3, 0, 2, 1, 4;
     for (int i = 0; i < nmap.size(); ++i)
       EXPECT_EQ(nmap[idxs[i]], expected_map[i]) << i;
+
+    expected_map.head(4) << 2, 1, 0, 3;
+    for (int i = 0; i < emap.size(); ++i)
+      EXPECT_EQ(emap[i], expected_map[i]) << i;
   }
 
   {
@@ -548,6 +599,9 @@ TEST(VF2ppPetersenSubgraphSimpleMatchTest, SingleLabel) {
 
     for (int i = 0; i < nmap.size(); ++i)
       EXPECT_EQ(nmap[i], i) << i;
+
+    for (int i = 0; i < emap.size(); ++i)
+      EXPECT_EQ(emap[i], i) << i;
   }
 
   {
@@ -558,6 +612,10 @@ TEST(VF2ppPetersenSubgraphSimpleMatchTest, SingleLabel) {
     expected_map << 3, 0, 2, 4, 1;
     for (int i = 0; i < nmap.size(); ++i)
       EXPECT_EQ(nmap[idxs[i]], expected_map[i]) << i;
+
+    expected_map.head(4) << 2, 1, 3, 4;
+    for (int i = 0; i < emap.size(); ++i)
+      EXPECT_EQ(emap[i], expected_map[i]) << i;
   }
 
   {
@@ -569,6 +627,11 @@ TEST(VF2ppPetersenSubgraphSimpleMatchTest, SingleLabel) {
     expected_map << 0, 2, 4, 1, 3;
     for (int i = 0; i < nmap.size(); ++i)
       EXPECT_EQ(nmap[idxs[i]], expected_map[i]) << i;
+
+    idxs << 1, 0, 3, 4, 2;
+    expected_map << 1, 3, 4, 0, 2;
+    for (int i = 0; i < emap.size(); ++i)
+      EXPECT_EQ(emap[idxs[i]], expected_map[i]) << i;
   }
 }
 
@@ -576,9 +639,11 @@ TEST(VF2ppPetersenSubgraphSimpleMatchTest, MultiLabel) {
   GT petersen = lemon_petersen();
   ArrayXi qlbl(5), tlbl(10), idxs(5), expected_map(5);
 
+  //                                1   3   9   10
   //  0  1  2  1  1               0   1   2   4   3
   // {0, 2, 4, 5, 9}, connection: 0 - 2 - 4 - 9 - 5
   auto p5 = subgraph_from_edges(petersen, { 1, 3, 9, 10 });
+  //                                4   3   7   12  6
   //  0  2  1  1  1               0   2   1   4   3   0
   // {1, 2, 4, 6, 7}, connection: 1 - 4 - 2 - 7 - 6 - 1
   auto c5 = subgraph_from_edges(petersen, { 3, 4, 6, 7, 12 });
@@ -594,6 +659,10 @@ TEST(VF2ppPetersenSubgraphSimpleMatchTest, MultiLabel) {
     expected_map << 0, 2, 1, 4, 3;
     for (int i = 0; i < nmap.size(); ++i)
       EXPECT_EQ(nmap[idxs[i]], expected_map[i]) << i;
+
+    expected_map.head(4) << 1, 0, 3, 4;
+    for (int i = 0; i < emap.size(); ++i)
+      EXPECT_EQ(emap[i], expected_map[i]) << i;
   }
 
   {
@@ -622,9 +691,17 @@ TEST(VF2ppPetersenSubgraphSimpleMatchTest, MultiLabel) {
 
     bool found_original = false;
     while (matcher.next(dummy_match, dummy_match)) {
-      if (absl::c_equal(p5.node_ids(), matcher.node_map())) {
+      if (absl::c_equal(p5.node_ids(), matcher.node_map()))
         found_original = true;
-        break;
+
+      for (int i = 0; i < p5.num_edges(); ++i) {
+        int src = matcher.node_map()[p5.edge(i).src().id()],
+            dst = matcher.node_map()[p5.edge(i).dst().id()];
+
+        auto edge = petersen.edge(matcher.edge_map()[i]);
+
+        EXPECT_TRUE((edge.src().id() == src && edge.dst().id() == dst)
+                    || (edge.src().id() == dst && edge.dst().id() == src));
       }
     }
     EXPECT_TRUE(found_original);
@@ -642,6 +719,10 @@ TEST(VF2ppPetersenSubgraphSimpleMatchTest, MultiLabel) {
     expected_map.head(5) << 1, 4, 2, 7, 6;
     for (int i = 0; i < nmap.size(); ++i)
       EXPECT_EQ(nmap[idxs[i]], expected_map[i]) << i;
+
+    expected_map.head(5) << 3, 4, 6, 7, 12;
+    for (int i = 0; i < emap.size(); ++i)
+      EXPECT_EQ(emap[i], expected_map[i]) << i;
   }
 }
 }  // namespace
