@@ -498,5 +498,133 @@ TEST(VF2ppMultiLabelSimpleMatchTest, PetersenPetersen) {
     EXPECT_FALSE(ok) << static_cast<int>(mt);
   }
 }
+
+TEST(VF2ppPetersenSubgraphSimpleMatchTest, SingleLabel) {
+  GT petersen = lemon_petersen();
+  ArrayXi idxs(5), expected_map(5);
+
+  //                              0   1   2   4   3
+  // {0, 2, 4, 5, 9}, connection: 0 - 2 - 4 - 9 - 5
+  auto p5 = subgraph_from_edges(petersen, { 1, 3, 9, 10 });
+  //                              0   2   1   4   3   0
+  // {1, 2, 4, 6, 7}, connection: 1 - 4 - 2 - 7 - 6 - 1
+  auto c5 = subgraph_from_edges(petersen, { 3, 4, 6, 7, 12 });
+
+  idxs << 0, 1, 2, 4, 3;
+  {
+    auto [map, ok] =
+        vf2pp(p5, c5, [](auto, auto) { return true; }, MappingType::kSubgraph);
+    EXPECT_TRUE(ok);
+
+    expected_map << 3, 0, 2, 1, 4;
+    for (int i = 0; i < map.size(); ++i)
+      EXPECT_EQ(map[idxs[i]], expected_map[i]) << i;
+
+    std::tie(std::ignore, ok) =
+        vf2pp(p5, c5, [](auto, auto) { return true; }, MappingType::kInduced);
+    EXPECT_FALSE(ok);
+
+    std::tie(std::ignore, ok) =
+        vf2pp(c5, p5, [](auto, auto) { return true; }, MappingType::kSubgraph);
+    EXPECT_FALSE(ok);
+
+    std::tie(map, ok) = vf2pp(
+        c5, c5, [](auto, auto) { return true; }, MappingType::kIsomorphism);
+    EXPECT_TRUE(ok);
+
+    for (int i = 0; i < map.size(); ++i)
+      EXPECT_EQ(map[i], i) << i;
+  }
+
+  {
+    auto [map, ok] = vf2pp(
+        p5, petersen, [](auto, auto) { return true; }, MappingType::kSubgraph);
+    EXPECT_TRUE(ok);
+
+    expected_map << 3, 0, 2, 4, 1;
+    for (int i = 0; i < map.size(); ++i)
+      EXPECT_EQ(map[idxs[i]], expected_map[i]) << i;
+
+    std::tie(map, ok) = vf2pp(
+        c5, petersen, [](auto, auto) { return true; }, MappingType::kSubgraph);
+    EXPECT_TRUE(ok);
+
+    idxs << 0, 2, 1, 4, 3;
+    expected_map << 0, 2, 4, 1, 3;
+    for (int i = 0; i < map.size(); ++i)
+      EXPECT_EQ(map[idxs[i]], expected_map[i]) << i;
+  }
+}
+
+TEST(VF2ppPetersenSubgraphSimpleMatchTest, MultiLabel) {
+  GT petersen = lemon_petersen();
+  ArrayXi qlbl(5), tlbl(10), idxs(5), expected_map(5);
+
+  //  0  1  2  1  1               0   1   2   4   3
+  // {0, 2, 4, 5, 9}, connection: 0 - 2 - 4 - 9 - 5
+  auto p5 = subgraph_from_edges(petersen, { 1, 3, 9, 10 });
+  //  0  2  1  1  1               0   2   1   4   3   0
+  // {1, 2, 4, 6, 7}, connection: 1 - 4 - 2 - 7 - 6 - 1
+  auto c5 = subgraph_from_edges(petersen, { 3, 4, 6, 7, 12 });
+
+  {
+    qlbl << 0, 1, 2, 1, 1;
+    tlbl.head(5) << 0, 2, 1, 1, 1;
+    auto [map, ok] = vf2pp(
+        p5, c5, qlbl, tlbl.head(5), [](auto, auto) { return true; },
+        MappingType::kSubgraph);
+    EXPECT_TRUE(ok);
+
+    idxs << 0, 1, 2, 4, 3;
+    expected_map << 0, 2, 1, 4, 3;
+    for (int i = 0; i < map.size(); ++i)
+      EXPECT_EQ(map[idxs[i]], expected_map[i]) << i;
+
+    qlbl << 0, 0, 1, 1, 1;
+    std::tie(std::ignore, ok) = vf2pp(
+        p5, c5, qlbl, qlbl, [](auto, auto) { return true; },
+        MappingType::kSubgraph);
+    EXPECT_FALSE(ok);
+  }
+
+  tlbl.head(4).setZero();
+  tlbl.tail(6).setOnes();
+
+  {
+    auto matcher = make_vf2pp<MappingType::kSubgraph>(
+        p5, petersen, tlbl(p5.node_ids()), tlbl);
+
+    bool ok = matcher.next([](auto, auto) { return true; });
+    EXPECT_TRUE(ok);
+    auto map = matcher.mapping();
+    //  0  0  1  1  1               0   1   2   4   3
+    // {0, 2, 4, 5, 9}, connection: 0 - 2 - 4 - 9 - 5
+    idxs << 0, 1, 2, 4, 3;
+    expected_map.head(5) << 2, 0, 5, 9, 4;
+    for (int i = 0; i < map.size(); ++i)
+      EXPECT_EQ(map[idxs[i]], expected_map[i]) << i;
+
+    bool found_original = false;
+    while (matcher.next([](auto, auto) { return true; })) {
+      if (absl::c_equal(p5.node_ids(), matcher.mapping())) {
+        found_original = true;
+        break;
+      }
+    }
+    EXPECT_TRUE(found_original);
+
+    std::tie(map, ok) = vf2pp(
+        c5, petersen, tlbl(c5.node_ids()), tlbl,
+        [](auto, auto) { return true; }, MappingType::kSubgraph);
+    EXPECT_TRUE(ok);
+
+    //  0  0  1  1  1               0   2   1   4   3   0
+    // {1, 2, 4, 6, 7}, connection: 1 - 4 - 2 - 7 - 6 - 1
+    idxs.head(5) << 0, 2, 1, 4, 3;
+    expected_map.head(5) << 1, 4, 2, 7, 6;
+    for (int i = 0; i < map.size(); ++i)
+      EXPECT_EQ(map[idxs[i]], expected_map[i]) << i;
+  }
+}
 }  // namespace
 }  // namespace nuri
