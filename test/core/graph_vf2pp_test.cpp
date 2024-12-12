@@ -116,8 +116,9 @@ TEST(VF2PPComponentTest, ProcessBfsTreePetersenSingleLabel) {
   ArrayXi lbl = ArrayXi::Zero(g.size());
   auto query_cnts = lcnt(lbl);
 
-  const int ret = internal::vf2pp_process_bfs_tree(g, order, visited, curr_conn,
-                                                   query_cnts, 0, 0);
+  internal::Vf2ppDegreeHelper<GT> degrees(g);
+  const int ret = internal::vf2pp_process_bfs_tree(g, degrees, order, visited,
+                                                   curr_conn, query_cnts, 0, 0);
   EXPECT_EQ(ret, 10);
 
   ArrayXi expected_order(10);
@@ -140,11 +141,11 @@ TEST(VF2PPComponentTest, ProcessBfsTreePetersenMultiLabel) {
   ArrayXi qlbl(g.size());
   qlbl.head(6).setOnes();
   qlbl.tail(4).setZero();
-
   auto query_cnts = lcnt(qlbl);
 
-  const int ret = internal::vf2pp_process_bfs_tree(g, order, visited, curr_conn,
-                                                   query_cnts, 6, 0);
+  internal::Vf2ppDegreeHelper<GT> degrees(g);
+  const int ret = internal::vf2pp_process_bfs_tree(g, degrees, order, visited,
+                                                   curr_conn, query_cnts, 6, 0);
   EXPECT_EQ(ret, 10);
 
   ArrayXi expected_order(10);
