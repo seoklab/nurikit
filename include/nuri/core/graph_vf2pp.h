@@ -260,8 +260,12 @@ public:
       if (depth_ == query().size()) {
         --depth_;
 
-        if (map_remaining_edges(edge_match))
+        if (map_remaining_edges(edge_match)) {
+#ifdef NURI_DEBUG
+          first_ = false;
+#endif
           return true;
+        }
       }
 
       const auto qn = curr_node();
@@ -457,8 +461,16 @@ private:
                 const typename GU::ConstEdgeRef te) {
     const int curr_src = node_map_[qe.src().id()],
               curr_dst = node_map_[qe.dst().id()];
-    return (curr_src != te.src().id() || curr_dst != te.dst().id())
-           && (curr_src != te.dst().id() || curr_dst != te.src().id());
+
+    const bool stale =
+        (curr_src != te.src().id() || curr_dst != te.dst().id())
+        && (curr_src != te.dst().id() || curr_dst != te.src().id());
+
+#ifdef NURI_DEBUG
+    ABSL_DCHECK(!first_ || !stale) << qe.id() << " " << te.id();
+#endif
+
+    return stale;
   }
 
   template <class EdgeMatch>
@@ -503,6 +515,9 @@ private:
   ArrayXi node_tmp_;
 
   int depth_ = 0;
+#ifdef NURI_DEBUG
+  bool first_ = true;
+#endif
 };
 
 template <MappingType kMt, class GT, class GU, class AL1, class AL2>
