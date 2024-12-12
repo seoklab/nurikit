@@ -2751,7 +2751,7 @@ public:
    * @param dst The destination atom
    * @return An iterator to the edge if found, edge_end() otherwise.
    * @note This will only find edges that are in the subgraph.
-   * @note Time complexity: \f$O(V'/E' log E')\f$.
+   * @note Time complexity: \f$O(E/V + log E')\f$.
    */
   edge_iterator find_edge(ConstNodeRef src, ConstNodeRef dst) {
     return find_edge(src.id(), dst.id());
@@ -2764,7 +2764,7 @@ public:
    * @param dst The destination atom
    * @return An iterator to the edge if found, edge_end() otherwise.
    * @note This will only find edges that are in the subgraph.
-   * @note Time complexity: \f$O(V'/E' log E')\f$.
+   * @note Time complexity: \f$O(E/V + log E')\f$.
    */
   const_edge_iterator find_edge(ConstNodeRef src, ConstNodeRef dst) const {
     return find_edge(src.id(), dst.id());
@@ -2778,7 +2778,7 @@ public:
    * @return An iterator to the edge if found, edge_end() otherwise.
    * @note This will only find edges that are in the subgraph. If any of the
    *       nodes are not in the subgraph, returns edge_end().
-   * @note Time complexity: \f$O(log V' + V'/E' log E')\f$.
+   * @note Time complexity: \f$O(log V' + E/V + log E')\f$.
    */
   edge_iterator find_edge(typename graph_type::ConstNodeRef src,
                           typename graph_type::ConstNodeRef dst) {
@@ -2797,7 +2797,7 @@ public:
    * @return An iterator to the edge if found, edge_end() otherwise.
    * @note This will only find edges that are in the subgraph. If any of the
    *       nodes are not in the subgraph, returns edge_end().
-   * @note Time complexity: \f$O(log V' + V'/E' log E')\f$.
+   * @note Time complexity: \f$O(log V' + E/V + log E')\f$.
    */
   const_edge_iterator find_edge(typename graph_type::ConstNodeRef src,
                                 typename graph_type::ConstNodeRef dst) const {
@@ -2904,7 +2904,7 @@ public:
    * @param idx The index of the node
    * @return The number of neighbors of the node that are in the subgraph
    * @note The behavior is undefined if the node is not in the subgraph.
-   * @note Time complexity: \f$O(V/E)\f$.
+   * @note Time complexity: \f$O(E/V (log V' + log E'))\f$.
    */
   int degree(int idx) const {
     return std::distance(adj_cbegin(idx), adj_cend(idx));
@@ -2917,7 +2917,7 @@ public:
    * @param dst The destination atom
    * @return An iterator to the adjacent node if found, adj_end(src) otherwise.
    * @note This will only find edges that are in the subgraph.
-   * @note Time complexity: \f$O(V'/E' log E')\f$.
+   * @note Time complexity: \f$O(E/V + log E')\f$.
    */
   adjacency_iterator find_adjacent(ConstNodeRef src, ConstNodeRef dst) {
     return find_adjacent(src.id(), dst.id());
@@ -2931,7 +2931,7 @@ public:
    * @return A const-iterator to the adjacent node if found, adj_end(src)
    *         otherwise.
    * @note This will only find edges that are in the subgraph.
-   * @note Time complexity: \f$O(V'/E' log E')\f$.
+   * @note Time complexity: \f$O(E/V + log E')\f$.
    */
   const_adjacency_iterator find_adjacent(ConstNodeRef src,
                                          ConstNodeRef dst) const {
