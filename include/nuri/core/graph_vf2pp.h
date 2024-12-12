@@ -453,11 +453,21 @@ private:
     return node_match(qn, tn) && cut_by_labels(qn, tn);
   }
 
+  bool is_stale(const typename GT::ConstEdgeRef qe,
+                const typename GU::ConstEdgeRef te) {
+    const int curr_src = node_map_[qe.src().id()],
+              curr_dst = node_map_[qe.dst().id()];
+    return (curr_src != te.src().id() || curr_dst != te.dst().id())
+           && (curr_src != te.dst().id() || curr_dst != te.src().id());
+  }
+
   template <class EdgeMatch>
   bool map_remaining_edges(const EdgeMatch &edge_match) {
     for (auto qe: query().edges()) {
-      if (edge_map_[qe.id()] >= 0)
+      if (edge_map_[qe.id()] >= 0
+          && !is_stale(qe, target().edge(edge_map_[qe.id()]))) {
         continue;
+      }
 
       auto teit = target().find_edge(target().node(node_map_[qe.src().id()]),
                                      target().node(node_map_[qe.dst().id()]));
