@@ -23,10 +23,10 @@
 #include "nuri/utils.h"
 
 namespace nuri {
-enum class MappingType : int {
-  kSubgraph,     // Subgraph isomorphism
-  kInduced,      // Induced subgraph isomorphism
-  kIsomorphism,  // Graph isomorphism
+enum class IsoMapType : int {
+  kSubgraph,  // Subgraph isomorphism
+  kInduced,   // Induced subgraph isomorphism
+  kGraph,     // Graph isomorphism
 };
 
 namespace internal {
@@ -194,16 +194,16 @@ namespace internal {
     return { r_inout_labels, r_new_labels };
   }
 
-  template <MappingType kMt>
+  template <IsoMapType kMt>
   bool vf2pp_r_matches(const Vf2ppLabels &r_node, const ArrayXi &label_tmp) {
     return absl::c_none_of(r_node, [&](std::pair<int, int> p) {
-      return kMt == MappingType::kIsomorphism ? label_tmp[p.first] != 0
-                                              : label_tmp[p.first] > 0;
+      return kMt == IsoMapType::kGraph ? label_tmp[p.first] != 0
+                                       : label_tmp[p.first] > 0;
     });
   }
 }  // namespace internal
 
-template <MappingType kMt, class GT, class GU>
+template <IsoMapType kMt, class GT, class GU>
 class VF2pp {
 private:
   const GT &query() const { return *query_; }
@@ -293,7 +293,7 @@ public:
           const int tj =
               std::find_if(target().begin() + ti + 1, target().end(),
                            [&](auto tn) {
-                             bool candidate = kMt == MappingType::kSubgraph
+                             bool candidate = kMt == IsoMapType::kSubgraph
                                                   ? conn()[tn.id()] >= 0
                                                   : conn()[tn.id()] == 0;
                              return candidate && feas(qn, tn, node_match);
@@ -377,7 +377,7 @@ private:
     // zero init
     for (auto [lbl, _]: r_inout_[qn.id()])
       r_inout_cnt()[lbl] = 0;
-    if constexpr (kMt != MappingType::kSubgraph) {
+    if constexpr (kMt != IsoMapType::kSubgraph) {
       for (auto [lbl, _]: r_new_[qn.id()])
         r_new_cnt()[lbl] = 0;
     }
@@ -386,7 +386,7 @@ private:
       const int curr = nei.dst().id();
       if (conn()[curr] > 0) {
         --r_inout_cnt()[tlbl_[curr]];
-      } else if constexpr (kMt != MappingType::kSubgraph) {
+      } else if constexpr (kMt != IsoMapType::kSubgraph) {
         if (conn()[curr] == 0)
           --r_new_cnt()[tlbl_[curr]];
       }
@@ -394,14 +394,14 @@ private:
 
     for (auto [lbl, cnt]: r_inout_[qn.id()])
       r_inout_cnt()[lbl] += cnt;
-    if constexpr (kMt != MappingType::kSubgraph) {
+    if constexpr (kMt != IsoMapType::kSubgraph) {
       for (auto [lbl, cnt]: r_new_[qn.id()])
         r_new_cnt()[lbl] += cnt;
     }
 
     const bool r_inout_match =
         internal::vf2pp_r_matches<kMt>(r_inout_[qn.id()], r_inout_cnt());
-    if constexpr (kMt == MappingType::kSubgraph)
+    if constexpr (kMt == IsoMapType::kSubgraph)
       return r_inout_match;
 
     return r_inout_match
@@ -423,7 +423,7 @@ private:
       const int curr_conn = conn()[tnei.dst().id()];
       if (curr_conn < -1)
         ++conn()[tnei.dst().id()];
-      else if constexpr (kMt != MappingType::kSubgraph) {
+      else if constexpr (kMt != IsoMapType::kSubgraph) {
         if (curr_conn == -1) {
           is_iso = false;
           break;
@@ -447,7 +447,7 @@ private:
 
       const int curr_conn = conn()[ti];
       conn()[ti] = -1;
-      if constexpr (kMt != MappingType::kSubgraph)
+      if constexpr (kMt != IsoMapType::kSubgraph)
         return false;
 
       if (curr_conn < -1)
@@ -520,7 +520,7 @@ private:
 #endif
 };
 
-template <MappingType kMt, class GT, class GU, class AL1, class AL2>
+template <IsoMapType kMt, class GT, class GU, class AL1, class AL2>
 VF2pp<kMt, GT, GU> make_vf2pp(const GT &query, const GU &target, AL1 &&qlbl,
                               AL2 &&tlbl) {
   return VF2pp<kMt, GT, GU>(query, target, std::forward<AL1>(qlbl),
@@ -533,7 +533,7 @@ struct VF2ppResult {
   bool found;
 };
 
-template <MappingType kMt, class GT, class GU, class AL1, class AL2,
+template <IsoMapType kMt, class GT, class GU, class AL1, class AL2,
           class NodeMatch, class EdgeMatch>
 VF2ppResult vf2pp(const GT &query, const GU &target, AL1 &&qlbl, AL2 &&tlbl,
                   const NodeMatch &node_match, const EdgeMatch &edge_match) {
@@ -547,20 +547,20 @@ template <class GT, class GU, class NodeMatch, class EdgeMatch, class AL1,
           class AL2>
 VF2ppResult vf2pp(const GT &query, const GU &target, AL1 &&qlbl, AL2 &&tlbl,
                   const NodeMatch &node_match, const EdgeMatch &edge_match,
-                  MappingType mt) {
+                  IsoMapType mt) {
   switch (mt) {
-  case MappingType::kSubgraph:
-    return vf2pp<MappingType::kSubgraph>(                  //
+  case IsoMapType::kSubgraph:
+    return vf2pp<IsoMapType::kSubgraph>(                   //
         query, target,                                     //
         std::forward<AL1>(qlbl), std::forward<AL2>(tlbl),  //
         node_match, edge_match);
-  case MappingType::kInduced:
-    return vf2pp<MappingType::kInduced>(                   //
+  case IsoMapType::kInduced:
+    return vf2pp<IsoMapType::kInduced>(                    //
         query, target,                                     //
         std::forward<AL1>(qlbl), std::forward<AL2>(tlbl),  //
         node_match, edge_match);
-  case MappingType::kIsomorphism:
-    return vf2pp<MappingType::kIsomorphism>(               //
+  case IsoMapType::kGraph:
+    return vf2pp<IsoMapType::kGraph>(                      //
         query, target,                                     //
         std::forward<AL1>(qlbl), std::forward<AL2>(tlbl),  //
         node_match, edge_match);
@@ -569,7 +569,7 @@ VF2ppResult vf2pp(const GT &query, const GU &target, AL1 &&qlbl, AL2 &&tlbl,
   ABSL_UNREACHABLE();
 }
 
-template <MappingType kMt, class GT, class GU, class NodeMatch, class EdgeMatch>
+template <IsoMapType kMt, class GT, class GU, class NodeMatch, class EdgeMatch>
 VF2ppResult vf2pp(const GT &query, const GU &target,
                   const NodeMatch &node_match, const EdgeMatch &edge_match) {
   ArrayXi label = ArrayXi::Zero(nuri::max(query.size(), target.size()));
@@ -580,7 +580,7 @@ VF2ppResult vf2pp(const GT &query, const GU &target,
 template <class GT, class GU, class NodeMatch, class EdgeMatch>
 VF2ppResult vf2pp(const GT &query, const GU &target,
                   const NodeMatch &node_match, const EdgeMatch &edge_match,
-                  MappingType mt) {
+                  IsoMapType mt) {
   ArrayXi label = ArrayXi::Zero(nuri::max(query.size(), target.size()));
   return vf2pp(query, target, label.head(query.size()),
                label.head(target.size()), node_match, edge_match, mt);
