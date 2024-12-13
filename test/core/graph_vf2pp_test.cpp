@@ -10,6 +10,7 @@
 #include <vector>
 
 #include <absl/algorithm/container.h>
+#include <Eigen/Dense>
 
 #include <gtest/gtest.h>
 
@@ -722,6 +723,62 @@ TEST(VF2ppPetersenSubgraphSimpleMatchTest, MultiLabel) {
     for (int i = 0; i < emap.size(); ++i)
       EXPECT_EQ(emap[i], expected_map[i]) << i;
   }
+}
+
+TEST(VF2ppPetersenSubgraphSingleLabelTest, NodeNoOverlap) {
+  GT petersen = lemon_petersen();
+  auto p2 = subgraph_from_edges(petersen, { 1 });
+
+  ArrayXi qlbl = ArrayXi::Zero(2), tlbl = ArrayXi::Zero(10);
+  ArrayXi node_cnt = ArrayXi::Zero(10);
+
+  auto vf2 = make_vf2pp<IsoMapType::kSubgraph>(p2, petersen, qlbl, tlbl);
+  while (vf2.next([&](auto, auto tn) { return node_cnt[tn.id()] == 0; },
+                  dummy_match)) {
+    node_cnt(vf2.node_map()) += 1;
+  }
+
+  for (auto cnt: node_cnt)
+    EXPECT_EQ(cnt, 1);
+}
+
+TEST(VF2ppPetersenSubgraphSingleLabelTest, EdgeNoOverlap) {
+  GT petersen = lemon_petersen();
+  auto p4 = subgraph_from_edges(petersen, { 1, 7, 12 });
+
+  ArrayXi qlbl = ArrayXi::Zero(4), tlbl = ArrayXi::Zero(10);
+  ArrayXi edge_cnt = ArrayXi::Zero(15);
+
+  auto vf2 = make_vf2pp<IsoMapType::kSubgraph>(p4, petersen, qlbl, tlbl);
+  while (vf2.next(dummy_match,
+                  [&](auto, auto te) { return edge_cnt[te.id()] < 2; })) {
+    edge_cnt(vf2.edge_map()) += 1;
+  }
+
+  for (auto edge: petersen.edges())
+    EXPECT_EQ(edge_cnt[edge.id()], 2) << edge.id();
+}
+
+TEST(VF2ppPetersenSubgraphSingleLabelTest, NodeEdgeNoOverlap) {
+  GT petersen = lemon_petersen();
+  auto p4 = subgraph_from_edges(petersen, { 1, 7, 12 });
+
+  ArrayXi qlbl = ArrayXi::Zero(4), tlbl = ArrayXi::Zero(10);
+  ArrayXi node_cnt = ArrayXi::Zero(10), edge_cnt = ArrayXi::Zero(15);
+
+  auto vf2 = make_vf2pp<IsoMapType::kSubgraph>(p4, petersen, qlbl, tlbl);
+  while (vf2.next(  //
+      [&](auto, auto tn) { return node_cnt[tn.id()] < tn.degree() * 2; },
+      [&](auto, auto te) { return edge_cnt[te.id()] < 2; })) {
+    node_cnt(vf2.node_map()) += 1;
+    edge_cnt(vf2.edge_map()) += 1;
+  }
+
+  for (auto node: petersen)
+    EXPECT_LE(node_cnt[node.id()], node.degree() * 2) << node.id();
+
+  for (auto edge: petersen.edges())
+    EXPECT_EQ(edge_cnt[edge.id()], 2) << edge.id();
 }
 }  // namespace
 }  // namespace nuri
