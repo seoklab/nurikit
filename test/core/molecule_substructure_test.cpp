@@ -319,14 +319,14 @@ TEST_F(SubstructureTest, FindNeighbors) {
   EXPECT_FALSE(sub_.find_neighbor(sub_.atom(1), sub_.atom(2)).end());
   EXPECT_FALSE(sub_.find_neighbor(sub_.atom(2), sub_.atom(0)).end());
 
-  EXPECT_TRUE(sub_.find_neighbor(sub_.atom(0), sub_.atom(4)).end());
+  EXPECT_TRUE(sub_.find_neighbor(sub_.atom(0), sub_.atom(3)).end());
 
   const Substructure &csub = sub_;
   EXPECT_FALSE(csub.find_neighbor(sub_.atom(0), sub_.atom(1)).end());
   EXPECT_FALSE(csub.find_neighbor(sub_.atom(1), sub_.atom(2)).end());
   EXPECT_FALSE(csub.find_neighbor(sub_.atom(2), sub_.atom(0)).end());
 
-  EXPECT_TRUE(csub.find_neighbor(sub_.atom(0), sub_.atom(4)).end());
+  EXPECT_TRUE(csub.find_neighbor(sub_.atom(0), sub_.atom(3)).end());
 }
 
 TEST_F(SubstructureTest, IterateNeighbors) {

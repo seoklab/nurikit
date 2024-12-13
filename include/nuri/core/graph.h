@@ -1297,11 +1297,14 @@ namespace internal {
   // NOLINTBEGIN(readability-identifier-naming)
 
   template <class NT, class ET>
-  struct GraphTraits<Graph<NT, ET>> { };
+  struct GraphTraits<Graph<NT, ET>> {
+    constexpr static bool is_degree_constant_time = true;
+  };
 
   template <class NT, class ET, bool subg_const>
   struct GraphTraits<Subgraph<NT, ET, subg_const>> {
     constexpr static bool is_const = subg_const;
+    constexpr static bool is_degree_constant_time = false;
   };
 
   template <class SGT, bool subg_const>
@@ -1579,10 +1582,17 @@ namespace internal {
     }
 
   private:
+    friend SGT;
+
     template <class, bool>
     friend class SubAdjIterator;
 
     friend class boost::iterator_core_access;
+
+    constexpr SubAdjIterator(parent_type &subgraph, int src, int dst, int eid,
+                             int parent_idx) noexcept
+        : subgraph_(&subgraph), src_(src), dst_(dst), eid_(eid),
+          parent_idx_(parent_idx) { }
 
     auto parent_iter() const {
       return subgraph_->parent_node(src_).begin() + parent_idx_;
@@ -2388,7 +2398,7 @@ public:
    *
    * @param begin Iterator pointing to the first node to erase
    * @param end Iterator pointing to the node after the last node to erase
-   * @note Time complexity: \f$O(V'log(E') + E')\f$ in worst case.
+   * @note Time complexity: \f$O(V' \log E' + E')\f$ in worst case.
    */
   void erase_nodes(const_iterator begin, const_iterator end) {
     std::vector<int> erased_edges;
@@ -2407,7 +2417,7 @@ public:
    *
    * @param id The id of the node to erase
    * @note This is a no-op if the node is not in the subgraph.
-   * @note Time complexity: \f$O(V'log(E') + E')\f$ in worst case.
+   * @note Time complexity: \f$O(V' \log E' + E')\f$ in worst case.
    */
   void erase_node_of(int id) {
     int idx = nodes_.find(id);
@@ -2421,7 +2431,7 @@ public:
    *
    * @param node The parent node to erase
    * @note This is a no-op if the node is not in the subgraph.
-   * @note Time complexity: \f$O(V'log(E') + E')\f$ in worst case.
+   * @note Time complexity: \f$O(V' \log E' + E')\f$ in worst case.
    */
   void erase_node_of(typename graph_type::ConstNodeRef node) {
     erase_node_of(node.id());
@@ -2433,7 +2443,7 @@ public:
    *
    * @tparam UnaryPred Type of the unary predicate
    * @param pred Unary predicate that returns true for nodes to erase
-   * @note Time complexity: \f$O(V'log(E') + E')\f$ in worst case.
+   * @note Time complexity: \f$O(V' \log E' + E')\f$ in worst case.
    */
   template <class UnaryPred>
   void erase_nodes_if(UnaryPred pred) {
@@ -2741,7 +2751,7 @@ public:
    * @param dst The destination atom
    * @return An iterator to the edge if found, edge_end() otherwise.
    * @note This will only find edges that are in the subgraph.
-   * @note Time complexity: \f$O(V'/E' log E')\f$.
+   * @note Time complexity: \f$O(E/V + \log E')\f$.
    */
   edge_iterator find_edge(ConstNodeRef src, ConstNodeRef dst) {
     return find_edge(src.id(), dst.id());
@@ -2754,7 +2764,7 @@ public:
    * @param dst The destination atom
    * @return An iterator to the edge if found, edge_end() otherwise.
    * @note This will only find edges that are in the subgraph.
-   * @note Time complexity: \f$O(V'/E' log E')\f$.
+   * @note Time complexity: \f$O(E/V + \log E')\f$.
    */
   const_edge_iterator find_edge(ConstNodeRef src, ConstNodeRef dst) const {
     return find_edge(src.id(), dst.id());
@@ -2768,7 +2778,7 @@ public:
    * @return An iterator to the edge if found, edge_end() otherwise.
    * @note This will only find edges that are in the subgraph. If any of the
    *       nodes are not in the subgraph, returns edge_end().
-   * @note Time complexity: \f$O(log V' + V'/E' log E')\f$.
+   * @note Time complexity: \f$O(\log V' + E/V + \log E')\f$.
    */
   edge_iterator find_edge(typename graph_type::ConstNodeRef src,
                           typename graph_type::ConstNodeRef dst) {
@@ -2787,7 +2797,7 @@ public:
    * @return An iterator to the edge if found, edge_end() otherwise.
    * @note This will only find edges that are in the subgraph. If any of the
    *       nodes are not in the subgraph, returns edge_end().
-   * @note Time complexity: \f$O(log V' + V'/E' log E')\f$.
+   * @note Time complexity: \f$O(\log V' + E/V + \log E')\f$.
    */
   const_edge_iterator find_edge(typename graph_type::ConstNodeRef src,
                                 typename graph_type::ConstNodeRef dst) const {
@@ -2894,7 +2904,7 @@ public:
    * @param idx The index of the node
    * @return The number of neighbors of the node that are in the subgraph
    * @note The behavior is undefined if the node is not in the subgraph.
-   * @note Time complexity: \f$O(V/E)\f$.
+   * @note Time complexity: \f$O(E/V (\log V' + \log E'))\f$.
    */
   int degree(int idx) const {
     return std::distance(adj_cbegin(idx), adj_cend(idx));
@@ -2907,7 +2917,7 @@ public:
    * @param dst The destination atom
    * @return An iterator to the adjacent node if found, adj_end(src) otherwise.
    * @note This will only find edges that are in the subgraph.
-   * @note Time complexity: \f$O(V'/E' log E')\f$.
+   * @note Time complexity: \f$O(E/V + \log E')\f$.
    */
   adjacency_iterator find_adjacent(ConstNodeRef src, ConstNodeRef dst) {
     return find_adjacent(src.id(), dst.id());
@@ -2921,7 +2931,7 @@ public:
    * @return A const-iterator to the adjacent node if found, adj_end(src)
    *         otherwise.
    * @note This will only find edges that are in the subgraph.
-   * @note Time complexity: \f$O(V'/E' log E')\f$.
+   * @note Time complexity: \f$O(E/V + \log E')\f$.
    */
   const_adjacency_iterator find_adjacent(ConstNodeRef src,
                                          ConstNodeRef dst) const {
@@ -2992,31 +3002,37 @@ private:
   }
 
   adjacency_iterator find_adjacent(int src, int dst) {
-    return find_adj_helper(*this, src, dst);
+    return find_adj_helper<adjacency_iterator>(*this, src, dst);
   }
 
   const_adjacency_iterator find_adjacent(int src, int dst) const {
-    return find_adj_helper(*this, src, dst);
+    return find_adj_helper<const_adjacency_iterator>(*this, src, dst);
   }
 
-  template <class SGT>
-  static auto find_adj_helper(SGT &graph, int src, int dst) {
-    auto ret = graph.adj_begin(src);
+  template <class AIT, class SGT>
+  static AIT find_adj_helper(SGT &graph, int src, int dst) {
+    auto pait = graph.parent_node(src).find_adjacent(graph.parent_node(dst));
+    if (pait.end())
+      return graph.adj_end(src);
 
-    for (; ret != graph.adj_end(src); ++ret)
-      if (ret->dst().id() == dst)
-        break;
+    auto eit = graph.find_edge(pait->eid());
+    if (eit == graph.edge_end())
+      return graph.adj_end(src);
 
-    return ret;
+    return { graph, src, dst, eit->id(),
+             pait - graph.parent_node(src).begin() };
   }
 
   template <class SGT>
   static auto find_edge_helper(SGT &graph, int src, int dst) {
-    auto it = find_adj_helper(graph, src, dst);
-    if (it.end())
+    if (graph.parent_node(src).degree() > graph.parent_node(dst).degree())
+      std::swap(src, dst);
+
+    auto ait = graph.find_adjacent(src, dst);
+    if (ait.end())
       return graph.edge_end();
 
-    return graph.edge_begin() + it->eid();
+    return graph.edge_begin() + ait->eid();
   }
 
   parent_type *parent_;
