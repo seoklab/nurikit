@@ -275,15 +275,16 @@ private:
 
   ArrayXi &conn() { return node_tmp_; }
 
-  auto curr_node() const { return query_->node(order_[depth_]); }
+  auto curr_node(int i) const { return query_->node(order_[i]); }
+  auto curr_node() const { return curr_node(depth_); }
 
-  int mapped_node() const { return node_map_[curr_node().id()]; }
+  int mapped_node(int i) const { return node_map_[curr_node(i).id()]; }
+  int mapped_node() const { return mapped_node(depth_); }
 
   auto query_target_ait() const { return query_target_ait_[depth_]; }
   void update_ait(typename GT::const_adjacency_iterator qa,
                   typename GU::const_adjacency_iterator ta) {
     query_target_ait_[depth_] = { qa, ta };
-    ta.end() ? --depth_ : ++depth_;
   }
 
   ArrayXi &r_inout_cnt() { return label_tmp1_; }
@@ -366,14 +367,21 @@ public:
   bool next(const NodeMatch &node_match, const EdgeMatch &edge_match) {
     while (depth_ >= 0) {
       if (depth_ == query().size()) {
-        --depth_;
-
         if (map_remaining_edges(edge_match)) {
 #ifdef NURI_DEBUG
           first_ = false;
 #endif
+          ++depth_;
           return true;
         }
+
+        --depth_;
+      } else if (depth_ > query().size()) {
+#ifdef NURI_DEBUG
+        ABSL_DCHECK(!first_);
+#endif
+        // previous call to next() returned true
+        clear_stale_maps(node_match, edge_match);
       }
 
       const auto qn = curr_node();
@@ -434,6 +442,7 @@ public:
       }
 
       update_ait(qa, ta);
+      ta.end() ? --depth_ : ++depth_;
     }
 
     return false;
@@ -599,8 +608,9 @@ private:
     return node_match(qn, tn) && cut_by_labels(qn, tn);
   }
 
-  bool is_stale(const typename GT::ConstEdgeRef qe,
-                const typename GU::ConstEdgeRef te) {
+  constexpr bool is_stale(const typename GT::ConstEdgeRef qe,
+                          const typename GU::ConstEdgeRef te) const {
+#ifdef NURI_DEBUG
     const int curr_src = node_map_[qe.src().id()],
               curr_dst = node_map_[qe.dst().id()];
 
@@ -608,18 +618,23 @@ private:
         (curr_src != te.src().id() || curr_dst != te.dst().id())
         && (curr_src != te.dst().id() || curr_dst != te.src().id());
 
-#ifdef NURI_DEBUG
     ABSL_DCHECK(!first_ || !stale) << qe.id() << " " << te.id();
-#endif
 
     return stale;
+#else
+    static_cast<void>(*this);
+    static_cast<void>(qe);
+    static_cast<void>(te);
+
+    return false;
+#endif
   }
 
   template <class EdgeMatch>
   bool map_remaining_edges(const EdgeMatch &edge_match) {
     for (auto qe: query().edges()) {
-      if (edge_map_[qe.id()] >= 0
-          && !is_stale(qe, target().edge(edge_map_[qe.id()]))) {
+      if (edge_map_[qe.id()] >= 0) {
+        ABSL_DCHECK(!is_stale(qe, target().edge(edge_map_[qe.id()])));
         continue;
       }
 
@@ -634,6 +649,52 @@ private:
     }
 
     return true;
+  }
+
+  template <class NodeMatch, class EdgeMatch>
+  void clear_stale_maps(const NodeMatch &node_match,
+                        const EdgeMatch &edge_match) {
+    // clear first, some edges are mapped after BFS search
+    edge_map_.setConstant(-1);
+
+    // Starting from the deepest stack frame, find first stale node/edge match.
+    // Must be started from the deepest frame because the following frames
+    // depend on the mapping of the current frame. This will stop at first
+    // iteration if non-overlapping match was requested.
+    //
+    // Last entry will be popped off after this function returns, so must be
+    // excluded in this function (< query().size() - 1)
+    int i = 0;
+    for (; i < query().size() - 1; ++i) {
+      int ti = mapped_node(i);
+      ABSL_DCHECK_GE(ti, 0);
+      // check for stale nodes, if non-overlapping node match was requested
+      if (!node_match(curr_node(i), target().node(ti)))
+        break;
+
+      auto [qa, ta] = query_target_ait_[i];
+      if (qa.end())
+        continue;
+
+      // check for stale edges, if non-overlapping edge match was requested
+      if (!edge_match(query().edge(qa->eid()), target().edge(ta->eid())))
+        break;
+
+      ABSL_DCHECK(!ta.end());
+      edge_map_[qa->eid()] = ta->eid();
+    }
+
+    // Simulate stack pop when any of node/edge match fails
+    // Same here, last edge will be popped off so must be excluded (depth_ > i)
+    for (depth_ = query().size() - 1; depth_ > i; --depth_) {
+      auto qn = curr_node();
+      int ti = mapped_node();
+      auto [qa, _] = query_target_ait();
+
+      ABSL_DCHECK_GE(ti, 0);
+      sub_pair(qn.id(), ti, qa.end() ? -1 : qa->eid());
+      update_ait(query().adj_end(0), target().adj_end(0));
+    }
   }
 
   const GT *query_;
