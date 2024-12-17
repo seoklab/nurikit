@@ -3,5 +3,5 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-__version__ = "@NURI_VERSION@"
-__full_version__ = "@NURI_FULL_VERSION@"
+__version__ = "@PROJECT_VERSION@"
+__full_version__ = "@PROJECT_VERSION_FULL@"

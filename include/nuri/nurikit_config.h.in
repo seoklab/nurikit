@@ -18,8 +18,8 @@
 
 namespace nuri {
 // NOLINTBEGIN(clang-diagnostic-unused-const-variable)
-constexpr std::string_view kNuriVersion = "@NURI_VERSION@";
-constexpr std::string_view kNuriFullVersion = "@NURI_FULL_VERSION@";
+constexpr std::string_view kNuriVersion = "@PROJECT_VERSION@";
+constexpr std::string_view kNuriFullVersion = "@PROJECT_VERSION_FULL@";
 // NOLINTEND(clang-diagnostic-unused-const-variable)
 }  // namespace nuri
 

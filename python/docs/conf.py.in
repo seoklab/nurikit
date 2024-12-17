@@ -8,9 +8,10 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-import re
-
 import doctest
+import re
+from datetime import date
+
 from sphinx.ext import autodoc
 
 # -- Project information -----------------------------------------------------
@@ -19,7 +20,7 @@ from sphinx.ext import autodoc
 project = "@PROJECT_NAME@"
 copyright = "@NURI_YEAR@ SNU Compbio Lab"
 author = "SNU Compbio Lab"
-release = "@NURI_REF@"
+release = "@PROJECT_VERSION_FULL@"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

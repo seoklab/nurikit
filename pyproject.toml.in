@@ -9,7 +9,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "nurikit"
-version = "@NURI_FULL_VERSION@"
+version = "@PROJECT_VERSION_FULL@"
 description = "*The* fundamental software platform for chem- and bio-informatics"
 readme = "README.md"
 requires-python = ">=3.7"
@@ -75,7 +75,6 @@ NURI_ENABLE_SANITIZERS = "@NURI_ENABLE_SANITIZERS@"
 NURI_TEST_COVERAGE = "@NURI_TEST_COVERAGE@"
 NURI_BUILD_DOCS = "OFF"
 NURI_BUILD_PYTHON_DOCS = "OFF"
-NURI_REF = "@NURI_REF@"
 NURI_OPTIMIZATION_LEVEL = "@NURI_OPTIMIZATION_LEVEL@"
 NURI_ENABLE_IPO = "@NURI_ENABLE_IPO@"
 
