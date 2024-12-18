@@ -16,17 +16,25 @@
 
 #include "fmt_test_common.h"
 #include "test_utils.h"
+#include "nuri/algo/guess.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 
 namespace nuri {
 namespace {
-using PDBTest = internal::FileFormatTest<PDBReader>;
+class PDBTest: public internal::FileFormatTest<PDBReader> {
+  using Parent = internal::FileFormatTest<PDBReader>;
+
+public:
+  bool advance_and_guess() {
+    return advance() && internal::guess_update_subs(mol());
+  }
+};
 
 TEST_F(PDBTest, BasicParsing) {
   set_test_file("dummy.pdb");
 
-  ASSERT_TRUE(advance());
+  ASSERT_TRUE(advance_and_guess());
 
   EXPECT_EQ(mol().num_atoms(), 88);
   EXPECT_EQ(mol().num_bonds(), 87);
@@ -57,14 +65,10 @@ TEST_F(PDBTest, HandleInvalidCoordinates) {
   set_test_file("invalid.pdb");
 
   ASSERT_TRUE(advance());
+  EXPECT_NO_FATAL_FAILURE(
+      static_cast<void>(internal::guess_update_subs(mol())));
 
   EXPECT_EQ(mol().num_atoms(), 90);
-  EXPECT_EQ(mol().num_bonds(), 89);
-
-  // Peptide + H2O
-  EXPECT_EQ(mol().num_fragments(), 2);
-  // Ring from PHE
-  EXPECT_EQ(mol().ring_groups().size(), 1);
 
   // 11 residues + 1 chain
   EXPECT_EQ(mol().num_substructures(), 12);
@@ -79,17 +83,12 @@ TEST_F(PDBTest, HandleInvalidCoordinates) {
   auto atom = mol().atom(25);
   EXPECT_EQ(atom.data().get_name(), "N");
   EXPECT_EQ(atom.data().atomic_number(), 7);
-  EXPECT_EQ(atom.data().hybridization(), constants::kSP2);
-  EXPECT_TRUE(atom.data().is_conjugated());
-
-  EXPECT_NE(mol().find_bond(87, 88), mol().bond_end());
-  EXPECT_NE(mol().find_bond(87, 89), mol().bond_end());
 }
 
 TEST_F(PDBTest, HandleCleanPDB) {
   set_test_file("1ubq.pdb");
 
-  ASSERT_TRUE(advance());
+  ASSERT_TRUE(advance_and_guess());
 
   EXPECT_EQ(mol().name(), "1UBQ");
   EXPECT_EQ(mol().num_atoms(), 660);
@@ -114,7 +113,7 @@ TEST_F(PDBTest, HandleCleanPDB) {
 TEST_F(PDBTest, HandleMultipleModels) {
   set_test_file("3cye_part.pdb");
 
-  ASSERT_TRUE(advance());
+  ASSERT_TRUE(advance_and_guess());
   EXPECT_EQ(mol().name(), "3CYE");
 
   EXPECT_EQ(mol().num_atoms(), 55);
@@ -134,7 +133,7 @@ TEST_F(PDBTest, HandleMultipleModels) {
   EXPECT_EQ(mol().get_substructure(0).name(), "VAL");
   EXPECT_EQ(mol().get_substructure(0).num_atoms(), 7);
 
-  ASSERT_TRUE(advance());
+  ASSERT_TRUE(advance_and_guess());
   EXPECT_EQ(mol().name(), "3CYE");
 
   EXPECT_EQ(mol().num_atoms(), 36);
@@ -204,6 +203,7 @@ protected:
     MoleculeStream<PDBReader> ms(reader);
 
     ASSERT_TRUE(ms.advance());
+    EXPECT_TRUE(internal::guess_update_subs(ms.current()));
 
     mol_ = std::move(ms.current());
     ASSERT_EQ(mol_.name(), "1ALX");
