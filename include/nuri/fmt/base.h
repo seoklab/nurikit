@@ -129,7 +129,7 @@ public:
    */
   virtual Molecule parse(const std::vector<std::string> &block) const = 0;
 
-  virtual bool sanitized() const = 0;
+  virtual bool bond_valid() const = 0;
 
   MoleculeStream<MoleculeReader> stream() { return { *this }; }
 };
