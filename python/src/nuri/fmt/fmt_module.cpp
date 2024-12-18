@@ -22,6 +22,7 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/stl/filesystem.h>
 
+#include "nuri/algo/guess.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 #include "nuri/fmt/mol2.h"
@@ -38,7 +39,8 @@ class PyMoleculeReader {
 public:
   PyMoleculeReader(std::unique_ptr<std::istream> is, std::string_view fmt,
                    bool sanitize, bool skip_on_error)
-      : stream_(std::move(is)), skip_on_error_(skip_on_error) {
+      : stream_(std::move(is)), sanitize_(sanitize),
+        skip_on_error_(skip_on_error) {
     if (!*stream_)
       throw py::value_error(absl::StrCat("Invalid stream object"));
 
@@ -51,7 +53,7 @@ public:
     if (!reader_)
       throw py::value_error(absl::StrCat("Failed to create reader for ", fmt));
 
-    sanitize_ = sanitize && !reader_->sanitized();
+    guess_ = sanitize && !reader_->bond_valid();
   }
 
   auto next() {
@@ -78,7 +80,12 @@ public:
         continue;
       }
 
-      if (sanitize_ && !MoleculeSanitizer(mol).sanitize_all()) {
+      if (guess_ && mol.is_3d()) {
+        if (!internal::guess_update_subs(mol)) {
+          log_or_throw("Failed to guess molecule atom/bond types");
+          continue;
+        }
+      } else if (sanitize_ && !MoleculeSanitizer(mol).sanitize_all()) {
         log_or_throw("Failed to sanitize molecule");
         continue;
       }
@@ -102,6 +109,7 @@ private:
   std::vector<std::string> block_;
   bool sanitize_;
   bool skip_on_error_;
+  bool guess_;
 };
 
 template <class F, class... Args>
