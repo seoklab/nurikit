@@ -87,6 +87,10 @@ extern void guess_hydrogens_2d(Molecule &mol);
  * guess_hydrogens() in sequence.
  */
 extern void guess_fcharge_hydrogens_2d(Molecule &mol);
+
+namespace internal {
+  ABSL_MUST_USE_RESULT extern bool guess_update_subs(Molecule &mol);
+}  // namespace internal
 }  // namespace nuri
 
 #endif /* NURI_ALGO_GUESS_H_ */
