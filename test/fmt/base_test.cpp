@@ -117,7 +117,7 @@ public:
     return {};
   }
 
-  bool sanitized() const override { return true; }
+  bool bond_valid() const override { return true; }
 };
 
 class DummyReaderFactory: public DefaultReaderFactoryImpl<DummyReader> { };

@@ -2170,4 +2170,19 @@ bool guess_all_types(Molecule &mol, int conf) {
   reset_bonds(mol);
   return guess_types_common(mol, mol.confs()[conf]);
 }
+
+namespace internal {
+  bool guess_update_subs(Molecule &mol) {
+    bool ret;
+    {
+      auto mut = mol.mutator();
+      ret = guess_everything(mut);
+    }
+
+    for (auto &sub: mol.substructures())
+      sub.refresh_bonds();
+
+    return ret;
+  }
+}  // namespace internal
 }  // namespace nuri

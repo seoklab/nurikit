@@ -31,7 +31,7 @@ public:
 
   bool getnext(std::vector<std::string> &block) override;
 
-  bool sanitized() const override { return false; }
+  bool bond_valid() const override { return true; }
 
 private:
   bool read_mol_header_ = false;

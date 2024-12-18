@@ -6,6 +6,8 @@
 #ifndef NURI_ALGO_GUESS_H_
 #define NURI_ALGO_GUESS_H_
 
+#include <absl/base/attributes.h>
+
 #include "nuri/core/molecule.h"
 
 namespace nuri {
@@ -26,8 +28,9 @@ constexpr double kDefaultThreshold = 0.5;
  * If connectivity information is already present and is correct, consider using
  * guess_all_types().
  */
-extern bool guess_everything(MoleculeMutator &mut, int conf = 0,
-                             double threshold = kDefaultThreshold);
+ABSL_MUST_USE_RESULT extern bool
+guess_everything(MoleculeMutator &mut, int conf = 0,
+                 double threshold = kDefaultThreshold);
 
 /**
  * @brief Guess connectivity information of a molecule.
@@ -53,7 +56,7 @@ extern void guess_connectivity(MoleculeMutator &mut, int conf = 0,
  * and all atom/bond types and implicit hydrogen counts are incorrect. The
  * information present in the molecule could be overwritten by this function.
  */
-extern bool guess_all_types(Molecule &mol, int conf = 0);
+ABSL_MUST_USE_RESULT extern bool guess_all_types(Molecule &mol, int conf = 0);
 
 /**
  * @brief Guess formal charges of a molecule.
@@ -84,6 +87,10 @@ extern void guess_hydrogens_2d(Molecule &mol);
  * guess_hydrogens() in sequence.
  */
 extern void guess_fcharge_hydrogens_2d(Molecule &mol);
+
+namespace internal {
+  ABSL_MUST_USE_RESULT extern bool guess_update_subs(Molecule &mol);
+}  // namespace internal
 }  // namespace nuri
 
 #endif /* NURI_ALGO_GUESS_H_ */
