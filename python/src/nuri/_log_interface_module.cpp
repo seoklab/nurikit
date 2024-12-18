@@ -96,7 +96,7 @@ public:
       NURI_CLANG_ANALYZER_NOLINT absl::AddLogSink(new PyLogSink);
       absl::SetStderrThreshold(absl::LogSeverityAtLeast::kFatal);
       set_log_level(10);
-      ABSL_DLOG(INFO) << "initialized NuriKit Python logging sink.";
+      ABSL_DLOG(INFO) << "Initialized NuriKit Python logging sink.";
     };
 
     absl::call_once(flag, initializer);
