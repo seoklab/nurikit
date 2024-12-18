@@ -8,9 +8,9 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import doctest
 import re
 
-import doctest
 from sphinx.ext import autodoc
 
 # -- Project information -----------------------------------------------------
@@ -61,10 +61,10 @@ html_static_path = ["@CMAKE_CURRENT_LIST_DIR@/_static"]
 if "@DOXYGEN_OUTPUT_DIR@":
     html_extra_path = ["@DOXYGEN_OUTPUT_DIR@/html"]
 html_css_files = [
-    "css/rtd-property.css" # workaround https://github.com/readthedocs/sphinx_rtd_theme/issues/1301
+    "css/rtd-property.css"  # workaround https://github.com/readthedocs/sphinx_rtd_theme/issues/1301
 ]
 html_theme_options = {
-    'navigation_depth': -1,
+    "navigation_depth": -1,
 }
 
 intersphinx_mapping = {
@@ -83,7 +83,8 @@ doctest_global_setup = "import nuri"
 class UnneededBaseStripDocumenter(autodoc.ClassDocumenter):
     _strip_re = re.compile(
         r"\s*Bases:\s*:py:class:"
-        r"`([^`]*?\bpybind11_[A-Za-z0-9_\.]+|object)`\s*")
+        r"`([^`]*?\bpybind11_[A-Za-z0-9_\.]+|object)`\s*"
+    )
 
     def add_line(self, line: str, source: str, *lineno: int):
         if self._strip_re.fullmatch(line):
