@@ -9,6 +9,7 @@
 #include <absl/log/absl_log.h>
 #include <absl/log/globals.h>
 #include <absl/log/initialize.h>
+#include <absl/log/internal/globals.h>
 #include <absl/log/log_entry.h>
 #include <absl/log/log_sink.h>
 #include <absl/log/log_sink_registry.h>
@@ -18,6 +19,7 @@
 #include <pybind11/pytypes.h>
 
 #include "nuri/meta.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 namespace python_internal {
@@ -83,7 +85,9 @@ public:
     static absl::once_flag flag;
 
     auto initializer = []() {
-      absl::InitializeLog();
+      // abseil/abseil-cpp#1656
+      if (!absl::log_internal::IsInitialized())
+        absl::InitializeLog();
 
       logger_ = py::module_::import("logging").attr("getLogger")("nuri");
       logger_.inc_ref();
@@ -92,7 +96,7 @@ public:
       NURI_CLANG_ANALYZER_NOLINT absl::AddLogSink(new PyLogSink);
       absl::SetStderrThreshold(absl::LogSeverityAtLeast::kFatal);
       set_log_level(10);
-      ABSL_DLOG(INFO) << "initialized NuriKit Python logging sink.";
+      ABSL_DLOG(INFO) << "Initialized NuriKit Python logging sink.";
     };
 
     absl::call_once(flag, initializer);
@@ -101,8 +105,17 @@ public:
   void Send(const absl::LogEntry &entry) override try {
     const py::gil_scoped_acquire gil;
 
+    // abseil log prefix format (all fixed width before file:line segment)
+    // 0              1         2         3
+    // 0     123456789012345678901234567890
+    // [IWEF]mmdd HH:MM:SS.UUUUUU <thrid> file:line]
+    //
+    // We strip off severity, timestamp, and thread id from the prefix because
+    // Python logging module already provides them (except thread id, which is
+    // usually not useful for Python users).
     try {
-      logger_.attr("log")(message_loglevel(entry), entry.text_message());
+      logger_.attr("log")(message_loglevel(entry),
+                          safe_substr(entry.text_message_with_prefix(), 30));
     } catch (py::error_already_set &e) {
       e.discard_as_unraisable("NuriKit internal logging");
     }
