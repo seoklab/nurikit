@@ -158,9 +158,10 @@ Read a molecule from a file.
 
 :param fmt: The format of the file.
 :param path: The path to the file.
-:param sanitize: Whether to sanitize the produced molecule. Note that if the
-  underlying reader produces a sanitized molecule, this option is ignored and
-  the molecule is always sanitized.
+:param sanitize: Whether to sanitize the produced molecule. For formats that is
+  known to produce molecules with insufficient bond information (e.g. PDB), this
+  option will trigger guessing based on the 3D coordinates
+  (:func:`nuri.algo.guess_everything()`).
 :param skip_on_error: Whether to skip a molecule if an error occurs, instead of
   raising an exception.
 :raises OSError: If any file-related error occurs.
@@ -183,9 +184,10 @@ Read a molecule from string.
 
 :param fmt: The format of the file.
 :param data: The string to read.
-:param sanitize: Whether to sanitize the produced molecule. Note that if the
-  underlying reader produces a sanitized molecule, this option is ignored and
-  the molecule is always sanitized.
+:param sanitize: Whether to sanitize the produced molecule. For formats that is
+  known to produce molecules with insufficient bond information (e.g. PDB), this
+  option will trigger guessing based on the 3D coordinates
+  (:func:`nuri.algo.guess_everything()`).
 :param skip_on_error: Whether to skip a molecule if an error occurs, instead of
   raising an exception.
 :raises ValueError: If the format is unknown or sanitization fails, unless
