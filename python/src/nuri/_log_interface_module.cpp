@@ -9,6 +9,7 @@
 #include <absl/log/absl_log.h>
 #include <absl/log/globals.h>
 #include <absl/log/initialize.h>
+#include <absl/log/internal/globals.h>
 #include <absl/log/log_entry.h>
 #include <absl/log/log_sink.h>
 #include <absl/log/log_sink_registry.h>
@@ -83,7 +84,9 @@ public:
     static absl::once_flag flag;
 
     auto initializer = []() {
-      absl::InitializeLog();
+      // abseil/abseil-cpp#1656
+      if (!absl::log_internal::IsInitialized())
+        absl::InitializeLog();
 
       logger_ = py::module_::import("logging").attr("getLogger")("nuri");
       logger_.inc_ref();
