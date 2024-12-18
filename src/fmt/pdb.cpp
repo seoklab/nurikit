@@ -19,9 +19,7 @@
 #include <utility>
 #include <vector>
 
-#include <absl/algorithm/container.h>
 #include <absl/base/optimization.h>
-#include <absl/container/fixed_array.h>
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
 #include <absl/log/absl_check.h>
@@ -34,7 +32,6 @@
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
-#include "nuri/algo/guess.h"
 #include "nuri/core/element.h"
 #include "nuri/core/graph.h"
 #include "nuri/core/molecule.h"
@@ -487,9 +484,9 @@ std::string read_model_line(std::string_view line) {
   line.remove_prefix(5);
   return std::string(absl::StripAsciiWhitespace(line));
 }
-}  // namespace
 
-namespace {
+// TODO(jnooree): move to separate file and provide a more general interface
+/*
 struct PDBAtomInfoTemplate {
   std::string_view name;
   int atomic_number;
@@ -1563,6 +1560,7 @@ const absl::flat_hash_map<std::string_view, AminoAcid> kAAData {
   } },
 };
 // clang-format on
+*/
 
 std::pair<int, bool> parse_serial(std::string_view line) {
   int serial;
@@ -1913,11 +1911,6 @@ void read_connect_line(std::string_view line, const int src,
       continue;
     }
 
-    if (mut.mol().atom(*dst).data().element().type() == Element::Type::kMetal) {
-      ABSL_LOG(INFO) << "ignoring CONECT record to metal atom " << serial;
-      continue;
-    }
-
     auto [_, added] = mut.add_bond(src, *dst, BondData(constants::kSingleBond));
     if (added)
       ABSL_VLOG(1) << "Added bond " << src << " -> " << *dst << " from CONECT";
@@ -1951,11 +1944,6 @@ void read_connect_section(Iterator &it, const Iterator end,
     if (idx == nullptr) {
       ABSL_LOG(INFO)
           << "invalid CONECT record for atom " << serial << "; ignoring";
-      continue;
-    }
-
-    if (mut.mol().atom(*idx).data().element().type() == Element::Type::kMetal) {
-      ABSL_LOG(INFO) << "ignoring CONECT record to metal atom " << serial;
       continue;
     }
 
@@ -2065,9 +2053,10 @@ void update_confs(Molecule &mol, const std::vector<PDBAtomData> &atom_data) {
 
 constexpr int kChainIdx = 0;
 
-void update_substructures(Molecule &mol, std::vector<Substructure> &subs,
-                          PDBResidueData &residue_data,
+void update_substructures(Molecule &mol, PDBResidueData &residue_data,
                           const std::vector<PDBAtomData> &atom_data) {
+  auto &subs = mol.substructures();
+
   std::vector<std::pair<char, std::vector<int>>> chains;
 
   for (int i = 0; i < atom_data.size(); ++i) {
@@ -2088,14 +2077,14 @@ void update_substructures(Molecule &mol, std::vector<Substructure> &subs,
 
   auto sit = subs.begin();
   for (int i = 0; i < residue_data.size(); ++i, ++sit) {
-    auto &[id, resname, idxs] = residue_data[i];
+    auto &data = residue_data[i];
 
-    sit->update(std::move(idxs), {});
-    sit->name() = std::string(resname);
-    sit->set_id(id.seqnum);
-    sit->add_prop("chain", std::string(1, id.chain));
-    if (id.icode != ' ')
-      sit->add_prop("icode", std::string(1, id.icode));
+    sit->update(std::move(data.idxs), {});
+    sit->name() = std::string(data.resname);
+    sit->set_id(data.id.seqnum);
+    sit->add_prop("chain", std::string(1, data.id.chain));
+    if (data.id.icode != ' ')
+      sit->add_prop("icode", std::string(1, data.id.icode));
 
     ABSL_DCHECK(sit->props()[kChainIdx].first == "chain");
   }
@@ -2105,81 +2094,6 @@ void update_substructures(Molecule &mol, std::vector<Substructure> &subs,
     sit->update(std::move(idxs), {});
     sit->name().push_back(ch);
     sit->set_id(i);
-  }
-}
-
-void update_std_atoms(Molecule &mol, const std::vector<Substructure> &subs) {
-  for (const Substructure &sub: subs) {
-    if (sub.category() != SubstructCategory::kResidue)
-      continue;
-
-    std::string_view resname = sub.name();
-    auto ait = kAAData.find(resname);
-    if (ait == kAAData.end())
-      continue;
-
-    const AminoAcid &aa = ait->second;
-    aa.update_atoms(mol, sub.atom_ids());
-  }
-}
-
-// Typically 1.32 Angstroms
-constexpr double kMaxPepBondLSq = 2.0 * 2.0;
-
-void add_inter_res_bond(MoleculeMutator &mut, const int prev_cterm,
-                        const int nterm) {
-  double lsq = mut.mol().distsq(prev_cterm, nterm);
-  if (lsq > kMaxPepBondLSq) {
-    ABSL_VLOG(1) << "Peptide bond between atoms " << prev_cterm << " and "
-                 << nterm << " is too long (" << std::sqrt(lsq)
-                 << " Angstroms), missing residues?";
-    return;
-  }
-
-  auto [bit, added] = mut.add_bond(prev_cterm, nterm, {});
-  if (!added) {
-    ABSL_LOG(INFO) << "Duplicate peptide bond between atoms " << prev_cterm
-                   << " and " << nterm << "; ignoring";
-    return;
-  }
-
-  BondData &bd = bit->data();
-  bd.set_conjugated(true);
-
-  AtomData &ad = mut.mol().atom(nterm).data();
-  ad.set_hybridization(constants::kSP2);
-  ad.set_conjugated(true);
-  ad.set_implicit_hydrogens(nonnegative(ad.implicit_hydrogens() - 1));
-}
-
-void add_std_bonds(MoleculeMutator &mut,
-                   const std::vector<Substructure> &subs) {
-  char prev_chain = '\0';
-  int prev_cterm = -1;
-
-  for (const Substructure &sub: subs) {
-    if (sub.category() != SubstructCategory::kResidue)
-      continue;
-
-    std::string_view resname = sub.name();
-    auto ait = kAAData.find(resname);
-    if (ait == kAAData.end()) {
-      prev_cterm = -1;
-      continue;
-    }
-
-    const AminoAcid &aa = ait->second;
-    auto [nterm, cterm] = aa.add_bonds(mut, sub.atom_ids());
-    const char chain = sub.props()[kChainIdx].second[0];
-    ABSL_DCHECK(sub.props()[kChainIdx].first == "chain");
-
-    if (prev_chain == chain && prev_cterm >= 0 && nterm >= 0) {
-      ABSL_DCHECK(prev_cterm != nterm);
-      add_inter_res_bond(mut, prev_cterm, nterm);
-    }
-
-    prev_chain = chain;
-    prev_cterm = cterm;
   }
 }
 }  // namespace
@@ -2252,37 +2166,19 @@ Molecule read_pdb(const std::vector<std::string> &pdb) {
     return mol;
   }
 
-  std::vector<Substructure> subs;
-
   {
     auto mut = mol.mutator();
     for (PDBAtomData &pd: atom_data)
       mut.add_atom(pd.to_standard());
 
-    update_substructures(mol, subs, residue_data, atom_data);
     update_confs(mol, atom_data);
 
-    bool guess_ok = guess_everything(mut);
-    if (!guess_ok) {
-      ABSL_LOG(WARNING) << "Failed to guess atom/bond types; the resulting "
-                           "molecule might be invalid";
-      mut.clear_bonds();
-      update_std_atoms(mol, subs);
-      add_std_bonds(mut, subs);
-
-      int connect_bonds_start = mol.num_bonds();
-      read_connect_section(it, end, mut, serial_to_idx);
-      if (mol.num_bonds() != connect_bonds_start)
-        remove_hbonds(mut);
-
-      // TODO(jnooree): handle stereochemistry correctly
-    }
+    read_connect_section(it, end, mut, serial_to_idx);
+    if (!mol.bond_empty())
+      remove_hbonds(mut);
   }
 
-  for (Substructure &sub: subs)
-    sub.refresh_bonds();
-
-  mol.substructures() = std::move(subs);
+  update_substructures(mol, residue_data, atom_data);
 
   return mol;
 }
