@@ -86,6 +86,10 @@ public:
           continue;
         }
       } else if (sanitize_ && !MoleculeSanitizer(mol).sanitize_all()) {
+        ABSL_LOG_IF(WARNING, guess_ && !mol.is_3d())
+            << "Reader might produce molecules with invalid bonds, but the "
+               "molecule is missing 3D coordinates; guessing is disabled.";
+
         log_or_throw("Failed to sanitize molecule");
         continue;
       }
