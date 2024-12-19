@@ -265,6 +265,11 @@ Spectra is under the MPLv2 license.
 ## pybind11
 
 - Project URL: <https://github.com/pybind/pybind11>
+- Files in this repository subject to the license:
+  - [include/nuri/meta.h](include/nuri/meta.h). The following functions are
+    imported from pybind11's implementation:
+    - `overload_cast`
+    - `overload_cast_impl`
 - Full license text:
 
   ```txt
