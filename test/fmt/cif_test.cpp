@@ -268,6 +268,79 @@ TEST_F(CifLexerTest, UnderscoreValues) {
     {                   "_atom_site.B_iso_or_equiv", CifToken::kValue },
   };
 }
+
+TEST_F(CifLexerTest, LineContinuation) {
+  set_data({
+      "data_znvodata",
+      "_chemical_name_systematic                           ",
+      ";\\",
+      " zinc dihydroxide divan\\",
+      "adate dihydrate",
+      ";",
+      "",
+      "_chemical_formula_moiety",
+      ";\\",
+      "H2 O9 V2 Zn3, 2(H2 O)\\",
+      ";",
+      "_chemical_formula_sum           'H6 O11 V2 Zn3'",
+      "_chemical_formula_weight        480.05",
+  });
+
+  expected_ = {
+    {                               "znvodata",  CifToken::kData },
+    {              "_chemical_name_systematic",   CifToken::kTag },
+    { " zinc dihydroxide divanadate dihydrate", CifToken::kValue },
+    {               "_chemical_formula_moiety",   CifToken::kTag },
+    {                  "H2 O9 V2 Zn3, 2(H2 O)", CifToken::kValue },
+    {                  "_chemical_formula_sum",   CifToken::kTag },
+    {                          "H6 O11 V2 Zn3", CifToken::kValue },
+    {               "_chemical_formula_weight",   CifToken::kTag },
+    {                                 "480.05", CifToken::kValue },
+  };
+}
+
+TEST_F(CifLexerTest, LineContinuationMixed) {
+  set_data({
+      ";C:\\foldername\\filename",
+      ";",
+      ";\\",
+      "C:\\foldername\\filename",
+      ";",
+      ";\\",
+      "C:\\foldername\\file\\",
+      "name",
+      ";",
+      ";",
+      "C:\\foldername\\file\\",
+      "name",
+      ";",
+      ";\\",
+      "C:\\foldername\\file\\\\",
+      "",
+      "name\\",
+      "",
+      "",
+      ";",
+  });
+
+  expected_ = {
+    { "C:\\foldername\\filename", CifToken::kValue },
+    { "C:\\foldername\\filename", CifToken::kValue },
+    { "C:\\foldername\\filename", CifToken::kValue },
+    {
+     R"(
+C:\foldername\file\
+name)",  //
+        CifToken::kValue,
+     },
+    {
+     R"(C:\foldername\file\
+name
+)",  //
+        CifToken::kValue,
+     },
+  };
+}
 }  // namespace
 }  // namespace internal
 }  // namespace nuri
