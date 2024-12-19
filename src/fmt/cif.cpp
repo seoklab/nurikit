@@ -15,8 +15,10 @@
 #include <absl/log/absl_log.h>
 #include <absl/strings/ascii.h>
 #include <absl/strings/charset.h>
+#include <absl/strings/match.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_format.h>
+#include <absl/strings/strip.h>
 #include <boost/fusion/include/std_pair.hpp>
 #include <boost/spirit/home/x3.hpp>
 
@@ -101,30 +103,53 @@ std::pair<std::string_view, CifToken> produce_quoted(CifLexer &lexer,
   return lexer.error("Unterminated quote at line ", lexer.row());
 }
 
-std::pair<std::string_view, CifToken> produce_text_field(CifLexer &lexer,
-                                                         std::string &buf) {
+template <bool kContinuation>
+std::pair<std::string_view, CifToken>
+produce_text_field_impl(CifLexer &lexer, std::string &buf) {
   const size_t begin_row = lexer.row();
 
-  buf = slice_rstrip(lexer.line(), lexer.p() - lexer.begin() + 1,
-                     lexer.end() - lexer.begin());
+  std::string_view line = buf;
 
   bool left;
   while ((left = lexer.advance_line<false>())) {
     if (lexer.p() < lexer.end() && lexer.c() == ';')
       break;
 
-    absl::StrAppend(&buf, "\n",
-                    absl::StripTrailingAsciiWhitespace(lexer.line()));
+    std::string_view sep = "\n";
+    if constexpr (kContinuation) {
+      if (absl::EndsWith(line, "\\")) {
+        buf.pop_back();
+        sep = "";
+      }
+    }
+
+    line = absl::StripTrailingAsciiWhitespace(lexer.line());
+    absl::StrAppend(&buf, sep, line);
   }
   if (!left)
     return lexer.error("Unterminated text field (started at line ", begin_row,
                        ")");
+
+  if constexpr (kContinuation) {
+    if (absl::EndsWith(line, "\\"))
+      buf.pop_back();
+  }
 
   auto it = lexer.p() + 1;
   ABSL_LOG_IF(WARNING, it < lexer.end() && std::isspace(*it) == 0)
       << "Missing whitespace after text field at line "  //
       << lexer.row() << ":" << lexer.col() + 1;
   return lexer.produce(buf, CifToken::kValue, it);
+}
+
+std::pair<std::string_view, CifToken> produce_text_field(CifLexer &lexer,
+                                                         std::string &buf) {
+  buf = slice_rstrip(lexer.line(), lexer.p() - lexer.begin() + 1,
+                     lexer.end() - lexer.begin());
+  if (buf == "\\")
+    return produce_text_field_impl<true>(lexer, buf);
+
+  return produce_text_field_impl<false>(lexer, buf);
 }
 }  // namespace
 
