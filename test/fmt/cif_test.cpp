@@ -214,6 +214,31 @@ TEST_F(CifLexerTest, InlineComment) {
     {                 "g", CifToken::kValue },
   };
 }
+
+TEST_F(CifLexerTest, UnderscoreValues) {
+  lines_ = {
+    "data_4Q9R",
+    "loop_",
+    "_pdbx_audit_revision_item.ordinal",
+    "_pdbx_audit_revision_item.revision_ordinal",
+    "_pdbx_audit_revision_item.data_content_type",
+    "_pdbx_audit_revision_item.item",
+    "1  5 'Structure model' '_atom_site.B_iso_or_equiv'",
+  };
+
+  expected_ = {
+    {                                        "4Q9R",  CifToken::kData },
+    {                                            "",  CifToken::kLoop },
+    {           "_pdbx_audit_revision_item.ordinal",   CifToken::kTag },
+    {  "_pdbx_audit_revision_item.revision_ordinal",   CifToken::kTag },
+    { "_pdbx_audit_revision_item.data_content_type",   CifToken::kTag },
+    {              "_pdbx_audit_revision_item.item",   CifToken::kTag },
+    {                                           "1", CifToken::kValue },
+    {                                           "5", CifToken::kValue },
+    {                             "Structure model", CifToken::kValue },
+    {                   "_atom_site.B_iso_or_equiv", CifToken::kValue },
+  };
+}
 }  // namespace
 }  // namespace internal
 }  // namespace nuri
