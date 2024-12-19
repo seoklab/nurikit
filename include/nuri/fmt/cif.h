@@ -8,12 +8,12 @@
 
 /// @cond
 #include <cstddef>
-#include <cstdint>
+#include <istream>
 #include <string>
 #include <type_traits>
-#include <vector>
 
 #include <absl/base/attributes.h>
+#include <absl/base/nullability.h>
 #include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
 #include <absl/strings/str_cat.h>
@@ -39,7 +39,7 @@ namespace internal {
 
   class CifLexer {
   public:
-    explicit CifLexer(const std::vector<std::string> &lines): lines_(&lines) {
+    explicit CifLexer(std::istream &is): is_(&is) {
       static_cast<void>(advance_line<true>());
     }
 
@@ -47,7 +47,7 @@ namespace internal {
 
     // state observers
 
-    size_t row() const { return line_ + 1; }
+    size_t row() const { return row_; }
     size_t col() const { return it_ - begin_ + 1; }
 
     SIter begin() const { return begin_; }
@@ -61,24 +61,20 @@ namespace internal {
 
     SIter end() const { return end_; }
 
-    const std::vector<std::string> &lines() const { return *lines_; }
-
-    std::string_view line() const {
-      ABSL_DCHECK_LT(line_, lines().size());
-      return lines()[line_];
-    }
+    std::string_view line() const { return line_; }
 
     template <bool kSkipEmpty>
     ABSL_MUST_USE_RESULT bool advance_line() {
       do {
-        if (++line_ >= lines().size()) {
+        if (!std::getline(*is_, line_)) {
           // reentrant-safe
           begin_ = it_ = end();
           return false;
         }
 
-        begin_ = it_ = lines()[line_].begin();
-        end_ = lines()[line_].end();
+        ++row_;
+        begin_ = it_ = line_.begin();
+        end_ = line_.end();
       } while (kSkipEmpty && begin_ == end_);
 
       return true;
@@ -104,13 +100,14 @@ namespace internal {
     }
 
   private:
-    const std::vector<std::string> *lines_;
+    absl::Nonnull<std::istream *> is_;
+    std::string line_;
     std::string buf_;
 
     SIter it_;
     SIter begin_;
     SIter end_;
-    std::int64_t line_ = -1;
+    std::size_t row_ = 0;
   };
 }  // namespace internal
 }  // namespace nuri

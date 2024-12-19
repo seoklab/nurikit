@@ -46,9 +46,12 @@
 
 #include "nuri/fmt/cif.h"
 
+#include <initializer_list>
+#include <sstream>
 #include <string_view>
 
 #include <absl/strings/match.h>
+#include <absl/strings/str_join.h>
 
 #include <gtest/gtest.h>
 
@@ -63,7 +66,7 @@ constexpr auto str_case_contains =
 
 struct CifLexerTest: ::testing::Test {
   void TearDown() override {
-    CifLexer lexer(lines_);
+    CifLexer lexer(data_);
 
     for (auto [edata, etype]: expected_) {
       auto [data, type] = lexer.next();
@@ -90,22 +93,38 @@ struct CifLexerTest: ::testing::Test {
         << "Cursor: " << lexer.row() << ":" << lexer.col();
   }
 
+  void set_data(std::initializer_list<std::string_view> lines) {
+    data_.str(absl::StrJoin(lines, "\n"));
+  }
+
   void add_expected_values(const std::vector<std::string_view> &expected) {
     for (std::string_view token: expected)
       expected_.push_back({ token, CifToken::kValue });
   }
 
-  std::vector<std::string> lines_;
+  std::stringstream data_;
   std::vector<std::pair<std::string_view, CifToken>> expected_;
 };
 
 TEST_F(CifLexerTest, SplitSimpleLines) {
-  lines_ = {
-    "foo bar",       "foo bar  ",     "'foo' bar",        "foo \"bar\"",
-    "foo 'bar a' b", "foo 'bar'a' b", "foo \"bar' a\" b", "foo '' b",
-    "foo bar' b",    "foo bar b'",    "foo b'ar'",        "foo 'b'ar'",
-    "foo#bar",       "foo #bar",      "foo# bar",         "#foo bar",
-  };
+  set_data({
+      "foo bar",
+      "foo bar  ",
+      "'foo' bar",
+      "foo \"bar\"",
+      "foo 'bar a' b",
+      "foo 'bar'a' b",
+      "foo \"bar' a\" b",
+      "foo '' b",
+      "foo bar' b",
+      "foo bar b'",
+      "foo b'ar'",
+      "foo 'b'ar'",
+      "foo#bar",
+      "foo #bar",
+      "foo# bar",
+      "#foo bar",
+  });
 
   add_expected_values({
       "foo",     "bar",           //
@@ -127,7 +146,11 @@ TEST_F(CifLexerTest, SplitSimpleLines) {
 }
 
 TEST_F(CifLexerTest, UnmatchedQuotes) {
-  lines_ = { "foo 'bar", "foo 'ba'r  ", "foo \"bar'" };
+  set_data({
+      "foo 'bar",
+      "foo 'ba'r  ",
+      "foo \"bar'",
+  });
 
   expected_ = {
     {                "foo", CifToken::kValue }, //
@@ -140,12 +163,18 @@ TEST_F(CifLexerTest, UnmatchedQuotes) {
 }
 
 TEST_F(CifLexerTest, TextField) {
-  lines_ = {
-    "data_verbatim_test", "_test_value",   ";First line",
-    "    Second line",    "Third line   ", ";",
-    "data_test",          "_key1",         ";foo bar",
-    "; _key2 'value 2'",
-  };
+  set_data({
+      "data_verbatim_test",
+      "_test_value",
+      ";First line",
+      "    Second line",
+      "Third line   ",
+      ";",
+      "data_test",
+      "_key1",
+      ";foo bar",
+      "; _key2 'value 2'",
+  });
 
   expected_ = {
     {   "verbatim_test",CifToken::kData                        },
@@ -163,15 +192,15 @@ Third line)text",
 }
 
 TEST_F(CifLexerTest, TextFieldTruncated) {
-  lines_ = {
-    "data_test _key1",  //
-    ";foo bar",         //
-    ";# missing space here",
-    "_key2 val2",
-    "data_test",
-    "_key1",
-    ";foo bar",
-  };
+  set_data({
+      "data_test _key1",
+      ";foo bar",
+      ";# missing space here",
+      "_key2 val2",
+      "data_test",
+      "_key1",
+      ";foo bar",
+  });
 
   expected_ = {
     {                    "test",  CifToken::kData },
@@ -186,16 +215,16 @@ TEST_F(CifLexerTest, TextFieldTruncated) {
 }
 
 TEST_F(CifLexerTest, InlineComment) {
-  lines_ = {
-    "data_verbatim_test",
-    "_test_key_value_1 foo # Ignore this comment",
-    "_test_key_value_2 foo#NotIgnored",
-    "loop_",
-    "_test_loop",
-    "a b c d # Ignore this comment",
-    "e f g",
-    "",
-  };
+  set_data({
+      "data_verbatim_test",
+      "_test_key_value_1 foo # Ignore this comment",
+      "_test_key_value_2 foo#NotIgnored",
+      "loop_",
+      "_test_loop",
+      "a b c d # Ignore this comment",
+      "e f g",
+      "",
+  });
 
   expected_ = {
     {     "verbatim_test",  CifToken::kData },
@@ -216,15 +245,15 @@ TEST_F(CifLexerTest, InlineComment) {
 }
 
 TEST_F(CifLexerTest, UnderscoreValues) {
-  lines_ = {
-    "data_4Q9R",
-    "loop_",
-    "_pdbx_audit_revision_item.ordinal",
-    "_pdbx_audit_revision_item.revision_ordinal",
-    "_pdbx_audit_revision_item.data_content_type",
-    "_pdbx_audit_revision_item.item",
-    "1  5 'Structure model' '_atom_site.B_iso_or_equiv'",
-  };
+  set_data({
+      "data_4Q9R",
+      "loop_",
+      "_pdbx_audit_revision_item.ordinal",
+      "_pdbx_audit_revision_item.revision_ordinal",
+      "_pdbx_audit_revision_item.data_content_type",
+      "_pdbx_audit_revision_item.item",
+      "1  5 'Structure model' '_atom_site.B_iso_or_equiv'",
+  });
 
   expected_ = {
     {                                        "4Q9R",  CifToken::kData },
