@@ -30,6 +30,7 @@
 
 namespace nuri {
 namespace internal {
+// GCOV_EXCL_START
 std::ostream &operator<<(std::ostream &os, CifToken type) {
   // NOLINTNEXTLINE(clang-diagnostic-switch-enum)
   switch (type) {
@@ -70,6 +71,7 @@ std::ostream &operator<<(std::ostream &os, CifToken type) {
 
   return os;
 }
+// GCOV_EXCL_STOP
 }  // namespace internal
 
 namespace {
@@ -250,6 +252,7 @@ bool CifValue::operator==(std::string_view other) const {
   return value_ == other && (type_ == Type::kString || type_ == Type::kGeneric);
 }
 
+// GCOV_EXCL_START
 std::ostream &operator<<(std::ostream &os, const CifValue &value) {
   using ValueType = CifValue::Type;
 
@@ -267,6 +270,7 @@ std::ostream &operator<<(std::ostream &os, const CifValue &value) {
     ABSL_UNREACHABLE();
   }
 }
+// GCOV_EXCL_STOP
 
 void CifTable::add_data(CifValue &&value) {
   if (rows_.empty() || rows_.back().size() == keys_.size())
