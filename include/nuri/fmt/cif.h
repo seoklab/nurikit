@@ -261,6 +261,8 @@ namespace internal {
     auto begin() const { return tables_.begin(); }
     auto end() const { return tables_.end(); }
 
+    size_t total_cols() const { return index_.size(); }
+
     auto prefix_search(std::string_view prefix) const {
       return boost::make_iterator_range(index_.lower_bound(prefix),
                                         index_.end());
