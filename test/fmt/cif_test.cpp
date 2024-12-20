@@ -49,6 +49,7 @@
 #include <initializer_list>
 #include <sstream>
 #include <string_view>
+#include <vector>
 
 #include <absl/strings/match.h>
 #include <absl/strings/str_join.h>
@@ -345,6 +346,135 @@ name
 )",  //
         CifToken::kValue,
      },
+  };
+}
+
+struct CifParseDataTest: ::testing::Test {
+  void TearDown() override {
+    CifLexer lexer(data_);
+
+    auto [value, state] =
+        parse_data(CifGlobalCtx::kBlock, tables_, lexer, "foo");
+    ASSERT_EQ(state, expected_state_) << value;
+    if (expected_state_ == CifToken::kError) {
+      EXPECT_PRED2(str_case_contains, value, expected_)
+          << "Cursor: " << lexer.row() << ":" << lexer.col();
+      return;
+    }
+
+    ASSERT_EQ(tables_.size(), keys_.size());
+
+    for (int i = 0; i < keys_.size(); ++i) {
+      ASSERT_EQ(tables_[i].keys().size(), keys_[i].size()) << i;
+      for (int j = 0; j < keys_[i].size(); ++j)
+        EXPECT_EQ(tables_[i].keys()[j], keys_[i][j]) << i << ", " << j;
+
+      ASSERT_EQ(tables_[i].data().size(), values_[i].size()) << i;
+      for (int j = 0; j < values_[i].size(); ++j) {
+        ASSERT_EQ(tables_[i].data()[j].size(), values_[i][j].size())
+            << i << ", " << j;
+        for (int k = 0; k < values_[i][j].size(); ++k)
+          EXPECT_EQ(tables_[i].data()[j][k], values_[i][j][k])
+              << i << ", " << j << ", " << k;
+      }
+    }
+  }
+
+  std::stringstream data_;
+
+  std::vector<CifTable> tables_;
+
+  std::string_view expected_;
+  CifToken expected_state_ = CifToken::kEOF;
+
+  std::vector<std::vector<std::string_view>> keys_;
+  std::vector<std::vector<std::vector<std::string_view>>> values_;
+};
+
+TEST_F(CifParseDataTest, ParseNonLoop) {
+  data_.str(R"cif(_test_value
+;First line
+    Second line
+Third line
+; _key1
+;foo bar
+; _key2 'value 2'
+)cif");
+
+  keys_ = {
+    { "_test_value", "_key1", "_key2" },
+  };
+  values_ = {
+    {
+     {
+            R"text(First line
+    Second line
+Third line)text",
+            "foo bar",
+            "value 2",
+        },  //
+    },
+  };
+}
+
+TEST_F(CifParseDataTest, ParseSimpleLoop) {
+  data_.str(R"cif(loop_
+_pdbx_audit_revision_item.ordinal
+_pdbx_audit_revision_item.revision_ordinal
+_pdbx_audit_revision_item.data_content_type
+_pdbx_audit_revision_item.item
+1  5 'Structure model' '_atom_site.B_iso_or_equiv'
+2  5 'Structure model' '_atom_site.Cartn_x'
+3  5 'Structure model' '_atom_site.Cartn_y'
+4  5 'Structure model' '_atom_site.Cartn_z'
+)cif");
+
+  keys_ = {
+    {
+     "_pdbx_audit_revision_item.ordinal",            //
+        "_pdbx_audit_revision_item.revision_ordinal",   //
+        "_pdbx_audit_revision_item.data_content_type",  //
+        "_pdbx_audit_revision_item.item",               //
+    },
+  };
+  values_ = {
+    {
+     { "1", "5", "Structure model", "_atom_site.B_iso_or_equiv" },
+     { "2", "5", "Structure model", "_atom_site.Cartn_x" },
+     { "3", "5", "Structure model", "_atom_site.Cartn_y" },
+     { "4", "5", "Structure model", "_atom_site.Cartn_z" },
+     },
+  };
+}
+
+TEST_F(CifParseDataTest, ParseMixedData) {
+  data_.str(R"cif(
+_test_key_value_1 foo # Ignore this comment
+_test_key_value_2 foo#NotIgnored
+loop_
+_test_loop
+a b c d # Ignore this comment
+e f g
+
+loop_
+_test_loop2
+h i j k
+
+_test_key_value_3 foo
+_test_key_value_4 bar
+)cif");
+
+  keys_ = {
+    { "_test_key_value_1", "_test_key_value_2" },
+    { "_test_loop" },
+    { "_test_loop2" },
+    { "_test_key_value_3", "_test_key_value_4" },
+  };
+  values_ = {
+    { { "foo", "foo#NotIgnored" } },
+    { { "a" }, { "b" }, { "c" }, { "d" }, { "e" }, { "f" }, { "g" } },
+    { { "h" }, { "i" }, { "j" }, { "k" } },
+    { { "foo", "bar" } },
   };
 }
 }  // namespace
