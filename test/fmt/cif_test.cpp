@@ -75,7 +75,13 @@ struct CifLexerTest: ::testing::Test {
             << "Unexpected EOF, cursor: " << lexer.row() << ":" << lexer.col();
       }
 
-      ASSERT_EQ(type, etype) << "Cursor: " << lexer.row() << ":" << lexer.col();
+      if (etype == CifToken::kValue) {
+        ASSERT_TRUE(is_value_token(type))
+            << "Cursor: " << lexer.row() << ":" << lexer.col();
+      } else {
+        ASSERT_EQ(type, etype)
+            << "Cursor: " << lexer.row() << ":" << lexer.col();
+      }
 
       if (etype == CifToken::kError) {
         EXPECT_PRED2(str_case_contains, data, edata)

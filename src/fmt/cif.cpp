@@ -97,7 +97,7 @@ std::pair<std::string_view, CifToken> produce_quoted(CifLexer &lexer,
       continue;
 
     return lexer.produce(as_sv(lexer.p() + 1, quote_match.begin()),
-                         CifToken::kValue, quote_match.end());
+                         CifToken::kQuotedValue, quote_match.end());
   }
 
   return lexer.error("Unterminated quote at line ", lexer.row());
@@ -139,7 +139,7 @@ produce_text_field_impl(CifLexer &lexer, std::string &buf) {
   ABSL_LOG_IF(WARNING, it < lexer.end() && std::isspace(*it) == 0)
       << "Missing whitespace after text field at line "  //
       << lexer.row() << ":" << lexer.col() + 1;
-  return lexer.produce(buf, CifToken::kValue, it);
+  return lexer.produce(buf, CifToken::kQuotedValue, it);
 }
 
 std::pair<std::string_view, CifToken> produce_text_field(CifLexer &lexer,
@@ -193,7 +193,7 @@ std::pair<std::string_view, CifToken> CifLexer::next() {
     }
 
     auto vit = std::find_if(p(), end(), ::isspace);
-    return produce(as_sv(p(), vit), CifToken::kValue, vit);
+    return produce(as_sv(p(), vit), CifToken::kSimpleValue, vit);
   }
 
   return done();

@@ -8,6 +8,7 @@
 
 /// @cond
 #include <cstddef>
+#include <cstdint>
 #include <istream>
 #include <string>
 #include <type_traits>
@@ -19,21 +20,36 @@
 #include <absl/strings/str_cat.h>
 /// @endcond
 
+#include "nuri/utils.h"
+
 namespace nuri {
 namespace internal {
-  enum class CifToken {
-    kEOF,
-    kError,
+  enum class CifToken : std::uint32_t {
+    kEOF = 0U,
+    kError = 1U,
 
-    kData,
-    kLoop,
-    kGlobal,
-    kSave,
-    kStop,
+    kData = 2U,
+    kLoop = 3U,
+    kGlobal = 4U,
+    kSave = 5U,
+    kStop = 6U,
 
-    kTag,
-    kValue,
+    // 7-15 reserved for future use
+
+    kTag = 1U << 4,
+    kValue = 1U << 5,
+
+    // Flags
+    kIsQuoted = 1U << 31,
+
+    // Compound tokens
+    kSimpleValue = kValue,
+    kQuotedValue = kValue | kIsQuoted,
   };
+
+  constexpr bool is_value_token(CifToken token) {
+    return static_cast<bool>(token & CifToken::kValue);
+  }
 
   using SIter = std::string::const_iterator;
 
