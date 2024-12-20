@@ -6,7 +6,6 @@
 #include "nuri/fmt/cif.h"
 
 #include <algorithm>
-#include <cctype>
 #include <cstddef>
 #include <string>
 #include <string_view>
@@ -185,7 +184,7 @@ produce_text_field_impl(CifLexer &lexer, std::string &buf) {
   }
 
   auto it = lexer.p() + 1;
-  ABSL_LOG_IF(WARNING, it < lexer.end() && std::isspace(*it) == 0)
+  ABSL_LOG_IF(WARNING, it < lexer.end() && absl::ascii_isspace(*it) == 0)
       << "Missing whitespace after text field at line "  //
       << lexer.row() << ":" << lexer.col() + 1;
   return lexer.produce(buf, CifToken::kQuotedValue, it);
@@ -209,7 +208,7 @@ std::pair<std::string_view, CifToken> CifLexer::next() {
     if (p() == begin() && c() == ';')
       return produce_text_field(*this, buf_);
 
-    it_ = std::find_if_not(p(), end(), ::isspace);
+    it_ = std::find_if_not(p(), end(), absl::ascii_isspace);
     if (it_ == end())
       continue;
 
@@ -239,7 +238,7 @@ std::pair<std::string_view, CifToken> CifLexer::next() {
                    ": ", std::string_view(&*p(), 1));
     }
 
-    auto vit = std::find_if(p(), end(), ::isspace);
+    auto vit = std::find_if(p(), end(), absl::ascii_isspace);
     return produce(as_sv(p(), vit), CifToken::kSimpleValue, vit);
   }
 
