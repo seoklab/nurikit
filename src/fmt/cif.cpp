@@ -235,10 +235,8 @@ std::pair<std::string_view, CifToken> CifLexer::next() {
     }
 
     if (kSpecialChars.contains(c())) {
-      // abseil forbids passing characters to absl::StrAppend
-      const char cbuf[] = { c(), '\0' };
       return error("Unexpected special character at line ", row(), ":", col(),
-                   ": ", cbuf);
+                   ": ", std::string_view(&*p(), 1));
     }
 
     auto vit = std::find_if(p(), end(), ::isspace);
