@@ -676,6 +676,68 @@ TEST(CifParseTest, CCD) {
   CifBlock block = parser.next();
   EXPECT_TRUE(block.type() == CifBlock::Type::kEOF);
 }
+
+struct ExpectedData {
+  std::string_view name;
+  CifBlock::Type type;
+  int total_cols;
+  int num_save;
+};
+
+// Figure 1, JCIM 2012, 52 (8), 1901-1906. DOI: 10.1021/ci300074v
+TEST(CifParseTest, StarFig1) {
+  std::stringstream data;
+  data.str(R"cif(
+global_
+  _compound.trial     4
+  _compound.source    FDA
+data_synthesis
+  _sample.length      5.84
+  _sample.shape       'needle'
+  _solvent.base       Methanol
+  _sample.orientation '[1,0,2]'
+global_
+  _experiment.source  'ConvBeamEI'
+  _experiment.date    2011-06-09
+data_experiment
+  _images.collected   1289
+  _images.refined     894
+save_fragment_1
+  _molecular.weight   234
+  _bond_length.max    2.7
+save_
+save_fragment_2
+  _molecular.weight   23
+  _bond_length.max    1.1
+  _fragment.parent    fragment_1
+save_
+data_publication
+  _author.details     'A.B. Smith'
+  _author.laboratory  'LLNL'
+)cif");
+
+  CifParser parser(data);
+
+  std::vector<ExpectedData> expected {
+    {            "", CifBlock::Type::kGlobal, 2, 0 },
+    {   "synthesis",   CifBlock::Type::kData, 4, 0 },
+    {            "", CifBlock::Type::kGlobal, 2, 0 },
+    {  "experiment",   CifBlock::Type::kData, 2, 2 },
+    { "publication",   CifBlock::Type::kData, 2, 0 },
+  };
+
+  for (auto [name, type, cols, saved]: expected) {
+    CifBlock block = parser.next();
+    if (!block)
+      FAIL() << "Failed to parse block: " << name;
+
+    const CifFrame &frame = block.data();
+    EXPECT_EQ(frame.name(), name);
+    EXPECT_EQ(static_cast<int>(block.type()), static_cast<int>(type));
+    EXPECT_EQ(block.data().total_cols(), cols);
+    EXPECT_EQ(block.save_frames().size(), saved);
+  }
+}
 }  // namespace
 }  // namespace internal
 }  // namespace nuri
