@@ -763,10 +763,11 @@ bool try_read_v3000_bond_block(MoleculeMutator &mut,
 
     ABSL_DCHECK(parsed.size() == 3);
 
-    int src = static_cast<int>(--parsed[1]),
-        dst = static_cast<int>(--parsed[2]);
-    if (src >= mut.mol().num_atoms() || dst >= mut.mol().num_atoms()
-        || src == dst) {
+    int src = static_cast<int>(parsed[1]) - 1,
+        dst = static_cast<int>(parsed[2]) - 1;
+    if (ABSL_PREDICT_FALSE(src >= mut.mol().num_atoms()
+                           || dst >= mut.mol().num_atoms()  //
+                           || src == dst || src < 0 || dst < 0)) {
       ABSL_LOG(WARNING) << "Invalid bond indices: " << src << " - " << dst;
       return false;
     }
