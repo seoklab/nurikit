@@ -124,7 +124,7 @@ HeaderReadResult read_sdf_header(Molecule &mol, Iterator &it,
     return HeaderReadResult::failure();
   }
 
-  int natoms, nbonds;
+  unsigned int natoms, nbonds;
   if (!absl::SimpleAtoi(line.substr(0, 3), &natoms)
       || !absl::SimpleAtoi(safe_substr(line, 3, 3), &nbonds)) {
     ABSL_LOG(WARNING) << "Invalid SDF format: cannot parse counts line";
@@ -570,7 +570,7 @@ constexpr auto v3000_end_block =  //
 
 constexpr auto v3000_counts_line =  //
     v3000_line_header               //
-    >> "COUNTS" >> x3::repeat(2, x3::inf)[+x3::omit[x3::blank] >> x3::int_];
+    >> "COUNTS" >> x3::repeat(2, x3::inf)[+x3::omit[x3::blank] >> x3::uint_];
 
 constexpr auto v3000_atom_optional_params  //
     = x3::rule<struct V3000OptionalArgs,
