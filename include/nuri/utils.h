@@ -852,6 +852,11 @@ inline std::string_view slice_strip(std::string_view str, std::size_t begin,
   return absl::StripAsciiWhitespace(slice(str, begin, end));
 }
 
+inline std::string_view slice_rstrip(std::string_view str, std::size_t begin,
+                                     std::size_t end) {
+  return absl::StripTrailingAsciiWhitespace(slice(str, begin, end));
+}
+
 constexpr std::string_view safe_substr(std::string_view str, size_t begin,
                                        size_t count = std::string_view::npos) {
   if (ABSL_PREDICT_FALSE(begin > str.size()))

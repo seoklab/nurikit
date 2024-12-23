@@ -1,2 +1,5 @@
 implicit-signed-integer-truncation:ascii.cc
 implicit-signed-integer-truncation:raw_hash_set.h
+implicit-integer-sign-change:string_view
+implicit-integer-sign-change:predefined_ops.h
+implicit-integer-sign-change:cif.cpp

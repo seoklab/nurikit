@@ -19,6 +19,7 @@ option(NURI_ENABLE_AVX2 "Use -mavx2 flag for optimization" OFF)
 option(NURI_ENABLE_ARCH_NATIVE "Use -march=native flag for optimization" OFF)
 
 option(NURI_ENABLE_SANITIZERS "Enable sanitizers for debug build" OFF)
+option(NURI_BUILD_FUZZING "Enable fuzzing build" OFF)
 option(NURI_PREBUILT_ABSL "Download prebuilt abseil binary" ON)
 
 option(NURI_TEST_COVERAGE "Enable coverage build" OFF)
@@ -89,6 +90,16 @@ elseif(NURI_ENABLE_IPO)
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 endif()
 
+if(NURI_BUILD_FUZZING)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message(FATAL_ERROR "Fuzzing build is only supported with Clang")
+  endif()
+
+  message("Fuzzing build: enabling sanitizers")
+  set(NURI_ENABLE_SANITIZERS ON)
+  add_compile_options(-fsanitize=fuzzer)
+endif()
+
 set_sanitizer_envs()
 
 if(NURI_ENABLE_SANITIZERS)
@@ -153,6 +164,7 @@ endif()
 
 include(CTest)
 add_subdirectory(test EXCLUDE_FROM_ALL)
+add_subdirectory(fuzz EXCLUDE_FROM_ALL)
 
 if(BUILD_TESTING AND NURI_POSTINSTALL_TEST)
   message(NOTICE "Running tests after post-installation step")
