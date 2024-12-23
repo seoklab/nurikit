@@ -19,7 +19,6 @@
 
 #include <absl/base/attributes.h>
 #include <absl/base/nullability.h>
-#include <absl/base/optimization.h>
 #include <absl/container/btree_map.h>
 #include <absl/log/absl_check.h>
 #include <absl/strings/str_cat.h>
