@@ -2147,7 +2147,7 @@ Molecule read_pdb(const std::vector<std::string> &pdb) {
 
   read_xtal_crd_xform_section(it, end);
 
-  if (absl::StartsWith(*it, "MODEL")) {
+  if (is_record(it, end, "MODEL")) {
     mol.add_prop("model", read_model_line(*it));
     ++it;
   }
