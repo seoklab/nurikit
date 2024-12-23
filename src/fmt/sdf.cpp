@@ -779,7 +779,7 @@ bool try_read_v3000_bond_block(MoleculeMutator &mut,
 
     BondData data;
     if (!parse_sdf_bond(data, parsed[0])) {
-      ABSL_LOG(WARNING) << "Invalid bond order: " << parsed[2];
+      ABSL_LOG(WARNING) << "Invalid bond order: " << parsed[0];
       return false;
     }
 
