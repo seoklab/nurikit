@@ -429,6 +429,7 @@ CifBlock next_block(CifParser &parser, CifLexer &lexer, std::string &next_name,
       global_ctx = CifGlobalCtx::kBlock;
       save_frames.push_back(
           CifFrame(std::move(save_tables), std::move(frame_name)));
+      frame_name.clear();
     }
   }
 
