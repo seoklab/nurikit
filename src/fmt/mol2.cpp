@@ -342,8 +342,8 @@ bool parse_bond_block(MoleculeMutator &mutator, Iter &it, const Iter end) {
     int mol_ids[2];
 
     for (int i = 0; i < 2; ++i) {
-      mol_ids[i] = static_cast<int>(ids[i] - 1);
-      if (mol_ids[i] >= mutator.mol().num_atoms()) {
+      mol_ids[i] = static_cast<int>(ids[i]) - 1;
+      if (mol_ids[i] >= mutator.mol().num_atoms() || mol_ids[i] < 0) {
         ABSL_LOG(WARNING) << "Atom index " << ids[i]
                           << " out of range; check mol2 file consistency";
         return false;
@@ -403,7 +403,7 @@ std::pair<bool, bool> parse_atom_attr_block(Molecule &mol, Iter &it,
         << "Ignoring extra tokens in atom attribute line";
 
     --ids[0];
-    if (ids[0] >= mol.num_atoms()) {
+    if (ids[0] >= mol.num_atoms() || ids[0] < 0) {
       ABSL_LOG(WARNING) << "Atom index " << ids[0]
                         << " out of range; check mol2 file consistency";
       return { false, false };
