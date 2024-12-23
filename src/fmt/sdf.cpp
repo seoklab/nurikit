@@ -204,7 +204,8 @@ constexpr auto sdf_data_header_key =
 
 constexpr auto sdf_data_header =      //
     '>' >> +(+x3::omit[x3::blank] >>  //
-             (sdf_data_header_key | +x3::omit[~x3::blank]));
+             (sdf_data_header_key | +x3::omit[~x3::blank]))
+    >> x3::omit[x3::space | x3::eoi];
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
@@ -387,7 +388,8 @@ ccc: charge
 // NOLINTBEGIN(readability-identifier-naming)
 namespace parser {
 constexpr auto v2000_property_values =  //
-    *x3::omit[x3::blank] >> x3::int_ % +x3::blank;
+    *x3::omit[x3::blank] >> x3::int_ % +x3::blank
+    >> x3::omit[x3::space | x3::eoi];
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
@@ -570,7 +572,8 @@ constexpr auto v3000_end_block =  //
 
 constexpr auto v3000_counts_line =  //
     v3000_line_header               //
-    >> "COUNTS" >> x3::repeat(2, x3::inf)[+x3::omit[x3::blank] >> x3::uint_];
+    >> "COUNTS" >> x3::repeat(2, x3::inf)[+x3::omit[x3::blank] >> x3::uint_]
+    >> x3::omit[x3::space | x3::eoi];
 
 constexpr auto v3000_atom_optional_params  //
     = x3::rule<struct V3000OptionalArgs,
@@ -584,7 +587,8 @@ constexpr auto v3000_atom_line =              //
     >> nonblank_trailing_blanks               //
     >> x3::repeat(3)[double_trailing_blanks]  //
     >> x3::int_                               //
-    >> *(+x3::omit[x3::blank] >> v3000_atom_optional_params);
+    >> *(+x3::omit[x3::blank] >> v3000_atom_optional_params)
+    >> x3::omit[x3::space | x3::eoi];
 
 using AtomLine =
     std::tuple<unsigned int, std::string, absl::InlinedVector<double, 3>, int,
@@ -592,7 +596,8 @@ using AtomLine =
 
 constexpr auto v3000_bond_line =             //
     v3000_line_header >> x3::omit[x3::int_]  //
-    >> x3::repeat(3)[x3::omit[+x3::blank] >> x3::uint_];
+    >> x3::repeat(3)[x3::omit[+x3::blank] >> x3::uint_]
+    >> x3::omit[x3::space | x3::eoi];
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
