@@ -652,7 +652,7 @@ bool try_read_v3000_header(HeaderReadResult &metadata, Iterator &it,
     return false;
   }
 
-  if (++it == end) {
+  if (++it >= end) {
     ABSL_LOG(WARNING) << "No counts line found";
     return false;
   }
@@ -930,7 +930,7 @@ Molecule read_sdf(const std::vector<std::string> &sdf) {
     return mol;
   }
 
-  if (++it == end) {
+  if (++it >= end) {
     ABSL_LOG(ERROR) << "No atom block found";
     mol.clear();
     return mol;
