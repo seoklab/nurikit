@@ -19,6 +19,7 @@
 #include "nuri/algo/guess.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 namespace {
@@ -115,6 +116,7 @@ TEST_F(PDBTest, HandleMultipleModels) {
 
   ASSERT_TRUE(advance_and_guess());
   EXPECT_EQ(mol().name(), "3CYE");
+  EXPECT_EQ(internal::get_key(mol().props(), "model"), "1");
 
   EXPECT_EQ(mol().num_atoms(), 55);
   EXPECT_EQ(mol().num_bonds(), 54);
@@ -135,6 +137,7 @@ TEST_F(PDBTest, HandleMultipleModels) {
 
   ASSERT_TRUE(advance_and_guess());
   EXPECT_EQ(mol().name(), "3CYE");
+  EXPECT_EQ(internal::get_key(mol().props(), "model"), "2");
 
   EXPECT_EQ(mol().num_atoms(), 36);
   EXPECT_EQ(mol().num_bonds(), 34);
@@ -168,10 +171,13 @@ ENDMDL
   PDBReader reader(iss);
   auto ms = reader.stream();
 
+  int cnt = 0;
   while (ms.advance()) {
     const Molecule &mol = ms.current();
     EXPECT_TRUE(mol.empty());
+    ++cnt;
   }
+  EXPECT_EQ(cnt, 4);
 }
 
 // GH-402
