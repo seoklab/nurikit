@@ -1566,7 +1566,7 @@ std::pair<int, bool> parse_serial(std::string_view line) {
   int serial;
   line = slice(line, 6, 11);
   bool success = absl::SimpleAtoi(line, &serial);
-  return std::make_pair(serial, success);
+  return std::make_pair(serial, success && serial >= 0);
 }
 
 int last_serial(const std::vector<std::string> &pdb) {
@@ -1897,7 +1897,7 @@ void read_connect_line(std::string_view line, const int src,
       break;
 
     int serial;
-    if (!absl::SimpleAtoi(slice(line, i, i + 5), &serial)) {
+    if (!absl::SimpleAtoi(slice(line, i, i + 5), &serial) || serial < 0) {
       ABSL_LOG(WARNING)
           << "Invalid CONECT serial number: " << slice_strip(line, i, i + 5)
           << " the resulting molecule might be invalid";
