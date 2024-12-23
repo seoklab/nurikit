@@ -67,11 +67,12 @@ bool pdb_next_nomodel(std::istream &is, std::string &line,
                       std::vector<std::string> &header,
                       std::vector<std::string> &rfooter) {
   while (std::getline(is, line)) {
+    header.push_back(line);
+
     if (absl::StartsWith(line, "MODEL")) {
       pdb_read_footer(is, line, rfooter);
       return true;
     }
-    header.push_back(line);
   }
 
   return false;
@@ -89,9 +90,7 @@ bool pdb_next_model(std::istream &is, std::string &line,
             || fast_startswith(line, "CON"))) {
       break;
     }
-    if (absl::StartsWith(line, "MODEL")) {
-      continue;
-    }
+
     block.push_back(line);
   }
 
@@ -115,9 +114,13 @@ bool PDBReader::getnext(std::vector<std::string> &block) {
       header_.clear();
       return true;
     }
-  }
 
-  block = header_;
+    block = header_;
+    // last line was "MODEL", remove from header
+    header_.pop_back();
+  } else {
+    block = header_;
+  }
 
   if (!pdb_next_model(*is_, line, block)) {
     block.clear();
