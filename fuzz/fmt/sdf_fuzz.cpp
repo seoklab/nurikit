@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <new>
 #include <sstream>
+#include <stdexcept>
 #include <vector>
 
 #include <absl/base/call_once.h>
@@ -29,9 +31,24 @@ NURI_FUZZ_MAIN(data, size) {
   std::vector<std::string> block;
   std::string sdf;
   while (reader.getnext(block)) {
-    nuri::Molecule mol = reader.parse(block);
+    nuri::Molecule mol;
+
+    try {
+      mol = reader.parse(block);
+    } catch (const std::length_error & /* e */) {
+      return -1;
+    } catch (const std::bad_alloc & /* e */) {
+      return -1;
+    }
+
     if (mol.empty())
       continue;
+
+    nuri::write_sdf(sdf, mol, -1, nuri::SDFVersion::kAutomatic);
+    nuri::write_sdf(sdf, mol, -1, nuri::SDFVersion::kV2000);
+    nuri::write_sdf(sdf, mol, -1, nuri::SDFVersion::kV3000);
+
+    mol.confs().clear();
 
     nuri::write_sdf(sdf, mol, -1, nuri::SDFVersion::kAutomatic);
     nuri::write_sdf(sdf, mol, -1, nuri::SDFVersion::kV2000);

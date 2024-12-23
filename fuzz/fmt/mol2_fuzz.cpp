@@ -34,6 +34,8 @@ NURI_FUZZ_MAIN(data, size) {
       continue;
 
     nuri::write_mol2(mol2, mol);
+    mol.confs().clear();
+    nuri::write_mol2(mol2, mol);
   }
 
   return 0;
