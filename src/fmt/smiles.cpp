@@ -511,8 +511,7 @@ bool update_bond_configuration(Molecule &mol,
 
   // NOLINTNEXTLINE(readability-use-anyofallof)
   for (auto bond: mol.bonds()) {
-    if ((bond.data().order() != constants::kDoubleBond
-         && bond.data().order() != constants::kAromaticBond)
+    if (bond.data().order() != constants::kDoubleBond
         || all_neighbors(bond.src()) > 3 || all_neighbors(bond.dst()) > 3) {
       continue;
     }
