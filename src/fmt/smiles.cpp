@@ -912,6 +912,7 @@ public:
 
   BondConfig src_updown(Molecule::Atom src, BondConfig kind) {
     ABSL_DCHECK_EQ(nconf_, 1);
+    ABSL_DCHECK_GE(free_nei_[0], 0);
 
     if (kind == BondConfig::kNone) {
       kind = src.id() < src[first_free()].dst().id() ? BondConfig::kUp
@@ -927,6 +928,7 @@ public:
 
   bool dst_updown(Molecule::Neighbor nei, BondConfig kind) {
     ABSL_DCHECK(kind == BondConfig::kUp || kind == BondConfig::kDown);
+    ABSL_DCHECK_GE(free_nei_[0], 0);
 
     auto src = nei.src(), dst = nei.dst();
     const int srci = dst.find_adjacent(src) - dst.begin();
@@ -952,15 +954,15 @@ public:
 
   BondConfig updown() const {
     ABSL_DCHECK_EQ(nconf_, 1);
+    ABSL_DCHECK_GE(free_nei_[0], 0);
     return cfgs_[first_free()];
   }
 
   const std::vector<BondConfig> &cfgs() const { return cfgs_; }
 
-  int first_free() const {
-    ABSL_DCHECK_GE(free_nei_[0], 0);
-    return free_nei_[0];
-  }
+  bool has_free() const { return free_nei_[0] >= 0; }
+
+  int first_free() const { return free_nei_[0]; }
 
   int second_free() const { return free_nei_[1]; }
 
@@ -987,6 +989,13 @@ public:
   bool resolve_updown(Molecule::Atom atom, BondConfig req) {
     NeighborBondConfig &cfg = mcfg(atom);
     ABSL_DCHECK_EQ(cfg.nconf(), 1);
+
+    if (!cfg.has_free()) {
+      ABSL_LOG(WARNING)
+          << "no free bond to resolve up/down configuration on atom "
+          << atom.id();
+      return false;
+    }
 
     if (cfg.updown() != BondConfig::kNone) {
       bool consistent = req == BondConfig::kNone || req == cfg.updown();
@@ -1056,7 +1065,8 @@ bool smiles_resolve_bond_updown(const Molecule &mol,
       auto cfg_nei = atom[info.first_config()];
 
       BondConfig req;
-      if (visited[cfg_nei.dst().id()] == 0) {
+      if (visited[cfg_nei.dst().id()] == 0
+          || !resolver.cfg(cfg_nei.dst()).has_free()) {
         req = BondConfig::kNone;
       } else {
         req = updown_other(resolver.updown(cfg_nei.dst()),
