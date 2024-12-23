@@ -156,22 +156,23 @@ std::pair<std::string_view, CifToken>
 produce_text_field_impl(CifLexer &lexer, std::string &buf) {
   const size_t begin_row = lexer.row();
 
-  std::string_view line = buf;
-
-  bool left;
+  bool left, cont = kContinuation;
   while ((left = lexer.advance_line<false>())) {
     if (lexer.p() < lexer.end() && lexer.c() == ';')
       break;
 
     std::string_view sep = "\n";
     if constexpr (kContinuation) {
-      if (absl::EndsWith(line, "\\")) {
+      if (cont) {
         buf.pop_back();
         sep = "";
       }
     }
 
-    line = absl::StripTrailingAsciiWhitespace(lexer.line());
+    std::string_view line = absl::StripTrailingAsciiWhitespace(lexer.line());
+    if constexpr (kContinuation)
+      cont = absl::EndsWith(line, "\\");
+
     absl::StrAppend(&buf, sep, line);
   }
   if (!left)
@@ -179,7 +180,7 @@ produce_text_field_impl(CifLexer &lexer, std::string &buf) {
                        ")");
 
   if constexpr (kContinuation) {
-    if (absl::EndsWith(line, "\\"))
+    if (cont)
       buf.pop_back();
   }
 
