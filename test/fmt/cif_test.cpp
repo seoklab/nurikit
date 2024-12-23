@@ -738,6 +738,23 @@ data_publication
     EXPECT_EQ(block.save_frames().size(), saved);
   }
 }
+
+TEST(CifParseTest, Erroneous) {
+  std::stringstream data;
+  data.str(R"cif(
+data_publication
+  _author.details     'A.B. Smith'
+  _author.laboratory  'LLNL
+)cif");
+
+  CifParser parser(data);
+  CifBlock block = parser.next();
+
+  EXPECT_FALSE(block) << "Block should error";
+  EXPECT_EQ(static_cast<int>(block.type()),
+            static_cast<int>(CifBlock::Type::kError));
+  EXPECT_PRED2(str_case_contains, block.error_msg(), "unterminated quote");
+}
 }  // namespace
 }  // namespace internal
 }  // namespace nuri
