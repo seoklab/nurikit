@@ -114,8 +114,10 @@ namespace internal {
 
     template <class... Args, std::enable_if_t<sizeof...(Args) != 0, int> = 0>
     std::pair<std::string_view, CifToken> error(Args &&...args) {
-      buf_.clear();
-      absl::StrAppend(&buf_, std::forward<Args>(args)...);
+      // found by fuzzing, argument can point to internal buffer so we need to
+      // create a string first then move it
+      std::string err = absl::StrCat(std::forward<Args>(args)...);
+      buf_ = std::move(err);
       return { buf_, CifToken::kError };
     }
 
