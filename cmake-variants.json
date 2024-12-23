@@ -37,6 +37,15 @@
         "settings": {
           "NURI_ENABLE_SANITIZERS": true
         }
+      },
+      "fuzzer": {
+        "buildType": "RelWithDebInfo",
+        "long": "Fuzzing build.",
+        "short": "Fuzz",
+        "settings": {
+          "NURI_ENABLE_SANITIZERS": true,
+          "NURI_BUILD_FUZZING": true
+        }
       }
     }
   }
