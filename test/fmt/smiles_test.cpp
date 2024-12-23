@@ -751,6 +751,15 @@ TEST_F(SmilesTest, BondGeometryTest) {
   }
 }
 
+TEST_F(SmilesTest, InvalidBondGeometry) {
+  // Found with fuzzing
+  set_test_string("c1ccc2CCCc2/c=1 error\n");
+
+  NURI_FMT_TEST_NEXT_MOL("error", 9, 10);
+  for (auto bond: mol().bonds())
+    EXPECT_FALSE(bond.data().has_config());
+}
+
 TEST_F(SmilesTest, ChiralityTest) {
   set_test_string(  // Taken from opensmiles spec
       "C[C@@H](C(=O)O)N alanine\n"
