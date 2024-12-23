@@ -47,11 +47,11 @@ function(nuri_add_test file)
   add_dependencies(nuri_all_test "${NURI_TEST_TARGET}")
 endfunction()
 
-if(NURI_BUILD_FUZZING AND NOT TARGET nuri_all_fuzz)
+if(NOT TARGET nuri_all_fuzz)
   add_custom_target(nuri_all_fuzz)
   clear_coverage_data(nuri_all_fuzz)
 
-  if(BUILD_TESTING)
+  if(NURI_BUILD_FUZZING AND BUILD_TESTING)
     set_target_properties(nuri_all_fuzz PROPERTIES EXCLUDE_FROM_ALL OFF)
   endif()
 endif()

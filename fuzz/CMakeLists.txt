@@ -3,10 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-if(NOT NURI_BUILD_FUZZING)
-  return()
-endif()
-
 include(NuriKitTest)
 
 add_compile_options(-Wno-error)
