@@ -1,0 +1,24 @@
+@<TRIPOS>MOLECULE
+guadinium-like
+ 7 6 0 0 0
+SMALL
+GASTEIGER
+
+@<TRIPOS>ATOM
+      1 N           0.0000    0.0000    0.0000 N.pl3   1  UNL1        0.1360
+      2 C           0.0000    0.0000    0.0000 C.cat   1  UNL1        0.5446
+      3 N           0.0000    0.0000    0.0000 N.pl3   1  UNL1        0.0168
+      4 C           0.0000    0.0000    0.0000 C.cat   1  UNL1        0.5446
+      5 N           0.0000    0.0000    0.0000 N.pl3   1  UNL1        0.1360
+      6 N           0.0000    0.0000    0.0000 N.pl3   1  UNL1        0.1360
+      7 N           0.0000    0.0000    0.0000 N.pl3   1  UNL1        0.1360
+@<TRIPOS>BOND
+     1     1     2    1
+     2     2     3    1
+     3     3     4    1
+     4     4     5    1
+     5     4     6    2
+     6     2     7    2
+#	Name: NoName
+
+#	Program:	corina 4.4.0 0026  12.08.2021

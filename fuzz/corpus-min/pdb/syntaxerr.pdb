@@ -1,0 +1,12 @@
+MODEL        1  
+ATOM      1  N   ALA A   1
+ENDMDL
+MODEL        2  
+ATOM      A  N   ALA A   1      11.104   6.134  -6.504  1.00  0.00           N
+ENDMDL
+MODEL        3  
+ATOM      1  N   ALA A   A      11.104   6.134  -6.504  1.00  0.00           N
+ENDMDL
+MODEL        4  
+ATOM      1      ALA A   1      11.104   6.134  -6.504  1.00  0.00           N
+ENDMDL
