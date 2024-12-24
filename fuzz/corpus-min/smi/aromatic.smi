@@ -1,0 +1,15 @@
+c1ccc2CCCc2c1 indane
+C1=CC=C2CCCC2=C1 indane
+c1occc1 furan
+C1OC=CC=1 furan
+c1ccc1 cyclobutadiene
+C1=CC=C1 cyclobutadiene
+c1ccccc1-c2ccccc2 biphenyl
+C1=CC2=C(C=C1)C1=CC=CC=C21 aromatic test
+O=C1C=CC(=O)C2=C1OC=CO2 aromatic test
+c1[cH-]ccc1 cyclopenadienyl anion
+c1ccccc1:c2ccccc2 biphenyl error
+c1cc[nH]c1 pyrrole
+C1C=CNC=1 pyrrole
+c1c[nH]cn1 imidazole
+C1=CNC=N1 imidazole

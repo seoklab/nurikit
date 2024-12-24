@@ -1,0 +1,16 @@
+@<TRIPOS>MOLECULE
+carboxylate
+   4    3    0    0    0
+SMALL
+NO_CHARGES
+
+
+@<TRIPOS>ATOM
+   1 C1            -0.0127     1.0858     0.0080 C.3
+   2 C2            -0.7181     1.5718     1.2479 C.2
+   3 O3            -0.0841     1.7780     2.2687 O.co2
+   4 O4            -1.9227     1.7588     1.2302 O.co2
+@<TRIPOS>BOND
+   1    1    2 1
+   2    2    3 ar
+   3    2    4 ar

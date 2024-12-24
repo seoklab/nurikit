@@ -1,0 +1,25 @@
+@<TRIPOS>MOLECULE
+Tropylium cation
+ 7 7 0 0 0
+SMALL
+GASTEIGER
+
+@<TRIPOS>ATOM
+      1 C           0.0000    0.0000    0.0000 C.ar    1  UNL1        0.2549
+      2 C           0.0000    0.0000    0.0000 C.ar    1  UNL1        0.0555
+      3 C           0.0000    0.0000    0.0000 C.ar    1  UNL1        0.0045
+      4 C           0.0000    0.0000    0.0000 C.ar    1  UNL1        0.0045
+      5 C           0.0000    0.0000    0.0000 C.ar    1  UNL1        0.0555
+      6 C           0.0000    0.0000    0.0000 C.ar    1  UNL1        0.2549
+      7 C           0.0000    0.0000    0.0000 C.cat   1  UNL1        0.3702
+@<TRIPOS>UNITY_ATOM_ATTR
+7 1
+charge 1
+@<TRIPOS>BOND
+     1     1     2   ar
+     2     2     3   ar
+     3     3     4   ar
+     4     4     5   ar
+     5     5     6   ar
+     6     6     7   ar
+     7     1     7   ar

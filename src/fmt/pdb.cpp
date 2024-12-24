@@ -67,11 +67,12 @@ bool pdb_next_nomodel(std::istream &is, std::string &line,
                       std::vector<std::string> &header,
                       std::vector<std::string> &rfooter) {
   while (std::getline(is, line)) {
+    header.push_back(line);
+
     if (absl::StartsWith(line, "MODEL")) {
       pdb_read_footer(is, line, rfooter);
       return true;
     }
-    header.push_back(line);
   }
 
   return false;
@@ -89,9 +90,7 @@ bool pdb_next_model(std::istream &is, std::string &line,
             || fast_startswith(line, "CON"))) {
       break;
     }
-    if (absl::StartsWith(line, "MODEL")) {
-      continue;
-    }
+
     block.push_back(line);
   }
 
@@ -115,9 +114,13 @@ bool PDBReader::getnext(std::vector<std::string> &block) {
       header_.clear();
       return true;
     }
-  }
 
-  block = header_;
+    block = header_;
+    // last line was "MODEL", remove from header
+    header_.pop_back();
+  } else {
+    block = header_;
+  }
 
   if (!pdb_next_model(*is_, line, block)) {
     block.clear();
@@ -1566,7 +1569,7 @@ std::pair<int, bool> parse_serial(std::string_view line) {
   int serial;
   line = slice(line, 6, 11);
   bool success = absl::SimpleAtoi(line, &serial);
-  return std::make_pair(serial, success);
+  return std::make_pair(serial, success && serial >= 0);
 }
 
 int last_serial(const std::vector<std::string> &pdb) {
@@ -1897,7 +1900,7 @@ void read_connect_line(std::string_view line, const int src,
       break;
 
     int serial;
-    if (!absl::SimpleAtoi(slice(line, i, i + 5), &serial)) {
+    if (!absl::SimpleAtoi(slice(line, i, i + 5), &serial) || serial < 0) {
       ABSL_LOG(WARNING)
           << "Invalid CONECT serial number: " << slice_strip(line, i, i + 5)
           << " the resulting molecule might be invalid";
@@ -2147,7 +2150,7 @@ Molecule read_pdb(const std::vector<std::string> &pdb) {
 
   read_xtal_crd_xform_section(it, end);
 
-  if (absl::StartsWith(*it, "MODEL")) {
+  if (is_record(it, end, "MODEL")) {
     mol.add_prop("model", read_model_line(*it));
     ++it;
   }

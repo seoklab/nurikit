@@ -1,0 +1,18 @@
+@<TRIPOS>MOLECULE
+guadinium
+   4    3    0    0    0
+SMALL
+NO_CHARGES
+
+
+@<TRIPOS>ATOM
+   1 N1            -0.0111     0.9658     0.0074 N.pl3
+   2 C2            -1.1814     1.6205     0.0165 C.cat
+   3 N3            -2.3336     0.9343     0.0182 N.pl3
+   4 N4            -1.1996     2.9614     0.0238 N.pl3
+@<TRIPOS>BOND
+   1    1    2 1
+   2    2    3 1
+   3    2    4 1
+
+#	End of record

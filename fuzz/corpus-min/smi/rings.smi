@@ -1,0 +1,11 @@
+N1CC2CCCCC2CC1 perhydroisoquinoline
+C=1CCCCC=1 cyclohexene
+C=1CCCCC1 cyclohexene
+C1CCCCC=1 cyclohexene
+C1CCCCC1C1CCCCC1 bicyclohexyl
+C12(CCCCC1)CCCCC2 spiro[5.5]undecane
+C%12CCCCC%12 cyclohexane
+C-1CCCCC=1 cyclohexene error
+C12CCCCC12 error
+C12C2CCC1 error
+C11 error

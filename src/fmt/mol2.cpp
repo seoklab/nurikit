@@ -112,7 +112,8 @@ using Iter = std::vector<std::string>::const_iterator;
 // NOLINTBEGIN(readability-identifier-naming)
 namespace parser {
 constexpr auto mol_nums_line = *x3::omit[x3::blank] >> x3::uint_
-                               >> -(+x3::omit[x3::blank] >> x3::uint_);
+                               >> -(+x3::omit[x3::blank] >> x3::uint_)
+                               >> x3::omit[x3::space | x3::eoi];
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
@@ -188,7 +189,7 @@ constexpr auto atom_line = *x3::omit[x3::blank]         //
                                 >> uint_trailing_blanks           //
                                 >> -(nonblank_trailing_blanks     //
                                      >> -x3::double_))
-                           >> *x3::omit[x3::blank];
+                           >> x3::omit[+x3::space | x3::eoi];
 using AtomLine = std::tuple<
     unsigned int, std::string, absl::InlinedVector<double, 3>, std::string,
     boost::optional<std::string>,
@@ -315,7 +316,7 @@ const auto bond_line = *x3::omit[x3::blank]  //
                        >> +x3::omit[x3::digit] >> +x3::omit[x3::blank]
                        >> x3::repeat(2)[uint_trailing_blanks]  //
                        >> bond_type                            //
-                       >> *x3::omit[x3::blank];
+                       >> x3::omit[+x3::space | x3::eoi];
 using BondLine = std::tuple<absl::InlinedVector<unsigned int, 2>, BondData>;
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
@@ -342,8 +343,8 @@ bool parse_bond_block(MoleculeMutator &mutator, Iter &it, const Iter end) {
     int mol_ids[2];
 
     for (int i = 0; i < 2; ++i) {
-      mol_ids[i] = static_cast<int>(ids[i] - 1);
-      if (mol_ids[i] >= mutator.mol().num_atoms()) {
+      mol_ids[i] = static_cast<int>(ids[i]) - 1;
+      if (mol_ids[i] >= mutator.mol().num_atoms() || mol_ids[i] < 0) {
         ABSL_LOG(WARNING) << "Atom index " << ids[i]
                           << " out of range; check mol2 file consistency";
         return false;
@@ -373,7 +374,8 @@ bool parse_bond_block(MoleculeMutator &mutator, Iter &it, const Iter end) {
 // NOLINTBEGIN(readability-identifier-naming)
 namespace parser {
 constexpr auto unity_atom_attr_line = x3::uint_ >> +x3::omit[x3::blank]
-                                      >> x3::uint_;
+                                      >> x3::uint_
+                                      >> x3::omit[+x3::space | x3::eoi];
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
@@ -403,7 +405,7 @@ std::pair<bool, bool> parse_atom_attr_block(Molecule &mol, Iter &it,
         << "Ignoring extra tokens in atom attribute line";
 
     --ids[0];
-    if (ids[0] >= mol.num_atoms()) {
+    if (ids[0] >= mol.num_atoms() || ids[0] < 0) {
       ABSL_LOG(WARNING) << "Atom index " << ids[0]
                         << " out of range; check mol2 file consistency";
       return { false, false };
@@ -439,7 +441,8 @@ namespace parser {
 const auto substructure_line = *x3::omit[x3::blank]         //
                                >> uint_trailing_blanks      //
                                >> nonblank_trailing_blanks  //
-                               >> +x3::omit[x3::digit] >> *x3::omit[x3::blank];
+                               >> +x3::omit[x3::digit]
+                               >> x3::omit[+x3::space | x3::eoi];
 using SubstructureLine = std::pair<unsigned int, std::string>;
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)

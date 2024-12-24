@@ -1,0 +1,12 @@
+@<TRIPOS>MOLECULE
+*****
+ 1 0 0 0 0
+SMALL
+GASTEIGER
+
+@<TRIPOS>UNITY_ATOM_ATTR
+1 1
+charge 1
+@<TRIPOS>BOND
+@<TRIPOS>ATOM
+      1 N           0.0000    0.0000    0.0000 N.4     1  UNL1        1.0000

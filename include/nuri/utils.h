@@ -648,7 +648,7 @@ namespace internal {
   std::string_view get_key(PT &props, std::string_view key) {
     auto it = find_key(props, key);
     if (it == props.end())
-      return {};
+      return "";
     return it->second;
   }
 
@@ -860,7 +860,7 @@ inline std::string_view slice_rstrip(std::string_view str, std::size_t begin,
 constexpr std::string_view safe_substr(std::string_view str, size_t begin,
                                        size_t count = std::string_view::npos) {
   if (ABSL_PREDICT_FALSE(begin > str.size()))
-    return {};
+    return "";
 
   return str.substr(begin, count);
 }
@@ -868,7 +868,7 @@ constexpr std::string_view safe_substr(std::string_view str, size_t begin,
 constexpr std::string_view safe_slice(std::string_view str, size_t begin,
                                       size_t end) {
   if (ABSL_PREDICT_FALSE(begin > str.size()))
-    return {};
+    return "";
 
   return slice(str, begin, end);
 }

@@ -95,9 +95,8 @@ if(NURI_BUILD_FUZZING)
     message(FATAL_ERROR "Fuzzing build is only supported with Clang")
   endif()
 
-  message("Fuzzing build: enabling sanitizers")
+  message("Fuzzing build: enabling sanitizers and sanitizer coverage")
   set(NURI_ENABLE_SANITIZERS ON)
-  add_compile_options(-fsanitize=fuzzer)
 endif()
 
 set_sanitizer_envs()
@@ -126,6 +125,11 @@ endif()
 
 find_or_fetch_abseil()
 add_subdirectory(third-party EXCLUDE_FROM_ALL)
+
+if(NURI_BUILD_FUZZING)
+  add_compile_options(-fsanitize=fuzzer)
+  string(APPEND CMAKE_CXX_FLAGS " -fprofile-instr-generate -fcoverage-mapping")
+endif()
 
 add_compile_options(
   -pedantic

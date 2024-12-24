@@ -124,7 +124,7 @@ HeaderReadResult read_sdf_header(Molecule &mol, Iterator &it,
     return HeaderReadResult::failure();
   }
 
-  int natoms, nbonds;
+  unsigned int natoms, nbonds;
   if (!absl::SimpleAtoi(line.substr(0, 3), &natoms)
       || !absl::SimpleAtoi(safe_substr(line, 3, 3), &nbonds)) {
     ABSL_LOG(WARNING) << "Invalid SDF format: cannot parse counts line";
@@ -204,7 +204,8 @@ constexpr auto sdf_data_header_key =
 
 constexpr auto sdf_data_header =      //
     '>' >> +(+x3::omit[x3::blank] >>  //
-             (sdf_data_header_key | +x3::omit[~x3::blank]));
+             (sdf_data_header_key | +x3::omit[~x3::blank]))
+    >> x3::omit[x3::space | x3::eoi];
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
@@ -387,7 +388,8 @@ ccc: charge
 // NOLINTBEGIN(readability-identifier-naming)
 namespace parser {
 constexpr auto v2000_property_values =  //
-    *x3::omit[x3::blank] >> x3::int_ % +x3::blank;
+    *x3::omit[x3::blank] >> x3::int_ % +x3::blank
+    >> x3::omit[x3::space | x3::eoi];
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
@@ -570,7 +572,8 @@ constexpr auto v3000_end_block =  //
 
 constexpr auto v3000_counts_line =  //
     v3000_line_header               //
-    >> "COUNTS" >> x3::repeat(2, x3::inf)[+x3::omit[x3::blank] >> x3::int_];
+    >> "COUNTS" >> x3::repeat(2, x3::inf)[+x3::omit[x3::blank] >> x3::uint_]
+    >> x3::omit[x3::space | x3::eoi];
 
 constexpr auto v3000_atom_optional_params  //
     = x3::rule<struct V3000OptionalArgs,
@@ -584,7 +587,8 @@ constexpr auto v3000_atom_line =              //
     >> nonblank_trailing_blanks               //
     >> x3::repeat(3)[double_trailing_blanks]  //
     >> x3::int_                               //
-    >> *(+x3::omit[x3::blank] >> v3000_atom_optional_params);
+    >> *(+x3::omit[x3::blank] >> v3000_atom_optional_params)
+    >> x3::omit[x3::space | x3::eoi];
 
 using AtomLine =
     std::tuple<unsigned int, std::string, absl::InlinedVector<double, 3>, int,
@@ -592,7 +596,8 @@ using AtomLine =
 
 constexpr auto v3000_bond_line =             //
     v3000_line_header >> x3::omit[x3::int_]  //
-    >> x3::repeat(3)[x3::omit[+x3::blank] >> x3::uint_];
+    >> x3::repeat(3)[x3::omit[+x3::blank] >> x3::uint_]
+    >> x3::omit[x3::space | x3::eoi];
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
@@ -647,7 +652,7 @@ bool try_read_v3000_header(HeaderReadResult &metadata, Iterator &it,
     return false;
   }
 
-  if (++it == end) {
+  if (++it >= end) {
     ABSL_LOG(WARNING) << "No counts line found";
     return false;
   }
@@ -763,17 +768,18 @@ bool try_read_v3000_bond_block(MoleculeMutator &mut,
 
     ABSL_DCHECK(parsed.size() == 3);
 
-    int src = static_cast<int>(--parsed[1]),
-        dst = static_cast<int>(--parsed[2]);
-    if (src >= mut.mol().num_atoms() || dst >= mut.mol().num_atoms()
-        || src == dst) {
+    int src = static_cast<int>(parsed[1]) - 1,
+        dst = static_cast<int>(parsed[2]) - 1;
+    if (ABSL_PREDICT_FALSE(src >= mut.mol().num_atoms()
+                           || dst >= mut.mol().num_atoms()  //
+                           || src == dst || src < 0 || dst < 0)) {
       ABSL_LOG(WARNING) << "Invalid bond indices: " << src << " - " << dst;
       return false;
     }
 
     BondData data;
     if (!parse_sdf_bond(data, parsed[0])) {
-      ABSL_LOG(WARNING) << "Invalid bond order: " << parsed[2];
+      ABSL_LOG(WARNING) << "Invalid bond order: " << parsed[0];
       return false;
     }
 
@@ -924,7 +930,7 @@ Molecule read_sdf(const std::vector<std::string> &sdf) {
     return mol;
   }
 
-  if (++it == end) {
+  if (++it >= end) {
     ABSL_LOG(ERROR) << "No atom block found";
     mol.clear();
     return mol;

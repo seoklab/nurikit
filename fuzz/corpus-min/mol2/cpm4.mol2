@@ -1,0 +1,20 @@
+@<TRIPOS>MOLECULE
+Cyclopentadienyl anion
+   5    5    0    0    0
+SMALL
+NO_CHARGES
+
+
+@<TRIPOS>ATOM
+   1 C1             1.0980     1.9060     0.0018 C.ar
+   2 C2            -0.0126     1.0758     0.0080 C.ar
+   3 C4            -1.1453     1.8755     0.0170 C.ar
+   4 C5            -0.7347     3.1999     0.0254 C.ar
+   5 C6             0.6517     3.2188     0.0126 C.ar
+@<TRIPOS>BOND
+   1    1    5 2
+   2    1    2 1
+   3    2    3 1
+   4    3    4 2
+   5    4    5 1
+#	End of record

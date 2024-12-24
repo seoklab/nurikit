@@ -1,0 +1,5 @@
+MODEL        1  // Duplicate atom records (one with same serial, other with same id)
+ATOM   9006  H   SER B 153      30.485  52.658  25.676  1.00 58.61           H
+ATOM   9006  H   SER B 153      30.485  52.658  25.676  1.00 58.61           H
+ATOM   9007  H   SER B 153      30.485  52.658  25.676  0.00 58.61           H
+ENDMDL

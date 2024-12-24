@@ -1,0 +1,24 @@
+@<TRIPOS>MOLECULE
+Cyclopentadienyl anion
+ 5 5 0 0 0
+SMALL
+GASTEIGER
+
+@<TRIPOS>ATOM
+      1 C           0.0000    0.0000    0.0000 C.ar    1  UNL1       -0.2250
+      2 C           0.0000    0.0000    0.0000 C.2     1  UNL1       -0.4635
+      3 C           0.0000    0.0000    0.0000 C.ar    1  UNL1       -0.2250
+      4 C           0.0000    0.0000    0.0000 C.ar    1  UNL1       -0.0433
+      5 C           0.0000    0.0000    0.0000 C.ar    1  UNL1       -0.0433
+@<TRIPOS>UNITY_ATOM_ATTR
+2 1
+charge -1
+@<TRIPOS>BOND
+     1     1     2   ar
+     2     2     3   ar
+     3     3     4   ar
+     4     4     5   ar
+     5     1     5   ar
+#	Name: NoName
+
+#	Program:	corina 4.4.0 0026  12.08.2021
