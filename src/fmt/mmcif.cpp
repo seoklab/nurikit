@@ -551,11 +551,13 @@ public:
   }
 
   Molecule
-  to_standard(const NullableCifColumn &site_id,
+  to_standard(std::string_view name, const NullableCifColumn &site_id,
               const NullableCifColumn &type_symbol,
               const TypedNullableColumn<absl::SimpleAtoi<int>, false> &fchg,
               const CoordResolver &coords) && {
     Molecule mol;
+    mol.name() = std::string(name);
+
     mol.reserve(static_cast<int>(atoms_.size()));
 
     {
@@ -641,8 +643,9 @@ std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
 
   mols.reserve(models.size());
   for (auto &model: models) {
-    mols.emplace_back(std::move(model.second)
-                          .to_standard(site_id, type_symbol, fchg, coords))
+    mols.emplace_back(
+            std::move(model.second)
+                .to_standard(block.name(), site_id, type_symbol, fchg, coords))
         .add_prop("model", absl::StrCat(model.first));
   }
 
