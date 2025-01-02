@@ -119,19 +119,18 @@ public:
   TypedNullableColumn(NullableCifColumn col): col_(col) { }
 
   T operator[](int row) const {
-    T val;
-
-    if (ABSL_PREDICT_FALSE(!converter(*col_[row], &val))) {
-      if (col_[row]) {
-        ABSL_LOG(INFO) << "Failed to convert value " << *col_[row]
-                       << " in column " << col_.key();
-      } else if constexpr (kRequired) {
-        ABSL_LOG(INFO) << "Missing value in required column " << col_.key();
-      }
-
-      val = T();
+    if (ABSL_PREDICT_FALSE(!col_[row])) {
+      ABSL_LOG_IF(INFO, kRequired)
+          << "Missing value in required column " << col_.key();
+      return T();
     }
 
+    T val;
+    if (ABSL_PREDICT_FALSE(!converter(*col_[row], &val))) {
+      ABSL_LOG(INFO) << "Failed to convert value " << *col_[row]
+                     << " in column " << col_.key();
+      val = T();
+    }
     return val;
   }
 
