@@ -149,6 +149,8 @@ namespace internal {
       kNull = kUnknown | kInapplicable,  // any null value
     };
 
+    CifValue(): type_(Type::kInapplicable) { }
+
     CifValue(std::string_view value, internal::CifToken type): value_(value) {
       if (type == internal::CifToken::kQuotedValue) {
         type_ = Type::kString;
