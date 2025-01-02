@@ -1701,7 +1701,7 @@ public:
 
     data.set_name(first().id().name);
 
-    data.props().reserve(3 * lines_.size() + extra_.size());
+    data.props().reserve(3 * lines_.size() + extra_.size() + 1);
     for (const AtomicLine &l: lines_) {
       data.add_prop(as_key("serial", l.altloc()), absl::StrCat(l.serial()));
       data.add_prop(as_key("occupancy", l.altloc()),
