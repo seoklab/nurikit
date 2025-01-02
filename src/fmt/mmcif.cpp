@@ -94,6 +94,13 @@ public:
 
   int table() const { return tbl_; }
 
+  std::string_view key() const {
+    if (ABSL_PREDICT_FALSE(!*this))
+      return "<missing>";
+
+    return frame_->get(tbl_, col_).key();
+  }
+
   operator bool() const { return tbl_ >= 0; }
 
 private:
@@ -102,11 +109,12 @@ private:
   int col_;
 };
 
-template <auto converter>
+template <auto converter, bool kRequired = true>
 class TypedNullableColumn;
 
-template <class T, bool (*converter)(std::string_view, absl::Nonnull<T *>)>
-class TypedNullableColumn<converter> {
+template <class T, bool (*converter)(std::string_view, absl::Nonnull<T *>),
+          bool kRequired>
+class TypedNullableColumn<converter, kRequired> {
 public:
   TypedNullableColumn(NullableCifColumn col): col_(col) { }
 
@@ -114,7 +122,13 @@ public:
     T val;
 
     if (ABSL_PREDICT_FALSE(!converter(*col_[row], &val))) {
-      ABSL_LOG(INFO) << "Invalid value: " << *col_[row];
+      if (col_[row]) {
+        ABSL_LOG(INFO) << "Failed to convert value " << *col_[row]
+                       << " in column " << col_.key();
+      } else if constexpr (kRequired) {
+        ABSL_LOG(INFO) << "Missing value in required column " << col_.key();
+      }
+
       val = T();
     }
 
@@ -249,7 +263,8 @@ public:
   static MmcifAtomInfo
   from_row(const ResidueIndexer &res_idx, const AuthLabelColumn &atom_id,
            const NullableCifColumn &alt_id,
-           const TypedNullableColumn<absl::SimpleAtof> &occupancy, int row) {
+           const TypedNullableColumn<absl::SimpleAtof, false> &occupancy,
+           int row) {
     AtomId id;
 
     bool ok;
@@ -307,9 +322,9 @@ public:
     return first;
   }
 
-  AtomData
-  to_standard(const NullableCifColumn &id, const NullableCifColumn &type_symbol,
-              const TypedNullableColumn<absl::SimpleAtoi<int>> &fchg) const {
+  AtomData to_standard(
+      const NullableCifColumn &id, const NullableCifColumn &type_symbol,
+      const TypedNullableColumn<absl::SimpleAtoi<int>, false> &fchg) const {
     AtomData data;
 
     std::string_view symbol = *type_symbol[first().row()];
@@ -536,10 +551,11 @@ public:
     residues_.add_atom_at(ri, ai);
   }
 
-  Molecule to_standard(const NullableCifColumn &site_id,
-                       const NullableCifColumn &type_symbol,
-                       const TypedNullableColumn<absl::SimpleAtoi<int>> &fchg,
-                       const CoordResolver &coords) && {
+  Molecule
+  to_standard(const NullableCifColumn &site_id,
+              const NullableCifColumn &type_symbol,
+              const TypedNullableColumn<absl::SimpleAtoi<int>, false> &fchg,
+              const CoordResolver &coords) && {
     Molecule mol;
     mol.reserve(static_cast<int>(atoms_.size()));
 
@@ -589,10 +605,10 @@ std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
                     type_symbol = NullableCifColumn::from_key(
                         block.data(), "_atom_site.type_symbol");
 
-  TypedNullableColumn<absl::SimpleAtof> occupancy =
+  TypedNullableColumn<absl::SimpleAtof, false> occupancy =
       NullableCifColumn::from_key(block.data(), "_atom_site.occupancy");
 
-  TypedNullableColumn<absl::SimpleAtoi<int>>
+  TypedNullableColumn<absl::SimpleAtoi<int>, false>
       model_num = NullableCifColumn::from_key(block.data(),
                                               "_atom_site.pdbx_PDB_model_num"),
       fchg = NullableCifColumn::from_key(block.data(),
