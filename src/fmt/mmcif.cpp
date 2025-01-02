@@ -71,11 +71,8 @@ bool operator==(const AtomId &lhs, const AtomId &rhs) {
 
 class NullableCifColumn {
 public:
-  NullableCifColumn(const internal::CifFrame &frame): frame_(&frame) { }
-
-  NullableCifColumn(const internal::CifFrame &frame, std::pair<int, int> idx)
-      : frame_(&frame), tbl_(idx.first), col_(idx.second) {
-    ABSL_DCHECK_GE(tbl_ * col_, 0);
+  static NullableCifColumn null(const internal::CifFrame &frame) {
+    return NullableCifColumn(frame);
   }
 
   static NullableCifColumn from_key(const internal::CifFrame &frame,
@@ -104,6 +101,14 @@ public:
   operator bool() const { return tbl_ >= 0; }
 
 private:
+  explicit NullableCifColumn(const internal::CifFrame &frame)
+      : frame_(&frame) { }
+
+  NullableCifColumn(const internal::CifFrame &frame, std::pair<int, int> idx)
+      : frame_(&frame), tbl_(idx.first), col_(idx.second) {
+    ABSL_DCHECK_GE(tbl_ * col_, 0);
+  }
+
   absl::Nonnull<const internal::CifFrame *> frame_;
   int tbl_ = -1;
   int col_;
@@ -140,24 +145,56 @@ private:
   NullableCifColumn col_;
 };
 
+constexpr std::string_view kSeqIdKeys[2][2] {
+  { "_struct_conn.ptnr1_label_seq_id", "_struct_conn.ptnr2_label_seq_id" },
+  {  "_struct_conn.ptnr1_auth_seq_id",  "_struct_conn.ptnr2_auth_seq_id" },
+};
+constexpr std::string_view kAsymIdKeys[2][2] {
+  { "_struct_conn.ptnr1_label_asym_id", "_struct_conn.ptnr2_label_asym_id" },
+  {  "_struct_conn.ptnr1_auth_asym_id",  "_struct_conn.ptnr2_auth_asym_id" },
+};
+constexpr std::string_view kInsCodeKeys[2] {
+  "_struct_conn.pdbx_ptnr1_PDB_ins_code",
+  "_struct_conn.pdbx_ptnr2_PDB_ins_code",
+};
+
 class ResidueIndexer {
 public:
-  explicit ResidueIndexer(const internal::CifFrame &frame)
-      : seq_id_(NullableCifColumn::from_key(frame, "_atom_site.auth_seq_id")),
-        asym_id_(NullableCifColumn::from_key(frame, "_atom_site.auth_asym_id")),
-        ins_code_(frame), auth_(true) {
-    if (seq_id_ && asym_id_) {
-      ins_code_ =
-          NullableCifColumn::from_key(frame, "_atom_site.pdbx_PDB_ins_code");
-      return;
+  static ResidueIndexer atom_site(const internal::CifFrame &frame) {
+    NullableCifColumn seq_id =
+        NullableCifColumn::from_key(frame, "_atom_site.auth_seq_id");
+    NullableCifColumn asym_id =
+        NullableCifColumn::from_key(frame, "_atom_site.auth_asym_id");
+
+    if (seq_id && asym_id) {
+      return {
+        seq_id,
+        asym_id,
+        NullableCifColumn::from_key(frame, "_atom_site.pdbx_PDB_ins_code"),
+        true,
+      };
     }
 
     ABSL_LOG(INFO)
         << "Missing auth_seq_id/auth_asym_id, falling back to "
            "label_seq_id/label_asym_id; insertion code will be ignored";
-    seq_id_ = NullableCifColumn::from_key(frame, "_atom_site.label_seq_id");
-    asym_id_ = NullableCifColumn::from_key(frame, "_atom_site.label_asym_id");
-    auth_ = false;
+    return {
+      NullableCifColumn::from_key(frame, "_atom_site.label_seq_id"),
+      NullableCifColumn::from_key(frame, "_atom_site.label_asym_id"),
+      NullableCifColumn::null(frame),
+      false,
+    };
+  }
+
+  static ResidueIndexer struct_conn(const internal::CifFrame &frame,
+                                    const bool auth, const int ptnr_idx) {
+    return {
+      NullableCifColumn::from_key(frame, kSeqIdKeys[auth][ptnr_idx]),
+      NullableCifColumn::from_key(frame, kAsymIdKeys[auth][ptnr_idx]),
+      auth ? NullableCifColumn::from_key(frame, kInsCodeKeys[ptnr_idx])
+           : NullableCifColumn::null(frame),
+      auth,
+    };
   }
 
   std::pair<ResidueId, bool> operator[](int row) const {
@@ -190,22 +227,45 @@ public:
   bool auth() const { return auth_; }
 
 private:
+  ResidueIndexer(NullableCifColumn seq_id, NullableCifColumn asym_id,
+                 NullableCifColumn ins_code, bool auth)
+      : seq_id_(seq_id), asym_id_(asym_id), ins_code_(ins_code), auth_(auth) { }
+
   NullableCifColumn seq_id_, asym_id_, ins_code_;
   bool auth_;
 };
 
+std::pair<AtomId, bool> resolve_atom_id(const ResidueIndexer &res_idx,
+                                        const NullableCifColumn &atom_id,
+                                        int row) {
+  AtomId id;
+
+  bool ok;
+  std::tie(id.res, ok) = res_idx[row];
+  if (!ok)
+    return { id, false };
+
+  id.atom_id = *atom_id[row];
+  ABSL_LOG_IF(INFO, id.atom_id.empty())
+      << "Missing atom ID; assuming empty atom name";
+
+  return { id, true };
+}
+
 class AuthLabelColumn {
 public:
-  AuthLabelColumn(const internal::CifFrame &frame, std::string_view auth,
-                  std::string_view label)
-      : col_(NullableCifColumn::from_key(frame, auth)), auth_(true) {
+  AuthLabelColumn(const internal::CifFrame &frame, std::string_view first,
+                  std::string_view second, bool auth_if_first)
+      : col_(NullableCifColumn::from_key(frame, first)), auth_(auth_if_first) {
     if (!col_) {
-      col_ = NullableCifColumn::from_key(frame, label);
-      auth_ = false;
+      col_ = NullableCifColumn::from_key(frame, second);
+      auth_ = !auth_if_first;
     }
   }
 
   const internal::CifValue &operator[](int row) const { return col_[row]; }
+
+  const NullableCifColumn &raw() const { return col_; }
 
   int table() const { return col_.table(); }
 
@@ -234,8 +294,8 @@ private:
   TypedNullableColumn<absl::SimpleAtod> x_, y_, z_;
 };
 
-int atom_site_entries(const internal::CifFrame &frame,
-                      const std::initializer_list<int> &tables) {
+int tables_nrow_min(const internal::CifFrame &frame,
+                    const std::initializer_list<int> &tables) {
   int min_size = 0;
 
   for (int table: tables) {
@@ -264,16 +324,9 @@ public:
            const NullableCifColumn &alt_id,
            const TypedNullableColumn<absl::SimpleAtof, false> &occupancy,
            int row) {
-    AtomId id;
-
-    bool ok;
-    std::tie(id.res, ok) = res_idx[row];
+    auto [id, ok] = resolve_atom_id(res_idx, atom_id.raw(), row);
     if (!ok)
       return {};
-
-    id.atom_id = *atom_id[row];
-    ABSL_LOG_IF(INFO, id.atom_id.empty())
-        << "Missing atom ID; assuming empty atom name";
 
     return { row, id, *alt_id[row], occupancy[row] };
   }
@@ -405,6 +458,141 @@ private:
   absl::flat_hash_map<ResidueId, int> map_;
   std::vector<MmcifResidueInfo> data_;
 };
+
+constexpr std::string_view kAtomIdKeys[2] {
+  "_struct_conn.ptnr1_label_atom_id", "_struct_conn.ptnr2_label_atom_id"
+};
+
+class StructConnIndexer {
+public:
+  StructConnIndexer(const internal::CifFrame &frame,
+                    const ResidueIndexer &site_res_idx, int ptnr_idx)
+      : res_idx_(
+            ResidueIndexer::struct_conn(frame, site_res_idx.auth(), ptnr_idx)),
+        atom_id_(NullableCifColumn::from_key(frame, kAtomIdKeys[ptnr_idx])) { }
+
+  std::pair<AtomId, bool> operator[](int row) const {
+    return resolve_atom_id(res_idx_, atom_id_, row);
+  }
+
+  std::array<int, 4> tables() const {
+    return { res_idx_.tables()[0], res_idx_.tables()[1], res_idx_.tables()[2],
+             atom_id_.table() };
+  }
+
+private:
+  ResidueIndexer res_idx_;
+  NullableCifColumn atom_id_;
+};
+
+enum class StructConnType {
+  kCovaleOrDisulf,
+  kHydrog,
+  kMetalCoord,
+};
+
+class StructConn {
+public:
+  static StructConn from_row(const StructConnIndexer &ptnr1,
+                             const StructConnIndexer &ptnr2,
+                             const NullableCifColumn &type,
+                             const NullableCifColumn &order, int row) {
+    auto [src, sok] = ptnr1[row];
+    auto [dst, dok] = ptnr2[row];
+    if (!sok || !dok)
+      return {};
+
+    StructConnType ct = StructConnType::kCovaleOrDisulf;
+    std::string type_lower = absl::AsciiStrToLower(*type[row]);
+    if (type_lower == "covale" || type_lower == "disulf") {
+      // nothing to do
+    } else if (type_lower == "hydrog") {
+      ct = StructConnType::kHydrog;
+    } else if (type_lower == "metalc") {
+      ct = StructConnType::kMetalCoord;
+    } else {
+      ABSL_LOG(WARNING) << "Unknown conn_type_id: " << type[row]
+                        << ", assuming covalent/disulfide bond";
+    }
+
+    constants::BondOrder bo = constants::kSingleBond;
+    if (!order[row]) {
+      ABSL_LOG(INFO) << "Missing value_order; assuming single bond";
+    } else {
+      std::string order_lower = absl::AsciiStrToLower(*order[row]);
+      if (order_lower == "sing") {
+        // nothing to do
+      } else if (order_lower == "doub") {
+        bo = constants::kDoubleBond;
+      } else if (order_lower == "trip") {
+        bo = constants::kTripleBond;
+      } else if (order_lower == "quad") {
+        bo = constants::kQuadrupleBond;
+      } else {
+        ABSL_LOG(WARNING) << "Unknown value_order: " << order[row]
+                          << ", assuming single bond";
+      }
+    }
+
+    return { src, dst, ct, bo };
+  }
+
+  AtomId src() const { return src_; }
+
+  AtomId dst() const { return dst_; }
+
+  StructConnType type() const { return type_; }
+
+  constants::BondOrder order() const { return order_; }
+
+  operator bool() const { return order_ != constants::kOtherBond; }
+
+private:
+  StructConn() = default;
+
+  StructConn(AtomId src, AtomId dst, StructConnType type,
+             constants::BondOrder order)
+      : src_(src), dst_(dst), type_(type), order_(order) {
+    ABSL_DCHECK(order != constants::kOtherBond);
+  }
+
+  AtomId src_, dst_;
+  StructConnType type_;
+  constants::BondOrder order_ = constants::kOtherBond;
+};
+
+void update_struct_conn(MoleculeMutator &mut,
+                        const std::vector<StructConn> &conns,
+                        const absl::flat_hash_map<AtomId, int> &aid_map) {
+  mut.mol().reserve_bonds(static_cast<int>(conns.size()));
+
+  for (const StructConn &conn: conns) {
+    if (conn.type() != StructConnType::kCovaleOrDisulf) {
+      ABSL_LOG(INFO) << "Only covalent/disulfide bonds are yet implemented";
+      continue;
+    }
+
+    auto sit = aid_map.find(conn.src());
+    if (sit == aid_map.end()) {
+      ABSL_LOG(WARNING) << "Unknown source atom ID " << conn.src().atom_id
+                        << " in residue " << conn.src().res;
+      continue;
+    }
+
+    auto dit = aid_map.find(conn.dst());
+    if (dit == aid_map.end()) {
+      ABSL_LOG(WARNING) << "Unknown destination atom ID " << conn.dst().atom_id
+                        << " in residue " << conn.dst().res;
+      continue;
+    }
+
+    auto [_, ok] =
+        mut.add_bond(sit->second, dit->second, BondData(conn.order()));
+    if (!ok)
+      ABSL_LOG(WARNING) << "Duplicate bond between atoms " << sit->second
+                        << " and " << dit->second;
+  }
+}
 
 void update_confs(Molecule &mol, const std::vector<MmcifAtomData> &atoms,
                   const CoordResolver &coords) {
@@ -554,7 +742,8 @@ public:
   to_standard(std::string_view name, const NullableCifColumn &site_id,
               const NullableCifColumn &type_symbol,
               const TypedNullableColumn<absl::SimpleAtoi<int>, false> &fchg,
-              const CoordResolver &coords) && {
+              const CoordResolver &coords,
+              const std::vector<StructConn> &conns) && {
     Molecule mol;
     mol.name() = std::string(name);
 
@@ -564,6 +753,8 @@ public:
       auto mut = mol.mutator();
       for (const auto &atom: atoms_)
         mut.add_atom(atom.to_standard(site_id, type_symbol, fchg));
+
+      update_struct_conn(mut, conns, aid_map_);
     }
 
     update_confs(mol, atoms_, coords);
@@ -591,13 +782,15 @@ std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
     return mols;
   }
 
-  ResidueIndexer res_idx(block.data());
+  ResidueIndexer res_idx = ResidueIndexer::atom_site(block.data());
   CoordResolver coords(block.data());
 
-  AuthLabelColumn comp_id(block.data(), "_atom_site.auth_comp_id",
-                          "_atom_site.label_comp_id"),
-      atom_id(block.data(), "_atom_site.auth_atom_id",
-              "_atom_site.label_atom_id");
+  // prefer label_{comp,atom}_id over auth_{comp,atom}_id
+  // this is because auth_atom_id is missing in _struct_conn tables
+  AuthLabelColumn comp_id(block.data(), "_atom_site.label_comp_id",
+                          "_atom_site.auth_comp_id", false),
+      atom_id(block.data(), "_atom_site.label_atom_id",
+              "_atom_site.auth_atom_id", false);
 
   NullableCifColumn site_id = NullableCifColumn::from_key(block.data(),
                                                           "_atom_site.id"),
@@ -615,20 +808,19 @@ std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
       fchg = NullableCifColumn::from_key(block.data(),
                                          "_atom_site.pdbx_formal_charge");
 
-  const int rows = atom_site_entries(
+  const int nsite = tables_nrow_min(
       block.data(),
       { res_idx.tables()[0], res_idx.tables()[1], res_idx.tables()[2],
         coords.tables()[0], coords.tables()[1], coords.tables()[2],
         comp_id.table(), atom_id.table(), alt_id.table(), type_symbol.table(),
         occupancy.table(), model_num.table(), fchg.table() });
-  if (rows == 0) {
+  if (nsite == 0) {
     ABSL_LOG(WARNING) << "No atom site entries found";
     return mols;
   }
 
   absl::flat_hash_map<int, MmcifModelData> models;
-
-  for (int i = 0; i < rows; ++i) {
+  for (int i = 0; i < nsite; ++i) {
     const internal::CifValue &id = site_id[i];
 
     auto info = MmcifAtomInfo::from_row(res_idx, atom_id, alt_id, occupancy, i);
@@ -641,11 +833,40 @@ std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
     models[model_num[i]].add_atom(info, *comp_id[i], id);
   }
 
+  StructConnIndexer ptnr1(block.data(), res_idx, 0),
+      ptnr2(block.data(), res_idx, 1);
+  ABSL_LOG_IF(INFO, atom_id.auth())
+      << "_struct_conn table always use label_atom_id, but auth_atom_id is "
+         "used in atom_site tables. This may cause unresolved bond connections";
+
+  NullableCifColumn conn_type = NullableCifColumn::from_key(
+                        block.data(), "_struct_conn.conn_type_id"),
+                    conn_order = NullableCifColumn::from_key(
+                        block.data(), "_struct_conn.value_order");
+
+  const int nconn = tables_nrow_min(
+      block.data(), { ptnr1.tables()[0], ptnr1.tables()[1], ptnr1.tables()[2],
+                      ptnr1.tables()[3], ptnr2.tables()[0], ptnr2.tables()[1],
+                      ptnr2.tables()[2], ptnr2.tables()[3], conn_type.table(),
+                      conn_order.table() });
+
+  std::vector<StructConn> conns;
+  conns.reserve(nconn);
+  for (int i = 0; i < nconn; ++i) {
+    StructConn conn =
+        StructConn::from_row(ptnr1, ptnr2, conn_type, conn_order, i);
+    if (conn) {
+      conns.push_back(conn);
+    } else {
+      ABSL_LOG(INFO) << "Invalid struct_conn entry; ignoring";
+    }
+  }
+
   mols.reserve(models.size());
   for (auto &model: models) {
-    mols.emplace_back(
-            std::move(model.second)
-                .to_standard(block.name(), site_id, type_symbol, fchg, coords))
+    mols.emplace_back(std::move(model.second)
+                          .to_standard(block.name(), site_id, type_symbol, fchg,
+                                       coords, conns))
         .add_prop("model", absl::StrCat(model.first));
   }
 
