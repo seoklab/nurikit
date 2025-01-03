@@ -5,7 +5,9 @@
 
 #include "nuri/fmt/mmcif.h"
 
+#include <algorithm>
 #include <array>
+#include <cstddef>
 #include <initializer_list>
 #include <ostream>
 #include <string>
@@ -14,16 +16,17 @@
 #include <utility>
 #include <vector>
 
-#include <absl/algorithm/container.h>
-#include <absl/base/casts.h>
 #include <absl/base/nullability.h>
 #include <absl/base/optimization.h>
 #include <absl/container/flat_hash_map.h>
 #include <absl/log/absl_check.h>
+#include <absl/log/absl_log.h>
+#include <absl/strings/ascii.h>
 #include <absl/strings/numbers.h>
 #include <absl/strings/str_cat.h>
 #include <Eigen/Dense>
 
+#include "nuri/eigen_config.h"
 #include "fmt_internal.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"

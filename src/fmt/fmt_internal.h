@@ -7,13 +7,17 @@
 #define NURI_FMT_FMT_INTERNAL_H_
 
 #include <functional>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
+#include <absl/log/absl_check.h>
 #include <boost/spirit/home/x3.hpp>
 
+#include "nuri/eigen_config.h"
 #include "nuri/core/molecule.h"
 #include "nuri/utils.h"
 
