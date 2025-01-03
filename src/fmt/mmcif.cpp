@@ -384,7 +384,7 @@ public:
     if (elem != nullptr) {
       data.set_element(*elem);
     } else {
-      ABSL_LOG(WARNING) << "Invalid elem symbol: " << symbol;
+      ABSL_LOG(WARNING) << "Invalid element symbol: " << symbol;
     }
 
     data.set_name(first().id().atom_id).set_formal_charge(fchg[first().row()]);
@@ -517,7 +517,7 @@ public:
 
     constants::BondOrder bo = constants::kSingleBond;
     if (!order[row]) {
-      ABSL_LOG(INFO) << "Missing value_order; assuming single bond";
+      ABSL_VLOG(1) << "Missing value_order; assuming single bond";
     } else {
       std::string order_lower = absl::AsciiStrToLower(*order[row]);
       if (order_lower == "sing") {
@@ -837,7 +837,7 @@ std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
       ptnr2(block.data(), res_idx, 1);
   ABSL_LOG_IF(INFO, atom_id.auth())
       << "_struct_conn table always use label_atom_id, but auth_atom_id is "
-         "used in atom_site tables. This may cause unresolved bond connections";
+         "used in atom_site tables. This may cause unresolved bonds";
 
   NullableCifColumn conn_type = NullableCifColumn::from_key(
                         block.data(), "_struct_conn.conn_type_id"),
