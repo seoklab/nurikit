@@ -31,6 +31,7 @@
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/cif.h"
+#include "nuri/meta.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -105,7 +106,8 @@ public:
   operator bool() const { return tbl_ >= 0; }
 
 private:
-  explicit NullableCifColumn(const internal::CifFrame &frame)
+  NURI_CLANG_ANALYZER_NOLINT explicit NullableCifColumn(
+      const internal::CifFrame &frame)
       : frame_(&frame) { }
 
   NullableCifColumn(const internal::CifFrame &frame, std::pair<int, int> idx)
