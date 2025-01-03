@@ -52,6 +52,47 @@ TEST_F(MmcifTest, BasicParsing) {
               == SubstructCategory::kChain);
 }
 
+TEST_F(MmcifTest, HandleMultipleModels) {
+  set_test_file("3cye_part.cif");
+
+  CifParser parser(ifs_);
+  std::vector mols = mmcif_read_next_block(parser);
+  ASSERT_EQ(mols.size(), 2);
+
+  EXPECT_EQ(mols[0].name(), "3CYE");
+  EXPECT_EQ(internal::get_key(mols[0].props(), "model"), "1");
+
+  EXPECT_EQ(mols[0].num_atoms(), 55);
+  EXPECT_EQ(mols[0].num_bonds(), 1);
+
+  // Disulfide bond
+  EXPECT_NE(mols[0].find_bond(28, 34), mols[0].bond_end());
+
+  ASSERT_EQ(mols[0].confs().size(), 2);
+  NURI_EXPECT_EIGEN_EQ(mols[0].confs()[0].col(0), mols[0].confs()[1].col(0));
+  NURI_EXPECT_EIGEN_NE(mols[0].confs()[0].col(43), mols[0].confs()[1].col(43));
+
+  // 8 residues + 1 chain
+  ASSERT_EQ(mols[0].num_substructures(), 9);
+  EXPECT_EQ(mols[0].get_substructure(0).name(), "VAL");
+  EXPECT_EQ(mols[0].get_substructure(0).num_atoms(), 7);
+
+  EXPECT_EQ(mols[1].name(), "3CYE");
+  EXPECT_EQ(internal::get_key(mols[1].props(), "model"), "2");
+
+  EXPECT_EQ(mols[1].num_atoms(), 36);
+  EXPECT_EQ(mols[1].num_bonds(), 0);
+
+  ASSERT_EQ(mols[1].confs().size(), 2);
+  NURI_EXPECT_EIGEN_EQ(mols[1].confs()[0].col(0), mols[1].confs()[1].col(0));
+  NURI_EXPECT_EIGEN_NE(mols[1].confs()[0].col(31), mols[1].confs()[1].col(31));
+
+  // 5 residues + 1 chain
+  ASSERT_EQ(mols[1].num_substructures(), 6);
+  EXPECT_EQ(mols[1].get_substructure(0).name(), "VAL");
+  EXPECT_EQ(mols[1].get_substructure(0).num_atoms(), 7);
+}
+
 class PDB1alxTest: public testing::Test {
 protected:
   // NOLINTNEXTLINE(clang-diagnostic-unused-member-function)
