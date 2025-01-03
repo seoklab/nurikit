@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 
 #include "fmt_test_common.h"
+#include "test_utils.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/cif.h"
 
@@ -49,6 +50,58 @@ TEST_F(MmcifTest, BasicParsing) {
   EXPECT_EQ(mol.substructures().back().name(), "A");
   EXPECT_TRUE(mol.substructures().back().category()
               == SubstructCategory::kChain);
+}
+
+class PDB1alxTest: public testing::Test {
+protected:
+  // NOLINTNEXTLINE(clang-diagnostic-unused-member-function)
+  static void SetUpTestSuite() {
+    std::ifstream ifs(internal::test_data("1alx.cif"));
+    ASSERT_TRUE(ifs) << "Failed to open file: 1alx.cif";
+
+    CifParser parser(ifs);
+    std::vector<Molecule> mols = mmcif_read_next_block(parser);
+    ASSERT_EQ(mols.size(), 1);
+
+    mol_ = std::move(mols[0]);
+    ASSERT_EQ(mol_.name(), "1ALX");
+    ASSERT_EQ(mol_.num_atoms(), 669);
+    ASSERT_EQ(mol_.num_bonds(), 28);
+    ASSERT_EQ(mol_.num_substructures(), 54);
+  }
+
+  static const Molecule &mol() { return mol_; }
+
+private:
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  inline static Molecule mol_;
+};
+
+TEST_F(PDB1alxTest, HandleMultipleAltlocs) {
+  ASSERT_EQ(mol().confs().size(), 5);
+
+  NURI_EXPECT_EIGEN_EQ(mol().confs()[0].col(0), mol().confs()[1].col(0));
+  NURI_EXPECT_EIGEN_EQ(mol().confs()[0].col(0), mol().confs()[2].col(0));
+
+  NURI_EXPECT_EIGEN_NE(mol().confs()[0].col(85), mol().confs()[1].col(85));
+  NURI_EXPECT_EIGEN_EQ(mol().confs()[0].col(85), mol().confs()[2].col(85));
+
+  NURI_EXPECT_EIGEN_NE(mol().confs()[0].col(263), mol().confs()[1].col(263));
+  NURI_EXPECT_EIGEN_NE(mol().confs()[1].col(263), mol().confs()[2].col(263));
+}
+
+TEST_F(PDB1alxTest, HandleInconsistentResidues) {
+  const Substructure &res = mol().get_substructure(10);
+  EXPECT_EQ(res.name(), "TYR");
+  EXPECT_EQ(res.id(), 11);
+  EXPECT_EQ(res.num_atoms(), 21);
+  EXPECT_EQ(res.count_heavy_atoms(), 12);
+
+  auto subs = mol().find_substructures(11);
+  std::vector<Substructure> res_11(subs.begin(), subs.end());
+  // A/B chain
+  EXPECT_EQ(res_11.size(), 2);
+  EXPECT_EQ(res_11[0].name(), "TYR");
 }
 }  // namespace
 }  // namespace nuri
