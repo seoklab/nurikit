@@ -714,6 +714,8 @@ void update_substructs(Molecule &mol, MmcifResidueData &&residues,
 
 class MmcifModelData {
 public:
+  explicit MmcifModelData(int model_num): model_num_(model_num) { }
+
   void add_atom(MmcifAtomInfo info, std::string_view comp_id,
                 const internal::CifValue &id) {
     ABSL_DCHECK(static_cast<bool>(info));
@@ -763,11 +765,14 @@ public:
     return mol;
   }
 
+  int model_num() const { return model_num_; }
+
 private:
   MmcifResidueData residues_;
 
   std::vector<MmcifAtomData> atoms_;
   absl::flat_hash_map<AtomId, int> aid_map_;
+  int model_num_;
 };
 }  // namespace
 
@@ -819,7 +824,8 @@ std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
     return mols;
   }
 
-  absl::flat_hash_map<int, MmcifModelData> models;
+  std::vector<MmcifModelData> models;
+  absl::flat_hash_map<int, int> model_map;
   for (int i = 0; i < nsite; ++i) {
     const internal::CifValue &id = site_id[i];
 
@@ -830,7 +836,13 @@ std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
       return mols;
     }
 
-    models[model_num[i]].add_atom(info, *comp_id[i], id);
+    const int mid = model_num[i];
+
+    auto [it, first] = model_map.try_emplace(mid, models.size());
+    if (first)
+      models.push_back(MmcifModelData(mid));
+
+    models[it->second].add_atom(info, *comp_id[i], id);
   }
 
   StructConnIndexer ptnr1(block.data(), res_idx, 0),
@@ -864,10 +876,12 @@ std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
 
   mols.reserve(models.size());
   for (auto &model: models) {
-    mols.emplace_back(std::move(model.second)
-                          .to_standard(block.name(), site_id, type_symbol, fchg,
-                                       coords, conns))
-        .add_prop("model", absl::StrCat(model.first));
+    const int mid = model.model_num();
+
+    mols.emplace_back(std::move(model).to_standard(block.name(), site_id,
+                                                   type_symbol, fchg, coords,
+                                                   conns))
+        .add_prop("model", absl::StrCat(mid));
   }
 
   return mols;
