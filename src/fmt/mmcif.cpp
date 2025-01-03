@@ -24,6 +24,7 @@
 #include <absl/strings/str_cat.h>
 #include <Eigen/Dense>
 
+#include "fmt_internal.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/cif.h"
@@ -284,6 +285,7 @@ public:
         y_(NullableCifColumn::from_key(frame, "_atom_site.Cartn_y")),
         z_(NullableCifColumn::from_key(frame, "_atom_site.Cartn_z")) { }
 
+  // NOLINTNEXTLINE(*-unneeded-member-function)
   Vector3d operator[](int row) const { return { x_[row], y_[row], z_[row] }; }
 
   std::array<int, 3> tables() const {
@@ -399,17 +401,19 @@ public:
     return data;
   }
 
+  // NOLINTNEXTLINE(*-unused-member-function)
   const std::vector<MmcifAtomInfo> &data() const { return data_; }
 
   const MmcifAtomInfo &first() const { return data_.front(); }
 
-  int major_row() const {
+  // NOLINTNEXTLINE(*-unused-member-function)
+  int major() const {
     auto it =
         std::max_element(data_.begin(), data_.end(),
                          [](const MmcifAtomInfo &a, const MmcifAtomInfo &b) {
                            return a.occupancy() < b.occupancy();
                          });
-    return it->row();
+    return static_cast<int>(it - data_.begin());
   }
 
 private:
@@ -450,8 +454,10 @@ public:
     data_[res_idx].idxs.push_back(atom_idx);
   }
 
+  // NOLINTNEXTLINE(*-unused-member-function)
   MmcifResidueInfo &operator[](size_t idx) { return data_[idx]; }
 
+  // NOLINTNEXTLINE(*-unused-member-function)
   size_t size() const { return data_.size(); }
 
 private:
@@ -594,124 +600,6 @@ void update_struct_conn(MoleculeMutator &mut,
   }
 }
 
-void update_confs(Molecule &mol, const std::vector<MmcifAtomData> &atoms,
-                  const CoordResolver &coords) {
-  using internal::make_transform_iterator;
-
-  std::vector<std::string_view> s, t;
-  std::vector<std::string_view> *alt_ids = &s, *buf = &t;
-
-  for (const MmcifAtomData &md: atoms) {
-    if (md.data().size() <= 1)
-      continue;
-
-    buf->clear();
-    std::set_union(
-        alt_ids->cbegin(), alt_ids->cend(),
-        make_transform_iterator<&MmcifAtomInfo::alt_id>(md.data().cbegin()),
-        make_transform_iterator<&MmcifAtomInfo::alt_id>(md.data().cend()),
-        std::back_inserter(*buf));
-    std::swap(alt_ids, buf);
-  }
-
-  if (alt_ids->empty()) {
-    Matrix3Xd &conf = mol.confs().emplace_back(Matrix3Xd(3, atoms.size()));
-    for (int i = 0; i < atoms.size(); ++i)
-      conf.col(i) = coords[atoms[i].first().row()];
-    return;
-  }
-
-  ABSL_DCHECK_GT(alt_ids->size(), 1);
-
-  mol.confs().resize(alt_ids->size());
-  for (int i = 0; i < alt_ids->size(); ++i)
-    mol.confs()[i].resize(3, static_cast<int>(atoms.size()));
-
-  for (int i = 0; i < atoms.size(); ++i) {
-    const MmcifAtomData &md = atoms[i];
-
-    if (md.data().size() == 1) {
-      auto coord = mol.confs()[0].col(i);
-      coord = coords[md.first().row()];
-      for (int j = 1; j < mol.confs().size(); ++j)
-        mol.confs()[j].col(i) = coord;
-      continue;
-    }
-
-    if (md.data().size() == alt_ids->size()) {
-      for (int j = 0; j < mol.confs().size(); ++j)
-        mol.confs()[j].col(i) = coords[md.data()[j].row()];
-      continue;
-    }
-
-    Vector3d major_coord = coords[md.major_row()];
-
-    int j = 0;
-    for (int k = 0; k < md.data().size(); ++j) {
-      ABSL_DCHECK(j < mol.confs().size());
-
-      std::string_view alt_id = (*alt_ids)[j];
-      Eigen::Ref<Vector3d> coord = mol.confs()[j].col(i);
-
-      if (md.data()[k].alt_id() != alt_id) {
-        coord = major_coord;
-        continue;
-      }
-
-      coord = coords[md.data()[k].row()];
-      ++k;
-    }
-
-    for (; j < mol.confs().size(); ++j)
-      mol.confs()[j].col(i) = major_coord;
-  }
-}
-
-constexpr int kChainIdx = 0;
-
-void update_substructs(Molecule &mol, MmcifResidueData &&residues,
-                       const std::vector<MmcifAtomData> &atoms) {
-  auto &subs = mol.substructures();
-
-  std::vector<std::pair<std::string_view, std::vector<int>>> chains;
-
-  for (int i = 0; i < atoms.size(); ++i) {
-    ResidueId id = atoms[i].first().id().res;
-
-    auto [cit, _] = insert_sorted(chains, { id.asym_id, {} },
-                                  [](const auto &a, const auto &b) {
-                                    return a.first < b.first;
-                                  });
-    cit->second.push_back(i);
-  }
-
-  subs.reserve(residues.size() + chains.size());
-  subs.resize(residues.size(), mol.substructure(SubstructCategory::kResidue));
-  subs.resize(residues.size() + chains.size(),
-              mol.substructure(SubstructCategory::kChain));
-
-  auto sit = subs.begin();
-  for (int i = 0; i < residues.size(); ++i, ++sit) {
-    auto &data = residues[i];
-
-    sit->update(std::move(data.idxs), {});
-    sit->name() = std::string(data.comp_id);
-    sit->set_id(data.id.seq_id);
-    sit->add_prop("chain", data.id.asym_id);
-    if (!data.id.ins_code.empty())
-      sit->add_prop("icode", data.id.ins_code);
-
-    ABSL_DCHECK(sit->props()[kChainIdx].first == "chain");
-  }
-
-  for (int i = 0; i < chains.size(); ++i, ++sit) {
-    auto &[ch, idxs] = chains[i];
-    sit->update(std::move(idxs), {});
-    sit->name() = std::string(ch);
-    sit->set_id(i);
-  }
-}
-
 class MmcifModelData {
 public:
   explicit MmcifModelData(int model_num): model_num_(model_num) { }
@@ -759,9 +647,14 @@ public:
       update_struct_conn(mut, conns, aid_map_);
     }
 
-    update_confs(mol, atoms_, coords);
-    update_substructs(mol, std::move(residues_), atoms_);
-
+    internal::pdb_update_confs<&MmcifAtomInfo::alt_id>(
+        mol, atoms_, [&](const MmcifAtomInfo &info, auto &&pos) {
+          pos = coords[info.row()];
+        });
+    internal::pdb_update_substructs(mol, std::move(residues_), atoms_,
+                                    &ResidueId::asym_id,
+                                    &MmcifResidueInfo::comp_id,
+                                    &ResidueId::seq_id, &ResidueId::ins_code);
     return mol;
   }
 
