@@ -62,7 +62,7 @@ TEST_F(MmcifTest, HandleMultipleModels) {
   EXPECT_EQ(mols[0].name(), "3CYE");
   EXPECT_EQ(internal::get_key(mols[0].props(), "model"), "1");
 
-  EXPECT_EQ(mols[0].num_atoms(), 55);
+  EXPECT_EQ(mols[0].num_atoms(), 67);
   EXPECT_EQ(mols[0].num_bonds(), 1);
 
   // Disulfide bond
@@ -72,10 +72,13 @@ TEST_F(MmcifTest, HandleMultipleModels) {
   NURI_EXPECT_EIGEN_EQ(mols[0].confs()[0].col(0), mols[0].confs()[1].col(0));
   NURI_EXPECT_EIGEN_NE(mols[0].confs()[0].col(43), mols[0].confs()[1].col(43));
 
-  // 8 residues + 1 chain
-  ASSERT_EQ(mols[0].num_substructures(), 9);
+  // 9 residues + 1 chain
+  ASSERT_EQ(mols[0].num_substructures(), 10);
   EXPECT_EQ(mols[0].get_substructure(0).name(), "VAL");
   EXPECT_EQ(mols[0].get_substructure(0).num_atoms(), 7);
+
+  EXPECT_EQ(internal::get_key(mols[0].get_substructure(8).props(), "icode"),
+            "A");
 
   EXPECT_EQ(mols[1].name(), "3CYE");
   EXPECT_EQ(internal::get_key(mols[1].props(), "model"), "2");
