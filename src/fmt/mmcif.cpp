@@ -650,7 +650,7 @@ void update_confs(Molecule &mol, const std::vector<MmcifAtomData> &atoms,
     for (int k = 0; k < md.data().size(); ++j) {
       ABSL_DCHECK(j < mol.confs().size());
 
-      std::string_view alt_id = (*alt_ids)[k];
+      std::string_view alt_id = (*alt_ids)[j];
       Eigen::Ref<Vector3d> coord = mol.confs()[j].col(i);
 
       if (md.data()[k].alt_id() != alt_id) {
