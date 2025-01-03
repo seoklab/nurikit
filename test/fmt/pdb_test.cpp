@@ -118,8 +118,8 @@ TEST_F(PDBTest, HandleMultipleModels) {
   EXPECT_EQ(mol().name(), "3CYE");
   EXPECT_EQ(internal::get_key(mol().props(), "model"), "1");
 
-  EXPECT_EQ(mol().num_atoms(), 55);
-  EXPECT_EQ(mol().num_bonds(), 54);
+  EXPECT_EQ(mol().num_atoms(), 67);
+  EXPECT_EQ(mol().num_bonds(), 67);
 
   // Disulfide bond
   EXPECT_NE(mol().find_bond(28, 34), mol().bond_end());
@@ -130,10 +130,12 @@ TEST_F(PDBTest, HandleMultipleModels) {
   NURI_EXPECT_EIGEN_EQ(mol().confs()[0].col(0), mol().confs()[1].col(0));
   NURI_EXPECT_EIGEN_NE(mol().confs()[0].col(43), mol().confs()[1].col(43));
 
-  // 8 residues + 1 chain
-  ASSERT_EQ(mol().num_substructures(), 9);
+  // 9 residues + 1 chain
+  ASSERT_EQ(mol().num_substructures(), 10);
   EXPECT_EQ(mol().get_substructure(0).name(), "VAL");
   EXPECT_EQ(mol().get_substructure(0).num_atoms(), 7);
+
+  EXPECT_EQ(internal::get_key(mol().get_substructure(8).props(), "icode"), "A");
 
   ASSERT_TRUE(advance_and_guess());
   EXPECT_EQ(mol().name(), "3CYE");

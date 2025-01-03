@@ -28,10 +28,10 @@
 #include <absl/strings/match.h>
 #include <absl/strings/numbers.h>
 #include <absl/strings/str_cat.h>
-#include <absl/strings/str_format.h>
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
+#include "fmt_internal.h"
 #include "nuri/core/element.h"
 #include "nuri/core/graph.h"
 #include "nuri/core/molecule.h"
@@ -1588,16 +1588,16 @@ int last_serial(const std::vector<std::string> &pdb) {
   return 1;
 }
 
-char get_altloc(std::string_view line) {
-  return line[16];
+std::string_view get_altloc(std::string_view line) {
+  return line.substr(16, 1);
 }
 
-std::string as_key(std::string_view prefix, char altloc) {
+std::string as_key(std::string_view prefix, std::string_view altloc) {
   std::string key(prefix);
-  if (altloc == ' ')
+  if (altloc == " ")
     return key;
 
-  absl::StrAppendFormat(&key, "-%c", altloc);
+  absl::StrAppend(&key, "-", altloc);
   return key;
 }
 
@@ -1636,10 +1636,11 @@ public:
 
   const AtomId &id() const { return id_; }
 
-  char altloc() const { return get_altloc(line_); }
+  std::string_view altloc() const { return get_altloc(line_); }
 
   std::string_view resname() const { return slice_strip(line_, 17, 20); }
 
+  // NOLINTNEXTLINE(*-unneeded-member-function)
   void parse_coords(Eigen::Ref<Vector3d> pos) const {
     for (int i = 0; i < 3; ++i)
       pos[i] = safe_atod(line_.substr(30 + i * 8, 8));
@@ -1660,10 +1661,10 @@ private:
 class PDBAtomData {
 public:
   // NOLINTNEXTLINE(*-unused-member-function)
-  explicit PDBAtomData(AtomicLine line): lines_({ line }) { }
+  explicit PDBAtomData(AtomicLine line): data_({ line }) { }
 
   bool add_line(AtomicLine line) {
-    auto [it, first] = insert_sorted(lines_, line, [](auto a, auto b) {
+    auto [it, first] = insert_sorted(data_, line, [](auto a, auto b) {
       return a.altloc() < b.altloc();
     });
 
@@ -1701,8 +1702,8 @@ public:
 
     data.set_name(first().id().name);
 
-    data.props().reserve(3 * lines_.size() + extra_.size());
-    for (const AtomicLine &l: lines_) {
+    data.props().reserve(3 * data_.size() + extra_.size() + 1);
+    for (const AtomicLine &l: data_) {
       data.add_prop(as_key("serial", l.altloc()), absl::StrCat(l.serial()));
       data.add_prop(as_key("occupancy", l.altloc()),
                     safe_slice_strip(l.line(), 54, 60));
@@ -1716,15 +1717,19 @@ public:
     return data;
   }
 
-  const std::vector<AtomicLine> &lines() const { return lines_; }
+  // NOLINTNEXTLINE(*-unused-member-function)
+  const std::vector<AtomicLine> &data() const { return data_; }
 
-  const AtomicLine &first() const { return lines_.front(); }
+  const AtomicLine &first() const { return data_.front(); }
 
+  // NOLINTNEXTLINE(*-unused-member-function)
   int major() const {
+    // cannot use max_element here because we don't want to parse the occupancy
+    // on every comparison
     int major = 0;
     float max_occ = first().occupancy();
-    for (int i = 1; i < lines_.size(); ++i) {
-      float occ = lines_[i].occupancy();
+    for (int i = 1; i < data_.size(); ++i) {
+      float occ = data_[i].occupancy();
       if (occ > max_occ) {
         max_occ = occ;
         major = i;
@@ -1734,7 +1739,7 @@ public:
   }
 
 private:
-  std::vector<AtomicLine> lines_;
+  std::vector<AtomicLine> data_;
   std::vector<std::pair<std::string, std::string>> extra_;
 };
 
@@ -1770,8 +1775,10 @@ public:
     data_[res_idx].idxs.push_back(atom_idx);
   }
 
+  // NOLINTNEXTLINE(*-unused-member-function)
   PDBResidueInfo &operator[](size_t idx) { return data_[idx]; }
 
+  // NOLINTNEXTLINE(*-unused-member-function)
   size_t size() const { return data_.size(); }
 
 private:
@@ -1979,128 +1986,6 @@ void remove_hbonds(MoleculeMutator &mut) {
 }
 }  // namespace
 
-namespace {
-void update_confs(Molecule &mol, const std::vector<PDBAtomData> &atom_data) {
-  using internal::make_transform_iterator;
-
-  std::string s, t;
-  std::string *altlocs = &s, *buf = &t;
-
-  for (const PDBAtomData &pd: atom_data) {
-    if (pd.lines().size() <= 1)
-      continue;
-
-    buf->clear();
-    std::set_union(
-        altlocs->cbegin(), altlocs->cend(),
-        make_transform_iterator<&AtomicLine::altloc>(pd.lines().begin()),
-        make_transform_iterator<&AtomicLine::altloc>(pd.lines().end()),
-        std::back_inserter(*buf));
-    std::swap(altlocs, buf);
-  }
-
-  if (altlocs->empty()) {
-    Matrix3Xd &conf = mol.confs().emplace_back(Matrix3Xd(3, atom_data.size()));
-    for (int i = 0; i < atom_data.size(); ++i)
-      atom_data[i].first().parse_coords(conf.col(i));
-
-    return;
-  }
-
-  ABSL_DCHECK(altlocs->size() > 1);
-
-  mol.confs().resize(altlocs->size());
-  for (int i = 0; i < altlocs->size(); ++i)
-    mol.confs()[i].resize(3, static_cast<int>(atom_data.size()));
-
-  for (int i = 0; i < atom_data.size(); ++i) {
-    const PDBAtomData &pd = atom_data[i];
-
-    if (pd.lines().size() == 1) {
-      Eigen::Ref<Vector3d> coord = mol.confs()[0].col(i);
-      pd.first().parse_coords(coord);
-      for (int j = 1; j < mol.confs().size(); ++j)
-        mol.confs()[j].col(i) = coord;
-
-      continue;
-    }
-
-    if (pd.lines().size() == altlocs->size()) {
-      for (int j = 0; j < mol.confs().size(); ++j)
-        pd.lines()[j].parse_coords(mol.confs()[j].col(i));
-      continue;
-    }
-
-    Vector3d major_coord;
-    pd.lines()[pd.major()].parse_coords(major_coord);
-
-    int j = 0;
-    for (int k = 0; k < pd.lines().size(); ++j) {
-      ABSL_DCHECK(j < mol.confs().size());
-
-      const char altloc = (*altlocs)[j];
-      Eigen::Ref<Vector3d> coord = mol.confs()[j].col(i);
-
-      if (pd.lines()[k].altloc() != altloc) {
-        coord = major_coord;
-        continue;
-      }
-
-      pd.lines()[k++].parse_coords(coord);
-    }
-
-    for (; j < mol.confs().size(); ++j)
-      mol.confs()[j].col(i) = major_coord;
-  }
-}
-
-constexpr int kChainIdx = 0;
-
-void update_substructures(Molecule &mol, PDBResidueData &residue_data,
-                          const std::vector<PDBAtomData> &atom_data) {
-  auto &subs = mol.substructures();
-
-  std::vector<std::pair<char, std::vector<int>>> chains;
-
-  for (int i = 0; i < atom_data.size(); ++i) {
-    ResidueId id = atom_data[i].first().id().res;
-
-    auto [cit, _] = insert_sorted(chains, { id.chain, {} },
-                                  [](const auto &a, const auto &b) {
-                                    return a.first < b.first;
-                                  });
-    cit->second.push_back(i);
-  }
-
-  subs.reserve(residue_data.size() + chains.size());
-  subs.resize(residue_data.size(),
-              mol.substructure(SubstructCategory::kResidue));
-  subs.resize(residue_data.size() + chains.size(),
-              mol.substructure(SubstructCategory::kChain));
-
-  auto sit = subs.begin();
-  for (int i = 0; i < residue_data.size(); ++i, ++sit) {
-    auto &data = residue_data[i];
-
-    sit->update(std::move(data.idxs), {});
-    sit->name() = std::string(data.resname);
-    sit->set_id(data.id.seqnum);
-    sit->add_prop("chain", std::string(1, data.id.chain));
-    if (data.id.icode != ' ')
-      sit->add_prop("icode", std::string(1, data.id.icode));
-
-    ABSL_DCHECK(sit->props()[kChainIdx].first == "chain");
-  }
-
-  for (int i = 0; i < chains.size(); ++i, ++sit) {
-    auto &[ch, idxs] = chains[i];
-    sit->update(std::move(idxs), {});
-    sit->name().push_back(ch);
-    sit->set_id(i);
-  }
-}
-}  // namespace
-
 Molecule read_pdb(const std::vector<std::string> &pdb) {
   Molecule mol;
 
@@ -2174,14 +2059,22 @@ Molecule read_pdb(const std::vector<std::string> &pdb) {
     for (PDBAtomData &pd: atom_data)
       mut.add_atom(pd.to_standard());
 
-    update_confs(mol, atom_data);
+    internal::pdb_update_confs<&AtomicLine::altloc>(
+        mol, atom_data,
+        [](const AtomicLine &line, auto &&pos) { line.parse_coords(pos); });
 
     read_connect_section(it, end, mut, serial_to_idx);
     if (!mol.bond_empty())
       remove_hbonds(mut);
   }
 
-  update_substructures(mol, residue_data, atom_data);
+  internal::pdb_update_substructs(
+      mol, std::move(residue_data), atom_data,
+      [](const ResidueId &id) { return std::string_view(&id.chain, 1); },
+      &PDBResidueInfo::resname, &ResidueId::seqnum,
+      [](const ResidueId &id) {
+        return id.icode == ' ' ? "" : std::string_view(&id.icode, 1);
+      });
 
   return mol;
 }
