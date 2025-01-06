@@ -272,7 +272,7 @@ std::ostream &operator<<(std::ostream &os, const CifValue &value) {
 
 void CifTable::add_data(CifValue &&value) {
   if (rows_.empty() || rows_.back().size() == keys_.size())
-    rows_.emplace_back();
+    rows_.emplace_back().reserve(keys_.size());
 
   rows_.back().push_back(std::move(value));
 }
