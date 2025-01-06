@@ -30,6 +30,7 @@
 #include "fmt_internal.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
+#include "nuri/fmt/base.h"
 #include "nuri/fmt/cif.h"
 #include "nuri/meta.h"
 #include "nuri/utils.h"
@@ -784,4 +785,26 @@ std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
 
   return mols;
 }
+
+bool MmcifReader::getnext(std::vector<std::string> &block) {
+  block.clear();
+
+  if (mols_.empty()) {
+    mols_ = mmcif_read_next_block(parser_);
+    next_ = -1;
+  }
+
+  return ++next_ < mols_.size();
+}
+
+Molecule
+MmcifReader::parse(const std::vector<std::string> & /* block */) const {
+  ABSL_DCHECK_GE(next_, 0);
+  ABSL_DCHECK_LT(next_, mols_.size());
+
+  return mols_[next_];
+}
+
+const bool MmcifReaderFactory::kRegistered =
+    register_reader_factory<MmcifReaderFactory>({ "cif", "mmcif" });
 }  // namespace nuri
