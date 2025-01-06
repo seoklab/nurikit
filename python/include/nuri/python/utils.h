@@ -493,7 +493,9 @@ py::class_<T> &add_sequence_interface(py::class_<T> &cls, Size size,
   cls.def("__len__", size);
   cls.def(
       "__contains__",
-      [size](T &self, int idx) { return 0 <= idx && idx < size(self); },
+      [size](T &self, int idx) {
+        return 0 <= idx && idx < std::invoke(size, self);
+      },
       py::arg("idx"));
   cls.def("__getitem__", std::forward<Getter>(getter), kReturnsSubobject,
           py::arg("idx"));

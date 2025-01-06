@@ -81,6 +81,11 @@ def test_read_cif(test_data: Path):
     assert nonexistent is None
 
 
+def test_read_cif_temporary(test_data: Path):
+    data = next(read_cif(test_data / "1a8o.cif")).data
+    assert data.name == "1A8O"
+
+
 def test_convert_ddl2_cif(test_data: Path):
     cif = test_data / "1a8o.cif"
 
