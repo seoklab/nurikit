@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from nuri.fmt import read_cif
+from nuri.fmt import cif_ddl2_frame_as_dict, read_cif
 
 
 def test_read_cif(test_data: Path):
@@ -30,10 +30,10 @@ def test_read_cif(test_data: Path):
 
     for table in frame:
         assert len(table) == 1
-        assert table[0]["_entry.id"] == "1A8O"
+        assert table[0][0] == "1A8O"
         break
 
-    assert frame[0][0]["_entry.id"] == "1A8O"
+    assert frame[0][0][0] == "1A8O"
 
     atom_site = frame.prefix_search_first("_atom_site.")
     assert atom_site is not None
@@ -70,12 +70,30 @@ def test_read_cif(test_data: Path):
     assert len(atom_site) == 644
 
     row = atom_site[0]
-    assert row["_atom_site.type_symbol"] == "N"
-    assert row["_atom_site.label_alt_id"] is None
+    assert row[2] == "N"  # _atom_site.type_symbol
+    assert row[4] is None  # _atom_site.label_alt_id
 
     for row in atom_site:
-        assert row["_atom_site.id"] == "1"
+        assert row[1] == "1"  # _atom_site.id
         break
 
     nonexistent = frame.prefix_search_first("_foobar.")
     assert nonexistent is None
+
+
+def test_convert_ddl2_cif(test_data: Path):
+    cif = test_data / "1a8o.cif"
+
+    blocks = list(read_cif(cif))
+    assert len(blocks) == 1
+    frame = blocks[0].data
+
+    ddl = cif_ddl2_frame_as_dict(frame)
+
+    assert ddl["entry"][0]["id"] == "1A8O"
+
+    atom_site = ddl["atom_site"]
+    assert len(atom_site) == 644
+
+    assert atom_site[0]["type_symbol"] == "N"
+    assert atom_site[0]["label_alt_id"] is None
