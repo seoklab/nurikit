@@ -313,11 +313,11 @@ Search for the first table containing a column starting with the given prefix.
   bind_opaque_vector<internal::CifFrame, PyCifFrame, wrap_cif_frame>(
       m, "_CifFrameList", "_CifFrameList index out of range");
 
-  py::class_<PyCifBlock>(m, "CifBlock")  //
-      .def_property_readonly("data", &PyCifBlock::data)
-      .def_property_readonly("name", &PyCifBlock::name)
-      .def_property_readonly("save_frames", &PyCifBlock::save_frames)
-      .def_property_readonly("is_global", &PyCifBlock::is_global);
+  py::class_<PyCifBlock> cb(m, "CifBlock");
+  cb.def_property_readonly("name", &PyCifBlock::name)
+      .def_property_readonly("is_global", &PyCifBlock::is_global)
+      .def_property_readonly("save_frames", &PyCifBlock::save_frames);
+  def_property_readonly_subobject(cb, "data", &PyCifBlock::data);
 
   py::class_<PyCifParser>(m, "CifParser")
       .def("__iter__", pass_through<PyCifParser>)
