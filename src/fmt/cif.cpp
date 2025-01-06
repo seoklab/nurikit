@@ -471,13 +471,16 @@ internal::CifBlock CifParser::next() {
   internal::CifBlock block = internal::next_block(*this, lexer_, name_, block_);
 
   std::string err = block.data().validate();
-  for (int i = 0; err.empty() && i < block.save_frames().size(); ++i) {
-    err = block.save_frames()[i].validate();
-    if (!err.empty())
-      absl::StrAppend(&err, " in save block ", block.save_frames()[i].name());
-  }
   if (!err.empty())
     return error(err);
+
+  for (const auto &frame: block.save_frames()) {
+    err = frame.validate();
+    if (!err.empty()) {
+      absl::StrAppend(&err, " in save block ", frame.name());
+      return error(err);
+    }
+  }
 
   return block;
 }
