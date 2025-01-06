@@ -30,14 +30,13 @@ namespace python_internal {
 namespace {
 namespace fs = std::filesystem;
 
-pyt::Dict<py::str, pyt::Optional<py::str>>
-cif_table_row(const internal::CifTable &table, const pyt::List<py::str> &keys,
-              int row) {
-  pyt::Dict<py::str, pyt::Optional<py::str>> data;
+pyt::List<pyt::Optional<py::str>> cif_table_row(const internal::CifTable &table,
+                                                int row) {
+  pyt::List<pyt::Optional<py::str>> data;
   for (int i = 0; i < table.cols(); ++i) {
     const internal::CifValue &val = table.data()[row][i];
-    data[keys[i]] = val.is_null() ? py::none().cast<py::object>()
-                                  : py::str(*val).cast<py::object>();
+    data.append(val.is_null() ? py::none().cast<py::object>()
+                              : py::str(*val).cast<py::object>());
   }
   return data;
 }
@@ -47,27 +46,23 @@ cif_table_row(const internal::CifTable &table, const pyt::List<py::str> &keys,
 class PyCifTableIterator
     : public PyIterator<PyCifTableIterator, const internal::CifTable> {
 public:
-  PyCifTableIterator(const internal::CifTable &table,
-                     const pyt::List<py::str> &keys)
-      : Parent(table), keys_(keys) { }
+  using Parent::Parent;
 
   static auto bind(py::module &m) {
     return Parent::bind(m, "_CifTableIterator");
   }
 
-  pyt::Dict<py::str, pyt::Optional<py::str>>
-  deref(const internal::CifTable &table, int row) const {
-    return cif_table_row(table, keys_, row);
-  }
-
 private:
   friend Parent;
+
+  static pyt::List<pyt::Optional<py::str>>
+  deref(const internal::CifTable &table, int row) {
+    return cif_table_row(table, row);
+  }
 
   static size_t size_of(const internal::CifTable &table) {
     return table.size();
   }
-
-  pyt::List<py::str> keys_;
 };
 
 class PyCifTable {
@@ -77,12 +72,12 @@ public:
       keys_.append(key);
   }
 
-  PyCifTableIterator iter() const { return PyCifTableIterator(*table_, keys_); }
+  PyCifTableIterator iter() const { return PyCifTableIterator(*table_); }
 
-  pyt::Dict<py::str, pyt::Optional<py::str>> get(int row) const {
+  pyt::List<pyt::Optional<py::str>> get(int row) const {
     row = py_check_index(static_cast<int>(table_->size()), row,
                          "CifTable row index out of range");
-    return cif_table_row(*table_, keys_, row);
+    return cif_table_row(*table_, row);
   }
 
   size_t size() const { return table_->size(); }
