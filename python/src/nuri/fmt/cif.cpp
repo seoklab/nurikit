@@ -15,8 +15,11 @@
 #include <vector>
 
 #include <absl/base/nullability.h>
+#include <absl/container/flat_hash_map.h>
+#include <absl/log/absl_check.h>
 #include <absl/strings/match.h>
 #include <absl/strings/str_cat.h>
+#include <absl/strings/strip.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl/filesystem.h>
 
@@ -30,14 +33,13 @@ namespace python_internal {
 namespace {
 namespace fs = std::filesystem;
 
-pyt::Dict<py::str, pyt::Optional<py::str>>
-cif_table_row(const internal::CifTable &table, const pyt::List<py::str> &keys,
-              int row) {
-  pyt::Dict<py::str, pyt::Optional<py::str>> data;
+pyt::List<pyt::Optional<py::str>> cif_table_row(const internal::CifTable &table,
+                                                int row) {
+  pyt::List<pyt::Optional<py::str>> data;
   for (int i = 0; i < table.cols(); ++i) {
     const internal::CifValue &val = table.data()[row][i];
-    data[keys[i]] = val.is_null() ? py::none().cast<py::object>()
-                                  : py::str(*val).cast<py::object>();
+    data.append(val.is_null() ? py::none().cast<py::object>()
+                              : py::str(*val).cast<py::object>());
   }
   return data;
 }
@@ -47,27 +49,23 @@ cif_table_row(const internal::CifTable &table, const pyt::List<py::str> &keys,
 class PyCifTableIterator
     : public PyIterator<PyCifTableIterator, const internal::CifTable> {
 public:
-  PyCifTableIterator(const internal::CifTable &table,
-                     const pyt::List<py::str> &keys)
-      : Parent(table), keys_(keys) { }
+  using Parent::Parent;
 
   static auto bind(py::module &m) {
     return Parent::bind(m, "_CifTableIterator");
   }
 
-  pyt::Dict<py::str, pyt::Optional<py::str>>
-  deref(const internal::CifTable &table, int row) const {
-    return cif_table_row(table, keys_, row);
-  }
-
 private:
   friend Parent;
+
+  static pyt::List<pyt::Optional<py::str>>
+  deref(const internal::CifTable &table, int row) {
+    return cif_table_row(table, row);
+  }
 
   static size_t size_of(const internal::CifTable &table) {
     return table.size();
   }
-
-  pyt::List<py::str> keys_;
 };
 
 class PyCifTable {
@@ -77,12 +75,12 @@ public:
       keys_.append(key);
   }
 
-  PyCifTableIterator iter() const { return PyCifTableIterator(*table_, keys_); }
+  PyCifTableIterator iter() const { return PyCifTableIterator(*table_); }
 
-  pyt::Dict<py::str, pyt::Optional<py::str>> get(int row) const {
+  pyt::List<pyt::Optional<py::str>> get(int row) const {
     row = py_check_index(static_cast<int>(table_->size()), row,
                          "CifTable row index out of range");
-    return cif_table_row(*table_, keys_, row);
+    return cif_table_row(*table_, row);
   }
 
   size_t size() const { return table_->size(); }
@@ -138,6 +136,8 @@ public:
 
     return py::cast(PyCifTable((*frame_)[it.begin()->second.first]));
   }
+
+  const internal::CifFrame &cpp() const { return *frame_; }
 
 private:
   absl::Nonnull<const internal::CifFrame *> frame_;
@@ -224,6 +224,66 @@ void bind_opaque_vector(py::module &m, const char *name, const char *onerror) {
     return absl::StrCat("<", name, " of ", self.size(), " tables>");
   });
 }
+
+pyt::Dict<py::str, pyt::List<pyt::Dict<py::str, pyt::Optional<py::str>>>>
+cif_ddl2_frame_as_dict(const PyCifFrame &frame) {
+  absl::flat_hash_map<
+      std::string_view,
+      std::pair<std::vector<py::str>, std::vector<std::vector<py::object>>>>
+      grouped;
+
+  std::vector<std::string_view> parent_keys;
+  std::vector<decltype(grouped)::iterator> slots;
+  for (const internal::CifTable &table: frame.cpp()) {
+    parent_keys.clear();
+    parent_keys.reserve(table.cols());
+    for (std::string_view key: table.keys()) {
+      std::string_view pk = key.substr(0, key.find('.'));
+      std::string_view sk = key.substr(pk.size() + 1);
+
+      pk = absl::StripPrefix(pk, "_");
+
+      parent_keys.push_back(pk);
+      grouped[pk].first.push_back(sk);
+    }
+
+    slots.clear();
+    slots.reserve(table.cols());
+    for (std::string_view pk: parent_keys)
+      slots.push_back(grouped.find(pk));
+
+    for (const auto &row: table) {
+      for (int i = 0; i < table.cols(); ++i) {
+        auto it = slots[i];
+        ABSL_DCHECK(it != grouped.end());
+
+        auto &data = it->second.second;
+
+        if (data.empty() || data.back().size() == it->second.first.size())
+          data.emplace_back().reserve(it->second.first.size());
+
+        const internal::CifValue &val = row[i];
+        data.back().push_back(val.is_null() ? py::none().cast<py::object>()
+                                            : py::str(*val).cast<py::object>());
+      }
+    }
+  }
+
+  py::dict tagged;
+  for (auto &group: grouped) {
+    py::str pk(group.first);
+    py::list rows;
+    for (const auto &row: group.second.second) {
+      py::dict entry;
+      for (int i = 0; i < row.size(); ++i)
+        entry[group.second.first[i]] = row[i];
+      rows.append(entry);
+    }
+    tagged[pk] = rows;
+  }
+
+  return tagged;
+}
 }  // namespace
 
 void bind_cif(py::module &m) {
@@ -268,6 +328,14 @@ Create a parser object from a CIF file path.
 
 :param path: The path to the CIF file.
 :return: A parser object that can be used to iterate over the blocks in the file.
+)doc")
+      .def("cif_ddl2_frame_as_dict", &cif_ddl2_frame_as_dict, py::arg("frame"),
+           R"doc(
+Convert a CIF frame to a dictionary of lists of dictionaries.
+
+:param frame: The CIF frame to convert.
+:return: A dictionary of lists of dictionaries, where the keys are the parent
+  keys and the values are the rows of the table.
 )doc");
 }
 }  // namespace python_internal
