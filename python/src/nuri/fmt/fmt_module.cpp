@@ -62,9 +62,6 @@ public:
       if (!reader_->getnext(block_))
         break;
 
-      ABSL_LOG_IF(WARNING, block_.empty())
-          << "Recieved an empty block for molecule";
-
       Molecule mol = reader_->parse(block_);
       if (mol.empty()) {
         std::string text;
