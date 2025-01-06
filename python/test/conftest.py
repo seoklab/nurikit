@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from pathlib import Path
 import pytest
 
 from nuri.core import BondOrder, Molecule
@@ -91,3 +92,8 @@ def mol3dsub(mol3d: Molecule):
     assert sub.num_atoms() == 4
     assert sub.num_bonds() == 1
     return mol3d
+
+
+@pytest.fixture()
+def test_data():
+    return Path(__file__).parents[2] / "test/test_data"
