@@ -6,7 +6,7 @@ nuri.fmt
 ========
 
 .. automodule:: nuri.fmt
-    :no-members:
+    :exclude-members: MoleculeReader, readfile, readstring, to_smiles, to_mol2, to_sdf
 
     .. autoclass:: MoleculeReader
 

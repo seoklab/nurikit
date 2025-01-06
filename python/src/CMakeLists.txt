@@ -35,6 +35,7 @@ nuri_python_add_module(algo
 
 nuri_python_add_module(fmt
   nuri/fmt/fmt_module.cpp
+  nuri/fmt/cif.cpp
 )
 target_link_libraries(nuri_python_fmt PRIVATE absl::span)
 

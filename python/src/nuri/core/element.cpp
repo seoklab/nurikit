@@ -111,9 +111,8 @@ void bind_element(py::module &m) {
       .def("__repr__", isotope_repr);
 
   using IsotopeList = std::vector<Isotope>;
-  PyProxyCls<IsotopeList> isl(m, "_IsotopeList");
-
-  isl.def("__len__", &IsotopeList::size)
+  PyProxyCls<IsotopeList>(m, "_IsotopeList")
+      .def("__len__", &IsotopeList::size)
       .def(
           "__getitem__",
           [](const IsotopeList &self, int i) -> const Isotope & {
@@ -128,26 +127,18 @@ void bind_element(py::module &m) {
                  "<_IsotopeList of ",
                  PeriodicTable::get()[self[0].atomic_number].name(), ">");
            })
-      .def("__str__", [](const IsotopeList &self) {
-        return "<_IsotopeList ["
-               + absl::StrJoin(self, ", ",
-                               [](std::string *s, const Isotope &iso) {
-                                 absl::StrAppend(s, isotope_repr(iso));
-                               })
-               + "]>";
+      .def("__str__",
+           [](const IsotopeList &self) {
+             return "<_IsotopeList ["
+                    + absl::StrJoin(self, ", ",
+                                    [](std::string *s, const Isotope &iso) {
+                                      absl::StrAppend(s, isotope_repr(iso));
+                                    })
+                    + "]>";
+           })
+      .def("__iter__", [](const IsotopeList &self) {
+        return py::make_iterator(self.begin(), self.end(), rvp::reference);
       });
-
-  {
-    py::options options;
-    options.disable_function_signatures();
-
-    isl.def(
-        "__iter__",
-        [](const IsotopeList &self) {
-          return py::make_iterator(self.begin(), self.end(), rvp::reference);
-        },
-        "__iter__(self) -> typing.Iterator[Isotope]");
-  }
 
   py_elem  //
       .def_property_readonly("atomic_number", &Element::atomic_number,
@@ -201,7 +192,7 @@ Get an isotope of this element by mass number.
 
   const py::arg an("atomic_number"), asn("atomic_symbol_or_name");
 
-  PyProxyCls<PeriodicTable> pt(m, "PeriodicTable", R"doc(
+  PyProxyCls<PeriodicTable>(m, "PeriodicTable", R"doc(
 The periodic table of elements.
 
 The periodic table is a singleton object. You can access the periodic table via
@@ -252,9 +243,9 @@ elements in the periodic table.
 <Element Og>
 
 Refer to the ``nuri::PeriodicTable`` class in the |cppdocs| for details.
-  )doc");
-  pt.def_static("get", &PeriodicTable::get, rvp::reference,
-                R"doc(
+)doc")
+      .def_static("get", &PeriodicTable::get, rvp::reference,
+                  R"doc(
     Get the singleton :class:`PeriodicTable` object (same as
     :data:`nuri.periodic_table`).
 )doc")
@@ -278,19 +269,10 @@ Refer to the ``nuri::PeriodicTable`` class in the |cppdocs| for details.
           an, rvp::reference)
       .def_static("__getitem__", element_from_symbol_or_name, asn,
                   rvp::reference)
-      .def_static("__len__", []() { return PeriodicTable::kElementCount_; });
-
-  {
-    py::options options;
-    options.disable_function_signatures();
-
-    pt.def_static(
-        "__iter__",
-        []() {
-          return py::make_iterator(kPt.begin(), kPt.end(), rvp::reference);
-        },
-        "__iter__() -> typing.Iterator[Element]");
-  }
+      .def_static("__len__", []() { return PeriodicTable::kElementCount_; })
+      .def_static("__iter__", []() {
+        return py::make_iterator(kPt.begin(), kPt.end(), rvp::reference);
+      });
 
   m.attr("periodic_table") = py::cast(kPt, rvp::reference);
 }

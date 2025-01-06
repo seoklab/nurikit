@@ -272,7 +272,7 @@ std::ostream &operator<<(std::ostream &os, const CifValue &value) {
 
 void CifTable::add_data(CifValue &&value) {
   if (rows_.empty() || rows_.back().size() == keys_.size())
-    rows_.emplace_back();
+    rows_.emplace_back().reserve(keys_.size());
 
   rows_.back().push_back(std::move(value));
 }
@@ -466,18 +466,21 @@ internal::CifBlock CifParser::next() {
     return internal::CifBlock::eof();
 
   if (block_ == BlockType::kError)
-    return error(name_);
+    return internal::CifBlock::error(name_);
 
   internal::CifBlock block = internal::next_block(*this, lexer_, name_, block_);
 
   std::string err = block.data().validate();
-  for (int i = 0; err.empty() && i < block.save_frames().size(); ++i) {
-    err = block.save_frames()[i].validate();
-    if (!err.empty())
-      absl::StrAppend(&err, " in save block ", block.save_frames()[i].name());
-  }
   if (!err.empty())
     return error(err);
+
+  for (const auto &frame: block.save_frames()) {
+    err = frame.validate();
+    if (!err.empty()) {
+      absl::StrAppend(&err, " in save block ", frame.name());
+      return error(err);
+    }
+  }
 
   return block;
 }

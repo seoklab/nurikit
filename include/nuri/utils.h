@@ -151,7 +151,6 @@ namespace internal {
   };
 
   template <class Derived, class Iter, class UnaryOp, auto op,
-            bool = std::is_member_function_pointer_v<UnaryOp>,
             bool = std::is_class_v<UnaryOp>>
   class TransformIteratorTrampoline;
 
@@ -162,25 +161,19 @@ namespace internal {
                              typename Traits::difference_type>;
 
   template <class Derived, class Iter, class UnaryOp, UnaryOp op>
-  class TransformIteratorTrampoline<Derived, Iter, UnaryOp, op, false, false>
+  class TransformIteratorTrampoline<Derived, Iter, UnaryOp, op, false>
       : public TransformIteratorBase<Derived, std::iterator_traits<Iter>,
-                                     decltype(op(*std::declval<Iter>()))> {
+                                     decltype(std::invoke(
+                                         op, *std::declval<Iter>()))> {
   protected:
     using Parent = TransformIteratorTrampoline;
-    constexpr static auto dereference_impl(Iter it) { return op(*it); }
-  };
-
-  template <class Derived, class Iter, class UnaryOp, UnaryOp op>
-  class TransformIteratorTrampoline<Derived, Iter, UnaryOp, op, true, false>
-      : public TransformIteratorBase<Derived, std::iterator_traits<Iter>,
-                                     decltype((*std::declval<Iter>().*op)())> {
-  protected:
-    using Parent = TransformIteratorTrampoline;
-    constexpr static auto dereference_impl(Iter it) { return (*it.*op)(); }
+    constexpr static auto dereference_impl(Iter it) {
+      return std::invoke(op, *it);
+    }
   };
 
   template <class Derived, class Iter, class UnaryOp>
-  class TransformIteratorTrampoline<Derived, Iter, UnaryOp, nullptr, false, true>
+  class TransformIteratorTrampoline<Derived, Iter, UnaryOp, nullptr, true>
       : public TransformIteratorBase<Derived, std::iterator_traits<Iter>,
                                      decltype(std::declval<UnaryOp>()(
                                          *std::declval<Iter>()))> {
