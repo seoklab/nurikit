@@ -13,6 +13,7 @@
 #include <pybind11/typing.h>
 
 #include "nuri/core/element.h"
+#include "nuri/fmt/cif.h"
 
 #ifndef NURI_PYTHON_MODULE_NAME
 #error "NURI_PYTHON_MODULE_NAME is not defined"
@@ -35,5 +36,7 @@ using PropertyMap = std::vector<std::pair<std::string, std::string>>;
 
 PYBIND11_MAKE_OPAQUE(std::vector<nuri::Isotope>)
 PYBIND11_MAKE_OPAQUE(nuri::python_internal::PropertyMap)
+
+PYBIND11_MAKE_OPAQUE(std::vector<nuri::internal::CifFrame>)
 
 #endif /* NURI_PYTHON_CONFIG_H_ */

@@ -22,6 +22,7 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/stl/filesystem.h>
 
+#include "fmt_internal.h"
 #include "nuri/algo/guess.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
@@ -263,6 +264,8 @@ Convert a molecule to SDF string.
   range.
 :raises ValueError: If the conversion fails, or if the version is invalid.
 )doc");
+
+  bind_cif(m);
 }
 }  // namespace
 }  // namespace python_internal
