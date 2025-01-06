@@ -466,7 +466,7 @@ internal::CifBlock CifParser::next() {
     return internal::CifBlock::eof();
 
   if (block_ == BlockType::kError)
-    return error(name_);
+    return internal::CifBlock::error(name_);
 
   internal::CifBlock block = internal::next_block(*this, lexer_, name_, block_);
 
