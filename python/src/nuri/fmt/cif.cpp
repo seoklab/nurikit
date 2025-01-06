@@ -289,26 +289,31 @@ cif_ddl2_frame_as_dict(const PyCifFrame &frame) {
 void bind_cif(py::module &m) {
   PyCifTableIterator::bind(m);
 
-  py::class_<PyCifTable>(m, "CifTable")  //
+  py::class_<PyCifTable>(m, "CifTable")
       .def("__iter__", &PyCifTable::iter, kReturnsSubobject)
-      .def("__getitem__", &PyCifTable::get)
+      .def("__getitem__", &PyCifTable::get, py::arg("idx"))
       .def("__len__", &PyCifTable::size)
+      .def(
+          "__contains__",
+          [](const PyCifTable &self, int idx) {
+            return 0 <= idx && idx < self.size();
+          },
+          py::arg("idx"))
       .def("keys", &PyCifTable::keys);
 
   PyCifFrameIterator::bind(m);
 
-  py::class_<PyCifFrame>(m, "CifFrame")  //
-      .def("__iter__", &PyCifFrame::iter, kReturnsSubobject)
-      .def("__getitem__", &PyCifFrame::get, kReturnsSubobject)
-      .def("__len__", &PyCifFrame::size)
-      .def("prefix_search_first", &PyCifFrame::prefix_search_first,
-           py::arg("prefix"), kReturnsSubobject, R"doc(
+  py::class_<PyCifFrame> cf(m, "CifFrame");
+  add_sequence_interface(cf, &PyCifFrame::size, &PyCifFrame::get,
+                         &PyCifFrame::iter);
+  cf.def("prefix_search_first", &PyCifFrame::prefix_search_first,
+         py::arg("prefix"), kReturnsSubobject, R"doc(
 Search for the first table containing a column starting with the given prefix.
 
 :param prefix: The prefix to search for.
 :return: The first table containing the given prefix, or None if not found.
-)doc")
-      .def_property_readonly("name", &PyCifFrame::name);
+)doc");
+  cf.def_property_readonly("name", &PyCifFrame::name);
 
   bind_opaque_vector<internal::CifFrame, PyCifFrame, wrap_cif_frame>(
       m, "_CifFrameList", "_CifFrameList index out of range");
