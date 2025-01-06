@@ -249,22 +249,27 @@ cif_ddl2_frame_as_dict(const PyCifFrame &frame) {
 
     slots.clear();
     slots.reserve(table.cols());
-    for (std::string_view pk: parent_keys)
-      slots.push_back(grouped.find(pk));
+    for (std::string_view pk: parent_keys) {
+      auto it = grouped.find(pk);
+      ABSL_DCHECK(it != grouped.end());
+      slots.push_back(it);
 
-    for (const auto &row: table) {
-      for (int i = 0; i < table.cols(); ++i) {
-        auto it = slots[i];
-        ABSL_DCHECK(it != grouped.end());
+      auto &data = it->second.second;
+      data.resize(table.size());
+
+      for (auto &row: data)
+        row.reserve(row.size() + it->second.first.size());
+    }
+
+    for (int i = 0; i < table.size(); ++i) {
+      for (int j = 0; j < table.cols(); ++j) {
+        auto it = slots[j];
 
         auto &data = it->second.second;
 
-        if (data.empty() || data.back().size() == it->second.first.size())
-          data.emplace_back().reserve(it->second.first.size());
-
-        const internal::CifValue &val = row[i];
-        data.back().push_back(val.is_null() ? py::none().cast<py::object>()
-                                            : py::str(*val).cast<py::object>());
+        const internal::CifValue &val = table[i][j];
+        data[i].push_back(val.is_null() ? py::none().cast<py::object>()
+                                        : py::str(*val).cast<py::object>());
       }
     }
   }
