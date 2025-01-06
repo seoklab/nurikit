@@ -9,8 +9,12 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
+#include <absl/base/nullability.h>
 #include <absl/strings/match.h>
 #include <absl/strings/str_cat.h>
 #include <pybind11/pybind11.h>

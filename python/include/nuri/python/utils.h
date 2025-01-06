@@ -18,6 +18,7 @@
 #include <object.h>
 #include <pyerrors.h>
 #include <absl/algorithm/container.h>
+#include <absl/base/nullability.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/str_cat.h>

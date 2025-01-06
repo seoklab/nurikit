@@ -8,7 +8,10 @@
 
 /// @cond
 #include <istream>
+#include <string>
 #include <vector>
+
+#include <absl/base/attributes.h>
 /// @endcond
 
 #include "nuri/core/molecule.h"
