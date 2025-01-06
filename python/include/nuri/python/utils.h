@@ -260,7 +260,7 @@ protected:
   }
 
 private:
-  C *container_;
+  absl::Nonnull<C *> container_;
   int index_;
   int size_;
 };

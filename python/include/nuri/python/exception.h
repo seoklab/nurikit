@@ -20,10 +20,9 @@ public:
     set_error_impl();
   }
 
-protected:
+private:
   virtual void set_error_impl() const { PyErr_SetFromErrno(PyExc_OSError); }
 
-private:
   int errno_;
 };
 
