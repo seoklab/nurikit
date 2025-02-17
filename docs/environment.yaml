@@ -12,6 +12,5 @@ dependencies:
   - boost-cpp>=1.82
   - eigen=3.4
   - spectralib=1.0
-  - libabseil>=20240116.0
   - pybind11=2.13
   - pip
