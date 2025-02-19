@@ -155,7 +155,7 @@ namespace internal {
 
   int steric_number(const int total_degree, const int nb_electrons) {
     const int lone_pairs = nb_electrons / 2;
-    return total_degree + lone_pairs;
+    return total_degree + lone_pairs + nb_electrons % 2;
   }
 
   constants::Hybridization from_degree(const int total_degree,
