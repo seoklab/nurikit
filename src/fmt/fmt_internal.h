@@ -6,6 +6,7 @@
 #ifndef NURI_FMT_FMT_INTERNAL_H_
 #define NURI_FMT_FMT_INTERNAL_H_
 
+#include <cstddef>
 #include <functional>
 #include <iterator>
 #include <string>
@@ -97,15 +98,14 @@ void pdb_update_confs(Molecule &mol, const std::vector<AT> &atom_data,
 constexpr int kChainIdx = 0;
 
 template <class RT, class AT, class ChainAsSv, class ResidueMember,
-          class SeqMember, class ICodeAsSv,
+          class SeqMember, class ICodeAsSv, class EntityMember = std::nullptr_t,
           std::enable_if_t<!std::is_reference_v<RT>, int> = 0>
-// NOLINTNEXTLINE(*-missing-std-forward)
-void pdb_update_substructs(Molecule &mol, RT &&residues,
-                           const std::vector<AT> &atoms,
-                           const ChainAsSv &chain_sv,
-                           const ResidueMember &residue_member,
-                           const SeqMember &seq_member,
-                           const ICodeAsSv &icode_sv) {
+void pdb_update_substructs(
+    // NOLINTNEXTLINE(*-missing-std-forward)
+    Molecule &mol, RT &&residues, const std::vector<AT> &atoms,
+    const ChainAsSv &chain_sv, const ResidueMember &residue_member,
+    const SeqMember &seq_member, const ICodeAsSv &icode_sv,
+    const EntityMember &eid_member = nullptr) {
   auto &subs = mol.substructures();
 
   std::vector<std::pair<std::string_view, std::vector<int>>> chains;
@@ -138,6 +138,11 @@ void pdb_update_substructs(Molecule &mol, RT &&residues,
     if (!icode.empty())
       sit->add_prop("icode", icode);
 
+    if constexpr (!std::is_same_v<EntityMember, std::nullptr_t>) {
+      sit->add_prop("entity_id",
+                    std::invoke(eid_member, atoms[sit->atom_ids()[0]]));
+    }
+
     ABSL_DCHECK(sit->props()[kChainIdx].first == "chain");
   }
 
@@ -146,6 +151,11 @@ void pdb_update_substructs(Molecule &mol, RT &&residues,
     sit->update(std::move(chain.second), {});
     sit->name() = chain.first;
     sit->set_id(i);
+
+    if constexpr (!std::is_same_v<EntityMember, std::nullptr_t>) {
+      sit->add_prop("entity_id",
+                    std::invoke(eid_member, atoms[sit->atom_ids()[0]]));
+    }
   }
 }
 }  // namespace internal

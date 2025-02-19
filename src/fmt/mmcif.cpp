@@ -367,7 +367,8 @@ std::string as_key(std::string_view prefix, std::string_view alt_id) {
 
 class MmcifAtomData {
 public:
-  explicit MmcifAtomData(MmcifAtomInfo first): data_ { first } { }
+  explicit MmcifAtomData(MmcifAtomInfo first, std::string_view entity_id)
+      : data_ { first }, entity_id_(entity_id) { }
 
   bool add_info(MmcifAtomInfo info) {
     ABSL_DCHECK(static_cast<bool>(info));
@@ -422,8 +423,11 @@ public:
     return static_cast<int>(it - data_.begin());
   }
 
+  std::string_view entity_id() const { return entity_id_; }
+
 private:
   std::vector<MmcifAtomInfo> data_;
+  std::string_view entity_id_;
 };
 
 struct MmcifResidueInfo {
@@ -611,7 +615,7 @@ public:
   explicit MmcifModelData(int model_num): model_num_(model_num) { }
 
   void add_atom(MmcifAtomInfo info, std::string_view comp_id,
-                const internal::CifValue &id) {
+                std::string_view entity_id, const internal::CifValue &id) {
     ABSL_DCHECK(static_cast<bool>(info));
 
     int ri = residues_.prepare_add_atom(info, comp_id, id);
@@ -622,6 +626,14 @@ public:
     const int ai = it->second;
 
     if (!first) {
+      if (entity_id != atoms_[ai].entity_id()) {
+        ABSL_LOG(WARNING)
+            << "Entity ID mismatch: " << entity_id << " vs "
+            << atoms_[ai].entity_id() << "; "
+            << "ignoring atom with serial number " << info.id().atom_id;
+        return;
+      }
+
       bool new_altloc = atoms_[ai].add_info(info);
       ABSL_LOG_IF(WARNING, !new_altloc)
           << "Duplicate atom " << info.id().atom_id << " of residue "
@@ -630,7 +642,7 @@ public:
       return;
     }
 
-    atoms_.push_back(MmcifAtomData(info));
+    atoms_.push_back(MmcifAtomData(info, entity_id));
     residues_.add_atom_at(ri, ai);
   }
 
@@ -660,7 +672,8 @@ public:
     internal::pdb_update_substructs(mol, std::move(residues_), atoms_,
                                     &ResidueId::asym_id,
                                     &MmcifResidueInfo::comp_id,
-                                    &ResidueId::seq_id, &ResidueId::ins_code);
+                                    &ResidueId::seq_id, &ResidueId::ins_code,
+                                    &MmcifAtomData::entity_id);
     return mol;
   }
 
@@ -701,7 +714,9 @@ std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
                     alt_id = NullableCifColumn::from_key(
                         block.data(), "_atom_site.label_alt_id"),
                     type_symbol = NullableCifColumn::from_key(
-                        block.data(), "_atom_site.type_symbol");
+                        block.data(), "_atom_site.type_symbol"),
+                    entity_id = NullableCifColumn::from_key(
+                        block.data(), "_atom_site.label_entity_id");
 
   TypedNullableColumn<absl::SimpleAtof, false> occupancy =
       NullableCifColumn::from_key(block.data(), "_atom_site.occupancy");
@@ -741,7 +756,7 @@ std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
     if (first)
       models.push_back(MmcifModelData(mid));
 
-    models[it->second].add_atom(info, *comp_id[i], id);
+    models[it->second].add_atom(info, *comp_id[i], *entity_id[i], id);
   }
 
   StructConnIndexer ptnr1(block.data(), res_idx, 0),
