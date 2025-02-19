@@ -46,11 +46,36 @@ namespace internal {
 
 class OCTree {
 public:
-  OCTree(): pts_(nullptr) { }
+  using Points = Eigen::Map<const Matrix3Xd>;
 
-  OCTree(const Matrix3Xd &pts) { rebuild(pts); }
+  OCTree(): pts_(nullptr, 3, 0) { }
 
-  void rebuild(const Matrix3Xd &pts);
+  template <
+      class MatrixLike,
+      std::enable_if_t<
+          std::is_same_v<internal::remove_cvref_t<typename MatrixLike::Scalar>,
+                         double>
+              && !MatrixLike::IsRowMajor && MatrixLike::RowsAtCompileTime == 3
+              && MatrixLike::InnerStrideAtCompileTime == 1
+              && MatrixLike::OuterStrideAtCompileTime == 3,
+          int> = 0>
+  explicit OCTree(const MatrixLike &pts): pts_(pts.data(), 3, pts.cols()) {
+    rebuild();
+  }
+
+  template <
+      class MatrixLike,
+      std::enable_if_t<
+          std::is_same_v<internal::remove_cvref_t<typename MatrixLike::Scalar>,
+                         double>
+              && !MatrixLike::IsRowMajor && MatrixLike::RowsAtCompileTime == 3
+              && MatrixLike::InnerStrideAtCompileTime == 1
+              && MatrixLike::OuterStrideAtCompileTime == 3,
+          int> = 0>
+  void rebuild(const MatrixLike &pts) {
+    new (&pts_) Points(pts.data(), 3, pts.cols());
+    rebuild();
+  }
 
   void find_neighbors_k(const Vector3d &pt, int k, std::vector<int> &idxs,
                         std::vector<double> &distsq) const;
@@ -63,7 +88,7 @@ public:
                          std::vector<int> &idxs,
                          std::vector<double> &distsq) const;
 
-  const Matrix3Xd &pts() const { return *pts_; }
+  const Points &pts() const { return pts_; }
 
   const Vector3d &max() const { return max_; }
 
@@ -80,7 +105,9 @@ public:
   const internal::OCTreeNode &operator[](int idx) const { return nodes_[idx]; }
 
 private:
-  const Matrix3Xd *pts_;
+  void rebuild();
+
+  Points pts_;
   Vector3d max_;
   Vector3d len_;
   std::vector<internal::OCTreeNode> nodes_;
