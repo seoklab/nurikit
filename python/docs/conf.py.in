@@ -51,7 +51,7 @@ python_use_unqualified_type_names = True
 
 templates_path = ["@CMAKE_CURRENT_LIST_DIR@/_templates"]
 exclude_patterns = ["Thumbs.db", ".DS_Store", "_templates"]
-bibtex_bibfiles = ["@CMAKE_CURRENT_LIST_DIR@/data/refs.bib"]
+bibtex_bibfiles = ["@NURI_BIBTEX_FILE@"]
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
