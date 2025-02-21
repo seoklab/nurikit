@@ -154,6 +154,8 @@ string(APPEND CMAKE_CXX_FLAGS
   " ${CMAKE_CURRENT_BINARY_DIR}/include/generated/include/nuri/nurikit_config.h"
 )
 
+set(NURI_BIBTEX_FILE "${CMAKE_CURRENT_LIST_DIR}/docs/refs.bib")
+
 add_subdirectory(src)
 add_subdirectory(docs EXCLUDE_FROM_ALL)
 

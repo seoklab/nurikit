@@ -143,8 +143,32 @@ void Molecule::erase_hydrogens() {
 
     m.mark_atom_erase(atom.id());
 
-    AtomData &heavy_data = atom[0].dst().data();
-    heavy_data.set_implicit_hydrogens(heavy_data.implicit_hydrogens() + 1);
+    auto heavy = atom[0].dst();
+    heavy.data().set_implicit_hydrogens(heavy.data().implicit_hydrogens() + 1);
+
+    if (heavy.data().is_chiral()) {
+      // hydrogen already marked to be erased and reflected in the
+      // implicit_hydrogens count but not in the underlying graph, so must check
+      // for degree 4 (3 heavy neighbors + 1 to-be-erased hydrogen) and
+      // implicit_hydrogens() of 1
+      //
+      // When visited more than twice for the same heavy atom (atom has more
+      // than 1 explicit hydrogens), the atom is marked chiral but is not
+      // chiral in reality.
+      //! XXX: Maybe need to set the chiral flag to false here?
+      if (heavy.degree() < 4 || heavy.data().implicit_hydrogens() > 1) {
+        ABSL_LOG(INFO) << "Atom " << heavy.id()
+                       << " has less than 3 heavy neighbors or more than 1 "
+                          "implicit hydrogens, but is marked chiral";
+        continue;
+      }
+
+      // hydrogen neighbor index, from the heavy atom's perspective
+      int hni = heavy.find_adjacent(atom) - heavy.begin();
+      bool order_consistent = hni == 1 || hni == 3;
+      heavy.data().set_clockwise(heavy.data().is_clockwise()
+                                 == order_consistent);
+    }
   }
 }
 

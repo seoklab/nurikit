@@ -425,6 +425,62 @@ TEST(EraseNontrivialHydrogensTest, BridgingH) {
   EXPECT_EQ(mol.num_bonds(), 2);
 }
 
+TEST(EraseNontrivialHydrogensTest, ChiralH) {
+  {
+    Molecule mol;
+
+    {
+      auto mut = mol.mutator();
+
+      mut.add_atom(AtomData(pt[6]).set_chiral(true).set_clockwise(true));
+      mut.add_atom(pt[1]);
+      mut.add_atom(pt[9]);
+      mut.add_atom(pt[17]);
+      mut.add_atom(pt[35]);
+
+      mut.add_bond(0, 1, BondData(kSingleBond));
+      mut.add_bond(0, 2, BondData(kSingleBond));
+      mut.add_bond(0, 3, BondData(kSingleBond));
+      mut.add_bond(0, 4, BondData(kSingleBond));
+    }
+
+    mol.erase_hydrogens();
+
+    EXPECT_EQ(mol.size(), 4);
+    EXPECT_EQ(mol.num_bonds(), 3);
+
+    EXPECT_TRUE(mol[0].data().is_chiral());
+    EXPECT_FALSE(mol[0].data().is_clockwise());
+  }
+
+  {
+    Molecule mol;
+
+    {
+      auto mut = mol.mutator();
+
+      mut.add_atom(AtomData(pt[6]).set_chiral(true).set_clockwise(true));
+      mut.add_atom(pt[9]);
+      mut.add_atom(pt[1]);
+      mut.add_atom(pt[17]);
+      mut.add_atom(pt[35]);
+
+      mut.add_bond(0, 1, BondData(kSingleBond));
+      mut.add_bond(0, 2, BondData(kSingleBond));
+      mut.add_bond(0, 3, BondData(kSingleBond));
+      mut.add_bond(0, 4, BondData(kSingleBond));
+    }
+
+    mol.erase_hydrogens();
+
+    EXPECT_EQ(mol.size(), 4);
+    EXPECT_EQ(mol.num_bonds(), 3);
+
+    EXPECT_TRUE(mol[0].data().is_chiral());
+    EXPECT_TRUE(mol[0].data().is_clockwise());
+  }
+}
+
 void verify_clear_all(const Molecule &mol) {
   EXPECT_EQ(mol.size(), 0);
   EXPECT_EQ(mol.num_atoms(), 0);
