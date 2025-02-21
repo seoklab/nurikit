@@ -1059,6 +1059,13 @@ namespace internal {
                            UnaryPred &&pred) {
     return { substructs, std::forward<UnaryPred>(pred) };
   }
+
+  extern std::pair<std::vector<int>, bool>
+  place_trailing_hydrogens_initial(const Molecule &mol, Matrix3Xd &conf,
+                                   int h_begin);
+
+  extern bool optimize_trailing_hydrogens(const Molecule &mol, Matrix3Xd &conf,
+                                          const std::vector<int> &free_hs);
 }  // namespace internal
 
 using Substructure = internal::Substructure<false>;
@@ -1473,11 +1480,17 @@ public:
    */
   void clear_bonds() noexcept;
 
-  // TODO(jnooree): add_hydrogens
-  // /**
-  //  * @brief Add hydrogens to the molecule.
-  //  */
-  // void add_hydrogens();
+  /**
+   * @brief Make all implicit hydrogens explicit.
+   *
+   * @param update_confs Whether to update the conformers after adding
+   *        hydrogens. Default is `true`.
+   * @return Whether the operation was successful. Fails only if the molecule
+   *         has more than one conformers and the geometry optimization fails.
+   *         When this function returns false, the coordinates of the newly
+   *         added hydrogens are not guaranteed to be chemically valid.
+   */
+  bool add_hydrogens(bool update_confs = true);
 
   /**
    * @brief Erase all trivial hydrogens from the molecule.
