@@ -451,6 +451,28 @@ Vector4d fit_plane(const MatrixLike &pts, bool normalize = true) {
   return ret;
 }
 
+/**
+ * @brief Find a vector perpendicular to the given vector.
+ *
+ * @tparam VectorLike The type of the vector-like object.
+ * @param v A vector-like object to generate a perpendicular vector.
+ * @param normalize Whether to normalize the perpendicular vector. Defaults to
+ *        true.
+ * @return A vector perpendicular to the given vector.
+ *
+ * This function is based on the algorithm proposed by K Whatmough on
+ * Mathematics Stack Exchange. @cite core:geom:perpendicular-2023
+ */
+template <class VectorLike>
+Vector3d any_perpendicular(const VectorLike &v, bool normalize = true) {
+  Vector3d w = { std::copysign(v[2], v[0]),  //
+                 std::copysign(v[2], v[1]),
+                 -std::copysign(v[0], v[2]) - std::copysign(v[1], v[2]) };
+  if (normalize)
+    internal::safe_normalize(w);
+  return w;
+}
+
 enum class AlignMode : std::uint8_t {
   kMsdOnly = 0x1,
   kXformOnly = 0x2,
