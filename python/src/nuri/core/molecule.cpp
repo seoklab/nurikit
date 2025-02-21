@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include <absl/cleanup/cleanup.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/str_cat.h>
 #include <Eigen/Dense>
@@ -954,7 +955,27 @@ the molecule.
   mutator is not finalized.
 )doc")
       .def(
-          "hide_hydrogens",
+          "reveal_hydrogens",
+          [](PyMol &self, bool update_confs) {
+            absl::Cleanup c = [&] { self.tick(); };
+            if (!self->add_hydrogens(update_confs))
+              throw py::value_error("failed to add hydrogens");
+          },
+          py::arg("update_confs") = true,
+          R"doc(
+Convert implicit hydrogen atoms of the molecule to explicit hydrogens.
+
+:param update_confs: If True, the conformations of the molecule will be
+  updated to include the newly added hydrogens. When set to False, the
+  coordinates of the added hydrogens will have garbage values. Default to True.
+:raises ValueError: If the hydrogens cannot be added. This can only happen if
+  ``update_confs`` is True and the molecule has at least one conformation.
+
+.. note::
+Invalidates all atom and bond objects.
+)doc")
+      .def(
+          "conceal_hydrogens",
           [](PyMol &self) {
             self->erase_hydrogens();
             self.tick();
