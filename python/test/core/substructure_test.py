@@ -370,7 +370,7 @@ def test_bond_refresh(molsub: Molecule):
 def test_implicit_hydrogens(molsub: Molecule):
     sub = molsub.subs[0]
 
-    sub.hide_hydrogens()
+    sub.conceal_hydrogens()
 
     assert len(sub) == 2
 
@@ -384,7 +384,7 @@ def test_implicit_hydrogens(molsub: Molecule):
 def test_implicit_hydrogens_external(molsub: Molecule):
     sub = molsub.subs[0].copy()
 
-    sub.hide_hydrogens()
+    sub.conceal_hydrogens()
 
     assert len(sub) == 2
 
