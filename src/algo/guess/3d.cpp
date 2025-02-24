@@ -1319,9 +1319,173 @@ namespace {
     absl::flat_hash_map<int, ConflictInfo> data_;
   };
 
+  bool hyb_incorrect_atom_can_conjugate(Molecule::Atom atom) {
+    bool any_multiple = absl::c_any_of(atom, [](Molecule::Neighbor nei) {
+      return nei.edge_data().order() > constants::kSingleBond;
+    });
+    int nbe = nonbonding_electrons(atom), sum_bo = sum_bond_order(atom);
+    return any_multiple || nbe > 0 || sum_bo < 4;
+  }
+
+  bool is_conjugated_candidate(Molecule::Atom atom) {
+    return atom.data().is_conjugated()
+           || (atom.degree() == 3
+               && atom.data().hybridization() <= constants::kSP2
+               && atom.data().implicit_hydrogens() == 0)
+           || (atom.degree() <= 2 && hyb_incorrect_atom_can_conjugate(atom));
+  }
+
+  template <class BinaryPred>
+  std::vector<std::vector<int>>
+  find_groups_pred(const Molecule &mol, absl::flat_hash_set<int> &candidates,
+                   const BinaryPred &test_ok) {
+    std::vector<std::vector<int>> groups;
+
+    auto dfs = [&](auto &self, int cur,
+                   Molecule::const_neighbor_iterator prev_nei) -> void {
+      groups.back().push_back(cur);
+      candidates.erase(cur);
+
+      auto src = mol.atom(cur);
+      for (auto nit = src.begin(); nit != src.end(); ++nit) {
+        auto dst = nit->dst();
+        if (!candidates.contains(dst.id()))
+          continue;
+
+        if (prev_nei.end()) {
+          auto rev = dst.find_adjacent(cur);
+          bool has_rev = !rev.end();
+          ABSL_ASSUME(has_rev);
+          prev_nei = rev;
+
+          self(self, dst.id(), nit);
+          continue;
+        }
+
+        if (!test_ok(*prev_nei, *nit))
+          continue;
+
+        self(self, dst.id(), nit);
+      }
+    };
+
+    groups.emplace_back();
+    for (auto atom: mol) {
+      if (!candidates.contains(atom.id()))
+        continue;
+
+      dfs(dfs, atom.id(), atom.end());
+
+      if (groups.back().size() < 3) {
+        candidates.insert(groups.back().begin(), groups.back().end());
+        groups.back().clear();
+      } else {
+        groups.emplace_back();
+      }
+    }
+
+    if (groups.back().empty())
+      groups.pop_back();
+
+    return groups;
+  }
+
+  bool test_bond_order_can_conjugate(Molecule::Neighbor prev,
+                                     Molecule::Neighbor curr) {
+    auto src = curr.src(), dst = curr.dst();
+
+    if (prev.edge_data().order() == constants::kSingleBond) {
+      if (curr.edge_data().order() == constants::kSingleBond
+          && src.data().atomic_number() != 0
+          && dst.data().atomic_number() != 0) {
+        // Single - single bond -> conjugated if curr has lone pair and
+        // next doesn't, or vice versa, or any of them is dummy
+        const int src_nbe = nonbonding_electrons(src),
+                  dst_nbe = nonbonding_electrons(dst);
+        if ((src_nbe > 0 && dst_nbe > 0) || (src_nbe <= 0 && dst_nbe <= 0))
+          return false;
+      }
+    } else if (curr.edge_data().order() != constants::kSingleBond
+               && prev.edge_data().order() != constants::kAromaticBond
+               && curr.edge_data().order() != constants::kAromaticBond) {
+      // Aromatic - aromatic bond -> conjugated
+      // Aromatic - double/triple bond
+      //          -> exocyclic C=O like structure (technically conjugated)
+      // double/triple - double/triple bond -> allene-like
+      return false;
+    }
+
+    return true;
+  }
+
+  bool test_torsion_can_conjugate(const Matrix3Xd &pos, Molecule::Neighbor prev,
+                                  Molecule::Neighbor curr) {
+    auto src = curr.src(), dst = curr.dst();
+    Molecule::const_neighbor_iterator next_nei = absl::c_find_if(
+        dst, [&](Molecule::Neighbor n) { return n.dst().id() != src.id(); });
+    return next_nei.end()
+           || torsion_can_sp2(pos, prev.src().id(), prev.dst().id(),
+                              next_nei->src().id(), next_nei->dst().id());
+  }
+
+  void mark_conjugated(Molecule &mol, std::vector<std::vector<int>> &&groups,
+                       Conflicts &conflicts) {
+    for (std::vector<int> &group: groups) {
+      ABSL_DCHECK(group.size() > 2) << "Group size: " << group.size();
+
+      Substructure sub = mol.atom_substructure(std::move(group));
+
+      for (auto atom: sub) {
+        AtomData &data = atom.data();
+        data.add_flags(AtomFlags::kConjugated)
+            .set_hybridization(
+                nuri::min(constants::kSP2, data.hybridization()));
+
+        auto it = conflicts.find(atom.as_parent().id());
+        if (it != conflicts.end() && it->second.why == Conflict::kHybTooSmall) {
+          --it->second.overflowed;
+          if (it->second.overflowed <= 0)
+            conflicts.mark_resolved(it);
+        }
+      }
+
+      for (auto bond: sub.bonds())
+        bond.data().add_flags(BondFlags::kConjugated);
+    }
+  }
+
+  bool try_find_confident_conjugation(Molecule::MutableAtom atom,
+                                      const Matrix3Xd &pos) {
+    for (auto nei: atom) {
+      if (!is_conjugated_candidate(nei.dst()))
+        continue;
+
+      for (auto nej: nei.dst()) {
+        if (nej.dst().id() == atom.id())
+          continue;
+
+        if (test_bond_order_can_conjugate(nei, nej)
+            && test_torsion_can_conjugate(pos, nei, nej)) {
+          atom.data().set_conjugated(true);
+
+          nei.edge_data().set_conjugated(true);
+          nei.dst().data().set_conjugated(true);
+
+          nej.edge_data().set_conjugated(true);
+          nej.dst().data().set_conjugated(true);
+
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   template <class Overflow>
   void guess_hfh_atom(Molecule::MutableAtom atom, const Element &effective,
-                      Conflicts &conflicts, Overflow overflowed) {
+                      const Matrix3Xd &pos, Conflicts &conflicts,
+                      Overflow overflowed) {
     AtomData &data = atom.data();
 
     int sum_bo = sum_bond_order(atom);
@@ -1358,6 +1522,12 @@ namespace {
           extra_bonds_required - data.implicit_hydrogens();
 
       if (extra_bonds_unresolvable > 0) {
+        if (extra_bonds_required == 1 && total_degree == 3
+            && atom.data().hybridization() == constants::kSP2) {
+          if (try_find_confident_conjugation(atom, pos))
+            return;
+        }
+
         data.set_hybridization(
             clamp_hyb(data.hybridization() + extra_bonds_unresolvable));
         extra_bonds_required -= extra_bonds_unresolvable;
@@ -1394,7 +1564,8 @@ namespace {
   //      atom.
   //   2. Hybridization mismatch. This might also include unmarked conjugated
   //      atoms.
-  bool guess_hyb_fcharge_hydrogens(Molecule &mol, Conflicts &conflicts) {
+  bool guess_hyb_fcharge_hydrogens(Molecule &mol, const Matrix3Xd &pos,
+                                   Conflicts &conflicts) {
     auto log_degree_overflow = [](int line, Molecule::Atom atom,
                                   int max_degree) {
       ABSL_LOG(WARNING).AtLocation(__FILE__, line)
@@ -1454,10 +1625,10 @@ namespace {
       }
 
       if (data.element().period() <= 2) {
-        guess_hfh_atom(atom, *effective, conflicts,
+        guess_hfh_atom(atom, *effective, pos, conflicts,
                        [](int pred_h, int /* nbe */) { return -pred_h; });
       } else {
-        guess_hfh_atom(atom, *effective, conflicts,
+        guess_hfh_atom(atom, *effective, pos, conflicts,
                        [](int /* pred_h */, int nbe) { return -nbe; });
       }
     }
@@ -1795,141 +1966,6 @@ namespace {
     return conflicts.empty();
   }
 
-  bool hyb_incorrect_atom_can_conjugate(Molecule::Atom atom) {
-    bool any_multiple = absl::c_any_of(atom, [](Molecule::Neighbor nei) {
-      return nei.edge_data().order() > constants::kSingleBond;
-    });
-    int nbe = nonbonding_electrons(atom), sum_bo = sum_bond_order(atom);
-    return any_multiple || nbe > 0 || sum_bo < 4;
-  }
-
-  bool is_conjugated_candidate(Molecule::Atom atom) {
-    return atom.data().is_conjugated()
-           || (atom.degree() == 3
-               && atom.data().hybridization() <= constants::kSP2
-               && atom.data().implicit_hydrogens() == 0)
-           || (atom.degree() <= 2 && hyb_incorrect_atom_can_conjugate(atom));
-  }
-
-  template <class BinaryPred>
-  std::vector<std::vector<int>>
-  find_groups_pred(const Molecule &mol, absl::flat_hash_set<int> &candidates,
-                   const BinaryPred &test_ok) {
-    std::vector<std::vector<int>> groups;
-
-    auto dfs = [&](auto &self, int cur,
-                   Molecule::const_neighbor_iterator prev_nei) -> void {
-      groups.back().push_back(cur);
-      candidates.erase(cur);
-
-      auto src = mol.atom(cur);
-      for (auto nit = src.begin(); nit != src.end(); ++nit) {
-        auto dst = nit->dst();
-        if (!candidates.contains(dst.id()))
-          continue;
-
-        if (prev_nei.end()) {
-          auto rev = dst.find_adjacent(cur);
-          bool has_rev = !rev.end();
-          ABSL_ASSUME(has_rev);
-          prev_nei = rev;
-
-          self(self, dst.id(), nit);
-          continue;
-        }
-
-        if (!test_ok(*prev_nei, *nit))
-          continue;
-
-        self(self, dst.id(), nit);
-      }
-    };
-
-    groups.emplace_back();
-    for (auto atom: mol) {
-      if (!candidates.contains(atom.id()))
-        continue;
-
-      dfs(dfs, atom.id(), atom.end());
-
-      if (groups.back().size() < 3) {
-        candidates.insert(groups.back().begin(), groups.back().end());
-        groups.back().clear();
-      } else {
-        groups.emplace_back();
-      }
-    }
-
-    if (groups.back().empty())
-      groups.pop_back();
-
-    return groups;
-  }
-
-  bool test_bond_order_can_conjugate(Molecule::Neighbor prev,
-                                     Molecule::Neighbor curr) {
-    auto src = curr.src(), dst = curr.dst();
-
-    if (prev.edge_data().order() == constants::kSingleBond) {
-      if (curr.edge_data().order() == constants::kSingleBond
-          && src.data().atomic_number() != 0
-          && dst.data().atomic_number() != 0) {
-        // Single - single bond -> conjugated if curr has lone pair and
-        // next doesn't, or vice versa, or any of them is dummy
-        const int src_nbe = nonbonding_electrons(src),
-                  dst_nbe = nonbonding_electrons(dst);
-        if ((src_nbe > 0 && dst_nbe > 0) || (src_nbe <= 0 && dst_nbe <= 0))
-          return false;
-      }
-    } else if (curr.edge_data().order() != constants::kSingleBond
-               && prev.edge_data().order() != constants::kAromaticBond
-               && curr.edge_data().order() != constants::kAromaticBond) {
-      // Aromatic - aromatic bond -> conjugated
-      // Aromatic - double/triple bond
-      //          -> exocyclic C=O like structure (technically conjugated)
-      // double/triple - double/triple bond -> allene-like
-      return false;
-    }
-
-    return true;
-  }
-
-  bool test_torsion_can_conjugate(const Matrix3Xd &pos, Molecule::Neighbor prev,
-                                  Molecule::Neighbor curr) {
-    auto src = curr.src(), dst = curr.dst();
-    Molecule::const_neighbor_iterator next_nei = absl::c_find_if(
-        dst, [&](Molecule::Neighbor n) { return n.dst().id() != src.id(); });
-    return next_nei.end()
-           || torsion_can_sp2(pos, prev.src().id(), prev.dst().id(),
-                              next_nei->src().id(), next_nei->dst().id());
-  }
-
-  void mark_conjugated(Molecule &mol, std::vector<std::vector<int>> &&groups,
-                       Conflicts &conflicts) {
-    for (std::vector<int> &group: groups) {
-      ABSL_DCHECK(group.size() > 2) << "Group size: " << group.size();
-
-      Substructure sub = mol.atom_substructure(std::move(group));
-
-      for (auto atom: sub) {
-        AtomData &data = atom.data();
-        data.add_flags(AtomFlags::kConjugated)
-            .set_hybridization(
-                nuri::min(constants::kSP2, data.hybridization()));
-
-        auto it = conflicts.find(atom.as_parent().id());
-        if (it != conflicts.end() && it->second.why == Conflict::kHybTooSmall) {
-          --it->second.overflowed;
-          if (it->second.overflowed <= 0)
-            conflicts.mark_resolved(it);
-        }
-      }
-
-      for (auto bond: sub.bonds())
-        bond.data().add_flags(BondFlags::kConjugated);
-    }
-  }
-
   void guess_conjugated(Molecule &mol, const Matrix3Xd &pos,
                         Conflicts &conflicts) {
     absl::flat_hash_set<int> candidates;
@@ -2107,7 +2143,7 @@ namespace {
     assign_bond_orders(mol, pos);
 
     Conflicts conflicts;
-    guess_hyb_fcharge_hydrogens(mol, conflicts);
+    guess_hyb_fcharge_hydrogens(mol, pos, conflicts);
 
     if (conflicts.empty()) {
       guess_conjugated(mol, pos, conflicts);
