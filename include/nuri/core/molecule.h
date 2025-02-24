@@ -1064,8 +1064,8 @@ namespace internal {
   place_trailing_hydrogens_initial(const Molecule &mol, Matrix3Xd &conf,
                                    int h_begin);
 
-  extern bool optimize_trailing_hydrogens(const Molecule &mol, Matrix3Xd &conf,
-                                          const std::vector<int> &free_hs);
+  extern bool optimize_free_hydrogens(const Molecule &mol, Matrix3Xd &conf,
+                                      const std::vector<int> &free_hs);
 }  // namespace internal
 
 using Substructure = internal::Substructure<false>;

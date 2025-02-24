@@ -3,17 +3,21 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <cstdlib>
 #include <iterator>
 #include <numeric>
+#include <utility>
 #include <vector>
 
 #include <absl/algorithm/container.h>
+#include <absl/base/nullability.h>
 #include <absl/base/optimization.h>
 #include <absl/cleanup/cleanup.h>
 #include <absl/log/absl_check.h>
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
+#include "nuri/algo/optim.h"
 #include "nuri/core/element.h"
 #include "nuri/core/geometry.h"
 #include "nuri/core/graph.h"
@@ -589,18 +593,231 @@ namespace internal {
     return { free_hs, true };
   }
 
-  bool optimize_trailing_hydrogens(const Molecule &mol, Matrix3Xd &conf,
-                                   const std::vector<int> &free_hs) {
-    std::vector<std::vector<int>> h_neighbors(free_hs.size());
+  namespace {
+    class FreeHProxy {
+    public:
+      FreeHProxy(const Molecule &mol, Matrix3Xd &conf, const Matrix3Xd &current,
+                 const std::vector<int> &free_hs)
+          : opt_blsq_inv_(free_hs.size()), unbound_near_(free_hs.size()),
+            rvdw_sq_(2, mol.size()),  //
+            mol_(&mol), conf_(&conf), free_hs_(&free_hs) {
+        for (int h = 0; h < free_hs.size(); ++h)
+          opt_blsq_inv_[h] = 1 / xh_blsq(current, h);
 
-    OCTree octree(conf);
-    std::vector<double> dbuf;
-    for (int i = 0; i < h_neighbors.size(); ++i) {
-      octree.find_neighbors_d(conf.col(free_hs[i]), 10, h_neighbors[i], dbuf);
-      erase_if(h_neighbors[i], [&](int j) { return free_hs[i] == j; });
+        ArrayXi free_h_inv = ArrayXi::Constant(mol.num_atoms(), -1);
+        for (int h = 0; h < free_hs.size(); ++h)
+          free_h_inv[free_hs[h]] = h;
+
+        for (int i = 0; i < mol.size(); ++i) {
+          rvdw_sq_(0, i) =
+              (mol[i].data().element().vdw_radius() + kPt[1].vdw_radius()) / 2;
+        }
+        rvdw_sq_.row(1) = rvdw_sq_.row(0).square();
+
+        hh_rvdw_ = rvdw_sq_(0, mol.size() - 1);
+        hh_rvdw_sq_ = rvdw_sq_(1, mol.size() - 1);
+
+        OCTree octree(conf);
+        std::vector<double> dbuf;
+        for (int h = 0; h < free_hs.size(); ++h) {
+          const int i = free_hs[h];
+          octree.find_neighbors_d(conf.col(i), 7.5, fixed_near(h), dbuf);
+
+          const int j = mol[i][0].dst().id();
+          erase_if(fixed_near(h), [&](int k) {
+            int k_h = free_h_inv[k];
+            // prevent double evaluation
+            if (k_h > h)
+              free_near(h).push_back(k_h);
+            return k_h >= 0 || k == j;
+          });
+        }
+      }
+
+      ~FreeHProxy() = default;
+
+      FreeHProxy(const FreeHProxy &) = delete;
+      FreeHProxy(FreeHProxy &&) = delete;
+      FreeHProxy &operator=(const FreeHProxy &) = delete;
+      FreeHProxy &operator=(FreeHProxy &&) = delete;
+
+      const Molecule &mol() const { return *mol_; }
+
+      const Matrix3Xd &conf() const { return *conf_; }
+
+      const ArrayXd &opt_blsq_inv() const { return opt_blsq_inv_; }
+
+      Vector3d xh_vec(ConstRef<Matrix3Xd> pts, int h) const {
+        return pts.col(h) - conf().col(mol()[free_hs()[h]][0].dst().id());
+      }
+
+      double xh_blsq(ConstRef<Matrix3Xd> pts, int h) const {
+        return xh_vec(pts, h).squaredNorm();
+      }
+
+      const std::vector<int> &fixed_near(int h) const {
+        return unbound_near_[h].first;
+      }
+
+      const std::vector<int> &free_near(int h) const {
+        return unbound_near_[h].second;
+      }
+
+      const std::vector<int> &free_hs() const { return *free_hs_; }
+
+      auto rvdw_sq(int i) const { return rvdw_sq_.col(i); }
+
+      double hh_rvdw() const { return hh_rvdw_; }
+      double hh_rvdw_sq() const { return hh_rvdw_sq_; }
+
+    private:
+      std::vector<int> &fixed_near(int h) { return unbound_near_[h].first; }
+
+      std::vector<int> &free_near(int h) { return unbound_near_[h].second; }
+
+      /* size: nfree */
+      ArrayXd opt_blsq_inv_;
+      std::vector<std::pair<std::vector<int>, std::vector<int>>> unbound_near_;
+
+      /* size: natoms */
+      Array2Xd rvdw_sq_;
+      double hh_rvdw_;
+      double hh_rvdw_sq_;
+
+      absl::Nonnull<const Molecule *> mol_;
+      absl::Nonnull<Matrix3Xd *> conf_;
+      absl::Nonnull<const std::vector<int> *> free_hs_;
+    };
+
+    // Havel's distance error function:
+    // E3 in Distance Geometry in Molecular Modeling, 1994, Ch.6, p. 311.
+    double bond_length_error(const FreeHProxy &proxy, MutRef<Matrix3Xd> &gx,
+                             ConstRef<Matrix3Xd> x, int h, double weight) {
+      Vector3d diff = proxy.xh_vec(x, h);
+
+      const double dsq = diff.squaredNorm(),
+                   optsq_inv = proxy.opt_blsq_inv()[h];
+
+      const double ub_term = nonnegative(dsq * optsq_inv - 1);
+
+      const double lb_inner_inv = 2 / (1 + dsq * optsq_inv);
+      const double lb_term = nonnegative(lb_inner_inv - 1);
+
+      diff *= 4 * optsq_inv * ub_term
+              - 2 * (lb_inner_inv * lb_inner_inv) * optsq_inv * lb_term;
+      gx.col(h) += diff * weight;
+
+      return weight * (ub_term * ub_term + lb_term * lb_term);
     }
 
-    return true;
+    constexpr double
+        // (1/0.6)^12
+        kCutoffRepulFunc =
+            459.39365799778338517351879136159987656202664077479908399991720624,
+        // // -2 * (1/0.6)^6
+        // kCutoffAttrFunc =
+        //     -42.86694101508916323731138545953360768175582990397805212620027435,
+        // -12 * (1/0.6)^13
+        kCutoffRepulGrad = -12 * kCutoffRepulFunc / 0.6;
+    // // 2 * 6 * (1/0.6)^7
+    // kCutoffAttrGrad = -6 * kCutoffAttrFunc / 0.6;
+
+    // Linear smoothing, ax + b
+    constexpr double                                      //
+        kFuncGrad = kCutoffRepulGrad,                     // + kCutoffAttrGrad,
+        kFuncItct = kFuncGrad * -0.6 + kCutoffRepulFunc;  // + kCutoffAttrFunc;
+
+    double lj_repulsion_vector_pair(Vector3d &diff, const double rvdw,
+                                    const double rvdw_sq) {
+      double dsq = diff.squaredNorm(), d = std::sqrt(dsq);
+
+      if (0.6 * rvdw > d) {
+        d += 1e-12;
+
+        double grad = kFuncGrad / rvdw;
+        diff *= grad / d;
+
+        double fx = grad * d + kFuncItct;
+        return fx;
+      }
+
+      double dsq_inv = 1 / dsq;
+      double d2_term = rvdw_sq * dsq_inv;
+      double d6_term = d2_term * d2_term * d2_term;
+
+      double fx = d6_term * d6_term;
+      diff *= -12 * fx * dsq_inv;
+      return fx;
+    }
+
+    double lj_repulsion(const FreeHProxy &proxy, MutRef<Matrix3Xd> &gx,
+                        ConstRef<Matrix3Xd> x, int h) {
+      double fx = 0;
+
+      for (int j_h: proxy.free_near(h)) {
+        Vector3d diff = x.col(h) - x.col(j_h);
+
+        fx +=
+            lj_repulsion_vector_pair(diff, proxy.hh_rvdw(), proxy.hh_rvdw_sq());
+
+        gx.col(h) += diff;
+        gx.col(j_h) -= diff;
+      }
+
+      for (int i: proxy.fixed_near(h)) {
+        Vector3d diff = x.col(h) - proxy.conf().col(i);
+
+        fx += lj_repulsion_vector_pair(diff, proxy.rvdw_sq(i)[0],
+                                       proxy.rvdw_sq(i)[1]);
+
+        gx.col(h) += diff;
+      }
+
+      return fx;
+    }
+
+    double hydrogen_minimizer_funcgrad(FreeHProxy &proxy, ArrayXd &gxa,
+                                       ConstRef<ArrayXd> xa) {
+      MutRef<Matrix3Xd> gx = gxa.reshaped(3, proxy.free_hs().size()).matrix();
+      ConstRef<Matrix3Xd> x = xa.reshaped(3, proxy.free_hs().size()).matrix();
+
+      double fx = 0;
+      for (int h = 0; h < gx.cols(); ++h) {
+        double lj_err = 0.1 * lj_repulsion(proxy, gx, x, h);
+        gx *= 0.1;
+
+        double bl_err = bond_length_error(proxy, gx, x, h, 250);
+        fx += bl_err + lj_err;
+      }
+
+      return fx;
+    }
+
+  }  // namespace
+
+  bool optimize_free_hydrogens(const Molecule &mol, Matrix3Xd &conf,
+                               const std::vector<int> &free_hs) {
+    if (free_hs.empty())
+      return true;
+
+    Matrix3Xd current = conf(Eigen::all, free_hs);
+    FreeHProxy h_proxy(mol, conf, current, free_hs);
+
+    auto result = l_bfgs_b(
+        [&](ArrayXd &gx, ConstRef<ArrayXd> x) {
+          return hydrogen_minimizer_funcgrad(h_proxy, gx, x);
+        },
+        current.reshaped().array(), ArrayXi::Zero(current.size()),
+        Array2Xd(2, current.size()), 5, 1e+7, 1e-3, 300, 300);
+
+    bool success = result.code == LbfgsbResultCode::kSuccess;
+    if (success) {
+      conf(Eigen::all, free_hs) = current;
+    } else {
+      ABSL_LOG(WARNING) << "Hydrogen optimization failed or terminated "
+                           "prematurely; not updating hydrogen coordinates";
+    }
+    return success;
   }
 }  // namespace internal
 
@@ -632,7 +849,7 @@ bool Molecule::add_hydrogens(const bool update_confs) {
     if (!ok)
       return false;
 
-    if (!internal::optimize_trailing_hydrogens(*this, conf, free_hs))
+    if (!internal::optimize_free_hydrogens(*this, conf, free_hs))
       return false;
   }
 
