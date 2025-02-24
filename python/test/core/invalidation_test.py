@@ -34,7 +34,7 @@ def _remove_bond(mol: Molecule):
         Molecule.clear,
         Molecule.clear_atoms,
         Molecule.clear_bonds,
-        Molecule.hide_hydrogens,
+        Molecule.conceal_hydrogens,
     ],
     ids=[
         "remove_atom",
@@ -42,7 +42,7 @@ def _remove_bond(mol: Molecule):
         "clear",
         "clear_atoms",
         "clear_bonds",
-        "hide_hydrogens",
+        "conceal_hydrogens",
     ],
 )
 def test_invalidation_all(molsub: Molecule, modify):

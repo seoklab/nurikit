@@ -311,7 +311,7 @@ def test_find_neighbor(mol: Molecule):
 
 
 def test_implicit_hydrogens(mol: Molecule):
-    mol.hide_hydrogens()
+    mol.conceal_hydrogens()
 
     assert len(mol) == 6
     assert mol.atom(0).implicit_hydrogens == 2
