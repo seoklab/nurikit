@@ -1328,10 +1328,18 @@ namespace {
   }
 
   bool is_conjugated_candidate(Molecule::Atom atom) {
-    return atom.data().is_conjugated()
-           || (atom.degree() == 3
-               && atom.data().hybridization() <= constants::kSP2
-               && atom.data().implicit_hydrogens() == 0)
+    if (atom.data().is_conjugated())
+      return true;
+
+    if (internal::effective_element_or_element(atom).group() == 14
+        && absl::c_all_of(atom, [](Molecule::Neighbor nei) {
+             return nei.edge_data().order() == constants::kSingleBond;
+           })) {
+      return false;
+    }
+
+    return (atom.degree() == 3 && atom.data().hybridization() <= constants::kSP2
+            && atom.data().implicit_hydrogens() == 0)
            || (atom.degree() <= 2 && hyb_incorrect_atom_can_conjugate(atom));
   }
 
@@ -1521,13 +1529,15 @@ namespace {
       int extra_bonds_unresolvable =
           extra_bonds_required - data.implicit_hydrogens();
 
-      if (extra_bonds_unresolvable > 0) {
-        if (extra_bonds_required == 1 && total_degree == 3
-            && atom.data().hybridization() == constants::kSP2) {
-          if (try_find_confident_conjugation(atom, pos))
-            return;
-        }
+      if (extra_bonds_required == 1
+          && atom.data().hybridization() == constants::kSP2
+          // neutral carbon with nonbonding pairs is unlikely
+          && effective.group() != 14
+          && try_find_confident_conjugation(atom, pos)) {
+        return;
+      }
 
+      if (extra_bonds_unresolvable > 0) {
         data.set_hybridization(
             clamp_hyb(data.hybridization() + extra_bonds_unresolvable));
         extra_bonds_required -= extra_bonds_unresolvable;
