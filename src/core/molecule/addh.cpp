@@ -835,6 +835,18 @@ bool Molecule::add_hydrogens(const bool update_confs) {
     }
   }
 
+  for (auto &sub: substructures()) {
+    const int size = sub.size();
+    for (int i = 0; i < size; ++i) {
+      for (auto nei: atom(sub.atom_ids()[i])) {
+        if (nei.dst().id() < h_begin)
+          continue;
+
+        sub.add_atom(nei.dst().id());
+      }
+    }
+  }
+
   absl::Cleanup update_implicit_hcnt = [this, h_begin] {
     for (int i = 0; i < size() - h_begin; ++i)
       atom(i).data().set_implicit_hydrogens(0);
