@@ -132,7 +132,9 @@ void pdb_update_substructs(
     sit->update(std::move(data.idxs), {});
     sit->name() = std::invoke(residue_member, data);
     sit->set_id(std::invoke(seq_member, data.id));
-    sit->add_prop("chain", std::invoke(chain_sv, data.id));
+    // Workaround GCC bug; produces "basic_string::_S_construct null not valid"
+    // exception when called directly with type std::string_view &
+    sit->add_prop("chain", std::string { std::invoke(chain_sv, data.id) });
 
     std::string_view icode = std::invoke(icode_sv, data.id);
     if (!icode.empty())
