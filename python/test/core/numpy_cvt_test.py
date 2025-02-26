@@ -117,3 +117,11 @@ def test_cast_convert_failed():
 
     with pytest.raises(TypeError, match="got None"):
         cast_test_helper(None, "dynamic")
+
+
+def test_cast_empty():
+    obj = [[]]
+    out = cast_test_helper(obj, "dynamic")
+    assert out.shape == (1, 0)
+    assert out.dtype == np.float64
+    assert out.flags.c_contiguous

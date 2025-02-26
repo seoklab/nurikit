@@ -384,7 +384,8 @@ private:
     numpy_to_eigen_check_compat<Rows, Cols, DT>(*this);
 
     const auto inner_stride = eigen_stride(*this, req_ndim - 1);
-    if (inner_stride != 1) {
+    // numpy returns stride 0 for empty arrays
+    if (inner_stride != 1 && this->size() > 0) {
       throw std::runtime_error(
           absl::StrCat("Unexpected inner stride (", inner_stride, " != 1)"));
     }
@@ -413,9 +414,9 @@ template <class ML>
 NpArrayLike<ML> empty_like(const ML &mat) {
   std::vector<py::ssize_t> shape;
   if constexpr (ML::RowsAtCompileTime == 1 || ML::ColsAtCompileTime == 1) {
-    shape = { mat.size() };
+    shape.push_back(mat.size());
   } else {
-    shape = { mat.cols(), mat.rows() };
+    shape.assign({ mat.cols(), mat.rows() });
   }
   return NpArrayLike<ML>(std::move(shape));
 }
