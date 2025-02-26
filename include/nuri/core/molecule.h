@@ -1490,7 +1490,7 @@ public:
    *         When this function returns false, the coordinates of the newly
    *         added hydrogens are not guaranteed to be chemically valid.
    */
-  bool add_hydrogens(bool update_confs = true);
+  ABSL_MUST_USE_RESULT bool add_hydrogens(bool update_confs = true);
 
   /**
    * @brief Erase all trivial hydrogens from the molecule.
