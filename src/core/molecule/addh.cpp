@@ -14,6 +14,7 @@
 #include <absl/base/optimization.h>
 #include <absl/cleanup/cleanup.h>
 #include <absl/log/absl_check.h>
+#include <absl/log/absl_log.h>
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
@@ -610,8 +611,9 @@ namespace internal {
 
         for (int i = 0; i < mol.size(); ++i) {
           rvdw_sq_(0, i) =
-              (mol[i].data().element().vdw_radius() + kPt[1].vdw_radius()) / 2;
+              mol[i].data().element().vdw_radius() + kPt[1].vdw_radius();
         }
+        rvdw_sq_.row(0) = rvdw_sq_.row(0) * 0.5;
         rvdw_sq_.row(1) = rvdw_sq_.row(0).square();
 
         hh_rvdw_ = rvdw_sq_(0, mol.size() - 1);
@@ -777,20 +779,28 @@ namespace internal {
     }
 
     double hydrogen_minimizer_funcgrad(FreeHProxy &proxy, ArrayXd &gxa,
-                                       ConstRef<ArrayXd> xa) {
+                                       ConstRef<ArrayXd> xa, double lj_weight,
+                                       double bl_weight) {
+      gxa.setZero();
+
       MutRef<Matrix3Xd> gx = gxa.reshaped(3, proxy.free_hs().size()).matrix();
       ConstRef<Matrix3Xd> x = xa.reshaped(3, proxy.free_hs().size()).matrix();
 
-      double fx = 0;
+      double lj_sum = 0, bl_sum = 0;
       for (int h = 0; h < gx.cols(); ++h) {
-        double lj_err = 0.1 * lj_repulsion(proxy, gx, x, h);
-        gx *= 0.1;
+        double lj_err = lj_weight * lj_repulsion(proxy, gx, x, h);
+        lj_sum += lj_err;
+      }
+      gxa *= lj_weight;
 
-        double bl_err = bond_length_error(proxy, gx, x, h, 250);
-        fx += bl_err + lj_err;
+      for (int h = 0; h < gx.cols(); ++h) {
+        double bl_err = bond_length_error(proxy, gx, x, h, bl_weight);
+        bl_sum += bl_err;
       }
 
-      return fx;
+      ABSL_DVLOG(3) << "lj_sum: " << lj_sum << ", bl_sum: " << bl_sum;
+
+      return lj_sum + bl_sum;
     }
 
   }  // namespace
@@ -803,21 +813,34 @@ namespace internal {
     Matrix3Xd current = conf(Eigen::all, free_hs);
     FreeHProxy h_proxy(mol, conf, current, free_hs);
 
-    auto result = l_bfgs_b(
-        [&](ArrayXd &gx, ConstRef<ArrayXd> x) {
-          return hydrogen_minimizer_funcgrad(h_proxy, gx, x);
-        },
-        current.reshaped().array(), ArrayXi::Zero(current.size()),
-        Array2Xd(2, current.size()), 5, 1e+7, 1e-3, 300, 300);
+    ArrayXi nbd = ArrayXi::Zero(current.size());
+    Array2Xd bds(2, current.size());
+    LBfgsB minimizer(current.reshaped().array(), { nbd, bds }, 5);
 
-    bool success = result.code == LbfgsbResultCode::kSuccess;
-    if (success) {
-      conf(Eigen::all, free_hs) = current;
-    } else {
+    auto result = minimizer.minimize(
+        [&](ArrayXd &gx, ConstRef<ArrayXd> x) {
+          return hydrogen_minimizer_funcgrad(h_proxy, gx, x, 0.1, 1);
+        },
+        1e+7, 1e-1, 300, 300);
+    if (result.code != LbfgsbResultCode::kSuccess) {
       ABSL_LOG(WARNING) << "Hydrogen optimization failed or terminated "
                            "prematurely; not updating hydrogen coordinates";
+      return false;
     }
-    return success;
+
+    result = minimizer.minimize(
+        [&](ArrayXd &gx, ConstRef<ArrayXd> x) {
+          return hydrogen_minimizer_funcgrad(h_proxy, gx, x, 0.1, 1e+3);
+        },
+        1e+8, 1e-1, 300, 300);
+    if (result.code != LbfgsbResultCode::kSuccess) {
+      ABSL_LOG(WARNING) << "Hydrogen optimization failed or terminated "
+                           "prematurely; not updating hydrogen coordinates";
+      return false;
+    }
+
+    conf(Eigen::all, free_hs) = current;
+    return true;
   }
 }  // namespace internal
 
