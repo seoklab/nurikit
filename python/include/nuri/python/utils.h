@@ -414,9 +414,9 @@ template <class ML>
 NpArrayLike<ML> empty_like(const ML &mat) {
   std::vector<py::ssize_t> shape;
   if constexpr (ML::RowsAtCompileTime == 1 || ML::ColsAtCompileTime == 1) {
-    shape = { mat.size() };
+    shape.push_back(mat.size());
   } else {
-    shape = { mat.cols(), mat.rows() };
+    shape.assign({ mat.cols(), mat.rows() });
   }
   return NpArrayLike<ML>(std::move(shape));
 }
