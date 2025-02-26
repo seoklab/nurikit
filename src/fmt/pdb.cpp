@@ -1684,7 +1684,7 @@ public:
     // 6 * 7 + 6 delimiters (comma) = 48
     anisou_data.reserve(48);
     for (int i = 28; i < 64; i += 7)
-      absl::StrAppend(&anisou_data, safe_slice(line, i, i + 7), ",");
+      absl::StrAppend(&anisou_data, safe_slice_strip(line, i, i + 7), ",");
     anisou_data.pop_back();
   }
 
