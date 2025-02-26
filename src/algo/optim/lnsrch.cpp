@@ -21,7 +21,8 @@ namespace internal {
         gtest_(ftol * ginit_), gtol_(gtol), xtol_(xtol), step_(step0), fx_(f0),
         gx_(g0), fy_(f0), gy_(g0), stmax_(step_ + kXTrapU * step_),
         width_(stepmax_ - stepmin_), width1_(2 * width_) {
-    ABSL_DCHECK(step0 >= stepmin && step0 <= stepmax);
+    ABSL_DCHECK_GE(step0, stepmin);
+    ABSL_DCHECK_LE(step0, stepmax);
   }
 
   namespace {
