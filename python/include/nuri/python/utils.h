@@ -384,7 +384,8 @@ private:
     numpy_to_eigen_check_compat<Rows, Cols, DT>(*this);
 
     const auto inner_stride = eigen_stride(*this, req_ndim - 1);
-    if (inner_stride != 1) {
+    // numpy returns stride 0 for empty arrays
+    if (inner_stride != 1 && this->size() > 0) {
       throw std::runtime_error(
           absl::StrCat("Unexpected inner stride (", inner_stride, " != 1)"));
     }
