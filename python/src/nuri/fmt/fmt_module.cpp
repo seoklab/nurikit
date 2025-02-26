@@ -136,8 +136,8 @@ NURI_PYTHON_MODULE(m) {
   py::module_::import("nuri.core");
 
   py::class_<PyMoleculeReader>(m, "MoleculeReader")
-      .def("__iter__", pass_through<PyMoleculeReader>)
-      .def("__next__", &PyMoleculeReader::next);
+      .def("__iter__", pass_through<PyMoleculeReader>, kThreadSafe)
+      .def("__next__", &PyMoleculeReader::next, kThreadSafe);
 
   m.def(
        "readfile",
@@ -150,7 +150,7 @@ NURI_PYTHON_MODULE(m) {
          return PyMoleculeReader(std::move(pifs), fmt, sanitize, skip_on_error);
        },
        py::arg("fmt"), py::arg("path"), py::arg("sanitize") = true,
-       py::arg("skip_on_error") = false,
+       py::arg("skip_on_error") = false, kThreadSafe,
        R"doc(
 Read a molecule from a file.
 
@@ -176,7 +176,7 @@ Read a molecule from a file.
                 sanitize, skip_on_error);
           },
           py::arg("fmt"), py::arg("data"), py::arg("sanitize") = true,
-          py::arg("skip_on_error") = false,
+          py::arg("skip_on_error") = false, kThreadSafe,
           R"doc(
 Read a molecule from string.
 
