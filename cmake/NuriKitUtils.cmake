@@ -233,7 +233,7 @@ function(find_or_fetch_abseil)
 
   Fetchcontent_Declare(
     absl
-    URL https://github.com/abseil/abseil-cpp/releases/download/20240722.0/abseil-cpp-20240722.0.tar.gz
+    URL https://github.com/jnooree/abseil-cpp/releases/latest/download/abseil-cpp-latest.tar.gz
   )
   nuri_make_available_deponly(absl)
 endfunction()
