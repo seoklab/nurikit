@@ -956,18 +956,21 @@ the molecule.
 )doc")
       .def(
           "reveal_hydrogens",
-          [](PyMol &self, bool update_confs) {
+          [](PyMol &self, bool update_confs, bool optimize) {
             absl::Cleanup c = [&] { self.tick(); };
-            if (!self->add_hydrogens(update_confs))
+            if (!self->add_hydrogens(update_confs, optimize))
               throw py::value_error("failed to add hydrogens");
           },
-          py::arg("update_confs") = true,
+          py::arg("update_confs") = true, py::arg("optimize") = true,
           R"doc(
 Convert implicit hydrogen atoms of the molecule to explicit hydrogens.
 
 :param update_confs: If True, the conformations of the molecule will be
   updated to include the newly added hydrogens. When set to False, the
   coordinates of the added hydrogens will have garbage values. Default to True.
+:param optimize: If True, the conformations will be optimized after adding
+  hydrogens. Default to True. This parameter is ignored if ``update_confs`` is
+  False.
 :raises ValueError: If the hydrogens cannot be added. This can only happen if
   ``update_confs`` is True and the molecule has at least one conformation.
 

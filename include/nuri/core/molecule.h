@@ -1485,12 +1485,16 @@ public:
    *
    * @param update_confs Whether to update the conformers after adding
    *        hydrogens. Default is `true`.
+   * @param optimize Whether to optimize the geometry of the molecule after
+   *        initial hydrogen placement. Default is `true`. When this is `false`,
+   *        the resulting molecule may have clashes between atoms.
    * @return Whether the operation was successful. Fails only if the molecule
    *         has more than one conformers and the geometry optimization fails.
    *         When this function returns false, the coordinates of the newly
    *         added hydrogens are not guaranteed to be chemically valid.
    */
-  ABSL_MUST_USE_RESULT bool add_hydrogens(bool update_confs = true);
+  ABSL_MUST_USE_RESULT bool add_hydrogens(bool update_confs = true,
+                                          bool optimize = true);
 
   /**
    * @brief Erase all trivial hydrogens from the molecule.

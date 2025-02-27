@@ -844,7 +844,7 @@ namespace internal {
   }
 }  // namespace internal
 
-bool Molecule::add_hydrogens(const bool update_confs) {
+bool Molecule::add_hydrogens(const bool update_confs, const bool optimize) {
   const int h_begin = size();
 
   {
@@ -884,6 +884,8 @@ bool Molecule::add_hydrogens(const bool update_confs) {
     if (!ok)
       return false;
 
+    if (!optimize)
+      continue;
     if (!internal::optimize_free_hydrogens(*this, conf, free_hs))
       return false;
   }
