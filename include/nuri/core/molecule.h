@@ -1750,6 +1750,19 @@ public:
                     SubstructCategory cat = SubstructCategory::kUnknown) const {
     return { subgraph_from_edges(graph_, std::move(bonds)), cat };
   }
+
+  Substructure node_substructure_radius_n(
+      int root, int radius,
+      SubstructCategory cat = SubstructCategory::kUnknown) {
+    return { subgraph_radius_n(graph_, root, radius), cat };
+  }
+
+  ConstSubstructure node_substructure_radius_n(
+      int root, int radius,
+      SubstructCategory cat = SubstructCategory::kUnknown) const {
+    return { subgraph_radius_n(graph_, root, radius), cat };
+  }
+
   /**
    * @brief Get a substructure of the molecule.
    *

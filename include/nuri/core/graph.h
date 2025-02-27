@@ -3197,6 +3197,30 @@ absl::flat_hash_set<int> connected_components(const Graph<NT, ET> &g, int begin,
 
   return visited;
 }
+
+template <class GT>
+auto subgraph_radius_n(GT &g, int begin, int radius) {
+  absl::flat_hash_set<int> visited { begin };
+  std::vector<int> nodes { begin };
+
+  int lp = 0, rp = 1;
+  for (int r = 1; r <= radius && lp < rp; ++r) {
+    for (int p = lp; p < rp; ++p) {
+      int atom = nodes[p];
+
+      for (auto ait = g.adj_begin(atom); !ait.end(); ++ait) {
+        int dst = ait->dst().id();
+        if (visited.insert(dst).second)
+          nodes.push_back(dst);
+      }
+    }
+
+    lp = rp;
+    rp = static_cast<int>(nodes.size());
+  }
+
+  return make_subgraph(g, std::move(nodes), {});
+}
 }  // namespace nuri
 
 #endif /* NURI_CORE_GRAPH_H_ */
