@@ -77,7 +77,7 @@ jobs:
       - if: ${{ matrix.build-mode == 'manual'}}
         uses: lukka/get-cmake@latest
         with:
-          cmakeVersion: "~3.16.0" # for Ubuntu 20.04
+          cmakeVersion: "~3.22.0" # for Ubuntu 22.04
 
       - if: ${{ matrix.build-mode == 'manual'}}
         uses: actions/setup-python@v5

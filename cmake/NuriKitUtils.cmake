@@ -233,7 +233,7 @@ function(find_or_fetch_abseil)
 
   Fetchcontent_Declare(
     absl
-    URL https://github.com/abseil/abseil-cpp/releases/download/20240722.0/abseil-cpp-20240722.0.tar.gz
+    URL https://github.com/jnooree/abseil-cpp/releases/latest/download/abseil-cpp-latest.tar.gz
   )
   nuri_make_available_deponly(absl)
 endfunction()
@@ -258,7 +258,7 @@ function(handle_boost_dependency target)
   include(FetchContent)
   FetchContent_Declare(
     boost
-    URL https://github.com/boostorg/boost/releases/download/boost-1.82.0/boost-1.82.0.tar.xz
+    URL https://github.com/boostorg/boost/releases/download/boost-1.87.0/boost-1.87.0-cmake.tar.xz
   )
 
   set(Boost_ENABLE_CMAKE ON)
