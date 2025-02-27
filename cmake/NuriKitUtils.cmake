@@ -258,7 +258,7 @@ function(handle_boost_dependency target)
   include(FetchContent)
   FetchContent_Declare(
     boost
-    URL https://github.com/boostorg/boost/releases/download/boost-1.82.0/boost-1.82.0.tar.xz
+    URL https://github.com/boostorg/boost/releases/download/boost-1.87.0/boost-1.87.0-cmake.tar.xz
   )
 
   set(Boost_ENABLE_CMAKE ON)
