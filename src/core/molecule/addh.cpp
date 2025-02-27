@@ -871,7 +871,7 @@ bool Molecule::add_hydrogens(const bool update_confs) {
   }
 
   absl::Cleanup update_implicit_hcnt = [this, h_begin] {
-    for (int i = 0; i < size() - h_begin; ++i)
+    for (int i = 0; i < h_begin; ++i)
       atom(i).data().set_implicit_hydrogens(0);
   };
 
