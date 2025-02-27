@@ -179,6 +179,10 @@ if(BUILD_TESTING AND NURI_POSTINSTALL_TEST)
     "execute_process(
       COMMAND \"\${CMAKE_CTEST_COMMAND}\" -T test -j ${NPROC} --output-on-failure
       WORKING_DIRECTORY \"$<1:${CMAKE_CURRENT_BINARY_DIR}>\"
-    )"
+      RESULT_VARIABLE test_result
+    )
+    if(test_result)
+      message(FATAL_ERROR \"Tests failed with error code \${test_result}\")
+    endif()"
   )
 endif()

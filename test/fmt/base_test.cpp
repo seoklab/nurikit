@@ -123,10 +123,11 @@ public:
 class DummyReaderFactory: public DefaultReaderFactoryImpl<DummyReader> { };
 
 TEST(ReaderFactoryTest, CanFindFactory) {
-  const MoleculeReaderFactory *factory =
-      MoleculeReaderFactory::find_factory("sdf");
-  ASSERT_NE(factory, nullptr);
-  EXPECT_EQ(typeid(*factory), typeid(SDFReaderFactory));
+  // Direct comparison of typeid fails on macOS x86_64.
+  // seoklab/nurikit#459
+  auto factory = dynamic_cast<const SDFReaderFactory *>(
+      MoleculeReaderFactory::find_factory("sdf"));
+  EXPECT_NE(factory, nullptr);
 }
 
 TEST(ReaderFactoryTest, CanRegisterFactory) {
@@ -136,14 +137,14 @@ TEST(ReaderFactoryTest, CanRegisterFactory) {
 
   MoleculeReaderFactory::register_factory(
       std::make_unique<DummyReaderFactory>(), { "dummy" });
-  factory = MoleculeReaderFactory::find_factory("dummy");
-  ASSERT_NE(factory, nullptr);
-  EXPECT_EQ(typeid(*factory), typeid(DummyReaderFactory));
+  auto dummy = dynamic_cast<const DummyReaderFactory *>(
+      MoleculeReaderFactory::find_factory("dummy"));
+  ASSERT_NE(dummy, nullptr);
+  dummy->register_for("also-dummy");
 
-  factory->register_for("also-dummy");
-  factory = MoleculeReaderFactory::find_factory("also-dummy");
-  ASSERT_NE(factory, nullptr);
-  EXPECT_EQ(typeid(*factory), typeid(DummyReaderFactory));
+  dummy = dynamic_cast<const DummyReaderFactory *>(
+      MoleculeReaderFactory::find_factory("also-dummy"));
+  ASSERT_NE(dummy, nullptr);
 }
 }  // namespace
 }  // namespace nuri
