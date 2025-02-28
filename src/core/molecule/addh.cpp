@@ -183,7 +183,31 @@ namespace internal {
         kSqrt3 =
             1.7320508075688772935274463415058723669428052538103806280558069794;
 
-    bool place_initial_sp3(Molecule::Atom atom, Matrix3Xd &conf) {
+    Vector3d resolve_sp3_x_fixed1(Molecule::Atom atom, const Vector3d &uz,
+                                  const Matrix3Xd &conf, const int h_begin) {
+      auto nei = atom[0].dst();
+      if (nei.data().hybridization() != constants::kSP3)
+        return any_perpendicular(uz);
+
+      auto mit = absl::c_find_if(nei, [&](Molecule::Neighbor mei) {
+        return mei.dst().id() != atom.id()
+               && (mei.dst().id() < h_begin || nei.id() < atom.id());
+      });
+      if (mit.end())
+        return any_perpendicular(uz);
+
+      Vector3d v = conf.col(nei.id()) - conf.col(mit->dst().id());
+      Vector3d x = v - v.dot(uz) * uz;
+
+      double sqn = x.squaredNorm();
+      if (ABSL_PREDICT_FALSE(sqn < 1e-12))
+        return any_perpendicular(uz);
+
+      return x / std::sqrt(sqn);
+    }
+
+    bool place_initial_sp3(Molecule::Atom atom, Matrix3Xd &conf,
+                           const int h_begin) {
       const double xhd = xh_length_approx(atom.data());
       const int nh = atom.data().implicit_hydrogens(),
                 nfixed = atom.degree() - nh;
@@ -213,13 +237,14 @@ namespace internal {
       Matrix3d axes;
       if (ABSL_PREDICT_TRUE(nfixed == 1)) {
         axes.col(2) = opposite_unit_nth(atom, conf, 0);
+        axes.col(0) = resolve_sp3_x_fixed1(atom, axes.col(2), conf, h_begin);
+        axes.col(1) = axes.col(2).cross(axes.col(0));
       } else {
-        axes.col(2) = Vector3d::UnitZ();
+        axes = Matrix3d::Identity();
       }
-      axes.col(0) = any_perpendicular(axes.col(2));
-      axes.col(1) = kSqrt3 * axes.col(2).cross(axes.col(0));
 
       axes *= xhd / 3;
+      axes.col(1) *= kSqrt3;
       axes.leftCols(2) *= kSqrt2;
 
       Matrix3d vecs;
@@ -569,7 +594,7 @@ namespace internal {
         h_fixed = place_initial_sp2(atom, conf, h_begin);
         break;
       case constants::kSP3:
-        h_fixed = place_initial_sp3(atom, conf);
+        h_fixed = place_initial_sp3(atom, conf, h_begin);
         break;
       case constants::kSP3D:
         h_fixed = place_initial_sp3d(atom, conf);
