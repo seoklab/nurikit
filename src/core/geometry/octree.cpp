@@ -45,8 +45,8 @@ namespace {
 
   // partition begin - end into two parts:
   // +: [begin, ret), -: [ret, end)
-  int partition_sub(ArrayXi &idxs, int begin, int end, const Matrix3Xd &pts,
-                    const Vector3d &cntr, int axis) {
+  int partition_sub(ArrayXi &idxs, int begin, int end,
+                    const OCTree::Points &pts, const Vector3d &cntr, int axis) {
     auto it =
         std::partition(idxs.begin() + begin, idxs.begin() + end,
                        [&](int idx) { return pts(axis, idx) >= cntr[axis]; });
@@ -54,7 +54,7 @@ namespace {
   }
 
   Array8i partition_octant(ArrayXi &idxs, int begin, int end,
-                           const Matrix3Xd &pts, const Vector3d &cntr) {
+                           const OCTree::Points &pts, const Vector3d &cntr) {
     Array8i ptrs;
     ptrs[7] = end;
 
@@ -84,7 +84,7 @@ namespace {
     return ptrs;
   }
 
-  int build_octree(const Matrix3Xd &pts, std::vector<OCTreeNode> &data,
+  int build_octree(const OCTree::Points &pts, std::vector<OCTreeNode> &data,
                    const Vector3d &max, const Vector3d &size, ArrayXi &idxs,
                    const int begin, const int nleaf) {
     Array8i children;
@@ -123,15 +123,17 @@ namespace {
   }
 }  // namespace
 
-void OCTree::rebuild(const Matrix3Xd &pts) {
-  pts_ = &pts;
-  max_ = pts.rowwise().maxCoeff();
-  len_ = max_ - pts.rowwise().minCoeff();
+void OCTree::rebuild() {
+  max_ = pts_.rowwise().maxCoeff();
+  len_ = max_ - pts_.rowwise().minCoeff();
 
-  ArrayXi idxs(pts.cols());
+  ArrayXi idxs(pts_.cols());
   std::iota(idxs.begin(), idxs.end(), 0);
 
-  build_octree(pts, nodes_, max_, len_, idxs, 0, static_cast<int>(pts.cols()));
+  internal::AllowEigenMallocScoped<false> ems;
+
+  build_octree(pts_, nodes_, max_, len_, idxs, 0,
+               static_cast<int>(pts_.cols()));
 }
 
 namespace {
@@ -287,7 +289,7 @@ void OCTree::find_neighbors_d(const Vector3d &pt, const double cutoff,
 
   distsq.clear();
   erase_if(idxs, [&](int idx) {
-    double d = (pts_->col(idx) - pt).squaredNorm();
+    double d = (pts_.col(idx) - pt).squaredNorm();
     bool far = d > cutoffsq;
     if (!far)
       distsq.push_back(d);

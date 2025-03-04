@@ -382,6 +382,36 @@ TEST_F(MoleculeTest, EraseHydrogensTest) {
   }
 }
 
+TEST_F(MoleculeTest, AddHydrogensTest) {
+  ASSERT_TRUE(MoleculeSanitizer(mol_).sanitize_all());
+
+  mol_.erase_hydrogens();
+  ASSERT_TRUE(mol_.add_hydrogens());
+
+  EXPECT_EQ(mol_.size(), 12);
+  for (int i = 0; i < 6; ++i) {
+    EXPECT_NE(mol_[i].data().atomic_number(), 1);
+    EXPECT_EQ(mol_[i].data().implicit_hydrogens(), 0);
+  }
+  for (int i = 6; i < mol_.size(); ++i) {
+    EXPECT_EQ(mol_[i].degree(), 1);
+    EXPECT_EQ(mol_[i].data().atomic_number(), 1);
+  }
+
+  EXPECT_EQ(mol_.num_bonds(), 11);
+  for (const auto &c: mol_.confs()) {
+    EXPECT_EQ(c.cols(), mol_.size());
+
+    for (int i = 6; i < 12; ++i) {
+      double d = mol_.distance(i, mol_[i][0].dst().id());
+      EXPECT_NEAR(d,
+                  mol_[i][0].dst().data().element().covalent_radius()
+                      + pt[1].covalent_radius(),
+                  0.01);
+    }
+  }
+}
+
 TEST(EraseNontrivialHydrogensTest, ExplicitH2) {
   Molecule mol;
   {
@@ -423,6 +453,62 @@ TEST(EraseNontrivialHydrogensTest, BridgingH) {
   mol.erase_hydrogens();
   EXPECT_EQ(mol.size(), 3);
   EXPECT_EQ(mol.num_bonds(), 2);
+}
+
+TEST(EraseNontrivialHydrogensTest, ChiralH) {
+  {
+    Molecule mol;
+
+    {
+      auto mut = mol.mutator();
+
+      mut.add_atom(AtomData(pt[6]).set_chiral(true).set_clockwise(true));
+      mut.add_atom(pt[1]);
+      mut.add_atom(pt[9]);
+      mut.add_atom(pt[17]);
+      mut.add_atom(pt[35]);
+
+      mut.add_bond(0, 1, BondData(kSingleBond));
+      mut.add_bond(0, 2, BondData(kSingleBond));
+      mut.add_bond(0, 3, BondData(kSingleBond));
+      mut.add_bond(0, 4, BondData(kSingleBond));
+    }
+
+    mol.erase_hydrogens();
+
+    EXPECT_EQ(mol.size(), 4);
+    EXPECT_EQ(mol.num_bonds(), 3);
+
+    EXPECT_TRUE(mol[0].data().is_chiral());
+    EXPECT_FALSE(mol[0].data().is_clockwise());
+  }
+
+  {
+    Molecule mol;
+
+    {
+      auto mut = mol.mutator();
+
+      mut.add_atom(AtomData(pt[6]).set_chiral(true).set_clockwise(true));
+      mut.add_atom(pt[9]);
+      mut.add_atom(pt[1]);
+      mut.add_atom(pt[17]);
+      mut.add_atom(pt[35]);
+
+      mut.add_bond(0, 1, BondData(kSingleBond));
+      mut.add_bond(0, 2, BondData(kSingleBond));
+      mut.add_bond(0, 3, BondData(kSingleBond));
+      mut.add_bond(0, 4, BondData(kSingleBond));
+    }
+
+    mol.erase_hydrogens();
+
+    EXPECT_EQ(mol.size(), 4);
+    EXPECT_EQ(mol.num_bonds(), 3);
+
+    EXPECT_TRUE(mol[0].data().is_chiral());
+    EXPECT_TRUE(mol[0].data().is_clockwise());
+  }
 }
 
 void verify_clear_all(const Molecule &mol) {

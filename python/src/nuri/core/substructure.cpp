@@ -797,9 +797,14 @@ be unique and in ascending order.
   The returned list is a copy of the internal list, so modifying the list does
   not affect the substructure.
 )doc");
-  sub.def("hide_hydrogens", &P::erase_hydrogens,
+  sub.def("conceal_hydrogens", &P::erase_hydrogens,
           R"doc(
-Convert all explicit hydrogen atoms of the substructure to implicit hydrogens.
+Convert trivial explicit hydrogen atoms of the substructure to implicit
+hydrogens.
+
+Trivial explicit hydrogen atoms are the hydrogen atoms that are connected to
+only one heavy atom with a single bond and have no other neighbors (including
+implicit hydrogens).
 
 .. note::
   Invalidates all atom and bond objects.

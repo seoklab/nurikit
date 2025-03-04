@@ -34,7 +34,7 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E make_directory "${DOXYGEN_OUTPUT_DIR}/html"
   COMMAND ${DOXYGEN_EXECUTABLE} "${DOXYGEN_OUT}"
   MAIN_DEPENDENCY "${DOXYGEN_OUT}"
-  DEPENDS ${nuri_public_headers}
+  DEPENDS ${nuri_public_headers} ${NURI_BIBTEX_FILE}
   WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
   COMMENT "Generating API documentation with Doxygen"
   VERBATIM
