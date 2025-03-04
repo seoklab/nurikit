@@ -93,16 +93,16 @@ TEST(ReversedStreamTest, ReadBackwardsMixed) {
 
 TEST(EscapeTest, EscapeAll) {
   // unicode thumbs up emoji (utf8)
-  std::string_view unsafe = "  a\nb\tc\rd e \xf0\x9f\x91\x8d  ";
+  std::string_view unsafe = " \ta\nb\tc\rd e \xf0\x9f\x91\x8d \n";
   std::string escaped = internal::ascii_safe(unsafe);
-  EXPECT_EQ(escaped, "__a_b_c_d_e_????__");
+  EXPECT_EQ(escaped, "  a_b_c_d_e_????  ");
 }
 
 TEST(EscapeTest, EscapeNewlines) {
   // unicode thumbs up emoji (utf8)
-  std::string_view unsafe = "  a\nb\tc\rd e \xf0\x9f\x91\x8d  ";
+  std::string_view unsafe = " \ta\nb\tc\rd e \xf0\x9f\x91\x8d \n";
   std::string escaped = internal::ascii_newline_safe(unsafe);
-  EXPECT_EQ(escaped, "  a b\tc d e ????  ");
+  EXPECT_EQ(escaped, " \ta b\tc d e ????  ");
 }
 
 class DummyReader: public MoleculeReader {
