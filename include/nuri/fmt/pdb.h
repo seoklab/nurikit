@@ -42,6 +42,9 @@ class PDBReaderFactory: public DefaultReaderFactoryImpl<PDBReader> {
 private:
   static const bool kRegistered ABSL_ATTRIBUTE_UNUSED;
 };
+
+extern int write_pdb(std::string &out, const Molecule &mol, int model = -1,
+                     int conf = -1);
 }  // namespace nuri
 
 #endif /* NURI_FMT_PDB_H_ */

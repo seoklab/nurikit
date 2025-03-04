@@ -19,15 +19,20 @@
 #include <utility>
 #include <vector>
 
+#include <absl/algorithm/container.h>
+#include <absl/base/attributes.h>
+#include <absl/base/nullability.h>
 #include <absl/base/optimization.h>
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/ascii.h>
+#include <absl/strings/charset.h>
 #include <absl/strings/match.h>
 #include <absl/strings/numbers.h>
 #include <absl/strings/str_cat.h>
+#include <absl/strings/str_format.h>
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
@@ -2081,4 +2086,327 @@ Molecule read_pdb(const std::vector<std::string> &pdb) {
 
 const bool PDBReaderFactory::kRegistered =
     register_reader_factory<PDBReaderFactory>({ "pdb" });
+
+namespace {
+void write_atom_single(std::string &out, bool atom_record, int serial,
+                       Molecule::Atom atom, ResidueId id,
+                       std::string_view atmname, std::string_view resname,
+                       const Vector3d &pos) {
+  std::string_view record = atom_record ? "ATOM  " : "HETATM";
+
+  absl::StrAppendFormat(
+      &out,
+      // clang-format off
+//          1         2         3         4         5         6         7         8
+// 12345678901234567890123456789012345678901234567890123456789012345678901234567890
+// ATOM  NNNNN AAAALRRR CSSSSI   XXXX.XXXYYYY.YYYZZZZ.ZZZOOO.OOTTT.TT          EEGG
+"%s%5d %-4s%c%-3s %c%4d%c   %8.3f%8.3f%8.3f%6.2f%6.2f          %2s",
+      // clang-format on
+      record, serial, atmname, ' ', resname, id.chain, id.seqnum, id.icode,
+      pos[0], pos[1], pos[2], 1.0, 0, atom.data().element_symbol());
+
+  int fchg = atom.data().formal_charge();
+  if (fchg != 0 && fchg < 10 && fchg > -10) {
+    absl::StrAppendFormat(&out, "%d%c", std::abs(fchg), fchg < 0 ? '-' : '+');
+  } else {
+    ABSL_LOG_IF(INFO, fchg != 0)
+        << "Formal charge " << fchg << " exceeds 2 characters; ignoring";
+  }
+
+  out.push_back('\n');
+}
+
+class PDBResolvedResidue {
+public:
+  PDBResolvedResidue(ResidueId id, std::string_view resname,
+                     std::vector<int> &&atoms, std::vector<std::string> &&names)
+      : id_(id), resname_(resname), atoms_(std::move(atoms)),
+        atom_names_(std::move(names)) {
+    ABSL_DCHECK_NE(id.chain, '\0');
+
+    ABSL_LOG_IF(INFO, resname_.size() > 3)
+        << "Residue name '" << resname_ << "' exceeds 3 characters; truncating";
+    resname_ = resname_.substr(0, 3);
+  }
+
+  ResidueId id() const { return id_; }
+
+  std::string_view name() const { return resname_; }
+
+  int natoms() const { return static_cast<int>(atoms_.size()); }
+
+  int write(std::string &out, bool atom, int serial, const Molecule &mol,
+            const Matrix3Xd &conf) const {
+    for (int i = 0; i < atoms_.size(); ++i, ++serial)
+      write_atom_single(out, atom, serial, mol[atoms_[i]], id_, atom_names_[i],
+                        resname_, conf.col(atoms_[i]));
+    return serial;
+  }
+
+  int write(std::string &out, bool atom, int serial,
+            const Molecule &mol) const {
+    Vector3d zero = Vector3d::Zero();
+
+    for (int i = 0; i < atoms_.size(); ++i, ++serial)
+      write_atom_single(out, atom, serial, mol[atoms_[i]], id_, atom_names_[i],
+                        resname_, zero);
+
+    return serial;
+  }
+
+private:
+  ResidueId id_;
+  std::string_view resname_;
+
+  std::vector<int> atoms_;
+  std::vector<std::string> atom_names_;
+};
+
+std::vector<std::vector<int>> group_atoms(const Molecule &mol) {
+  std::vector<std::vector<int>> groups(mol.num_substructures() + 1);
+
+  ArrayXi atom_to_sub = ArrayXi::Zero(mol.size());
+  for (int i = 0; i < mol.num_substructures(); ++i) {
+    const auto &sub = mol.substructures()[i];
+    if (sub.category() != SubstructCategory::kResidue)
+      continue;
+
+    for (auto atom: sub) {
+      int id = atom.as_parent().id();
+      if (atom_to_sub[id] > 0)
+        continue;
+
+      atom_to_sub[id] = i + 1;
+    }
+  }
+
+  for (int i = 0; i < mol.size(); ++i)
+    groups[atom_to_sub[i]].push_back(i);
+
+  return groups;
+}
+
+template <class PT>
+char get_sv_select0_default(PT &props, std::string_view key,
+                            char notfound = ' ') {
+  auto it = internal::find_key(props, key);
+  if (it == props.end() || it->second.empty())
+    return notfound;
+
+  ABSL_LOG_IF(INFO, it->second.size() > 1)
+      << "Value length " << it->second.size() << " for key '" << key
+      << "' exceeds 1";
+  return it->second[0];
+}
+
+ResidueId generate_rid_sub(const Substructure &sub) {
+  ResidueId id { sub.id(), get_sv_select0_default(sub.props(), "chain"),
+                 get_sv_select0_default(sub.props(), "icode") };
+
+  if (id.seqnum <= -1000 || id.seqnum >= 10000 || absl::ascii_iscntrl(id.chain)
+      || absl::ascii_iscntrl(id.icode)) {
+    ABSL_LOG(WARNING)
+        << "Invalid residue ID for substructure " << sub.id() << ": " << id;
+    id.chain = '\0';
+  }
+
+  return id;
+}
+
+std::vector<std::string> resolve_atom_names(const Molecule &mol,
+                                            const std::vector<int> &atoms) {
+  std::vector names = make_names_unique(atoms, [&](int i) -> std::string {
+    auto atom = mol.atom(atoms[i]);
+    std::string_view esym = atom.data().element_symbol();
+
+    std::string name(atom.data().get_name());
+    name = name.empty() ? esym : name;
+
+    if (name.size() < 4 && absl::StartsWithIgnoreCase(name, esym)
+        && esym.size() == 1) {
+      // one-letter atom name starts at col 14
+      name.insert(name.begin(), ' ');
+    } else if (name.size() > 4) {
+      ABSL_LOG(INFO)
+          << "Atom name '" << name << "' exceeds 4 characters; truncating";
+      name.resize(4);
+    }
+
+    return name;
+  });
+
+  if (absl::c_any_of(names,
+                     [](std::string_view name) { return name.size() > 4; })) {
+    ABSL_LOG(WARNING) << "Atom name exceeds 4 characters after deduplication";
+    names.clear();
+  }
+
+  return names;
+}
+
+constexpr std::string_view kUsualChainChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                           kFallbackChainChars =
+                               "abcdefghijklmnopqrstuvwxyz0123456789",
+                           kExtensionChainChars =
+                               " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+
+char find_first_nonempty(std::string_view trials, absl::CharSet allowed) {
+  absl::CharSet candidates = absl::CharSet(trials) & allowed;
+  for (char ch: trials) {
+    if (candidates.contains(ch))
+      return ch;
+  }
+  return '\0';
+}
+
+ResidueId next_chain_residue(const std::vector<PDBResolvedResidue> &residues) {
+  if (residues.empty())
+    return { 1, 'A', ' ' };
+
+  absl::CharSet current_chains;
+  for (const PDBResolvedResidue &res: residues)
+    current_chains = current_chains | absl::CharSet::Char(res.id().chain);
+
+  absl::CharSet available = ~current_chains;
+  for (std::string_view chain_candidates:
+       { kUsualChainChars, kFallbackChainChars, kExtensionChainChars }) {
+    char chain = find_first_nonempty(chain_candidates, available);
+    if (chain != '\0')
+      return { 1, chain, ' ' };
+  }
+
+  ABSL_LOG(WARNING) << "No single-letter chain characters available";
+  return { 1, '\0', ' ' };
+}
+
+std::vector<PDBResolvedResidue> resolve_residues(const Molecule &mol) {
+  std::vector<PDBResolvedResidue> residues;
+
+  std::vector<std::vector<int>> sub_to_atoms = group_atoms(mol);
+
+  for (int i = 0; i < mol.num_substructures(); ++i) {
+    if (sub_to_atoms[i + 1].empty())
+      continue;
+
+    const auto &sub = mol.substructures()[i];
+    ResidueId id = generate_rid_sub(sub);
+    if (id.chain == '\0') {
+      residues.clear();
+      return residues;
+    }
+
+    std::vector names = resolve_atom_names(mol, sub_to_atoms[i + 1]);
+    if (names.empty()) {
+      residues.clear();
+      return residues;
+    }
+
+    residues.push_back(
+        { id, sub.name(), std::move(sub_to_atoms[i + 1]), std::move(names) });
+  }
+
+  if (!sub_to_atoms[0].empty()) {
+    ResidueId id = next_chain_residue(residues);
+    if (id.chain == '\0') {
+      residues.clear();
+      return residues;
+    }
+
+    std::vector names = resolve_atom_names(mol, sub_to_atoms[0]);
+    if (names.empty()) {
+      residues.clear();
+      return residues;
+    }
+
+    residues.push_back(
+        { id, "UNK", std::move(sub_to_atoms[0]), std::move(names) });
+  }
+
+  return residues;
+}
+
+bool can_write_coordinates(const Matrix3Xd &pts) {
+  double min = pts.minCoeff(), max = pts.maxCoeff();
+  return min >= -999.999 && max <= 9999.999;
+}
+
+constexpr std::string_view kNonHetResidues[] {
+  "A",   "ALA", "ARG", "ASN", "ASP", "ASX", "C",   "CYS", "DA",
+  "DC",  "DG",  "DI",  "DT",  "G",   "GLN", "GLU", "GLX", "GLY",
+  "HIS", "I",   "ILE", "LEU", "LYS", "MET", "PHE", "PRO", "PYL",
+  "SEC", "SER", "T",   "THR", "TRP", "TYR", "VAL",
+};
+
+template <bool kIs3D>
+int write_pdb_single_conf(std::string &out, const Molecule &mol,
+                          const std::vector<PDBResolvedResidue> &residues,
+                          int serial, const int model, int conf) {
+  if (kIs3D && !can_write_coordinates(mol.confs()[conf])) {
+    ABSL_LOG(ERROR) << "Coordinates of conformation " << conf
+                    << " out of PDB range [-999.999, 9999.999]";
+    return -1;
+  }
+
+  if (model >= 10000) {
+    ABSL_LOG(ERROR) << "Model number " << model << " > 9999";
+    return -1;
+  }
+
+  if (model >= 0)
+    absl::StrAppendFormat(&out, "MODEL     %4d\n", model);
+
+  for (const PDBResolvedResidue &res: residues) {
+    if constexpr (kIs3D) {
+      serial = res.write(out,
+                         absl::c_binary_search(kNonHetResidues, res.name()),
+                         serial, mol, mol.confs()[conf]);
+    } else {
+      serial = res.write(
+          out, absl::c_binary_search(kNonHetResidues, res.name()), serial, mol);
+    }
+
+    ABSL_DCHECK_GE(serial, -9999);
+    ABSL_DCHECK_LE(serial, 99999);
+  }
+
+  if (model >= 0)
+    absl::StrAppend(&out, "ENDMDL\n");
+
+  return model + 1;
+}
+}  // namespace
+
+int write_pdb(std::string &out, const Molecule &mol, int model, int conf) {
+  const std::vector residues = resolve_residues(mol);
+  if (residues.empty()) {
+    ABSL_LOG(ERROR) << "Failed to resolve PDB residues";
+    return -1;
+  }
+
+  int max_serial = absl::c_accumulate(
+      residues, 0, [](int acc, const PDBResolvedResidue &res) {
+        return acc + res.natoms();
+      });
+  int start = nuri::min(1, 100000 - max_serial);
+  if (start <= -10000) {
+    ABSL_LOG(ERROR) << "Too many atoms for PDB format: " << max_serial;
+    return -1;
+  }
+
+  if (!mol.is_3d())
+    return write_pdb_single_conf<false>(out, mol, residues, start, model, -1);
+
+  if (conf >= 0)
+    return write_pdb_single_conf<true>(out, mol, residues, start, model, conf);
+
+  if (model < 0 && mol.confs().size() > 1)
+    model = 1;
+  for (int i = 0; i < mol.confs().size(); ++i) {
+    model = write_pdb_single_conf<true>(out, mol, residues, start, model, i);
+    if (model < 0)
+      return -1;
+  }
+
+  return model;
+}
 }  // namespace nuri
