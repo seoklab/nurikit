@@ -19,6 +19,7 @@
 #include "fmt_test_common.h"
 #include "test_utils.h"
 #include "nuri/algo/guess.h"
+#include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 #include "nuri/utils.h"
@@ -391,6 +392,51 @@ TEST_F(PDB1alxTest, HandleInconsistentResidues) {
       EXPECT_EQ(res_11[0].name(), "TYR");
     }
   }
+}
+
+TEST(PDBWriteTest, Molecule2D) {
+  Molecule mol;
+  {
+    auto mut = mol.mutator();
+    mut.add_atom({ kPt[6], 4, 0, constants::kSP3 });
+  }
+
+  std::vector mols = recovered(mol);
+  ASSERT_EQ(mols.size(), 1);
+
+  EXPECT_EQ(mols[0].num_atoms(), 1);
+  EXPECT_EQ(mols[0][0].data().atomic_number(), 6);
+}
+
+TEST(PDBWriteTest, MixedSubstructs) {
+  Molecule mol;
+  {
+    auto mut = mol.mutator();
+    mut.add_atom({ kPt[8], 2, 0, constants::kSP3 });
+    mut.add_atom({ kPt[8], 2, 0, constants::kSP3 });
+  }
+  Substructure &sub = mol.add_substructure(
+      mol.substructure({ 0 }, {}, SubstructCategory::kResidue));
+  sub.name() = "HOH";
+  sub.set_id(1);
+  sub.add_prop("chain", "A");
+
+  std::vector mols = recovered(mol);
+  ASSERT_EQ(mols.size(), 1);
+
+  ASSERT_EQ(mols[0].num_atoms(), 2);
+  EXPECT_EQ(mols[0][0].data().atomic_number(), 8);
+  EXPECT_EQ(mols[0][1].data().atomic_number(), 8);
+
+  ASSERT_EQ(mols[0].num_substructures(), 4);
+
+  EXPECT_EQ(mols[0].get_substructure(0).name(), "HOH");
+  EXPECT_EQ(mols[0].get_substructure(0).id(), 1);
+  EXPECT_EQ(internal::get_key(mols[0].get_substructure(0).props(), "chain"),
+            "A");
+
+  EXPECT_NE(internal::get_key(mols[0].get_substructure(1).props(), "chain"),
+            "A");
 }
 }  // namespace
 }  // namespace nuri
