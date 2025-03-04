@@ -76,3 +76,10 @@ def test_pdb_file(tmp_path: Path):
 def test_pdb_str():
     mols = list(nuri.readstring("pdb", pdb_data))
     _verify_mols(mols)
+
+    mols_re = [
+        mol
+        for pdb_re in map(nuri.to_pdb, mols)
+        for mol in nuri.readstring("pdb", pdb_re)
+    ]
+    _verify_mols(mols_re)

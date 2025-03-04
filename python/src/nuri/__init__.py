@@ -14,6 +14,7 @@ __all__ = [
     "to_smiles",
     "to_mol2",
     "to_sdf",
+    "to_pdb",
     "periodic_table",
     "__version__",
 ]
@@ -25,4 +26,4 @@ except ImportError:
 
 from . import _log_adapter
 from .core import periodic_table
-from .fmt import readfile, readstring, to_mol2, to_sdf, to_smiles
+from .fmt import readfile, readstring, to_mol2, to_sdf, to_smiles, to_pdb

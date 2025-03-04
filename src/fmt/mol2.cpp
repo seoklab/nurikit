@@ -682,44 +682,6 @@ SubstructInfo resolve_substructs(const Molecule &mol) {
   return info;
 }
 
-struct NameMapEntry {
-  int first_idx;
-  int count = 1;
-  std::string safe_name = {};  // NOLINT(readability-redundant-member-init)
-};
-
-template <class C, class NameFunc>
-std::vector<std::string> make_names_unique(const C &cont, NameFunc ith_name) {
-  std::vector<std::string> names;
-  names.reserve(cont.size());
-
-  absl::flat_hash_map<std::string_view, NameMapEntry> name_map;
-  name_map.reserve(cont.size());
-
-  for (int i = 0; i < cont.size(); ++i) {
-    std::string_view name = ith_name(i);
-    if (name.empty()) {
-      names.push_back({});
-      continue;
-    }
-
-    auto [it, first] = name_map.try_emplace(
-        name, NameMapEntry { static_cast<int>(names.size()) });
-    if (first) {
-      it->second.safe_name = internal::ascii_safe(name);
-      names.push_back(it->second.safe_name);
-      continue;
-    }
-
-    if (it->second.count == 1)
-      names[it->second.first_idx] = absl::StrCat(it->second.safe_name, "1");
-
-    names.push_back(absl::StrCat(it->second.safe_name, ++it->second.count));
-  }
-
-  return names;
-}
-
 std::string_view sybyl_subtype_hyb(constants::Hybridization hyb) {
   // NOLINTNEXTLINE(clang-diagnostic-switch-enum)
   switch (hyb) {
@@ -1107,7 +1069,7 @@ bool write_mol2(std::string &out, const Molecule &mol, int conf,
 
   const SubstructInfo subs_info = resolve_substructs(mol);
   std::vector substruct_names = make_names_unique(
-      subs_info.root_of_sub, [&mol, &subs_info](int idx) -> std::string_view {
+      subs_info.root_of_sub, [&mol, &subs_info](int idx) -> std::string {
         int root = subs_info.root_of_sub[idx];
         if (root < 0)
           return {};
@@ -1119,7 +1081,13 @@ bool write_mol2(std::string &out, const Molecule &mol, int conf,
         if (sub.name().empty())
           return "UNK";
 
-        return sub.name();
+        std::string name(internal::get_key(sub.props(), "chain"));
+        if (!name.empty()) {
+          absl::StrAppend(&name, sub.id(),
+                          internal::get_key(sub.props(), "icode"));
+        }
+        absl::StrAppend(&name, sub.name());
+        return name;
       });
   int substruct_id_width = width_of_size(subs_info.num_used_subs),
       substruct_name_width = max_size_of(substruct_names);

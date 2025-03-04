@@ -15,11 +15,14 @@
 #include <utility>
 #include <vector>
 
+#include <absl/container/flat_hash_map.h>
 #include <absl/log/absl_check.h>
+#include <absl/strings/str_cat.h>
 #include <boost/spirit/home/x3.hpp>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/molecule.h"
+#include "nuri/fmt/base.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -132,7 +135,9 @@ void pdb_update_substructs(
     sit->update(std::move(data.idxs), {});
     sit->name() = std::invoke(residue_member, data);
     sit->set_id(std::invoke(seq_member, data.id));
-    sit->add_prop("chain", std::invoke(chain_sv, data.id));
+    // Workaround GCC bug; produces "basic_string::_S_construct null not valid"
+    // exception when called directly with type std::string_view &
+    sit->add_prop("chain", std::string { std::invoke(chain_sv, data.id) });
 
     std::string_view icode = std::invoke(icode_sv, data.id);
     if (!icode.empty())
@@ -194,6 +199,47 @@ constexpr auto uint_trailing_blanks = TrailingBlanksRule<unsigned int>() =
     x3::uint_;
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming,*-unused-const-variable)
+
+struct NameMapEntry {
+  int first_idx;
+  int count = 1;
+  std::string safe_name = {};  // NOLINT(readability-redundant-member-init)
+};
+
+template <class C, class NameFunc,
+          class NameTemp = std::invoke_result_t<NameFunc, int>>
+// NOLINTNEXTLINE(clang-diagnostic-unused-template)
+std::vector<std::string> make_names_unique(const C &cont, NameFunc ith_name) {
+  std::vector<std::string> names;
+  names.reserve(cont.size());
+
+  absl::flat_hash_map<NameTemp, NameMapEntry> name_map;
+  name_map.reserve(cont.size());
+
+  for (int i = 0; i < cont.size(); ++i) {
+    NameTemp name = ith_name(i);
+
+    if (name.empty()) {
+      names.push_back({});
+      continue;
+    }
+
+    auto [it, first] = name_map.try_emplace(
+        std::move(name), NameMapEntry { static_cast<int>(names.size()) });
+    if (first) {
+      it->second.safe_name = internal::ascii_safe(it->first);
+      names.push_back(it->second.safe_name);
+      continue;
+    }
+
+    if (it->second.count == 1)
+      names[it->second.first_idx] = absl::StrCat(it->second.safe_name, "1");
+
+    names.push_back(absl::StrCat(it->second.safe_name, ++it->second.count));
+  }
+
+  return names;
+}
 }  // namespace
 }  // namespace nuri
 #endif /* NURI_FMT_FMT_INTERNAL_H_ */
