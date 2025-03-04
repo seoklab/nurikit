@@ -27,8 +27,15 @@ NURI_FUZZ_MAIN(data, size) {
   nuri::PDBReader reader(iss);
 
   std::vector<std::string> block;
-  while (reader.getnext(block))
+  while (reader.getnext(block)) {
     nuri::Molecule mol = reader.parse(block);
+
+    std::string buf;
+    nuri::write_pdb(buf, mol);
+
+    mol.confs().clear();
+    nuri::write_pdb(buf, mol);
+  }
 
   return 0;
 }

@@ -45,7 +45,7 @@ fi
 LLVM_PROFILE_FILE='coverage.profraw' \
 	LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) /usr/lib/x86_64-linux-gnu/libubsan.so.1" \
 	UBSAN_OPTIONS="suppressions=$suppression print_stacktrace=1" \
-	echo -- "$exe" "$corpus" "$@"
+	"$exe" "$corpus" "$@"
 
 if [[ $coverage == true ]]; then
 	llvm-profdata merge -sparse coverage.profraw -o coverage.profdata
