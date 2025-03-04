@@ -15,8 +15,9 @@
 #include <utility>
 #include <vector>
 
+#include <absl/container/flat_hash_map.h>
 #include <absl/log/absl_check.h>
-#include <absl/strings/str_join.h>
+#include <absl/strings/str_cat.h>
 #include <boost/spirit/home/x3.hpp>
 
 #include "nuri/eigen_config.h"
@@ -207,6 +208,7 @@ struct NameMapEntry {
 
 template <class C, class NameFunc,
           class NameTemp = std::invoke_result_t<NameFunc, int>>
+// NOLINTNEXTLINE(clang-diagnostic-unused-template)
 std::vector<std::string> make_names_unique(const C &cont, NameFunc ith_name) {
   std::vector<std::string> names;
   names.reserve(cont.size());
