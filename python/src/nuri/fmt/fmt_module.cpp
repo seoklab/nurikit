@@ -27,6 +27,7 @@
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 #include "nuri/fmt/mol2.h"
+#include "nuri/fmt/pdb.h"
 #include "nuri/fmt/sdf.h"
 #include "nuri/fmt/smiles.h"
 #include "nuri/python/core/core_module.h"
@@ -260,6 +261,29 @@ Convert a molecule to SDF string.
 :raises IndexError: If the molecule has any conformations and `conf` is out of
   range.
 :raises ValueError: If the conversion fails, or if the version is invalid.
+)doc")
+      .def(
+          "to_pdb",
+          [](const PyMol &pmol, std::optional<int> oconf) {
+            int conf = writer_check_conf(*pmol, oconf);
+            return try_write(*pmol, "PDB",
+                             [&](std::string &buf, const Molecule &mol) {
+                               return write_pdb(buf, mol, -1, conf) >= 0;
+                             });
+          },
+          py::arg("mol"), py::arg("conf") = py::none(), kThreadSafe, R"doc(
+Convert a molecule to PDB string.
+
+:param mol: The molecule to convert.
+:param conf: The conformation to convert. If not specified, writes all
+conformations. Ignored if the molecule has no conformations.
+:raises IndexError: If the molecule has any conformations and `conf` is out of
+range.
+:raises ValueError: If the conversion fails.
+.. note::
+  Unlike most other formats, PDB does not support writing multiple different
+  molecules in a single file. Simply concatenating the results of this function
+  will not produce a valid PDB file.
 )doc");
 
   bind_cif(m);
