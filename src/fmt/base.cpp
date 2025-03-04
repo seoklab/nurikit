@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include <absl/algorithm/container.h>
 #include <absl/base/optimization.h>
 #include <absl/container/flat_hash_map.h>
 #include <absl/log/absl_check.h>
@@ -39,13 +40,27 @@ namespace internal {
 std::string ascii_safe(std::string_view str) {
   std::string ret(str);
 
-  for (char &c: ret) {
+  auto begin = absl::c_find_if_not(ret, absl::ascii_isspace),
+       end = std::find_if_not(ret.rbegin(), ret.rend(), absl::ascii_isspace)
+                 .base();
+
+  if (ABSL_PREDICT_FALSE(begin == ret.end())) {
+    ret.clear();
+    return ret;
+  }
+
+  std::fill(ret.begin(), begin, ' ');
+
+  for (auto it = begin; it < end; ++it) {
+    char &c = *it;
     if (absl::ascii_isspace(c)) {
       c = '_';
     } else if (ABSL_PREDICT_FALSE(!absl::ascii_isprint(c))) {
       c = '?';
     }
   }
+
+  std::fill(end, ret.end(), ' ');
 
   return ret;
 }
