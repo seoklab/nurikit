@@ -150,6 +150,8 @@ namespace internal {
 
       Vector3d ux, uy;
       bool h_fixed = false;
+      int begin = atom.degree() - atom.data().implicit_hydrogens(),
+          end = atom.degree();
 
       // Possible combination of (degree, implicit H):
       // - (3, 3), (2, 2): free, just assign any position
@@ -158,6 +160,9 @@ namespace internal {
       if (atom.degree() == atom.data().implicit_hydrogens()) {
         ux = Vector3d::UnitX();
         uy = Vector3d::UnitY();
+
+        conf.col(atom[0].dst().id()) = conf.col(atom.id()) - xhd * uy;
+        begin = 1;
       } else if (auto nit = find_transitive_neighbor_sp2(atom, h_begin);
                  !nit.end()) {
         h_fixed = atom.degree() == 3;
@@ -173,7 +178,7 @@ namespace internal {
       }
 
       place_initial_xc_yc(atom, conf, xhd * constants::kCos30 * ux,
-                          xhd * constants::kCos60 * uy);
+                          xhd * constants::kCos60 * uy, begin, end);
       return h_fixed;
     }
 
@@ -209,8 +214,7 @@ namespace internal {
     bool place_initial_sp3(Molecule::Atom atom, Matrix3Xd &conf,
                            const int h_begin) {
       const double xhd = xh_length_approx(atom.data());
-      const int nh = atom.data().implicit_hydrogens(),
-                nfixed = atom.degree() - nh;
+      int nh = atom.data().implicit_hydrogens(), nfixed = atom.degree() - nh;
 
       switch (nfixed) {
       case 3:
@@ -241,6 +245,9 @@ namespace internal {
         axes.col(1) = axes.col(2).cross(axes.col(0));
       } else {
         axes = Matrix3d::Identity();
+
+        conf.col(atom[0].dst().id()) = conf.col(atom.id()) - xhd * axes.col(2);
+        --nh;
       }
 
       axes *= xhd / 3;
