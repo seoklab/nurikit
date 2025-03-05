@@ -2214,7 +2214,9 @@ ResidueId generate_rid_sub(const Substructure &sub) {
 }
 
 std::vector<std::string> resolve_atom_names(const Molecule &mol,
-                                            const std::vector<int> &atoms) {
+                                            const std::vector<int> &atoms,
+                                            const ResidueId &rid,
+                                            std::string_view resname) {
   std::vector names = make_names_unique(atoms, [&](int i) -> std::string {
     auto atom = mol.atom(atoms[i]);
     std::string_view esym = atom.data().element_symbol();
@@ -2241,7 +2243,9 @@ std::vector<std::string> resolve_atom_names(const Molecule &mol,
             << "Atom name too long: '" << name << "' (" << name.size() << ")";
         return bad;
       })) {
-    ABSL_LOG(WARNING) << "Atom name exceeds 4 characters after deduplication";
+    ABSL_LOG(WARNING)
+        << "Atom name exceeds 4 characters after deduplication for residue "
+        << rid << " (" << resname << ")";
     names.clear();
   }
 
@@ -2309,7 +2313,8 @@ std::vector<PDBResolvedResidue> resolve_residues(const Molecule &mol) {
       return residues;
     }
 
-    std::vector names = resolve_atom_names(mol, sub_to_atoms[i + 1]);
+    std::vector names =
+        resolve_atom_names(mol, sub_to_atoms[i + 1], id, sub.name());
     if (names.empty()) {
       residues.clear();
       return residues;
@@ -2326,7 +2331,7 @@ std::vector<PDBResolvedResidue> resolve_residues(const Molecule &mol) {
       return residues;
     }
 
-    std::vector names = resolve_atom_names(mol, sub_to_atoms[0]);
+    std::vector names = resolve_atom_names(mol, sub_to_atoms[0], id, "UNK");
     if (names.empty()) {
       residues.clear();
       return residues;
