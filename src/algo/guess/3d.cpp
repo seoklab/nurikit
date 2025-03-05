@@ -1469,7 +1469,9 @@ namespace {
         continue;
 
       for (auto nej: nei.dst()) {
-        if (nej.dst().id() == atom.id())
+        // aromatic very unlikely here, and single-single or double-double
+        // bond is unlikely to be conjugated
+        if (nej.edge_data().order() == nei.edge_data().order())
           continue;
 
         if (test_bond_order_can_conjugate(nei, nej)
