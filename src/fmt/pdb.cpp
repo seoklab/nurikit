@@ -1698,6 +1698,8 @@ public:
     const Element *element = PeriodicTable::get().find_element(elem_symb);
     if (element != nullptr) {
       data.set_element(*element);
+    } else if (elem_symb == "D") {
+      data.set_element(1);
     } else {
       // TODO(jnooree): extract element from name if symbol is invalid.
       ABSL_LOG(WARNING) << "Invalid element symbol: " << elem_symb;
