@@ -2222,23 +2222,37 @@ std::vector<std::string> resolve_atom_names(const Molecule &mol,
     std::string name(atom.data().get_name());
     name = name.empty() ? esym : name;
 
-    if (name.size() < 4 && absl::StartsWithIgnoreCase(name, esym)
-        && esym.size() == 1) {
-      // one-letter atom name starts at col 14
-      name.insert(name.begin(), ' ');
-    } else if (name.size() > 4) {
-      ABSL_LOG(INFO)
-          << "Atom name '" << name << "' exceeds 4 characters; truncating";
-      name.resize(4);
+    if (name.size() > 4) {
+      absl::StripAsciiWhitespace(&name);
+
+      if (name.size() > 4) {
+        ABSL_LOG(INFO)
+            << "Atom name '" << name << "' exceeds 4 characters; truncating";
+        name.resize(4);
+      }
     }
 
     return name;
   });
 
-  if (absl::c_any_of(names,
-                     [](std::string_view name) { return name.size() > 4; })) {
+  if (absl::c_any_of(names, [](std::string_view name) {
+        bool bad = name.size() > 4;
+        ABSL_LOG_IF(INFO, bad)
+            << "Atom name too long: '" << name << "' (" << name.size() << ")";
+        return bad;
+      })) {
     ABSL_LOG(WARNING) << "Atom name exceeds 4 characters after deduplication";
     names.clear();
+  }
+
+  for (int i = 0; i < atoms.size(); i++) {
+    std::string_view esym = mol[atoms[i]].data().element_symbol();
+    std::string &name = names[i];
+    if (name.size() < 4 && esym.size() == 1
+        && absl::StartsWithIgnoreCase(name, esym)) {
+      // one-letter atom name starts at col 14
+      name.insert(name.begin(), ' ');
+    }
   }
 
   return names;
