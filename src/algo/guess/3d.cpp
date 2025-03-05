@@ -733,8 +733,9 @@ namespace {
   }
 
   void assign_priority_single(Molecule::MutableAtom atom) {
-    if (atom.degree() < 3 || atom.data().hybridization() != constants::kSP3
-        || atom.data().element().period() > 2)
+    if (atom.data().element().period() != 1
+        && (atom.degree() < 3 || atom.data().hybridization() != constants::kSP3
+            || atom.data().element().period() > 2))
       return;
 
     for (auto nei: atom)
@@ -752,6 +753,8 @@ namespace {
       auto nei = atom[i];
       if (nei.edge_data().order() > constants::kSingleBond)
         return;
+      if (nei.dst().data().element().period() == 1)
+        continue;
 
       if (nei.edge_data().order() == constants::kOtherBond) {
         auto nei_hyb = nei.dst().data().hybridization();
@@ -791,8 +794,9 @@ namespace {
     auto bo_req = static_cast<constants::BondOrder>(4 - n2.edge_data().order());
     // triple -> max sp (2), double -> sp2 (3), single -> sp3 (4)
     auto max_hyb = static_cast<constants::Hybridization>(5 - bo_req);
-    if (n1.dst().data().hybridization() != constants::kOtherHyb
-        && n1.dst().data().hybridization() > max_hyb)
+    if ((n1.dst().data().hybridization() != constants::kOtherHyb
+         && n1.dst().data().hybridization() > max_hyb)
+        || n1.dst().data().element().period() == 1)
       return;
 
     n1.edge_data().set_order(bo_req);
