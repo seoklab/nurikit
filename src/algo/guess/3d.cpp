@@ -1338,6 +1338,9 @@ namespace {
       return false;
     }
 
+    if (atom.data().element().period() == 1)
+      return false;
+
     return (atom.degree() == 3 && atom.data().hybridization() <= constants::kSP2
             && atom.data().implicit_hydrogens() == 0)
            || (atom.degree() <= 2 && hyb_incorrect_atom_can_conjugate(atom));
