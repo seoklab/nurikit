@@ -837,14 +837,16 @@ namespace {
 
   // We will just assume formal charges are incorrect yet
   // NOTE: also update test_ring_aromatic if you change this
-  bool count_pi_e_possible(Molecule::MutableAtom atom, const Matrix3Xd &pos,
+  bool count_pi_e_possible(Molecule::MutableAtom atom,
+                           const absl::flat_hash_set<int> &ring_atoms,
                            absl::InlinedVector<PiElecArgs, 2> &pi_e) {
     ABSL_DCHECK(atom.degree() < 4);
 
     int exo_neighbor =
         absl::c_find_if(atom,
-                        [](Molecule::Neighbor nei) {
-                          return !nei.dst().data().is_ring_atom();
+                        [&](Molecule::Neighbor nei) {
+                          return !nei.dst().data().is_ring_atom()
+                                 || !ring_atoms.contains(nei.dst().id());
                         })
         - atom.begin();
 
@@ -853,7 +855,6 @@ namespace {
       auto enei = atom[exo_neighbor];
       auto exo = enei.dst();
 
-      assign_priority_double_sp2(exo, pos);
       // Carbon with exocyclic double bond is unlikely to be aromatic
       if (exo.data().atomic_number() == 6
           && enei.edge_data().order() == constants::kDoubleBond) {
@@ -955,7 +956,8 @@ namespace {
   void test_ring_aromatic(
       Molecule &mol, const std::vector<int> &ring,
       absl::flat_hash_map<int, absl::InlinedVector<PiElecArgs, 2>>
-          &pi_e_estimates) {
+          &pi_e_estimates,
+      const Matrix3Xd &pos) {
     absl::FixedArray<absl::InlinedVector<PiElecArgs, 2> *> args(ring.size());
     absl::InlinedVector<int, 7> variable;
     Array<int, Eigen::Dynamic, 1, 0, 7, 1> pie_cnt(ring.size()),
@@ -1025,6 +1027,7 @@ namespace {
       if (pi_e.exo_single_partner >= 0) {
         auto exo = atom[pi_e.exo_single_partner];
         exo.edge_data().set_order(constants::kSingleBond);
+        assign_priority_double_sp2(exo.dst(), pos);
       } else if (pi_e.exo_double_partner >= 0) {
         auto exo = atom[pi_e.exo_double_partner];
 
@@ -1050,6 +1053,9 @@ namespace {
   void find_aromatics(Molecule &mol, const Matrix3Xd &pos,
                       const std::vector<std::vector<int>> &rings) {
     absl::flat_hash_map<int, absl::InlinedVector<PiElecArgs, 2>> pi_e_estimates;
+    absl::flat_hash_set<int> ring_atoms;
+    for (const auto &ring: rings)
+      ring_atoms.insert(ring.begin(), ring.end());
 
     for (auto &ring: rings) {
       if (ring.size() < 5 || ring.size() > 7)
@@ -1066,13 +1072,13 @@ namespace {
           break;
         }
 
-        all_cnd = count_pi_e_possible(atom, pos, pi_e_estimates[i]);
+        all_cnd = count_pi_e_possible(atom, ring_atoms, pi_e_estimates[i]);
         if (!all_cnd)
           break;
       }
 
       if (all_cnd)
-        test_ring_aromatic(mol, ring, pi_e_estimates);
+        test_ring_aromatic(mol, ring, pi_e_estimates, pos);
     }
   }
 
