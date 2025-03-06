@@ -653,7 +653,7 @@ namespace internal {
           rvdw_sq_inv_[i] =
               mol[i].data().element().vdw_radius() + kPt[1].vdw_radius();
         }
-        rvdw_sq_inv_ = (rvdw_sq_inv_ * 0.75).square().inverse();
+        rvdw_sq_inv_ = rvdw_sq_inv_.square().inverse();
         hh_rvdw_sq_inv_ = rvdw_sq_inv_[mol.size() - 1];
 
         OCTree octree(conf);
@@ -853,7 +853,7 @@ namespace internal {
 
     auto result = minimizer.minimize(
         [&](ArrayXd &gx, ConstRef<ArrayXd> x) {
-          return hydrogen_minimizer_funcgrad(h_proxy, gx, x, 1, 1, 0.1);
+          return hydrogen_minimizer_funcgrad(h_proxy, gx, x, 1, 1e-3, 1e-4);
         },
         1e+7, 1e-1, 300, 300);
     if (result.code != LbfgsbResultCode::kSuccess) {
@@ -864,9 +864,9 @@ namespace internal {
 
     result = minimizer.minimize(
         [&](ArrayXd &gx, ConstRef<ArrayXd> x) {
-          return hydrogen_minimizer_funcgrad(h_proxy, gx, x, 1, 10, 1);
+          return hydrogen_minimizer_funcgrad(h_proxy, gx, x, 0.1, 10, 1);
         },
-        1e+7, 1e-1, 300, 300);
+        1e+7, 1e-2, 300, 300);
     if (result.code != LbfgsbResultCode::kSuccess) {
       ABSL_LOG(WARNING) << "Hydrogen optimization failed or terminated "
                            "prematurely; not updating hydrogen coordinates";
