@@ -169,6 +169,16 @@ constexpr double deg2rad(DT deg) {
   return deg * constants::kPi / 180;
 }
 
+template <class DT, std::enable_if_t<std::is_floating_point_v<DT>, int> = 0>
+constexpr DT rad2deg(DT rad) {
+  return rad * 180 / constants::kPi;
+}
+
+template <class DT, std::enable_if_t<std::is_integral_v<DT>, int> = 0>
+constexpr double rad2deg(DT rad) {
+  return rad * 180 / constants::kPi;
+}
+
 template <class MatrixLike>
 void pdistsq(MutRef<ArrayX<typename MatrixLike::Scalar>> distsq,
              const MatrixLike &m) {
