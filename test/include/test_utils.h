@@ -7,6 +7,7 @@
 #define NURI_TEST_TEST_UTILS_H_
 
 #include <string_view>
+#include <utility>
 
 #include <absl/strings/ascii.h>
 #include <absl/strings/str_split.h>
@@ -35,6 +36,13 @@
 
 #define NURI_EXPECT_STRTRIM_EQ(a, b)                                           \
   EXPECT_PRED2(nuri::internal::expect_line_eq_trim, (a), (b))
+
+#define NURI_WRITE_ONCE(func, ...)                                             \
+  nuri::internal::write_once_impl(                                             \
+      [](auto &&...args) -> decltype(auto) {                                   \
+        return (func)(std::forward<decltype(args)>(args)...);                  \
+      },                                                                       \
+      ##__VA_ARGS__)
 
 namespace nuri {
 namespace internal {
@@ -70,6 +78,13 @@ inline bool expect_line_eq_trim(std::string_view lhs, std::string_view rhs) {
   }
 
   return lit == lhs_split.end() && rit == rhs_split.end();
+}
+
+template <class Func, class... Args>
+std::string write_once_impl(Func &&func, Args &&...args) {
+  std::string out;
+  std::invoke(std::forward<Func>(func), out, std::forward<Args>(args)...);
+  return out;
 }
 }  // namespace internal
 }  // namespace nuri
