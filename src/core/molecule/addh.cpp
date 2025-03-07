@@ -41,8 +41,9 @@ namespace internal {
     Vector3d mean_unit_of_first_n(Molecule::Atom atom, const Matrix3Xd &conf,
                                   const int n) {
       Vector3d mean = safe_normalized(
-          (conf(Eigen::all, as_index(atom)).leftCols(n).colwise()
-           - conf.col(atom.id()))
+          safe_colwise_normalized(
+              conf(Eigen::all, as_index(atom)).leftCols(n).colwise()
+              - conf.col(atom.id()))
               .rowwise()
               .sum());
       return mean;
