@@ -885,7 +885,8 @@ namespace internal {
         [&](ArrayXd &gx, ConstRef<ArrayXd> x) {
           return hydrogen_minimizer_funcgrad(h_proxy, gx, x, 0.1, 10, 1);
         },
-        1e+7, 1e-2, 300, 300);
+        1e+7, nuri::min(1e-1, static_cast<double>(free_hs.size()) * 5e-4), 300,
+        300);
     if (result.code != LbfgsbResultCode::kSuccess) {
       ABSL_LOG(WARNING) << "Hydrogen optimization failed or terminated "
                            "prematurely; not updating hydrogen coordinates";
