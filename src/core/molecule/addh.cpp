@@ -276,17 +276,25 @@ namespace internal {
             - conf.col(atom.id()));
       safe_colwise_normalize(axes.rightCols<2>());
 
-      // two vectors have angle > 150 degrees, likely to be on the axial
-      // positions
-      if (-axes.col(1).dot(axes.col(2)) > constants::kCos30) {
+      const double cos_vecs = -axes.col(1).dot(axes.col(2));
+      if (cos_vecs > constants::kCos30) {
+        // two vectors have angle > 150 degrees, likely to be on the axial
+        // positions
         axes.col(1) = any_perpendicular(axes.col(2));
         axes.col(0) = axes.col(1).cross(axes.col(2));
 
         cnts = { 2, 1, 0 };
-      } else {
+      } else if (cos_vecs < -constants::kCos102) {
+        // two vectors have angle < 102 degrees, one on the axial and the other
+        // on the equatorial position
+        axes.col(1) = -axes.col(1);
         axes.col(0) = safe_normalized(axes.col(1).cross(axes.col(2)));
-
         cnts = { 2, 0, 1 };
+      } else {
+        // Both on the equatorial positions
+        axes.col(1) = safe_normalized(axes.rightCols<2>().rowwise().sum());
+        axes.col(2) = safe_normalized(axes.col(1).cross(axes.col(2)));
+        cnts = { 0, 1, 2 };
       }
 
       return { axes, cnts };
@@ -319,7 +327,8 @@ namespace internal {
       Matrix3d axes;
 
       int min_idx;
-      const double min_cos = cos_xyz.minCoeff(&min_idx);
+      const double min_cos = cos_xyz.minCoeff(&min_idx),
+                   max_cos = cos_xyz.maxCoeff();
       const int cmpl = selector[2][min_idx];
 
       if (-min_cos > constants::kCos30) {
@@ -331,6 +340,15 @@ namespace internal {
             vecs.col(cmpl).cross(vecs.col(selector[0][min_idx])));
 
         cnts = { 2, 0, 0 };
+      } else if (-max_cos < -constants::kCos102) {
+        // any of the vectors have angle < 102 degrees
+        // two equatorial, one axial -> we need yz axis
+
+        axes.col(1) = safe_normalized(vecs.col(selector[0][min_idx])
+                                      + vecs.col(selector[1][min_idx]));
+        axes.col(2) = vecs.col(cmpl);
+
+        cnts = { 0, 1, 1 };
       } else {
         // xyz vectors likely form sp2 part of the molecule
         // -> we only need z axis
