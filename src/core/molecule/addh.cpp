@@ -697,12 +697,12 @@ namespace internal {
               } else {
                 neighbors(h).free_far.push_back(k_h);
               }
-            } else if (near && !free_h && j != k) {
+            } else if (near && !free_h) {
               neighbors(h).fixed_near.push_back({ k, 1 / dsqbuf[ki] });
             }
 
             ++ki;
-            return free_h || near;
+            return free_h || near || j == k;
           });
         }
       }
