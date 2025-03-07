@@ -9,8 +9,12 @@
 #include <string_view>
 #include <utility>
 
+#include <absl/log/absl_check.h>
 #include <absl/strings/ascii.h>
 #include <absl/strings/str_split.h>
+
+#include "nuri/core/molecule.h"
+#include "nuri/fmt/base.h"
 
 #define NURI_EXPECT_EIGEN_EQ(a, b)                                             \
   EXPECT_PRED2(                                                                \
@@ -78,6 +82,13 @@ inline bool expect_line_eq_trim(std::string_view lhs, std::string_view rhs) {
   }
 
   return lit == lhs_split.end() && rit == rhs_split.end();
+}
+
+inline Molecule read_first(std::string_view fmt, std::string_view data) {
+  StringMoleculeReader<> reader(fmt, std::string { data });
+  MoleculeStream<> stream = reader.stream();
+  ABSL_CHECK(stream.advance());
+  return stream.current();
 }
 
 template <class Func, class... Args>
