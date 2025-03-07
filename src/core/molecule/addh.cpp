@@ -326,9 +326,9 @@ namespace internal {
 
       Matrix3d axes;
 
-      int min_idx;
+      int min_idx, max_idx;
       const double min_cos = cos_xyz.minCoeff(&min_idx),
-                   max_cos = cos_xyz.maxCoeff();
+                   max_cos = cos_xyz.maxCoeff(&max_idx);
       const int cmpl = selector[2][min_idx];
 
       if (-min_cos > constants::kCos30) {
@@ -353,10 +353,10 @@ namespace internal {
         // xyz vectors likely form sp2 part of the molecule
         // -> we only need z axis
 
-        // for numerical stability, select any one that does not have the
-        // largest angle
-        axes.col(2) = safe_normalized(
-            vecs.col(selector[0][cmpl]).cross(vecs.col(selector[1][cmpl])));
+        // for numerical stability, select one with the smallest angle
+        axes.col(2) =
+            safe_normalized(vecs.col(selector[0][max_idx])
+                                .cross(vecs.col(selector[1][max_idx])));
 
         cnts = { 0, 0, 2 };
       }
