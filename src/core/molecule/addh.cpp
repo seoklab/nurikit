@@ -335,7 +335,7 @@ namespace internal {
         // two of the vectors are collinear
         // -> we only need xy axis
 
-        axes.col(1) = vecs.col(cmpl);
+        axes.col(1) = -vecs.col(cmpl);
         axes.col(0) = safe_normalized(
             vecs.col(cmpl).cross(vecs.col(selector[0][min_idx])));
 
