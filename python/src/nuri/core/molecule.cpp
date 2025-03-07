@@ -956,12 +956,19 @@ the molecule.
 )doc")
       .def(
           "reveal_hydrogens",
-          [](PyMol &self, bool update_confs, bool optimize) {
+          [](PyMol &self, bool update_confs, bool optimize,
+             const pyt::List<double> &params) {
             absl::Cleanup c = [&] { self.tick(); };
-            if (!self->add_hydrogens(update_confs, optimize))
+            if (!self->add_hydrogens(
+                    update_confs, optimize, params[0].cast<double>(),
+                    { params[1].cast<double>(), params[2].cast<double>(),
+                      params[3].cast<double>() },
+                    { params[4].cast<double>(), params[5].cast<double>(),
+                      params[6].cast<double>() }))
               throw py::value_error("failed to add hydrogens");
           },
           py::arg("update_confs") = true, py::arg("optimize") = true,
+          py::arg("params") = py::none(),
           R"doc(
 Convert implicit hydrogen atoms of the molecule to explicit hydrogens.
 

@@ -667,7 +667,7 @@ namespace internal {
     class FreeHProxy {
     public:
       FreeHProxy(const Molecule &mol, Matrix3Xd &conf, const Matrix3Xd &current,
-                 const std::vector<int> &free_hs)
+                 const std::vector<int> &free_hs, double vdw_scale)
           : opt_blsq_inv_(free_hs.size()), unbound_neigh_(free_hs.size()),
             rvdw_sq_inv_(mol.size()),  //
             mol_(&mol), conf_(&conf), free_hs_(&free_hs) {
@@ -682,7 +682,7 @@ namespace internal {
           rvdw_sq_inv_[i] =
               mol[i].data().element().vdw_radius() + kPt[1].vdw_radius();
         }
-        rvdw_sq_inv_ = rvdw_sq_inv_.square().inverse();
+        rvdw_sq_inv_ = (rvdw_sq_inv_ * vdw_scale).square().inverse();
         hh_rvdw_sq_inv_ = rvdw_sq_inv_[mol.size() - 1];
 
         OCTree octree(conf);
@@ -869,12 +869,14 @@ namespace internal {
   }  // namespace
 
   bool optimize_free_hydrogens(const Molecule &mol, Matrix3Xd &conf,
-                               const std::vector<int> &free_hs) {
+                               const std::vector<int> &free_hs,
+                               double vdw_scale, OptimizeHParam stage1,
+                               OptimizeHParam stage2) {
     if (free_hs.empty())
       return true;
 
     Matrix3Xd current = conf(Eigen::all, free_hs);
-    FreeHProxy h_proxy(mol, conf, current, free_hs);
+    FreeHProxy h_proxy(mol, conf, current, free_hs, vdw_scale);
 
     ArrayXi nbd = ArrayXi::Zero(current.size());
     Array2Xd bds(2, current.size());
@@ -882,7 +884,9 @@ namespace internal {
 
     auto result = minimizer.minimize(
         [&](ArrayXd &gx, ConstRef<ArrayXd> x) {
-          return hydrogen_minimizer_funcgrad(h_proxy, gx, x, 1, 1e-3, 1e-4);
+          return hydrogen_minimizer_funcgrad(h_proxy, gx, x, stage1.lj_weight,
+                                             stage1.bl_weight,
+                                             stage1.ba_weight);
         },
         1e+7, 1e-1, 300, 300);
     if (result.code != LbfgsbResultCode::kSuccess) {
@@ -891,16 +895,20 @@ namespace internal {
       return false;
     }
 
-    result = minimizer.minimize(
-        [&](ArrayXd &gx, ConstRef<ArrayXd> x) {
-          return hydrogen_minimizer_funcgrad(h_proxy, gx, x, 0.1, 10, 1);
-        },
-        1e+7, nuri::min(1e-1, static_cast<double>(free_hs.size()) * 5e-4), 300,
-        300);
-    if (result.code != LbfgsbResultCode::kSuccess) {
-      ABSL_LOG(WARNING) << "Hydrogen optimization failed or terminated "
-                           "prematurely; not updating hydrogen coordinates";
-      return false;
+    if (stage2.lj_weight >= 0) {
+      result = minimizer.minimize(
+          [&](ArrayXd &gx, ConstRef<ArrayXd> x) {
+            return hydrogen_minimizer_funcgrad(h_proxy, gx, x, stage2.lj_weight,
+                                               stage2.bl_weight,
+                                               stage2.ba_weight);
+          },
+          1e+7, nuri::min(1e-1, static_cast<double>(free_hs.size()) * 5e-4),
+          300, 300);
+      if (result.code != LbfgsbResultCode::kSuccess) {
+        ABSL_LOG(WARNING) << "Hydrogen optimization failed or terminated "
+                             "prematurely; not updating hydrogen coordinates";
+        return false;
+      }
     }
 
     conf(Eigen::all, free_hs) = current;
@@ -908,7 +916,9 @@ namespace internal {
   }
 }  // namespace internal
 
-bool Molecule::add_hydrogens(const bool update_confs, const bool optimize) {
+bool Molecule::add_hydrogens(const bool update_confs, const bool optimize,
+                             double vdw_scale, internal::OptimizeHParam opt1,
+                             internal::OptimizeHParam opt2) {
   const int h_begin = size();
 
   {
@@ -949,7 +959,8 @@ bool Molecule::add_hydrogens(const bool update_confs, const bool optimize) {
 
     if (!optimize)
       continue;
-    if (!internal::optimize_free_hydrogens(*this, conf, free_hs))
+    if (!internal::optimize_free_hydrogens(*this, conf, free_hs, vdw_scale,
+                                           opt1, opt2))
       return false;
   }
 

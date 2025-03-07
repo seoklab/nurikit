@@ -1059,17 +1059,27 @@ namespace internal {
                            UnaryPred &&pred) {
     return { substructs, std::forward<UnaryPred>(pred) };
   }
+}  // namespace internal
+
+using Substructure = internal::Substructure<false>;
+using ConstSubstructure = internal::Substructure<true>;
+
+namespace internal {
+  struct OptimizeHParam {
+    double lj_weight;
+    double bl_weight;
+    double ba_weight;
+  };
 
   extern std::pair<std::vector<int>, bool>
   place_trailing_hydrogens_initial(const Molecule &mol, Matrix3Xd &conf,
                                    int h_begin);
 
   extern bool optimize_free_hydrogens(const Molecule &mol, Matrix3Xd &conf,
-                                      const std::vector<int> &free_hs);
+                                      const std::vector<int> &free_hs,
+                                      double vdw_scale, OptimizeHParam stage1,
+                                      OptimizeHParam stage2);
 }  // namespace internal
-
-using Substructure = internal::Substructure<false>;
-using ConstSubstructure = internal::Substructure<true>;
 
 /**
  * @brief Read-only molecule class.
@@ -1493,8 +1503,11 @@ public:
    *         When this function returns false, the coordinates of the newly
    *         added hydrogens are not guaranteed to be chemically valid.
    */
-  ABSL_MUST_USE_RESULT bool add_hydrogens(bool update_confs = true,
-                                          bool optimize = true);
+  ABSL_MUST_USE_RESULT bool
+  add_hydrogens(bool update_confs = true, bool optimize = true,
+                double vdw_scale = 1.0,
+                internal::OptimizeHParam opt1 = { 1.0, 1e-3, 1e-4 },
+                internal::OptimizeHParam opt2 = { 0.1, 10.0, 1.0 });
 
   /**
    * @brief Erase all trivial hydrogens from the molecule.
