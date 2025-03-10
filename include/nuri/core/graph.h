@@ -22,6 +22,7 @@
 #include <absl/container/flat_hash_set.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
+#include <boost/container/flat_set.hpp>
 #include <boost/iterator/iterator_facade.hpp>
 #include <Eigen/Dense>
 /// @endcond
@@ -1779,107 +1780,55 @@ namespace internal {
     }
   };
 
-  class SortedIdxs {
+  class IndexSet
+      : public boost::container::flat_set<int, std::less<>, std::vector<int>> {
+  private:
+    using Base = boost::container::flat_set<int, std::less<>, std::vector<int>>;
+
   public:
-    SortedIdxs() = default;
+    using Base::Base;
 
-    SortedIdxs(const std::vector<int> &idxs): idxs_(idxs) { init(); }
-
-    SortedIdxs(std::vector<int> &&idxs) noexcept: idxs_(std::move(idxs)) {
-      init();
+    IndexSet(std::vector<int> &&vec) noexcept {
+      adopt_sequence(std::move(vec));
     }
 
-    SortedIdxs(std::initializer_list<int> idxs): idxs_(idxs) { init(); }
-
-    template <class Iter, internal::enable_if_compatible_iter_t<Iter, int> = 0>
-    SortedIdxs(Iter begin, Iter end): idxs_(begin, end) {
-      init();
-    }
-
-    bool empty() const { return idxs_.empty(); }
-
-    int size() const { return static_cast<int>(idxs_.size()); }
-
-    void clear() noexcept { idxs_.clear(); }
-
-    void reserve(int cap) { idxs_.reserve(cap); }
-
-    void insert(int id) { insert_sorted(idxs_, id); }
-
-    template <class Iter>
-    void insert(Iter begin, Iter end) {
-      idxs_.insert(idxs_.end(), begin, end);
-      init();
-    }
-
-    void erase(int id) {
-      int pos = find(id);
-      if (pos < size())
-        idxs_.erase(idxs_.begin() + pos);
-    }
-
-    void erase_at(int idx) { idxs_.erase(idxs_.begin() + idx); }
-
-    template <class Iter>
-    void erase_range(Iter begin, Iter end) {
-      idxs_.erase(begin, end);
+    IndexSet(boost::container::ordered_unique_range_t tag,
+             std::vector<int> &&vec) noexcept {
+      adopt_sequence(tag, std::move(vec));
     }
 
     template <class UnaryPred>
     void erase_if(UnaryPred &&pred) {
-      nuri::erase_if(idxs_, std::forward<UnaryPred>(pred));
+      std::vector<int> work = extract_sequence();
+      nuri::erase_if(work, std::forward<UnaryPred>(pred));
+      adopt_sequence(boost::container::ordered_unique_range_t {},
+                     std::move(work));
     }
 
-    void union_with(const SortedIdxs &other) {
+    void union_with(const IndexSet &other) {
       std::vector<int> result;
       result.reserve(size() + other.size());
-      absl::c_set_union(idxs_, other.idxs_, std::back_inserter(result));
-      idxs_ = std::move(result);
+      absl::c_set_union(*this, other, std::back_inserter(result));
+      adopt_sequence(boost::container::ordered_unique_range_t {},
+                     std::move(result));
     }
 
-    void difference(const SortedIdxs &other) {
+    void difference(const IndexSet &other) {
       std::vector<int> result;
       result.reserve(size());
-      absl::c_set_difference(idxs_, other.idxs_, std::back_inserter(result));
-      idxs_ = std::move(result);
+      absl::c_set_difference(*this, other, std::back_inserter(result));
+      adopt_sequence(boost::container::ordered_unique_range_t {},
+                     std::move(result));
     }
 
-    int operator[](int idx) const { return idxs_[idx]; }
+    int operator[](int idx) const { return sequence()[idx]; }
 
-    bool contains(int id) const { return absl::c_binary_search(idxs_, id); }
-
-    int find(int id) const {
-      auto it = find_sorted(idxs_.begin(), idxs_.end(), id);
-      if (it == idxs_.end())
-        return size();
-      return static_cast<int>(it - idxs_.begin());
-    }
-
-    auto begin() const { return idxs_.begin(); }
-
-    auto end() const { return idxs_.end(); }
-
-    void replace(const std::vector<int> &idxs) {
-      idxs_ = idxs;
-      init();
-    }
-
-    void replace(std::vector<int> &&idxs) noexcept {
-      idxs_ = std::move(idxs);
-      init();
+    int find_index(int id) const {
+      auto it = find(id);
+      return static_cast<int>(it - begin());
     }
 
     void remap(const std::vector<int> &old_to_new);
-
-    const std::vector<int> &idxs() const { return idxs_; }
-
-  private:
-    void init() {
-      absl::c_sort(idxs_);
-      idxs_.erase(std::unique(idxs_.begin(), idxs_.end()), idxs_.end());
-    }
-
-    std::vector<int> idxs_;
   };
 
   template <class GT>
