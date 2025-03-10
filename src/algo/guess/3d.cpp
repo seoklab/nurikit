@@ -1904,13 +1904,12 @@ namespace {
                               next_nei->src().id(), next_nei->dst().id());
   }
 
-  void mark_conjugated(Molecule &mol,
-                       const std::vector<std::vector<int>> &groups,
+  void mark_conjugated(Molecule &mol, std::vector<std::vector<int>> &&groups,
                        Conflicts &conflicts) {
-    for (const std::vector<int> &group: groups) {
+    for (std::vector<int> &group: groups) {
       ABSL_DCHECK(group.size() > 2) << "Group size: " << group.size();
 
-      Substructure sub = mol.atom_substructure(group);
+      Substructure sub = mol.atom_substructure(std::move(group));
 
       for (auto atom: sub) {
         AtomData &data = atom.data();
@@ -1943,7 +1942,7 @@ namespace {
           return test_bond_order_can_conjugate(prev, curr)
                  && test_torsion_can_conjugate(pos, prev, curr);
         });
-    mark_conjugated(mol, groups, conflicts);
+    mark_conjugated(mol, std::move(groups), conflicts);
   }
 
   enum class Carbonyl {

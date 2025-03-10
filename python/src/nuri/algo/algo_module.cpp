@@ -46,7 +46,8 @@ std::vector<PySubstruct> rings_to_subs(PyMol &mol, const Rings &rings,
       bonds.push_back(bit->id());
     }
 
-    subs.push_back(PySubstruct::from_mol(mol, mol->bond_substructure(bonds)));
+    subs.push_back(
+        PySubstruct::from_mol(mol, mol->bond_substructure(std::move(bonds))));
   }
 
   return subs;

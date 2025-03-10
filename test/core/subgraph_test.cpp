@@ -30,9 +30,9 @@
 
 namespace nuri {
 namespace {
-using internal::SortedIdxs;
+using internal::IndexSet;
 
-class SortedIdxsTest: public testing::Test {
+class IndexSetTest: public testing::Test {
 protected:
   void SetUp() override {
     si_ = { 3, 5, 7, 5, 1 };
@@ -44,125 +44,30 @@ protected:
     ASSERT_EQ(si_[3], 7);
   }
 
-  SortedIdxs si_;
+  IndexSet si_;
 };
 
-TEST_F(SortedIdxsTest, InsertNew) {
-  si_.insert(4);
-  ASSERT_EQ(si_.size(), 5);
-  EXPECT_EQ(si_[0], 1);
-  EXPECT_EQ(si_[1], 3);
-  EXPECT_EQ(si_[2], 4);
-  EXPECT_EQ(si_[3], 5);
-  EXPECT_EQ(si_[4], 7);
-}
-
-TEST_F(SortedIdxsTest, InsertDup) {
-  si_.insert(3);
-  ASSERT_EQ(si_.size(), 4);
-  EXPECT_EQ(si_[0], 1);
-  EXPECT_EQ(si_[1], 3);
-  EXPECT_EQ(si_[2], 5);
-  EXPECT_EQ(si_[3], 7);
-}
-
-TEST_F(SortedIdxsTest, InsertMany) {
-  std::vector<int> v = { 4, 5, 3, 1, 6 };
-
-  si_.insert(v.begin(), v.end());
-  ASSERT_EQ(si_.size(), 6);
-  EXPECT_EQ(si_[0], 1);
-  EXPECT_EQ(si_[1], 3);
-  EXPECT_EQ(si_[2], 4);
-  EXPECT_EQ(si_[3], 5);
-  EXPECT_EQ(si_[4], 6);
-  EXPECT_EQ(si_[5], 7);
-}
-
-TEST_F(SortedIdxsTest, EraseOne) {
-  si_.erase(5);
-  ASSERT_EQ(si_.size(), 3);
-  EXPECT_EQ(si_[0], 1);
-  EXPECT_EQ(si_[1], 3);
-  EXPECT_EQ(si_[2], 7);
-}
-
-TEST_F(SortedIdxsTest, ErasePos) {
-  si_.erase_at(1);
-  ASSERT_EQ(si_.size(), 3);
-  EXPECT_EQ(si_[0], 1);
-  EXPECT_EQ(si_[1], 5);
-  EXPECT_EQ(si_[2], 7);
-}
-
-TEST_F(SortedIdxsTest, EraseNone) {
-  si_.erase(100);
-  ASSERT_EQ(si_.size(), 4);
-  EXPECT_EQ(si_[0], 1);
-  EXPECT_EQ(si_[1], 3);
-  EXPECT_EQ(si_[2], 5);
-  EXPECT_EQ(si_[3], 7);
-}
-
-TEST_F(SortedIdxsTest, EraseMany) {
-  si_.erase_range(si_.begin(), si_.begin() + 2);
-  ASSERT_EQ(si_.size(), 2);
-  EXPECT_EQ(si_[0], 5);
-  EXPECT_EQ(si_[1], 7);
-}
-
-TEST_F(SortedIdxsTest, EraseCond) {
+TEST_F(IndexSetTest, EraseCond) {
   si_.erase_if([](int i) { return i < 5; });
   ASSERT_EQ(si_.size(), 2);
   EXPECT_EQ(si_[0], 5);
   EXPECT_EQ(si_[1], 7);
 }
 
-TEST_F(SortedIdxsTest, Difference) {
-  SortedIdxs si2 = { 1, 4, 7, 8 };
+TEST_F(IndexSetTest, Difference) {
+  IndexSet si2 = { 1, 4, 7, 8 };
   si_.difference(si2);
   ASSERT_EQ(si_.size(), 2);
   EXPECT_EQ(si_[0], 3);
   EXPECT_EQ(si_[1], 5);
 }
 
-TEST_F(SortedIdxsTest, Find) {
-  int found = si_.find(5);
+TEST_F(IndexSetTest, FindIndex) {
+  int found = si_.find_index(5);
   EXPECT_EQ(found, 2);
 
-  int not_found = si_.find(100);
+  int not_found = si_.find_index(100);
   EXPECT_EQ(not_found, 4);
-}
-
-TEST_F(SortedIdxsTest, Replace) {
-  std::vector<int> v = { 4, 5, 3, 1, 6 };
-  si_.replace(v);
-  ASSERT_EQ(si_.size(), 5);
-  EXPECT_EQ(si_[0], 1);
-  EXPECT_EQ(si_[1], 3);
-  EXPECT_EQ(si_[2], 4);
-  EXPECT_EQ(si_[3], 5);
-  EXPECT_EQ(si_[4], 6);
-
-  si_.replace(std::move(v));
-  ASSERT_EQ(si_.size(), 5);
-  EXPECT_EQ(si_[0], 1);
-  EXPECT_EQ(si_[1], 3);
-  EXPECT_EQ(si_[2], 4);
-  EXPECT_EQ(si_[3], 5);
-  EXPECT_EQ(si_[4], 6);
-}
-
-TEST_F(SortedIdxsTest, Remap) {
-  std::vector<int> v;
-  v.resize(8);
-  std::iota(v.begin(), v.end(), 0);
-  v[3] = v[4] = v[5] = v[6] = -1;
-
-  si_.remap(v);
-  ASSERT_EQ(si_.size(), 2);
-  EXPECT_EQ(si_[0], 1);
-  EXPECT_EQ(si_[1], 7);
 }
 
 using Graph = Graph<int, int>;
@@ -293,8 +198,7 @@ TEST(BasicSubgraphTest, IterateNodes) {
   EXPECT_TRUE(sg1.cbegin() == csg1.begin());
   EXPECT_TRUE(sg1.cbegin() == csg1.cbegin());
 
-  std::vector<int> nodes { 4, 3 };
-  Subgraph csg2 = subgraph_from_nodes(std::as_const(g), nodes);
+  Subgraph csg2 = subgraph_from_nodes(std::as_const(g), { 4, 3 });
   static_assert(
       std::is_same_v<decltype(csg2)::iterator, decltype(csg2)::const_iterator>,
       "const_subgraph::iterator and const_subgraph::const_iterator must be "
@@ -316,7 +220,7 @@ TEST(BasicSubgraphTest, IterateNodes) {
                   "ConstSubGraph iterator must be immutable");
   }
 
-  Subgraph sg2 = subgraph_from_nodes(g, nodes);
+  Subgraph sg2 = subgraph_from_nodes(g, { 4, 3 });
   EXPECT_TRUE(sg2.begin() == sg2.cbegin());
 
   EXPECT_TRUE(sg2.begin() == csg2.begin());
@@ -566,16 +470,6 @@ TEST_F(AdvancedSubgraphTest, CreateFromEdges) {
 
 TEST_F(AdvancedSubgraphTest, UpdateEdges) {
   std::vector<int> edges = { 3, 4, 6 };
-
-  sg_.update_edges(edges);
-  EXPECT_EQ(sg_.size(), 5);
-  EXPECT_EQ(sg_.num_edges(), 3);
-
-  EXPECT_TRUE(sg_.contains_node(1));
-  EXPECT_TRUE(sg_.contains_node(2));
-  EXPECT_TRUE(sg_.contains_node(3));
-  EXPECT_TRUE(sg_.contains_node(6));
-  EXPECT_TRUE(sg_.contains_node(8));
 
   sg_.update_edges(std::move(edges));
   EXPECT_EQ(sg_.size(), 5);

@@ -1832,8 +1832,7 @@ namespace internal {
   };
 
   template <class GT>
-  internal::SortedIdxs find_nodes(GT &parent,
-                                  const internal::SortedIdxs &edges) {
+  IndexSet find_nodes(GT &parent, const IndexSet &edges) {
     std::vector<int> nodes;
     nodes.reserve(static_cast<size_t>(edges.size()) * 2);
 
@@ -1842,12 +1841,11 @@ namespace internal {
       nodes.push_back(parent.edge(i).dst().id());
     }
 
-    return internal::SortedIdxs(std::move(nodes));
+    return IndexSet(std::move(nodes));
   }
 
   template <class GT>
-  internal::SortedIdxs find_edges(GT &parent,
-                                  const internal::SortedIdxs &nodes) {
+  IndexSet find_edges(GT &parent, const IndexSet &nodes) {
     std::vector<int> edges;
     std::stack<int, std::vector<int>> stack;
     ArrayXb visited = ArrayXb::Zero(parent.num_nodes());
@@ -1879,7 +1877,7 @@ namespace internal {
       }
     }
 
-    return internal::SortedIdxs(std::move(edges));
+    return IndexSet(std::move(edges));
   }
 }  // namespace internal
 
@@ -1959,21 +1957,21 @@ public:
    */
   Subgraph(parent_type &graph): parent_(&graph) { }
 
-  static Subgraph from_indices(parent_type &graph, internal::SortedIdxs &&nodes,
-                               internal::SortedIdxs &&edges) {
+  static Subgraph from_indices(parent_type &graph, internal::IndexSet &&nodes,
+                               internal::IndexSet &&edges) {
     Subgraph subgraph(graph, std::move(nodes), {});
     subgraph.add_edges(edges.begin(), edges.end());
     return subgraph;
   }
 
-  static Subgraph from_nodes(parent_type &graph, internal::SortedIdxs &&nodes) {
-    internal::SortedIdxs edges = internal::find_edges(graph, nodes);
+  static Subgraph from_nodes(parent_type &graph, internal::IndexSet &&nodes) {
+    internal::IndexSet edges = internal::find_edges(graph, nodes);
     Subgraph subgraph(graph, std::move(nodes), std::move(edges));
     return subgraph;
   }
 
-  static Subgraph from_edges(parent_type &graph, internal::SortedIdxs &&edges) {
-    internal::SortedIdxs nodes = internal::find_nodes(graph, edges);
+  static Subgraph from_edges(parent_type &graph, internal::IndexSet &&edges) {
+    internal::IndexSet nodes = internal::find_nodes(graph, edges);
     Subgraph subgraph(graph, std::move(nodes), std::move(edges));
     return subgraph;
   }
@@ -2052,18 +2050,19 @@ public:
    */
   int num_nodes() const { return nodes_.size(); }
 
-  /**
-   * @brief Change the set of nodes in the subgraph
-   *
-   * @param nodes The new set of nodes.
-   * @param edges The new set of edges.
-   * @note The nodes connected to the edges will be automatically added even if
-   *       they are not in the nodes set.
-   */
-  void update(const std::vector<int> &nodes, const std::vector<int> &edges) {
-    edges_.replace(edges);
-    add_nodes(nodes.begin(), nodes.end());
-  }
+  // /**
+  //  * @brief Change the set of nodes in the subgraph
+  //  *
+  //  * @param nodes The new set of nodes.
+  //  * @param edges The new set of edges.
+  //  * @note The nodes connected to the edges will be automatically added even
+  //  if
+  //  *       they are not in the nodes set.
+  //  */
+  // void update(const std::vector<int> &nodes, const std::vector<int> &edges) {
+  //   edges_.adopt_sequence(edges);
+  //   add_nodes(nodes.begin(), nodes.end());
+  // }
 
   /**
    * @brief Change the set of nodes in the subgraph
@@ -2074,22 +2073,23 @@ public:
    *       they are not in the nodes set.
    */
   void update(std::vector<int> &&nodes, std::vector<int> &&edges) {
-    edges_.replace(std::move(edges));
+    edges_.adopt_sequence(std::move(edges));
     add_nodes(nodes.begin(), nodes.end());
   }
 
-  /**
-   * @brief Change the set of nodes in the subgraph
-   *
-   * @param nodes The new set of nodes. Edges will be automatically updated.
-   * @note If any of the node ids are not in the parent graph, the behavior is
-   *       undefined.
-   * @note Time complexity: \f$O(V' \log V')\f$
-   */
-  void update_nodes(const std::vector<int> &nodes) {
-    nodes_.replace(nodes);
-    edges_ = internal::find_edges(*parent_, nodes_);
-  }
+  // /**
+  //  * @brief Change the set of nodes in the subgraph
+  //  *
+  //  * @param nodes The new set of nodes. Edges will be automatically updated.
+  //  * @note If any of the node ids are not in the parent graph, the behavior
+  //  is
+  //  *       undefined.
+  //  * @note Time complexity: \f$O(V' \log V')\f$
+  //  */
+  // void update_nodes(const std::vector<int> &nodes) {
+  //   nodes_.adopt_sequence(nodes);
+  //   edges_ = internal::find_edges(*parent_, nodes_);
+  // }
 
   /**
    * @brief Change the set of nodes in the subgraph
@@ -2100,7 +2100,7 @@ public:
    * @note Time complexity: \f$O(V' \log V')\f$
    */
   void update_nodes(std::vector<int> &&nodes) noexcept {
-    nodes_.replace(std::move(nodes));
+    nodes_.adopt_sequence(std::move(nodes));
     edges_ = internal::find_edges(*parent_, nodes_);
   }
 
@@ -2137,9 +2137,7 @@ public:
    * @note If any of the node id is out of range, the behavior is undefined.
    * @note All duplicate nodes will be automatically removed.
    */
-  void add_nodes(const internal::SortedIdxs &nodes) {
-    nodes_.union_with(nodes);
-  }
+  void add_nodes(const internal::IndexSet &nodes) { nodes_.union_with(nodes); }
 
   /**
    * @brief Add nodes to the subgraph
@@ -2161,7 +2159,7 @@ public:
    * @note If any of the node id is out of range, the behavior is undefined.
    * @note All duplicate nodes will be automatically removed.
    */
-  void add_nodes_with_edges(const internal::SortedIdxs &nodes) {
+  void add_nodes_with_edges(const internal::IndexSet &nodes) {
     nodes_.union_with(nodes);
     auto new_edges = internal::find_edges(*parent_, nodes);
     edges_.union_with(new_edges);
@@ -2177,7 +2175,7 @@ public:
    */
   template <class Iter>
   void add_nodes_with_edges(Iter begin, Iter end) {
-    internal::SortedIdxs new_nodes(begin, end);
+    internal::IndexSet new_nodes(begin, end);
     add_nodes_with_edges(new_nodes);
   }
 
@@ -2281,7 +2279,7 @@ public:
    * @return An iterator to the node if found, end() otherwise.
    * @note Time complexity: \f$O(\log V')\f$.
    */
-  iterator find_node(int id) { return begin() + nodes_.find(id); }
+  iterator find_node(int id) { return begin() + nodes_.find_index(id); }
 
   /**
    * @brief Find a node with the given id.
@@ -2302,7 +2300,9 @@ public:
    * @return A const_iterator to the node if found, end() otherwise
    * @note Time complexity: \f$O(\log V')\f$.
    */
-  const_iterator find_node(int id) const { return begin() + nodes_.find(id); }
+  const_iterator find_node(int id) const {
+    return begin() + nodes_.find_index(id);
+  }
 
   /**
    * @brief Find a node with the given id.
@@ -2328,8 +2328,8 @@ public:
     std::vector<int> erased_edges;
     for (auto nei: node(idx))
       erased_edges.push_back(nei.as_parent().eid());
-    nodes_.erase_at(idx);
-    edges_.difference(std::move(erased_edges));
+    nodes_.erase(nodes_.begin() + idx);
+    edges_.difference(internal::IndexSet(std::move(erased_edges)));
   }
 
   /**
@@ -2355,9 +2355,9 @@ public:
       for (auto nei: *it)
         erased_edges.push_back(nei.as_parent().eid());
 
-    nodes_.erase_range(begin - this->begin() + nodes_.begin(),
-                       end - this->begin() + nodes_.begin());
-    edges_.difference(std::move(erased_edges));
+    nodes_.erase(begin - this->begin() + nodes_.begin(),
+                 end - this->begin() + nodes_.begin());
+    edges_.difference(internal::IndexSet(std::move(erased_edges)));
   }
 
   /**
@@ -2369,7 +2369,7 @@ public:
    * @note Time complexity: \f$O(V' \log E' + E')\f$ in worst case.
    */
   void erase_node_of(int id) {
-    int idx = nodes_.find(id);
+    int idx = nodes_.find_index(id);
     if (idx < num_nodes())
       erase_node(idx);
   }
@@ -2407,8 +2407,8 @@ public:
         erased_edges.push_back(nei.as_parent().eid());
     }
 
-    nodes_.difference(std::move(erased_nodes));
-    edges_.difference(std::move(erased_edges));
+    nodes_.difference(internal::IndexSet(std::move(erased_nodes)));
+    edges_.difference(internal::IndexSet(std::move(erased_edges)));
   }
 
   /**
@@ -2464,7 +2464,7 @@ public:
    *
    * @return The node ids in the subgraph, in an unspecified order
    */
-  const std::vector<int> &node_ids() const { return nodes_.idxs(); }
+  const std::vector<int> &node_ids() const { return nodes_.sequence(); }
 
   /**
    * @brief Count number of edges in the subgraph
@@ -2473,18 +2473,20 @@ public:
    */
   int num_edges() const { return edges_.size(); }
 
-  /**
-   * @brief Change the set of edges in the subgraph. This will also update the
-   *        set of nodes.
-   * @param edges The new set of edges
-   * @note If any of the node ids are not in the parent graph, the behavior is
-   *       undefined.
-   * @note Time complexity: \f$O(E' \log E')\f$
-   */
-  void update_edges(const std::vector<int> &edges) {
-    edges_.replace(edges);
-    nodes_ = internal::find_nodes(*parent_, edges_);
-  }
+  // /**
+  //  * @brief Change the set of edges in the subgraph. This will also update
+  //  the
+  //  *        set of nodes.
+  //  * @param edges The new set of edges
+  //  * @note If any of the node ids are not in the parent graph, the behavior
+  //  is
+  //  *       undefined.
+  //  * @note Time complexity: \f$O(E' \log E')\f$
+  //  */
+  // void update_edges(const std::vector<int> &edges) {
+  //   edges_.adopt_sequence(edges);
+  //   nodes_ = internal::find_nodes(*parent_, edges_);
+  // }
 
   /**
    * @brief Change the set of edges in the subgraph. This will also update the
@@ -2495,7 +2497,7 @@ public:
    * @note Time complexity: \f$O(E' \log E')\f$
    */
   void update_edges(std::vector<int> &&edges) noexcept {
-    edges_.replace(std::move(edges));
+    edges_.adopt_sequence(std::move(edges));
     nodes_ = internal::find_nodes(*parent_, edges_);
   }
 
@@ -2541,7 +2543,7 @@ public:
    * @note If any of the edge id is out of range, the behavior is undefined.
    * @note All duplicate edges will be automatically removed.
    */
-  void add_edges(const internal::SortedIdxs &edges) {
+  void add_edges(const internal::IndexSet &edges) {
     edges_.union_with(edges);
 
     auto new_nodes = internal::find_nodes(*parent_, edges);
@@ -2558,8 +2560,7 @@ public:
    */
   template <class Iter>
   void add_edges(Iter begin, Iter end) {
-    std::vector<int> new_edges(begin, end);
-    add_edges(new_edges);
+    add_edges(internal::IndexSet(begin, end));
   }
 
   /**
@@ -2591,8 +2592,8 @@ public:
    */
   EdgeRef edge(int idx) {
     auto pedge = parent_edge(idx);
-    int src = nodes_.find(pedge.src().id()),
-        dst = nodes_.find(pedge.dst().id());
+    int src = nodes_.find_index(pedge.src().id()),
+        dst = nodes_.find_index(pedge.dst().id());
     return { src, dst, idx, *this };
   }
 
@@ -2604,8 +2605,8 @@ public:
    */
   ConstEdgeRef edge(int idx) const {
     auto pedge = parent_edge(idx);
-    int src = nodes_.find(pedge.src().id()),
-        dst = nodes_.find(pedge.dst().id());
+    int src = nodes_.find_index(pedge.src().id()),
+        dst = nodes_.find_index(pedge.dst().id());
     return { src, dst, idx, *this };
   }
 
@@ -2656,7 +2657,9 @@ public:
    * @return An iterator to the edge if found, edge_end() otherwise.
    * @note Time complexity: \f$O(\log E')\f$.
    */
-  edge_iterator find_edge(int id) { return edge_begin() + edges_.find(id); }
+  edge_iterator find_edge(int id) {
+    return edge_begin() + edges_.find_index(id);
+  }
 
   /**
    * @brief Find an edge with the given id.
@@ -2678,7 +2681,7 @@ public:
    * @note Time complexity: \f$O(\log E')\f$.
    */
   const_edge_iterator find_edge(int id) const {
-    return edge_begin() + edges_.find(id);
+    return edge_begin() + edges_.find_index(id);
   }
 
   /**
@@ -2764,7 +2767,7 @@ public:
    * @note The behavior is undefined if idx >= num_edges().
    * @note Time complexity: \f$O(V')\f$ in worst case.
    */
-  void erase_edge(int idx) { edges_.erase_at(idx); }
+  void erase_edge(int idx) { edges_.erase(edges_.begin() + idx); }
 
   /**
    * @brief Erase an edge from the subgraph
@@ -2783,8 +2786,8 @@ public:
    * @note Time complexity: \f$O(V')\f$ in worst case.
    */
   void erase_edges(const_edge_iterator begin, const_edge_iterator end) {
-    edges_.erase_range(begin - this->edge_begin() + edges_.begin(),
-                       end - this->edge_begin() + edges_.begin());
+    edges_.erase(begin - this->edge_begin() + edges_.begin(),
+                 end - this->edge_begin() + edges_.begin());
   }
 
   /**
@@ -2845,7 +2848,7 @@ public:
    *
    * @return The edge ids in the subgraph, in an unspecified order
    */
-  const std::vector<int> &edge_ids() const { return edges_.idxs(); }
+  const std::vector<int> &edge_ids() const { return edges_.sequence(); }
 
   /**
    * @brief Count in-subgraph neighbors of a node
@@ -2924,8 +2927,8 @@ private:
   template <class, bool>
   friend class internal::SubEdgesFinder;
 
-  Subgraph(parent_type &graph, internal::SortedIdxs &&nodes,
-           internal::SortedIdxs &&edges) noexcept
+  Subgraph(parent_type &graph, internal::IndexSet &&nodes,
+           internal::IndexSet &&edges) noexcept
       : parent_(&graph), nodes_(std::move(nodes)), edges_(std::move(edges)) { }
 
   /**
@@ -2985,8 +2988,8 @@ private:
   }
 
   parent_type *parent_;
-  internal::SortedIdxs nodes_;
-  internal::SortedIdxs edges_;
+  internal::IndexSet nodes_;
+  internal::IndexSet edges_;
 };
 
 /* Deduction guides */
@@ -3063,8 +3066,8 @@ SubgraphOf<GT> make_subgraph(GT &&graph) {
  *         \p nodes.
  */
 template <class GT>
-SubgraphOf<GT> make_subgraph(GT &&graph, internal::SortedIdxs &&nodes,
-                             internal::SortedIdxs &&edges) {
+SubgraphOf<GT> make_subgraph(GT &&graph, internal::IndexSet &&nodes,
+                             internal::IndexSet &&edges) {
   return SubgraphOf<GT>::from_indices(std::forward<GT>(graph), std::move(nodes),
                                       std::move(edges));
 }
@@ -3078,7 +3081,7 @@ SubgraphOf<GT> make_subgraph(GT &&graph, internal::SortedIdxs &&nodes,
  *         in the subgraph.
  */
 template <class GT>
-SubgraphOf<GT> subgraph_from_nodes(GT &&graph, internal::SortedIdxs &&nodes) {
+SubgraphOf<GT> subgraph_from_nodes(GT &&graph, internal::IndexSet &&nodes) {
   return SubgraphOf<GT>::from_nodes(std::forward<GT>(graph), std::move(nodes));
 }
 
@@ -3091,7 +3094,7 @@ SubgraphOf<GT> subgraph_from_nodes(GT &&graph, internal::SortedIdxs &&nodes) {
  *         included in the subgraph.
  */
 template <class GT>
-SubgraphOf<GT> subgraph_from_edges(GT &&graph, internal::SortedIdxs &&edges) {
+SubgraphOf<GT> subgraph_from_edges(GT &&graph, internal::IndexSet &&edges) {
   return SubgraphOf<GT>::from_edges(std::forward<GT>(graph), std::move(edges));
 }
 
