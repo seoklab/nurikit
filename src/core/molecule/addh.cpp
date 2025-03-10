@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <cmath>
 #include <cstdlib>
 #include <iterator>
 #include <numeric>
+#include <tuple>
 #include <utility>
 #include <vector>
 
