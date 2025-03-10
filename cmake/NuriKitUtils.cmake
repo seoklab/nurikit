@@ -267,12 +267,12 @@ function(handle_boost_dependency target)
 
   target_system_include_directories(
     "${target}"
-    Boost::spirit Boost::fusion Boost::mpl Boost::optional
+    Boost::spirit Boost::fusion Boost::mpl Boost::optional Boost::container
     Boost::iterator Boost::config Boost::range
   )
   target_link_libraries(
     "${target}"
-    PUBLIC Boost::iterator Boost::config Boost::range
+    PUBLIC Boost::container Boost::iterator Boost::config Boost::range
     PRIVATE Boost::spirit Boost::fusion Boost::mpl Boost::optional
   )
 endfunction()
