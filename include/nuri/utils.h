@@ -623,63 +623,6 @@ namespace internal {
     return static_cast<int>(std::lround(x));
   }
 
-  // RDKit-compatible key for name
-  constexpr std::string_view kNameKey = "_Name";
-
-  template <class PT>
-  auto find_key(PT &props, std::string_view key) {
-    return absl::c_find_if(props,
-                           [key](const auto &p) { return p.first == key; });
-  }
-
-  template <class PT>
-  bool has_key(PT &props, std::string_view key) {
-    return find_key(props, key) != props.end();
-  }
-
-  template <class PT>
-  std::string_view get_key(PT &props, std::string_view key) {
-    auto it = find_key(props, key);
-    if (it == props.end())
-      return "";
-    return it->second;
-  }
-
-  template <class PT>
-  auto find_name(PT &props) -> decltype(props.begin()) {
-    return find_key(props, kNameKey);
-  }
-
-  template <class PT>
-  bool has_name(PT &props) {
-    return has_key(props, kNameKey);
-  }
-
-  template <class PT>
-  std::string_view get_name(PT &props) {
-    return get_key(props, kNameKey);
-  }
-
-  template <class PT>
-  void set_name(PT &props, std::string &&name) {
-    auto it = find_name(props);
-    if (it != props.end()) {
-      it->second = std::move(name);
-    } else {
-      props.emplace_back(kNameKey, std::move(name));
-    }
-  }
-
-  template <class PT>
-  void set_name(PT &props, const char *name) {
-    set_name(props, std::string(name));
-  }
-
-  template <class PT>
-  void set_name(PT &props, std::string_view name) {
-    set_name(props, std::string(name));
-  }
-
   constexpr int negate_if_false(bool cond) {
     int ret = (static_cast<int>(cond) << 1) - 1;
     ABSL_ASSUME(ret == 1 || ret == -1);
