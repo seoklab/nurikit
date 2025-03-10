@@ -8,7 +8,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 #include <absl/algorithm/container.h>
 #include <pybind11/attr.h>
@@ -17,7 +16,7 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/typing.h>
 
-#include "nuri/python/config.h"
+#include "nuri/core/property_map.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
@@ -25,7 +24,7 @@ namespace python_internal {
 namespace {
 // NOLINTBEGIN(clang-diagnostic-unused-member-function)
 
-class MapKeyIterator: public PyIterator<MapKeyIterator, PropertyMap> {
+class MapKeyIterator: public PyIterator<MapKeyIterator, internal::PropertyMap> {
   using Base = MapKeyIterator::Parent;
 
 public:
@@ -36,14 +35,14 @@ public:
 private:
   friend Base;
 
-  static auto size_of(const PropertyMap &map) { return map.size(); }
+  static auto size_of(const internal::PropertyMap &map) { return map.size(); }
 
-  static const std::string &deref(const PropertyMap &map, int idx) {
-    return map[idx].first;
+  static const std::string &deref(const internal::PropertyMap &map, int idx) {
+    return map.sequence()[idx].first;
   }
 };
 
-class MapValIterator: public PyIterator<MapValIterator, PropertyMap> {
+class MapValIterator: public PyIterator<MapValIterator, internal::PropertyMap> {
   using Base = MapValIterator::Parent;
 
 public:
@@ -56,14 +55,15 @@ public:
 private:
   friend Base;
 
-  static auto size_of(const PropertyMap &map) { return map.size(); }
+  static auto size_of(const internal::PropertyMap &map) { return map.size(); }
 
-  static const std::string &deref(const PropertyMap &map, int idx) {
-    return map[idx].second;
+  static const std::string &deref(const internal::PropertyMap &map, int idx) {
+    return map.sequence()[idx].second;
   }
 };
 
-class MapPairIterator: public PyIterator<MapPairIterator, PropertyMap> {
+class MapPairIterator
+    : public PyIterator<MapPairIterator, internal::PropertyMap> {
   using Base = MapPairIterator::Parent;
 
 public:
@@ -76,9 +76,11 @@ public:
 private:
   friend Base;
 
-  static auto size_of(const PropertyMap &map) { return map.size(); }
+  static auto size_of(const internal::PropertyMap &map) { return map.size(); }
 
-  static const auto &deref(const PropertyMap &map, int idx) { return map[idx]; }
+  static const auto &deref(const internal::PropertyMap &map, int idx) {
+    return map.sequence()[idx];
+  }
 };
 
 class ProxyMapKeyIterator
@@ -98,7 +100,7 @@ private:
   static auto size_of(const ProxyPropertyMap &map) { return (**map).size(); }
 
   static const std::string &deref(const ProxyPropertyMap &map, int idx) {
-    return (**map)[idx].first;
+    return (**map).sequence()[idx].first;
   }
 };
 
@@ -119,7 +121,7 @@ private:
   static auto size_of(const ProxyPropertyMap &map) { return (**map).size(); }
 
   static const std::string &deref(const ProxyPropertyMap &map, int idx) {
-    return (**map)[idx].second;
+    return (**map).sequence()[idx].second;
   }
 };
 
@@ -140,7 +142,7 @@ private:
   static auto size_of(const ProxyPropertyMap &map) { return (**map).size(); }
 
   static const auto &deref(const ProxyPropertyMap &map, int idx) {
-    return (**map)[idx];
+    return (**map).sequence()[idx];
   }
 };
 
@@ -150,7 +152,7 @@ template <class P>
 struct MapTraits;
 
 template <>
-struct MapTraits<PropertyMap> {
+struct MapTraits<internal::PropertyMap> {
   using iterator = MapPairIterator;
   using key_iterator = MapKeyIterator;
   using value_iterator = MapValIterator;
@@ -163,31 +165,18 @@ struct MapTraits<ProxyPropertyMap> {
   using value_iterator = ProxyMapValIterator;
 };
 
-auto find_map(PropertyMap &self, std::string_view key) {
-  return absl::c_find_if(self,
-                         [&](const auto &pair) { return pair.first == key; });
-}
-
-void map_setitem(PropertyMap &self, std::string_view key,
-                 std::string_view value) {
-  auto it = find_map(self, key);
-  if (it == self.end())
-    self.emplace_back(key, value);
-  else
-    it->second = value;
-}
-
-void map_setitem_py(PropertyMap &self, const py::handle &key,
+void map_setitem_py(internal::PropertyMap &self, const py::handle &key,
                     const py::handle &val) {
   if (!py::isinstance<py::str>(key))
     throw py::type_error("keys must be strings");
   if (!py::isinstance<py::str>(val))
     throw py::type_error("values must be strings");
 
-  map_setitem(self, key.cast<std::string_view>(), val.cast<std::string_view>());
+  internal::set_key(self, key.cast<std::string_view>(),
+                    val.cast<std::string_view>());
 }
 
-void map_setitem_unpack(PropertyMap &self, const py::handle &pair) {
+void map_setitem_unpack(internal::PropertyMap &self, const py::handle &pair) {
   if (py::len(pair) != 2)
     throw py::value_error("update expected at most 2-item tuples");
 
@@ -196,24 +185,24 @@ void map_setitem_unpack(PropertyMap &self, const py::handle &pair) {
 }
 
 template <class T>
-PropertyMap &prolog(T &self);
+internal::PropertyMap &prolog(T &self);
 
 template <>
-PropertyMap &prolog(PropertyMap &self) {
+internal::PropertyMap &prolog(internal::PropertyMap &self) {
   return self;
 }
 
 template <>
-PropertyMap &prolog(ProxyPropertyMap &self) {
+internal::PropertyMap &prolog(ProxyPropertyMap &self) {
   return **self;
 }
 
 template <class T>
 py::class_<T> &add_map_interface(py::class_<T> &cls) {
   cls.def("__getitem__", [](T &self, std::string_view key) {
-    PropertyMap &map = prolog(self);
+    internal::PropertyMap &map = prolog(self);
 
-    auto it = find_map(map, key);
+    auto it = map.find(key);
     if (it == map.end())
       throw py::key_error(std::string(key));
 
@@ -221,20 +210,20 @@ py::class_<T> &add_map_interface(py::class_<T> &cls) {
   });
   cls.def("__setitem__",
           [](T &self, std::string_view key, std::string_view value) {
-            map_setitem(prolog(self), key, value);
+            internal::set_key(prolog(self), key, value);
           });
   cls.def("__delitem__", [](T &self, std::string_view key) {
-    PropertyMap &map = prolog(self);
+    internal::PropertyMap &map = prolog(self);
 
-    auto it = find_map(map, key);
+    auto it = map.find(key);
     if (it == map.end())
       throw py::key_error(std::string(key));
 
     map.erase(it);
   });
   cls.def("__contains__", [](T &self, std::string_view key) {
-    PropertyMap &map = prolog(self);
-    return find_map(map, key) != map.end();
+    internal::PropertyMap &map = prolog(self);
+    return map.contains(key);
   });
   cls.def("__len__", [](T &self) { return prolog(self).size(); });
   cls.def(
@@ -253,9 +242,9 @@ py::class_<T> &add_map_interface(py::class_<T> &cls) {
       "items", [](T &self) { return typename MapTraits<T>::iterator { self }; },
       kReturnsSubobject);
   cls.def("get", [](T &self, std::string_view key) {
-    PropertyMap &map = prolog(self);
+    internal::PropertyMap &map = prolog(self);
 
-    auto it = find_map(map, key);
+    auto it = map.find(key);
     if (it == map.end())
       throw py::key_error(std::string(key));
 
@@ -264,15 +253,15 @@ py::class_<T> &add_map_interface(py::class_<T> &cls) {
   cls.def(
       "get",
       [](T &self, std::string_view key, const py::str &def) {
-        PropertyMap &map = prolog(self);
-        auto it = find_map(map, key);
+        internal::PropertyMap &map = prolog(self);
+        auto it = map.find(key);
         return it == map.end() ? def : py::str(it->second);
       },
       py::arg("key"), py::arg("default"));
   cls.def("pop", [](T &self, std::string_view key) {
-    PropertyMap &map = prolog(self);
+    internal::PropertyMap &map = prolog(self);
 
-    auto it = find_map(map, key);
+    auto it = map.find(key);
     if (it == map.end())
       throw py::key_error(std::string(key));
 
@@ -283,9 +272,9 @@ py::class_<T> &add_map_interface(py::class_<T> &cls) {
   cls.def(
       "pop",
       [](T &self, std::string_view key, py::str def) {
-        PropertyMap &map = prolog(self);
+        internal::PropertyMap &map = prolog(self);
 
-        auto it = find_map(map, key);
+        auto it = map.find(key);
         if (it == map.end())
           return def;
 
@@ -295,49 +284,47 @@ py::class_<T> &add_map_interface(py::class_<T> &cls) {
       },
       py::arg("key"), py::arg("default"));
   cls.def("popitem", [](T &self) {
-    PropertyMap &map = prolog(self);
+    internal::PropertyMap &map = prolog(self);
 
     if (map.empty())
       throw py::key_error("popitem from an empty mapping");
 
-    std::pair ret = std::move(map.back());
-    map.pop_back();
+    auto bit = --map.end();
+    std::pair ret = std::move(*bit);
+    map.erase(bit);
     return ret;
   });
   cls.def("clear", [](T &self) { prolog(self).clear(); });
   cls.def("update", [](T &self, const py::dict &other) {
-    PropertyMap &map = prolog(self);
+    internal::PropertyMap &map = prolog(self);
     for (auto item: other)
       map_setitem_py(map, item.first, item.second);
   });
   cls.def("update", [](T &self, const py::kwargs &kwargs) {
-    PropertyMap &map = prolog(self);
+    internal::PropertyMap &map = prolog(self);
     for (auto item: kwargs)
       map_setitem_py(map, item.first, item.second);
   });
   cls.def("update",
           [](T &self,
              const pyt::Iterable<pyt::Tuple<py::str, py::str>> &other) {
-            PropertyMap &map = prolog(self);
+            internal::PropertyMap &map = prolog(self);
             for (auto item: other)
               map_setitem_unpack(map, item);
           });
-  cls.def("setdefault", [](T &self, std::string_view key, py::str def) {
-    PropertyMap &map = prolog(self);
+  cls.def("setdefault", [](T &self, std::string_view key, const py::str &def) {
+    internal::PropertyMap &map = prolog(self);
 
-    auto it = find_map(map, key);
-    if (it != map.end())
-      return py::str(it->second);
-
-    map.emplace_back(key, def);
-    return def;
+    auto [it, _] = map.emplace(key, def.cast<std::string_view>());
+    return py::str(it->second);
   });
-  cls.def("copy", [](T &self) { return PropertyMap(prolog(self)); });
-  cls.def("__copy__", [](T &self) { return PropertyMap(prolog(self)); });
+  cls.def("copy", [](T &self) { return internal::PropertyMap(prolog(self)); });
+  cls.def("__copy__",
+          [](T &self) { return internal::PropertyMap(prolog(self)); });
   cls.def(
       "__deepcopy__",
       [](T &self, const py::dict & /* unused */) {
-        return PropertyMap(prolog(self));
+        return internal::PropertyMap(prolog(self));
       },
       py::arg("memo"));
 
@@ -345,7 +332,7 @@ py::class_<T> &add_map_interface(py::class_<T> &cls) {
 }
 
 void bind_property_map(py::module &m) {
-  py::class_<PropertyMap> pm(m, "_PropertyMap");
+  py::class_<internal::PropertyMap> pm(m, "_PropertyMap");
   py::class_<ProxyPropertyMap> ppm(m, "_ProxyPropertyMap");
 
   MapKeyIterator::bind(m);
@@ -358,10 +345,11 @@ void bind_property_map(py::module &m) {
 
   add_map_interface(pm);
   pm.def(py::init<>())
-      .def(py::init(
-          [](const ProxyPropertyMap &other) { return PropertyMap(**other); }))
+      .def(py::init([](const ProxyPropertyMap &other) {
+        return internal::PropertyMap(**other);
+      }))
       .def(py::init([](const py::dict &dict) {
-        PropertyMap map;
+        internal::PropertyMap map;
         map.reserve(dict.size());
         for (auto item: dict)
           map_setitem_py(map, item.first, item.second);
@@ -370,8 +358,8 @@ void bind_property_map(py::module &m) {
 
   add_map_interface(ppm);
 
-  py::implicitly_convertible<ProxyPropertyMap, PropertyMap>();
-  py::implicitly_convertible<py::dict, PropertyMap>();
+  py::implicitly_convertible<ProxyPropertyMap, internal::PropertyMap>();
+  py::implicitly_convertible<py::dict, internal::PropertyMap>();
 }
 }  // namespace
 

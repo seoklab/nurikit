@@ -132,7 +132,7 @@ TEST_F(SubstructureTest, ClearAtoms) {
   EXPECT_EQ(sub_.name(), "test");
 
   ASSERT_FALSE(sub_.props().empty());
-  EXPECT_EQ(sub_.props()[0], std::pair("key"s, "val"s));
+  EXPECT_EQ(sub_.props().begin()[0], std::pair("key"s, "val"s));
 
   EXPECT_EQ(sub_.id(), 10);
 }

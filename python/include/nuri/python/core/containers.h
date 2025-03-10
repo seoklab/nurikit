@@ -8,11 +8,12 @@
 
 #include <pybind11/pybind11.h>
 
+#include "nuri/core/property_map.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
 namespace python_internal {
-using ProxyPropertyMap = TypeErasedProxyWrapper<PropertyMap *>;
+using ProxyPropertyMap = TypeErasedProxyWrapper<internal::PropertyMap *>;
 
 extern void bind_containers(py::module &m);
 }  // namespace python_internal

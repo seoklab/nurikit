@@ -22,12 +22,14 @@
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
 #include <absl/log/absl_check.h>
+#include <boost/container/flat_map.hpp>
 #include <Eigen/Dense>
 /// @endcond
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
 #include "nuri/core/graph.h"
+#include "nuri/core/property_map.h"
 #include "nuri/meta.h"
 #include "nuri/utils.h"
 
@@ -340,15 +342,13 @@ public:
 
   template <class KT, class VT>
   AtomData &add_prop(KT &&key, VT &&val) {
-    props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
+    internal::set_key(props_, std::forward<KT>(key), std::forward<VT>(val));
     return *this;
   }
 
-  std::vector<std::pair<std::string, std::string>> &props() { return props_; }
+  internal::PropertyMap &props() { return props_; }
 
-  const std::vector<std::pair<std::string, std::string>> &props() const {
-    return props_;
-  }
+  const internal::PropertyMap &props() const { return props_; }
 
 private:
   friend bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept;
@@ -360,7 +360,7 @@ private:
   AtomFlags flags_;
   double partial_charge_;
   const Isotope *isotope_;
-  std::vector<std::pair<std::string, std::string>> props_;
+  internal::PropertyMap props_;
 };
 
 inline bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept {
@@ -524,20 +524,18 @@ public:
 
   template <class KT, class VT>
   BondData &add_prop(KT &&key, VT &&val) {
-    props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
+    internal::set_key(props_, std::forward<KT>(key), std::forward<VT>(val));
     return *this;
   }
 
-  std::vector<std::pair<std::string, std::string>> &props() { return props_; }
+  internal::PropertyMap &props() { return props_; }
 
-  const std::vector<std::pair<std::string, std::string>> &props() const {
-    return props_;
-  }
+  const internal::PropertyMap &props() const { return props_; }
 
 private:
   constants::BondOrder order_;
   BondFlags flags_;
-  std::vector<std::pair<std::string, std::string>> props_;
+  internal::PropertyMap props_;
 };
 
 class Molecule;
@@ -867,14 +865,12 @@ namespace internal {
 
     template <class KT, class VT>
     void add_prop(KT &&key, VT &&val) {
-      props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
+      internal::set_key(props_, std::forward<KT>(key), std::forward<VT>(val));
     }
 
-    std::vector<std::pair<std::string, std::string>> &props() { return props_; }
+    internal::PropertyMap &props() { return props_; }
 
-    const std::vector<std::pair<std::string, std::string>> &props() const {
-      return props_;
-    }
+    const internal::PropertyMap &props() const { return props_; }
 
   private:
     friend Molecule;
@@ -889,7 +885,7 @@ namespace internal {
     std::string name_;
     int id_ = 0;
     SubstructCategory cat_;
-    std::vector<std::pair<std::string, std::string>> props_;
+    internal::PropertyMap props_;
   };
 
   template <class FT, bool is_const>
@@ -1993,14 +1989,12 @@ public:
 
   template <class KT, class VT>
   void add_prop(KT &&key, VT &&val) {
-    props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
+    internal::set_key(props_, std::forward<KT>(key), std::forward<VT>(val));
   }
 
-  std::vector<std::pair<std::string, std::string>> &props() { return props_; }
+  internal::PropertyMap &props() { return props_; }
 
-  const std::vector<std::pair<std::string, std::string>> &props() const {
-    return props_;
-  }
+  const internal::PropertyMap &props() const { return props_; }
 
 private:
   Molecule(GraphType &&graph, std::vector<Matrix3Xd> &&conformers) noexcept
@@ -2013,7 +2007,7 @@ private:
   GraphType graph_;
   std::vector<Matrix3Xd> conformers_;
   std::string name_;
-  std::vector<std::pair<std::string, std::string>> props_;
+  internal::PropertyMap props_;
 
   std::vector<Substructure> substructs_;
 

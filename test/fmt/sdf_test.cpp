@@ -16,6 +16,7 @@
 #include "fmt_test_common.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
+#include "nuri/core/property_map.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -707,7 +708,7 @@ TEST_F(SDFTest, Write2D) {
 TEST_F(SDFTest, EscapeUnsafeChars) {
   Molecule m;
   m.mutator().add_atom(kPt[6]);
-  m.props().emplace_back("> unsafe key\n\n", "$$$$\n> a\n\nb\n");
+  m.add_prop("> unsafe key\n\n", "$$$$\n> a\n\nb\n");
 
   std::string sdf;
   ASSERT_TRUE(write_sdf(sdf, m));
@@ -717,8 +718,10 @@ TEST_F(SDFTest, EscapeUnsafeChars) {
   NURI_FMT_TEST_NEXT_MOL("", 1, 0);
 
   ASSERT_EQ(mol().props().size(), 2);
-  EXPECT_EQ(mol().props()[1].first, "? unsafe key  ");
-  EXPECT_EQ(mol().props()[1].second, "?$$$\n> a\nb");
+
+  auto it = mol().props().find("? unsafe key  ");
+  ASSERT_NE(it, mol().props().end());
+  EXPECT_EQ(it->second, "?$$$\n> a\nb");
 }
 
 TEST(SDFFormatTest, AutoDetect) {

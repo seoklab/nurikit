@@ -26,6 +26,7 @@
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
+#include "nuri/core/property_map.h"
 #include "nuri/python/core/containers.h"
 #include "nuri/python/utils.h"
 
@@ -1180,7 +1181,9 @@ Set the position of the atom.
       [](T &self) {
         return ProxyPropertyMap(&self->data().props(), self.parent());
       },
-      [](T &self, const PropertyMap &props) { self->data().props() = props; },
+      [](T &self, const internal::PropertyMap &props) {
+        self->data().props() = props;
+      },
       rvp::automatic,
       R"doc(
 :type: collections.abc.MutableMapping[str, str]
@@ -1477,7 +1480,9 @@ Calculate the length of the bond.
       [](T &self) {
         return ProxyPropertyMap(&self->data().props(), self.parent());
       },
-      [](T &self, const PropertyMap &props) { self->data().props() = props; },
+      [](T &self, const internal::PropertyMap &props) {
+        self->data().props() = props;
+      },
       rvp::automatic,
       R"doc(
 :type: collections.abc.MutableMapping[str, str]

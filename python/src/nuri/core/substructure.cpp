@@ -1054,7 +1054,7 @@ Here, we only provide the methods that are additional to the
         return ProxyPropertyMap(
             &self->props(), 0, [](std::uint64_t /* unused */) { return true; });
       },
-      [](PySubstruct &self, const PropertyMap &props) {
+      [](PySubstruct &self, const internal::PropertyMap &props) {
         self->props() = props;
       },
       rvp::automatic,
@@ -1070,7 +1070,7 @@ keys and values are both strings.
       [](ProxySubstruct &self) {
         return ProxyPropertyMap(&self->props(), self);
       },
-      [](ProxySubstruct &self, const PropertyMap &props) {
+      [](ProxySubstruct &self, const internal::PropertyMap &props) {
         self->props() = props;
       },
       rvp::automatic,

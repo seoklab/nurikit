@@ -31,6 +31,7 @@
 #include <absl/strings/numbers.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_format.h>
+#include <boost/container/flat_set.hpp>
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
@@ -38,6 +39,7 @@
 #include "nuri/core/element.h"
 #include "nuri/core/graph.h"
 #include "nuri/core/molecule.h"
+#include "nuri/core/property_map.h"
 #include "nuri/fmt/base.h"
 #include "nuri/utils.h"
 
@@ -1606,6 +1608,13 @@ std::string as_key(std::string_view prefix, std::string_view altloc) {
 
 class AtomicLine {
 public:
+  struct AltCmp {
+    // NOLINTNEXTLINE(*-unused-member-function)
+    bool operator()(const AtomicLine &lhs, const AtomicLine &rhs) const {
+      return lhs.altloc() < rhs.altloc();
+    }
+  };
+
   AtomicLine(int serial, AtomId id, std::string_view line)
       : serial_(serial), line_(line), id_(id) { }
 
@@ -1667,10 +1676,7 @@ public:
   explicit PDBAtomData(AtomicLine line): data_({ line }) { }
 
   bool add_line(AtomicLine line) {
-    auto [it, first] = insert_sorted(data_, line, [](auto a, auto b) {
-      return a.altloc() < b.altloc();
-    });
-
+    auto [it, first] = data_.insert(line);
     ABSL_LOG_IF(INFO, !first)
         << "Duplicate atom altloc '" << line.altloc() << "'; ignoring";
     return first;
@@ -1705,27 +1711,29 @@ public:
       ABSL_LOG(WARNING) << "Invalid element symbol: " << elem_symb;
     }
 
-    data.set_name(first().id().name);
-
-    data.props().reserve(3 * data_.size() + extra_.size() + 1);
+    internal::PropertyMap::sequence_type props;
+    props.reserve(3 * data_.size() + extra_.size() + 1);
+    props.emplace_back(internal::kNameKey, first().id().name);
     for (const AtomicLine &l: data_) {
-      data.add_prop(as_key("serial", l.altloc()), absl::StrCat(l.serial()));
-      data.add_prop(as_key("occupancy", l.altloc()),
-                    safe_slice_strip(l.line(), 54, 60));
-      data.add_prop(as_key("tempfactor", l.altloc()),
-                    safe_slice_strip(l.line(), 60, 66));
+      props.emplace_back(as_key("serial", l.altloc()),
+                         absl::StrCat(l.serial()));
+      props.emplace_back(as_key("occupancy", l.altloc()),
+                         safe_slice_strip(l.line(), 54, 60));
+      props.emplace_back(as_key("tempfactor", l.altloc()),
+                         safe_slice_strip(l.line(), 60, 66));
     }
-    data.props().insert(data.props().end(),
-                        std::make_move_iterator(extra_.begin()),
-                        std::make_move_iterator(extra_.end()));
+    props.insert(props.end(), std::make_move_iterator(extra_.begin()),
+                 std::make_move_iterator(extra_.end()));
+
+    data.props().adopt_sequence(std::move(props));
 
     return data;
   }
 
   // NOLINTNEXTLINE(*-unused-member-function)
-  const std::vector<AtomicLine> &data() const { return data_; }
+  const std::vector<AtomicLine> &data() const { return data_.sequence(); }
 
-  const AtomicLine &first() const { return data_.front(); }
+  const AtomicLine &first() const { return *data_.begin(); }
 
   // NOLINTNEXTLINE(*-unused-member-function)
   int major() const {
@@ -1734,7 +1742,7 @@ public:
     int major = 0;
     float max_occ = first().occupancy();
     for (int i = 1; i < data_.size(); ++i) {
-      float occ = data_[i].occupancy();
+      float occ = data_.begin()[i].occupancy();
       if (occ > max_occ) {
         max_occ = occ;
         major = i;
@@ -1744,7 +1752,9 @@ public:
   }
 
 private:
-  std::vector<AtomicLine> data_;
+  boost::container::flat_set<AtomicLine, AtomicLine::AltCmp,
+                             std::vector<AtomicLine>>
+      data_;
   std::vector<std::pair<std::string, std::string>> extra_;
 };
 
