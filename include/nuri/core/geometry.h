@@ -46,11 +46,36 @@ namespace internal {
 
 class OCTree {
 public:
-  OCTree(): pts_(nullptr) { }
+  using Points = Eigen::Map<const Matrix3Xd>;
 
-  OCTree(const Matrix3Xd &pts) { rebuild(pts); }
+  OCTree(): pts_(nullptr, 3, 0) { }
 
-  void rebuild(const Matrix3Xd &pts);
+  template <
+      class MatrixLike,
+      std::enable_if_t<
+          std::is_same_v<internal::remove_cvref_t<typename MatrixLike::Scalar>,
+                         double>
+              && !MatrixLike::IsRowMajor && MatrixLike::RowsAtCompileTime == 3
+              && MatrixLike::InnerStrideAtCompileTime == 1
+              && MatrixLike::OuterStrideAtCompileTime == 3,
+          int> = 0>
+  explicit OCTree(const MatrixLike &pts): pts_(pts.data(), 3, pts.cols()) {
+    rebuild();
+  }
+
+  template <
+      class MatrixLike,
+      std::enable_if_t<
+          std::is_same_v<internal::remove_cvref_t<typename MatrixLike::Scalar>,
+                         double>
+              && !MatrixLike::IsRowMajor && MatrixLike::RowsAtCompileTime == 3
+              && MatrixLike::InnerStrideAtCompileTime == 1
+              && MatrixLike::OuterStrideAtCompileTime == 3,
+          int> = 0>
+  void rebuild(const MatrixLike &pts) {
+    new (&pts_) Points(pts.data(), 3, pts.cols());
+    rebuild();
+  }
 
   void find_neighbors_k(const Vector3d &pt, int k, std::vector<int> &idxs,
                         std::vector<double> &distsq) const;
@@ -63,7 +88,7 @@ public:
                          std::vector<int> &idxs,
                          std::vector<double> &distsq) const;
 
-  const Matrix3Xd &pts() const { return *pts_; }
+  const Points &pts() const { return pts_; }
 
   const Vector3d &max() const { return max_; }
 
@@ -80,7 +105,9 @@ public:
   const internal::OCTreeNode &operator[](int idx) const { return nodes_[idx]; }
 
 private:
-  const Matrix3Xd *pts_;
+  void rebuild();
+
+  Points pts_;
   Vector3d max_;
   Vector3d len_;
   std::vector<internal::OCTreeNode> nodes_;
@@ -96,6 +123,15 @@ namespace constants {
   // NOLINTBEGIN(*-identifier-naming)
   constexpr double kCos15 =
       0.9659258262890682867497431997288973676339048390084045504023430763;
+  constexpr double kCos30 =
+      0.8660254037844386467637231707529361834714026269051903140279034897;
+  constexpr double kCos36 =
+      0.8090169943749474241022934171828190588601545899028814310677243114;
+  constexpr double kCos45 =
+      0.7071067811865475244008443621048490392848359376884740365883398690;
+  constexpr double kCos54 =
+      0.5877852522924731291687059546390727685976524376431459910722724808;
+  constexpr double kCos60 = 0.5;
   constexpr double kCos75 =
       0.2588190451025207623488988376240483283490689013199305138140032073;
   constexpr double kCos100 =
@@ -131,6 +167,16 @@ constexpr DT deg2rad(DT deg) {
 template <class DT, std::enable_if_t<std::is_integral_v<DT>, int> = 0>
 constexpr double deg2rad(DT deg) {
   return deg * constants::kPi / 180;
+}
+
+template <class DT, std::enable_if_t<std::is_floating_point_v<DT>, int> = 0>
+constexpr DT rad2deg(DT rad) {
+  return rad * 180 / constants::kPi;
+}
+
+template <class DT, std::enable_if_t<std::is_integral_v<DT>, int> = 0>
+constexpr double rad2deg(DT rad) {
+  return rad * 180 / constants::kPi;
 }
 
 template <class MatrixLike>
@@ -413,6 +459,28 @@ Vector4d fit_plane(const MatrixLike &pts, bool normalize = true) {
     internal::safe_normalize(ret.head<3>());
   ret[3] = -ret.head<3>().dot(cntr);
   return ret;
+}
+
+/**
+ * @brief Find a vector perpendicular to the given vector.
+ *
+ * @tparam VectorLike The type of the vector-like object.
+ * @param v A vector-like object to generate a perpendicular vector.
+ * @param normalize Whether to normalize the perpendicular vector. Defaults to
+ *        true.
+ * @return A vector perpendicular to the given vector.
+ *
+ * This function is based on the algorithm proposed by K Whatmough on
+ * Mathematics Stack Exchange. @cite core:geom:perpendicular-2023
+ */
+template <class VectorLike>
+Vector3d any_perpendicular(const VectorLike &v, bool normalize = true) {
+  Vector3d w = { std::copysign(v[2], v[0]),  //
+                 std::copysign(v[2], v[1]),
+                 -std::copysign(v[0], v[2]) - std::copysign(v[1], v[2]) };
+  if (normalize)
+    internal::safe_normalize(w);
+  return w;
 }
 
 enum class AlignMode : std::uint8_t {

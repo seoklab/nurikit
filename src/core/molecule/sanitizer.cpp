@@ -155,7 +155,7 @@ namespace internal {
 
   int steric_number(const int total_degree, const int nb_electrons) {
     const int lone_pairs = nb_electrons / 2;
-    return total_degree + lone_pairs;
+    return total_degree + lone_pairs + nb_electrons % 2;
   }
 
   constants::Hybridization from_degree(const int total_degree,
@@ -458,12 +458,14 @@ bool MoleculeSanitizer::sanitize_aromaticity() {
 namespace {
   bool is_pyrrole_like(Molecule::Atom atom, const Element &effective,
                        const int nbe, const int total_valence) {
-    return nbe > 0 && internal::common_valence(effective) < total_valence
-           && std::any_of(
-               atom.begin(), atom.end(),
-               [](Molecule::Neighbor nei) {
-                 return nei.edge_data().order() == constants::kAromaticBond;
-               });
+    return nbe > 0
+           && internal::common_valence(effective) < total_valence
+           // inconsistent formatting between 19.1.1 (ubuntu 24.04) vs 19.1.7
+           // clang-format off
+           && std::any_of(atom.begin(), atom.end(), [](Molecule::Neighbor nei) {
+                return nei.edge_data().order() == constants::kAromaticBond;
+              });
+    // clang-format on
   }
 
   std::string format_atom_common(Molecule::Atom atom, bool caps) {

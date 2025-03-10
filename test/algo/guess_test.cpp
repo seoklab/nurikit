@@ -18,6 +18,7 @@
 
 #include "nuri/eigen_config.h"
 #include "fmt_test_common.h"
+#include "test_utils.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/pdb.h"
 #include "nuri/fmt/smiles.h"
@@ -1060,8 +1061,7 @@ TEST(GuessSelectedMolecules, GH358) {
     Molecule mol = reader.parse(blk);
     EXPECT_TRUE(internal::guess_update_subs(mol));
 
-    std::string smi;
-    write_smiles(smi, mol);
+    std::string smi = NURI_WRITE_ONCE(write_smiles, mol);
     absl::StripAsciiWhitespace(&smi);
 
     std::pair<std::string_view, std::string_view> ans_split =
@@ -1102,8 +1102,7 @@ TEST(GuessSelectedMolecules, GH367) {
     Molecule mol = reader.parse(blk);
     EXPECT_TRUE(internal::guess_update_subs(mol));
 
-    std::string smi;
-    write_smiles(smi, mol);
+    std::string smi = NURI_WRITE_ONCE(write_smiles, mol);
     absl::StripAsciiWhitespace(&smi);
 
     std::pair<std::string_view, std::string_view> ans_split =

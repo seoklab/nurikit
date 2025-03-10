@@ -311,13 +311,18 @@ def test_find_neighbor(mol: Molecule):
 
 
 def test_implicit_hydrogens(mol: Molecule):
-    mol.hide_hydrogens()
+    mol.conceal_hydrogens()
 
     assert len(mol) == 6
     assert mol.atom(0).implicit_hydrogens == 2
-
     for atom in mol:
         assert atom.atomic_number != 1
+
+    mol.reveal_hydrogens()
+
+    assert len(mol) == 12
+    assert mol.atom(0).implicit_hydrogens == 0
+    assert sum(atom.atomic_number == 1 for atom in mol) == 6
 
 
 def test_clear_bonds(mol: Molecule):
