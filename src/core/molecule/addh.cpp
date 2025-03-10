@@ -923,13 +923,12 @@ bool Molecule::add_hydrogens(const bool update_confs, const bool optimize) {
   }
 
   for (auto &sub: substructures()) {
-    const int size = sub.size();
-    for (int i = 0; i < size; ++i) {
-      for (auto nei: atom(sub.atom_ids()[i])) {
+    for (auto sa: sub) {
+      for (auto nei: sa.as_parent()) {
         if (nei.dst().id() < h_begin)
           continue;
 
-        sub.add_atom(nei.dst().id());
+        sub.add_bond(nei.eid());
       }
     }
   }
