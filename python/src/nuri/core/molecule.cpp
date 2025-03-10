@@ -27,6 +27,7 @@
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
 #include "nuri/core/graph.h"
+#include "nuri/core/property_map.h"
 #include "nuri/python/core/containers.h"
 #include "nuri/python/core/core_module.h"
 #include "nuri/python/utils.h"

@@ -36,6 +36,7 @@
 #include "nuri/algo/guess.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
+#include "nuri/core/property_map.h"
 #include "nuri/fmt/base.h"
 #include "nuri/utils.h"
 

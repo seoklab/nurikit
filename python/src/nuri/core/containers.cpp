@@ -9,7 +9,6 @@
 #include <string_view>
 #include <utility>
 
-#include <absl/algorithm/container.h>
 #include <pybind11/attr.h>
 #include <pybind11/cast.h>
 #include <pybind11/pybind11.h>
@@ -222,7 +221,7 @@ py::class_<T> &add_map_interface(py::class_<T> &cls) {
     map.erase(it);
   });
   cls.def("__contains__", [](T &self, std::string_view key) {
-    internal::PropertyMap &map = prolog(self);
+    const internal::PropertyMap &map = prolog(self);
     return map.contains(key);
   });
   cls.def("__len__", [](T &self) { return prolog(self).size(); });

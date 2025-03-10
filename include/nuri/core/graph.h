@@ -9,6 +9,7 @@
 /// @cond
 #include <algorithm>
 #include <cstddef>
+#include <functional>
 #include <initializer_list>
 #include <iterator>
 #include <queue>
@@ -2048,7 +2049,7 @@ public:
    *
    * @return The number of nodes in the subgraph
    */
-  int num_nodes() const { return nodes_.size(); }
+  int num_nodes() const { return static_cast<int>(nodes_.size()); }
 
   // /**
   //  * @brief Change the set of nodes in the subgraph
@@ -2471,7 +2472,7 @@ public:
    *
    * @return The number of edges in the subgraph
    */
-  int num_edges() const { return edges_.size(); }
+  int num_edges() const { return static_cast<int>(edges_.size()); }
 
   // /**
   //  * @brief Change the set of edges in the subgraph. This will also update
