@@ -22,12 +22,14 @@
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
 #include <absl/log/absl_check.h>
+#include <boost/container/flat_map.hpp>
 #include <Eigen/Dense>
 /// @endcond
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
 #include "nuri/core/graph.h"
+#include "nuri/core/property_map.h"
 #include "nuri/meta.h"
 #include "nuri/utils.h"
 
@@ -340,15 +342,13 @@ public:
 
   template <class KT, class VT>
   AtomData &add_prop(KT &&key, VT &&val) {
-    props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
+    internal::set_key(props_, std::forward<KT>(key), std::forward<VT>(val));
     return *this;
   }
 
-  std::vector<std::pair<std::string, std::string>> &props() { return props_; }
+  internal::PropertyMap &props() { return props_; }
 
-  const std::vector<std::pair<std::string, std::string>> &props() const {
-    return props_;
-  }
+  const internal::PropertyMap &props() const { return props_; }
 
 private:
   friend bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept;
@@ -360,7 +360,7 @@ private:
   AtomFlags flags_;
   double partial_charge_;
   const Isotope *isotope_;
-  std::vector<std::pair<std::string, std::string>> props_;
+  internal::PropertyMap props_;
 };
 
 inline bool operator==(const AtomData &lhs, const AtomData &rhs) noexcept {
@@ -524,20 +524,18 @@ public:
 
   template <class KT, class VT>
   BondData &add_prop(KT &&key, VT &&val) {
-    props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
+    internal::set_key(props_, std::forward<KT>(key), std::forward<VT>(val));
     return *this;
   }
 
-  std::vector<std::pair<std::string, std::string>> &props() { return props_; }
+  internal::PropertyMap &props() { return props_; }
 
-  const std::vector<std::pair<std::string, std::string>> &props() const {
-    return props_;
-  }
+  const internal::PropertyMap &props() const { return props_; }
 
 private:
   constants::BondOrder order_;
   BondFlags flags_;
-  std::vector<std::pair<std::string, std::string>> props_;
+  internal::PropertyMap props_;
 };
 
 class Molecule;
@@ -651,16 +649,8 @@ namespace internal {
 
     void clear_atoms() noexcept { graph_.clear(); }
 
-    void update(const std::vector<int> &atoms, const std::vector<int> &bonds) {
-      graph_.update(atoms, bonds);
-    }
-
     void update(std::vector<int> &&atoms, std::vector<int> &&bonds) {
       graph_.update(std::move(atoms), std::move(bonds));
-    }
-
-    void update_atoms(const std::vector<int> &atoms) {
-      graph_.update_nodes(atoms);
     }
 
     void update_atoms(std::vector<int> &&atoms) noexcept {
@@ -671,7 +661,7 @@ namespace internal {
 
     void add_atom(int id) { graph_.add_node(id); }
 
-    void add_atoms(const SortedIdxs &atoms, bool bonds = false) {
+    void add_atoms(const IndexSet &atoms, bool bonds = false) {
       if (bonds) {
         graph_.add_nodes_with_edges(atoms);
       } else {
@@ -752,10 +742,6 @@ namespace internal {
 
     void clear_bonds() noexcept { graph_.clear_edges(); }
 
-    void update_bonds(const std::vector<int> &bonds) {
-      graph_.update_edges(bonds);
-    }
-
     void update_bonds(std::vector<int> &&bonds) noexcept {
       graph_.update_edges(std::move(bonds));
     }
@@ -766,9 +752,7 @@ namespace internal {
 
     void add_bond(int id) { graph_.add_edge(id); }
 
-    void add_bonds(const internal::SortedIdxs &bonds) {
-      graph_.add_edges(bonds);
-    }
+    void add_bonds(const internal::IndexSet &bonds) { graph_.add_edges(bonds); }
 
     template <class Iter>
     void add_bonds(Iter begin, Iter end) {
@@ -881,14 +865,12 @@ namespace internal {
 
     template <class KT, class VT>
     void add_prop(KT &&key, VT &&val) {
-      props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
+      internal::set_key(props_, std::forward<KT>(key), std::forward<VT>(val));
     }
 
-    std::vector<std::pair<std::string, std::string>> &props() { return props_; }
+    internal::PropertyMap &props() { return props_; }
 
-    const std::vector<std::pair<std::string, std::string>> &props() const {
-      return props_;
-    }
+    const internal::PropertyMap &props() const { return props_; }
 
   private:
     friend Molecule;
@@ -903,7 +885,7 @@ namespace internal {
     std::string name_;
     int id_ = 0;
     SubstructCategory cat_;
-    std::vector<std::pair<std::string, std::string>> props_;
+    internal::PropertyMap props_;
   };
 
   template <class FT, bool is_const>
@@ -1698,7 +1680,7 @@ public:
    * @return The new substructure.
    */
   Substructure
-  substructure(internal::SortedIdxs &&atoms, internal::SortedIdxs &&bonds,
+  substructure(internal::IndexSet &&atoms, internal::IndexSet &&bonds,
                SubstructCategory cat = SubstructCategory::kUnknown) {
     return { make_subgraph(graph_, std::move(atoms), std::move(bonds)), cat };
   }
@@ -1709,7 +1691,7 @@ public:
    *        atoms will also be included in the substructure.
    */
   Substructure
-  atom_substructure(internal::SortedIdxs &&atoms,
+  atom_substructure(internal::IndexSet &&atoms,
                     SubstructCategory cat = SubstructCategory::kUnknown) {
     return { subgraph_from_nodes(graph_, std::move(atoms)), cat };
   }
@@ -1720,7 +1702,7 @@ public:
    *        the bonds will also be included in the substructure.
    */
   Substructure bond_substructure(
-      internal::SortedIdxs &&bonds,
+      internal::IndexSet &&bonds,
       SubstructCategory cat = SubstructCategory::kUnknown) noexcept {
     return { subgraph_from_edges(graph_, std::move(bonds)), cat };
   }
@@ -1741,7 +1723,7 @@ public:
    * @return The new substructure.
    */
   ConstSubstructure
-  substructure(internal::SortedIdxs &&atoms, internal::SortedIdxs &&bonds,
+  substructure(internal::IndexSet &&atoms, internal::IndexSet &&bonds,
                SubstructCategory cat = SubstructCategory::kUnknown) const {
     return { make_subgraph(graph_, std::move(atoms), std::move(bonds)), cat };
   }
@@ -1752,7 +1734,7 @@ public:
    *        atoms will also be included in the substructure.
    */
   ConstSubstructure
-  atom_substructure(internal::SortedIdxs &&atoms,
+  atom_substructure(internal::IndexSet &&atoms,
                     SubstructCategory cat = SubstructCategory::kUnknown) const {
     return { subgraph_from_nodes(graph_, std::move(atoms)), cat };
   }
@@ -1763,7 +1745,7 @@ public:
    *        the bonds will also be included in the substructure.
    */
   ConstSubstructure
-  bond_substructure(internal::SortedIdxs &&bonds,
+  bond_substructure(internal::IndexSet &&bonds,
                     SubstructCategory cat = SubstructCategory::kUnknown) const {
     return { subgraph_from_edges(graph_, std::move(bonds)), cat };
   }
@@ -2007,14 +1989,12 @@ public:
 
   template <class KT, class VT>
   void add_prop(KT &&key, VT &&val) {
-    props_.emplace_back(std::forward<KT>(key), std::forward<VT>(val));
+    internal::set_key(props_, std::forward<KT>(key), std::forward<VT>(val));
   }
 
-  std::vector<std::pair<std::string, std::string>> &props() { return props_; }
+  internal::PropertyMap &props() { return props_; }
 
-  const std::vector<std::pair<std::string, std::string>> &props() const {
-    return props_;
-  }
+  const internal::PropertyMap &props() const { return props_; }
 
 private:
   Molecule(GraphType &&graph, std::vector<Matrix3Xd> &&conformers) noexcept
@@ -2027,7 +2007,7 @@ private:
   GraphType graph_;
   std::vector<Matrix3Xd> conformers_;
   std::string name_;
-  std::vector<std::pair<std::string, std::string>> props_;
+  internal::PropertyMap props_;
 
   std::vector<Substructure> substructs_;
 

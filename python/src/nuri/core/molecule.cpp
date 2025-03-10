@@ -27,6 +27,7 @@
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
 #include "nuri/core/graph.h"
+#include "nuri/core/property_map.h"
 #include "nuri/python/core/containers.h"
 #include "nuri/python/core/core_module.h"
 #include "nuri/python/utils.h"
@@ -242,7 +243,7 @@ void bind_atom(py::class_<AtomData> &atom_data, py::class_<PyAtom> &atom) {
       .def(py::init<const Element &>(), py::arg("element"))
       .def_property(
           "props", py::overload_cast<>(&AtomData::props),
-          [](AtomData &self, const PropertyMap &props) {
+          [](AtomData &self, const internal::PropertyMap &props) {
             self.props() = props;
           },
           R"doc(
@@ -315,7 +316,7 @@ Create a bond data with the given bond order.
 )doc")
       .def_property(
           "props", py::overload_cast<>(&BondData::props),
-          [](BondData &self, const PropertyMap &props) {
+          [](BondData &self, const internal::PropertyMap &props) {
             self.props() = props;
           },
           R"doc(
@@ -1111,7 +1112,9 @@ of the molecule with this object.
         return ProxyPropertyMap(
             &self->props(), 0, [](std::uint64_t /* unused */) { return true; });
       },
-      [](PyMol &self, const PropertyMap &props) { self->props() = props; },
+      [](PyMol &self, const internal::PropertyMap &props) {
+        self->props() = props;
+      },
       rvp::automatic,
       R"doc(
 :type: collections.abc.MutableMapping[str, str]

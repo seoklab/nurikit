@@ -267,6 +267,9 @@ def test_propertymap_interface(maplike: _PropertyMap):
     assert maplike.pop("test") == "1"
     assert maplike.pop("test", "2") == "2"
 
+    maplike["test"] = "3"
+    assert maplike.pop("test", "4") == "3"
+
     maplike["test"] = "1"
     assert maplike.popitem() == ("test", "1")
 

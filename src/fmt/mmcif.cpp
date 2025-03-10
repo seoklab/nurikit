@@ -13,6 +13,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -24,6 +25,7 @@
 #include <absl/strings/ascii.h>
 #include <absl/strings/numbers.h>
 #include <absl/strings/str_cat.h>
+#include <boost/container/flat_set.hpp>
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
@@ -322,6 +324,13 @@ int tables_nrow_min(const internal::CifFrame &frame,
 
 class MmcifAtomInfo {
 public:
+  struct AltCmp {
+    // NOLINTNEXTLINE(*-unused-member-function)
+    bool operator()(const MmcifAtomInfo &lhs, const MmcifAtomInfo &rhs) const {
+      return lhs.alt_id() < rhs.alt_id();
+    }
+  };
+
   MmcifAtomInfo() = default;
 
   MmcifAtomInfo(int row, AtomId id, std::string_view alt_id, float occupancy)
@@ -373,11 +382,7 @@ public:
   bool add_info(MmcifAtomInfo info) {
     ABSL_DCHECK(static_cast<bool>(info));
 
-    auto [it, first] = insert_sorted(
-        data_, info, [](const MmcifAtomInfo &a, const MmcifAtomInfo &b) {
-          return a.alt_id() < b.alt_id();
-        });
-
+    auto [it, first] = data_.insert(info);
     ABSL_LOG_IF(INFO, !first)
         << "Duplicate atom altloc '" << info.alt_id() << "'; ignoring";
     return first;
@@ -409,9 +414,9 @@ public:
   }
 
   // NOLINTNEXTLINE(*-unused-member-function)
-  const std::vector<MmcifAtomInfo> &data() const { return data_; }
+  const std::vector<MmcifAtomInfo> &data() const { return data_.sequence(); }
 
-  const MmcifAtomInfo &first() const { return data_.front(); }
+  const MmcifAtomInfo &first() const { return *data_.begin(); }
 
   // NOLINTNEXTLINE(*-unused-member-function)
   int major() const {
@@ -426,7 +431,9 @@ public:
   std::string_view entity_id() const { return entity_id_; }
 
 private:
-  std::vector<MmcifAtomInfo> data_;
+  boost::container::flat_set<MmcifAtomInfo, MmcifAtomInfo::AltCmp,
+                             std::vector<MmcifAtomInfo>>
+      data_;
   std::string_view entity_id_;
 };
 

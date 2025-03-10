@@ -556,7 +556,7 @@ void verify_clear_atoms(const Molecule &mol) {
   EXPECT_EQ(mol.name(), "test molecule");
 
   ASSERT_EQ(mol.props().size(), 1);
-  EXPECT_EQ(mol.props()[0], std::pair("key"s, "val"s));
+  EXPECT_EQ(mol.props().sequence()[0], std::pair("key"s, "val"s));
 
   ASSERT_EQ(mol.substructures().size(), 1);
   EXPECT_TRUE(mol.substructures()[0].empty());
@@ -597,7 +597,7 @@ void verify_clear_bonds(const Molecule &mol, int num_atoms) {
   EXPECT_EQ(mol.name(), "test molecule");
 
   ASSERT_EQ(mol.props().size(), 1);
-  EXPECT_EQ(mol.props()[0], std::pair("key"s, "val"s));
+  EXPECT_EQ(mol.props().sequence()[0], std::pair("key"s, "val"s));
 
   ASSERT_EQ(mol.substructures().size(), 1);
   EXPECT_EQ(mol.substructures()[0].atom_ids(), std::vector<int>({ 0, 1, 2 }));

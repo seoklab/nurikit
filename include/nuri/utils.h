@@ -623,63 +623,6 @@ namespace internal {
     return static_cast<int>(std::lround(x));
   }
 
-  // RDKit-compatible key for name
-  constexpr std::string_view kNameKey = "_Name";
-
-  template <class PT>
-  auto find_key(PT &props, std::string_view key) {
-    return absl::c_find_if(props,
-                           [key](const auto &p) { return p.first == key; });
-  }
-
-  template <class PT>
-  bool has_key(PT &props, std::string_view key) {
-    return find_key(props, key) != props.end();
-  }
-
-  template <class PT>
-  std::string_view get_key(PT &props, std::string_view key) {
-    auto it = find_key(props, key);
-    if (it == props.end())
-      return "";
-    return it->second;
-  }
-
-  template <class PT>
-  auto find_name(PT &props) -> decltype(props.begin()) {
-    return find_key(props, kNameKey);
-  }
-
-  template <class PT>
-  bool has_name(PT &props) {
-    return has_key(props, kNameKey);
-  }
-
-  template <class PT>
-  std::string_view get_name(PT &props) {
-    return get_key(props, kNameKey);
-  }
-
-  template <class PT>
-  void set_name(PT &props, std::string &&name) {
-    auto it = find_name(props);
-    if (it != props.end()) {
-      it->second = std::move(name);
-    } else {
-      props.emplace_back(kNameKey, std::move(name));
-    }
-  }
-
-  template <class PT>
-  void set_name(PT &props, const char *name) {
-    set_name(props, std::string(name));
-  }
-
-  template <class PT>
-  void set_name(PT &props, std::string_view name) {
-    set_name(props, std::string(name));
-  }
-
   constexpr int negate_if_false(bool cond) {
     int ret = (static_cast<int>(cond) << 1) - 1;
     ABSL_ASSUME(ret == 1 || ret == -1);
@@ -718,71 +661,6 @@ typename std::vector<T, Alloc>::iterator erase_first(std::vector<T, Alloc> &c,
     return c.erase(it);
   }
   return it;
-}
-
-template <class Iter, class VT, class Comp,
-          internal::enable_if_iter_category_t<
-              Iter, std::random_access_iterator_tag> = 0>
-Iter find_sorted(Iter begin, Iter end, const VT &value, Comp &&comp) {
-  // *it >= value
-  auto it = std::lower_bound(begin, end, value, std::forward<Comp>(comp));
-  if (it != end && !comp(value, *it)) {
-    // value >= *it, i.e., value == *it
-    return it;
-  }
-  return end;
-}
-
-template <class Iter, class VT,
-          internal::enable_if_iter_category_t<
-              Iter, std::random_access_iterator_tag> = 0>
-Iter find_sorted(Iter begin, Iter end, const VT &value) {
-  return find_sorted(begin, end, value, std::less<>());
-}
-
-template <class Container, class Comp,
-          internal::enable_if_iter_category_t<
-              typename Container::iterator, std::random_access_iterator_tag> = 0>
-std::pair<typename Container::iterator, bool>
-insert_sorted(Container &c, const typename Container::value_type &value,
-              Comp comp) {
-  // *it >= value
-  auto it = std::lower_bound(c.begin(), c.end(), value, comp);
-  if (it != c.end() && !comp(value, *it)) {
-    // value >= *it, i.e., value == *it
-    return { it, false };
-  }
-  return { c.insert(it, value), true };
-}
-
-template <class Container,
-          internal::enable_if_iter_category_t<
-              typename Container::iterator, std::random_access_iterator_tag> = 0>
-std::pair<typename Container::iterator, bool>
-insert_sorted(Container &c, const typename Container::value_type &value) {
-  return insert_sorted(c, value, std::less<>());
-}
-
-template <class Container, class Comp,
-          internal::enable_if_iter_category_t<
-              typename Container::iterator, std::random_access_iterator_tag> = 0>
-std::pair<typename Container::iterator, bool>
-insert_sorted(Container &c, typename Container::value_type &&value, Comp comp) {
-  // *it >= value
-  auto it = std::lower_bound(c.begin(), c.end(), value, comp);
-  if (it != c.end() && !comp(value, *it)) {
-    // value >= *it, i.e., value == *it
-    return { it, false };
-  }
-  return { c.insert(it, std::move(value)), true };
-}
-
-template <class Container,
-          internal::enable_if_iter_category_t<
-              typename Container::iterator, std::random_access_iterator_tag> = 0>
-std::pair<typename Container::iterator, bool>
-insert_sorted(Container &c, typename Container::value_type &&value) {
-  return insert_sorted(c, std::move(value), std::less<>());
 }
 
 template <int N = Eigen::Dynamic, int... Extra>

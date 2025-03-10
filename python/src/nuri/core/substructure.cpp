@@ -22,6 +22,7 @@
 #include "nuri/eigen_config.h"
 #include "nuri/core/graph.h"
 #include "nuri/core/molecule.h"
+#include "nuri/core/property_map.h"
 #include "nuri/python/core/containers.h"
 #include "nuri/python/core/core_module.h"
 #include "nuri/python/utils.h"
@@ -584,7 +585,7 @@ to the conformers to update the coordinates.
         for (py::handle obj: atoms)
           add_atom_single(idxs, parent, obj);
 
-        substruct.add_atoms(idxs, add_bonds);
+        substruct.add_atoms(std::move(idxs), add_bonds);
         self.tick();
       },
       py::arg("atoms"), py::arg("add_bonds") = true, R"doc(
@@ -613,7 +614,7 @@ Add atoms to the substructure.
         for (py::handle obj: bonds)
           add_bond_single(idxs, parent, obj);
 
-        substruct.add_bonds(idxs);
+        substruct.add_bonds(std::move(idxs));
         self.tick();
       },
       py::arg("bonds"), R"doc(
@@ -970,13 +971,13 @@ Substructure create_substruct(Molecule &mol,
     return mol.substructure(cat);
 
   if (atoms && bonds)
-    return mol.substructure(atom_idxs, bond_idxs, cat);
+    return mol.substructure(std::move(atom_idxs), std::move(bond_idxs), cat);
 
   if (atoms)
-    return mol.atom_substructure(atom_idxs, cat);
+    return mol.atom_substructure(std::move(atom_idxs), cat);
 
   /* if (bonds) */
-  return mol.bond_substructure(bond_idxs, cat);
+  return mol.bond_substructure(std::move(bond_idxs), cat);
 }
 
 void bind_substructure(py::module &m) {
@@ -1054,7 +1055,7 @@ Here, we only provide the methods that are additional to the
         return ProxyPropertyMap(
             &self->props(), 0, [](std::uint64_t /* unused */) { return true; });
       },
-      [](PySubstruct &self, const PropertyMap &props) {
+      [](PySubstruct &self, const internal::PropertyMap &props) {
         self->props() = props;
       },
       rvp::automatic,
@@ -1070,7 +1071,7 @@ keys and values are both strings.
       [](ProxySubstruct &self) {
         return ProxyPropertyMap(&self->props(), self);
       },
-      [](ProxySubstruct &self, const PropertyMap &props) {
+      [](ProxySubstruct &self, const internal::PropertyMap &props) {
         self->props() = props;
       },
       rvp::automatic,

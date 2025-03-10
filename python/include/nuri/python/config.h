@@ -6,7 +6,6 @@
 #ifndef NURI_PYTHON_CONFIG_H_
 #define NURI_PYTHON_CONFIG_H_
 
-#include <utility>
 #include <vector>
 
 #include <pybind11/pybind11.h>
@@ -29,14 +28,10 @@ namespace py = pybind11;
 namespace pyt = pybind11::typing;
 
 using rvp = py::return_value_policy;
-
-using PropertyMap = std::vector<std::pair<std::string, std::string>>;
 }  // namespace python_internal
 }  // namespace nuri
 
 PYBIND11_MAKE_OPAQUE(std::vector<nuri::Isotope>)
-PYBIND11_MAKE_OPAQUE(nuri::python_internal::PropertyMap)
-
 PYBIND11_MAKE_OPAQUE(std::vector<nuri::internal::CifFrame>)
 
 #endif /* NURI_PYTHON_CONFIG_H_ */

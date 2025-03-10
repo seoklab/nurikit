@@ -91,8 +91,7 @@ TEST_F(SubstructureTest, CreateSubstructure) {
   EXPECT_EQ(sub_.num_atoms(), 4);
   EXPECT_EQ(sub_.count_heavy_atoms(), 3);
 
-  std::vector<int> tmp { 0, 1, 2, 10 };
-  Substructure sub = mol_.atom_substructure(tmp);
+  Substructure sub = mol_.atom_substructure({ 0, 1, 2, 10 });
   EXPECT_EQ(sub.size(), 4);
   EXPECT_EQ(sub.num_atoms(), 4);
   EXPECT_EQ(sub.count_heavy_atoms(), 3);
@@ -102,11 +101,6 @@ TEST_F(SubstructureTest, CreateSubstructure) {
   EXPECT_EQ(csub1.size(), 4);
   EXPECT_EQ(csub1.num_atoms(), 4);
   EXPECT_EQ(csub1.count_heavy_atoms(), 3);
-
-  ConstSubstructure csub2 = cmol.atom_substructure(tmp);
-  EXPECT_EQ(csub2.size(), 4);
-  EXPECT_EQ(csub2.num_atoms(), 4);
-  EXPECT_EQ(csub2.count_heavy_atoms(), 3);
 }
 
 TEST_F(SubstructureTest, ClearAll) {
@@ -138,7 +132,7 @@ TEST_F(SubstructureTest, ClearAtoms) {
   EXPECT_EQ(sub_.name(), "test");
 
   ASSERT_FALSE(sub_.props().empty());
-  EXPECT_EQ(sub_.props()[0], std::pair("key"s, "val"s));
+  EXPECT_EQ(sub_.props().begin()[0], std::pair("key"s, "val"s));
 
   EXPECT_EQ(sub_.id(), 10);
 }
@@ -148,7 +142,7 @@ TEST_F(SubstructureTest, UpdateAtoms) {
   EXPECT_TRUE(absl::c_is_permutation(sub_.atom_ids(), prev));
 
   prev.push_back(4);
-  sub_.update_atoms(prev);
+  sub_.update_atoms(std::vector<int> { prev });
   EXPECT_TRUE(absl::c_is_permutation(sub_.atom_ids(), prev));
 
   sub_.update_atoms({ 0 });
@@ -439,11 +433,6 @@ TEST_F(MolSubstructureTest, AddSubstructures) {
       mol_.add_substructure(mol_.atom_substructure({ 0, 1, 2, 10 }));
   EXPECT_EQ(mol_.num_substructures(), 3);
   EXPECT_EQ(sub2.size(), 4);
-
-  std::vector<int> ids = { 0, 1, 2, 10 };
-  Substructure &sub3 = mol_.add_substructure(mol_.atom_substructure(ids));
-  EXPECT_EQ(mol_.num_substructures(), 4);
-  EXPECT_EQ(sub3.size(), 4);
 }
 
 TEST_F(MolSubstructureTest, ClearSubstructures) {

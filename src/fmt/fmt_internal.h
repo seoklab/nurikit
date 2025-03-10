@@ -8,7 +8,6 @@
 
 #include <cstddef>
 #include <functional>
-#include <iterator>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -18,6 +17,8 @@
 #include <absl/container/flat_hash_map.h>
 #include <absl/log/absl_check.h>
 #include <absl/strings/str_cat.h>
+#include <boost/container/flat_map.hpp>
+#include <boost/container/flat_set.hpp>
 #include <boost/spirit/home/x3.hpp>
 
 #include "nuri/eigen_config.h"
@@ -30,32 +31,27 @@ namespace internal {
 template <auto AltlocExtractor, class AT, class CoordConverter>
 void pdb_update_confs(Molecule &mol, const std::vector<AT> &atom_data,
                       const CoordConverter &coords) {
-  std::vector<std::string_view> s, t;
-  std::vector<std::string_view> *altlocs = &s, *buf = &t;
+  boost::container::flat_set<std::string_view> altlocs;
 
   for (const AT &ad: atom_data) {
     if (ad.data().size() <= 1)
       continue;
 
-    buf->clear();
-    std::set_union(altlocs->cbegin(), altlocs->cend(),
-                   make_transform_iterator<AltlocExtractor>(ad.data().begin()),
-                   make_transform_iterator<AltlocExtractor>(ad.data().end()),
-                   std::back_inserter(*buf));
-    std::swap(altlocs, buf);
+    altlocs.insert(make_transform_iterator<AltlocExtractor>(ad.data().begin()),
+                   make_transform_iterator<AltlocExtractor>(ad.data().end()));
   }
 
-  if (altlocs->empty()) {
+  if (altlocs.empty()) {
     Matrix3Xd &conf = mol.confs().emplace_back(Matrix3Xd(3, atom_data.size()));
     for (int i = 0; i < atom_data.size(); ++i)
       coords(atom_data[i].first(), conf.col(i));
     return;
   }
 
-  ABSL_DCHECK(altlocs->size() > 1);
+  ABSL_DCHECK_GT(altlocs.size(), 1);
 
-  mol.confs().resize(altlocs->size());
-  for (int i = 0; i < altlocs->size(); ++i)
+  mol.confs().resize(altlocs.size());
+  for (int i = 0; i < altlocs.size(); ++i)
     mol.confs()[i].resize(3, static_cast<int>(atom_data.size()));
 
   for (int i = 0; i < atom_data.size(); ++i) {
@@ -69,7 +65,7 @@ void pdb_update_confs(Molecule &mol, const std::vector<AT> &atom_data,
       continue;
     }
 
-    if (ad.data().size() == altlocs->size()) {
+    if (ad.data().size() == altlocs.size()) {
       for (int j = 0; j < mol.confs().size(); ++j)
         coords(ad.data()[j], mol.confs()[j].col(i));
       continue;
@@ -82,7 +78,7 @@ void pdb_update_confs(Molecule &mol, const std::vector<AT> &atom_data,
     for (int k = 0; k < ad.data().size(); ++j) {
       ABSL_DCHECK(j < mol.confs().size());
 
-      std::string_view altloc = (*altlocs)[j];
+      std::string_view altloc = altlocs.begin()[j];
       Eigen::Ref<Vector3d> coord = mol.confs()[j].col(i);
 
       if (std::invoke(AltlocExtractor, ad.data()[k]) != altloc) {
@@ -98,8 +94,6 @@ void pdb_update_confs(Molecule &mol, const std::vector<AT> &atom_data,
   }
 }
 
-constexpr int kChainIdx = 0;
-
 template <class RT, class AT, class ChainAsSv, class ResidueMember,
           class SeqMember, class ICodeAsSv, class EntityMember = std::nullptr_t,
           std::enable_if_t<!std::is_reference_v<RT>, int> = 0>
@@ -111,15 +105,11 @@ void pdb_update_substructs(
     const EntityMember &eid_member = nullptr) {
   auto &subs = mol.substructures();
 
-  std::vector<std::pair<std::string_view, std::vector<int>>> chains;
-
+  boost::container::flat_map<std::string_view, std::vector<int>> chains;
   for (int i = 0; i < atoms.size(); ++i) {
     const auto &id = atoms[i].first().id().res;
 
-    auto [cit, _] = insert_sorted(chains, { std::invoke(chain_sv, id), {} },
-                                  [](const auto &a, const auto &b) {
-                                    return a.first < b.first;
-                                  });
+    auto [cit, _] = chains.insert({ std::invoke(chain_sv, id), {} });
     cit->second.push_back(i);
   }
 
@@ -147,12 +137,10 @@ void pdb_update_substructs(
       sit->add_prop("entity_id",
                     std::invoke(eid_member, atoms[sit->atom_ids()[0]]));
     }
-
-    ABSL_DCHECK(sit->props()[kChainIdx].first == "chain");
   }
 
   for (int i = 0; i < chains.size(); ++i, ++sit) {
-    auto &chain = chains[i];
+    auto &chain = chains.begin()[i];
     sit->update(std::move(chain.second), {});
     sit->name() = chain.first;
     sit->set_id(i);
