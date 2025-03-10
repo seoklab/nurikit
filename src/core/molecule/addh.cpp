@@ -444,35 +444,45 @@ namespace internal {
 
     std::pair<Matrix3d, Array3i>
     gen_sp3d2_axes_counts_fixed3(Molecule::Atom atom, const Matrix3Xd &conf) {
-      Matrix3d axes;
+      Matrix3d vecs;
       Array3i cnts;
 
-      axes = -(conf(Eigen::all, as_index(atom)).leftCols<3>().colwise()
+      vecs = -(conf(Eigen::all, as_index(atom)).leftCols<3>().colwise()
                - conf.col(atom.id()));
-      safe_colwise_normalize(axes);
+      safe_colwise_normalize(vecs);
 
-      Array3d cos_xyz = { axes.col(0).dot(axes.col(2)),
-                          axes.col(1).dot(axes.col(2)),
-                          axes.col(0).dot(axes.col(1)) };
-      int min_axis;
-      const double min_cos = cos_xyz.minCoeff(&min_axis);
+      constexpr int selector[3][3] = {
+        // vector i
+        { 0, 1, 2 },
+        // vector j
+        { 1, 2, 0 },
+        // complement vector k, or
+        // index of the "other" cosine similairty; see below
+        { 2, 0, 1 },
+      };
 
+      Array3d cos_xyz = (vecs(Eigen::all, selector[0]).array()
+                         * vecs(Eigen::all, selector[1]).array())
+                            .colwise()
+                            .sum()
+                            .transpose();
+
+      int min_idx;
+      const double min_cos = cos_xyz.minCoeff(&min_idx);
+
+      Matrix3d axes;
       if (-min_cos <= constants::kCos45) {
-        // xyz vectors can form "reasonable" basis
+        // xyz vectors can form "reasonable" basis (fac)
+        axes = vecs;
         cnts = { 1, 1, 1 };
-      } else if (min_axis == 2) {
-        // x-y are collinear
-        axes.col(0) = safe_normalized(axes.col(1).cross(axes.col(2)));
-        cnts = { 2, 0, 1 };
       } else {
-        // x-z or y-z are collinear
-        const int keep = 1 - min_axis;
-
-        axes.col(min_axis) = safe_normalized(axes.col(keep).cross(axes.col(2)));
-
-        cnts[min_axis] = 2;
-        cnts[keep] = 1;
-        cnts[2] = 0;
+        // two of the vectors are colinear (mer)
+        // half-filled axis -> y, free axis -> x
+        axes.col(1) = vecs.col(selector[2][min_idx]);
+        axes.col(0) =
+            safe_normalized(vecs.col(selector[2][min_idx])
+                                .cross(vecs.col(selector[0][min_idx])));
+        cnts = { 2, 1, 0 };
       }
 
       return { axes, cnts };
