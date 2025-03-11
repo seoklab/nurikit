@@ -1961,7 +1961,7 @@ public:
   static Subgraph from_indices(parent_type &graph, internal::IndexSet &&nodes,
                                internal::IndexSet &&edges) {
     Subgraph subgraph(graph, std::move(nodes), {});
-    subgraph.add_edges(edges.begin(), edges.end());
+    subgraph.add_edges(edges);
     return subgraph;
   }
 
