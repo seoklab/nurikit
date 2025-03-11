@@ -559,22 +559,22 @@ public:
     adj_list_.resize(num_nodes());
   }
 
-  edge_iterator add_edge(int src, int dst, const ET &data) {
-    ABSL_DCHECK(src != dst) << "self-loop is not allowed";
+  int add_edge(int src, int dst, const ET &data) {
+    ABSL_DCHECK_NE(src, dst) << "self-loop is not allowed";
 
     int eid = num_edges();
     edges_.push_back({ src, dst, data });
     add_adjacency_entry(src, dst, eid);
-    return { *this, eid };
+    return eid;
   }
 
-  edge_iterator add_edge(int src, int dst, ET &&data) noexcept {
-    ABSL_DCHECK(src != dst) << "self-loop is not allowed";
+  int add_edge(int src, int dst, ET &&data) noexcept {
+    ABSL_DCHECK_NE(src, dst) << "self-loop is not allowed";
 
     int eid = num_edges();
     edges_.push_back({ src, dst, std::move(data) });
     add_adjacency_entry(src, dst, eid);
-    return { *this, eid };
+    return eid;
   }
 
   NodeRef operator[](int id) { return node(id); }

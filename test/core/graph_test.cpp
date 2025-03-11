@@ -224,9 +224,9 @@ TYPED_TEST(BasicGraphTest, AddEdgeTest) {
   graph.add_node({ 5 });
 
   TypeParam new_data { 6 };
-  auto e0 = graph.add_edge(0, 1, new_data);
-  auto e1 = graph.add_edge(2, 0, { 7 });
-  auto e2 = graph.add_edge(3, 0, { 8 });
+  auto e0 = graph.edge_begin() + graph.add_edge(0, 1, new_data);
+  auto e1 = graph.edge_begin() + graph.add_edge(2, 0, { 7 });
+  auto e2 = graph.edge_begin() + graph.add_edge(3, 0, { 8 });
 
   ASSERT_EQ(graph.num_nodes(), 6);
   ASSERT_EQ(graph.num_edges(), 3);
@@ -765,9 +765,9 @@ TYPED_TEST(AdvancedGraphTest, EraseAddTest) {
   ASSERT_EQ(graph.num_nodes(), 11);
 
   graph.erase_edge_between(0, 1);
-  auto eit = graph.add_edge(7, 10, 110);
+  int eid = graph.add_edge(7, 10, 110);
   ASSERT_EQ(graph.num_edges(), 6);
-  ASSERT_EQ(graph.find_adjacent(7, 10)->eid(), eit->id());
+  ASSERT_EQ(graph.find_adjacent(7, 10)->eid(), eid);
   ASSERT_EQ(graph.find_adjacent(7, 10)->edge_data(), 110);
 }
 
