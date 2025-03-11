@@ -2106,60 +2106,37 @@ public:
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
    * @param bond The data of the bond to add.
-   * @return If added, pair of iterator to the added bond, and `true`. If the
-   *         bond already exists, pair of iterator to the existing bond, and
-   *         `false`.
+   * @return A pair of (bond index, was added). If not added, the bond index is
+   *         the index of the existing bond (the data is not modified).
    * @note The behavior is undefined if any of the atom indices is out of range,
    *       or if src == dst.
    */
-  std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
-                                                    const BondData &bond);
+  std::pair<int, bool> add_bond(int src, int dst, const BondData &bond);
 
   /**
    * @brief Add a bond to the molecule.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
    * @param bond The data of the bond to add.
-   * @return If added, pair of iterator to the added bond, and `true`. If the
-   *         bond already exists, pair of iterator to the existing bond, and
-   *         `false`.
+   * @return A pair of (bond index, was added). If not added, the bond index is
+   *         the index of the existing bond (the data is not modified).
    * @note The behavior is undefined if any of the atom indices is out of range,
    *       or if src == dst.
    */
-  std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
-                                                    BondData &&bond) noexcept;
+  std::pair<int, bool> add_bond(int src, int dst, BondData &&bond) noexcept;
 
   /**
    * @brief Add a bond to the molecule.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
    * @param bond The bond to copy the data from.
-   * @return If added, pair of iterator to the added bond, and `true`. If the
-   *         bond already exists, pair of iterator to the existing bond, and
-   *         `false`.
+   * @return A pair of (bond index, was added). If not added, the bond index is
+   *         the index of the existing bond (the data is not modified).
    * @note The behavior is undefined if any of the atom indices is out of range,
    *       or if src == dst.
    */
-  std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
-                                                    Molecule::Bond bond) {
+  std::pair<int, bool> add_bond(int src, int dst, Molecule::Bond bond) {
     return add_bond(src, dst, bond.data());
-  }
-
-  /**
-   * @brief Add a bond to the molecule.
-   * @param src The source atom of the bond.
-   * @param dst The destination atom of the bond.
-   * @param data The data or bond of the bond to add.
-   * @return If added, pair of iterator to the added bond, and `true`. If the
-   *         bond already exists, pair of iterator to the existing bond, and
-   *         `false`.
-   * @note The behavior is undefined if any of the atom does not belong to the
-   *       molecule, or if src.id() == dst.id().
-   */
-  template <class BD>
-  std::pair<Molecule::bond_iterator, bool>
-  add_bond(Molecule::Atom src, Molecule::Atom dst, BD &&data) {
-    return add_bond(src.id(), dst.id(), std::forward<BD>(data));
   }
 
   /**

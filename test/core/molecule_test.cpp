@@ -64,15 +64,15 @@ TEST(Basic2DMoleculeTest, AddBondsTest) {
 
   Molecule ten(atoms.begin(), atoms.end());
   {
-    Molecule::bond_iterator bit1, bit2;
+    int b1, b2;
     bool success;
 
     auto mutator = ten.mutator();
-    std::tie(bit1, success) = mutator.add_bond(0, 1, BondData(kSingleBond));
+    std::tie(b1, success) = mutator.add_bond(0, 1, BondData(kSingleBond));
     EXPECT_TRUE(success);
 
-    std::tie(bit2, success) = mutator.add_bond(1, 0, BondData(kDoubleBond));
-    EXPECT_EQ(bit1, bit2);
+    std::tie(b2, success) = mutator.add_bond(1, 0, BondData(kDoubleBond));
+    EXPECT_EQ(b1, b2);
     EXPECT_FALSE(success);
   }
   {
