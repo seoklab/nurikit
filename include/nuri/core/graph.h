@@ -1849,33 +1849,34 @@ namespace internal {
   IndexSet find_edges(GT &parent, const IndexSet &nodes) {
     std::vector<int> edges;
     std::stack<int, std::vector<int>> stack;
-    ArrayXb visited = ArrayXb::Zero(parent.num_nodes());
+    ArrayXb visited = ArrayXb::Zero(static_cast<int>(nodes.size()));
 
-    for (auto i: nodes) {
+    for (int i = 0; i < nodes.size(); ++i) {
       if (visited[i])
         continue;
 
       visited[i] = true;
       stack.push(i);
 
-      while (!stack.empty()) {
-        int u = stack.top();
+      do {
+        int u = nodes[stack.top()];
         stack.pop();
 
         for (auto nei: parent[u]) {
           int v = nei.dst().id();
-          if (!nodes.contains(v))
+          int j = nodes.find_index(v);
+          if (j >= nodes.size())
             continue;
 
           if (u < v)
             edges.push_back(nei.eid());
 
-          if (!visited[v]) {
-            visited[v] = true;
-            stack.push(v);
+          if (!visited[j]) {
+            visited[j] = true;
+            stack.push(j);
           }
         }
-      }
+      } while (!stack.empty());
     }
 
     return IndexSet(std::move(edges));
