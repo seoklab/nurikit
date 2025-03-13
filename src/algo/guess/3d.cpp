@@ -1909,7 +1909,8 @@ namespace {
     for (std::vector<int> &group: groups) {
       ABSL_DCHECK(group.size() > 2) << "Group size: " << group.size();
 
-      Substructure sub = mol.atom_substructure(std::move(group));
+      Substructure sub =
+          mol.atom_substructure(internal::IndexSet(std::move(group)));
 
       for (auto atom: sub) {
         AtomData &data = atom.data();

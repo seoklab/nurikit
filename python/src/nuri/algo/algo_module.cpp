@@ -15,6 +15,7 @@
 #include "nuri/algo/crdgen.h"
 #include "nuri/algo/guess.h"
 #include "nuri/algo/rings.h"
+#include "nuri/core/graph.h"
 #include "nuri/core/molecule.h"
 #include "nuri/python/core/core_module.h"
 #include "nuri/python/utils.h"
@@ -46,8 +47,8 @@ std::vector<PySubstruct> rings_to_subs(PyMol &mol, const Rings &rings,
       bonds.push_back(bit->id());
     }
 
-    subs.push_back(
-        PySubstruct::from_mol(mol, mol->bond_substructure(std::move(bonds))));
+    subs.push_back(PySubstruct::from_mol(
+        mol, mol->bond_substructure(internal::IndexSet(std::move(bonds)))));
   }
 
   return subs;

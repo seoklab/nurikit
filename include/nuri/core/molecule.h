@@ -649,11 +649,11 @@ namespace internal {
 
     void clear_atoms() noexcept { graph_.clear(); }
 
-    void update(std::vector<int> &&atoms, std::vector<int> &&bonds) {
+    void update(IndexSet &&atoms, IndexSet &&bonds) {
       graph_.update(std::move(atoms), std::move(bonds));
     }
 
-    void update_atoms(std::vector<int> &&atoms) noexcept {
+    void update_atoms(IndexSet &&atoms) noexcept {
       graph_.update_nodes(std::move(atoms));
     }
 

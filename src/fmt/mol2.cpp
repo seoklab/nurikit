@@ -26,6 +26,7 @@
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_format.h>
 #include <absl/strings/str_split.h>
+#include <boost/container/container_fwd.hpp>
 #include <boost/fusion/include/std_pair.hpp>
 #include <boost/fusion/include/std_tuple.hpp>
 #include <boost/optional.hpp>
@@ -35,6 +36,7 @@
 #include "fmt_internal.h"
 #include "nuri/algo/guess.h"
 #include "nuri/core/element.h"
+#include "nuri/core/graph.h"
 #include "nuri/core/molecule.h"
 #include "nuri/core/property_map.h"
 #include "nuri/fmt/base.h"
@@ -615,9 +617,12 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
   mol.confs().push_back(stack(pos));
 
   // Only add substructures actually mentioned in the SUBSTRUCTURE block
-  for (auto &[_, data]: substructs)
-    for (Substructure &sub: mol.find_substructures(data.second))
-      sub.update_atoms(std::move(data.first));
+  for (auto &[_, data]: substructs) {
+    for (Substructure &sub: mol.find_substructures(data.second)) {
+      sub.update_atoms(internal::IndexSet(
+          boost::container::ordered_unique_range, std::move(data.first)));
+    }
+  }
 
   return mol;
 }
