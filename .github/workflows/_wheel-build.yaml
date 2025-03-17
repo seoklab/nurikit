@@ -65,7 +65,7 @@ jobs:
           echo "CIBW_ENVIRONMENT_PASS_LINUX=SKBUILD_CMAKE_DEFINE" >>$GITHUB_ENV
 
       - if: ${{ contains(inputs.python, 'linux') }}
-        uses: pypa/cibuildwheel@v2.23.0
+        uses: pypa/cibuildwheel@v2.23.1
         env:
           CIBW_BUILD: ${{ inputs.python }}
           CIBW_ARCHS: "all"
