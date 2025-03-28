@@ -11,6 +11,8 @@
 #include <type_traits>
 /// @endcond
 
+//! @privatesection
+
 #if defined(__clang_analyzer__) && __clang_major__ >= 18
 #define NURI_CLANG_ANALYZER_NOLINT       [[clang::suppress]]
 #define NURI_CLANG_ANALYZER_NOLINT_BEGIN [[clang::suppress]] {

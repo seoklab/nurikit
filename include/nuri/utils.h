@@ -546,6 +546,8 @@ constexpr auto make_zipped_iterator(Iters... iters) {
   return ZippedIterator<Iters...>(iters...);
 }
 
+//! @privatesection
+
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
 constexpr E operator|(E lhs, E rhs) {
   return static_cast<E>(static_cast<U>(lhs) | static_cast<U>(rhs));
