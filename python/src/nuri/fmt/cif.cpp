@@ -140,7 +140,7 @@ public:
     return py::cast(PyCifTable((*frame_)[it.begin()->second.first]));
   }
 
-  const internal::CifFrame &cpp() const { return *frame_; }
+  const internal::CifFrame &operator*() const { return *frame_; }
 
 private:
   absl::Nonnull<const internal::CifFrame *> frame_;
@@ -237,7 +237,7 @@ cif_ddl2_frame_as_dict(const PyCifFrame &frame) {
 
   std::vector<std::string_view> parent_keys;
   std::vector<decltype(grouped)::iterator> slots;
-  for (const internal::CifTable &table: frame.cpp()) {
+  for (const internal::CifTable &table: *frame) {
     parent_keys.clear();
     parent_keys.reserve(table.cols());
     for (std::string_view key: table.keys()) {
@@ -293,8 +293,8 @@ cif_ddl2_frame_as_dict(const PyCifFrame &frame) {
   return tagged;
 }
 
-pyt::List<PyMol> mmcif_load_cif_frame(const internal::CifFrame &frame) {
-  std::vector<Molecule> mols = mmcif_load_frame(frame);
+pyt::List<PyMol> mmcif_load_cif_frame(const PyCifFrame &frame) {
+  std::vector<Molecule> mols = mmcif_load_frame(*frame);
 
   pyt::List<PyMol> pymols(mols.size());
   for (int i = 0; i < mols.size(); ++i)
