@@ -2173,10 +2173,10 @@ private:
 };
 
 std::vector<std::vector<int>> group_atoms(const Molecule &mol) {
-  std::vector<std::vector<int>> groups(mol.num_substructures() + 1);
+  std::vector<std::vector<int>> groups(mol.substructures().size() + 1);
 
   ArrayXi atom_to_sub = ArrayXi::Zero(mol.size());
-  for (int i = 0; i < mol.num_substructures(); ++i) {
+  for (int i = 0; i < mol.substructures().size(); ++i) {
     const auto &sub = mol.substructures()[i];
     if (sub.category() != SubstructCategory::kResidue)
       continue;
@@ -2312,7 +2312,7 @@ std::vector<PDBResolvedResidue> resolve_residues(const Molecule &mol) {
 
   std::vector<std::vector<int>> sub_to_atoms = group_atoms(mol);
 
-  for (int i = 0; i < mol.num_substructures(); ++i) {
+  for (int i = 0; i < mol.substructures().size(); ++i) {
     if (sub_to_atoms[i + 1].empty())
       continue;
 

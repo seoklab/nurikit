@@ -516,7 +516,7 @@ private:
   bool ok() const { return ok(version()); }
 
   static Substructure &deref(PyMol &mol, int idx) {
-    return mol->get_substructure(idx);
+    return mol->substructures()[idx];
   }
 };
 
@@ -572,7 +572,7 @@ class ProxySubstructContainer {
 public:
   explicit ProxySubstructContainer(PyMol &mol): mol_(&mol) { }
 
-  int size() const { return mol()->num_substructures(); }
+  int size() const { return static_cast<int>(mol()->substructures().size()); }
 
   auto get(int idx) { return ProxySubstruct(mol(), idx, mol().sub_version()); }
 

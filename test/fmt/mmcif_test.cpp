@@ -7,6 +7,8 @@
 
 #include <vector>
 
+#include <boost/iterator/filter_iterator.hpp>
+
 #include <gtest/gtest.h>
 
 #include "fmt_test_common.h"
@@ -73,11 +75,11 @@ TEST_F(MmcifTest, HandleMultipleModels) {
   NURI_EXPECT_EIGEN_NE(mols[0].confs()[0].col(43), mols[0].confs()[1].col(43));
 
   // 9 residues + 1 chain
-  ASSERT_EQ(mols[0].num_substructures(), 10);
-  EXPECT_EQ(mols[0].get_substructure(0).name(), "VAL");
-  EXPECT_EQ(mols[0].get_substructure(0).num_atoms(), 7);
+  ASSERT_EQ(mols[0].substructures().size(), 10);
+  EXPECT_EQ(mols[0].substructures()[0].name(), "VAL");
+  EXPECT_EQ(mols[0].substructures()[0].num_atoms(), 7);
 
-  EXPECT_EQ(internal::get_key(mols[0].get_substructure(8).props(), "icode"),
+  EXPECT_EQ(internal::get_key(mols[0].substructures()[8].props(), "icode"),
             "A");
 
   EXPECT_EQ(mols[1].name(), "3CYE");
@@ -91,9 +93,9 @@ TEST_F(MmcifTest, HandleMultipleModels) {
   NURI_EXPECT_EIGEN_NE(mols[1].confs()[0].col(31), mols[1].confs()[1].col(31));
 
   // 5 residues + 1 chain
-  ASSERT_EQ(mols[1].num_substructures(), 6);
-  EXPECT_EQ(mols[1].get_substructure(0).name(), "VAL");
-  EXPECT_EQ(mols[1].get_substructure(0).num_atoms(), 7);
+  ASSERT_EQ(mols[1].substructures().size(), 6);
+  EXPECT_EQ(mols[1].substructures()[0].name(), "VAL");
+  EXPECT_EQ(mols[1].substructures()[0].num_atoms(), 7);
 }
 
 class PDB1alxTest: public testing::Test {
@@ -111,7 +113,7 @@ protected:
     ASSERT_EQ(mol_.name(), "1ALX");
     ASSERT_EQ(mol_.num_atoms(), 669);
     ASSERT_EQ(mol_.num_bonds(), 28);
-    ASSERT_EQ(mol_.num_substructures(), 54);
+    ASSERT_EQ(mol_.substructures().size(), 54);
   }
 
   static const Molecule &mol() { return mol_; }
@@ -135,14 +137,19 @@ TEST_F(PDB1alxTest, HandleMultipleAltlocs) {
 }
 
 TEST_F(PDB1alxTest, HandleInconsistentResidues) {
-  const Substructure &res = mol().get_substructure(10);
+  const Substructure &res = mol().substructures()[10];
   EXPECT_EQ(res.name(), "TYR");
   EXPECT_EQ(res.id(), 11);
   EXPECT_EQ(res.num_atoms(), 21);
   EXPECT_EQ(res.count_heavy_atoms(), 12);
 
-  auto subs = mol().find_substructures(11);
-  std::vector<Substructure> res_11(subs.begin(), subs.end());
+  auto find_11 = [](const Substructure &sub) { return sub.id() == 11; };
+  std::vector<Substructure> res_11(
+      boost::make_filter_iterator(find_11, mol().substructures().begin(),
+                                  mol().substructures().end()),
+      boost::make_filter_iterator(find_11, mol().substructures().end(),
+                                  mol().substructures().end()));
+
   // A/B chain
   EXPECT_EQ(res_11.size(), 2);
   EXPECT_EQ(res_11[0].name(), "TYR");

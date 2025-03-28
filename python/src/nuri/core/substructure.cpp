@@ -894,7 +894,7 @@ The category of the substructure. This is used to categorize the substructure.
 }
 
 int check_sub(const Molecule &mol, int idx) {
-  return py_check_index(mol.num_substructures(), idx,
+  return py_check_index(static_cast<int>(mol.substructures().size()), idx,
                         "substructure index out of range");
 }
 
@@ -935,10 +935,10 @@ void ProxySubstruct::erase_hydrogens() {
 
 void PySubstruct::erase_hydrogens() {
   Molecule &mol = *parent();
-  Substructure &substruct = mol.add_substructure(std::move(**this));
+  Substructure &substruct = mol.substructures().emplace_back(std::move(**this));
   absl::Cleanup c = [&]() {
     **this = std::move(substruct);
-    mol.erase_substructure(mol.num_substructures() - 1);
+    mol.substructures().erase(--mol.substructures().end());
   };
 
   substruct_erase_hydrogens(parent(), substruct);
@@ -1130,11 +1130,11 @@ A collection of substructures of a molecule.
             if (oi) {
               idx = check_sub(mol, *oi);
             } else {
-              idx = mol.num_substructures() - 1;
+              idx = static_cast<int>(mol.substructures().size() - 1);
             }
 
             PySubstruct ret = PySubstruct::from_mol(
-                self.mol(), std::move(mol.get_substructure(idx)));
+                self.mol(), std::move(mol.substructures()[idx]));
             self.del(idx);
             return ret;
           },
@@ -1231,7 +1231,7 @@ This has three mode of operations:
           [](ProxySubstructContainer &self, PySubstruct &other) {
             check_parent(self.mol(), other.parent(),
                          "substructure does not belong to the same molecule");
-            self.mol()->add_substructure(*other);
+            self.mol()->substructures().push_back(*other);
           },
           py::arg("other"), R"doc(
 Add a substructure to the collection.
@@ -1246,7 +1246,7 @@ Add a substructure to the collection.
           [](ProxySubstructContainer &self, ProxySubstruct &other) {
             check_parent(self.mol(), other.parent(),
                          "substructure does not belong to the same molecule");
-            self.mol()->add_substructure(*other);
+            self.mol()->substructures().push_back(*other);
           },
           py::arg("other"), R"doc(
 Add a substructure to the collection.

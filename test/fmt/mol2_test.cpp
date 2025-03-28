@@ -1524,8 +1524,7 @@ USER_CHARGES
 )mol2");
 
   auto verify_sub = [this]() {
-    EXPECT_TRUE(mol().has_substructures());
-    ASSERT_EQ(mol().num_substructures(), 4);
+    ASSERT_EQ(mol().substructures().size(), 4);
 
     for (auto &sub: mol().substructures()) {
       switch (sub.id()) {

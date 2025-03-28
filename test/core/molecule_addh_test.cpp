@@ -956,9 +956,9 @@ TEST(AddHSubstr, WillAddH) {
   Molecule mol = internal::read_first("smi", "CCCC");
   ASSERT_TRUE(MoleculeSanitizer(mol).sanitize_all());
 
-  mol.add_substructure(mol.atom_substructure({ 0 }));
-  mol.add_substructure(mol.atom_substructure({ 0, 1 }));
-  mol.add_substructure(mol.atom_substructure({ 2 }));
+  mol.substructures().push_back(mol.atom_substructure({ 0 }));
+  mol.substructures().push_back(mol.atom_substructure({ 0, 1 }));
+  mol.substructures().push_back(mol.atom_substructure({ 2 }));
 
   ASSERT_TRUE(mol.add_hydrogens());
 
