@@ -104,9 +104,9 @@ NURI_PYTHON_MODULE(m) {
 Find a 4x4 best-fit rigid-body transformation tensor, to align ``query`` to
 ``template``.
 
-:param query: The query points. Must be representable by a 2D numpy array of
+:param query: The query points. Must be representable as a 2D numpy array of
   shape ``(N, 3)``.
-:param template: The template points. Must be representable by a 2D numpy array
+:param template: The template points. Must be representable as a 2D numpy array
   of shape ``(N, 3)``.
 :param method: The alignment method to use. Defaults to ``"qcp"``. Currently
   supported methods are:
@@ -148,9 +148,9 @@ Find a 4x4 best-fit rigid-body transformation tensor, to align ``query`` to
 Calculate the RMSD of the best-fit rigid-body alignment of ``query`` to
 ``template``.
 
-:param query: The query points. Must be representable by a 2D numpy array of
+:param query: The query points. Must be representable as a 2D numpy array of
   shape ``(N, 3)``.
-:param template: The template points. Must be representable by a 2D numpy array
+:param template: The template points. Must be representable as a 2D numpy array
   of shape ``(N, 3)``.
 :param method: The alignment method to use. Defaults to ``"qcp"``. Currently
   supported methods are:
@@ -201,9 +201,9 @@ Effectively, this function is roughly equivalent to the following Python code:
       translated = rotated + tensor[:3, 3, None]
       return translated.T
 
-:param tensor: The transformation tensor. Must be representable by a 2D numpy
+:param tensor: The transformation tensor. Must be representable as a 2D numpy
   array of shape ``(4, 4)``.
-:param pts: The points to transform. Must be representable by a 2D numpy array
+:param pts: The points to transform. Must be representable as a 2D numpy array
   of shape ``(N, 3)``.
 :returns: The transformed points.
 
