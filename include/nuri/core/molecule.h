@@ -170,11 +170,25 @@ public:
    */
   std::string_view element_name() const { return element().name(); }
 
+  /**
+   * @brief Change the element of the atom.
+   *
+   * @param element A reference to the new element object.
+   * @return *this.
+   */
   AtomData &set_element(const Element &element) {
     element_ = &element;
     return *this;
   }
 
+  /**
+   * @brief Set the element of the atom by atomic number.
+   *
+   * @param atomic_number The atomic number of the new element.
+   * @return *this.
+   *
+   * @note When the atomic number is out of range, the behavior is undefined.
+   */
   AtomData &set_element(int atomic_number) {
     set_element(kPt[atomic_number]);
     return *this;
@@ -203,11 +217,29 @@ public:
                                                   : *isotope_;
   }
 
+  /**
+   * @brief Set explicit isotope of the atom.
+   *
+   * @param isotope A reference to the new isotope object.
+   * @return *this.
+   *
+   * @note If the isotope object references an element different from the
+   *       element of the atom, the behavior is undefined.
+   */
   AtomData &set_isotope(const Isotope &isotope) {
     isotope_ = &isotope;
     return *this;
   }
 
+  /**
+   * @brief Set explicit isotope of the atom by mass number.
+   *
+   * @param mass_number The mass number of the new isotope.
+   * @return *this.
+   *
+   * @note If no isotope with the given mass number is known, explicitly-set
+   *       isotope of this atom will be cleared.
+   */
   AtomData &set_isotope(int mass_number) {
     isotope_ = element().find_isotope(mass_number);
     return *this;
@@ -230,12 +262,27 @@ public:
 
   constants::Hybridization hybridization() const { return hyb_; }
 
+  /**
+   * @brief Set the number of implicit hydrogen atoms.
+   *
+   * @param implicit_hydrogens The new number of implicit hydrogen atoms.
+   * @return *this.
+   *
+   * @note If the number of implicit hydrogen atoms is negative, the behavior is
+   *       undefined.
+   */
   AtomData &set_implicit_hydrogens(int implicit_hydrogens) {
     ABSL_DCHECK(implicit_hydrogens >= 0);
     implicit_hydrogens_ = implicit_hydrogens;
     return *this;
   }
 
+  /**
+   * @brief Get the number of implicit hydrogen atoms.
+   * @return The number of implicit hydrogen atoms.
+   *
+   * @note The number of implicit hydrogen atoms is always non-negative.
+   */
   int implicit_hydrogens() const { return implicit_hydrogens_; }
 
   AtomData &set_aromatic(bool is_aromatic) {
@@ -398,6 +445,12 @@ public:
     return *this;
   }
 
+  /**
+   * @brief Test if this bond is rotatable.
+   *
+   * @return Whether the bond is rotatable. Only non-conjugated single bonds
+   *         that are not part of a ring are considered rotatable.
+   */
   bool is_rotatable() const {
     return order_ <= constants::kSingleBond
            && !internal::check_flag(flags_,
@@ -1411,7 +1464,7 @@ public:
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
    *         not applied.
-   * @note Rotability only considers ring membership. The user is responsible
+   * @note Rotatability only considers ring membership. The user is responsible
    *       to check bond order or other constraints.
    *
    * The rotation is applied to all conformers of the molecule.
@@ -1431,7 +1484,7 @@ public:
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
    *         not applied.
-   * @note Rotability only considers ring membership. The user is responsible
+   * @note Rotatability only considers ring membership. The user is responsible
    *       to check bond order or other constraints.
    *
    * The rotation is applied to all conformers of the molecule.
@@ -1452,7 +1505,7 @@ public:
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
    *         not applied.
-   * @note Rotability only considers ring membership. The user is responsible
+   * @note Rotatability only considers ring membership. The user is responsible
    *       to check bond order or other constraints.
    *
    * The part of the pivot atom is fixed, and the part of the pivot atom will be
@@ -1471,7 +1524,7 @@ public:
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
    *         not applied (e.g. the bond is not rotatable, etc.).
-   * @note Rotability only considers ring membership. The user is responsible
+   * @note Rotatability only considers ring membership. The user is responsible
    *       to check bond order or other constraints.
    *
    * The source atom of the bond is fixed, and the destination atom will be
@@ -1485,6 +1538,7 @@ public:
   /**
    * @brief Create and return a substurcture of the molecule.
    *
+   * @param cat The category of the substructure.
    * @return The new substructure.
    */
   Substructure
@@ -1495,6 +1549,9 @@ public:
   /**
    * @brief Create and return a substurcture of the molecule.
    *
+   * @param atoms Indices of atoms in the substructure.
+   * @param bonds Indices of bonds in the substructure.
+   * @param cat The category of the substructure.
    * @return The new substructure.
    */
   Substructure
@@ -1507,6 +1564,7 @@ public:
    * @brief Create and return a substurcture of the molecule.
    * @param atoms Indices of atoms in the substructure. All bonds between the
    *        atoms will also be included in the substructure.
+   * @param cat The category of the substructure.
    */
   Substructure
   atom_substructure(internal::IndexSet &&atoms,
@@ -1518,6 +1576,7 @@ public:
    * @brief Create and return a substurcture of the molecule.
    * @param bonds Indices of bonds in the substructure. All atoms connected by
    *        the bonds will also be included in the substructure.
+   * @param cat The category of the substructure.
    */
   Substructure bond_substructure(
       internal::IndexSet &&bonds,
@@ -1528,6 +1587,7 @@ public:
   /**
    * @brief Create and return a substurcture of the molecule.
    *
+   * @param cat The category of the substructure.
    * @return The new substructure.
    */
   ConstSubstructure
@@ -1538,6 +1598,9 @@ public:
   /**
    * @brief Create and return a substurcture of the molecule.
    *
+   * @param atoms Indices of atoms in the substructure.
+   * @param bonds Indices of bonds in the substructure.
+   * @param cat The category of the substructure.
    * @return The new substructure.
    */
   ConstSubstructure
@@ -1550,6 +1613,7 @@ public:
    * @brief Create and return a substurcture of the molecule.
    * @param atoms Indices of atoms in the substructure. All bonds between the
    *        atoms will also be included in the substructure.
+   * @param cat The category of the substructure.
    */
   ConstSubstructure
   atom_substructure(internal::IndexSet &&atoms,
