@@ -129,7 +129,7 @@ public:
   /**
    * @brief Creates a dummy atom with unknown hybridization.
    */
-  AtomData(): AtomData(PeriodicTable::get()[0]) { }
+  AtomData(): AtomData(kPt[0]) { }
 
   AtomData(const Element &element, int implicit_hydrogens = 0,
            int formal_charge = 0,
@@ -176,7 +176,7 @@ public:
   }
 
   AtomData &set_element(int atomic_number) {
-    set_element(PeriodicTable::get()[atomic_number]);
+    set_element(kPt[atomic_number]);
     return *this;
   }
 

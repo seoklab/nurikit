@@ -86,7 +86,7 @@ const struct aliphatic_organic_: public x3::symbols<const Element *> {
   aliphatic_organic_() {
     for (const std::string_view symbol:
          { "Cl", "Br", "B", "C", "N", "O", "F", "P", "S", "I", "*" }) {
-      const Element *elem = PeriodicTable::get().find_element(symbol);
+      const Element *elem = kPt.find_element(symbol);
       // GCOV_EXCL_START
       ABSL_DCHECK(elem != nullptr) << "Element not found: " << symbol;
       // GCOV_EXCL_STOP
@@ -98,7 +98,7 @@ const struct aliphatic_organic_: public x3::symbols<const Element *> {
 const struct aromatic_organic_: public x3::symbols<const Element *> {
   aromatic_organic_() {
     for (const std::string_view symbol: { "B", "C", "N", "O", "P", "S" }) {
-      const Element *elem = PeriodicTable::get().find_element(symbol);
+      const Element *elem = kPt.find_element(symbol);
       // GCOV_EXCL_START
       ABSL_DCHECK(elem != nullptr) << "Element not found: " << symbol;
       // GCOV_EXCL_STOP
@@ -110,12 +110,12 @@ const struct aromatic_organic_: public x3::symbols<const Element *> {
 const struct element_symbol_: public x3::symbols<const Element *> {
   element_symbol_() {
     // General element symbols
-    for (const Element &e: PeriodicTable::get()) {
+    for (const Element &e: kPt) {
       add(e.symbol(), &e);
     }
 
     // Dummy atom
-    add("*", &PeriodicTable::get()[0]);
+    add("*", &kPt[0]);
   }
 } element_symbol;
 
@@ -124,7 +124,7 @@ const struct aromatic_symbol_: public x3::symbols<const Element *> {
     // Aromatic symbols
     for (const std::string_view symbol:
          { "Se", "As", "B", "C", "N", "O", "P", "S" }) {
-      const Element *elem = PeriodicTable::get().find_element(symbol);
+      const Element *elem = kPt.find_element(symbol);
       // GCOV_EXCL_START
       ABSL_DCHECK(elem != nullptr) << "Element not found: " << symbol;
       // GCOV_EXCL_STOP

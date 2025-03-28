@@ -23,7 +23,7 @@ namespace python_internal {
 namespace {
 std::string isotope_repr(const Isotope &iso) {
   return absl::StrCat("<Isotope ", iso.mass_number, " ",
-                      PeriodicTable::get()[iso.atomic_number].symbol(), ">");
+                      kPt[iso.atomic_number].symbol(), ">");
 }
 }  // namespace
 
@@ -123,9 +123,8 @@ void bind_element(py::module &m) {
           py::arg("index"), rvp::reference)
       .def("__repr__",
            [](const IsotopeList &self) {
-             return absl::StrCat(
-                 "<_IsotopeList of ",
-                 PeriodicTable::get()[self[0].atomic_number].name(), ">");
+             return absl::StrCat("<_IsotopeList of ",
+                                 kPt[self[0].atomic_number].name(), ">");
            })
       .def("__str__",
            [](const IsotopeList &self) {

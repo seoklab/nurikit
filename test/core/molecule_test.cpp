@@ -29,7 +29,7 @@ using nuri::MoleculeSanitizer;
 // NOLINTNEXTLINE(*-using-namespace)
 using namespace nuri::constants;
 
-const nuri::PeriodicTable &pt = nuri::PeriodicTable::get();
+const nuri::PeriodicTable &pt = nuri::kPt;
 
 TEST(Basic2DMoleculeTest, CreationTest) {
   Molecule empty;

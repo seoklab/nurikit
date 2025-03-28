@@ -539,7 +539,7 @@ constexpr const T &il_at(const std::initializer_list<T> &list,
 }
 
 AtomData from_template(const PDBAtomInfoTemplate &templ) {
-  AtomData data(PeriodicTable::get()[templ.atomic_number],
+  AtomData data(kPt[templ.atomic_number],
                 templ.implicit_hydrogens, templ.formal_charge, templ.hyb);
   data.set_conjugated(templ.conjugated);
   data.set_aromatic(templ.aromatic);
@@ -1701,7 +1701,7 @@ public:
     AtomData data;
 
     std::string_view elem_symb = first().element();
-    const Element *element = PeriodicTable::get().find_element(elem_symb);
+    const Element *element = kPt.find_element(elem_symb);
     if (element != nullptr) {
       data.set_element(*element);
     } else if (elem_symb == "D") {

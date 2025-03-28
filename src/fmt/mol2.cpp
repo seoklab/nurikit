@@ -258,10 +258,10 @@ std::pair<bool, bool> parse_atom_block(
     pos.push_back(Vector3d(std::get<2>(tokens).data()));
 
     std::string_view atom_sym = std::get<3>(tokens);
-    const Element *elem = PeriodicTable::get().find_element(atom_sym);
+    const Element *elem = kPt.find_element(atom_sym);
     if (elem == nullptr) {
       std::string sym_upper = absl::AsciiStrToUpper(atom_sym);
-      elem = PeriodicTable::get().find_element(sym_upper);
+      elem = kPt.find_element(sym_upper);
       if (elem == nullptr) {
         if (sym_upper == "LP") {
           ABSL_LOG(INFO) << "Lone pair support not implemented yet";
@@ -274,7 +274,7 @@ std::pair<bool, bool> parse_atom_block(
           return { false, false };
         }
 
-        elem = &PeriodicTable::get()[0];
+        elem = &kPt[0];
       }
     }
 
