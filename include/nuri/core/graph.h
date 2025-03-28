@@ -1204,8 +1204,7 @@ template <class NT, class ET>
 template <class Iterator, class>
 std::pair<int, std::vector<int>> Graph<NT, ET>::erase_edges(Iterator begin,
                                                             Iterator end) {
-  // This will also handle num_edges() == 0 case correctly.
-  if (begin >= end)
+  if (begin == end)
     return { num_edges(), {} };
 
   // Phase I: mark edges for removal, O(N)
