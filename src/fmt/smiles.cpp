@@ -1177,8 +1177,8 @@ void write_bracket_atom(std::string &out, Molecule::Atom atom,
                         const ArrayXi &ring_idxs) {
   out.push_back('[');
 
-  if (atom.data().explicit_isotope() != nullptr)
-    absl::StrAppend(&out, atom.data().explicit_isotope()->mass_number);
+  if (auto iso = atom.data().explicit_isotope(); iso != nullptr)
+    absl::StrAppend(&out, iso->mass_number);
 
   if (can_write_aromatic_symbol(atom.data())) {
     absl::StrAppend(&out, absl::AsciiStrToLower(smiles_symbol(atom)));

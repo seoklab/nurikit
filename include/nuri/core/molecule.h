@@ -19,6 +19,7 @@
 
 #include <absl/algorithm/container.h>
 #include <absl/base/attributes.h>
+#include <absl/base/nullability.h>
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
 #include <absl/log/absl_check.h>
@@ -221,7 +222,7 @@ public:
    *         representative isotope of the element if none was explicitly given.
    * @sa isotope()
    */
-  const Isotope *explicit_isotope() const { return isotope_; }
+  absl::Nullable<const Isotope *> explicit_isotope() const { return isotope_; }
 
   AtomData &set_hybridization(constants::Hybridization hyb) {
     hyb_ = hyb;
