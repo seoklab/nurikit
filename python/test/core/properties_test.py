@@ -190,7 +190,7 @@ def test_bond_data_interface(datalike: BondData):
     assert datalike.order == BondOrder.Double
 
     assert datalike.approx_order() == pytest.approx(2.0)
-    assert not datalike.rotable()
+    assert not datalike.rotatable()
 
     datalike.ring = True
     assert datalike.ring

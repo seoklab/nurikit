@@ -6,7 +6,6 @@
 #include <iterator>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -469,7 +468,7 @@ TEST_F(AdvancedSubgraphTest, CreateFromEdges) {
 }
 
 TEST_F(AdvancedSubgraphTest, UpdateEdges) {
-  std::vector<int> edges = { 3, 4, 6 };
+  IndexSet edges = { 3, 4, 6 };
 
   sg_.update_edges(std::move(edges));
   EXPECT_EQ(sg_.size(), 5);
@@ -499,8 +498,8 @@ TEST_F(AdvancedSubgraphTest, AddEdges) {
   EXPECT_TRUE(sg_.contains_node(5));
 
   // 4 is duplicated
-  std::vector<int> edges = { 3, 4, 9 };
-  sg_.add_edges(edges.begin(), edges.end());
+  IndexSet edges = { 3, 4, 9 };
+  sg_.add_edges(edges);
   EXPECT_EQ(sg_.num_nodes(), 8);
   EXPECT_EQ(sg_.num_edges(), 6);
   EXPECT_TRUE(sg_.contains_edge(3));

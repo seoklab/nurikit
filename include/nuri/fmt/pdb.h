@@ -6,12 +6,12 @@
 #ifndef NURI_FMT_PDB_H_
 #define NURI_FMT_PDB_H_
 
-/// @cond
+//! @cond
 #include <string>
 #include <vector>
 
 #include <absl/base/attributes.h>
-/// @endcond
+//! @endcond
 
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
@@ -25,7 +25,7 @@ namespace nuri {
  */
 extern Molecule read_pdb(const std::vector<std::string> &pdb);
 
-class PDBReader: public DefaultReaderImpl<read_pdb> {
+class PDBReader final: public DefaultReaderImpl<read_pdb> {
 public:
   using DefaultReaderImpl<read_pdb>::DefaultReaderImpl;
 

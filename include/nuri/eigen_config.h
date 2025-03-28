@@ -5,14 +5,16 @@
 #ifndef NURI_EIGEN_CONFIG_H_
 #define NURI_EIGEN_CONFIG_H_
 
-/// @cond
+//! @cond
 #include <type_traits>  // IWYU pragma: keep, required for is_class_v
 
 #include <absl/log/absl_check.h>
 #include <Eigen/Dense>
-/// @endcond
+//! @endcond
 
 #include "nuri/meta.h"
+
+//! @cond
 
 #ifdef NURI_DEBUG
 #define NURI_EIGEN_TMP(type) Eigen::type
@@ -31,7 +33,11 @@
 #define NURI_EIGEN_MALLOC_ALLOWED()   true
 #endif
 
+//! @endcond
+
 namespace nuri {
+//! @privatesection
+
 using Eigen::Array;
 using Eigen::Array3d;
 using Eigen::Array3i;
@@ -103,6 +109,8 @@ template <class Raw, int Size = Eigen::Dynamic>
 using ConstVecBlock =
     const Eigen::VectorBlock<const internal::remove_cvref_t<Raw>, Size> &;
 
+//! @publicsection
+
 /**
  * @brief Cyclic indexer for Eigen types with a given offset.
  * @tparam O Offset of the cyclic index. If 0, it is determined at runtime.
@@ -167,6 +175,8 @@ private:
   int offset_;
   int zero_at_;
 };
+
+//! @privatesection
 
 template <class ML1, class ML2>
 // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)

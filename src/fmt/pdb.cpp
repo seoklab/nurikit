@@ -539,7 +539,7 @@ constexpr const T &il_at(const std::initializer_list<T> &list,
 }
 
 AtomData from_template(const PDBAtomInfoTemplate &templ) {
-  AtomData data(PeriodicTable::get()[templ.atomic_number],
+  AtomData data(kPt[templ.atomic_number],
                 templ.implicit_hydrogens, templ.formal_charge, templ.hyb);
   data.set_conjugated(templ.conjugated);
   data.set_aromatic(templ.aromatic);
@@ -1701,7 +1701,7 @@ public:
     AtomData data;
 
     std::string_view elem_symb = first().element();
-    const Element *element = PeriodicTable::get().find_element(elem_symb);
+    const Element *element = kPt.find_element(elem_symb);
     if (element != nullptr) {
       data.set_element(*element);
     } else if (elem_symb == "D") {
@@ -2173,10 +2173,10 @@ private:
 };
 
 std::vector<std::vector<int>> group_atoms(const Molecule &mol) {
-  std::vector<std::vector<int>> groups(mol.num_substructures() + 1);
+  std::vector<std::vector<int>> groups(mol.substructures().size() + 1);
 
   ArrayXi atom_to_sub = ArrayXi::Zero(mol.size());
-  for (int i = 0; i < mol.num_substructures(); ++i) {
+  for (int i = 0; i < mol.substructures().size(); ++i) {
     const auto &sub = mol.substructures()[i];
     if (sub.category() != SubstructCategory::kResidue)
       continue;
@@ -2312,7 +2312,7 @@ std::vector<PDBResolvedResidue> resolve_residues(const Molecule &mol) {
 
   std::vector<std::vector<int>> sub_to_atoms = group_atoms(mol);
 
-  for (int i = 0; i < mol.num_substructures(); ++i) {
+  for (int i = 0; i < mol.substructures().size(); ++i) {
     if (sub_to_atoms[i + 1].empty())
       continue;
 

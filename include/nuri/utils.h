@@ -6,7 +6,7 @@
 #ifndef NURI_UTILS_H_
 #define NURI_UTILS_H_
 
-/// @cond
+//! @cond
 #include <algorithm>
 #include <cstddef>
 #include <cstdlib>
@@ -31,7 +31,7 @@
 #include <absl/strings/ascii.h>
 #include <boost/iterator/iterator_facade.hpp>
 #include <Eigen/Dense>
-/// @endcond
+//! @endcond
 
 #include "nuri/eigen_config.h"
 #include "nuri/meta.h"
@@ -545,6 +545,8 @@ template <class... Iters>
 constexpr auto make_zipped_iterator(Iters... iters) {
   return ZippedIterator<Iters...>(iters...);
 }
+
+//! @privatesection
 
 template <class E, class U = internal::underlying_type_t<E>, U = 0>
 constexpr E operator|(E lhs, E rhs) {

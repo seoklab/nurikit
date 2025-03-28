@@ -6,12 +6,12 @@
 #ifndef NURI_FMT_SDF_H_
 #define NURI_FMT_SDF_H_
 
-/// @cond
+//! @cond
 #include <string>
 #include <vector>
 
 #include <absl/base/attributes.h>
-/// @endcond
+//! @endcond
 
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
@@ -25,7 +25,7 @@ namespace nuri {
  */
 extern Molecule read_sdf(const std::vector<std::string> &sdf);
 
-class SDFReader: public DefaultReaderImpl<read_sdf> {
+class SDFReader final: public DefaultReaderImpl<read_sdf> {
 public:
   using DefaultReaderImpl<read_sdf>::DefaultReaderImpl;
 
@@ -52,6 +52,8 @@ enum class SDFVersion {
  * @param mol The molecule to write.
  * @param conf The index of the conformation to write. If negative, all
  *             conformers are written in separate blocks.
+ * @param ver The SDF version to write. When set to kAutomatic, the version is
+ *            determined by the molecule size.
  * @return Whether the write was successful.
  */
 extern bool write_sdf(std::string &out, const Molecule &mol, int conf = -1,

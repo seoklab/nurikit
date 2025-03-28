@@ -18,7 +18,7 @@ using nuri::PeriodicTable;
 class PeriodicTableTest: public ::testing::Test {
 public:
   // NOLINTNEXTLINE(*-ref-data-members,readability-identifier-naming)
-  const PeriodicTable &table_ = PeriodicTable::get();
+  const PeriodicTable &table_ = nuri::kPt;
 };
 
 TEST_F(PeriodicTableTest, AtomicNumberTest) {

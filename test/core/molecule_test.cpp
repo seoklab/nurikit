@@ -29,7 +29,7 @@ using nuri::MoleculeSanitizer;
 // NOLINTNEXTLINE(*-using-namespace)
 using namespace nuri::constants;
 
-const nuri::PeriodicTable &pt = nuri::PeriodicTable::get();
+const nuri::PeriodicTable &pt = nuri::kPt;
 
 TEST(Basic2DMoleculeTest, CreationTest) {
   Molecule empty;
@@ -64,15 +64,15 @@ TEST(Basic2DMoleculeTest, AddBondsTest) {
 
   Molecule ten(atoms.begin(), atoms.end());
   {
-    Molecule::bond_iterator bit1, bit2;
+    int b1, b2;
     bool success;
 
     auto mutator = ten.mutator();
-    std::tie(bit1, success) = mutator.add_bond(0, 1, BondData(kSingleBond));
+    std::tie(b1, success) = mutator.add_bond(0, 1, BondData(kSingleBond));
     EXPECT_TRUE(success);
 
-    std::tie(bit2, success) = mutator.add_bond(1, 0, BondData(kDoubleBond));
-    EXPECT_EQ(bit1, bit2);
+    std::tie(b2, success) = mutator.add_bond(1, 0, BondData(kDoubleBond));
+    EXPECT_EQ(b1, b2);
     EXPECT_FALSE(success);
   }
   {
@@ -173,7 +173,7 @@ protected:
     mol_.name() = "test molecule";
     mol_.add_prop("key", "val");
     nuri::Substructure &sub =
-        mol_.add_substructure(mol_.atom_substructure({ 0, 1, 2 }));
+        mol_.substructures().emplace_back(mol_.atom_substructure({ 0, 1, 2 }));
     sub.name() = "test substructure";
   }
 };
@@ -242,7 +242,7 @@ TEST_F(MoleculeTest, RotateBondTest) {
 
   // Unconnected
   ASSERT_FALSE(mol_all.rotate_bond(0, 7, 90));
-  // Not a rotable bond
+  // Not a rotatable bond
   auto bid = mol_all.find_bond(0, 1)->id();
   ASSERT_FALSE(mol_all.rotate_bond(bid, 90));
 
@@ -280,7 +280,7 @@ TEST_F(MoleculeTest, RotateBondTest) {
 
   Molecule mol_one(mol_all);
 
-  // Not rotable
+  // Not rotatable
   bid = mol_one.find_bond(0, 1)->id();
   ASSERT_FALSE(mol_one.rotate_bond_conf(1, bid, 90));
   // Rotate reverse!

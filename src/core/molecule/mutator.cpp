@@ -25,25 +25,24 @@ void MoleculeMutator::clear_atoms() noexcept {
 
 namespace {
   template <class DT>
-  std::pair<Molecule::bond_iterator, bool>
-  add_bond_impl(Molecule::GraphType &graph, int src, int dst, DT &&bond) {
+  std::pair<int, bool> add_bond_impl(Molecule::GraphType &graph, int src,
+                                     int dst, DT &&bond) {
     auto it = graph.find_edge(src, dst);
-    if (it != graph.edge_end()) {
-      return std::make_pair(it, false);
-    }
+    if (it != graph.edge_end())
+      return std::make_pair(it->id(), false);
 
-    it = graph.add_edge(src, dst, std::forward<DT>(bond));
-    return std::make_pair(it, true);
+    int eid = graph.add_edge(src, dst, std::forward<DT>(bond));
+    return std::make_pair(eid, true);
   }
 }  // namespace
 
-std::pair<Molecule::bond_iterator, bool>
-MoleculeMutator::add_bond(int src, int dst, const BondData &bond) {
+std::pair<int, bool> MoleculeMutator::add_bond(int src, int dst,
+                                               const BondData &bond) {
   return add_bond_impl(mol().graph_, src, dst, bond);
 }
 
-std::pair<Molecule::bond_iterator, bool>
-MoleculeMutator::add_bond(int src, int dst, BondData &&bond) noexcept {
+std::pair<int, bool> MoleculeMutator::add_bond(int src, int dst,
+                                               BondData &&bond) noexcept {
   return add_bond_impl(mol().graph_, src, dst, std::move(bond));
 }
 

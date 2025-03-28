@@ -142,7 +142,7 @@ TEST_F(SubstructureTest, UpdateAtoms) {
   EXPECT_TRUE(absl::c_is_permutation(sub_.atom_ids(), prev));
 
   prev.push_back(4);
-  sub_.update_atoms(std::vector<int> { prev });
+  sub_.update_atoms(internal::IndexSet(std::vector<int> { prev }));
   EXPECT_TRUE(absl::c_is_permutation(sub_.atom_ids(), prev));
 
   sub_.update_atoms({ 0 });
@@ -415,109 +415,12 @@ protected:
     ASSERT_EQ(mol_.num_atoms(), 12);
     ASSERT_EQ(mol_.num_bonds(), 11);
 
-    mol_.add_substructure(mol_.atom_substructure({ 1, 2, 3, 10 }));
+    mol_.substructures().push_back(mol_.atom_substructure({ 1, 2, 3, 10 }));
   }
 };
 
-TEST_F(MolSubstructureTest, AddSubstructures) {
-  EXPECT_TRUE(mol_.has_substructures());
-  EXPECT_EQ(mol_.num_substructures(), 1);
-
-  Substructure &sub1 = mol_.add_substructure(mol_.substructure());
-  EXPECT_EQ(mol_.num_substructures(), 2);
-  EXPECT_TRUE(sub1.empty());
-  sub1.add_atom(10);
-  EXPECT_EQ(sub1.size(), 1);
-
-  Substructure &sub2 =
-      mol_.add_substructure(mol_.atom_substructure({ 0, 1, 2, 10 }));
-  EXPECT_EQ(mol_.num_substructures(), 3);
-  EXPECT_EQ(sub2.size(), 4);
-}
-
-TEST_F(MolSubstructureTest, ClearSubstructures) {
-  EXPECT_TRUE(mol_.has_substructures());
-  mol_.clear_substructures();
-  EXPECT_FALSE(mol_.has_substructures());
-}
-
-TEST_F(MolSubstructureTest, GetSubstructures) {
-  Substructure &sub = mol_.get_substructure(0);
-  EXPECT_EQ(sub.size(), 4);
-
-  const Substructure &csub = std::as_const(mol_).get_substructure(0);
-  EXPECT_EQ(csub.size(), 4);
-
-  EXPECT_EQ(mol_.substructures().size(), mol_.num_substructures());
-}
-
-TEST_F(MolSubstructureTest, EraseSubstructures) {
-  Substructure &sub = mol_.get_substructure(0);
-  EXPECT_EQ(sub.size(), 4);
-
-  auto &subs = mol_.substructures();
-
-  subs.erase(subs.begin());
-  EXPECT_FALSE(mol_.has_substructures());
-
-  mol_.add_substructure(mol_.atom_substructure({ 0, 1, 2, 10 }));
-  mol_.erase_substructures([](const auto &) { return false; });
-  EXPECT_TRUE(mol_.has_substructures());
-  mol_.erase_substructures([](const auto &) { return true; });
-  EXPECT_FALSE(mol_.has_substructures());
-}
-
-TEST_F(MolSubstructureTest, FindSubstructures) {
-  mol_.get_substructure(0).set_id(100);
-  mol_.add_substructure(mol_.substructure()).set_id(200);
-  mol_.add_substructure(mol_.atom_substructure({ 10 })).set_id(200);
-
-  {
-    auto empty = mol_.find_substructures(0);
-    EXPECT_EQ(empty.begin(), empty.end());
-    EXPECT_EQ(std::as_const(empty).begin(), std::as_const(empty).end());
-
-    auto has_one = mol_.find_substructures(100);
-    EXPECT_EQ(std::distance(has_one.begin(), has_one.end()), 1);
-    EXPECT_EQ(std::distance(std::as_const(has_one).begin(),
-                            std::as_const(has_one).end()),
-              1);
-    EXPECT_EQ(has_one.begin()->size(), mol_.get_substructure(0).size());
-
-    auto has_two = mol_.find_substructures(200);
-    EXPECT_EQ(std::distance(has_two.begin(), has_two.end()), 2);
-    EXPECT_EQ(std::distance(std::as_const(has_two).begin(),
-                            std::as_const(has_two).end()),
-              2);
-
-    auto all = mol_.find_substructures("");
-    EXPECT_EQ(std::distance(all.begin(), all.end()), 3);
-  }
-
-  {
-    const Molecule &cmol = mol_;
-
-    auto empty = cmol.find_substructures(0);
-    EXPECT_EQ(empty.begin(), empty.end());
-
-    auto has_one = cmol.find_substructures(100);
-    EXPECT_EQ(std::distance(has_one.begin(), has_one.end()), 1);
-    EXPECT_EQ(has_one.begin()->size(), cmol.get_substructure(0).size());
-
-    auto has_two = cmol.find_substructures(200);
-    EXPECT_EQ(std::distance(has_two.begin(), has_two.end()), 2);
-
-    auto all = cmol.find_substructures("");
-    EXPECT_EQ(std::distance(all.begin(), all.end()), 3);
-  }
-}
-
-NURI_ASSERT_ONEWAY_CONVERTIBLE(substurcture iterator, Substructure::iterator,
-                               const substurcture iterator,
-                               Substructure::const_iterator);
-
 TEST_F(MolSubstructureTest, EraseAtomsFromMolecule) {
-  Substructure &sub = mol_.get_substructure(0);
+  Substructure &sub = mol_.substructures()[0];
   EXPECT_TRUE(sub.contains_atom(10));
 
   {
@@ -545,7 +448,7 @@ TEST_F(MolSubstructureTest, EraseAtomsFromMolecule) {
 }
 
 TEST_F(MolSubstructureTest, MergeSubstructure) {
-  Substructure &sub = mol_.get_substructure(0);
+  Substructure &sub = mol_.substructures()[0];
   mol_.merge(sub);
 
   ASSERT_EQ(mol_.size(), 16);
@@ -564,7 +467,7 @@ TEST_F(MolSubstructureTest, MergeSubstructure) {
 }
 
 TEST_F(MolSubstructureTest, Properties) {
-  Substructure &sub = mol_.get_substructure(0);
+  Substructure &sub = mol_.substructures()[0];
   sub.add_prop("test", "1");
   auto it = absl::c_find_if(sub.props(), [](const auto &p) {
     return p == std::pair<std::string, std::string>("test", "1");

@@ -6,7 +6,7 @@
 #ifndef NURI_CORE_GRAPH_H_
 #define NURI_CORE_GRAPH_H_
 
-/// @cond
+//! @cond
 #include <algorithm>
 #include <cstddef>
 #include <functional>
@@ -26,7 +26,7 @@
 #include <boost/container/flat_set.hpp>
 #include <boost/iterator/iterator_facade.hpp>
 #include <Eigen/Dense>
-/// @endcond
+//! @endcond
 
 #include "nuri/eigen_config.h"
 #include "nuri/meta.h"
@@ -451,6 +451,11 @@ using NodesErased = std::pair<std::pair<int, std::vector<int>>,
  *
  * @tparam NT node data type.
  * @tparam ET edge data type.
+ *
+ * For all time complexity specifications, \f$V\f$ denotes the number of nodes
+ * (vertices) and \f$E\f$ denotes the number of edges. If present, \f$N\f$ is
+ * the size of the user-supplied range (such as an iterator range; see, e.g.,
+ * erase_nodes()).
  */
 template <class NT, class ET>
 class Graph {
@@ -504,7 +509,19 @@ public:
   Graph &operator=(Graph &&) noexcept = default;
   ~Graph() noexcept = default;
 
+  /**
+   * @brief Create a graph with \p num_nodes nodes.
+   * @param num_nodes The number of nodes in the graph. All node data will be
+   *        default-constructed.
+   */
   Graph(int num_nodes): adj_list_(num_nodes), nodes_(num_nodes) { }
+
+  /**
+   * @brief Create a graph with \p num_nodes nodes, each initialized with
+   *        \p data.
+   * @param num_nodes The number of nodes in the graph.
+   * @param data The data to copy-initialize each node with.
+   */
   Graph(int num_nodes, const NT &data)
       : adj_list_(num_nodes), nodes_(num_nodes, data) { }
 
@@ -538,6 +555,12 @@ public:
 
   void reserve_edges(int num_edges) { edges_.reserve(num_edges); }
 
+  /**
+   * @brief Add a node to the graph.
+   * @param data The data to copy-construct the node with.
+   * @return The id of the newly added node.
+   * @note Time complexity: \f$O(1)\f$ amortized.
+   */
   int add_node(const NT &data) {
     int id = num_nodes();
     nodes_.push_back(data);
@@ -545,6 +568,12 @@ public:
     return id;
   }
 
+  /**
+   * @brief Add a node to the graph.
+   * @param data The data to move-construct the node with.
+   * @return The id of the newly added node.
+   * @note Time complexity: \f$O(1)\f$ amortized.
+   */
   int add_node(NT &&data) noexcept {
     int id = num_nodes();
     nodes_.push_back(std::move(data));
@@ -552,6 +581,14 @@ public:
     return id;
   }
 
+  /**
+   * @brief Add multiple nodes to the graph.
+   * @tparam Iterator The type of the iterator. Must be dereferenceable to
+   *         a value type implicitly convertible to `NT`.
+   * @param begin The beginning of the range of nodes to be added.
+   * @param end The end of the range of nodes to be added.
+   * @note Time complexity: \f$O(N)\f$.
+   */
   template <class Iterator,
             internal::enable_if_compatible_iter_t<Iterator, NT> = 0>
   void add_nodes(Iterator begin, Iterator end) {
@@ -559,22 +596,42 @@ public:
     adj_list_.resize(num_nodes());
   }
 
-  edge_iterator add_edge(int src, int dst, const ET &data) {
-    ABSL_DCHECK(src != dst) << "self-loop is not allowed";
+  /**
+   * @brief Add an edge to the graph.
+   * @param src The source node id.
+   * @param dst The destination node id.
+   * @param data The data to copy-construct the edge with.
+   * @return The id of the newly added edge.
+   * @note Time complexity: \f$O(1)\f$ amortized.
+   * @note If \p src or \p dst is out of range, \p src equals \p dst, or an edge
+   *       between \p src and \p dst already exists, the behavior is undefined.
+   */
+  int add_edge(int src, int dst, const ET &data) {
+    ABSL_DCHECK_NE(src, dst) << "self-loop is not allowed";
 
     int eid = num_edges();
     edges_.push_back({ src, dst, data });
     add_adjacency_entry(src, dst, eid);
-    return { *this, eid };
+    return eid;
   }
 
-  edge_iterator add_edge(int src, int dst, ET &&data) noexcept {
-    ABSL_DCHECK(src != dst) << "self-loop is not allowed";
+  /**
+   * @brief Add an edge to the graph.
+   * @param src The source node id.
+   * @param dst The destination node id.
+   * @param data The data to move-construct the edge with.
+   * @return The id of the newly added edge.
+   * @note Time complexity: \f$O(1)\f$ amortized.
+   * @note If \p src or \p dst is out of range, \p src equals \p dst, or an edge
+   *       between \p src and \p dst already exists, the behavior is undefined.
+   */
+  int add_edge(int src, int dst, ET &&data) noexcept {
+    ABSL_DCHECK_NE(src, dst) << "self-loop is not allowed";
 
     int eid = num_edges();
     edges_.push_back({ src, dst, std::move(data) });
     add_adjacency_entry(src, dst, eid);
-    return { *this, eid };
+    return eid;
   }
 
   NodeRef operator[](int id) { return node(id); }
@@ -599,8 +656,8 @@ public:
    * @return The data of the erased node.
    * @sa erase_nodes()
    * @note Time complexity: \f$O(V)\f$ if only trailing node is erased,
-   *       \f$O(V+E)\f$ otherwise. If \p id is out of range, the behavior is
-   *       undefined.
+   *       \f$O(V+E)\f$ otherwise.
+   * @note If \p id is out of range, the behavior is undefined.
    */
   NT pop_node(int id) {
     NT ret = std::move(nodes_[id]);
@@ -613,21 +670,23 @@ public:
    *
    * @param begin The beginning of the range of nodes to be erased.
    * @param end The end of the range of nodes to be erased.
-   * @return A pair of (`new end id`, mapping of `old node id -> new node id`).
-   *         If only trailing nodes are erased, `new end id` will be set to the
+   * @return A pair for node and edge erasure result. Each pair contains a
+   *         pair of (`new end id`, mapping of `old id -> new id`). For nodes,
+   *         if only trailing nodes are erased, `new end id` will be set to the
    *         first erased node id, and the mapping will be in a valid but
-   *         unspecified state. If no nodes are erased (special case of
-   *         trailing node removal), `new end id` will be equal to the size of
-   *         the graph before this operation. Otherwise, `new end id` will be
-   *         set to -1 and erased nodes will be marked as -1 in the mapping.
+   *         unspecified state. If no nodes are erased (special case of trailing
+   *         node removal), `new end id` will be equal to the size of the graph
+   *         before this operation. Otherwise, `new end id` will be set to -1
+   *         and erased nodes will be marked as -1 in the mapping. The same rule
+   *         applies to edges.
    * @sa pop_node()
    * @note Time complexity:
    *         1. \f$O(N)\f$ if no nodes are erased,
    *         2. \f$O(V)\f$ if only trailing nodes are erased and no edges are
    *            erased,
    *         3. \f$O(V+E)\f$ otherwise.
-   *       If \p begin or the iterator before \p end is out of range, the
-   *       behavior is undefined.
+   * @note If any of the iterators in range `[`\p begin, \p end`)` is out of
+   *       range, the behavior is undefined.
    */
   NodesErased erase_nodes(const_iterator begin, const_iterator end) {
     return erase_nodes(begin, end, [](auto /* ref */) { return true; });
@@ -642,21 +701,19 @@ public:
    * @param end The end of the range of nodes to be erased.
    * @param pred A unary predicate that takes a `ConstNodeRef` and returns
    *        `true` if the node should be erased.
-   * @return A pair of (`new end id`, mapping of `old node id -> new node id`).
-   *         If only trailing nodes are erased, `new end id` will be set to the
+   * @return A pair for node and edge erasure result. Each pair contains a
+   *         pair of (`new end id`, mapping of `old id -> new id`). For nodes,
+   *         if only trailing nodes are erased, `new end id` will be set to the
    *         first erased node id, and the mapping will be in a valid but
-   *         unspecified state. If no nodes are erased (special case of
-   *         trailing node removal), `new end id` will be equal to the size of
-   *         the graph before this operation. Otherwise, `new end id` will be
-   *         set to -1 and erased nodes will be marked as -1 in the mapping.
+   *         unspecified state. If no nodes are erased (special case of trailing
+   *         node removal), `new end id` will be equal to the size of the graph
+   *         before this operation. Otherwise, `new end id` will be set to -1
+   *         and erased nodes will be marked as -1 in the mapping. The same rule
+   *         applies to edges.
    * @sa pop_node()
-   * @note Time complexity:
-   *         1. \f$O(N)\f$ if no nodes are erased,
-   *         2. \f$O(V)\f$ if only trailing nodes are erased and no edges are
-   *            erased,
-   *         3. \f$O(V+E)\f$ otherwise.
-   *       If \p begin or the iterator before \p end is out of range, the
-   *       behavior is undefined.
+   * @note Time complexity: same as erase_nodes(const_iterator, const_iterator).
+   * @note If any of the iterators in range `[`\p begin, \p end`)` is out of
+   *       range, the behavior is undefined.
    */
   template <class UnaryPred>
   NodesErased erase_nodes(const_iterator begin, const_iterator end,
@@ -665,25 +722,23 @@ public:
   /**
    * @brief Erase nodes and all its associated edge(s) from the graph.
    *
-   * @tparam Iterator An iterator type that dereferences to a value compatible
+   * @tparam Iterator An iterator  type that dereferences to a value compatible
    *         with `int`.
    * @param begin The beginning of the range of node ids to be erased.
    * @param end The end of the range of node ids to be erased.
-   * @return A pair of (`new end id`, mapping of `old node id -> new node id`).
-   *         If only trailing nodes are erased, `new end id` will be set to the
+   * @return A pair for node and edge erasure result. Each pair contains a
+   *         pair of (`new end id`, mapping of `old id -> new id`). For nodes,
+   *         if only trailing nodes are erased, `new end id` will be set to the
    *         first erased node id, and the mapping will be in a valid but
-   *         unspecified state. If no nodes are erased (special case of
-   *         trailing node removal), `new end id` will be equal to the size of
-   *         the graph before this operation. Otherwise, `new end id` will be
-   *         set to -1 and erased nodes will be marked as -1 in the mapping.
+   *         unspecified state. If no nodes are erased (special case of trailing
+   *         node removal), `new end id` will be equal to the size of the graph
+   *         before this operation. Otherwise, `new end id` will be set to -1
+   *         and erased nodes will be marked as -1 in the mapping. The same rule
+   *         applies to edges.
    * @sa pop_node()
-   * @note Time complexity:
-   *         1. \f$O(N)\f$ if no nodes are erased,
-   *         2. \f$O(V)\f$ if only trailing nodes are erased and no edges are
-   *            erased,
-   *         3. \f$O(V+E)\f$ otherwise.
-   *       If any iterator in range `[`\p begin, \p end`)` references an invalid
-   *       node id, the behavior is undefined.
+   * @note Time complexity: same as erase_nodes(const_iterator, const_iterator).
+   * @note If any of the iterators in range `[`\p begin, \p end`)` points to an
+   *       invalid node id, the behavior is undefined.
    */
   template <class Iterator,
             class = internal::enable_if_compatible_iter_t<Iterator, int>>
@@ -708,22 +763,60 @@ public:
   ET &edge_data(int id) { return edges_[id].data; }
   const ET &edge_data(int id) const { return edges_[id].data; }
 
+  /**
+   * @brief Find an edge between two nodes.
+   * @param src The source node id.
+   * @param dst The destination node id.
+   * @return Iterator to the edge if found, otherwise the end iterator.
+   * @note Time complexity: \f$O(V/E)\f$.
+   * @note If \p src or \p dst is out of range, the behavior is undefined.
+   */
   edge_iterator find_edge(int src, int dst) {
     return find_edge_helper(*this, src, dst);
   }
 
+  /**
+   * @brief Find an edge between two nodes.
+   * @param src The source node id.
+   * @param dst The destination node id.
+   * @return Iterator to the edge if found, otherwise the end iterator.
+   * @note Time complexity: same as find_edge(int, int).
+   * @note If \p src or \p dst is out of range, the behavior is undefined.
+   */
   const_edge_iterator find_edge(int src, int dst) const {
     return find_edge_helper(*this, src, dst);
   }
 
+  /**
+   * @brief Find an edge between two nodes.
+   * @param src The source node.
+   * @param dst The destination node.
+   * @return Iterator to the edge if found, otherwise the end iterator.
+   * @note Time complexity: same as find_edge(int, int).
+   * @note If \p src or \p dst does not belong to this graph, the behavior is
+   *       undefined.
+   */
   edge_iterator find_edge(ConstNodeRef src, ConstNodeRef dst) {
     return find_edge(src.id(), dst.id());
   }
 
+  /**
+   * @brief Find an edge between two nodes.
+   * @param src The source node.
+   * @param dst The destination node.
+   * @return Iterator to the edge if found, otherwise the end iterator.
+   * @note Time complexity: same as find_edge(int, int).
+   * @note If \p src or \p dst does not belong to this graph, the behavior is
+   *       undefined.
+   */
   const_edge_iterator find_edge(ConstNodeRef src, ConstNodeRef dst) const {
     return find_edge(src.id(), dst.id());
   }
 
+  /**
+   * @brief Remove all edges from the graph.
+   * @note Time complexity: \f$O(V)\f$.
+   */
   void clear_edges() {
     edges_.clear();
     for (std::vector<AdjEntry> &adj: adj_list_)
@@ -736,8 +829,8 @@ public:
    * @param id The id of the edge to be erased.
    * @return The data of the erased edge.
    * @sa erase_edge(), erase_edge_between(), erase_edges()
-   * @note Time complexity: same as erase_edge(). If \p id is out of range, the
-   *       behavior is undefined.
+   * @note Time complexity: same as erase_edge().
+   * @note If \p id is out of range, the behavior is undefined.
    */
   ET pop_edge(int id) {
     ET ret = std::move(edges_[id].data);
@@ -751,8 +844,8 @@ public:
    * @param id The id of the edge to be erased.
    * @sa pop_edge(), erase_edge_between(), erase_edges()
    * @note Time complexity: \f$O(E/V)\f$ if the edge is the last edge,
-   *       \f$O(V+E)\f$ otherwise. If \p id is out of range, the behavior is
-   *       undefined.
+   *       \f$O(V+E)\f$ otherwise.
+   * @note If \p id is out of range, the behavior is undefined.
    */
   void erase_edge(int id) {
     const StoredEdge &edge = edges_[id];
@@ -766,26 +859,25 @@ public:
   /**
    * @brief Erase an edge from the graph between two nodes.
    *
-   * @param src The id of the source node.
-   * @param dst The id of the destination node.
+   * @param src The source node, interchangeable with \p dst.
+   * @param dst The destination node, interchangeable with \p src.
    * @return Whether the edge is erased.
    * @sa pop_edge(), erase_edge(), erase_edges()
-   * @note Time complexity: same as erase_edge(). If \p src or \p dst is out of
-   *       range, the behavior is undefined. \p src and \p dst are
-   *       interchangeable.
+   * @note Time complexity: same as erase_edge().
+   * @note If \p src or \p dst is out of range, the behavior is undefined.
    */
   bool erase_edge_between(int src, int dst);
 
   /**
    * @brief Erase an edge from the graph between two nodes.
    *
-   * @param src The source node.
-   * @param dst The destination node.
+   * @param src The source node, interchangeable with \p dst.
+   * @param dst The destination node, interchangeable with \p src.
    * @return Whether the edge is erased.
    * @sa pop_edge(), erase_edge(), erase_edges()
-   * @note Time complexity: same as erase_edge(). If \p src or \p dst does not
-   *       belong to this graph, the behavior is undefined. \p src and \p dst
-   *       are interchangeable.
+   * @note Time complexity: same as erase_edge().
+   * @note If \p src or \p dst does not belong to this graph, the behavior is
+   *       undefined.
    */
   bool erase_edge_between(ConstNodeRef src, ConstNodeRef dst) {
     return erase_edge_between(src.id(), dst.id());
@@ -805,8 +897,9 @@ public:
    *         and erased edges will be marked as -1 in the mapping.
    * @sa pop_edge(), erase_edge(), erase_edge_between()
    * @note Time complexity: \f$O(N)\f$ if no edges were removed, \f$O(V+E)\f$
-   *       otherwise. If \p begin or the iterator before \p end is out of range,
-   *       the behavior is undefined.
+   *       otherwise.
+   * @note If any of the iterators in range `[`\p begin, \p end`)` is out of
+   *       range, the behavior is undefined.
    */
   std::pair<int, std::vector<int>> erase_edges(const_edge_iterator begin,
                                                const_edge_iterator end) {
@@ -830,9 +923,10 @@ public:
    *         the graph before this operation. Otherwise, `new end id` will be
    *         set to -1 and erased edges will be marked as -1 in the mapping.
    * @sa pop_edge(), erase_edge(), erase_edge_between()
-   * @note Time complexity: \f$O(N)\f$ if no edges were removed, \f$O(V+E)\f$
-   *       otherwise. If \p begin or the iterator before \p end is out of range,
-   *       the behavior is undefined.
+   * @note Time complexity: same as
+   *       erase_edges(const_edge_iterator, const_edge_iterator).
+   * @note If any of the iterators in range `[`\p begin, \p end`)` is out of
+   *       range, the behavior is undefined.
    */
   template <class UnaryPred>
   std::pair<int, std::vector<int>> erase_edges(const_edge_iterator begin,
@@ -854,9 +948,10 @@ public:
    *         the graph before this operation. Otherwise, `new end id` will be
    *         set to -1 and erased edges will be marked as -1 in the mapping.
    * @sa pop_edge(), erase_edge(), erase_edge_between()
-   * @note Time complexity: \f$O(N)\f$ if no edges were removed, \f$O(V+E)\f$
-   *       otherwise. If any iterator in range `[`\p begin, \p end`)` references
-   *       an invalid edge id, the behavior is undefined.
+   * @note Time complexity: same as
+   *       erase_edges(const_edge_iterator, const_edge_iterator).
+   * @note If any iterator in range `[`\p begin, \p end`)` references an invalid
+   *       edge id, the behavior is undefined.
    */
   template <class Iterator,
             class = internal::enable_if_compatible_iter_t<Iterator, int>>
@@ -873,18 +968,56 @@ public:
   const_edge_iterator edge_cbegin() const { return { *this, 0 }; }
   const_edge_iterator edge_cend() const { return { *this, num_edges() }; }
 
+  /**
+   * @brief Find an adjacency entry between two nodes.
+   * @param src The source node id.
+   * @param dst The destination node id.
+   * @return Iterator to the adjacency entry if found, otherwise the end
+   *         iterator of the adjacency list of \p src.
+   * @note Time complexity: \f$O(V/E)\f$.
+   * @note If \p src or \p dst is out of range, the behavior is undefined.
+   */
   adjacency_iterator find_adjacent(int src, int dst) {
     return find_adj_helper(*this, src, dst);
   }
 
+  /**
+   * @brief Find an adjacency entry between two nodes.
+   * @param src The source node id.
+   * @param dst The destination node id.
+   * @return Iterator to the adjacency entry if found, otherwise the end
+   *         iterator of the adjacency list of \p src.
+   * @note Time complexity: \f$O(V/E)\f$.
+   * @note If \p src or \p dst is out of range, the behavior is undefined.
+   */
   const_adjacency_iterator find_adjacent(int src, int dst) const {
     return find_adj_helper(*this, src, dst);
   }
 
+  /**
+   * @brief Find an adjacency entry between two nodes.
+   * @param src The source node.
+   * @param dst The destination node.
+   * @return Iterator to the adjacency entry if found, otherwise the end
+   *         iterator of the adjacency list of \p src.
+   * @note Time complexity: \f$O(V/E)\f$.
+   * @note If \p src or \p dst does not belong to this graph, the behavior is
+   *       undefined.
+   */
   adjacency_iterator find_adjacent(ConstNodeRef src, ConstNodeRef dst) {
     return find_adjacent(src.id(), dst.id());
   }
 
+  /**
+   * @brief Find an adjacency entry between two nodes.
+   * @param src The source node.
+   * @param dst The destination node.
+   * @return Iterator to the adjacency entry if found, otherwise the end
+   *         iterator of the adjacency list of \p src.
+   * @note Time complexity: \f$O(V/E)\f$.
+   * @note If \p src or \p dst does not belong to this graph, the behavior is
+   *       undefined.
+   */
   const_adjacency_iterator find_adjacent(ConstNodeRef src,
                                          ConstNodeRef dst) const {
     return find_adjacent(src.id(), dst.id());
@@ -901,6 +1034,15 @@ public:
     return { *this, degree(nid), nid };
   }
 
+  /**
+   * @brief Merge another graph-like object into this graph.
+   * @tparam GraphLike The type of the graph-like object to be merged.
+   * @param other The graph to be merged.
+   * @note Time complexity: \f$O(V'+E')\f$ addition cost, where \f$V'\f$ and
+   *       \f$E'\f$ are the number of nodes and edges in \p other, respectively.
+   *       The actual time complexity may vary depending on the implementation
+   *       of the graph-like object.
+   */
   template <class GraphLike>
   void merge(const GraphLike &other) {
     const int offset = size();
@@ -1204,8 +1346,7 @@ template <class NT, class ET>
 template <class Iterator, class>
 std::pair<int, std::vector<int>> Graph<NT, ET>::erase_edges(Iterator begin,
                                                             Iterator end) {
-  // This will also handle num_edges() == 0 case correctly.
-  if (begin >= end)
+  if (begin == end)
     return { num_edges(), {} };
 
   // Phase I: mark edges for removal, O(N)
@@ -1789,7 +1930,7 @@ namespace internal {
   public:
     using Base::Base;
 
-    IndexSet(std::vector<int> &&vec) noexcept {
+    explicit IndexSet(std::vector<int> &&vec) noexcept {
       adopt_sequence(std::move(vec));
     }
 
@@ -1802,24 +1943,21 @@ namespace internal {
     void erase_if(UnaryPred &&pred) {
       std::vector<int> work = extract_sequence();
       nuri::erase_if(work, std::forward<UnaryPred>(pred));
-      adopt_sequence(boost::container::ordered_unique_range_t {},
-                     std::move(work));
+      adopt_sequence(boost::container::ordered_unique_range, std::move(work));
     }
 
     void union_with(const IndexSet &other) {
       std::vector<int> result;
       result.reserve(size() + other.size());
       absl::c_set_union(*this, other, std::back_inserter(result));
-      adopt_sequence(boost::container::ordered_unique_range_t {},
-                     std::move(result));
+      adopt_sequence(boost::container::ordered_unique_range, std::move(result));
     }
 
     void difference(const IndexSet &other) {
       std::vector<int> result;
       result.reserve(size());
       absl::c_set_difference(*this, other, std::back_inserter(result));
-      adopt_sequence(boost::container::ordered_unique_range_t {},
-                     std::move(result));
+      adopt_sequence(boost::container::ordered_unique_range, std::move(result));
     }
 
     int operator[](int idx) const { return sequence()[idx]; }
@@ -1849,33 +1987,34 @@ namespace internal {
   IndexSet find_edges(GT &parent, const IndexSet &nodes) {
     std::vector<int> edges;
     std::stack<int, std::vector<int>> stack;
-    ArrayXb visited = ArrayXb::Zero(parent.num_nodes());
+    ArrayXb visited = ArrayXb::Zero(static_cast<int>(nodes.size()));
 
-    for (auto i: nodes) {
+    for (int i = 0; i < nodes.size(); ++i) {
       if (visited[i])
         continue;
 
       visited[i] = true;
       stack.push(i);
 
-      while (!stack.empty()) {
-        int u = stack.top();
+      do {
+        int u = nodes[stack.top()];
         stack.pop();
 
         for (auto nei: parent[u]) {
           int v = nei.dst().id();
-          if (!nodes.contains(v))
+          int j = nodes.find_index(v);
+          if (j >= nodes.size())
             continue;
 
           if (u < v)
             edges.push_back(nei.eid());
 
-          if (!visited[v]) {
-            visited[v] = true;
-            stack.push(v);
+          if (!visited[j]) {
+            visited[j] = true;
+            stack.push(j);
           }
         }
-      }
+      } while (!stack.empty());
     }
 
     return IndexSet(std::move(edges));
@@ -1888,9 +2027,9 @@ namespace internal {
  * @tparam NT node data type
  * @tparam ET edge data type
  * @tparam is_const whether the subgraph is const. This is to support
- * creating subgraphs of const graphs.
+ *         creating subgraphs of const graphs.
  * @note Removing nodes/edges on the parent graph will invalidate the
- * subgraph.
+ *       subgraph.
  *
  * The subgraph is a non-owning view of a graph. A subgraph could be
  * constructed by selecting nodes of the parent graph. The resulting
@@ -1902,7 +2041,7 @@ namespace internal {
  *   - Adding/removing nodes/edges will just mark the nodes/edges as
  *     selected/unselected.
  *   - Some methods have different time complexity requirements. Refer to
- * the documentation of each method for details.
+ *     the documentation of each method for details.
  *
  * In all time complexity specifications, \f$V\f$ and \f$E\f$ are the number
  * of nodes and edges in the parent graph, and \f$V'\f$ and \f$E'\f$ are the
@@ -1958,19 +2097,57 @@ public:
    */
   Subgraph(parent_type &graph): parent_(&graph) { }
 
+  /**
+   * @brief Construct a subgraph with the given nodes and edges
+   * @param graph The parent graph
+   * @param nodes The set of nodes
+   * @param edges The set of edges
+   * @return The created subgraph
+   * @note The nodes connected to the edges will be automatically added even if
+   *       they are not in the nodes set.
+   * @note Time complexity:
+   *         1. Building node set: \f$O(V' \log V')\f$
+   *         2. Building edge set: \f$O(E' \log E')\f$
+   *         3. Finding nodes connected to edges: \f$O(E')\f$
+   * @note The behavior is undefined if any of the node or edge ids are not in
+   *       the parent graph.
+   */
   static Subgraph from_indices(parent_type &graph, internal::IndexSet &&nodes,
                                internal::IndexSet &&edges) {
     Subgraph subgraph(graph, std::move(nodes), {});
-    subgraph.add_edges(edges.begin(), edges.end());
+    subgraph.add_edges(edges);
     return subgraph;
   }
 
+  /**
+   * @brief Construct a subgraph with the given nodes and all edges connecting
+   *        the nodes.
+   * @param graph The parent graph
+   * @param nodes The set of nodes
+   * @return The created subgraph
+   * @note Time complexity:
+   *         1. Building node set: \f$O(V' \log V')\f$
+   *         2. Finding edges connecting the nodes: \f$O(V' E/V \log V')\f$
+   *         3. Building edge set: \f$O(E' \log E')\f$
+   * @note The behavior is undefined if any of the node ids are not in the
+   *       parent graph.
+   */
   static Subgraph from_nodes(parent_type &graph, internal::IndexSet &&nodes) {
     internal::IndexSet edges = internal::find_edges(graph, nodes);
     Subgraph subgraph(graph, std::move(nodes), std::move(edges));
     return subgraph;
   }
 
+  /**
+   * @brief Construct a subgraph with the given edges and all nodes connected
+   *        to the edges.
+   * @param graph The parent graph
+   * @param edges The set of edges
+   * @return The created subgraph
+   * @note Time complexity: \f$O(E' \log E')\f$
+   * @note The behavior is undefined if any of the edge ids are not in the
+   *       parent graph.
+   */
   static Subgraph from_edges(parent_type &graph, internal::IndexSet &&edges) {
     internal::IndexSet nodes = internal::find_nodes(graph, edges);
     Subgraph subgraph(graph, std::move(nodes), std::move(edges));
@@ -2051,69 +2228,86 @@ public:
    */
   int num_nodes() const { return static_cast<int>(nodes_.size()); }
 
-  // /**
-  //  * @brief Change the set of nodes in the subgraph
-  //  *
-  //  * @param nodes The new set of nodes.
-  //  * @param edges The new set of edges.
-  //  * @note The nodes connected to the edges will be automatically added even
-  //  if
-  //  *       they are not in the nodes set.
-  //  */
-  // void update(const std::vector<int> &nodes, const std::vector<int> &edges) {
-  //   edges_.adopt_sequence(edges);
-  //   add_nodes(nodes.begin(), nodes.end());
-  // }
+  /**
+   * @brief Count number of edges in the subgraph
+   *
+   * @return The number of edges in the subgraph
+   */
+  int num_edges() const { return static_cast<int>(edges_.size()); }
 
   /**
-   * @brief Change the set of nodes in the subgraph
+   * @brief Change the set of nodes and edges in the subgraph
    *
    * @param nodes The new set of nodes.
    * @param edges The new set of edges.
    * @note The nodes connected to the edges will be automatically added even if
    *       they are not in the nodes set.
+   * @note Time complexity: same as from_indices().
+   * @note If any of the node ids are not in the parent graph, the behavior is
+   *       undefined.
    */
-  void update(std::vector<int> &&nodes, std::vector<int> &&edges) {
-    edges_.adopt_sequence(std::move(edges));
-    add_nodes(nodes.begin(), nodes.end());
-  }
+  void update(internal::IndexSet &&nodes, internal::IndexSet &&edges) {
+    nodes_ = std::move(nodes);
 
-  // /**
-  //  * @brief Change the set of nodes in the subgraph
-  //  *
-  //  * @param nodes The new set of nodes. Edges will be automatically updated.
-  //  * @note If any of the node ids are not in the parent graph, the behavior
-  //  is
-  //  *       undefined.
-  //  * @note Time complexity: \f$O(V' \log V')\f$
-  //  */
-  // void update_nodes(const std::vector<int> &nodes) {
-  //   nodes_.adopt_sequence(nodes);
-  //   edges_ = internal::find_edges(*parent_, nodes_);
-  // }
+    edges_.clear();
+    add_edges(edges);
+  }
 
   /**
    * @brief Change the set of nodes in the subgraph
    *
    * @param nodes The new set of nodes. Edges will be automatically updated.
-   * @note If any of the node ids are not in the parent graph, or if there are
-   *       duplicates, the behavior is undefined.
-   * @note Time complexity: \f$O(V' \log V')\f$
+   * @note Time complexity: same as from_nodes().
+   * @note If any of the node ids are not in the parent graph, the behavior is
+   *       undefined.
    */
-  void update_nodes(std::vector<int> &&nodes) noexcept {
-    nodes_.adopt_sequence(std::move(nodes));
+  void update_nodes(internal::IndexSet &&nodes) noexcept {
+    nodes_ = std::move(nodes);
     edges_ = internal::find_edges(*parent_, nodes_);
   }
+
+  /**
+   * @brief Change the set of edges in the subgraph
+   *
+   * @param edges The new set of edges. All nodes connected to the edges will be
+   *        automatically added.
+   * @note Time complexity: same as from_edges().
+   * @note If any of the edge ids are not in the parent graph, the behavior is
+   *       undefined.
+   */
+  void update_edges(internal::IndexSet &&edges) noexcept {
+    edges_ = std::move(edges);
+    nodes_ = internal::find_nodes(*parent_, edges_);
+  }
+
+  /**
+   * @brief Make this graph an induced subgraph of the parent graph
+   *
+   * Replace the current set of edges with the set of edges connecting the
+   * current set of nodes.
+   *
+   * @note Time complexity: same as from_edges().
+   */
+  void refresh_edges() { edges_ = internal::find_edges(*parent_, nodes_); }
 
   /**
    * @brief Clear the subgraph
    *
    * @note This does not affect the parent graph.
+   * @note There is no clear_nodes() member function because it is equivalent to
+   *       this function.
    */
   void clear() noexcept {
     nodes_.clear();
     edges_.clear();
   }
+
+  /**
+   * @brief Clear the edges
+   *
+   * @note This does not affect the parent graph.
+   */
+  void clear_edges() noexcept { edges_.clear(); }
 
   /**
    * @brief Reserve space for a number of nodes
@@ -2123,61 +2317,76 @@ public:
   void reserve_nodes(int num_nodes) { nodes_.reserve(num_nodes); }
 
   /**
+   * @brief Reserve space for a number of edges
+   *
+   * @param num_edges The number of edges to reserve space for
+   */
+  void reserve_edges(int num_edges) { edges_.reserve(num_edges); }
+
+  /**
    * @brief Add a node to the subgraph
    *
    * @param id The id of the node to add
+   * @note Time complexity: \f$O(V')\f$ when the node is not in the graph,
+   *       \f$O(\log V')\f$ otherwise.
    * @note If the node is already in the subgraph, this is a no-op. If the
-   * node id is out of range, the behavior is undefined.
+   *       node id is out of range, the behavior is undefined.
    */
   void add_node(int id) { nodes_.insert(id); }
 
   /**
+   * @brief Add an edge to the subgraph. Also adds the incident nodes.
+   *
+   * @param id The id of the edge to add
+   * @note Time complexity: \f$O(E' + V')\f$ when the edge is not in the graph,
+   *       \f$O(\log E')\f$ otherwise.
+   * @note If the edge is already in the subgraph, this is a no-op. If the
+   *       edge id is out of range, the behavior is undefined.
+   */
+  void add_edge(int id) {
+    auto [_, added] = edges_.insert(id);
+    if (added) {
+      auto edge = parent_->edge(id);
+      nodes_.insert(edge.src().id());
+      nodes_.insert(edge.dst().id());
+    }
+  }
+
+  /**
    * @brief Add nodes to the subgraph
    *
    * @param nodes The new set of nodes
+   * @note Time complexity: \f$O(V')\f$.
    * @note If any of the node id is out of range, the behavior is undefined.
-   * @note All duplicate nodes will be automatically removed.
    */
   void add_nodes(const internal::IndexSet &nodes) { nodes_.union_with(nodes); }
 
   /**
-   * @brief Add nodes to the subgraph
+   * @brief Add edges to the subgraph. Also adds the incident nodes.
    *
-   * @param begin An iterator to the beginning of the nodes to add
-   * @param end A past-the-end iterator to the nodes to add
-   * @note If any of the node id is out of range, the behavior is undefined.
-   * @note All duplicate nodes will be automatically removed.
+   * @param edges The new set of edges
+   * @note Time complexity: \f$O(V' + E' + N \log N)\f$, where \f$N\f$ is the
+   *       number of new edges.
+   * @note If any of the edge id is out of range, the behavior is undefined.
    */
-  template <class Iter>
-  void add_nodes(Iter begin, Iter end) {
-    nodes_.insert(begin, end);
+  void add_edges(const internal::IndexSet &edges) {
+    edges_.union_with(edges);
+
+    auto new_nodes = internal::find_nodes(*parent_, edges);
+    nodes_.union_with(new_nodes);
   }
 
   /**
    * @brief Add nodes to the subgraph, and update the edges
    *
    * @param nodes The new set of nodes
+   * @note Time complexity: same as from_nodes().
    * @note If any of the node id is out of range, the behavior is undefined.
-   * @note All duplicate nodes will be automatically removed.
    */
   void add_nodes_with_edges(const internal::IndexSet &nodes) {
-    nodes_.union_with(nodes);
+    add_nodes(nodes);
     auto new_edges = internal::find_edges(*parent_, nodes);
     edges_.union_with(new_edges);
-  }
-
-  /**
-   * @brief Add nodes to the subgraph, and update the edges
-   *
-   * @param begin An iterator to the beginning of the nodes to add
-   * @param end A past-the-end iterator to the nodes to add
-   * @note If any of the node id is out of range, the behavior is undefined.
-   * @note All duplicate nodes will be automatically removed.
-   */
-  template <class Iter>
-  void add_nodes_with_edges(Iter begin, Iter end) {
-    internal::IndexSet new_nodes(begin, end);
-    add_nodes_with_edges(new_nodes);
   }
 
   /**
@@ -2199,6 +2408,27 @@ public:
    */
   bool contains_node(typename graph_type::ConstNodeRef node) const {
     return contains_node(node.id());
+  }
+
+  /**
+   * @brief Check if an edge is in the subgraph
+   *
+   * @param id the id of the edge to check
+   * @return true if the edge is in the subgraph, false otherwise
+   * @note Time complexity: \f$O(\log E')\f$.
+   */
+  bool contains_edge(int id) const { return edges_.contains(id); }
+
+  /**
+   * @brief Check if an edge is in the subgraph
+   *
+   * @param edge The edge to check
+   * @return true if the edge is in the subgraph, false otherwise
+   * @note This is equivalent to calling contains_edge(edge.id()).
+   * @note Time complexity: \f$O(\log E')\f$.
+   */
+  bool contains_edge(typename graph_type::ConstEdgeRef edge) const {
+    return contains_edge(edge.id());
   }
 
   /**
@@ -2234,6 +2464,36 @@ public:
   ConstNodeRef node(int idx) const { return { idx, *this }; }
 
   /**
+   * @brief Get an edge in the subgraph
+   *
+   * @param idx The index of the edge to get
+   * @return A reference wrapper to the edge (might be const)
+   *
+   * @note Time complexity: \f$O(\log V')\f$.
+   */
+  EdgeRef edge(int idx) {
+    auto pedge = parent_edge(idx);
+    int src = nodes_.find_index(pedge.src().id()),
+        dst = nodes_.find_index(pedge.dst().id());
+    return { src, dst, idx, *this };
+  }
+
+  /**
+   * @brief Get an edge in the subgraph
+   *
+   * @param idx The index of the edge to get
+   * @return A const-reference wrapper to the edge
+   *
+   * @note Time complexity: \f$O(\log V')\f$.
+   */
+  ConstEdgeRef edge(int idx) const {
+    auto pedge = parent_edge(idx);
+    int src = nodes_.find_index(pedge.src().id()),
+        dst = nodes_.find_index(pedge.dst().id());
+    return { src, dst, idx, *this };
+  }
+
+  /**
    * @brief Get data of a node in the subgraph
    *
    * @param idx The index of the node to get
@@ -2250,6 +2510,24 @@ public:
    * @return A const-reference to the node data
    */
   const NT &node_data(int idx) const { return parent_->node_data(nodes_[idx]); }
+
+  /**
+   * @brief Get data of an edge in the subgraph
+   *
+   * @param idx The index of the edge to get
+   * @return A reference to the edge data (might be const)
+   */
+  internal::const_if_t<is_const, ET> &edge_data(int idx) {
+    return parent_->edge_data(edges_[idx]);
+  }
+
+  /**
+   * @brief Get data of an edge in the subgraph
+   *
+   * @param idx The index of the edge to get
+   * @return A const-reference to the edge data
+   */
+  const ET &edge_data(int idx) const { return parent_->edge_data(edges_[idx]); }
 
   /**
    * @brief Get a parent node of a node in the subgraph
@@ -2274,6 +2552,28 @@ public:
   }
 
   /**
+   * @brief Get a parent edge of an edge in the subgraph
+   *
+   * @param idx The index of the edge to get
+   * @return A reference wrapper to the edge (might be const)
+   */
+  std::conditional_t<is_const, typename parent_type::ConstEdgeRef,
+                     typename parent_type::EdgeRef>
+  parent_edge(int idx) {
+    return parent_->edge(edges_[idx]);
+  }
+
+  /**
+   * @brief Get a parent edge of an edge in the subgraph
+   *
+   * @param idx The index of the edge to get
+   * @return A const-reference wrapper to the edge.
+   */
+  typename parent_type::ConstEdgeRef parent_edge(int idx) const {
+    return parent_->edge(edges_[idx]);
+  }
+
+  /**
    * @brief Find a node with the given id.
    *
    * @param id The id of the node to find
@@ -2288,7 +2588,7 @@ public:
    * @param node The node to find
    * @return An iterator to the node if found, end() otherwise.
    * @note This is equivalent to calling find_node(node.id()).
-   * @note Time complexity: \f$O(\log V')\f$.
+   * @note Time complexity: same as find_node(int).
    */
   iterator find_node(typename graph_type::ConstNodeRef node) {
     return find_node(node.id());
@@ -2299,7 +2599,7 @@ public:
    *
    * @param id The id of the node to find
    * @return A const_iterator to the node if found, end() otherwise
-   * @note Time complexity: \f$O(\log V')\f$.
+   * @note Time complexity: same as find_node(int).
    */
   const_iterator find_node(int id) const {
     return begin() + nodes_.find_index(id);
@@ -2311,10 +2611,56 @@ public:
    * @param node The node to find
    * @return A const_iterator to the node if found, end() otherwise.
    * @note This is equivalent to calling find_node(node.id()).
-   * @note Time complexity: \f$O(\log V')\f$.
+   * @note Time complexity: same as find_node(int).
    */
   const_iterator find_node(typename graph_type::ConstNodeRef node) const {
     return find_node(node.id());
+  }
+
+  /**
+   * @brief Find an edge with the given id.
+   *
+   * @param id The id of the edge to find
+   * @return An iterator to the edge if found, edge_end() otherwise.
+   * @note Time complexity: \f$O(\log E')\f$.
+   */
+  edge_iterator find_edge(int id) {
+    return edge_begin() + edges_.find_index(id);
+  }
+
+  /**
+   * @brief Find an edge with the given id.
+   *
+   * @param edge The edge to find
+   * @return An iterator to the edge if found, edge_end() otherwise.
+   * @note This is equivalent to calling find_edge(edge.id()).
+   * @note Time complexity: same as find_edge(int).
+   */
+  edge_iterator find_edge(typename graph_type::ConstEdgeRef edge) {
+    return find_edge(edge.id());
+  }
+
+  /**
+   * @brief Find an edge with the given id.
+   *
+   * @param id The id of the edge to find
+   * @return A const_iterator to the edge if found, edge_end() otherwise
+   * @note Time complexity: same as find_edge(int).
+   */
+  const_edge_iterator find_edge(int id) const {
+    return edge_begin() + edges_.find_index(id);
+  }
+
+  /**
+   * @brief Find an edge with the given id.
+   *
+   * @param edge The edge to find
+   * @return A const_iterator to the edge if found, edge_end() otherwise.
+   * @note This is equivalent to calling find_edge(edge.id()).
+   * @note Time complexity: same as find_edge(int).
+   */
+  const_edge_iterator find_edge(typename graph_type::ConstEdgeRef edge) const {
+    return find_edge(edge.id());
   }
 
   /**
@@ -2322,8 +2668,8 @@ public:
    *        removed.
    *
    * @param idx The index of the node to erase.
-   * @note The behavior is undefined if idx >= num_nodes().
-   * @note Time complexity: \f$O(E / V \log E' + E')\f$ in worst case.
+   * @note The behavior is undefined if the index is out of range.
+   * @note Time complexity: \f$O(E/V (\log V' + \log E') + V' + E')\f$.
    */
   void erase_node(int idx) {
     std::vector<int> erased_edges;
@@ -2338,9 +2684,27 @@ public:
    *
    * @param node The node to erase
    * @note This is equivalent to calling erase_node(node.id()).
-   * @note Time complexity: \f$O(E / V \log E' + E')\f$ in worst case.
+   * @note Time complexity: same as erase_node(int).
    */
   void erase_node(ConstNodeRef node) { erase_node(node.id()); }
+
+  /**
+   * @brief Erase an edge from the subgraph
+   *
+   * @param idx The index of the edge to erase
+   * @note The behavior is undefined if the index is out of range.
+   * @note Time complexity: \f$O(E')\f$ in worst case.
+   */
+  void erase_edge(int idx) { edges_.erase(edges_.begin() + idx); }
+
+  /**
+   * @brief Erase an edge from the subgraph
+   *
+   * @param edge The edge to erase
+   * @note This is equivalent to calling erase_edge(edge.id()).
+   * @note Time complexity: same as erase_edge(int).
+   */
+  void erase_edge(ConstEdgeRef edge) { erase_edge(edge.id()); }
 
   /**
    * @brief Erase range of nodes from the subgraph. Corresponding edges will
@@ -2348,7 +2712,8 @@ public:
    *
    * @param begin Iterator pointing to the first node to erase
    * @param end Iterator pointing to the node after the last node to erase
-   * @note Time complexity: \f$O(V' \log E' + E')\f$ in worst case.
+   * @note Time complexity: \f$O(N E/V (\log V' + \log E') + V' + E')\f$, where
+   *       \f$N\f$ is the distance between begin and end.
    */
   void erase_nodes(const_iterator begin, const_iterator end) {
     std::vector<int> erased_edges;
@@ -2362,12 +2727,24 @@ public:
   }
 
   /**
+   * @brief Erase range of edges from the subgraph
+   *
+   * @param begin Iterator pointing to the first edge to erase
+   * @param end Iterator pointing to the edge after the last edge to erase
+   * @note Time complexity: \f$O(E')\f$ in worst case.
+   */
+  void erase_edges(const_edge_iterator begin, const_edge_iterator end) {
+    edges_.erase(begin - this->edge_begin() + edges_.begin(),
+                 end - this->edge_begin() + edges_.begin());
+  }
+
+  /**
    * @brief Erase a node with given id from the subgraph. Corresponding edges
    *        will also be removed.
    *
    * @param id The id of the node to erase
    * @note This is a no-op if the node is not in the subgraph.
-   * @note Time complexity: \f$O(V' \log E' + E')\f$ in worst case.
+   * @note Time complexity: same as erase_node().
    */
   void erase_node_of(int id) {
     int idx = nodes_.find_index(id);
@@ -2381,10 +2758,30 @@ public:
    *
    * @param node The parent node to erase
    * @note This is a no-op if the node is not in the subgraph.
-   * @note Time complexity: \f$O(V' \log E' + E')\f$ in worst case.
+   * @note Time complexity: same as erase_node().
    */
   void erase_node_of(typename graph_type::ConstNodeRef node) {
     erase_node_of(node.id());
+  }
+
+  /**
+   * @brief Erase an edge with given id from the subgraph
+   *
+   * @param id The id of the edge to erase
+   * @note This is a no-op if the edge is not in the subgraph.
+   * @note Time complexity: same as erase_edge().
+   */
+  void erase_edge_of(int id) { edges_.erase(id); }
+
+  /**
+   * @brief Erase an edge with given id from the subgraph
+   *
+   * @param edge The parent edge to erase
+   * @note This is a no-op if the edge is not in the subgraph.
+   * @note Time complexity: same as erase_edge().
+   */
+  void erase_edge_of(typename graph_type::ConstEdgeRef edge) {
+    erase_edge_of(edge.id());
   }
 
   /**
@@ -2393,7 +2790,7 @@ public:
    *
    * @tparam UnaryPred Type of the unary predicate
    * @param pred Unary predicate that returns true for nodes to erase
-   * @note Time complexity: \f$O(V' \log E' + E')\f$ in worst case.
+   * @note Time complexity: same as erase_nodes().
    */
   template <class UnaryPred>
   void erase_nodes_if(UnaryPred pred) {
@@ -2410,6 +2807,18 @@ public:
 
     nodes_.difference(internal::IndexSet(std::move(erased_nodes)));
     edges_.difference(internal::IndexSet(std::move(erased_edges)));
+  }
+
+  /**
+   * @brief Erase matching edges from the subgraph
+   *
+   * @tparam UnaryPred Type of the unary predicate
+   * @param pred Unary predicate that returns true for edges to erase
+   * @note Time complexity: \f$O(E')\f$ in worst case.
+   */
+  template <class UnaryPred>
+  void erase_edges_if(UnaryPred &&pred) {
+    edges_.erase_if(std::forward<UnaryPred>(pred));
   }
 
   /**
@@ -2438,9 +2847,21 @@ public:
    * @note The caller is responsible for ensuring that the new node ids are
    *       compatible with the selected edges; otherwise, the behavior is
    *       undefined.
-   * @note Time complexity: \f$O(V' + E')\f$.
+   * @note Time complexity: \f$O(V')\f$.
    */
   void remap_nodes(const std::vector<int> &node_map) { nodes_.remap(node_map); }
+
+  /**
+   * @brief Re-map edge ids
+   *
+   * @param old_to_new A vector that maps old edge ids to new edge ids, so that
+   *        old_to_new[old_id] = new_id. If old_to_new[old_id] < 0, then the
+   *        edge is removed from the subgraph.
+   * @note Time complexity: \f$O(E')\f$.
+   */
+  void remap_edges(const std::vector<int> &old_to_new) {
+    edges_.remap(old_to_new);
+  }
 
   iterator begin() { return { *this, 0 }; }
   iterator end() { return { *this, num_nodes() }; }
@@ -2460,6 +2881,19 @@ public:
   const_node_iterator node_cbegin() const { return { *this, 0 }; }
   const_node_iterator node_cend() const { return { *this, num_nodes() }; }
 
+  EdgesWrapper edges() { return { *this }; }
+
+  ConstEdgesWrapper edges() const { return { *this }; }
+
+  edge_iterator edge_begin() { return { *this, 0 }; }
+  edge_iterator edge_end() { return { *this, num_edges() }; }
+
+  const_edge_iterator edge_begin() const { return edge_cbegin(); }
+  const_edge_iterator edge_end() const { return edge_cend(); }
+
+  const_edge_iterator edge_cbegin() const { return { *this, 0 }; }
+  const_edge_iterator edge_cend() const { return { *this, num_edges() }; }
+
   /**
    * @brief Get all node ids in the subgraph
    *
@@ -2468,233 +2902,22 @@ public:
   const std::vector<int> &node_ids() const { return nodes_.sequence(); }
 
   /**
-   * @brief Count number of edges in the subgraph
+   * @brief Get all edge ids in the subgraph
    *
-   * @return The number of edges in the subgraph
+   * @return The edge ids in the subgraph, in an unspecified order
    */
-  int num_edges() const { return static_cast<int>(edges_.size()); }
-
-  // /**
-  //  * @brief Change the set of edges in the subgraph. This will also update
-  //  the
-  //  *        set of nodes.
-  //  * @param edges The new set of edges
-  //  * @note If any of the node ids are not in the parent graph, the behavior
-  //  is
-  //  *       undefined.
-  //  * @note Time complexity: \f$O(E' \log E')\f$
-  //  */
-  // void update_edges(const std::vector<int> &edges) {
-  //   edges_.adopt_sequence(edges);
-  //   nodes_ = internal::find_nodes(*parent_, edges_);
-  // }
+  const std::vector<int> &edge_ids() const { return edges_.sequence(); }
 
   /**
-   * @brief Change the set of edges in the subgraph. This will also update the
-   *        set of nodes.
-   * @param edges The new set of edges
-   * @note If any of the node ids are not in the parent graph, or if there are
-   *       duplicates, the behavior is undefined.
-   * @note Time complexity: \f$O(E' \log E')\f$
-   */
-  void update_edges(std::vector<int> &&edges) noexcept {
-    edges_.adopt_sequence(std::move(edges));
-    nodes_ = internal::find_nodes(*parent_, edges_);
-  }
-
-  void refresh_edges() { edges_ = internal::find_edges(*parent_, nodes_); }
-
-  /**
-   * @brief Clear the edges
+   * @brief Count in-subgraph neighbors of a node
    *
-   * @note This does not affect the parent graph.
+   * @param idx The index of the node
+   * @return The number of neighbors of the node that are in the subgraph
+   * @note The behavior is undefined if the node is not in the subgraph.
+   * @note Time complexity: \f$O(E/V (\log V' + \log E'))\f$.
    */
-  void clear_edges() noexcept { edges_.clear(); }
-
-  /**
-   * @brief Reserve space for a number of edges
-   *
-   * @param num_edges The number of edges to reserve space for
-   */
-  void reserve_edges(int num_edges) { edges_.reserve(num_edges); }
-
-  EdgesWrapper edges() { return { *this }; }
-
-  ConstEdgesWrapper edges() const { return { *this }; }
-
-  /**
-   * @brief Add an edge to the subgraph. Also adds the incident nodes.
-   *
-   * @param id The id of the edge to add
-   * @note If the edge is already in the subgraph, this is a no-op. If the
-   *       edge id is out of range, the behavior is undefined.
-   */
-  void add_edge(int id) {
-    edges_.insert(id);
-
-    auto edge = parent_->edge(id);
-    nodes_.insert(edge.src().id());
-    nodes_.insert(edge.dst().id());
-  }
-
-  /**
-   * @brief Add edges to the subgraph. Also adds the incident nodes.
-   *
-   * @param edges The new set of edges
-   * @note If any of the edge id is out of range, the behavior is undefined.
-   * @note All duplicate edges will be automatically removed.
-   */
-  void add_edges(const internal::IndexSet &edges) {
-    edges_.union_with(edges);
-
-    auto new_nodes = internal::find_nodes(*parent_, edges);
-    nodes_.union_with(new_nodes);
-  }
-
-  /**
-   * @brief Add edges to the subgraph. Also adds the incident nodes.
-   *
-   * @param begin An iterator to the beginning of the edges to add
-   * @param end A past-the-end iterator to the edges to add
-   * @note If any of the edge id is out of range, the behavior is undefined.
-   * @note All duplicate edges will be automatically removed.
-   */
-  template <class Iter>
-  void add_edges(Iter begin, Iter end) {
-    add_edges(internal::IndexSet(begin, end));
-  }
-
-  /**
-   * @brief Check if an edge is in the subgraph
-   *
-   * @param id the id of the edge to check
-   * @return true if the edge is in the subgraph, false otherwise
-   * @note Time complexity: \f$O(\log E')\f$.
-   */
-  bool contains_edge(int id) const { return edges_.contains(id); }
-
-  /**
-   * @brief Check if an edge is in the subgraph
-   *
-   * @param edge The edge to check
-   * @return true if the edge is in the subgraph, false otherwise
-   * @note This is equivalent to calling contains_edge(edge.id()).
-   * @note Time complexity: \f$O(\log E')\f$.
-   */
-  bool contains_edge(typename graph_type::ConstEdgeRef edge) const {
-    return contains_edge(edge.id());
-  }
-
-  /**
-   * @brief Get an edge in the subgraph
-   *
-   * @param idx The index of the edge to get
-   * @return A reference wrapper to the edge (might be const)
-   */
-  EdgeRef edge(int idx) {
-    auto pedge = parent_edge(idx);
-    int src = nodes_.find_index(pedge.src().id()),
-        dst = nodes_.find_index(pedge.dst().id());
-    return { src, dst, idx, *this };
-  }
-
-  /**
-   * @brief Get an edge in the subgraph
-   *
-   * @param idx The index of the edge to get
-   * @return A const-reference wrapper to the edge
-   */
-  ConstEdgeRef edge(int idx) const {
-    auto pedge = parent_edge(idx);
-    int src = nodes_.find_index(pedge.src().id()),
-        dst = nodes_.find_index(pedge.dst().id());
-    return { src, dst, idx, *this };
-  }
-
-  /**
-   * @brief Get data of an edge in the subgraph
-   *
-   * @param idx The index of the edge to get
-   * @return A reference to the edge data (might be const)
-   */
-  internal::const_if_t<is_const, ET> &edge_data(int idx) {
-    return parent_->edge_data(edges_[idx]);
-  }
-
-  /**
-   * @brief Get data of an edge in the subgraph
-   *
-   * @param idx The index of the edge to get
-   * @return A const-reference to the edge data
-   */
-  const ET &edge_data(int idx) const { return parent_->edge_data(edges_[idx]); }
-
-  /**
-   * @brief Get a parent edge of an edge in the subgraph
-   *
-   * @param idx The index of the edge to get
-   * @return A reference wrapper to the edge (might be const)
-   */
-  std::conditional_t<is_const, typename parent_type::ConstEdgeRef,
-                     typename parent_type::EdgeRef>
-  parent_edge(int idx) {
-    return parent_->edge(edges_[idx]);
-  }
-
-  /**
-   * @brief Get a parent edge of an edge in the subgraph
-   *
-   * @param idx The index of the edge to get
-   * @return A const-reference wrapper to the edge.
-   */
-  typename parent_type::ConstEdgeRef parent_edge(int idx) const {
-    return parent_->edge(edges_[idx]);
-  }
-
-  /**
-   * @brief Find an edge with the given id.
-   *
-   * @param id The id of the edge to find
-   * @return An iterator to the edge if found, edge_end() otherwise.
-   * @note Time complexity: \f$O(\log E')\f$.
-   */
-  edge_iterator find_edge(int id) {
-    return edge_begin() + edges_.find_index(id);
-  }
-
-  /**
-   * @brief Find an edge with the given id.
-   *
-   * @param edge The edge to find
-   * @return An iterator to the edge if found, edge_end() otherwise.
-   * @note This is equivalent to calling find_edge(edge.id()).
-   * @note Time complexity: \f$O(\log E')\f$.
-   */
-  edge_iterator find_edge(typename graph_type::ConstEdgeRef edge) {
-    return find_edge(edge.id());
-  }
-
-  /**
-   * @brief Find an edge with the given id.
-   *
-   * @param id The id of the edge to find
-   * @return A const_iterator to the edge if found, edge_end() otherwise
-   * @note Time complexity: \f$O(\log E')\f$.
-   */
-  const_edge_iterator find_edge(int id) const {
-    return edge_begin() + edges_.find_index(id);
-  }
-
-  /**
-   * @brief Find an edge with the given id.
-   *
-   * @param edge The edge to find
-   * @return A const_iterator to the edge if found, edge_end() otherwise.
-   * @note This is equivalent to calling find_edge(edge.id()).
-   * @note Time complexity: \f$O(\log E')\f$.
-   */
-  const_edge_iterator find_edge(typename graph_type::ConstEdgeRef edge) const {
-    return find_edge(edge.id());
+  int degree(int idx) const {
+    return std::distance(adj_cbegin(idx), adj_cend(idx));
   }
 
   /**
@@ -2762,115 +2985,13 @@ public:
   }
 
   /**
-   * @brief Erase an edge from the subgraph
-   *
-   * @param idx The index of the edge to erase
-   * @note The behavior is undefined if idx >= num_edges().
-   * @note Time complexity: \f$O(V')\f$ in worst case.
-   */
-  void erase_edge(int idx) { edges_.erase(edges_.begin() + idx); }
-
-  /**
-   * @brief Erase an edge from the subgraph
-   *
-   * @param edge The edge to erase
-   * @note This is equivalent to calling erase_edge(edge.id()).
-   * @note Time complexity: \f$O(V')\f$ in worst case.
-   */
-  void erase_edge(ConstEdgeRef edge) { erase_edge(edge.id()); }
-
-  /**
-   * @brief Erase range of edges from the subgraph
-   *
-   * @param begin Iterator pointing to the first edge to erase
-   * @param end Iterator pointing to the edge after the last edge to erase
-   * @note Time complexity: \f$O(V')\f$ in worst case.
-   */
-  void erase_edges(const_edge_iterator begin, const_edge_iterator end) {
-    edges_.erase(begin - this->edge_begin() + edges_.begin(),
-                 end - this->edge_begin() + edges_.begin());
-  }
-
-  /**
-   * @brief Erase an edge with given id from the subgraph
-   *
-   * @param id The id of the edge to erase
-   * @note This is a no-op if the edge is not in the subgraph.
-   * @note Time complexity: \f$O(V')\f$ in worst case.
-   */
-  void erase_edge_of(int id) { edges_.erase(id); }
-
-  /**
-   * @brief Erase an edge with given id from the subgraph
-   *
-   * @param edge The parent edge to erase
-   * @note This is a no-op if the edge is not in the subgraph.
-   * @note Time complexity: \f$O(V')\f$ in worst case.
-   */
-  void erase_edge_of(typename graph_type::ConstEdgeRef edge) {
-    erase_edge_of(edge.id());
-  }
-
-  /**
-   * @brief Erase matching edges from the subgraph
-   *
-   * @tparam UnaryPred Type of the unary predicate
-   * @param pred Unary predicate that returns true for edges to erase
-   * @note Time complexity: \f$O(V')\f$ in worst case.
-   */
-  template <class UnaryPred>
-  void erase_edges_if(UnaryPred &&pred) {
-    edges_.erase_if(std::forward<UnaryPred>(pred));
-  }
-
-  /**
-   * @brief Re-map edge ids
-   *
-   * @param old_to_new A vector that maps old edge ids to new edge ids, so that
-   *        old_to_new[old_id] = new_id. If old_to_new[old_id] < 0, then the
-   *        edge is removed from the subgraph.
-   * @note Time complexity: \f$O(E')\f$.
-   */
-  void remap_edges(const std::vector<int> &old_to_new) {
-    edges_.remap(old_to_new);
-  }
-
-  edge_iterator edge_begin() { return { *this, 0 }; }
-  edge_iterator edge_end() { return { *this, num_edges() }; }
-
-  const_edge_iterator edge_begin() const { return edge_cbegin(); }
-  const_edge_iterator edge_end() const { return edge_cend(); }
-
-  const_edge_iterator edge_cbegin() const { return { *this, 0 }; }
-  const_edge_iterator edge_cend() const { return { *this, num_edges() }; }
-
-  /**
-   * @brief Get all edge ids in the subgraph
-   *
-   * @return The edge ids in the subgraph, in an unspecified order
-   */
-  const std::vector<int> &edge_ids() const { return edges_.sequence(); }
-
-  /**
-   * @brief Count in-subgraph neighbors of a node
-   *
-   * @param idx The index of the node
-   * @return The number of neighbors of the node that are in the subgraph
-   * @note The behavior is undefined if the node is not in the subgraph.
-   * @note Time complexity: \f$O(E/V (\log V' + \log E'))\f$.
-   */
-  int degree(int idx) const {
-    return std::distance(adj_cbegin(idx), adj_cend(idx));
-  }
-
-  /**
    * @brief Find adjacent node of a node
    *
    * @param src The source atom
    * @param dst The destination atom
    * @return An iterator to the adjacent node if found, adj_end(src) otherwise.
    * @note This will only find edges that are in the subgraph.
-   * @note Time complexity: \f$O(E/V + \log E')\f$.
+   * @note Time complexity: same as find_edge().
    */
   adjacency_iterator find_adjacent(ConstNodeRef src, ConstNodeRef dst) {
     return find_adjacent(src.id(), dst.id());
@@ -2884,7 +3005,7 @@ public:
    * @return A const-iterator to the adjacent node if found, adj_end(src)
    *         otherwise.
    * @note This will only find edges that are in the subgraph.
-   * @note Time complexity: \f$O(E/V + \log E')\f$.
+   * @note Time complexity: same as find_edge().
    */
   const_adjacency_iterator find_adjacent(ConstNodeRef src,
                                          ConstNodeRef dst) const {
@@ -2962,6 +3083,18 @@ private:
     return find_adj_helper<const_adjacency_iterator>(*this, src, dst);
   }
 
+  template <class SGT>
+  static auto find_edge_helper(SGT &graph, int src, int dst) {
+    if (graph.parent_node(src).degree() > graph.parent_node(dst).degree())
+      std::swap(src, dst);
+
+    auto ait = graph.find_adjacent(src, dst);
+    if (ait.end())
+      return graph.edge_end();
+
+    return graph.edge_begin() + ait->eid();
+  }
+
   template <class AIT, class SGT>
   static AIT find_adj_helper(SGT &graph, int src, int dst) {
     auto pait = graph.parent_node(src).find_adjacent(graph.parent_node(dst));
@@ -2974,18 +3107,6 @@ private:
 
     return { graph, src, dst, eit->id(),
              pait - graph.parent_node(src).begin() };
-  }
-
-  template <class SGT>
-  static auto find_edge_helper(SGT &graph, int src, int dst) {
-    if (graph.parent_node(src).degree() > graph.parent_node(dst).degree())
-      std::swap(src, dst);
-
-    auto ait = graph.find_adjacent(src, dst);
-    if (ait.end())
-      return graph.edge_end();
-
-    return graph.edge_begin() + ait->eid();
   }
 
   parent_type *parent_;
@@ -3065,6 +3186,8 @@ SubgraphOf<GT> make_subgraph(GT &&graph) {
  * @return A subgraph of the graph. All nodes connected by the edges will be
  *         included in the subgraph even if they are not explicitly listed in
  *         \p nodes.
+ *
+ * @note Time complexity: same as Subgraph::from_indices().
  */
 template <class GT>
 SubgraphOf<GT> make_subgraph(GT &&graph, internal::IndexSet &&nodes,
@@ -3080,6 +3203,8 @@ SubgraphOf<GT> make_subgraph(GT &&graph, internal::IndexSet &&nodes,
  * @param nodes The nodes to include in the subgraph
  * @return A subgraph of the graph. All edges between the nodes will be included
  *         in the subgraph.
+ *
+ * @note Time complexity: same as Subgraph::from_nodes().
  */
 template <class GT>
 SubgraphOf<GT> subgraph_from_nodes(GT &&graph, internal::IndexSet &&nodes) {
@@ -3093,6 +3218,8 @@ SubgraphOf<GT> subgraph_from_nodes(GT &&graph, internal::IndexSet &&nodes) {
  * @param edges The edges to include in the subgraph
  * @return A subgraph of the graph. All nodes connected by the edges will be
  *         included in the subgraph.
+ *
+ * @note Time complexity: same as Subgraph::from_edges().
  */
 template <class GT>
 SubgraphOf<GT> subgraph_from_edges(GT &&graph, internal::IndexSet &&edges) {
@@ -3120,6 +3247,18 @@ namespace internal {
   }
 }  // namespace internal
 
+/**
+ * @brief Find connected components of a graph starting from a node
+ *
+ * @tparam NT The type of the node data
+ * @tparam ET The type of the edge data
+ * @param g The graph to find connected components of
+ * @param begin The node to start from
+ * @return A set of node ids that are in the same connected component as the
+ *         starting node.
+ *
+ * @note Time complexity: \f$O(V + E)\f$.
+ */
 template <class NT, class ET>
 absl::flat_hash_set<int> connected_components(const Graph<NT, ET> &g,
                                               int begin) {
@@ -3131,6 +3270,23 @@ absl::flat_hash_set<int> connected_components(const Graph<NT, ET> &g,
   return visited;
 }
 
+/**
+ * @brief Find connected components of a graph starting from a node, excluding
+ *        an edge between the starting node and the excluded node (if present).
+ *
+ * @tparam NT The type of the node data
+ * @tparam ET The type of the edge data
+ * @param g The graph to find connected components of
+ * @param begin The node to start from
+ * @param exclude The node to exclude
+ * @return A set of node ids that are in the same connected component as the
+ *         starting node, when the edge between the starting node and the
+ *         excluded node is removed. If the excluded node is in the same
+ *         connected component as the starting node even after removing the
+ *         edge, an empty set is returned.
+ *
+ * @note Time complexity: \f$O(V + E)\f$.
+ */
 template <class NT, class ET>
 absl::flat_hash_set<int> connected_components(const Graph<NT, ET> &g, int begin,
                                               int exclude) {

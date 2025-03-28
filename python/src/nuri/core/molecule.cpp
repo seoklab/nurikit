@@ -383,16 +383,16 @@ PyBond PyMutator::add_bond(int src, int dst, BondData &&data) {
   if (src == dst)
     throw py::value_error("source and destination atoms are the same");
 
-  auto [it, ok] = mut().add_bond(src, dst, std::move(data));
+  auto [eid, ok] = mut().add_bond(src, dst, std::move(data));
   if (!ok)
     throw py::value_error("duplicate bond");
-  return mol_->pybond(it->id());
+  return mol_->pybond(eid);
 }
 
 void PyBond::rotate(double angle, bool reverse, bool strict,
                     std::optional<int> conf) {
   Molecule::Bond bond = **this;
-  if (strict && !bond.data().is_rotable())
+  if (strict && !bond.data().is_rotatable())
     throw py::value_error("bond is not rotatable");
 
   int src = bond.src().id(), dst = bond.dst().id();

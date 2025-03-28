@@ -6,12 +6,12 @@
 #ifndef NURI_FMT_SMILES_H_
 #define NURI_FMT_SMILES_H_
 
-/// @cond
+//! @cond
 #include <string>
 #include <vector>
 
 #include <absl/base/attributes.h>
-/// @endcond
+//! @endcond
 
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
@@ -27,7 +27,7 @@ namespace nuri {
  */
 extern Molecule read_smiles(const std::vector<std::string> &smi_block);
 
-class SmilesReader: public DefaultReaderImpl<read_smiles> {
+class SmilesReader final: public DefaultReaderImpl<read_smiles> {
 public:
   using DefaultReaderImpl<read_smiles>::DefaultReaderImpl;
 

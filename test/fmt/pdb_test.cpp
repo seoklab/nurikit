@@ -13,6 +13,7 @@
 #include <absl/algorithm/container.h>
 #include <absl/strings/match.h>
 #include <absl/strings/str_split.h>
+#include <boost/iterator/filter_iterator.hpp>
 
 #include <gtest/gtest.h>
 
@@ -63,10 +64,10 @@ TEST_F(PDBTest, BasicParsing) {
     EXPECT_EQ(mol().ring_groups().size(), 1);
 
     // 11 residues + 1 chain
-    EXPECT_EQ(mol().num_substructures(), 12);
+    EXPECT_EQ(mol().substructures().size(), 12);
 
     // First residue is MET
-    const Substructure &sub = mol().get_substructure(0);
+    const Substructure &sub = mol().substructures()[0];
     EXPECT_EQ(sub.name(), "MET");
     EXPECT_EQ(sub.id(), 1);
     EXPECT_EQ(sub.num_atoms(), 8);
@@ -83,9 +84,9 @@ TEST_F(PDBTest, BasicParsing) {
     ASSERT_EQ(mols.size(), 1);
 
     EXPECT_EQ(mols[0].num_atoms(), 88);
-    EXPECT_EQ(mols[0].num_substructures(), 12);
+    EXPECT_EQ(mols[0].substructures().size(), 12);
 
-    const Substructure &sub = mols[0].get_substructure(0);
+    const Substructure &sub = mols[0].substructures()[0];
     EXPECT_EQ(sub.name(), "MET");
     EXPECT_EQ(sub.id(), 1);
     EXPECT_EQ(sub.num_atoms(), 8);
@@ -106,10 +107,10 @@ TEST_F(PDBTest, HandleInvalidCoordinates) {
     EXPECT_EQ(mol().num_atoms(), 90);
 
     // 11 residues + 1 chain
-    EXPECT_EQ(mol().num_substructures(), 12);
+    EXPECT_EQ(mol().substructures().size(), 12);
 
     // First residue is MET
-    const Substructure &sub = mol().get_substructure(0);
+    const Substructure &sub = mol().substructures()[0];
     EXPECT_EQ(sub.name(), "MET");
     EXPECT_EQ(sub.id(), 1);
     EXPECT_EQ(sub.num_atoms(), 8);
@@ -124,9 +125,9 @@ TEST_F(PDBTest, HandleInvalidCoordinates) {
     ASSERT_EQ(mols.size(), 1);
 
     EXPECT_EQ(mols[0].num_atoms(), 90);
-    EXPECT_EQ(mols[0].num_substructures(), 12);
+    EXPECT_EQ(mols[0].substructures().size(), 12);
 
-    const Substructure &sub = mols[0].get_substructure(0);
+    const Substructure &sub = mols[0].substructures()[0];
     EXPECT_EQ(sub.name(), "MET");
     EXPECT_EQ(sub.id(), 1);
     EXPECT_EQ(sub.num_atoms(), 8);
@@ -159,7 +160,7 @@ TEST_F(PDBTest, HandleCleanPDB) {
 
     ASSERT_EQ(mol().confs().size(), 1);
     // 134 residues + 1 chains
-    ASSERT_EQ(mol().num_substructures(), 135);
+    ASSERT_EQ(mol().substructures().size(), 135);
   }
   {
     std::vector mols = recovered(mol());
@@ -176,7 +177,7 @@ TEST_F(PDBTest, HandleCleanPDB) {
 
     ASSERT_EQ(mols[0].confs().size(), 1);
     // 134 residues + 1 chains
-    ASSERT_EQ(mols[0].num_substructures(), 135);
+    ASSERT_EQ(mols[0].substructures().size(), 135);
   }
 }
 
@@ -200,11 +201,11 @@ TEST_F(PDBTest, HandleMultipleModels) {
     NURI_EXPECT_EIGEN_NE(mol().confs()[0].col(43), mol().confs()[1].col(43));
 
     // 9 residues + 1 chain
-    ASSERT_EQ(mol().num_substructures(), 10);
-    EXPECT_EQ(mol().get_substructure(0).name(), "VAL");
-    EXPECT_EQ(mol().get_substructure(0).num_atoms(), 7);
+    ASSERT_EQ(mol().substructures().size(), 10);
+    EXPECT_EQ(mol().substructures()[0].name(), "VAL");
+    EXPECT_EQ(mol().substructures()[0].num_atoms(), 7);
 
-    EXPECT_EQ(internal::get_key(mol().get_substructure(8).props(), "icode"),
+    EXPECT_EQ(internal::get_key(mol().substructures()[8].props(), "icode"),
               "A");
   }
   {
@@ -214,11 +215,11 @@ TEST_F(PDBTest, HandleMultipleModels) {
     for (const Molecule &mol: mols) {
       EXPECT_EQ(mol.num_atoms(), 67);
 
-      ASSERT_EQ(mol.num_substructures(), 10);
-      EXPECT_EQ(mol.get_substructure(0).name(), "VAL");
-      EXPECT_EQ(mol.get_substructure(0).num_atoms(), 7);
+      ASSERT_EQ(mol.substructures().size(), 10);
+      EXPECT_EQ(mol.substructures()[0].name(), "VAL");
+      EXPECT_EQ(mol.substructures()[0].num_atoms(), 7);
 
-      EXPECT_EQ(internal::get_key(mol.get_substructure(8).props(), "icode"),
+      EXPECT_EQ(internal::get_key(mol.substructures()[8].props(), "icode"),
                 "A");
     }
   }
@@ -236,9 +237,9 @@ TEST_F(PDBTest, HandleMultipleModels) {
     NURI_EXPECT_EIGEN_NE(mol().confs()[0].col(31), mol().confs()[1].col(31));
 
     // 5 residues + 1 chain
-    ASSERT_EQ(mol().num_substructures(), 6);
-    EXPECT_EQ(mol().get_substructure(0).name(), "VAL");
-    EXPECT_EQ(mol().get_substructure(0).num_atoms(), 7);
+    ASSERT_EQ(mol().substructures().size(), 6);
+    EXPECT_EQ(mol().substructures()[0].name(), "VAL");
+    EXPECT_EQ(mol().substructures()[0].num_atoms(), 7);
   }
   {
     std::vector mols = recovered(mol());
@@ -247,9 +248,9 @@ TEST_F(PDBTest, HandleMultipleModels) {
     for (const Molecule &mol: mols) {
       EXPECT_EQ(mol.num_atoms(), 36);
 
-      ASSERT_EQ(mol.num_substructures(), 6);
-      EXPECT_EQ(mol.get_substructure(0).name(), "VAL");
-      EXPECT_EQ(mol.get_substructure(0).num_atoms(), 7);
+      ASSERT_EQ(mol.substructures().size(), 6);
+      EXPECT_EQ(mol.substructures()[0].name(), "VAL");
+      EXPECT_EQ(mol.substructures()[0].num_atoms(), 7);
     }
   }
 }
@@ -319,7 +320,7 @@ protected:
     ASSERT_EQ(mol_.num_bonds(), 70);
     ASSERT_EQ(mol_.num_fragments(), 4);
     // 5 residues + 1 chain
-    ASSERT_EQ(mol_.num_substructures(), 6);
+    ASSERT_EQ(mol_.substructures().size(), 6);
 
     ASSERT_FALSE(ms.advance());
 
@@ -366,28 +367,36 @@ TEST_F(PDB1alxTest, HandleMultipleAltlocs) {
 }
 
 TEST_F(PDB1alxTest, HandleInconsistentResidues) {
+  auto find_11 = [](const Substructure &sub) { return sub.id() == 11; };
+
   {
-    const Substructure &res = mol().get_substructure(3);
+    const Substructure &res = mol().substructures()[3];
     EXPECT_EQ(res.name(), "TYR");
     EXPECT_EQ(res.id(), 11);
     EXPECT_EQ(res.num_atoms(), 21);
     EXPECT_EQ(res.count_heavy_atoms(), 12);
 
-    auto subs = mol().find_substructures(11);
-    std::vector<Substructure> res_11(subs.begin(), subs.end());
+    std::vector<Substructure> res_11(
+        boost::make_filter_iterator(find_11, mol().substructures().begin(),
+                                    mol().substructures().end()),
+        boost::make_filter_iterator(find_11, mol().substructures().end(),
+                                    mol().substructures().end()));
     EXPECT_EQ(res_11.size(), 1);
     EXPECT_EQ(res_11[0].name(), "TYR");
   }
   {
     for (const Molecule &mol: mols()) {
-      const Substructure &res = mol.get_substructure(3);
+      const Substructure &res = mol.substructures()[3];
       EXPECT_EQ(res.name(), "TYR");
       EXPECT_EQ(res.id(), 11);
       EXPECT_EQ(res.num_atoms(), 21);
       EXPECT_EQ(res.count_heavy_atoms(), 12);
 
-      auto subs = mol.find_substructures(11);
-      std::vector<Substructure> res_11(subs.begin(), subs.end());
+      std::vector<Substructure> res_11(
+          boost::make_filter_iterator(find_11, mol.substructures().begin(),
+                                      mol.substructures().end()),
+          boost::make_filter_iterator(find_11, mol.substructures().end(),
+                                      mol.substructures().end()));
       EXPECT_EQ(res_11.size(), 1);
       EXPECT_EQ(res_11[0].name(), "TYR");
     }
@@ -415,7 +424,7 @@ TEST(PDBWriteTest, MixedSubstructs) {
     mut.add_atom({ kPt[8], 2, 0, constants::kSP3 });
     mut.add_atom({ kPt[8], 2, 0, constants::kSP3 });
   }
-  Substructure &sub = mol.add_substructure(
+  Substructure &sub = mol.substructures().emplace_back(
       mol.substructure({ 0 }, {}, SubstructCategory::kResidue));
   sub.name() = "HOH";
   sub.set_id(1);
@@ -428,14 +437,14 @@ TEST(PDBWriteTest, MixedSubstructs) {
   EXPECT_EQ(mols[0][0].data().atomic_number(), 8);
   EXPECT_EQ(mols[0][1].data().atomic_number(), 8);
 
-  ASSERT_EQ(mols[0].num_substructures(), 4);
+  ASSERT_EQ(mols[0].substructures().size(), 4);
 
-  EXPECT_EQ(mols[0].get_substructure(0).name(), "HOH");
-  EXPECT_EQ(mols[0].get_substructure(0).id(), 1);
-  EXPECT_EQ(internal::get_key(mols[0].get_substructure(0).props(), "chain"),
+  EXPECT_EQ(mols[0].substructures()[0].name(), "HOH");
+  EXPECT_EQ(mols[0].substructures()[0].id(), 1);
+  EXPECT_EQ(internal::get_key(mols[0].substructures()[0].props(), "chain"),
             "A");
 
-  EXPECT_NE(internal::get_key(mols[0].get_substructure(1).props(), "chain"),
+  EXPECT_NE(internal::get_key(mols[0].substructures()[1].props(), "chain"),
             "A");
 }
 }  // namespace

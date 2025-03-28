@@ -1159,9 +1159,8 @@ void v2000_write_single_conf(std::string &out, const Molecule &mol, int conf,
 
   props.clear();
   for (auto atom: mol) {
-    if (atom.data().explicit_isotope() != nullptr)
-      props.emplace_back(atom.id() + 1,
-                         atom.data().explicit_isotope()->mass_number);
+    if (auto iso = atom.data().explicit_isotope(); iso != nullptr)
+      props.emplace_back(atom.id() + 1, iso->mass_number);
   }
   v2000_atom_properties_common(out, "ISO", props);
 
@@ -1197,13 +1196,13 @@ void v3000_write_atoms(std::string &out, const Molecule &mol, int conf) {
                           "M  V30 %d %s %.4f %.4f %.4f 0",                //
                           atom.id() + 1, atom.data().element().symbol(),  //
                           pos.x(), pos.y(), pos.z());
-    if (atom.data().formal_charge() != 0) {
+
+    if (atom.data().formal_charge() != 0)
       absl::StrAppendFormat(&out, " CHG=%d", atom.data().formal_charge());
-    }
-    if (atom.data().explicit_isotope() != nullptr) {
-      absl::StrAppendFormat(&out, " MASS=%d",
-                            atom.data().explicit_isotope()->mass_number);
-    }
+
+    if (auto iso = atom.data().explicit_isotope(); iso != nullptr)
+      absl::StrAppendFormat(&out, " MASS=%d", iso->mass_number);
+
     out.push_back('\n');
   }
 

@@ -5,11 +5,10 @@
 #ifndef NURI_CORE_MOLECULE_H_
 #define NURI_CORE_MOLECULE_H_
 
-/// @cond
+//! @cond
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <iterator>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -19,12 +18,13 @@
 
 #include <absl/algorithm/container.h>
 #include <absl/base/attributes.h>
+#include <absl/base/nullability.h>
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
 #include <absl/log/absl_check.h>
 #include <boost/container/flat_map.hpp>
 #include <Eigen/Dense>
-/// @endcond
+//! @endcond
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
@@ -129,7 +129,7 @@ public:
   /**
    * @brief Creates a dummy atom with unknown hybridization.
    */
-  AtomData(): AtomData(PeriodicTable::get()[0]) { }
+  AtomData(): AtomData(kPt[0]) { }
 
   AtomData(const Element &element, int implicit_hydrogens = 0,
            int formal_charge = 0,
@@ -170,13 +170,27 @@ public:
    */
   std::string_view element_name() const { return element().name(); }
 
+  /**
+   * @brief Change the element of the atom.
+   *
+   * @param element A reference to the new element object.
+   * @return *this.
+   */
   AtomData &set_element(const Element &element) {
     element_ = &element;
     return *this;
   }
 
+  /**
+   * @brief Set the element of the atom by atomic number.
+   *
+   * @param atomic_number The atomic number of the new element.
+   * @return *this.
+   *
+   * @note When the atomic number is out of range, the behavior is undefined.
+   */
   AtomData &set_element(int atomic_number) {
-    set_element(PeriodicTable::get()[atomic_number]);
+    set_element(kPt[atomic_number]);
     return *this;
   }
 
@@ -203,11 +217,29 @@ public:
                                                   : *isotope_;
   }
 
+  /**
+   * @brief Set explicit isotope of the atom.
+   *
+   * @param isotope A reference to the new isotope object.
+   * @return *this.
+   *
+   * @note If the isotope object references an element different from the
+   *       element of the atom, the behavior is undefined.
+   */
   AtomData &set_isotope(const Isotope &isotope) {
     isotope_ = &isotope;
     return *this;
   }
 
+  /**
+   * @brief Set explicit isotope of the atom by mass number.
+   *
+   * @param mass_number The mass number of the new isotope.
+   * @return *this.
+   *
+   * @note If no isotope with the given mass number is known, explicitly-set
+   *       isotope of this atom will be cleared.
+   */
   AtomData &set_isotope(int mass_number) {
     isotope_ = element().find_isotope(mass_number);
     return *this;
@@ -221,7 +253,7 @@ public:
    *         representative isotope of the element if none was explicitly given.
    * @sa isotope()
    */
-  const Isotope *explicit_isotope() const { return isotope_; }
+  absl::Nullable<const Isotope *> explicit_isotope() const { return isotope_; }
 
   AtomData &set_hybridization(constants::Hybridization hyb) {
     hyb_ = hyb;
@@ -230,12 +262,27 @@ public:
 
   constants::Hybridization hybridization() const { return hyb_; }
 
+  /**
+   * @brief Set the number of implicit hydrogen atoms.
+   *
+   * @param implicit_hydrogens The new number of implicit hydrogen atoms.
+   * @return *this.
+   *
+   * @note If the number of implicit hydrogen atoms is negative, the behavior is
+   *       undefined.
+   */
   AtomData &set_implicit_hydrogens(int implicit_hydrogens) {
     ABSL_DCHECK(implicit_hydrogens >= 0);
     implicit_hydrogens_ = implicit_hydrogens;
     return *this;
   }
 
+  /**
+   * @brief Get the number of implicit hydrogen atoms.
+   * @return The number of implicit hydrogen atoms.
+   *
+   * @note The number of implicit hydrogen atoms is always non-negative.
+   */
   int implicit_hydrogens() const { return implicit_hydrogens_; }
 
   AtomData &set_aromatic(bool is_aromatic) {
@@ -326,17 +373,9 @@ public:
 
   std::string_view get_name() const { return internal::get_name(props_); }
 
-  AtomData &set_name(const char *name) {
-    return set_name(std::string_view(name));
-  }
-
-  AtomData &set_name(std::string_view name) {
-    internal::set_name(props_, name);
-    return *this;
-  }
-
-  AtomData &set_name(std::string &&name) {
-    internal::set_name(props_, std::move(name));
+  template <class ST>
+  AtomData &set_name(ST &&name) {
+    internal::set_name(props_, std::forward<ST>(name));
     return *this;
   }
 
@@ -406,7 +445,13 @@ public:
     return *this;
   }
 
-  bool is_rotable() const {
+  /**
+   * @brief Test if this bond is rotatable.
+   *
+   * @return Whether the bond is rotatable. Only non-conjugated single bonds
+   *         that are not part of a ring are considered rotatable.
+   */
+  bool is_rotatable() const {
     return order_ <= constants::kSingleBond
            && !internal::check_flag(flags_,
                                     BondFlags::kConjugated | BondFlags::kRing);
@@ -510,15 +555,9 @@ public:
 
   std::string_view get_name() const { return internal::get_name(props_); }
 
-  BondData &set_name(const char *name) { return set_name(std::string(name)); }
-
-  BondData &set_name(std::string_view name) {
-    internal::set_name(props_, name);
-    return *this;
-  }
-
-  BondData &set_name(std::string &&name) {
-    internal::set_name(props_, std::move(name));
+  template <class ST>
+  BondData &set_name(ST &&name) {
+    internal::set_name(props_, std::forward<ST>(name));
     return *this;
   }
 
@@ -649,11 +688,11 @@ namespace internal {
 
     void clear_atoms() noexcept { graph_.clear(); }
 
-    void update(std::vector<int> &&atoms, std::vector<int> &&bonds) {
+    void update(IndexSet &&atoms, IndexSet &&bonds) {
       graph_.update(std::move(atoms), std::move(bonds));
     }
 
-    void update_atoms(std::vector<int> &&atoms) noexcept {
+    void update_atoms(IndexSet &&atoms) noexcept {
       graph_.update_nodes(std::move(atoms));
     }
 
@@ -666,15 +705,6 @@ namespace internal {
         graph_.add_nodes_with_edges(atoms);
       } else {
         graph_.add_nodes(atoms);
-      }
-    }
-
-    template <class Iter>
-    void add_atoms(Iter begin, Iter end, bool bonds = false) {
-      if (bonds) {
-        graph_.add_nodes_with_edges(begin, end);
-      } else {
-        graph_.add_nodes(begin, end);
       }
     }
 
@@ -742,7 +772,7 @@ namespace internal {
 
     void clear_bonds() noexcept { graph_.clear_edges(); }
 
-    void update_bonds(std::vector<int> &&bonds) noexcept {
+    void update_bonds(IndexSet &&bonds) noexcept {
       graph_.update_edges(std::move(bonds));
     }
 
@@ -752,34 +782,11 @@ namespace internal {
 
     void add_bond(int id) { graph_.add_edge(id); }
 
-    void add_bonds(const internal::IndexSet &bonds) { graph_.add_edges(bonds); }
-
-    template <class Iter>
-    void add_bonds(Iter begin, Iter end) {
-      graph_.add_edges(begin, end);
-    }
+    void add_bonds(const IndexSet &bonds) { graph_.add_edges(bonds); }
 
     bool contains_bond(int id) const { return graph_.contains_edge(id); }
     bool contains_bond(typename GraphType::ConstEdgeRef bond) const {
       return graph_.contains_edge(bond);
-    }
-
-    bond_iterator find_bond(Atom src, Atom dst) {
-      return graph_.find_edge(src, dst);
-    }
-
-    const_bond_iterator find_bond(Atom src, Atom dst) const {
-      return graph_.find_edge(src, dst);
-    }
-
-    bond_iterator find_bond(typename GraphType::ConstNodeRef src,
-                            typename GraphType::ConstNodeRef dst) {
-      return graph_.find_edge(src, dst);
-    }
-
-    const_bond_iterator find_bond(typename GraphType::ConstNodeRef src,
-                                  typename GraphType::ConstNodeRef dst) const {
-      return graph_.find_edge(src, dst);
     }
 
     MutableBond bond(int idx) { return graph_.edge(idx); }
@@ -825,6 +832,24 @@ namespace internal {
     const std::vector<int> &bond_ids() const { return graph_.edge_ids(); }
 
     int degree(int id) const { return graph_.degree(id); }
+
+    bond_iterator find_bond(Atom src, Atom dst) {
+      return graph_.find_edge(src, dst);
+    }
+
+    const_bond_iterator find_bond(Atom src, Atom dst) const {
+      return graph_.find_edge(src, dst);
+    }
+
+    bond_iterator find_bond(typename GraphType::ConstNodeRef src,
+                            typename GraphType::ConstNodeRef dst) {
+      return graph_.find_edge(src, dst);
+    }
+
+    const_bond_iterator find_bond(typename GraphType::ConstNodeRef src,
+                                  typename GraphType::ConstNodeRef dst) const {
+      return graph_.find_edge(src, dst);
+    }
 
     neighbor_iterator find_neighbor(Atom src, Atom dst) {
       return graph_.find_adjacent(src, dst);
@@ -887,160 +912,6 @@ namespace internal {
     SubstructCategory cat_;
     internal::PropertyMap props_;
   };
-
-  template <class FT, bool is_const>
-  class FindSubstructIter
-      : public boost::iterator_facade<FindSubstructIter<FT, is_const>,
-                                      const_if_t<is_const, Substructure<false>>,
-                                      std::forward_iterator_tag> {
-    using Traits =
-        std::iterator_traits<typename FindSubstructIter::iterator_facade_>;
-
-  public:
-    using iterator_category = typename Traits::iterator_category;
-    using value_type = typename Traits::value_type;
-    using difference_type = typename Traits::difference_type;
-    using pointer = typename Traits::pointer;
-    using reference = typename Traits::reference;
-
-    using parent_type = const_if_t<is_const, FT>;
-
-    using SubstructContainer = std::vector<Substructure<false>>;
-    using ParentIterator =
-        std::conditional_t<is_const, SubstructContainer::const_iterator,
-                           SubstructContainer::iterator>;
-
-    FindSubstructIter() = default;
-
-    FindSubstructIter(parent_type &finder, ParentIterator it)
-        : finder_(&finder), it_(finder.next(it)) { }
-
-    template <bool other_const,
-              std::enable_if_t<is_const && !other_const, int> = 0>
-    FindSubstructIter(const FindSubstructIter<FT, other_const> &other)
-        : finder_(&other.finder_), it_(other.it_) { }
-
-    template <bool other_const,
-              std::enable_if_t<is_const && !other_const, int> = 0>
-    FindSubstructIter &
-    operator=(const FindSubstructIter<FT, other_const> &other) {
-      finder_ = other.finder_;
-      it_ = other.it_;
-      return *this;
-    }
-
-    ParentIterator base() const { return it_; }
-
-  private:
-    template <class, bool>
-    friend class FindSubstructIter;
-
-    friend class boost::iterator_core_access;
-
-    reference dereference() const { return *it_; }
-
-    template <bool other_const>
-    bool equal(FindSubstructIter<FT, other_const> rhs) const {
-      return it_ == rhs.it_;
-    }
-
-    void increment() { it_ = finder_->next(++it_); }
-
-    parent_type *finder_;
-    ParentIterator it_;
-  };
-
-  template <class UnaryPred, bool is_const>
-  class SubstructureFinder {
-  public:
-    using SubstructContainer = std::vector<Substructure<false>>;
-    using parent_type = const_if_t<is_const, SubstructContainer>;
-
-    using iterator = FindSubstructIter<SubstructureFinder, is_const>;
-    using const_iterator = FindSubstructIter<SubstructureFinder, true>;
-
-    SubstructureFinder(parent_type &substructs, UnaryPred &&pred)
-        : substructs_(&substructs), pred_(std::forward<UnaryPred>(pred)) { }
-
-    template <bool other_const,
-              std::enable_if_t<is_const && !other_const, int> = 0>
-    SubstructureFinder(const SubstructureFinder<UnaryPred, other_const> &other)
-        : substructs_(other.substructs_), pred_(other.pred_) { }
-
-    template <bool other_const,
-              std::enable_if_t<is_const && !other_const, int> = 0>
-    SubstructureFinder(
-        SubstructureFinder<UnaryPred, other_const>
-            &&other) noexcept(std::is_nothrow_move_constructible_v<UnaryPred>)
-        : substructs_(other.substructs_), pred_(std::move(other.pred_)) { }
-
-    template <bool other_const,
-              std::enable_if_t<is_const && !other_const, int> = 0>
-    SubstructureFinder &
-    operator=(const SubstructureFinder<UnaryPred, other_const> &other) {
-      substructs_ = other.substructs_;
-      pred_ = other.pred_;
-      return *this;
-    }
-
-    template <bool other_const,
-              std::enable_if_t<is_const && !other_const, int> = 0>
-    SubstructureFinder &
-    operator=(SubstructureFinder<UnaryPred, other_const> &&other) noexcept(
-        std::is_nothrow_move_constructible_v<UnaryPred>) {
-      substructs_ = other.substructs_;
-      pred_ = std::move(other.pred_);
-      return *this;
-    }
-
-    iterator begin() { return iterator(*this, substructs_->begin()); }
-    iterator end() { return iterator(*this, substructs_->end()); }
-
-    const_iterator begin() const {
-      return const_iterator(*this, substructs_->begin());
-    }
-    const_iterator end() const {
-      return const_iterator(*this, substructs_->end());
-    }
-
-    const_iterator cbegin() const {
-      return const_iterator(*this, substructs_->begin());
-    }
-    const_iterator cend() const {
-      return const_iterator(*this, substructs_->end());
-    }
-
-  private:
-    template <class, bool>
-    friend class FindSubstructIter;
-
-    typename SubstructContainer::iterator
-    next(typename SubstructContainer::iterator begin) {
-      return std::find_if(begin, substructs_->end(), pred_);
-    }
-
-    typename SubstructContainer::const_iterator
-    next(typename SubstructContainer::const_iterator begin) const {
-      return std::find_if(begin, substructs_->cend(), pred_);
-    }
-
-    parent_type *substructs_;
-    UnaryPred pred_;
-  };
-
-  template <class UnaryPred>
-  SubstructureFinder<UnaryPred, false>
-  make_substructure_finder(std::vector<Substructure<false>> &substructs,
-                           UnaryPred &&pred) {
-    return { substructs, std::forward<UnaryPred>(pred) };
-  }
-
-  template <class UnaryPred>
-  SubstructureFinder<UnaryPred, true>
-  make_substructure_finder(const std::vector<Substructure<false>> &substructs,
-                           UnaryPred &&pred) {
-    return { substructs, std::forward<UnaryPred>(pred) };
-  }
 
   extern std::pair<std::vector<int>, bool>
   place_trailing_hydrogens_initial(const Molecule &mol, Matrix3Xd &conf,
@@ -1593,7 +1464,7 @@ public:
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
    *         not applied.
-   * @note Rotability only considers ring membership. The user is responsible
+   * @note Rotatability only considers ring membership. The user is responsible
    *       to check bond order or other constraints.
    *
    * The rotation is applied to all conformers of the molecule.
@@ -1613,7 +1484,7 @@ public:
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
    *         not applied.
-   * @note Rotability only considers ring membership. The user is responsible
+   * @note Rotatability only considers ring membership. The user is responsible
    *       to check bond order or other constraints.
    *
    * The rotation is applied to all conformers of the molecule.
@@ -1634,7 +1505,7 @@ public:
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
    *         not applied.
-   * @note Rotability only considers ring membership. The user is responsible
+   * @note Rotatability only considers ring membership. The user is responsible
    *       to check bond order or other constraints.
    *
    * The part of the pivot atom is fixed, and the part of the pivot atom will be
@@ -1653,7 +1524,7 @@ public:
    * @param angle Angle to rotate (in degrees).
    * @return `true` if the rotation was applied, `false` if the rotation was
    *         not applied (e.g. the bond is not rotatable, etc.).
-   * @note Rotability only considers ring membership. The user is responsible
+   * @note Rotatability only considers ring membership. The user is responsible
    *       to check bond order or other constraints.
    *
    * The source atom of the bond is fixed, and the destination atom will be
@@ -1667,6 +1538,7 @@ public:
   /**
    * @brief Create and return a substurcture of the molecule.
    *
+   * @param cat The category of the substructure.
    * @return The new substructure.
    */
   Substructure
@@ -1677,6 +1549,9 @@ public:
   /**
    * @brief Create and return a substurcture of the molecule.
    *
+   * @param atoms Indices of atoms in the substructure.
+   * @param bonds Indices of bonds in the substructure.
+   * @param cat The category of the substructure.
    * @return The new substructure.
    */
   Substructure
@@ -1689,6 +1564,7 @@ public:
    * @brief Create and return a substurcture of the molecule.
    * @param atoms Indices of atoms in the substructure. All bonds between the
    *        atoms will also be included in the substructure.
+   * @param cat The category of the substructure.
    */
   Substructure
   atom_substructure(internal::IndexSet &&atoms,
@@ -1700,6 +1576,7 @@ public:
    * @brief Create and return a substurcture of the molecule.
    * @param bonds Indices of bonds in the substructure. All atoms connected by
    *        the bonds will also be included in the substructure.
+   * @param cat The category of the substructure.
    */
   Substructure bond_substructure(
       internal::IndexSet &&bonds,
@@ -1710,6 +1587,7 @@ public:
   /**
    * @brief Create and return a substurcture of the molecule.
    *
+   * @param cat The category of the substructure.
    * @return The new substructure.
    */
   ConstSubstructure
@@ -1720,6 +1598,9 @@ public:
   /**
    * @brief Create and return a substurcture of the molecule.
    *
+   * @param atoms Indices of atoms in the substructure.
+   * @param bonds Indices of bonds in the substructure.
+   * @param cat The category of the substructure.
    * @return The new substructure.
    */
   ConstSubstructure
@@ -1732,6 +1613,7 @@ public:
    * @brief Create and return a substurcture of the molecule.
    * @param atoms Indices of atoms in the substructure. All bonds between the
    *        atoms will also be included in the substructure.
+   * @param cat The category of the substructure.
    */
   ConstSubstructure
   atom_substructure(internal::IndexSet &&atoms,
@@ -1743,86 +1625,13 @@ public:
    * @brief Create and return a substurcture of the molecule.
    * @param bonds Indices of bonds in the substructure. All atoms connected by
    *        the bonds will also be included in the substructure.
+   * @param cat The category of the substructure.
    */
   ConstSubstructure
   bond_substructure(internal::IndexSet &&bonds,
                     SubstructCategory cat = SubstructCategory::kUnknown) const {
     return { subgraph_from_edges(graph_, std::move(bonds)), cat };
   }
-  /**
-   * @brief Get a substructure of the molecule.
-   *
-   * @param i Index of the substructure to get.
-   * @return A reference to the substructure.
-   */
-  Substructure &get_substructure(int i) { return substructs_[i]; }
-
-  /**
-   * @brief Get a substructure of the molecule.
-   *
-   * @param i Index of the substructure to get.
-   * @return A const reference to the substructure.
-   */
-  const Substructure &get_substructure(int i) const { return substructs_[i]; }
-
-  /**
-   * @brief Store and return a substurcture of the molecule.
-   * @return The new substructure.
-   */
-  Substructure &add_substructure(const Substructure &sub) {
-    return substructs_.emplace_back(sub);
-  }
-
-  /**
-   * @brief Store and return a substurcture of the molecule.
-   * @return The new substructure.
-   */
-  Substructure &add_substructure(Substructure &&sub) {
-    return substructs_.emplace_back(std::move(sub));
-  }
-
-  /**
-   * @brief Erase a substructure of the molecule.
-   *
-   * @param i Index of the substructure to erase.
-   * @note If the index is out of range, the behavior is undefined.
-   * @note Time complexity: \f$O(N)\f$, where \f$N\f$ is number of
-   *       substructures.
-   */
-  void erase_substructure(int i) { substructs_.erase(substructs_.begin() + i); }
-
-  /**
-   * @brief Erase substructures of the molecule.
-   *
-   * @tparam UnaryPred Unary predicate type.
-   * @param pred Unary predicate that accepts a substructure and returns true if
-   *        the substructure should be erased.
-   * @note Time complexity: \f$O(N)\f$, where \f$N\f$ is number of
-   *       substructures.
-   */
-  template <class UnaryPred>
-  void erase_substructures(UnaryPred &&pred) {
-    erase_if(substructs_, std::forward<UnaryPred>(pred));
-  }
-
-  /**
-   * @brief Erase all substructures of the molecule.
-   */
-  void clear_substructures() noexcept { substructs_.clear(); }
-
-  /**
-   * @brief Check if the molecule has substructures.
-   *
-   * @return `true` if the molecule has substructures, `false` otherwise.
-   */
-  bool has_substructures() const { return !substructs_.empty(); }
-
-  /**
-   * @brief Get the number of substructures.
-   *
-   * @return The number of substructures managed by the molecule.
-   */
-  int num_substructures() const { return static_cast<int>(substructs_.size()); }
 
   /**
    * @brief Get the substructures.
@@ -1837,98 +1646,6 @@ public:
    * @return A const reference to all substructures.
    */
   const std::vector<Substructure> &substructures() const { return substructs_; }
-
-  /**
-   * @brief Find substructures with given id.
-   *
-   * @return A ranged view of substructures with given id.
-   */
-  auto find_substructures(int id) {
-    return internal::make_substructure_finder(
-        substructs_, [id](const Substructure &sub) { return sub.id() == id; });
-  }
-
-  /**
-   * @brief Find substructures with given category.
-   *
-   * @return A ranged view of substructures with given category.
-   */
-  auto find_substructures(SubstructCategory cat) {
-    return internal::make_substructure_finder(  //
-        substructs_,
-        [cat](const Substructure &sub) { return sub.category() == cat; });
-  }
-
-  /**
-   * @brief Find substructures with given name.
-   *
-   * @return A ranged view of substructures with given name.
-   * @warning The owner of name must ensure that the name is valid during the
-   *          lifetime of the returned view.
-   */
-  auto find_substructures(std::string_view name) {
-    return internal::make_substructure_finder(substructs_,
-                                              [name](const Substructure &sub) {
-                                                return sub.name() == name;
-                                              });
-  }
-
-  /**
-   * @brief Find substructures with given id.
-   *
-   * @return A ranged constant view of substructures with given id.
-   */
-  auto find_substructures(int id) const {
-    return internal::make_substructure_finder(
-        substructs_, [id](const Substructure &sub) { return sub.id() == id; });
-  }
-
-  /**
-   * @brief Find substructures with given category.
-   *
-   * @return A ranged constant view of substructures with given category.
-   */
-  auto find_substructures(SubstructCategory cat) const {
-    return internal::make_substructure_finder(  //
-        substructs_,
-        [cat](const Substructure &sub) { return sub.category() == cat; });
-  }
-
-  /**
-   * @brief Find substructures with given name.
-   *
-   * @return A ranged constant view of substructures with given name.
-   * @warning The owner of name must ensure that the name is valid during the
-   *          lifetime of the returned view.
-   */
-  auto find_substructures(std::string_view name) const {
-    return internal::make_substructure_finder(substructs_,
-                                              [name](const Substructure &sub) {
-                                                return sub.name() == name;
-                                              });
-  }
-
-  /**
-   * @brief Find substructures with given predicate.
-   *
-   * @return A ranged view of substructures which satisfy the predicate.
-   */
-  template <class UnaryPred>
-  auto find_substructures_if(UnaryPred &&pred) {
-    return internal::make_substructure_finder(substructs_,
-                                              std::forward<UnaryPred>(pred));
-  }
-
-  /**
-   * @brief Find substructures with given predicate.
-   *
-   * @return A ranged view of substructures which satisfy the predicate.
-   */
-  template <class UnaryPred>
-  auto find_substructures_if(UnaryPred &&pred) const {
-    return internal::make_substructure_finder(substructs_,
-                                              std::forward<UnaryPred>(pred));
-  }
 
   /**
    * @brief Update topology of the molecule.
@@ -2106,60 +1823,37 @@ public:
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
    * @param bond The data of the bond to add.
-   * @return If added, pair of iterator to the added bond, and `true`. If the
-   *         bond already exists, pair of iterator to the existing bond, and
-   *         `false`.
+   * @return A pair of (bond index, was added). If not added, the bond index is
+   *         the index of the existing bond (the data is not modified).
    * @note The behavior is undefined if any of the atom indices is out of range,
    *       or if src == dst.
    */
-  std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
-                                                    const BondData &bond);
+  std::pair<int, bool> add_bond(int src, int dst, const BondData &bond);
 
   /**
    * @brief Add a bond to the molecule.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
    * @param bond The data of the bond to add.
-   * @return If added, pair of iterator to the added bond, and `true`. If the
-   *         bond already exists, pair of iterator to the existing bond, and
-   *         `false`.
+   * @return A pair of (bond index, was added). If not added, the bond index is
+   *         the index of the existing bond (the data is not modified).
    * @note The behavior is undefined if any of the atom indices is out of range,
    *       or if src == dst.
    */
-  std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
-                                                    BondData &&bond) noexcept;
+  std::pair<int, bool> add_bond(int src, int dst, BondData &&bond) noexcept;
 
   /**
    * @brief Add a bond to the molecule.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
    * @param bond The bond to copy the data from.
-   * @return If added, pair of iterator to the added bond, and `true`. If the
-   *         bond already exists, pair of iterator to the existing bond, and
-   *         `false`.
+   * @return A pair of (bond index, was added). If not added, the bond index is
+   *         the index of the existing bond (the data is not modified).
    * @note The behavior is undefined if any of the atom indices is out of range,
    *       or if src == dst.
    */
-  std::pair<Molecule::bond_iterator, bool> add_bond(int src, int dst,
-                                                    Molecule::Bond bond) {
+  std::pair<int, bool> add_bond(int src, int dst, Molecule::Bond bond) {
     return add_bond(src, dst, bond.data());
-  }
-
-  /**
-   * @brief Add a bond to the molecule.
-   * @param src The source atom of the bond.
-   * @param dst The destination atom of the bond.
-   * @param data The data or bond of the bond to add.
-   * @return If added, pair of iterator to the added bond, and `true`. If the
-   *         bond already exists, pair of iterator to the existing bond, and
-   *         `false`.
-   * @note The behavior is undefined if any of the atom does not belong to the
-   *       molecule, or if src.id() == dst.id().
-   */
-  template <class BD>
-  std::pair<Molecule::bond_iterator, bool>
-  add_bond(Molecule::Atom src, Molecule::Atom dst, BD &&data) {
-    return add_bond(src.id(), dst.id(), std::forward<BD>(data));
   }
 
   /**

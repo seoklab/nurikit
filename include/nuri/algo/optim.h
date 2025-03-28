@@ -6,7 +6,7 @@
 #ifndef NURI_ALGO_OPTIM_H_
 #define NURI_ALGO_OPTIM_H_
 
-/// @cond
+//! @cond
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -15,7 +15,7 @@
 
 #include <absl/log/absl_check.h>
 #include <Eigen/Dense>
-/// @endcond
+//! @endcond
 
 #include "nuri/eigen_config.h"
 #include "nuri/utils.h"
@@ -256,10 +256,19 @@ namespace internal {
  */
 class LBfgsB {
 public:
+  /**
+   * @brief Prepare L-BFGS-B minimization algorithm.
+   *
+   * @param x Initial guess. Will be modified in-place.
+   * @param bounds Bounds for each variable.
+   * @param m The maximum number of variable metric corrections used to define
+   *        the limited memory matrix.
+   */
   LBfgsB(MutRef<ArrayXd> x, internal::LbfgsbBounds bounds, int m = 10);
 
   /**
    * @brief Minimize a function using L-BFGS-B algorithm.
+   *
    * @tparam FuncGrad Function object that computes the function value and
    *         gradient. Function value should be returned and gradient should be
    *         updated in the input gradient vector.
@@ -635,8 +644,31 @@ struct BfgsResult {
  */
 class Bfgs {
 public:
+  /**
+   * @brief Prepare BFGS minimization algorithm.
+   *
+   * @param x Initial guess. Will be modified in-place.
+   */
   Bfgs(MutRef<ArrayXd> x);
 
+  /**
+   * @brief Minimize a function using BFGS algorithm.
+   *
+   * @tparam FuncGrad Function object that computes the function value and
+   *         gradient. Function value should be returned and gradient should be
+   *         updated in the input gradient vector.
+   * @param fg Function object.
+   * @param pgtol Stop when the projected gradient is less than this value.
+   * @param xrtol Stop when the relative change in x is less than this value.
+   * @param maxiter Maximum number of iterations. If negative, it will be set to
+   *        200 times the number of variables.
+   * @param maxls Maximum number of line search steps.
+   * @param ftol Tolerance for the relative change in the function value.
+   * @param gtol Gradient tolerance for the line search step.
+   * @param xtol Tolerance for the relative change in x.
+   * @return A struct with the result code, number of iterations, final function
+   *         value, and final gradient.
+   */
   template <class FuncGrad>
   BfgsResult minimize(FuncGrad fg, const double pgtol = 1e-5,
                       const double xrtol = 0, int maxiter = -1,
@@ -730,6 +762,9 @@ private:
  * @param maxiter Maximum number of iterations. If negative, it will be set to
  *        200 times the number of variables.
  * @param maxls Maximum number of line search steps.
+ * @param ftol Tolerance for the relative change in the function value.
+ * @param gtol Gradient tolerance for the line search step.
+ * @param xtol Tolerance for the relative change in x.
  * @return A struct with the result code, number of iterations, final function
  *         value, and final gradient.
  *

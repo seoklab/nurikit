@@ -142,6 +142,7 @@ dummy-variable-rgx = "^_$"
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+"conf.py*" = ["A001"]
 
 [tool.ruff.lint.isort]
 no-lines-before = ["local-folder"]

@@ -6,7 +6,7 @@
 #ifndef NURI_FMT_BASE_H_
 #define NURI_FMT_BASE_H_
 
-/// @cond
+//! @cond
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
@@ -20,7 +20,7 @@
 #include <absl/base/attributes.h>
 #include <absl/base/optimization.h>
 #include <absl/log/absl_log.h>
-/// @endcond
+//! @endcond
 
 #include "nuri/core/molecule.h"
 #include "nuri/utils.h"
@@ -129,8 +129,15 @@ public:
    */
   virtual Molecule parse(const std::vector<std::string> &block) const = 0;
 
+  /**
+   * @brief Test whether the reader implementation can provide valid bond
+   *        information.
+   */
   virtual bool bond_valid() const = 0;
 
+  /**
+   * @brief Convert the reader to a stream object.
+   */
   MoleculeStream<MoleculeReader> stream() { return { *this }; }
 };
 
@@ -139,13 +146,6 @@ class DefaultReaderImpl: public MoleculeReader {
 public:
   DefaultReaderImpl() = default;
   DefaultReaderImpl(std::istream &is): is_(&is) { }
-
-  DefaultReaderImpl(const DefaultReaderImpl &) = delete;
-  DefaultReaderImpl &operator=(const DefaultReaderImpl &) = delete;
-  DefaultReaderImpl(DefaultReaderImpl &&) noexcept = default;
-  DefaultReaderImpl &operator=(DefaultReaderImpl &&) noexcept = default;
-
-  ~DefaultReaderImpl() noexcept override = default;
 
   Molecule parse(const std::vector<std::string> &block) const final {
     return parser(block);

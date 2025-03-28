@@ -17,11 +17,13 @@
 #include <absl/container/flat_hash_map.h>
 #include <absl/log/absl_check.h>
 #include <absl/strings/str_cat.h>
+#include <boost/container/container_fwd.hpp>
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
 #include <boost/spirit/home/x3.hpp>
 
 #include "nuri/eigen_config.h"
+#include "nuri/core/graph.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 #include "nuri/utils.h"
@@ -122,7 +124,9 @@ void pdb_update_substructs(
   for (int i = 0; i < residues.size(); ++i, ++sit) {
     auto &data = residues[i];
 
-    sit->update(std::move(data.idxs), {});
+    sit->update(IndexSet(boost::container::ordered_unique_range,
+                         std::move(data.idxs)),
+                {});
     sit->name() = std::invoke(residue_member, data);
     sit->set_id(std::invoke(seq_member, data.id));
     // Workaround GCC bug; produces "basic_string::_S_construct null not valid"
@@ -141,7 +145,9 @@ void pdb_update_substructs(
 
   for (int i = 0; i < chains.size(); ++i, ++sit) {
     auto &chain = chains.begin()[i];
-    sit->update(std::move(chain.second), {});
+    sit->update(IndexSet(boost::container::ordered_unique_range,
+                         std::move(chain.second)),
+                {});
     sit->name() = chain.first;
     sit->set_id(i);
 

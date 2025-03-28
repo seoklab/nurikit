@@ -585,7 +585,7 @@ to the conformers to update the coordinates.
         for (py::handle obj: atoms)
           add_atom_single(idxs, parent, obj);
 
-        substruct.add_atoms(std::move(idxs), add_bonds);
+        substruct.add_atoms(internal::IndexSet(std::move(idxs)), add_bonds);
         self.tick();
       },
       py::arg("atoms"), py::arg("add_bonds") = true, R"doc(
@@ -614,7 +614,7 @@ Add atoms to the substructure.
         for (py::handle obj: bonds)
           add_bond_single(idxs, parent, obj);
 
-        substruct.add_bonds(std::move(idxs));
+        substruct.add_bonds(internal::IndexSet(std::move(idxs)));
         self.tick();
       },
       py::arg("bonds"), R"doc(
@@ -894,7 +894,7 @@ The category of the substructure. This is used to categorize the substructure.
 }
 
 int check_sub(const Molecule &mol, int idx) {
-  return py_check_index(mol.num_substructures(), idx,
+  return py_check_index(static_cast<int>(mol.substructures().size()), idx,
                         "substructure index out of range");
 }
 
@@ -935,10 +935,10 @@ void ProxySubstruct::erase_hydrogens() {
 
 void PySubstruct::erase_hydrogens() {
   Molecule &mol = *parent();
-  Substructure &substruct = mol.add_substructure(std::move(**this));
+  Substructure &substruct = mol.substructures().emplace_back(std::move(**this));
   absl::Cleanup c = [&]() {
     **this = std::move(substruct);
-    mol.erase_substructure(mol.num_substructures() - 1);
+    mol.substructures().erase(--mol.substructures().end());
   };
 
   substruct_erase_hydrogens(parent(), substruct);
@@ -967,17 +967,20 @@ Substructure create_substruct(Molecule &mol,
     for (py::handle obj: *bonds)
       add_bond_single(bond_idxs, mol, obj);
 
+  internal::IndexSet atoms_set(std::move(atom_idxs)),
+      bonds_set(std::move(bond_idxs));
+
   if (!atoms && !bonds)
     return mol.substructure(cat);
 
   if (atoms && bonds)
-    return mol.substructure(std::move(atom_idxs), std::move(bond_idxs), cat);
+    return mol.substructure(std::move(atoms_set), std::move(bonds_set), cat);
 
   if (atoms)
-    return mol.atom_substructure(std::move(atom_idxs), cat);
+    return mol.atom_substructure(std::move(atoms_set), cat);
 
   /* if (bonds) */
-  return mol.bond_substructure(std::move(bond_idxs), cat);
+  return mol.bond_substructure(std::move(bonds_set), cat);
 }
 
 void bind_substructure(py::module &m) {
@@ -1127,11 +1130,11 @@ A collection of substructures of a molecule.
             if (oi) {
               idx = check_sub(mol, *oi);
             } else {
-              idx = mol.num_substructures() - 1;
+              idx = static_cast<int>(mol.substructures().size() - 1);
             }
 
             PySubstruct ret = PySubstruct::from_mol(
-                self.mol(), std::move(mol.get_substructure(idx)));
+                self.mol(), std::move(mol.substructures()[idx]));
             self.del(idx);
             return ret;
           },
@@ -1228,7 +1231,7 @@ This has three mode of operations:
           [](ProxySubstructContainer &self, PySubstruct &other) {
             check_parent(self.mol(), other.parent(),
                          "substructure does not belong to the same molecule");
-            self.mol()->add_substructure(*other);
+            self.mol()->substructures().push_back(*other);
           },
           py::arg("other"), R"doc(
 Add a substructure to the collection.
@@ -1243,7 +1246,7 @@ Add a substructure to the collection.
           [](ProxySubstructContainer &self, ProxySubstruct &other) {
             check_parent(self.mol(), other.parent(),
                          "substructure does not belong to the same molecule");
-            self.mol()->add_substructure(*other);
+            self.mol()->substructures().push_back(*other);
           },
           py::arg("other"), R"doc(
 Add a substructure to the collection.

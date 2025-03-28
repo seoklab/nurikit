@@ -6,10 +6,12 @@
 #ifndef NURI_META_H_
 #define NURI_META_H_
 
-/// @cond
+//! @cond
 #include <iterator>
 #include <type_traits>
-/// @endcond
+//! @endcond
+
+//! @privatesection
 
 #if defined(__clang_analyzer__) && __clang_major__ >= 18
 #define NURI_CLANG_ANALYZER_NOLINT       [[clang::suppress]]

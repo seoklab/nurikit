@@ -6,12 +6,12 @@
 #ifndef NURI_FMT_MOL2_H_
 #define NURI_FMT_MOL2_H_
 
-/// @cond
+//! @cond
 #include <string>
 #include <vector>
 
 #include <absl/base/attributes.h>
-/// @endcond
+//! @endcond
 
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
@@ -25,7 +25,7 @@ namespace nuri {
  */
 extern Molecule read_mol2(const std::vector<std::string> &mol2);
 
-class Mol2Reader: public DefaultReaderImpl<read_mol2> {
+class Mol2Reader final: public DefaultReaderImpl<read_mol2> {
 public:
   using DefaultReaderImpl<read_mol2>::DefaultReaderImpl;
 

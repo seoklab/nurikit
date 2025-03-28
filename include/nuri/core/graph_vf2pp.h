@@ -6,7 +6,7 @@
 #ifndef NURI_CORE_GRAPH_VF2PP_H_
 #define NURI_CORE_GRAPH_VF2PP_H_
 
-/// @cond
+//! @cond
 #include <algorithm>
 #include <tuple>
 #include <utility>
@@ -16,7 +16,7 @@
 #include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
 #include <Eigen/Dense>
-/// @endcond
+//! @endcond
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/graph.h"
@@ -27,11 +27,11 @@ namespace nuri {
  * @brief The type of isomorphic map to find.
  */
 enum class IsoMapType : int {
-  /// Subgraph isomorphism.
+  //! Subgraph isomorphism.
   kSubgraph,
-  /// Induced subgraph isomorphism.
+  //! Induced subgraph isomorphism.
   kInduced,
-  /// Graph isomorphism.
+  //! Graph isomorphism.
   kGraph,
 };
 
@@ -230,6 +230,7 @@ namespace internal {
  * - A J&uuml;ttner and P Madarasi. *Discrete Appl. Math.* **2018**, *247*,
  *   69-81.
  *   DOI:[10.1016/j.dam.2018.02.018](https://doi.org/10.1016/j.dam.2018.02.018)
+ *   @cite core:graph:vf2pp
  *
  * Here follows the full license text for the LEMON project:
  *

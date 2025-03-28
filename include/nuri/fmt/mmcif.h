@@ -6,13 +6,13 @@
 #ifndef NURI_FMT_MMCIF_H_
 #define NURI_FMT_MMCIF_H_
 
-/// @cond
+//! @cond
 #include <istream>
 #include <string>
 #include <vector>
 
 #include <absl/base/attributes.h>
-/// @endcond
+//! @endcond
 
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
@@ -23,22 +23,15 @@ std::vector<Molecule> mmcif_load_frame(const internal::CifFrame &frame);
 
 std::vector<Molecule> mmcif_read_next_block(CifParser &parser);
 
-class MmcifReader: public MoleculeReader {
+class MmcifReader final: public MoleculeReader {
 public:
   explicit MmcifReader(std::istream &is): parser_(is) { }
 
-  MmcifReader(const MmcifReader &) = delete;
-  MmcifReader &operator=(const MmcifReader &) = delete;
-  MmcifReader(MmcifReader &&) noexcept = default;
-  MmcifReader &operator=(MmcifReader &&) noexcept = default;
+  bool getnext(std::vector<std::string> &block) override;
 
-  ~MmcifReader() noexcept override = default;
+  Molecule parse(const std::vector<std::string> &block) const override;
 
-  bool getnext(std::vector<std::string> &block) final;
-
-  Molecule parse(const std::vector<std::string> &block) const final;
-
-  bool bond_valid() const final { return false; }
+  bool bond_valid() const override { return false; }
 
 private:
   CifParser parser_;

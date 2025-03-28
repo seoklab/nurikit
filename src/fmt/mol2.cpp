@@ -26,6 +26,7 @@
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_format.h>
 #include <absl/strings/str_split.h>
+#include <boost/container/container_fwd.hpp>
 #include <boost/fusion/include/std_pair.hpp>
 #include <boost/fusion/include/std_tuple.hpp>
 #include <boost/optional.hpp>
@@ -35,6 +36,7 @@
 #include "fmt_internal.h"
 #include "nuri/algo/guess.h"
 #include "nuri/core/element.h"
+#include "nuri/core/graph.h"
 #include "nuri/core/molecule.h"
 #include "nuri/core/property_map.h"
 #include "nuri/fmt/base.h"
@@ -256,10 +258,10 @@ std::pair<bool, bool> parse_atom_block(
     pos.push_back(Vector3d(std::get<2>(tokens).data()));
 
     std::string_view atom_sym = std::get<3>(tokens);
-    const Element *elem = PeriodicTable::get().find_element(atom_sym);
+    const Element *elem = kPt.find_element(atom_sym);
     if (elem == nullptr) {
       std::string sym_upper = absl::AsciiStrToUpper(atom_sym);
-      elem = PeriodicTable::get().find_element(sym_upper);
+      elem = kPt.find_element(sym_upper);
       if (elem == nullptr) {
         if (sym_upper == "LP") {
           ABSL_LOG(INFO) << "Lone pair support not implemented yet";
@@ -272,7 +274,7 @@ std::pair<bool, bool> parse_atom_block(
           return { false, false };
         }
 
-        elem = &PeriodicTable::get()[0];
+        elem = &kPt[0];
       }
     }
 
@@ -615,9 +617,14 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
   mol.confs().push_back(stack(pos));
 
   // Only add substructures actually mentioned in the SUBSTRUCTURE block
-  for (auto &[_, data]: substructs)
-    for (Substructure &sub: mol.find_substructures(data.second))
-      sub.update_atoms(std::move(data.first));
+  for (auto &[_, data]: substructs) {
+    for (Substructure &sub: mol.substructures()) {
+      if (sub.name() == data.second) {
+        sub.update_atoms(internal::IndexSet(
+            boost::container::ordered_unique_range, std::move(data.first)));
+      }
+    }
+  }
 
   return mol;
 }
@@ -638,16 +645,16 @@ struct SubstructInfo {
 SubstructInfo resolve_substructs(const Molecule &mol) {
   SubstructInfo info;
   info.sub_of_atom.resize(mol.size(), 0);
-  if (!mol.has_substructures()) {
+  if (mol.substructures().empty()) {
     info.root_of_sub.push_back(0);
     info.sub_ids.push_back(0);
     info.num_used_subs = 1;
     return info;
   }
 
-  info.root_of_sub.resize(mol.num_substructures() + 1, -1);
+  info.root_of_sub.resize(mol.substructures().size() + 1, -1);
 
-  for (int i = 0; i < mol.num_substructures(); ++i) {
+  for (int i = 0; i < mol.substructures().size(); ++i) {
     const auto &sub = mol.substructures()[i];
     int &sub_root = info.root_of_sub[i + 1];
 
@@ -669,7 +676,7 @@ SubstructInfo resolve_substructs(const Molecule &mol) {
     info.root_of_sub[0] = static_cast<int>(it - info.sub_of_atom.begin());
   }
 
-  info.sub_ids.resize(mol.num_substructures() + 1, -1);
+  info.sub_ids.resize(mol.substructures().size() + 1, -1);
   info.sub_ids[0] = -1;
   info.num_used_subs = 0;
 
