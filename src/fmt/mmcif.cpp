@@ -695,47 +695,39 @@ private:
 };
 }  // namespace
 
-std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
+std::vector<Molecule> mmcif_load_frame(const internal::CifFrame &frame) {
   std::vector<Molecule> mols;
 
-  auto block = parser.next();
-  if (!block) {
-    if (block.type() == internal::CifBlock::Type::kError)
-      ABSL_LOG(ERROR) << "Cannot parse cif block: " << block.error_msg();
-
-    return mols;
-  }
-
-  ResidueIndexer res_idx = ResidueIndexer::atom_site(block.data());
-  CoordResolver coords(block.data());
+  ResidueIndexer res_idx = ResidueIndexer::atom_site(frame);
+  CoordResolver coords(frame);
 
   // prefer label_{comp,atom}_id over auth_{comp,atom}_id
   // this is because auth_atom_id is missing in _struct_conn tables
-  AuthLabelColumn comp_id(block.data(), "_atom_site.label_comp_id",
+  AuthLabelColumn comp_id(frame, "_atom_site.label_comp_id",
                           "_atom_site.auth_comp_id", false),
-      atom_id(block.data(), "_atom_site.label_atom_id",
-              "_atom_site.auth_atom_id", false);
+      atom_id(frame, "_atom_site.label_atom_id", "_atom_site.auth_atom_id",
+              false);
 
-  NullableCifColumn site_id = NullableCifColumn::from_key(block.data(),
-                                                          "_atom_site.id"),
+  NullableCifColumn site_id =
+                        NullableCifColumn::from_key(frame, "_atom_site.id"),
                     alt_id = NullableCifColumn::from_key(
-                        block.data(), "_atom_site.label_alt_id"),
+                        frame, "_atom_site.label_alt_id"),
                     type_symbol = NullableCifColumn::from_key(
-                        block.data(), "_atom_site.type_symbol"),
+                        frame, "_atom_site.type_symbol"),
                     entity_id = NullableCifColumn::from_key(
-                        block.data(), "_atom_site.label_entity_id");
+                        frame, "_atom_site.label_entity_id");
 
   TypedNullableColumn<absl::SimpleAtof, false> occupancy =
-      NullableCifColumn::from_key(block.data(), "_atom_site.occupancy");
+      NullableCifColumn::from_key(frame, "_atom_site.occupancy");
 
   TypedNullableColumn<absl::SimpleAtoi<int>, false>
-      model_num = NullableCifColumn::from_key(block.data(),
-                                              "_atom_site.pdbx_PDB_model_num"),
-      fchg = NullableCifColumn::from_key(block.data(),
-                                         "_atom_site.pdbx_formal_charge");
+      model_num =
+          NullableCifColumn::from_key(frame, "_atom_site.pdbx_PDB_model_num"),
+      fchg =
+          NullableCifColumn::from_key(frame, "_atom_site.pdbx_formal_charge");
 
   const int nsite = tables_nrow_min(
-      block.data(),
+      frame,
       { res_idx.tables()[0], res_idx.tables()[1], res_idx.tables()[2],
         coords.tables()[0], coords.tables()[1], coords.tables()[2],
         comp_id.table(), atom_id.table(), alt_id.table(), type_symbol.table(),
@@ -766,22 +758,21 @@ std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
     models[it->second].add_atom(info, *comp_id[i], *entity_id[i], id);
   }
 
-  StructConnIndexer ptnr1(block.data(), res_idx, 0),
-      ptnr2(block.data(), res_idx, 1);
+  StructConnIndexer ptnr1(frame, res_idx, 0), ptnr2(frame, res_idx, 1);
   ABSL_LOG_IF(INFO, atom_id.auth())
       << "_struct_conn table always use label_atom_id, but auth_atom_id is "
          "used in atom_site tables. This may cause unresolved bonds";
 
   NullableCifColumn conn_type = NullableCifColumn::from_key(
-                        block.data(), "_struct_conn.conn_type_id"),
+                        frame, "_struct_conn.conn_type_id"),
                     conn_order = NullableCifColumn::from_key(
-                        block.data(), "_struct_conn.value_order");
+                        frame, "_struct_conn.value_order");
 
   const int nconn = tables_nrow_min(
-      block.data(), { ptnr1.tables()[0], ptnr1.tables()[1], ptnr1.tables()[2],
-                      ptnr1.tables()[3], ptnr2.tables()[0], ptnr2.tables()[1],
-                      ptnr2.tables()[2], ptnr2.tables()[3], conn_type.table(),
-                      conn_order.table() });
+      frame, { ptnr1.tables()[0], ptnr1.tables()[1], ptnr1.tables()[2],
+               ptnr1.tables()[3], ptnr2.tables()[0], ptnr2.tables()[1],
+               ptnr2.tables()[2], ptnr2.tables()[3], conn_type.table(),
+               conn_order.table() });
 
   std::vector<StructConn> conns;
   conns.reserve(nconn);
@@ -799,13 +790,25 @@ std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
   for (auto &model: models) {
     const int mid = model.model_num();
 
-    mols.emplace_back(std::move(model).to_standard(block.name(), site_id,
+    mols.emplace_back(std::move(model).to_standard(frame.name(), site_id,
                                                    type_symbol, fchg, coords,
                                                    conns))
         .add_prop("model", absl::StrCat(mid));
   }
 
   return mols;
+}
+
+std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
+  auto block = parser.next();
+  if (!block) {
+    if (block.type() == internal::CifBlock::Type::kError)
+      ABSL_LOG(ERROR) << "Cannot parse cif block: " << block.error_msg();
+
+    return {};
+  }
+
+  return mmcif_load_frame(block.data());
 }
 
 bool MmcifReader::getnext(std::vector<std::string> &block) {

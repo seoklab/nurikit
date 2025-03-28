@@ -19,6 +19,8 @@
 #include "nuri/fmt/cif.h"
 
 namespace nuri {
+std::vector<Molecule> mmcif_load_frame(const internal::CifFrame &frame);
+
 std::vector<Molecule> mmcif_read_next_block(CifParser &parser);
 
 class MmcifReader: public MoleculeReader {
