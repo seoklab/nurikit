@@ -5,7 +5,7 @@
 #ifndef NURI_CORE_MOLECULE_H_
 #define NURI_CORE_MOLECULE_H_
 
-/// @cond
+//! @cond
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -24,7 +24,7 @@
 #include <absl/log/absl_check.h>
 #include <boost/container/flat_map.hpp>
 #include <Eigen/Dense>
-/// @endcond
+//! @endcond
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"

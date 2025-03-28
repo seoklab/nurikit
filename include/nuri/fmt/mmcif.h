@@ -6,13 +6,13 @@
 #ifndef NURI_FMT_MMCIF_H_
 #define NURI_FMT_MMCIF_H_
 
-/// @cond
+//! @cond
 #include <istream>
 #include <string>
 #include <vector>
 
 #include <absl/base/attributes.h>
-/// @endcond
+//! @endcond
 
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"

@@ -5,7 +5,7 @@
 #ifndef NURI_CORE_GEOMETRY_H_
 #define NURI_CORE_GEOMETRY_H_
 
-/// @cond
+//! @cond
 #include <cmath>
 #include <cstdint>
 #include <type_traits>
@@ -14,7 +14,7 @@
 
 #include <absl/log/absl_check.h>
 #include <Eigen/Dense>
-/// @endcond
+//! @endcond
 
 #include "nuri/eigen_config.h"
 #include "nuri/meta.h"

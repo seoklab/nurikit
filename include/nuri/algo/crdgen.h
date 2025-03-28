@@ -6,9 +6,9 @@
 #ifndef NURI_ALGO_CRDGEN_H_
 #define NURI_ALGO_CRDGEN_H_
 
-/// @cond
+//! @cond
 #include <utility>
-/// @endcond
+//! @endcond
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/molecule.h"

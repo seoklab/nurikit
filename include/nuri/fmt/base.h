@@ -6,7 +6,7 @@
 #ifndef NURI_FMT_BASE_H_
 #define NURI_FMT_BASE_H_
 
-/// @cond
+//! @cond
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
@@ -20,7 +20,7 @@
 #include <absl/base/attributes.h>
 #include <absl/base/optimization.h>
 #include <absl/log/absl_log.h>
-/// @endcond
+//! @endcond
 
 #include "nuri/core/molecule.h"
 #include "nuri/utils.h"

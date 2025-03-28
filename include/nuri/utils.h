@@ -6,7 +6,7 @@
 #ifndef NURI_UTILS_H_
 #define NURI_UTILS_H_
 
-/// @cond
+//! @cond
 #include <algorithm>
 #include <cstddef>
 #include <cstdlib>
@@ -31,7 +31,7 @@
 #include <absl/strings/ascii.h>
 #include <boost/iterator/iterator_facade.hpp>
 #include <Eigen/Dense>
-/// @endcond
+//! @endcond
 
 #include "nuri/eigen_config.h"
 #include "nuri/meta.h"

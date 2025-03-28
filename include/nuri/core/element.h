@@ -6,7 +6,7 @@
 #ifndef NURI_CORE_ELEMENT_H_
 #define NURI_CORE_ELEMENT_H_
 
-/// @cond
+//! @cond
 #include <algorithm>
 #include <cstdint>
 #include <string>
@@ -14,7 +14,7 @@
 #include <vector>
 
 #include <absl/container/flat_hash_map.h>
-/// @endcond
+//! @endcond
 
 #include "nuri/utils.h"
 

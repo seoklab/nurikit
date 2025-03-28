@@ -6,7 +6,7 @@
 #ifndef NURI_CORE_GRAPH_H_
 #define NURI_CORE_GRAPH_H_
 
-/// @cond
+//! @cond
 #include <algorithm>
 #include <cstddef>
 #include <functional>
@@ -26,7 +26,7 @@
 #include <boost/container/flat_set.hpp>
 #include <boost/iterator/iterator_facade.hpp>
 #include <Eigen/Dense>
-/// @endcond
+//! @endcond
 
 #include "nuri/eigen_config.h"
 #include "nuri/meta.h"

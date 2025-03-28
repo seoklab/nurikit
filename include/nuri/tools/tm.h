@@ -6,13 +6,13 @@
 #ifndef NURI_TOOLS_TM_H_
 #define NURI_TOOLS_TM_H_
 
-/// @cond
+//! @cond
 #include <cstdint>
 #include <utility>
 
 #include <absl/base/attributes.h>
 #include <Eigen/Dense>
-/// @endcond
+//! @endcond
 
 #include "nuri/eigen_config.h"
 

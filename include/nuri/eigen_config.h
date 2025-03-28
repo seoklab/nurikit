@@ -5,12 +5,12 @@
 #ifndef NURI_EIGEN_CONFIG_H_
 #define NURI_EIGEN_CONFIG_H_
 
-/// @cond
+//! @cond
 #include <type_traits>  // IWYU pragma: keep, required for is_class_v
 
 #include <absl/log/absl_check.h>
 #include <Eigen/Dense>
-/// @endcond
+//! @endcond
 
 #include "nuri/meta.h"
 

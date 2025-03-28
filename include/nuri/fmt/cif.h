@@ -6,7 +6,7 @@
 #ifndef NURI_FMT_CIF_H_
 #define NURI_FMT_CIF_H_
 
-/// @cond
+//! @cond
 #include <cstddef>
 #include <cstdint>
 #include <istream>
@@ -23,7 +23,7 @@
 #include <absl/log/absl_check.h>
 #include <absl/strings/str_cat.h>
 #include <boost/range/iterator_range.hpp>
-/// @endcond
+//! @endcond
 
 #include "nuri/utils.h"
 

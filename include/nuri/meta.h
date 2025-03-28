@@ -6,10 +6,10 @@
 #ifndef NURI_META_H_
 #define NURI_META_H_
 
-/// @cond
+//! @cond
 #include <iterator>
 #include <type_traits>
-/// @endcond
+//! @endcond
 
 //! @privatesection
 

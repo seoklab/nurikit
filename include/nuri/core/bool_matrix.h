@@ -5,14 +5,14 @@
 #ifndef NURI_CORE_BOOL_MATRIX_H_
 #define NURI_CORE_BOOL_MATRIX_H_
 
-/// @cond
+//! @cond
 #include <cstdint>
 #include <limits>
 #include <vector>
 
 #include <absl/base/optimization.h>
 #include <Eigen/Dense>
-/// @endcond
+//! @endcond
 
 #include "nuri/eigen_config.h"
 

@@ -6,7 +6,7 @@
 #ifndef NURI_CORE_PROPERTY_MAP_H_
 #define NURI_CORE_PROPERTY_MAP_H_
 
-/// @cond
+//! @cond
 #include <functional>
 #include <string>
 #include <string_view>
@@ -15,7 +15,7 @@
 #include <vector>
 
 #include <boost/container/flat_map.hpp>
-/// @endcond
+//! @endcond
 
 namespace nuri {
 namespace internal {
