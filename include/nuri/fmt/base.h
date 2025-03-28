@@ -129,8 +129,15 @@ public:
    */
   virtual Molecule parse(const std::vector<std::string> &block) const = 0;
 
+  /**
+   * @brief Test whether the reader implementation can provide valid bond
+   *        information.
+   */
   virtual bool bond_valid() const = 0;
 
+  /**
+   * @brief Convert the reader to a stream object.
+   */
   MoleculeStream<MoleculeReader> stream() { return { *this }; }
 };
 
