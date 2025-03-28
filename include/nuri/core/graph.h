@@ -1802,24 +1802,21 @@ namespace internal {
     void erase_if(UnaryPred &&pred) {
       std::vector<int> work = extract_sequence();
       nuri::erase_if(work, std::forward<UnaryPred>(pred));
-      adopt_sequence(boost::container::ordered_unique_range_t {},
-                     std::move(work));
+      adopt_sequence(boost::container::ordered_unique_range, std::move(work));
     }
 
     void union_with(const IndexSet &other) {
       std::vector<int> result;
       result.reserve(size() + other.size());
       absl::c_set_union(*this, other, std::back_inserter(result));
-      adopt_sequence(boost::container::ordered_unique_range_t {},
-                     std::move(result));
+      adopt_sequence(boost::container::ordered_unique_range, std::move(result));
     }
 
     void difference(const IndexSet &other) {
       std::vector<int> result;
       result.reserve(size());
       absl::c_set_difference(*this, other, std::back_inserter(result));
-      adopt_sequence(boost::container::ordered_unique_range_t {},
-                     std::move(result));
+      adopt_sequence(boost::container::ordered_unique_range, std::move(result));
     }
 
     int operator[](int idx) const { return sequence()[idx]; }
