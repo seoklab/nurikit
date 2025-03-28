@@ -24,6 +24,9 @@
 #include <pybind11/stl/filesystem.h>
 
 #include "fmt_internal.h"
+#include "nuri/core/molecule.h"
+#include "nuri/fmt/mmcif.h"
+#include "nuri/python/core/core_module.h"
 #include "nuri/python/exception.h"
 #include "nuri/python/utils.h"
 #include "nuri/utils.h"
@@ -289,6 +292,15 @@ cif_ddl2_frame_as_dict(const PyCifFrame &frame) {
 
   return tagged;
 }
+
+pyt::List<PyMol> mmcif_load_cif_frame(const internal::CifFrame &frame) {
+  std::vector<Molecule> mols = mmcif_load_frame(frame);
+
+  pyt::List<PyMol> pymols(mols.size());
+  for (int i = 0; i < mols.size(); ++i)
+    pymols[i] = PyMol(std::move(mols[i]));
+  return pymols;
+}
 }  // namespace
 
 void bind_cif(py::module &m) {
@@ -339,13 +351,20 @@ Create a parser object from a CIF file path.
 :param path: The path to the CIF file.
 :return: A parser object that can be used to iterate over the blocks in the file.
 )doc")
-      .def("cif_ddl2_frame_as_dict", &cif_ddl2_frame_as_dict, py::arg("frame"),
+      .def("cif_ddl2_frame_as_dict", cif_ddl2_frame_as_dict, py::arg("frame"),
            R"doc(
 Convert a CIF frame to a dictionary of lists of dictionaries.
 
 :param frame: The CIF frame to convert.
 :return: A dictionary of lists of dictionaries, where the keys are the parent
   keys and the values are the rows of the table.
+)doc")
+      .def("mmcif_load_frame", mmcif_load_cif_frame, py::arg("frame"),
+           R"doc(
+Load a CIF frame as a list of molecules.
+
+:param frame: The CIF frame to load.
+:return: A list of molecules loaded from the frame.
 )doc");
 }
 }  // namespace python_internal
