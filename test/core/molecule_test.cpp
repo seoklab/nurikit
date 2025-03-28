@@ -242,7 +242,7 @@ TEST_F(MoleculeTest, RotateBondTest) {
 
   // Unconnected
   ASSERT_FALSE(mol_all.rotate_bond(0, 7, 90));
-  // Not a rotable bond
+  // Not a rotatable bond
   auto bid = mol_all.find_bond(0, 1)->id();
   ASSERT_FALSE(mol_all.rotate_bond(bid, 90));
 
@@ -280,7 +280,7 @@ TEST_F(MoleculeTest, RotateBondTest) {
 
   Molecule mol_one(mol_all);
 
-  // Not rotable
+  // Not rotatable
   bid = mol_one.find_bond(0, 1)->id();
   ASSERT_FALSE(mol_one.rotate_bond_conf(1, bid, 90));
   // Rotate reverse!

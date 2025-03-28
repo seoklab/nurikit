@@ -399,7 +399,7 @@ public:
     return *this;
   }
 
-  bool is_rotable() const {
+  bool is_rotatable() const {
     return order_ <= constants::kSingleBond
            && !internal::check_flag(flags_,
                                     BondFlags::kConjugated | BondFlags::kRing);

@@ -1241,9 +1241,9 @@ The bond order of the bond.
 The approximate bond order of the bond.
 )doc");
   cls.def(
-      "rotable", [](T &self) { return bond_prolog(self).is_rotable(); },
+      "rotatable", [](T &self) { return bond_prolog(self).is_rotatable(); },
       R"doc(
-Whether the bond is rotable.
+Whether the bond is rotatable.
 
 .. note::
   The result is calculated as the bond order is :data:`BondOrder.Single` or
