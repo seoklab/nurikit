@@ -152,10 +152,12 @@ void bind_tmalign(py::module &m) {
            py::arg("fragment_gapless") = true, R"doc(
 Prepare TM-align algorithm with the given structures.
 
-:param query: The query structure. Must be representable by a 2D numpy array of
-  shape ``(N, 3)``.
-:param templ: The template structure. Must be representable by a 2D numpy array
-  of shape ``(M, 3)``.
+:param query: The query structure, in which each residue is represented by a
+  single atom (usually ``CA``). Must be representable as a 2D numpy array of
+  shape ``(N, 3)``, where ``N`` is the number of residues.
+:param templ: The template structure, in which each residue is represented by a
+  single atom (usually ``CA``). Must be representable as a 2D numpy array of
+  shape ``(M, 3)``, where ``M`` is the number of residues.
 :param query_ss: The secondary structure of the query structure. When provided,
   must be an ASCII string of length ``N``.
 :param templ_ss: The secondary structure of the template structure. When
@@ -188,12 +190,14 @@ Prepare TM-align algorithm with the given structures.
                   R"doc(
 Prepare TM-align algorithm with the given structures and user-provided alignment.
 
-:param query: The query structure. Must be representable by a 2D numpy array of
-  shape ``(N, 3)``.
-:param templ: The template structure. Must be representable by a 2D numpy array
-  of shape ``(M, 3)``.
+:param query: The query structure, in which each residue is represented by a
+  single atom (usually ``CA``). Must be representable as a 2D numpy array of
+  shape ``(N, 3)``, where ``N`` is the number of residues.
+:param templ: The template structure, in which each residue is represented by a
+  single atom (usually ``CA``). Must be representable as a 2D numpy array of
+  shape ``(M, 3)``, where ``M`` is the number of residues.
 :param alignment: Pairwise alignment of the query and template structures. Must
-  be in a form representable by a 2D numpy array of shape ``(L, 2)``, of which
+  be in a form representable as a 2D numpy array of shape ``(L, 2)``, in which
   rows must contain (query index, template index) pairs. If not provided, query
   and template must have same length and assumed to be aligned in order.
 :returns: A :class:`TMAlign` object initialized with the given alignment.
@@ -301,10 +305,12 @@ Get pairwise alignment of the query and template structures.
        R"doc(
 Run TM-align algorithm with the given structures and parameters.
 
-:param query: The query structure. Must be representable by a 2D numpy array of
-  shape ``(N, 3)``.
-:param templ: The template structure. Must be representable by a 2D numpy array
-  of shape ``(M, 3)``.
+:param query: The query structure, in which each residue is represented by a
+  single atom (usually ``CA``). Must be representable as a 2D numpy array of
+  shape ``(N, 3)``, where ``N`` is the number of residues.
+:param templ: The template structure, in which each residue is represented by a
+  single atom (usually ``CA``). Must be representable as a 2D numpy array of
+  shape ``(M, 3)``, where ``M`` is the number of residues.
 :param l_norm: Length normalization factor. If not specified, the length of the
   template structure is used.
 :param query_ss: The secondary structure of the query structure. When provided,
@@ -362,12 +368,14 @@ Run TM-align algorithm with the given structures and alignment. This is also
 known as the "TM-score" program in the TM-tools suite, from which the function
 got its name.
 
-:param query: The query structure. Must be representable by a 2D numpy array of
-  shape ``(N, 3)``.
-:param templ: The template structure. Must be representable by a 2D numpy array
-  of shape ``(M, 3)``.
+:param query: The query structure, in which residues are represented by a single
+  atom (usually ``CA``). Must be representable as a 2D numpy array of shape
+  ``(N, 3)`` where ``N`` is the number of residues.
+:param templ: The template structure, in which residues are represented by a
+  single atom (usually ``CA``). Must be representable as a 2D numpy array of
+  shape ``(M, 3)`` where ``M`` is the number of residues.
 :param alignment: Pairwise alignment of the query and template structures. Must
-  be in a form representable by a 2D numpy array of shape ``(L, 2)``, of which
+  be in a form representable as a 2D numpy array of shape ``(L, 2)``, in which
   rows must contain (query index, template index) pairs. If not provided, query
   and template must have same length and assumed to be aligned in order.
 :param l_norm: Length normalization factor. If not specified, the length of the

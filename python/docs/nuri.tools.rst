@@ -28,6 +28,9 @@ TM-tools
    providing improved user interface and maintainability. Refer to the
    following paper for details of the algorithm. :footcite:`tm-align`
 
+   All input structures must have **only single atom per residue** (usually
+   ``CA`` atom), as the original TM-align algorithm assumes this.
+
    .. footbibliography::
 
    .. autoclass:: TMAlign
