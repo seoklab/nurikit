@@ -230,6 +230,7 @@ namespace internal {
  * - A J&uuml;ttner and P Madarasi. *Discrete Appl. Math.* **2018**, *247*,
  *   69-81.
  *   DOI:[10.1016/j.dam.2018.02.018](https://doi.org/10.1016/j.dam.2018.02.018)
+ *   @cite core:graph:vf2pp
  *
  * Here follows the full license text for the LEMON project:
  *
