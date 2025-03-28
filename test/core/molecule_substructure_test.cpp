@@ -142,7 +142,7 @@ TEST_F(SubstructureTest, UpdateAtoms) {
   EXPECT_TRUE(absl::c_is_permutation(sub_.atom_ids(), prev));
 
   prev.push_back(4);
-  sub_.update_atoms(std::vector<int> { prev });
+  sub_.update_atoms(internal::IndexSet(std::vector<int> { prev }));
   EXPECT_TRUE(absl::c_is_permutation(sub_.atom_ids(), prev));
 
   sub_.update_atoms({ 0 });

@@ -649,11 +649,11 @@ namespace internal {
 
     void clear_atoms() noexcept { graph_.clear(); }
 
-    void update(std::vector<int> &&atoms, std::vector<int> &&bonds) {
+    void update(IndexSet &&atoms, IndexSet &&bonds) {
       graph_.update(std::move(atoms), std::move(bonds));
     }
 
-    void update_atoms(std::vector<int> &&atoms) noexcept {
+    void update_atoms(IndexSet &&atoms) noexcept {
       graph_.update_nodes(std::move(atoms));
     }
 
@@ -666,15 +666,6 @@ namespace internal {
         graph_.add_nodes_with_edges(atoms);
       } else {
         graph_.add_nodes(atoms);
-      }
-    }
-
-    template <class Iter>
-    void add_atoms(Iter begin, Iter end, bool bonds = false) {
-      if (bonds) {
-        graph_.add_nodes_with_edges(begin, end);
-      } else {
-        graph_.add_nodes(begin, end);
       }
     }
 
@@ -742,7 +733,7 @@ namespace internal {
 
     void clear_bonds() noexcept { graph_.clear_edges(); }
 
-    void update_bonds(std::vector<int> &&bonds) noexcept {
+    void update_bonds(IndexSet &&bonds) noexcept {
       graph_.update_edges(std::move(bonds));
     }
 
@@ -752,12 +743,7 @@ namespace internal {
 
     void add_bond(int id) { graph_.add_edge(id); }
 
-    void add_bonds(const internal::IndexSet &bonds) { graph_.add_edges(bonds); }
-
-    template <class Iter>
-    void add_bonds(Iter begin, Iter end) {
-      graph_.add_edges(begin, end);
-    }
+    void add_bonds(const IndexSet &bonds) { graph_.add_edges(bonds); }
 
     bool contains_bond(int id) const { return graph_.contains_edge(id); }
     bool contains_bond(typename GraphType::ConstEdgeRef bond) const {

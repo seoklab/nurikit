@@ -1789,7 +1789,7 @@ namespace internal {
   public:
     using Base::Base;
 
-    IndexSet(std::vector<int> &&vec) noexcept {
+    explicit IndexSet(std::vector<int> &&vec) noexcept {
       adopt_sequence(std::move(vec));
     }
 
@@ -1959,7 +1959,7 @@ public:
   static Subgraph from_indices(parent_type &graph, internal::IndexSet &&nodes,
                                internal::IndexSet &&edges) {
     Subgraph subgraph(graph, std::move(nodes), {});
-    subgraph.add_edges(edges.begin(), edges.end());
+    subgraph.add_edges(edges);
     return subgraph;
   }
 
@@ -2049,20 +2049,6 @@ public:
    */
   int num_nodes() const { return static_cast<int>(nodes_.size()); }
 
-  // /**
-  //  * @brief Change the set of nodes in the subgraph
-  //  *
-  //  * @param nodes The new set of nodes.
-  //  * @param edges The new set of edges.
-  //  * @note The nodes connected to the edges will be automatically added even
-  //  if
-  //  *       they are not in the nodes set.
-  //  */
-  // void update(const std::vector<int> &nodes, const std::vector<int> &edges) {
-  //   edges_.adopt_sequence(edges);
-  //   add_nodes(nodes.begin(), nodes.end());
-  // }
-
   /**
    * @brief Change the set of nodes in the subgraph
    *
@@ -2071,24 +2057,12 @@ public:
    * @note The nodes connected to the edges will be automatically added even if
    *       they are not in the nodes set.
    */
-  void update(std::vector<int> &&nodes, std::vector<int> &&edges) {
-    edges_.adopt_sequence(std::move(edges));
-    add_nodes(nodes.begin(), nodes.end());
-  }
+  void update(internal::IndexSet &&nodes, internal::IndexSet &&edges) {
+    nodes_ = std::move(nodes);
 
-  // /**
-  //  * @brief Change the set of nodes in the subgraph
-  //  *
-  //  * @param nodes The new set of nodes. Edges will be automatically updated.
-  //  * @note If any of the node ids are not in the parent graph, the behavior
-  //  is
-  //  *       undefined.
-  //  * @note Time complexity: \f$O(V' \log V')\f$
-  //  */
-  // void update_nodes(const std::vector<int> &nodes) {
-  //   nodes_.adopt_sequence(nodes);
-  //   edges_ = internal::find_edges(*parent_, nodes_);
-  // }
+    edges_.clear();
+    add_edges(edges);
+  }
 
   /**
    * @brief Change the set of nodes in the subgraph
@@ -2098,9 +2072,23 @@ public:
    *       duplicates, the behavior is undefined.
    * @note Time complexity: \f$O(V' \log V')\f$
    */
-  void update_nodes(std::vector<int> &&nodes) noexcept {
-    nodes_.adopt_sequence(std::move(nodes));
+  void update_nodes(internal::IndexSet &&nodes) noexcept {
+    nodes_ = std::move(nodes);
     edges_ = internal::find_edges(*parent_, nodes_);
+  }
+
+  /**
+   * @brief Change the set of edges in the subgraph
+   *
+   * @param edges The new set of edges. All nodes connected to the edges will be
+   *        automatically added.
+   * @note Time complexity: same as from_edges().
+   * @note If any of the edge ids are not in the parent graph, the behavior is
+   *       undefined.
+   */
+  void update_edges(internal::IndexSet &&edges) noexcept {
+    edges_ = std::move(edges);
+    nodes_ = internal::find_nodes(*parent_, edges_);
   }
 
   /**
@@ -2139,19 +2127,6 @@ public:
   void add_nodes(const internal::IndexSet &nodes) { nodes_.union_with(nodes); }
 
   /**
-   * @brief Add nodes to the subgraph
-   *
-   * @param begin An iterator to the beginning of the nodes to add
-   * @param end A past-the-end iterator to the nodes to add
-   * @note If any of the node id is out of range, the behavior is undefined.
-   * @note All duplicate nodes will be automatically removed.
-   */
-  template <class Iter>
-  void add_nodes(Iter begin, Iter end) {
-    nodes_.insert(begin, end);
-  }
-
-  /**
    * @brief Add nodes to the subgraph, and update the edges
    *
    * @param nodes The new set of nodes
@@ -2159,23 +2134,9 @@ public:
    * @note All duplicate nodes will be automatically removed.
    */
   void add_nodes_with_edges(const internal::IndexSet &nodes) {
-    nodes_.union_with(nodes);
+    add_nodes(nodes);
     auto new_edges = internal::find_edges(*parent_, nodes);
     edges_.union_with(new_edges);
-  }
-
-  /**
-   * @brief Add nodes to the subgraph, and update the edges
-   *
-   * @param begin An iterator to the beginning of the nodes to add
-   * @param end A past-the-end iterator to the nodes to add
-   * @note If any of the node id is out of range, the behavior is undefined.
-   * @note All duplicate nodes will be automatically removed.
-   */
-  template <class Iter>
-  void add_nodes_with_edges(Iter begin, Iter end) {
-    internal::IndexSet new_nodes(begin, end);
-    add_nodes_with_edges(new_nodes);
   }
 
   /**
@@ -2472,34 +2433,6 @@ public:
    */
   int num_edges() const { return static_cast<int>(edges_.size()); }
 
-  // /**
-  //  * @brief Change the set of edges in the subgraph. This will also update
-  //  the
-  //  *        set of nodes.
-  //  * @param edges The new set of edges
-  //  * @note If any of the node ids are not in the parent graph, the behavior
-  //  is
-  //  *       undefined.
-  //  * @note Time complexity: \f$O(E' \log E')\f$
-  //  */
-  // void update_edges(const std::vector<int> &edges) {
-  //   edges_.adopt_sequence(edges);
-  //   nodes_ = internal::find_nodes(*parent_, edges_);
-  // }
-
-  /**
-   * @brief Change the set of edges in the subgraph. This will also update the
-   *        set of nodes.
-   * @param edges The new set of edges
-   * @note If any of the node ids are not in the parent graph, or if there are
-   *       duplicates, the behavior is undefined.
-   * @note Time complexity: \f$O(E' \log E')\f$
-   */
-  void update_edges(std::vector<int> &&edges) noexcept {
-    edges_.adopt_sequence(std::move(edges));
-    nodes_ = internal::find_nodes(*parent_, edges_);
-  }
-
   void refresh_edges() { edges_ = internal::find_edges(*parent_, nodes_); }
 
   /**
@@ -2547,19 +2480,6 @@ public:
 
     auto new_nodes = internal::find_nodes(*parent_, edges);
     nodes_.union_with(new_nodes);
-  }
-
-  /**
-   * @brief Add edges to the subgraph. Also adds the incident nodes.
-   *
-   * @param begin An iterator to the beginning of the edges to add
-   * @param end A past-the-end iterator to the edges to add
-   * @note If any of the edge id is out of range, the behavior is undefined.
-   * @note All duplicate edges will be automatically removed.
-   */
-  template <class Iter>
-  void add_edges(Iter begin, Iter end) {
-    add_edges(internal::IndexSet(begin, end));
   }
 
   /**
