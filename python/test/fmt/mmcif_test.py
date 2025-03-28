@@ -4,16 +4,16 @@
 #
 
 from pathlib import Path
+from typing import List
 
 import numpy as np
 
 import nuri
+from nuri.core import Molecule
+from nuri.fmt import mmcif_load_frame, read_cif
 
 
-def test_read_mmcif(test_data: Path):
-    cif = test_data / "3cye_part.cif"
-
-    mols = list(nuri.readfile("mmcif", cif, sanitize=False))
+def _validate_3cye_part(mols: List[Molecule]):
     assert len(mols) == 2
 
     mol = mols[0]
@@ -47,3 +47,16 @@ def test_read_mmcif(test_data: Path):
     assert len(mol.subs) == 6
     assert mol.subs[0].name == "VAL"
     assert mol.subs[0].num_atoms() == 7
+
+
+def test_read_mmcif(test_data: Path):
+    cif = test_data / "3cye_part.cif"
+
+    mols = list(nuri.readfile("mmcif", cif, sanitize=False))
+    _validate_3cye_part(mols)
+
+
+def test_load_mmcif_from_frame(test_data: Path):
+    frame = next(read_cif(test_data / "3cye_part.cif")).data
+    mols = mmcif_load_frame(frame)
+    _validate_3cye_part(mols)
