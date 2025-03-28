@@ -52,6 +52,8 @@ enum class SDFVersion {
  * @param mol The molecule to write.
  * @param conf The index of the conformation to write. If negative, all
  *             conformers are written in separate blocks.
+ * @param ver The SDF version to write. When set to kAutomatic, the version is
+ *            determined by the molecule size.
  * @return Whether the write was successful.
  */
 extern bool write_sdf(std::string &out, const Molecule &mol, int conf = -1,
