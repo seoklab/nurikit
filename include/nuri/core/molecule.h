@@ -737,24 +737,6 @@ namespace internal {
       return graph_.contains_edge(bond);
     }
 
-    bond_iterator find_bond(Atom src, Atom dst) {
-      return graph_.find_edge(src, dst);
-    }
-
-    const_bond_iterator find_bond(Atom src, Atom dst) const {
-      return graph_.find_edge(src, dst);
-    }
-
-    bond_iterator find_bond(typename GraphType::ConstNodeRef src,
-                            typename GraphType::ConstNodeRef dst) {
-      return graph_.find_edge(src, dst);
-    }
-
-    const_bond_iterator find_bond(typename GraphType::ConstNodeRef src,
-                                  typename GraphType::ConstNodeRef dst) const {
-      return graph_.find_edge(src, dst);
-    }
-
     MutableBond bond(int idx) { return graph_.edge(idx); }
     Bond bond(int idx) const { return graph_.edge(idx); }
 
@@ -798,6 +780,24 @@ namespace internal {
     const std::vector<int> &bond_ids() const { return graph_.edge_ids(); }
 
     int degree(int id) const { return graph_.degree(id); }
+
+    bond_iterator find_bond(Atom src, Atom dst) {
+      return graph_.find_edge(src, dst);
+    }
+
+    const_bond_iterator find_bond(Atom src, Atom dst) const {
+      return graph_.find_edge(src, dst);
+    }
+
+    bond_iterator find_bond(typename GraphType::ConstNodeRef src,
+                            typename GraphType::ConstNodeRef dst) {
+      return graph_.find_edge(src, dst);
+    }
+
+    const_bond_iterator find_bond(typename GraphType::ConstNodeRef src,
+                                  typename GraphType::ConstNodeRef dst) const {
+      return graph_.find_edge(src, dst);
+    }
 
     neighbor_iterator find_neighbor(Atom src, Atom dst) {
       return graph_.find_adjacent(src, dst);
