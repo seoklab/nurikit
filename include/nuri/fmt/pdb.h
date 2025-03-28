@@ -25,7 +25,7 @@ namespace nuri {
  */
 extern Molecule read_pdb(const std::vector<std::string> &pdb);
 
-class PDBReader: public DefaultReaderImpl<read_pdb> {
+class PDBReader final: public DefaultReaderImpl<read_pdb> {
 public:
   using DefaultReaderImpl<read_pdb>::DefaultReaderImpl;
 

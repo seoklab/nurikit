@@ -25,7 +25,7 @@ namespace nuri {
  */
 extern Molecule read_mol2(const std::vector<std::string> &mol2);
 
-class Mol2Reader: public DefaultReaderImpl<read_mol2> {
+class Mol2Reader final: public DefaultReaderImpl<read_mol2> {
 public:
   using DefaultReaderImpl<read_mol2>::DefaultReaderImpl;
 

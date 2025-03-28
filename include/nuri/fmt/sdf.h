@@ -25,7 +25,7 @@ namespace nuri {
  */
 extern Molecule read_sdf(const std::vector<std::string> &sdf);
 
-class SDFReader: public DefaultReaderImpl<read_sdf> {
+class SDFReader final: public DefaultReaderImpl<read_sdf> {
 public:
   using DefaultReaderImpl<read_sdf>::DefaultReaderImpl;
 

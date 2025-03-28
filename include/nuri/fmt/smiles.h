@@ -27,7 +27,7 @@ namespace nuri {
  */
 extern Molecule read_smiles(const std::vector<std::string> &smi_block);
 
-class SmilesReader: public DefaultReaderImpl<read_smiles> {
+class SmilesReader final: public DefaultReaderImpl<read_smiles> {
 public:
   using DefaultReaderImpl<read_smiles>::DefaultReaderImpl;
 

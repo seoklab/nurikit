@@ -147,13 +147,6 @@ public:
   DefaultReaderImpl() = default;
   DefaultReaderImpl(std::istream &is): is_(&is) { }
 
-  DefaultReaderImpl(const DefaultReaderImpl &) = delete;
-  DefaultReaderImpl &operator=(const DefaultReaderImpl &) = delete;
-  DefaultReaderImpl(DefaultReaderImpl &&) noexcept = default;
-  DefaultReaderImpl &operator=(DefaultReaderImpl &&) noexcept = default;
-
-  ~DefaultReaderImpl() noexcept override = default;
-
   Molecule parse(const std::vector<std::string> &block) const final {
     return parser(block);
   }
