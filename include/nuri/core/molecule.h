@@ -327,17 +327,9 @@ public:
 
   std::string_view get_name() const { return internal::get_name(props_); }
 
-  AtomData &set_name(const char *name) {
-    return set_name(std::string_view(name));
-  }
-
-  AtomData &set_name(std::string_view name) {
-    internal::set_name(props_, name);
-    return *this;
-  }
-
-  AtomData &set_name(std::string &&name) {
-    internal::set_name(props_, std::move(name));
+  template <class ST>
+  AtomData &set_name(ST &&name) {
+    internal::set_name(props_, std::forward<ST>(name));
     return *this;
   }
 
@@ -511,15 +503,9 @@ public:
 
   std::string_view get_name() const { return internal::get_name(props_); }
 
-  BondData &set_name(const char *name) { return set_name(std::string(name)); }
-
-  BondData &set_name(std::string_view name) {
-    internal::set_name(props_, name);
-    return *this;
-  }
-
-  BondData &set_name(std::string &&name) {
-    internal::set_name(props_, std::move(name));
+  template <class ST>
+  BondData &set_name(ST &&name) {
+    internal::set_name(props_, std::forward<ST>(name));
     return *this;
   }
 
