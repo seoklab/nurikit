@@ -343,10 +343,12 @@ class CifParser {
 public:
   explicit CifParser(std::istream &is);
 
+  /**
+   * @brief Parse the next block in the CIF file.
+   */
   internal::CifBlock next();
 
-  // for implementation, do not use
-
+  //! @private
   internal::CifBlock error(std::string_view reason);
 
 private:
