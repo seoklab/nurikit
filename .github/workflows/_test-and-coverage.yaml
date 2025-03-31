@@ -54,6 +54,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: build/coverage/json/coverage.json
+          disable_search: true
           fail_ci_if_error: true
           verbose: true
 
