@@ -724,7 +724,7 @@ namespace {
     Matrix4Xd trial(4, n);
     MatrixXd dists(n, n);
 
-    Bfgs optim(trial.reshaped().array());
+    LBfgs<internal::LBfgsImpl> optim(trial.reshaped().array(), {});
 
     auto first_fg = [&](ArrayXd &ga, const auto &xa) {
       return error_funcgrad<false>(ga, xa, bsq_inv, tetrads, n);
@@ -754,14 +754,14 @@ namespace {
 
       ABSL_DVLOG(1) << "initial trial coordinates:\n" << trial.transpose();
 
-      BfgsResult res = optim.minimize(first_fg, 1e-3, 1e-6);
-      if (res.code != BfgsResultCode::kSuccess)
+      LbfgsResult res = optim.minimize(first_fg, 1e-3, 1e-6);
+      if (res.code != LbfgsResultCode::kSuccess)
         continue;
 
       ABSL_DVLOG(1) << "after 4D minimization:\n" << trial.transpose();
 
       res = optim.minimize(second_fg);
-      if (res.code != BfgsResultCode::kSuccess)
+      if (res.code != LbfgsResultCode::kSuccess)
         continue;
 
       ABSL_DVLOG(1) << "after 3D projection:\n" << trial.transpose();
