@@ -878,16 +878,15 @@ namespace internal {
     Matrix3Xd current = conf(Eigen::all, free_hs);
     FreeHProxy h_proxy(mol, conf, current, free_hs);
 
-    ArrayXi nbd = ArrayXi::Zero(current.size());
-    Array2Xd bds(2, current.size());
-    LBfgsB minimizer(current.reshaped().array(), { nbd, bds }, 5);
+    LBfgs<internal::LBfgsImpl> minimizer(current.reshaped().array(),
+                                         internal::LBfgsImpl(5), 5);
 
     auto result = minimizer.minimize(
         [&](ArrayXd &gx, ConstRef<ArrayXd> x) {
           return hydrogen_minimizer_funcgrad(h_proxy, gx, x, 1, 1e-3, 1e-4);
         },
         1e+7, 1e-1, 300, 300);
-    if (result.code != LbfgsbResultCode::kSuccess) {
+    if (result.code != LbfgsResultCode::kSuccess) {
       ABSL_LOG(WARNING) << "Hydrogen optimization failed or terminated "
                            "prematurely; not updating hydrogen coordinates";
       return false;
@@ -899,7 +898,7 @@ namespace internal {
         },
         1e+7, nuri::min(1e-1, static_cast<double>(free_hs.size()) * 5e-4), 300,
         300);
-    if (result.code != LbfgsbResultCode::kSuccess) {
+    if (result.code != LbfgsResultCode::kSuccess) {
       ABSL_LOG(WARNING) << "Hydrogen optimization failed or terminated "
                            "prematurely; not updating hydrogen coordinates";
       return false;

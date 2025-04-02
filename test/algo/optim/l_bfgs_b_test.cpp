@@ -20,10 +20,10 @@
 namespace nuri {
 namespace {
 using internal::LbfgsbBounds;
+using internal::LBfgsBImpl;
 
 using internal::lbfgs_bmv;
 using internal::lbfgsb_cauchy;
-using internal::lbfgsb_projgr;
 using internal::lbfgsb_subsm;
 
 TEST(LBFGSBTest, Prjgr) {
@@ -43,6 +43,7 @@ TEST(LBFGSBTest, Prjgr) {
     {  0.0258648,  0.678224,   0.22528, -0.407937,  0.275105 },
     {    0.05349,  0.539828, -0.199543,  0.783059, -0.433371 },
   };
+  x.transposeInPlace();
 
   ArrayXXd g {
     { -0.604897, -0.329554,  0.536459, -0.444451,   0.10794 },
@@ -55,7 +56,9 @@ TEST(LBFGSBTest, Prjgr) {
   double ans[] = { 0.604897, 0.832390, 0.782382, 0.945550, 0.838053 };
 
   for (int i = 0; i < 5; ++i) {
-    double sbgnrm = lbfgsb_projgr(x.row(i), g.row(i), bounds);
+    LBfgsBImpl impl(x.col(i), bounds, 5);
+
+    double sbgnrm = impl.projgr(x.col(i), g.row(i));
     EXPECT_NEAR(sbgnrm, ans[i], 1e-6);
   }
 }
@@ -355,7 +358,7 @@ TEST(LBFGSBTest, Cauchy) {
   iwhans.transposeInPlace();
 
   for (int i = 0; i < 5; ++i) {
-    LBfgsB lbfgsb(xs.col(i), bounds, 4);
+    LBfgs<LBfgsBImpl> lbfgsb(xs.col(i), { xs.col(i), bounds, 4 }, 4);
 
     lbfgsb.update_col(3);
     lbfgsb.update_theta(-1e-3);
@@ -374,7 +377,7 @@ TEST(LBFGSBTest, Cauchy) {
     NURI_EXPECT_EIGEN_EQ(lbfgsb.c(), cans.col(i));
     EXPECT_PRED2([](const auto &lhs,
                     const auto &rhs) { return (lhs == rhs).all(); },
-                 lbfgsb.iwhere(), iwhans.col(i));
+                 lbfgsb.impl().iwhere(), iwhans.col(i));
   }
 }
 
@@ -506,12 +509,12 @@ TEST(LBFGSBTest, Subsm) {
   pans.transposeInPlace();
 
   for (int i = 0; i < 3; ++i) {
-    LBfgsB lbfgsb(xs.col(i), bounds, 4);
+    LBfgs<LBfgsBImpl> lbfgsb(xs.col(i), { xs.col(i), bounds, 4 }, 4);
 
     lbfgsb.update_col(3);
     lbfgsb.update_theta(0.5);
-    lbfgsb.update_nfree(2);
-    lbfgsb.free_bound().head(2) = free;
+    lbfgsb.impl().update_nfree(2);
+    lbfgsb.impl().free_bound().head(2) = free;
 
     lbfgsb.z() = zs.col(i);
     lbfgsb.r() = rs.col(i);
@@ -524,7 +527,7 @@ TEST(LBFGSBTest, Subsm) {
 
     double tol = i == 2 ? 1e-1 : 1e-3;
     NURI_EXPECT_EIGEN_EQ_TOL(lbfgsb.z(), zans.col(i), tol);
-    NURI_EXPECT_EIGEN_EQ_TOL(lbfgsb.rfree().array(),
+    NURI_EXPECT_EIGEN_EQ_TOL(lbfgsb.r().head(free.size()),
                              rans.col(i).head(free.size()), tol);
     NURI_EXPECT_EIGEN_EQ_TOL(lbfgsb.p(), pans.col(i), tol);
   }
@@ -632,7 +635,7 @@ TEST(LBFGSBTest, LbfgsbSquared) {
   bounds.transposeInPlace();
 
   auto [code, _, fx, gx] = l_bfgs_b(fg, xa, nbd, bounds);
-  ASSERT_EQ(code, LbfgsbResultCode::kSuccess);
+  ASSERT_EQ(code, LbfgsResultCode::kSuccess);
 
   EXPECT_TRUE((xa.head(20) >= bounds.row(0).head(20).transpose()).all());
   EXPECT_TRUE(
@@ -749,7 +752,7 @@ TEST(LBFGSBTest, LbfgsbCorrelated) {
   bounds.row(1).setConstant(1);
 
   auto [code, iter, fx, gx] = l_bfgs_b(fg, xa, nbd, bounds, 5);
-  ASSERT_EQ(code, LbfgsbResultCode::kSuccess);
+  ASSERT_EQ(code, LbfgsResultCode::kSuccess);
 
   EXPECT_TRUE((xa >= bounds.row(0).transpose()).all());
   EXPECT_TRUE((xa <= bounds.row(1).transpose()).all());
@@ -837,7 +840,7 @@ TEST(LBFGSBTest, LbfgsbReference) {
   bounds.row(1) = 100;
 
   auto [code, iter, fx, gx] = l_bfgs_b(fg, x, nbd, bounds, 5);
-  ASSERT_EQ(code, LbfgsbResultCode::kSuccess);
+  ASSERT_EQ(code, LbfgsResultCode::kSuccess);
 
   ArrayXd xans {
     {
@@ -934,7 +937,7 @@ TEST(LBFGSBTest, LbfgsbUnbounded) {
   Array2Xd bounds(2, 60);
 
   auto [code, iter, fx, gx] = l_bfgs_b(fg, xa, nbd, bounds);
-  ASSERT_EQ(code, LbfgsbResultCode::kSuccess);
+  ASSERT_EQ(code, LbfgsResultCode::kSuccess);
 
   // // Results from lbfgsb original implementation
   EXPECT_EQ(iter, 54);
