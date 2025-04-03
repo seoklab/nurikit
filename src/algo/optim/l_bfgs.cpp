@@ -46,7 +46,7 @@ namespace internal {
     x() = step() * d() + t();
   }
 
-  LBfgsImpl::LBfgsImpl(int m): wn1_(2 * m, m) { }
+  LBfgsImpl::LBfgsImpl(int m): wn1_(m + 1, m) { }
 
   LbfgsLnsrch LBfgsImpl::lnsrch(MutRef<ArrayXd> &x, const ArrayXd &t,
                                 const ArrayXd &z, const ArrayXd &d, double f0,
@@ -90,9 +90,7 @@ namespace internal {
       const auto mm1 = m - 1;
 
       //  Shift old part of WN1.
-      wn1.topLeftCorner(mm1, mm1).triangularView<Eigen::Lower>() =
-          wn1.block(1, 1, mm1, mm1);
-      wn1.block(m, 0, mm1, mm1) = wn1.block(m + 1, 1, mm1, mm1);
+      wn1.topLeftCorner(m, mm1) = wn1.bottomRightCorner(m, mm1);
     }
 
     void formk_add_new_wn1(LBfgs<LBfgsImpl> &L) {
@@ -105,25 +103,21 @@ namespace internal {
       if (prev_col == m)
         formk_shift_wn1(wn1, m);
 
-      // Put new rows in blocks (1,1) and (2,1).
-      wn1.row(cm1).head(col).noalias() = wy.col(cm1).transpose() * wy;
-      wn1.row(m + cm1).head(col).setZero();
-
+      // Put new row in block (1,1)
+      wn1.row(col).head(col).noalias() = wy.col(cm1).transpose() * wy;
       // Put new column in block (2,1)
-      wn1.col(cm1).segment(m, col).noalias() = ws.transpose() * wy.col(cm1);
+      wn1.col(cm1).head(col).noalias() = ws.transpose() * wy.col(cm1);
     }
 
     void formk_prepare_wn(MutBlock<MatrixXd> wnt, const MatrixXd &wn1,
                           Eigen::Block<MatrixXd> sy, const double theta,
-                          const int m, const int col) {
-      for (int j = 0; j < col; ++j) {
-        wnt.col(j).segment(j, col - j) = wn1.col(j).segment(j, col - j) / theta;
-
-        wnt.col(j).segment(col, j + 1) = wn1.col(j).segment(m, j + 1);
-        wnt.col(j).segment(col + j + 1, col - j - 1) =
-            -wn1.col(j).segment(m + j + 1, col - j - 1);
-      }
+                          const int col) {
+      wnt.topLeftCorner(col, col).triangularView<Eigen::Lower>() =
+          wn1.block(1, 0, col, col) / theta;
       wnt.diagonal().head(col) += sy.diagonal();
+
+      wnt.bottomLeftCorner(col, col) =
+          wn1.topLeftCorner(col, col).triangularView<Eigen::Upper>();
     }
 
     bool formk_factorize_wn(MutBlock<MatrixXd> wnt, const int col) {
@@ -137,7 +131,7 @@ namespace internal {
         return false;
 
       // Then form L^-1(-L_a'+R_z') in the (2,1) block.
-      wnt.topLeftCorner(col, col).triangularView<Eigen::Lower>().solveInPlace(
+      wnt_11.triangularView<Eigen::Lower>().solveInPlace(
           wnt.bottomLeftCorner(col, col).transpose());
 
       // Form S'AA'S*theta + (L^-1(-L_a'+R_z'))'L^-1(-L_a'+R_z') in the lower
@@ -167,8 +161,7 @@ namespace internal {
 
       // Form the upper triangle of WN = [D+Y' ZZ'Y/theta   -L_a'+R_z' ]
       //                                 [-L_a +R_z        S'AA'S*theta]
-      formk_prepare_wn(L.wnt(), L.impl().wn1(), L.sy(), L.theta(), L.m(),
-                       L.col());
+      formk_prepare_wn(L.wnt(), L.impl().wn1(), L.sy(), L.theta(), L.col());
 
       // Form the upper triangle of WN= [  LL'            L^-1(-L_a'+R_z')]
       //                                [(-L_a +R_z)L'^-1   S'AA'S*theta  ]
