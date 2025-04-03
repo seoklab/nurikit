@@ -135,6 +135,8 @@ namespace internal {
       // Form S'AA'S*theta + (L^-1(-L_a'+R_z'))'L^-1(-L_a'+R_z') in the lower
       //  triangle of (2,2) block of wn_t.
       for (int i = 0; i < col; ++i) {
+        // NB: unlike bounded version, overwrite (2,2) block as it should be all
+        // zero before this. Worth it? Not sure, but it is an optimization.
         wnt.col(col + i).tail(col - i).noalias() =
             wnt.row(col + i).head(col)
             * wnt.bottomLeftCorner(col - i, col).transpose();
