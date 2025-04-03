@@ -5,6 +5,8 @@
 
 #include "nuri/algo/crdgen.h"
 
+#include <cmath>
+
 #include <absl/algorithm/container.h>
 #include <absl/base/attributes.h>
 #include <absl/log/absl_check.h>
@@ -46,9 +48,11 @@ TEST(Crdgen, CHEMBL2228334) {
   };
 
   auto [_, msd] = qcp(conf, ans.transpose(), AlignMode::kMsdOnly);
-  EXPECT_LE(msd, 1e-2) << "Mean square deviation: " << msd << ",\n"
-                       << "conf:\n"
-                       << conf.transpose();
+
+  double rmsd = std::sqrt(msd);
+  EXPECT_LE(rmsd, 5e-2) << "RMSD: " << rmsd << ",\n"
+                        << "conf:\n"
+                        << conf.transpose();
 }
 
 TEST(Crdgen, CHEMBL2228334Chiral) {
@@ -78,9 +82,11 @@ TEST(Crdgen, CHEMBL2228334Chiral) {
   };
 
   auto [_, msd] = qcp(conf, ans.transpose(), AlignMode::kMsdOnly);
-  EXPECT_LE(msd, 1e-2) << "Mean square deviation: " << msd << ",\n"
-                       << "conf:\n"
-                       << conf.transpose();
+
+  double rmsd = std::sqrt(msd);
+  EXPECT_LE(rmsd, 5e-2) << "RMSD: " << rmsd << ",\n"
+                        << "conf:\n"
+                        << conf.transpose();
 }
 }  // namespace
 }  // namespace nuri

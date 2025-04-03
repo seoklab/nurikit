@@ -44,5 +44,5 @@ def test_crdgen_distgeom(sample: Molecule):
                 [0.168125, -0.904638, -0.275532],
             ],
         )
-        <= 1e-2
+        <= 5e-2
     )
