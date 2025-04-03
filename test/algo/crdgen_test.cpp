@@ -13,7 +13,7 @@
 #include <gtest/gtest.h>
 
 #include "nuri/eigen_config.h"
-#include "test_utils.h"
+#include "nuri/core/geometry.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/smiles.h"
 
@@ -45,7 +45,10 @@ TEST(Crdgen, CHEMBL2228334) {
     {  0.168125, -0.904638, -0.275532 },
   };
 
-  NURI_EXPECT_EIGEN_EQ_TOL(conf.transpose(), ans, 5e-2);
+  auto [_, msd] = qcp(conf, ans.transpose(), AlignMode::kMsdOnly);
+  EXPECT_LE(msd, 1e-2) << "Mean square deviation: " << msd << ",\n"
+                       << "conf:\n"
+                       << conf.transpose();
 }
 
 TEST(Crdgen, CHEMBL2228334Chiral) {
@@ -74,7 +77,10 @@ TEST(Crdgen, CHEMBL2228334Chiral) {
     { 0.222705, -0.654381,  0.208408 },
   };
 
-  NURI_EXPECT_EIGEN_EQ_TOL(conf.transpose(), ans, 5e-2);
+  auto [_, msd] = qcp(conf, ans.transpose(), AlignMode::kMsdOnly);
+  EXPECT_LE(msd, 1e-2) << "Mean square deviation: " << msd << ",\n"
+                       << "conf:\n"
+                       << conf.transpose();
 }
 }  // namespace
 }  // namespace nuri
