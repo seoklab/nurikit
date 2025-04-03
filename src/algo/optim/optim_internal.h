@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <absl/log/absl_check.h>
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"

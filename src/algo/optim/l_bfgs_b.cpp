@@ -3,8 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <cmath>
+#include <cstdlib>
+#include <utility>
+#include <vector>
+
+#include <absl/base/optimization.h>
+#include <Eigen/Dense>
+
+#include "nuri/eigen_config.h"
 #include "optim_internal.h"
 #include "nuri/algo/optim.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 namespace internal {
