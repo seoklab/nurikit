@@ -158,10 +158,10 @@ namespace internal {
       wn1.block(m, 0, mm1, mm1) = wn1.block(m + 1, 1, mm1, mm1);
     }
 
-    void formk_add_new_wn1(LBfgs<LBfgsBImpl> &L) {
-      MatrixXd &wn1 = L.impl().wn1();
+    void formk_add_new_wn1(LBfgsBase &L, LBfgsBImpl &impl) {
+      MatrixXd &wn1 = impl.wn1();
       auto ws = L.ws(), wy = L.wy();
-      auto free = L.impl().free(), bound = L.impl().bound();
+      auto free = impl.free(), bound = impl.bound();
       const auto prev_col = L.prev_col();
 
       const auto m = L.m(), col = L.col(), cm1 = col - 1;
@@ -182,9 +182,9 @@ namespace internal {
           ws(free, Eigen::all).transpose() * wy(free, cm1);
     }
 
-    void formk_update_wn1(LBfgs<LBfgsBImpl> &L) {
-      auto &wn1 = L.impl().wn1();
-      auto enter = L.impl().enter(), leave = L.impl().leave();
+    void formk_update_wn1(LBfgsBase &L, LBfgsBImpl &impl) {
+      auto &wn1 = impl.wn1();
+      auto enter = impl.enter(), leave = impl.leave();
 
       const auto m = L.m(), upcl = L.col() - value_if(L.updated());
       auto ws = L.ws().leftCols(upcl), wy = L.wy().leftCols(upcl);
@@ -273,45 +273,44 @@ namespace internal {
       return llt_22.info() == Eigen::Success;
     }
 
-    bool lbfgsb_formk(LBfgs<LBfgsBImpl> &L) {
+    bool lbfgsb_formk(LBfgsBase &L, LBfgsBImpl &impl) {
       // Form the lower triangular part of
       //           WN1 = [Y' ZZ'Y   L_a'+R_z']
       //                 [L_a+R_z   S'AA'S   ]
       //    where L_a is the strictly lower triangular part of S'AA'Y
       //          R_z is the upper triangular part of S'ZZ'Y.
       if (L.updated())
-        formk_add_new_wn1(L);
+        formk_add_new_wn1(L, impl);
 
-      formk_update_wn1(L);
+      formk_update_wn1(L, impl);
 
       // Form the upper triangle of WN = [D+Y' ZZ'Y/theta   -L_a'+R_z' ]
       //                                 [-L_a +R_z        S'AA'S*theta]
-      formk_prepare_wn(L.wnt(), L.impl().wn1(), L.sy(), L.theta(), L.m(),
-                       L.col());
+      formk_prepare_wn(L.wnt(), impl.wn1(), L.sy(), L.theta(), L.m(), L.col());
 
       // Form the upper triangle of WN= [  LL'            L^-1(-L_a'+R_z')]
       //                                [(-L_a +R_z)L'^-1   S'AA'S*theta  ]
       return formk_factorize_wn(L.wnt(), L.col());
     }
 
-    bool lbfgsb_cmprlb(LBfgs<LBfgsBImpl> &L, const ArrayXd &gx) {
+    bool lbfgsb_cmprlb(LBfgsBase &L, LBfgsBImpl &impl, const ArrayXd &gx) {
       const auto &x = L.x();
       auto ws = L.ws(), wy = L.wy();
       auto sy = L.sy(), wtt = L.wtt();
       auto p = L.p(), c = L.c();
       const auto &z = L.z();
       auto smul = L.smul();
-      auto free = L.impl().free();
+      auto free = impl.free();
       const double theta = L.theta();
       const auto col = L.col();
-      const bool constrained = L.impl().constrained();
+      const bool constrained = impl.constrained();
 
       if (!constrained && col > 0) {
         L.r() = -gx;
         return true;
       }
 
-      auto r = L.r().head(L.impl().nfree()).matrix();
+      auto r = L.r().head(impl.nfree()).matrix();
       r = (theta * (x - z) - gx)(free);
 
       if (!lbfgs_bmv_impl(p, smul, c, sy, wtt))
@@ -324,14 +323,14 @@ namespace internal {
     }
   }  // namespace
 
-  bool LBfgsBImpl::prepare_lnsrch(LBfgs<LBfgsBImpl> &lbfgs, const ArrayXd &gx,
+  bool LBfgsBImpl::prepare_lnsrch(LBfgsBase &lbfgs, const ArrayXd &gx,
                                   double sbgnrm, int iter) {
     bool need_k;
     if (!constrained_ && lbfgs.col() > 0) {
       lbfgs.z() = lbfgs.x();
       need_k = lbfgs.updated();
     } else {
-      if (!lbfgsb_cauchy(lbfgs, gx, sbgnrm))
+      if (!lbfgsb_cauchy(lbfgs, *this, gx, sbgnrm))
         return false;
 
       need_k = freev(iter) || lbfgs.updated();
@@ -339,13 +338,13 @@ namespace internal {
 
     if (nfree_ > 0 && lbfgs.col() > 0) {
       if (need_k) {
-        if (!lbfgsb_formk(lbfgs))
+        if (!lbfgsb_formk(lbfgs, *this))
           return false;
       }
 
-      if (!lbfgsb_cmprlb(lbfgs, gx))
+      if (!lbfgsb_cmprlb(lbfgs, *this, gx))
         return false;
-      if (!lbfgsb_subsm(lbfgs, gx))
+      if (!lbfgsb_subsm(lbfgs, *this, gx))
         return false;
     }
 
@@ -461,20 +460,19 @@ namespace internal {
       bool z_is_gcp = false;
     };
 
-    CauchyHandleBreaksResult cauchy_handle_breaks(LBfgs<LBfgsBImpl> &L,
-                                                  double f1, double f2,
-                                                  const double f2_org,
-                                                  const bool bounded) {
+    CauchyHandleBreaksResult
+    cauchy_handle_breaks(LBfgsBase &L, LBfgsBImpl &impl, double f1, double f2,
+                         const double f2_org, const bool bounded) {
       const auto &x = L.x();
-      const auto &bounds = L.impl().bounds();
+      const auto &bounds = impl.bounds();
 
       auto ws = L.ws(), wy = L.wy();
       auto sy = L.sy(), wtt = L.wtt();
       auto p = L.p(), v = L.v(), c = L.c(), wbp = L.wbp();
       auto &xcp = L.z(), &d = L.d();
       auto smul = L.smul();
-      auto &iwhere = L.impl().iwhere();
-      auto &pq = L.impl().brks();
+      auto &iwhere = impl.iwhere();
+      auto &pq = impl.brks();
       const double theta = L.theta();
       const int col = L.col();
 
@@ -560,21 +558,21 @@ namespace internal {
     return true;
   }
 
-  bool lbfgsb_cauchy(LBfgs<LBfgsBImpl> &lbfgsb, const ArrayXd &gx,
+  bool lbfgsb_cauchy(LBfgsBase &lbfgsb, LBfgsBImpl &impl, const ArrayXd &gx,
                      double sbgnrm) {
     // NOLINTNEXTLINE(readability-identifier-naming)
     auto &L = lbfgsb;
 
     const auto &x = L.x();
-    const auto &bounds = L.impl().bounds();
+    const auto &bounds = impl.bounds();
 
     auto ws = L.ws(), wy = L.wy();
     auto sy = L.sy(), wtt = L.wtt();
     auto p = L.p(), v = L.v(), c = L.c();
     auto &xcp = L.xcp(), &d = L.d();
     auto smul = L.smul();
-    auto &iwhere = L.impl().iwhere();
-    auto &brks = L.impl().brks();
+    auto &iwhere = impl.iwhere();
+    auto &brks = impl.brks();
     const double theta = L.theta();
     const int col = L.col();
 
@@ -601,7 +599,7 @@ namespace internal {
     }
 
     auto [dtm, tsum, success, z_is_gcp] =
-        cauchy_handle_breaks(L, f1, f2, f2_org, bounded);
+        cauchy_handle_breaks(L, impl, f1, f2, f2_org, bounded);
     if (!success)
       return false;
 
@@ -616,22 +614,22 @@ namespace internal {
     return true;
   }
 
-  bool lbfgsb_subsm(LBfgs<LBfgsBImpl> &lbfgsb, const ArrayXd &gg) {
+  bool lbfgsb_subsm(LBfgsBase &lbfgsb, LBfgsBImpl &impl, const ArrayXd &gg) {
     // NOLINTNEXTLINE(readability-identifier-naming)
     auto &L = lbfgsb;
 
     auto &xx = L.x();
-    const auto &bounds = L.impl().bounds();
+    const auto &bounds = impl.bounds();
     auto wnt = L.wnt();
     auto ws = L.ws(), wy = L.wy();
     auto wv = L.p();
     auto &x = L.z(), &xp = L.xp();
-    auto d = L.r().head(L.impl().nfree()).matrix();
-    auto free = L.impl().free();
+    auto d = L.r().head(impl.nfree()).matrix();
+    auto free = impl.free();
     const double theta = L.theta();
 
     const int col = L.col();
-    const auto nsub = L.impl().free().size();
+    const auto nsub = impl.nfree();
     if (nsub <= 0)
       return true;
 
@@ -653,7 +651,7 @@ namespace internal {
 
     // -----------------------------------------------------
     // Let us try the projection, d is the Newton direction.
-    if (!L.impl().constrained()) {
+    if (!impl.constrained()) {
       x(free) += d.array();
       return true;
     }

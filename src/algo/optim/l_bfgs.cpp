@@ -55,8 +55,7 @@ namespace internal {
   }
 
   namespace {
-    bool lbfgs_cauchy(LBfgs<LBfgsImpl> &lbfgs, const ArrayXd &gx,
-                      double sbgnrm) {
+    bool lbfgs_cauchy(LBfgsBase &lbfgs, const ArrayXd &gx, double sbgnrm) {
       // NOLINTNEXTLINE(readability-identifier-naming)
       auto &L = lbfgs;
 
@@ -92,8 +91,8 @@ namespace internal {
       wn1.topLeftCorner(m, mm1) = wn1.bottomRightCorner(m, mm1);
     }
 
-    void formk_add_new_wn1(LBfgs<LBfgsImpl> &L) {
-      auto &wn1 = L.impl().wn1();
+    void formk_add_new_wn1(LBfgsBase &L, LBfgsImpl &impl) {
+      auto &wn1 = impl.wn1();
       auto ws = L.ws(), wy = L.wy();
       const auto prev_col = L.prev_col();
 
@@ -149,30 +148,30 @@ namespace internal {
       return llt_22.info() == Eigen::Success;
     }
 
-    bool lbfgs_formk(LBfgs<LBfgsImpl> &L) {
+    bool lbfgs_formk(LBfgsBase &L, LBfgsImpl &impl) {
       // Form the lower triangular part of
       //           WN1 = [Y' ZZ'Y   L_a'+R_z']
       //                 [L_a+R_z   S'AA'S   ]
       //    where L_a is the strictly lower triangular part of S'AA'Y
       //          R_z is the upper triangular part of S'ZZ'Y.
       if (L.updated())
-        formk_add_new_wn1(L);
+        formk_add_new_wn1(L, impl);
 
       // Form the upper triangle of WN = [D+Y' ZZ'Y/theta   -L_a'+R_z' ]
       //                                 [-L_a +R_z        S'AA'S*theta]
-      formk_prepare_wn(L.wnt(), L.impl().wn1(), L.sy(), L.theta(), L.col());
+      formk_prepare_wn(L.wnt(), impl.wn1(), L.sy(), L.theta(), L.col());
 
       // Form the upper triangle of WN= [  LL'            L^-1(-L_a'+R_z')]
       //                                [(-L_a +R_z)L'^-1   S'AA'S*theta  ]
       return formk_factorize_wn(L.wnt(), L.col());
     }
 
-    void lbfgs_cmprlb(LBfgs<LBfgsImpl> &L, const ArrayXd &gx) {
+    void lbfgs_cmprlb(LBfgsBase &L, const ArrayXd &gx) {
       ABSL_DCHECK_GT(L.col(), 0);
       L.r() = -gx;
     }
 
-    bool lbfgs_subsm(LBfgs<LBfgsImpl> &lbfgs) {
+    bool lbfgs_subsm(LBfgsBase &lbfgs) {
       // NOLINTNEXTLINE(readability-identifier-naming)
       auto &L = lbfgs;
 
@@ -208,14 +207,14 @@ namespace internal {
     }
   }  // namespace
 
-  bool LBfgsImpl::prepare_lnsrch(LBfgs<LBfgsImpl> &lbfgs, const ArrayXd &gx,
+  bool LBfgsImpl::prepare_lnsrch(LBfgsBase &lbfgs, const ArrayXd &gx,
                                  double sbgnrm, int /* iter */) {
     if (lbfgs.col() == 0)
       return lbfgs_cauchy(lbfgs, gx, sbgnrm);
 
     lbfgs.z() = lbfgs.x();
 
-    if (lbfgs.updated() && !lbfgs_formk(lbfgs))
+    if (lbfgs.updated() && !lbfgs_formk(lbfgs, *this))
       return false;
 
     lbfgs_cmprlb(lbfgs, gx);

@@ -286,7 +286,7 @@ TEST(LBFGSBTest, Cauchy) {
     lbfgsb.wtt() = wtts[i];
     lbfgsb.v() = vs.col(i);
 
-    bool success = lbfgsb_cauchy(lbfgsb, g.col(i), 0.5);
+    bool success = lbfgsb_cauchy(lbfgsb, lbfgsb.impl(), g.col(i), 0.5);
     ASSERT_TRUE(success);
 
     NURI_EXPECT_EIGEN_EQ(lbfgsb.xcp(), xcpans.col(i));
@@ -440,7 +440,7 @@ TEST(LBFGSBTest, Subsm) {
     lbfgsb.ws() = wss[i];
     lbfgsb.wy() = wys[i];
 
-    bool success = lbfgsb_subsm(lbfgsb, gs.col(i));
+    bool success = lbfgsb_subsm(lbfgsb, lbfgsb.impl(), gs.col(i));
     ASSERT_TRUE(success);
 
     double tol = i == 2 ? 1e-1 : 1e-3;

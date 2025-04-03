@@ -469,8 +469,8 @@ namespace internal {
 
     void reset();
 
-    bool prepare_lnsrch(LBfgs<LBfgsBImpl> &lbfgsb, const ArrayXd &gx,
-                        double sbgnrm, int iter);
+    bool prepare_lnsrch(LBfgsBase &lbfgsb, const ArrayXd &gx, double sbgnrm,
+                        int iter);
 
     double projgr(ConstRef<ArrayXd> x, const ArrayXd &gx);
 
@@ -525,10 +525,11 @@ namespace internal {
   extern bool lbfgsb_errclb(const ArrayXd &x, const ArrayXi &nbd,
                             const Array2Xd &bounds, int m, double factr);
 
-  extern bool lbfgsb_cauchy(LBfgs<LBfgsBImpl> &lbfgsb, const ArrayXd &gx,
-                            double sbgnrm);
+  extern bool lbfgsb_cauchy(LBfgsBase &lbfgsb, LBfgsBImpl &impl,
+                            const ArrayXd &gx, double sbgnrm);
 
-  extern bool lbfgsb_subsm(LBfgs<LBfgsBImpl> &lbfgsb, const ArrayXd &gg);
+  extern bool lbfgsb_subsm(LBfgsBase &lbfgsb, LBfgsBImpl &impl,
+                           const ArrayXd &gg);
 }  // namespace internal
 
 /**
@@ -670,8 +671,8 @@ namespace internal {
 
     static void reset() { }
 
-    static bool prepare_lnsrch(LBfgs<LBfgsImpl> &lbfgs, const ArrayXd &gx,
-                               double sbgnrm, int iter);
+    bool prepare_lnsrch(LBfgsBase &lbfgs, const ArrayXd &gx, double sbgnrm,
+                        int iter);
 
     static double projgr(ConstRef<ArrayXd> x, const ArrayXd &gx);
 
