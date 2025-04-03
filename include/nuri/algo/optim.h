@@ -271,6 +271,7 @@ public:
   LbfgsResult minimize(FuncGrad fg, double factr = 1e+7, double pgtol = 1e-5,
                        int maxiter = 15000, int maxls = 20);
 
+  //! @private
   Impl &impl() { return impl_; }
 
 private:
