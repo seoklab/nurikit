@@ -14,6 +14,11 @@ on:
         description: "Version to emulate"
         required: false
         default: ""
+      minimal:
+        type: boolean
+        description: "Minimal build"
+        required: false
+        default: false
   push:
     branches:
       - main
@@ -56,6 +61,7 @@ jobs:
     with:
       python: ${{ matrix.pyver }}-${{ matrix.os }}
       cpp_test: ${{ matrix.pyver == 'cp38' }}
+      minimal: ${{ inputs.minimal }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

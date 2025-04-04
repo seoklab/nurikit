@@ -14,6 +14,10 @@ on:
       version:
         type: string
         required: true
+      minimal:
+        type: boolean
+        required: false
+        default: false
 
 defaults:
   run:
@@ -35,6 +39,7 @@ jobs:
     uses: ./.github/workflows/wheels-matrix.yaml
     with:
       emulate-version: ${{ github.event.inputs.version }}
+      minimal: ${{ github.event.inputs.minimal }}
 
   publish:
     needs: [run-clang-tools, test, build]
