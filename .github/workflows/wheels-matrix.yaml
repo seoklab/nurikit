@@ -53,15 +53,26 @@ jobs:
       matrix:
         pyver: ["cp37", "cp38", "cp39", "cp310", "cp311", "cp312", "cp313"]
         os: ["manylinux_x86_64", "macosx_x86_64", "macosx_arm64"]
+        minimal: ${{ inputs.minimal }}
         exclude:
           - pyver: "cp37"
             os: "macosx_arm64"
+          - minimal: true
+        include:
+          - pyver: "cp38"
+            os: "manylinux_x86_64"
+            minimal: true
+          - pyver: "cp38"
+            os: "macosx_x86_64"
+            minimal: true
+          - pyver: "cp38"
+            os: "macosx_arm64"
+            minimal: true
 
     uses: ./.github/workflows/_wheel-build.yaml
     with:
       python: ${{ matrix.pyver }}-${{ matrix.os }}
       cpp_test: ${{ matrix.pyver == 'cp38' }}
-      minimal: ${{ inputs.minimal }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

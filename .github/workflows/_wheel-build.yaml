@@ -17,11 +17,6 @@ on:
         description: "Run C++ tests"
         required: false
         default: false
-      minimal:
-        type: boolean
-        description: "Minimal build"
-        required: false
-        default: false
 
 defaults:
   run:
@@ -31,7 +26,6 @@ jobs:
   build:
     name: Wheel for ${{ inputs.python }}
     runs-on: ${{ contains(inputs.python, 'linux') && 'ubuntu-latest' || 'macos-latest' }}
-    if: ${{ !inputs.minimal || inputs.cpp_test }}
     steps:
       - if: ${{ contains(inputs.python, 'linux') }}
         run: sudo apt-get install -y libeigen3-dev
