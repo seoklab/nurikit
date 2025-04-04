@@ -9,6 +9,15 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        required: true
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   run-clang-tools:
@@ -24,12 +33,63 @@ jobs:
 
   build:
     uses: ./.github/workflows/wheels-matrix.yaml
+    with:
+      emulate-version: ${{ github.event.inputs.version }}
 
   publish:
     needs: [run-clang-tools, test, build]
-    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
-    uses: ./.github/workflows/_pypi-publish.yaml
+    runs-on: ubuntu-latest
+
+    environment:
+      name: ${{ github.event_name == 'push' && 'release' || 'staging' }}
+      url: ${{ github.event_name == 'push' && 'https://pypi.org/' || 'https://test.pypi.org/' }}/p/nurikit
+
+    permissions:
+      id-token: write
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: |
+            sdist
+            cibw-wheels-*
+          path: dist
+          merge-multiple: true
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+          repository-url: ${{ github.event_name == 'push' && 'https://upload.pypi.org/legacy/' || 'https://test.pypi.org/legacy/' }}
+          skip-existing: ${{ github.event_name == 'workflow_dispatch' }}
+
+      # https://packaging.python.org/en/latest/specifications/version-specifiers/#public-version-identifiers
+      # Check if the version ends with a/b/rc or .dev (could also include post release number)
+      - id: prerelease-check
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          regex='((a|b|rc)([[:digit:]]+\.post)?|\.dev)[[:digit:]]+$'
+
+          if grep -E "$regex" <<<"$GITHUB_REF"; then
+            echo prerelease=true >> $GITHUB_OUTPUT
+          else
+            echo prerelease=false >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_REF: ${{ github.ref }}
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: "dist/*"
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          prerelease: ${{ steps.prerelease-check.outputs.prerelease == 'true' }}
 
 concurrency:
   group: release-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}

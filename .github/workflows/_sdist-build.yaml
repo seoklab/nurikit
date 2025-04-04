@@ -7,6 +7,12 @@ name: Build sdist
 
 on:
   workflow_call:
+    inputs:
+      emulate-version:
+        type: string
+        description: "Version to emulate"
+        required: false
+        default: ""
 
 defaults:
   run:
@@ -27,6 +33,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - if: ${{ inputs.emulate-version != '' }}
+        run: git tag "$version" -m "Emulated version"
+        env:
+          version: ${{ inputs.emulate-version }}
 
       - name: Configure with cmake
         run: cmake -DCMAKE_BUILD_TYPE=Release -S . -B build -G Ninja
