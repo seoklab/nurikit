@@ -35,7 +35,10 @@ jobs:
           submodules: recursive
 
       - if: ${{ inputs.emulate-version != '' }}
-        run: git tag "$version" -m "Emulated version"
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git tag "$version" -m "Emulated version"
         env:
           version: ${{ inputs.emulate-version }}
 
