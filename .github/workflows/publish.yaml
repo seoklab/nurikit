@@ -61,9 +61,13 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          pattern: |
-            sdist
-            cibw-wheels-*
+          name: sdist
+          path: dist
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cibw-wheels-*
           path: dist
           merge-multiple: true
 
