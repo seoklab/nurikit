@@ -94,7 +94,7 @@ build-verbosity = 1
 test-extras = ["test", "docs"]
 test-command = [
     "pytest -v -s {project}/python/test",
-    "cmake -S {project} -B .",
+    "cmake -S {project} -B . -DSKBUILD=ON",
     "cmake --build . --target nuri_python_docs_doctest -j",
 ]
 
