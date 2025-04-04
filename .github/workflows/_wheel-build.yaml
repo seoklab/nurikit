@@ -51,13 +51,11 @@ jobs:
           # macOS -> universal binary at least from 3.19.7
           cmakeVersion: ${{ contains(inputs.python, 'linux') && '~3.22.0' || '3.19.7' }}
 
-      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          submodules: recursive
+          name: sdist
 
-      - name: Configure with cmake
-        run: |
-          cmake -DCMAKE_BUILD_TYPE=Release -S . -B build -G Ninja
+      - run: tar -xf *.tar* -C . --strip-components=1
 
       - if: ${{ inputs.cpp_test }}
         run: |

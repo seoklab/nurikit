@@ -8,11 +8,18 @@ name: Build wheels in matrix
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      emulate-version:
+        type: string
+        description: "Version to emulate"
+        required: false
+        default: ""
   push:
     branches:
       - main
     paths:
       - ".github/workflows/wheels-matrix.yaml"
+      - ".github/workflows/_sdist-build.yaml"
       - ".github/workflows/_wheel-build.yaml"
       - "cmake/**"
       - "include/**"
@@ -28,7 +35,14 @@ defaults:
     shell: bash
 
 jobs:
+  sdist:
+    uses: ./.github/workflows/_sdist-build.yaml
+    with:
+      emulate-version: ${{ inputs.emulate-version }}
+
   build:
+    needs: sdist
+
     strategy:
       fail-fast: false
       matrix:

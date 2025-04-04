@@ -1,0 +1,51 @@
+#
+# Project NuriKit - Copyright 2025 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+name: Build sdist
+
+on:
+  workflow_call:
+    inputs:
+      emulate-version:
+        type: string
+        description: "Version to emulate"
+        required: false
+        default: ""
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: "ubuntu-latest"
+
+    steps:
+      - run: sudo apt-get install -y libeigen3-dev
+
+      - uses: lukka/get-cmake@latest
+        with:
+          # Ubuntu 22.04
+          cmakeVersion: "~3.22.0"
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - if: ${{ inputs.emulate-version != '' }}
+        run: git tag "$version" -m "Emulated version"
+        env:
+          version: ${{ inputs.emulate-version }}
+
+      - name: Configure with cmake
+        run: cmake -DCMAKE_BUILD_TYPE=Release -S . -B build -G Ninja
+
+      - run: pipx run build --sdist
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*

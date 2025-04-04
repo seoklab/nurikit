@@ -61,9 +61,17 @@ ninja.make-fallback = false
 cmake.minimum-version = "@CMAKE_MINIMUM_REQUIRED_VERSION@"
 cmake.build-type = "@CMAKE_BUILD_TYPE@"
 
-sdist.include = ["*.pyi"]
-sdist.exclude = ["*.h", "*.cpp", "*.in", "*.so"]
+sdist.include = ["/third-party", "/pyproject.toml", "*.pyi"]
+sdist.exclude = [
+    "/fuzz/corpus-min",
+    "/scripts",
+    "/pyproject.toml.in",
+    "cmake-variants.json",
+    "gcovr.cfg",
+    ".*",
+]
 wheel.packages = ["python/src/nuri"]
+wheel.exclude = ["*.h", "*.cpp", "*.in"]
 wheel.install-dir = "nuri"
 install.strip = true
 
@@ -86,7 +94,7 @@ build-verbosity = 1
 test-extras = ["test", "docs"]
 test-command = [
     "pytest -v -s {project}/python/test",
-    "cmake -S {project} -B .",
+    "cmake -S {project} -B . -DSKBUILD=ON",
     "cmake --build . --target nuri_python_docs_doctest -j",
 ]
 
