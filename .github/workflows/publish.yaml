@@ -80,7 +80,6 @@ jobs:
       # https://packaging.python.org/en/latest/specifications/version-specifiers/#public-version-identifiers
       # Check if the version ends with a/b/rc or .dev (could also include post release number)
       - id: prerelease-check
-        if: ${{ github.event_name == 'push' }}
         run: |
           regex='((a|b|rc)([[:digit:]]+\.post)?|\.dev)[[:digit:]]+$'
 
@@ -93,6 +92,7 @@ jobs:
           GITHUB_REF: ${{ github.ref }}
 
       - uses: softprops/action-gh-release@v2
+        if: ${{ github.event_name == 'push' }}
         with:
           files: "dist/*"
           fail_on_unmatched_files: true
