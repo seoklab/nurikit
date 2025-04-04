@@ -13,6 +13,7 @@ on:
       - main
     paths:
       - ".github/workflows/wheels-matrix.yaml"
+      - ".github/workflows/_sdist-build.yaml"
       - ".github/workflows/_wheel-build.yaml"
       - "cmake/**"
       - "include/**"
@@ -28,7 +29,12 @@ defaults:
     shell: bash
 
 jobs:
+  sdist:
+    uses: ./.github/workflows/_sdist-build.yaml
+
   build:
+    needs: sdist
+
     strategy:
       fail-fast: false
       matrix:
