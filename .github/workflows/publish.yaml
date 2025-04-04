@@ -47,7 +47,7 @@ jobs:
 
     environment:
       name: ${{ github.event_name == 'push' && 'release' || 'staging' }}
-      url: ${{ github.event_name == 'push' && 'https://pypi.org/' || 'https://test.pypi.org/' }}/p/nurikit
+      url: ${{ github.event_name == 'push' && 'https://pypi.org' || 'https://test.pypi.org' }}/p/nurikit
 
     permissions:
       id-token: write
