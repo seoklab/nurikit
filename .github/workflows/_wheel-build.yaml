@@ -55,6 +55,8 @@ jobs:
         with:
           name: sdist
 
+      - run: tar -xf *.tar* -C . --strip-components=1
+
       - if: ${{ inputs.cpp_test }}
         run: |
           echo "SKBUILD_CMAKE_DEFINE=NURI_POSTINSTALL_TEST=ON" >>$GITHUB_ENV
