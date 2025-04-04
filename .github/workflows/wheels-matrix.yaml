@@ -62,13 +62,10 @@ jobs:
         include:
           - pyver: "cp38"
             os: "manylinux_x86_64"
-            minimal: true
           - pyver: "cp38"
             os: "macosx_x86_64"
-            minimal: true
           - pyver: "cp38"
             os: "macosx_arm64"
-            minimal: true
 
     uses: ./.github/workflows/_wheel-build.yaml
     with:
