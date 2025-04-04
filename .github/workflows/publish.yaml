@@ -39,7 +39,7 @@ jobs:
     uses: ./.github/workflows/wheels-matrix.yaml
     with:
       emulate-version: ${{ github.event.inputs.version }}
-      minimal: ${{ github.event.inputs.minimal }}
+      minimal: ${{ github.event.inputs.minimal == 'true' }}
 
   publish:
     needs: [run-clang-tools, test, build]
