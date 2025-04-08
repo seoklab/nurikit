@@ -1,0 +1,15 @@
+#
+# Project NuriKit - Copyright 2025 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+[general]
+ignore=B5,B6
+contrib=CT1
+regex-style-search=true
+
+[body-max-line-length]
+line-length=72
+
+[ignore-by-author-name]
+regex=\[bot\]

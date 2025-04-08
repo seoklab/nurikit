@@ -25,22 +25,20 @@ jobs:
     if: ${{ !endsWith(github.triggering_actor, '[bot]') }}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - run: pip install -U gitlint
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-
-      - name: Install commitlint
-        run: npm install commitlint@latest
-
       - name: Validate commit messages
         run: |
-          npx commitlint --verbose \
-            --from ${{ github.event.pull_request.base.sha }} \
-            --to ${{ github.event.pull_request.head.sha }}
+          gitlint --commits \
+            ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

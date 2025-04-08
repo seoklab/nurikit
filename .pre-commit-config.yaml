@@ -29,10 +29,10 @@ repos:
       - id: mixed-line-ending
         exclude: ^(test/test_data/|fuzz/corpus-min/)
         args: ["--fix=lf"]
-  - repo: https://github.com/seoklab/shared-hooks
-    rev: v0.1.4
+  - repo: https://github.com/jorisroovers/gitlint
+    rev: v0.19.1
     hooks:
-      - id: commitlint
+      - id: gitlint
 default_install_hook_types:
   - pre-commit
   - pre-push
