@@ -15,6 +15,9 @@ defaults:
   run:
     shell: bash
 
+env:
+  SKBUILD_CMAKE_ARGS: "-DNURI_BUILD_PYTHON_STUBS=OFF"
+
 jobs:
   coverage:
     if: ${{ !endsWith(github.triggering_actor, '[bot]') }}
