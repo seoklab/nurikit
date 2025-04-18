@@ -42,8 +42,9 @@ option(NURI_TEST_COVERAGE "Enable coverage build" OFF)
 option(NURI_ENABLE_SANITIZERS "Enable sanitizers for debug build" OFF)
 option(NURI_BUILD_FUZZING "Enable fuzzing build" OFF)
 
+option(NURI_BUILD_PYTHON_STUBS "Build python stub files" OFF)
 set(NURI_FORCE_VERSION "" CACHE STRING "Set NuriKit version to this value")
-mark_as_advanced(NURI_FORCE_VERSION)
+mark_as_advanced(NURI_BUILD_PYTHON_STUBS NURI_FORCE_VERSION)
 
 # cmake includes
 file(
