@@ -3,44 +3,60 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+include(CPM)
+include(GNUInstallDirs)
 include(NuriKitUtils)
 
-find_or_fetch_eigen()
-find_or_fetch_spectra()
+CPMFindPackage(
+  NAME Spectra
+  VERSION 1.0
+  OPTIONS "BUILD_TESTING OFF"
+  GIT_REPOSITORY https://github.com/yixuan/spectra.git
+  GIT_TAG v1.0.1
+  EXCLUDE_FROM_ALL ON
+  SYSTEM ON
+)
 
-include(GNUInstallDirs)
+if(NOT TARGET Spectra::Spectra)
+  add_library(Spectra::Spectra ALIAS Spectra)
+endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY
-  "${PROJECT_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}")
+  "${PROJECT_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}"
+)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY
-  "${PROJECT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
+  "${PROJECT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}"
+)
 
 file(GLOB_RECURSE NURI_SRCS *.cpp)
 list(FILTER NURI_SRCS EXCLUDE REGEX "main\.cpp$")
 
-if(NOT NURI_SRCS)
-  message(FATAL_ERROR "No source files found for nuri")
+add_library(NuriLib SHARED "${NURI_SRCS}")
+add_library("${PROJECT_NAME}::NuriLib" ALIAS NuriLib)
+
+target_compile_features(NuriLib PUBLIC cxx_std_17)
+target_compile_definitions(NuriLib
+  PUBLIC
+  $<$<CONFIG:Debug>:NURI_DEBUG;EIGEN_RUNTIME_NO_MALLOC>
+)
+
+if(ABSL_USES_OLD_ABI)
+  target_compile_definitions(NuriLib PUBLIC _GLIBCXX_USE_CXX11_ABI=0)
 endif()
 
-add_library(nuri_lib SHARED "${NURI_SRCS}")
-set_target_properties(nuri_lib PROPERTIES OUTPUT_NAME nuri)
-target_link_libraries(nuri_lib
+target_link_libraries(NuriLib
   PUBLIC
-  absl::strings
-  absl::flat_hash_map
-  absl::absl_check
-  absl::absl_log
-)
-target_system_include_directories(nuri_lib
   Eigen3::Eigen
-  Spectra::Spectra
+  Boost::headers
   absl::strings
   absl::flat_hash_map
-  absl::absl_log
   absl::absl_check
+  absl::absl_log
+  PRIVATE
+  Spectra::Spectra
 )
-handle_boost_dependency(nuri_lib)
-clear_coverage_data(nuri_lib)
+set_target_properties(NuriLib PROPERTIES OUTPUT_NAME nuri)
+clear_coverage_data(NuriLib)
 
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
   list(APPEND NURI_LIBRARY_FLAGS
@@ -59,16 +75,33 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 if(NURI_LIBRARY_FLAGS)
-  target_compile_options(nuri_lib PRIVATE ${NURI_LIBRARY_FLAGS})
-  target_link_options(nuri_lib PRIVATE ${NURI_LIBRARY_FLAGS})
+  target_compile_options(NuriLib PRIVATE ${NURI_LIBRARY_FLAGS})
+  target_link_options(NuriLib PRIVATE ${NURI_LIBRARY_FLAGS})
 endif()
 
-add_executable(nuri_exe "main.cpp")
-set_target_properties(nuri_exe
-  PROPERTIES
-  OUTPUT_NAME nuri
-  INSTALL_RPATH "${NURI_RPATH_PREFIX}/../${CMAKE_INSTALL_LIBDIR}")
-target_link_libraries(nuri_exe PRIVATE nuri_lib absl::log_initialize)
+add_executable(NuriExe "main.cpp")
+set_target_properties(NuriExe PROPERTIES OUTPUT_NAME nuri)
+target_link_libraries(NuriExe PRIVATE NuriLib absl::log_initialize)
 
-install(TARGETS nuri_lib LIBRARY)
-install(TARGETS nuri_exe RUNTIME)
+if(NURI_INSTALL_RPATH)
+  set_target_properties(
+    NuriExe
+    PROPERTIES
+    INSTALL_RPATH "${NURI_RPATH_PREFIX}/../${CMAKE_INSTALL_LIBDIR}"
+  )
+endif()
+
+if(NOT SKBUILD)
+  install(
+    TARGETS NuriLib NuriExe
+    EXPORT "${PROJECT_NAME}Targets"
+    INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+  )
+  install(
+    EXPORT "${PROJECT_NAME}Targets"
+    NAMESPACE "${PROJECT_NAME}::"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
+  )
+endif()

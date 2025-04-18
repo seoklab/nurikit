@@ -19,9 +19,3 @@ updates:
     groups:
       ci-deps:
         patterns: ["*"]
-  - package-ecosystem: "gitsubmodule"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      time: "10:00"
-      timezone: "Asia/Seoul"

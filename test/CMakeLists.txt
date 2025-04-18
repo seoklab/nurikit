@@ -5,6 +5,9 @@
 
 include(NuriKitTest)
 
+add_custom_target(NuriAllTest ALL)
+clear_coverage_data(NuriAllTest)
+
 add_compile_options(-Wno-error)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
