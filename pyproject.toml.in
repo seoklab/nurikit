@@ -110,7 +110,7 @@ cmake -S {project} -B . \
 ]
 
 [tool.cibuildwheel.config-settings]
-"cmake.verbose" = "true"
+"build.verbose" = "true"
 
 [tool.cibuildwheel.linux]
 environment-pass = ["SKBUILD_CMAKE_ARGS"]
