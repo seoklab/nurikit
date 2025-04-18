@@ -144,47 +144,49 @@ if(NURI_ENABLE_SANITIZERS)
 endif()
 
 # Find/download dependencies
-find_or_fetch_abseil()
+if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON)
+  find_or_fetch_abseil()
 
-CPMFindPackage(
-  NAME Eigen3
-  VERSION 3.4
-  OPTIONS
-  "BUILD_TESTING OFF"
-  "EIGEN_BUILD_DOC OFF"
-  "EIGEN_BUILD_PKGCONFIG OFF"
-  GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-  GIT_TAG 3.4.0
-  EXCLUDE_FROM_ALL ON
-  SYSTEM ON
-)
-
-set(Boost_USE_STATIC_LIBS ON)
-set(Boost_USE_MULTITHREADED ON)
-set(Boost_USE_STATIC_RUNTIME OFF)
-CPMFindPackage(
-  NAME Boost
-  VERSION 1.82
-  OPTIONS
-  "BUILD_TESTING OFF"
-  "BOOST_ENABLE_CMAKE ON"
-  "BOOST_SKIP_INSTALL_RULES OFF"
-  "BOOST_ENABLE_COMPATIBILITY_TARGETS ON"
-  "BOOST_INCLUDE_LIBRARIES \
-spirit\\\;fusion\\\;optional\\\;container\\\;iterator\\\;range"
-  URL "https://github.com/boostorg/boost/releases/download/boost-1.87.0/boost-1.87.0-cmake.tar.xz"
-  EXCLUDE_FROM_ALL ON
-  SYSTEM ON
-)
-
-if(BUILD_TESTING)
   CPMFindPackage(
-    NAME GTest
-    VERSION 1.16.0
-    GIT_REPOSITORY https://github.com/google/googletest.git
+    NAME Eigen3
+    VERSION 3.4
+    OPTIONS
+    "BUILD_TESTING OFF"
+    "EIGEN_BUILD_DOC OFF"
+    "EIGEN_BUILD_PKGCONFIG OFF"
+    GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+    GIT_TAG 3.4.0
     EXCLUDE_FROM_ALL ON
     SYSTEM ON
   )
+
+  set(Boost_USE_STATIC_LIBS ON)
+  set(Boost_USE_MULTITHREADED ON)
+  set(Boost_USE_STATIC_RUNTIME OFF)
+  CPMFindPackage(
+    NAME Boost
+    VERSION 1.82
+    OPTIONS
+    "BUILD_TESTING OFF"
+    "BOOST_ENABLE_CMAKE ON"
+    "BOOST_SKIP_INSTALL_RULES OFF"
+    "BOOST_ENABLE_COMPATIBILITY_TARGETS ON"
+    "BOOST_INCLUDE_LIBRARIES \
+spirit\\\;fusion\\\;optional\\\;container\\\;iterator\\\;range"
+    URL "https://github.com/boostorg/boost/releases/download/boost-1.87.0/boost-1.87.0-cmake.tar.xz"
+    EXCLUDE_FROM_ALL ON
+    SYSTEM ON
+  )
+
+  if(BUILD_TESTING)
+    CPMFindPackage(
+      NAME GTest
+      VERSION 1.16.0
+      GIT_REPOSITORY https://github.com/google/googletest.git
+      EXCLUDE_FROM_ALL ON
+      SYSTEM ON
+    )
+  endif()
 endif()
 
 # Coverage & fuzzing
