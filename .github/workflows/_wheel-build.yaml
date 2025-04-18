@@ -40,12 +40,12 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          pattern: libnuri-${{ contains(inputs.python, 'linux') && 'linux' || 'macosx' }}
+          name: libnuri-${{ contains(inputs.python, 'linux') && 'linux' || 'macosx' }}
           path: dist
 
       - run: |
-          tar -xvf *.tar* -C . --strip-components=1
-          cd dist && tar -xvf *.tar* -C . --strip-components=1
+          tar -xvf *.tar* --strip-components=1
+          tar -xvf dist/*.tar* -C dist
 
       - uses: pypa/cibuildwheel@v2.23.2
         env:
