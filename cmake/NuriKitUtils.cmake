@@ -25,8 +25,7 @@ macro(_nuri_get_git_version_impl)
 
   if(git_result EQUAL 0)
     string(STRIP "${NURI_REF}" NURI_REF)
-    string(REGEX REPLACE "^v" "" NURI_VERSION "${NURI_REF}")
-    set(NURI_FULL_VERSION "${NURI_VERSION}")
+    string(REGEX REPLACE "^v" "" NURI_FULL_VERSION "${NURI_REF}")
     message(STATUS "NuriKit version from git: ${NURI_FULL_VERSION}")
   else()
     execute_process(
@@ -47,7 +46,6 @@ function(nuri_get_version)
   if(SKBUILD)
     # Version correctly set via scikit-build-core; skip git versioning.
     set(NURI_FULL_VERSION "${SKBUILD_PROJECT_VERSION_FULL}")
-    string(REGEX REPLACE "\\+.+$" "" NURI_VERSION "${NURI_FULL_VERSION}")
     message(
       STATUS "NuriKit version from scikit-build-core: ${NURI_FULL_VERSION}"
     )
@@ -57,8 +55,7 @@ function(nuri_get_version)
 
   if(NURI_FORCE_VERSION)
     message(STATUS "Using explicit NuriKit version: ${NURI_FORCE_VERSION}")
-    set(NURI_VERSION "${NURI_FORCE_VERSION}")
-    set(NURI_FULL_VERSION "${NURI_VERSION}")
+    set(NURI_FULL_VERSION "${NURI_FORCE_VERSION}")
   endif()
 
   if(NURI_REF)
@@ -76,13 +73,15 @@ function(nuri_get_version)
   endif()
 
   if(NOT NURI_FULL_VERSION)
-    set(NURI_VERSION "0.1.0.dev0")
-    set(NURI_FULL_VERSION "${NURI_VERSION}+${nuri_revision}")
+    set(NURI_FULL_VERSION "0.1.0.dev0+${nuri_revision}")
     message(NOTICE "NuriKit version not found! Using ${NURI_FULL_VERSION}")
   endif()
 
-  string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+"
-    NURI_CORE_VERSION "${NURI_VERSION}")
+  string(REGEX REPLACE "\\+.+$" "" NURI_VERSION "${NURI_FULL_VERSION}")
+  string(
+    REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+"
+    NURI_CORE_VERSION "${NURI_VERSION}"
+  )
 
   string(TIMESTAMP NURI_YEAR "%Y" UTC)
   set(NURI_YEAR "${NURI_YEAR}" PARENT_SCOPE)

@@ -5,9 +5,6 @@
 
 version: 2
 
-submodules:
-  include: all
-
 build:
   os: ubuntu-22.04
   tools:
@@ -36,7 +33,7 @@ build:
           -DNURI_BUILD_PYTHON=ON \
           -DNURI_ENABLE_IPO=OFF \
           -DNURI_OPTIMIZATION_LEVEL=O0
-      - cmake --build build --target nuri_docs
+      - cmake --build build --target NuriDocs
 
 conda:
   environment: docs/environment.yaml

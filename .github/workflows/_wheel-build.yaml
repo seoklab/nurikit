@@ -12,11 +12,6 @@ on:
         type: string
         description: "Python version"
         required: true
-      cpp_test:
-        type: boolean
-        description: "Run C++ tests"
-        required: false
-        default: false
 
 defaults:
   run:
@@ -27,18 +22,6 @@ jobs:
     name: Wheel for ${{ inputs.python }}
     runs-on: ${{ contains(inputs.python, 'linux') && 'ubuntu-latest' || 'macos-latest' }}
     steps:
-      - if: ${{ contains(inputs.python, 'linux') }}
-        run: sudo apt-get install -y libeigen3-dev
-
-      - if: ${{ contains(inputs.python, 'macosx') }}
-        run: brew install eigen spectra boost pybind11 ninja
-
-      - if: ${{ contains(inputs.python, 'macosx') }}
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          # XCode 15.4 fails to build abseil correctly
-          xcode-version: latest-stable
-
       # https://github.com/pypa/cibuildwheel/issues/954
       - if: ${{ inputs.python == 'cp38-macosx_arm64' }}
         run: |
@@ -55,47 +38,20 @@ jobs:
         with:
           name: sdist
 
-      - run: tar -xf *.tar* -C . --strip-components=1
-
-      - if: ${{ inputs.cpp_test }}
-        run: |
-          echo "SKBUILD_CMAKE_DEFINE=NURI_POSTINSTALL_TEST=ON" >>$GITHUB_ENV
-          echo "CIBW_ENVIRONMENT_PASS_LINUX=SKBUILD_CMAKE_DEFINE" >>$GITHUB_ENV
-
-      - if: ${{ contains(inputs.python, 'linux') }}
-        uses: pypa/cibuildwheel@v2.23.2
-        env:
-          CIBW_BUILD: ${{ inputs.python }}
-          CIBW_ARCHS: "all"
-
-      - if: ${{ contains(inputs.python, 'macosx') }}
-        id: set-arch
-        run: |
-          if [[ ${{ inputs.python }} == *x86_64 ]]; then
-            echo "BLD_ARCH=x86_64" >>$GITHUB_ENV
-            echo "python_arch=x64" >>$GITHUB_OUTPUT
-          elif [[ ${{ inputs.python }} == *arm64 ]]; then
-            echo "BLD_ARCH=arm64" >>$GITHUB_ENV
-            echo "python_arch=arm64" >>$GITHUB_OUTPUT
-          else
-            echo "Unknown architecture: ${{ inputs.python }}" >&2
-            exit 1
-          fi
-
-      - if: ${{ contains(inputs.python, 'macosx') }}
-        uses: actions/setup-python@v5
+      - uses: actions/download-artifact@v4
         with:
-          python-version: "3.x"
-          architecture: ${{ steps.set-arch.outputs.python_arch }}
+          pattern: libnuri-${{ contains(inputs.python, 'linux') && 'linux' || 'macosx' }}
+          path: dist
 
-      - if: ${{ contains(inputs.python, 'macosx') }}
-        run: |
-          arch "-$BLD_ARCH" python3 -m pip install -U cibuildwheel
-          arch "-$BLD_ARCH" python3 -m cibuildwheel --output-dir wheelhouse
+      - run: |
+          tar -xvf *.tar* -C . --strip-components=1
+          cd dist && tar -xvf *.tar* -C . --strip-components=1
+
+      - uses: pypa/cibuildwheel@v2.23.2
         env:
           CIBW_BUILD: ${{ inputs.python }}
           CIBW_ARCHS: "all"
-          MACOSX_DEPLOYMENT_TARGET: "10.15"
+          SKBUILD_CMAKE_ARGS: "-DCMAKE_PREFIX_PATH={project}/dist;-DNURI_BUILD_LIB=OFF"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4

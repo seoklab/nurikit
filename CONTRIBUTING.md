@@ -79,7 +79,7 @@ need to install it again if you're developing on the cluster.
 To build NuriKit, you MUST clone the repository:
 
 ```shellscript
-git clone --recurse-submodules git@github.com:seoklab/nurikit.git
+git clone git@github.com:seoklab/nurikit.git
 ```
 
 Then you can build NuriKit using CMake:

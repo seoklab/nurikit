@@ -29,10 +29,11 @@ project(NuriKit VERSION "${NURI_CORE_VERSION}" LANGUAGES CXX)
 
 option(NURI_BUILD_LIB "Build NuriKit library" ON)
 option(NURI_BUILD_PYTHON "Build Python bindings" ON)
-option(NURI_PREBUILT_ABSL "Download prebuilt abseil binary" ON)
-
 option(NURI_BUILD_DOCS "Build documentation" OFF)
 option(NURI_BUILD_PYTHON_DOCS "Build python documentation" OFF)
+
+option(NURI_PREBUILT_ABSL "Download prebuilt abseil binary" ON)
+option(NURI_INSTALL_RPATH "Install with RPATH" ON)
 
 set(NURI_OPTIMIZATION_LEVEL "O3" CACHE STRING "Optimization level")
 option(NURI_ENABLE_IPO "Do interprocedural optimization" ON)
@@ -40,7 +41,6 @@ option(NURI_ENABLE_IPO "Do interprocedural optimization" ON)
 option(NURI_TEST_COVERAGE "Enable coverage build" OFF)
 option(NURI_ENABLE_SANITIZERS "Enable sanitizers for debug build" OFF)
 option(NURI_BUILD_FUZZING "Enable fuzzing build" OFF)
-option(NURI_INSTALL_RPATH "Install with RPATH" ON)
 
 set(NURI_FORCE_VERSION "" CACHE STRING "Set NuriKit version to this value")
 mark_as_advanced(NURI_FORCE_VERSION)
