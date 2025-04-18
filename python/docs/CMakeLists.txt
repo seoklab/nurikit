@@ -14,38 +14,40 @@ if(Sphinx_FOUND)
 elseif(NURI_BUILD_PYTHON_DOCS)
   message(FATAL_ERROR "Sphinx not found; cannot build docs")
 else()
-  message(STATUS "Sphinx not found; not building docs")
+  message(NOTICE "Sphinx not found; cannot run doctest")
   return()
 endif()
 
 configure_file(conf.py.in "${CMAKE_CURRENT_LIST_DIR}/conf.py" @ONLY)
 
-add_custom_command(
-  OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/html/index.html"
-  COMMAND ${CMAKE_COMMAND} -E env ${SANITIZER_ENVS}
-  ${SPHINX_EXECUTABLE}
-  -E
-  -b html
-  -d ${CMAKE_CURRENT_BINARY_DIR}/doctrees
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_BINARY_DIR}/html
-  MAIN_DEPENDENCY "${CMAKE_CURRENT_LIST_DIR}/conf.py"
-  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-  COMMENT "Building Sphinx documentation for NuriPython"
-  VERBATIM
-)
-add_custom_target(
-  NuriPythonDocs
-  ALL
-  DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/html/index.html"
-)
+if(NURI_BUILD_PYTHON_DOCS)
+  add_custom_command(
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/html/index.html"
+    COMMAND ${CMAKE_COMMAND} -E env ${SANITIZER_ENVS}
+    ${SPHINX_EXECUTABLE}
+    -E
+    -b html
+    -d ${CMAKE_CURRENT_BINARY_DIR}/doctrees
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}/html
+    MAIN_DEPENDENCY "${CMAKE_CURRENT_LIST_DIR}/conf.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+    COMMENT "Building Sphinx documentation for NuriPython"
+    VERBATIM
+  )
+  add_custom_target(
+    NuriPythonDocs
+    ALL
+    DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/html/index.html"
+  )
 
-if(TARGET NuriPython)
-  add_dependencies(NuriPythonDocs NuriPython)
-endif()
+  if(TARGET NuriPython)
+    add_dependencies(NuriPythonDocs NuriPython)
+  endif()
 
-if(TARGET NuriDocs)
-  add_dependencies(NuriPythonDocs NuriDocs)
+  if(TARGET NuriDocs)
+    add_dependencies(NuriPythonDocs NuriDocs)
+  endif()
 endif()
 
 if(BUILD_TESTING)
