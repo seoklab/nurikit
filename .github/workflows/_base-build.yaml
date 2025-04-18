@@ -1,0 +1,120 @@
+#
+# Project NuriKit - Copyright 2025 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+name: Build common
+
+on:
+  workflow_call:
+    inputs:
+      emulate-version:
+        type: string
+        description: "Version to emulate"
+        required: false
+        default: ""
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-sdist:
+    runs-on: ubuntu-latest
+
+    outputs:
+      version: ${{ steps.extract-version.outputs.version }}
+
+    steps:
+      - run: sudo apt-get install -y libeigen3-dev
+
+      - uses: lukka/get-cmake@latest
+        with:
+          # Ubuntu 22.04
+          cmakeVersion: "~3.22.0"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.7"
+
+      - run: pip install pybind11-stubgen numpy
+
+      - uses: actions/checkout@v4
+
+      - run: |
+          cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNURI_FORCE_VERSION="$nuri_version" \
+            -DNURI_BUILD_PYTHON_STUBS=ON \
+            -S . -B build -G Ninja
+          cmake --build build --target NuriPythonStubs -j
+        env:
+          nuri_version: ${{ inputs.emulate-version }}
+
+      - run: pipx run build --sdist
+
+      - id: extract-version
+        run: |
+          echo "version=$(
+            tar -O -xzf dist/*.tar.gz --wildcards '*/PKG-INFO' |
+              sed -n -E 's/^version:[[:space:]]*([^[:space:]]+)/\1/Ip'
+          )" >>"$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*
+
+  build-lib:
+    needs: build-sdist
+    env:
+      NURI_VERSION: ${{ needs.build-sdist.outputs.version }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            arch: x86_64
+            runs-on: ubuntu-latest
+          - os: macosx
+            arch: universal2
+            runs-on: macos-latest
+
+    runs-on: ${{ matrix.runs-on }}
+
+    steps:
+      - if: ${{ matrix.os == 'macosx' }}
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: lukka/get-cmake@latest
+        with:
+          # Ubuntu 22.04 uses 3.22
+          # Automatic ctest parallelism from 3.29
+          cmakeVersion: "~3.29"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdist
+          path: dist
+
+      - run: cd dist && tar -xf *.tar* -C . --strip-components=1
+
+      - if: ${{ matrix.os == 'linux' }}
+        run: |
+          sudo docker run --rm -v "$PWD:/work" -w /work \
+            -e NURI_VERSION="$NURI_VERSION" \
+            quay.io/pypa/manylinux2014_x86_64:latest \
+            .github/scripts/build-lib.sh ${{ matrix.os }}_${{ matrix.arch }}
+
+      - if: ${{ matrix.os == 'macosx' }}
+        run: .github/scripts/build-lib.sh ${{ matrix.os }}_${{ matrix.arch }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libnuri-${{ matrix.os }}
+          path: libnuri-*.tar.gz
