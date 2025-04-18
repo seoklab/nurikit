@@ -4,7 +4,7 @@
 #
 
 [build-system]
-requires = ["scikit-build-core>=0.11"]
+requires = ["scikit-build-core>=0.10"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -90,6 +90,7 @@ NURI_ENABLE_IPO = "@NURI_ENABLE_IPO@"
 [[tool.scikit-build.overrides]]
 if.from-sdist = false
 if.state = "(wheel|editable)"
+if.scikit-build-version = ">=0.11"
 build.requires = ["pybind11-stubgen", "numpy"]
 cmake.define = { NURI_BUILD_PYTHON_STUBS = "ON" }
 
