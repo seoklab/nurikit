@@ -59,6 +59,7 @@ jobs:
       - if: ${{ matrix.os == 'linux' }}
         run: |
           sudo docker run --rm -v "$PWD:/work" -w /work \
+            -e NURI_VERSION="$NURI_VERSION" \
             quay.io/pypa/manylinux2014_x86_64:latest \
             .github/scripts/build-lib.sh ${{ matrix.os }}_${{ matrix.arch }}
 
