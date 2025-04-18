@@ -80,7 +80,7 @@ if(NURI_LIBRARY_FLAGS)
 endif()
 
 add_executable(NuriExe "main.cpp")
-add_library("${PROJECT_NAME}::NuriExe" ALIAS NuriExe)
+add_executable("${PROJECT_NAME}::NuriExe" ALIAS NuriExe)
 
 target_link_libraries(NuriExe PRIVATE NuriLib absl::log_initialize)
 set_target_properties(NuriExe PROPERTIES OUTPUT_NAME nuri)
