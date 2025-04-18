@@ -38,8 +38,7 @@ jobs:
         run: |
           cmake -G Ninja -S . -B build \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DNURI_TEST_COVERAGE=ON \
-            -DNURI_BUILD_PYTHON_DOCS=ON
+            -DNURI_TEST_COVERAGE=ON
 
       - run: pip install -v '.[test,docs,coverage]'
         env:
@@ -86,8 +85,7 @@ jobs:
           cmake -G Ninja -S . -B build \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_CXX_FLAGS=-Werror \
-            -DNURI_ENABLE_SANITIZERS=ON \
-            -DNURI_BUILD_PYTHON_DOCS=ON
+            -DNURI_ENABLE_SANITIZERS=ON
 
       - name: Build
         run: |
