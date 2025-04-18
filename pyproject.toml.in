@@ -90,8 +90,6 @@ NURI_ENABLE_IPO = "@NURI_ENABLE_IPO@"
 build = ["cp*-manylinux_x86_64", "cp*-macosx_x86_64", "cp*-macosx_arm64"]
 build-verbosity = 1
 
-environment-pass = ["SKBUILD_CMAKE_ARGS"]
-
 test-extras = ["test", "docs"]
 test-command = [
     "pytest -v -s {project}/python/test",
@@ -101,6 +99,9 @@ test-command = [
 
 [tool.cibuildwheel.config-settings]
 "cmake.verbose" = "true"
+
+[tool.cibuildwheel.linux]
+environment-pass = ["SKBUILD_CMAKE_ARGS"]
 
 [tool.cibuildwheel.macos.environment]
 MACOSX_DEPLOYMENT_TARGET = "10.15"
