@@ -160,6 +160,8 @@ CPMFindPackage(
 )
 
 set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_MULTITHREADED ON)
+set(Boost_USE_STATIC_RUNTIME OFF)
 CPMFindPackage(
   NAME Boost
   VERSION 1.82
