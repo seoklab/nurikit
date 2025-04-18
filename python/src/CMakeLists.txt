@@ -64,7 +64,6 @@ if(NURI_BUILD_PYTHON_STUBS)
 
   foreach(pyfile IN LISTS NURI_PYTHON_FILES)
     string(REGEX REPLACE "\\.py$" "" module "${pyfile}")
-    string(REGEX REPLACE "/__init__$" "" module "${module}")
     string(REGEX REPLACE "/+" "." module "${module}")
 
     string(REGEX REPLACE "\\.py$" ".pyi" stubfile "${pyfile}")
