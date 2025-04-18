@@ -53,7 +53,7 @@ fi
 
 if [[ $py_test = true ]]; then
 	pytest -v -"n$(nproc)" python/test
-	cmake --build "$build_dir" --target nuri_python_docs_doctest -"j$(nproc)"
+	cmake --build "$build_dir" --target NuriPythonDoctest -"j$(nproc)"
 fi
 
 if [[ -n $output ]]; then

@@ -46,8 +46,6 @@ jobs:
           python-version: "3.8"
 
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Configure with cmake
         run: |
@@ -90,8 +88,6 @@ jobs:
           python-version: "3.8"
 
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Configure with cmake
         run: |

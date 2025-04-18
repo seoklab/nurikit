@@ -76,9 +76,8 @@ wheel.install-dir = "nuri"
 install.strip = true
 
 [tool.scikit-build.cmake.define]
+NURI_BUILD_LIB = "@NURI_BUILD_LIB@"
 NURI_BUILD_PYTHON = "ON"
-NURI_ENABLE_AVX2 = "OFF"
-NURI_ENABLE_ARCH_NATIVE = "OFF"
 NURI_ENABLE_SANITIZERS = "@NURI_ENABLE_SANITIZERS@"
 NURI_TEST_COVERAGE = "@NURI_TEST_COVERAGE@"
 NURI_BUILD_DOCS = "OFF"
@@ -94,12 +93,26 @@ build-verbosity = 1
 test-extras = ["test", "docs"]
 test-command = [
     "pytest -v -s {project}/python/test",
-    "cmake -S {project} -B . -DSKBUILD=ON",
-    "cmake --build . --target nuri_python_docs_doctest -j",
+    """
+cmake -S {project} -B . \
+    -DSKBUILD=ON \
+    -DNURI_BUILD_LIB=OFF \
+    -DNURI_BUILD_PYTHON=OFF \
+    -DNURI_BUILD_PYTHON_DOCS=ON""",
+    "cmake --build . --target NuriPythonDoctest -j",
 ]
 
 [tool.cibuildwheel.config-settings]
 "cmake.verbose" = "true"
+
+[tool.cibuildwheel.linux]
+environment-pass = ["SKBUILD_CMAKE_ARGS"]
+
+[tool.cibuildwheel.macos]
+before-all = ["brew install eigen boost ninja pybind11"]
+
+[tool.cibuildwheel.macos.environment]
+MACOSX_DEPLOYMENT_TARGET = "10.15"
 
 [tool.pytest.ini_options]
 testpaths = ["python/test"]

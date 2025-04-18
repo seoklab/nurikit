@@ -26,10 +26,7 @@ jobs:
         with:
           cmakeVersion: "~3.22.0" # for Ubuntu 22.04
 
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
@@ -41,8 +38,7 @@ jobs:
         run: |
           cmake -G Ninja -S . -B build \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DNURI_TEST_COVERAGE=ON \
-            -DNURI_BUILD_PYTHON=ON
+            -DNURI_TEST_COVERAGE=ON
 
       - run: pip install -v '.[test,docs,coverage]'
         env:
@@ -76,10 +72,7 @@ jobs:
       #   with:
       #     cmakeVersion: "~3.18.0" # required for gtest DISCOVERY_MODE
 
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
@@ -92,12 +85,12 @@ jobs:
           cmake -G Ninja -S . -B build \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_CXX_FLAGS=-Werror \
-            -DNURI_ENABLE_SANITIZERS=ON \
-            -DNURI_BUILD_PYTHON=ON
+            -DNURI_ENABLE_SANITIZERS=ON
 
       - name: Build
         run: |
-          LD_LIBRARY_PATH="$(clang++ -print-resource-dir)/lib/linux:$LD_LIBRARY_PATH" pip install -v '.[test,docs]'
+          LD_LIBRARY_PATH="$(clang++ -print-resource-dir)/lib/linux:$LD_LIBRARY_PATH" \
+            pip install -v '.[test,docs]'
         env:
           SKBUILD_BUILD_DIR: build
           LD_PRELOAD: ""
@@ -117,6 +110,6 @@ jobs:
           export LD_PRELOAD
 
           pytest -v -s
-          cmake --build build --target nuri_python_docs_doctest
+          cmake --build build --target NuriPythonDoctest
         env:
           ASAN_OPTIONS: detect_leaks=0

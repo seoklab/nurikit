@@ -6,26 +6,24 @@
 include(NuriKitUtils)
 
 add_custom_command(
-  TARGET nuri_python
+  TARGET NuriPython
   POST_BUILD
   COMMAND "${CMAKE_COMMAND}"
   "-DNURI_STUBS_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
   -P "${PROJECT_SOURCE_DIR}/cmake/NuriKitClearStubs.cmake"
   VERBATIM
 )
-clear_coverage_data(nuri_python)
+clear_coverage_data(NuriPython)
 
 find_program(PYBIND11_STUBGEN pybind11-stubgen)
 mark_as_advanced(PYBIND11_STUBGEN)
 
-if(PYBIND11_STUBGEN STREQUAL "PYBIND11_STUBGEN-NOTFOUND")
+if(NOT PYBIND11_STUBGEN)
   message(NOTICE "pybind11-stubgen not found, skipping stub generation")
-else()
-  set(PYBIND11_STUBGEN_FOUND ON)
 endif()
 
 function(nuri_python_generate_stubs module)
-  if(NOT PYBIND11_STUBGEN_FOUND)
+  if(NOT PYBIND11_STUBGEN)
     message(WARNING "pybind11-stubgen not found, skipping stub generation")
     return()
   endif()
@@ -37,7 +35,7 @@ function(nuri_python_generate_stubs module)
   endif()
 
   add_custom_command(
-    TARGET nuri_python
+    TARGET NuriPython
     POST_BUILD
     COMMAND ${CMAKE_COMMAND}
     -E env "PYTHONPATH=${pypath_orig}${CMAKE_CURRENT_LIST_DIR}" ${SANITIZER_ENVS}
@@ -67,27 +65,36 @@ function(nuri_python_add_module name)
     set(subdir "")
   endif()
 
-  set(target_name "nuri_python_${subdir}_${name}")
-  string(REGEX REPLACE "/+" "_" target_name "${target_name}")
-  string(REGEX REPLACE "_+" "_" target_name "${target_name}")
-
-  file(RELATIVE_PATH dir_inv
-    "${CMAKE_CURRENT_LIST_DIR}/nuri/${subdir}"
-    "${CMAKE_CURRENT_LIST_DIR}/nuri/")
+  set(target_name "NuriPythonMod-${subdir}-${name}")
+  string(REGEX REPLACE "/+" "-" target_name "${target_name}")
+  string(REGEX REPLACE "-+" "-" target_name "${target_name}")
 
   pybind11_add_module("${target_name}" OPT_SIZE "${sources}")
-  target_link_libraries("${target_name}" PRIVATE nuri_lib)
+  target_link_libraries("${target_name}" PRIVATE "${PROJECT_NAME}::NuriLib")
   target_compile_definitions(
     "${target_name}"
-    PRIVATE "NURI_PYTHON_MODULE_NAME=${name}")
-  set_target_properties("${target_name}"
+    PRIVATE "NURI_PYTHON_MODULE_NAME=${name}"
+  )
+  set_target_properties(
+    "${target_name}"
     PROPERTIES
     OUTPUT_NAME "${name}"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/nuri/${subdir}"
-    INSTALL_RPATH "${NURI_RPATH_PREFIX}/${dir_inv}${CMAKE_INSTALL_LIBDIR}"
   )
 
-  if(PYBIND11_STUBGEN_FOUND)
+  if(NURI_BUILD_LIB AND NURI_INSTALL_RPATH)
+    file(RELATIVE_PATH dir_inv
+      "${CMAKE_CURRENT_LIST_DIR}/nuri/${subdir}"
+      "${CMAKE_CURRENT_LIST_DIR}/nuri/"
+    )
+    set_target_properties(
+      "${target_name}"
+      PROPERTIES
+      INSTALL_RPATH "${NURI_RPATH_PREFIX}/${dir_inv}${CMAKE_INSTALL_LIBDIR}"
+    )
+  endif()
+
+  if(PYBIND11_STUBGEN)
     file(RELATIVE_PATH submodule
       "${CMAKE_CURRENT_LIST_DIR}/"
       "${CMAKE_CURRENT_LIST_DIR}/nuri/${subdir}/${name}")
@@ -101,5 +108,5 @@ function(nuri_python_add_module name)
     install(TARGETS "${target_name}" LIBRARY DESTINATION "./${subdir}")
   endif()
 
-  add_dependencies(nuri_python "${target_name}")
+  add_dependencies(NuriPython "${target_name}")
 endfunction()

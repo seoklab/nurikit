@@ -23,7 +23,9 @@ on:
     branches:
       - main
     paths:
+      - ".github/scripts/build-lib.sh"
       - ".github/workflows/wheels-matrix.yaml"
+      - ".github/workflows/_cpp-build.yaml"
       - ".github/workflows/_sdist-build.yaml"
       - ".github/workflows/_wheel-build.yaml"
       - "cmake/**"
@@ -45,8 +47,14 @@ jobs:
     with:
       emulate-version: ${{ inputs.emulate-version }}
 
-  build:
+  build-lib:
     needs: sdist
+    uses: ./.github/workflows/_cpp-build.yaml
+    with:
+      version: ${{ needs.sdist.outputs.version }}
+
+  build-wheels:
+    needs: [sdist, build-lib]
 
     strategy:
       fail-fast: false
@@ -70,7 +78,6 @@ jobs:
     uses: ./.github/workflows/_wheel-build.yaml
     with:
       python: ${{ matrix.pyver }}-${{ matrix.os }}
-      cpp_test: ${{ matrix.pyver == 'cp38' }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
