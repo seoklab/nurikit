@@ -91,6 +91,12 @@ jobs:
         env:
           GITHUB_REF: ${{ github.ref }}
 
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: libnuri-*
+          path: dist
+          merge-multiple: true
+
       - uses: softprops/action-gh-release@v2
         if: ${{ github.event_name == 'push' }}
         with:

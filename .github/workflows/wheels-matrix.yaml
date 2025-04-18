@@ -25,8 +25,7 @@ on:
     paths:
       - ".github/scripts/build-lib.sh"
       - ".github/workflows/wheels-matrix.yaml"
-      - ".github/workflows/_cpp-build.yaml"
-      - ".github/workflows/_sdist-build.yaml"
+      - ".github/workflows/_base-build.yaml"
       - ".github/workflows/_wheel-build.yaml"
       - "cmake/**"
       - "include/**"
@@ -42,19 +41,13 @@ defaults:
     shell: bash
 
 jobs:
-  sdist:
-    uses: ./.github/workflows/_sdist-build.yaml
+  common:
+    uses: ./.github/workflows/_base-build.yaml
     with:
       emulate-version: ${{ inputs.emulate-version }}
 
-  build-lib:
-    needs: sdist
-    uses: ./.github/workflows/_cpp-build.yaml
-    with:
-      version: ${{ needs.sdist.outputs.version }}
-
   build-wheels:
-    needs: [sdist, build-lib]
+    needs: common
 
     strategy:
       fail-fast: false

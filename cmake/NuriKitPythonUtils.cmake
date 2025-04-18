@@ -3,28 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-include(NuriKitUtils)
-
-add_custom_command(
-  TARGET NuriPython
-  POST_BUILD
-  COMMAND "${CMAKE_COMMAND}"
-  "-DNURI_STUBS_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
-  -P "${PROJECT_SOURCE_DIR}/cmake/NuriKitClearStubs.cmake"
-  VERBATIM
-)
-clear_coverage_data(NuriPython)
-
-find_program(PYBIND11_STUBGEN pybind11-stubgen)
-mark_as_advanced(PYBIND11_STUBGEN)
-
-if(NOT PYBIND11_STUBGEN)
-  message(NOTICE "pybind11-stubgen not found, skipping stub generation")
-endif()
-
-function(nuri_python_generate_stubs module)
-  if(NOT PYBIND11_STUBGEN)
-    message(WARNING "pybind11-stubgen not found, skipping stub generation")
+function(nuri_python_generate_stubs module output dependency)
+  if(NOT NURI_BUILD_PYTHON_STUBS)
     return()
   endif()
 
@@ -34,9 +14,10 @@ function(nuri_python_generate_stubs module)
     set(pypath_orig "${pypath_orig}:")
   endif()
 
+  set(output_full "${CMAKE_CURRENT_LIST_DIR}/${output}")
+
   add_custom_command(
-    TARGET NuriPython
-    POST_BUILD
+    OUTPUT "${output_full}"
     COMMAND ${CMAKE_COMMAND}
     -E env "PYTHONPATH=${pypath_orig}${CMAKE_CURRENT_LIST_DIR}" ${SANITIZER_ENVS}
     "${PYBIND11_STUBGEN}"
@@ -45,9 +26,14 @@ function(nuri_python_generate_stubs module)
     --numpy-array-remove-parameters
     ${ARGN}
     "${module}"
+    DEPENDS "${dependency}"
     WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+    COMMENT "Generating Python stubs for ${module}"
     VERBATIM
   )
+
+  list(APPEND NURI_STUB_FILES "${output_full}")
+  set(NURI_STUB_FILES "${NURI_STUB_FILES}" PARENT_SCOPE)
 endfunction()
 
 function(nuri_python_add_module name)
@@ -60,7 +46,7 @@ function(nuri_python_add_module name)
   set(sources ${ARG_UNPARSED_ARGUMENTS})
 
   if(ARG_OUTPUT_DIRECTORY)
-    set(subdir "${ARG_OUTPUT_DIRECTORY}")
+    set(subdir "${ARG_OUTPUT_DIRECTORY}/")
   else()
     set(subdir "")
   endif()
@@ -94,14 +80,20 @@ function(nuri_python_add_module name)
     )
   endif()
 
-  if(PYBIND11_STUBGEN)
+  if(NURI_BUILD_PYTHON_STUBS)
     file(RELATIVE_PATH submodule
       "${CMAKE_CURRENT_LIST_DIR}/"
-      "${CMAKE_CURRENT_LIST_DIR}/nuri/${subdir}/${name}")
+      "${CMAKE_CURRENT_LIST_DIR}/nuri/${subdir}${name}"
+    )
     string(REGEX REPLACE "/" "." submodule "${submodule}")
-    message(STATUS "Generating stubs for ${submodule}")
 
-    nuri_python_generate_stubs("${submodule}" ${ARG_STUBGEN_ARGS})
+    nuri_python_generate_stubs(
+      "${submodule}"
+      "nuri/${subdir}${name}.pyi"
+      "${target_name}"
+      ${ARG_STUBGEN_ARGS}
+    )
+    set(NURI_STUB_FILES "${NURI_STUB_FILES}" PARENT_SCOPE)
   endif()
 
   if(SKBUILD)

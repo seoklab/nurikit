@@ -4,7 +4,7 @@
 #
 
 [build-system]
-requires = ["scikit-build-core", "pybind11-stubgen", "numpy"]
+requires = ["scikit-build-core>=0.11"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -55,15 +55,16 @@ docs = [
 coverage = ["gcovr"]
 
 [tool.scikit-build]
-minimum-version = "0.5"
+minimum-version = "build-system.requires"
 ninja.make-fallback = false
 
-cmake.minimum-version = "@CMAKE_MINIMUM_REQUIRED_VERSION@"
+cmake.version = ">=@CMAKE_MINIMUM_REQUIRED_VERSION@"
 cmake.build-type = "@CMAKE_BUILD_TYPE@"
 
-sdist.include = ["/third-party", "/pyproject.toml", "*.pyi"]
+sdist.include = ["/pyproject.toml", "*.pyi"]
 sdist.exclude = [
-    "/fuzz/corpus-min",
+    "/docs",
+    "/fuzz",
     "/scripts",
     "/pyproject.toml.in",
     "cmake-variants.json",
@@ -86,6 +87,12 @@ NURI_REF = "@NURI_REF@"
 NURI_OPTIMIZATION_LEVEL = "@NURI_OPTIMIZATION_LEVEL@"
 NURI_ENABLE_IPO = "@NURI_ENABLE_IPO@"
 
+[[tool.scikit-build.overrides]]
+if.from-sdist = false
+if.state = "(wheel|editable)"
+build.requires = ["pybind11-stubgen", "numpy"]
+cmake.define = { NURI_BUILD_PYTHON_STUBS = "ON" }
+
 [tool.cibuildwheel]
 build = ["cp*-manylinux_x86_64", "cp*-macosx_x86_64", "cp*-macosx_arm64"]
 build-verbosity = 1
@@ -103,7 +110,7 @@ cmake -S {project} -B . \
 ]
 
 [tool.cibuildwheel.config-settings]
-"cmake.verbose" = "true"
+"build.verbose" = "true"
 
 [tool.cibuildwheel.linux]
 environment-pass = ["SKBUILD_CMAKE_ARGS"]

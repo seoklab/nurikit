@@ -25,31 +25,25 @@ jobs:
     if: ${{ !github.event.pull_request.draft }}
     uses: ./.github/workflows/_check-want-test.yaml
 
-  build-sdist:
+  build-base:
     needs: check-want-test
     if: ${{ needs.check-want-test.outputs.want-test == 'true' }}
-    uses: ./.github/workflows/_sdist-build.yaml
-
-  build-lib:
-    needs: build-sdist
-    uses: ./.github/workflows/_cpp-build.yaml
-    with:
-      version: ${{ needs.build-sdist.outputs.version }}
+    uses: ./.github/workflows/_base-build.yaml
 
   test-build-linux:
-    needs: [build-sdist, build-lib]
+    needs: build-base
     uses: ./.github/workflows/_wheel-build.yaml
     with:
       python: cp38-manylinux_x86_64
 
   test-build-mac-intel:
-    needs: [build-sdist, build-lib]
+    needs: build-base
     uses: ./.github/workflows/_wheel-build.yaml
     with:
       python: cp38-macosx_x86_64
 
   test-build-mac-arm:
-    needs: [build-sdist, build-lib]
+    needs: build-base
     uses: ./.github/workflows/_wheel-build.yaml
     with:
       python: cp38-macosx_arm64
