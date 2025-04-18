@@ -33,6 +33,7 @@ list(FILTER NURI_SRCS EXCLUDE REGEX "main\.cpp$")
 
 add_library(NuriLib SHARED "${NURI_SRCS}")
 add_library("${PROJECT_NAME}::NuriLib" ALIAS NuriLib)
+clear_coverage_data(NuriLib)
 
 target_compile_features(NuriLib PUBLIC cxx_std_17)
 target_compile_definitions(NuriLib
@@ -56,7 +57,6 @@ target_link_libraries(NuriLib
   Spectra::Spectra
 )
 set_target_properties(NuriLib PROPERTIES OUTPUT_NAME nuri)
-clear_coverage_data(NuriLib)
 
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
   list(APPEND NURI_LIBRARY_FLAGS
@@ -80,8 +80,9 @@ if(NURI_LIBRARY_FLAGS)
 endif()
 
 add_executable(NuriExe "main.cpp")
-set_target_properties(NuriExe PROPERTIES OUTPUT_NAME nuri)
+
 target_link_libraries(NuriExe PRIVATE NuriLib absl::log_initialize)
+set_target_properties(NuriExe PROPERTIES OUTPUT_NAME nuri)
 
 if(NURI_INSTALL_RPATH)
   set_target_properties(
