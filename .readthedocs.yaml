@@ -21,7 +21,6 @@ build:
       - |
         cmake -S . -B pre-install -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
-          -DNURI_BUILD_PYTHON=ON \
           -DNURI_ENABLE_IPO=OFF \
           -DNURI_OPTIMIZATION_LEVEL=O0
     post_install:
@@ -30,7 +29,8 @@ build:
       - |
         cmake -S . -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
-          -DNURI_BUILD_PYTHON=ON \
+          -DNURI_BUILD_DOCS=ON \
+          -DNURI_BUILD_PYTHON_DOCS=ON \
           -DNURI_ENABLE_IPO=OFF \
           -DNURI_OPTIMIZATION_LEVEL=O0
       - cmake --build build --target NuriDocs
