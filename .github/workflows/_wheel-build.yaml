@@ -47,11 +47,22 @@ jobs:
           tar -xvf *.tar* --strip-components=1
           tar -xvf dist/*.tar* -C dist
 
+      - id: cibw-project
+        run: |
+          if [[ $python == *linux* ]]; then
+            project=/project
+          else
+            project="$(pwd)"
+          fi
+          echo "path=$project" >>"$GITHUB_OUTPUT"
+        env:
+          python: ${{ inputs.python }}
+
       - uses: pypa/cibuildwheel@v2.23.2
         env:
           CIBW_BUILD: ${{ inputs.python }}
           CIBW_ARCHS: "all"
-          SKBUILD_CMAKE_ARGS: "-DCMAKE_PREFIX_PATH={project}/dist;-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON;-DNURI_BUILD_LIB=OFF"
+          SKBUILD_CMAKE_ARGS: "-DCMAKE_PREFIX_PATH=${{ steps.cibw-project.outputs.path }}/dist;-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON;-DNURI_BUILD_LIB=OFF"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
