@@ -33,7 +33,7 @@ option(NURI_BUILD_DOCS "Build documentation" OFF)
 option(NURI_BUILD_PYTHON_DOCS "Build python documentation" OFF)
 
 option(NURI_PREBUILT_ABSL "Download prebuilt abseil binary" ON)
-option(NURI_INSTALL_RPATH "Install with RPATH" ON)
+option(NURI_INSTALL_RPATH "Install with RPATH when building full library" ON)
 
 set(NURI_OPTIMIZATION_LEVEL "O3" CACHE STRING "Optimization level")
 option(NURI_ENABLE_IPO "Do interprocedural optimization" ON)
@@ -102,7 +102,7 @@ if(NURI_ENABLE_IPO)
 endif()
 
 # Option-dependent configurations
-if(NURI_INSTALL_RPATH)
+if(NURI_BUILD_LIB AND NURI_INSTALL_RPATH)
   if(CMAKE_SYSTEM_NAME MATCHES Linux)
     set(NURI_RPATH_PREFIX "$ORIGIN")
   elseif(CMAKE_SYSTEM_NAME MATCHES Darwin)
