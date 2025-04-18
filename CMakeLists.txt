@@ -178,7 +178,7 @@ spirit\\\;fusion\\\;optional\\\;container\\\;iterator\\\;range"
     SYSTEM ON
   )
 
-  if(BUILD_TESTING)
+  if(BUILD_TESTING AND NURI_BUILD_LIB)
     CPMFindPackage(
       NAME GTest
       VERSION 1.16.0
