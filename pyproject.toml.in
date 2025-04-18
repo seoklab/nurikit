@@ -93,7 +93,12 @@ build-verbosity = 1
 test-extras = ["test", "docs"]
 test-command = [
     "pytest -v -s {project}/python/test",
-    "cmake -S {project} -B . -DSKBUILD=ON -DNURI_BUILD_PYTHON_DOCS=ON",
+    """
+cmake -S {project} -B . \
+    -DSKBUILD=ON \
+    -DNURI_BUILD_LIB=OFF \
+    -DNURI_BUILD_PYTHON=OFF \
+    -DNURI_BUILD_PYTHON_DOCS=ON""",
     "cmake --build . --target NuriPythonDoctest -j",
 ]
 
@@ -102,6 +107,9 @@ test-command = [
 
 [tool.cibuildwheel.linux]
 environment-pass = ["SKBUILD_CMAKE_ARGS"]
+
+[tool.cibuildwheel.macos]
+before-all = ["brew install eigen boost ninja pybind11"]
 
 [tool.cibuildwheel.macos.environment]
 MACOSX_DEPLOYMENT_TARGET = "10.15"
