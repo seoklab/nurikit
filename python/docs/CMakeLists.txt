@@ -21,8 +21,8 @@ endif()
 configure_file(conf.py.in "${CMAKE_CURRENT_LIST_DIR}/conf.py" @ONLY)
 
 if(NURI_BUILD_PYTHON_DOCS)
-  add_custom_command(
-    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/html/index.html"
+  add_custom_target(NuriPythonDocs
+    ALL
     COMMAND ${CMAKE_COMMAND} -E env ${SANITIZER_ENVS}
     ${SPHINX_EXECUTABLE}
     -E
@@ -30,15 +30,8 @@ if(NURI_BUILD_PYTHON_DOCS)
     -d ${CMAKE_CURRENT_BINARY_DIR}/doctrees
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}/html
-    MAIN_DEPENDENCY "${CMAKE_CURRENT_LIST_DIR}/conf.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     COMMENT "Building Sphinx documentation for NuriPython"
     VERBATIM
-  )
-  add_custom_target(
-    NuriPythonDocs
-    ALL
-    DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/html/index.html"
   )
 
   if(TARGET NuriPython)
