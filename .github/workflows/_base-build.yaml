@@ -55,7 +55,7 @@ jobs:
             -S . -B build -G Ninja
           cmake --build build --target NuriPythonStubs -j
 
-      - run: pipx run build --sdist
+      - run: pipx run build --sdist -v -Cbuild.requires=""
 
       - id: extract-version
         run: |
