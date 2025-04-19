@@ -148,25 +148,25 @@ endif()
 if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON)
   find_or_fetch_abseil()
 
-  CPMFindPackage(
+  find_or_add_package(
     NAME Eigen3
-    VERSION 3.4
+    MIN_VERSION 3.4
+    CPM_VERSION 3.4.0
     OPTIONS
     "BUILD_TESTING OFF"
     "EIGEN_BUILD_DOC OFF"
     "EIGEN_BUILD_PKGCONFIG OFF"
     GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
     GIT_TAG 3.4.0
-    EXCLUDE_FROM_ALL ON
-    SYSTEM ON
   )
 
   set(Boost_USE_STATIC_LIBS ON)
   set(Boost_USE_MULTITHREADED ON)
   set(Boost_USE_STATIC_RUNTIME OFF)
-  CPMFindPackage(
+  find_or_add_package(
     NAME Boost
-    VERSION 1.82
+    MIN_VERSION 1.82
+    CPM_VERSION 1.87.0
     OPTIONS
     "BUILD_TESTING OFF"
     "BOOST_ENABLE_CMAKE ON"
@@ -175,17 +175,13 @@ if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON)
     "BOOST_INCLUDE_LIBRARIES \
 spirit\\\;fusion\\\;optional\\\;container\\\;iterator\\\;range"
     URL "https://github.com/boostorg/boost/releases/download/boost-1.87.0/boost-1.87.0-cmake.tar.xz"
-    EXCLUDE_FROM_ALL ON
-    SYSTEM ON
   )
 
   if(BUILD_TESTING AND NURI_BUILD_LIB)
-    CPMFindPackage(
+    find_or_add_package(
       NAME GTest
-      VERSION 1.16.0
+      CPM_VERSION 1.16.0
       GIT_REPOSITORY https://github.com/google/googletest.git
-      EXCLUDE_FROM_ALL ON
-      SYSTEM ON
     )
   endif()
 endif()

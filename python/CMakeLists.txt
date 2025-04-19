@@ -3,17 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-if(NURI_BUILD_PYTHON)
-  include(CPM)
+include(NuriKitUtils)
 
-  CPMFindPackage(
+if(NURI_BUILD_PYTHON)
+  find_or_add_package(
     NAME pybind11
-    VERSION 2.13
+    MIN_VERSION 2.13
+    CPM_VERSION 2.13.6
     OPTIONS "BUILD_TESTING OFF" "PYBIND11_FINDPYTHON ON"
     GIT_REPOSITORY https://github.com/pybind/pybind11.git
-    GIT_TAG v2.13.6
-    EXCLUDE_FROM_ALL ON
-    SYSTEM ON
   )
 
   configure_file(
