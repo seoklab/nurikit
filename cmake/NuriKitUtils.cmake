@@ -91,6 +91,40 @@ function(nuri_get_version)
   set(NURI_REF "${NURI_REF}" PARENT_SCOPE)
 endfunction()
 
+function(find_or_add_package)
+  cmake_parse_arguments(_pkg "" "NAME;MIN_VERSION;CPM_VERSION" "" ${ARGN})
+
+  if(NOT _pkg_MIN_VERSION)
+    set(_pkg_MIN_VERSION "${_pkg_CPM_VERSION}")
+  endif()
+
+  find_package("${_pkg_NAME}" "${_pkg_MIN_VERSION}" QUIET)
+
+  if(${_pkg_NAME}_FOUND)
+    message(STATUS "Found ${_pkg_NAME} ${${_pkg_NAME}_VERSION}")
+
+    set("${_pkg_NAME}_FOUND" "${${_pkg_NAME}_FOUND}" PARENT_SCOPE)
+    set("${_pkg_NAME}_VERSION" "${${_pkg_NAME}_VERSION}" PARENT_SCOPE)
+    return()
+  endif()
+
+  message(STATUS "Could not find ${_pkg_NAME}. Adding with CPM.")
+
+  include(CPM)
+  set(CPM_USE_LOCAL_PACKAGES OFF)
+  CPMAddPackage(
+    NAME "${_pkg_NAME}"
+    VERSION "${_pkg_CPM_VERSION}"
+    EXCLUDE_FROM_ALL ON
+    SYSTEM ON
+    ${_pkg_UNPARSED_ARGUMENTS}
+  )
+
+  # emulate find_package behavior
+  set("${_pkg_NAME}_FOUND" ON PARENT_SCOPE)
+  set("${_pkg_NAME}_VERSION" "${_pkg_CPM_VERSION}" PARENT_SCOPE)
+endfunction()
+
 function(find_or_fetch_abseil)
   if(NURI_ENABLE_SANITIZERS)
     message(
@@ -129,7 +163,9 @@ function(find_or_fetch_abseil)
     find_package(absl ${absl_findpackage_args})
 
     if(absl_FOUND AND absl_VERSION VERSION_GREATER_EQUAL 20240116)
-      message(STATUS "Found abseil ${absl_VERSION}")
+      message(STATUS "Found absl ${absl_VERSION}")
+      set(absl_FOUND "${absl_FOUND}" PARENT_SCOPE)
+      set(absl_VERSION "${absl_VERSION}" PARENT_SCOPE)
 
       if(NURI_PREBUILT_ABSL AND CMAKE_SYSTEM_NAME MATCHES Linux)
         set(ABSL_USES_OLD_ABI ON PARENT_SCOPE)
