@@ -89,13 +89,14 @@ NURI_ENABLE_IPO = "@NURI_ENABLE_IPO@"
 
 [[tool.scikit-build.overrides]]
 if.from-sdist = false
-if.state = "(wheel|editable)"
-if.scikit-build-version = ">=0.11"
+if.scikit-build-version = ">=0.11.0"
+
 build.requires = ["pybind11-stubgen", "numpy"]
 cmake.define = { NURI_BUILD_PYTHON_STUBS = "ON" }
 
 [tool.cibuildwheel]
 build = ["cp*-manylinux_x86_64", "cp*-macosx_x86_64", "cp*-macosx_arm64"]
+enable = ["cpython-freethreading"]
 build-verbosity = 1
 
 test-extras = ["test", "docs"]

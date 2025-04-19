@@ -52,7 +52,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pyver: ["cp37", "cp38", "cp39", "cp310", "cp311", "cp312", "cp313"]
+        pyver:
+          - cp37
+          - cp38
+          - cp39
+          - cp310
+          - cp311
+          - cp312
+          - cp313
+          - cp313t
         os: ["manylinux_x86_64", "macosx_x86_64", "macosx_arm64"]
         minimal:
           - ${{ inputs.minimal }}
