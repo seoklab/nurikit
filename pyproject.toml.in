@@ -96,6 +96,7 @@ cmake.define = { NURI_BUILD_PYTHON_STUBS = "ON" }
 
 [tool.cibuildwheel]
 build = ["cp*-manylinux_x86_64", "cp*-macosx_x86_64", "cp*-macosx_arm64"]
+enable = ["cpython-freethreading"]
 build-verbosity = 1
 
 test-extras = ["test", "docs"]
