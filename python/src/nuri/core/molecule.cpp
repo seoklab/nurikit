@@ -976,7 +976,7 @@ Convert implicit hydrogen atoms of the molecule to explicit hydrogens.
   ``update_confs`` is True and the molecule has at least one conformation.
 
 .. note::
-Invalidates all atom and bond objects.
+  Invalidates all atom and bond objects.
 )doc")
       .def(
           "conceal_hydrogens",

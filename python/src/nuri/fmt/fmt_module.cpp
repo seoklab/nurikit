@@ -276,10 +276,11 @@ Convert a molecule to PDB string.
 
 :param mol: The molecule to convert.
 :param conf: The conformation to convert. If not specified, writes all
-conformations. Ignored if the molecule has no conformations.
+  conformations. Ignored if the molecule has no conformations.
 :raises IndexError: If the molecule has any conformations and `conf` is out of
-range.
+  range.
 :raises ValueError: If the conversion fails.
+
 .. note::
   Unlike most other formats, PDB does not support writing multiple different
   molecules in a single file. Simply concatenating the results of this function
