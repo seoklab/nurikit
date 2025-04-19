@@ -16,7 +16,7 @@ on:
         default: false
       version:
         type: string
-        default: "19"
+        default: "20"
 
 defaults:
   run:
