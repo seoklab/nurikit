@@ -450,7 +450,7 @@ public:
     ABSL_DCHECK(static_cast<bool>(info));
 
     ResidueId id = info.id().res;
-    auto [it, first] = map_.insert({ id, data_.size() });
+    auto [it, first] = map_.emplace(id, data_.size());
 
     if (first) {
       data_.push_back({ it->first, comp_id, {} });
