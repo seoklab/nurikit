@@ -57,8 +57,10 @@ def _verify_mols(mols: List[Molecule]):
         elif sub.category == SubstructureCategory.Residue:
             if sub.id == 2:
                 assert sub.name == "GLU"
+                assert sub.props["chain"] == "A"
             elif sub.id == 3:
                 assert sub.name == "ASN"
+                assert sub.props["chain"] == "B"
             else:
                 pytest.fail("Invalid residue ID")
         else:
