@@ -32,7 +32,10 @@ def _validate_3cye_part(mols: List[Molecule]):
     assert mol.subs[0].name == "VAL"
     assert mol.subs[0].num_atoms() == 7
 
+    assert mol.subs[8].id == 169
+    assert mol.subs[8].props["chain"] == "A"
     assert mol.subs[8].props["icode"] == "A"
+    assert mol.subs[8].props["entity_id"] == "1"
 
     mol = mols[1]
     assert mol.name == "3CYE"
