@@ -31,6 +31,7 @@ option(NURI_BUILD_LIB "Build NuriKit library" ON)
 option(NURI_BUILD_PYTHON "Build Python bindings" ON)
 option(NURI_BUILD_DOCS "Build documentation" OFF)
 option(NURI_BUILD_PYTHON_DOCS "Build python documentation" OFF)
+option(NURI_BUILD_PYTHON_DOCTEST "Build python doctest" OFF)
 
 option(NURI_PREBUILT_ABSL "Download prebuilt abseil binary" ON)
 option(NURI_INSTALL_RPATH "Install with RPATH when building full library" ON)
@@ -65,6 +66,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+set(NURI_BIBTEX_FILE "${CMAKE_CURRENT_LIST_DIR}/docs/refs.bib")
 
 # System/compiler dependent flags
 if(CMAKE_CXX_COMPILER_ID MATCHES Clang)
@@ -145,7 +148,7 @@ if(NURI_ENABLE_SANITIZERS)
 endif()
 
 # Find/download dependencies
-if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON)
+if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON OR BUILD_TESTING)
   find_or_fetch_abseil()
 
   find_or_add_package(
@@ -177,7 +180,7 @@ spirit\\\;fusion\\\;optional\\\;container\\\;iterator\\\;range"
     URL "https://github.com/boostorg/boost/releases/download/boost-1.87.0/boost-1.87.0-cmake.tar.xz"
   )
 
-  if(BUILD_TESTING AND NURI_BUILD_LIB)
+  if(BUILD_TESTING)
     find_or_add_package(
       NAME GTest
       CPM_VERSION 1.16.0
@@ -201,9 +204,7 @@ if(NURI_BUILD_FUZZING)
   )
 endif()
 
-# Global project compile options / variables
-set(NURI_BIBTEX_FILE "${CMAKE_CURRENT_LIST_DIR}/docs/refs.bib")
-
+# Warning flags, set here to ignore warnings from dependencies
 add_compile_options(
   -pedantic
   -Wall
@@ -227,6 +228,12 @@ if(NURI_BUILD_LIB)
   )
   include_directories(${NURI_INCLUDE_DIRECTORIES})
 
+  add_subdirectory(src)
+
+  if(NURI_BUILD_DOCS)
+    add_subdirectory(docs)
+  endif()
+
   if(NOT SKBUILD)
     install(
       FILES "${CMAKE_CURRENT_BINARY_DIR}/include/nuri/nurikit_config.h"
@@ -238,11 +245,7 @@ if(NURI_BUILD_LIB)
       DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
       FILES_MATCHING PATTERN "*.h"
     )
-  endif()
 
-  add_subdirectory(src)
-
-  if(NOT SKBUILD)
     configure_package_config_file(
       "cmake/${PROJECT_NAME}Config.cmake.in"
       "${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
@@ -259,21 +262,17 @@ if(NURI_BUILD_LIB)
       DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
     )
   endif()
-
-  if(NURI_BUILD_DOCS)
-    add_subdirectory(docs)
-  endif()
-
-  if(BUILD_TESTING)
-    add_subdirectory(test)
-  endif()
-
-  if(NURI_BUILD_FUZZING)
-    add_subdirectory(fuzz)
-  endif()
 endif()
 
-if(NURI_BUILD_PYTHON OR NURI_BUILD_PYTHON_DOCS)
+if(BUILD_TESTING)
+  add_subdirectory(test)
+endif()
+
+if(NURI_BUILD_FUZZING)
+  add_subdirectory(fuzz)
+endif()
+
+if(NURI_BUILD_PYTHON OR NURI_BUILD_PYTHON_DOCS OR NURI_BUILD_PYTHON_DOCTEST)
   if(NOT SKBUILD)
     configure_file(
       pyproject.toml.in

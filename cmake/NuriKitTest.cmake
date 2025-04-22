@@ -5,6 +5,10 @@
 
 include(GoogleTest)
 
+if(NOT NURI_BUILD_LIB)
+  find_package("${PROJECT_NAME}" "${PROJECT_VERSION}" EXACT REQUIRED)
+endif()
+
 if(NURI_ENABLE_SANITIZERS AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.18)
   set(NURI_GTEST_EXTRA_ARGS DISCOVERY_MODE PRE_TEST)
 endif()
@@ -27,7 +31,7 @@ function(nuri_add_test file)
   target_link_libraries(
     "${NURI_TEST_TARGET}"
     PRIVATE
-    NuriLib
+    "${PROJECT_NAME}::NuriLib"
     GTest::gtest GTest::gmock GTest::gtest_main
     absl::absl_log absl::absl_check
   )
@@ -53,7 +57,7 @@ function(nuri_add_fuzz file)
   target_link_options("${NURI_TEST_TARGET}" PRIVATE -fsanitize=fuzzer)
   target_link_libraries(
     "${NURI_TEST_TARGET}"
-    PRIVATE NuriLib absl::log_initialize
+    PRIVATE "${PROJECT_NAME}::NuriLib" absl::log_initialize
   )
   set_target_properties(
     "${NURI_TEST_TARGET}"

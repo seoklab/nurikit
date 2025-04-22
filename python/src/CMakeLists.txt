@@ -27,7 +27,9 @@ endif()
 include(NuriKitPythonUtils)
 
 nuri_python_add_module(_log_interface nuri/_log_interface_module.cpp)
-target_link_libraries(NuriPythonMod-_log_interface PRIVATE absl::log_initialize)
+target_link_libraries("${NURI_PYTHON_MODULE_TARGET}"
+  PRIVATE absl::log_initialize
+)
 
 nuri_python_add_module(_core OUTPUT_DIRECTORY "core"
   nuri/core/_core_module.cpp
@@ -49,11 +51,26 @@ nuri_python_add_module(fmt
   nuri/fmt/fmt_module.cpp
   nuri/fmt/cif.cpp
 )
-target_link_libraries(NuriPythonMod-fmt PRIVATE absl::span)
+target_link_libraries("${NURI_PYTHON_MODULE_TARGET}"
+  PRIVATE absl::span
+)
 
 nuri_python_add_module(tm OUTPUT_DIRECTORY "tools"
   nuri/tools/tm_module.cpp
 )
+
+configure_file(
+  "${CMAKE_CURRENT_LIST_DIR}/nuri/_version.py.in"
+  "${CMAKE_CURRENT_LIST_DIR}/nuri/_version.py"
+  @ONLY
+)
+
+if(SKBUILD)
+  install(
+    FILES "${CMAKE_CURRENT_LIST_DIR}/nuri/_version.py"
+    DESTINATION "."
+  )
+endif()
 
 if(NURI_BUILD_PYTHON_STUBS)
   file(

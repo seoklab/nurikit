@@ -51,9 +51,13 @@ function(nuri_python_add_module name)
     set(subdir "")
   endif()
 
-  set(target_name "NuriPythonMod-${subdir}-${name}")
-  string(REGEX REPLACE "/+" "-" target_name "${target_name}")
-  string(REGEX REPLACE "-+" "-" target_name "${target_name}")
+  file(RELATIVE_PATH module
+    "${CMAKE_CURRENT_LIST_DIR}/"
+    "${CMAKE_CURRENT_LIST_DIR}/nuri/${subdir}${name}"
+  )
+  string(REGEX REPLACE "/+" "." module "${module}")
+
+  set(target_name "NuriPyMod-${module}")
 
   pybind11_add_module("${target_name}" OPT_SIZE "${sources}")
   target_link_libraries("${target_name}" PRIVATE "${PROJECT_NAME}::NuriLib")
@@ -65,7 +69,6 @@ function(nuri_python_add_module name)
     "${target_name}"
     PROPERTIES
     OUTPUT_NAME "${name}"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/nuri/${subdir}"
   )
 
   if(NURI_BUILD_LIB AND NURI_INSTALL_RPATH)
@@ -81,14 +84,14 @@ function(nuri_python_add_module name)
   endif()
 
   if(NURI_BUILD_PYTHON_STUBS)
-    file(RELATIVE_PATH submodule
-      "${CMAKE_CURRENT_LIST_DIR}/"
-      "${CMAKE_CURRENT_LIST_DIR}/nuri/${subdir}${name}"
+    set_target_properties(
+      "${target_name}"
+      PROPERTIES
+      LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/nuri/${subdir}"
     )
-    string(REGEX REPLACE "/" "." submodule "${submodule}")
 
     nuri_python_generate_stubs(
-      "${submodule}"
+      "${module}"
       "nuri/${subdir}${name}.pyi"
       "${target_name}"
       ${ARG_STUBGEN_ARGS}
@@ -101,4 +104,5 @@ function(nuri_python_add_module name)
   endif()
 
   add_dependencies(NuriPython "${target_name}")
+  set(NURI_PYTHON_MODULE_TARGET "${target_name}" PARENT_SCOPE)
 endfunction()
