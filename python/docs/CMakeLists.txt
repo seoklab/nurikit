@@ -34,12 +34,12 @@ if(NURI_BUILD_PYTHON_DOCS)
     VERBATIM
   )
 
-  if(TARGET NuriPython)
-    add_dependencies(NuriPythonDocs NuriPython)
-  endif()
-
   if(TARGET NuriDocs)
     add_dependencies(NuriPythonDocs NuriDocs)
+  endif()
+
+  if(TARGET NuriPython)
+    add_dependencies(NuriPythonDocs NuriPython)
   endif()
 endif()
 
