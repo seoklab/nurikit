@@ -66,17 +66,17 @@ function(_nuri_get_git_version_impl)
 endfunction()
 
 function(nuri_get_version)
-  if(SKBUILD)
+  if(NURI_FORCE_VERSION)
+    set(NURI_FULL_VERSION "${NURI_FORCE_VERSION}")
+    set(NURI_REF "v${NURI_FULL_VERSION}")
+    message(STATUS "Using explicit NuriKit version: ${NURI_FORCE_VERSION}")
+  elseif(SKBUILD)
     # Version correctly set via scikit-build-core; skip git versioning.
     set(NURI_FULL_VERSION "${SKBUILD_PROJECT_VERSION_FULL}")
     set(NURI_REF "v${NURI_FULL_VERSION}")
     message(
       STATUS "NuriKit version from scikit-build-core: ${NURI_FULL_VERSION}"
     )
-  elseif(NURI_FORCE_VERSION)
-    set(NURI_FULL_VERSION "${NURI_FORCE_VERSION}")
-    set(NURI_REF "v${NURI_FULL_VERSION}")
-    message(STATUS "Using explicit NuriKit version: ${NURI_FORCE_VERSION}")
   else()
     _nuri_get_git_version_impl()
   endif()
