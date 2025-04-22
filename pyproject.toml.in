@@ -107,7 +107,7 @@ cmake -S {project} -B . \
     -DSKBUILD=ON \
     -DNURI_BUILD_LIB=OFF \
     -DNURI_BUILD_PYTHON=OFF \
-    -DNURI_BUILD_PYTHON_DOCS=ON""",
+    -DNURI_BUILD_PYTHON_DOCTEST=ON""",
     "cmake --build . --target NuriPythonDoctest -j",
 ]
 
