@@ -31,6 +31,7 @@ option(NURI_BUILD_LIB "Build NuriKit library" ON)
 option(NURI_BUILD_PYTHON "Build Python bindings" ON)
 option(NURI_BUILD_DOCS "Build documentation" OFF)
 option(NURI_BUILD_PYTHON_DOCS "Build python documentation" OFF)
+option(NURI_BUILD_PYTHON_DOCTEST "Build python doctest" OFF)
 
 option(NURI_PREBUILT_ABSL "Download prebuilt abseil binary" ON)
 option(NURI_INSTALL_RPATH "Install with RPATH when building full library" ON)
@@ -271,7 +272,7 @@ if(NURI_BUILD_FUZZING)
   add_subdirectory(fuzz)
 endif()
 
-if(NURI_BUILD_PYTHON OR NURI_BUILD_PYTHON_DOCS OR BUILD_TESTING)
+if(NURI_BUILD_PYTHON OR NURI_BUILD_PYTHON_DOCS OR NURI_BUILD_PYTHON_DOCTEST)
   if(NOT SKBUILD)
     configure_file(
       pyproject.toml.in

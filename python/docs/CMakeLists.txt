@@ -11,10 +11,8 @@ find_package_handle_standard_args(Sphinx DEFAULT_MSG SPHINX_EXECUTABLE)
 
 if(Sphinx_FOUND)
   message(STATUS "Sphinx found")
-elseif(NURI_BUILD_PYTHON_DOCS)
-  message(FATAL_ERROR "Sphinx not found; cannot build docs")
 else()
-  message(NOTICE "Sphinx not found; cannot run doctest")
+  message(SEND_ERROR "Sphinx not found; cannot build docs or run doctest")
   return()
 endif()
 
@@ -43,7 +41,7 @@ if(NURI_BUILD_PYTHON_DOCS)
   endif()
 endif()
 
-if(BUILD_TESTING)
+if(NURI_BUILD_PYTHON_DOCTEST)
   add_custom_target(NuriPythonDoctest
     COMMAND ${CMAKE_COMMAND} -E env ${SANITIZER_ENVS}
     ${SPHINX_EXECUTABLE}

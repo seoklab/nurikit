@@ -23,6 +23,6 @@ if(NURI_BUILD_PYTHON)
   add_subdirectory(src)
 endif()
 
-if(NURI_BUILD_PYTHON_DOCS OR BUILD_TESTING)
+if(NURI_BUILD_PYTHON_DOCS OR NURI_BUILD_PYTHON_DOCTEST)
   add_subdirectory(docs)
 endif()
