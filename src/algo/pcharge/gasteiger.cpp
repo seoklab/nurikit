@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <vector>
+
 #include <absl/algorithm/container.h>
 #include <Eigen/Dense>
 
@@ -17,11 +19,11 @@ namespace {
   class GasteigerParams {
   public:
     constexpr static size_t kNParams = 4;
-    constexpr static size_t kNValues = N;
+    constexpr static size_t kNTypes = N;
 
-    constexpr GasteigerParams(const double (&abc)[kNValues][kNParams - 1])
+    constexpr GasteigerParams(const double (&abc)[kNTypes][kNParams - 1])
         : data_ {} {
-      for (int i = 1; i < kNValues; ++i) {
+      for (int i = 1; i < kNTypes; ++i) {
         data_[0][i] = abc[i][0];
         data_[1][i] = abc[i][1];
         data_[2][i] = abc[i][2];
@@ -34,11 +36,13 @@ namespace {
 
     auto array() const {
       // Eigen is col-major
-      return Array<double, kNValues, kNParams>::MapAligned(data_[0]);
+      return Array<double, kNTypes, kNParams>::MapAligned(data_[0]);
     }
 
+    constexpr int ntypes() const { return static_cast<int>(kNTypes); }
+
   private:
-    alignas(Eigen::AlignedMax) double data_[kNParams][kNValues];
+    alignas(Eigen::AlignedMax) double data_[kNParams][kNTypes];
   };
 
   template <size_t N>
@@ -103,6 +107,8 @@ namespace {
 
   int resolve_gasteiger_type(Molecule::Atom atom) {
     auto hyb = atom.data().hybridization();
+    if (hyb == Hyb::kUnbound)
+      return 0;
 
     switch (atom.data().atomic_number()) {
     case 0:
@@ -242,6 +248,39 @@ namespace {
         return false;
 
       en_pchg_buf(atom.id(), 1) = atom.data().formal_charge();
+    }
+
+    std::vector<std::vector<int>> type_neighs(kGasteigerParams.ntypes());
+    for (auto atom: mol) {
+      if (count_heavy(atom) < 2 || atom.data().atomic_number() < 3)
+        continue;
+
+      int total_conjugated_neighbors =
+          absl::c_count_if(atom, [](const Molecule::Neighbor nei) {
+            return nei.edge_data().is_conjugated()
+                   && count_heavy(nei.dst()) == 1;
+          });
+      if (total_conjugated_neighbors < 2)
+        continue;
+
+      for (auto &nei: type_neighs)
+        nei.clear();
+
+      for (auto nei: atom) {
+        if (nei.edge_data().is_conjugated() && count_heavy(nei.dst()) == 1)
+          type_neighs[atom_types[nei.dst().id()]].push_back(nei.dst().id());
+      }
+      if (absl::c_none_of(type_neighs, [](const std::vector<int> &v) {
+            return v.size() > 1;
+          }))
+        continue;
+
+      for (auto &neighs: type_neighs) {
+        if (neighs.size() < 2)
+          continue;
+
+        en_pchg_buf(neighs, 1) = en_pchg_buf(neighs, 1).mean();
+      }
     }
 
     en_pchg_buf.col(1).tail(mol.size()).setZero();
