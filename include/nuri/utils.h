@@ -824,6 +824,11 @@ constexpr int log_base10(Int x) {
   lg += log_base10(static_cast<unsigned int>(x < 0 ? -x : x));
   return lg;
 }
+
+template <class T, size_t N>
+constexpr size_t array_size(T (& /* arr */)[N]) {
+  return N;
+}
 }  // namespace nuri
 
 #endif /* NURI_UTILS_H_ */
