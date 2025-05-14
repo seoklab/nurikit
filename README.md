@@ -1,6 +1,6 @@
 # NuriKit
 
-[![tests](https://github.com/seoklab/nurikit/actions/workflows/main-test.yaml/badge.svg)](https://github.com/seoklab/nurikit/actions/workflows/main-test.yaml) [![Documentation Status](https://readthedocs.org/projects/nurikit/badge/?version=latest)](https://nurikit.readthedocs.io/latest/?badge=latest) [![codecov](https://codecov.io/gh/seoklab/nurikit/branch/main/graph/badge.svg?token=5X6HJTVA5K)](https://codecov.io/gh/seoklab/nurikit) [![PyPI version](https://badge.fury.io/py/nurikit.svg?github-dont-cache=true)](https://badge.fury.io/py/nurikit) [![Conda Version](https://img.shields.io/conda/vn/conda-forge/nurikit.svg)](https://anaconda.org/conda-forge/nurikit)
+[![tests](https://github.com/seoklab/nurikit/actions/workflows/main-test.yaml/badge.svg)](https://github.com/seoklab/nurikit/actions/workflows/main-test.yaml) [![Documentation Status](https://readthedocs.org/projects/nurikit/badge/?version=latest)](https://nurikit.readthedocs.io/latest/?badge=latest) [![codecov](https://codecov.io/gh/seoklab/nurikit/branch/main/graph/badge.svg?token=5X6HJTVA5K)](https://codecov.io/gh/seoklab/nurikit) [![PyPI version](https://badge.fury.io/py/nurikit.svg?github-dont-cache=true)](https://badge.fury.io/py/nurikit) [![Conda Version](https://img.shields.io/conda/vn/conda-forge/nurikit.svg?github-dont-cache=true)](https://anaconda.org/conda-forge/nurikit)
 
 ## Introduction
 
