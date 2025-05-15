@@ -25,6 +25,7 @@
 #include <vector>
 
 #include <absl/algorithm/container.h>
+#include <absl/base/nullability.h>
 #include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
 #include <absl/numeric/bits.h>
@@ -829,6 +830,15 @@ template <class T, size_t N>
 constexpr size_t array_size(T (& /* arr */)[N]) {
   return N;
 }
+
+namespace internal {
+  template <class T>
+  using Nonnull = absl::Nonnull<T>;
+  template <class T>
+  using Nullable = absl::Nullable<T>;
+  template <class T>
+  using NullabilityUnknown = absl::NullabilityUnknown<T>;
+}  // namespace internal
 }  // namespace nuri
 
 #endif /* NURI_UTILS_H_ */
