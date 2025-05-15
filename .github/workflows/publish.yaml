@@ -12,9 +12,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
+        description: "Version to emulate"
         type: string
         required: true
       minimal:
+        description: "Minimal build"
         type: boolean
         required: false
         default: false
@@ -28,7 +30,6 @@ jobs:
     uses: ./.github/workflows/_run-clang-tools.yaml
     with:
       files-changed-only: false
-      force: true
 
   test:
     uses: ./.github/workflows/_test-and-coverage.yaml

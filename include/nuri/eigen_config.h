@@ -53,6 +53,7 @@ using Eigen::Array3Xd;
 using Eigen::Array4Xd;
 using Eigen::ArrayX2d;
 using Eigen::ArrayX2i;
+using Eigen::ArrayX3d;
 using Eigen::ArrayXd;
 using Eigen::ArrayXi;
 using Eigen::ArrayXX;

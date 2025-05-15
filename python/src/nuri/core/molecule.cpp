@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <stdexcept>
 #include <string_view>
 #include <tuple>
 #include <utility>
@@ -25,6 +26,7 @@
 #include <pybind11/typing.h>
 
 #include "nuri/eigen_config.h"
+#include "nuri/algo/pcharge.h"
 #include "nuri/core/element.h"
 #include "nuri/core/graph.h"
 #include "nuri/core/property_map.h"
@@ -1140,6 +1142,39 @@ The number of connected components (fragments) in the molecule.
 
 .. warning::
    This might return incorrect value if the molecule is in a mutator context.
+)doc");
+
+  mol.def(
+      "assign_charges",
+      [](PyMol &self, std::string_view method) {
+        if (method == "gasteiger")
+          if (!assign_charges_gasteiger(*self))
+            throw std::runtime_error("Failed to assign Gasteiger charges");
+
+        throw py::value_error(
+            absl::StrCat("Unknown charge assignment method: ", method));
+      },
+      py::arg("method") = "gasteiger", R"doc(
+Assign partial charges to the molecule.
+
+:param method: The charge assignment method. See below for the possible charge
+  assignment methods. Default to ``"gasteiger"``.
+:raises RuntimeError: If the charge assignment method fails.
+:raises ValueError: If the charge assignment method is not supported.
+
+Supported methods:
+
+* ``"gasteiger"``: Assigns Marsili-Gasteiger charges, as described in the
+  original paper\ :footcite:`algo:pcharge:gasteiger`.
+
+  The Gasteiger algorithm requires initial "seed" charges to be assigned to
+  atoms. In this implementation, the initial charges are assigned from the
+  (localized) formal charges of the atoms, then a charge delocalization
+  algorithm is applied to the terminal atoms of a conjugated system with the
+  same Gasteiger type (e.g., oxygens of a carboxylate group will be assigned
+  -0.5 charge each).
+
+.. footbibliography::
 )doc");
 
   mutator

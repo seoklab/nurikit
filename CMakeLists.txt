@@ -210,7 +210,6 @@ add_compile_options(
   -Wall
   -Wextra
   -Wno-sign-compare
-  -Wno-nullable-to-nonnull-conversion # abseil/abseil-cpp#1793
 )
 
 if(NURI_BUILD_LIB)

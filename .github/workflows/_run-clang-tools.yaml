@@ -11,9 +11,6 @@ on:
       files-changed-only:
         type: boolean
         default: true
-      force:
-        type: boolean
-        default: false
       version:
         type: string
         default: "20"
@@ -23,16 +20,9 @@ defaults:
     shell: bash
 
 jobs:
-  check-want-lint:
-    uses: ./.github/workflows/_check-want-test.yaml
-    with:
-      skip-bots: true
-      keyword: "lint"
-
   format-and-lint-changed:
     runs-on: ubuntu-latest
-    needs: [check-want-lint]
-    if: ${{ inputs.files-changed-only && (inputs.force || needs.check-want-lint.outputs.want-test == 'true') }}
+    if: ${{ inputs.files-changed-only }}
 
     steps:
       - run: sudo apt-get install -y libeigen3-dev
@@ -73,8 +63,7 @@ jobs:
   format-and-lint-all:
     # runs-on: ubuntu-latest
     runs-on: [self-hosted, sandbox]
-    needs: [check-want-lint]
-    if: ${{ !inputs.files-changed-only && (inputs.force || needs.check-want-lint.outputs.want-test == 'true') }}
+    if: ${{ !inputs.files-changed-only }}
 
     steps:
       # - run: sudo apt-get install -y libeigen3-dev

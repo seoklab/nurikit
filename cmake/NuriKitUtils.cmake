@@ -228,6 +228,7 @@ function(set_sanitizer_envs)
 
   set(SANITIZER_ENVS
     "LD_PRELOAD=${asan_lib_path} ${ubsan_lib_path} $ENV{LD_PRELOAD}"
+    "ASAN_OPTIONS=detect_leaks=0"
     PARENT_SCOPE
   )
 endfunction()

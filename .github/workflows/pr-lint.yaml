@@ -21,8 +21,16 @@ defaults:
     shell: bash
 
 jobs:
+  check-want-lint:
+    uses: ./.github/workflows/_check-want-test.yaml
+    with:
+      keyword: "lint"
+      skip-bots: true
+
   check-files:
+    needs: check-want-lint
     runs-on: ubuntu-latest
+    if: ${{ needs.check-want-lint.outputs.want-test == 'true' }}
     outputs:
       config-changed: ${{ steps.changed-files.outputs.any_changed }}
     steps:
@@ -39,10 +47,23 @@ jobs:
             scripts/run_clang_tools.sh
 
   run-clang-tools:
-    needs: [check-files]
+    needs: check-files
     uses: ./.github/workflows/_run-clang-tools.yaml
     with:
       files-changed-only: ${{ needs.check-files.outputs.config-changed == 'false' }}
+
+  conclusion-lint:
+    needs: run-clang-tools
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - run: |
+          if [[ $FAILED == 'true' ]]; then
+            echo "Linting failed."
+            exit 1
+          fi
+        env:
+          FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
