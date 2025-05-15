@@ -52,7 +52,7 @@ jobs:
     with:
       files-changed-only: ${{ needs.check-files.outputs.config-changed == 'false' }}
 
-  conclusion:
+  conclusion-lint:
     needs: run-clang-tools
     runs-on: ubuntu-latest
     if: ${{ always() }}

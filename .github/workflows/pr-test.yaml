@@ -31,7 +31,7 @@ jobs:
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-  conclusion:
+  conclusion-test:
     needs: test-and-coverage
     runs-on: ubuntu-latest
     if: ${{ always() }}

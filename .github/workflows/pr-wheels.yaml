@@ -32,7 +32,7 @@ jobs:
     with:
       minimal: true
 
-  conclusion:
+  conclusion-wheels:
     needs: test-build-wheels
     runs-on: ubuntu-latest
     if: ${{ always() }}
