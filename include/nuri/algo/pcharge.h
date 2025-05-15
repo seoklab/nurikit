@@ -18,7 +18,7 @@ namespace nuri {
  *
  * @param mol The molecule to assign charges to.
  * @param relaxation_steps The number of relaxation steps to perform after the
- *        initial charge assignment (default: 8). When set to 0, no relaxation
+ *        initial charge assignment (default: 12). When set to 0, no relaxation
  *        is performed.
  * @return Whether the charge assignment was successful.
  *
@@ -40,7 +40,7 @@ namespace nuri {
  * -0.5 charge each).
  */
 ABSL_MUST_USE_RESULT
-extern bool assign_charges_gasteiger(Molecule &mol, int relaxation_steps = 8);
+extern bool assign_charges_gasteiger(Molecule &mol, int relaxation_steps = 12);
 }  // namespace nuri
 
 #endif /* NURI_ALGO_PCHARGE_H_ */
