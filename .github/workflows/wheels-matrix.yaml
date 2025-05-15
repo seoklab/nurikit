@@ -79,7 +79,3 @@ jobs:
     uses: ./.github/workflows/_wheel-build.yaml
     with:
       python: ${{ matrix.pyver }}-${{ matrix.os }}
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
