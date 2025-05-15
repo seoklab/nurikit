@@ -12,7 +12,6 @@
 #include <vector>
 
 #include <absl/algorithm/container.h>
-#include <absl/base/nullability.h>
 #include <absl/base/optimization.h>
 #include <absl/cleanup/cleanup.h>
 #include <absl/log/absl_check.h>
@@ -760,9 +759,9 @@ namespace internal {
       ArrayXd rvdw_sq_inv_;
       double hh_rvdw_sq_inv_;
 
-      absl::Nonnull<const Molecule *> mol_;
-      absl::Nonnull<Matrix3Xd *> conf_;
-      absl::Nonnull<const std::vector<int> *> free_hs_;
+      Nonnull<const Molecule *> mol_;
+      Nonnull<Matrix3Xd *> conf_;
+      Nonnull<const std::vector<int> *> free_hs_;
     };
 
     double lj_energy_vector_pair(Vector3d &diff, const double rvdw_sq_inv) {

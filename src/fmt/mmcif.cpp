@@ -17,7 +17,6 @@
 #include <utility>
 #include <vector>
 
-#include <absl/base/nullability.h>
 #include <absl/base/optimization.h>
 #include <absl/container/flat_hash_map.h>
 #include <absl/log/absl_check.h>
@@ -118,7 +117,7 @@ private:
     ABSL_DCHECK_GE(tbl_ * col_, 0);
   }
 
-  absl::Nonnull<const internal::CifFrame *> frame_;
+  internal::Nonnull<const internal::CifFrame *> frame_;
   int tbl_ = -1;
   int col_;
 };
@@ -126,7 +125,7 @@ private:
 template <auto converter, bool kRequired = true>
 class TypedNullableColumn;
 
-template <class T, bool (*converter)(std::string_view, absl::Nonnull<T *>),
+template <class T, bool (*converter)(std::string_view, internal::Nonnull<T *>),
           bool kRequired>
 class TypedNullableColumn<converter, kRequired> {
 public:

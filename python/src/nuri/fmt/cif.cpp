@@ -14,7 +14,6 @@
 #include <utility>
 #include <vector>
 
-#include <absl/base/nullability.h>
 #include <absl/container/flat_hash_map.h>
 #include <absl/log/absl_check.h>
 #include <absl/strings/match.h>
@@ -30,7 +29,6 @@
 #include "nuri/python/exception.h"
 #include "nuri/python/utils.h"
 #include "nuri/utils.h"
-
 namespace nuri {
 namespace python_internal {
 namespace {
@@ -91,7 +89,7 @@ public:
   pyt::List<py::str> keys() const { return keys_.attr("copy")(); }
 
 private:
-  absl::Nonnull<const internal::CifTable *> table_;
+  internal::Nonnull<const internal::CifTable *> table_;
   pyt::List<py::str> keys_;
 };
 
@@ -143,7 +141,7 @@ public:
   const internal::CifFrame &operator*() const { return *frame_; }
 
 private:
-  absl::Nonnull<const internal::CifFrame *> frame_;
+  internal::Nonnull<const internal::CifFrame *> frame_;
 };
 
 class PyCifBlock {

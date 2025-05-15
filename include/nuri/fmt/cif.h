@@ -18,7 +18,6 @@
 #include <vector>
 
 #include <absl/base/attributes.h>
-#include <absl/base/nullability.h>
 #include <absl/container/btree_map.h>
 #include <absl/log/absl_check.h>
 #include <absl/strings/str_cat.h>
@@ -125,7 +124,7 @@ namespace internal {
     }
 
   private:
-    absl::Nonnull<std::istream *> is_;
+    Nonnull<std::istream *> is_;
     std::string line_;
     std::string buf_;
 
@@ -223,7 +222,7 @@ namespace internal {
 
   class CifTableColumn {
   public:
-    CifTableColumn(absl::Nonnull<const CifTable *> table, size_t col)
+    CifTableColumn(Nonnull<const CifTable *> table, size_t col)
         : table_(table), col_(col) { }
 
     std::string_view key() const { return table_->keys()[col_]; }
@@ -233,7 +232,7 @@ namespace internal {
     size_t size() const { return table_->rows(); }
 
   private:
-    absl::Nonnull<const CifTable *> table_;
+    Nonnull<const CifTable *> table_;
     size_t col_;
   };
 
