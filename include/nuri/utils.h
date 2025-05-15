@@ -832,12 +832,18 @@ constexpr size_t array_size(T (& /* arr */)[N]) {
 }
 
 namespace internal {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
+  // These 3 are deprecated as of v20250512
   template <class T>
   using Nonnull = absl::Nonnull<T>;
   template <class T>
   using Nullable = absl::Nullable<T>;
   template <class T>
   using NullabilityUnknown = absl::NullabilityUnknown<T>;
+
+#pragma GCC diagnostic pop
 }  // namespace internal
 }  // namespace nuri
 
