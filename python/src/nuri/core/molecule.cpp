@@ -1157,10 +1157,24 @@ The number of connected components (fragments) in the molecule.
       py::arg("method") = "gasteiger", R"doc(
 Assign partial charges to the molecule.
 
-:param method: The charge assignment method. Currently ``"gasteiger"`` is the
-  only supported method. Default to ``"gasteiger"``.
+:param method: The charge assignment method. See below for the possible charge
+  assignment methods. Default to ``"gasteiger"``.
 :raises RuntimeError: If the charge assignment method fails.
 :raises ValueError: If the charge assignment method is not supported.
+
+Supported methods:
+
+* ``"gasteiger"``: Assigns Marsili-Gasteiger charges, as described in the
+  original paper\ :footcite:`algo:pcharge:gasteiger`.
+
+  The Gasteiger algorithm requires initial "seed" charges to be assigned to
+  atoms. In this implementation, the initial charges are assigned from the
+  (localized) formal charges of the atoms, then a charge delocalization
+  algorithm is applied to the terminal atoms of a conjugated system with the
+  same Gasteiger type (e.g., oxygens of a carboxylate group will be assigned
+  -0.5 charge each).
+
+.. footbibliography::
 )doc");
 
   mutator
