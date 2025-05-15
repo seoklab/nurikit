@@ -22,15 +22,27 @@ defaults:
 
 jobs:
   check-want-test:
-    if: ${{ !github.event.pull_request.draft }}
     uses: ./.github/workflows/_check-want-test.yaml
 
   test-and-coverage:
-    needs: [check-want-test]
-    if: ${{ always() && needs.check-want-test.outputs.want-test == 'true' }}
+    needs: check-want-test
+    if: ${{ needs.check-want-test.outputs.want-test == 'true' }}
     uses: ./.github/workflows/_test-and-coverage.yaml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  conclusion:
+    needs: test-and-coverage
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - run: |
+          if [[ $FAILED == 'true' ]]; then
+            echo "Test failed."
+            exit 1
+          fi
+        env:
+          FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

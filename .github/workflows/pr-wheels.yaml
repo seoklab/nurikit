@@ -25,28 +25,25 @@ jobs:
     if: ${{ !github.event.pull_request.draft }}
     uses: ./.github/workflows/_check-want-test.yaml
 
-  build-base:
+  test-build-wheels:
     needs: check-want-test
     if: ${{ needs.check-want-test.outputs.want-test == 'true' }}
-    uses: ./.github/workflows/_base-build.yaml
-
-  test-build-linux:
-    needs: build-base
-    uses: ./.github/workflows/_wheel-build.yaml
+    uses: ./.github/workflows/wheels-matrix.yaml
     with:
-      python: cp38-manylinux_x86_64
+      minimal: true
 
-  test-build-mac-intel:
-    needs: build-base
-    uses: ./.github/workflows/_wheel-build.yaml
-    with:
-      python: cp38-macosx_x86_64
-
-  test-build-mac-arm:
-    needs: build-base
-    uses: ./.github/workflows/_wheel-build.yaml
-    with:
-      python: cp38-macosx_arm64
+  conclusion:
+    needs: test-build-wheels
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - run: |
+          if [[ $FAILED == 'true' ]]; then
+            echo "Linting failed."
+            exit 1
+          fi
+        env:
+          FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

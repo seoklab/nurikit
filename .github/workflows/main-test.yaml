@@ -30,7 +30,15 @@ defaults:
     shell: bash
 
 jobs:
+  check-want-lint:
+    uses: ./.github/workflows/_check-want-test.yaml
+    with:
+      keyword: "lint"
+      skip-bots: true
+
   run-clang-tools:
+    needs: check-want-lint
+    if: ${{ needs.check-want-lint.outputs.want-test == 'true' }}
     uses: ./.github/workflows/_run-clang-tools.yaml
     with:
       files-changed-only: false
@@ -39,7 +47,7 @@ jobs:
     uses: ./.github/workflows/_check-want-test.yaml
 
   test-and-coverage:
-    needs: [check-want-test]
+    needs: check-want-test
     if: ${{ needs.check-want-test.outputs.want-test == 'true' }}
     uses: ./.github/workflows/_test-and-coverage.yaml
     secrets:
