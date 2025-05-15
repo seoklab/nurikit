@@ -36,6 +36,7 @@ NO_CHARGES
 )mol2");
 
   NURI_FMT_TEST_NEXT_MOL("methane", 1, 0);
+  EXPECT_EQ(internal::get_key(mol().props(), "mol2_charge_type"), "NO_CHARGES");
 }
 
 TEST_F(Mol2Test, MalformedParsing) {
@@ -1654,12 +1655,15 @@ NO_CHARGES
 )mol2");
 
   mol2.clear();
+
+  mol().add_prop("mol2_charge_type", "GASTEIGER");
+
   write_mol2(mol2, mol(), -1, false);
   NURI_EXPECT_STRTRIM_EQ(mol2, R"mol2(@<TRIPOS>MOLECULE
 imidazole
 5 5 1 0 0
 SMALL
-NO_CHARGES
+GASTEIGER
 ****
 
 @<TRIPOS>ATOM

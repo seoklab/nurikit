@@ -38,6 +38,9 @@ namespace nuri {
  * algorithm is applied to the terminal atoms of a conjugated system with the
  * same Gasteiger type (e.g., oxygens of a carboxylate group will be assigned
  * -0.5 charge each).
+ *
+ * Sets `mol2_charge_type` to `GASTEIGER` in the molecule properties when
+ * successful.
  */
 ABSL_MUST_USE_RESULT
 extern bool assign_charges_gasteiger(Molecule &mol, int relaxation_steps = 12);

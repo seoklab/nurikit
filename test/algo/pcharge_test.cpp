@@ -21,6 +21,8 @@ TEST(ChargeGasteiger, Ethane) {
 
   EXPECT_NEAR(mol[0].data().partial_charge(), -0.068, 5e-3);
   EXPECT_NEAR(mol[1].data().partial_charge(), -0.068, 5e-3);
+
+  EXPECT_EQ(internal::get_key(mol.props(), "mol2_charge_type"), "GASTEIGER");
 }
 
 TEST(ChargeGasteiger, AcetateIon) {

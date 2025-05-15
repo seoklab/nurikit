@@ -144,6 +144,16 @@ void parse_mol_block(Molecule &mol, Iter &it, const Iter end) {
     ABSL_LOG(INFO) << "The line is: " << *it;
   }
 
+  for (int i = 0; i < 2; ++i) {
+    if (mol2_block_end(++it, end)) {
+      ABSL_LOG(WARNING) << "Failed to parse mol block line; this file might be "
+                           "incompatible with future versions of NuriKit";
+      return;
+    }
+  }
+
+  mol.add_prop("mol2_charge_type", absl::StripAsciiWhitespace(*it));
+
   for (; !mol2_block_end(++it, end);)
     ;
 }
@@ -1032,6 +1042,11 @@ void write_mol2_single_conf(std::string &out, const Molecule &mol, int conf,
     ABSL_DCHECK_LT(conf, mol.confs().size());
   }
 
+  std::string charge_type = internal::ascii_newline_safe(
+      internal::get_key(mol.props(), "mol2_charge_type"));
+  if (charge_type.empty())
+    charge_type = "NO_CHARGES";
+
   absl::StrAppendFormat(
       &out,
       // clang-format off
@@ -1039,14 +1054,14 @@ R"mol2(@<TRIPOS>MOLECULE
 %s
 %d %d %d 0 0
 SMALL
-NO_CHARGES
+%s
 %s
 %s
 )mol2",
       // clang-format on
       mol.name().empty() ? kCommentIndicator
                          : internal::ascii_newline_safe(mol.name()),
-      mol.num_atoms(), mol.num_bonds(), sub_info.num_used_subs,
+      mol.num_atoms(), mol.num_bonds(), sub_info.num_used_subs, charge_type,
       kCommentIndicator,
       internal::ascii_newline_safe(internal::get_key(mol.props(), "comment")));
 

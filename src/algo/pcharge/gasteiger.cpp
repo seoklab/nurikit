@@ -333,6 +333,7 @@ bool assign_charges_gasteiger(Molecule &mol, int relaxation_steps) {
     pchg += factor * buf;
   }
 
+  mol.add_prop("mol2_charge_type", "GASTEIGER");
   for (auto atom: mol)
     atom.data().set_partial_charge(pchg[atom.id()]);
 
