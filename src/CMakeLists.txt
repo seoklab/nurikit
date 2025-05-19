@@ -46,6 +46,7 @@ target_link_libraries(NuriLib
   PUBLIC
   Eigen3::Eigen
   Boost::headers
+  Boost::graph
   absl::strings
   absl::flat_hash_map
   absl::absl_check

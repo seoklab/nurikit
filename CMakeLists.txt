@@ -170,13 +170,16 @@ if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON OR BUILD_TESTING)
     NAME Boost
     MIN_VERSION 1.82
     CPM_VERSION 1.87.0
+    COMPONENTS graph
     OPTIONS
     "BUILD_TESTING OFF"
+    "BUILD_SHARED_LIBS OFF"
     "BOOST_ENABLE_CMAKE ON"
     "BOOST_SKIP_INSTALL_RULES OFF"
     "BOOST_ENABLE_COMPATIBILITY_TARGETS ON"
     "BOOST_INCLUDE_LIBRARIES \
-spirit\\\;fusion\\\;optional\\\;container\\\;iterator\\\;range"
+spirit\\\;fusion\\\;optional\\\;container\\\;iterator\\\;range\\\;\
+graph\\\;property_map"
     URL "https://github.com/boostorg/boost/releases/download/boost-1.87.0/boost-1.87.0-cmake.tar.xz"
   )
 
