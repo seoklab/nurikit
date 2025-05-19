@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "nuri/core/graph/subgraph.h"
+
 #include <iterator>
 #include <type_traits>
 #include <utility>
 
 #include <gtest/gtest.h>
-
-#include "nuri/core/graph.h"
 
 #define NURI_TEST_CONVERTIBILITY(from_name, from_expr, to_name, to_expr,       \
                                  allowed)                                      \

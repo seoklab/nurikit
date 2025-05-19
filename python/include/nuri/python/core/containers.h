@@ -8,7 +8,7 @@
 
 #include <pybind11/pybind11.h>
 
-#include "nuri/core/property_map.h"
+#include "nuri/core/container/property_map.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {

@@ -14,9 +14,9 @@
 #include "fmt_test_common.h"
 #include "test_utils.h"
 #include "nuri/algo/guess.h"
+#include "nuri/core/container/property_map.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
-#include "nuri/core/property_map.h"
 
 namespace nuri {
 namespace {

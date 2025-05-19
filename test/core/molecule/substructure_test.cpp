@@ -12,7 +12,7 @@
 
 #include <gtest/gtest.h>
 
-#include "nuri/core/graph.h"
+#include "nuri/core/graph/subgraph.h"
 #include "nuri/core/molecule.h"
 
 #define NURI_TEST_CONVERTIBILITY(from_name, from_expr, to_name, to_expr,       \

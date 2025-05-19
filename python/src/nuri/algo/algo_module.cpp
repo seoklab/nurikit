@@ -15,7 +15,7 @@
 #include "nuri/algo/crdgen.h"
 #include "nuri/algo/guess.h"
 #include "nuri/algo/rings.h"
-#include "nuri/core/graph.h"
+#include "nuri/core/container/index_set.h"
 #include "nuri/core/molecule.h"
 #include "nuri/python/core/core_module.h"
 #include "nuri/python/utils.h"

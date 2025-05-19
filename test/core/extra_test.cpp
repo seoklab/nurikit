@@ -9,7 +9,7 @@
 
 #include <gtest/gtest.h>
 
-#include "nuri/core/bool_matrix.h"
+#include "nuri/core/container/bool_matrix.h"
 #include "nuri/utils.h"
 
 namespace nuri {

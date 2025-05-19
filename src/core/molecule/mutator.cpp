@@ -13,7 +13,6 @@
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
-#include "nuri/core/graph.h"
 #include "nuri/core/molecule.h"
 
 namespace nuri {

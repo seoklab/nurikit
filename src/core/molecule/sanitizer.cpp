@@ -20,7 +20,6 @@
 
 #include "nuri/algo/rings.h"
 #include "nuri/core/element.h"
-#include "nuri/core/graph.h"
 #include "nuri/core/molecule.h"
 #include "nuri/utils.h"
 
