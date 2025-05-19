@@ -19,7 +19,7 @@
 //! @endcond
 
 #include "nuri/eigen_config.h"
-#include "nuri/core/graph.h"
+#include "nuri/core/graph/traits.h"
 #include "nuri/utils.h"
 
 namespace nuri {

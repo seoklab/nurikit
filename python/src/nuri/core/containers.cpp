@@ -15,7 +15,7 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/typing.h>
 
-#include "nuri/core/property_map.h"
+#include "nuri/core/container/property_map.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {

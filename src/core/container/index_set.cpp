@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "nuri/core/graph.h"
+#include "nuri/core/container/index_set.h"
 
 #include <vector>
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "nuri/core/graph_adaptor.h"  // IWYU pragma: keep
+#include "nuri/core/graph/adaptor.h"  // IWYU pragma: keep
 
 #include <absl/algorithm/container.h>
 #include <boost/graph/graph_concepts.hpp>
@@ -11,7 +11,8 @@
 
 #include <gtest/gtest.h>
 
-#include "nuri/core/graph.h"
+#include "nuri/core/graph/graph.h"
+#include "nuri/core/graph/subgraph.h"
 
 namespace nuri {
 namespace {

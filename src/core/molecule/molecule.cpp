@@ -21,7 +21,7 @@
 #include "nuri/eigen_config.h"
 #include "nuri/core/element.h"
 #include "nuri/core/geometry.h"
-#include "nuri/core/graph.h"
+#include "nuri/core/graph/graph.h"
 #include "nuri/utils.h"
 
 namespace nuri {

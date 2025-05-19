@@ -24,9 +24,9 @@
 #include <pybind11/stl.h>
 
 #include "nuri/eigen_config.h"
+#include "nuri/core/container/property_map.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
-#include "nuri/core/property_map.h"
 #include "nuri/python/core/containers.h"
 #include "nuri/python/utils.h"
 

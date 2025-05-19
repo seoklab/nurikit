@@ -22,7 +22,6 @@
 #include "nuri/algo/optim.h"
 #include "nuri/core/element.h"
 #include "nuri/core/geometry.h"
-#include "nuri/core/graph.h"
 #include "nuri/core/molecule.h"
 #include "nuri/utils.h"
 

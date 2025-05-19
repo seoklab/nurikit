@@ -14,9 +14,9 @@
 
 #include "nuri/eigen_config.h"
 #include "fmt_test_common.h"
+#include "nuri/core/container/property_map.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
-#include "nuri/core/property_map.h"
 #include "nuri/utils.h"
 
 namespace nuri {

@@ -23,7 +23,7 @@
 #include <boost/spirit/home/x3.hpp>
 
 #include "nuri/eigen_config.h"
-#include "nuri/core/graph.h"
+#include "nuri/core/container/index_set.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 #include "nuri/utils.h"

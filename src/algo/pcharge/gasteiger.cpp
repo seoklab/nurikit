@@ -12,7 +12,7 @@
 
 #include "nuri/eigen_config.h"
 #include "nuri/algo/pcharge.h"
-#include "nuri/core/graph.h"
+#include "nuri/core/graph/graph.h"
 #include "nuri/core/molecule.h"
 
 namespace nuri {

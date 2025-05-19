@@ -2,8 +2,8 @@
 // Project NuriKit - Copyright 2023 SNU Compbio Lab.
 // SPDX-License-Identifier: Apache-2.0
 //
-#ifndef NURI_CORE_BOOL_MATRIX_H_
-#define NURI_CORE_BOOL_MATRIX_H_
+#ifndef NURI_CORE_CONTAINER_BOOL_MATRIX_H_
+#define NURI_CORE_CONTAINER_BOOL_MATRIX_H_
 
 //! @cond
 #include <cstdint>
@@ -146,4 +146,4 @@ private:
 };
 }  // namespace nuri
 
-#endif /* NURI_CORE_BOOL_MATRIX_H_ */
+#endif /* NURI_CORE_CONTAINER_BOOL_MATRIX_H_ */

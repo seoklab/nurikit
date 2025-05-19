@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#ifndef NURI_CORE_PROPERTY_MAP_H_
-#define NURI_CORE_PROPERTY_MAP_H_
+#ifndef NURI_CORE_CONTAINER_PROPERTY_MAP_H_
+#define NURI_CORE_CONTAINER_PROPERTY_MAP_H_
 
 //! @cond
 #include <functional>
@@ -93,4 +93,4 @@ namespace internal {
 }  // namespace internal
 }  // namespace nuri
 
-#endif /* NURI_CORE_PROPERTY_MAP_H_ */
+#endif /* NURI_CORE_CONTAINER_PROPERTY_MAP_H_ */

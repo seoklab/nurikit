@@ -14,7 +14,7 @@
 #include <boost/property_map/property_map.hpp>
 //! @endcond
 
-#include "nuri/core/graph.h"
+#include "nuri/core/graph/graph.h"
 #include "nuri/utils.h"
 
 namespace nuri {

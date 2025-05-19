@@ -26,9 +26,11 @@
 //! @endcond
 
 #include "nuri/eigen_config.h"
+#include "nuri/core/container/index_set.h"
+#include "nuri/core/container/property_map.h"
 #include "nuri/core/element.h"
-#include "nuri/core/graph.h"
-#include "nuri/core/property_map.h"
+#include "nuri/core/graph/graph.h"
+#include "nuri/core/graph/subgraph.h"
 #include "nuri/meta.h"
 #include "nuri/utils.h"
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "nuri/core/graph_vf2pp.h"
+#include "nuri/core/graph/vf2pp.h"
 
 #include <tuple>
 #include <utility>
@@ -15,7 +15,8 @@
 #include <gtest/gtest.h>
 
 #include "nuri/eigen_config.h"
-#include "nuri/core/graph.h"
+#include "nuri/core/graph/graph.h"
+#include "nuri/core/graph/subgraph.h"
 
 namespace nuri {
 namespace {
