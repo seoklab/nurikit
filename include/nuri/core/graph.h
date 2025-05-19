@@ -162,6 +162,8 @@ namespace internal {
     template <bool other_const>
     using Other = AdjIterator<GT, other_const>;
 
+    constexpr AdjIterator() noexcept = default;
+
     constexpr AdjIterator(parent_type &graph, difference_type idx,
                           difference_type nid) noexcept
         : Base(graph, idx), nid_(nid) { }
@@ -444,6 +446,9 @@ namespace internal {
 
 using NodesErased = std::pair<std::pair<int, std::vector<int>>,
                               std::pair<int, std::vector<int>>>;
+
+template <class NT, class ET, bool is_const>
+class Subgraph;
 
 /**
  * @brief Class for \e very sparse graphs, especially designed for the molecular
@@ -1068,8 +1073,8 @@ private:
   template <class, bool>
   friend class internal::AdjIterator;
 
-  template <class, class, bool>
-  friend class Subgraph;
+  friend class Subgraph<NT, ET, false>;
+  friend class Subgraph<NT, ET, true>;
 
   template <class GT>
   static internal::AdjIterator<Graph, std::is_const_v<GT>>
@@ -1427,9 +1432,6 @@ as_index(internal::NodeWrapper<GT, is_const> node) {
   return { node };
 }
 
-template <class, class, bool>
-class Subgraph;
-
 namespace internal {
   template <class, bool>
   class SubEdgesFinder;
@@ -1676,6 +1678,8 @@ namespace internal {
     static_assert(!GraphTraits<SGT>::is_const || is_const,
                   "Cannot create non-const SubAdjIterator from const "
                   "Subgraph");
+
+    constexpr SubAdjIterator() = default;
 
     constexpr SubAdjIterator(parent_type &subgraph, int src,
                              int parent_idx) noexcept
@@ -3038,8 +3042,7 @@ public:
   void rebind(parent_type &parent) { parent_ = &parent; }
 
 private:
-  template <class, class, bool>
-  friend class Subgraph;
+  friend class Subgraph<NT, ET, true>;
 
   template <class, bool>
   friend class internal::SubAdjWrapper;
