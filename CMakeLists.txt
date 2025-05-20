@@ -217,8 +217,13 @@ add_compile_options(
   -Wextra
   -Wno-sign-compare
 )
+
 # For boost graph library
-add_link_options(-Wl,--as-needed)
+if(CMAKE_SYSTEM_NAME MATCHES Linux)
+  add_link_options(-Wl,--as-needed)
+elseif(CMAKE_SYSTEM_NAME MATCHES Darwin)
+  add_link_options(-Wl,-dead_strip_dylibs)
+endif()
 
 if(NURI_BUILD_LIB)
   message(STATUS "Building NuriKit Library")
