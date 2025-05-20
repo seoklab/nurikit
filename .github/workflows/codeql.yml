@@ -91,7 +91,7 @@ jobs:
             -DBUILD_TESTING=OFF \
             -DNURI_PREBUILT_ABSL=ON \
             -S . -B build -G Ninja
-          pip install -v -Cbuild.requires="" .
+          pip install -v -Cbuild.requires="scikit-build-core" .
         env:
           SKBUILD_BUILD_DIR: build
           SKBUILD_CMAKE_ARGS: "-DNURI_BUILD_PYTHON_STUBS=OFF"
