@@ -44,6 +44,7 @@ jobs:
           cmake \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DNURI_PREBUILT_ABSL=ON \
             -S . -B build -G Ninja
 
       - uses: cpp-linter/cpp-linter-action@v2
@@ -84,6 +85,7 @@ jobs:
         run: |
           cmake \
             -DCMAKE_BUILD_TYPE=Release \
+            -DNURI_PREBUILT_ABSL=ON \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
             -S . -B build -G Ninja
 

@@ -16,7 +16,7 @@ defaults:
     shell: bash
 
 env:
-  SKBUILD_CMAKE_ARGS: "-DNURI_BUILD_PYTHON_DOCTEST=ON;-DNURI_BUILD_PYTHON_STUBS=OFF"
+  SKBUILD_CMAKE_ARGS: "-DNURI_BUILD_PYTHON_DOCTEST=ON;-DNURI_BUILD_PYTHON_STUBS=OFF;-DNURI_PREBUILT_ABSL=ON"
 
 jobs:
   coverage:
@@ -43,6 +43,7 @@ jobs:
         run: |
           cmake -G Ninja -S . -B build \
             -DCMAKE_BUILD_TYPE=Debug \
+            -DNURI_PREBUILT_ABSL=ON \
             -DNURI_TEST_COVERAGE=ON
 
       - run: pip install -v '.[test,docs,coverage]'

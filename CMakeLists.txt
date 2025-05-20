@@ -33,7 +33,6 @@ option(NURI_BUILD_DOCS "Build documentation" OFF)
 option(NURI_BUILD_PYTHON_DOCS "Build python documentation" OFF)
 option(NURI_BUILD_PYTHON_DOCTEST "Build python doctest" OFF)
 
-option(NURI_PREBUILT_ABSL "Download prebuilt abseil binary" ON)
 option(NURI_INSTALL_RPATH "Install with RPATH when building full library" ON)
 
 set(NURI_OPTIMIZATION_LEVEL "O3" CACHE STRING "Optimization level")
@@ -44,8 +43,13 @@ option(NURI_ENABLE_SANITIZERS "Enable sanitizers for debug build" OFF)
 option(NURI_BUILD_FUZZING "Enable fuzzing build" OFF)
 
 option(NURI_BUILD_PYTHON_STUBS "Build python stub files" OFF)
+option(NURI_PREBUILT_ABSL "Download prebuilt abseil binary" OFF)
 set(NURI_FORCE_VERSION "" CACHE STRING "Set NuriKit version to this value")
-mark_as_advanced(NURI_BUILD_PYTHON_STUBS NURI_FORCE_VERSION)
+mark_as_advanced(
+  NURI_BUILD_PYTHON_STUBS
+  NURI_PREBUILT_ABSL
+  NURI_FORCE_VERSION
+)
 
 # cmake includes
 file(
