@@ -9,7 +9,7 @@ channels:
 dependencies:
   - python=3.8
   - cmake=3.16
-  - boost-cpp>=1.82
+  - libboost-devel>=1.82
   - eigen=3.4
   - spectralib=1.0
   - pybind11=2.13
