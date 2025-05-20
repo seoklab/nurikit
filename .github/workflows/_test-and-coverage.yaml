@@ -23,21 +23,19 @@ jobs:
     if: ${{ !endsWith(github.triggering_actor, '[bot]') }}
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          sudo apt-get install -y \
-            libeigen3-dev libboost-all-dev libspectra-dev
-
       - uses: lukka/get-cmake@latest
         with:
           cmakeVersion: "~3.22.0" # for Ubuntu 22.04
-
-      - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.8"
 
       - run: pip install sphinx
+
+      - uses: actions/checkout@v4
+
+      - run: .github/scripts/setup-deps.sh
 
       - name: Configure
         run: |

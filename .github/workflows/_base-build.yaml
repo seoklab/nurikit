@@ -26,10 +26,6 @@ jobs:
       version: ${{ steps.extract-version.outputs.version }}
 
     steps:
-      - run: |
-          sudo apt-get install -y \
-            libeigen3-dev libboost-all-dev libspectra-dev
-
       - uses: lukka/get-cmake@latest
         with:
           # Ubuntu 22.04
@@ -42,6 +38,8 @@ jobs:
       - run: pip install pybind11-stubgen numpy
 
       - uses: actions/checkout@v4
+
+      - run: .github/scripts/setup-deps.sh
 
       - if: ${{ inputs.emulate-version != '' }}
         run: |
@@ -105,6 +103,8 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      - run: .github/scripts/setup-deps.sh
+
       - uses: actions/download-artifact@v4
         with:
           name: sdist
@@ -112,19 +112,13 @@ jobs:
 
       - run: cd dist && tar -xf *.tar* -C . --strip-components=1
 
-      - run: |
-          if [[ -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
-            eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-          fi
-          brew install eigen spectra boost
-
       - if: ${{ matrix.os == 'linux' }}
         run: |
           sudo docker run --rm \
             -v "$PWD:/work" \
             -v "/home/linuxbrew:/home/linuxbrew" \
             -w /work \
-            -e HOMEBREW_NO_AUTO_UPDATE=1 \
+            -e CMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
             -e NURI_VERSION="$NURI_VERSION" \
             quay.io/pypa/manylinux2014_x86_64:latest \
             .github/scripts/build-lib.sh ${{ matrix.os }}_${{ matrix.arch }}

@@ -12,7 +12,6 @@ set --
 
 if [[ $output == *linux* ]]; then
 	yum -y install ninja-build
-	eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 fi
 
 cmake -DCMAKE_BUILD_TYPE=Release \

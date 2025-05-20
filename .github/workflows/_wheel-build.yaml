@@ -47,6 +47,14 @@ jobs:
           tar -xvf *.tar* --strip-components=1
           tar -xvf dist/*.tar* -C dist
 
+      - uses: actions/checkout@v4
+        with:
+          path: git
+
+      - run: |
+          git/.github/scripts/setup-deps.sh
+          rm -rf git
+
       - id: resolve
         run: |
           if [[ $python == *linux* ]]; then

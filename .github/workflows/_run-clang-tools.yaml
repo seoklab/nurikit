@@ -25,10 +25,6 @@ jobs:
     if: ${{ inputs.files-changed-only }}
 
     steps:
-      - run: |
-          sudo apt-get install -y \
-            libeigen3-dev libboost-all-dev libspectra-dev
-
       - uses: lukka/get-cmake@latest
         with:
           cmakeVersion: "~3.22.0" # for Ubuntu 22.04
@@ -38,6 +34,8 @@ jobs:
           python-version: "3.8"
 
       - uses: actions/checkout@v4
+
+      - run: .github/scripts/setup-deps.sh
 
       - name: Configure with cmake
         run: |
