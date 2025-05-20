@@ -53,6 +53,7 @@ jobs:
 
       - run: |
           cmake -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
             -DNURI_PREBUILT_ABSL=ON \
             -DNURI_BUILD_PYTHON_STUBS=ON \
             -S . -B build -G Ninja
