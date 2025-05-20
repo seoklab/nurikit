@@ -59,18 +59,11 @@ jobs:
         run: |
           if [[ $python == *linux* ]]; then
             project=/project
-            brew=/home/linuxbrew/.linuxbrew
-
-            eval "$("$brew/bin/brew" shellenv)"
           else
             project="$(pwd)"
-            brew=/opt/homebrew
           fi
-
-          echo "CMAKE_PREFIX_PATH=${project}/dist:${brew}" >>"$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=${project}/dist:${CMAKE_PREFIX_PATH}" >>"$GITHUB_ENV"
           echo "ldpath=${project}/dist/lib" >>"$GITHUB_OUTPUT"
-
-          brew install eigen boost pybind11
         env:
           python: ${{ inputs.python }}
 
