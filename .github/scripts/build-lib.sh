@@ -14,8 +14,6 @@ if [[ $output == *linux* ]]; then
 	eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 fi
 
-brew install eigen spectra boost ninja
-
 cmake -DCMAKE_BUILD_TYPE=Release \
 	-DCMAKE_INSTALL_PREFIX=./install \
 	'-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64' \
