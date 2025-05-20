@@ -44,6 +44,7 @@ jobs:
           cmake \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DBUILD_TESTING=OFF \
             -DNURI_PREBUILT_ABSL=ON \
             -S . -B build -G Ninja
 
@@ -85,8 +86,9 @@ jobs:
         run: |
           cmake \
             -DCMAKE_BUILD_TYPE=Release \
-            -DNURI_PREBUILT_ABSL=ON \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DBUILD_TESTING=OFF \
+            -DNURI_PREBUILT_ABSL=ON \
             -S . -B build -G Ninja
 
       - name: Run clang tools to all files
