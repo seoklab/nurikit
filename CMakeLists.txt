@@ -217,6 +217,8 @@ add_compile_options(
   -Wextra
   -Wno-sign-compare
 )
+# For boost graph library
+add_link_options(-Wl,--as-needed)
 
 if(NURI_BUILD_LIB)
   message(STATUS "Building NuriKit Library")

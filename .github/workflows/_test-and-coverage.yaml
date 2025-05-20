@@ -91,8 +91,7 @@ jobs:
           cmake -G Ninja -S . -B build \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_CXX_FLAGS=-Werror \
-            -DNURI_ENABLE_SANITIZERS=ON \
-            -DBoost_USE_STATIC_LIBS=ON
+            -DNURI_ENABLE_SANITIZERS=ON
 
       - name: Build
         run: |
