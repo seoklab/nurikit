@@ -122,6 +122,7 @@ jobs:
             -v "$PWD:/work" \
             -v "/home/linuxbrew:/home/linuxbrew" \
             -w /work \
+            -e HOMEBREW_NO_AUTO_UPDATE=1 \
             -e NURI_VERSION="$NURI_VERSION" \
             quay.io/pypa/manylinux2014_x86_64:latest \
             .github/scripts/build-lib.sh ${{ matrix.os }}_${{ matrix.arch }}
