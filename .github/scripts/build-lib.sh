@@ -11,10 +11,10 @@ output="libnuri-${1}.tar.gz"
 set --
 
 if [[ $output == *linux* ]]; then
-	yum -y install ninja-build
-elif [[ $output == *macosx* ]]; then
-	brew install eigen spectra boost ninja
+	eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 fi
+
+brew install eigen spectra boost ninja
 
 cmake -DCMAKE_BUILD_TYPE=Release \
 	-DCMAKE_INSTALL_PREFIX=./install \

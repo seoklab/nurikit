@@ -26,7 +26,9 @@ jobs:
       version: ${{ steps.extract-version.outputs.version }}
 
     steps:
-      - run: sudo apt-get install -y libeigen3-dev
+      - run: |
+          sudo apt-get install -y \
+            libeigen3-dev libboost-all-dev libspectra-dev
 
       - uses: lukka/get-cmake@latest
         with:
@@ -110,7 +112,10 @@ jobs:
 
       - if: ${{ matrix.os == 'linux' }}
         run: |
-          sudo docker run --rm -v "$PWD:/work" -w /work \
+          sudo docker run --rm \
+            -v "$PWD:/work" \
+            -v "/home/linuxbrew:/home/linuxbrew" \
+            -w /work \
             -e NURI_VERSION="$NURI_VERSION" \
             quay.io/pypa/manylinux2014_x86_64:latest \
             .github/scripts/build-lib.sh ${{ matrix.os }}_${{ matrix.arch }}
