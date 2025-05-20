@@ -384,11 +384,7 @@ public:
    * @brief Get the singleton instance of the periodic table.
    * @return const PeriodicTable & The singleton instance of the periodic table.
    */
-  static const PeriodicTable &get() noexcept {
-    static const PeriodicTable the_table;
-
-    return the_table;
-  }
+  static const PeriodicTable &get() noexcept;
 
   /**
    * @brief Get element with the given atomic number.
@@ -422,10 +418,7 @@ public:
    * @note The symbol is case-sensitive, but supports three common cases:
    *       Titlecase, UPPERCASE, and lowercase.
    */
-  const Element *find_element(std::string_view symbol) const noexcept {
-    auto it = symbol_to_element_.find(symbol);
-    return it != symbol_to_element_.end() ? it->second : nullptr;
-  }
+  const Element *find_element(std::string_view symbol) const noexcept;
 
   /**
    * @brief Find element with the given name.
@@ -436,10 +429,7 @@ public:
    * @note The name is case-sensitive, but supports three common cases:
    *       Titlecase, UPPERCASE, and lowercase.
    */
-  const Element *find_element_of_name(std::string_view name) const noexcept {
-    auto it = name_to_element_.find(name);
-    return it != name_to_element_.end() ? it->second : nullptr;
-  }
+  const Element *find_element_of_name(std::string_view name) const noexcept;
 
   /**
    * @brief Check if the periodic table has an element with the given atomic
@@ -462,9 +452,7 @@ public:
    * @note The symbol is case-sensitive, but supports three common cases:
    *       Titlecase, UPPERCASE, and lowercase.
    */
-  bool has_element(std::string_view symbol) const noexcept {
-    return symbol_to_element_.contains(symbol);
-  }
+  bool has_element(std::string_view symbol) const noexcept;
 
   /**
    * @brief Check if the periodic table has an element with the given atomic
@@ -475,9 +463,7 @@ public:
    * @note The name is case-sensitive, but supports three common cases:
    *       Titlecase, UPPERCASE, and lowercase.
    */
-  bool has_element_of_name(std::string_view name) const noexcept {
-    return name_to_element_.contains(name);
-  }
+  bool has_element_of_name(std::string_view name) const noexcept;
 
   const Element *begin() const noexcept { return elements_; }
   const Element *end() const noexcept { return elements_ + kElementCount_; }
