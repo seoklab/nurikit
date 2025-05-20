@@ -30,10 +30,6 @@ jobs:
       # required for all workflows
       security-events: write
 
-      # only required for workflows in private repositories
-      actions: read
-      contents: read
-
     strategy:
       fail-fast: false
       matrix:
@@ -41,6 +37,8 @@ jobs:
           - language: "c-cpp"
             build-mode: "manual"
           - language: "python"
+            build-mode: "none"
+          - language: "actions"
             build-mode: "none"
         # CodeQL supports [ 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'swift' ]
         # Use only 'java-kotlin' to analyze code written in Java, Kotlin or both
@@ -72,20 +70,20 @@ jobs:
       # ℹ️ Command-line programs to run using the OS shell.
       # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
 
-      - if: ${{ matrix.build-mode == 'manual'}}
+      - if: ${{ matrix.language == 'c-cpp' }}
         uses: lukka/get-cmake@latest
         with:
           cmakeVersion: "~3.22.0" # for Ubuntu 22.04
 
-      - if: ${{ matrix.build-mode == 'manual'}}
+      - if: ${{ matrix.language == 'c-cpp' }}
         uses: actions/setup-python@v5
         with:
           python-version: "3.8"
 
-      - if: ${{ matrix.build-mode == 'manual'}}
+      - if: ${{ matrix.language == 'c-cpp' }}
         run: .github/scripts/setup-deps.sh
 
-      - if: ${{ matrix.build-mode == 'manual'}}
+      - if: ${{ matrix.language == 'c-cpp' }}
         run: |
           cmake \
             -DBUILD_TESTING=OFF \
