@@ -47,14 +47,21 @@ jobs:
           tar -xvf *.tar* --strip-components=1
           tar -xvf dist/*.tar* -C dist
 
-      - id: cibw-project
+      - id: resolve
         run: |
           if [[ $python == *linux* ]]; then
             project=/project
+            brew=/home/linuxbrew/.linuxbrew
+
+            eval "$("$brew/bin/brew" shellenv)"
           else
             project="$(pwd)"
+            brew=/opt/homebrew
           fi
-          echo "path=$project" >>"$GITHUB_OUTPUT"
+          echo "prefix=${project}/dist:${brew}" >>"$GITHUB_OUTPUT"
+          echo "ldpath=${project}/dist/lib" >>"$GITHUB_OUTPUT"
+
+          brew install eigen boost ninja pybind11
         env:
           python: ${{ inputs.python }}
 
@@ -62,7 +69,7 @@ jobs:
         env:
           CIBW_BUILD: ${{ inputs.python }}
           CIBW_ARCHS: "all"
-          SKBUILD_CMAKE_ARGS: "-DCMAKE_PREFIX_PATH=${{ steps.cibw-project.outputs.path }}/dist;-DCMAKE_INSTALL_RPATH=${{ steps.cibw-project.outputs.path }}/dist/lib;-DNURI_BUILD_LIB=OFF"
+          SKBUILD_CMAKE_ARGS: "-DCMAKE_PREFIX_PATH=${{ steps.resolve.outputs.prefix }};-DCMAKE_INSTALL_RPATH=${{ steps.resolve.outputs.ldpath }};-DNURI_BUILD_LIB=OFF"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4

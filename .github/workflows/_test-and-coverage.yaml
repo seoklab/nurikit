@@ -23,7 +23,8 @@ jobs:
     if: ${{ !endsWith(github.triggering_actor, '[bot]') }}
     runs-on: ubuntu-latest
     steps:
-      - run: sudo apt-get install -y libeigen3-dev
+      - run: sudo apt-get install -y \
+          libeigen3-dev libboost-all-dev libspectra-dev
 
       - uses: lukka/get-cmake@latest
         with:

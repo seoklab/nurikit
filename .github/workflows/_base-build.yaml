@@ -110,6 +110,12 @@ jobs:
 
       - run: cd dist && tar -xf *.tar* -C . --strip-components=1
 
+      - run: |
+          if [[ -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
+            eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          fi
+          brew install eigen spectra boost ninja
+
       - if: ${{ matrix.os == 'linux' }}
         run: |
           sudo docker run --rm \
