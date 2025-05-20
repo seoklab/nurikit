@@ -117,7 +117,7 @@ cmake -S {project} -B . \
 
 [tool.cibuildwheel.linux]
 environment-pass = ["SKBUILD_CMAKE_ARGS"]
-before-all = ["sudo ln -sfT /host/home/linuxbrew /home/linuxbrew"]
+before-all = ["ln -sfT /host/home/linuxbrew /home/linuxbrew"]
 
 [tool.cibuildwheel.macos]
 before-all = ["brew install eigen boost ninja pybind11"]
