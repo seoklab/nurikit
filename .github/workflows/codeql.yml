@@ -83,8 +83,10 @@ jobs:
           python-version: "3.8"
 
       - if: ${{ matrix.build-mode == 'manual'}}
+        run: .github/scripts/setup-deps.sh
+
+      - if: ${{ matrix.build-mode == 'manual'}}
         run: |
-          .github/scripts/setup-deps.sh
           cmake \
             -DBUILD_TESTING=OFF \
             -DNURI_PREBUILT_ABSL=ON \
