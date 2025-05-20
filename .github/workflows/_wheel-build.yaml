@@ -58,7 +58,8 @@ jobs:
             project="$(pwd)"
             brew=/opt/homebrew
           fi
-          echo "prefix=${project}/dist\\;${brew}" >>"$GITHUB_OUTPUT"
+
+          echo "CMAKE_PREFIX_PATH=${project}/dist:${brew}" >>"$GITHUB_ENV"
           echo "ldpath=${project}/dist/lib" >>"$GITHUB_OUTPUT"
 
           brew install eigen boost pybind11
@@ -69,7 +70,7 @@ jobs:
         env:
           CIBW_BUILD: ${{ inputs.python }}
           CIBW_ARCHS: "all"
-          SKBUILD_CMAKE_ARGS: "-DCMAKE_PREFIX_PATH=${{ steps.resolve.outputs.prefix }};-DCMAKE_INSTALL_RPATH=${{ steps.resolve.outputs.ldpath }};-DNURI_BUILD_LIB=OFF;-DNURI_PREBUILT_ABSL=ON"
+          SKBUILD_CMAKE_ARGS: "-DCMAKE_INSTALL_RPATH=${{ steps.resolve.outputs.ldpath }};-DNURI_BUILD_LIB=OFF;-DNURI_PREBUILT_ABSL=ON"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
