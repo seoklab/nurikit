@@ -69,8 +69,8 @@ jobs:
         env:
           CIBW_BUILD: ${{ inputs.python }}
           CIBW_ARCHS: "all"
-          CIBW_ENVIRONMENT: "HOMEBREW_NO_AUTO_UPDATE=1"
-          SKBUILD_CMAKE_ARGS: "-DCMAKE_PREFIX_PATH=${{ steps.resolve.outputs.prefix }};-DCMAKE_INSTALL_RPATH=${{ steps.resolve.outputs.ldpath }};-DNURI_BUILD_LIB=OFF"
+          CIBW_ENVIRONMENT: "HOMEBREW_NO_AUTO_UPDATE=1 CMAKE_PREFIX_PATH=${{ steps.resolve.outputs.prefix }}"
+          SKBUILD_CMAKE_ARGS: "-DCMAKE_INSTALL_RPATH=${{ steps.resolve.outputs.ldpath }};-DNURI_BUILD_LIB=OFF"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
