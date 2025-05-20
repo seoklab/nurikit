@@ -84,15 +84,15 @@ jobs:
 
       - if: ${{ matrix.build-mode == 'manual'}}
         run: |
-          sudo apt-get install -y \
-            libeigen3-dev libboost-all-dev libspectra-dev
+          .github/scripts/setup-deps.sh
           cmake \
             -DBUILD_TESTING=OFF \
             -DNURI_PREBUILT_ABSL=ON \
             -S . -B build -G Ninja
-          pip install -v '.[test]'
+          pip install -v -Cbuild.requires="" .
         env:
           SKBUILD_BUILD_DIR: build
+          SKBUILD_CMAKE_ARGS: "-DNURI_BUILD_PYTHON_STUBS=OFF"
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
