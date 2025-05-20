@@ -16,11 +16,17 @@ build:
     - graphviz
   jobs:
     post_checkout:
-      - (git show -s --format='%an' | grep -vq '\[bot\]$') || exit 183
+      - (git show -s --format="%an" | grep -vq "\[bot\]$") || exit 183
+      - |
+        if git show -s --format="%B" | grep -Eq "\[(skip docs|docs skip)\]"; then
+          exit 183
+        fi
     pre_install:
       - |
         cmake -S . -B pre-install -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
+          -DBUILD_TESTING=OFF \
+          -DNURI_PREBUILT_ABSL=OFF \
           -DNURI_ENABLE_IPO=OFF \
           -DNURI_OPTIMIZATION_LEVEL=O0
     post_install:
@@ -30,8 +36,10 @@ build:
         cmake -S . -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+          -DBUILD_TESTING=OFF \
           -DNURI_BUILD_DOCS=ON \
           -DNURI_BUILD_PYTHON_DOCS=ON \
+          -DNURI_PREBUILT_ABSL=OFF \
           -DNURI_ENABLE_IPO=OFF \
           -DNURI_OPTIMIZATION_LEVEL=O0
       - cmake --build build --target NuriDocs

@@ -47,14 +47,23 @@ jobs:
           tar -xvf *.tar* --strip-components=1
           tar -xvf dist/*.tar* -C dist
 
-      - id: cibw-project
+      - uses: actions/checkout@v4
+        with:
+          path: git
+
+      - run: |
+          git/.github/scripts/setup-deps.sh
+          rm -rf git
+
+      - id: resolve
         run: |
           if [[ $python == *linux* ]]; then
             project=/project
           else
             project="$(pwd)"
           fi
-          echo "path=$project" >>"$GITHUB_OUTPUT"
+          echo "CMAKE_PREFIX_PATH=${project}/dist:${CMAKE_PREFIX_PATH}" >>"$GITHUB_ENV"
+          echo "ldpath=${project}/dist/lib" >>"$GITHUB_OUTPUT"
         env:
           python: ${{ inputs.python }}
 
@@ -62,7 +71,7 @@ jobs:
         env:
           CIBW_BUILD: ${{ inputs.python }}
           CIBW_ARCHS: "all"
-          SKBUILD_CMAKE_ARGS: "-DCMAKE_PREFIX_PATH=${{ steps.cibw-project.outputs.path }}/dist;-DCMAKE_INSTALL_RPATH=${{ steps.cibw-project.outputs.path }}/dist/lib;-DNURI_BUILD_LIB=OFF"
+          SKBUILD_CMAKE_ARGS: "-DCMAKE_INSTALL_RPATH=${{ steps.resolve.outputs.ldpath }};-DNURI_BUILD_LIB=OFF;-DNURI_PREBUILT_ABSL=ON"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4

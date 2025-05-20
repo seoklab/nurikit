@@ -25,8 +25,6 @@ jobs:
     if: ${{ inputs.files-changed-only }}
 
     steps:
-      - run: sudo apt-get install -y libeigen3-dev
-
       - uses: lukka/get-cmake@latest
         with:
           cmakeVersion: "~3.22.0" # for Ubuntu 22.04
@@ -37,11 +35,15 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      - run: .github/scripts/setup-deps.sh
+
       - name: Configure with cmake
         run: |
           cmake \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DBUILD_TESTING=OFF \
+            -DNURI_PREBUILT_ABSL=ON \
             -S . -B build -G Ninja
 
       - uses: cpp-linter/cpp-linter-action@v2
@@ -83,6 +85,8 @@ jobs:
           cmake \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DBUILD_TESTING=OFF \
+            -DNURI_PREBUILT_ABSL=ON \
             -S . -B build -G Ninja
 
       - name: Run clang tools to all files

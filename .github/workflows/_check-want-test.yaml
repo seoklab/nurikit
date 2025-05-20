@@ -26,38 +26,32 @@ jobs:
   check-want-test:
     runs-on: ubuntu-latest
     outputs:
-      want-test: ${{ steps.check-want-test.outputs.want-test }}
+      want-test: ${{ steps.want-test.outputs.want-test }}
     steps:
-      - name: Skip for draft PR or bot
-        if: ${{ github.event.pull_request.draft || (inputs.skip-bots && endsWith(github.triggering_actor, '[bot]')) }}
-        id: always-false
-        run: echo "want-test=false" >> $GITHUB_OUTPUT
-
       - uses: actions/checkout@v4
         id: checkout
         if: ${{ !github.event.pull_request.draft && (!inputs.skip-bots || !endsWith(github.triggering_actor, '[bot]')) }}
         with:
           fetch-depth: 0
 
-      - name: Get commit message
+      - name: Test commit message
         if: ${{ steps.checkout.outcome == 'success' }}
-        id: get-commit-msg
+        id: test-commit-msg
         run: |
           if [[ ${{ github.event_name }} == pull_request ]]; then
-            MSG="$(git log --no-merges --format=%B -n 1 HEAD)"
+            msg="$(git log --no-merges --format=%B -n 1 HEAD)"
           else
-            MSG="git log --format=%B -n 1 HEAD"
+            msg="git log --format=%B -n 1 HEAD"
           fi
 
-          echo 'commit-msg<<EOM' >> $GITHUB_OUTPUT
-          echo "commit-msg=${MSG}" >> $GITHUB_OUTPUT
-          echo 'EOM' >> $GITHUB_OUTPUT
+          if grep -Eq "\[(skip $keyword|$keyword skip)\]" <<< "$msg"; then
+            echo "WANT_TEST=false" >>"$GITHUB_ENV"
+          else
+            echo "WANT_TEST=true" >>"$GITHUB_ENV"
+          fi
+        env:
+          keyword: ${{ inputs.keyword }}
 
       - name: Set output
-        id: check-want-test
-        run: |
-          if [[ "${{ steps.always-false.outputs.want-test }}" == 'false' ]]; then
-            echo "want-test=false" >> $GITHUB_OUTPUT
-          else
-            echo "want-test=${{ !contains(steps.get-commit-msg.outputs.commit-msg, format('[skip {0}]', inputs.keyword)) && !contains(steps.get-commit-msg.outputs.commit-msg, format('[{0} skip]', inputs.keyword)) }}" >> $GITHUB_OUTPUT
-          fi
+        id: want-test
+        run: echo "want-test=${WANT_TEST-false}" >>"$GITHUB_OUTPUT"

@@ -26,8 +26,6 @@ jobs:
       version: ${{ steps.extract-version.outputs.version }}
 
     steps:
-      - run: sudo apt-get install -y libeigen3-dev
-
       - uses: lukka/get-cmake@latest
         with:
           # Ubuntu 22.04
@@ -41,6 +39,8 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      - run: .github/scripts/setup-deps.sh
+
       - if: ${{ inputs.emulate-version != '' }}
         run: |
           git config user.name 'github-actions[bot]'
@@ -51,6 +51,8 @@ jobs:
 
       - run: |
           cmake -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
+            -DNURI_PREBUILT_ABSL=ON \
             -DNURI_BUILD_PYTHON_STUBS=ON \
             -S . -B build -G Ninja
           cmake --build build --target NuriPythonStubs -j
@@ -101,6 +103,8 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      - run: .github/scripts/setup-deps.sh
+
       - uses: actions/download-artifact@v4
         with:
           name: sdist
@@ -110,7 +114,11 @@ jobs:
 
       - if: ${{ matrix.os == 'linux' }}
         run: |
-          sudo docker run --rm -v "$PWD:/work" -w /work \
+          sudo docker run --rm \
+            -v "$PWD:/work" \
+            -v "/home/linuxbrew:/home/linuxbrew" \
+            -w /work \
+            -e CMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
             -e NURI_VERSION="$NURI_VERSION" \
             quay.io/pypa/manylinux2014_x86_64:latest \
             .github/scripts/build-lib.sh ${{ matrix.os }}_${{ matrix.arch }}

@@ -4117,4 +4117,30 @@ PeriodicTable::PeriodicTable() noexcept
   symbol_to_element_.rehash(0);
   name_to_element_.rehash(0);
 }
+
+const PeriodicTable &PeriodicTable::get() noexcept {
+  static const PeriodicTable the_table;
+
+  return the_table;
+}
+
+const Element *
+PeriodicTable::find_element(std::string_view symbol) const noexcept {
+  auto it = symbol_to_element_.find(symbol);
+  return it != symbol_to_element_.end() ? it->second : nullptr;
+}
+
+const Element *
+PeriodicTable::find_element_of_name(std::string_view name) const noexcept {
+  auto it = name_to_element_.find(name);
+  return it != name_to_element_.end() ? it->second : nullptr;
+}
+
+bool PeriodicTable::has_element(std::string_view symbol) const noexcept {
+  return symbol_to_element_.contains(symbol);
+}
+
+bool PeriodicTable::has_element_of_name(std::string_view name) const noexcept {
+  return name_to_element_.contains(name);
+}
 }  // namespace nuri

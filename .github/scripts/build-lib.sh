@@ -12,8 +12,6 @@ set --
 
 if [[ $output == *linux* ]]; then
 	yum -y install ninja-build
-elif [[ $output == *macosx* ]]; then
-	brew install eigen spectra boost ninja
 fi
 
 cmake -DCMAKE_BUILD_TYPE=Release \
@@ -21,6 +19,7 @@ cmake -DCMAKE_BUILD_TYPE=Release \
 	'-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64' \
 	-DCMAKE_VERBOSE_MAKEFILE=ON \
 	-DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 \
+	-DNURI_PREBUILT_ABSL=ON \
 	-DNURI_BUILD_PYTHON=OFF \
 	-DNURI_FORCE_VERSION="$NURI_VERSION" \
 	-Sdist \

@@ -77,6 +77,7 @@ wheel.install-dir = "nuri"
 install.strip = true
 
 [tool.scikit-build.cmake.define]
+BUILD_TESTING = "OFF"
 NURI_BUILD_LIB = "@NURI_BUILD_LIB@"
 NURI_BUILD_PYTHON = "ON"
 NURI_ENABLE_SANITIZERS = "@NURI_ENABLE_SANITIZERS@"
@@ -116,10 +117,8 @@ cmake -S {project} -B . \
 "build.verbose" = "true"
 
 [tool.cibuildwheel.linux]
-environment-pass = ["SKBUILD_CMAKE_ARGS"]
-
-[tool.cibuildwheel.macos]
-before-all = ["brew install eigen boost ninja pybind11"]
+environment-pass = ["SKBUILD_CMAKE_ARGS", "CMAKE_PREFIX_PATH"]
+before-all = ["ln -sfT /host/home/linuxbrew /home/linuxbrew"]
 
 [tool.cibuildwheel.macos.environment]
 MACOSX_DEPLOYMENT_TARGET = "10.15"

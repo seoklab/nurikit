@@ -16,20 +16,16 @@ defaults:
     shell: bash
 
 env:
-  SKBUILD_CMAKE_ARGS: "-DNURI_BUILD_PYTHON_DOCTEST=ON;-DNURI_BUILD_PYTHON_STUBS=OFF"
+  SKBUILD_CMAKE_ARGS: "-DNURI_BUILD_PYTHON_DOCTEST=ON;-DNURI_BUILD_PYTHON_STUBS=OFF;-DNURI_PREBUILT_ABSL=ON"
 
 jobs:
   coverage:
     if: ${{ !endsWith(github.triggering_actor, '[bot]') }}
     runs-on: ubuntu-latest
     steps:
-      - run: sudo apt-get install -y libeigen3-dev
-
       - uses: lukka/get-cmake@latest
         with:
           cmakeVersion: "~3.22.0" # for Ubuntu 22.04
-
-      - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
@@ -37,10 +33,15 @@ jobs:
 
       - run: pip install sphinx
 
+      - uses: actions/checkout@v4
+
+      - run: .github/scripts/setup-deps.sh
+
       - name: Configure
         run: |
           cmake -G Ninja -S . -B build \
             -DCMAKE_BUILD_TYPE=Debug \
+            -DNURI_PREBUILT_ABSL=ON \
             -DNURI_TEST_COVERAGE=ON
 
       - run: pip install -v '.[test,docs,coverage]'
