@@ -16,9 +16,9 @@ build:
     - graphviz
   jobs:
     post_checkout:
-      - (git show -s --format='%an' | grep -vq '\[bot\]$') || exit 183
+      - (git show -s --format="%an" | grep -vq "\[bot\]$") || exit 183
       - |
-        if git show -s --format='%B' | grep -Eq '\[(skip docs|docs skip)\]'; then
+        if (git show -s --format="%B" | grep -Eq "\[(skip docs|docs skip)\]"); then
           exit 183
         fi
     pre_install:
