@@ -11,6 +11,7 @@ output="libnuri-${1}.tar.gz"
 set --
 
 if [[ $output == *linux* ]]; then
+	yum -y install ninja-build
 	eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 fi
 

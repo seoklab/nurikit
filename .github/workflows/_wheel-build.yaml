@@ -61,7 +61,7 @@ jobs:
           echo "prefix=${project}/dist:${brew}" >>"$GITHUB_OUTPUT"
           echo "ldpath=${project}/dist/lib" >>"$GITHUB_OUTPUT"
 
-          brew install eigen boost ninja pybind11
+          brew install eigen boost pybind11
         env:
           python: ${{ inputs.python }}
 
