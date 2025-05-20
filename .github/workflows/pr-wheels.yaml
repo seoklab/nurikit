@@ -39,7 +39,7 @@ jobs:
     steps:
       - run: |
           if [[ $FAILED == 'true' ]]; then
-            echo "Linting failed."
+            echo "Test wheel build failed."
             exit 1
           fi
         env:
