@@ -1010,8 +1010,27 @@ struct NMResult {
   int argmin;
 };
 
+/**
+ * @brief Nelder-Mead simplex algorithm for function minimization.
+ * @sa nelder_mead
+ *
+ * References:
+ *   - "Nelder-Mead method",
+ *     [Wikipedia](https://en.wikipedia.org/wiki/Nelder%E2%80%93Mead_method)
+ *     (Accessed 2025-05-21).
+ *   - F Gao and L Han. *Comput. Optim. Appl.* **2012**, *53* (1), 259-277.
+ *     DOI:[10.1007/s10589-010-9329-3](https://doi.org/10.1007/s10589-010-9329-3)
+ */
 class NelderMead {
 public:
+  /**
+   * @brief Prepare Nelder-Mead simplex algorithm.
+   * @param data Initial simplex data. When the problem is N-dimensional, the
+   *        data should be (N + 1, N + 1) matrix, where the first N rows form
+   *        the N + 1 simplex vertices of dimension N, which will be modified
+   *        in-place. The last row need not be initialized, but will be
+   *        populated on-demand with the function value of each vertex.
+   */
   explicit NelderMead(MutRef<ArrayXXd> data);
 
   auto n() const { return data_.cols() - 1; }
@@ -1028,6 +1047,25 @@ public:
 
   double max2f() const { return data_(n(), idxs_[n() - 1]); }
 
+  /**
+   * @brief Minimize a function using Nelder-Mead simplex algorithm.
+   *
+   * @tparam Func Function object that computes the function value. The function
+   *         value should be returned.
+   * @param f Function object.
+   * @param maxiter Maximum number of iterations. If negative or zero, it will
+   *        be set to N * 200, where N is the number of dimensions.
+   * @param ftol Tolerance for the absolute change in the function value.
+   * @param alpha Reflection coefficient. Must be > 0.
+   * @param gamma Expansion coefficient. Must be > 1.
+   * @param rho Contraction coefficient. Must be in range (0, 1).
+   * @param sigma Shrink coefficient. Must be in range (0, 1).
+   * @return The result of the optimization, including the result code and the
+   *         index of the best vertex.
+   *
+   * @note The data matrix will be modified in-place, and the last row will be
+   *       populated with the function values of each vertex.
+   */
   template <class Func>
   NMResult minimize(Func f, int maxiter = -1, const double ftol = 1e-6,
                     const double alpha = 1, const double gamma = 2,
@@ -1114,6 +1152,38 @@ namespace internal {
                              double gamma, double rho, double sigma);
 }
 
+/**
+ * @brief Minimize a function using Nelder-Mead simplex algorithm.
+ *
+ * @tparam Func Function object that computes the function value. The function
+ *         value should be returned.
+ * @param f Function object.
+ * @param data Initial simplex data. When the problem is N-dimensional, the
+ *        data should be (N + 1, N + 1) matrix, where the first N rows form
+ *        the N + 1 simplex vertices of dimension N. The last row need not
+ *        be initialized, but will be populated with the function value of
+ *        each vertex if the optimization is successful.
+ * @param maxiter Maximum number of iterations. If negative or zero, it will
+ *        be set to N * 200, where N is the number of dimensions.
+ * @param ftol Tolerance for the absolute change in the function value.
+ * @param alpha Reflection coefficient. Must be > 0.
+ * @param gamma Expansion coefficient. Must be > 1.
+ * @param rho Contraction coefficient. Must be in range (0, 1).
+ * @param sigma Shrink coefficient. Must be in range (0, 1).
+ * @return The result of the optimization, including the result code and the
+ *         index of the best vertex.
+ *
+ * @note The data matrix will be modified in-place, and the last row will be
+ *       populated with the function values of each vertex.
+ * @sa NelderMead
+ *
+ * References:
+ *   - "Nelder-Mead method",
+ *     [Wikipedia](https://en.wikipedia.org/wiki/Nelder%E2%80%93Mead_method)
+ *     (Accessed 2025-05-21).
+ *   - F Gao and L Han. *Comput. Optim. Appl.* **2012**, *53* (1), 259-277.
+ *     DOI:[10.1007/s10589-010-9329-3](https://doi.org/10.1007/s10589-010-9329-3)
+ */
 template <class Func>
 inline NMResult nelder_mead(Func &&f, MutRef<ArrayXXd> data, int maxiter = -1,
                             const double ftol = 1e-6, const double alpha = 1,
@@ -1127,6 +1197,20 @@ inline NMResult nelder_mead(Func &&f, MutRef<ArrayXXd> data, int maxiter = -1,
                      sigma);
 }
 
+/**
+ * @brief Prepare the initial simplex for Nelder-Mead algorithm.
+ *
+ * @param x0 Initial guess of size N.
+ * @param eps Max absolute value to consider an element of x0 as zero.
+ * @return A (N + 1, N + 1) matrix, where the first N rows form the N + 1
+ *         simplex vertices of dimension N. The last row is left uninitialized.
+ *         The first column corresponds to the unmodified x0, and the remaining
+ *         columns will form the initial guesses.
+ *
+ * This function will follow the Matlab implementation of the simplex
+ * initialization. See G Fuchang and H Lixing @cite algo:optim:nelder-mead for
+ * details.
+ */
 extern ArrayXXd nm_prepare_simplex(ConstRef<ArrayXd> x0, double eps = 1e-6);
 }  // namespace nuri
 
