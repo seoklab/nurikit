@@ -21,7 +21,7 @@
 #include "nuri/utils.h"
 
 namespace nuri {
-enum class LbfgsResultCode {
+enum class OptimResultCode {
   kSuccess,
   kMaxIterReached,
   kInvalidInput,
@@ -29,7 +29,7 @@ enum class LbfgsResultCode {
 };
 
 struct LbfgsResult {
-  LbfgsResultCode code;
+  OptimResultCode code;
   int niter;
   double fx;
   ArrayXd gx;
@@ -292,7 +292,7 @@ LbfgsResult LBfgs<Impl>::minimize(FuncGrad fg, const double factr,
 
   double sbgnrm = impl_.projgr(x(), gx);
   if (sbgnrm <= pgtol)
-    return { LbfgsResultCode::kSuccess, 0, fx, std::move(gx) };
+    return { OptimResultCode::kSuccess, 0, fx, std::move(gx) };
 
   impl_.reset();
   reset_memory();
@@ -309,7 +309,7 @@ LbfgsResult LBfgs<Impl>::minimize(FuncGrad fg, const double factr,
     double gd = d_dot(gx);
     if (gd >= 0) {
       if (col() == 0)
-        return { LbfgsResultCode::kAbnormalTerm, iter + 1, fx, std::move(gx) };
+        return { OptimResultCode::kAbnormalTerm, iter + 1, fx, std::move(gx) };
 
       reset_memory();
       continue;
@@ -335,7 +335,7 @@ LbfgsResult LBfgs<Impl>::minimize(FuncGrad fg, const double factr,
       gx = r();
 
       if (col() == 0)
-        return { LbfgsResultCode::kAbnormalTerm, iter + 1, fx, std::move(gx) };
+        return { OptimResultCode::kAbnormalTerm, iter + 1, fx, std::move(gx) };
 
       reset_memory();
       continue;
@@ -343,18 +343,18 @@ LbfgsResult LBfgs<Impl>::minimize(FuncGrad fg, const double factr,
 
     sbgnrm = impl_.projgr(x(), gx);
     if (sbgnrm <= pgtol)
-      return { LbfgsResultCode::kSuccess, iter + 1, fx, std::move(gx) };
+      return { OptimResultCode::kSuccess, iter + 1, fx, std::move(gx) };
 
     double ddum = std::max({ std::abs(lnsrl.finit()), std::abs(fx), 1.0 });
     if (lnsrl.finit() - fx <= tol * ddum)
-      return { LbfgsResultCode::kSuccess, iter + 1, fx, std::move(gx) };
+      return { OptimResultCode::kSuccess, iter + 1, fx, std::move(gx) };
 
     r() = gx - r();
     if (!prepare_next_iter(gd, lnsrl.ginit(), lnsrl.step(), lnsrl.dtd()))
       reset_memory();
   }
 
-  return { LbfgsResultCode::kMaxIterReached, maxiter, fx, std::move(gx) };
+  return { OptimResultCode::kMaxIterReached, maxiter, fx, std::move(gx) };
 }
 
 namespace internal {
@@ -612,7 +612,7 @@ LbfgsResult l_bfgs_b(FuncGrad &&fg, MutRef<ArrayXd> x, const ArrayXi &nbd,
                      const int maxiter = 15000, const int maxls = 20) {
   bool args_ok = internal::lbfgsb_errclb(x, nbd, bounds, m, factr);
   if (!args_ok)
-    return { LbfgsResultCode::kInvalidInput, 0, 0, {} };
+    return { OptimResultCode::kInvalidInput, 0, 0, {} };
 
   LBfgs<internal::LBfgsBImpl> lbfgsb(
       x, internal::LBfgsBImpl(x, { nbd, bounds }, m), m);
@@ -761,22 +761,15 @@ LbfgsResult l_bfgs(FuncGrad &&fg, MutRef<ArrayXd> x, const int m = 10,
                    const int maxiter = 15000, const int maxls = 20) {
   bool args_ok = internal::lbfgs_errclb(x, m, factr);
   if (!args_ok)
-    return { LbfgsResultCode::kInvalidInput, 0, 0, {} };
+    return { OptimResultCode::kInvalidInput, 0, 0, {} };
 
   LBfgs<internal::LBfgsImpl> lbfgsb(x, internal::LBfgsImpl(m), m);
   return lbfgsb.minimize(std::forward<FuncGrad>(fg), factr, pgtol, maxiter,
                          maxls);
 }
 
-enum class BfgsResultCode {
-  kSuccess,
-  kMaxIterReached,
-  kInvalidInput,
-  kAbnormalTerm,
-};
-
 struct BfgsResult {
-  BfgsResultCode code;
+  OptimResultCode code;
   int niter;
   double fx;
   ArrayXd gx;
@@ -874,7 +867,7 @@ public:
     const double f0 = fg(gfk, x());
     double gnorm = gfk.abs().maxCoeff();
     if (gnorm <= pgtol)
-      return { BfgsResultCode::kSuccess, 0, f0, std::move(gfk) };
+      return { OptimResultCode::kSuccess, 0, f0, std::move(gfk) };
 
     int k = 0;
     double fk = f0, fkm1 = fk + gfk.matrix().norm() * 0.5;
@@ -895,14 +888,14 @@ public:
         break;
       }
       if (!success)
-        return { BfgsResultCode::kAbnormalTerm, k + 1, fk, std::move(gfk) };
+        return { OptimResultCode::kAbnormalTerm, k + 1, fk, std::move(gfk) };
 
       bool converged = prepare_next_iter(gfk, dcsrch.step(), pgtol, xrtol);
       if (converged)
-        return { BfgsResultCode::kSuccess, k + 1, fk, std::move(gfk) };
+        return { OptimResultCode::kSuccess, k + 1, fk, std::move(gfk) };
     }
 
-    return { BfgsResultCode::kMaxIterReached, maxiter, fk, std::move(gfk) };
+    return { OptimResultCode::kMaxIterReached, maxiter, fk, std::move(gfk) };
   }
 
 private:

@@ -69,7 +69,7 @@ TEST(BFGSTest, DistanceMaximization) {
   MutRef<ArrayXd> xa = x.reshaped().array();
 
   auto res = bfgs(fg, xa);
-  ASSERT_EQ(res.code, BfgsResultCode::kSuccess);
+  ASSERT_EQ(res.code, OptimResultCode::kSuccess);
 
   // results from scipy.optimize
 

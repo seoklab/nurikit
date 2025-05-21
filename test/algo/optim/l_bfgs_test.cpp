@@ -73,7 +73,7 @@ TEST(LBFGSTest, LbfgsUnbounded) {
   MutRef<ArrayXd> xa = x.reshaped().array();
 
   auto [code, iter, fx, gx] = l_bfgs(fg, xa);
-  ASSERT_EQ(code, LbfgsResultCode::kSuccess);
+  ASSERT_EQ(code, OptimResultCode::kSuccess);
 
   // // Results from lbfgsb original implementation
   EXPECT_EQ(iter, 54);

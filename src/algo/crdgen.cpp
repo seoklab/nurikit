@@ -754,13 +754,13 @@ namespace {
       ABSL_DVLOG(1) << "initial trial coordinates:\n" << trial.transpose();
 
       LbfgsResult res = optim.minimize(first_fg, 1e-3, 1e-6);
-      if (res.code != LbfgsResultCode::kSuccess)
+      if (res.code != OptimResultCode::kSuccess)
         continue;
 
       ABSL_DVLOG(1) << "after 4D minimization:\n" << trial.transpose();
 
       res = optim.minimize(second_fg);
-      if (res.code != LbfgsResultCode::kSuccess)
+      if (res.code != OptimResultCode::kSuccess)
         continue;
 
       ABSL_DVLOG(1) << "after 3D projection:\n" << trial.transpose();
