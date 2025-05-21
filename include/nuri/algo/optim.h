@@ -1004,6 +1004,130 @@ inline BfgsResult bfgs(FuncGrad &&fg, MutRef<ArrayXd> x,
   return bfgs.minimize(std::forward<FuncGrad>(fg), pgtol, xrtol, maxiter, maxls,
                        ftol, gtol, xtol);
 }
+
+struct NMResult {
+  OptimResultCode code;
+  int argmin;
+};
+
+class NelderMead {
+public:
+  explicit NelderMead(MutRef<ArrayXXd> data);
+
+  auto n() const { return data_.cols() - 1; }
+
+  auto argmin() const { return idxs_[0]; }
+  auto argmax() const { return idxs_[n()]; }
+
+  auto min() const { return data_.col(argmin()); }
+  double minf() const { return min()[n()]; }
+
+  auto max() { return data_.col(argmax()); }
+  auto max() const { return data_.col(argmax()); }
+  double maxf() const { return max()[n()]; }
+
+  double max2f() const { return data_(n(), idxs_[n() - 1]); }
+
+  template <class Func>
+  NMResult minimize(Func f, int maxiter = -1, const double ftol = 1e-6,
+                    const double alpha = 1, const double gamma = 2,
+                    const double rho = 0.5, const double sigma = 0.5) {
+    // NOLINTNEXTLINE(readability-identifier-naming)
+    const auto N = n();
+    if (maxiter <= 0)
+      maxiter = static_cast<int>(N) * 200;
+
+    auto eval_update = [&](auto &&simplexf) -> double {
+      return simplexf[N] = f(simplexf.head(N));
+    };
+
+    for (int i = 0; i < data_.cols(); ++i)
+      eval_update(data_.col(i));
+
+    for (int iter = 0; iter < maxiter; ++iter) {
+      argpartiton_min1_max2();
+      if (maxf() - minf() < ftol)
+        return { OptimResultCode::kSuccess, argmin() };
+
+      centroid();
+      eval_update(c_);
+
+      reflection(alpha);
+      double fr = eval_update(r_);
+
+      if (fr < minf()) {
+        expansion(ets_, gamma);
+        const double fe = eval_update(ets_);
+
+        max() = (fr < fe) ? r_ : ets_;
+        continue;
+      }
+
+      if (fr < max2f()) {
+        max() = r_;
+        continue;
+      }
+
+      if (maxf() < fr) {
+        r_ = max();
+        fr = maxf();
+      }
+      contraction(ets_, rho);
+      const double ft = eval_update(ets_);
+
+      if (ft < fr) {
+        max() = ets_;
+        continue;
+      }
+
+      shrink(sigma);
+      for (int i: idxs_.tail(N))
+        eval_update(data_.col(i));
+    }
+
+    return { OptimResultCode::kMaxIterReached, argmin() };
+  }
+
+private:
+  void argpartiton_min1_max2();
+
+  void centroid();
+
+  void reflection(double alpha);
+
+  void expansion(ArrayXd &e, double gamma) const;
+
+  void contraction(ArrayXd &t, double rho) const;
+
+  void shrink(double sigma);
+
+  /* (N + 1, N + 1) */
+  MutRef<ArrayXXd> data_;
+  /* (N + 1) */
+  ArrayXd c_, r_, ets_;
+  /* (N + 1) */
+  ArrayXi idxs_;
+};
+
+namespace internal {
+  extern bool nm_check_input(ConstRef<ArrayXXd> data, double alpha,
+                             double gamma, double rho, double sigma);
+}
+
+template <class Func>
+inline NMResult nelder_mead(Func &&f, MutRef<ArrayXXd> data, int maxiter = -1,
+                            const double ftol = 1e-6, const double alpha = 1,
+                            const double gamma = 2, const double rho = 0.5,
+                            const double sigma = 0.5) {
+  if (!internal::nm_check_input(data, alpha, gamma, rho, sigma))
+    return { OptimResultCode::kInvalidInput, -1 };
+
+  NelderMead nm(data);
+  return nm.minimize(std::forward<Func>(f), maxiter, ftol, alpha, gamma, rho,
+                     sigma);
+}
+
+extern ArrayXXd nm_prepare_simplex(ConstRef<ArrayXd> x0, double eps = 1e-6);
 }  // namespace nuri
 
 #endif /* NURI_ALGO_OPTIM_H_ */
