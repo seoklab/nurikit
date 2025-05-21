@@ -10,6 +10,7 @@
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 
+#include "nuri/eigen_config.h"
 #include "nuri/algo/optim.h"
 
 namespace nuri {
