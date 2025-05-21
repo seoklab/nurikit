@@ -21,7 +21,7 @@
 #include "nuri/utils.h"
 
 namespace nuri {
-enum class LbfgsResultCode {
+enum class OptimResultCode {
   kSuccess,
   kMaxIterReached,
   kInvalidInput,
@@ -29,7 +29,7 @@ enum class LbfgsResultCode {
 };
 
 struct LbfgsResult {
-  LbfgsResultCode code;
+  OptimResultCode code;
   int niter;
   double fx;
   ArrayXd gx;
@@ -292,7 +292,7 @@ LbfgsResult LBfgs<Impl>::minimize(FuncGrad fg, const double factr,
 
   double sbgnrm = impl_.projgr(x(), gx);
   if (sbgnrm <= pgtol)
-    return { LbfgsResultCode::kSuccess, 0, fx, std::move(gx) };
+    return { OptimResultCode::kSuccess, 0, fx, std::move(gx) };
 
   impl_.reset();
   reset_memory();
@@ -309,7 +309,7 @@ LbfgsResult LBfgs<Impl>::minimize(FuncGrad fg, const double factr,
     double gd = d_dot(gx);
     if (gd >= 0) {
       if (col() == 0)
-        return { LbfgsResultCode::kAbnormalTerm, iter + 1, fx, std::move(gx) };
+        return { OptimResultCode::kAbnormalTerm, iter + 1, fx, std::move(gx) };
 
       reset_memory();
       continue;
@@ -335,7 +335,7 @@ LbfgsResult LBfgs<Impl>::minimize(FuncGrad fg, const double factr,
       gx = r();
 
       if (col() == 0)
-        return { LbfgsResultCode::kAbnormalTerm, iter + 1, fx, std::move(gx) };
+        return { OptimResultCode::kAbnormalTerm, iter + 1, fx, std::move(gx) };
 
       reset_memory();
       continue;
@@ -343,18 +343,18 @@ LbfgsResult LBfgs<Impl>::minimize(FuncGrad fg, const double factr,
 
     sbgnrm = impl_.projgr(x(), gx);
     if (sbgnrm <= pgtol)
-      return { LbfgsResultCode::kSuccess, iter + 1, fx, std::move(gx) };
+      return { OptimResultCode::kSuccess, iter + 1, fx, std::move(gx) };
 
     double ddum = std::max({ std::abs(lnsrl.finit()), std::abs(fx), 1.0 });
     if (lnsrl.finit() - fx <= tol * ddum)
-      return { LbfgsResultCode::kSuccess, iter + 1, fx, std::move(gx) };
+      return { OptimResultCode::kSuccess, iter + 1, fx, std::move(gx) };
 
     r() = gx - r();
     if (!prepare_next_iter(gd, lnsrl.ginit(), lnsrl.step(), lnsrl.dtd()))
       reset_memory();
   }
 
-  return { LbfgsResultCode::kMaxIterReached, maxiter, fx, std::move(gx) };
+  return { OptimResultCode::kMaxIterReached, maxiter, fx, std::move(gx) };
 }
 
 namespace internal {
@@ -612,7 +612,7 @@ LbfgsResult l_bfgs_b(FuncGrad &&fg, MutRef<ArrayXd> x, const ArrayXi &nbd,
                      const int maxiter = 15000, const int maxls = 20) {
   bool args_ok = internal::lbfgsb_errclb(x, nbd, bounds, m, factr);
   if (!args_ok)
-    return { LbfgsResultCode::kInvalidInput, 0, 0, {} };
+    return { OptimResultCode::kInvalidInput, 0, 0, {} };
 
   LBfgs<internal::LBfgsBImpl> lbfgsb(
       x, internal::LBfgsBImpl(x, { nbd, bounds }, m), m);
@@ -761,22 +761,15 @@ LbfgsResult l_bfgs(FuncGrad &&fg, MutRef<ArrayXd> x, const int m = 10,
                    const int maxiter = 15000, const int maxls = 20) {
   bool args_ok = internal::lbfgs_errclb(x, m, factr);
   if (!args_ok)
-    return { LbfgsResultCode::kInvalidInput, 0, 0, {} };
+    return { OptimResultCode::kInvalidInput, 0, 0, {} };
 
   LBfgs<internal::LBfgsImpl> lbfgsb(x, internal::LBfgsImpl(m), m);
   return lbfgsb.minimize(std::forward<FuncGrad>(fg), factr, pgtol, maxiter,
                          maxls);
 }
 
-enum class BfgsResultCode {
-  kSuccess,
-  kMaxIterReached,
-  kInvalidInput,
-  kAbnormalTerm,
-};
-
 struct BfgsResult {
-  BfgsResultCode code;
+  OptimResultCode code;
   int niter;
   double fx;
   ArrayXd gx;
@@ -874,7 +867,7 @@ public:
     const double f0 = fg(gfk, x());
     double gnorm = gfk.abs().maxCoeff();
     if (gnorm <= pgtol)
-      return { BfgsResultCode::kSuccess, 0, f0, std::move(gfk) };
+      return { OptimResultCode::kSuccess, 0, f0, std::move(gfk) };
 
     int k = 0;
     double fk = f0, fkm1 = fk + gfk.matrix().norm() * 0.5;
@@ -895,14 +888,14 @@ public:
         break;
       }
       if (!success)
-        return { BfgsResultCode::kAbnormalTerm, k + 1, fk, std::move(gfk) };
+        return { OptimResultCode::kAbnormalTerm, k + 1, fk, std::move(gfk) };
 
       bool converged = prepare_next_iter(gfk, dcsrch.step(), pgtol, xrtol);
       if (converged)
-        return { BfgsResultCode::kSuccess, k + 1, fk, std::move(gfk) };
+        return { OptimResultCode::kSuccess, k + 1, fk, std::move(gfk) };
     }
 
-    return { BfgsResultCode::kMaxIterReached, maxiter, fk, std::move(gfk) };
+    return { OptimResultCode::kMaxIterReached, maxiter, fk, std::move(gfk) };
   }
 
 private:
@@ -1011,6 +1004,214 @@ inline BfgsResult bfgs(FuncGrad &&fg, MutRef<ArrayXd> x,
   return bfgs.minimize(std::forward<FuncGrad>(fg), pgtol, xrtol, maxiter, maxls,
                        ftol, gtol, xtol);
 }
+
+struct NMResult {
+  OptimResultCode code;
+  int argmin;
+};
+
+/**
+ * @brief Nelder-Mead simplex algorithm for function minimization.
+ * @sa nelder_mead
+ *
+ * References:
+ *   - "Nelder-Mead method",
+ *     [Wikipedia](https://en.wikipedia.org/wiki/Nelder%E2%80%93Mead_method)
+ *     (Accessed 2025-05-21).
+ *   - F Gao and L Han. *Comput. Optim. Appl.* **2012**, *53* (1), 259-277.
+ *     DOI:[10.1007/s10589-010-9329-3](https://doi.org/10.1007/s10589-010-9329-3)
+ */
+class NelderMead {
+public:
+  /**
+   * @brief Prepare Nelder-Mead simplex algorithm.
+   * @param data Initial simplex data. When the problem is N-dimensional, the
+   *        data should be (N + 1, N + 1) matrix, where the first N rows form
+   *        the N + 1 simplex vertices of dimension N, which will be modified
+   *        in-place. The last row need not be initialized, but will be
+   *        populated on-demand with the function value of each vertex.
+   */
+  explicit NelderMead(MutRef<ArrayXXd> data);
+
+  auto n() const { return data_.cols() - 1; }
+
+  auto argmin() const { return idxs_[0]; }
+  auto argmax() const { return idxs_[n()]; }
+
+  auto min() const { return data_.col(argmin()); }
+  double minf() const { return min()[n()]; }
+
+  auto max() { return data_.col(argmax()); }
+  auto max() const { return data_.col(argmax()); }
+  double maxf() const { return max()[n()]; }
+
+  double max2f() const { return data_(n(), idxs_[n() - 1]); }
+
+  /**
+   * @brief Minimize a function using Nelder-Mead simplex algorithm.
+   *
+   * @tparam Func Function object that computes the function value. The function
+   *         value should be returned.
+   * @param f Function object.
+   * @param maxiter Maximum number of iterations. If negative or zero, it will
+   *        be set to N * 200, where N is the number of dimensions.
+   * @param ftol Tolerance for the absolute change in the function value.
+   * @param alpha Reflection coefficient. Must be > 0.
+   * @param gamma Expansion coefficient. Must be > 1.
+   * @param rho Contraction coefficient. Must be in range (0, 1).
+   * @param sigma Shrink coefficient. Must be in range (0, 1).
+   * @return The result of the optimization, including the result code and the
+   *         index of the best vertex.
+   *
+   * @note The data matrix will be modified in-place, and the last row will be
+   *       populated with the function values of each vertex.
+   */
+  template <class Func>
+  NMResult minimize(Func f, int maxiter = -1, const double ftol = 1e-6,
+                    const double alpha = 1, const double gamma = 2,
+                    const double rho = 0.5, const double sigma = 0.5) {
+    // NOLINTNEXTLINE(readability-identifier-naming)
+    const auto N = n();
+    if (maxiter <= 0)
+      maxiter = static_cast<int>(N) * 200;
+
+    auto eval_update = [&](auto &&simplexf) -> double {
+      return simplexf[N] = f(simplexf.head(N));
+    };
+
+    for (int i = 0; i < data_.cols(); ++i)
+      eval_update(data_.col(i));
+
+    for (int iter = 0; iter < maxiter; ++iter) {
+      argpartiton_min1_max2();
+      if (maxf() - minf() < ftol)
+        return { OptimResultCode::kSuccess, argmin() };
+
+      centroid();
+      eval_update(c_);
+
+      reflection(alpha);
+      double fr = eval_update(r_);
+
+      if (fr < minf()) {
+        expansion(ets_, gamma);
+        const double fe = eval_update(ets_);
+
+        max() = (fr < fe) ? r_ : ets_;
+        continue;
+      }
+
+      if (fr < max2f()) {
+        max() = r_;
+        continue;
+      }
+
+      if (maxf() < fr) {
+        r_ = max();
+        fr = maxf();
+      }
+      contraction(ets_, rho);
+      const double ft = eval_update(ets_);
+
+      if (ft < fr) {
+        max() = ets_;
+        continue;
+      }
+
+      shrink(sigma);
+      for (int i: idxs_.tail(N))
+        eval_update(data_.col(i));
+    }
+
+    return { OptimResultCode::kMaxIterReached, argmin() };
+  }
+
+private:
+  void argpartiton_min1_max2();
+
+  void centroid();
+
+  void reflection(double alpha);
+
+  void expansion(ArrayXd &e, double gamma) const;
+
+  void contraction(ArrayXd &t, double rho) const;
+
+  void shrink(double sigma);
+
+  /* (N + 1, N + 1) */
+  MutRef<ArrayXXd> data_;
+  /* (N + 1) */
+  ArrayXd c_, r_, ets_;
+  /* (N + 1) */
+  ArrayXi idxs_;
+};
+
+namespace internal {
+  extern bool nm_check_input(ConstRef<ArrayXXd> data, double alpha,
+                             double gamma, double rho, double sigma);
+}
+
+/**
+ * @brief Minimize a function using Nelder-Mead simplex algorithm.
+ *
+ * @tparam Func Function object that computes the function value. The function
+ *         value should be returned.
+ * @param f Function object.
+ * @param data Initial simplex data. When the problem is N-dimensional, the
+ *        data should be (N + 1, N + 1) matrix, where the first N rows form
+ *        the N + 1 simplex vertices of dimension N. The last row need not
+ *        be initialized, but will be populated with the function value of
+ *        each vertex if the optimization is successful.
+ * @param maxiter Maximum number of iterations. If negative or zero, it will
+ *        be set to N * 200, where N is the number of dimensions.
+ * @param ftol Tolerance for the absolute change in the function value.
+ * @param alpha Reflection coefficient. Must be > 0.
+ * @param gamma Expansion coefficient. Must be > 1.
+ * @param rho Contraction coefficient. Must be in range (0, 1).
+ * @param sigma Shrink coefficient. Must be in range (0, 1).
+ * @return The result of the optimization, including the result code and the
+ *         index of the best vertex.
+ *
+ * @note The data matrix will be modified in-place, and the last row will be
+ *       populated with the function values of each vertex.
+ * @sa NelderMead
+ *
+ * References:
+ *   - "Nelder-Mead method",
+ *     [Wikipedia](https://en.wikipedia.org/wiki/Nelder%E2%80%93Mead_method)
+ *     (Accessed 2025-05-21).
+ *   - F Gao and L Han. *Comput. Optim. Appl.* **2012**, *53* (1), 259-277.
+ *     DOI:[10.1007/s10589-010-9329-3](https://doi.org/10.1007/s10589-010-9329-3)
+ */
+template <class Func>
+inline NMResult nelder_mead(Func &&f, MutRef<ArrayXXd> data, int maxiter = -1,
+                            const double ftol = 1e-6, const double alpha = 1,
+                            const double gamma = 2, const double rho = 0.5,
+                            const double sigma = 0.5) {
+  if (!internal::nm_check_input(data, alpha, gamma, rho, sigma))
+    return { OptimResultCode::kInvalidInput, -1 };
+
+  NelderMead nm(data);
+  return nm.minimize(std::forward<Func>(f), maxiter, ftol, alpha, gamma, rho,
+                     sigma);
+}
+
+/**
+ * @brief Prepare the initial simplex for Nelder-Mead algorithm.
+ *
+ * @param x0 Initial guess of size N.
+ * @param eps Max absolute value to consider an element of x0 as zero.
+ * @return A (N + 1, N + 1) matrix, where the first N rows form the N + 1
+ *         simplex vertices of dimension N. The last row is left uninitialized.
+ *         The first column corresponds to the unmodified x0, and the remaining
+ *         columns will form the initial guesses.
+ *
+ * This function will follow the Matlab implementation of the simplex
+ * initialization. See G Fuchang and H Lixing @cite algo:optim:nelder-mead for
+ * details.
+ */
+extern ArrayXXd nm_prepare_simplex(ConstRef<ArrayXd> x0, double eps = 1e-6);
 }  // namespace nuri
 
 #endif /* NURI_ALGO_OPTIM_H_ */

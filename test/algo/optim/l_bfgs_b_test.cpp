@@ -553,7 +553,7 @@ TEST(LBFGSBTest, LbfgsbSquared) {
   bounds.transposeInPlace();
 
   auto [code, _, fx, gx] = l_bfgs_b(fg, xa, nbd, bounds);
-  ASSERT_EQ(code, LbfgsResultCode::kSuccess);
+  ASSERT_EQ(code, OptimResultCode::kSuccess);
 
   EXPECT_TRUE((xa.head(20) >= bounds.row(0).head(20).transpose()).all());
   EXPECT_TRUE(
@@ -670,7 +670,7 @@ TEST(LBFGSBTest, LbfgsbCorrelated) {
   bounds.row(1).setConstant(1);
 
   auto [code, iter, fx, gx] = l_bfgs_b(fg, xa, nbd, bounds, 5);
-  ASSERT_EQ(code, LbfgsResultCode::kSuccess);
+  ASSERT_EQ(code, OptimResultCode::kSuccess);
 
   EXPECT_TRUE((xa >= bounds.row(0).transpose()).all());
   EXPECT_TRUE((xa <= bounds.row(1).transpose()).all());
@@ -758,7 +758,7 @@ TEST(LBFGSBTest, LbfgsbReference) {
   bounds.row(1) = 100;
 
   auto [code, iter, fx, gx] = l_bfgs_b(fg, x, nbd, bounds, 5);
-  ASSERT_EQ(code, LbfgsResultCode::kSuccess);
+  ASSERT_EQ(code, OptimResultCode::kSuccess);
 
   ArrayXd xans {
     {
@@ -855,7 +855,7 @@ TEST(LBFGSBTest, LbfgsbUnbounded) {
   Array2Xd bounds(2, 60);
 
   auto [code, iter, fx, gx] = l_bfgs_b(fg, xa, nbd, bounds);
-  ASSERT_EQ(code, LbfgsResultCode::kSuccess);
+  ASSERT_EQ(code, OptimResultCode::kSuccess);
 
   // // Results from lbfgsb original implementation
   EXPECT_EQ(iter, 54);
