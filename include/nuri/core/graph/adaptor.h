@@ -12,12 +12,27 @@
 #include <boost/graph/graph_concepts.hpp>
 #include <boost/graph/properties.hpp>
 #include <boost/property_map/property_map.hpp>
+#include <boost/property_map/transform_value_property_map.hpp>
 //! @endcond
 
 #include "nuri/core/graph/graph.h"
 #include "nuri/utils.h"
 
 namespace nuri {
+struct BoostEdgeDesc {
+  int id;
+  int src;
+  int dst;
+
+  friend bool operator==(const BoostEdgeDesc &lhs, const BoostEdgeDesc &rhs) {
+    return lhs.id == rhs.id;
+  }
+
+  friend bool operator!=(const BoostEdgeDesc &lhs, const BoostEdgeDesc &rhs) {
+    return lhs.id != rhs.id;
+  }
+};
+
 namespace internal {
   struct nuri_graph_traversal_tag: virtual boost::incidence_graph_tag,
                                    virtual boost::adjacency_graph_tag,
@@ -71,7 +86,7 @@ namespace internal {
 
   public:
     using vertex_descriptor = int;
-    using edge_descriptor = int;
+    using edge_descriptor = BoostEdgeDesc;
 
     class adjacency_iterator
         : public BoostGraphIteratorAdaptorBase<
@@ -99,12 +114,27 @@ namespace internal {
 
     private:
       static edge_descriptor dereference_impl(nuri_cadj_iter it) {
-        return it->eid();
+        return { it->eid(), it->src().id(), it->dst().id() };
       }
 
       friend Base;
     };
-    using in_edge_iterator = out_edge_iterator;
+
+    class in_edge_iterator
+        : public BoostGraphIteratorAdaptorBase<
+              in_edge_iterator, edge_descriptor, nuri_cadj_iter> {
+      using Base = typename in_edge_iterator::Base;
+
+    public:
+      using Base::Base;
+
+    private:
+      static edge_descriptor dereference_impl(nuri_cadj_iter it) {
+        return { it->eid(), it->dst().id(), it->src().id() };
+      }
+
+      friend Base;
+    };
 
     class vertex_iterator
         : public BoostGraphIteratorAdaptorBase<
@@ -132,7 +162,7 @@ namespace internal {
 
     private:
       static edge_descriptor dereference_impl(nuri_cedge_iter it) {
-        return it->id();
+        return { it->id(), it->src().id(), it->dst().id() };
       }
 
       friend Base;
@@ -176,15 +206,15 @@ auto out_edges(typename boost::graph_traits<Graph<NT, ET>>::vertex_descriptor v,
 template <class NT, class ET>
 typename boost::graph_traits<Graph<NT, ET>>::vertex_descriptor
 source(typename boost::graph_traits<Graph<NT, ET>>::edge_descriptor e,
-       const Graph<NT, ET> &g) {
-  return g.edge(e).src().id();
+       const Graph<NT, ET> & /* g */) {
+  return e.src;
 }
 
 template <class NT, class ET>
 typename boost::graph_traits<Graph<NT, ET>>::vertex_descriptor
 target(typename boost::graph_traits<Graph<NT, ET>>::edge_descriptor e,
-       const Graph<NT, ET> &g) {
-  return g.edge(e).dst().id();
+       const Graph<NT, ET> & /* g */) {
+  return e.dst;
 }
 
 template <class NT, class ET>
@@ -278,7 +308,9 @@ auto add_edge(typename boost::graph_traits<Graph<NT, ET>>::vertex_descriptor u,
               typename boost::graph_traits<Graph<NT, ET>>::vertex_descriptor v,
               Graph<NT, ET> &g) {
   int e = g.add_edge(u, v, {});
-  return std::make_pair(e, true);
+  return std::make_pair(
+      typename boost::graph_traits<Graph<NT, ET>>::edge_descriptor { e, u, v },
+      true);
 }
 
 template <class NT, class ET>
@@ -292,7 +324,7 @@ void remove_edge(
 template <class NT, class ET>
 void remove_edge(typename boost::graph_traits<Graph<NT, ET>>::edge_descriptor e,
                  Graph<NT, ET> &g) {
-  g.erase_edge(e);
+  g.erase_edge(e.id);
 }
 
 template <class NT, class ET>
@@ -317,14 +349,16 @@ auto get(boost::vertex_index_t /* tag */, const Graph<NT, ET> & /* g */,
 
 template <class NT, class ET>
 auto get(boost::edge_index_t /* tag */, const Graph<NT, ET> & /* g */) {
-  return boost::typed_identity_property_map<
-      typename boost::graph_traits<Graph<NT, ET>>::edge_descriptor> {};
+  return boost::make_transform_value_property_map(
+      [](auto e) { return e.id; },
+      boost::typed_identity_property_map<
+          typename boost::graph_traits<Graph<NT, ET>>::edge_descriptor>());
 }
 
 template <class NT, class ET>
 auto get(boost::edge_index_t /* tag */, const Graph<NT, ET> & /* g */,
          typename boost::graph_traits<Graph<NT, ET>>::edge_descriptor e) {
-  return e;
+  return e.id;
 }
 
 //! @section Concept requirements for nuri::Subgraph
@@ -343,16 +377,16 @@ template <class NT, class ET, bool is_const>
 typename boost::graph_traits<Subgraph<NT, ET, is_const>>::vertex_descriptor
 source(
     typename boost::graph_traits<Subgraph<NT, ET, is_const>>::edge_descriptor e,
-    const Subgraph<NT, ET, is_const> &g) {
-  return g.edge(e).src().id();
+    const Subgraph<NT, ET, is_const> & /* g */) {
+  return e.src;
 }
 
 template <class NT, class ET, bool is_const>
 typename boost::graph_traits<Subgraph<NT, ET, is_const>>::vertex_descriptor
 target(
     typename boost::graph_traits<Subgraph<NT, ET, is_const>>::edge_descriptor e,
-    const Subgraph<NT, ET, is_const> &g) {
-  return g.edge(e).dst().id();
+    const Subgraph<NT, ET, is_const> & /* g */) {
+  return e.dst;
 }
 
 template <class NT, class ET, bool is_const>
@@ -446,15 +480,17 @@ auto get(
 template <class NT, class ET, bool is_const>
 auto get(boost::edge_index_t /* tag */,
          const Subgraph<NT, ET, is_const> & /* g */) {
-  return boost::typed_identity_property_map<typename boost::graph_traits<
-      Subgraph<NT, ET, is_const>>::edge_descriptor> {};
+  return boost::make_transform_value_property_map(
+      [](auto e) { return e.id; },
+      boost::typed_identity_property_map<typename boost::graph_traits<
+          Subgraph<NT, ET, is_const>>::edge_descriptor>());
 }
 
 template <class NT, class ET, bool is_const>
 auto get(
     boost::edge_index_t /* tag */, const Subgraph<NT, ET, is_const> & /* g */,
     typename boost::graph_traits<Subgraph<NT, ET, is_const>>::edge_descriptor e) {
-  return e;
+  return e.id;
 }
 }  // namespace nuri
 
