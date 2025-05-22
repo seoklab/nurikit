@@ -8,6 +8,7 @@
 #include <absl/algorithm/container.h>
 #include <boost/graph/graph_concepts.hpp>
 #include <boost/graph/max_cardinality_matching.hpp>
+#include <boost/graph/properties.hpp>
 
 #include <gtest/gtest.h>
 
@@ -96,6 +97,33 @@ TEST(BoostGraphTest, SubgraphMaximumCardinalityMatching) {
     auto cnt = absl::c_count_if(mates, [&](int d) { return d == node.id(); });
     EXPECT_LE(cnt, 1) << node.id() << " (" << node.as_parent().id() << ")";
   }
+}
+
+TEST(BoostGraphTest, GraphIndexMaps) {
+  Graph g = c5_petersen_graph();
+
+  auto vmap = get(boost::vertex_index, g);
+  EXPECT_EQ(vmap[0], 0);
+  EXPECT_EQ(vmap[5], 5);
+
+  auto emap = get(boost::edge_index, g);
+  BoostEdgeDesc e0 { 0, 0, 1 }, e1 { 1, 1, 2 };
+  EXPECT_EQ(emap[e0], 0);
+  EXPECT_EQ(emap[e1], 1);
+}
+
+TEST(BoostGraphTest, SubgraphIndexMaps) {
+  Graph g = c5_petersen_graph();
+  Subgraph sg = Subgraph::from_nodes(g, { 0, 1, 5, 6, 7, 8, 9 });
+
+  auto vmap = get(boost::vertex_index, sg);
+  EXPECT_EQ(vmap[0], 0);
+  EXPECT_EQ(vmap[5], 5);
+
+  auto emap = get(boost::edge_index, sg);
+  BoostEdgeDesc e0 { 0, 0, 1 }, e1 { 1, 1, 2 };
+  EXPECT_EQ(emap[e0], 0);
+  EXPECT_EQ(emap[e1], 1);
 }
 }  // namespace
 }  // namespace nuri
