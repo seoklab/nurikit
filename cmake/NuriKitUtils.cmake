@@ -112,6 +112,7 @@ function(find_or_add_package)
     "${_pkg_MIN_VERSION}"
     QUIET
     COMPONENTS "${_pkg_COMPONENTS}"
+    NO_MODULE
   )
 
   if(${_pkg_NAME}_FOUND)
