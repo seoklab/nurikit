@@ -26,7 +26,6 @@
 #include "nuri/core/container/index_set.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
-#include "nuri/utils.h"
 
 namespace nuri {
 namespace internal {

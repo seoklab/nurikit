@@ -7,30 +7,22 @@
 #define NURI_UTILS_H_
 
 //! @cond
-#include <algorithm>
 #include <cstddef>
-#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <functional>
-#include <iterator>
 #include <limits>
 #include <numeric>
-#include <queue>
-#include <string>
 #include <string_view>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
-#include <absl/algorithm/container.h>
 #include <absl/base/nullability.h>
 #include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
 #include <absl/numeric/bits.h>
 #include <absl/strings/ascii.h>
-#include <boost/iterator/iterator_facade.hpp>
 #include <Eigen/Dense>
 //! @endcond
 
@@ -110,288 +102,6 @@ constexpr const std::remove_reference_t<T> &clamp(T &&v, L &&l, H &&h) {
 }
 
 namespace internal {
-  template <class T, class C = std::less<>, class S = std::vector<T>>
-  struct ClearablePQ: public std::priority_queue<T, S, C> {
-    using Base = std::priority_queue<T, S, C>;
-
-  public:
-    using Base::Base;
-
-    T pop_get() noexcept {
-      T v = std::move(data().front());
-      this->pop();
-      return v;
-    }
-
-    void clear() noexcept { data().clear(); }
-
-    auto &data() { return this->c; }
-
-    void rebuild() noexcept { absl::c_make_heap(data(), C()); }
-  };
-
-  template <class Derived, class RefLike, class Category,
-            class Difference = std::ptrdiff_t>
-  class ProxyIterator: public boost::iterator_facade<Derived, RefLike, Category,
-                                                     RefLike, Difference> { };
-
-  template <class Derived, class RefLike, class Difference>
-  class ProxyIterator<Derived, RefLike, std::random_access_iterator_tag,
-                      Difference>
-      : public boost::iterator_facade<Derived, RefLike,
-                                      std::random_access_iterator_tag, RefLike,
-                                      Difference> {
-    using Parent = typename ProxyIterator::iterator_facade_;
-
-  public:
-    // Required to override boost's implementation that returns a proxy
-    constexpr typename Parent::reference
-    operator[](typename Parent::difference_type n) const noexcept {
-      return *(*static_cast<const Derived *>(this) + n);
-    }
-  };
-
-  template <class Derived, class Iter, class UnaryOp, auto op,
-            bool = std::is_class_v<UnaryOp>>
-  class TransformIteratorTrampoline;
-
-  template <class Derived, class Traits, class Ref>
-  using TransformIteratorBase =
-      boost::iterator_facade<Derived, std::remove_reference_t<Ref>,
-                             typename Traits::iterator_category, Ref,
-                             typename Traits::difference_type>;
-
-  template <class Derived, class Iter, class UnaryOp, UnaryOp op>
-  class TransformIteratorTrampoline<Derived, Iter, UnaryOp, op, false>
-      : public TransformIteratorBase<Derived, std::iterator_traits<Iter>,
-                                     decltype(std::invoke(
-                                         op, *std::declval<Iter>()))> {
-  protected:
-    using Parent = TransformIteratorTrampoline;
-    constexpr static auto dereference_impl(Iter it) {
-      return std::invoke(op, *it);
-    }
-  };
-
-  template <class Derived, class Iter, class UnaryOp>
-  class TransformIteratorTrampoline<Derived, Iter, UnaryOp, nullptr, true>
-      : public TransformIteratorBase<Derived, std::iterator_traits<Iter>,
-                                     decltype(std::declval<UnaryOp>()(
-                                         *std::declval<Iter>()))> {
-  protected:
-    using Parent = TransformIteratorTrampoline;
-
-    TransformIteratorTrampoline(const UnaryOp &op): op_(op) { }
-
-    TransformIteratorTrampoline(UnaryOp &&op): op_(std::move(op)) { }
-
-    constexpr auto dereference_impl(Iter it) const { return op_(*it); }
-
-  private:
-    UnaryOp op_;
-  };
-
-  template <class Iter, class UnaryOp, auto unaryop = nullptr>
-  class TransformIterator
-      : public TransformIteratorTrampoline<
-            TransformIterator<Iter, UnaryOp, unaryop>, Iter, UnaryOp, unaryop> {
-    using Base = typename TransformIterator::Parent;
-    using Traits =
-        std::iterator_traits<typename TransformIterator::iterator_facade_>;
-
-  public:
-    using iterator_category = typename Traits::iterator_category;
-    using value_type = typename Traits::value_type;
-    using difference_type = typename Traits::difference_type;
-    using pointer = typename Traits::pointer;
-    using reference = typename Traits::reference;
-
-    constexpr TransformIterator() = default;
-
-    template <class... Args>
-    constexpr explicit TransformIterator(Iter it, Args &&...args)
-        : Base(std::forward<Args>(args)...), it_(it) { }
-
-    constexpr Iter base() const { return it_; }
-
-  private:
-    friend class boost::iterator_core_access;
-
-    constexpr reference dereference() const {
-      return Base::dereference_impl(it_);
-    }
-
-    constexpr bool equal(TransformIterator rhs) const { return it_ == rhs.it_; }
-
-    constexpr void increment() { ++it_; }
-    constexpr void decrement() { --it_; }
-    constexpr void advance(difference_type n) { it_ += n; }
-
-    constexpr difference_type distance_to(TransformIterator lhs) const {
-      return lhs.it_ - it_;
-    }
-
-    Iter it_;
-  };
-
-  template <auto unaryop, class Iter>
-  constexpr auto make_transform_iterator(Iter it) {
-    return TransformIterator<Iter, decltype(unaryop), unaryop>(it);
-  }
-
-  template <class UnaryOp, class Iter>
-  constexpr auto make_transform_iterator(Iter it, UnaryOp &&op) {
-    return TransformIterator<Iter, remove_cvref_t<UnaryOp>>(
-        it, std::forward<UnaryOp>(op));
-  }
-
-  // NOLINTBEGIN(*-no-malloc,*-owning-memory)
-  template <class T>
-  class DumbBuffer {
-    constexpr static size_t bytes(size_t len) noexcept {
-      return len * sizeof(T);
-    }
-
-    static T *alloc(size_t len) noexcept {
-      void *buf = std::malloc(bytes(len));
-      ABSL_QCHECK(buf != nullptr);
-      return static_cast<T *>(buf);
-    }
-
-    static T *realloc(T *orig, size_t len) noexcept {
-      void *buf = std::realloc(static_cast<void *>(orig), bytes(len));
-      ABSL_QCHECK(buf != nullptr);
-      return static_cast<T *>(buf);
-    }
-
-    static void copy(T *dst, const T *src, size_t len) noexcept {
-      std::memcpy(static_cast<void *>(dst), static_cast<const void *>(src),
-                  bytes(len));
-    }
-
-  public:
-    static_assert(std::is_same_v<T, remove_cvref_t<T>>,
-                  "T must not have cv-qualifiers or reference");
-    static_assert(std::is_trivially_copyable_v<T>,
-                  "T must be trivially copyable");
-    static_assert(alignof(T) <= alignof(std::max_align_t),
-                  "T must have less than or equal alignment to all scalar "
-                  "types");
-
-    DumbBuffer(size_t len) noexcept: data_(alloc(len)), len_(len) { }
-
-    DumbBuffer(const DumbBuffer &other) noexcept
-        : data_(alloc(other.len_)), len_(other.len_) {
-      copy(data_, other.data_, len_);
-    }
-
-    DumbBuffer(DumbBuffer &&other) noexcept
-        : data_(other.data_), len_(other.len_) {
-      other.data_ = nullptr;
-      other.len_ = 0;
-    }
-
-    ~DumbBuffer() noexcept { std::free(static_cast<void *>(data_)); }
-
-    DumbBuffer &operator=(const DumbBuffer &other) noexcept {
-      if (this == &other) {
-        return *this;
-      }
-
-      resize(other.len_);
-      copy(data_, other.data_, len_);
-      return *this;
-    }
-
-    DumbBuffer &operator=(DumbBuffer &&other) noexcept {
-      std::swap(data_, other.data_);
-      std::swap(len_, other.len_);
-      return *this;
-    }
-
-    T &operator[](size_t idx) noexcept { return data_[idx]; }
-
-    const T &operator[](size_t idx) const noexcept { return data_[idx]; }
-
-    T *data() noexcept { return data_; }
-
-    const T *data() const noexcept { return data_; }
-
-    size_t size() const noexcept { return len_; }
-
-    void resize(size_t len) noexcept {
-      data_ = realloc(data_, len_);
-      len_ = len;
-    }
-
-    T *begin() noexcept { return data_; }
-    T *end() noexcept { return data_ + len_; }
-
-    const T *cbegin() const noexcept { return data_; }
-    const T *cend() const noexcept { return data_ + len_; }
-    const T *begin() const noexcept { return cbegin(); }
-    const T *end() const noexcept { return cend(); }
-
-  private:
-    T *data_;
-    size_t len_;
-  };
-  // NOLINTEND(*-no-malloc,*-owning-memory)
-
-  template <class K, class V, V sentinel = -1>
-  class CompactMap {
-  public:
-    static_assert(std::is_convertible_v<K, size_t>,
-                  "Key must be an integer-like type");
-
-    using key_type = K;
-    using mapped_type = V;
-    using value_type = V;
-    using size_type = size_t;
-    using difference_type = ptrdiff_t;
-    using reference = V &;
-    using const_reference = const V &;
-    using pointer = V *;
-    using const_pointer = const V *;
-
-    CompactMap(size_t cap): data_(cap, sentinel) { }
-
-    template <class... Args>
-    std::pair<pointer, bool> try_emplace(key_type key, Args &&...args) {
-      handle_resize(key);
-
-      reference v = data_[key];
-      bool isnew = v == sentinel;
-      if (isnew) {
-        v = V(std::forward<Args>(args)...);
-      }
-      return { &v, isnew };
-    }
-
-    pointer find(key_type key) {
-      if (key < data_.size()) {
-        return data_[key] == sentinel ? nullptr : &data_[key];
-      }
-      return nullptr;
-    }
-
-    const_pointer find(key_type key) const {
-      if (key < data_.size()) {
-        return data_[key] == sentinel ? nullptr : &data_[key];
-      }
-      return nullptr;
-    }
-
-  private:
-    void handle_resize(key_type new_key) {
-      if (new_key >= data_.size()) {
-        data_.resize(new_key + 1, sentinel);
-      }
-    }
-
-    std::vector<V> data_;
-  };
-
   class PowersetStream {
   public:
     explicit PowersetStream(int n): n_(n), r_(0), r_max_(0), state_(0) { }
@@ -439,113 +149,7 @@ namespace internal {
     state = ps.state();
     return ps;
   }
-
-  template <class ZIT>
-  struct ZippedIteratorTraits;
-
-  template <template <class...> class ZIT, class Iter, class Jter>
-  struct ZippedIteratorTraits<ZIT<Iter, Jter>> {
-    using iterator_category = std::common_type_t<
-        typename std::iterator_traits<Iter>::iterator_category,
-        typename std::iterator_traits<Jter>::iterator_category>;
-    using difference_type =
-        std::common_type_t<typename std::iterator_traits<Iter>::difference_type,
-                           typename std::iterator_traits<Jter>::difference_type>;
-    using reference = std::pair<typename std::iterator_traits<Iter>::reference,
-                                typename std::iterator_traits<Jter>::reference>;
-  };
-
-  template <template <class...> class ZIT, class... Iters>
-  struct ZippedIteratorTraits<ZIT<Iters...>> {
-    using iterator_category = std::common_type_t<
-        typename std::iterator_traits<Iters>::iterator_category...>;
-    using difference_type = std::common_type_t<
-        typename std::iterator_traits<Iters>::difference_type...>;
-    using reference =
-        std::tuple<typename std::iterator_traits<Iters>::reference...>;
-  };
-
-  template <class Derived>
-  class ZippedIteratorBase
-      : public ProxyIterator<
-            Derived, typename ZippedIteratorTraits<Derived>::reference,
-            typename ZippedIteratorTraits<Derived>::iterator_category,
-            typename ZippedIteratorTraits<Derived>::difference_type> {
-    using Root = typename ZippedIteratorBase::iterator_facade_;
-    using Traits = std::iterator_traits<Root>;
-
-  public:
-    using iterator_category = typename Traits::iterator_category;
-    using value_type = typename Traits::value_type;
-    using difference_type = typename Traits::difference_type;
-    using pointer = typename Traits::pointer;
-    using reference = typename Traits::reference;
-  };
 }  // namespace internal
-
-template <class... Iters>
-class ZippedIterator
-    : public internal::ZippedIteratorBase<ZippedIterator<Iters...>> {
-  static_assert(sizeof...(Iters) > 1, "At least two iterators are required");
-
-  using Base = internal::ZippedIteratorBase<ZippedIterator>;
-
-public:
-  constexpr ZippedIterator() = default;
-
-  constexpr ZippedIterator(Iters... its): its_(its...) { }
-
-  template <size_t N = 0>
-  constexpr auto base() const {
-    return std::get<N>(its_);
-  }
-
-  template <size_t N = sizeof...(Iters), std::enable_if_t<N == 2, int> = 0>
-  constexpr auto first() const {
-    return base<0>();
-  }
-
-  template <size_t N = sizeof...(Iters), std::enable_if_t<N == 2, int> = 0>
-  constexpr auto second() const {
-    return base<1>();
-  }
-
-private:
-  friend class boost::iterator_core_access;
-
-  constexpr typename Base::reference dereference() const {
-    return std::apply(
-        [](auto &...it) { return typename Base::reference(*it...); }, its_);
-  }
-
-  constexpr bool equal(const ZippedIterator &rhs) const {
-    return base() == rhs.base();
-  }
-
-  constexpr void increment() {
-    std::apply([](auto &...it) { (static_cast<void>(++it), ...); }, its_);
-  }
-
-  constexpr void decrement() {
-    std::apply([](auto &...it) { (static_cast<void>(--it), ...); }, its_);
-  }
-
-  constexpr void advance(typename Base::difference_type n) {
-    std::apply([n](auto &...it) { (static_cast<void>(it += n), ...); }, its_);
-  }
-
-  constexpr typename Base::difference_type
-  distance_to(const ZippedIterator &lhs) const {
-    return lhs.base() - base();
-  }
-
-  std::tuple<Iters...> its_;
-};
-
-template <class... Iters>
-constexpr auto make_zipped_iterator(Iters... iters) {
-  return ZippedIterator<Iters...>(iters...);
-}
 
 //! @privatesection
 
@@ -632,39 +236,6 @@ namespace internal {
     return ret;
   }
 }  // namespace internal
-
-#if __cplusplus >= 202002L
-using std::erase;
-using std::erase_if;
-#else
-template <class T, class Alloc, class U>
-typename std::vector<T, Alloc>::size_type erase(std::vector<T, Alloc> &c,
-                                                const U &value) {
-  auto it = std::remove(c.begin(), c.end(), value);
-  auto r = std::distance(it, c.end());
-  c.erase(it, c.end());
-  return r;
-}
-
-template <class T, class Alloc, class Pred>
-typename std::vector<T, Alloc>::size_type erase_if(std::vector<T, Alloc> &c,
-                                                   Pred &&pred) {
-  auto it = std::remove_if(c.begin(), c.end(), std::forward<Pred>(pred));
-  auto r = std::distance(it, c.end());
-  c.erase(it, c.end());
-  return r;
-}
-#endif
-
-template <class T, class Alloc, class Pred>
-typename std::vector<T, Alloc>::iterator erase_first(std::vector<T, Alloc> &c,
-                                                     Pred &&pred) {
-  auto it = std::find_if(c.begin(), c.end(), std::forward<Pred>(pred));
-  if (it != c.end()) {
-    return c.erase(it);
-  }
-  return it;
-}
 
 template <int N = Eigen::Dynamic, int... Extra>
 auto generate_index(Eigen::Index size) {
@@ -824,11 +395,6 @@ constexpr int log_base10(Int x) {
   int lg = value_if(x < 0);
   lg += log_base10(static_cast<unsigned int>(x < 0 ? -x : x));
   return lg;
-}
-
-template <class T, size_t N>
-constexpr size_t array_size(T (& /* arr */)[N]) {
-  return N;
 }
 
 namespace internal {

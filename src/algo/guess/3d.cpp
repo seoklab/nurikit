@@ -29,6 +29,7 @@
 #include "nuri/core/geometry.h"
 #include "nuri/core/graph/graph.h"
 #include "nuri/core/molecule.h"
+#include "nuri/iterator.h"
 #include "nuri/utils.h"
 
 namespace nuri {

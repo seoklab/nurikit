@@ -22,7 +22,9 @@
 #include <boost/iterator/iterator_facade.hpp>
 //! @endcond
 
+#include "nuri/core/container/container_ext.h"
 #include "nuri/core/graph/traits.h"
+#include "nuri/iterator.h"
 #include "nuri/meta.h"
 #include "nuri/utils.h"
 

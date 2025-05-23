@@ -22,6 +22,8 @@
 #include <absl/log/absl_log.h>
 
 #include "nuri/core/container/bool_matrix.h"
+#include "nuri/core/container/compact_map.h"
+#include "nuri/core/container/container_ext.h"
 #include "nuri/core/molecule.h"
 #include "nuri/utils.h"
 

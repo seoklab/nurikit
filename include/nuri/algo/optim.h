@@ -18,6 +18,7 @@
 //! @endcond
 
 #include "nuri/eigen_config.h"
+#include "nuri/core/container/container_ext.h"
 #include "nuri/utils.h"
 
 namespace nuri {

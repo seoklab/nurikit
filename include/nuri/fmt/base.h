@@ -22,6 +22,7 @@
 #include <absl/log/absl_log.h>
 //! @endcond
 
+#include "nuri/core/container/dumb_buffer.h"
 #include "nuri/core/molecule.h"
 #include "nuri/utils.h"
 

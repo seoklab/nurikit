@@ -16,7 +16,7 @@
 //! @endcond
 
 #include "nuri/core/graph/graph.h"
-#include "nuri/utils.h"
+#include "nuri/iterator.h"
 
 namespace nuri {
 struct BoostEdgeDesc {

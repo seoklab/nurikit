@@ -22,8 +22,8 @@
 #include "nuri/core/container/index_set.h"
 #include "nuri/core/graph/graph.h"
 #include "nuri/core/graph/traits.h"
+#include "nuri/iterator.h"
 #include "nuri/meta.h"
-#include "nuri/utils.h"
 
 namespace nuri {
 namespace internal {
