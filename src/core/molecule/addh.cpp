@@ -20,6 +20,7 @@
 
 #include "nuri/eigen_config.h"
 #include "nuri/algo/optim.h"
+#include "nuri/core/container/container_ext.h"
 #include "nuri/core/element.h"
 #include "nuri/core/geometry.h"
 #include "nuri/core/graph/graph.h"

@@ -1337,6 +1337,13 @@ public:
   void clear_bonds() noexcept;
 
   /**
+   * @brief Get the underlying graph of the molecule.
+   * @note This is a low-level API and mostly used for internal purposes.
+   *       Use the higher-level APIs provided by the Molecule class instead.
+   */
+  const GraphType &raw_graph() const { return graph_; }
+
+  /**
    * @brief Make all implicit hydrogens explicit.
    *
    * @param update_confs Whether to update the conformers after adding

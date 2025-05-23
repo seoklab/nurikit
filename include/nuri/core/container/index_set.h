@@ -16,7 +16,7 @@
 #include <boost/container/flat_set.hpp>
 //! @endcond
 
-#include "nuri/utils.h"
+#include "nuri/core/container/container_ext.h"
 
 namespace nuri {
 namespace internal {
