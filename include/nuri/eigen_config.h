@@ -183,11 +183,12 @@ private:
 template <class ML1, class ML2>
 // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
 void inplace_transform(ML1 &&m_out, const Affine3d &xform, const ML2 &m) {
-  ABSL_DCHECK_EQ(m_out.rows(), m.rows());
-  ABSL_DCHECK_EQ(m_out.cols(), m.cols());
+  const int ri = m.rows(), ci = m.cols();
+  const int ro = m_out.rows(), co = m_out.cols();
+  ABSL_ASSUME(ri == ro && ci == co);
 
-  m_out.noalias() = xform.linear() * m;
-  m_out.colwise() += xform.translation();
+  for (int i = 0; i < m.cols(); ++i)
+    m_out.col(i) = xform * m.col(i);
 }
 
 namespace internal {
