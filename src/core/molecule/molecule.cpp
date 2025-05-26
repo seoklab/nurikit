@@ -175,15 +175,14 @@ void Molecule::erase_hydrogens() {
 namespace {
   void rotate_points(Matrix3Xd &coords, const std::vector<int> &moving_idxs,
                      int ref, int pivot, double angle) {
-    Eigen::Vector3d pv = coords.col(pivot);
-    Eigen::Affine3d rotation =
-        Eigen::Translation3d(pv)
-        * Eigen::AngleAxisd(deg2rad(angle),
-                            internal::safe_normalized(pv - coords.col(ref)))
-        * Eigen::Translation3d(-pv);
+    Vector3d pv = coords.col(pivot);
+    Matrix3d rot = AngleAxisd(deg2rad(angle),
+                              internal::safe_normalized(pv - coords.col(ref)))
+                       .toRotationMatrix();
+    Affine3d xform = Translation3d(pv) * rot * Translation3d(-pv);
 
-    auto rotate_helper = [&](auto moving) { moving = rotation * moving; };
-    rotate_helper(coords(Eigen::all, moving_idxs));
+    for (int i: moving_idxs)
+      coords.col(i) = xform * coords.col(i);
   }
 }  // namespace
 
