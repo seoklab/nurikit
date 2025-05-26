@@ -180,14 +180,12 @@ namespace internal {
   Matrix3Xd &GARotationInfo::rotate(Matrix3Xd &pts, const double angle) const {
     Matrix3d rot = Eigen::AngleAxisd(angle, (pts.col(origin_) - pts.col(ref_))
                                                 * normalizer())
-                       .toRotationMatrix()
-                       .transpose();
+                       .toRotationMatrix();
     Vector3d trs = pts.col(origin_);
+    Affine3d xform = Translation3d(trs) * rot * Translation3d(-trs);
 
-    for (int i: moving_) {
-      Vector3d pt = pts.col(i) - trs;
-      pts.col(i).noalias() = rot.transpose() * pt + trs;
-    }
+    for (int i: moving_)
+      pts.col(i) = xform * pts.col(i);
 
     return pts;
   }
