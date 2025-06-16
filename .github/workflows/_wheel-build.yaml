@@ -67,7 +67,7 @@ jobs:
         env:
           python: ${{ inputs.python }}
 
-      - uses: pypa/cibuildwheel@v2.23.3
+      - uses: pypa/cibuildwheel@v3.0.0
         env:
           CIBW_BUILD: ${{ inputs.python }}
           CIBW_ARCHS: "all"
