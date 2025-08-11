@@ -34,11 +34,11 @@ jobs:
           # macOS -> universal binary at least from 3.19.7
           cmakeVersion: ${{ contains(inputs.python, 'linux') && '~3.22.0' || '3.19.7' }}
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: sdist
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: libnuri-${{ contains(inputs.python, 'linux') && 'linux' || 'macosx' }}
           path: dist
