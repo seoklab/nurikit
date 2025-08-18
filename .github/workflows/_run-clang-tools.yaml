@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: "3.8"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - run: .github/scripts/setup-deps.sh
 
@@ -78,7 +78,7 @@ jobs:
         with:
           python-version: "3.8"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Configure with cmake
         run: |

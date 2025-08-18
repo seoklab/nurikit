@@ -28,7 +28,7 @@ jobs:
     outputs:
       want-test: ${{ steps.want-test.outputs.want-test }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         id: checkout
         if: ${{ !github.event.pull_request.draft && (!inputs.skip-bots || !endsWith(github.triggering_actor, '[bot]')) }}
         with:
