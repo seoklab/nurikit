@@ -47,7 +47,7 @@ jobs:
           tar -xvf *.tar* --strip-components=1
           tar -xvf dist/*.tar* -C dist
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           path: git
 
