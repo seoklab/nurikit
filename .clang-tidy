@@ -25,6 +25,7 @@ ExtraArgsBefore:
   - -Wno-disabled-macro-expansion
   - -Wno-unsafe-buffer-usage
   - -Wno-switch-default
+  - -Wno-nrvo
   - -fno-sanitize=all
 CheckOptions:
   - key: bugprone-stringview-nullptr.IncludeStyle

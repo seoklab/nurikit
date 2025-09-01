@@ -25,6 +25,7 @@ CompileFlags:
     - -Wno-disabled-macro-expansion
     - -Wno-unsafe-buffer-usage
     - -Wno-switch-default
+    - -Wno-nrvo
   Remove:
     - "-fsanitize=*"
     - "-flto*"
