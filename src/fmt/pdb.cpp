@@ -31,6 +31,7 @@
 #include <absl/strings/numbers.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_format.h>
+#include <absl/strings/strip.h>
 #include <boost/container/flat_set.hpp>
 #include <Eigen/Dense>
 
@@ -297,29 +298,16 @@ void read_header_line(std::string_view line, Molecule &mol) {
 
 void read_remark_record(Iterator &it, const Iterator end, std::string &buf,
                         Molecule &mol) {
-  std::string_view prev_num, curr_num;
-
   for (; is_record(it, end, "REMARK"); ++it) {
-    curr_num = safe_slice_strip(*it, 6, 10);
-
-    if (prev_num != curr_num) {
-      if (!buf.empty()) {
-        buf.pop_back();
-        mol.add_prop(absl::StrCat("remark-", prev_num), buf);
-        buf.clear();
-      }
-
-      prev_num = curr_num;
-      // As per the spec, first remark line is always empty
-      continue;
-    }
-
-    absl::StrAppend(&buf, safe_slice_rstrip(*it, 11, 80), "\n");
+    std::string_view rmrk = safe_substr(*it, 6);
+    // strip first space if exists
+    // standard remark format also starts with col 8
+    rmrk = absl::StripPrefix(rmrk, " ");
+    absl::StrAppend(&buf, absl::StripTrailingAsciiWhitespace(rmrk), "\n");
   }
 
   if (!buf.empty()) {
-    buf.pop_back();
-    mol.add_prop(absl::StrCat("remark-", prev_num), buf);
+    mol.add_prop("remark", buf);
     buf.clear();
   }
 }
@@ -1617,7 +1605,7 @@ public:
   };
 
   AtomicLine(int serial, AtomId id, std::string_view line)
-      : serial_(serial), line_(line), id_(id) { }
+      : serial_(serial), hetatom_(line[0] == 'H'), line_(line), id_(id) { }
 
   static std::optional<AtomicLine> parse(std::string_view line, int serial) {
     // At least 47 characters (for three coordinates) required for useful data
@@ -1647,6 +1635,8 @@ public:
 
   int serial() const { return serial_; }
 
+  bool hetatom() const { return hetatom_; }
+
   const AtomId &id() const { return id_; }
 
   std::string_view altloc() const { return get_altloc(line_); }
@@ -1663,10 +1653,43 @@ public:
 
   std::string_view element() const { return safe_slice_strip(line_, 76, 78); }
 
+  std::string_view guess_element() const {
+    std::string_view elem = element();
+    if (!elem.empty())
+      return elem;
+
+    const auto name_len = id_.name.size();
+    std::string_view name = id_.name;
+
+    // swapped atom name (e.g., 2HB)
+    if (absl::ascii_isdigit(name[0]))
+      name = name.substr(1);
+
+    // Aligned single-character atom name
+    // Assume 4-character atom name is a single character element
+    // ("FE10" unlikely)
+    if ((name_len < 4 && line_[12] == ' ') || name_len == 4)
+      return name.substr(0, 1);
+
+    // Now we have:
+    //   1. Aligned 2-character element symbol with optional index
+    //      (e.g., "MG  ", "CA  ", "FE1 ", ...)
+    //   2. Misaligned 1-character element symbol, < 4 characters (TODO)
+
+    elem = name.substr(0, 2);
+    if (!kPt.has_element(elem)) {
+      // Misaligned 1-character element symbol?
+      return elem.substr(0, 1);
+    }
+
+    return elem;
+  }
+
   std::string_view line() const { return line_; }
 
 private:
   int serial_;
+  bool hetatom_;
   std::string_view line_;
   AtomId id_;
 };
@@ -1701,20 +1724,20 @@ public:
   AtomData to_standard() {
     AtomData data;
 
-    std::string_view elem_symb = first().element();
+    std::string_view elem_symb = first().guess_element();
     const Element *element = kPt.find_element(elem_symb);
     if (element != nullptr) {
       data.set_element(*element);
     } else if (elem_symb == "D") {
       data.set_element(1);
     } else {
-      // TODO(jnooree): extract element from name if symbol is invalid.
       ABSL_LOG(WARNING) << "Invalid element symbol: " << elem_symb;
     }
 
     internal::PropertyMap::sequence_type props;
-    props.reserve(3 * data_.size() + extra_.size() + 1);
+    props.reserve(3 * data_.size() + extra_.size() + 2);
     props.emplace_back(internal::kNameKey, first().id().name);
+    props.emplace_back("record", first().hetatom() ? "HETATM" : "ATOM");
     for (const AtomicLine &l: data_) {
       props.emplace_back(as_key("serial", l.altloc()),
                          absl::StrCat(l.serial()));

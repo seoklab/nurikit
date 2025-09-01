@@ -13,7 +13,7 @@ on:
         default: true
       version:
         type: string
-        default: "20"
+        default: "21"
 
 defaults:
   run:

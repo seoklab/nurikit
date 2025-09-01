@@ -14,5 +14,5 @@ if [[ -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
 	eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 fi
 
-brew install eigen boost spectra pybind11
+brew install eigen boost spectra
 echo "CMAKE_PREFIX_PATH=$HOMEBREW_PREFIX" >>"$GITHUB_ENV"
