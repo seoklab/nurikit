@@ -1649,6 +1649,38 @@ public:
 
   std::string_view element() const { return safe_slice_strip(line_, 76, 78); }
 
+  std::string_view guess_element() const {
+    std::string_view elem = element();
+    if (!elem.empty())
+      return elem;
+
+    const auto name_len = id_.name.size();
+    std::string_view name = id_.name;
+
+    // swapped atom name (e.g., 2HB)
+    if (absl::ascii_isdigit(name[0]))
+      name = name.substr(1);
+
+    // Aligned single-character atom name
+    // Assume 4-character atom name is a single character element
+    // ("FE10" unlikely)
+    if ((name_len < 4 && line_[12] == ' ') || name_len == 4)
+      return name.substr(0, 1);
+
+    // Now we have:
+    //   1. Aligned 2-character element symbol with optional index
+    //      (e.g., "MG  ", "CA  ", "FE1 ", ...)
+    //   2. Misaligned 1-character element symbol, < 4 characters (TODO)
+
+    elem = name.substr(0, 2);
+    if (!kPt.has_element(elem)) {
+      // Misaligned 1-character element symbol?
+      return elem.substr(0, 1);
+    }
+
+    return elem;
+  }
+
   std::string_view line() const { return line_; }
 
 private:
@@ -1688,14 +1720,13 @@ public:
   AtomData to_standard() {
     AtomData data;
 
-    std::string_view elem_symb = first().element();
+    std::string_view elem_symb = first().guess_element();
     const Element *element = kPt.find_element(elem_symb);
     if (element != nullptr) {
       data.set_element(*element);
     } else if (elem_symb == "D") {
       data.set_element(1);
     } else {
-      // TODO(jnooree): extract element from name if symbol is invalid.
       ABSL_LOG(WARNING) << "Invalid element symbol: " << elem_symb;
     }
 
