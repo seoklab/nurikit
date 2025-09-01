@@ -100,7 +100,8 @@ bool MoleculeReaderFactory::register_factory(
     const std::vector<std::string> &names) {
   static std::vector<std::unique_ptr<MoleculeReaderFactory>> factories;
 
-  MoleculeReaderFactory *f = factories.emplace_back(std::move(factory)).get();
+  const MoleculeReaderFactory *f =
+      factories.emplace_back(std::move(factory)).get();
   // GCOV_EXCL_START
   ABSL_LOG_IF(WARNING, names.empty()) << "Empty name list for factory";
   // GCOV_EXCL_STOP
