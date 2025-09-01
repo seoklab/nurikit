@@ -403,6 +403,48 @@ TEST_F(PDB1alxTest, HandleInconsistentResidues) {
   }
 }
 
+TEST(PDBGuessElementTest, Aligned) {
+  std::istringstream iss(R"pdb(
+HETATM    1 FE   HEM A   1       8.128   7.371 -15.022 24.00 16.74
+HETATM    2  CHA HEM A   1       8.617   7.879 -18.361  6.00 17.74
+HETATM    3  CHB HEM A   1      10.356  10.005 -14.319  6.00 18.92
+HETATM    4  CHC HEM A   1       8.307   6.456 -11.669  6.00 11.00
+HETATM    5  CHD HEM A   1       6.928   4.145 -15.725  6.00 13.25
+ATOM      6 HD11 LEU A   2       4.648   4.447  -0.148  1.00  0.00
+ATOM      7 HD12 LEU A   2       3.334   3.331  -0.516  1.00  0.00
+ATOM      8 HD13 LEU A   2       4.137   3.260   1.052  1.00  0.00
+ATOM      9 HD21 LEU A   2       0.941   3.892   1.216  1.00  0.00
+ATOM     10 HD22 LEU A   2       1.522   4.860   2.568  1.00  0.00
+ATOM     11 HD23 LEU A   2       2.296   3.323   2.188  1.00  0.00
+ATOM     12 1H   ILE A   3      34.239  -7.384-269.372  1.00  3.46
+ATOM     13 2H   ILE A   3      35.404  -8.544-269.306  1.00  3.46
+ATOM     14 3H   ILE A   3      33.942  -8.807-268.593  1.00  3.46
+ATOM     15  HA  ILE A   3      35.195  -6.449-267.693  1.00  3.54
+ATOM     16  HB  ILE A   3      33.999  -8.885-266.332  1.00  4.92
+ATOM     17 1HG1 ILE A   3      32.960  -6.041-266.508  1.00  4.92
+ATOM     18 2HG1 ILE A   3      32.489  -7.325-267.628  1.00  4.92
+ATOM     19 1HG2 ILE A   3      34.184  -7.602-264.201  1.00  4.92
+ATOM     20 2HG2 ILE A   3      35.784  -7.904-264.858  1.00  4.92
+ATOM     21 3HG2 ILE A   3      35.041  -6.306-265.055  1.00  4.92
+ATOM     22 1HD1 ILE A   3      30.804  -7.014-265.919  1.00  4.92
+ATOM     23 2HD1 ILE A   3      31.545  -8.626-265.781  1.00  4.92
+ATOM     24 3HD1 ILE A   3      31.985  -7.339-264.644  1.00  4.92
+)pdb");
+
+  PDBReader reader(iss);
+  auto ms = reader.stream();
+  while (ms.advance()) {
+    const Molecule &mol = ms.current();
+    EXPECT_EQ(mol.num_atoms(), 24);
+
+    EXPECT_EQ(mol[0].data().atomic_number(), 26);
+    for (int i = 1; i < 5; ++i)
+      EXPECT_EQ(mol[i].data().atomic_number(), 6);
+    for (int i = 5; i < 24; ++i)
+      EXPECT_EQ(mol[i].data().atomic_number(), 1);
+  }
+}
+
 TEST(PDBWriteTest, Molecule2D) {
   Molecule mol;
   {
