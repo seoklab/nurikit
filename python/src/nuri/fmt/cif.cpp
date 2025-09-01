@@ -29,6 +29,7 @@
 #include "nuri/python/exception.h"
 #include "nuri/python/utils.h"
 #include "nuri/utils.h"
+
 namespace nuri {
 namespace python_internal {
 namespace {
