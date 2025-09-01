@@ -1601,7 +1601,7 @@ public:
   };
 
   AtomicLine(int serial, AtomId id, std::string_view line)
-      : serial_(serial), line_(line), id_(id) { }
+      : serial_(serial), hetatom_(line[0] == 'H'), line_(line), id_(id) { }
 
   static std::optional<AtomicLine> parse(std::string_view line, int serial) {
     // At least 47 characters (for three coordinates) required for useful data
@@ -1631,6 +1631,8 @@ public:
 
   int serial() const { return serial_; }
 
+  bool hetatom() const { return hetatom_; }
+
   const AtomId &id() const { return id_; }
 
   std::string_view altloc() const { return get_altloc(line_); }
@@ -1651,6 +1653,7 @@ public:
 
 private:
   int serial_;
+  bool hetatom_;
   std::string_view line_;
   AtomId id_;
 };
@@ -1697,8 +1700,9 @@ public:
     }
 
     internal::PropertyMap::sequence_type props;
-    props.reserve(3 * data_.size() + extra_.size() + 1);
+    props.reserve(3 * data_.size() + extra_.size() + 2);
     props.emplace_back(internal::kNameKey, first().id().name);
+    props.emplace_back("record", first().hetatom() ? "HETATM" : "ATOM");
     for (const AtomicLine &l: data_) {
       props.emplace_back(as_key("serial", l.altloc()),
                          absl::StrCat(l.serial()));
