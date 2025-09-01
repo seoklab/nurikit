@@ -398,18 +398,19 @@ constexpr int log_base10(Int x) {
 }
 
 namespace internal {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-
+#ifdef absl_nullable
   // These 3 are deprecated as of v20250512
   template <class T>
-  using Nonnull = absl::Nonnull<T>;
+  using Nonnull = T absl_nonnull;
   template <class T>
-  using Nullable = absl::Nullable<T>;
+  using Nullable = T absl_nullable;
   template <class T>
-  using NullabilityUnknown = absl::NullabilityUnknown<T>;
-
-#pragma GCC diagnostic pop
+  using NullabilityUnknown = T absl_nullability_unknown;
+#else
+  using absl::Nonnull;
+  using absl::NullabilityUnknown;
+  using absl::Nullable;
+#endif
 }  // namespace internal
 }  // namespace nuri
 
