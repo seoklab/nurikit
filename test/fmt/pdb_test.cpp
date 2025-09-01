@@ -146,6 +146,7 @@ TEST_F(PDBTest, HandleCleanPDB) {
     EXPECT_EQ(mol().name(), "1UBQ");
     EXPECT_EQ(mol().num_atoms(), 660);
     EXPECT_EQ(mol().count_heavy_atoms(), 660);
+    EXPECT_TRUE(mol().props().contains("remark"));
 
     Molecule::Atom atom = mol().atom(0);
     EXPECT_EQ(atom.data().get_name(), "N");
