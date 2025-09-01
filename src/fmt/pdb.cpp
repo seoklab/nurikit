@@ -297,29 +297,13 @@ void read_header_line(std::string_view line, Molecule &mol) {
 
 void read_remark_record(Iterator &it, const Iterator end, std::string &buf,
                         Molecule &mol) {
-  std::string_view prev_num, curr_num;
-
   for (; is_record(it, end, "REMARK"); ++it) {
-    curr_num = safe_slice_strip(*it, 6, 10);
-
-    if (prev_num != curr_num) {
-      if (!buf.empty()) {
-        buf.pop_back();
-        mol.add_prop(absl::StrCat("remark-", prev_num), buf);
-        buf.clear();
-      }
-
-      prev_num = curr_num;
-      // As per the spec, first remark line is always empty
-      continue;
-    }
-
-    absl::StrAppend(&buf, safe_slice_rstrip(*it, 11, 80), "\n");
+    absl::StrAppend(
+        &buf, absl::StripTrailingAsciiWhitespace(safe_substr(*it, 6)), "\n");
   }
 
   if (!buf.empty()) {
-    buf.pop_back();
-    mol.add_prop(absl::StrCat("remark-", prev_num), buf);
+    mol.add_prop("remark", buf);
     buf.clear();
   }
 }
