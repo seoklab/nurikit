@@ -31,7 +31,7 @@ jobs:
           # Ubuntu 22.04
           cmakeVersion: "~3.22.0"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.8"
 
