@@ -13,6 +13,7 @@
 
 #include "fmt_test_common.h"
 #include "test_utils.h"
+#include "nuri/core/container/property_map.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/cif.h"
 
@@ -48,6 +49,14 @@ TEST_F(MmcifTest, BasicParsing) {
   EXPECT_EQ(mol.substructures()[0].id(), 151);
   EXPECT_EQ(mol.substructures()[0].size(), 8);
   EXPECT_TRUE(mol.substructures()[0].category() == SubstructCategory::kResidue);
+  EXPECT_EQ(internal::get_key(mol.substructures()[0][0].data().props(),
+                              "record"),
+            "ATOM");
+
+  // first water
+  EXPECT_EQ(internal::get_key(mol.substructures()[70][0].data().props(),
+                              "record"),
+            "HETATM");
 
   EXPECT_EQ(mol.substructures().back().name(), "A");
   EXPECT_TRUE(mol.substructures().back().category()
