@@ -332,19 +332,21 @@ public:
 
   MmcifAtomInfo() = default;
 
-  MmcifAtomInfo(int row, AtomId id, std::string_view alt_id, float occupancy)
-      : row_(row), occupancy_(occupancy), id_(id), alt_id_(alt_id) { }
+  MmcifAtomInfo(int row, AtomId id, std::string_view group_pdb,
+                std::string_view alt_id, float occupancy)
+      : row_(row), occupancy_(occupancy), id_(id), group_pdb_(group_pdb),
+        alt_id_(alt_id) { }
 
   static MmcifAtomInfo
-  from_row(const ResidueIndexer &res_idx, const AuthLabelColumn &atom_id,
-           const NullableCifColumn &alt_id,
+  from_row(const NullableCifColumn &group_pdb, const ResidueIndexer &res_idx,
+           const AuthLabelColumn &atom_id, const NullableCifColumn &alt_id,
            const TypedNullableColumn<absl::SimpleAtof, false> &occupancy,
            int row) {
     auto [id, ok] = resolve_atom_id(res_idx, atom_id.raw(), row);
     if (!ok)
       return {};
 
-    return { row, id, *alt_id[row], occupancy[row] };
+    return { row, id, *group_pdb[row], *alt_id[row], occupancy[row] };
   }
 
   int row() const { return row_; }
@@ -352,6 +354,7 @@ public:
 
   const AtomId &id() const { return id_; }
 
+  std::string_view group_pdb() const { return group_pdb_; }
   std::string_view alt_id() const { return alt_id_; }
 
   float occupancy() const { return occupancy_; }
@@ -361,6 +364,7 @@ private:
   float occupancy_;
 
   AtomId id_;
+  std::string_view group_pdb_;
   std::string_view alt_id_;
 };
 
@@ -402,7 +406,8 @@ public:
 
     data.set_name(first().id().atom_id).set_formal_charge(fchg[first().row()]);
 
-    data.props().reserve(2 * data_.size() + 1);
+    data.props().reserve(2 * data_.size() + 2);
+    data.add_prop("record", first().group_pdb());
     for (const MmcifAtomInfo &info: data_) {
       data.add_prop(as_key("serial", info.alt_id()), *id[info.row()]);
       data.add_prop(as_key("occupancy", info.alt_id()),
@@ -707,14 +712,14 @@ std::vector<Molecule> mmcif_load_frame(const internal::CifFrame &frame) {
       atom_id(frame, "_atom_site.label_atom_id", "_atom_site.auth_atom_id",
               false);
 
-  NullableCifColumn site_id =
-                        NullableCifColumn::from_key(frame, "_atom_site.id"),
-                    alt_id = NullableCifColumn::from_key(
-                        frame, "_atom_site.label_alt_id"),
-                    type_symbol = NullableCifColumn::from_key(
-                        frame, "_atom_site.type_symbol"),
-                    entity_id = NullableCifColumn::from_key(
-                        frame, "_atom_site.label_entity_id");
+  NullableCifColumn
+      group_pdb = NullableCifColumn::from_key(frame, "_atom_site.group_PDB"),
+      site_id = NullableCifColumn::from_key(frame, "_atom_site.id"),
+      alt_id = NullableCifColumn::from_key(frame, "_atom_site.label_alt_id"),
+      type_symbol =
+          NullableCifColumn::from_key(frame, "_atom_site.type_symbol"),
+      entity_id =
+          NullableCifColumn::from_key(frame, "_atom_site.label_entity_id");
 
   TypedNullableColumn<absl::SimpleAtof, false> occupancy =
       NullableCifColumn::from_key(frame, "_atom_site.occupancy");
@@ -741,7 +746,8 @@ std::vector<Molecule> mmcif_load_frame(const internal::CifFrame &frame) {
   for (int i = 0; i < nsite; ++i) {
     const internal::CifValue &id = site_id[i];
 
-    auto info = MmcifAtomInfo::from_row(res_idx, atom_id, alt_id, occupancy, i);
+    auto info = MmcifAtomInfo::from_row(group_pdb, res_idx, atom_id, alt_id,
+                                        occupancy, i);
     if (!info) {
       ABSL_LOG(WARNING)
           << "Invalid atom info; ignoring atom with serial number " << id;
