@@ -306,16 +306,22 @@ namespace internal {
   template <class MatrixLike>
   // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
   inline void safe_colwise_normalize(MatrixLike &&m, double eps = 1e-12) {
-    using T = remove_cvref_t<MatrixLike>;
-    using Scalar = typename T::Scalar;
-
     using ArrayLike = decltype(m.colwise().squaredNorm().array());
-    constexpr auto cols = ArrayLike::ColsAtCompileTime;
     constexpr auto max_cols = ArrayLike::MaxColsAtCompileTime;
 
-    Array<Scalar, 1, cols, Eigen::RowMajor, 1, max_cols> norm =
-        m.colwise().squaredNorm().array();
-    m.array().rowwise() *= (norm > eps).select(norm.sqrt().inverse(), 0);
+    if constexpr (max_cols != Eigen::Dynamic) {
+      using T = remove_cvref_t<MatrixLike>;
+      using Scalar = typename T::Scalar;
+
+      constexpr auto cols = ArrayLike::ColsAtCompileTime;
+
+      Array<Scalar, 1, cols, Eigen::RowMajor, 1, max_cols> norm =
+          m.colwise().squaredNorm().array();
+      m.array().rowwise() *= (norm > eps).select(norm.sqrt().inverse(), 0);
+    } else {
+      for (Eigen::Index i = 0; i < m.cols(); ++i)
+        safe_normalize(m.col(i), eps);
+    }
   }
 
   template <class MatrixLike>
