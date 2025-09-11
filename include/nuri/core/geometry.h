@@ -270,13 +270,13 @@ template <class ML1, class ML2>
 void cdist(MutRef<MatrixX<typename ML1::Scalar>> dist, const ML1 &a,
            const ML2 &b) {
   cdistsq(dist, a, b);
-  dist = dist.sqrt();
+  dist = dist.cwiseSqrt();
 }
 
 template <class ML1, class ML2>
 auto cdist(const ML1 &a, const ML2 &b) {
   auto ret = cdistsq(a, b);
-  ret = ret.sqrt();
+  ret = ret.cwiseSqrt();
   return ret;
 }
 
