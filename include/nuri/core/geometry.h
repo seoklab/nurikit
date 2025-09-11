@@ -280,6 +280,11 @@ auto cdist(const ML1 &a, const ML2 &b) {
   return ret;
 }
 
+template <class ML1, class ML2>
+auto msd(const ML1 &a, const ML2 &b) {
+  return (a - b).colwise().squaredNorm().mean();
+}
+
 namespace internal {
   constexpr double safe_normalizer(double sqn, double eps = 1e-12) {
     return sqn > eps ? 1 / std::sqrt(sqn) : 0;
