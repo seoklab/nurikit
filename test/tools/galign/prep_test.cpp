@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "nuri/tools/galign.h"
-
 #include <initializer_list>
 #include <vector>
 
@@ -17,6 +15,7 @@
 #include "nuri/core/geometry.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/smiles.h"
+#include "nuri/tools/galign.h"
 
 namespace nuri {
 namespace {
