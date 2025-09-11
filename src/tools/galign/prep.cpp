@@ -14,12 +14,13 @@
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/container/linear_queue.h"
+#include "nuri/core/geometry.h"
 #include "nuri/core/graph/graph.h"
 #include "nuri/core/molecule.h"
 #include "nuri/tools/galign.h"
+#include "nuri/utils.h"
 
 namespace nuri {
-
 namespace {
   auto parent_forest(const Molecule &mol) {
     Graph<std::vector<int>, std::pair<int, int>> forest;
@@ -188,6 +189,73 @@ namespace internal {
       pts.col(i) = xform * pts.col(i);
 
     return pts;
+  }
+
+  namespace {
+    int ga_atom_type(Molecule::Atom atom) {
+      // bits:
+      //   - 0-127: atomic number (5 bits)
+      //   - 0-  7: hybridization (3 bits)
+      //   - 0-  1: aromaticity (1 bit)
+      //   - 0-  1: conjugation (1 bit)
+      //   - 0- 15: charge + 7 (4 bits)
+      // Total 14 bits used, reserve remaining bits for future use
+      uint32_t atype = atom.data().atomic_number();
+      atype |= static_cast<uint32_t>(atom.data().hybridization()) << 5;
+      atype |= static_cast<uint32_t>(atom.data().is_aromatic()) << 8;
+      atype |= static_cast<uint32_t>(atom.data().is_conjugated()) << 9;
+      atype |= static_cast<uint32_t>(
+                   nuri::clamp(atom.data().formal_charge(), -7, +8) + 7)
+               << 10;
+      return static_cast<int>(atype);
+    }
+  }  // namespace
+
+  GAMoleculeInfo::GAMoleculeInfo(const Molecule &mol, const Matrix3Xd &ref,
+                                 const double vdw_scale)
+      : mol_(&mol), ref_(&ref), rot_info_(GARotationInfo::from(mol, ref)),
+        atom_types_(mol.size()), vdw_rads_vols_(mol.size(), 2) {
+    for (auto atom: mol) {
+      atom_types_[atom.id()] = ga_atom_type(atom);
+      vdw_rads_vols_(atom.id(), 0) =
+          vdw_scale * atom.data().element().vdw_radius();
+    }
+
+    vdw_rads_vols_.col(1) =
+        4.0 / 3.0 * constants::kPi * vdw_rads_vols_.col(0).cube();
+  }
+
+  GADistanceFeature::GADistanceFeature(int n, double scale, int dcut)
+      : dists_(n, n), neighbor_vec_(dcut, n), scale_(scale) { }
+
+  GADistanceFeature::GADistanceFeature(const GAMoleculeInfo &mol,
+                                       const Matrix3Xd &pts, double scale,
+                                       int dcut)
+      : GADistanceFeature(mol.n(), scale, dcut) {
+    update(mol, pts);
+  }
+
+  GADistanceFeature &GADistanceFeature::update(const GAMoleculeInfo &mol,
+                                               const Matrix3Xd &pts) noexcept {
+    ABSL_DCHECK_EQ(n(), mol.n());
+
+    cdist(dists_, pts, pts);
+    overlap_ = shape_overlap_impl(mol, mol, dists_, scale());
+
+    neighbor_vec_.setZero();
+    for (int i = 0; i < n() - 1; ++i) {
+      for (int j = i + 1; j < n(); ++j) {
+        int dist_trunc = static_cast<int>(dists_(j, i));
+        if (dist_trunc < dcut()) {
+          ++neighbor_vec_(dist_trunc, i);
+          ++neighbor_vec_(dist_trunc, j);
+        }
+      }
+    }
+
+    safe_colwise_normalize(neighbor_vec_);
+
+    return *this;
   }
 }  // namespace internal
 }  // namespace nuri
