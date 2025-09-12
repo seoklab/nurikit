@@ -243,7 +243,7 @@ TEST(FitPlaneTest, CheckCorrectness) {
 class AlignTest: public ::testing::Test {
 public:
   // Random rotation matrix
-  inline static const Affine3d xform_ {
+  inline static const Isometry3d xform_ {
     Matrix4d { { 0.82743922, 0.54630659, 0.12997477, -10 },
               { 0.05113706, 0.15719006, -0.98624352, 20 },
               { -0.55922208, 0.8227031, 0.10212871, 30 },
@@ -303,7 +303,7 @@ public:
   // Below all calculated manually
   inline static const double msd_ = 0.4516332;
   constexpr static double msd_reflected_ = 3.9094217;
-  inline static const Affine3d xform_reflected_ {
+  inline static const Isometry3d xform_reflected_ {
     Matrix4d { { -0.994979, 0.091884, -0.0396638, 44.5055 },
               { -0.0531631, -0.149479, 0.987335, 20.6586 },
               { 0.0847914, 0.984486, 0.153613, 184.346 },
@@ -388,8 +388,8 @@ public:
       double msd_ref = query.row(axis).array().square().mean();
 
       for (int i = 1; i < 3; ++i) {
-        Affine3d xform_ref =
-            Affine3d::Identity()
+        Isometry3d xform_ref =
+            Isometry3d::Identity()
             * Eigen::AngleAxisd(constants::kPi, Vector3d::Unit((axis + i) % 3));
 
         templ.noalias() = 2 * (xform_ref * query);
@@ -408,8 +408,8 @@ public:
       query.row(a2).array() -= query.row(a2).mean();
       msd_ref += query.row(a2).array().square().mean();
 
-      Affine3d xform_ref =
-          Affine3d::Identity()
+      Isometry3d xform_ref =
+          Isometry3d::Identity()
           * Eigen::AngleAxisd(constants::kPi, Vector3d::Unit(a2))
           * Eigen::AngleAxisd(constants::kPi, Vector3d::Unit(a3));
 

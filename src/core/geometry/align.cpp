@@ -17,7 +17,7 @@
 namespace nuri {
 // NOLINTBEGIN(readability-identifier-naming,*-avoid-goto)
 namespace {
-  bool align_singular_common(std::pair<Affine3d, double> &result,
+  bool align_singular_common(std::pair<Isometry3d, double> &result,
                              const Eigen::Ref<const Matrix3Xd> &query,
                              const Eigen::Ref<const Matrix3Xd> &templ,
                              AlignMode mode) {
@@ -232,10 +232,10 @@ namespace {
   }
 }  // namespace
 
-std::pair<Affine3d, double> kabsch(const Eigen::Ref<const Matrix3Xd> &query,
-                                   const Eigen::Ref<const Matrix3Xd> &templ,
-                                   AlignMode mode, const bool reflection) {
-  std::pair<Affine3d, double> ret { {}, 0.0 };
+std::pair<Isometry3d, double> kabsch(const Eigen::Ref<const Matrix3Xd> &query,
+                                     const Eigen::Ref<const Matrix3Xd> &templ,
+                                     AlignMode mode, const bool reflection) {
+  std::pair<Isometry3d, double> ret { {}, 0.0 };
   if (align_singular_common(ret, query, templ, mode))
     return ret;
 
@@ -446,7 +446,7 @@ namespace {
     return { q, true };
   }
 
-  void qcp_impl(std::pair<Affine3d, double> &ret, const Vector3d &qm,
+  void qcp_impl(std::pair<Isometry3d, double> &ret, const Vector3d &qm,
                 const Vector3d &tm, const Matrix3d &R, const double GA,
                 const double GB, const double det, const int n,
                 const AlignMode mode, const bool reflection,
@@ -485,12 +485,12 @@ namespace {
   }
 }  // namespace
 
-std::pair<Affine3d, double> qcp(const Eigen::Ref<const Matrix3Xd> &query,
-                                const Eigen::Ref<const Matrix3Xd> &templ,
-                                const AlignMode mode, const bool reflection,
-                                const double evalprec, const double evecprec,
-                                const int maxiter) {
-  std::pair<Affine3d, double> ret { {}, 0.0 };
+std::pair<Isometry3d, double> qcp(const Eigen::Ref<const Matrix3Xd> &query,
+                                  const Eigen::Ref<const Matrix3Xd> &templ,
+                                  const AlignMode mode, const bool reflection,
+                                  const double evalprec, const double evecprec,
+                                  const int maxiter) {
+  std::pair<Isometry3d, double> ret { {}, 0.0 };
   if (align_singular_common(ret, query, templ, mode))
     return ret;
 
@@ -513,11 +513,11 @@ std::pair<Affine3d, double> qcp(const Eigen::Ref<const Matrix3Xd> &query,
   return ret;
 }
 
-std::pair<Affine3d, double>
+std::pair<Isometry3d, double>
 qcp_inplace(MutRef<Matrix3Xd> query, MutRef<Matrix3Xd> templ,
             const AlignMode mode, const bool reflection, const double evalprec,
             const double evecprec, const int maxiter) {
-  std::pair<Affine3d, double> ret { {}, 0.0 };
+  std::pair<Isometry3d, double> ret { {}, 0.0 };
   if (align_singular_common(ret, query, templ, mode))
     return ret;
 

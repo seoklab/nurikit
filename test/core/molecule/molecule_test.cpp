@@ -206,7 +206,7 @@ TEST_F(MoleculeTest, AddBonds) {
 }
 
 TEST_F(MoleculeTest, TransformTest) {
-  Eigen::Affine3d trs = Eigen::Affine3d::Identity();
+  Eigen::Isometry3d trs = Eigen::Isometry3d::Identity();
 
   {
     Molecule mol(mol_);

@@ -77,8 +77,8 @@ using Eigen::Vector3d;
 using Eigen::Vector4d;
 using Eigen::VectorXd;
 
-using Eigen::Affine3d;
 using Eigen::AngleAxisd;
+using Eigen::Isometry3d;
 using Eigen::Translation3d;
 
 template <class Raw, int Options = 0,
@@ -180,9 +180,9 @@ private:
 
 //! @privatesection
 
-template <class ML1, class ML2>
+template <class ML1, class ML2, class TransformLike>
 // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
-void inplace_transform(ML1 &&m_out, const Affine3d &xform, const ML2 &m) {
+void inplace_transform(ML1 &&m_out, const TransformLike &xform, const ML2 &m) {
   const int ri = m.rows(), ci = m.cols();
   const int ro = m_out.rows(), co = m_out.cols();
   ABSL_ASSUME(ri == ro && ci == co);

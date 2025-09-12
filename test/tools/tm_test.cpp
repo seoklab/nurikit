@@ -172,7 +172,7 @@ TEST(TMAlignComponentTest, TMScore8SearchWithd8) {
 
   EXPECT_NEAR(tmscore, 5.8577381778888604, 1e-5);
 
-  Affine3d xform_ref;
+  Isometry3d xform_ref;
   xform_ref.matrix() << 0.135936, -0.99035, -0.0269758, 132.15,  //
       -0.595673, -0.103459, 0.796536, 19.8124,                   //
       -0.791641, -0.0922089, -0.603989, 24.267,                  //
@@ -232,7 +232,7 @@ TEST(TMAlignComponentTest, DpIter) {
   AlignedXY xy(x, y, 19);
   xy.swap_remap(aligned);
 
-  Affine3d xform;
+  Isometry3d xform;
   xform.matrix() << 0.193389, -0.980792, -0.0254527, 130.005,  //
       -0.562817, -0.132149, 0.815949, 23.3974,                 //
       -0.80364, -0.143471, -0.577563, 31.704,                  //
@@ -243,7 +243,7 @@ TEST(TMAlignComponentTest, DpIter) {
                   kD8ScoreSq, kD0SqInv);
   EXPECT_NEAR(tmscore, 5.8577381778888604, 1e-5);
 
-  Affine3d xform_ref;
+  Isometry3d xform_ref;
   xform_ref.matrix() << 0.135936, -0.99035, -0.0269758, 132.15,  //
       -0.595673, -0.103459, 0.796536, 19.8124,                   //
       -0.791641, -0.0922089, -0.603989, 24.267,                  //
@@ -556,7 +556,7 @@ TEST_F(TMAlignTest, InitAll) {
   EXPECT_TRUE(success);
   EXPECT_TRUE(tm_align.initialized());
 
-  Affine3d xform_ref;
+  Isometry3d xform_ref;
   xform_ref.matrix() << 0.234082, -0.966243, -0.107608, 128.475,  //
       -0.563769, -0.225079, 0.794672, 36.6465,                    //
       -0.792067, -0.125353, -0.597425, 29.295,                    //
@@ -610,7 +610,7 @@ TEST_F(TMAlignTest, InitSingle) {
   EXPECT_TRUE(success);
   EXPECT_TRUE(tm_align.initialized());
 
-  Affine3d xform_ref;
+  Isometry3d xform_ref;
   xform_ref.matrix() << 0.587457, -0.290603, -0.755278, 42.584,  //
       0.268044, 0.95049, -0.157228, -121.782,                    //
       0.763575, -0.110083, 0.636266, -10.1525,                   //
@@ -667,7 +667,7 @@ TEST_F(TMAlignTest, InitNoneOrFail) {
 }
 
 TEST_F(TMAlignTest, Wrapper) {
-  Affine3d xform_ref;
+  Isometry3d xform_ref;
   xform_ref.matrix() << 0.234082, -0.966243, -0.107608, 128.475,  //
       -0.563769, -0.225079, 0.794672, 36.6465,                    //
       -0.792067, -0.125353, -0.597425, 29.295,                    //
@@ -699,7 +699,7 @@ TEST_F(TMAlignTest, InitUserWrapper) {
       8, 9, 10, 12, 13,   //
       14, 15, 16, 17, 18;
 
-  Affine3d xform_ref;
+  Isometry3d xform_ref;
   xform_ref.matrix() << 0.234082, -0.966243, -0.107608, 128.475,  //
       -0.563769, -0.225079, 0.794672, 36.6465,                    //
       -0.792067, -0.125353, -0.597425, 29.295,                    //
