@@ -133,7 +133,7 @@ namespace internal {
                                double d0sq_search);
 
   extern double tm_realign_calculate_msd(AlignedXY &xy, Matrix3Xd &rx,
-                                         Matrix3Xd &ry, const Affine3d &xform,
+                                         Matrix3Xd &ry, const Isometry3d &xform,
                                          double score_d8sq);
 }  // namespace internal
 
@@ -266,7 +266,7 @@ public:
    *         failed for any reason, the TM-score is set to a negative value and
    *         the transformation matrix is left unspecified.
    */
-  std::pair<Affine3d, double> tm_score(int l_norm = -1, double d0 = -1);
+  std::pair<Isometry3d, double> tm_score(int l_norm = -1, double d0 = -1);
 
   /**
    * @brief Final alignment of the structures.
@@ -313,7 +313,7 @@ private:
   std::pair<int, int> l_minmax_;
   internal::AlignedXY xy_;
 
-  Affine3d best_xform_;
+  Isometry3d best_xform_;
   double aligned_msd_;
 
   Matrix3Xd rx_, ry_;
@@ -329,7 +329,7 @@ private:
  */
 struct TMAlignResult {
   //! The transformation matrix.
-  Affine3d xform;
+  Isometry3d xform;
 
   //! A map of the template structure to the query structure. Negative values
   //! indicate no alignment.
@@ -423,12 +423,12 @@ namespace internal {
   tmalign_score_fun8(const Matrix3Xd &x, const Matrix3Xd &y, ArrayXi &aligned,
                      double d_cutoff, double d0sq_inv);
 
-  extern std::pair<Affine3d, double>
+  extern std::pair<Isometry3d, double>
   tmalign_tmscore8_search(const AlignedXY &xy, int simplify_step,
                           double local_d0_search, double score_d8sq_cutoff,
                           double d0sq_inv);
 
-  extern void tmalign_dp_iter(Affine3d &xform_best, double &tmscore_max,
+  extern void tmalign_dp_iter(Isometry3d &xform_best, double &tmscore_max,
                               AlignedXY &xy, ArrayXi &y2x_best, int g1, int g2,
                               int max_iter, int simplify_step,
                               double local_d0_search, double score_d8sq_cutoff,

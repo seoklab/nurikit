@@ -1395,7 +1395,7 @@ public:
    * @brief Transform the molecule with the given affine transformation.
    * @param trans The affine transformation to apply.
    */
-  void transform(const Eigen::Affine3d &trans) {
+  void transform(const Eigen::Isometry3d &trans) {
     for (Matrix3Xd &m: conformers_)
       m = trans * m;
   }
@@ -1407,7 +1407,7 @@ public:
    * @param trans The affine transformation to apply.
    * @note The behavior is undefined if the conformer index is out of range.
    */
-  void transform(int i, const Eigen::Affine3d &trans) {
+  void transform(int i, const Eigen::Isometry3d &trans) {
     Matrix3Xd &m = conformers_[i];
     m = trans * m;
   }

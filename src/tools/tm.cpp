@@ -193,11 +193,11 @@ namespace internal {
     }
 
     template <bool use_d8sq, class ML1, class ML2, class AL1, class AL2>
-    int tmscore_greedy_iter(std::pair<Affine3d, double> &result, ML1 rx, ML1 ry,
-                            AL1 &&dsqs, const AL2 &i_ali, ArrayXi &j_ali,
-                            const ML2 &x, const ML2 &y, const double d_cutoff,
-                            const double score_d8sq_cutoff,
-                            const double d0sq_inv) {
+    int
+    tmscore_greedy_iter(std::pair<Isometry3d, double> &result, ML1 rx, ML1 ry,
+                        AL1 &&dsqs, const AL2 &i_ali, ArrayXi &j_ali,
+                        const ML2 &x, const ML2 &y, const double d_cutoff,
+                        const double score_d8sq_cutoff, const double d0sq_inv) {
       rx.leftCols(i_ali.size()) = x(Eigen::all, i_ali);
       ry.leftCols(i_ali.size()) = y(Eigen::all, i_ali);
 
@@ -224,7 +224,7 @@ namespace internal {
     }
 
     template <bool use_d8sq>
-    std::pair<Affine3d, double>
+    std::pair<Isometry3d, double>
     tmscore_greedy_search(Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
                           ArrayXi &i_ali, ArrayXi &j_ali, const AlignedXY &xy,
                           const int simplify_step, const double local_d0_search,
@@ -238,7 +238,7 @@ namespace internal {
       const double d_cutoff_init = local_d0_search - 1,
                    d_cutoff_sub = local_d0_search + 1;
 
-      std::pair<Affine3d, double> result;
+      std::pair<Isometry3d, double> result;
       result.second = -1;
 
       const int l_ali = xy.l_ali();
@@ -344,7 +344,7 @@ namespace internal {
       }
     }
 
-    void tm_find_best_alignment(Affine3d &xform_best, double &tmscore_max,
+    void tm_find_best_alignment(Isometry3d &xform_best, double &tmscore_max,
                                 Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
                                 ArrayXXc &path, ArrayXXd &val, AlignedXY &xy,
                                 ArrayXi &y2x_best, ArrayXi &buf1, ArrayXi &buf2,
@@ -359,7 +359,7 @@ namespace internal {
       ABSL_DCHECK_LE(g2, 2);
       ABSL_DCHECK_LT(g1, g2);
 
-      Affine3d xform = xform_best;
+      Isometry3d xform = xform_best;
       double tmscore_old = 0;
       for (int g = g1; g < g2; ++g) {
         for (int iter = 0; iter < max_iter; ++iter) {
@@ -699,7 +699,7 @@ namespace internal {
   }
 
   double tm_realign_calculate_msd(AlignedXY &xy, Matrix3Xd &rx, Matrix3Xd &ry,
-                                  const Affine3d &xform,
+                                  const Isometry3d &xform,
                                   const double score_d8sq) {
     inplace_transform(rx, xform, xy.x());
     xy.remap_final(rx, score_d8sq);
@@ -721,7 +721,7 @@ TMAlign::TMAlign(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ)
 
 namespace {
   template <class AL>
-  bool tmalign_conclude_init(Affine3d &best_xform, double &aligned_msd,
+  bool tmalign_conclude_init(Isometry3d &best_xform, double &aligned_msd,
                              internal::AlignedXY &xy, AL &&y2x_best,
                              Matrix3Xd &rx, Matrix3Xd &ry, ArrayXd &dsqs,
                              ArrayXi &i_ali, ArrayXi &j_ali, double tm_max,
@@ -911,8 +911,8 @@ bool TMAlign::initialize(ConstRef<ArrayXi> y2x) {
                                score_d8sq, d0sq_inv);
 }
 
-std::pair<Affine3d, double> TMAlign::tm_score(int l_norm, double d0) {
-  std::pair<Affine3d, double> result;
+std::pair<Isometry3d, double> TMAlign::tm_score(int l_norm, double d0) {
+  std::pair<Isometry3d, double> result;
   result.second = -1;
 
   if (ABSL_PREDICT_FALSE(!initialized())) {
@@ -1005,11 +1005,10 @@ namespace internal {
                                                  0, d0sq_inv);
   }
 
-  std::pair<Affine3d, double> tmalign_tmscore8_search(const AlignedXY &xy,
-                                                      int simplify_step,
-                                                      double local_d0_search,
-                                                      double score_d8sq_cutoff,
-                                                      double d0sq_inv) {
+  std::pair<Isometry3d, double>
+  tmalign_tmscore8_search(const AlignedXY &xy, int simplify_step,
+                          double local_d0_search, double score_d8sq_cutoff,
+                          double d0sq_inv) {
     Matrix3Xd rx(3, xy.l_ali()), ry(3, xy.l_ali());
     ArrayXd dsqs(xy.l_ali());
     ArrayXi i_ali(xy.l_ali()), j_ali(xy.l_ali());
@@ -1018,9 +1017,9 @@ namespace internal {
                                        score_d8sq_cutoff, d0sq_inv);
   }
 
-  void tmalign_dp_iter(Affine3d &xform_best, double &tmscore_max, AlignedXY &xy,
-                       ArrayXi &y2x_best, int g1, int g2, int max_iter,
-                       int simplify_step, double local_d0_search,
+  void tmalign_dp_iter(Isometry3d &xform_best, double &tmscore_max,
+                       AlignedXY &xy, ArrayXi &y2x_best, int g1, int g2,
+                       int max_iter, int simplify_step, double local_d0_search,
                        double score_d8sq_cutoff, double d0sq_inv) {
     Matrix3Xd rx(3, xy.x().cols()), ry(3, xy.y().cols());
 

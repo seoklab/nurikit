@@ -183,7 +183,7 @@ namespace internal {
                                                 * normalizer())
                        .toRotationMatrix();
     Vector3d trs = pts.col(origin_);
-    Affine3d xform = Translation3d(trs) * rot * Translation3d(-trs);
+    Isometry3d xform = Translation3d(trs) * rot * Translation3d(-trs);
 
     for (int i: moving_)
       pts.col(i) = xform * pts.col(i);

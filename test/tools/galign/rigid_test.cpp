@@ -65,7 +65,7 @@ TEST(GAlign, Rigid) {
   }
   Matrix3Xd &qconf = query.confs()[0];
 
-  Affine3d random;
+  Isometry3d random;
   random.linear() = Eigen::Quaterniond::UnitRandom().toRotationMatrix();
   random.translation() = Vector3d::Random() * 10;
   tconf = random * tconf;

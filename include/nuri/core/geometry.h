@@ -559,7 +559,7 @@ enum class AlignMode : std::uint8_t {
  * Version: 6.0.2023.08.08
  * \endcode
  */
-extern std::pair<Affine3d, double>
+extern std::pair<Isometry3d, double>
 kabsch(const Eigen::Ref<const Matrix3Xd> &query,
        const Eigen::Ref<const Matrix3Xd> &templ,
        AlignMode mode = AlignMode::kBoth, bool reflection = false);
@@ -633,7 +633,7 @@ kabsch(const Eigen::Ref<const Matrix3Xd> &query,
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * \endcode
  */
-extern std::pair<Affine3d, double>
+extern std::pair<Isometry3d, double>
 qcp(const Eigen::Ref<const Matrix3Xd> &query,
     const Eigen::Ref<const Matrix3Xd> &templ, AlignMode mode = AlignMode::kBoth,
     bool reflection = false, double evalprec = 1e-11, double evecprec = 1e-6,
@@ -710,7 +710,7 @@ qcp(const Eigen::Ref<const Matrix3Xd> &query,
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * \endcode
  */
-extern std::pair<Affine3d, double>
+extern std::pair<Isometry3d, double>
 qcp_inplace(MutRef<Matrix3Xd> query, MutRef<Matrix3Xd> templ,
             AlignMode mode = AlignMode::kBoth, bool reflection = false,
             double evalprec = 1e-11, double evecprec = 1e-6, int maxiter = 50);

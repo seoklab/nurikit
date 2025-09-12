@@ -101,7 +101,7 @@ namespace internal {
 
   struct AlignResult {
     Matrix3Xd conf;
-    Affine3d xform = Affine3d::Identity();
+    Isometry3d xform = Isometry3d::Identity();
     double align_score = -1.0;
   };
 
