@@ -176,10 +176,10 @@ namespace {
   void rotate_points(Matrix3Xd &coords, const std::vector<int> &moving_idxs,
                      int ref, int pivot, double angle) {
     Vector3d pv = coords.col(pivot);
-    Matrix3d rot = AngleAxisd(deg2rad(angle),
-                              internal::safe_normalized(pv - coords.col(ref)))
-                       .toRotationMatrix();
-    Isometry3d xform = Translation3d(pv) * rot * Translation3d(-pv);
+    Isometry3d xform = Translation3d(pv)
+                       * AngleAxisd(deg2rad(angle), internal::safe_normalized(
+                                                        pv - coords.col(ref)))
+                       * Translation3d(-pv);
 
     for (int i: moving_idxs)
       coords.col(i) = xform * coords.col(i);
