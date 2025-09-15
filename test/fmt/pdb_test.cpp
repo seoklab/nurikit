@@ -182,6 +182,11 @@ TEST_F(PDBTest, HandleCleanPDB) {
   }
 }
 
+TEST_F(PDBTest, HandleSingleModel) {
+  set_test_file("1ar1.pdb");
+  ASSERT_TRUE(advance());
+}
+
 TEST_F(PDBTest, HandleMultipleModels) {
   set_test_file("3cye_part.pdb");
   {
