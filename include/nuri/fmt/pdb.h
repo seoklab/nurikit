@@ -36,6 +36,7 @@ public:
 private:
   std::vector<std::string> header_;
   std::vector<std::string> rfooter_;
+  bool has_model_ = false;
 };
 
 class PDBReaderFactory: public DefaultReaderFactoryImpl<PDBReader> {
