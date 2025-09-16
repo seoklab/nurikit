@@ -20,6 +20,10 @@ NelderMead::NelderMead(MutRef<ArrayXXd> data)
   ABSL_DCHECK_EQ(data_.rows(), data_.cols());
   ABSL_DCHECK_GE(n(), 1);
 
+  reset();
+}
+
+void NelderMead::reset() noexcept {
   absl::c_iota(idxs_, 0);
 }
 
