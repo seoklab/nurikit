@@ -43,6 +43,8 @@ namespace internal {
     auto it = absl::c_lower_bound(cutoffs, p);
     return it - cutoffs.begin();
   }
+
+  extern int set_thread_seed(int seed);
 }  // namespace internal
 }  // namespace nuri
 
