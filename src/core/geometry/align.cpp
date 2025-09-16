@@ -351,7 +351,7 @@ namespace {
     return { eig, false };
   }
 
-  std::pair<Eigen::Quaterniond, bool>
+  std::pair<Quaterniond, bool>
   qcp_unit_quat(const Matrix3d &R, const double eig, const double precsq) {
     // Upper triangle stores 2x2 minors with some sign changes
     Matrix4d a;
@@ -390,7 +390,7 @@ namespace {
     // quaternion calculated by the original algorithm.
     //
     // Also note that q1 = w, q2 = x, q3 = y, q4 = z in eigen quaternion.
-    Eigen::Quaterniond q;
+    Quaterniond q;
     double qsqnrm;
 
     q.x() = a(1, 0) * a(0, 1) + a(2, 1) * a(1, 2) - a(3, 1) * a(1, 3);
