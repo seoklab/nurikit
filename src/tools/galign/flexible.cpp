@@ -91,15 +91,15 @@ namespace internal {
                 static_cast<Eigen::Index>(query.rot_info().size()))),
             align_score_(-1), clash_penalty_(0) { }
 
-      GeneticConf(const GAMoleculeInfo &query, const Vector3d &cntr_delta,
+      GeneticConf(const GAMoleculeInfo &query, const Vector3d &templ_cntr,
                   AlignResult &&rigid, ArrayXd &pdsq)
           : conf_(std::move(rigid.conf)), rigid_(std::move(rigid.xform)),
             torsion_(ArrayXd::Zero(
                 static_cast<Eigen::Index>(query.rot_info().size()))),
             align_score_(rigid.align_score),
             clash_penalty_(clash_penalty(conf_, pdsq)) {
-        conf_.colwise() -= query.cntr();
-        rigid_.translation() -= cntr_delta;
+        conf_.colwise() -= templ_cntr;
+        rigid_.translation() -= templ_cntr;
       }
 
       Matrix3Xd &&conf() && { return std::move(conf_); }
@@ -388,7 +388,6 @@ namespace internal {
 
     const Matrix3Xd query_centered = query.ref().colwise() - query.cntr();
     const Matrix3Xd templ_centered = templ.ref().colwise() - templ.cntr();
-    Vector3d cntr_delta = templ.cntr() - query.cntr();
 
     ArrayXXd cd(query.n(), templ.n());
     ArrayXd pdsq(query.n() * (query.n() - 1) / 2);
@@ -402,7 +401,7 @@ namespace internal {
     pool.reserve(genetic.pool_size + genetic.sample_size);
 
     for (AlignResult &r: rigid_result)
-      pool.push_back(GeneticConf(query, cntr_delta, std::move(r), pdsq));
+      pool.push_back(GeneticConf(query, templ.cntr(), std::move(r), pdsq));
 
     fill_initial(pool, query, templ, templ_centered, genetic, cd, pdsq,
                  templ_overlap, scale);
@@ -453,7 +452,7 @@ namespace internal {
 
       flex_result.push_back(
           { std::move(conf).conf(), conf.rigid(), conf.align_score() });
-      flex_result.back().xform.translation() += cntr_delta;
+      flex_result.back().xform.translation() += templ.cntr();
     }
 
     return flex_result;
