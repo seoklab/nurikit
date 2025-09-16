@@ -299,9 +299,10 @@ namespace internal {
                            const Matrix3Xd &query_ref,
                            const GAMoleculeInfo &templ,
                            const Matrix3Xd &templ_ref, NelderMead &nm,
-                           ArrayXXd &simplex, ArrayXXd &cd, ArrayXd &pdsq,
-                           double base_clash, double templ_overlap,
-                           double scale, const GAGeneticArgs &genetic,
+                           MutRef<ArrayXXd> simplex, ArrayXXd &cd,
+                           ArrayXd &pdsq, double base_clash,
+                           double templ_overlap, double scale,
+                           const GAGeneticArgs &genetic,
                            const GAMinimizeArgs &minimize) {
       nm.reset();
 
@@ -334,9 +335,9 @@ namespace internal {
                                   minimize.alpha, minimize.gamma, minimize.rho,
                                   minimize.sigma);
 
-      gconf.update_from_simplex(simplex.col(idx).head(nm.n()), query, query_ref,
-                                templ, templ_ref, cd, pdsq, base_clash,
-                                templ_overlap, scale, true);
+      gconf.update_from_simplex(simplex.col(idx), query, query_ref, templ,
+                                templ_ref, cd, pdsq, base_clash, templ_overlap,
+                                scale, true);
     }
 
     void genetic_sampling(std::vector<GeneticConf> &pool_sample,
@@ -400,9 +401,10 @@ namespace internal {
     const double base_clash = clash_penalty(query.ref(), pdsq);
     const double templ_overlap = tfeat.overlap();
 
-    int ndim = static_cast<int>(query.rot_info().size()) + 7;
-    ArrayXXd simplex(ndim, ndim);
-    NelderMead nm(simplex);
+    int ndimp1 = 6 + static_cast<int>(query.rot_info().size()) + 1;
+    ArrayXXd simplexf(ndimp1, ndimp1);
+    NelderMead nm(simplexf);
+    auto simplex = simplexf.topRows(nm.n());
 
     std::vector<GeneticConf> pool;
     pool.reserve(genetic.pool_size + genetic.sample_size);
