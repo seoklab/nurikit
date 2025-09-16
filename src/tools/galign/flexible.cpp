@@ -50,7 +50,7 @@ namespace internal {
                              return (d < 5.0) * 1.0 + (d < 4.0) * 9.0;
                            })
                            .sum();
-      return penalty;
+      return penalty / static_cast<double>(pts.cols());
     }
 
     std::pair<double, double>
