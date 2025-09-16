@@ -100,7 +100,7 @@ namespace internal {
                 static_cast<Eigen::Index>(query.rot_info().size()))),
             align_score_(rigid.align_score), clash_penalty_(0) {
         conf_.colwise() -= templ_cntr;
-        rigid_.translation() -= templ_cntr;
+        rigid_.translation() += rigid_.linear() * query.cntr() - templ_cntr;
       }
 
       Matrix3Xd &&conf() && { return std::move(conf_); }
@@ -462,7 +462,8 @@ namespace internal {
 
       flex_result.push_back(
           { std::move(conf).conf(), conf.rigid(), conf.align_score() });
-      flex_result.back().xform.translation() += templ.cntr();
+      Isometry3d &xform = flex_result.back().xform;
+      xform.translation() += templ.cntr() - xform.linear() * query.cntr();
     }
 
     return flex_result;
