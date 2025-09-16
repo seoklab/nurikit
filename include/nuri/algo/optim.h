@@ -1034,6 +1034,8 @@ public:
    */
   explicit NelderMead(MutRef<ArrayXXd> data);
 
+  void reset() noexcept;
+
   auto n() const { return data_.cols() - 1; }
 
   auto argmin() const { return idxs_[0]; }
