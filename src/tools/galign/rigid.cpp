@@ -37,9 +37,9 @@ namespace internal {
                                  const GADistanceFeature &qfeat,
                                  const GAMoleculeInfo &templ,
                                  const GADistanceFeature &tfeat,
-                                 bool left_mapped = true) {
+                                 const double scale, bool left_mapped = true) {
       if (query.n() < templ.n())
-        return find_best_match(templ, tfeat, query, qfeat, !left_mapped);
+        return find_best_match(templ, tfeat, query, qfeat, scale, !left_mapped);
 
       const MatrixXd &qnv = qfeat.nv(), &tnv = tfeat.nv();
 
@@ -50,7 +50,7 @@ namespace internal {
         for (int j = 0; j < query.n(); ++j) {
           double sim = qnv.col(j).dot(tnv.col(i));
           if (query.atom_types()[j] != templ.atom_types()[i])
-            sim *= tfeat.scale();
+            sim *= scale;
 
           if (sim > best) {
             match[i] = j;
@@ -87,7 +87,7 @@ namespace internal {
                              const GAMoleculeInfo &query,
                              const GADistanceFeature &qfeat,
                              const GAMoleculeInfo &templ,
-                             const GADistanceFeature &tfeat,
+                             const GADistanceFeature &tfeat, const double scale,
                              const double min_msd) {
       if (kOnlySimilar) {
         for (int i = 0; i < 2; ++i) {
@@ -110,8 +110,7 @@ namespace internal {
       cdist(dists, candidate.conf, templ.ref());
 
       candidate.align_score =
-          shape_overlap_impl(query, templ, dists, tfeat.scale())
-          / tfeat.overlap();
+          shape_overlap_impl(query, templ, dists, scale) / tfeat.overlap();
 
       maybe_replace_candidate(results, candidate, min_msd);
     }
@@ -120,7 +119,7 @@ namespace internal {
     align_triad(const GAMoleculeInfo &query, const GADistanceFeature &qfeat,
                 const GAMoleculeInfo &templ, const GADistanceFeature &tfeat,
                 const AtomMatching &mapping, const int max_conf,
-                const double min_msd) {
+                const double scale, const double min_msd) {
       std::vector<AlignResult> results(max_conf, { query.ref() });
       AlignResult candidate { query.ref() };
       ArrayXXd dists(query.n(), templ.n());
@@ -135,7 +134,7 @@ namespace internal {
 
           for (; choose[2] < mapping.size(); ++choose[2]) {
             align_eval(results, candidate, dists, mapping.select_triad(choose),
-                       query, qfeat, templ, tfeat, min_msd);
+                       query, qfeat, templ, tfeat, scale, min_msd);
           }
 
           for (row = 1; row >= 0 && ++choose[row] >= mapping.size() - (2 - row);
@@ -166,9 +165,11 @@ namespace internal {
   std::vector<AlignResult>
   rigid_galign_impl(const GAMoleculeInfo &query, const GADistanceFeature &qfeat,
                     const GAMoleculeInfo &templ, const GADistanceFeature &tfeat,
-                    const int max_conf, const double min_msd) {
-    AtomMatching match = find_best_match(query, qfeat, templ, tfeat);
-    return align_triad(query, qfeat, templ, tfeat, match, max_conf, min_msd);
+                    const int max_conf, const double scale,
+                    const double min_msd) {
+    AtomMatching match = find_best_match(query, qfeat, templ, tfeat, scale);
+    return align_triad(query, qfeat, templ, tfeat, match, max_conf, scale,
+                       min_msd);
   }
 }  // namespace internal
 }  // namespace nuri
