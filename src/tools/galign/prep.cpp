@@ -213,8 +213,9 @@ namespace internal {
 
   GAMoleculeInfo::GAMoleculeInfo(const Molecule &mol, const Matrix3Xd &ref,
                                  const double vdw_scale)
-      : mol_(&mol), ref_(&ref), rot_info_(GARotationInfo::from(mol, ref)),
-        atom_types_(mol.size()), vdw_rads_vols_(mol.size(), 2) {
+      : mol_(&mol), ref_(&ref), cntr_(ref.rowwise().mean()),
+        rot_info_(GARotationInfo::from(mol, ref)), atom_types_(mol.size()),
+        vdw_rads_vols_(mol.size(), 2) {
     for (auto atom: mol) {
       atom_types_[atom.id()] = ga_atom_type(atom);
       vdw_rads_vols_(atom.id(), 0) =
@@ -225,22 +226,23 @@ namespace internal {
         4.0 / 3.0 * constants::kPi * vdw_rads_vols_.col(0).cube();
   }
 
-  GADistanceFeature::GADistanceFeature(int n, double scale, int dcut)
-      : dists_(n, n), neighbor_vec_(dcut, n), scale_(scale) { }
+  GADistanceFeature::GADistanceFeature(int n, int dcut)
+      : dists_(n, n), neighbor_vec_(dcut, n) { }
 
   GADistanceFeature::GADistanceFeature(const GAMoleculeInfo &mol,
                                        const Matrix3Xd &pts, double scale,
                                        int dcut)
-      : GADistanceFeature(mol.n(), scale, dcut) {
-    update(mol, pts);
+      : GADistanceFeature(mol.n(), dcut) {
+    update(mol, pts, scale);
   }
 
   GADistanceFeature &GADistanceFeature::update(const GAMoleculeInfo &mol,
-                                               const Matrix3Xd &pts) noexcept {
+                                               const Matrix3Xd &pts,
+                                               double scale) noexcept {
     ABSL_DCHECK_EQ(n(), mol.n());
 
     cdist(dists_, pts, pts);
-    overlap_ = shape_overlap_impl(mol, mol, dists_, scale());
+    overlap_ = shape_overlap_impl(mol, mol, dists_, scale);
 
     neighbor_vec_.setZero();
     for (int i = 0; i < n() - 1; ++i) {

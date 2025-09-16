@@ -13,6 +13,7 @@
 //! @endcond
 
 #include "nuri/eigen_config.h"
+#include "nuri/core/geometry.h"
 #include "nuri/core/molecule.h"
 #include "nuri/utils.h"
 
@@ -46,6 +47,8 @@ namespace internal {
 
     const Matrix3Xd &ref() const { return *ref_; }
 
+    const Vector3d &cntr() const { return cntr_; }
+
     const std::vector<GARotationInfo> &rot_info() const { return rot_info_; }
 
     const ArrayXi &atom_types() const { return atom_types_; }
@@ -59,6 +62,7 @@ namespace internal {
   private:
     Nonnull<const Molecule *> mol_;
     Nonnull<const Matrix3Xd *> ref_;
+    Vector3d cntr_;
 
     std::vector<GARotationInfo> rot_info_;
 
@@ -68,13 +72,13 @@ namespace internal {
 
   class GADistanceFeature {
   public:
-    GADistanceFeature(int n, double scale = 0.7, int dcut = 6);
+    GADistanceFeature(int n, int dcut = 6);
 
     GADistanceFeature(const GAMoleculeInfo &mol, const Matrix3Xd &pts,
                       double scale = 0.7, int dcut = 6);
 
-    GADistanceFeature &update(const GAMoleculeInfo &mol,
-                              const Matrix3Xd &pts) noexcept;
+    GADistanceFeature &update(const GAMoleculeInfo &mol, const Matrix3Xd &pts,
+                              double scale = 0.7) noexcept;
 
     Eigen::Index n() const { return neighbor_vec_.cols(); }
 
@@ -86,13 +90,10 @@ namespace internal {
 
     double overlap() const { return overlap_; }
 
-    double scale() const { return scale_; }
-
   private:
     ArrayXXd dists_;
     MatrixXd neighbor_vec_;
     double overlap_;
-    double scale_;
   };
 
   double shape_overlap_impl(const GAMoleculeInfo &query,
@@ -108,7 +109,37 @@ namespace internal {
   std::vector<AlignResult>
   rigid_galign_impl(const GAMoleculeInfo &query, const GADistanceFeature &qfeat,
                     const GAMoleculeInfo &templ, const GADistanceFeature &tfeat,
-                    int max_conf = 1, double min_msd = 9.0);
+                    int max_conf = 1, double scale = 0.7, double min_msd = 9.0);
+
+  struct GAGeneticArgs {
+    double max_trs = 2.5;
+    double max_rot = deg2rad(120);
+    double max_tors = max_rot;
+    int pool_size = 10;
+    int sample_size = 30;
+    int max_gen = 50;
+    int patience = 5;
+
+    int mut_cnt = 5;
+    double mut_prob = 0.5;
+  };
+
+  struct GAMinimizeArgs {
+    double alpha = 1.0;
+    double gamma = 2.0;
+    double rho = 0.5;
+    double sigma = 0.5;
+
+    double ftol = 1e-2;
+    int max_iters = 300;
+  };
+
+  std::vector<AlignResult> flexible_galign_impl(
+      const GAMoleculeInfo &query, const GADistanceFeature &qfeat,
+      const GAMoleculeInfo &templ, const GADistanceFeature &tfeat,
+      int max_conf = 1, double scale = 0.7, const GAGeneticArgs &genetic = {},
+      const GAMinimizeArgs &minimize = {}, int rigid_max_conf = 4,
+      double rigid_min_msd = 9.0);
 }  // namespace internal
 }  // namespace nuri
 
