@@ -79,6 +79,7 @@ using Eigen::VectorXd;
 
 using Eigen::AngleAxisd;
 using Eigen::Isometry3d;
+using Eigen::Quaterniond;
 using Eigen::Translation3d;
 
 template <class Raw, int Options = 0,
