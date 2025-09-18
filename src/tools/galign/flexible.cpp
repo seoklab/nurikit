@@ -466,8 +466,11 @@ namespace internal {
 
       flex_result.push_back(
           { std::move(conf).conf(), conf.rigid(), conf.align_score() });
-      Isometry3d &xform = flex_result.back().xform;
-      xform.translation() += templ.cntr() - xform.linear() * query.cntr();
+
+      AlignResult &result = flex_result.back();
+      result.conf.colwise() += templ.cntr();
+      result.xform.translation() +=
+          templ.cntr() - result.xform.linear() * query.cntr();
     }
 
     return flex_result;
