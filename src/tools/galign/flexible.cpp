@@ -53,8 +53,8 @@ namespace internal {
       return penalty / static_cast<double>(pts.cols());
     }
 
-    std::pair<double, double> flex_score(const GAMoleculeInfo &query,
-                                         const GAMoleculeInfo &templ,
+    std::pair<double, double> flex_score(const GARigidMolInfo &query,
+                                         const GARigidMolInfo &templ,
                                          const Matrix3Xd &conf,
                                          const Matrix3Xd &ref, ArrayXXd &cd,
                                          ArrayXd &pdsq, double base_clash,
@@ -87,13 +87,13 @@ namespace internal {
 
     class GeneticConf {
     public:
-      GeneticConf(const GAMoleculeInfo &query, const Matrix3Xd &query_ref)
+      GeneticConf(const GARigidMolInfo &query, const Matrix3Xd &query_ref)
           : conf_(query_ref), rigid_(Isometry3d::Identity()),
             torsion_(ArrayXd::Zero(
                 static_cast<Eigen::Index>(query.rot_info().size()))),
             align_score_(-1), clash_penalty_(0) { }
 
-      GeneticConf(const GAMoleculeInfo &query, const Vector3d &templ_cntr,
+      GeneticConf(const GARigidMolInfo &query, const Vector3d &templ_cntr,
                   AlignResult &&rigid)
           : conf_(std::move(rigid.conf)), rigid_(std::move(rigid.xform)),
             torsion_(ArrayXd::Zero(
@@ -111,8 +111,8 @@ namespace internal {
 
       const ArrayXd &torsion() const & { return torsion_; }
 
-      void update_scores(const GAMoleculeInfo &query,
-                         const GAMoleculeInfo &templ, const Matrix3Xd &ref,
+      void update_scores(const GARigidMolInfo &query,
+                         const GARigidMolInfo &templ, const Matrix3Xd &ref,
                          ArrayXXd &cd, ArrayXd &pdsq, double base_clash,
                          double templ_overlap, double scale) {
         std::tie(align_score_, clash_penalty_) =
@@ -120,9 +120,9 @@ namespace internal {
                        templ_overlap, scale);
       }
 
-      void update_from_simplex(ConstRef<ArrayXd> x, const GAMoleculeInfo &query,
+      void update_from_simplex(ConstRef<ArrayXd> x, const GARigidMolInfo &query,
                                const Matrix3Xd &query_ref,
-                               const GAMoleculeInfo &templ,
+                               const GARigidMolInfo &templ,
                                const Matrix3Xd &templ_ref, ArrayXXd &cd,
                                ArrayXd &pdsq, double base_clash,
                                double templ_overlap, double scale,
@@ -170,7 +170,7 @@ namespace internal {
 
     class Mutator {
     public:
-      Mutator(const GAMoleculeInfo &mol, GeneticConf &gconf)
+      Mutator(const GARigidMolInfo &mol, GeneticConf &gconf)
           : mol_(&mol), gconf_(&gconf), delta_(Isometry3d::Identity()) { }
 
       ~Mutator() noexcept { finalize(); }
@@ -248,7 +248,7 @@ namespace internal {
         gconf_->torsion_[i] += delta;
       }
 
-      Nonnull<const GAMoleculeInfo *> mol_;
+      Nonnull<const GARigidMolInfo *> mol_;
       Nonnull<GeneticConf *> gconf_;
 
       Isometry3d delta_;
@@ -270,7 +270,7 @@ namespace internal {
     }
 
     void fill_initial(std::vector<GeneticConf> &pool,
-                      const GAMoleculeInfo &query, const GAMoleculeInfo &templ,
+                      const GARigidMolInfo &query, const GARigidMolInfo &templ,
                       const Matrix3Xd &templ_ref, const GAGeneticArgs &genetic,
                       ArrayXXd &cd, ArrayXd &pdsq, const double base_clash,
                       const double templ_overlap, const double scale) {
@@ -295,9 +295,9 @@ namespace internal {
       }
     }
 
-    void minimize_one_conf(GeneticConf &gconf, const GAMoleculeInfo &query,
+    void minimize_one_conf(GeneticConf &gconf, const GARigidMolInfo &query,
                            const Matrix3Xd &query_ref,
-                           const GAMoleculeInfo &templ,
+                           const GARigidMolInfo &templ,
                            const Matrix3Xd &templ_ref, NelderMead &nm,
                            MutRef<ArrayXXd> simplex, ArrayXXd &cd,
                            ArrayXd &pdsq, double base_clash,
@@ -342,8 +342,8 @@ namespace internal {
 
     void genetic_sampling(std::vector<GeneticConf> &pool_sample,
                           const std::vector<GeneticConf> &initial_pool,
-                          ArrayXd &cutoffs, const GAMoleculeInfo &query,
-                          const GAMoleculeInfo &templ,
+                          ArrayXd &cutoffs, const GARigidMolInfo &query,
+                          const GARigidMolInfo &templ,
                           const Matrix3Xd &templ_ref, ArrayXXd &cd,
                           ArrayXd &pdsq, double base_clash,
                           double templ_overlap, double scale,
@@ -378,20 +378,17 @@ namespace internal {
     }
   }  // namespace
 
-  std::vector<AlignResult> flexible_galign_impl(
-      const GAMoleculeInfo &query, const GADistanceFeature &qfeat,
-      const GAMoleculeInfo &templ, const GADistanceFeature &tfeat, int max_conf,
-      double scale, const GAGeneticArgs &genetic,
-      const GAMinimizeArgs &minimize, const int rigid_max_conf,
-      const double rigid_min_msd) {
-    if (query.rot_info().empty()) {
-      return rigid_galign_impl(query, qfeat, templ, tfeat, max_conf, scale,
-                               rigid_min_msd);
-    }
+  std::vector<AlignResult>
+  flexible_galign_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
+                       int max_conf, double scale, const GAGeneticArgs &genetic,
+                       const GAMinimizeArgs &minimize, const int rigid_max_conf,
+                       const double rigid_min_msd) {
+    if (query.rot_info().empty())
+      return rigid_galign_impl(query, templ, max_conf, scale, rigid_min_msd);
 
-    std::vector rigid_result = rigid_galign_impl(
-        query, qfeat, templ, tfeat, nuri::max(max_conf, rigid_max_conf), scale,
-        rigid_min_msd);
+    std::vector rigid_result =
+        rigid_galign_impl(query, templ, nuri::max(max_conf, rigid_max_conf),
+                          scale, rigid_min_msd);
 
     const Matrix3Xd query_centered = query.ref().colwise() - query.cntr();
     const Matrix3Xd templ_centered = templ.ref().colwise() - templ.cntr();
@@ -399,7 +396,7 @@ namespace internal {
     ArrayXXd cd(query.n(), templ.n());
     ArrayXd pdsq(query.n() * (query.n() - 1) / 2);
     const double base_clash = clash_penalty(query.ref(), pdsq);
-    const double templ_overlap = tfeat.overlap();
+    const double templ_overlap = templ.overlap();
 
     int ndimp1 = 6 + static_cast<int>(query.rot_info().size()) + 1;
     ArrayXXd simplexf(ndimp1, ndimp1);

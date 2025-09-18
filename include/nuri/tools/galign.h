@@ -38,10 +38,11 @@ namespace internal {
     ArrayXi moving_;
   };
 
-  class GAMoleculeInfo {
+  class GARigidMolInfo {
   public:
-    GAMoleculeInfo(const Molecule &mol, const Matrix3Xd &ref,
-                   double vdw_scale = 0.8);
+    GARigidMolInfo(const Molecule &mol, const Matrix3Xd &ref,
+                   double vdw_scale = 0.8, double hetero_scale = 0.7,
+                   int dcut = 6);
 
     const Molecule &mol() const { return *mol_; }
 
@@ -57,6 +58,12 @@ namespace internal {
 
     auto vdw_vols() const { return vdw_rads_vols_.col(1); }
 
+    const ArrayXXd &dists() const { return dists_; }
+
+    const MatrixXd &nv() const { return neighbor_vec_; }
+
+    double overlap() const { return overlap_; }
+
     int n() const { return mol().num_atoms(); }
 
   private:
@@ -68,36 +75,14 @@ namespace internal {
 
     ArrayXi atom_types_;
     ArrayX2d vdw_rads_vols_;
-  };
 
-  class GADistanceFeature {
-  public:
-    GADistanceFeature(int n, int dcut = 6);
-
-    GADistanceFeature(const GAMoleculeInfo &mol, const Matrix3Xd &pts,
-                      double scale = 0.7, int dcut = 6);
-
-    GADistanceFeature &update(const GAMoleculeInfo &mol, const Matrix3Xd &pts,
-                              double scale = 0.7) noexcept;
-
-    Eigen::Index n() const { return neighbor_vec_.cols(); }
-
-    Eigen::Index dcut() const { return neighbor_vec_.rows(); }
-
-    const ArrayXXd &dists() const { return dists_; }
-
-    const MatrixXd &nv() const { return neighbor_vec_; }
-
-    double overlap() const { return overlap_; }
-
-  private:
     ArrayXXd dists_;
     MatrixXd neighbor_vec_;
     double overlap_;
   };
 
-  double shape_overlap_impl(const GAMoleculeInfo &query,
-                            const GAMoleculeInfo &templ, const ArrayXXd &dists,
+  double shape_overlap_impl(const GARigidMolInfo &query,
+                            const GARigidMolInfo &templ, const ArrayXXd &dists,
                             double scale);
 
   struct AlignResult {
@@ -107,8 +92,7 @@ namespace internal {
   };
 
   std::vector<AlignResult>
-  rigid_galign_impl(const GAMoleculeInfo &query, const GADistanceFeature &qfeat,
-                    const GAMoleculeInfo &templ, const GADistanceFeature &tfeat,
+  rigid_galign_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
                     int max_conf = 1, double scale = 0.7, double min_msd = 9.0);
 
   struct GAGeneticArgs {
@@ -134,12 +118,12 @@ namespace internal {
     int max_iters = 300;
   };
 
-  std::vector<AlignResult> flexible_galign_impl(
-      const GAMoleculeInfo &query, const GADistanceFeature &qfeat,
-      const GAMoleculeInfo &templ, const GADistanceFeature &tfeat,
-      int max_conf = 1, double scale = 0.7, const GAGeneticArgs &genetic = {},
-      const GAMinimizeArgs &minimize = {}, int rigid_max_conf = 4,
-      double rigid_min_msd = 9.0);
+  std::vector<AlignResult>
+  flexible_galign_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
+                       int max_conf = 1, double scale = 0.7,
+                       const GAGeneticArgs &genetic = {},
+                       const GAMinimizeArgs &minimize = {},
+                       int rigid_max_conf = 4, double rigid_min_msd = 9.0);
 }  // namespace internal
 }  // namespace nuri
 

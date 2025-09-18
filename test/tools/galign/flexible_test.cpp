@@ -71,8 +71,7 @@ TEST(GAlign, Flexible) {
   random.translation() = Vector3d::Random() * 10;
   tconf = random * tconf;
 
-  GAMoleculeInfo qinfo(query, qconf), tinfo(templ, tconf);
-  GADistanceFeature qfeat(qinfo, qconf), tfeat(tinfo, tconf);
+  GARigidMolInfo qinfo(query, qconf), tinfo(templ, tconf);
 
   GAGeneticArgs genetic;
   genetic.pool_size = 2;
@@ -85,8 +84,8 @@ TEST(GAlign, Flexible) {
   minimize.max_iters = 50;
 
   set_thread_seed(42);
-  std::vector results = flexible_galign_impl(qinfo, qfeat, tinfo, tfeat, 1, 0.7,
-                                             genetic, minimize);
+  std::vector results =
+      flexible_galign_impl(qinfo, tinfo, 1, 0.7, genetic, minimize);
   ASSERT_EQ(results.size(), 1);
 
   const AlignResult &result = results[0];

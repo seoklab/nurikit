@@ -9,8 +9,8 @@
 
 namespace nuri {
 namespace internal {
-  double shape_overlap_impl(const GAMoleculeInfo &query,
-                            const GAMoleculeInfo &templ, const ArrayXXd &dists,
+  double shape_overlap_impl(const GARigidMolInfo &query,
+                            const GARigidMolInfo &templ, const ArrayXXd &dists,
                             double scale) {
     const Eigen::Index rows = dists.rows(), cols = dists.cols();
 
