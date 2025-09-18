@@ -38,50 +38,91 @@ namespace internal {
     double normalizer_;
     ArrayXi moving_;
   };
+}  // namespace internal
 
-  class GARigidMolInfo {
-  public:
-    GARigidMolInfo(const Molecule &mol, const Matrix3Xd &ref,
-                   double vdw_scale = 0.8, double hetero_scale = 0.7,
-                   int dcut = 6);
+class GARigidMolInfo {
+public:
+  GARigidMolInfo(const Molecule &mol, const Matrix3Xd &ref,
+                 double vdw_scale = 0.8, double hetero_scale = 0.7,
+                 int dcut = 6);
 
-    const Molecule &mol() const { return *mol_; }
+  const Molecule &mol() const { return *mol_; }
 
-    const Matrix3Xd &ref() const { return *ref_; }
+  const Matrix3Xd &ref() const { return *ref_; }
 
-    const Vector3d &cntr() const { return cntr_; }
+  const Vector3d &cntr() const { return cntr_; }
 
-    const std::vector<GARotationInfo> &rot_info() const { return rot_info_; }
+  double vdw_scale() const { return vdw_scale_; }
 
-    const ArrayXi &atom_types() const { return atom_types_; }
+  double hetero_scale() const { return hetero_scale_; }
 
-    auto vdw_radii() const { return vdw_rads_vols_.col(0); }
+  int dcut() const { return static_cast<int>(neighbor_vec_.rows()); }
 
-    auto vdw_vols() const { return vdw_rads_vols_.col(1); }
+  const std::vector<internal::GARotationInfo> &rot_info() const {
+    return rot_info_;
+  }
 
-    const ArrayXXd &dists() const { return dists_; }
+  const ArrayXi &atom_types() const { return atom_types_; }
 
-    const MatrixXd &nv() const { return neighbor_vec_; }
+  auto vdw_radii() const { return vdw_rads_vols_.col(0); }
 
-    double overlap() const { return overlap_; }
+  auto vdw_vols() const { return vdw_rads_vols_.col(1); }
 
-    int n() const { return mol().num_atoms(); }
+  const ArrayXXd &dists() const { return dists_; }
 
-  private:
-    Nonnull<const Molecule *> mol_;
-    Nonnull<const Matrix3Xd *> ref_;
-    Vector3d cntr_;
+  const MatrixXd &nv() const { return neighbor_vec_; }
 
-    std::vector<GARotationInfo> rot_info_;
+  double overlap() const { return overlap_; }
 
-    ArrayXi atom_types_;
-    ArrayX2d vdw_rads_vols_;
+  int n() const { return mol().num_atoms(); }
 
-    ArrayXXd dists_;
-    MatrixXd neighbor_vec_;
-    double overlap_;
-  };
+private:
+  internal::Nonnull<const Molecule *> mol_;
+  internal::Nonnull<const Matrix3Xd *> ref_;
+  Vector3d cntr_;
+  double vdw_scale_;
+  double hetero_scale_;
 
+  std::vector<internal::GARotationInfo> rot_info_;
+
+  ArrayXi atom_types_;
+  ArrayX2d vdw_rads_vols_;
+
+  ArrayXXd dists_;
+  MatrixXd neighbor_vec_;
+  double overlap_;
+};
+
+struct AlignResult {
+  Matrix3Xd conf;
+  Isometry3d xform = Isometry3d::Identity();
+  double align_score = -1.0;
+};
+
+struct GASamplingArgs {
+  double max_trs = 2.5;
+  double max_rot = deg2rad(120);
+  double max_tors = max_rot;
+  int pool_size = 10;
+  int sample_size = 30;
+  int max_gen = 50;
+  int patience = 5;
+
+  int mut_cnt = 5;
+  double mut_prob = 0.5;
+};
+
+struct GAMinimizeArgs {
+  double alpha = 1.0;
+  double gamma = 2.0;
+  double rho = 0.5;
+  double sigma = 0.5;
+
+  double ftol = 1e-2;
+  int max_iters = 300;
+};
+
+namespace internal {
   ABSL_ATTRIBUTE_PURE_FUNCTION ABSL_ATTRIBUTE_HOT extern double
   shape_overlap_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
                      const ArrayXXd &dists, double scale);
@@ -92,38 +133,9 @@ namespace internal {
     return shape_overlap_impl(query, templ, dists, scale) / templ.overlap();
   }
 
-  struct AlignResult {
-    Matrix3Xd conf;
-    Isometry3d xform = Isometry3d::Identity();
-    double align_score = -1.0;
-  };
-
   std::vector<AlignResult>
   rigid_galign_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
                     int max_conf = 1, double scale = 0.7, double min_msd = 9.0);
-
-  struct GASamplingArgs {
-    double max_trs = 2.5;
-    double max_rot = deg2rad(120);
-    double max_tors = max_rot;
-    int pool_size = 10;
-    int sample_size = 30;
-    int max_gen = 50;
-    int patience = 5;
-
-    int mut_cnt = 5;
-    double mut_prob = 0.5;
-  };
-
-  struct GAMinimizeArgs {
-    double alpha = 1.0;
-    double gamma = 2.0;
-    double rho = 0.5;
-    double sigma = 0.5;
-
-    double ftol = 1e-2;
-    int max_iters = 300;
-  };
 
   std::vector<AlignResult>
   flexible_galign_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
@@ -132,6 +144,12 @@ namespace internal {
                        const GAMinimizeArgs &minimize = {},
                        int rigid_max_conf = 4, double rigid_min_msd = 9.0);
 }  // namespace internal
+
+extern std::vector<AlignResult>
+galign(const Molecule &mol, const Matrix3Xd &seed, const GARigidMolInfo &templ,
+       bool flexible, int max_conf = 1, int rigid_max_conf = 4,
+       double rigid_min_msd = 9.0, const GASamplingArgs &genetic = {},
+       const GAMinimizeArgs &minimize = {});
 }  // namespace nuri
 
 #endif /* NURI_TOOLS_GALIGN_H_ */
