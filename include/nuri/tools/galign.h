@@ -9,6 +9,7 @@
 //! @cond
 #include <vector>
 
+#include <absl/base/attributes.h>
 #include <Eigen/Dense>
 //! @endcond
 
@@ -81,9 +82,9 @@ namespace internal {
     double overlap_;
   };
 
-  double shape_overlap_impl(const GARigidMolInfo &query,
-                            const GARigidMolInfo &templ, const ArrayXXd &dists,
-                            double scale);
+  ABSL_ATTRIBUTE_PURE_FUNCTION ABSL_ATTRIBUTE_HOT extern double
+  shape_overlap_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
+                     const ArrayXXd &dists, double scale);
 
   inline double align_score_impl(const GARigidMolInfo &query,
                                  const GARigidMolInfo &templ,
