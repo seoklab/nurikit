@@ -455,6 +455,10 @@ namespace internal {
     }
 
     auto topk = argpartition(pool, max_conf, std::greater<>());
+    absl::c_sort(topk, [&](int i, int j) {
+      return pool[i].align_score() > pool[j].align_score();
+    });
+
     std::vector<AlignResult> flex_result;
     flex_result.reserve(max_conf);
     for (int i = 0; i < max_conf; ++i) {
