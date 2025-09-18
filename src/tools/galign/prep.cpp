@@ -190,55 +190,56 @@ namespace internal {
 
     return pts;
   }
+}  // namespace internal
 
-  namespace {
-    int ga_atom_type(Molecule::Atom atom) {
-      // bits:
-      //   - 0-127: atomic number (5 bits)
-      //   - 0-  7: hybridization (3 bits)
-      //   - 0-  1: aromaticity (1 bit)
-      //   - 0-  1: conjugation (1 bit)
-      //   - 0- 15: charge + 7 (4 bits)
-      // Total 14 bits used, reserve remaining bits for future use
-      uint32_t atype = atom.data().atomic_number();
-      atype |= static_cast<uint32_t>(atom.data().hybridization()) << 5;
-      atype |= static_cast<uint32_t>(atom.data().is_aromatic()) << 8;
-      atype |= static_cast<uint32_t>(atom.data().is_conjugated()) << 9;
-      atype |= static_cast<uint32_t>(
-                   nuri::clamp(atom.data().formal_charge(), -7, +8) + 7)
-               << 10;
-      return static_cast<int>(atype);
-    }
-  }  // namespace
+namespace {
+  int ga_atom_type(Molecule::Atom atom) {
+    // bits:
+    //   - 0-127: atomic number (5 bits)
+    //   - 0-  7: hybridization (3 bits)
+    //   - 0-  1: aromaticity (1 bit)
+    //   - 0-  1: conjugation (1 bit)
+    //   - 0- 15: charge + 7 (4 bits)
+    // Total 14 bits used, reserve remaining bits for future use
+    uint32_t atype = atom.data().atomic_number();
+    atype |= static_cast<uint32_t>(atom.data().hybridization()) << 5;
+    atype |= static_cast<uint32_t>(atom.data().is_aromatic()) << 8;
+    atype |= static_cast<uint32_t>(atom.data().is_conjugated()) << 9;
+    atype |= static_cast<uint32_t>(
+                 nuri::clamp(atom.data().formal_charge(), -7, +8) + 7)
+             << 10;
+    return static_cast<int>(atype);
+  }
+}  // namespace
 
-  GARigidMolInfo::GARigidMolInfo(const Molecule &mol, const Matrix3Xd &ref,
-                                 const double vdw_scale,
-                                 const double hetero_scale, const int dcut)
-      : mol_(&mol), ref_(&ref), cntr_(ref.rowwise().mean()),
-        rot_info_(GARotationInfo::from(mol, ref)), atom_types_(mol.size()),
-        vdw_rads_vols_(mol.size(), 2), dists_(cdist(ref, ref)),
-        neighbor_vec_(MatrixXd::Zero(dcut, mol.size())) {
-    for (auto atom: mol) {
-      atom_types_[atom.id()] = ga_atom_type(atom);
-      vdw_rads_vols_(atom.id(), 0) =
-          vdw_scale * atom.data().element().vdw_radius();
-    }
+GARigidMolInfo::GARigidMolInfo(const Molecule &mol, const Matrix3Xd &ref,
+                               const double vdw_scale,
+                               const double hetero_scale, const int dcut)
+    : mol_(&mol), ref_(&ref), cntr_(ref.rowwise().mean()),
+      vdw_scale_(vdw_scale), hetero_scale_(hetero_scale),
+      rot_info_(internal::GARotationInfo::from(mol, ref)),
+      atom_types_(mol.size()), vdw_rads_vols_(mol.size(), 2),
+      dists_(cdist(ref, ref)), neighbor_vec_(MatrixXd::Zero(dcut, mol.size())) {
+  for (auto atom: mol) {
+    atom_types_[atom.id()] = ga_atom_type(atom);
+    vdw_rads_vols_(atom.id(), 0) =
+        vdw_scale * atom.data().element().vdw_radius();
+  }
 
-    vdw_rads_vols_.col(1) =
-        4.0 / 3.0 * constants::kPi * vdw_rads_vols_.col(0).cube();
+  vdw_rads_vols_.col(1) =
+      4.0 / 3.0 * constants::kPi * vdw_rads_vols_.col(0).cube();
 
-    for (int i = 0; i < n() - 1; ++i) {
-      for (int j = i + 1; j < n(); ++j) {
-        int dist_trunc = static_cast<int>(dists_(j, i));
-        if (dist_trunc < dcut) {
-          ++neighbor_vec_(dist_trunc, i);
-          ++neighbor_vec_(dist_trunc, j);
-        }
+  for (int i = 0; i < n() - 1; ++i) {
+    for (int j = i + 1; j < n(); ++j) {
+      int dist_trunc = static_cast<int>(dists_(j, i));
+      if (dist_trunc < dcut) {
+        ++neighbor_vec_(dist_trunc, i);
+        ++neighbor_vec_(dist_trunc, j);
       }
     }
-    safe_colwise_normalize(neighbor_vec_);
-
-    overlap_ = shape_overlap_impl(*this, *this, dists_, hetero_scale);
   }
-}  // namespace internal
+  internal::safe_colwise_normalize(neighbor_vec_);
+
+  overlap_ = internal::shape_overlap_impl(*this, *this, dists_, hetero_scale);
+}
 }  // namespace nuri
