@@ -70,10 +70,9 @@ TEST(GAlign, Rigid) {
   random.translation() = Vector3d::Random() * 10;
   tconf = random * tconf;
 
-  GAMoleculeInfo qinfo(query, qconf), tinfo(templ, tconf);
-  GADistanceFeature qfeat(qinfo, qconf), tfeat(tinfo, tconf);
+  GARigidMolInfo qinfo(query, qconf), tinfo(templ, tconf);
 
-  std::vector results = rigid_galign_impl(qinfo, qfeat, tinfo, tfeat);
+  std::vector results = rigid_galign_impl(qinfo, tinfo);
   ASSERT_EQ(results.size(), 1);
 
   const AlignResult &result = results[0];

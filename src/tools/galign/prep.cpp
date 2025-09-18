@@ -211,11 +211,13 @@ namespace internal {
     }
   }  // namespace
 
-  GAMoleculeInfo::GAMoleculeInfo(const Molecule &mol, const Matrix3Xd &ref,
-                                 const double vdw_scale)
+  GARigidMolInfo::GARigidMolInfo(const Molecule &mol, const Matrix3Xd &ref,
+                                 const double vdw_scale,
+                                 const double hetero_scale, const int dcut)
       : mol_(&mol), ref_(&ref), cntr_(ref.rowwise().mean()),
         rot_info_(GARotationInfo::from(mol, ref)), atom_types_(mol.size()),
-        vdw_rads_vols_(mol.size(), 2) {
+        vdw_rads_vols_(mol.size(), 2), dists_(cdist(ref, ref)),
+        neighbor_vec_(MatrixXd::Zero(dcut, mol.size())) {
     for (auto atom: mol) {
       atom_types_[atom.id()] = ga_atom_type(atom);
       vdw_rads_vols_(atom.id(), 0) =
@@ -224,40 +226,19 @@ namespace internal {
 
     vdw_rads_vols_.col(1) =
         4.0 / 3.0 * constants::kPi * vdw_rads_vols_.col(0).cube();
-  }
 
-  GADistanceFeature::GADistanceFeature(int n, int dcut)
-      : dists_(n, n), neighbor_vec_(dcut, n) { }
-
-  GADistanceFeature::GADistanceFeature(const GAMoleculeInfo &mol,
-                                       const Matrix3Xd &pts, double scale,
-                                       int dcut)
-      : GADistanceFeature(mol.n(), dcut) {
-    update(mol, pts, scale);
-  }
-
-  GADistanceFeature &GADistanceFeature::update(const GAMoleculeInfo &mol,
-                                               const Matrix3Xd &pts,
-                                               double scale) noexcept {
-    ABSL_DCHECK_EQ(n(), mol.n());
-
-    cdist(dists_, pts, pts);
-    overlap_ = shape_overlap_impl(mol, mol, dists_, scale);
-
-    neighbor_vec_.setZero();
     for (int i = 0; i < n() - 1; ++i) {
       for (int j = i + 1; j < n(); ++j) {
         int dist_trunc = static_cast<int>(dists_(j, i));
-        if (dist_trunc < dcut()) {
+        if (dist_trunc < dcut) {
           ++neighbor_vec_(dist_trunc, i);
           ++neighbor_vec_(dist_trunc, j);
         }
       }
     }
-
     safe_colwise_normalize(neighbor_vec_);
 
-    return *this;
+    overlap_ = shape_overlap_impl(*this, *this, dists_, hetero_scale);
   }
 }  // namespace internal
 }  // namespace nuri
