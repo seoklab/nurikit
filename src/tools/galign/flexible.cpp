@@ -369,30 +369,28 @@ namespace internal {
     }
   }  // namespace
 
-  std::vector<AlignResult> flexible_galign_impl(const GARigidMolInfo &query,
-                                                const GARigidMolInfo &templ,
-                                                int max_conf, double scale,
-                                                const GASamplingArgs &genetic,
-                                                const GAMinimizeArgs &minimize,
-                                                const int rigid_max_conf,
-                                                const double rigid_min_msd) {
+  std::vector<AlignResult>
+  flexible_galign_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
+                       int max_conf, double scale,
+                       const GASamplingArgs &sampling,
+                       const GAMinimizeArgs &minimize) {
     if (query.rot_info().empty())
-      return rigid_galign_impl(query, templ, max_conf, scale, rigid_min_msd);
+      return rigid_galign_impl(query, templ, max_conf, scale,
+                               sampling.rigid_min_msd);
 
-    std::vector rigid_result =
-        rigid_galign_impl(query, templ, nuri::max(max_conf, rigid_max_conf),
-                          scale, rigid_min_msd);
+    std::vector rigid_result = rigid_galign_impl(
+        query, templ, sampling.rigid_max_conf, scale, sampling.rigid_min_msd);
 
     const int ndimp1 = 6 + static_cast<int>(query.rot_info().size()) + 1;
 
     Buffers buf {
       ArrayXXd(ndimp1, ndimp1),
       ArrayXXd(query.n(), templ.n()),
-      ArrayXd(genetic.pool_size * 2),
+      ArrayXd(sampling.pool_size * 2),
     };
 
     const Invariants inv {
-      &genetic,
+      &sampling,
       &minimize,
       &query,
       query.ref().colwise() - query.cntr(),
@@ -406,7 +404,7 @@ namespace internal {
     auto simplex = buf.simplexf.topRows(nm.n());
 
     std::vector<GeneticConf> pool;
-    pool.reserve(genetic.pool_size + genetic.sample_size);
+    pool.reserve(sampling.pool_size + sampling.sample_size);
 
     for (AlignResult &r: rigid_result)
       pool.push_back(GeneticConf(query, templ.cntr(), std::move(r)));
@@ -417,27 +415,27 @@ namespace internal {
       minimize_one_conf(conf, nm, simplex, inv, buf);
 
     const std::vector<GeneticConf> initial_pool(pool);
-    ArrayXd cutoffs(genetic.pool_size * 2);
-    exp_cumsum_scores(cutoffs.head(genetic.pool_size), initial_pool);
+    ArrayXd cutoffs(sampling.pool_size * 2);
+    exp_cumsum_scores(cutoffs.head(sampling.pool_size), initial_pool);
 
-    pool.resize(genetic.pool_size + genetic.sample_size,
+    pool.resize(sampling.pool_size + sampling.sample_size,
                 GeneticConf(query, inv.query_centered));
 
-    int patience = genetic.patience;
+    int patience = sampling.patience;
     double prev_max = -1e10;
 
-    for (int i = 0; i < genetic.max_gen; ++i) {
+    for (int i = 0; i < sampling.max_gen; ++i) {
       genetic_sampling(pool, initial_pool, inv, buf);
 
-      for (int j = genetic.pool_size; j < pool.size(); ++j) {
+      for (int j = sampling.pool_size; j < pool.size(); ++j) {
         minimize_one_conf(pool[j], nm, simplex, inv, buf);
       }
 
-      std::nth_element(pool.begin(), pool.begin() + genetic.pool_size - 1,
+      std::nth_element(pool.begin(), pool.begin() + sampling.pool_size - 1,
                        pool.end(), std::greater<>());
 
       double current_max =
-          std::max_element(pool.begin(), pool.begin() + genetic.pool_size)
+          std::max_element(pool.begin(), pool.begin() + sampling.pool_size)
               ->score();
       if (current_max - prev_max < minimize.ftol && --patience <= 0)
         break;

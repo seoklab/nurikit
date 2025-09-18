@@ -103,6 +103,10 @@ struct GASamplingArgs {
   double max_trs = 2.5;
   double max_rot = deg2rad(120);
   double max_tors = max_rot;
+
+  double rigid_min_msd = 9.0;
+  int rigid_max_conf = 4;
+
   int pool_size = 10;
   int sample_size = 30;
   int max_gen = 50;
@@ -140,15 +144,13 @@ namespace internal {
   std::vector<AlignResult>
   flexible_galign_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
                        int max_conf = 1, double scale = 0.7,
-                       const GASamplingArgs &genetic = {},
-                       const GAMinimizeArgs &minimize = {},
-                       int rigid_max_conf = 4, double rigid_min_msd = 9.0);
+                       const GASamplingArgs &sampling = {},
+                       const GAMinimizeArgs &minimize = {});
 }  // namespace internal
 
 extern std::vector<AlignResult>
 galign(const Molecule &mol, const Matrix3Xd &seed, const GARigidMolInfo &templ,
-       bool flexible, int max_conf = 1, int rigid_max_conf = 4,
-       double rigid_min_msd = 9.0, const GASamplingArgs &genetic = {},
+       bool flexible, int max_conf = 1, const GASamplingArgs &sampling = {},
        const GAMinimizeArgs &minimize = {});
 }  // namespace nuri
 
