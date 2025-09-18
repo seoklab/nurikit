@@ -64,7 +64,7 @@ namespace internal {
       return AngleAxisd(angle, axis);
     }
 
-    double clash_penalty(const Matrix3Xd &pts) {
+    double self_clash(const Matrix3Xd &pts) {
       double penalty = 0;
       int n = static_cast<int>(pts.cols());
 
@@ -84,8 +84,11 @@ namespace internal {
       cdist(buf.cd, conf, inv.templ_centered);
       double align_score =
           align_score_impl(*inv.query, *inv.templ, buf.cd, inv.hetero_scale);
-      double clash = nonnegative(clash_penalty(conf) - inv.base_clash);
-      return align_score - clash;
+
+      double clash = self_clash(conf);
+      double clash_penalty = nonnegative(clash - inv.base_clash);
+
+      return align_score - clash_penalty;
     }
 
     Vector3d rotation_vector(const Quaterniond &q) {
@@ -395,7 +398,7 @@ namespace internal {
       query.ref().colwise() - query.cntr(),
       &templ,
       templ.ref().colwise() - templ.cntr(),
-      clash_penalty(query.ref()),
+      self_clash(query.ref()),
       scale,
     };
 
