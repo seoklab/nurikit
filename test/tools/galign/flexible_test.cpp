@@ -73,7 +73,7 @@ TEST(GAlign, Flexible) {
 
   GARigidMolInfo qinfo(query, qconf), tinfo(templ, tconf);
 
-  GAGeneticArgs genetic;
+  GASamplingArgs genetic;
   genetic.pool_size = 2;
   genetic.sample_size = 4;
   genetic.max_gen = 5;
