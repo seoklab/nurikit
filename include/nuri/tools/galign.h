@@ -85,6 +85,12 @@ namespace internal {
                             const GARigidMolInfo &templ, const ArrayXXd &dists,
                             double scale);
 
+  inline double align_score_impl(const GARigidMolInfo &query,
+                                 const GARigidMolInfo &templ,
+                                 const ArrayXXd &dists, double scale) {
+    return shape_overlap_impl(query, templ, dists, scale) / templ.overlap();
+  }
+
   struct AlignResult {
     Matrix3Xd conf;
     Isometry3d xform = Isometry3d::Identity();
@@ -95,7 +101,7 @@ namespace internal {
   rigid_galign_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
                     int max_conf = 1, double scale = 0.7, double min_msd = 9.0);
 
-  struct GAGeneticArgs {
+  struct GASamplingArgs {
     double max_trs = 2.5;
     double max_rot = deg2rad(120);
     double max_tors = max_rot;
@@ -121,7 +127,7 @@ namespace internal {
   std::vector<AlignResult>
   flexible_galign_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
                        int max_conf = 1, double scale = 0.7,
-                       const GAGeneticArgs &genetic = {},
+                       const GASamplingArgs &genetic = {},
                        const GAMinimizeArgs &minimize = {},
                        int rigid_max_conf = 4, double rigid_min_msd = 9.0);
 }  // namespace internal

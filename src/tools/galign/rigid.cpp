@@ -105,8 +105,7 @@ namespace internal {
       inplace_transform(candidate.conf, candidate.xform, query.ref());
       cdist(dists, candidate.conf, templ.ref());
 
-      candidate.align_score =
-          shape_overlap_impl(query, templ, dists, scale) / templ.overlap();
+      candidate.align_score = align_score_impl(query, templ, dists, scale);
 
       maybe_replace_candidate(results, candidate, min_msd);
     }

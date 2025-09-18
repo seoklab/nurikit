@@ -23,6 +23,26 @@
 namespace nuri {
 namespace internal {
   namespace {
+    struct Invariants {
+      Nonnull<const GASamplingArgs *> sampling;
+      Nonnull<const GAMinimizeArgs *> minimize;
+
+      Nonnull<const GARigidMolInfo *> query;
+      Matrix3Xd query_centered;
+
+      Nonnull<const GARigidMolInfo *> templ;
+      Matrix3Xd templ_centered;
+
+      double base_clash;
+      double hetero_scale;
+    };
+
+    struct Buffers {
+      ArrayXXd simplexf;
+      ArrayXXd cd;
+      ArrayXd cutoffs;
+    };
+
     Vector3d random_unit() {
       double u = draw_urd(-1.0, 1.0), v = std::sqrt(1.0 - u * u),
              t = draw_urd(0.0, constants::kTwoPi);
@@ -44,26 +64,28 @@ namespace internal {
       return AngleAxisd(angle, axis);
     }
 
-    double clash_penalty(const Matrix3Xd &pts, ArrayXd &pdsq) {
-      pdistsq(pdsq, pts);
-      double penalty = pdsq.unaryExpr([](double d) {
-                             return (d < 5.0) * 1.0 + (d < 4.0) * 9.0;
-                           })
-                           .sum();
-      return penalty / static_cast<double>(pts.cols());
+    double clash_penalty(const Matrix3Xd &pts) {
+      double penalty = 0;
+      int n = static_cast<int>(pts.cols());
+
+      for (int i = 1; i < n; ++i) {
+        Vector3d v = pts.col(i);
+        for (int j = 0; j < i; ++j) {
+          double d = (v - pts.col(j)).squaredNorm();
+          penalty += value_if(d < 5.0, 1.0) + value_if(d < 4.0, 9.0);
+        }
+      }
+
+      return penalty / n;
     }
 
-    std::pair<double, double> flex_score(const GARigidMolInfo &query,
-                                         const GARigidMolInfo &templ,
-                                         const Matrix3Xd &conf,
-                                         const Matrix3Xd &ref, ArrayXXd &cd,
-                                         ArrayXd &pdsq, double base_clash,
-                                         double templ_overlap, double scale) {
-      cdist(cd, conf, ref);
+    double flex_score(const Matrix3Xd &conf, const Invariants &inv,
+                      Buffers &buf) {
+      cdist(buf.cd, conf, inv.templ_centered);
       double align_score =
-          shape_overlap_impl(query, templ, cd, scale) / templ_overlap;
-      double clash = nonnegative(clash_penalty(conf, pdsq) - base_clash);
-      return std::make_pair(align_score, clash);
+          align_score_impl(*inv.query, *inv.templ, buf.cd, inv.hetero_scale);
+      double clash = nonnegative(clash_penalty(conf) - inv.base_clash);
+      return align_score - clash;
     }
 
     Vector3d rotation_vector(const Quaterniond &q) {
@@ -90,64 +112,41 @@ namespace internal {
       GeneticConf(const GARigidMolInfo &query, const Matrix3Xd &query_ref)
           : conf_(query_ref), rigid_(Isometry3d::Identity()),
             torsion_(ArrayXd::Zero(
-                static_cast<Eigen::Index>(query.rot_info().size()))),
-            align_score_(-1), clash_penalty_(0) { }
+                static_cast<Eigen::Index>(query.rot_info().size()))) { }
 
       GeneticConf(const GARigidMolInfo &query, const Vector3d &templ_cntr,
                   AlignResult &&rigid)
           : conf_(std::move(rigid.conf)), rigid_(std::move(rigid.xform)),
             torsion_(ArrayXd::Zero(
                 static_cast<Eigen::Index>(query.rot_info().size()))),
-            align_score_(rigid.align_score), clash_penalty_(0) {
+            score_(rigid.align_score) {
         conf_.colwise() -= templ_cntr;
         rigid_.translation() += rigid_.linear() * query.cntr() - templ_cntr;
       }
 
-      Matrix3Xd &&conf() && { return std::move(conf_); }
+      Matrix3Xd &conf() & { return conf_; }
 
-      const Matrix3Xd &conf() const & { return conf_; }
+      const Isometry3d &rigid() const { return rigid_; }
 
-      const Isometry3d &rigid() const & { return rigid_; }
+      const ArrayXd &torsion() const { return torsion_; }
 
-      const ArrayXd &torsion() const & { return torsion_; }
+      double score() const { return score_; }
 
-      void update_scores(const GARigidMolInfo &query,
-                         const GARigidMolInfo &templ, const Matrix3Xd &ref,
-                         ArrayXXd &cd, ArrayXd &pdsq, double base_clash,
-                         double templ_overlap, double scale) {
-        std::tie(align_score_, clash_penalty_) =
-            flex_score(query, templ, conf(), ref, cd, pdsq, base_clash,
-                       templ_overlap, scale);
-      }
+      void update_from_simplexf(ConstRef<ArrayXd> simplexf,
+                                const Invariants &inv) {
+        Translation3d trs(simplexf.head<3>());
+        AngleAxisd aa = angle_axis_from_rotvec(simplexf.segment<3>(3).matrix());
 
-      void update_from_simplex(ConstRef<ArrayXd> x, const GARigidMolInfo &query,
-                               const Matrix3Xd &query_ref,
-                               const GARigidMolInfo &templ,
-                               const Matrix3Xd &templ_ref, ArrayXXd &cd,
-                               ArrayXd &pdsq, double base_clash,
-                               double templ_overlap, double scale,
-                               bool save_transforms) {
-        Translation3d trs(x.head<3>());
-        AngleAxisd aa = angle_axis_from_rotvec(x.segment<3>(3).matrix());
+        rigid_ = trs * aa;
+        inplace_transform(conf_, rigid_, inv.query_centered);
 
-        Isometry3d xform = trs * aa;
-        inplace_transform(conf_, xform, query_ref);
-
-        for (int i = 0; i < torsion_.size(); ++i)
-          query.rot_info()[i].rotate(conf_, x[i + 6]);
-
-        update_scores(query, templ, templ_ref, cd, pdsq, base_clash,
-                      templ_overlap, scale);
-
-        if (save_transforms) {
-          rigid_ = xform;
-          torsion_ = x.tail(torsion_.size());
+        for (int i = 0; i < torsion().size(); ++i) {
+          torsion_[i] = simplexf[i + 6];
+          inv.query->rot_info()[i].rotate(conf_, torsion_[i]);
         }
+
+        score_ = -simplexf[simplexf.size() - 1];
       }
-
-      double align_score() const { return align_score_; }
-
-      double score() const { return align_score_ - clash_penalty_; }
 
       friend bool operator<(const GeneticConf &lhs, const GeneticConf &rhs) {
         return lhs.score() < rhs.score();
@@ -162,16 +161,15 @@ namespace internal {
       Isometry3d rigid_;
       ArrayXd torsion_;
 
-      double align_score_;
-      double clash_penalty_;
+      double score_;
 
       friend class Mutator;
     };
 
     class Mutator {
     public:
-      Mutator(const GARigidMolInfo &mol, GeneticConf &gconf)
-          : mol_(&mol), gconf_(&gconf), delta_(Isometry3d::Identity()) { }
+      Mutator(GeneticConf &gconf, const Invariants &inv, Buffers &buf)
+          : gconf_(&gconf), inv_(&inv), buf_(&buf) { }
 
       ~Mutator() noexcept { finalize(); }
 
@@ -204,17 +202,17 @@ namespace internal {
         return *this;
       }
 
-      Mutator &random(double max_trs, double max_rot, double max_tors) {
+      Mutator &random(const GASamplingArgs &sampling) {
         int sel = draw_uid(ndim());
         switch (sel) {
         case 0:
-          update_trs(random_translation(max_trs));
+          update_trs(random_translation(sampling.max_trs));
           break;
         case 1:
-          update_rot(random_rotation(max_rot).toRotationMatrix());
+          update_rot(random_rotation(sampling.max_rot).toRotationMatrix());
           break;
         default:
-          update_tors(sel - 2, draw_urd(-max_tors, max_tors));
+          update_tors(sel - 2, draw_urd(-sampling.max_tors, sampling.max_tors));
           break;
         }
         return *this;
@@ -228,6 +226,8 @@ namespace internal {
           conf().colwise() += delta_.translation();
           gconf_->rigid_.translation() += delta_.translation();
         }
+
+        gconf_->score_ = flex_score(conf(), *inv_, *buf_);
       }
 
     private:
@@ -244,14 +244,16 @@ namespace internal {
       }
 
       void update_tors(int i, double delta) {
-        mol_->rot_info()[i].rotate(conf(), delta);
+        inv_->query->rot_info()[i].rotate(conf(), delta);
         gconf_->torsion_[i] += delta;
       }
 
-      Nonnull<const GARigidMolInfo *> mol_;
       Nonnull<GeneticConf *> gconf_;
 
-      Isometry3d delta_;
+      Nonnull<const Invariants *> inv_;
+      Nonnull<Buffers *> buf_;
+
+      Isometry3d delta_ = Isometry3d::Identity();
 
       bool trs_updated_ = false;
       bool rot_updated_ = false;
@@ -269,41 +271,32 @@ namespace internal {
       return total;
     }
 
-    void fill_initial(std::vector<GeneticConf> &pool,
-                      const GARigidMolInfo &query, const GARigidMolInfo &templ,
-                      const Matrix3Xd &templ_ref, const GAGeneticArgs &genetic,
-                      ArrayXXd &cd, ArrayXd &pdsq, const double base_clash,
-                      const double templ_overlap, const double scale) {
-      if (pool.size() >= genetic.pool_size)
+    void fill_initial(std::vector<GeneticConf> &pool, const Invariants &inv,
+                      Buffers &buf) {
+      const int pool_size = inv.sampling->pool_size;
+
+      if (pool.size() >= pool_size)
         return;
 
-      ArrayXd cutoffs(genetic.pool_size);
+      ArrayXd cutoffs(pool_size);
       exp_cumsum_scores(cutoffs.head(pool.size()), pool);
 
-      for (int i = static_cast<int>(pool.size()); i < genetic.pool_size; ++i) {
+      for (int i = static_cast<int>(pool.size()); i < pool_size; ++i) {
         const GeneticConf &sel = pool[weighted_select(cutoffs.head(i))];
 
         GeneticConf &newconf = pool.emplace_back(sel);
         {
-          Mutator mut(query, newconf);
-          mut.random(genetic.max_trs, genetic.max_rot, genetic.max_tors);
+          Mutator mut(newconf, inv, buf);
+          mut.random(*inv.sampling);
         }
-        newconf.update_scores(query, templ, templ_ref, cd, pdsq, base_clash,
-                              templ_overlap, scale);
 
         cutoffs[i] = cutoffs[i - 1] + newconf.score();
       }
     }
 
-    void minimize_one_conf(GeneticConf &gconf, const GARigidMolInfo &query,
-                           const Matrix3Xd &query_ref,
-                           const GARigidMolInfo &templ,
-                           const Matrix3Xd &templ_ref, NelderMead &nm,
-                           MutRef<ArrayXXd> simplex, ArrayXXd &cd,
-                           ArrayXd &pdsq, double base_clash,
-                           double templ_overlap, double scale,
-                           const GAGeneticArgs &genetic,
-                           const GAMinimizeArgs &minimize) {
+    void minimize_one_conf(GeneticConf &gconf, NelderMead &nm,
+                           MutRef<ArrayXXd> simplex, const Invariants &inv,
+                           Buffers &buf) {
       nm.reset();
 
       Quaterniond q0(gconf.rigid().linear());
@@ -314,75 +307,72 @@ namespace internal {
       simplex.rightCols(nm.n()).colwise() = simplex.col(0);
 
       for (int i = 0; i < 3; ++i)
-        simplex.col(i + 1)[i] += genetic.max_trs;
+        simplex.col(i + 1)[i] += inv.sampling->max_trs;
 
       for (int i = 0; i < 3; ++i) {
         simplex.col(i + 4).segment<3>(3) = rotation_vector(
-            AngleAxisd(genetic.max_rot, Vector3d::Unit(i)) * q0);
+            AngleAxisd(inv.sampling->max_rot, Vector3d::Unit(i)) * q0);
       }
 
       for (int i = 0; i < gconf.torsion().size(); ++i)
-        simplex.col(i + 7)[i + 6] += genetic.max_tors;
+        simplex.col(i + 7)[i + 6] += inv.sampling->max_tors;
 
       auto eval_func = [&](ConstRef<ArrayXd> x) {
-        gconf.update_from_simplex(x, query, query_ref, templ, templ_ref, cd,
-                                  pdsq, base_clash, templ_overlap, scale,
-                                  false);
-        return -gconf.score();
+        Translation3d trs(x.head<3>());
+        AngleAxisd aa = angle_axis_from_rotvec(x.segment<3>(3).matrix());
+
+        Isometry3d xform = trs * aa;
+        inplace_transform(gconf.conf(), xform, inv.query_centered);
+
+        for (int i = 0; i < gconf.torsion().size(); ++i)
+          inv.query->rot_info()[i].rotate(gconf.conf(), x[i + 6]);
+
+        return -flex_score(gconf.conf(), inv, buf);
       };
 
-      auto [_, idx] = nm.minimize(eval_func, minimize.max_iters, minimize.ftol,
-                                  minimize.alpha, minimize.gamma, minimize.rho,
-                                  minimize.sigma);
+      auto [_, idx] = nm.minimize(eval_func, inv.minimize->max_iters,
+                                  inv.minimize->ftol, inv.minimize->alpha,
+                                  inv.minimize->gamma, inv.minimize->rho,
+                                  inv.minimize->sigma);
 
-      gconf.update_from_simplex(simplex.col(idx), query, query_ref, templ,
-                                templ_ref, cd, pdsq, base_clash, templ_overlap,
-                                scale, true);
+      gconf.update_from_simplexf(buf.simplexf.col(idx), inv);
     }
 
     void genetic_sampling(std::vector<GeneticConf> &pool_sample,
                           const std::vector<GeneticConf> &initial_pool,
-                          ArrayXd &cutoffs, const GARigidMolInfo &query,
-                          const GARigidMolInfo &templ,
-                          const Matrix3Xd &templ_ref, ArrayXXd &cd,
-                          ArrayXd &pdsq, double base_clash,
-                          double templ_overlap, double scale,
-                          const GAGeneticArgs &genetic) {
-      const double initial_sum = cutoffs[genetic.pool_size - 1];
+                          const Invariants &inv, Buffers &buf) {
+      const int pool_size = inv.sampling->pool_size;
+      const double initial_sum = buf.cutoffs[pool_size - 1];
 
-      auto prev_cutoffs = cutoffs.tail(genetic.pool_size);
+      auto prev_cutoffs = buf.cutoffs.tail(pool_size);
       exp_cumsum_scores(prev_cutoffs, pool_sample, initial_sum);
 
-      for (int i = genetic.pool_size; i < pool_sample.size(); ++i) {
+      for (int i = pool_size; i < pool_sample.size(); ++i) {
         const GeneticConf &seed =
             pool_sample[weighted_select(prev_cutoffs, initial_sum)];
 
-        auto sel = weighted_select(cutoffs);
-        const GeneticConf &other = sel < genetic.pool_size
-                                       ? initial_pool[sel]
-                                       : pool_sample[sel - genetic.pool_size];
+        auto sel = weighted_select(buf.cutoffs);
+        const GeneticConf &other =
+            sel < pool_size ? initial_pool[sel] : pool_sample[sel - pool_size];
 
         GeneticConf &newconf = pool_sample[i] = seed;
 
-        {
-          Mutator mut(query, newconf);
-          mut.crossover(other);
-          for (int j = 0; j < genetic.mut_cnt; ++j)
-            if (draw_urd(0.0, 1.0) <= genetic.mut_prob)
-              mut.random(genetic.max_trs, genetic.max_rot, genetic.max_tors);
-        }
-
-        newconf.update_scores(query, templ, templ_ref, cd, pdsq, base_clash,
-                              templ_overlap, scale);
+        Mutator mut(newconf, inv, buf);
+        mut.crossover(other);
+        for (int j = 0; j < inv.sampling->mut_cnt; ++j)
+          if (draw_urd(0.0, 1.0) <= inv.sampling->mut_prob)
+            mut.random(*inv.sampling);
       }
     }
   }  // namespace
 
-  std::vector<AlignResult>
-  flexible_galign_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
-                       int max_conf, double scale, const GAGeneticArgs &genetic,
-                       const GAMinimizeArgs &minimize, const int rigid_max_conf,
-                       const double rigid_min_msd) {
+  std::vector<AlignResult> flexible_galign_impl(const GARigidMolInfo &query,
+                                                const GARigidMolInfo &templ,
+                                                int max_conf, double scale,
+                                                const GASamplingArgs &genetic,
+                                                const GAMinimizeArgs &minimize,
+                                                const int rigid_max_conf,
+                                                const double rigid_min_msd) {
     if (query.rot_info().empty())
       return rigid_galign_impl(query, templ, max_conf, scale, rigid_min_msd);
 
@@ -390,18 +380,27 @@ namespace internal {
         rigid_galign_impl(query, templ, nuri::max(max_conf, rigid_max_conf),
                           scale, rigid_min_msd);
 
-    const Matrix3Xd query_centered = query.ref().colwise() - query.cntr();
-    const Matrix3Xd templ_centered = templ.ref().colwise() - templ.cntr();
+    const int ndimp1 = 6 + static_cast<int>(query.rot_info().size()) + 1;
 
-    ArrayXXd cd(query.n(), templ.n());
-    ArrayXd pdsq(query.n() * (query.n() - 1) / 2);
-    const double base_clash = clash_penalty(query.ref(), pdsq);
-    const double templ_overlap = templ.overlap();
+    Buffers buf {
+      ArrayXXd(ndimp1, ndimp1),
+      ArrayXXd(query.n(), templ.n()),
+      ArrayXd(genetic.pool_size * 2),
+    };
 
-    int ndimp1 = 6 + static_cast<int>(query.rot_info().size()) + 1;
-    ArrayXXd simplexf(ndimp1, ndimp1);
-    NelderMead nm(simplexf);
-    auto simplex = simplexf.topRows(nm.n());
+    const Invariants inv {
+      &genetic,
+      &minimize,
+      &query,
+      query.ref().colwise() - query.cntr(),
+      &templ,
+      templ.ref().colwise() - templ.cntr(),
+      clash_penalty(query.ref()),
+      scale,
+    };
+
+    NelderMead nm(buf.simplexf);
+    auto simplex = buf.simplexf.topRows(nm.n());
 
     std::vector<GeneticConf> pool;
     pool.reserve(genetic.pool_size + genetic.sample_size);
@@ -409,34 +408,26 @@ namespace internal {
     for (AlignResult &r: rigid_result)
       pool.push_back(GeneticConf(query, templ.cntr(), std::move(r)));
 
-    fill_initial(pool, query, templ, templ_centered, genetic, cd, pdsq,
-                 base_clash, templ_overlap, scale);
+    fill_initial(pool, inv, buf);
 
-    for (GeneticConf &conf: pool) {
-      minimize_one_conf(conf, query, query_centered, templ, templ_centered, nm,
-                        simplex, cd, pdsq, base_clash, templ_overlap, scale,
-                        genetic, minimize);
-    }
+    for (GeneticConf &conf: pool)
+      minimize_one_conf(conf, nm, simplex, inv, buf);
 
     const std::vector<GeneticConf> initial_pool(pool);
     ArrayXd cutoffs(genetic.pool_size * 2);
     exp_cumsum_scores(cutoffs.head(genetic.pool_size), initial_pool);
 
     pool.resize(genetic.pool_size + genetic.sample_size,
-                GeneticConf(query, query_centered));
+                GeneticConf(query, inv.query_centered));
 
     int patience = genetic.patience;
     double prev_max = -1e10;
 
     for (int i = 0; i < genetic.max_gen; ++i) {
-      genetic_sampling(pool, initial_pool, cutoffs, query, templ,
-                       templ_centered, cd, pdsq, base_clash, templ_overlap,
-                       scale, genetic);
+      genetic_sampling(pool, initial_pool, inv, buf);
 
       for (int j = genetic.pool_size; j < pool.size(); ++j) {
-        minimize_one_conf(pool[j], query, query_centered, templ, templ_centered,
-                          nm, simplex, cd, pdsq, base_clash, templ_overlap,
-                          scale, genetic, minimize);
+        minimize_one_conf(pool[j], nm, simplex, inv, buf);
       }
 
       std::nth_element(pool.begin(), pool.begin() + genetic.pool_size - 1,
@@ -452,17 +443,17 @@ namespace internal {
     }
 
     auto topk = argpartition(pool, max_conf, std::greater<>());
-    absl::c_sort(topk, [&](int i, int j) {
-      return pool[i].align_score() > pool[j].align_score();
-    });
 
     std::vector<AlignResult> flex_result;
     flex_result.reserve(max_conf);
     for (int i = 0; i < max_conf; ++i) {
       GeneticConf &conf = pool[topk[i]];
 
+      cdist(buf.cd, conf.conf(), inv.templ_centered);
+      double align_score =
+          align_score_impl(query, templ, buf.cd, inv.hetero_scale);
       flex_result.push_back(
-          { std::move(conf).conf(), conf.rigid(), conf.align_score() });
+          { std::move(conf.conf()), conf.rigid(), align_score });
 
       AlignResult &result = flex_result.back();
       result.conf.colwise() += templ.cntr();
