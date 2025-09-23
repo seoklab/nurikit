@@ -3,15 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <absl/base/optimization.h>
+
 #include "nuri/eigen_config.h"
 #include "nuri/core/geometry.h"
 #include "nuri/tools/galign.h"
 
 namespace nuri {
 namespace internal {
-  double shape_overlap_impl(const GARigidMolInfo &query,
-                            const GARigidMolInfo &templ, const ArrayXXd &dists,
-                            double scale) {
+  double shape_overlap(const GARigidMolInfo &query, const GARigidMolInfo &templ,
+                       const ArrayXXd &dists, double scale) {
     const Eigen::Index rows = dists.rows(), cols = dists.cols();
 
     double total_overlap = 0;
@@ -38,6 +39,47 @@ namespace internal {
         } else {
           overlap = constants::kPi / 12 * rsum_m_d * rsum_m_d
                     * (d + 2 * rsum - 3 / d * rdiff * rdiff);
+        }
+
+        if (query.atom_types()[j] != tt)
+          overlap *= scale;
+
+        total_overlap += overlap;
+      }
+    }
+
+    return total_overlap;
+  }
+
+  double shape_overlap(const GARigidMolInfo &query, const Matrix3Xd &qconf,
+                       const GARigidMolInfo &templ, const Matrix3Xd &tconf,
+                       double scale) {
+    double total_overlap = 0;
+
+    for (int i = 0; i < templ.n(); ++i) {
+      const double tr = templ.vdw_radii()[i], tv = templ.vdw_vols()[i];
+      const int tt = templ.atom_types()[i];
+      Vector3d tpos = tconf.col(i);
+
+      for (int j = 0; j < query.n(); ++j) {
+        const double qr = query.vdw_radii()[j],
+                     d = (qconf.col(j) - tpos).norm();
+        const double rsum = qr + tr, rsum_m_d = rsum - d;
+
+        ABSL_ASSUME(qr > 0 && tr > 0 && d >= 0);
+        if (ABSL_PREDICT_FALSE(rsum_m_d <= 0))
+          continue;
+
+        const double rdiff = qr - tr;
+
+        double overlap;
+        if (ABSL_PREDICT_TRUE(d > std::abs(rdiff))) {
+          overlap = constants::kPi / 12 * rsum_m_d * rsum_m_d
+                    * (d + 2 * rsum - 3 / d * rdiff * rdiff);
+        } else {
+          const double vols[] = { tv, query.vdw_vols()[j] };
+          const int r_min = static_cast<int>(qr < tr);
+          overlap = vols[r_min];
         }
 
         if (query.atom_types()[j] != tt)

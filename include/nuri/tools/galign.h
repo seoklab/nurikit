@@ -128,13 +128,18 @@ struct GAMinimizeArgs {
 
 namespace internal {
   ABSL_ATTRIBUTE_PURE_FUNCTION ABSL_ATTRIBUTE_HOT extern double
-  shape_overlap_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
-                     const ArrayXXd &dists, double scale);
+  shape_overlap(const GARigidMolInfo &query, const GARigidMolInfo &templ,
+                const ArrayXXd &dists, double scale);
 
-  inline double align_score_impl(const GARigidMolInfo &query,
-                                 const GARigidMolInfo &templ,
-                                 const ArrayXXd &dists, double scale) {
-    return shape_overlap_impl(query, templ, dists, scale) / templ.overlap();
+  ABSL_ATTRIBUTE_PURE_FUNCTION ABSL_ATTRIBUTE_HOT extern double
+  shape_overlap(const GARigidMolInfo &query, const Matrix3Xd &qconf,
+                const GARigidMolInfo &templ, const Matrix3Xd &tconf,
+                double scale);
+
+  inline double align_score(const GARigidMolInfo &query, const Matrix3Xd &qconf,
+                            const GARigidMolInfo &templ, const Matrix3Xd &tconf,
+                            double scale) {
+    return shape_overlap(query, qconf, templ, tconf, scale) / templ.overlap();
   }
 
   std::vector<AlignResult>
