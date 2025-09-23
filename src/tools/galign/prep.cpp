@@ -179,6 +179,9 @@ namespace internal {
   }
 
   Matrix3Xd &GARotationInfo::rotate(Matrix3Xd &pts, const double angle) const {
+    if (std::abs(angle) < 1e-6)
+      return pts;
+
     Vector3d trs = pts.col(origin_);
     Isometry3d xform =
         Translation3d(trs)
