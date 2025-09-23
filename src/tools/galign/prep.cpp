@@ -240,6 +240,6 @@ GARigidMolInfo::GARigidMolInfo(const Molecule &mol, const Matrix3Xd &ref,
   }
   internal::safe_colwise_normalize(neighbor_vec_);
 
-  overlap_ = internal::shape_overlap_impl(*this, *this, dists_, hetero_scale);
+  overlap_ = internal::shape_overlap(*this, *this, dists_, hetero_scale);
 }
 }  // namespace nuri

@@ -9,7 +9,6 @@
 #include <utility>
 #include <vector>
 
-#include <absl/algorithm/container.h>
 #include <absl/log/absl_check.h>
 #include <Eigen/Dense>
 
@@ -39,7 +38,6 @@ namespace internal {
 
     struct Buffers {
       ArrayXXd simplexf;
-      ArrayXXd cd;
       ArrayXd cutoffs;
     };
 
@@ -72,23 +70,22 @@ namespace internal {
         Vector3d v = pts.col(i);
         for (int j = 0; j < i; ++j) {
           double d = (v - pts.col(j)).squaredNorm();
-          penalty += value_if(d < 5.0, 1.0) + value_if(d < 4.0, 9.0);
+          if (d < 5.0)
+            penalty += 1.0 + value_if(d < 4.0, 9.0);
         }
       }
 
       return penalty / n;
     }
 
-    double flex_score(const Matrix3Xd &conf, const Invariants &inv,
-                      Buffers &buf) {
-      cdist(buf.cd, conf, inv.templ_centered);
-      double align_score =
-          align_score_impl(*inv.query, *inv.templ, buf.cd, inv.hetero_scale);
+    double flex_score(const Matrix3Xd &conf, const Invariants &inv) {
+      double aln_score = align_score(*inv.query, conf, *inv.templ,
+                                     inv.templ_centered, inv.hetero_scale);
 
       double clash = self_clash(conf);
       double clash_penalty = nonnegative(clash - inv.base_clash);
 
-      return align_score - clash_penalty;
+      return aln_score - clash_penalty;
     }
 
     Vector3d rotation_vector(const Quaterniond &q) {
@@ -171,8 +168,8 @@ namespace internal {
 
     class Mutator {
     public:
-      Mutator(GeneticConf &gconf, const Invariants &inv, Buffers &buf)
-          : gconf_(&gconf), inv_(&inv), buf_(&buf) { }
+      Mutator(GeneticConf &gconf, const Invariants &inv)
+          : gconf_(&gconf), inv_(&inv) { }
 
       ~Mutator() noexcept { finalize(); }
 
@@ -230,7 +227,7 @@ namespace internal {
           gconf_->rigid_.translation() += delta_.translation();
         }
 
-        gconf_->score_ = flex_score(conf(), *inv_, *buf_);
+        gconf_->score_ = flex_score(conf(), *inv_);
       }
 
     private:
@@ -254,7 +251,6 @@ namespace internal {
       Nonnull<GeneticConf *> gconf_;
 
       Nonnull<const Invariants *> inv_;
-      Nonnull<Buffers *> buf_;
 
       Isometry3d delta_ = Isometry3d::Identity();
 
@@ -274,8 +270,7 @@ namespace internal {
       return total;
     }
 
-    void fill_initial(std::vector<GeneticConf> &pool, const Invariants &inv,
-                      Buffers &buf) {
+    void fill_initial(std::vector<GeneticConf> &pool, const Invariants &inv) {
       const int pool_size = inv.sampling->pool_size;
 
       if (pool.size() >= pool_size)
@@ -289,7 +284,7 @@ namespace internal {
 
         GeneticConf &newconf = pool.emplace_back(sel);
         {
-          Mutator mut(newconf, inv, buf);
+          Mutator mut(newconf, inv);
           mut.random(*inv.sampling);
         }
 
@@ -330,7 +325,7 @@ namespace internal {
         for (int i = 0; i < gconf.torsion().size(); ++i)
           inv.query->rot_info()[i].rotate(gconf.conf(), x[i + 6]);
 
-        return -flex_score(gconf.conf(), inv, buf);
+        return -flex_score(gconf.conf(), inv);
       };
 
       auto [_, idx] = nm.minimize(eval_func, inv.minimize->max_iters,
@@ -360,7 +355,7 @@ namespace internal {
 
         GeneticConf &newconf = pool_sample[i] = seed;
 
-        Mutator mut(newconf, inv, buf);
+        Mutator mut(newconf, inv);
         mut.crossover(other);
         for (int j = 0; j < inv.sampling->mut_cnt; ++j)
           if (draw_urd(0.0, 1.0) <= inv.sampling->mut_prob)
@@ -385,7 +380,6 @@ namespace internal {
 
     Buffers buf {
       ArrayXXd(ndimp1, ndimp1),
-      ArrayXXd(query.n(), templ.n()),
       ArrayXd(sampling.pool_size * 2),
     };
 
@@ -409,7 +403,7 @@ namespace internal {
     for (AlignResult &r: rigid_result)
       pool.push_back(GeneticConf(query, templ.cntr(), std::move(r)));
 
-    fill_initial(pool, inv, buf);
+    fill_initial(pool, inv);
 
     for (GeneticConf &conf: pool)
       minimize_one_conf(conf, nm, simplex, inv, buf);
@@ -450,11 +444,10 @@ namespace internal {
     for (int i = 0; i < max_conf; ++i) {
       GeneticConf &conf = pool[topk[i]];
 
-      cdist(buf.cd, conf.conf(), inv.templ_centered);
-      double align_score =
-          align_score_impl(query, templ, buf.cd, inv.hetero_scale);
+      double aln_score = align_score(query, conf.conf(), templ,
+                                     inv.templ_centered, inv.hetero_scale);
       flex_result.push_back(
-          { std::move(conf.conf()), conf.rigid(), align_score });
+          { std::move(conf.conf()), conf.rigid(), aln_score });
 
       AlignResult &result = flex_result.back();
       result.conf.colwise() += templ.cntr();
