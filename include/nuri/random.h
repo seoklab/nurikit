@@ -6,9 +6,10 @@
 #ifndef NURI_RANDOM_H_
 #define NURI_RANDOM_H_
 
+#include <algorithm>
+#include <iterator>
 #include <random>
 
-#include <absl/algorithm/container.h>
 
 namespace nuri {
 namespace internal {
@@ -40,8 +41,8 @@ namespace internal {
     RT max = cutoffs[cutoffs.size() - 1];
     RT p = draw_urd<RT>(base, max);
 
-    auto it = absl::c_lower_bound(cutoffs, p);
-    return it - cutoffs.begin();
+    auto it = std::lower_bound(std::begin(cutoffs), std::end(cutoffs) - 1, p);
+    return it - std::begin(cutoffs);
   }
 
   extern int set_thread_seed(int seed);
