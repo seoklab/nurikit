@@ -295,8 +295,6 @@ namespace internal {
     void minimize_one_conf(GeneticConf &gconf, NelderMead &nm,
                            MutRef<ArrayXXd> simplex, const Invariants &inv,
                            Buffers &buf) {
-      nm.reset();
-
       Quaterniond q0(gconf.rigid().linear());
 
       simplex.col(0).head<3>() = gconf.rigid().translation();
