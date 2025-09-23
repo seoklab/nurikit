@@ -39,20 +39,20 @@ namespace {
 }  // namespace
 
 void NelderMead::partiton_min1_max2() {
-  c_ = data_.row(n());
+  auto fs = data_.row(n());
 
   if (n() == 1) {
-    if (c_[0] > c_[1])
+    if (fs[0] > fs[1])
       data_.col(0).swap(data_.col(1));
     return;
   }
 
-  Array3d vals = c_.tail<3>();
+  Array3d vals = fs.tail<3>();
   Array3i idxs = { argmax() - 2, argmax() - 1, argmax() };
   indirect_argsort3(vals, idxs);
 
   for (int i = argmax() - 3; i >= 0; --i) {
-    double v = c_[i];
+    double v = fs[i];
     if (v > vals[2]) {
       vals[1] = vals[2];
       idxs[1] = idxs[2];
