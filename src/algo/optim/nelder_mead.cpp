@@ -28,7 +28,9 @@ void NelderMead::reset() noexcept {
 }
 
 void NelderMead::argpartiton_min1_max2() {
-  auto fx_cmp = [this](int i, int j) { return data_(n(), i) < data_(n(), j); };
+  c_ = data_.row(n());
+
+  auto fx_cmp = [this](int i, int j) { return c_[i] < c_[j]; };
 
   std::nth_element(idxs_.begin(), idxs_.end() - 2, idxs_.end(), fx_cmp);
 
