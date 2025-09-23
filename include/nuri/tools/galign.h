@@ -148,10 +148,12 @@ namespace internal {
                        const GAMinimizeArgs &minimize = {});
 }  // namespace internal
 
-extern std::vector<AlignResult>
-galign(const Molecule &mol, const Matrix3Xd &seed, const GARigidMolInfo &templ,
-       bool flexible, int max_conf = 1, const GASamplingArgs &sampling = {},
-       const GAMinimizeArgs &minimize = {});
+extern std::vector<AlignResult> galign(const Molecule &mol,
+                                       const Matrix3Xd &seed,
+                                       const GARigidMolInfo &templ,
+                                       bool flexible = true, int max_conf = 1,
+                                       const GASamplingArgs &sampling = {},
+                                       const GAMinimizeArgs &minimize = {});
 }  // namespace nuri
 
 #endif /* NURI_TOOLS_GALIGN_H_ */
