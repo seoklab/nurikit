@@ -179,9 +179,10 @@ constexpr double rad2deg(DT rad) {
   return rad * 180 / constants::kPi;
 }
 
-template <class MatrixLike>
-void pdistsq(MutRef<ArrayX<typename MatrixLike::Scalar>> distsq,
-             const MatrixLike &m) {
+// NOLINTBEGIN(*-missing-std-forward)
+
+template <class MatrixLike, class ArrayLike>
+void pdistsq(ArrayLike &&distsq, const MatrixLike &m) {
   using DT = typename MatrixLike::Scalar;
   constexpr Eigen::Index rows = MatrixLike::RowsAtCompileTime;
 
@@ -207,9 +208,8 @@ auto pdistsq(const MatrixLike &m) {
   return distsq;
 }
 
-template <class MatrixLike>
-void pdist(MutRef<ArrayX<typename MatrixLike::Scalar>> dist,
-           const MatrixLike &m) {
+template <class MatrixLike, class ArrayLike>
+void pdist(ArrayLike &&dist, const MatrixLike &m) {
   pdistsq(dist, m);
   dist = dist.sqrt();
 }
@@ -221,9 +221,8 @@ auto pdist(const MatrixLike &m) {
   return ret;
 }
 
-template <class ArrayLike>
-void to_square_form(MutRef<MatrixX<typename ArrayLike::Scalar>> dists,
-                    const ArrayLike &pdists, Eigen::Index n) {
+template <class AL, class DAL>
+void to_square_form(DAL &&dists, const AL &pdists, Eigen::Index n) {
   ABSL_DCHECK(dists.rows() == n);
   ABSL_DCHECK(dists.cols() == n);
 
@@ -242,14 +241,12 @@ auto to_square_form(const ArrayLike &pdists, Eigen::Index n) {
   return dists;
 }
 
-template <class ML1, class ML2,
-          std::enable_if_t<
-              std::is_same_v<typename ML1::Scalar, typename ML2::Scalar>
-                  && internal::extract_if_enum_v(ML1::RowsAtCompileTime)
+template <
+    class ML1, class ML2, class DML,
+    std::enable_if_t<internal::extract_if_enum_v(ML1::RowsAtCompileTime)
                          == internal::extract_if_enum_v(ML2::RowsAtCompileTime),
-              int> = 0>
-void cdistsq(MutRef<MatrixX<typename ML1::Scalar>> distsq, const ML1 &a,
-             const ML2 &b) {
+                     int> = 0>
+void cdistsq(DML &&distsq, const ML1 &a, const ML2 &b) {
   ABSL_DCHECK(distsq.rows() == a.cols());
   ABSL_DCHECK(distsq.cols() == b.cols());
 
@@ -266,9 +263,8 @@ auto cdistsq(const ML1 &a, const ML2 &b) {
   return distsq;
 }
 
-template <class ML1, class ML2>
-void cdist(MutRef<MatrixX<typename ML1::Scalar>> dist, const ML1 &a,
-           const ML2 &b) {
+template <class ML1, class ML2, class DML>
+void cdist(DML &&dist, const ML1 &a, const ML2 &b) {
   cdistsq(dist, a, b);
   dist = dist.cwiseSqrt();
 }
@@ -291,7 +287,6 @@ namespace internal {
   }
 
   template <class VectorLike>
-  // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
   inline void safe_normalize(VectorLike &&m, double eps = 1e-12) {
     m.array() *= safe_normalizer(m.squaredNorm(), eps);
   }
@@ -309,7 +304,6 @@ namespace internal {
   }
 
   template <class MatrixLike>
-  // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
   inline void safe_colwise_normalize(MatrixLike &&m, double eps = 1e-12) {
     using ArrayLike = decltype(m.colwise().squaredNorm().array());
     constexpr auto max_cols = ArrayLike::MaxColsAtCompileTime;
@@ -343,6 +337,8 @@ namespace internal {
     return ret;
   }
 }  // namespace internal
+
+// NOLINTEND(*-missing-std-forward)
 
 /**
  * @brief Calculate the cosine of the angle between two vectors.
