@@ -419,7 +419,8 @@ namespace {
         }
       }
 
-      bounds.ub_head(root) = bounds.ub_head(root).min(u_r.head(root));
+      // libeigen/eigen#2990
+      bounds.ub_head(root) = u_r.head(root).min(bounds.ub_head(root));
     }
 
     // j < k < i
