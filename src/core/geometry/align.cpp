@@ -106,7 +106,7 @@ namespace {
                               const double det, const bool reflection) {
     double sd = (query.colwise() - qm).cwiseAbs2().sum()
                 + (templ.colwise() - tm).cwiseAbs2().sum();
-    e = e.max(0).sqrt();
+    e = e.max(0.0).sqrt();
 
     double d;
     if (reflection) {
