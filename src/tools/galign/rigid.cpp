@@ -61,7 +61,8 @@ namespace internal {
     }
 
     void maybe_replace_candidate(std::vector<GAlignResult> &results,
-                                 GAlignResult &candidate, const double min_msd) {
+                                 GAlignResult &candidate,
+                                 const double min_msd) {
       if (candidate.align_score * 2 < results.front().align_score)
         return;
 
@@ -109,11 +110,10 @@ namespace internal {
       maybe_replace_candidate(results, candidate, min_msd);
     }
 
-    std::vector<GAlignResult> align_triad(const GARigidMolInfo &query,
-                                         const GARigidMolInfo &templ,
-                                         const AtomMatching &mapping,
-                                         const int max_conf, const double scale,
-                                         const double min_msd) {
+    std::vector<GAlignResult>
+    align_triad(const GARigidMolInfo &query, const GARigidMolInfo &templ,
+                const AtomMatching &mapping, const int max_conf,
+                const double scale, const double min_msd) {
       std::vector<GAlignResult> results(max_conf, { query.ref() });
       GAlignResult candidate { query.ref() };
 
@@ -156,10 +156,10 @@ namespace internal {
   }  // namespace
 
   std::vector<GAlignResult> rigid_galign_impl(const GARigidMolInfo &query,
-                                             const GARigidMolInfo &templ,
-                                             const int max_conf,
-                                             const double scale,
-                                             const double min_msd) {
+                                              const GARigidMolInfo &templ,
+                                              const int max_conf,
+                                              const double scale,
+                                              const double min_msd) {
     AtomMatching match = find_best_match(query, templ, scale);
     return align_triad(query, templ, match, max_conf, scale, min_msd);
   }

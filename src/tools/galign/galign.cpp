@@ -12,10 +12,10 @@
 
 namespace nuri {
 std::vector<GAlignResult> galign(const Molecule &mol, const Matrix3Xd &seed,
-                                const GARigidMolInfo &templ,
-                                const bool flexible, const int max_conf,
-                                const GASamplingArgs &sampling,
-                                const GAMinimizeArgs &minimize) {
+                                 const GARigidMolInfo &templ,
+                                 const bool flexible, const int max_conf,
+                                 const GASamplingArgs &sampling,
+                                 const GAMinimizeArgs &minimize) {
   GARigidMolInfo query(mol, seed, templ.vdw_scale(), templ.hetero_scale(),
                        templ.dcut());
 
