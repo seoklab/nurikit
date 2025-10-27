@@ -323,7 +323,8 @@ namespace internal {
         for (int i = 0; i < gconf.torsion().size(); ++i)
           inv.query->rot_info()[i].rotate(gconf.conf(), x[i + 6]);
 
-        return -flex_score(gconf.conf(), inv);
+        double score = flex_score(gconf.conf(), inv);
+        return -score;
       };
 
       auto [_, idx] = nm.minimize(eval_func, inv.minimize->max_iters,
