@@ -34,11 +34,11 @@ jobs:
           # macOS -> universal binary at least from 3.19.7
           cmakeVersion: ${{ contains(inputs.python, 'linux') && '~3.22.0' || '3.19.7' }}
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v6
         with:
           name: sdist
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v6
         with:
           name: libnuri-${{ contains(inputs.python, 'linux') && 'linux' || 'macosx' }}
           path: dist
@@ -74,7 +74,7 @@ jobs:
           SKBUILD_CMAKE_ARGS: "-DCMAKE_INSTALL_RPATH=${{ steps.resolve.outputs.ldpath }};-DNURI_BUILD_LIB=OFF;-DNURI_PREBUILT_ABSL=ON"
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: cibw-wheels-${{ inputs.python }}
           path: wheelhouse/*.whl
