@@ -133,7 +133,7 @@ TMAlign tmalign_init_aln(py::handle query, py::handle templ, py::handle aln) {
 }
 
 pyt::Tuple<py::array_t<double>, double>
-tmalign_convert_result(const std::pair<Affine3d, double> &result) {
+tmalign_convert_result(const std::pair<Isometry3d, double> &result) {
   if (result.second < 0)
     throw py::value_error("TM-align failed to calculate TM-score");
 

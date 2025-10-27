@@ -1036,8 +1036,8 @@ public:
 
   auto n() const { return data_.cols() - 1; }
 
-  auto argmin() const { return idxs_[0]; }
-  auto argmax() const { return idxs_[n()]; }
+  constexpr static int argmin() { return 0; }
+  int argmax() const { return static_cast<int>(n()); }
 
   auto min() const { return data_.col(argmin()); }
   double minf() const { return min()[n()]; }
@@ -1046,7 +1046,7 @@ public:
   auto max() const { return data_.col(argmax()); }
   double maxf() const { return max()[n()]; }
 
-  double max2f() const { return data_(n(), idxs_[n() - 1]); }
+  double max2f() const { return data_(n(), n() - 1); }
 
   /**
    * @brief Minimize a function using Nelder-Mead simplex algorithm.
@@ -1084,7 +1084,7 @@ public:
       eval_update(data_.col(i));
 
     for (int iter = 0; iter < maxiter; ++iter) {
-      argpartiton_min1_max2();
+      partiton_min1_max2();
       if (maxf() - minf() < ftol)
         return { OptimResultCode::kSuccess, argmin() };
 
@@ -1120,7 +1120,7 @@ public:
       }
 
       shrink(sigma);
-      for (int i: idxs_.tail(N))
+      for (int i = 1; i < data_.cols(); ++i)
         eval_update(data_.col(i));
     }
 
@@ -1128,7 +1128,7 @@ public:
   }
 
 private:
-  void argpartiton_min1_max2();
+  void partiton_min1_max2();
 
   void centroid();
 
@@ -1144,8 +1144,6 @@ private:
   MutRef<ArrayXXd> data_;
   /* (N + 1) */
   ArrayXd c_, r_, ets_;
-  /* (N + 1) */
-  ArrayXi idxs_;
 };
 
 namespace internal {

@@ -44,7 +44,7 @@ Documentation = "https://nurikit.readthedocs.io/"
 Repository = "https://github.com/seoklab/nurikit.git"
 
 [project.optional-dependencies]
-test = ["pytest", "pytest-xdist"]
+test = ["pytest", "pytest-xdist", "scipy"]
 docs = [
     "sphinx<8.2",
     "sphinxcontrib-bibtex",

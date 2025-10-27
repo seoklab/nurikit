@@ -33,7 +33,7 @@ double align_rmsd(Impl impl, std::string_view method,
 }
 
 template <class Impl>
-std::pair<Affine3d, double>
+std::pair<Isometry3d, double>
 align_both(Impl impl, std::string_view method, const PyMatrixMap<3> &query,
            const PyMatrixMap<3> &templ, bool reflection) {
   // cols < 2 already handled in implementations
@@ -41,7 +41,7 @@ align_both(Impl impl, std::string_view method, const PyMatrixMap<3> &query,
     throw std::runtime_error(absl::StrCat("Alignment method '", method,
                                           "' requires at least 3 points"));
 
-  std::pair<Affine3d, double> result =
+  std::pair<Isometry3d, double> result =
       impl(query, templ, AlignMode::kBoth, reflection);
   if (result.second < 0) {
     throw std::runtime_error(
@@ -82,7 +82,7 @@ NURI_PYTHON_MODULE(m) {
         auto q_arr = py_array_cast<3>(q_py), t_arr = py_array_cast<3>(t_py);
         auto [query, templ] = check_convert_points(q_arr, t_arr);
 
-        std::pair<Affine3d, double> result;
+        std::pair<Isometry3d, double> result;
         if (method == "qcp") {
           result = align_both(default_qcp, method, query, templ, reflection);
         } else if (method == "kabsch") {
@@ -180,7 +180,7 @@ Calculate the RMSD of the best-fit rigid-body alignment of ``query`` to
         // unlike most operations that simply transposing the matrix gives the
         // correct column-major matrix, the transformation matrix should not
         // be transposed.
-        Affine3d xform;
+        Isometry3d xform;
         xform.matrix() = mat_t.transpose();
 
         auto pts_arr = py_array_cast<3>(py_pts);
