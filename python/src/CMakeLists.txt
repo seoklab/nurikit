@@ -59,6 +59,10 @@ nuri_python_add_module(tm OUTPUT_DIRECTORY "tools"
   nuri/tools/tm_module.cpp
 )
 
+nuri_python_add_module(galign OUTPUT_DIRECTORY "tools"
+  nuri/tools/galign_module.cpp
+)
+
 configure_file(
   "${CMAKE_CURRENT_LIST_DIR}/nuri/_version.py.in"
   "${CMAKE_CURRENT_LIST_DIR}/nuri/_version.py"
