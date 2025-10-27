@@ -38,3 +38,20 @@ TM-tools
 
       .. automethod:: __init__
       .. automethod:: from_alignment
+
+------
+GAlign
+------
+
+.. currentmodule:: nuri.tools.galign
+
+.. automodule:: nuri.tools.galign
+   :exclude-members: GAlign
+
+   This module provides a Python interface to the GAlign flexible molecular
+   alignment algorithm. The paper describing the GAlign algorithm is under
+   preparation and will be cited here once available.
+
+   .. autoclass:: GAlign
+
+      .. automethod:: __init__
