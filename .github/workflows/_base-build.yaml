@@ -66,7 +66,7 @@ jobs:
               sed -n -E 's/^version:[[:space:]]*([^[:space:]]+)/\1/Ip'
           )" >>"$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: sdist
           path: dist/*
@@ -105,7 +105,7 @@ jobs:
 
       - run: .github/scripts/setup-deps.sh
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v6
         with:
           name: sdist
           path: dist
@@ -126,7 +126,7 @@ jobs:
       - if: ${{ matrix.os == 'macosx' }}
         run: .github/scripts/build-lib.sh ${{ matrix.os }}_${{ matrix.arch }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: libnuri-${{ matrix.os }}
           path: libnuri-*.tar.gz

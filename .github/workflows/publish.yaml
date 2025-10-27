@@ -60,13 +60,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v6
         with:
           name: sdist
           path: dist
           merge-multiple: true
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v6
         with:
           pattern: cibw-wheels-*
           path: dist
@@ -92,7 +92,7 @@ jobs:
         env:
           GITHUB_REF: ${{ github.ref }}
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v6
         with:
           pattern: libnuri-*
           path: dist
