@@ -11,6 +11,7 @@
 #include <Eigen/Dense>
 #include <pybind11/cast.h>
 #include <pybind11/eigen.h>
+#include <pybind11/gil.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/typing.h>
@@ -131,6 +132,7 @@ galign_align(const GARigidMolInfo &self, const PyMol &query, bool flexible,
                mut_cnt, mut_prob },
              margs);
 
+  py::gil_scoped_acquire lock;
   pyt::List<GAlignResult> py_results(results.size());
   for (int i = 0; i < results.size(); ++i)
     py_results[i] = std::move(results[i]);
@@ -174,7 +176,8 @@ Prepare GAlign algorithm with the given template structure.
 :raises ValueError: If the template structure has less than 3 atoms or no 3D
   conformation, or if invalid parameters are provided (e.g., negative dcut).
 :raises IndexError: If the provided conformation index is out of range.
-)doc")
+)doc",
+           kThreadSafe)
       .def("align", galign_align, py::arg("query"), py::arg("flexible") = true,
            py::arg("max_confs") = 1,
            py::kw_only(),  //
@@ -232,7 +235,8 @@ Align the given query molecule to the template structure.
 :raises ValueError: If the query molecule has no 3D conformation, or if
   invalid parameters are provided (e.g., negative max_translation).
 :raises IndexError: If the provided conformation index is out of range.
-)doc");
+)doc",
+           kThreadSafe);
 
   m.def(
       "galign",
@@ -313,7 +317,8 @@ Align the given query molecule to the template structure.
 :raises ValueError: If the query or template molecule is invalid, or if
   any of the parameters are invalid (e.g., negative max_translation).
 :raises IndexError: If the provided conformation index is out of range.
-)doc");
+)doc",
+      kThreadSafe);
 }
 }  // namespace
 }  // namespace python_internal
