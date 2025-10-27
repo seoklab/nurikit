@@ -5,6 +5,11 @@
 
 #include "nuri/tools/galign.h"
 
+#include <vector>
+
+#include "nuri/eigen_config.h"
+#include "nuri/core/molecule.h"
+
 namespace nuri {
 std::vector<AlignResult> galign(const Molecule &mol, const Matrix3Xd &seed,
                                 const GARigidMolInfo &templ,

@@ -10,7 +10,6 @@
 #include <iterator>
 #include <random>
 
-
 namespace nuri {
 namespace internal {
   // NOLINTNEXTLINE(*-global-variables)

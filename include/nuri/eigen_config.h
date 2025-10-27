@@ -184,11 +184,11 @@ private:
 template <class ML1, class ML2, class TransformLike>
 // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
 void inplace_transform(ML1 &&m_out, const TransformLike &xform, const ML2 &m) {
-  const int ri = m.rows(), ci = m.cols();
-  const int ro = m_out.rows(), co = m_out.cols();
+  const Eigen::Index ri = m.rows(), ci = m.cols();
+  const Eigen::Index ro = m_out.rows(), co = m_out.cols();
   ABSL_ASSUME(ri == ro && ci == co);
 
-  for (int i = 0; i < m.cols(); ++i)
+  for (Eigen::Index i = 0; i < m.cols(); ++i)
     m_out.col(i) = xform * m.col(i);
 }
 

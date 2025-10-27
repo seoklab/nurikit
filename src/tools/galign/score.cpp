@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <cmath>
+
 #include <absl/base/optimization.h>
 
 #include "nuri/eigen_config.h"

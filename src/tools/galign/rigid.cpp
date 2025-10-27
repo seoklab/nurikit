@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <cmath>
 #include <utility>
 #include <vector>
 
 #include <absl/algorithm/container.h>
-#include <absl/log/absl_check.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/geometry.h"
