@@ -11,7 +11,7 @@
 #include "nuri/core/molecule.h"
 
 namespace nuri {
-std::vector<AlignResult> galign(const Molecule &mol, const Matrix3Xd &seed,
+std::vector<GAlignResult> galign(const Molecule &mol, const Matrix3Xd &seed,
                                 const GARigidMolInfo &templ,
                                 const bool flexible, const int max_conf,
                                 const GASamplingArgs &sampling,

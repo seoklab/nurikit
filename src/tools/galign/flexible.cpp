@@ -116,7 +116,7 @@ namespace internal {
                 static_cast<Eigen::Index>(query.rot_info().size()))) { }
 
       GeneticConf(const GARigidMolInfo &query, const Vector3d &templ_cntr,
-                  AlignResult &&rigid)
+                  GAlignResult &&rigid)
           : conf_(std::move(rigid.conf)), rigid_(std::move(rigid.xform)),
             torsion_(ArrayXd::Zero(
                 static_cast<Eigen::Index>(query.rot_info().size()))),
@@ -364,7 +364,7 @@ namespace internal {
     }
   }  // namespace
 
-  std::vector<AlignResult>
+  std::vector<GAlignResult>
   flexible_galign_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
                        int max_conf, double scale,
                        const GASamplingArgs &sampling,
@@ -400,7 +400,7 @@ namespace internal {
     std::vector<GeneticConf> pool;
     pool.reserve(sampling.pool_size + sampling.sample_size);
 
-    for (AlignResult &r: rigid_result)
+    for (GAlignResult &r: rigid_result)
       pool.push_back(GeneticConf(query, templ.cntr(), std::move(r)));
 
     fill_initial(pool, inv);
@@ -439,7 +439,7 @@ namespace internal {
 
     auto topk = argpartition(pool, max_conf, std::greater<>());
 
-    std::vector<AlignResult> flex_result;
+    std::vector<GAlignResult> flex_result;
     flex_result.reserve(max_conf);
     for (int i = 0; i < max_conf; ++i) {
       GeneticConf &conf = pool[topk[i]];
@@ -449,7 +449,7 @@ namespace internal {
       flex_result.push_back(
           { std::move(conf.conf()), conf.rigid(), aln_score });
 
-      AlignResult &result = flex_result.back();
+      GAlignResult &result = flex_result.back();
       result.conf.colwise() += templ.cntr();
       result.xform.translation() +=
           templ.cntr() - result.xform.linear() * query.cntr();

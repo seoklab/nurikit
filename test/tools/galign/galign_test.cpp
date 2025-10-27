@@ -76,7 +76,7 @@ TEST(GAlign, Rigid) {
   std::vector results = galign(query, qconf, tinfo, false);
   ASSERT_EQ(results.size(), 1);
 
-  const AlignResult &result = results[0];
+  const GAlignResult &result = results[0];
   NURI_EXPECT_EIGEN_EQ_TOL(random.matrix(), result.xform.matrix(), 1e-6);
   EXPECT_GE(result.align_score, 0.95);
 }
@@ -149,7 +149,7 @@ TEST(GAlign, Flexible) {
       galign(query, qconf, tinfo, true, 1, sampling, minimize);
   ASSERT_EQ(results.size(), 1);
 
-  const AlignResult &result = results[0];
+  const GAlignResult &result = results[0];
   NURI_EXPECT_EIGEN_EQ_TOL(random.matrix(), result.xform.matrix(), 1e-6);
   EXPECT_GE(result.align_score, 0.95);
 }

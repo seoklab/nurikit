@@ -60,8 +60,8 @@ namespace internal {
       return { std::move(match), left_mapped };
     }
 
-    void maybe_replace_candidate(std::vector<AlignResult> &results,
-                                 AlignResult &candidate, const double min_msd) {
+    void maybe_replace_candidate(std::vector<GAlignResult> &results,
+                                 GAlignResult &candidate, const double min_msd) {
       if (candidate.align_score * 2 < results.front().align_score)
         return;
 
@@ -79,8 +79,8 @@ namespace internal {
     }
 
     template <bool kOnlySimilar>
-    void align_add_candidate(std::vector<AlignResult> &results,
-                             AlignResult &candidate,
+    void align_add_candidate(std::vector<GAlignResult> &results,
+                             GAlignResult &candidate,
                              const std::pair<Array3i, Array3i> &coms,
                              const GARigidMolInfo &query,
                              const GARigidMolInfo &templ, const double scale,
@@ -109,13 +109,13 @@ namespace internal {
       maybe_replace_candidate(results, candidate, min_msd);
     }
 
-    std::vector<AlignResult> align_triad(const GARigidMolInfo &query,
+    std::vector<GAlignResult> align_triad(const GARigidMolInfo &query,
                                          const GARigidMolInfo &templ,
                                          const AtomMatching &mapping,
                                          const int max_conf, const double scale,
                                          const double min_msd) {
-      std::vector<AlignResult> results(max_conf, { query.ref() });
-      AlignResult candidate { query.ref() };
+      std::vector<GAlignResult> results(max_conf, { query.ref() });
+      GAlignResult candidate { query.ref() };
 
       auto do_align = [&](auto align_eval) -> void {
         int row = 0;
@@ -139,14 +139,14 @@ namespace internal {
 
       do_align(align_add_candidate<true>);
 
-      if (absl::c_all_of(results, [](const AlignResult &r) {
+      if (absl::c_all_of(results, [](const GAlignResult &r) {
             return r.align_score < 0;
           })) {
         do_align(align_add_candidate<false>);
       }
 
       results.erase(absl::c_find_if(results,
-                                    [](const AlignResult &r) {
+                                    [](const GAlignResult &r) {
                                       return r.align_score < 0;
                                     }),
                     results.end());
@@ -155,7 +155,7 @@ namespace internal {
     }
   }  // namespace
 
-  std::vector<AlignResult> rigid_galign_impl(const GARigidMolInfo &query,
+  std::vector<GAlignResult> rigid_galign_impl(const GARigidMolInfo &query,
                                              const GARigidMolInfo &templ,
                                              const int max_conf,
                                              const double scale,

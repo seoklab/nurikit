@@ -93,7 +93,7 @@ private:
   double overlap_;
 };
 
-struct AlignResult {
+struct GAlignResult {
   Matrix3Xd conf;
   Isometry3d xform = Isometry3d::Identity();
   double align_score = -1.0;
@@ -142,23 +142,23 @@ namespace internal {
     return shape_overlap(query, qconf, templ, tconf, scale) / templ.overlap();
   }
 
-  std::vector<AlignResult>
+  std::vector<GAlignResult>
   rigid_galign_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
                     int max_conf = 1, double scale = 0.7, double min_msd = 9.0);
 
-  std::vector<AlignResult>
+  std::vector<GAlignResult>
   flexible_galign_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
                        int max_conf = 1, double scale = 0.7,
                        const GASamplingArgs &sampling = {},
                        const GAMinimizeArgs &minimize = {});
 }  // namespace internal
 
-extern std::vector<AlignResult> galign(const Molecule &mol,
-                                       const Matrix3Xd &seed,
-                                       const GARigidMolInfo &templ,
-                                       bool flexible = true, int max_conf = 1,
-                                       const GASamplingArgs &sampling = {},
-                                       const GAMinimizeArgs &minimize = {});
+extern std::vector<GAlignResult> galign(const Molecule &mol,
+                                        const Matrix3Xd &seed,
+                                        const GARigidMolInfo &templ,
+                                        bool flexible = true, int max_conf = 1,
+                                        const GASamplingArgs &sampling = {},
+                                        const GAMinimizeArgs &minimize = {});
 }  // namespace nuri
 
 #endif /* NURI_TOOLS_GALIGN_H_ */
