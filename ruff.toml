@@ -46,6 +46,7 @@ dummy-variable-rgx = "^_$"
 
 [lint.isort]
 no-lines-before = ["local-folder"]
+known-first-party = ["nuri.*"]
 
 [lint.flake8-pytest-style]
 fixture-parentheses = true
