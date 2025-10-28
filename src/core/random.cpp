@@ -5,13 +5,23 @@
 
 #include "nuri/random.h"
 
+#include <random>
+
 namespace nuri {
 namespace internal {
-  int set_thread_seed(int seed) {
-    if (seed <= 0)
-      seed = static_cast<int>(std::random_device()());
-    rng.seed(seed);
-    return seed;
+  namespace {
+    std::seed_seq make_seed_seq(int seed) {
+      if (seed > 0)
+        return std::seed_seq({ seed });
+
+      std::random_device rd;
+      return std::seed_seq({ rd(), rd(), rd(), rd(), rd(), rd(), rd(), rd() });
+    }
+  }  // namespace
+
+  void set_thread_seed(int seed) {
+    std::seed_seq seq = make_seed_seq(seed);
+    rng.seed(seq);
   }
 }  // namespace internal
 }  // namespace nuri

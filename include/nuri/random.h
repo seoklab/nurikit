@@ -44,7 +44,7 @@ namespace internal {
     return it - std::begin(cutoffs);
   }
 
-  extern int set_thread_seed(int seed);
+  extern void set_thread_seed(int seed);
 }  // namespace internal
 }  // namespace nuri
 
