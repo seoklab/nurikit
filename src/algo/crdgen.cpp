@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <cmath>
 #include <ostream>
-#include <random>
 #include <tuple>
 #include <vector>
 
@@ -24,6 +23,7 @@
 #include "nuri/core/element.h"
 #include "nuri/core/geometry.h"
 #include "nuri/core/molecule.h"
+#include "nuri/random.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -39,30 +39,6 @@ namespace {
   constexpr double kVdwRadDownscale = 0.85;
   constexpr double kMaxInterAtomDist = 5.0;
 
-  class RandomSource {
-  public:
-    RandomSource(int seed): seed_(seed) { }
-
-    void ensure_seeded() {
-      if (seeded_)
-        return;
-
-      rng.seed(seed_);
-      seeded_ = true;
-    }
-
-    double uniform_real(double lo, double hi) const {
-      ABSL_DCHECK(seeded_);
-      return std::uniform_real_distribution<double>(lo, hi)(rng);
-    }
-
-  private:
-    inline static thread_local std::mt19937 rng;
-
-    int seed_;
-    bool seeded_ = false;
-  };
-
   class DistanceBounds {
   public:
     DistanceBounds(const int n): bounds_(n, n) {
@@ -71,13 +47,12 @@ namespace {
 
     Array2Xd bsq_inv() const;
 
-    void fill_trial_distances(MatrixXd &dists, RandomSource &rng) {
+    void fill_trial_distances(MatrixXd &dists) {
       if (init_) {
-        fill_trial_distances_impl<true>(dists, rng);
+        fill_trial_distances_impl<true>(dists);
         init_ = false;
       } else {
-        rng.ensure_seeded();
-        fill_trial_distances_impl<false>(dists, rng);
+        fill_trial_distances_impl<false>(dists);
       }
 
       ABSL_DVLOG(1) << "trial distances:\n" << dists;
@@ -154,8 +129,7 @@ namespace {
     // Eq. 43, Distance Geometry: Theory, Algorithms, and Chemical Applications.
     // In Encycl. Comput. Chem., 1998, p. 731.
     template <bool first>
-    void fill_trial_distances_impl(MatrixXd &dists,
-                                   const RandomSource &rng) const {
+    void fill_trial_distances_impl(MatrixXd &dists) const {
       dists.diagonal().setZero();
 
       for (int i = 0; i < n() - 1; ++i) {
@@ -168,7 +142,7 @@ namespace {
           if constexpr (first) {
             dq = (1 + luq) * 0.5;
           } else {
-            dq = rng.uniform_real(luq, 1.0);
+            dq = internal::draw_urd(luq, 1.0);
           }
           dists(i, j) = dists(j, i) = ub(i, j) * std::sqrt(std::sqrt(dq));
         }
@@ -695,8 +669,8 @@ namespace {
   }
 
   template <bool init_random>
-  bool generate_coords_impl(const Molecule &mol, Matrix3Xd &conf, int max_trial,
-                            int seed) {
+  bool generate_coords_impl(const Molecule &mol, Matrix3Xd &conf,
+                            int max_trial) {
     const Eigen::Index n = mol.num_atoms();
 
     DistanceBounds bounds = init_bounds(mol);
@@ -735,19 +709,17 @@ namespace {
       return error_funcgrad<true>(ga, xa, bsq_inv, tetrads, n);
     };
 
-    RandomSource rng(seed);
     bool success = false;
     for (int iter = 0; iter < max_trial; ++iter) {
       if constexpr (init_random) {
-        rng.ensure_seeded();
         for (int j = 0; j < n; ++j) {
           for (int i = 0; i < 4; ++i) {
-            trial(i, j) = rng.uniform_real(static_cast<double>(-3 * n),
-                                           static_cast<double>(3 * n));
+            trial(i, j) = internal::draw_urd(static_cast<double>(-3 * n),
+                                             static_cast<double>(3 * n));
           }
         }
       } else {
-        bounds.fill_trial_distances(dists, rng);
+        bounds.fill_trial_distances(dists);
         dists = dists.cwiseAbs2();
         if (!embed_distances_4d(trial, dists))
           continue;
@@ -778,8 +750,7 @@ namespace {
   }
 }  // namespace
 
-bool generate_coords(const Molecule &mol, Matrix3Xd &conf, int max_trial,
-                     int seed) {
+bool generate_coords(const Molecule &mol, Matrix3Xd &conf, int max_trial) {
   const Eigen::Index n = mol.num_atoms();
 
   if (n != conf.cols()) {
@@ -790,9 +761,9 @@ bool generate_coords(const Molecule &mol, Matrix3Xd &conf, int max_trial,
 
   if (n <= 4) {
     ABSL_LOG(INFO) << "too few atoms; randomly initializing trial coordinates";
-    return generate_coords_impl<true>(mol, conf, max_trial, seed);
+    return generate_coords_impl<true>(mol, conf, max_trial);
   }
 
-  return generate_coords_impl<false>(mol, conf, max_trial, seed);
+  return generate_coords_impl<false>(mol, conf, max_trial);
 }
 }  // namespace nuri
