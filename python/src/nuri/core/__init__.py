@@ -31,6 +31,7 @@ __all__ = [
     "SubstructureCategory",
     "AtomData",
     "BondData",
+    "seed_thread",
 ]
 
 from ._core import *

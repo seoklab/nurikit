@@ -16,6 +16,7 @@ __all__ = [
     "to_sdf",
     "to_pdb",
     "periodic_table",
+    "seed_thread",
     "__version__",
 ]
 
@@ -25,5 +26,5 @@ except ImportError:
     __version__ = __full_version__ = "unknown"
 
 from . import _log_adapter
-from .core import periodic_table
+from .core import periodic_table, seed_thread
 from .fmt import readfile, readstring, to_mol2, to_sdf, to_smiles, to_pdb
