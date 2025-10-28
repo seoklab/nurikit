@@ -9,6 +9,9 @@
 
 namespace nuri {
 namespace internal {
+  // NOLINTNEXTLINE(*-global-variables)
+  thread_local std::mt19937 rng {};
+
   namespace {
     std::seed_seq make_seed_seq(int seed) {
       if (seed >= 0)

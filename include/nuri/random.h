@@ -13,7 +13,7 @@
 namespace nuri {
 namespace internal {
   // NOLINTNEXTLINE(*-global-variables)
-  inline thread_local std::mt19937 rng {};
+  extern thread_local std::mt19937 rng;
 
   template <typename NT>
   NT draw_uid(NT min, NT max) {
