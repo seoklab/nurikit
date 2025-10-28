@@ -32,7 +32,7 @@ namespace internal {
 
   template <typename RT>
   RT draw_urd(RT max) {
-    return std::uniform_real_distribution<RT>(static_cast<RT>(0), max)(rng);
+    return draw_urd(static_cast<RT>(0), max);
   }
 
   template <typename CT, typename RT = typename CT::value_type>
