@@ -59,6 +59,8 @@ Set the seed of random number generator for the current thread.
         return arr.numpy();
       },
       py::arg("obj"), py::arg("kind"));
+
+  internal::seed_thread(-1);
 }
 }  // namespace
 }  // namespace python_internal
