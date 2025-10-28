@@ -36,6 +36,8 @@ Set the seed of random number generator for the current thread.
 :param seed: The seed to set. If not specified, a random seed is chosen.
 )doc");
 
+  m.def("_random_test_helper", [](int max) { return internal::draw_uid(max); });
+
   m.def(
       "_py_array_cast_test_helper",
       [](py::handle obj, std::string_view kind) {
