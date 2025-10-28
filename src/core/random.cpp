@@ -11,7 +11,7 @@ namespace nuri {
 namespace internal {
   namespace {
     std::seed_seq make_seed_seq(int seed) {
-      if (seed > 0)
+      if (seed >= 0)
         return std::seed_seq({ seed });
 
       std::random_device rd;
