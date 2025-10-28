@@ -13,7 +13,7 @@
 namespace nuri {
 namespace internal {
   // NOLINTNEXTLINE(*-global-variables)
-  inline thread_local std::mt19937 rng {};
+  extern thread_local std::mt19937 rng;
 
   template <typename NT>
   NT draw_uid(NT min, NT max) {
@@ -32,7 +32,7 @@ namespace internal {
 
   template <typename RT>
   RT draw_urd(RT max) {
-    return std::uniform_real_distribution<RT>(static_cast<RT>(0), max)(rng);
+    return draw_urd(static_cast<RT>(0), max);
   }
 
   template <typename CT, typename RT = typename CT::value_type>
@@ -44,7 +44,7 @@ namespace internal {
     return it - std::begin(cutoffs);
   }
 
-  extern int set_thread_seed(int seed);
+  extern void seed_thread(int seed);
 }  // namespace internal
 }  // namespace nuri
 

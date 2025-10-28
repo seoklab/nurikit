@@ -3,11 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <cstdint>
+#include <optional>
 #include <string_view>
 
 #include "nuri/python/core/containers.h"
 #include "nuri/python/core/core_module.h"
 #include "nuri/python/utils.h"
+#include "nuri/random.h"
 
 namespace nuri {
 namespace python_internal {
@@ -16,6 +19,24 @@ NURI_PYTHON_MODULE(m) {
   bind_containers(m);
   bind_element(m);
   bind_molecule(m);
+
+  m.def(
+      "seed_thread",
+      [](std::optional<uint64_t> seed) {
+        int sv = -1;
+        if (seed)
+          sv = static_cast<int>(*seed % (1ULL << 31));
+
+        internal::seed_thread(sv);
+      },
+      py::arg("seed") = py::none(),
+      R"doc(
+Set the seed of random number generator for the current thread.
+
+:param seed: The seed to set. If not specified, a random seed is chosen.
+)doc");
+
+  m.def("_random_test_helper", [](int max) { return internal::draw_uid(max); });
 
   m.def(
       "_py_array_cast_test_helper",
@@ -40,6 +61,8 @@ NURI_PYTHON_MODULE(m) {
         return arr.numpy();
       },
       py::arg("obj"), py::arg("kind"));
+
+  internal::seed_thread(-1);
 }
 }  // namespace
 }  // namespace python_internal

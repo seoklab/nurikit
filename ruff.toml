@@ -1,0 +1,53 @@
+line-length = 79
+target-version = "py37"
+
+src = ["python/src"]
+extend-include = ["*.ipynb"]
+extend-exclude = [".github/**", "*.pyc", "*.pyi"]
+
+[lint]
+extend-select = [
+    "W6",
+    "I",
+    "N80",
+    "S102",
+    "S108",
+    "S306",
+    "S307",
+    "S60",
+    "B",
+    "A",
+    "PT",
+    "PTH",
+    "PLE",
+    "PLW",
+    "NPY",
+    "RUF",
+]
+ignore = [
+    "E74",
+    "F403",
+    "F405",
+    "N803",
+    "N806",
+    "S603",
+    "S607",
+    "B008",
+    "B905",
+    "PTH123",
+    "PLW2901",
+]
+
+dummy-variable-rgx = "^_$"
+
+[lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"conf.py*" = ["A001"]
+
+[lint.isort]
+no-lines-before = ["local-folder"]
+known-first-party = ["nuri.*"]
+
+[lint.flake8-pytest-style]
+fixture-parentheses = true
+mark-parentheses = true

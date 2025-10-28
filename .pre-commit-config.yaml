@@ -33,6 +33,15 @@ repos:
     rev: v0.19.1
     hooks:
       - id: gitlint
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.2
+    hooks:
+      - id: ruff-check
+        args: ["--fix", "--fixable=I"]
+        types_or: ["python", "pyi", "jupyter"]
+        fail_fast: true
+      - id: ruff-format
+        types_or: ["python", "pyi", "jupyter"]
 default_install_hook_types:
   - pre-commit
   - pre-push

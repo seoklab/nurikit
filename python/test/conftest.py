@@ -4,6 +4,7 @@
 #
 
 from pathlib import Path
+
 import pytest
 
 from nuri.core import BondOrder, Molecule

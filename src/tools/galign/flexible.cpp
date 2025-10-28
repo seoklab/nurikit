@@ -59,7 +59,7 @@ namespace internal {
       };
 
       Vector3d axis = random_unit();
-      double angle = icdf(draw_urd(0.0, 1.0));
+      double angle = icdf(draw_urd(1.0));
       return AngleAxisd(angle, axis);
     }
 
@@ -358,7 +358,7 @@ namespace internal {
         Mutator mut(newconf, inv);
         mut.crossover(other);
         for (int j = 0; j < inv.sampling->mut_cnt; ++j)
-          if (draw_urd(0.0, 1.0) <= inv.sampling->mut_prob)
+          if (draw_urd(1.0) <= inv.sampling->mut_prob)
             mut.random(*inv.sampling);
       }
     }

@@ -7,7 +7,7 @@ nuri.core
 
 .. automodule:: nuri.core
    :exclude-members: Molecule, Atom, Bond, Neighbor, Mutator, Substructure,
-      SubAtom, SubBond, SubNeighbor, AtomData, BondData
+      SubAtom, SubBond, SubNeighbor, AtomData, BondData, seed_thread
 
    .. autoclass:: Molecule
       :exclude-members: atom, bond, neighbor, bonds, mutator,

@@ -144,7 +144,7 @@ TEST(GAlign, Flexible) {
   minimize.ftol = 0.1;
   minimize.max_iters = 50;
 
-  internal::set_thread_seed(42);
+  internal::seed_thread(42);
   std::vector results =
       galign(query, qconf, tinfo, true, 1, sampling, minimize);
   ASSERT_EQ(results.size(), 1);

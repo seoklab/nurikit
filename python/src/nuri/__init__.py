@@ -9,14 +9,15 @@ Project NuriKit: *the* fundamental software platform for chem- and
 bio-informatics."""
 
 __all__ = [
+    "__version__",
+    "periodic_table",
     "readfile",
     "readstring",
-    "to_smiles",
+    "seed_thread",
     "to_mol2",
-    "to_sdf",
     "to_pdb",
-    "periodic_table",
-    "__version__",
+    "to_sdf",
+    "to_smiles",
 ]
 
 try:
@@ -25,5 +26,5 @@ except ImportError:
     __version__ = __full_version__ = "unknown"
 
 from . import _log_adapter
-from .core import periodic_table
-from .fmt import readfile, readstring, to_mol2, to_sdf, to_smiles, to_pdb
+from .core import periodic_table, seed_thread
+from .fmt import readfile, readstring, to_mol2, to_pdb, to_sdf, to_smiles
