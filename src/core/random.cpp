@@ -19,7 +19,7 @@ namespace internal {
     }
   }  // namespace
 
-  void set_thread_seed(int seed) {
+  void seed_thread(int seed) {
     std::seed_seq seq = make_seed_seq(seed);
     rng.seed(seq);
   }
