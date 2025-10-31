@@ -13,6 +13,7 @@
 
 #include "nuri/core/element.h"
 #include "nuri/fmt/cif.h"
+#include "nuri/fmt/pdb.h"
 
 #ifndef NURI_PYTHON_MODULE_NAME
 #error "NURI_PYTHON_MODULE_NAME is not defined"
@@ -33,5 +34,10 @@ using rvp = py::return_value_policy;
 
 PYBIND11_MAKE_OPAQUE(std::vector<nuri::Isotope>)
 PYBIND11_MAKE_OPAQUE(std::vector<nuri::internal::CifFrame>)
+
+PYBIND11_MAKE_OPAQUE(std::vector<nuri::PDBAtomSite>)
+PYBIND11_MAKE_OPAQUE(std::vector<nuri::PDBAtom>)
+PYBIND11_MAKE_OPAQUE(std::vector<nuri::PDBResidue>)
+PYBIND11_MAKE_OPAQUE(std::vector<nuri::PDBChain>)
 
 #endif /* NURI_PYTHON_CONFIG_H_ */
