@@ -105,6 +105,13 @@ bool pdb_next_model(std::istream &is, std::string &line,
 }
 }  // namespace
 
+std::ostream &operator<<(std::ostream &os, const PDBResidueId &id) {
+  os << id.chain_id << id.res_seq;
+  if (id.ins_code != ' ')
+    os << id.ins_code;
+  return os;
+}
+
 bool PDBReader::getnext(std::vector<std::string> &block) {
   std::string line;
   line.reserve(80);
@@ -217,34 +224,10 @@ NURI_FIND_SECTION_IDX(kTitleSection, REMARK);
 #undef NURI_FIND_SECTION_IDX
 
 // NOLINTBEGIN(*-identifier-naming,*-unused-function,*-unused-template)
-struct ResidueId {
-  int seqnum;
-  char chain;
-  char icode;
-};
-
-std::ostream &operator<<(std::ostream &os, const ResidueId &id) {
-  os << id.chain << id.seqnum;
-  if (id.icode != ' ')
-    os << id.icode;
-  return os;
-}
-
 struct AtomId {
-  ResidueId res;
+  PDBResidueId res;
   std::string_view name;
 };
-
-template <class Hash>
-Hash AbslHashValue(Hash h, ResidueId id) {
-  return Hash::combine(std::move(h), id.seqnum, id.chain, id.icode);
-}
-
-bool operator==(ResidueId lhs, ResidueId rhs) {
-  return static_cast<bool>(static_cast<int>(lhs.seqnum == rhs.seqnum)
-                           & static_cast<int>(lhs.chain == rhs.chain)
-                           & static_cast<int>(lhs.icode == rhs.icode));
-}
 
 template <class Hash>
 Hash AbslHashValue(Hash h, const AtomId &id) {
@@ -367,7 +350,7 @@ void read_seqres_record(Iterator &it, const Iterator end, std::string &buf,
 }
 
 struct Modres {
-  ResidueId id;
+  PDBResidueId id;
   std::string_view resname;
   std::string_view stdres;
   std::string_view comment;
@@ -384,14 +367,14 @@ void read_modres_record(Iterator &it, const Iterator end,
     }
 
     Modres &mod = modres.emplace_back();
-    if (!absl::SimpleAtoi(slice(line, 18, 22), &mod.id.seqnum)) {
+    if (!absl::SimpleAtoi(slice(line, 18, 22), &mod.id.res_seq)) {
       ABSL_LOG(INFO)
           << "Invalid MODRES sequence number: " << slice(line, 18, 22);
       modres.pop_back();
       continue;
     }
-    mod.id.chain = line[16];
-    mod.id.icode = line[22];
+    mod.id.chain_id = line[16];
+    mod.id.ins_code = line[22];
     mod.resname = slice_strip(line, 12, 15);
     mod.stdres = slice_strip(line, 24, 27);
     mod.comment = safe_slice_strip(line, 29, 80);
@@ -426,7 +409,7 @@ void read_conn_annot_section(Iterator &it, const Iterator end) {
 
 struct Site {
   std::string_view name;
-  std::vector<ResidueId> residues;
+  std::vector<PDBResidueId> residues;
 };
 
 void read_misc_section(Iterator &it, const Iterator end,
@@ -460,11 +443,11 @@ void read_misc_section(Iterator &it, const Iterator end,
       if (line.size() < j + 2)
         break;
 
-      ResidueId &id = site.residues.emplace_back();
-      id.chain = line[j];
-      id.seqnum = safe_atoi(slice(line, j + 1, j + 5));
+      PDBResidueId &id = site.residues.emplace_back();
+      id.chain_id = line[j];
+      id.res_seq = safe_atoi(slice(line, j + 1, j + 5));
       // Might be stripped out if icode is a space
-      id.icode = safe_at(line, j + 5);
+      id.ins_code = safe_at(line, j + 5);
     }
   }
 
@@ -1616,13 +1599,13 @@ public:
     }
 
     AtomId id;
-    if (!absl::SimpleAtoi(safe_slice(line, 22, 26), &id.res.seqnum)) {
+    if (!absl::SimpleAtoi(safe_slice(line, 22, 26), &id.res.res_seq)) {
       ABSL_LOG(WARNING) << "Invalid residue sequence number: "
                         << safe_slice_strip(line, 22, 26);
       return std::nullopt;
     }
-    id.res.chain = line[21];
-    id.res.icode = line[26];
+    id.res.chain_id = line[21];
+    id.res.ins_code = line[26];
 
     id.name = slice_strip(line, 11, 16);
     if (id.name.empty()) {
@@ -1783,7 +1766,7 @@ private:
 };
 
 struct PDBResidueInfo {
-  ResidueId id;
+  PDBResidueId id;
   std::string_view resname;
   std::vector<int> idxs;
 };
@@ -1791,7 +1774,7 @@ struct PDBResidueInfo {
 class PDBResidueData {
 public:
   int prepare_add_atom(AtomicLine line) {
-    ResidueId id = line.id().res;
+    PDBResidueId id = line.id().res;
     auto [it, first] = map_.insert({ id, data_.size() });
 
     if (first) {
@@ -1821,7 +1804,7 @@ public:
   size_t size() const { return data_.size(); }
 
 private:
-  absl::flat_hash_map<ResidueId, int> map_;
+  absl::flat_hash_map<PDBResidueId, int> map_;
   std::vector<PDBResidueInfo> data_;
 };
 
@@ -2109,10 +2092,10 @@ Molecule read_pdb(const std::vector<std::string> &pdb) {
 
   internal::pdb_update_substructs(
       mol, std::move(residue_data), atom_data,
-      [](const ResidueId &id) { return std::string_view(&id.chain, 1); },
-      &PDBResidueInfo::resname, &ResidueId::seqnum,
-      [](const ResidueId &id) {
-        return id.icode == ' ' ? "" : std::string_view(&id.icode, 1);
+      [](const PDBResidueId &id) { return std::string_view(&id.chain_id, 1); },
+      &PDBResidueInfo::resname, &PDBResidueId::res_seq,
+      [](const PDBResidueId &id) {
+        return id.ins_code == ' ' ? "" : std::string_view(&id.ins_code, 1);
       });
 
   return mol;
@@ -2123,7 +2106,7 @@ const bool PDBReaderFactory::kRegistered =
 
 namespace {
 void write_atom_single(std::string &out, bool atom_record, int serial,
-                       Molecule::Atom atom, ResidueId id,
+                       Molecule::Atom atom, PDBResidueId id,
                        std::string_view atmname, std::string_view resname,
                        const Vector3d &pos) {
   std::string_view record = atom_record ? "ATOM  " : "HETATM";
@@ -2136,8 +2119,9 @@ void write_atom_single(std::string &out, bool atom_record, int serial,
 // ATOM  NNNNN AAAALRRR CSSSSI   XXXX.XXXYYYY.YYYZZZZ.ZZZOOO.OOTTT.TT          EEGG
 "%s%5d %-4s%c%-3s %c%4d%c   %8.3f%8.3f%8.3f%6.2f%6.2f          %2s",
       // clang-format on
-      record, serial, atmname, ' ', resname, id.chain, id.seqnum, id.icode,
-      pos[0], pos[1], pos[2], 1.0, 0, atom.data().element_symbol());
+      record, serial, atmname, ' ', resname, id.chain_id, id.res_seq,
+      id.ins_code, pos[0], pos[1], pos[2], 1.0, 0,
+      atom.data().element_symbol());
 
   int fchg = atom.data().formal_charge();
   if (fchg != 0 && fchg < 10 && fchg > -10) {
@@ -2152,18 +2136,18 @@ void write_atom_single(std::string &out, bool atom_record, int serial,
 
 class PDBResolvedResidue {
 public:
-  PDBResolvedResidue(ResidueId id, std::string_view resname,
+  PDBResolvedResidue(PDBResidueId id, std::string_view resname,
                      std::vector<int> &&atoms, std::vector<std::string> &&names)
       : id_(id), resname_(resname), atoms_(std::move(atoms)),
         atom_names_(std::move(names)) {
-    ABSL_DCHECK_NE(id.chain, '\0');
+    ABSL_DCHECK_NE(id.chain_id, '\0');
 
     ABSL_LOG_IF(INFO, resname_.size() > 3)
         << "Residue name '" << resname_ << "' exceeds 3 characters; truncating";
     resname_ = resname_.substr(0, 3);
   }
 
-  ResidueId id() const { return id_; }
+  PDBResidueId id() const { return id_; }
 
   std::string_view name() const { return resname_; }
 
@@ -2189,7 +2173,7 @@ public:
   }
 
 private:
-  ResidueId id_;
+  PDBResidueId id_;
   std::string_view resname_;
 
   std::vector<int> atoms_;
@@ -2233,15 +2217,15 @@ char get_sv_select0_default(PT &props, std::string_view key,
   return it->second[0];
 }
 
-ResidueId generate_rid_sub(const Substructure &sub) {
-  ResidueId id { sub.id(), get_sv_select0_default(sub.props(), "chain"),
-                 get_sv_select0_default(sub.props(), "icode") };
+PDBResidueId generate_rid_sub(const Substructure &sub) {
+  PDBResidueId id { sub.id(), get_sv_select0_default(sub.props(), "chain"),
+                    get_sv_select0_default(sub.props(), "icode") };
 
-  if (id.seqnum <= -1000 || id.seqnum >= 10000 || absl::ascii_iscntrl(id.chain)
-      || absl::ascii_iscntrl(id.icode)) {
+  if (id.res_seq <= -1000 || id.res_seq >= 10000
+      || absl::ascii_iscntrl(id.chain_id) || absl::ascii_iscntrl(id.ins_code)) {
     ABSL_LOG(WARNING)
         << "Invalid residue ID for substructure " << sub.id() << ": " << id;
-    id.chain = '\0';
+    id.chain_id = '\0';
   }
 
   return id;
@@ -2249,7 +2233,7 @@ ResidueId generate_rid_sub(const Substructure &sub) {
 
 std::vector<std::string> resolve_atom_names(const Molecule &mol,
                                             const std::vector<int> &atoms,
-                                            const ResidueId &rid,
+                                            const PDBResidueId &rid,
                                             std::string_view resname) {
   std::vector names = make_names_unique(atoms, [&](int i) -> std::string {
     auto atom = mol.atom(atoms[i]);
@@ -2311,13 +2295,14 @@ char find_first_nonempty(std::string_view trials, absl::CharSet allowed) {
   return '\0';
 }
 
-ResidueId next_chain_residue(const std::vector<PDBResolvedResidue> &residues) {
+PDBResidueId
+next_chain_residue(const std::vector<PDBResolvedResidue> &residues) {
   if (residues.empty())
     return { 1, 'A', ' ' };
 
   absl::CharSet current_chains;
   for (const PDBResolvedResidue &res: residues)
-    current_chains = current_chains | absl::CharSet::Char(res.id().chain);
+    current_chains = current_chains | absl::CharSet::Char(res.id().chain_id);
 
   absl::CharSet available = ~current_chains;
   for (std::string_view chain_candidates:
@@ -2341,8 +2326,8 @@ std::vector<PDBResolvedResidue> resolve_residues(const Molecule &mol) {
       continue;
 
     const auto &sub = mol.substructures()[i];
-    ResidueId id = generate_rid_sub(sub);
-    if (id.chain == '\0') {
+    PDBResidueId id = generate_rid_sub(sub);
+    if (id.chain_id == '\0') {
       residues.clear();
       return residues;
     }
@@ -2359,8 +2344,8 @@ std::vector<PDBResolvedResidue> resolve_residues(const Molecule &mol) {
   }
 
   if (!sub_to_atoms[0].empty()) {
-    ResidueId id = next_chain_residue(residues);
-    if (id.chain == '\0') {
+    PDBResidueId id = next_chain_residue(residues);
+    if (id.chain_id == '\0') {
       residues.clear();
       return residues;
     }

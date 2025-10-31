@@ -7,6 +7,7 @@
 #define NURI_FMT_PDB_H_
 
 //! @cond
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -46,6 +47,26 @@ private:
 
 extern int write_pdb(std::string &out, const Molecule &mol, int model = -1,
                      int conf = -1);
+
+struct PDBResidueId {
+  int res_seq;
+  char chain_id;
+  char ins_code;
+};
+
+extern std::ostream &operator<<(std::ostream &os, const PDBResidueId &id);
+
+template <class Hash>
+// NOLINTNEXTLINE(*-identifier-naming)
+Hash AbslHashValue(Hash h, PDBResidueId id) {
+  return Hash::combine(std::move(h), id.res_seq, id.chain_id, id.ins_code);
+}
+
+inline bool operator==(PDBResidueId lhs, PDBResidueId rhs) {
+  return static_cast<bool>(static_cast<int>(lhs.res_seq == rhs.res_seq)
+                           & static_cast<int>(lhs.chain_id == rhs.chain_id)
+                           & static_cast<int>(lhs.ins_code == rhs.ins_code));
+}
 }  // namespace nuri
 
 #endif /* NURI_FMT_PDB_H_ */
