@@ -102,6 +102,7 @@ def test_pdb_models(tmp_path: Path):
         assert len(atom.sites) == 1
         assert atom.sites[0].altloc == " "
         assert atom.element.symbol in atom.name
+        assert not atom.hetero
 
     np.testing.assert_array_equal(
         model.major_conf,
