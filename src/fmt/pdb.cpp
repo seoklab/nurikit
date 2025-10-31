@@ -159,15 +159,6 @@ int safe_atoi(std::string_view str, int iferr = 0) {
   return ret;
 }
 
-float safe_atof(std::string_view str, float iferr = 0) {
-  float ret;
-  if (ABSL_PREDICT_FALSE(!absl::SimpleAtof(str, &ret))) {
-    ABSL_DLOG(WARNING) << "invalid float: " << str;
-    ret = iferr;
-  }
-  return ret;
-}
-
 double safe_atod(std::string_view str, double iferr = 0) {
   double ret;
   if (ABSL_PREDICT_FALSE(!absl::SimpleAtod(str, &ret))) {
@@ -1639,7 +1630,9 @@ public:
       pos[i] = safe_atod(line_.substr(30 + i * 8, 8));
   }
 
-  float occupancy() const { return safe_atof(safe_slice(line_, 54, 60)); }
+  double occupancy() const { return safe_atod(safe_slice(line_, 54, 60)); }
+
+  double tempfactor() const { return safe_atod(safe_slice(line_, 60, 66)); }
 
   std::string_view element() const { return safe_slice_strip(line_, 76, 78); }
 
@@ -1749,6 +1742,27 @@ public:
     return data;
   }
 
+  PDBAtom to_pdb_atom() const {
+    std::string_view elem_symb = first().guess_element();
+    const Element &elem = guess_pdb_element(elem_symb);
+
+    std::vector<PDBAtomSite> sites;
+    sites.reserve(data_.size());
+
+    for (const AtomicLine &l: data_) {
+      Vector3d pos;
+      l.parse_coords(pos);
+      sites.push_back({ l.altloc()[0], pos, l.occupancy(), l.tempfactor() });
+    }
+
+    absl::c_stable_sort(sites, [](const PDBAtomSite &a, const PDBAtomSite &b) {
+      return a.occupancy() > b.occupancy();
+    });
+
+    PDBAtom atom(first().id().name, elem, std::move(sites), first().hetatom());
+    return atom;
+  }
+
   // NOLINTNEXTLINE(*-unused-member-function)
   const std::vector<AtomicLine> &data() const { return data_.sequence(); }
 
@@ -1759,9 +1773,9 @@ public:
     // cannot use max_element here because we don't want to parse the occupancy
     // on every comparison
     int major = 0;
-    float max_occ = first().occupancy();
+    double max_occ = first().occupancy();
     for (int i = 1; i < data_.size(); ++i) {
-      float occ = data_.begin()[i].occupancy();
+      double occ = data_.begin()[i].occupancy();
       if (occ > max_occ) {
         max_occ = occ;
         major = i;
@@ -2138,6 +2152,98 @@ Molecule read_pdb(const std::vector<std::string> &pdb) {
 
 const bool PDBReaderFactory::kRegistered =
     register_reader_factory<PDBReaderFactory>({ "pdb" });
+
+PDBAtomSite::PDBAtomSite(char altloc, const Vector3d &pos, double occupancy,
+                         double tempfactor) noexcept
+    : altloc_(altloc), pos_(pos), occupancy_(occupancy),
+      tempfactor_(tempfactor) { }
+
+PDBAtom::PDBAtom(std::string_view name, const Element &elem,
+                 std::vector<PDBAtomSite> &&sites, bool hetero) noexcept
+    : name_(name), sites_(std::move(sites)), elem_(&elem), hetero_(hetero) { }
+
+PDBResidue::PDBResidue(PDBResidueId id, std::string_view name,
+                       std::vector<int> &&atom_idxs) noexcept
+    : id_(id), name_(name), atom_idxs_(std::move(atom_idxs)) { }
+
+PDBChain::PDBChain(char id, std::vector<int> &&res_idxs) noexcept
+    : id_(id), res_idxs_(std::move(res_idxs)) { }
+
+namespace {
+Matrix3Xd build_major_conf(const std::vector<PDBAtom> &atoms) {
+  Matrix3Xd conf(3, atoms.size());
+  for (int i = 0; i < atoms.size(); ++i)
+    conf.col(i) = atoms[i].sites()[0].pos();
+  return conf;
+}
+}  // namespace
+
+PDBModel::PDBModel(std::vector<PDBAtom> &&atoms,
+                   std::vector<PDBResidue> &&residues,
+                   std::vector<PDBChain> &&chains,
+                   internal::PropertyMap &&props) noexcept
+    : atoms_(std::move(atoms)), residues_(std::move(residues)),
+      chains_(std::move(chains)), major_conf_(build_major_conf(atoms_)),
+      props_(std::move(props)) { }
+
+PDBModel read_pdb_model(const std::vector<std::string> &pdb) {
+  std::vector<PDBAtom> atoms;
+  std::vector<PDBResidue> residues;
+  std::vector<PDBChain> chains;
+
+  internal::PropertyMap props;
+
+  if (ABSL_PREDICT_FALSE(pdb.empty())) {
+    return { std::move(atoms), std::move(residues), std::move(chains),
+             std::move(props) };
+  }
+
+  auto pit = pdb.begin();
+  const auto end = pdb.end();
+  std::string buf;
+
+  PDBInternals internals = read_pdb_internal(pit, end, buf, last_serial(pdb));
+  if (internals.atoms.empty()) {
+    return { std::move(atoms), std::move(residues), std::move(chains),
+             std::move(props) };
+  }
+
+  atoms.reserve(internals.atoms.size());
+  for (const PDBAtomData &pd: internals.atoms)
+    atoms.push_back(pd.to_pdb_atom());
+
+  residues.reserve(internals.residues.size());
+  for (int i = 0; i < internals.residues.size(); ++i) {
+    PDBResidueInfo &res_info = internals.residues[i];
+
+    residues.push_back(
+        PDBResidue(res_info.id, res_info.resname, std::move(res_info.idxs)));
+  }
+
+  std::vector<std::pair<char, std::vector<int>>> chain_residues;
+  for (int i = 0; i < residues.size(); ++i) {
+    char cid = residues[i].id().chain_id;
+
+    auto it = std::find_if(chain_residues.rbegin(), chain_residues.rend(),
+                           [cid](const std::pair<char, std::vector<int>> &p) {
+                             return p.first == cid;
+                           });
+
+    if (it == chain_residues.rend()) {
+      chain_residues.push_back({ cid, {} });
+      it = chain_residues.rbegin();
+    }
+
+    it->second.push_back(i);
+  }
+
+  chains.reserve(chain_residues.size());
+  for (auto &p: chain_residues)
+    chains.push_back(PDBChain(p.first, std::move(p.second)));
+
+  return { std::move(atoms), std::move(residues), std::move(chains),
+           std::move(internals.props) };
+}
 
 namespace {
 void write_atom_single(std::string &out, bool atom_record, int serial,
