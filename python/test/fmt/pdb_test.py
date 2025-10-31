@@ -6,10 +6,12 @@
 from pathlib import Path
 from typing import List
 
+import numpy as np
 import pytest
 
 import nuri
 from nuri.core import Molecule, SubstructureCategory
+from nuri.fmt import pdb
 
 pdb_data = """\
 MODEL        1
@@ -85,3 +87,60 @@ def test_pdb_str():
         for mol in nuri.readstring("pdb", pdb_re)
     ]
     _verify_mols(mols_re)
+
+
+def test_pdb_models(tmp_path: Path):
+    file = tmp_path / "test.pdb"
+    file.write_text(pdb_data)
+
+    models = pdb.read_models(file)
+    assert len(models) == 2
+
+    model = models[0]
+    assert len(model.atoms) == 8
+    for atom in model.atoms:
+        assert len(atom.sites) == 1
+        assert atom.sites[0].altloc == " "
+
+    np.testing.assert_array_equal(
+        model.major_conf,
+        np.stack([atom.sites[0].pos for atom in model.atoms]),
+    )
+    np.testing.assert_array_equal(
+        model.major_conf,
+        [
+            [-13.991, -6.903, 33.129],
+            [-13.215, -8.093, 33.479],
+            [-13.314, -8.351, 34.974],
+            [-12.547, -9.129, 35.537],
+            [-11.754, -7.911, 33.072],
+            [-11.575, -7.558, 31.609],
+            [-12.824, -8.351, 30.571],
+            [-12.200, -10.034, 30.491],
+        ],
+    )
+
+    model = models[1]
+    assert len(model.residues) == 2
+    for res in model.residues:
+        if res.id.res_seq == 2:
+            assert res.id.chain_id == "A"
+            assert res.id.ins_code == ""
+            assert res.name == "GLU"
+            assert len(res.atom_idxs) == 9
+        elif res.id.res_seq == 3:
+            assert res.id.chain_id == "B"
+            assert res.id.ins_code == ""
+            assert res.name == "ASN"
+            assert len(res.atom_idxs) == 8
+        else:
+            pytest.fail(f"Invalid residue ID {res.id.res_seq}")
+
+    assert len(model.chains) == 2
+    for chain in model.chains:
+        if chain.id == "A":
+            assert len(chain.res_idxs) == 1
+        elif chain.id == "B":
+            assert len(chain.res_idxs) == 1
+        else:
+            pytest.fail(f"Invalid chain ID {chain.id}")
