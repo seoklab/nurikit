@@ -101,6 +101,7 @@ def test_pdb_models(tmp_path: Path):
     for atom in model.atoms:
         assert len(atom.sites) == 1
         assert atom.sites[0].altloc == " "
+        assert atom.element.symbol in atom.name
 
     np.testing.assert_array_equal(
         model.major_conf,
