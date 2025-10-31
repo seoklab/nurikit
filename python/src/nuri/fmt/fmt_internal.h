@@ -10,6 +10,7 @@
 namespace nuri {
 namespace python_internal {
 extern void bind_cif(py::module &m);
+extern void bind_pdb(py::module &m);
 }  // namespace python_internal
 }  // namespace nuri
 

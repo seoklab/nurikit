@@ -288,6 +288,9 @@ Convert a molecule to PDB string.
 )doc");
 
   bind_cif(m);
+
+  py::module_ pdb = m.def_submodule("pdb", "PDB format module");
+  bind_pdb(pdb);
 }
 }  // namespace
 }  // namespace python_internal
