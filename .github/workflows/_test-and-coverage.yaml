@@ -97,6 +97,7 @@ jobs:
             pip install -v '.[test,docs]'
         env:
           SKBUILD_BUILD_DIR: build
+          SKBUILD_CMAKE_DEFINE: "BUILD_TESTING=ON"
           LD_PRELOAD: ""
           ASAN_OPTIONS: detect_leaks=0
 
