@@ -81,8 +81,10 @@ void bind_pdb(py::module &m) {
       });
 
   py::class_<PDBAtom>(m, "Atom")
+      .def_property_readonly("res_id", &PDBAtom::rid)
       .def_property_readonly("name", &PDBAtom::name)
       .def_property_readonly("element", &PDBAtom::element, rvp::reference)
+      .def_property_readonly("formal_charge", &PDBAtom::fcharge)
       .def_property_readonly("hetero", &PDBAtom::hetero)
       .def_property_readonly("sites", &PDBAtom::sites);
   py::bind_vector<std::vector<PDBAtom>>(m, "_AtomList")

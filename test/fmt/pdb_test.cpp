@@ -409,7 +409,7 @@ TEST_F(PDB1alxTest, HandleInconsistentResidues) {
   }
 }
 
-TEST(PDBGuessElementTest, Aligned) {
+TEST(PDBReadExtraTest, GuessElements) {
   std::istringstream iss(R"pdb(
 HETATM    1 FE   HEM A   1       8.128   7.371 -15.022 24.00 16.74
 HETATM    2  CHA HEM A   1       8.617   7.879 -18.361  6.00 17.74
@@ -449,6 +449,29 @@ ATOM     24 3HD1 ILE A   3      31.985  -7.339-264.644  1.00  4.92
     for (int i = 5; i < 24; ++i)
       EXPECT_EQ(mol[i].data().atomic_number(), 1);
   }
+}
+
+TEST(PDBReadExtraTest, FormalCharges) {
+  std::istringstream iss(R"pdb(
+HETATM    1  C   LIG     1       0.000   0.000   0.000  1.00  0.00           C1+
+HETATM    2  C   LIG     2       0.000   0.000  10.000  1.00  0.00           C1-
+HETATM    3  C   LIG     3       0.000   0.000  10.000  1.00  0.00           C
+END
+)pdb");
+
+  PDBReader reader(iss);
+  auto ms = reader.stream();
+
+  ASSERT_TRUE(ms.advance());
+  const Molecule &mol = ms.current();
+
+  EXPECT_EQ(mol.num_atoms(), 3);
+
+  EXPECT_EQ(mol[0].data().formal_charge(), 1);
+  EXPECT_EQ(mol[1].data().formal_charge(), -1);
+  EXPECT_EQ(mol[2].data().formal_charge(), 0);
+
+  EXPECT_FALSE(ms.advance());
 }
 
 TEST(PDBWriteTest, Molecule2D) {

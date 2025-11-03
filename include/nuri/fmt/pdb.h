@@ -99,8 +99,10 @@ private:
  */
 class PDBAtom {
 public:
-  PDBAtom(std::string_view name, const Element &elem,
-          std::vector<PDBAtomSite> &&sites, bool hetero) noexcept;
+  PDBAtom(PDBResidueId rid, std::string_view name, const Element &elem,
+          std::vector<PDBAtomSite> &&sites, int fcharge, bool hetero) noexcept;
+
+  PDBResidueId rid() const { return rid_; }
 
   std::string_view name() const { return name_; }
 
@@ -108,12 +110,16 @@ public:
 
   const Element &element() const { return *elem_; }
 
+  int fcharge() const { return fcharge_; }
+
   bool hetero() const { return hetero_; }
 
 private:
+  PDBResidueId rid_;
   std::string name_;
   std::vector<PDBAtomSite> sites_;
   internal::Nonnull<const Element *> elem_;
+  int fcharge_;
   bool hetero_;
 };
 

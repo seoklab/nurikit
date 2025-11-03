@@ -1634,10 +1634,8 @@ public:
 
   double tempfactor() const { return safe_atod(safe_slice(line_, 60, 66)); }
 
-  std::string_view element() const { return safe_slice_strip(line_, 76, 78); }
-
   std::string_view guess_element() const {
-    std::string_view elem = element();
+    std::string_view elem = safe_slice_strip(line_, 76, 78);
     if (!elem.empty())
       return elem;
 
@@ -1666,6 +1664,16 @@ public:
     }
 
     return elem;
+  }
+
+  int fcharge() const {
+    std::string_view mgn = safe_slice_strip(line_, 78, 79);
+    if (ABSL_PREDICT_TRUE(mgn.empty()))
+      return 0;
+
+    int charge = safe_atoi(mgn);
+    charge = safe_substr(line_, 79, 1) == "-" ? -charge : charge;
+    return charge;
   }
 
   std::string_view line() const { return line_; }
@@ -1721,6 +1729,7 @@ public:
     const Element &elem = guess_pdb_element(elem_symb);
 
     AtomData data(elem);
+    data.set_formal_charge(first().fcharge());
 
     internal::PropertyMap::sequence_type props;
     props.reserve(3 * data_.size() + extra_.size() + 2);
@@ -1759,7 +1768,8 @@ public:
       return a.occupancy() > b.occupancy();
     });
 
-    PDBAtom atom(first().id().name, elem, std::move(sites), first().hetatom());
+    PDBAtom atom(first().id().res, first().id().name, elem, std::move(sites),
+                 first().fcharge(), first().hetatom());
     return atom;
   }
 
@@ -2158,9 +2168,11 @@ PDBAtomSite::PDBAtomSite(char altloc, const Vector3d &pos, double occupancy,
     : altloc_(altloc), pos_(pos), occupancy_(occupancy),
       tempfactor_(tempfactor) { }
 
-PDBAtom::PDBAtom(std::string_view name, const Element &elem,
-                 std::vector<PDBAtomSite> &&sites, bool hetero) noexcept
-    : name_(name), sites_(std::move(sites)), elem_(&elem), hetero_(hetero) { }
+PDBAtom::PDBAtom(PDBResidueId rid, std::string_view name, const Element &elem,
+                 std::vector<PDBAtomSite> &&sites, int fcharge,
+                 bool hetero) noexcept
+    : rid_(rid), name_(name), sites_(std::move(sites)), elem_(&elem),
+      fcharge_(fcharge), hetero_(hetero) { }
 
 PDBResidue::PDBResidue(PDBResidueId id, std::string_view name,
                        std::vector<int> &&atom_idxs) noexcept
