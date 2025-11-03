@@ -1666,6 +1666,16 @@ public:
     return elem;
   }
 
+  int fcharge() const {
+    std::string_view mgn = safe_slice_strip(line_, 78, 79);
+    if (ABSL_PREDICT_TRUE(mgn.empty()))
+      return 0;
+
+    int charge = safe_atoi(mgn);
+    charge = safe_substr(line_, 79, 1) == "-" ? -charge : charge;
+    return charge;
+  }
+
   std::string_view line() const { return line_; }
 
 private:
