@@ -1768,7 +1768,8 @@ public:
       return a.occupancy() > b.occupancy();
     });
 
-    PDBAtom atom(first().id().name, elem, std::move(sites), first().hetatom());
+    PDBAtom atom(first().id().res, first().id().name, elem, std::move(sites),
+                 first().fcharge(), first().hetatom());
     return atom;
   }
 
@@ -2167,9 +2168,11 @@ PDBAtomSite::PDBAtomSite(char altloc, const Vector3d &pos, double occupancy,
     : altloc_(altloc), pos_(pos), occupancy_(occupancy),
       tempfactor_(tempfactor) { }
 
-PDBAtom::PDBAtom(std::string_view name, const Element &elem,
-                 std::vector<PDBAtomSite> &&sites, bool hetero) noexcept
-    : name_(name), sites_(std::move(sites)), elem_(&elem), hetero_(hetero) { }
+PDBAtom::PDBAtom(PDBResidueId rid, std::string_view name, const Element &elem,
+                 std::vector<PDBAtomSite> &&sites, int fcharge,
+                 bool hetero) noexcept
+    : rid_(rid), name_(name), sites_(std::move(sites)), elem_(&elem),
+      fcharge_(fcharge), hetero_(hetero) { }
 
 PDBResidue::PDBResidue(PDBResidueId id, std::string_view name,
                        std::vector<int> &&atom_idxs) noexcept
