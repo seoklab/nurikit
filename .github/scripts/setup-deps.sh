@@ -14,6 +14,9 @@ if [[ -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
 	eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 fi
 
+brew update || true
+
 brew install eigen@3 boost spectra
 brew link --force --overwrite eigen@3
+
 echo "CMAKE_PREFIX_PATH=$HOMEBREW_PREFIX" >>"$GITHUB_ENV"
