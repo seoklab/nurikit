@@ -102,7 +102,17 @@ def test_pdb_models(tmp_path: Path):
         assert len(atom.sites) == 1
         assert atom.sites[0].altloc == " "
         assert atom.element.symbol in atom.name
+        assert atom.formal_charge == 0
         assert not atom.hetero
+
+    atom = model.atoms[0]
+    assert atom.res_id.chain_id == "A"
+    assert atom.res_id.res_seq == 1
+    assert atom.res_id.ins_code == ""
+
+    site = model.atoms[0].sites[0]
+    assert site.occupancy == pytest.approx(1.00)
+    assert site.tempfactor == pytest.approx(22.97)
 
     np.testing.assert_array_equal(
         model.major_conf,
