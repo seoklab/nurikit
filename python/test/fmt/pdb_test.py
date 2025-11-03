@@ -187,7 +187,7 @@ def test_pdb_model_asdict(tmp_path: Path):
     assert md == {
         "atoms": [
             {
-                "element": atom.element,
+                "atomic_number": atom.element.atomic_number,
                 "formal_charge": atom.formal_charge,
                 "hetero": atom.hetero,
                 "name": atom.name,
