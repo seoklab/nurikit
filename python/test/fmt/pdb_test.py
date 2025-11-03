@@ -34,14 +34,14 @@ ATOM     20  CG  GLU A   2     -16.178  -6.790  38.801  1.00 23.74           C
 ATOM     21  CD  GLU A   2     -17.703  -6.770  38.937  1.00 26.25           C
 ATOM     22  OE1 GLU A   2     -18.397  -7.133  37.957  1.00 26.86           O
 ATOM     23  OE2 GLU A   2     -18.208  -6.402  40.025  1.00 27.14           O
-ATOM     24  N   ASN B   3     -15.590  -9.921  36.639  1.00 19.52           N
-ATOM     25  CA  ASN B   3     -16.096 -11.249  36.992  1.00 18.45           C
-ATOM     26  C   ASN B   3     -15.210 -12.437  36.598  1.00 17.91           C
-ATOM     27  O   ASN B   3     -15.565 -13.584  36.850  1.00 17.64           O
-ATOM     28  CB  ASN B   3     -17.500 -11.436  36.413  1.00 18.28           C
-ATOM     29  CG  ASN B   3     -18.490 -10.459  36.982  1.00 17.92           C
-ATOM     30  OD1 ASN B   3     -18.464 -10.165  38.175  1.00 18.06           O
-ATOM     31  ND2 ASN B   3     -19.375  -9.947  36.135  1.00 17.48           N
+ATOM     24  N   ASN B   3A    -15.590  -9.921  36.639  1.00 19.52           N
+ATOM     25  CA  ASN B   3A    -16.096 -11.249  36.992  1.00 18.45           C
+ATOM     26  C   ASN B   3A    -15.210 -12.437  36.598  1.00 17.91           C
+ATOM     27  O   ASN B   3A    -15.565 -13.584  36.850  1.00 17.64           O
+ATOM     28  CB  ASN B   3A    -17.500 -11.436  36.413  1.00 18.28           C
+ATOM     29  CG  ASN B   3A    -18.490 -10.459  36.982  1.00 17.92           C
+ATOM     30  OD1 ASN B   3A    -18.464 -10.165  38.175  1.00 18.06           O
+ATOM     31  ND2 ASN B   3A    -19.375  -9.947  36.135  1.00 17.48           N
 ENDMDL
 """
 
@@ -142,7 +142,7 @@ def test_pdb_models(tmp_path: Path):
             assert len(res.atom_idxs) == 9
         elif res.id.res_seq == 3:
             assert res.id.chain_id == "B"
-            assert res.id.ins_code == ""
+            assert res.id.ins_code == "A"
             assert res.name == "ASN"
             assert len(res.atom_idxs) == 8
         else:
