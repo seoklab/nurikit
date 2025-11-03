@@ -107,7 +107,7 @@ jobs:
           export LD_PRELOAD
 
           cd build
-          ctest -T test -j24 --output-on-failure
+          ctest -M Continuous -T Test --no-tests=error --output-on-failure -j24
 
       - name: Python tests
         run: |

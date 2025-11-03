@@ -34,11 +34,13 @@ if [[ ! -d install/lib ]]; then
 fi
 tar -cvzf "${output}" -C install .
 
+ctest_args=(-M Continuous -T Test --no-tests=error --output-on-failure -j)
+
 pushd build
 if [[ $output == *linux* ]]; then
-	ctest -T test --output-on-failure -j
+	ctest "${ctest_args[@]}"
 else
-	arch -arm64 ctest -T test --output-on-failure -j
-	arch -x86_64 ctest -T test --output-on-failure -j
+	arch -arm64 ctest "${ctest_args[@]}"
+	arch -x86_64 ctest "${ctest_args[@]}"
 fi
 popd
