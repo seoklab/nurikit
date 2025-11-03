@@ -34,14 +34,14 @@ ATOM     20  CG  GLU A   2     -16.178  -6.790  38.801  1.00 23.74           C
 ATOM     21  CD  GLU A   2     -17.703  -6.770  38.937  1.00 26.25           C
 ATOM     22  OE1 GLU A   2     -18.397  -7.133  37.957  1.00 26.86           O
 ATOM     23  OE2 GLU A   2     -18.208  -6.402  40.025  1.00 27.14           O
-ATOM     24  N   ASN B   3     -15.590  -9.921  36.639  1.00 19.52           N
-ATOM     25  CA  ASN B   3     -16.096 -11.249  36.992  1.00 18.45           C
-ATOM     26  C   ASN B   3     -15.210 -12.437  36.598  1.00 17.91           C
-ATOM     27  O   ASN B   3     -15.565 -13.584  36.850  1.00 17.64           O
-ATOM     28  CB  ASN B   3     -17.500 -11.436  36.413  1.00 18.28           C
-ATOM     29  CG  ASN B   3     -18.490 -10.459  36.982  1.00 17.92           C
-ATOM     30  OD1 ASN B   3     -18.464 -10.165  38.175  1.00 18.06           O
-ATOM     31  ND2 ASN B   3     -19.375  -9.947  36.135  1.00 17.48           N
+ATOM     24  N   ASN B   3A    -15.590  -9.921  36.639  1.00 19.52           N
+ATOM     25  CA  ASN B   3A    -16.096 -11.249  36.992  1.00 18.45           C
+ATOM     26  C   ASN B   3A    -15.210 -12.437  36.598  1.00 17.91           C
+ATOM     27  O   ASN B   3A    -15.565 -13.584  36.850  1.00 17.64           O
+ATOM     28  CB  ASN B   3A    -17.500 -11.436  36.413  1.00 18.28           C
+ATOM     29  CG  ASN B   3A    -18.490 -10.459  36.982  1.00 17.92           C
+ATOM     30  OD1 ASN B   3A    -18.464 -10.165  38.175  1.00 18.06           O
+ATOM     31  ND2 ASN B   3A    -19.375  -9.947  36.135  1.00 17.48           N
 ENDMDL
 """
 
@@ -142,7 +142,7 @@ def test_pdb_models(tmp_path: Path):
             assert len(res.atom_idxs) == 9
         elif res.id.res_seq == 3:
             assert res.id.chain_id == "B"
-            assert res.id.ins_code == ""
+            assert res.id.ins_code == "A"
             assert res.name == "ASN"
             assert len(res.atom_idxs) == 8
         else:
@@ -156,3 +156,68 @@ def test_pdb_models(tmp_path: Path):
             assert len(chain.res_idxs) == 1
         else:
             pytest.fail(f"Invalid chain ID {chain.id}")
+
+
+def test_pdb_model_asdict(tmp_path: Path):
+    file = tmp_path / "test.pdb"
+    file.write_text(pdb_data)
+
+    models = pdb.read_models(file)
+    assert len(models) == 2
+
+    model = models[0]
+
+    md = model.as_dict()
+    for ma, da in zip(model.atoms, md["atoms"]):
+        for ms, ds in zip(ma.sites, da["sites"]):
+            np.testing.assert_array_equal(ms.pos, ds["pos"])
+            del ds["pos"]
+
+    for mr, dr in zip(model.residues, md["residues"]):
+        np.testing.assert_array_equal(mr.atom_idxs, dr["atom_idxs"])
+        del dr["atom_idxs"]
+
+    for mc, dc in zip(model.chains, md["chains"]):
+        np.testing.assert_array_equal(mc.res_idxs, dc["res_idxs"])
+        del dc["res_idxs"]
+
+    np.testing.assert_array_equal(model.major_conf, md["major_conf"])
+    del md["major_conf"]
+
+    assert md == {
+        "atoms": [
+            {
+                "element": atom.element,
+                "formal_charge": atom.formal_charge,
+                "hetero": atom.hetero,
+                "name": atom.name,
+                "res_id": {
+                    "chain_id": atom.res_id.chain_id,
+                    "res_seq": atom.res_id.res_seq,
+                    "ins_code": atom.res_id.ins_code,
+                },
+                "sites": [
+                    {
+                        "altloc": site.altloc,
+                        "occupancy": site.occupancy,
+                        "tempfactor": site.tempfactor,
+                    }
+                    for site in atom.sites
+                ],
+            }
+            for atom in model.atoms
+        ],
+        "residues": [
+            {
+                "id": {
+                    "chain_id": res.id.chain_id,
+                    "res_seq": res.id.res_seq,
+                    "ins_code": res.id.ins_code,
+                },
+                "name": res.name,
+            }
+            for res in model.residues
+        ],
+        "chains": [{"id": chain.id} for chain in model.chains],
+        "props": dict(model.props),
+    }
