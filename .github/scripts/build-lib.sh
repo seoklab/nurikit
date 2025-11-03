@@ -34,7 +34,7 @@ if [[ ! -d install/lib ]]; then
 fi
 tar -cvzf "${output}" -C install .
 
-ctest_args=(-M Continuous -T Test --no-tests=error --output-on-failure -j)
+ctest_args=(--no-tests=error --output-on-failure -j)
 
 pushd build
 if [[ $output == *linux* ]]; then

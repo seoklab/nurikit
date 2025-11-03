@@ -47,7 +47,7 @@ cd "$prj_root"
 
 if [[ $cpp_test = true ]]; then
 	pushd "$build_dir"
-	ctest -C Debug -T test -"j$(nproc)" --output-on-failure
+	ctest -"j$(nproc)" --output-on-failure
 	popd
 fi
 
