@@ -1729,6 +1729,7 @@ public:
     const Element &elem = guess_pdb_element(elem_symb);
 
     AtomData data(elem);
+    data.set_formal_charge(first().fcharge());
 
     internal::PropertyMap::sequence_type props;
     props.reserve(3 * data_.size() + extra_.size() + 2);
