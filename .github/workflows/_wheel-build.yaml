@@ -52,6 +52,7 @@ jobs:
           path: git
 
       - run: |
+          brew update || true
           git/.github/scripts/setup-deps.sh
           mv git/docs . && rm -rf git
 
