@@ -139,7 +139,7 @@ py::dict model_as_dict(const PDBModel &self) {
 
     atoms[i] =
         py::dict("res_id"_a = resid_as_dict(atom.rid()), "name"_a = atom.name(),
-                 "element"_a = py::cast(atom.element(), rvp::reference),
+                 "atomic_number"_a = atom.element().atomic_number(),
                  "formal_charge"_a = atom.fcharge(), "hetero"_a = atom.hetero(),
                  "sites"_a = sites_as_list(atom.sites()));
   }
