@@ -20,7 +20,6 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
 #include <pybind11/stl/filesystem.h>
-#include <pybind11/stl_bind.h>
 #include <pybind11/typing.h>
 
 #include "nuri/eigen_config.h"
@@ -32,6 +31,50 @@ namespace nuri {
 namespace python_internal {
 namespace {
 namespace fs = std::filesystem;
+
+template <class T>
+class VectorIterator
+    : public PyIterator<VectorIterator<T>, const std::vector<T>> {
+  using Base = typename VectorIterator::Parent;
+
+public:
+  using Base::Base;
+
+  static auto bind(py::module_ &m, const char *name) {
+    return Base::bind(m, name, kReturnsSubobject);
+  }
+
+private:
+  friend Base;
+
+  static auto size_of(const std::vector<T> &v) { return v.size(); }
+
+  static const auto &deref(const std::vector<T> &v, int idx) { return v[idx]; }
+};
+
+template <class T>
+py::class_<std::vector<T>> bind_readonly_vector(py::module &m, const char *name,
+                                                const char *iter_name) {
+  using V = std::vector<T>;
+  using I = VectorIterator<T>;
+
+  I::bind(m, iter_name);
+
+  py::class_<V> cls(m, name);
+  add_sequence_interface(
+      cls, &V::size,
+      [](const V &v, int idx) {
+        idx = py_check_index(static_cast<int>(v.size()), idx,
+                             "Index out of range");
+        return v[idx];
+      },
+      [](const V &v) { return I(v); });
+  cls.def("__repr__", [name](const V &v) {
+    return absl::StrCat("<", name, " of ", v.size(), " items>");
+  });
+
+  return cls;
+}
 
 pyt::List<PDBModel> read_pdb_models(std::istream &is, bool skip_on_error) {
   PDBReader reader(is);
@@ -75,10 +118,8 @@ void bind_pdb(py::module &m) {
                              })
       .def_property_readonly("occupancy", &PDBAtomSite::occupancy)
       .def_property_readonly("tempfactor", &PDBAtomSite::tempfactor);
-  py::bind_vector<std::vector<PDBAtomSite>>(m, "_AtomSiteList")
-      .def("__repr__", [](const std::vector<PDBAtomSite> &self) {
-        return absl::StrCat("<_AtomSiteList of ", self.size(), " sites>");
-      });
+  bind_readonly_vector<PDBAtomSite>(m, "_AtomSiteList",
+                                    "_AtomSiteListIterator");
 
   py::class_<PDBAtom>(m, "Atom")
       .def_property_readonly("res_id", &PDBAtom::rid)
@@ -87,10 +128,7 @@ void bind_pdb(py::module &m) {
       .def_property_readonly("formal_charge", &PDBAtom::fcharge)
       .def_property_readonly("hetero", &PDBAtom::hetero)
       .def_property_readonly("sites", &PDBAtom::sites);
-  py::bind_vector<std::vector<PDBAtom>>(m, "_AtomList")
-      .def("__repr__", [](const std::vector<PDBAtom> &self) {
-        return absl::StrCat("<_AtomList of ", self.size(), " atoms>");
-      });
+  bind_readonly_vector<PDBAtom>(m, "_AtomList", "_AtomListIterator");
 
   py::class_<PDBResidue>(m, "Residue")
       .def_property_readonly("id", &PDBResidue::id)
@@ -100,10 +138,7 @@ void bind_pdb(py::module &m) {
             self.atom_idxs().data(), static_cast<int>(self.atom_idxs().size()));
         return eigen_as_numpy(idxs_view);
       });
-  py::bind_vector<std::vector<PDBResidue>>(m, "_ResidueList")
-      .def("__repr__", [](const std::vector<PDBResidue> &self) {
-        return absl::StrCat("<_ResidueList of ", self.size(), " residues>");
-      });
+  bind_readonly_vector<PDBResidue>(m, "_ResidueList", "_ResidueListIterator");
 
   py::class_<PDBChain>(m, "Chain")
       .def("__repr__",
@@ -118,10 +153,7 @@ void bind_pdb(py::module &m) {
             self.res_idxs().data(), static_cast<int>(self.res_idxs().size()));
         return eigen_as_numpy(idxs_view);
       });
-  py::bind_vector<std::vector<PDBChain>>(m, "_ChainList")
-      .def("__repr__", [](const std::vector<PDBChain> &self) {
-        return absl::StrCat("<_ChainList of ", self.size(), " chains>");
-      });
+  bind_readonly_vector<PDBChain>(m, "_ChainList", "_ChainListIterator");
 
   py::class_<PDBModel> model(m, "Model");
   model
