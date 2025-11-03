@@ -1634,10 +1634,8 @@ public:
 
   double tempfactor() const { return safe_atod(safe_slice(line_, 60, 66)); }
 
-  std::string_view element() const { return safe_slice_strip(line_, 76, 78); }
-
   std::string_view guess_element() const {
-    std::string_view elem = element();
+    std::string_view elem = safe_slice_strip(line_, 76, 78);
     if (!elem.empty())
       return elem;
 
