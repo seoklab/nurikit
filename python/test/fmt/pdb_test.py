@@ -156,3 +156,68 @@ def test_pdb_models(tmp_path: Path):
             assert len(chain.res_idxs) == 1
         else:
             pytest.fail(f"Invalid chain ID {chain.id}")
+
+
+def test_pdb_model_asdict(tmp_path: Path):
+    file = tmp_path / "test.pdb"
+    file.write_text(pdb_data)
+
+    models = pdb.read_models(file)
+    assert len(models) == 2
+
+    model = models[0]
+
+    md = model.as_dict()
+    for ma, da in zip(model.atoms, md["atoms"]):
+        for ms, ds in zip(ma.sites, da["sites"]):
+            np.testing.assert_array_equal(ms.pos, ds["pos"])
+            del ds["pos"]
+
+    for mr, dr in zip(model.residues, md["residues"]):
+        np.testing.assert_array_equal(mr.atom_idxs, dr["atom_idxs"])
+        del dr["atom_idxs"]
+
+    for mc, dc in zip(model.chains, md["chains"]):
+        np.testing.assert_array_equal(mc.res_idxs, dc["res_idxs"])
+        del dc["res_idxs"]
+
+    np.testing.assert_array_equal(model.major_conf, md["major_conf"])
+    del md["major_conf"]
+
+    assert md == {
+        "atoms": [
+            {
+                "element": atom.element,
+                "formal_charge": atom.formal_charge,
+                "hetero": atom.hetero,
+                "name": atom.name,
+                "res_id": {
+                    "chain_id": atom.res_id.chain_id,
+                    "res_seq": atom.res_id.res_seq,
+                    "ins_code": atom.res_id.ins_code,
+                },
+                "sites": [
+                    {
+                        "altloc": site.altloc,
+                        "occupancy": site.occupancy,
+                        "tempfactor": site.tempfactor,
+                    }
+                    for site in atom.sites
+                ],
+            }
+            for atom in model.atoms
+        ],
+        "residues": [
+            {
+                "id": {
+                    "chain_id": res.id.chain_id,
+                    "res_seq": res.id.res_seq,
+                    "ins_code": res.id.ins_code,
+                },
+                "name": res.name,
+            }
+            for res in model.residues
+        ],
+        "chains": [{"id": chain.id} for chain in model.chains],
+        "props": dict(model.props),
+    }
