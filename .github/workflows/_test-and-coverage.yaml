@@ -97,6 +97,7 @@ jobs:
             pip install -v '.[test,docs]'
         env:
           SKBUILD_BUILD_DIR: build
+          SKBUILD_CMAKE_DEFINE: "BUILD_TESTING=ON"
           LD_PRELOAD: ""
           ASAN_OPTIONS: detect_leaks=0
 
@@ -106,7 +107,7 @@ jobs:
           export LD_PRELOAD
 
           cd build
-          ctest -j24 --output-on-failure
+          ctest -M Continuous -T Test --no-tests=error --output-on-failure -j24
 
       - name: Python tests
         run: |
