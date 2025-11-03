@@ -162,13 +162,13 @@ if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON OR BUILD_TESTING)
   find_or_add_package(
     NAME Eigen3
     MIN_VERSION 3.4
-    CPM_VERSION 3.4.0
+    CPM_VERSION 3.4.1
     OPTIONS
     "BUILD_TESTING OFF"
     "EIGEN_BUILD_DOC OFF"
     "EIGEN_BUILD_PKGCONFIG OFF"
     GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-    GIT_TAG 3.4.0
+    GIT_TAG 3.4.1
   )
 
   set(Boost_USE_MULTITHREADED ON)
@@ -176,7 +176,7 @@ if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON OR BUILD_TESTING)
   find_or_add_package(
     NAME Boost
     MIN_VERSION 1.82
-    CPM_VERSION 1.87.0
+    CPM_VERSION 1.89.0
     COMPONENTS graph
     OPTIONS
     "BUILD_TESTING OFF"
@@ -187,13 +187,13 @@ if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON OR BUILD_TESTING)
     "BOOST_INCLUDE_LIBRARIES \
 spirit\\\;fusion\\\;optional\\\;container\\\;iterator\\\;range\\\;\
 graph\\\;property_map"
-    URL "https://github.com/boostorg/boost/releases/download/boost-1.87.0/boost-1.87.0-cmake.tar.xz"
+    URL "https://github.com/boostorg/boost/releases/download/boost-1.89.0/boost-1.89.0-cmake.tar.xz"
   )
 
   if(BUILD_TESTING)
     find_or_add_package(
       NAME GTest
-      CPM_VERSION 1.16.0
+      CPM_VERSION 1.17.0
       GIT_REPOSITORY https://github.com/google/googletest.git
     )
   endif()
