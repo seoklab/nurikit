@@ -161,22 +161,22 @@ namespace constants {
 
 template <class DT, std::enable_if_t<std::is_floating_point_v<DT>, int> = 0>
 constexpr DT deg2rad(DT deg) {
-  return deg * constants::kPi / 180;
+  return deg * static_cast<DT>(constants::kPi / 180);
 }
 
 template <class DT, std::enable_if_t<std::is_integral_v<DT>, int> = 0>
 constexpr double deg2rad(DT deg) {
-  return deg * constants::kPi / 180;
+  return static_cast<double>(deg) * constants::kPi / 180;
 }
 
 template <class DT, std::enable_if_t<std::is_floating_point_v<DT>, int> = 0>
 constexpr DT rad2deg(DT rad) {
-  return rad * 180 / constants::kPi;
+  return rad * 180 / static_cast<DT>(constants::kPi);
 }
 
 template <class DT, std::enable_if_t<std::is_integral_v<DT>, int> = 0>
 constexpr double rad2deg(DT rad) {
-  return rad * 180 / constants::kPi;
+  return static_cast<double>(rad) * 180 / constants::kPi;
 }
 
 // NOLINTBEGIN(*-missing-std-forward)
