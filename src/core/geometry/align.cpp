@@ -100,10 +100,10 @@ namespace {
     return false;
   }
 
-  double kabsch_calculate_msd(const Eigen::Ref<const Matrix3Xd> &query,
-                              const Eigen::Ref<const Matrix3Xd> &templ,
-                              const Vector3d &qm, const Vector3d &tm, Array3d e,
-                              const double det, const bool reflection) {
+  double kabsch_calculate_msd(ConstRef<Matrix3Xd> query,
+                              ConstRef<Matrix3Xd> templ, const Vector3d &qm,
+                              const Vector3d &tm, Array3d e, const double det,
+                              const bool reflection) {
     double sd = (query.colwise() - qm).cwiseAbs2().sum()
                 + (templ.colwise() - tm).cwiseAbs2().sum();
     e = e.max(0.0).sqrt();
@@ -232,9 +232,9 @@ namespace {
   }
 }  // namespace
 
-std::pair<Isometry3d, double> kabsch(const Eigen::Ref<const Matrix3Xd> &query,
-                                     const Eigen::Ref<const Matrix3Xd> &templ,
-                                     AlignMode mode, const bool reflection) {
+std::pair<Isometry3d, double> kabsch(ConstRef<Matrix3Xd> query,
+                                     ConstRef<Matrix3Xd> templ, AlignMode mode,
+                                     const bool reflection) {
   std::pair<Isometry3d, double> ret { {}, 0.0 };
   if (align_singular_common(ret, query, templ, mode))
     return ret;

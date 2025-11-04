@@ -555,10 +555,10 @@ enum class AlignMode : std::uint8_t {
  * Version: 6.0.2023.08.08
  * \endcode
  */
-extern std::pair<Isometry3d, double>
-kabsch(const Eigen::Ref<const Matrix3Xd> &query,
-       const Eigen::Ref<const Matrix3Xd> &templ,
-       AlignMode mode = AlignMode::kBoth, bool reflection = false);
+extern std::pair<Isometry3d, double> kabsch(ConstRef<Matrix3Xd> query,
+                                            ConstRef<Matrix3Xd> templ,
+                                            AlignMode mode = AlignMode::kBoth,
+                                            bool reflection = false);
 
 /**
  * @brief Perform quaternion-based superposition of two sets of points.
