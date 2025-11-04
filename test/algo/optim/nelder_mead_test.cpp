@@ -47,16 +47,16 @@ TEST(NelderMead, InvalidInput) {
   EXPECT_EQ(result.code, OptimResultCode::kInvalidInput);
 
   data.resize(2, 2);
-  result = nelder_mead(rosenbrock, data, -1, 1e-6, 0);
+  result = nelder_mead(rosenbrock, data, -1, 1e-6, 0.0);
   EXPECT_EQ(result.code, OptimResultCode::kInvalidInput);
 
-  result = nelder_mead(rosenbrock, data, -1, 1e-6, 1, 0);
+  result = nelder_mead(rosenbrock, data, -1, 1e-6, 1.0, 0.0);
   EXPECT_EQ(result.code, OptimResultCode::kInvalidInput);
 
-  result = nelder_mead(rosenbrock, data, -1, 1e-6, 1, 2, 0);
+  result = nelder_mead(rosenbrock, data, -1, 1e-6, 1.0, 2.0, 0.0);
   EXPECT_EQ(result.code, OptimResultCode::kInvalidInput);
 
-  result = nelder_mead(rosenbrock, data, -1, 1e-6, 1, 2, 0.5, 0);
+  result = nelder_mead(rosenbrock, data, -1, 1e-6, 1.0, 2.0, 0.5, 0.0);
   EXPECT_EQ(result.code, OptimResultCode::kInvalidInput);
 }
 
