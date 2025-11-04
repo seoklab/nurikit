@@ -38,79 +38,83 @@
 namespace nuri {
 //! @privatesection
 
-using Eigen::Array;
-using Eigen::Array3d;
-using Eigen::Array3i;
-using Eigen::Array4d;
-using Eigen::Array4i;
-using Eigen::ArrayX;
-using ArrayXb = Eigen::ArrayX<bool>;
+// NOLINTNEXTLINE(*-naming)
+namespace E = Eigen;
+
+using E::Array;
+using E::Array3d;
+using E::Array3i;
+using E::Array4d;
+using E::Array4i;
+using E::ArrayX;
+using ArrayXb = E::ArrayX<bool>;
 using ArrayXc = ArrayX<std::int8_t>;
-using Eigen::Array2Xd;
-using Eigen::Array2Xi;
-using Eigen::Array33d;
-using Eigen::Array3Xd;
-using Eigen::Array4Xd;
-using Eigen::ArrayX2d;
-using Eigen::ArrayX2i;
-using Eigen::ArrayX3d;
-using Eigen::ArrayXd;
-using Eigen::ArrayXi;
-using Eigen::ArrayXX;
-using Eigen::ArrayXXd;
-using Eigen::ArrayXXi;
+using E::Array2Xd;
+using E::Array2Xi;
+using E::Array33d;
+using E::Array3Xd;
+using E::Array4Xd;
+using E::ArrayX2d;
+using E::ArrayX2i;
+using E::ArrayX3d;
+using E::ArrayXd;
+using E::ArrayXi;
+using E::ArrayXX;
+using E::ArrayXXd;
+using E::ArrayXXi;
 using ArrayXXc = ArrayXX<std::int8_t>;
 
-using Eigen::Matrix;
-using Eigen::Matrix3;
-using Eigen::Matrix3d;
-using Eigen::Matrix3Xd;
-using Eigen::Matrix4d;
-using Eigen::Matrix4Xd;
-using Eigen::MatrixX;
-using Eigen::MatrixX3d;
-using Eigen::MatrixXd;
+using E::Matrix;
+using E::Matrix3;
+using E::Matrix3d;
+using E::Matrix3Xd;
+using E::Matrix4d;
+using E::Matrix4Xd;
+using E::MatrixX;
+using E::MatrixX3d;
+using E::MatrixXd;
 
-using Eigen::Vector;
-using Eigen::Vector3;
-using Eigen::Vector3d;
-using Eigen::Vector4d;
-using Eigen::VectorXd;
+using E::Vector;
+using E::Vector3;
+using E::Vector3d;
+using E::Vector4d;
+using E::VectorXd;
 
-using Eigen::AngleAxisd;
-using Eigen::Isometry3d;
-using Eigen::Quaterniond;
-using Eigen::Translation3d;
+using E::AngleAxisd;
+using E::Isometry3d;
+using E::Quaterniond;
+using E::Translation3d;
 
-template <class Raw, int Options = 0,
-          class StrideType =
-              std::conditional_t<Raw::IsVectorAtCompileTime,
-                                 Eigen::InnerStride<1>, Eigen::OuterStride<>>>
-using MutRef = Eigen::Ref<internal::remove_cvref_t<Raw>, Options, StrideType>;
+template <class DT, int Dim>
+using IsometryT = E::Transform<DT, Dim, E::Isometry>;
 
 template <class Raw, int Options = 0,
-          class StrideType =
-              std::conditional_t<Raw::IsVectorAtCompileTime,
-                                 Eigen::InnerStride<1>, Eigen::OuterStride<>>>
+          class StrideType = std::conditional_t<
+              Raw::IsVectorAtCompileTime, E::InnerStride<1>, E::OuterStride<>>>
+using MutRef = E::Ref<internal::remove_cvref_t<Raw>, Options, StrideType>;
+
+template <class Raw, int Options = 0,
+          class StrideType = std::conditional_t<
+              Raw::IsVectorAtCompileTime, E::InnerStride<1>, E::OuterStride<>>>
 using ConstRef =
-    const Eigen::Ref<const internal::remove_cvref_t<Raw>, Options, StrideType> &;
+    const E::Ref<const internal::remove_cvref_t<Raw>, Options, StrideType> &;
 
-template <class Raw, int BlockRows = Eigen::Dynamic,
-          int BlockCols = Eigen::Dynamic, bool InnerPanel = false>
-using MutBlock = Eigen::Block<internal::remove_cvref_t<Raw>, BlockRows,
-                              BlockCols, InnerPanel>;
+template <class Raw, int BlockRows = E::Dynamic, int BlockCols = E::Dynamic,
+          bool InnerPanel = false>
+using MutBlock =
+    E::Block<internal::remove_cvref_t<Raw>, BlockRows, BlockCols, InnerPanel>;
 
-template <class Raw, int BlockRows = Eigen::Dynamic,
-          int BlockCols = Eigen::Dynamic, bool InnerPanel = false>
-using ConstBlock = const Eigen::Block<const internal::remove_cvref_t<Raw>,
-                                      BlockRows, BlockCols, InnerPanel> &;
+template <class Raw, int BlockRows = E::Dynamic, int BlockCols = E::Dynamic,
+          bool InnerPanel = false>
+using ConstBlock = const E::Block<const internal::remove_cvref_t<Raw>,
+                                  BlockRows, BlockCols, InnerPanel> &;
 
-template <class Raw, int Size = Eigen::Dynamic>
-using MutVecBlock = Eigen::VectorBlock<internal::remove_cvref_t<Raw>, Size>;
+template <class Raw, int Size = E::Dynamic>
+using MutVecBlock = E::VectorBlock<internal::remove_cvref_t<Raw>, Size>;
 
-template <class Raw, int Size = Eigen::Dynamic>
+template <class Raw, int Size = E::Dynamic>
 using ConstVecBlock =
-    const Eigen::VectorBlock<const internal::remove_cvref_t<Raw>, Size> &;
+    const E::VectorBlock<const internal::remove_cvref_t<Raw>, Size> &;
 
 //! @publicsection
 
@@ -184,11 +188,11 @@ private:
 template <class ML1, class ML2, class TransformLike>
 // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
 void inplace_transform(ML1 &&m_out, const TransformLike &xform, const ML2 &m) {
-  const Eigen::Index ri = m.rows(), ci = m.cols();
-  const Eigen::Index ro = m_out.rows(), co = m_out.cols();
+  const E::Index ri = m.rows(), ci = m.cols();
+  const E::Index ro = m_out.rows(), co = m_out.cols();
   ABSL_ASSUME(ri == ro && ci == co);
 
-  for (Eigen::Index i = 0; i < m.cols(); ++i)
+  for (E::Index i = 0; i < m.cols(); ++i)
     m_out.col(i) = xform * m.col(i);
 }
 
@@ -202,13 +206,11 @@ namespace internal {
     AllowEigenMallocScoped &operator=(AllowEigenMallocScoped &&) = delete;
 
 #ifdef EIGEN_RUNTIME_NO_MALLOC
-    AllowEigenMallocScoped(): state_(Eigen::internal::is_malloc_allowed()) {
-      Eigen::internal::set_is_malloc_allowed(Allowed);
+    AllowEigenMallocScoped(): state_(E::internal::is_malloc_allowed()) {
+      E::internal::set_is_malloc_allowed(Allowed);
     }
 
-    ~AllowEigenMallocScoped() {
-      Eigen::internal::set_is_malloc_allowed(state_);
-    }
+    ~AllowEigenMallocScoped() { E::internal::set_is_malloc_allowed(state_); }
 
   private:
     bool state_;
