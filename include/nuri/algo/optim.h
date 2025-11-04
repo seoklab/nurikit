@@ -1022,6 +1022,7 @@ struct NMResult {
  *   - F Gao and L Han. *Comput. Optim. Appl.* **2012**, *53* (1), 259-277.
  *     DOI:[10.1007/s10589-010-9329-3](https://doi.org/10.1007/s10589-010-9329-3)
  */
+template <class DT = double>
 class NelderMead {
 public:
   /**
@@ -1032,7 +1033,7 @@ public:
    *        in-place. The last row need not be initialized, but will be
    *        populated on-demand with the function value of each vertex.
    */
-  explicit NelderMead(MutRef<ArrayXXd> data);
+  explicit NelderMead(MutRef<ArrayXX<DT>> data);
 
   auto n() const { return data_.cols() - 1; }
 
@@ -1040,13 +1041,13 @@ public:
   int argmax() const { return static_cast<int>(n()); }
 
   auto min() const { return data_.col(argmin()); }
-  double minf() const { return min()[n()]; }
+  DT minf() const { return min()[n()]; }
 
   auto max() { return data_.col(argmax()); }
   auto max() const { return data_.col(argmax()); }
-  double maxf() const { return max()[n()]; }
+  DT maxf() const { return max()[n()]; }
 
-  double max2f() const { return data_(n(), n() - 1); }
+  DT max2f() const { return data_(n(), n() - 1); }
 
   /**
    * @brief Minimize a function using Nelder-Mead simplex algorithm.
@@ -1068,15 +1069,18 @@ public:
    *       populated with the function values of each vertex.
    */
   template <class Func>
-  NMResult minimize(Func f, int maxiter = -1, const double ftol = 1e-6,
-                    const double alpha = 1, const double gamma = 2,
-                    const double rho = 0.5, const double sigma = 0.5) {
+  NMResult minimize(Func f, int maxiter = -1,
+                    const DT ftol = static_cast<DT>(1e-6),
+                    const DT alpha = static_cast<DT>(1),
+                    const DT gamma = static_cast<DT>(2),
+                    const DT rho = static_cast<DT>(0.5),
+                    const DT sigma = static_cast<DT>(0.5)) {
     // NOLINTNEXTLINE(readability-identifier-naming)
     const auto N = n();
     if (maxiter <= 0)
       maxiter = static_cast<int>(N) * 200;
 
-    auto eval_update = [&](auto &&simplexf) -> double {
+    auto eval_update = [&](auto &&simplexf) -> DT {
       return simplexf[N] = f(simplexf.head(N));
     };
 
@@ -1092,11 +1096,11 @@ public:
       eval_update(c_);
 
       reflection(alpha);
-      double fr = eval_update(r_);
+      DT fr = eval_update(r_);
 
       if (fr < minf()) {
         expansion(ets_, gamma);
-        const double fe = eval_update(ets_);
+        const DT fe = eval_update(ets_);
 
         max() = (fr < fe) ? r_ : ets_;
         continue;
@@ -1112,7 +1116,7 @@ public:
         fr = maxf();
       }
       contraction(ets_, rho);
-      const double ft = eval_update(ets_);
+      const DT ft = eval_update(ets_);
 
       if (ft < fr) {
         max() = ets_;
@@ -1132,24 +1136,35 @@ private:
 
   void centroid();
 
-  void reflection(double alpha);
+  void reflection(DT alpha);
 
-  void expansion(ArrayXd &e, double gamma) const;
+  void expansion(ArrayX<DT> &e, DT gamma) const;
 
-  void contraction(ArrayXd &t, double rho) const;
+  void contraction(ArrayX<DT> &t, DT rho) const;
 
-  void shrink(double sigma);
+  void shrink(DT sigma);
 
   /* (N + 1, N + 1) */
-  MutRef<ArrayXXd> data_;
+  MutRef<ArrayXX<DT>> data_;
   /* (N + 1) */
-  ArrayXd c_, r_, ets_;
+  ArrayX<DT> c_, r_, ets_;
 };
 
+extern template class NelderMead<double>;
+extern template class NelderMead<float>;
+
 namespace internal {
-  extern bool nm_check_input(ConstRef<ArrayXXd> data, double alpha,
-                             double gamma, double rho, double sigma);
-}
+  template <class DT>
+  extern bool nm_check_input(ConstRef<ArrayXX<DT>> data, DT alpha, DT gamma,
+                             DT rho, DT sigma);
+
+  extern template bool nm_check_input<double>(ConstRef<ArrayXX<double>> data,
+                                              double alpha, double gamma,
+                                              double rho, double sigma);
+  extern template bool nm_check_input<float>(ConstRef<ArrayXX<float>> data,
+                                             float alpha, float gamma,
+                                             float rho, float sigma);
+}  // namespace internal
 
 /**
  * @brief Minimize a function using Nelder-Mead simplex algorithm.
@@ -1183,15 +1198,18 @@ namespace internal {
  *   - F Gao and L Han. *Comput. Optim. Appl.* **2012**, *53* (1), 259-277.
  *     DOI:[10.1007/s10589-010-9329-3](https://doi.org/10.1007/s10589-010-9329-3)
  */
-template <class Func>
-inline NMResult nelder_mead(Func &&f, MutRef<ArrayXXd> data, int maxiter = -1,
-                            const double ftol = 1e-6, const double alpha = 1,
-                            const double gamma = 2, const double rho = 0.5,
-                            const double sigma = 0.5) {
-  if (!internal::nm_check_input(data, alpha, gamma, rho, sigma))
+template <class DT = double, class Func>
+inline NMResult nelder_mead(Func &&f, MutRef<ArrayXX<DT>> data,
+                            int maxiter = -1,
+                            const DT ftol = static_cast<DT>(1e-6),
+                            const DT alpha = static_cast<DT>(1),
+                            const DT gamma = static_cast<DT>(2),
+                            const DT rho = static_cast<DT>(0.5),
+                            const DT sigma = static_cast<DT>(0.5)) {
+  if (!internal::nm_check_input<DT>(data, alpha, gamma, rho, sigma))
     return { OptimResultCode::kInvalidInput, -1 };
 
-  NelderMead nm(data);
+  NelderMead<DT> nm(data);
   return nm.minimize(std::forward<Func>(f), maxiter, ftol, alpha, gamma, rho,
                      sigma);
 }
@@ -1210,7 +1228,14 @@ inline NMResult nelder_mead(Func &&f, MutRef<ArrayXXd> data, int maxiter = -1,
  * initialization. See G Fuchang and H Lixing @cite algo:optim:nelder-mead for
  * details.
  */
-extern ArrayXXd nm_prepare_simplex(ConstRef<ArrayXd> x0, double eps = 1e-6);
+template <class DT = double>
+extern ArrayXX<DT> nm_prepare_simplex(ConstRef<ArrayX<DT>> x0,
+                                      DT eps = static_cast<DT>(1e-6));
+
+extern template ArrayXX<double> nm_prepare_simplex(ConstRef<ArrayX<double>> x0,
+                                                   double eps);
+extern template ArrayXX<float> nm_prepare_simplex(ConstRef<ArrayX<float>> x0,
+                                                  float eps);
 }  // namespace nuri
 
 #endif /* NURI_ALGO_OPTIM_H_ */
