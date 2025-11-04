@@ -28,115 +28,117 @@ namespace internal {
       Nonnull<const GAMinimizeArgs *> minimize;
 
       Nonnull<const GARigidMolInfo *> query;
-      Matrix3Xd query_centered;
+      E::Matrix3Xf query_centered;
 
       Nonnull<const GARigidMolInfo *> templ;
-      Matrix3Xd templ_centered;
+      E::Matrix3Xf templ_centered;
 
-      double base_clash;
-      double hetero_scale;
+      float base_clash;
+      float hetero_scale;
     };
 
     struct Buffers {
-      ArrayXXd simplexf;
-      ArrayXd cutoffs;
+      E::ArrayXXf simplexf;
+      E::ArrayXf cutoffs;
     };
 
-    Vector3d random_unit() {
-      double u = draw_urd(-1.0, 1.0), v = std::sqrt(1.0 - u * u),
-             t = draw_urd(0.0, constants::kTwoPi);
+    E::Vector3f random_unit() {
+      float u = draw_urd(-1.0F, 1.0F), v = std::sqrt(1.0F - u * u),
+            t = draw_urd(0.0F, static_cast<float>(constants::kTwoPi));
       return { v * std::cos(t), v * std::sin(t), u };
     }
 
-    Vector3d random_translation(double max_trs) {
-      return Vector3d::NullaryExpr([&] { return draw_urd(-max_trs, max_trs); });
+    E::Vector3f random_translation(float max_trs) {
+      return E::Vector3f::NullaryExpr(
+          [&] { return draw_urd(-max_trs, max_trs); });
     }
 
-    AngleAxisd random_rotation(double max_angle) {
-      auto icdf = [max_angle](double p) {
-        double q = 2 * p - 1;
-        return std::copysign(std::pow(std::abs(q), 1.0 / 3.0), q) * max_angle;
+    E::AngleAxisf random_rotation(float max_angle) {
+      auto icdf = [max_angle](float p) {
+        float q = 2 * p - 1;
+        return std::copysign(std::pow(std::abs(q), 1.0F / 3.0F), q) * max_angle;
       };
 
-      Vector3d axis = random_unit();
-      double angle = icdf(draw_urd(1.0));
-      return AngleAxisd(angle, axis);
+      E::Vector3f axis = random_unit();
+      float angle = icdf(draw_urd(1.0F));
+      return E::AngleAxisf(angle, axis);
     }
 
-    double self_clash(const Matrix3Xd &pts) {
-      double penalty = 0;
+    float self_clash(const E::Matrix3Xf &pts) {
+      float penalty = 0;
       int n = static_cast<int>(pts.cols());
 
       for (int i = 1; i < n; ++i) {
-        Vector3d v = pts.col(i);
+        E::Vector3f v = pts.col(i);
         for (int j = 0; j < i; ++j) {
-          double d = (v - pts.col(j)).squaredNorm();
-          if (d < 5.0)
-            penalty += 1.0 + value_if(d < 4.0, 9.0);
+          float d = (v - pts.col(j)).squaredNorm();
+          if (d < 5.0F)
+            penalty += 1.0F + value_if(d < 4.0F, 9.0F);
         }
       }
 
-      return penalty / n;
+      return penalty / static_cast<float>(n);
     }
 
-    double flex_score(const Matrix3Xd &conf, const Invariants &inv) {
-      double aln_score = align_score(*inv.query, conf, *inv.templ,
-                                     inv.templ_centered, inv.hetero_scale);
+    float flex_score(const E::Matrix3Xf &conf, const Invariants &inv) {
+      float aln_score = align_score(*inv.query, conf, *inv.templ,
+                                    inv.templ_centered, inv.hetero_scale);
 
-      double clash = self_clash(conf);
-      double clash_penalty = nonnegative(clash - inv.base_clash);
+      float clash = self_clash(conf);
+      float clash_penalty = nonnegative(clash - inv.base_clash);
 
       return aln_score - clash_penalty;
     }
 
-    Vector3d rotation_vector(const Quaterniond &q) {
-      AngleAxisd aa(q);
+    E::Vector3f rotation_vector(const E::Quaternionf &q) {
+      E::AngleAxisf aa(q);
       return aa.angle() * aa.axis();
     }
 
-    AngleAxisd angle_axis_from_rotvec(const Vector3d &rotvec) {
-      double angle = rotvec.norm();
+    E::AngleAxisf angle_axis_from_rotvec(const E::Vector3f &rotvec) {
+      float angle = rotvec.norm();
 
-      Vector3d axis;
-      if (angle > 1e-6) {
+      E::Vector3f axis;
+      if (angle > 1e-6F) {
         axis = rotvec / angle;
       } else {
-        angle = 0.0;
-        axis = Vector3d::UnitX();
+        angle = 0.0F;
+        axis = E::Vector3f::UnitX();
       }
 
-      return AngleAxisd(angle, axis);
+      return E::AngleAxisf(angle, axis);
     }
 
     class GeneticConf {
     public:
-      GeneticConf(const GARigidMolInfo &query, const Matrix3Xd &query_ref)
-          : conf_(query_ref), rigid_(Isometry3d::Identity()),
-            torsion_(ArrayXd::Zero(
+      GeneticConf(const GARigidMolInfo &query, const E::Matrix3Xf &query_ref)
+          : conf_(query_ref), rigid_(E::Isometry3f::Identity()),
+            torsion_(E::ArrayXf::Zero(
                 static_cast<Eigen::Index>(query.rot_info().size()))) { }
 
-      GeneticConf(const GARigidMolInfo &query, const Vector3d &templ_cntr,
+      GeneticConf(const GARigidMolInfo &query, const E::Vector3f &templ_cntr,
                   GAlignResult &&rigid)
           : conf_(std::move(rigid.conf)), rigid_(std::move(rigid.xform)),
-            torsion_(ArrayXd::Zero(
+            torsion_(E::ArrayXf::Zero(
                 static_cast<Eigen::Index>(query.rot_info().size()))),
             score_(rigid.align_score) {
         conf_.colwise() -= templ_cntr;
         rigid_.translation() += rigid_.linear() * query.cntr() - templ_cntr;
       }
 
-      Matrix3Xd &conf() & { return conf_; }
+      E::Matrix3Xf &conf() & { return conf_; }
 
-      const Isometry3d &rigid() const { return rigid_; }
+      const E::Isometry3f &rigid() const { return rigid_; }
 
-      const ArrayXd &torsion() const { return torsion_; }
+      const E::ArrayXf &torsion() const { return torsion_; }
 
-      double score() const { return score_; }
+      float score() const { return score_; }
 
-      void update_from_simplexf(ConstRef<ArrayXd> simplexf,
+      void update_from_simplexf(ConstRef<E::ArrayXf> simplexf,
                                 const Invariants &inv) {
-        Translation3d trs(simplexf.head<3>());
-        AngleAxisd aa = angle_axis_from_rotvec(simplexf.segment<3>(3).matrix());
+        E::Translation3f trs(simplexf.head<3>());
+        E::AngleAxisf aa =
+            angle_axis_from_rotvec(simplexf.segment<3>(3).matrix());
 
         rigid_ = trs * aa;
         inplace_transform(conf_, rigid_, inv.query_centered);
@@ -158,11 +160,11 @@ namespace internal {
       }
 
     private:
-      Matrix3Xd conf_;
-      Isometry3d rigid_;
-      ArrayXd torsion_;
+      E::Matrix3Xf conf_;
+      E::Isometry3f rigid_;
+      E::ArrayXf torsion_;
 
-      double score_;
+      float score_;
 
       friend class Mutator;
     };
@@ -232,19 +234,19 @@ namespace internal {
       }
 
     private:
-      Matrix3Xd &conf() { return gconf_->conf_; }
+      E::Matrix3Xf &conf() { return gconf_->conf_; }
 
-      void update_trs(const Vector3d &delta) {
+      void update_trs(const E::Vector3f &delta) {
         delta_.translation() += delta;
         trs_updated_ = true;
       }
 
-      void update_rot(const Matrix3d &delta) {
+      void update_rot(const E::Matrix3f &delta) {
         delta_.linear() = delta * delta_.linear();
         rot_updated_ = true;
       }
 
-      void update_tors(int i, double delta) {
+      void update_tors(int i, float delta) {
         inv_->query->rot_info()[i].rotate(conf(), delta);
         gconf_->torsion_[i] += delta;
       }
@@ -253,19 +255,19 @@ namespace internal {
 
       Nonnull<const Invariants *> inv_;
 
-      Isometry3d delta_ = Isometry3d::Identity();
+      E::Isometry3f delta_ = E::Isometry3f::Identity();
 
       bool trs_updated_ = false;
       bool rot_updated_ = false;
     };
 
-    double exp_cumsum_scores(MutRef<ArrayXd> cutoffs,
-                             const std::vector<GeneticConf> &confs,
-                             const double start = 0) {
+    float exp_cumsum_scores(MutRef<E::ArrayXf> cutoffs,
+                            const std::vector<GeneticConf> &confs,
+                            const float start = 0.0F) {
       const int n = static_cast<int>(cutoffs.size());
       ABSL_DCHECK_GE(confs.size(), n);
 
-      double total = start;
+      float total = start;
       for (int i = 0; i < n; ++i)
         cutoffs[i] = (total += std::exp(confs[i].score()));
       return total;
@@ -277,7 +279,7 @@ namespace internal {
       if (pool.size() >= pool_size)
         return;
 
-      ArrayXd cutoffs(pool_size);
+      E::ArrayXf cutoffs(pool_size);
       exp_cumsum_scores(cutoffs.head(pool.size()), pool);
 
       for (int i = static_cast<int>(pool.size()); i < pool_size; ++i) {
@@ -293,10 +295,10 @@ namespace internal {
       }
     }
 
-    void minimize_one_conf(GeneticConf &gconf, NelderMead &nm,
-                           MutRef<ArrayXXd> simplex, const Invariants &inv,
+    void minimize_one_conf(GeneticConf &gconf, NelderMead<float> &nm,
+                           MutRef<E::ArrayXXf> simplex, const Invariants &inv,
                            Buffers &buf) {
-      Quaterniond q0(gconf.rigid().linear());
+      E::Quaternionf q0(gconf.rigid().linear());
 
       simplex.col(0).head<3>() = gconf.rigid().translation();
       simplex.col(0).segment<3>(3) = rotation_vector(q0);
@@ -308,23 +310,23 @@ namespace internal {
 
       for (int i = 0; i < 3; ++i) {
         simplex.col(i + 4).segment<3>(3) = rotation_vector(
-            AngleAxisd(inv.sampling->max_rot, Vector3d::Unit(i)) * q0);
+            E::AngleAxisf(inv.sampling->max_rot, E::Vector3f::Unit(i)) * q0);
       }
 
       for (int i = 0; i < gconf.torsion().size(); ++i)
         simplex.col(i + 7)[i + 6] += inv.sampling->max_tors;
 
-      auto eval_func = [&](ConstRef<ArrayXd> x) {
-        Translation3d trs(x.head<3>());
-        AngleAxisd aa = angle_axis_from_rotvec(x.segment<3>(3).matrix());
+      auto eval_func = [&](ConstRef<E::ArrayXf> x) {
+        E::Translation3f trs(x.head<3>());
+        E::AngleAxisf aa = angle_axis_from_rotvec(x.segment<3>(3).matrix());
 
-        Isometry3d xform = trs * aa;
+        E::Isometry3f xform = trs * aa;
         inplace_transform(gconf.conf(), xform, inv.query_centered);
 
         for (int i = 0; i < gconf.torsion().size(); ++i)
           inv.query->rot_info()[i].rotate(gconf.conf(), x[i + 6]);
 
-        double score = flex_score(gconf.conf(), inv);
+        float score = flex_score(gconf.conf(), inv);
         return -score;
       };
 
@@ -340,7 +342,7 @@ namespace internal {
                           const std::vector<GeneticConf> &initial_pool,
                           const Invariants &inv, Buffers &buf) {
       const int pool_size = inv.sampling->pool_size;
-      const double initial_sum = buf.cutoffs[pool_size - 1];
+      const float initial_sum = buf.cutoffs[pool_size - 1];
 
       auto prev_cutoffs = buf.cutoffs.tail(pool_size);
       exp_cumsum_scores(prev_cutoffs, pool_sample, initial_sum);
@@ -358,7 +360,7 @@ namespace internal {
         Mutator mut(newconf, inv);
         mut.crossover(other);
         for (int j = 0; j < inv.sampling->mut_cnt; ++j)
-          if (draw_urd(1.0) <= inv.sampling->mut_prob)
+          if (draw_urd(1.0F) <= inv.sampling->mut_prob)
             mut.random(*inv.sampling);
       }
     }
@@ -366,7 +368,7 @@ namespace internal {
 
   std::vector<GAlignResult>
   flexible_galign_impl(const GARigidMolInfo &query, const GARigidMolInfo &templ,
-                       int max_conf, double scale,
+                       int max_conf, float scale,
                        const GASamplingArgs &sampling,
                        const GAMinimizeArgs &minimize) {
     if (query.rot_info().empty())
@@ -379,8 +381,8 @@ namespace internal {
     const int ndimp1 = 6 + static_cast<int>(query.rot_info().size()) + 1;
 
     Buffers buf {
-      ArrayXXd(ndimp1, ndimp1),
-      ArrayXd(sampling.pool_size * 2),
+      E::ArrayXXf(ndimp1, ndimp1),
+      E::ArrayXf(sampling.pool_size * 2),
     };
 
     const Invariants inv {
@@ -394,7 +396,7 @@ namespace internal {
       scale,
     };
 
-    NelderMead nm(buf.simplexf);
+    NelderMead<float> nm(buf.simplexf);
     auto simplex = buf.simplexf.topRows(nm.n());
 
     std::vector<GeneticConf> pool;
@@ -409,14 +411,14 @@ namespace internal {
       minimize_one_conf(conf, nm, simplex, inv, buf);
 
     const std::vector<GeneticConf> initial_pool(pool);
-    ArrayXd cutoffs(sampling.pool_size * 2);
+    E::ArrayXf cutoffs(sampling.pool_size * 2);
     exp_cumsum_scores(cutoffs.head(sampling.pool_size), initial_pool);
 
     pool.resize(sampling.pool_size + sampling.sample_size,
                 GeneticConf(query, inv.query_centered));
 
     int patience = sampling.patience;
-    double prev_max = -1e10;
+    float prev_max = -1e10F;
 
     for (int i = 0; i < sampling.max_gen; ++i) {
       genetic_sampling(pool, initial_pool, inv, buf);
@@ -428,7 +430,7 @@ namespace internal {
       std::nth_element(pool.begin(), pool.begin() + sampling.pool_size - 1,
                        pool.end(), std::greater<>());
 
-      double current_max =
+      float current_max =
           std::max_element(pool.begin(), pool.begin() + sampling.pool_size)
               ->score();
       if (current_max - prev_max < minimize.ftol && --patience <= 0)
@@ -444,8 +446,8 @@ namespace internal {
     for (int i = 0; i < max_conf; ++i) {
       GeneticConf &conf = pool[topk[i]];
 
-      double aln_score = align_score(query, conf.conf(), templ,
-                                     inv.templ_centered, inv.hetero_scale);
+      float aln_score = align_score(query, conf.conf(), templ,
+                                    inv.templ_centered, inv.hetero_scale);
       flex_result.push_back(
           { std::move(conf.conf()), conf.rigid(), aln_score });
 

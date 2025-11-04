@@ -151,7 +151,7 @@ namespace {
 
 namespace internal {
   std::vector<GARotationInfo> GARotationInfo::from(const Molecule &mol,
-                                                   const Matrix3Xd &ref) {
+                                                   const E::Matrix3Xf &ref) {
     auto [pf, roots] = parent_forest(mol);
     std::vector rbs = split_components_by_bridge(pf, roots);
 
@@ -180,15 +180,17 @@ namespace internal {
     return ri;
   }
 
-  Matrix3Xd &GARotationInfo::rotate(Matrix3Xd &pts, const double angle) const {
-    if (std::abs(angle) < 1e-6)
+  E::Matrix3Xf &GARotationInfo::rotate(E::Matrix3Xf &pts,
+                                       const float angle) const {
+    if (std::abs(angle) < 1e-6F)
       return pts;
 
-    Vector3d trs = pts.col(origin_);
-    Isometry3d xform =
-        Translation3d(trs)
-        * AngleAxisd(angle, (pts.col(origin_) - pts.col(ref_)) * normalizer())
-        * Translation3d(-trs);
+    E::Vector3f trs = pts.col(origin_);
+    E::Isometry3f xform =
+        E::Translation3f(trs)
+        * E::AngleAxisf(angle,
+                        (pts.col(origin_) - pts.col(ref_)) * normalizer())
+        * E::Translation3f(-trs);
 
     for (int i: moving_)
       pts.col(i) = xform * pts.col(i);
@@ -218,21 +220,22 @@ namespace {
 }  // namespace
 
 GARigidMolInfo::GARigidMolInfo(const Molecule &mol, const Matrix3Xd &ref,
-                               const double vdw_scale,
-                               const double hetero_scale, const int dcut)
-    : mol_(&mol), ref_(&ref), cntr_(ref.rowwise().mean()),
+                               const float vdw_scale, const float hetero_scale,
+                               const int dcut)
+    : mol_(&mol), ref_(ref.cast<float>()), cntr_(ref_.rowwise().mean()),
       vdw_scale_(vdw_scale), hetero_scale_(hetero_scale),
-      rot_info_(internal::GARotationInfo::from(mol, ref)),
+      rot_info_(internal::GARotationInfo::from(mol, ref_)),
       atom_types_(mol.size()), vdw_rads_vols_(mol.size(), 2),
-      dists_(cdist(ref, ref)), neighbor_vec_(MatrixXd::Zero(dcut, mol.size())) {
+      dists_(cdist(ref_, ref_)),
+      neighbor_vec_(E::MatrixXf::Zero(dcut, mol.size())) {
   for (auto atom: mol) {
     atom_types_[atom.id()] = ga_atom_type(atom);
     vdw_rads_vols_(atom.id(), 0) =
-        vdw_scale * atom.data().element().vdw_radius();
+        vdw_scale * static_cast<float>(atom.data().element().vdw_radius());
   }
 
-  vdw_rads_vols_.col(1) =
-      4.0 / 3.0 * constants::kPi * vdw_rads_vols_.col(0).cube();
+  vdw_rads_vols_.col(1) = 4.0F / 3.0F * static_cast<float>(constants::kPi)
+                          * vdw_rads_vols_.col(0).cube();
 
   for (int i = 0; i < n() - 1; ++i) {
     for (int j = i + 1; j < n(); ++j) {

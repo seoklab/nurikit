@@ -34,19 +34,19 @@ namespace internal {
     };
 
     AtomMatching find_best_match(const GARigidMolInfo &query,
-                                 const GARigidMolInfo &templ,
-                                 const double scale, bool left_mapped = true) {
+                                 const GARigidMolInfo &templ, const float scale,
+                                 bool left_mapped = true) {
       if (query.n() < templ.n())
         return find_best_match(templ, query, scale, !left_mapped);
 
-      const MatrixXd &qnv = query.nv(), &tnv = templ.nv();
+      const E::MatrixXf &qnv = query.nv(), &tnv = templ.nv();
 
       ArrayXi match(templ.n());
       for (int i = 0; i < templ.n(); ++i) {
-        double best = -1.0;
+        float best = -1.0F;
 
         for (int j = 0; j < query.n(); ++j) {
-          double sim = qnv.col(j).dot(tnv.col(i));
+          float sim = qnv.col(j).dot(tnv.col(i));
           if (query.atom_types()[j] != templ.atom_types()[i])
             sim *= scale;
 
@@ -61,8 +61,7 @@ namespace internal {
     }
 
     void maybe_replace_candidate(std::vector<GAlignResult> &results,
-                                 GAlignResult &candidate,
-                                 const double min_msd) {
+                                 GAlignResult &candidate, const float min_msd) {
       if (candidate.align_score * 2 < results.front().align_score)
         return;
 
@@ -84,24 +83,25 @@ namespace internal {
                              GAlignResult &candidate,
                              const std::pair<Array3i, Array3i> &coms,
                              const GARigidMolInfo &query,
-                             const GARigidMolInfo &templ, const double scale,
-                             const double min_msd) {
+                             const GARigidMolInfo &templ, const float scale,
+                             const float min_msd) {
       if (kOnlySimilar) {
         for (int i = 0; i < 2; ++i) {
           for (int j = i + 1; j < 3; ++j) {
             if (std::abs(query.dists()(coms.first[j], coms.first[i])
                          - templ.dists()(coms.second[j], coms.second[i]))
-                > 2.0) {
+                > 2.0F) {
               return;
             }
           }
         }
       }
 
-      Matrix3d qpts = query.ref()(Eigen::all, coms.first);
-      Matrix3d tpts = templ.ref()(Eigen::all, coms.second);
+      E::Matrix3f qpts = query.ref()(Eigen::all, coms.first);
+      E::Matrix3f tpts = templ.ref()(Eigen::all, coms.second);
 
-      candidate.xform = qcp_inplace(qpts, tpts, AlignMode::kXformOnly).first;
+      candidate.xform =
+          qcp_inplace<float>(qpts, tpts, AlignMode::kXformOnly).first;
 
       inplace_transform(candidate.conf, candidate.xform, query.ref());
       candidate.align_score =
@@ -110,10 +110,11 @@ namespace internal {
       maybe_replace_candidate(results, candidate, min_msd);
     }
 
-    std::vector<GAlignResult>
-    align_triad(const GARigidMolInfo &query, const GARigidMolInfo &templ,
-                const AtomMatching &mapping, const int max_conf,
-                const double scale, const double min_msd) {
+    std::vector<GAlignResult> align_triad(const GARigidMolInfo &query,
+                                          const GARigidMolInfo &templ,
+                                          const AtomMatching &mapping,
+                                          const int max_conf, const float scale,
+                                          const float min_msd) {
       std::vector<GAlignResult> results(max_conf, { query.ref() });
       GAlignResult candidate { query.ref() };
 
@@ -158,8 +159,8 @@ namespace internal {
   std::vector<GAlignResult> rigid_galign_impl(const GARigidMolInfo &query,
                                               const GARigidMolInfo &templ,
                                               const int max_conf,
-                                              const double scale,
-                                              const double min_msd) {
+                                              const float scale,
+                                              const float min_msd) {
     AtomMatching match = find_best_match(query, templ, scale);
     return align_triad(query, templ, match, max_conf, scale, min_msd);
   }

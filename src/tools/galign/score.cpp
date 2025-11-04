@@ -6,41 +6,42 @@
 #include <cmath>
 
 #include <absl/base/optimization.h>
+#include <Eigen/Dense>
 
-#include "nuri/eigen_config.h"
+#include "nuri/eigen_config.h"  // IWYU pragma: keep, required for E namespace
 #include "nuri/core/geometry.h"
 #include "nuri/tools/galign.h"
 
 namespace nuri {
 namespace internal {
-  double shape_overlap(const GARigidMolInfo &query, const GARigidMolInfo &templ,
-                       const ArrayXXd &dists, double scale) {
+  float shape_overlap(const GARigidMolInfo &query, const GARigidMolInfo &templ,
+                      const E::ArrayXXf &dists, float scale) {
     const Eigen::Index rows = dists.rows(), cols = dists.cols();
 
-    double total_overlap = 0;
-    const double *d_it = dists.data();
+    float total_overlap = 0;
+    const float *d_it = dists.data();
     for (int i = 0; i < cols; ++i) {
-      const double tr = templ.vdw_radii()[i], tv = templ.vdw_vols()[i];
+      const float tr = templ.vdw_radii()[i], tv = templ.vdw_vols()[i];
       const int tt = templ.atom_types()[i];
 
       for (int j = 0; j < rows; ++j, ++d_it) {
-        const double qr = query.vdw_radii()[j], d = *d_it;
-        const double rsum = qr + tr, rsum_m_d = rsum - d,
-                     qv = query.vdw_vols()[j];
+        const float qr = query.vdw_radii()[j], d = *d_it;
+        const float rsum = qr + tr, rsum_m_d = rsum - d,
+                    qv = query.vdw_vols()[j];
 
         ABSL_ASSUME(qr > 0 && tr > 0 && d >= 0);
         if (rsum_m_d <= 0)
           continue;
 
-        const double rdiff = qr - tr, vols[] = { tv, qv };
+        const float rdiff = qr - tr, vols[] = { tv, qv };
         const int r_min = static_cast<int>(qr < tr);
 
-        double overlap;
+        float overlap;
         if (d <= std::abs(rdiff)) {
           overlap = vols[r_min];
         } else {
-          overlap = constants::kPi / 12 * rsum_m_d * rsum_m_d
-                    * (d + 2 * rsum - 3 / d * rdiff * rdiff);
+          overlap = static_cast<float>(constants::kPi) / 12.0F * rsum_m_d
+                    * rsum_m_d * (d + 2 * rsum - 3 / d * rdiff * rdiff);
         }
 
         if (query.atom_types()[j] != tt)
@@ -53,33 +54,32 @@ namespace internal {
     return total_overlap;
   }
 
-  double shape_overlap(const GARigidMolInfo &query, const Matrix3Xd &qconf,
-                       const GARigidMolInfo &templ, const Matrix3Xd &tconf,
-                       double scale) {
-    double total_overlap = 0;
+  float shape_overlap(const GARigidMolInfo &query, const E::Matrix3Xf &qconf,
+                      const GARigidMolInfo &templ, const E::Matrix3Xf &tconf,
+                      float scale) {
+    float total_overlap = 0;
 
     for (int i = 0; i < templ.n(); ++i) {
-      const double tr = templ.vdw_radii()[i], tv = templ.vdw_vols()[i];
+      const float tr = templ.vdw_radii()[i], tv = templ.vdw_vols()[i];
       const int tt = templ.atom_types()[i];
-      Vector3d tpos = tconf.col(i);
+      E::Vector3f tpos = tconf.col(i);
 
       for (int j = 0; j < query.n(); ++j) {
-        const double qr = query.vdw_radii()[j],
-                     d = (qconf.col(j) - tpos).norm();
-        const double rsum = qr + tr, rsum_m_d = rsum - d;
+        const float qr = query.vdw_radii()[j], d = (qconf.col(j) - tpos).norm();
+        const float rsum = qr + tr, rsum_m_d = rsum - d;
 
         ABSL_ASSUME(qr > 0 && tr > 0 && d >= 0);
         if (ABSL_PREDICT_FALSE(rsum_m_d <= 0))
           continue;
 
-        const double rdiff = qr - tr;
+        const float rdiff = qr - tr;
 
-        double overlap;
+        float overlap;
         if (ABSL_PREDICT_TRUE(d > std::abs(rdiff))) {
-          overlap = constants::kPi / 12 * rsum_m_d * rsum_m_d
-                    * (d + 2 * rsum - 3 / d * rdiff * rdiff);
+          overlap = static_cast<float>(constants::kPi) / 12.0F * rsum_m_d
+                    * rsum_m_d * (d + 2 * rsum - 3 / d * rdiff * rdiff);
         } else {
-          const double vols[] = { tv, query.vdw_vols()[j] };
+          const float vols[] = { tv, query.vdw_vols()[j] };
           const int r_min = static_cast<int>(qr < tr);
           overlap = vols[r_min];
         }
