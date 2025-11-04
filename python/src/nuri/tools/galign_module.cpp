@@ -38,7 +38,7 @@ const Matrix3Xd &galign_try_get_conf(const PyMol &mol,
 }
 
 GARigidMolInfo galign_init(const PyMol &mol, std::optional<int> conf,
-                           double vdw_scale, double hetero_scale, int dcut) {
+                           float vdw_scale, float hetero_scale, int dcut) {
   if (mol->size() < 3) {
     throw pybind11::value_error(absl::StrCat(
         "GAlign requires at least 3 atoms in the template molecule, got ",
@@ -47,11 +47,11 @@ GARigidMolInfo galign_init(const PyMol &mol, std::optional<int> conf,
 
   const Matrix3Xd &ref = galign_try_get_conf(mol, conf);
 
-  if (vdw_scale <= 0.0) {
+  if (vdw_scale <= 0.0F) {
     throw pybind11::value_error(
         absl::StrCat("vdw_scale must be positive, got ", vdw_scale));
   }
-  if (hetero_scale <= 0.0) {
+  if (hetero_scale <= 0.0F) {
     throw pybind11::value_error(
         absl::StrCat("hetero_scale must be positive, got ", hetero_scale));
   }
@@ -66,10 +66,10 @@ GARigidMolInfo galign_init(const PyMol &mol, std::optional<int> conf,
 
 pyt::List<GAlignResult>
 galign_align(const GARigidMolInfo &self, const PyMol &query, bool flexible,
-             int max_conf, std::optional<int> conf, double max_trs,
-             double max_rot, double max_tors, double rigid_min_rmsd,
+             int max_conf, std::optional<int> conf, float max_trs,
+             float max_rot, float max_tors, float rigid_min_rmsd,
              int rigid_max_conf, int pool_size, int sample_size, int max_gen,
-             int patience, int mut_cnt, double mut_prob, double ftol,
+             int patience, int mut_cnt, float mut_prob, float ftol,
              int max_iters) {
   const Matrix3Xd &seed = galign_try_get_conf(query, conf);
 
@@ -80,15 +80,15 @@ galign_align(const GARigidMolInfo &self, const PyMol &query, bool flexible,
 
   GAMinimizeArgs margs;
   if (flexible) {
-    if (max_trs < 0.0) {
+    if (max_trs < 0.0F) {
       throw pybind11::value_error(
           absl::StrCat("max_translation must be nonnegative, got ", max_trs));
     }
-    if (max_rot < 0.0) {
+    if (max_rot < 0.0F) {
       throw pybind11::value_error(
           absl::StrCat("max_rotation must be nonnegative, got ", max_rot));
     }
-    if (max_tors < 0.0) {
+    if (max_tors < 0.0F) {
       throw pybind11::value_error(
           absl::StrCat("max_torsion must be nonnegative, got ", max_tors));
     }
@@ -108,11 +108,11 @@ galign_align(const GARigidMolInfo &self, const PyMol &query, bool flexible,
       throw pybind11::value_error(
           absl::StrCat("n_mutation must be nonnegative, got ", mut_cnt));
     }
-    if (mut_prob < 0.0 || mut_prob > 1.0) {
+    if (mut_prob < 0.0F || mut_prob > 1.0F) {
       throw pybind11::value_error(
           absl::StrCat("p_mutation must be between 0 and 1, got ", mut_prob));
     }
-    if (ftol <= 0.0) {
+    if (ftol <= 0.0F) {
       throw pybind11::value_error(
           absl::StrCat("opt_ftol must be positive, got ", ftol));
     }
@@ -158,8 +158,8 @@ The alignment score (shape overlap) of this result.
   py::class_<GARigidMolInfo>(m, "GAlign")
       .def(py::init(&galign_init), py::arg("templ"),
            py::kw_only(),  //
-           py::arg("conf") = py::none(), py::arg("vdw_scale") = 0.8,
-           py::arg("hetero_scale") = 0.7, py::arg("dcut") = 6,
+           py::arg("conf") = py::none(), py::arg("vdw_scale") = 0.8F,
+           py::arg("hetero_scale") = 0.7F, py::arg("dcut") = 6,
            R"doc(
 Prepare GAlign algorithm with the given template structure.
 
@@ -181,14 +181,14 @@ Prepare GAlign algorithm with the given template structure.
       .def("align", galign_align, py::arg("query"), py::arg("flexible") = true,
            py::arg("max_confs") = 1,
            py::kw_only(),  //
-           py::arg("conf") = py::none(), py::arg("max_translation") = 2.5,
-           py::arg("max_rotation") = deg2rad(120),
-           py::arg("max_torsion") = deg2rad(120),
-           py::arg("rigid_min_msd") = 9.0, py::arg("rigid_max_confs") = 4,
+           py::arg("conf") = py::none(), py::arg("max_translation") = 2.5F,
+           py::arg("max_rotation") = deg2rad(120.0F),
+           py::arg("max_torsion") = deg2rad(120.0F),
+           py::arg("rigid_min_msd") = 9.0F, py::arg("rigid_max_confs") = 4,
            py::arg("pool_size") = 10, py::arg("sample_size") = 30,
            py::arg("max_generations") = 50, py::arg("patience") = 5,
-           py::arg("n_mutation") = 5, py::arg("p_mutation") = 0.5,
-           py::arg("opt_ftol") = 1e-2, py::arg("opt_max_iters") = 300,
+           py::arg("n_mutation") = 5, py::arg("p_mutation") = 0.5F,
+           py::arg("opt_ftol") = 1e-2F, py::arg("opt_max_iters") = 300,
            R"doc(
 Align the given query molecule to the template structure.
 
@@ -241,11 +241,11 @@ Align the given query molecule to the template structure.
   m.def(
       "galign",
       [](const PyMol &query, const PyMol &templ, bool flexible, int max_conf,
-         std::optional<int> qconf, std::optional<int> tconf, double vdw_scale,
-         double hetero_scale, int dcut, double max_trs, double max_rot,
-         double max_tors, double rigid_min_rmsd, int rigid_max_conf,
+         std::optional<int> qconf, std::optional<int> tconf, float vdw_scale,
+         float hetero_scale, int dcut, float max_trs, float max_rot,
+         float max_tors, float rigid_min_rmsd, int rigid_max_conf,
          int pool_size, int sample_size, int max_gen, int patience, int mut_cnt,
-         double mut_prob, double ftol, int max_iters) {
+         float mut_prob, float ftol, int max_iters) {
         const GARigidMolInfo tinfo =
             galign_init(templ, tconf, vdw_scale, hetero_scale, dcut);
 
@@ -258,14 +258,14 @@ Align the given query molecule to the template structure.
       py::arg("max_confs") = 1,
       py::kw_only(),  //
       py::arg("qconf") = py::none(), py::arg("tconf") = py::none(),
-      py::arg("vdw_scale") = 0.8, py::arg("hetero_scale") = 0.7,
-      py::arg("dcut") = 6, py::arg("max_translation") = 2.5,
-      py::arg("max_rotation") = deg2rad(120),
-      py::arg("max_torsion") = deg2rad(120), py::arg("rigid_min_msd") = 9.0,
+      py::arg("vdw_scale") = 0.8F, py::arg("hetero_scale") = 0.7F,
+      py::arg("dcut") = 6, py::arg("max_translation") = 2.5F,
+      py::arg("max_rotation") = deg2rad(120.0F),
+      py::arg("max_torsion") = deg2rad(120.0F), py::arg("rigid_min_msd") = 9.0F,
       py::arg("rigid_max_confs") = 4, py::arg("pool_size") = 10,
       py::arg("sample_size") = 30, py::arg("max_generations") = 50,
       py::arg("patience") = 5, py::arg("n_mutation") = 5,
-      py::arg("p_mutation") = 0.5, py::arg("opt_ftol") = 1e-2,
+      py::arg("p_mutation") = 0.5F, py::arg("opt_ftol") = 1e-2F,
       py::arg("opt_max_iters") = 300,
       R"doc(
 Align the given query molecule to the template structure.
