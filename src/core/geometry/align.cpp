@@ -17,10 +17,10 @@
 namespace nuri {
 // NOLINTBEGIN(readability-identifier-naming,*-avoid-goto)
 namespace {
-  bool align_singular_common(std::pair<Isometry3d, double> &result,
-                             const Eigen::Ref<const Matrix3Xd> &query,
-                             const Eigen::Ref<const Matrix3Xd> &templ,
-                             AlignMode mode) {
+  template <class DT>
+  bool align_singular_common(std::pair<IsometryT<DT, 3>, DT> &result,
+                             ConstRef<E::Matrix3X<DT>> query,
+                             ConstRef<E::Matrix3X<DT>> templ, AlignMode mode) {
     if (ABSL_PREDICT_FALSE(query.cols() < 2)) {
       if (mode != AlignMode::kMsdOnly) {
         result.first.setIdentity();
@@ -296,48 +296,49 @@ failure:
 }
 
 namespace {
-  std::pair<double, bool>
-  qcp_find_nearest_eig(const Matrix3d &R, const double det, const double e0,
-                       const double evalprec, const int maxiter) {
-    const Matrix3d Rsq = R.cwiseAbs2();
+  template <class DT>
+  std::pair<DT, bool>
+  qcp_find_nearest_eig(const E::Matrix3<DT> &R, const DT det, const DT e0,
+                       const DT evalprec, const int maxiter) {
+    const E::Matrix3<DT> Rsq = R.cwiseAbs2();
 
-    double F = (-(R(0, 2) + R(2, 0)) * (R(1, 2) - R(2, 1))
-                + (R(0, 1) - R(1, 0)) * (R(0, 0) - R(1, 1) - R(2, 2)))
-               * (-(R(0, 2) - R(2, 0)) * (R(1, 2) + R(2, 1))
-                  + (R(0, 1) - R(1, 0)) * (R(0, 0) - R(1, 1) + R(2, 2)));
+    DT F = (-(R(0, 2) + R(2, 0)) * (R(1, 2) - R(2, 1))
+            + (R(0, 1) - R(1, 0)) * (R(0, 0) - R(1, 1) - R(2, 2)))
+           * (-(R(0, 2) - R(2, 0)) * (R(1, 2) + R(2, 1))
+              + (R(0, 1) - R(1, 0)) * (R(0, 0) - R(1, 1) + R(2, 2)));
 
-    double G = (-(R(0, 2) + R(2, 0)) * (R(1, 2) + R(2, 1))
-                - (R(0, 1) + R(1, 0)) * (R(0, 0) + R(1, 1) - R(2, 2)))
-               * (-(R(0, 2) - R(2, 0)) * (R(1, 2) - R(2, 1))
-                  - (R(0, 1) + R(1, 0)) * (R(0, 0) + R(1, 1) + R(2, 2)));
+    DT G = (-(R(0, 2) + R(2, 0)) * (R(1, 2) + R(2, 1))
+            - (R(0, 1) + R(1, 0)) * (R(0, 0) + R(1, 1) - R(2, 2)))
+           * (-(R(0, 2) - R(2, 0)) * (R(1, 2) - R(2, 1))
+              - (R(0, 1) + R(1, 0)) * (R(0, 0) + R(1, 1) + R(2, 2)));
 
-    double H = ((R(0, 1) + R(1, 0)) * (R(1, 2) + R(2, 1))
-                + (R(0, 2) + R(2, 0)) * (R(0, 0) - R(1, 1) + R(2, 2)))
-               * (-(R(0, 1) - R(1, 0)) * (R(1, 2) - R(2, 1))
-                  + (R(0, 2) + R(2, 0)) * (R(0, 0) + R(1, 1) + R(2, 2)));
+    DT H = ((R(0, 1) + R(1, 0)) * (R(1, 2) + R(2, 1))
+            + (R(0, 2) + R(2, 0)) * (R(0, 0) - R(1, 1) + R(2, 2)))
+           * (-(R(0, 1) - R(1, 0)) * (R(1, 2) - R(2, 1))
+              + (R(0, 2) + R(2, 0)) * (R(0, 0) + R(1, 1) + R(2, 2)));
 
-    double I = ((R(0, 1) + R(1, 0)) * (R(1, 2) - R(2, 1))
-                + (R(0, 2) - R(2, 0)) * (R(0, 0) - R(1, 1) - R(2, 2)))
-               * (-(R(0, 1) - R(1, 0)) * (R(1, 2) + R(2, 1))
-                  + (R(0, 2) - R(2, 0)) * (R(0, 0) + R(1, 1) - R(2, 2)));
+    DT I = ((R(0, 1) + R(1, 0)) * (R(1, 2) - R(2, 1))
+            + (R(0, 2) - R(2, 0)) * (R(0, 0) - R(1, 1) - R(2, 2)))
+           * (-(R(0, 1) - R(1, 0)) * (R(1, 2) + R(2, 1))
+              + (R(0, 2) - R(2, 0)) * (R(0, 0) + R(1, 1) - R(2, 2)));
 
-    double Dsqrt = Rsq(0, 1) + Rsq(0, 2) - Rsq(1, 0) - Rsq(2, 0);
+    DT Dsqrt = Rsq(0, 1) + Rsq(0, 2) - Rsq(1, 0) - Rsq(2, 0);
 
-    double E1 = -Rsq(0, 0) + Rsq(1, 1) + Rsq(2, 2) + Rsq(1, 2) + Rsq(2, 1),
-           E2 = 2 * (R(1, 1) * R(2, 2) - R(1, 2) * R(2, 1)),
-           E = (E1 - E2) * (E1 + E2);
+    DT E1 = -Rsq(0, 0) + Rsq(1, 1) + Rsq(2, 2) + Rsq(1, 2) + Rsq(2, 1),
+       E2 = 2 * (R(1, 1) * R(2, 2) - R(1, 2) * R(2, 1)),
+       E = (E1 - E2) * (E1 + E2);
 
-    const double c2 = -2 * Rsq.sum(), c1 = -8 * det,
-                 c0 = Dsqrt * Dsqrt + E + F + G + H + I;
+    const DT c2 = -2 * Rsq.sum(), c1 = -8 * det,
+             c0 = Dsqrt * Dsqrt + E + F + G + H + I;
 
-    double eig = e0, oldeig;
+    DT eig = e0, oldeig;
     for (int i = 0; i < maxiter; ++i) {
       oldeig = eig;
 
-      const double esq = eig * eig;
-      const double df = 4 * esq * eig + 2 * c2 * eig + c1;
-      const double f = esq * esq + c2 * esq + c1 * eig + c0;
-      if (ABSL_PREDICT_FALSE(std::abs(df) <= kEps)) {
+      const DT esq = eig * eig;
+      const DT df = 4 * esq * eig + 2 * c2 * eig + c1;
+      const DT f = esq * esq + c2 * esq + c1 * eig + c0;
+      if (ABSL_PREDICT_FALSE(std::abs(df) <= static_cast<DT>(kEps))) {
         // singular; test for convergence
         return { eig, std::abs(f) <= evalprec };
       }
@@ -351,10 +352,11 @@ namespace {
     return { eig, false };
   }
 
-  std::pair<Quaterniond, bool>
-  qcp_unit_quat(const Matrix3d &R, const double eig, const double precsq) {
+  template <class DT>
+  std::pair<E::Quaternion<DT>, bool>
+  qcp_unit_quat(const E::Matrix3<DT> &R, const DT eig, const DT precsq) {
     // Upper triangle stores 2x2 minors with some sign changes
-    Matrix4d a;
+    E::Matrix4<DT> a;
     a(0, 0) = R(0, 0) + R(1, 1) + R(2, 2) - eig;
     a(1, 0) = R(1, 2) - R(2, 1);
     a(2, 0) = R(2, 0) - R(0, 2);
@@ -390,8 +392,8 @@ namespace {
     // quaternion calculated by the original algorithm.
     //
     // Also note that q1 = w, q2 = x, q3 = y, q4 = z in eigen quaternion.
-    Quaterniond q;
-    double qsqnrm;
+    E::Quaternion<DT> q;
+    DT qsqnrm;
 
     q.x() = a(1, 0) * a(0, 1) + a(2, 1) * a(1, 2) - a(3, 1) * a(1, 3);
     q.y() = a(1, 0) * a(0, 2) - a(1, 1) * a(1, 2) + a(3, 1) * a(2, 3);
@@ -446,24 +448,24 @@ namespace {
     return { q, true };
   }
 
-  void qcp_impl(std::pair<Isometry3d, double> &ret, const Vector3d &qm,
-                const Vector3d &tm, const Matrix3d &R, const double GA,
-                const double GB, const double det, const int n,
-                const AlignMode mode, const bool reflection,
-                const double evalprec, const double evecprec,
+  template <class DT>
+  void qcp_impl(std::pair<IsometryT<DT, 3>, DT> &ret, const E::Vector3<DT> &qm,
+                const E::Vector3<DT> &tm, const E::Matrix3<DT> &R, const DT GA,
+                const DT GB, const DT det, const int n, const AlignMode mode,
+                const bool reflection, const DT evalprec, const DT evecprec,
                 const int maxiter) {
-    double e0 = (GA + GB) / 2;
+    DT e0 = (GA + GB) / 2;
     if (reflection)
       e0 = std::copysign(e0, det);
 
     const auto [eig, ok] = qcp_find_nearest_eig(R, det, e0, evalprec, maxiter);
     if (!ok) {
-      ret.second = -1;
+      ret.second = static_cast<DT>(-1);
       return;
     }
 
     if (mode != AlignMode::kXformOnly) {
-      double msd = nonnegative(GA + GB - 2 * std::abs(eig)) / n;
+      DT msd = nonnegative(GA + GB - 2 * std::abs(eig)) / static_cast<DT>(n);
       ret.second = msd;
     }
 
@@ -472,68 +474,89 @@ namespace {
 
     auto [qhat, success] = qcp_unit_quat(R, eig, evecprec * evecprec);
     if (!success) {
-      ret.second = -1;
+      ret.second = static_cast<DT>(-1);
       return;
     }
 
     ret.first.linear() = qhat.toRotationMatrix();
     if (reflection)
-      ret.first.linear() *= std::copysign(1, det);
+      ret.first.linear() *= std::copysign(static_cast<DT>(1), det);
 
     ret.first.translation().noalias() = -1 * (ret.first.linear() * qm);
     ret.first.translation() += tm;
   }
 }  // namespace
 
-std::pair<Isometry3d, double> qcp(const Eigen::Ref<const Matrix3Xd> &query,
-                                  const Eigen::Ref<const Matrix3Xd> &templ,
-                                  const AlignMode mode, const bool reflection,
-                                  const double evalprec, const double evecprec,
-                                  const int maxiter) {
-  std::pair<Isometry3d, double> ret { {}, 0.0 };
-  if (align_singular_common(ret, query, templ, mode))
+template <class DT>
+std::pair<IsometryT<DT, 3>, DT>
+qcp(ConstRef<E::Matrix3X<DT>> query, ConstRef<E::Matrix3X<DT>> templ,
+    const AlignMode mode, const bool reflection, const DT evalprec,
+    const DT evecprec, const int maxiter) {
+  std::pair<IsometryT<DT, 3>, DT> ret { {}, static_cast<DT>(0.0) };
+  if (align_singular_common<DT>(ret, query, templ, mode))
     return ret;
 
-  MatrixX3d qt = query.transpose();
-  Eigen::RowVector3d qm = qt.colwise().mean();
+  E::MatrixX3<DT> qt = query.transpose();
+  E::RowVector3<DT> qm = qt.colwise().mean();
 
-  MatrixX3d tt = templ.transpose();
-  Eigen::RowVector3d tm = tt.colwise().mean();
+  E::MatrixX3<DT> tt = templ.transpose();
+  E::RowVector3<DT> tm = tt.colwise().mean();
 
   qt.rowwise() -= qm;
   tt.rowwise() -= tm;
 
-  const Matrix3d R = tt.transpose() * qt;
-  const double GA = tt.cwiseAbs2().sum(), GB = qt.cwiseAbs2().sum(),
-               det = R.determinant();
+  const E::Matrix3<DT> R = tt.transpose() * qt;
+  const DT GA = tt.cwiseAbs2().sum(), GB = qt.cwiseAbs2().sum(),
+           det = R.determinant();
 
-  qcp_impl(ret, qm.transpose(), tm.transpose(), R, GA, GB, det,
-           static_cast<int>(query.cols()), mode, reflection, evalprec, evecprec,
-           maxiter);
+  qcp_impl<DT>(ret, qm.transpose(), tm.transpose(), R, GA, GB, det,
+               static_cast<int>(query.cols()), mode, reflection, evalprec,
+               evecprec, maxiter);
   return ret;
 }
 
-std::pair<Isometry3d, double>
-qcp_inplace(MutRef<Matrix3Xd> query, MutRef<Matrix3Xd> templ,
-            const AlignMode mode, const bool reflection, const double evalprec,
-            const double evecprec, const int maxiter) {
-  std::pair<Isometry3d, double> ret { {}, 0.0 };
-  if (align_singular_common(ret, query, templ, mode))
+template <class DT>
+std::pair<IsometryT<DT, 3>, DT>
+qcp_inplace(MutRef<E::Matrix3X<DT>> query, MutRef<E::Matrix3X<DT>> templ,
+            const AlignMode mode, const bool reflection, const DT evalprec,
+            const DT evecprec, const int maxiter) {
+  std::pair<IsometryT<DT, 3>, DT> ret { {}, static_cast<DT>(0.0) };
+  if (align_singular_common<DT>(ret, query, templ, mode))
     return ret;
 
-  Vector3d qm = query.rowwise().mean();
+  E::Vector3<DT> qm = query.rowwise().mean();
   query.colwise() -= qm;
 
-  Vector3d tm = templ.rowwise().mean();
+  E::Vector3<DT> tm = templ.rowwise().mean();
   templ.colwise() -= tm;
 
-  const Matrix3d R = templ * query.transpose();
-  const double GA = templ.cwiseAbs2().sum(), GB = query.cwiseAbs2().sum(),
-               det = R.determinant();
+  const E::Matrix3<DT> R = templ * query.transpose();
+  const DT GA = templ.cwiseAbs2().sum(), GB = query.cwiseAbs2().sum(),
+           det = R.determinant();
 
-  qcp_impl(ret, qm, tm, R, GA, GB, det, static_cast<int>(query.cols()), mode,
-           reflection, evalprec, evecprec, maxiter);
+  qcp_impl<DT>(ret, qm, tm, R, GA, GB, det, static_cast<int>(query.cols()),
+               mode, reflection, evalprec, evecprec, maxiter);
   return ret;
 }
+
+template std::pair<E::Isometry3d, double>
+qcp<double>(ConstRef<E::Matrix3Xd> query, ConstRef<E::Matrix3Xd> templ,
+            AlignMode mode, bool reflection, double evalprec, double evecprec,
+            int maxiter);
+
+template std::pair<E::Isometry3f, float>
+qcp<float>(ConstRef<E::Matrix3Xf> query, ConstRef<E::Matrix3Xf> templ,
+           AlignMode mode, bool reflection, float evalprec, float evecprec,
+           int maxiter);
+
+template std::pair<E::Isometry3d, double>
+qcp_inplace<double>(MutRef<E::Matrix3Xd> query, MutRef<E::Matrix3Xd> templ,
+                    AlignMode mode, bool reflection, double evalprec,
+                    double evecprec, int maxiter);
+
+template std::pair<E::Isometry3f, float>
+qcp_inplace<float>(MutRef<E::Matrix3Xf> query, MutRef<E::Matrix3Xf> templ,
+                   AlignMode mode, bool reflection, float evalprec,
+                   float evecprec, int maxiter);
 // NOLINTEND(readability-identifier-naming,*-avoid-goto)
 }  // namespace nuri

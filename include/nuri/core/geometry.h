@@ -629,11 +629,22 @@ kabsch(const Eigen::Ref<const Matrix3Xd> &query,
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * \endcode
  */
-extern std::pair<Isometry3d, double>
-qcp(const Eigen::Ref<const Matrix3Xd> &query,
-    const Eigen::Ref<const Matrix3Xd> &templ, AlignMode mode = AlignMode::kBoth,
-    bool reflection = false, double evalprec = 1e-11, double evecprec = 1e-6,
+template <class DT = double>
+extern std::pair<IsometryT<DT, 3>, DT>
+qcp(ConstRef<E::Matrix3X<DT>> query, ConstRef<E::Matrix3X<DT>> templ,
+    AlignMode mode = AlignMode::kBoth, bool reflection = false,
+    DT evalprec = static_cast<DT>(1e-11), DT evecprec = static_cast<DT>(1e-6),
     int maxiter = 50);
+
+extern template std::pair<E::Isometry3d, double>
+qcp<double>(ConstRef<E::Matrix3Xd> query, ConstRef<E::Matrix3Xd> templ,
+            AlignMode mode, bool reflection, double evalprec, double evecprec,
+            int maxiter);
+
+extern template std::pair<E::Isometry3f, float>
+qcp<float>(ConstRef<E::Matrix3Xf> query, ConstRef<E::Matrix3Xf> templ,
+           AlignMode mode, bool reflection, float evalprec, float evecprec,
+           int maxiter);
 
 /**
  * @brief In-place version of qcp().
@@ -706,10 +717,22 @@ qcp(const Eigen::Ref<const Matrix3Xd> &query,
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * \endcode
  */
-extern std::pair<Isometry3d, double>
-qcp_inplace(MutRef<Matrix3Xd> query, MutRef<Matrix3Xd> templ,
+template <class DT = double>
+extern std::pair<IsometryT<DT, 3>, DT>
+qcp_inplace(MutRef<E::Matrix3X<DT>> query, MutRef<E::Matrix3X<DT>> templ,
             AlignMode mode = AlignMode::kBoth, bool reflection = false,
-            double evalprec = 1e-11, double evecprec = 1e-6, int maxiter = 50);
+            DT evalprec = static_cast<DT>(1e-11),
+            DT evecprec = static_cast<DT>(1e-6), int maxiter = 50);
+
+extern template std::pair<E::Isometry3d, double>
+qcp_inplace<double>(MutRef<E::Matrix3Xd> query, MutRef<E::Matrix3Xd> templ,
+                    AlignMode mode, bool reflection, double evalprec,
+                    double evecprec, int maxiter);
+
+extern template std::pair<E::Isometry3f, float>
+qcp_inplace<float>(MutRef<E::Matrix3Xf> query, MutRef<E::Matrix3Xf> templ,
+                   AlignMode mode, bool reflection, float evalprec,
+                   float evecprec, int maxiter);
 
 /**
  * @brief A routine for converting squared pairwise distances to cartesian
