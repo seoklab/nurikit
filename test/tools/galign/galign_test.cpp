@@ -77,7 +77,8 @@ TEST(GAlign, Rigid) {
   ASSERT_EQ(results.size(), 1);
 
   const GAlignResult &result = results[0];
-  NURI_EXPECT_EIGEN_EQ_TOL(random.matrix(), result.xform.matrix(), 1e-6);
+  NURI_EXPECT_EIGEN_EQ_TOL(random.matrix(),
+                           result.xform.matrix().cast<double>(), 1e-6);
   EXPECT_GE(result.align_score, 0.95);
 }
 
@@ -141,7 +142,7 @@ TEST(GAlign, Flexible) {
   sampling.patience = 2;
 
   GAMinimizeArgs minimize;
-  minimize.ftol = 0.1;
+  minimize.ftol = 0.1F;
   minimize.max_iters = 50;
 
   internal::seed_thread(42);
@@ -150,7 +151,8 @@ TEST(GAlign, Flexible) {
   ASSERT_EQ(results.size(), 1);
 
   const GAlignResult &result = results[0];
-  NURI_EXPECT_EIGEN_EQ_TOL(random.matrix(), result.xform.matrix(), 1e-6);
+  NURI_EXPECT_EIGEN_EQ_TOL(random.matrix(),
+                           result.xform.matrix().cast<double>(), 1e-6);
   EXPECT_GE(result.align_score, 0.95);
 }
 }  // namespace
