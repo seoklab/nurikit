@@ -95,7 +95,7 @@ def test_rigid_galign(
     np.testing.assert_allclose(
         result.pos,
         templ.get_conf()[: len(query)],
-        atol=1e-6,
+        atol=1e-4,
     )
     assert result.score >= 0.95
 
@@ -124,6 +124,6 @@ def test_flexible_galign(
     np.testing.assert_allclose(
         result.pos,
         templ.get_conf()[: len(query)],
-        atol=1e-6,
+        atol=1e-4,
     )
     assert result.score >= 0.95

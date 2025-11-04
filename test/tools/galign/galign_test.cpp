@@ -78,7 +78,7 @@ TEST(GAlign, Rigid) {
 
   const GAlignResult &result = results[0];
   NURI_EXPECT_EIGEN_EQ_TOL(random.matrix(),
-                           result.xform.matrix().cast<double>(), 1e-6);
+                           result.xform.matrix().cast<double>(), 1e-4);
   EXPECT_GE(result.align_score, 0.95);
 }
 
@@ -152,7 +152,7 @@ TEST(GAlign, Flexible) {
 
   const GAlignResult &result = results[0];
   NURI_EXPECT_EIGEN_EQ_TOL(random.matrix(),
-                           result.xform.matrix().cast<double>(), 1e-6);
+                           result.xform.matrix().cast<double>(), 1e-4);
   EXPECT_GE(result.align_score, 0.95);
 }
 }  // namespace

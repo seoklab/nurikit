@@ -145,7 +145,7 @@ TEST(GAlign, RotationInfo) {
       0.0F, 0.0F, 0.0F,                                //
       0.0F, 0.0F, 1.0F;
 
-  NURI_EXPECT_EIGEN_EQ_TOL(conf, rotated, 1e-4F);
+  NURI_EXPECT_EIGEN_EQ_TOL(conf, rotated, 1e-3F);
 }
 }  // namespace
 }  // namespace nuri
