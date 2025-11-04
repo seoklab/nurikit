@@ -282,39 +282,40 @@ auto msd(const ML1 &a, const ML2 &b) {
 }
 
 namespace internal {
-  constexpr double safe_normalizer(double sqn, double eps = 1e-12) {
-    return sqn > eps ? 1 / std::sqrt(sqn) : 0;
+  template <class DT>
+  constexpr DT safe_normalizer(DT sqn, DT eps = static_cast<DT>(1e-12)) {
+    return sqn > eps ? static_cast<DT>(1) / std::sqrt(sqn) : static_cast<DT>(0);
   }
 
-  template <class VectorLike>
-  inline void safe_normalize(VectorLike &&m, double eps = 1e-12) {
-    m.array() *= safe_normalizer(m.squaredNorm(), eps);
+  template <class VectorLike,
+            class DT = typename remove_cvref_t<VectorLike>::Scalar>
+  inline void safe_normalize(VectorLike &&m, DT eps = static_cast<DT>(1e-12)) {
+    m.array() *= safe_normalizer<DT>(m.squaredNorm(), eps);
   }
 
-  template <class VectorLike>
-  inline auto safe_normalized(VectorLike &&m, double eps = 1e-12) {
+  template <class VectorLike,
+            class DT = typename remove_cvref_t<VectorLike>::Scalar>
+  inline auto safe_normalized(VectorLike &&m, DT eps = static_cast<DT>(1e-12)) {
     using T = remove_cvref_t<VectorLike>;
-    using Scalar = typename T::Scalar;
     constexpr auto size = T::SizeAtCompileTime;
     constexpr auto max_size = T::MaxSizeAtCompileTime;
 
-    Matrix<Scalar, size, 1, 0, max_size, 1> ret = std::forward<VectorLike>(m);
+    Matrix<DT, size, 1, 0, max_size, 1> ret = std::forward<VectorLike>(m);
     safe_normalize(ret, eps);
     return ret;
   }
 
-  template <class MatrixLike>
-  inline void safe_colwise_normalize(MatrixLike &&m, double eps = 1e-12) {
+  template <class MatrixLike,
+            class DT = typename remove_cvref_t<MatrixLike>::Scalar>
+  inline void safe_colwise_normalize(MatrixLike &&m,
+                                     DT eps = static_cast<DT>(1e-12)) {
     using ArrayLike = decltype(m.colwise().squaredNorm().array());
     constexpr auto max_cols = ArrayLike::MaxColsAtCompileTime;
 
     if constexpr (max_cols != Eigen::Dynamic) {
-      using T = remove_cvref_t<MatrixLike>;
-      using Scalar = typename T::Scalar;
-
       constexpr auto cols = ArrayLike::ColsAtCompileTime;
 
-      Array<Scalar, 1, cols, Eigen::RowMajor, 1, max_cols> norm =
+      Array<DT, 1, cols, Eigen::RowMajor, 1, max_cols> norm =
           m.colwise().squaredNorm().array();
       m.array().rowwise() *= (norm > eps).select(norm.sqrt().inverse(), 0);
     } else {
@@ -323,15 +324,16 @@ namespace internal {
     }
   }
 
-  template <class MatrixLike>
-  inline auto safe_colwise_normalized(MatrixLike &&m, double eps = 1e-12) {
+  template <class MatrixLike,
+            class DT = typename remove_cvref_t<MatrixLike>::Scalar>
+  inline auto safe_colwise_normalized(MatrixLike &&m,
+                                      DT eps = static_cast<DT>(1e-12)) {
     using T = remove_cvref_t<MatrixLike>;
-    using Scalar = typename T::Scalar;
     constexpr auto rows = T::RowsAtCompileTime, cols = T::ColsAtCompileTime;
     constexpr auto max_rows = T::MaxRowsAtCompileTime,
                    max_cols = T::MaxColsAtCompileTime;
 
-    Matrix<Scalar, rows, cols, 0, max_rows, max_cols> ret =
+    Matrix<DT, rows, cols, 0, max_rows, max_cols> ret =
         std::forward<MatrixLike>(m);
     safe_colwise_normalize(ret, eps);
     return ret;
