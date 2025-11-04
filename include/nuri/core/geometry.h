@@ -161,22 +161,22 @@ namespace constants {
 
 template <class DT, std::enable_if_t<std::is_floating_point_v<DT>, int> = 0>
 constexpr DT deg2rad(DT deg) {
-  return deg * constants::kPi / 180;
+  return deg * static_cast<DT>(constants::kPi / 180);
 }
 
 template <class DT, std::enable_if_t<std::is_integral_v<DT>, int> = 0>
 constexpr double deg2rad(DT deg) {
-  return deg * constants::kPi / 180;
+  return static_cast<double>(deg) * constants::kPi / 180;
 }
 
 template <class DT, std::enable_if_t<std::is_floating_point_v<DT>, int> = 0>
 constexpr DT rad2deg(DT rad) {
-  return rad * 180 / constants::kPi;
+  return rad * 180 / static_cast<DT>(constants::kPi);
 }
 
 template <class DT, std::enable_if_t<std::is_integral_v<DT>, int> = 0>
 constexpr double rad2deg(DT rad) {
-  return rad * 180 / constants::kPi;
+  return static_cast<double>(rad) * 180 / constants::kPi;
 }
 
 // NOLINTBEGIN(*-missing-std-forward)
@@ -555,10 +555,10 @@ enum class AlignMode : std::uint8_t {
  * Version: 6.0.2023.08.08
  * \endcode
  */
-extern std::pair<Isometry3d, double>
-kabsch(const Eigen::Ref<const Matrix3Xd> &query,
-       const Eigen::Ref<const Matrix3Xd> &templ,
-       AlignMode mode = AlignMode::kBoth, bool reflection = false);
+extern std::pair<Isometry3d, double> kabsch(ConstRef<Matrix3Xd> query,
+                                            ConstRef<Matrix3Xd> templ,
+                                            AlignMode mode = AlignMode::kBoth,
+                                            bool reflection = false);
 
 /**
  * @brief Perform quaternion-based superposition of two sets of points.

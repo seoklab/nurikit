@@ -15,7 +15,6 @@
 
 #include "nuri/eigen_config.h"
 #include "test_utils.h"
-#include "nuri/utils.h"
 
 namespace nuri {
 namespace {
