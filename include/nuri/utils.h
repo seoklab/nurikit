@@ -355,7 +355,7 @@ inline Matrix3Xd stack(const std::vector<Vector3d> &vs) {
 
 template <class T = int, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
 constexpr T value_if(bool cond, T val = 1) {
-  return static_cast<int>(cond) * val;
+  return static_cast<T>(static_cast<int>(cond)) * val;
 }
 
 template <class Scalar, std::enable_if_t<std::is_arithmetic_v<Scalar>
