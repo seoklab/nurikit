@@ -50,20 +50,20 @@
 
 namespace nuri {
 namespace internal {
-template <class M, class N>
-bool eigen_eq_tol(const M &a, const N &b, double tol) {
+template <class M, class N, class DT = typename M::Scalar>
+bool eigen_eq_tol(const M &a, const N &b, DT tol) {
   auto diff = a - b;
   return (diff.array().abs() < tol).all();
 }
 
-template <class M, class N>
-bool eigen_ne_tol(const M &a, const N &b, double tol) {
+template <class M, class N, class DT = typename M::Scalar>
+bool eigen_ne_tol(const M &a, const N &b, DT tol) {
   return !eigen_eq_tol(a, b, tol);
 }
 
 template <class M, class N>
 bool eigen_eq(const M &a, const N &b) {
-  return eigen_eq_tol(a, b, 1e-6);
+  return eigen_eq_tol(a, b, static_cast<typename M::Scalar>(1e-6));
 }
 
 template <class M, class N>
