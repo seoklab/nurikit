@@ -26,7 +26,7 @@ jobs:
 
   test-and-coverage:
     needs: check-want-test
-    if: ${{ needs.check-want-test.outputs.want-test == 'true' }}
+    if: ${{ needs.check-want-test.outputs.want == 'true' }}
     uses: ./.github/workflows/_test-and-coverage.yaml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
