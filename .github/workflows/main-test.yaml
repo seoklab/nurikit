@@ -38,7 +38,7 @@ jobs:
 
   run-clang-tools:
     needs: check-want-lint
-    if: ${{ needs.check-want-lint.outputs.want-test == 'true' }}
+    if: ${{ needs.check-want-lint.outputs.want == 'true' }}
     uses: ./.github/workflows/_run-clang-tools.yaml
     with:
       files-changed-only: false
@@ -48,7 +48,7 @@ jobs:
 
   test-and-coverage:
     needs: check-want-test
-    if: ${{ needs.check-want-test.outputs.want-test == 'true' }}
+    if: ${{ needs.check-want-test.outputs.want == 'true' }}
     uses: ./.github/workflows/_test-and-coverage.yaml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

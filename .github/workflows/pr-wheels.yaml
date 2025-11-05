@@ -21,13 +21,13 @@ defaults:
     shell: bash
 
 jobs:
-  check-want-test:
+  check-want-wheel:
     if: ${{ !github.event.pull_request.draft }}
     uses: ./.github/workflows/_check-want-test.yaml
 
   test-build-wheels:
-    needs: check-want-test
-    if: ${{ needs.check-want-test.outputs.want-test == 'true' }}
+    needs: check-want-wheel
+    if: ${{ needs.check-want-wheel.outputs.want == 'true' }}
     uses: ./.github/workflows/wheels-matrix.yaml
     with:
       minimal: true

@@ -15,18 +15,19 @@ on:
         type: boolean
         default: false
     outputs:
-      want-test:
-        value: ${{ jobs.check-want-test.outputs.want-test }}
+      want:
+        value: ${{ jobs.check-want.outputs.want }}
 
 defaults:
   run:
     shell: bash
 
 jobs:
-  check-want-test:
+  check-want:
+    name: Check want ${{ inputs.keyword }}
     runs-on: ubuntu-latest
     outputs:
-      want-test: ${{ steps.want-test.outputs.want-test }}
+      want: ${{ steps.want.outputs.want }}
     steps:
       - uses: actions/checkout@v5
         id: checkout
@@ -45,13 +46,13 @@ jobs:
           fi
 
           if grep -Eq "\[(skip $keyword|$keyword skip)\]" <<< "$msg"; then
-            echo "WANT_TEST=false" >>"$GITHUB_ENV"
+            echo "WANT=false" >>"$GITHUB_ENV"
           else
-            echo "WANT_TEST=true" >>"$GITHUB_ENV"
+            echo "WANT=true" >>"$GITHUB_ENV"
           fi
         env:
           keyword: ${{ inputs.keyword }}
 
       - name: Set output
-        id: want-test
-        run: echo "want-test=${WANT_TEST-false}" >>"$GITHUB_OUTPUT"
+        id: want
+        run: echo "want=${WANT-false}" >>"$GITHUB_OUTPUT"

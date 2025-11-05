@@ -30,7 +30,7 @@ jobs:
   check-files:
     needs: check-want-lint
     runs-on: ubuntu-latest
-    if: ${{ needs.check-want-lint.outputs.want-test == 'true' }}
+    if: ${{ needs.check-want-lint.outputs.want == 'true' }}
     outputs:
       config-changed: ${{ steps.changed-files.outputs.any_changed }}
     steps:
