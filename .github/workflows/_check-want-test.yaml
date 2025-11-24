@@ -29,7 +29,7 @@ jobs:
     outputs:
       want: ${{ steps.want.outputs.want }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         id: checkout
         if: ${{ !github.event.pull_request.draft && (!inputs.skip-bots || !endsWith(github.triggering_actor, '[bot]')) }}
         with:

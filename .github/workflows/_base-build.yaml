@@ -37,7 +37,7 @@ jobs:
 
       - run: pip install pybind11-stubgen numpy
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - run: .github/scripts/setup-deps.sh
 
@@ -101,7 +101,7 @@ jobs:
           # Automatic ctest parallelism from 3.29
           cmakeVersion: "~3.29"
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - run: .github/scripts/setup-deps.sh
 
