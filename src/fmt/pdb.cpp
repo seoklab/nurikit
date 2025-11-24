@@ -31,7 +31,6 @@
 #include <absl/strings/numbers.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_format.h>
-#include <absl/strings/strip.h>
 #include <boost/container/flat_set.hpp>
 #include <Eigen/Dense>
 
@@ -276,9 +275,6 @@ void read_remark_record(Iterator &it, const Iterator end, std::string &buf,
                         internal::PropertyMap &props) {
   for (; is_record(it, end, "REMARK"); ++it) {
     std::string_view rmrk = safe_substr(*it, 6);
-    // strip first space if exists
-    // standard remark format also starts with col 8
-    rmrk = absl::StripPrefix(rmrk, " ");
     absl::StrAppend(&buf, absl::StripTrailingAsciiWhitespace(rmrk), "\n");
   }
 
