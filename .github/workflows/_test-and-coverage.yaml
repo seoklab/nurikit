@@ -33,7 +33,7 @@ jobs:
 
       - run: pip install sphinx
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - run: .github/scripts/setup-deps.sh
 
@@ -76,7 +76,7 @@ jobs:
       #   with:
       #     cmakeVersion: "~3.18.0" # required for gtest DISCOVERY_MODE
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-python@v6
         with:
