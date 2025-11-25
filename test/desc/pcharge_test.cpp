@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "nuri/algo/pcharge.h"
+#include "nuri/desc/pcharge.h"
 
 #include <gtest/gtest.h>
 
