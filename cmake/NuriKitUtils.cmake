@@ -255,8 +255,8 @@ function(clear_coverage_data target)
     TARGET "${target}"
     POST_BUILD
     COMMAND "${CMAKE_COMMAND}"
-    "-DNURI_COVERAGE_DATA_DIR=${CMAKE_CURRENT_BINARY_DIR}"
     -P "${PROJECT_SOURCE_DIR}/cmake/NuriKitClearCoverage.cmake"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     VERBATIM
   )
 endfunction()
