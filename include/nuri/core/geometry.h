@@ -97,6 +97,25 @@ public:
 
   const Vector3d &len() const { return len_; }
 
+  /**
+   * @brief Notify the octree that the point set has been transformed by
+   *        scaling and/or translation, by updating the bounding box info.
+   *
+   * @param new_max The new maximum corner of the bounding box.
+   * @param new_len The new length of the bounding box in each axis.
+   *
+   * @warning This method does not modify the point set itself, nor does it
+   *          any kind of bookkeeping to track the transformation applied to the
+   *          point set. It only updates the bounding box info of the octree.\n
+   *          It is the user's responsibility to ensure that the points are
+   *          "correctly" transformed separately from the octree; otherwise, the
+   *          behavior is undefined.
+   */
+  void notify_transform(const Vector3d &new_max, const Vector3d &new_len) {
+    max_ = new_max;
+    len_ = new_len;
+  }
+
   const std::vector<internal::OCTreeNode> &nodes() const { return nodes_; }
 
   int size() const { return static_cast<int>(nodes_.size()); }
