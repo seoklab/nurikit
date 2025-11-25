@@ -571,5 +571,19 @@ TEST(EmbedTest, FromDistance) {
   ASSERT_GE(msd, 0);
   EXPECT_NEAR(msd, 0, 1e-6);
 }
+
+TEST(FibonacciLatticeTest, GenerateSome) {
+  Matrix3Xd pts = canonical_fibonacci_lattice(16);
+  ASSERT_EQ(pts.cols(), 16);
+
+  double min_dsq = pdistsq(pts).minCoeff();
+  EXPECT_NEAR(4 * std::sqrt(min_dsq), 3.09, 0.01);
+
+  pts = canonical_fibonacci_lattice(100);
+  ASSERT_EQ(pts.cols(), 100);
+
+  min_dsq = pdistsq(pts).minCoeff();
+  EXPECT_NEAR(10 * std::sqrt(min_dsq), 3.09, 0.01);
+}
 }  // namespace
 }  // namespace nuri
