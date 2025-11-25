@@ -8,7 +8,9 @@
 #include <algorithm>
 #include <vector>
 
+#include <absl/algorithm/container.h>
 #include <absl/strings/str_cat.h>
+#include <absl/strings/str_join.h>
 #include <Eigen/Dense>
 
 #include <gtest/gtest.h>
@@ -224,6 +226,57 @@ TEST(OCTreeTest, FindNeighborByCountAndDistance) {
   for (int i = 0; i < test.cols(); ++i)
     verify_octree_neighbor_kd(tree, test.col(i), k, cutoff,
                               absl::StrCat("On line ", __LINE__));
+}
+
+TEST(OCTreeTest, FindNeighborTree) {
+  Matrix3Xd x = Matrix3Xd::Random(3, 100);
+  Matrix3Xd y = Matrix3Xd::Random(3, 100);
+  MatrixXd dmat = cdist(x, y);
+
+  double cutoff = std::pow(2.0 * 5 / 100, 1.0 / 3.0);
+
+  OCTree ltree(x), rtree(y);
+  std::vector<std::vector<int>> idxs;
+  ltree.find_neighbors_tree(rtree, cutoff, idxs);
+
+  for (int i = 0; i < x.cols(); ++i) {
+    std::vector<int> &nbrs = idxs[i];
+    absl::c_sort(nbrs);
+    int k = 0;
+
+    ASSERT_EQ(nbrs.size(), (dmat.row(i).array() <= cutoff).count())
+        << "i = " << i;
+
+    for (int j = 0; j < y.cols(); ++j) {
+      double d = dmat(i, j);
+      if (d <= cutoff) {
+        ASSERT_LT(k, nbrs.size());
+        ASSERT_EQ(nbrs[k], j) << "i = " << i << ", j = " << j;
+        ++k;
+      }
+    }
+  }
+}
+
+TEST(OCTreeTest, FindNeighborTreeFull) {
+  Matrix3Xd x = Matrix3Xd::Random(3, 10);
+  Matrix3Xd y = Matrix3Xd::Random(3, 100);
+
+  OCTree ltree(x), rtree(y);
+  std::vector<std::vector<int>> idxs;
+  ltree.find_neighbors_tree(rtree, 10.0, idxs);
+
+  for (int i = 0; i < x.cols(); ++i) {
+    std::vector<int> &nbrs = idxs[i];
+    absl::c_sort(nbrs);
+
+    ASSERT_EQ(nbrs.size(), y.cols()) << "i = " << i;
+
+    for (int j = 0; j < y.cols(); ++j) {
+      ASSERT_LT(j, nbrs.size());
+      ASSERT_EQ(nbrs[j], j) << "i = " << i << ", j = " << j;
+    }
+  }
 }
 
 TEST(FitPlaneTest, CheckCorrectness) {
