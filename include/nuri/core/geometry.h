@@ -88,6 +88,9 @@ public:
                          std::vector<int> &idxs,
                          std::vector<double> &distsq) const;
 
+  void find_neighbors_tree(const OCTree &oct, double cutoff,
+                           std::vector<std::vector<int>> &idxs) const;
+
   const Points &pts() const { return pts_; }
 
   const Vector3d &max() const { return max_; }

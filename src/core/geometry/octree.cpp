@@ -15,6 +15,7 @@
 #include "nuri/eigen_config.h"
 #include "nuri/core/container/container_ext.h"
 #include "nuri/core/geometry.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 namespace {
@@ -295,5 +296,152 @@ void OCTree::find_neighbors_d(const Vector3d &pt, const double cutoff,
       distsq.push_back(d);
     return far;
   });
+}
+
+namespace {
+  class OCTreeBox {
+  public:
+    explicit OCTreeBox(const OCTree &parent)
+        : OCTreeBox(parent, parent.root(), parent.max(), parent.len()) { }
+
+    OCTreeBox(const OCTree &parent, int nid, const Vector3d &max,
+              const Vector3d &len)
+        : parent_(&parent), nid_(nid), max_(max), len_(len) { }
+
+    std::pair<double, double> minmax_distsq(const OCTreeBox &other) const {
+      Vector3d self_min = max_ - len_, other_min = other.max_ - other.len_;
+      Vector3d minmax = self_min - other.max_, maxmin = other_min - max_;
+
+      double min_dsq = minmax.cwiseMax(0.0).squaredNorm()
+                       + maxmin.cwiseMax(0.0).squaredNorm();
+      double max_dsq =
+          minmax.cwiseAbs().cwiseMax(maxmin.cwiseAbs()).squaredNorm();
+
+      return { min_dsq, max_dsq };
+    }
+
+    bool has_child(int octant) const { return node()[octant] >= 0; }
+
+    OCTreeBox child(int octant) const {
+      Vector3d half = len_ * 0.5;
+      return OCTreeBox(*parent_, node()[octant], max_of(octant, max_, half),
+                       half);
+    }
+
+    int id() const { return nid_; }
+
+    const OCTree &tree() const { return *parent_; }
+    const OCTreeNode &node() const { return parent_->node(nid_); }
+
+  private:
+    internal::Nonnull<const OCTree *> parent_;
+    int nid_;
+    Vector3d max_;
+    Vector3d len_;
+  };
+
+  void fill_neighbors_tree(std::vector<std::vector<int>> &idxs,
+                           const OCTree &self, const int lp,
+                           const OCTree &other, const int rp) {
+    const OCTreeNode &ln = self[lp];
+    const OCTreeNode &rn = other[rp];
+
+    if (!ln.leaf()) {
+      for (int i = 0; i < 8; ++i)
+        if (int lc = ln[i]; lc >= 0)
+          fill_neighbors_tree(idxs, self, lc, other, rp);
+
+      return;
+    }
+
+    if (!rn.leaf()) {
+      for (int i = 0; i < 8; ++i)
+        if (int rc = rn[i]; rc >= 0)
+          fill_neighbors_tree(idxs, self, lp, other, rc);
+
+      return;
+    }
+
+    for (int i = 0; i < ln.nleaf(); ++i) {
+      int li = ln[i];
+      for (int j = 0; j < rn.nleaf(); ++j) {
+        int rj = rn[j];
+        idxs[li].push_back(rj);
+      }
+    }
+  }
+
+  void find_neighbors_tree_impl(std::vector<std::vector<int>> &idxs,
+                                const OCTreeBox &self, const OCTreeBox &other,
+                                const double cutoffsq) {
+    auto [min_dsq, max_dsq] = self.minmax_distsq(other);
+
+    if (min_dsq > cutoffsq)
+      return;
+    if (max_dsq <= cutoffsq) {
+      fill_neighbors_tree(idxs, self.tree(), self.id(), other.tree(),
+                          other.id());
+      return;
+    }
+
+    const OCTreeNode &ln = self.node();
+    const OCTreeNode &rn = other.node();
+    if (ln.leaf() && rn.leaf()) {
+      for (int i = 0; i < ln.nleaf(); ++i) {
+        int li = ln[i];
+        Vector3d lpt = self.tree().pts().col(li);
+
+        for (int j = 0; j < rn.nleaf(); ++j) {
+          int rj = rn[j];
+
+          if ((lpt - other.tree().pts().col(rj)).squaredNorm() <= cutoffsq)
+            idxs[li].push_back(rj);
+        }
+      }
+
+      return;
+    }
+
+    if (ln.leaf()) {
+      for (int j = 0; j < 8; ++j) {
+        if (!other.has_child(j))
+          continue;
+
+        find_neighbors_tree_impl(idxs, self, other.child(j), cutoffsq);
+      }
+      return;
+    }
+
+    if (rn.leaf()) {
+      for (int i = 0; i < 8; ++i) {
+        if (!self.has_child(i))
+          continue;
+
+        find_neighbors_tree_impl(idxs, self.child(i), other, cutoffsq);
+      }
+      return;
+    }
+
+    for (int i = 0; i < 8; ++i) {
+      if (!self.has_child(i))
+        continue;
+
+      OCTreeBox lc = self.child(i);
+      for (int j = 0; j < 8; ++j) {
+        if (!other.has_child(j))
+          continue;
+
+        find_neighbors_tree_impl(idxs, lc, other.child(j), cutoffsq);
+      }
+    }
+  }
+}  // namespace
+
+void OCTree::find_neighbors_tree(const OCTree &oct, const double cutoff,
+                                 std::vector<std::vector<int>> &idxs) const {
+  const double cutoffsq = cutoff * cutoff;
+
+  idxs.resize(pts().cols());
+  find_neighbors_tree_impl(idxs, OCTreeBox(*this), OCTreeBox(oct), cutoffsq);
 }
 }  // namespace nuri
