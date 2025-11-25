@@ -14,10 +14,9 @@ function(nuri_python_generate_stubs module output dependency)
     set(pypath_orig "${pypath_orig}:")
   endif()
 
-  set(output_full "${CMAKE_CURRENT_LIST_DIR}/${output}")
-
+  list(TRANSFORM output PREPEND "${CMAKE_CURRENT_LIST_DIR}/")
   add_custom_command(
-    OUTPUT "${output_full}"
+    OUTPUT ${output}
     COMMAND ${CMAKE_COMMAND}
     -E env "PYTHONPATH=${pypath_orig}${CMAKE_CURRENT_LIST_DIR}" ${SANITIZER_ENVS}
     "${PYBIND11_STUBGEN}"
@@ -32,12 +31,16 @@ function(nuri_python_generate_stubs module output dependency)
     VERBATIM
   )
 
-  list(APPEND NURI_STUB_FILES "${output_full}")
+  list(APPEND NURI_STUB_FILES ${output})
   set(NURI_STUB_FILES "${NURI_STUB_FILES}" PARENT_SCOPE)
 endfunction()
 
 function(nuri_python_add_module name)
-  cmake_parse_arguments(ARG "" "OUTPUT_DIRECTORY" "STUBGEN_ARGS" ${ARGN})
+  cmake_parse_arguments(ARG ""
+    "OUTPUT_DIRECTORY"
+    "OUTPUT_STUBS;STUBGEN_ARGS"
+    ${ARGN}
+  )
 
   if(NOT ARG_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "nuri_python_add_module: No sources provided")
@@ -91,9 +94,13 @@ function(nuri_python_add_module name)
       LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/nuri/${subdir}"
     )
 
+    if(NOT ARG_OUTPUT_STUBS)
+      set(ARG_OUTPUT_STUBS "nuri/${subdir}${name}.pyi")
+    endif()
+
     nuri_python_generate_stubs(
       "${module}"
-      "nuri/${subdir}${name}.pyi"
+      "${ARG_OUTPUT_STUBS}"
       "${target_name}"
       ${ARG_STUBGEN_ARGS}
     )
