@@ -44,6 +44,26 @@ namespace internal {
   };
 }  // namespace internal
 
+/**
+ * @brief An octree implementation for 3D point clouds.
+ *
+ * The octree partitions 3D space into axis-aligned boxes recursively, allowing
+ * efficient spatial queries such as nearest neighbor search.
+ *
+ * This implementation is designed for static point clouds; each octree instance
+ * keeps a constant reference to the original point set, so the points must
+ * outlive the octree instance and should not be modified before or during the
+ * usage of the octree in any way. To update the point set, one must
+ * rebuild(const MatrixLike &) the octree.
+ *
+ * One notable exception is that if the points are only scaled uniformly in each
+ * axis and/or translated in any order, the octree can still be used without
+ * rebuilding, by updating max and len values accordingly with
+ * notify_transform() due to the axis-aligned nature of the octree. Note that,
+ * however, it is the user's responsibility to ensure that the points are
+ * "correctly" transformed separately from the octree; otherwise, the behavior
+ * is undefined.
+ */
 class OCTree {
 public:
   using Points = Eigen::Map<const Matrix3Xd>;
@@ -88,11 +108,33 @@ public:
                          std::vector<int> &idxs,
                          std::vector<double> &distsq) const;
 
+  void find_neighbors_tree(const OCTree &oct, double cutoff,
+                           std::vector<std::vector<int>> &idxs) const;
+
   const Points &pts() const { return pts_; }
 
   const Vector3d &max() const { return max_; }
 
   const Vector3d &len() const { return len_; }
+
+  /**
+   * @brief Notify the octree that the point set has been transformed by
+   *        scaling and/or translation, by updating the bounding box info.
+   *
+   * @param new_max The new maximum corner of the bounding box.
+   * @param new_len The new length of the bounding box in each axis.
+   *
+   * @warning This method does not modify the point set itself, nor does it
+   *          any kind of bookkeeping to track the transformation applied to the
+   *          point set. It only updates the bounding box info of the octree.\n
+   *          It is the user's responsibility to ensure that the points are
+   *          "correctly" transformed separately from the octree; otherwise, the
+   *          behavior is undefined.
+   */
+  void notify_transform(const Vector3d &new_max, const Vector3d &new_len) {
+    max_ = new_max;
+    len_ = new_len;
+  }
 
   const std::vector<internal::OCTreeNode> &nodes() const { return nodes_; }
 
