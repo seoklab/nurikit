@@ -44,6 +44,26 @@ namespace internal {
   };
 }  // namespace internal
 
+/**
+ * @brief An octree implementation for 3D point clouds.
+ *
+ * The octree partitions 3D space into axis-aligned boxes recursively, allowing
+ * efficient spatial queries such as nearest neighbor search.
+ *
+ * This implementation is designed for static point clouds; each octree instance
+ * keeps a constant reference to the original point set, so the points must
+ * outlive the octree instance and should not be modified before or during the
+ * usage of the octree in any way. To update the point set, one must
+ * rebuild(const MatrixLike &) the octree.
+ *
+ * One notable exception is that if the points are only scaled uniformly in each
+ * axis and/or translated in any order, the octree can still be used without
+ * rebuilding, by updating max and len values accordingly with
+ * notify_transform() due to the axis-aligned nature of the octree. Note that,
+ * however, it is the user's responsibility to ensure that the points are
+ * "correctly" transformed separately from the octree; otherwise, the behavior
+ * is undefined.
+ */
 class OCTree {
 public:
   using Points = Eigen::Map<const Matrix3Xd>;
