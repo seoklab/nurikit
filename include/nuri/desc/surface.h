@@ -16,7 +16,10 @@ namespace internal {
     kDirect,
     kOctree,
   };
-}
+
+  extern ArrayXd sr_sasa_impl(const Matrix3Xd &pts, const ArrayXd &radii,
+                              int nprobe, SrSasaMethod method);
+}  // namespace internal
 
 /**
  * @brief Calculate the Solvent-Accessible Surface Area (SASA) of a molecule
