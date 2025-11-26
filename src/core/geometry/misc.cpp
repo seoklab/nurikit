@@ -10,23 +10,23 @@
 
 namespace nuri {
 Matrix3Xd canonical_fibonacci_lattice(int npts) {
-  constexpr double theta_step =
+  // 2pi / phi^2
+  constexpr double dtheta =
       constants::kTwoPi
-      / 1.61803398874989484820458683436563811772030917980576286213544862270526;
+      * 0.38196601125010515179541316563436188227969082019423713786455137729473953718;
+
+  const double dz = 2.0 / npts, z0 = 1.0 - 0.5 * dz;
 
   Matrix3Xd pts(3, npts);
-  const double cosphi_step = 2.0 / npts;
-
   for (int i = 0; i < npts; ++i) {
-    const double theta = i * theta_step;
-
-    const double z = pts(2, i) = 1.0 - (i + 0.5) * cosphi_step;
+    const double theta = i * dtheta;
+    const double z = z0 - i * dz;
     const double r = std::sqrt(1 - z * z);
 
     pts(0, i) = r * std::cos(theta);
     pts(1, i) = r * std::sin(theta);
+    pts(2, i) = z;
   }
-
   return pts;
 }
 }  // namespace nuri
