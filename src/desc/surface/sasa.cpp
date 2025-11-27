@@ -16,7 +16,7 @@
 namespace nuri {
 namespace internal {
   namespace {
-    void sr_sasa_direct(ArrayXd &sasa, const ArrayXd &radii,
+    void sr_sasa_direct(ArrayXd &sasa, const ArrayXd &radii, const ArrayXd &rsq,
                         const Matrix3Xd &pts, const Matrix3Xd &probes) {
       const int nprobe = static_cast<int>(probes.cols());
 
@@ -25,17 +25,16 @@ namespace internal {
         double rsum = radii[i];
 
         int naccess = 0;
-        for (int j = 0; j < nprobe; ++j) {
-          Vector3d pt = cntr + probes.col(j) * rsum;
+        for (int p = 0; p < nprobe; ++p) {
+          Vector3d probe = cntr + probes.col(p) * rsum;
 
           bool blocked = false;
-          for (int k = 0; k < radii.size(); ++k) {
-            if (k == i)
+          for (int j = 0; j < radii.size(); ++j) {
+            if (j == i)
               continue;
 
-            double rcut = radii[k];
-            double dsq = (pts.col(k) - pt).squaredNorm();
-            if (dsq < rcut * rcut) {
+            double dsq = (pts.col(j) - probe).squaredNorm();
+            if (dsq <= rsq[j]) {
               blocked = true;
               break;
             }
@@ -45,44 +44,36 @@ namespace internal {
             ++naccess;
         }
 
-        sasa[i] = 4 * constants::kPi * rsum * rsum * naccess / nprobe;
+        sasa[i] = 4 * constants::kPi * rsq[i] * naccess / nprobe;
       }
     }
 
-    void sr_sasa_tree(ArrayXd &sasa, const ArrayXd &radii,
-                      const Matrix3Xd &conf, const Matrix3Xd &probes) {
+    void sr_sasa_tree(ArrayXd &sasa, const ArrayXd &radii, const ArrayXd &rsq,
+                      const Matrix3Xd &pts, const Matrix3Xd &probes) {
       const int nprobe = static_cast<int>(probes.cols());
 
-      const OCTree at(conf);
+      const OCTree tree(pts);
 
-      Matrix3Xd pbuf(probes);
-      OCTree pt(pbuf);
-      const Vector3d orig_max = pt.max(), orig_len = pt.len();
-
+      std::vector<int> idxs;
+      std::vector<double> dsqs;
       const double cutoff = radii.maxCoeff();
-      std::vector<std::vector<int>> idxs(nprobe);
       for (int i = 0; i < radii.size(); ++i) {
-        const Vector3d cntr = conf.col(i);
+        const Vector3d cntr = pts.col(i);
         const double rsum = radii[i];
 
-        pbuf = (probes * rsum).colwise() + cntr;
-        pt.notify_transform(orig_max * rsum + cntr, orig_len * rsum);
-
-        for (auto &v: idxs)
-          v.clear();
-        pt.find_neighbors_tree(at, cutoff, idxs);
+        tree.find_neighbors_d(cntr, rsum + cutoff, idxs, dsqs);
+        auto end = std::remove(idxs.begin(), idxs.end(), i);
+        ABSL_DCHECK(end == idxs.end() - 1);
 
         int naccess = 0;
-        for (int j = 0; j < idxs.size(); ++j) {
-          Vector3d pj = pbuf.col(j);
+        for (int p = 0; p < probes.cols(); ++p) {
+          Vector3d probe = cntr + probes.col(p) * rsum;
 
           bool blocked = false;
-          for (int k: idxs[j]) {
-            if (i == k)
-              continue;
-
-            double dsq = (conf.col(k) - pj).squaredNorm();
-            if (dsq < radii[k] * radii[k]) {
+          for (auto it = idxs.begin(); it < idxs.end() - 1; ++it) {
+            int j = *it;
+            double dsq = (pts.col(j) - probe).squaredNorm();
+            if (dsq <= rsq[j]) {
               blocked = true;
               break;
             }
@@ -92,7 +83,7 @@ namespace internal {
             ++naccess;
         }
 
-        sasa[i] = 4 * constants::kPi * rsum * rsum * naccess / nprobe;
+        sasa[i] = 4 * constants::kPi * rsq[i] * naccess / nprobe;
       }
     }
   }  // namespace
@@ -100,23 +91,18 @@ namespace internal {
   ArrayXd sr_sasa_impl(const Matrix3Xd &pts, const ArrayXd &radii, int nprobe,
                        SrSasaMethod method) {
     ArrayXd sasa(radii.size());
+
+    ArrayXd rsq = radii.square();
     Matrix3Xd probes = canonical_fibonacci_lattice(nprobe);
 
-    if (method == internal::SrSasaMethod::kAuto) {
-      method = (radii.size() < 100 && nprobe < 100)
-                   ? internal::SrSasaMethod::kDirect
-                   : internal::SrSasaMethod::kOctree;
-    }
-
-    switch (method) {  // NOLINT(clang-diagnostic-switch-enum)
+    switch (method) {
     case internal::SrSasaMethod::kDirect:
-      sr_sasa_direct(sasa, radii, pts, probes);
+      sr_sasa_direct(sasa, radii, rsq, pts, probes);
       break;
+    case internal::SrSasaMethod::kAuto:
     case internal::SrSasaMethod::kOctree:
-      sr_sasa_tree(sasa, radii, pts, probes);
+      sr_sasa_tree(sasa, radii, rsq, pts, probes);
       break;
-    default:
-      ABSL_UNREACHABLE();
     }
 
     return sasa;
