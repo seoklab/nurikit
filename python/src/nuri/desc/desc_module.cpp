@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <absl/strings/str_cat.h>
 #include <Eigen/Dense>
 #include <pybind11/gil.h>
 
