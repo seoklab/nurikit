@@ -13,19 +13,19 @@ if(NURI_ENABLE_SANITIZERS AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.18)
   set(NURI_GTEST_EXTRA_ARGS DISCOVERY_MODE PRE_TEST)
 endif()
 
-function(_nuri_generate_test_name root file)
+function(_nuri_generate_test_name root file kind)
   get_filename_component(test_dir ${file} DIRECTORY)
   file(RELATIVE_PATH test_dir "${root}" "${test_dir}")
   string(REPLACE "/" "_" test_prefix ${test_dir})
 
   get_filename_component(test_name ${file} NAME_WE)
 
-  set(NURI_TEST_TARGET "NuriTest-${test_prefix}-${test_name}" PARENT_SCOPE)
+  set(NURI_TEST_TARGET "Nuri${kind}-${test_prefix}-${test_name}" PARENT_SCOPE)
   set(NURI_TEST_OUTPUT "nuri-${test_prefix}-${test_name}" PARENT_SCOPE)
 endfunction()
 
 function(nuri_add_test file)
-  _nuri_generate_test_name("${PROJECT_SOURCE_DIR}/test" "${file}")
+  _nuri_generate_test_name("${PROJECT_SOURCE_DIR}/test" "${file}" "Test")
 
   add_executable("${NURI_TEST_TARGET}" "${file}")
   target_link_libraries(
@@ -51,7 +51,7 @@ function(nuri_add_test file)
 endfunction()
 
 function(nuri_add_fuzz file)
-  _nuri_generate_test_name("${PROJECT_SOURCE_DIR}/fuzz" "${file}")
+  _nuri_generate_test_name("${PROJECT_SOURCE_DIR}/fuzz" "${file}" "Fuzz")
 
   add_executable("${NURI_TEST_TARGET}" "${file}")
   target_link_options("${NURI_TEST_TARGET}" PRIVATE -fsanitize=fuzzer)
@@ -66,4 +66,23 @@ function(nuri_add_fuzz file)
   )
 
   add_dependencies(NuriAllFuzz "${NURI_TEST_TARGET}")
+endfunction()
+
+function(nuri_add_benchmark file)
+  _nuri_generate_test_name("${PROJECT_SOURCE_DIR}/bench" "${file}" "Bench")
+
+  add_executable("${NURI_TEST_TARGET}" "${file}")
+  target_link_libraries(
+    "${NURI_TEST_TARGET}"
+    PRIVATE "${PROJECT_NAME}::NuriLib"
+    benchmark::benchmark benchmark::benchmark_main
+  )
+  set_target_properties(
+    "${NURI_TEST_TARGET}"
+    PROPERTIES
+    OUTPUT_NAME "${NURI_TEST_OUTPUT}"
+  )
+
+  add_dependencies(NuriAllBench "${NURI_TEST_TARGET}")
+  set(NURI_BENCHMARK_TARGET "${NURI_TEST_TARGET}" PARENT_SCOPE)
 endfunction()
