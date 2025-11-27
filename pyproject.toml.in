@@ -63,6 +63,7 @@ cmake.build-type = "@CMAKE_BUILD_TYPE@"
 
 sdist.include = ["/pyproject.toml", "*.pyi"]
 sdist.exclude = [
+    "/bench",
     "/docs",
     "/fuzz",
     "/scripts",
