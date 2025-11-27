@@ -6,7 +6,6 @@
 #include <benchmark/benchmark.h>
 #include <Eigen/Dense>
 
-#include "nuri/algo/guess.h"
 #include "nuri/core/molecule.h"
 #include "nuri/desc/surface.h"
 #include "nuri/fmt/base.h"
@@ -14,7 +13,7 @@
 namespace nuri {
 namespace {
   std::pair<Matrix3Xd, ArrayXd> read_1ubq(benchmark::State &state) {
-    FileMoleculeReader<> reader("pdb", "test/test_data/1ubq.pdb");
+    FileMoleculeReader<> reader("pdb", "test/test_data/1ubqFH.pdb");
     auto stream = reader.stream();
     Molecule mol;
     stream >> mol;
@@ -27,12 +26,6 @@ namespace {
     const int natoms = static_cast<int>(state.range(0));
     if (mol.size() < natoms) {
       state.SkipWithMessage("Not enough atoms in the molecule");
-      return {};
-    }
-
-    MoleculeMutator mut = mol.mutator();
-    if (!guess_everything(mut)) {
-      state.SkipWithError("Failed to guess molecule properties");
       return {};
     }
 
