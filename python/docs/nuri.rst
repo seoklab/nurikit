@@ -23,6 +23,7 @@ Submodules
    nuri.core
    nuri.fmt
    nuri.algo
+   nuri.desc
    nuri.tools
 
 -------------------
