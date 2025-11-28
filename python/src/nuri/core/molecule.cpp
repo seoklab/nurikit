@@ -26,9 +26,9 @@
 #include <pybind11/typing.h>
 
 #include "nuri/eigen_config.h"
-#include "nuri/algo/pcharge.h"
 #include "nuri/core/container/property_map.h"
 #include "nuri/core/element.h"
+#include "nuri/desc/pcharge.h"
 #include "nuri/python/core/containers.h"
 #include "nuri/python/core/core_module.h"
 #include "nuri/python/utils.h"

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#ifndef NURI_ALGO_PCHARGE_H_
-#define NURI_ALGO_PCHARGE_H_
+#ifndef NURI_DESC_PCHARGE_H_
+#define NURI_DESC_PCHARGE_H_
 
 //! @cond
 #include <absl/base/attributes.h>
@@ -46,4 +46,4 @@ ABSL_MUST_USE_RESULT
 extern bool assign_charges_gasteiger(Molecule &mol, int relaxation_steps = 12);
 }  // namespace nuri
 
-#endif /* NURI_ALGO_PCHARGE_H_ */
+#endif /* NURI_DESC_PCHARGE_H_ */

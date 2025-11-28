@@ -45,6 +45,7 @@ option(NURI_ENABLE_IPO "Do interprocedural optimization" ON)
 option(NURI_TEST_COVERAGE "Enable coverage build" OFF)
 option(NURI_ENABLE_SANITIZERS "Enable sanitizers for debug build" OFF)
 option(NURI_BUILD_FUZZING "Enable fuzzing build" OFF)
+option(NURI_BUILD_BENCHMARK "Enable benchmark build" OFF)
 
 option(NURI_BUILD_PYTHON_STUBS "Build python stub files" OFF)
 option(NURI_PREBUILT_ABSL "Download prebuilt abseil binary" OFF)
@@ -287,6 +288,10 @@ endif()
 
 if(NURI_BUILD_FUZZING)
   add_subdirectory(fuzz)
+endif()
+
+if(NURI_BUILD_BENCHMARK)
+  add_subdirectory(bench)
 endif()
 
 if(NURI_BUILD_PYTHON OR NURI_BUILD_PYTHON_DOCS OR NURI_BUILD_PYTHON_DOCTEST)

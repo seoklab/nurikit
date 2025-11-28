@@ -54,7 +54,7 @@ jobs:
           style: file
           tidy-checks: ""
           database: build
-          ignore: ".github|build|third-party|test|fuzz"
+          ignore: ".github|build|third-party|test|fuzz|bench"
         env:
           GITHUB_TOKEN: ${{ github.token }}
 

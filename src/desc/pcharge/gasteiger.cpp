@@ -11,9 +11,9 @@
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
-#include "nuri/algo/pcharge.h"
 #include "nuri/core/graph/graph.h"
 #include "nuri/core/molecule.h"
+#include "nuri/desc/pcharge.h"
 
 namespace nuri {
 namespace {

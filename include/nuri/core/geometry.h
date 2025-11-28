@@ -784,6 +784,32 @@ extern bool embed_distances_3d(Eigen::Ref<Matrix3Xd> pts, MatrixXd &dsqs);
  * DOI:[10.1007/BF02460044](https://doi.org/10.1007/BF02460044)
  */
 extern bool embed_distances_4d(Eigen::Ref<Matrix4Xd> pts, MatrixXd &dsqs);
+
+/**
+ * @brief Generate points on a unit sphere using the "canonical" Fibonacci
+ *        lattice method.
+ * @param npts The number of points to generate.
+ * @return N points on a unit sphere.
+ *
+ * The points are placed on the sphere as the following equation:
+ *
+ * \f[
+ * t_i (\theta, \phi) = \left(\frac{i}{\varphi^2}, \frac{i + 0.5}{N} \right)
+ * \f]
+ *
+ * Where \f$\varphi\f$ is the golden ratio, \f$N\f$ is the number of points, and
+ * \f$0 \leq i < N \f$. Note, for compatibility with other implementations, step
+ * size along \f$\theta\f$ is defined as \f$1 / \varphi^2\f$ instead of the
+ * complementary \f$1 / \varphi\f$ used in some literature.
+ *
+ * This implementation is based on the following references:
+ * - M Roberts. *How to evenly distribute points on a sphere more effectively
+ *   than the canonical Fibonacci Lattice* (2020-06-07). (Accessed 2025-11-25).
+ *   \cite core:geom:fiblat-2020
+ * - G Alvaro. *Math. Geosci.* **2010**, *42*, 49-64.
+ *   \cite core:geom:fiblat-2010
+ */
+extern Matrix3Xd canonical_fibonacci_lattice(int npts);
 }  // namespace nuri
 
 #endif /* NURI_CORE_GEOMETRY_H_ */

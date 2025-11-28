@@ -47,10 +47,15 @@ nuri_python_add_module(algo
   nuri/algo/algo_module.cpp
 )
 
+nuri_python_add_module(desc
+  nuri/desc/desc_module.cpp
+)
+
 nuri_python_add_module(fmt
   nuri/fmt/fmt_module.cpp
   nuri/fmt/cif.cpp
   nuri/fmt/pdb.cpp
+  OUTPUT_STUBS nuri/fmt/__init__.pyi nuri/fmt/pdb.pyi
 )
 target_link_libraries("${NURI_PYTHON_MODULE_TARGET}"
   PRIVATE absl::span
