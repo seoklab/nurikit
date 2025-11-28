@@ -43,13 +43,25 @@ Vector3d max_of(int octant, const Vector3d &max, const Vector3d &size) {
 void verify_oct_range(int idx, const OCTree &oct, const Vector3d &max,
                       const Vector3d &size) {
   const auto &node = oct[idx];
-  if (node.leaf()) {
-    for (int i = 0; i < node.nleaf(); ++i) {
-      const Vector3d &pt = oct.pts().col(node[i]);
-      EXPECT_TRUE((pt.array() <= max.array() + 1e6).all()) << "node = " << idx;
-      EXPECT_TRUE((pt.array() >= (max - size).array() - 1e6).all())
-          << "node = " << idx;
+  if (node.nleaf() <= oct.bucket_size()) {
+    const internal::OCTreeNode *ln = node.leaf() ? &node : &oct[node[0]];
+
+    for (int i = 0, rem = node.nleaf(); rem > 0;) {
+      ASSERT_TRUE(ln->leaf());
+
+      for (int j = 0; j < ln->nleaf(); ++j) {
+        const Vector3d &pt = oct.pts().col((*ln)[j]);
+        EXPECT_TRUE((pt.array() <= max.array() + 1e-6).all())
+            << "node = " << idx;
+        EXPECT_TRUE((pt.array() >= (max - size).array() - 1e-6).all())
+            << "node = " << idx;
+      }
+
+      rem -= ln->nleaf();
+      if (rem > 0)
+        ln = &oct[node[++i]];
     }
+
     return;
   }
 
@@ -252,6 +264,58 @@ TEST(OCTreeTest, FindNeighborTree) {
       if (d <= cutoff) {
         ASSERT_LT(k, nbrs.size());
         ASSERT_EQ(nbrs[k], j) << "i = " << i << ", j = " << j;
+        ++k;
+      }
+    }
+  }
+}
+
+TEST(OCTreeTest, FindNeighborTreeAsymmetric) {
+  Matrix3Xd x = Matrix3Xd::Random(3, 10);
+  Matrix3Xd y = Matrix3Xd::Random(3, 100);
+  MatrixXd dmat = cdist(x, y);
+
+  double cutoff = std::pow(2.0 * 5 / 100, 1.0 / 3.0);
+
+  OCTree ltree(x), rtree(y);
+  std::vector<std::vector<int>> idxs;
+  ltree.find_neighbors_tree(rtree, cutoff, idxs);
+
+  for (int i = 0; i < x.cols(); ++i) {
+    std::vector<int> &nbrs = idxs[i];
+    absl::c_sort(nbrs);
+    int k = 0;
+
+    ASSERT_EQ(nbrs.size(), (dmat.row(i).array() <= cutoff).count())
+        << "i = " << i;
+
+    for (int j = 0; j < y.cols(); ++j) {
+      double d = dmat(i, j);
+      if (d <= cutoff) {
+        ASSERT_LT(k, nbrs.size());
+        ASSERT_EQ(nbrs[k], j) << "i = " << i << ", j = " << j;
+        ++k;
+      }
+    }
+  }
+
+  for (std::vector<int> &nbrs: idxs)
+    nbrs.clear();
+  rtree.find_neighbors_tree(ltree, cutoff, idxs);
+
+  for (int j = 0; j < y.cols(); ++j) {
+    std::vector<int> &nbrs = idxs[j];
+    absl::c_sort(nbrs);
+    int k = 0;
+
+    ASSERT_EQ(nbrs.size(), (dmat.col(j).array() <= cutoff).count())
+        << "j = " << j;
+
+    for (int i = 0; i < x.cols(); ++i) {
+      double d = dmat(i, j);
+      if (d <= cutoff) {
+        ASSERT_LT(k, nbrs.size());
+        ASSERT_EQ(nbrs[k], i) << "i = " << i << ", j = " << j;
         ++k;
       }
     }
