@@ -299,8 +299,6 @@ TEST(OCTreeTest, FindNeighborTreeAsymmetric) {
     }
   }
 
-  for (std::vector<int> &nbrs: idxs)
-    nbrs.clear();
   rtree.find_neighbors_tree(ltree, cutoff, idxs);
 
   for (int j = 0; j < y.cols(); ++j) {
