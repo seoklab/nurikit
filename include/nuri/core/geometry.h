@@ -79,7 +79,8 @@ public:
               && MatrixLike::InnerStrideAtCompileTime == 1
               && MatrixLike::OuterStrideAtCompileTime == 3,
           int> = 0>
-  explicit OCTree(const MatrixLike &pts): pts_(pts.data(), 3, pts.cols()) {
+  explicit OCTree(const MatrixLike &pts, int bucket_size = 32)
+      : pts_(pts.data(), 3, pts.cols()), bucket_size_(bucket_size) {
     rebuild();
   }
 
@@ -92,8 +93,11 @@ public:
               && MatrixLike::InnerStrideAtCompileTime == 1
               && MatrixLike::OuterStrideAtCompileTime == 3,
           int> = 0>
-  void rebuild(const MatrixLike &pts) {
+  void rebuild(const MatrixLike &pts, int bucket_size = -1) {
     new (&pts_) Points(pts.data(), 3, pts.cols());
+    if (bucket_size > 0)
+      bucket_size_ = bucket_size;
+
     rebuild();
   }
 
@@ -142,6 +146,8 @@ public:
 
   int root() const { return size() - 1; }
 
+  int bucket_size() const { return bucket_size_; }
+
   const internal::OCTreeNode &node(int i) const { return nodes_[i]; }
 
   const internal::OCTreeNode &operator[](int idx) const { return nodes_[idx]; }
@@ -153,6 +159,8 @@ private:
   Vector3d max_;
   Vector3d len_;
   std::vector<internal::OCTreeNode> nodes_;
+
+  int bucket_size_ = 32;
 };
 
 namespace constants {
