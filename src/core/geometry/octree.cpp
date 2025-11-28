@@ -513,7 +513,10 @@ void OCTree::find_neighbors_tree(const OCTree &oct, const double cutoff,
                                  std::vector<std::vector<int>> &idxs) const {
   const double cutoffsq = cutoff * cutoff;
 
+  for (std::vector<int> &nbrs: idxs)
+    nbrs.clear();
   idxs.resize(pts().cols());
+
   find_neighbors_tree_impl(idxs, OCTreeBox(*this), OCTreeBox(oct), cutoffsq);
 }
 }  // namespace nuri
