@@ -63,8 +63,9 @@ namespace internal {
         const double rsum = radii[i];
 
         tree.find_neighbors_d(cntr, rsum + cutoff, idxs, dsqs);
-        auto end = std::remove(idxs.begin(), idxs.end(), i);
-        ABSL_DCHECK(end == idxs.end() - 1);
+        auto sit = std::find(idxs.begin(), idxs.end(), i);
+        ABSL_DCHECK(sit != idxs.end());
+        std::iter_swap(sit, idxs.end() - 1);
 
         int naccess = 0;
         for (int p = 0; p < probes.cols(); ++p) {
