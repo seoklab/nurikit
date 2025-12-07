@@ -44,24 +44,14 @@ void verify_oct_range(int idx, const OCTree &oct, const Vector3d &max,
                       const Vector3d &size) {
   const auto &node = oct[idx];
   if (node.nleaf() <= oct.bucket_size()) {
-    const internal::OCTreeNode *ln = node.leaf() ? &node : &oct[node[0]];
-
-    for (int i = 0, rem = node.nleaf(); rem > 0;) {
-      ASSERT_TRUE(ln->leaf());
-
-      for (int j = 0; j < ln->nleaf(); ++j) {
-        const Vector3d &pt = oct.pts().col((*ln)[j]);
-        EXPECT_TRUE((pt.array() <= max.array() + 1e-6).all())
-            << "node = " << idx;
-        EXPECT_TRUE((pt.array() >= (max - size).array() - 1e-6).all())
-            << "node = " << idx;
-      }
-
-      rem -= ln->nleaf();
-      if (rem > 0)
-        ln = &oct[node[++i]];
+    const int *ptr = node.leaf() ? node.children().data()
+                                 : oct.idxs().data() + node.begin();
+    for (int i = 0; i < node.nleaf(); ++i) {
+      const Vector3d &pt = oct.pts().col(ptr[i]);
+      EXPECT_TRUE((pt.array() <= max.array() + 1e-6).all()) << "node = " << idx;
+      EXPECT_TRUE((pt.array() >= (max - size).array() - 1e-6).all())
+          << "node = " << idx;
     }
-
     return;
   }
 
@@ -79,10 +69,16 @@ TEST(OCTreeTest, Create) {
 
   std::vector<int> childs { tree.root() }, idxs;
   for (int i = 0; i < tree.size(); ++i) {
-    const auto &node = tree.nodes()[i];
-    if (node.leaf()) {
-      for (int j = 0; j < node.nleaf(); ++j)
-        idxs.push_back(node.children()[j]);
+    const auto &node = tree[i];
+    if (node.nleaf() <= tree.bucket_size()) {
+      if (node.leaf()) {
+        ASSERT_TRUE((tree.idxs().segment(node.begin(), node.nleaf())
+                     == node.children().head(node.nleaf()))
+                        .all());
+      }
+
+      idxs.insert(idxs.end(), tree.idxs().begin() + node.begin(),
+                  tree.idxs().begin() + node.begin() + node.nleaf());
     } else {
       for (int c: node.children())
         if (c >= 0)
