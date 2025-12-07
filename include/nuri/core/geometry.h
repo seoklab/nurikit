@@ -25,8 +25,8 @@ namespace internal {
 
   class OCTreeNode {
   public:
-    OCTreeNode(Array8i &&children, int nleaf)
-        : children_(std::move(children)), nleaf_(nleaf) { }
+    OCTreeNode(Array8i &&children, int begin, int nleaf)
+        : children_(std::move(children)), begin_(begin), nleaf_(nleaf) { }
 
     const Array8i &children() const { return children_; }
 
@@ -36,11 +36,14 @@ namespace internal {
 
     bool leaf() const { return nleaf_ <= 8; }
 
+    int begin() const { return begin_; }
+
     int nleaf() const { return nleaf_; }
 
   private:
     Array8i children_;  // < 0 -> not exist, >= 0 -> index of child
-    int nleaf_;         // <= 8 -> leaf, > 8 -> internal node
+    int begin_;
+    int nleaf_;  // <= 8 -> leaf, > 8 -> internal node
   };
 }  // namespace internal
 
@@ -148,6 +151,8 @@ public:
 
   int bucket_size() const { return bucket_size_; }
 
+  const ArrayXi &idxs() const { return idxs_; }
+
   const internal::OCTreeNode &node(int i) const { return nodes_[i]; }
 
   const internal::OCTreeNode &operator[](int idx) const { return nodes_[idx]; }
@@ -159,6 +164,7 @@ private:
   Vector3d max_;
   Vector3d len_;
   std::vector<internal::OCTreeNode> nodes_;
+  ArrayXi idxs_;
 
   int bucket_size_ = 32;
 };
