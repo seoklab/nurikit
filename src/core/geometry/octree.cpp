@@ -86,43 +86,26 @@ namespace {
     return ptrs;
   }
 
-  int fill_octree_bucket(const OCTree::Points &pts,
-                         std::vector<OCTreeNode> &data, ArrayXi &idxs,
-                         int begin, const int nleaf) {
-    Array8i children;
-
-    auto epilog = [&]() {
-      int id = static_cast<int>(data.size());
-      data.emplace_back(std::move(children), nleaf);
-      return id;
-    };
-
-    if (nleaf <= 8) {
-      children.head(nleaf) = idxs.segment(begin, nleaf);
-      return epilog();
-    }
-
-    children.fill(-1);
-    int remaining = nleaf;
-    for (int i = 0; i < 8 && remaining > 0; ++i, begin += 8, remaining -= 8) {
-      children[i] =
-          fill_octree_bucket(pts, data, idxs, begin, nuri::min(8, remaining));
-    }
-    ABSL_DCHECK_LE(remaining, 0);
-    return epilog();
-  }
-
   int build_octree(const OCTree::Points &pts, std::vector<OCTreeNode> &data,
                    const Vector3d &max, const Vector3d &size, ArrayXi &idxs,
                    const int begin, const int nleaf, const int bucket_size) {
-    if (nleaf <= bucket_size)
-      return fill_octree_bucket(pts, data, idxs, begin, nleaf);
+    Array8i children;
+    auto epilog = [&]() {
+      int id = static_cast<int>(data.size());
+      data.emplace_back(std::move(children), begin, nleaf);
+      return id;
+    };
+
+    if (nleaf <= bucket_size) {
+      if (nleaf <= 8)
+        children.head(nleaf) = idxs.segment(begin, nleaf);
+      return epilog();
+    }
 
     Vector3d half = size * 0.5;
     Array8i ptrs =
         partition_octant(idxs, begin, begin + nleaf, pts, max - half);
 
-    Array8i children;
     int right = begin;
     for (int i = 0; i < 8; ++i) {
       int left = right;
@@ -138,26 +121,23 @@ namespace {
                                  left, nchild, bucket_size);
     }
 
-    int id = static_cast<int>(data.size());
-    data.emplace_back(std::move(children), nleaf);
-    return id;
+    return epilog();
   }
 }  // namespace
 
 void OCTree::rebuild() {
   ABSL_DCHECK_GE(bucket_size_, 8);
-  ABSL_DCHECK_LE(bucket_size_, 8 * 8);
 
   max_ = pts_.rowwise().maxCoeff();
   len_ = max_ - pts_.rowwise().minCoeff();
 
-  ArrayXi idxs(pts_.cols());
-  std::iota(idxs.begin(), idxs.end(), 0);
+  idxs_.resize(pts_.cols());
+  std::iota(idxs_.begin(), idxs_.end(), 0);
 
   internal::AllowEigenMallocScoped<false> ems;
 
-  build_octree(pts_, nodes_, max_, len_, idxs, 0, static_cast<int>(pts_.cols()),
-               bucket_size_);
+  build_octree(pts_, nodes_, max_, len_, idxs_, 0,
+               static_cast<int>(pts_.cols()), bucket_size_);
 }
 
 namespace {
@@ -232,24 +212,14 @@ namespace {
 
       const OCTreeNode &node = oct[idx];
       if (node.nleaf() <= oct.bucket_size()) {
-        int li = node.leaf() ? idx : node[0];
-
-        for (int i = 0, remaining = node.nleaf(); remaining > 0;) {
-          const OCTreeNode &ln = oct[li];
-          ABSL_DCHECK(ln.leaf());
-
-          for (int j = 0; j < ln.nleaf(); ++j) {
-            int cid = ln[j];
-            double d = (pt - oct.pts().col(cid)).squaredNorm();
-            if (pred(d))
-              minheap.push({ true, cid, maxs, size, d });
-          }
-
-          remaining -= ln.nleaf();
-          if (remaining > 0)
-            li = node[++i];
+        const int *ptr = node.leaf() ? node.children().data()
+                                     : oct.idxs().data() + node.begin();
+        for (int i = 0; i < node.nleaf(); ++i) {
+          int cid = ptr[i];
+          double d = (pt - oct.pts().col(cid)).squaredNorm();
+          if (pred(d))
+            minheap.push({ true, cid, maxs, size, d });
         }
-
         continue;
       }
 
@@ -293,19 +263,9 @@ namespace {
                          const OCTreeNode &node, const Vector3d &maxs,
                          const Vector3d &size) {
     if (node.nleaf() <= oct.bucket_size()) {
-      const OCTreeNode *ln = node.leaf() ? &node : &oct[node[0]];
-
-      for (int i = 0, rem = node.nleaf(); rem > 0;) {
-        ABSL_DCHECK(ln->leaf());
-
-        idxs.insert(idxs.end(), ln->children().begin(),
-                    ln->children().begin() + ln->nleaf());
-
-        rem -= ln->nleaf();
-        if (rem > 0)
-          ln = &oct[node[++i]];
-      }
-
+      const int *ptr = node.leaf() ? node.children().data()
+                                   : oct.idxs().data() + node.begin();
+      idxs.insert(idxs.end(), ptr, ptr + node.nleaf());
       return;
     }
 
@@ -391,65 +351,32 @@ namespace {
     const OCTreeNode &ln = self[lp];
     const OCTreeNode &rn = other[rp];
 
-    if (!ln.leaf()) {
-      for (int i = 0; i < 8; ++i)
-        if (int lc = ln[i]; lc >= 0)
-          fill_neighbors_tree(idxs, self, lc, other, rp);
-
-      return;
-    }
-
-    if (!rn.leaf()) {
-      for (int i = 0; i < 8; ++i)
-        if (int rc = rn[i]; rc >= 0)
-          fill_neighbors_tree(idxs, self, lp, other, rc);
-
-      return;
-    }
-
+    const int *lptr = ln.leaf() ? ln.children().data()
+                                : self.idxs().data() + ln.begin();
+    const int *rptr = rn.leaf() ? rn.children().data()
+                                : other.idxs().data() + rn.begin();
     for (int i = 0; i < ln.nleaf(); ++i) {
-      std::vector<int> &neighbors = idxs[ln[i]];
-      neighbors.insert(neighbors.end(), rn.children().begin(),
-                       rn.children().begin() + rn.nleaf());
+      std::vector<int> &neighbors = idxs[lptr[i]];
+      neighbors.insert(neighbors.end(), rptr, rptr + rn.nleaf());
     }
   }
 
   void find_neighbors_tree_bucket(std::vector<std::vector<int>> &idxs,
                                   const OCTreeBox &self, const OCTreeBox &other,
-                                  const OCTreeNode &self_node,
-                                  const OCTreeNode &other_node,
+                                  const OCTreeNode &ln, const OCTreeNode &rn,
                                   const double cutoffsq) {
-    const OCTreeNode *ln = self_node.leaf() ? &self_node
-                                            : &self.tree()[self_node[0]];
-
-    for (int i = 0, lrem = self_node.nleaf(); lrem > 0;) {
-      ABSL_DCHECK(ln->leaf());
-
-      const OCTreeNode *rn = other_node.leaf() ? &other_node
-                                               : &other.tree()[other_node[0]];
-      for (int j = 0, rrem = other_node.nleaf(); rrem > 0;) {
-        ABSL_DCHECK(rn->leaf());
-
-        for (int k = 0; k < ln->nleaf(); ++k) {
-          int lk = (*ln)[k];
-          Vector3d lpt = self.tree().pts().col(lk);
-
-          for (int l = 0; l < rn->nleaf(); ++l) {
-            int rl = (*rn)[l];
-
-            if ((lpt - other.tree().pts().col(rl)).squaredNorm() <= cutoffsq)
-              idxs[lk].push_back(rl);
-          }
-        }
-
-        rrem -= rn->nleaf();
-        if (rrem > 0)
-          rn = &other.tree()[other_node[++j]];
+    const int *lp = ln.leaf() ? ln.children().data()
+                              : self.tree().idxs().data() + ln.begin();
+    const int *rp = rn.leaf() ? rn.children().data()
+                              : other.tree().idxs().data() + rn.begin();
+    for (int i = 0; i < ln.nleaf(); ++i) {
+      const int li = lp[i];
+      const Vector3d lpt = self.tree().pts().col(li);
+      for (int j = 0; j < rn.nleaf(); ++j) {
+        const int rj = rp[j];
+        if ((lpt - other.tree().pts().col(rj)).squaredNorm() <= cutoffsq)
+          idxs[li].push_back(rj);
       }
-
-      lrem -= ln->nleaf();
-      if (lrem > 0)
-        ln = &self.tree()[self_node[++i]];
     }
   }
 
