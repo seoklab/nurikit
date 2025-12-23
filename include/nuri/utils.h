@@ -329,28 +329,45 @@ inline std::string_view safe_slice_rstrip(std::string_view str, size_t begin,
 }
 
 namespace internal {
-  template <bool = (sizeof(double) * 3) % alignof(Vector3d) == 0>
-  inline void stack_impl(Matrix3Xd &m, const std::vector<Vector3d> &vs) {
-    for (int i = 0; i < vs.size(); ++i)
-      m.col(i) = vs[i];
-  }
+  template <class ML, class RT>
+  void stack_impl(RT &m, const std::vector<ML> &vs) {
+    if constexpr (ML::SizeAtCompileTime != E::Dynamic
+                  && (sizeof(typename RT::Scalar) * RT::RowsAtCompileTime)
+                             % alignof(ML)
+                         == 0) {
+      if (vs.size() > 1) {
+        ABSL_DCHECK_EQ(reinterpret_cast<ptrdiff_t>(vs[0].data())
+                           + sizeof(typename ML::Scalar)
+                                 * ML::SizeAtCompileTime,
+                       reinterpret_cast<ptrdiff_t>(vs[1].data()))
+            << "Bad alignment";
+      }
 
-  template <>
-  inline void stack_impl<true>(Matrix3Xd &m, const std::vector<Vector3d> &vs) {
-    ABSL_DCHECK(reinterpret_cast<ptrdiff_t>(vs[0].data()) + sizeof(double) * 3
-                == reinterpret_cast<ptrdiff_t>(vs[1].data()))
-        << "Bad alignment";
-    std::memcpy(m.data(), vs[0].data(), vs.size() * sizeof(double) * 3);
+      std::memcpy(m.data(), vs[0].data(),
+                  sizeof(typename ML::Scalar) * ML::SizeAtCompileTime
+                      * vs.size());
+    } else {
+      for (size_t i = 0; i < vs.size(); ++i)
+        m.col(i) = vs[i];
+    }
   }
 }  // namespace internal
 
-inline Matrix3Xd stack(const std::vector<Vector3d> &vs) {
-  if (ABSL_PREDICT_FALSE(vs.empty()))
-    return Matrix3Xd(3, 0);
+template <class ML>
+inline auto stack(const std::vector<ML> &vs) {
+  constexpr auto size = ML::SizeAtCompileTime;
+  using RT = std::conditional_t<
+      std::is_same_v<typename E::internal::traits<ML>::XprKind, E::MatrixXpr>,
+      Matrix<typename ML::Scalar, size, E::Dynamic>,
+      Array<typename ML::Scalar, size, E::Dynamic>>;
 
-  Matrix3Xd m(3, vs.size());
-  internal::stack_impl(m, vs);
-  return m;
+  if (ABSL_PREDICT_FALSE(vs.empty()))
+    return RT {};
+
+  RT ret(size == E::Dynamic ? static_cast<decltype(size)>(vs[0].size()) : size,
+         vs.size());
+  internal::stack_impl(ret, vs);
+  return ret;
 }
 
 template <class T = int, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
