@@ -15,6 +15,23 @@
 namespace nuri {
 namespace internal {
 namespace {
+TEST(RandomTest, VectorStats) {
+  seed_thread(42);
+
+  Matrix3Xd vecs(3, 10000);
+  for (int i = 0; i < vecs.cols(); ++i) {
+    vecs.col(i) = random_unit();
+  }
+
+  VectorXd norms = vecs.colwise().norm();
+  for (int i = 0; i < norms.size(); ++i)
+    EXPECT_NEAR(norms[i], 1.0, 1e-6);
+
+  Vector3d avg = vecs.rowwise().mean();
+  for (int i = 0; i < avg.size(); ++i)
+    EXPECT_NEAR(avg[i], 0, 5e-2) << i;
+}
+
 TEST(RandomTest, AngleStats) {
   seed_thread(42);
 
