@@ -101,6 +101,8 @@ build = ["cp*-manylinux_x86_64", "cp*-macosx_x86_64", "cp*-macosx_arm64"]
 enable = ["cpython-freethreading"]
 build-verbosity = 1
 
+manylinux-x86_64-image = "manylinux2014"
+
 test-extras = ["test", "docs"]
 test-command = [
     "pytest -v -s {project}/python/test",
@@ -120,6 +122,9 @@ cmake -S {project} -B . \
 [tool.cibuildwheel.linux]
 environment-pass = ["SKBUILD_CMAKE_ARGS", "CMAKE_PREFIX_PATH"]
 before-all = ["ln -sfT /host/home/linuxbrew /home/linuxbrew"]
+
+[tool.cibuildwheel.linux.environment]
+PIP_CONSTRAINT = "/project/.github/constraints.txt"
 
 [tool.cibuildwheel.macos.environment]
 MACOSX_DEPLOYMENT_TARGET = "10.15"
