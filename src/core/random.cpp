@@ -70,7 +70,8 @@ namespace internal {
      *   (DOI: https://doi.org/10.1007/BF03025318)
      */
     auto icdf = [max_angle](double p) {
-      double t = std::cbrt(p * (max_angle / constants::kPi));
+      double t =
+          std::cbrt(p * ((max_angle - std::sin(max_angle)) / constants::kPi));
       double z = 2 * t * t - 1;
 
       double r = z * kChebyshevCoeffs[5];
