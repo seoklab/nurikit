@@ -119,12 +119,13 @@ cmake -S {project} -B . \
 [tool.cibuildwheel.config-settings]
 "build.verbose" = "true"
 
+[tool.cibuildwheel.environment]
+PIP_ONLY_BINARY = "numpy,scipy"
+PIP_PREFER_BINARY = "1"
+
 [tool.cibuildwheel.linux]
 environment-pass = ["SKBUILD_CMAKE_ARGS", "CMAKE_PREFIX_PATH"]
 before-all = ["ln -sfT /host/home/linuxbrew /home/linuxbrew"]
-
-[tool.cibuildwheel.linux.environment]
-PIP_CONSTRAINT = "/project/.github/constraints.txt"
 
 [tool.cibuildwheel.macos.environment]
 MACOSX_DEPLOYMENT_TARGET = "10.15"
