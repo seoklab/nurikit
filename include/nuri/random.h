@@ -10,6 +10,10 @@
 #include <iterator>
 #include <random>
 
+#include <Eigen/Dense>
+
+#include "nuri/eigen_config.h"
+
 namespace nuri {
 namespace internal {
   // NOLINTNEXTLINE(*-global-variables)
@@ -43,6 +47,10 @@ namespace internal {
     auto it = std::lower_bound(std::begin(cutoffs), std::end(cutoffs) - 1, p);
     return it - std::begin(cutoffs);
   }
+
+  extern Vector3d random_unit();
+
+  extern AngleAxisd random_rotation(double max_angle);
 
   extern void seed_thread(int seed);
 }  // namespace internal
