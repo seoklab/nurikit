@@ -39,14 +39,52 @@ namespace internal {
     return { v * std::cos(t), v * std::sin(t), u };
   }
 
+  constexpr double kChebyshevCoeffs[] = {
+    2.8483461441100055,     2.2478945259472033e-01, 4.7788709002222464e-02,
+    1.3504477076024014e-02, 5.2875253824057758e-03, 1.8026786252751091e-03,
+  };
+
   AngleAxisd random_rotation(double max_angle) {
+    /**
+     * Inverse CDF for uniform angle-axis sampling.
+     *
+     * Given that y = (x - sin x) / pi (true CDF for angle x in [0, pi]), we
+     * want to solve for x in terms of y. We define intermediate variables:
+     *
+     *   t(y) = cbrt(y)
+     *   z(t) = 2 t^2 - 1
+     *
+     * Now we define an implicit function r(z) such that x = t * r(z). r(z) can
+     * be approximated by few terms of Chebyshev polynomials with modest error.
+     *
+     * The coefficients are determined by fitting r(z) with Chebyshev
+     * polynomials up to degree 5 over x in [0, pi], then folded for Horner's
+     * method evaluation.
+     *
+     * Note that y can be interpreted as a "signed" CDF value in [-max_angle/pi,
+     * max_angle/pi] for angle in [-max_angle, max_angle], so we draw from
+     * [-1, 1) and scale accordingly.
+     *
+     * CDF was taken from:
+     *   H Rummler, The Mathematical Intelligencer 24, 2002, 6-11.
+     *   (DOI: https://doi.org/10.1007/BF03025318)
+     */
     auto icdf = [max_angle](double p) {
-      double q = 2 * p - 1;
-      return std::copysign(std::pow(std::abs(q), 1.0 / 3.0), q) * max_angle;
+      double t = std::cbrt(p * (max_angle / constants::kPi));
+      double z = 2 * t * t - 1;
+
+      double r = z * kChebyshevCoeffs[5];
+      r = z * (kChebyshevCoeffs[4] + r);
+      r = z * (kChebyshevCoeffs[3] + r);
+      r = z * (kChebyshevCoeffs[2] + r);
+      r = z * (kChebyshevCoeffs[1] + r);
+      r = kChebyshevCoeffs[0] + r;
+
+      return t * r;
     };
 
     Vector3d axis = random_unit();
-    double angle = icdf(draw_urd(1.0));
+    double angle = icdf(draw_urd(-1.0, 1.0));
     return AngleAxisd(angle, axis);
   }
 }  // namespace internal
