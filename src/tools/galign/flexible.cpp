@@ -15,7 +15,6 @@
 
 #include "nuri/eigen_config.h"
 #include "nuri/algo/optim.h"
-#include "nuri/core/geometry.h"
 #include "nuri/random.h"
 #include "nuri/tools/galign.h"
 #include "nuri/utils.h"
@@ -42,25 +41,8 @@ namespace internal {
       ArrayXd cutoffs;
     };
 
-    Vector3d random_unit() {
-      double u = draw_urd(-1.0, 1.0), v = std::sqrt(1.0 - u * u),
-             t = draw_urd(0.0, constants::kTwoPi);
-      return { v * std::cos(t), v * std::sin(t), u };
-    }
-
     Vector3d random_translation(double max_trs) {
       return Vector3d::NullaryExpr([&] { return draw_urd(-max_trs, max_trs); });
-    }
-
-    AngleAxisd random_rotation(double max_angle) {
-      auto icdf = [max_angle](double p) {
-        double q = 2 * p - 1;
-        return std::copysign(std::pow(std::abs(q), 1.0 / 3.0), q) * max_angle;
-      };
-
-      Vector3d axis = random_unit();
-      double angle = icdf(draw_urd(1.0));
-      return AngleAxisd(angle, axis);
     }
 
     double self_clash(const Matrix3Xd &pts) {
