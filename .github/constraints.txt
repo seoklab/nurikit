@@ -1,3 +1,0 @@
-# numpy 2.3+, scipy 1.17+ wheels are built with glibc 2.28+
-numpy<2.3
-scipy<1.17
