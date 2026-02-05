@@ -70,14 +70,15 @@ def templ():
 def refs():
     xform_ref = np.array(
         [
-            [0.234082, -0.966243, -0.107608, 128.475],
-            [-0.563769, -0.225079, 0.794672, 36.6465],
-            [-0.792067, -0.125353, -0.597425, 29.295],
+            [0.2340824012, -0.9662432686, -0.1076075056, 128.4748994237],
+            [-0.5637688328, -0.2250790030, 0.7946723511, 36.6465420383],
+            [-0.7920670001, -0.1253530543, -0.5974248733, 29.2950353178],
             [0, 0, 0, 1],
         ]
     )
     score_ref = 0.19080501444867484
-    return xform_ref, score_ref
+    score_keep_ref = 0.191354
+    return xform_ref, score_ref, score_keep_ref
 
 
 @pytest.fixture()
@@ -128,9 +129,9 @@ def aln_out():
 def test_tm_align(
     query: np.ndarray,
     templ: np.ndarray,
-    refs: Tuple[np.ndarray, float],
+    refs: Tuple[np.ndarray, float, float],
 ):
-    xform_ref, score_ref = refs
+    xform_ref, score_ref, _ = refs
     xform, score = tmtools.tm_align(query, templ)
 
     assert xform == pytest.approx(xform_ref, rel=1e-5)
@@ -141,13 +142,17 @@ def test_tm_score(
     query: np.ndarray,
     templ: np.ndarray,
     aln_in: List[Tuple[int, int]],
-    refs: Tuple[np.ndarray, float],
+    refs: Tuple[np.ndarray, float, float],
 ):
-    xform_ref, score_ref = refs
-    xform, score = tmtools.tm_score(query, templ, aln_in)
+    xform_ref, score_ref, score_keep_ref = refs
 
-    assert xform == pytest.approx(xform_ref, rel=1e-5)
+    xform, score = tmtools.tm_score(query, templ, aln_in, keep_alignment=False)
+    np.testing.assert_allclose(xform, xform_ref, rtol=1e-5)
     assert score == pytest.approx(score_ref, rel=1e-5)
+
+    xform, score = tmtools.tm_score(query, templ, aln_in, keep_alignment=True)
+    np.testing.assert_allclose(xform, xform_ref, rtol=1e-5)
+    assert score == pytest.approx(score_keep_ref, rel=1e-5)
 
 
 def test_tm_score_self(query: np.ndarray):
@@ -162,9 +167,9 @@ def test_tm_align_full(
     templ: np.ndarray,
     aln_in: List[Tuple[int, int]],
     aln_out: np.ndarray,
-    refs: Tuple[np.ndarray, float],
+    refs: Tuple[np.ndarray, float, float],
 ):
-    xform_ref, score_ref = refs
+    xform_ref, score_ref, _ = refs
     rmsd_ref = 1.9107255286124583
     query_ss = "CCECCCCECCCCTCEEECC"
     templ_ss = "CCEEEEEEECCCCCCCCCCC"
@@ -185,13 +190,36 @@ def test_tm_align_full(
     assert tm.rmsd() == pytest.approx(rmsd_ref, rel=1e-5)
     assert np.all(tm.aligned_pairs() == aln_out)
 
-    tm = tmtools.TMAlign.from_alignment(query, templ, aln_in)
+    tm = tmtools.TMAlign.from_alignment(
+        query,
+        templ,
+        aln_in,
+        keep_alignment=False,
+    )
     xform, score = tm.score()
 
     assert xform == pytest.approx(xform_ref, rel=1e-5)
     assert score == pytest.approx(score_ref, rel=1e-5)
     assert tm.rmsd() == pytest.approx(rmsd_ref, rel=1e-5)
     assert np.all(tm.aligned_pairs() == aln_out)
+
+
+def test_tm_score_full(
+    query: np.ndarray,
+    templ: np.ndarray,
+    aln_in: List[Tuple[int, int]],
+    refs: Tuple[np.ndarray, float, float],
+):
+    xform_ref, _, score_ref = refs
+    rmsd_ref = 3.590177
+
+    tm = tmtools.TMAlign.from_alignment(query, templ, aln_in)
+    xform, score = tm.score()
+
+    np.testing.assert_allclose(xform, xform_ref, rtol=1e-5)
+    assert score == pytest.approx(score_ref, rel=1e-5)
+    assert tm.rmsd() == pytest.approx(rmsd_ref, rel=1e-5)
+    np.testing.assert_equal(tm.aligned_pairs(), aln_in)
 
 
 def test_tm_errors():
