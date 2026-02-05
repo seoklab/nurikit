@@ -700,9 +700,11 @@ namespace internal {
 
   double tm_realign_calculate_msd(AlignedXY &xy, Matrix3Xd &rx, Matrix3Xd &ry,
                                   const Isometry3d &xform,
-                                  const double score_d8sq) {
+                                  const double score_d8sq,
+                                  const bool keep_alignment) {
     inplace_transform(rx, xform, xy.x());
-    xy.remap_final(rx, score_d8sq);
+    if (!keep_alignment)
+      xy.remap_final(rx, score_d8sq);
 
     rx.leftCols(xy.l_ali()) = xy.xtm();
     ry.leftCols(xy.l_ali()) = xy.ytm();
@@ -724,7 +726,8 @@ namespace {
                              internal::AlignedXY &xy, Matrix3Xd &rx,
                              Matrix3Xd &ry, ArrayXd &dsqs, ArrayXi &i_ali,
                              ArrayXi &j_ali, const double d0_search,
-                             const double score_d8sq, const double d0sq_inv) {
+                             const double score_d8sq, const double d0sq_inv,
+                             const bool keep_alignment) {
     if (ABSL_PREDICT_FALSE(xy.l_ali() <= 0)) {
       ABSL_LOG(ERROR) << "No alignment found between the input structures";
       return false;
@@ -739,8 +742,8 @@ namespace {
       return false;
     }
 
-    aligned_msd =
-        internal::tm_realign_calculate_msd(xy, rx, ry, best_xform, score_d8sq);
+    aligned_msd = internal::tm_realign_calculate_msd(
+        xy, rx, ry, best_xform, score_d8sq, keep_alignment);
     return true;
   }
 }  // namespace
@@ -892,10 +895,10 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
       << "TMscore is positive despite no alignment found";
   return tmalign_conclude_init(best_xform_, aligned_msd_, xy_, rx_, ry_, dsqs_,
                                y2x_local(), y2x_buf(), d0_search, score_d8sq,
-                               d0sq_inv);
+                               d0sq_inv, false);
 }
 
-bool TMAlign::initialize(ConstRef<ArrayXi> y2x) {
+bool TMAlign::initialize(ConstRef<ArrayXi> y2x, bool keep_alignment) {
   const double d0 = l_min() < 20 ? 0.968 : 1.24 * std::cbrt(l_min() - 15) - 1;
   const double d0sq_inv = 1 / (d0 * d0);
 
@@ -906,7 +909,7 @@ bool TMAlign::initialize(ConstRef<ArrayXi> y2x) {
   xy_.remap(y2x);
   return tmalign_conclude_init(best_xform_, aligned_msd_, xy_, rx_, ry_, dsqs_,
                                y2x_local(), y2x_buf(), d0_search, score_d8sq,
-                               d0sq_inv);
+                               d0sq_inv, keep_alignment);
 }
 
 std::pair<Isometry3d, double> TMAlign::tm_score(int l_norm, double d0) {
@@ -975,9 +978,10 @@ TMAlignResult tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
 }
 
 TMAlignResult tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
-                       ConstRef<ArrayXi> y2x, int l_norm, double d0) {
+                       ConstRef<ArrayXi> y2x, int l_norm, double d0,
+                       bool keep_alignment) {
   TMAlign tm(query, templ);
-  if (!tm.initialize(y2x))
+  if (!tm.initialize(y2x, keep_alignment))
     return {};
 
   return tm_align_wrapper(std::move(tm), l_norm, d0);
