@@ -98,7 +98,8 @@ TMAlign tmalign_init(py::handle query, py::handle templ,
   return tmalign_try_construct_init(x, y, flags, secx, secy);
 }
 
-TMAlign tmalign_init_aln(py::handle query, py::handle templ, py::handle aln) {
+TMAlign tmalign_init_aln(py::handle query, py::handle templ, py::handle aln,
+                         bool keep_alignment) {
   auto xa = py_array_cast<3>(query), ya = py_array_cast<3>(templ);
   auto x = xa.eigen(), y = ya.eigen();
   ArrayXi y2x(y.cols());
@@ -112,7 +113,7 @@ TMAlign tmalign_init_aln(py::handle query, py::handle templ, py::handle aln) {
     }
 
     absl::c_iota(y2x, 0);
-    return tmalign_try_construct_init(x, y, y2x);
+    return tmalign_try_construct_init(x, y, y2x, keep_alignment);
   }
 
   auto xya = py_array_cast<2, Eigen::Dynamic, int>(aln);
@@ -129,7 +130,7 @@ TMAlign tmalign_init_aln(py::handle query, py::handle templ, py::handle aln) {
     y2x[j] = i;
   }
 
-  return tmalign_try_construct_init(x, y, y2x);
+  return tmalign_try_construct_init(x, y, y2x, keep_alignment);
 }
 
 pyt::Tuple<py::array_t<double>, double>
@@ -187,6 +188,7 @@ Prepare TM-align algorithm with the given structures.
 )doc")
       .def_static("from_alignment", tmalign_init_aln, py::arg("query"),
                   py::arg("templ"), py::arg("alignment") = py::none(),
+                  py::arg("keep_alignment") = true,
                   R"doc(
 Prepare TM-align algorithm with the given structures and user-provided alignment.
 
@@ -200,6 +202,10 @@ Prepare TM-align algorithm with the given structures and user-provided alignment
   be in a form representable as a 2D numpy array of shape ``(L, 2)``, in which
   rows must contain (query index, template index) pairs. If not provided, query
   and template must have same length and assumed to be aligned in order.
+:param keep_alignment: Whether to keep the given alignment without pruning
+  during realignment step (``-i`` vs ``-I`` in the original TM-align program).
+  Due to compatibility with the TM-score program (and thus :func:`tm_score`),
+  this is set to ``True`` by default.
 :returns: A :class:`TMAlign` object initialized with the given alignment.
 
 :raises ValueError: If:
@@ -211,8 +217,8 @@ Prepare TM-align algorithm with the given structures and user-provided alignment
   - The initialization fails (for any other reason).
 
 .. tip::
-  When initialized by this method, the result is equivalent to the "TM-score"
-  program in the TM-tools suite.
+  When initialized with keep_alignment set to ``True``, the result is equivalent
+  to the "TM-score" program in the TM-tools suite.
 
 .. note::
   Duplicate values in ``alignment`` are not checked and may result in invalid
@@ -279,10 +285,13 @@ Get pairwise alignment of the query and template structures.
   created.
 
 .. note::
-  Even if the :class:`TMAlign` object is created with :meth:`from_alignment`,
-  the returned pairs from this method may not be the same as the input
-  alignment. This is because the TM-align algorithm filters out far-apart pairs
-  when calculating the final alignment.
+  If the :class:`TMAlign` object was created via :meth:`from_alignment` with
+  `keep_alignment` set to ``False``, the returned pairs may differ from the
+  input alignment.
+
+  This is because TM-align algorithm filters out pairs that are far apart when
+  computing the final alignment. This behavior is, in turn, similar to the
+  original TM-align program when run with the ``-i`` flag.
 )doc");
 
   m.def(
@@ -354,15 +363,16 @@ Run TM-align algorithm with the given structures and parameters.
       .def(
           "tm_score",
           [](py::handle query, py::handle templ, py::handle aln,
-             std::optional<int> l_norm, std::optional<double> d0) {
-            TMAlign tm = tmalign_init_aln(query, templ, aln);
+             std::optional<int> l_norm, std::optional<double> d0,
+             bool keep_alignment) {
+            TMAlign tm = tmalign_init_aln(query, templ, aln, keep_alignment);
             return tmalign_convert_result(
                 tm.tm_score(l_norm.value_or(-1), d0.value_or(-1)));
           },
           py::arg("query"), py::arg("templ"), py::arg("alignment") = py::none(),
           py::arg("l_norm") = py::none(),
           py::kw_only(),  //
-          py::arg("d0") = py::none(),
+          py::arg("d0") = py::none(), py::arg("keep_alignment") = true,
           R"doc(
 Run TM-align algorithm with the given structures and alignment. This is also
 known as the "TM-score" program in the TM-tools suite, from which the function
@@ -382,6 +392,9 @@ got its name.
   template structure is used.
 :param d0: Distance scale factor. If not specified, calculated based on the
   length normalization factor.
+:param keep_alignment: Whether to keep the given alignment without pruning
+  during realignment step (``-i`` vs ``-I`` in the TM-align program). Due to
+  compatibility with the TM-score program, this is set to ``True`` by default.
 :returns: A pair of the transformation tensor and the TM-score of the alignment.
 
 :raises ValueError: If:

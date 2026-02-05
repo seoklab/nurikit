@@ -134,7 +134,8 @@ namespace internal {
 
   extern double tm_realign_calculate_msd(AlignedXY &xy, Matrix3Xd &rx,
                                          Matrix3Xd &ry, const Isometry3d &xform,
-                                         double score_d8sq);
+                                         double score_d8sq,
+                                         bool keep_alignment);
 }  // namespace internal
 
 /**
@@ -245,13 +246,16 @@ public:
    * @param y2x A map of the template structure to the query structure. Negative
    *        values indicate that the corresponding residue in the template
    *        structure is not aligned to any residue in the query structure.
+   * @param keep_alignment Whether to keep the given alignment without
+   *        pruning during realignment step (-i vs -I in the original TM-align
+   *        program).
    * @return Whether the initialization was successful.
    * @note If size of y2x is not equal to the length of the template structure
    *       or any value of y2x is larger than or equal to the length of the
    *       query structure, the behavior is undefined.
    */
   ABSL_MUST_USE_RESULT
-  bool initialize(ConstRef<ArrayXi> y2x);
+  bool initialize(ConstRef<ArrayXi> y2x, bool keep_alignment = true);
 
   bool initialized() const { return xy_.l_ali() > 0; }
 
@@ -401,6 +405,8 @@ tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
  *        template structure is used.
  * @param d0 Distance scale factor. If negative, the default value is calculated
  *        based on the length normalization factor.
+ * @param keep_alignment Whether to keep the given alignment without pruning
+ *        during realignment step (-i vs -I in the original TM-align program).
  * @return The result of the alignment. If the alignment failed for any reason,
  *         the TM-score is set to a negative value.
  *
@@ -410,7 +416,8 @@ tm_align(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
  */
 extern TMAlignResult tm_align(ConstRef<Matrix3Xd> query,
                               ConstRef<Matrix3Xd> templ, ConstRef<ArrayXi> y2x,
-                              int l_norm = -1, double d0 = -1);
+                              int l_norm = -1, double d0 = -1,
+                              bool keep_alignment = true);
 
 // test utils
 namespace internal {
