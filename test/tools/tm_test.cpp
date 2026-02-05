@@ -700,25 +700,44 @@ TEST_F(TMAlignTest, InitUserWrapper) {
       14, 15, 16, 17, 18;
 
   Isometry3d xform_ref;
-  xform_ref.matrix() << 0.234082, -0.966243, -0.107608, 128.475,  //
-      -0.563769, -0.225079, 0.794672, 36.6465,                    //
-      -0.792067, -0.125353, -0.597425, 29.295,                    //
+  xform_ref.matrix() << 0.2340824012, -0.9662432686, -0.1076075056,
+      128.4748994237,                                              //
+      -0.5637688328, -0.2250790030, 0.7946723511, 36.6465420383,   //
+      -0.7920670001, -0.1253530543, -0.5974248733, 29.2950353178,  //
       0, 0, 0, 1;
 
-  auto [xform, y2x_out, msd, tmscore] = tm_align(x(), y(), y2x);
-  EXPECT_NEAR(tmscore, 0.19080501444867484, 1e-6);
+  {
+    auto [xform, y2x_out, msd, tmscore] = tm_align(x(), y(), y2x);
+    EXPECT_NEAR(tmscore, 0.191354, 1e-6);
 
-  NURI_EXPECT_EIGEN_EQ_TOL(xform.linear(), xform_ref.linear(), 1e-5);
-  NURI_EXPECT_EIGEN_EQ_TOL(xform.translation(), xform_ref.translation(), 1e-2);
+    NURI_EXPECT_EIGEN_EQ_TOL(xform.linear(), xform_ref.linear(), 1e-5);
+    NURI_EXPECT_EIGEN_EQ_TOL(xform.translation(), xform_ref.translation(),
+                             1e-2);
 
-  y2x << -1, 0, 1, 2, 3,  //
-      4, -1, 5, 6, 7,     //
-      8, -1, -1, -1, -1,  //
-      -1, 15, 16, 17, 18;
-  for (int i = 0; i < ly; ++i)
-    EXPECT_EQ(y2x_out[i], y2x[i]);
+    for (int i = 0; i < ly; ++i)
+      EXPECT_EQ(y2x_out[i], y2x[i]);
 
-  EXPECT_NEAR(msd, 3.6508720456913579, 1e-5);
+    EXPECT_NEAR(msd, 12.889372, 1e-5);
+  }
+
+  {
+    auto [xform, y2x_out, msd, tmscore] =
+        tm_align(x(), y(), y2x, -1, -1, false);
+    EXPECT_NEAR(tmscore, 0.19080501444867484, 1e-6);
+
+    NURI_EXPECT_EIGEN_EQ_TOL(xform.linear(), xform_ref.linear(), 1e-5);
+    NURI_EXPECT_EIGEN_EQ_TOL(xform.translation(), xform_ref.translation(),
+                             1e-2);
+
+    y2x << -1, 0, 1, 2, 3,  //
+        4, -1, 5, 6, 7,     //
+        8, -1, -1, -1, -1,  //
+        -1, 15, 16, 17, 18;
+    for (int i = 0; i < ly; ++i)
+      EXPECT_EQ(y2x_out[i], y2x[i]);
+
+    EXPECT_NEAR(msd, 3.6508720456913579, 1e-5);
+  }
 }
 
 }  // namespace
