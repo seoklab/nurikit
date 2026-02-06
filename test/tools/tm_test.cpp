@@ -9,7 +9,6 @@
 #include <string_view>
 
 #include <absl/base/optimization.h>
-#include <absl/log/absl_check.h>
 #include <Eigen/Dense>
 
 #include <gtest/gtest.h>

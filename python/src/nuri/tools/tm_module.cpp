@@ -138,9 +138,8 @@ tmalign_convert_result(const std::pair<Isometry3d, double> &result) {
   if (result.second < 0)
     throw py::value_error("TM-align failed to calculate TM-score");
 
-  auto xform = empty_like(result.first.matrix());
-  xform.eigen().transpose() = result.first.matrix();
-  return py::make_tuple(std::move(xform).numpy(), result.second);
+  return py::make_tuple(eigen_as_numpy(result.first.matrix().transpose()),
+                        result.second);
 }
 
 void bind_tmalign(py::module &m) {
