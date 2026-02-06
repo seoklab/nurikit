@@ -92,12 +92,11 @@ NURI_PYTHON_MODULE(m) {
               absl::StrCat("Unknown alignment method: ", method));
         }
 
-        auto xform = empty_like(result.first.matrix());
         // Unlike most operations that simply transposing the matrix gives the
         // correct column-major matrix, the transformation matrix should not
         // be transposed.
-        xform.eigen().transpose() = result.first.matrix();
-        return std::make_pair(std::move(xform).numpy(), result.second);
+        return std::make_pair(eigen_as_numpy(result.first.matrix().transpose()),
+                              result.second);
       },
       py::arg("query"), py::arg("template"), py::arg("method") = "qcp",
       py::arg("reflection") = false, R"doc(
@@ -186,7 +185,7 @@ Calculate the RMSD of the best-fit rigid-body alignment of ``query`` to
         auto pts_arr = py_array_cast<3>(py_pts);
         auto pts = pts_arr.eigen();
         auto result = empty_like(pts);
-        result.eigen().noalias() = xform * pts;
+        inplace_transform(result.eigen(), xform, pts);
         return std::move(result).numpy();
       },
       py::arg("tensor"), py::arg("pts"), R"doc(
