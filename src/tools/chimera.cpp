@@ -6,6 +6,7 @@
 #include "nuri/tools/chimera.h"
 
 #include <cmath>
+#include <tuple>
 
 #include <absl/algorithm/container.h>
 #include <absl/base/optimization.h>

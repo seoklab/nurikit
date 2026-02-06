@@ -3,6 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <cmath>
+#include <stdexcept>
+
 #include <absl/strings/str_cat.h>
 #include <pybind11/pytypes.h>
 
