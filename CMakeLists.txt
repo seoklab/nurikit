@@ -9,6 +9,10 @@ if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
 endif()
 
+if(POLICY CMP0156)
+  cmake_policy(SET CMP0156 NEW)
+endif()
+
 # This snippet is copied from boostorg/boost/CMakeLists.txt
 # Distributed under the Boost Software License, Version 1.0.
 # See http://www.boost.org/LICENSE_1_0.txt
@@ -145,6 +149,12 @@ if(NURI_ENABLE_SANITIZERS)
     -fsanitize=address
     -fsanitize=undefined
     -fno-sanitize-recover=all
+  )
+
+  add_link_options(
+    -fuse-ld=lld
+    -Wl,--threads=1
+    -Wl,--thinlto-jobs=1
   )
 
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")

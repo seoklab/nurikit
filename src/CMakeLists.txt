@@ -77,6 +77,24 @@ if(NURI_LIBRARY_FLAGS)
   target_link_options(NuriLib PRIVATE ${NURI_LIBRARY_FLAGS})
 endif()
 
+if(NURI_ENABLE_SANITIZERS)
+  include(ProcessorCount)
+  ProcessorCount(nproc)
+
+  if(nproc EQUAL 0)
+    set(nproc 1)
+  elseif(nproc GREATER 32)
+    set(nproc 32)
+  endif()
+
+  message(STATUS "Enabling sanitizers with ${nproc} threads for linking")
+
+  target_link_options(NuriLib PRIVATE
+    -Wl,--threads=${nproc}
+    -Wl,--thinlto-jobs=${nproc}
+  )
+endif()
+
 add_executable(NuriExe "main.cpp")
 add_executable("${PROJECT_NAME}::NuriExe" ALIAS NuriExe)
 
