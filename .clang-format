@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-# Require clang-format v15
+# For clang-format v22
 ---
 Language: Cpp
 Standard: c++17
@@ -80,8 +80,8 @@ IncludeCategories:
     SortPriority: 6
     CaseSensitive: false
 IndentCaseLabels: false
-# InsertNewlineAtEOF: true  # require clang-format v16
-# LineEnding: LF  # require clang-format v16
+InsertNewlineAtEOF: true
+LineEnding: LF
 NamespaceIndentation: Inner
 PackConstructorInitializers: BinPack
 PenaltyBreakAssignment: 10
@@ -101,7 +101,9 @@ QualifierOrder:
   - volatile
   - type
   - restrict
-SortIncludes: CaseInsensitive
+SortIncludes:
+  Enabled: true
+  IgnoreCase: true
 SpaceBeforeCpp11BracedList: true
 SpaceBeforeCtorInitializerColon: false
 SpaceBeforeInheritanceColon: false
