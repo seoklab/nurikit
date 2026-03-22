@@ -1124,7 +1124,7 @@ private:
   }
 
   AdjRef adjacent(int nid, int idx) {
-    AdjEntry &adj = adj_list_[nid][idx];
+    const AdjEntry &adj = adj_list_[nid][idx];
     return { *this, nid, adj.dst, adj.eid };
   }
 

@@ -11,10 +11,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/typing.h>
 
-#include "nuri/core/element.h"
-#include "nuri/fmt/cif.h"
-#include "nuri/fmt/pdb.h"
-
 #ifndef NURI_PYTHON_MODULE_NAME
 #error "NURI_PYTHON_MODULE_NAME is not defined"
 #endif
@@ -30,6 +26,16 @@ namespace pyt = pybind11::typing;
 
 using rvp = py::return_value_policy;
 }  // namespace python_internal
+
+struct Isotope;
+class PDBAtomSite;
+class PDBAtom;
+class PDBResidue;
+class PDBChain;
+
+namespace internal {
+class CifFrame;
+}  // namespace internal
 }  // namespace nuri
 
 PYBIND11_MAKE_OPAQUE(std::vector<nuri::Isotope>)

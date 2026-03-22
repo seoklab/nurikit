@@ -573,9 +573,9 @@ private:
     bool is_iso = true;
     for (auto tnei: tn) {
       const int curr_conn = conn()[tnei.dst().id()];
-      if (curr_conn < -1)
+      if (curr_conn < -1) {
         ++conn()[tnei.dst().id()];
-      else if constexpr (kMt != IsoMapType::kSubgraph) {
+      } else if constexpr (kMt != IsoMapType::kSubgraph) {
         if (curr_conn == -1) {
           is_iso = false;
           break;

@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <string_view>
 #include <type_traits>

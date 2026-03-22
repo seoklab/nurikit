@@ -104,6 +104,7 @@ public:
 
   PyNeigh pyneighbor(int src, int dst);
 
+  // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method)
   void tick() {
     PyMol::Parent::tick();
     tock();

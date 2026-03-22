@@ -158,7 +158,7 @@ void pdb_update_substructs(
 }
 }  // namespace internal
 
-// NOLINTNEXTLINE(google-build-namespaces)
+// NOLINTNEXTLINE(misc-anonymous-namespace-in-header,google-build-namespaces)
 namespace {
 // NOLINTBEGIN(readability-identifier-naming,*-unused-const-variable)
 namespace parser {
