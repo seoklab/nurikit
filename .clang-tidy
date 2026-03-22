@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-# Require clang-tidy v15
+# For clang-tidy v22
 ---
 Checks: >-
   -*,
