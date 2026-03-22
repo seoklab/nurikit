@@ -80,7 +80,7 @@ jobs:
 
       # https://packaging.python.org/en/latest/specifications/version-specifiers/#public-version-identifiers
       # Check if the version ends with a/b/rc or .dev (could also include post release number)
-      - id: prerelease-check
+      - id: meta
         run: |
           regex='((a|b|rc)([[:digit:]]+\.post)?|\.dev)[[:digit:]]+$'
 
@@ -104,7 +104,13 @@ jobs:
           files: "dist/*"
           fail_on_unmatched_files: true
           generate_release_notes: true
-          prerelease: ${{ steps.prerelease-check.outputs.prerelease == 'true' }}
+          prerelease: ${{ fromJson(steps.meta.outputs.prerelease) }}
+          draft: ${{ fromJson(steps.meta.outputs.prerelease) }}
+
+      - if: ${{ github.event_name == 'push' && fromJSON(steps.meta.outputs.prerelease) }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
 
 concurrency:
   group: release-${{ github.workflow }}-${{ github.ref }}
