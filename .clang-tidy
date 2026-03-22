@@ -24,11 +24,13 @@ Checks: >-
   -bugprone-assignment-in-if-condition,
   -bugprone-crtp-constructor-accessibility,
   -bugprone-easily-swappable-parameters,
+  -bugprone-throwing-static-initialization,
   -clang-analyzer-security.ArrayBound,
   -clang-analyzer-optin.core.EnumCastOutOfRange,
   -cppcoreguidelines-avoid-do-while,
   -cppcoreguidelines-avoid-c-arrays,
   -cppcoreguidelines-init-variables,
+  -cppcoreguidelines-macro-usage,
   -cppcoreguidelines-narrowing-conversions,
   -cppcoreguidelines-pro-*,
   -cppcoreguidelines-rvalue-reference-param-not-moved,
@@ -105,7 +107,7 @@ CheckOptions:
   - key: performance-unnecessary-value-param.IncludeStyle
     value: google
   - key: performance-unnecessary-value-param.AllowedTypes
-    value: "^(Eigen::Ref|nuri::(Mut|Const)Ref)"
+    value: "^(Eigen::(Ref|[a-zA-Z]*Stride|internal::pointer_based_stl_iterator)|nuri::((Mut|Const)Ref|internal::TransformIterator)|std::reverse_iterator)"
   - key: google-readability-braces-around-statements.ShortStatementLines
     value: 3
   - key: readability-braces-around-statements.ShortStatementLines
