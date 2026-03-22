@@ -205,8 +205,8 @@ Element::Element(int atomic_number, std::string_view symbol,
 // Format:
 // { Z, Symbol, Name, Mass, r_cov, r_vdw, EN, Isotope list }
 PeriodicTable::PeriodicTable() noexcept
-  : elements_ {
-  // clang-format off
+    : elements_ {
+        // clang-format off
 // Wondering why Dummy atom radii is not 0.0? See the commit message at
 // https://github.com/OpenChemistry/avogadrolibs/commit/c9c0e81e10384146f07f8a808a9103f11c91d46f
 { 0, "Xx", "Dummy", 0.0, 0.16, 0.60, -1.0, {
@@ -4013,10 +4013,10 @@ PeriodicTable::PeriodicTable() noexcept
   { 118, 294, 294.213979, 0.0 },
   { 118, 295, 295.216178, 0.0 },
 } }, },
-  // clang-format on
-  // GCOV_EXCL_START
-    symbol_to_element_(static_cast<size_t>(kElementCount_ + 17) * 3),
-    name_to_element_(static_cast<size_t>(kElementCount_ + 15) * 3) {
+      // clang-format on
+      // GCOV_EXCL_START
+      symbol_to_element_(static_cast<size_t>(kElementCount_ + 17) * 3),
+      name_to_element_(static_cast<size_t>(kElementCount_ + 15) * 3) {
   // GCOV_EXCL_STOP
   // Canonical symbols and names.
   for (const Element &element: elements_) {

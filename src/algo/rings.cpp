@@ -302,6 +302,8 @@ namespace {
       Dr<MoleculeLike> &d_r, absl::FixedArray<int> &distances,
       absl::flat_hash_map<int, typename MoleculeLike::Neighbor> &backtrace,
       internal::ClearablePQ<IdDist, std::greater<>> &minheap, Pred pred) {
+    using Neighbor = typename MoleculeLike::Neighbor;
+
     v_r.clear();
     std::fill(distances.begin(), distances.end(), mol.num_atoms());
     minheap.clear();
@@ -330,9 +332,8 @@ namespace {
       }
     } while (!minheap.empty());
 
-    auto find_subpaths =
-        [&](auto &self, const int curr,
-            auto it) -> std::vector<typename MoleculeLike::Neighbor> & {
+    auto find_subpaths = [&](auto &self, const int curr,
+                             auto it) -> std::vector<Neighbor> & {
       if (it == backtrace.end()) {
         auto dit = d_r.find(curr);
         ABSL_DCHECK(dit != d_r.end());
@@ -342,12 +343,11 @@ namespace {
       const int prev = it->second.src().id();
 
       v_r.push_back(curr);
-      std::vector<typename MoleculeLike::Neighbor> &path =
-          insert_new(d_r, curr);
+      std::vector<Neighbor> &path = insert_new(d_r, curr);
       path.reserve(distances[curr]);
 
       if (prev != r) {
-        const std::vector<typename MoleculeLike::Neighbor> &sub =
+        const std::vector<Neighbor> &sub =
             self(self, prev, backtrace.find(prev));
         path.insert(path.end(), sub.begin(), sub.end());
       }

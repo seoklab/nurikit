@@ -17,10 +17,12 @@ if [[ ! -d build ]]; then
 fi
 
 cf_args=("-i")
-while getopts 'cj:' opt; do
+ct_args=(--warnings-as-errors='*')
+while getopts 'cj:x:' opt; do
 	case "$opt" in
 	c) cf_args=(-n --Werror) ;;
 	j) nproc="$OPTARG" ;;
+	x) ct_args+=(--extra-arg="$OPTARG") ;;
 	*) break ;;
 	esac
 done
@@ -45,5 +47,4 @@ else
 fi
 
 xargs -0 -P"${nproc-0}" -n1 clang-format "${cf_args[@]}" <"$tmpd/format-checks"
-xargs -0 -P"${nproc-0}" -n1 clang-tidy -p build --warnings-as-errors='*' \
-	<"$tmpd/tidy-checks"
+xargs -0 -P"${nproc-0}" -n1 clang-tidy -p build "${ct_args[@]}" <"$tmpd/tidy-checks"

@@ -15,6 +15,8 @@
 #include <absl/base/attributes.h>
 //! @endcond
 
+#include "nuri/eigen_config.h"
+#include "nuri/core/container/property_map.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"

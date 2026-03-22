@@ -6,8 +6,10 @@
 #define NURI_EIGEN_CONFIG_H_
 
 //! @cond
+#include <cstdint>
 #include <type_traits>  // IWYU pragma: keep, required for is_class_v
 
+#include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
 #include <Eigen/Dense>
 //! @endcond
@@ -89,13 +91,15 @@ template <class DT, int Dim>
 using IsometryT = E::Transform<DT, Dim, E::Isometry>;
 
 template <class Raw, int Options = 0,
-          class StrideType = std::conditional_t<
-              Raw::IsVectorAtCompileTime, E::InnerStride<1>, E::OuterStride<>>>
+          class StrideType =
+              std::conditional_t<Raw::IsVectorAtCompileTime != 0,
+                                 E::InnerStride<1>, E::OuterStride<>>>
 using MutRef = E::Ref<internal::remove_cvref_t<Raw>, Options, StrideType>;
 
 template <class Raw, int Options = 0,
-          class StrideType = std::conditional_t<
-              Raw::IsVectorAtCompileTime, E::InnerStride<1>, E::OuterStride<>>>
+          class StrideType =
+              std::conditional_t<Raw::IsVectorAtCompileTime != 0,
+                                 E::InnerStride<1>, E::OuterStride<>>>
 using ConstRef =
     const E::Ref<const internal::remove_cvref_t<Raw>, Options, StrideType> &;
 

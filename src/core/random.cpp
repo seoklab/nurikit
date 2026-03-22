@@ -15,7 +15,7 @@
 
 namespace nuri {
 namespace internal {
-  // NOLINTNEXTLINE(*-global-variables)
+  // NOLINTNEXTLINE(*-global-variables,*-random-generator-seed)
   thread_local std::mt19937 rng {};
 
   namespace {

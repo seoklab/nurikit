@@ -218,6 +218,7 @@ TypeErasedProxyWrapper(T &&, const U &)
 
 template <class T>
 T &pass_through(T &x) {
+  // NOLINTNEXTLINE(bugprone-return-const-ref-from-parameter)
   return x;
 }
 
