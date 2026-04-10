@@ -49,6 +49,8 @@ parallelism is recommended for writing multiple molecules in parallel.
 
 .. autofunction:: nuri.to_sdf
 
+.. autofunction:: nuri.to_pdb
+
 Utilities
 ---------
 
