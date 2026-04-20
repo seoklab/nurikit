@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <iterator>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -26,6 +27,7 @@ namespace nuri {
 namespace {
   auto parent_forest(const Molecule &mol) {
     Graph<std::vector<int>, std::pair<int, int>> forest;
+    std::vector<decltype(forest)::StoredEdge> fedges;
 
     internal::LinearQueue queue(
         std::vector<std::pair<int, int>>(mol.num_atoms()));
@@ -73,8 +75,9 @@ namespace {
             forest[curr_ti].data().push_back(next);
           } else {
             next_ti = forest.add_node({ next });
-            forest.add_edge(curr_ti, next_ti,
-                            { nei.src().id(), nei.dst().id() });
+            fedges.push_back({
+                curr_ti, next_ti, { nei.src().id(), nei.dst().id() }
+            });
           }
 
           if (nei.dst().degree() > 1)
@@ -82,6 +85,9 @@ namespace {
         }
       } while (!queue.empty());
     }
+
+    forest.add_edges(std::make_move_iterator(fedges.begin()),
+                     std::make_move_iterator(fedges.end()));
 
     return std::make_pair(forest, roots);
   }
