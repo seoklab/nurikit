@@ -303,6 +303,9 @@ void remove_vertex(
   g.erase_nodes(g.begin() + v, g.begin() + v + 1);
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 template <class NT, class ET>
 auto add_edge(typename boost::graph_traits<Graph<NT, ET>>::vertex_descriptor u,
               typename boost::graph_traits<Graph<NT, ET>>::vertex_descriptor v,
@@ -312,6 +315,8 @@ auto add_edge(typename boost::graph_traits<Graph<NT, ET>>::vertex_descriptor u,
       typename boost::graph_traits<Graph<NT, ET>>::edge_descriptor { e, u, v },
       true);
 }
+
+#pragma GCC diagnostic pop
 
 template <class NT, class ET>
 void remove_edge(
