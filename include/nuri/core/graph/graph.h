@@ -684,26 +684,6 @@ public:
   }
 
   /**
-   * @brief Erase a node and all its associated edge(s) from the graph.
-   *
-   * @param id The id of the node to be erased.
-   * @return The data of the erased node.
-   * @sa erase_nodes()
-   * @note Time complexity: \f$O(V+E)\f$.
-   * @note If \p id is out of range, the behavior is undefined.
-   * @deprecated Slow, due to CSR compaction. Prefer erase_nodes() for batch
-   *             node erasure.
-   */
-  ABSL_DEPRECATED(
-      "Slow, due to CSR compaction. Prefer erase_nodes() for batch node "
-      "erasure.");
-  NT pop_node(int id) {
-    NT ret = std::move(nodes_[id]);
-    erase_nodes(begin() + id, begin() + id + 1);
-    return ret;
-  }
-
-  /**
    * @brief Erase nodes and all its associated edge(s) from the graph.
    *
    * @param begin The beginning of the range of nodes to be erased.
@@ -717,7 +697,6 @@ public:
    *         before this operation. Otherwise, `new end id` will be set to -1
    *         and erased nodes will be marked as -1 in the mapping. The same rule
    *         applies to edges.
-   * @sa pop_node()
    * @note Time complexity:
    *         1. \f$O(V)\f$ if no nodes are erased,
    *         2. \f$O(V+E)\f$ otherwise.
@@ -746,7 +725,6 @@ public:
    *         before this operation. Otherwise, `new end id` will be set to -1
    *         and erased nodes will be marked as -1 in the mapping. The same rule
    *         applies to edges.
-   * @sa pop_node()
    * @note Time complexity: same as erase_nodes(const_iterator, const_iterator).
    * @note If any of the iterators in range `[`\p begin, \p end`)` is out of
    *       range, the behavior is undefined.
@@ -771,7 +749,6 @@ public:
    *         before this operation. Otherwise, `new end id` will be set to -1
    *         and erased nodes will be marked as -1 in the mapping. The same rule
    *         applies to edges.
-   * @sa pop_node()
    * @note Time complexity: same as erase_nodes(const_iterator, const_iterator).
    * @note If any of the iterators in range `[`\p begin, \p end`)` points to an
    *       invalid node id, the behavior is undefined.
@@ -863,31 +840,10 @@ public:
    * @brief Erase an edge from the graph.
    *
    * @param id The id of the edge to be erased.
-   * @return The data of the erased edge.
-   * @sa erase_edge(), erase_edge_between(), erase_edges()
-   * @note Time complexity: same as erase_edge().
-   * @note If \p id is out of range, the behavior is undefined.
-   * @deprecated Slow, due to CSR compaction; prefer erase_edges() for bulk
-   *             removal.
-   */
-  ABSL_DEPRECATED("Slow, due to CSR compaction; prefer erase_edges().")
-  ET pop_edge(int id) {
-    ET ret = std::move(edges_[id].data);
-    erase_edge(id);
-    return ret;
-  }
-
-  /**
-   * @brief Erase an edge from the graph.
-   *
-   * @param id The id of the edge to be erased.
-   * @sa pop_edge(), erase_edge_between(), erase_edges()
+   * @sa erase_edge_between(), erase_edges()
    * @note Time complexity: \f$O(V+E)\f$.
    * @note If \p id is out of range, the behavior is undefined.
-   * @deprecated Slow, due to CSR compaction; prefer erase_edges() for bulk
-   *             removal.
    */
-  ABSL_DEPRECATED("Slow, due to CSR compaction; prefer erase_edges().")
   void erase_edge(int id) {
     const StoredEdge &edge = edges_[id];
     auto srcit = find_adjacency_entry(edge.src, edge.dst),
@@ -903,13 +859,10 @@ public:
    * @param src The source node, interchangeable with \p dst.
    * @param dst The destination node, interchangeable with \p src.
    * @return Whether the edge is erased.
-   * @sa pop_edge(), erase_edge(), erase_edges()
+   * @sa erase_edge(), erase_edges()
    * @note Time complexity: same as erase_edge().
    * @note If \p src or \p dst is out of range, the behavior is undefined.
-   * @deprecated Slow, due to CSR compaction; prefer erase_edges() for bulk
-   *             removal.
    */
-  ABSL_DEPRECATED("Slow, due to CSR compaction; prefer erase_edges().")
   bool erase_edge_between(int src, int dst);
 
   /**
@@ -918,14 +871,11 @@ public:
    * @param src The source node, interchangeable with \p dst.
    * @param dst The destination node, interchangeable with \p src.
    * @return Whether the edge is erased.
-   * @sa pop_edge(), erase_edge(), erase_edges()
+   * @sa erase_edge(), erase_edges()
    * @note Time complexity: same as erase_edge().
    * @note If \p src or \p dst does not belong to this graph, the behavior is
    *       undefined.
-   * @deprecated Slow, due to CSR compaction; prefer erase_edges() for bulk
-   *             removal.
    */
-  ABSL_DEPRECATED("Slow, due to CSR compaction; prefer erase_edges().")
   bool erase_edge_between(ConstNodeRef src, ConstNodeRef dst) {
     return erase_edge_between(src.id(), dst.id());
   }
@@ -942,7 +892,7 @@ public:
    *         edge removal), `new end id` will be equal to the size of the graph
    *         before this operation. Otherwise, `new end id` will be set to -1
    *         and erased edges will be marked as -1 in the mapping.
-   * @sa pop_edge(), erase_edge(), erase_edge_between()
+   * @sa erase_edge(), erase_edge_between()
    * @note Time complexity: \f$O(E)\f$ if no edges were removed, \f$O(V+E)\f$
    *       otherwise.
    * @note If any of the iterators in range `[`\p begin, \p end`)` is out of
@@ -969,7 +919,7 @@ public:
    *         trailing edge removal), `new end id` will be equal to the size of
    *         the graph before this operation. Otherwise, `new end id` will be
    *         set to -1 and erased edges will be marked as -1 in the mapping.
-   * @sa pop_edge(), erase_edge(), erase_edge_between()
+   * @sa erase_edge(), erase_edge_between()
    * @note Time complexity: same as
    *       erase_edges(const_edge_iterator, const_edge_iterator).
    * @note If any of the iterators in range `[`\p begin, \p end`)` is out of
@@ -994,7 +944,7 @@ public:
    *         trailing edge removal), `new end id` will be equal to the size of
    *         the graph before this operation. Otherwise, `new end id` will be
    *         set to -1 and erased edges will be marked as -1 in the mapping.
-   * @sa pop_edge(), erase_edge(), erase_edge_between()
+   * @sa erase_edge(), erase_edge_between()
    * @note Time complexity: same as
    *       erase_edges(const_edge_iterator, const_edge_iterator).
    * @note If any iterator in range `[`\p begin, \p end`)` references an invalid
