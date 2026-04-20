@@ -608,10 +608,13 @@ public:
    * @param dst The destination node id.
    * @param data The data to copy-construct the edge with.
    * @return The id of the newly added edge.
-   * @note Time complexity: \f$O(N)\f$ amortized.
+   * @note Time complexity: \f$O(V+E)\f$ in the worst case; \f$O(V-v_\min)\f$
+   *       when \f$v_\min = \min(\mathtt{src}, \mathtt{dst})\f$ is at least the
+   *       number of nodes that existed before the last edge addition (the
+   *       merge() hot path).
    * @note If \p src or \p dst is out of range, \p src equals \p dst, or an edge
    *       between \p src and \p dst already exists, the behavior is undefined.
-   * @deprecated Slow, due to CSR recompilation.
+   * @deprecated Slow, due to CSR recompilation; prefer add_edges() / merge().
    */
   ABSL_DEPRECATED("Slow, due to CSR recompilation.")
   int add_edge(int src, int dst, const ET &data) {
@@ -629,10 +632,10 @@ public:
    * @param dst The destination node id.
    * @param data The data to move-construct the edge with.
    * @return The id of the newly added edge.
-   * @note Time complexity: \f$O(N)\f$ amortized.
+   * @note Time complexity: same as add_edge(int, int, const ET&).
    * @note If \p src or \p dst is out of range, \p src equals \p dst, or an edge
    *       between \p src and \p dst already exists, the behavior is undefined.
-   * @deprecated Slow, due to CSR recompilation.
+   * @deprecated Slow, due to CSR recompilation; prefer add_edges() / merge().
    */
   ABSL_DEPRECATED("Slow, due to CSR recompilation.")
   int add_edge(int src, int dst, ET &&data) noexcept {
@@ -651,7 +654,10 @@ public:
    *         `StoredEdge`.
    * @param begin The beginning of the range of edges to be added.
    * @param end The end of the range of edges to be added.
-   * @note Time complexity: \f$O(E)\f$.
+   * @note Time complexity: \f$O(V + E')\f$ in general, where \f$E'\f$ is the
+   *       length of `[begin, end)`. Degenerates to \f$O(E')\f$ when every new
+   *       edge's endpoints are among the nodes added since the last edge
+   *       publish (the merge() hot path).
    */
   template <class Iterator,
             internal::enable_if_compatible_iter_t<Iterator, StoredEdge> = 0>
@@ -683,10 +689,14 @@ public:
    * @param id The id of the node to be erased.
    * @return The data of the erased node.
    * @sa erase_nodes()
-   * @note Time complexity: \f$O(V)\f$ if only trailing node is erased,
-   *       \f$O(V+E)\f$ otherwise.
+   * @note Time complexity: \f$O(V+E)\f$.
    * @note If \p id is out of range, the behavior is undefined.
+   * @deprecated Slow, due to CSR compaction. Prefer erase_nodes() for batch
+   *             node erasure.
    */
+  ABSL_DEPRECATED(
+      "Slow, due to CSR compaction. Prefer erase_nodes() for batch node "
+      "erasure.");
   NT pop_node(int id) {
     NT ret = std::move(nodes_[id]);
     erase_nodes(begin() + id, begin() + id + 1);
@@ -709,10 +719,8 @@ public:
    *         applies to edges.
    * @sa pop_node()
    * @note Time complexity:
-   *         1. \f$O(N)\f$ if no nodes are erased,
-   *         2. \f$O(V)\f$ if only trailing nodes are erased and no edges are
-   *            erased,
-   *         3. \f$O(V+E)\f$ otherwise.
+   *         1. \f$O(V)\f$ if no nodes are erased,
+   *         2. \f$O(V+E)\f$ otherwise.
    * @note If any of the iterators in range `[`\p begin, \p end`)` is out of
    *       range, the behavior is undefined.
    */
@@ -796,7 +804,7 @@ public:
    * @param src The source node id.
    * @param dst The destination node id.
    * @return Iterator to the edge if found, otherwise the end iterator.
-   * @note Time complexity: \f$O(V/E)\f$.
+   * @note Time complexity: \f$O(E/V)\f$.
    * @note If \p src or \p dst is out of range, the behavior is undefined.
    */
   edge_iterator find_edge(int src, int dst) {
@@ -859,7 +867,10 @@ public:
    * @sa erase_edge(), erase_edge_between(), erase_edges()
    * @note Time complexity: same as erase_edge().
    * @note If \p id is out of range, the behavior is undefined.
+   * @deprecated Slow, due to CSR compaction; prefer erase_edges() for bulk
+   *             removal.
    */
+  ABSL_DEPRECATED("Slow, due to CSR compaction; prefer erase_edges().")
   ET pop_edge(int id) {
     ET ret = std::move(edges_[id].data);
     erase_edge(id);
@@ -871,10 +882,12 @@ public:
    *
    * @param id The id of the edge to be erased.
    * @sa pop_edge(), erase_edge_between(), erase_edges()
-   * @note Time complexity: \f$O(E/V)\f$ if the edge is the last edge,
-   *       \f$O(V+E)\f$ otherwise.
+   * @note Time complexity: \f$O(V+E)\f$.
    * @note If \p id is out of range, the behavior is undefined.
+   * @deprecated Slow, due to CSR compaction; prefer erase_edges() for bulk
+   *             removal.
    */
+  ABSL_DEPRECATED("Slow, due to CSR compaction; prefer erase_edges().")
   void erase_edge(int id) {
     const StoredEdge &edge = edges_[id];
     auto srcit = find_adjacency_entry(edge.src, edge.dst),
@@ -893,7 +906,10 @@ public:
    * @sa pop_edge(), erase_edge(), erase_edges()
    * @note Time complexity: same as erase_edge().
    * @note If \p src or \p dst is out of range, the behavior is undefined.
+   * @deprecated Slow, due to CSR compaction; prefer erase_edges() for bulk
+   *             removal.
    */
+  ABSL_DEPRECATED("Slow, due to CSR compaction; prefer erase_edges().")
   bool erase_edge_between(int src, int dst);
 
   /**
@@ -906,7 +922,10 @@ public:
    * @note Time complexity: same as erase_edge().
    * @note If \p src or \p dst does not belong to this graph, the behavior is
    *       undefined.
+   * @deprecated Slow, due to CSR compaction; prefer erase_edges() for bulk
+   *             removal.
    */
+  ABSL_DEPRECATED("Slow, due to CSR compaction; prefer erase_edges().")
   bool erase_edge_between(ConstNodeRef src, ConstNodeRef dst) {
     return erase_edge_between(src.id(), dst.id());
   }
@@ -924,7 +943,7 @@ public:
    *         before this operation. Otherwise, `new end id` will be set to -1
    *         and erased edges will be marked as -1 in the mapping.
    * @sa pop_edge(), erase_edge(), erase_edge_between()
-   * @note Time complexity: \f$O(N)\f$ if no edges were removed, \f$O(V+E)\f$
+   * @note Time complexity: \f$O(E)\f$ if no edges were removed, \f$O(V+E)\f$
    *       otherwise.
    * @note If any of the iterators in range `[`\p begin, \p end`)` is out of
    *       range, the behavior is undefined.
@@ -1002,7 +1021,7 @@ public:
    * @param dst The destination node id.
    * @return Iterator to the adjacency entry if found, otherwise the end
    *         iterator of the adjacency list of \p src.
-   * @note Time complexity: \f$O(V/E)\f$.
+   * @note Time complexity: \f$O(E/V)\f$.
    * @note If \p src or \p dst is out of range, the behavior is undefined.
    */
   adjacency_iterator find_adjacent(int src, int dst) {
@@ -1015,7 +1034,7 @@ public:
    * @param dst The destination node id.
    * @return Iterator to the adjacency entry if found, otherwise the end
    *         iterator of the adjacency list of \p src.
-   * @note Time complexity: \f$O(V/E)\f$.
+   * @note Time complexity: \f$O(E/V)\f$.
    * @note If \p src or \p dst is out of range, the behavior is undefined.
    */
   const_adjacency_iterator find_adjacent(int src, int dst) const {
@@ -1028,7 +1047,7 @@ public:
    * @param dst The destination node.
    * @return Iterator to the adjacency entry if found, otherwise the end
    *         iterator of the adjacency list of \p src.
-   * @note Time complexity: \f$O(V/E)\f$.
+   * @note Time complexity: \f$O(E/V)\f$.
    * @note If \p src or \p dst does not belong to this graph, the behavior is
    *       undefined.
    */
@@ -1042,7 +1061,7 @@ public:
    * @param dst The destination node.
    * @return Iterator to the adjacency entry if found, otherwise the end
    *         iterator of the adjacency list of \p src.
-   * @note Time complexity: \f$O(V/E)\f$.
+   * @note Time complexity: \f$O(E/V)\f$.
    * @note If \p src or \p dst does not belong to this graph, the behavior is
    *       undefined.
    */
@@ -1148,9 +1167,10 @@ private:
    *
    * @note Complexity: `O((V - v_min) + (E_total - first_eid))`, where
    *       `v_min` is the smallest endpoint among the new edges. Degenerates
-   *       to `O(E_total - first_eid)` when every new edge's endpoints are
-   *       `>= num_nodes()` at the time of the last rebuild (the merge() hot
-   *       path).
+   *       to `O(E_total - first_eid)` in the merge() hot path, i.e. when
+   *       every new edge's endpoints are among the nodes added since the
+   *       previous publish (so their adjacency slices are all empty and no
+   *       existing entries need to be shifted).
    */
   void publish_edges_from(int first_eid);
 
@@ -1300,9 +1320,9 @@ Graph<NT, ET>::erase_nodes_common(std::vector<int> &node_keep,
 
   // Phase III: erase the nodes & adjacencies
   if (erase_trailing) {
-    // Fast path 2: if only trailing nodes are erased, no node number needs to
-    // be updated.
-    ABSL_DLOG(INFO) << "resizing adjacency & node list";
+    // Fast path 2: only trailing nodes with incident edges; the edge erase
+    // above already compacted adj_list_, so just trim nodes_/offsets_.
+    ABSL_DLOG(INFO) << "resizing offset table & node list";
     // O(1) operations
     nodes_.resize(first_erased_id);
     offsets_.resize(first_erased_id + 1);
@@ -1438,7 +1458,7 @@ Graph<NT, ET>::erase_edges(const_edge_iterator begin, const_edge_iterator end,
   if (begin >= end)
     return { num_edges(), {} };
 
-  // Phase I: mark edges for removal, O(N)
+  // Phase I: mark edges for removal, O(E)
   std::vector<int> edge_keep(num_edges(), 1);
   int first_erased_id = -1;
   bool erase_trailing = end == this->edge_end();
@@ -1468,7 +1488,7 @@ std::pair<int, std::vector<int>> Graph<NT, ET>::erase_edges(Iterator begin,
   if (begin == end)
     return { num_edges(), {} };
 
-  // Phase I: mark edges for removal, O(N)
+  // Phase I: mark edges for removal, O(E)
   std::vector<int> edge_keep(num_edges(), 1);
   int first_erased_id = num_edges();
   for (auto it = begin; it != end; ++it) {
