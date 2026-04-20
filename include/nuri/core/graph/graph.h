@@ -1323,13 +1323,13 @@ void Graph<NT, ET>::publish_edges_from(const int first_eid) {
 
   // Phase 1: count per-node delta from just the new edges; track v_min.
   std::vector<int> delta(n, 0);
-  int v_min = n;
   for (int eid = first_eid; eid < total_edges; ++eid) {
     const StoredEdge &e = edges_[eid];
     ++delta[e.src];
     ++delta[e.dst];
-    v_min = std::min({ v_min, e.src, e.dst });
   }
+  const int v_min = static_cast<int>(
+      absl::c_find_if(delta, [](int d) { return d > 0; }) - delta.begin());
 
   // Phase 2: grow the flat buffer by the total number of new endpoints.
   const int added = 2 * (total_edges - first_eid);
@@ -1359,17 +1359,12 @@ void Graph<NT, ET>::publish_edges_from(const int first_eid) {
       << "shift mismatch: " << shift << " vs " << delta[v_min];
   // GCOV_EXCL_STOP
 
-  // Phase 4: repurpose delta[] as per-node write cursors, each pointing at the
-  // start of its node's "gap" in the new layout:
-  //   cursor[v] = new_offsets[v+1] - delta[v] = new_offsets[v] + old_degree[v].
-  for (int v = v_min; v < n; ++v)
-    delta[v] = offsets_[v + 1] - delta[v];
-
-  // Phase 5: place new adjacency entries in eid order.
+  // Phase 4: place new adjacency entries in eid order.
   for (int eid = first_eid; eid < total_edges; ++eid) {
     const StoredEdge &e = edges_[eid];
-    adj_list_[delta[e.src]++] = { e.dst, eid };
-    adj_list_[delta[e.dst]++] = { e.src, eid };
+    int sd = delta[e.src]--, dd = delta[e.dst]--;
+    adj_list_[offsets_[e.src + 1] - sd] = { e.dst, eid };
+    adj_list_[offsets_[e.dst + 1] - dd] = { e.src, eid };
   }
 }
 
