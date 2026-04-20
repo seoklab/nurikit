@@ -440,6 +440,17 @@ namespace internal {
 
   template <class, bool>
   class SubEdgeWrapper;
+
+  template <class T>
+  struct OffsetForwarder {
+    template <class U>
+    T operator()(const U &edge) const {
+      return T { edge.src().id() + offset, edge.dst().id() + offset,
+                 edge.data() };
+    }
+
+    int offset;
+  };
 }  // namespace internal
 
 using NodesErased = std::pair<std::pair<int, std::vector<int>>,
@@ -1058,10 +1069,7 @@ public:
     auto edges = other.edges();
     reserve_edges(num_edges() + edges.size());
 
-    auto as_stored_edge = [offset](const auto &edge) {
-      return StoredEdge { edge.src().id() + offset, edge.dst().id() + offset,
-                          edge.data() };
-    };
+    internal::OffsetForwarder<StoredEdge> as_stored_edge { offset };
     add_edges(internal::make_transform_iterator(edges.begin(), as_stored_edge),
               internal::make_transform_iterator(edges.end(), as_stored_edge));
   }
