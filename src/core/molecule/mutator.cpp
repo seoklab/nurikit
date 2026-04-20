@@ -4,11 +4,13 @@
 //
 
 #include <algorithm>
+#include <iterator>
 #include <numeric>
 #include <tuple>
 #include <utility>
 #include <vector>
 
+#include <absl/container/flat_hash_map.h>
 #include <absl/log/absl_check.h>
 #include <Eigen/Dense>
 
@@ -18,54 +20,84 @@
 namespace nuri {
 void MoleculeMutator::clear_atoms() noexcept {
   mol().clear_atoms();
-  prev_num_atoms_ = prev_num_bonds_ = 0;
-  discard_erasure();
+  discard();
 }
 
 namespace {
-  template <class DT>
-  std::pair<int, bool> add_bond_impl(Molecule::GraphType &graph, int src,
-                                     int dst, DT &&bond) {
-    auto it = graph.find_edge(src, dst);
-    if (it != graph.edge_end())
-      return std::make_pair(it->id(), false);
+  int find_edge_both(
+      const Molecule::GraphType &graph,
+      absl::flat_hash_map<int, std::vector<std::pair<int, int>>> &delta_adj,
+      int src, int dst) {
+    if (auto it = graph.find_edge(src, dst); it != graph.edge_end())
+      return it->id();
 
-    int eid = graph.add_edge(src, dst, std::forward<DT>(bond));
+    auto it = delta_adj.find(src);
+    if (it == delta_adj.end())
+      return -1;
+
+    for (const auto &[d, e]: it->second) {
+      if (d == dst)
+        return e;
+    }
+
+    return -1;
+  }
+
+  template <class DT>
+  std::pair<int, bool> register_bond_impl(
+      const Molecule::GraphType &graph,
+      std::vector<Molecule::GraphType::StoredEdge> &new_bonds,
+      absl::flat_hash_map<int, std::vector<std::pair<int, int>>> &delta_adj,
+      int src, int dst, DT &&bond) {
+    if (int e = find_edge_both(graph, delta_adj, src, dst); e >= 0)
+      return std::make_pair(e, false);
+
+    int eid = graph.num_edges() + static_cast<int>(new_bonds.size());
+    new_bonds.push_back({ src, dst, std::forward<DT>(bond) });
+    delta_adj[src].emplace_back(dst, eid);
+    delta_adj[dst].emplace_back(src, eid);
     return std::make_pair(eid, true);
   }
 }  // namespace
 
-std::pair<int, bool> MoleculeMutator::add_bond(int src, int dst,
-                                               const BondData &bond) {
-  return add_bond_impl(mol().graph_, src, dst, bond);
+std::pair<int, bool> MoleculeMutator::register_bond(int src, int dst,
+                                                    const BondData &bond) {
+  return register_bond_impl(mol().graph_, bond_registry_, delta_adj_, src, dst,
+                            bond);
 }
 
-std::pair<int, bool> MoleculeMutator::add_bond(int src, int dst,
-                                               BondData &&bond) noexcept {
-  return add_bond_impl(mol().graph_, src, dst, std::move(bond));
+std::pair<int, bool> MoleculeMutator::register_bond(int src, int dst,
+                                                    BondData &&bond) noexcept {
+  return register_bond_impl(mol().graph_, bond_registry_, delta_adj_, src, dst,
+                            std::move(bond));
 }
 
 void MoleculeMutator::mark_bond_erase(int src, int dst) {
-  auto it = mol().find_bond(src, dst);
-  if (it != mol().bond_end())
-    erased_bonds_.push_back(it->id());
+  int e = find_edge_both(mol().graph_, delta_adj_, src, dst);
+  if (e >= 0)
+    erased_bonds_.push_back(e);
 }
 
 void MoleculeMutator::clear_bonds() noexcept {
   mol().clear_bonds();
-  prev_num_bonds_ = 0;
-  erased_bonds_.clear();
+  discard_bonds();
 }
 
 void MoleculeMutator::clear() noexcept {
   mol().clear();
-  prev_num_atoms_ = prev_num_bonds_ = 0;
-  discard_erasure();
+  discard();
 }
 
-void MoleculeMutator::discard_erasure() noexcept {
-  erased_atoms_.clear();
+void MoleculeMutator::discard_bonds() noexcept {
+  bond_registry_.clear();
+  delta_adj_.clear();
   erased_bonds_.clear();
+}
+
+void MoleculeMutator::discard() noexcept {
+  prev_num_atoms_ = mol().num_atoms();
+  erased_atoms_.clear();
+  discard_bonds();
 }
 
 namespace {
@@ -113,28 +145,32 @@ namespace {
 }  // namespace
 
 void MoleculeMutator::finalize() noexcept {
-  if (mol().num_atoms() == prev_num_atoms_
-      && mol().num_bonds() == prev_num_bonds_  //
-      && erased_atoms_.empty()                 //
+  if (mol().num_atoms() == prev_num_atoms_  //
+      && bond_registry_.empty()             //
+      && erased_atoms_.empty()              //
       && erased_bonds_.empty())
     return;
 
   Molecule::GraphType &g = mol().graph_;
   const int added_natom = mol().num_atoms();
-  const int added_nbond = mol().num_bonds();
   if (added_natom > prev_num_atoms_)
     for (Matrix3Xd &conf: mol().conformers_)
       conf.conservativeResize(Eigen::NoChange, added_natom);
 
   // As per the spec, the order is:
-  // 1. Erase bonds
+  // 1. Add bonds
+  g.add_edges(std::make_move_iterator(bond_registry_.begin()),
+              std::make_move_iterator(bond_registry_.end()));
+
+  // 2. Erase bonds
+  const int added_nbond = mol().num_bonds();
   std::pair<int, std::vector<int>> bond_info;
   bond_info = g.erase_edges(erased_bonds_.begin(), erased_bonds_.end());
   if (prepare_remap_idxs(added_nbond, bond_info.first, bond_info.second))
     for (Substructure &sub: mol().substructs_)
       sub.graph_.remap_edges(bond_info.second);
 
-  // 2. Erase atoms
+  // 3. Erase atoms
   std::pair<int, std::vector<int>> atom_info;
   std::tie(atom_info, bond_info) =
       g.erase_nodes(erased_atoms_.begin(), erased_atoms_.end());
@@ -153,9 +189,6 @@ void MoleculeMutator::finalize() noexcept {
   }
 
   mol().update_topology();
-
-  prev_num_atoms_ = mol().num_atoms();
-  prev_num_bonds_ = mol().num_bonds();
-  discard_erasure();
+  discard();
 }
 }  // namespace nuri

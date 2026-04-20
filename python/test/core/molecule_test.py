@@ -120,28 +120,25 @@ def test_add_bond():
     with mol.mutator() as mut:
         a1 = mut.add_atom(6)
         a2 = mut.add_atom(6)
-        bond = mut.add_bond(a1, a2)
-        assert bond.order == 1
-
-        bond_data = bond.copy_data()
+        bi = mut.register_bond(a1, a2)
 
         with pytest.raises(ValueError, match="same"):
-            mut.add_bond(0, 0)
+            mut.register_bond(0, 0)
 
         with pytest.raises(ValueError, match="duplicate bond"):
-            mut.add_bond(0, 1, BondOrder.Double)
+            mut.register_bond(0, 1, BondOrder.Double)
 
         with pytest.raises(IndexError):
-            mut.add_bond(0, 2, BondOrder.Double)
+            mut.register_bond(0, 2, BondOrder.Double)
 
         mut.add_atom(8)
 
         with pytest.raises(ValueError, match="invalid bond order"):
-            mut.add_bond(0, 2, BondOrder(1000))
+            mut.register_bond(0, 2, BondOrder(1000))
 
-        mut.add_bond(0, 2, BondOrder.Double)
+        mut.register_bond(0, 2, BondOrder.Double)
 
-    assert bond_data.order == 1
+    assert mol.bond(bi).order == 1
 
     assert len(mol) == 3
     assert mol.num_atoms() == 3
@@ -170,8 +167,8 @@ def test_add_bond():
         assert not mol.has_bond(a3.id, a4.id)
         assert not mol.has_bond(a3, a4)
 
-        mut.add_bond(a3, a4, BondData(BondOrder.Triple))
-        mut.add_bond(1, 3, BondData(BondOrder.Aromatic))
+        mut.register_bond(a3, a4, BondData(BondOrder.Triple))
+        mut.register_bond(1, 3, BondData(BondOrder.Aromatic))
 
 
 def test_add_conformer():
@@ -381,7 +378,7 @@ def test_add_other(mol: Molecule):
     with other.mutator() as mut:
         mut.add_atom(6)
         mut.add_atom(6)
-        mut.add_bond(0, 1)
+        mut.register_bond(0, 1)
 
     mol.add_from(other)
 

@@ -306,8 +306,8 @@ ParseLineResult try_read_v2000_bond_line(MoleculeMutator &mut,
     return ParseLineResult::kError;
   }
 
-  auto [_, added] = mut.add_bond(static_cast<int>(src), static_cast<int>(dst),
-                                 std::move(data));
+  auto [_, added] = mut.register_bond(static_cast<int>(src),
+                                      static_cast<int>(dst), std::move(data));
   ABSL_LOG_IF(WARNING, !added) << "Duplicate bond " << src << " - " << dst;
 
   return ParseLineResult::kBond;
@@ -514,13 +514,9 @@ bool read_v2000(Molecule &mol, std::vector<Vector3d> &coords,
     }
   }
 
-  ABSL_LOG_IF(WARNING, mol.num_atoms() != metadata.natoms())
-      << "Inconsistent counts block and atoms block";
-
   // If result == kBond, bond already read in try_read_v2000_atom_line
   // Must increment first to avoid bond duplication
-  for (int i = mol.num_bonds();
-       status == ParseLineResult::kBond && ++it < end;) {
+  for (int i = 0; status == ParseLineResult::kBond && ++it < end;) {
     status = try_read_v2000_bond_line(mut, *it, i < metadata.nbonds());
 
     if (status == ParseLineResult::kError) {
@@ -535,9 +531,6 @@ bool read_v2000(Molecule &mol, std::vector<Vector3d> &coords,
 
     ++i;
   }
-
-  ABSL_LOG_IF(WARNING, mol.num_bonds() != metadata.nbonds())
-      << "Inconsistent counts block and bonds block";
 
   for (; status == ParseLineResult::kProp && it < end; ++it) {
     status = read_v2000_property_block(mol, *it);
@@ -673,8 +666,7 @@ bool try_read_v3000_header(HeaderReadResult &metadata, Iterator &it,
 }
 
 bool try_read_v3000_atom_block(MoleculeMutator &mut,
-                               std::vector<Vector3d> &coords,
-                               const HeaderReadResult metadata, Iterator &it,
+                               std::vector<Vector3d> &coords, Iterator &it,
                                const Iterator end, ContinuationReader &reader,
                                std::string &key) {
   if (++it >= end) {
@@ -748,14 +740,10 @@ bool try_read_v3000_atom_block(MoleculeMutator &mut,
     }
   }
 
-  ABSL_LOG_IF(WARNING, mut.mol().num_atoms() != metadata.natoms())
-      << "Inconsistent counts block and atoms block";
-
   return true;
 }
 
-bool try_read_v3000_bond_block(MoleculeMutator &mut,
-                               const HeaderReadResult metadata, Iterator &it,
+bool try_read_v3000_bond_block(MoleculeMutator &mut, Iterator &it,
                                const Iterator end, ContinuationReader &reader) {
   std::string_view line;
 
@@ -784,7 +772,7 @@ bool try_read_v3000_bond_block(MoleculeMutator &mut,
       return false;
     }
 
-    auto [_, added] = mut.add_bond(src, dst, std::move(data));
+    auto [_, added] = mut.register_bond(src, dst, std::move(data));
     ABSL_LOG_IF(WARNING, !added) << "Duplicate bond " << src << " - " << dst;
   }
 
@@ -801,14 +789,10 @@ bool try_read_v3000_bond_block(MoleculeMutator &mut,
     return false;
   }
 
-  ABSL_LOG_IF(WARNING, mut.mol().num_bonds() != metadata.nbonds())
-      << "Inconsistent counts block and bonds block";
-
   return true;
 }
 
-bool try_read_v3000_optionals(MoleculeMutator &mut,
-                              const HeaderReadResult metadata, Iterator &it,
+bool try_read_v3000_optionals(MoleculeMutator &mut, Iterator &it,
                               const Iterator end, ContinuationReader &reader) {
   std::stack<std::string, std::vector<std::string>> tokens;
   tokens.push("CTAB");
@@ -833,7 +817,7 @@ bool try_read_v3000_optionals(MoleculeMutator &mut,
         continue;
       }
 
-      if (!try_read_v3000_bond_block(mut, metadata, it, end, reader)) {
+      if (!try_read_v3000_bond_block(mut, it, end, reader)) {
         ABSL_LOG(ERROR) << "Failed to read V3000 bond block";
         return false;
       }
@@ -895,7 +879,7 @@ bool read_v3000(Molecule &mol, std::vector<Vector3d> &coords,
 
   auto mut = mol.mutator();
 
-  if (!try_read_v3000_atom_block(mut, coords, metadata, it, end, reader, key)) {
+  if (!try_read_v3000_atom_block(mut, coords, it, end, reader, key)) {
     ABSL_LOG(ERROR) << "Failed to read V3000 atom block";
     return false;
   }
@@ -906,7 +890,7 @@ bool read_v3000(Molecule &mol, std::vector<Vector3d> &coords,
     return true;
   }
 
-  if (!try_read_v3000_optionals(mut, metadata, it, end, reader)) {
+  if (!try_read_v3000_optionals(mut, it, end, reader)) {
     ABSL_LOG(ERROR) << "Failed to read V3000 optional blocks";
     return false;
   }
@@ -950,6 +934,11 @@ Molecule read_sdf(const std::vector<std::string> &sdf) {
     mol.clear();
     return mol;
   }
+
+  ABSL_LOG_IF(WARNING, mol.num_atoms() != metadata.natoms())
+      << "Inconsistent counts block and atoms block";
+  ABSL_LOG_IF(WARNING, mol.num_bonds() != metadata.nbonds())
+      << "Inconsistent counts block and bonds block";
 
   read_sdf_extra(mol, it, end);
 

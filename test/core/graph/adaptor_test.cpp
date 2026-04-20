@@ -26,27 +26,30 @@ Graph c5_petersen_graph() {
   for (int i = 0; i < 15; ++i)
     g.add_node(i);
 
-  g.add_edge(0, 1, 0);
-  g.add_edge(1, 2, 1);
-  g.add_edge(2, 3, 2);
-  g.add_edge(3, 4, 3);
-  g.add_edge(4, 0, 4);
-
-  g.add_edge(5, 6, 5);
-  g.add_edge(6, 7, 6);
-  g.add_edge(7, 8, 7);
-  g.add_edge(8, 9, 8);
-  g.add_edge(9, 5, 9);
-  g.add_edge(5, 10, 10);
-  g.add_edge(6, 11, 11);
-  g.add_edge(7, 12, 12);
-  g.add_edge(8, 13, 13);
-  g.add_edge(9, 14, 14);
-  g.add_edge(10, 13, 15);
-  g.add_edge(10, 12, 16);
-  g.add_edge(14, 11, 17);
-  g.add_edge(14, 12, 18);
-  g.add_edge(11, 13, 19);
+  Graph::StoredEdge edges[] = {
+    {  0,  1,  0 },
+    {  1,  2,  1 },
+    {  2,  3,  2 },
+    {  3,  4,  3 },
+    {  4,  0,  4 },
+    //
+    {  5,  6,  5 },
+    {  6,  7,  6 },
+    {  7,  8,  7 },
+    {  8,  9,  8 },
+    {  9,  5,  9 },
+    {  5, 10, 10 },
+    {  6, 11, 11 },
+    {  7, 12, 12 },
+    {  8, 13, 13 },
+    {  9, 14, 14 },
+    { 10, 13, 15 },
+    { 10, 12, 16 },
+    { 14, 11, 17 },
+    { 14, 12, 18 },
+    { 11, 13, 19 },
+  };
+  g.add_edges(std::begin(edges), std::end(edges));
 
   return g;
 }

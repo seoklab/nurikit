@@ -223,7 +223,7 @@ TEST(AddHSp, Fixed1) {
     auto mut = mol.mutator();
     mut.add_atom({ kPt[6], 1, 0, Hyb::kSP });
     mut.add_atom({ kPt[7], 0, 0, Hyb::kTerminal });
-    mut.add_bond(0, 1, BondData(Ord::kTripleBond));
+    mut.register_bond(0, 1, BondData(Ord::kTripleBond));
 
     mol.confs().emplace_back(Matrix3Xd::Zero(3, 2)).col(1) =
         Vector3d::Random().normalized() * cn_bl;
@@ -252,7 +252,7 @@ TEST(AddHSp2, Fixed1) {
     auto mut = mol.mutator();
     mut.add_atom({ kPt[5], 2, 0, Hyb::kSP2 });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
 
     mol.confs().emplace_back(Matrix3Xd::Zero(3, 2)).col(1) =
         Vector3d::Random().normalized()
@@ -268,7 +268,7 @@ TEST(AddHSp2, Fixed1E1) {
     auto mut = mol.mutator();
     mut.add_atom({ kPt[6], 1, 0, Hyb::kSP2 });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
 
     mol.confs().emplace_back(Matrix3Xd::Zero(3, 2)).col(1) =
         Vector3d::Random().normalized()
@@ -285,8 +285,8 @@ TEST(AddHSp2, Fixed2) {
     mut.add_atom({ kPt[5], 1, 0, Hyb::kSP2 });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 2, BondData(Ord::kSingleBond));
   }
 
   ASSERT_TRUE(generate_coords(mol));
@@ -347,7 +347,7 @@ TEST(AddHSp3, Fixed1E12) {
     mut.add_atom({ kPt[7], 2, 0, Hyb::kSP3 });
     mut.add_atom({ kPt[8], 1, 0, Hyb::kSP3 });
 
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
   }
 
   mol.confs().emplace_back(Matrix3Xd::Zero(3, 2)).col(1) =
@@ -365,8 +365,8 @@ TEST(AddHSp3, Fixed2E1) {
     mut.add_atom({ kPt[6], 3, 0, Hyb::kSP3 });
     mut.add_atom({ kPt[6], 3, 0, Hyb::kSP3 });
 
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 2, BondData(Ord::kSingleBond));
   }
 
   ASSERT_TRUE(generate_coords(mol));
@@ -395,19 +395,19 @@ TEST(AddHSp3d, Fixed1E0123) {
     auto mut = mol.mutator();
     mut.add_atom({ kPt[15], 4, 0, Hyb::kSP3D });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
 
     mut.add_atom({ kPt[15], 3, 0, Hyb::kSP3D });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
-    mut.add_bond(2, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(2, 3, BondData(Ord::kSingleBond));
 
     mut.add_atom({ kPt[15], 2, 0, Hyb::kSP3D });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
-    mut.add_bond(4, 5, BondData(Ord::kSingleBond));
+    mut.register_bond(4, 5, BondData(Ord::kSingleBond));
 
     mut.add_atom({ kPt[15], 1, 0, Hyb::kSP3D });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
-    mut.add_bond(6, 7, BondData(Ord::kSingleBond));
+    mut.register_bond(6, 7, BondData(Ord::kSingleBond));
   }
 
   double bl = kPt[15].covalent_radius() + kPt[9].covalent_radius();
@@ -426,10 +426,10 @@ TEST(AddHSp3d, Fixed2AxE012) {
     mut.add_atom({ kPt[15], 1, 0, Hyb::kSP3D });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
 
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
-    mut.add_bond(1, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(2, 3, BondData(Ord::kSingleBond));
-    mut.add_bond(3, 4, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(1, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(2, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(3, 4, BondData(Ord::kSingleBond));
   }
 
   double ble = kPt[15].covalent_radius() + kPt[9].covalent_radius(),
@@ -450,10 +450,10 @@ TEST(AddHSp3d, Fixed2AxEqE012) {
     mut.add_atom({ kPt[17], 1, 0, Hyb::kSP3D });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
 
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
-    mut.add_bond(1, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(2, 3, BondData(Ord::kSingleBond));
-    mut.add_bond(3, 4, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(1, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(2, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(3, 4, BondData(Ord::kSingleBond));
   }
 
   mol.confs().emplace_back(3, 5).transpose() << 3.6415, 3.7358, -0.0126, 1.9718,
@@ -473,10 +473,10 @@ TEST(AddHSp3d, Fixed2EqE012) {
     mut.add_atom({ kPt[17], 1, 0, Hyb::kSP3D });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
 
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
-    mut.add_bond(1, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(2, 3, BondData(Ord::kSingleBond));
-    mut.add_bond(3, 4, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(1, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(2, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(3, 4, BondData(Ord::kSingleBond));
   }
 
   Array4d bls { kPt[9].covalent_radius() + kPt[15].covalent_radius(),
@@ -506,11 +506,11 @@ TEST(AddHSp3d, Fixed3Eq3E01) {
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
 
-    mut.add_bond(0, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(1, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(2, 3, BondData(Ord::kSingleBond));
-    mut.add_bond(3, 4, BondData(Ord::kSingleBond));
-    mut.add_bond(3, 5, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(1, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(2, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(3, 4, BondData(Ord::kSingleBond));
+    mut.register_bond(3, 5, BondData(Ord::kSingleBond));
   }
 
   Array3d bls { kPt[9].covalent_radius() + kPt[15].covalent_radius(),
@@ -542,11 +542,11 @@ TEST(AddHSp3d, Fixed3Eq2E01) {
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
 
-    mut.add_bond(0, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(1, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(2, 3, BondData(Ord::kSingleBond));
-    mut.add_bond(3, 4, BondData(Ord::kSingleBond));
-    mut.add_bond(3, 5, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(1, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(2, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(3, 4, BondData(Ord::kSingleBond));
+    mut.register_bond(3, 5, BondData(Ord::kSingleBond));
   }
 
   mol.confs().emplace_back(3, 6).transpose() << -2.5352, 1.5770, -0.9663,
@@ -567,11 +567,11 @@ TEST(AddHSp3d, Fixed3Eq1E01) {
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
 
-    mut.add_bond(0, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(1, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(2, 3, BondData(Ord::kSingleBond));
-    mut.add_bond(3, 4, BondData(Ord::kSingleBond));
-    mut.add_bond(3, 5, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(1, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(2, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(3, 4, BondData(Ord::kSingleBond));
+    mut.register_bond(3, 5, BondData(Ord::kSingleBond));
   }
 
   Array3d bls { kPt[9].covalent_radius() + kPt[15].covalent_radius(),
@@ -600,10 +600,10 @@ TEST(AddHSp3d, Fixed4Ax) {
     mut.add_atom({ kPt[17], 0, 0, Hyb::kTerminal });
     mut.add_atom({ kPt[17], 0, 0, Hyb::kTerminal });
 
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 3, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 4, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 4, BondData(Ord::kSingleBond));
   }
 
   mol.confs().emplace_back(Matrix3Xd::Zero(3, 5)).transpose() << -0.0261,
@@ -623,10 +623,10 @@ TEST(AddHSp3d, Fixed4Eq) {
     mut.add_atom({ kPt[17], 0, 0, Hyb::kTerminal });
     mut.add_atom({ kPt[17], 0, 0, Hyb::kTerminal });
 
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 3, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 4, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 4, BondData(Ord::kSingleBond));
   }
 
   mol.confs().emplace_back(Matrix3Xd::Zero(3, 5)).transpose() << -0.0261,
@@ -657,23 +657,23 @@ TEST(AddHSp3d2, Fixed1E01234) {
     auto mut = mol.mutator();
     mut.add_atom({ kPt[16], 5, 0, Hyb::kSP3D2 });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
 
     mut.add_atom({ kPt[16], 4, 0, Hyb::kSP3D2 });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
-    mut.add_bond(2, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(2, 3, BondData(Ord::kSingleBond));
 
     mut.add_atom({ kPt[16], 3, 0, Hyb::kSP3D2 });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
-    mut.add_bond(4, 5, BondData(Ord::kSingleBond));
+    mut.register_bond(4, 5, BondData(Ord::kSingleBond));
 
     mut.add_atom({ kPt[16], 2, 0, Hyb::kSP3D2 });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
-    mut.add_bond(6, 7, BondData(Ord::kSingleBond));
+    mut.register_bond(6, 7, BondData(Ord::kSingleBond));
 
     mut.add_atom({ kPt[16], 1, 0, Hyb::kSP3D2 });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
-    mut.add_bond(8, 9, BondData(Ord::kSingleBond));
+    mut.register_bond(8, 9, BondData(Ord::kSingleBond));
   }
 
   double bl = kPt[16].covalent_radius() + kPt[9].covalent_radius();
@@ -693,11 +693,11 @@ TEST(AddHSp3d2, Fixed2AxE0123) {
     mut.add_atom({ kPt[16], 1, 0, Hyb::kSP3D2 });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
 
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
-    mut.add_bond(1, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(2, 3, BondData(Ord::kSingleBond));
-    mut.add_bond(3, 4, BondData(Ord::kSingleBond));
-    mut.add_bond(4, 5, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(1, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(2, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(3, 4, BondData(Ord::kSingleBond));
+    mut.register_bond(4, 5, BondData(Ord::kSingleBond));
   }
 
   double ble = kPt[16].covalent_radius() + kPt[9].covalent_radius(),
@@ -718,11 +718,11 @@ TEST(AddHSp3d2, Fixed2AxEqE0123) {
     mut.add_atom({ kPt[16], 1, 0, Hyb::kSP3D2 });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
 
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
-    mut.add_bond(1, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(2, 3, BondData(Ord::kSingleBond));
-    mut.add_bond(3, 4, BondData(Ord::kSingleBond));
-    mut.add_bond(4, 5, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(1, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(2, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(3, 4, BondData(Ord::kSingleBond));
+    mut.register_bond(4, 5, BondData(Ord::kSingleBond));
   }
 
   Matrix3Xd &conf = mol.confs().emplace_back(Matrix3Xd::Zero(3, 6));
@@ -754,13 +754,13 @@ TEST(AddHSp3d2, Fixed3MerE012) {
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
 
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 3, BondData(Ord::kSingleBond));
-    mut.add_bond(3, 4, BondData(Ord::kSingleBond));
-    mut.add_bond(3, 5, BondData(Ord::kSingleBond));
-    mut.add_bond(5, 6, BondData(Ord::kSingleBond));
-    mut.add_bond(5, 7, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(3, 4, BondData(Ord::kSingleBond));
+    mut.register_bond(3, 5, BondData(Ord::kSingleBond));
+    mut.register_bond(5, 6, BondData(Ord::kSingleBond));
+    mut.register_bond(5, 7, BondData(Ord::kSingleBond));
   }
 
   Matrix3Xd &conf = mol.confs().emplace_back(Matrix3Xd::Zero(3, 8));
@@ -797,13 +797,13 @@ TEST(AddHSp3d2, Fixed3FacE012) {
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
 
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 3, BondData(Ord::kSingleBond));
-    mut.add_bond(3, 4, BondData(Ord::kSingleBond));
-    mut.add_bond(3, 5, BondData(Ord::kSingleBond));
-    mut.add_bond(5, 6, BondData(Ord::kSingleBond));
-    mut.add_bond(5, 7, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(3, 4, BondData(Ord::kSingleBond));
+    mut.register_bond(3, 5, BondData(Ord::kSingleBond));
+    mut.register_bond(5, 6, BondData(Ord::kSingleBond));
+    mut.register_bond(5, 7, BondData(Ord::kSingleBond));
   }
 
   Matrix3Xd &conf = mol.confs().emplace_back(Matrix3Xd::Zero(3, 8));
@@ -839,13 +839,13 @@ TEST(AddHSp3d2, Fixed4PlanarE01) {
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
 
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 3, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 4, BondData(Ord::kSingleBond));
-    mut.add_bond(4, 5, BondData(Ord::kSingleBond));
-    mut.add_bond(4, 6, BondData(Ord::kSingleBond));
-    mut.add_bond(4, 7, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 4, BondData(Ord::kSingleBond));
+    mut.register_bond(4, 5, BondData(Ord::kSingleBond));
+    mut.register_bond(4, 6, BondData(Ord::kSingleBond));
+    mut.register_bond(4, 7, BondData(Ord::kSingleBond));
   }
 
   Matrix3Xd &conf = mol.confs().emplace_back(Matrix3Xd::Zero(3, 8));
@@ -880,13 +880,13 @@ TEST(AddHSp3d2, Fixed4NonplanarE01) {
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
 
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 3, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 4, BondData(Ord::kSingleBond));
-    mut.add_bond(4, 5, BondData(Ord::kSingleBond));
-    mut.add_bond(4, 6, BondData(Ord::kSingleBond));
-    mut.add_bond(4, 7, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 4, BondData(Ord::kSingleBond));
+    mut.register_bond(4, 5, BondData(Ord::kSingleBond));
+    mut.register_bond(4, 6, BondData(Ord::kSingleBond));
+    mut.register_bond(4, 7, BondData(Ord::kSingleBond));
   }
 
   Matrix3Xd &conf = mol.confs().emplace_back(Matrix3Xd::Zero(3, 8));
@@ -918,11 +918,11 @@ TEST(AddHSp3d2, Fixed5E0) {
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
     mut.add_atom({ kPt[9], 0, 0, Hyb::kTerminal });
 
-    mut.add_bond(0, 1, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 2, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 3, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 4, BondData(Ord::kSingleBond));
-    mut.add_bond(0, 5, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 1, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 2, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 3, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 4, BondData(Ord::kSingleBond));
+    mut.register_bond(0, 5, BondData(Ord::kSingleBond));
   }
 
   Matrix3Xd &conf = mol.confs().emplace_back(Matrix3Xd::Zero(3, 6));

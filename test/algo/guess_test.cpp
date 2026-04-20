@@ -507,7 +507,7 @@ public:
   void add_bonds() {
     auto mut = mol_.mutator();
     for (auto [src, dst]: bonds_)
-      mut.add_bond(src, dst, {});
+      mut.register_bond(src, dst, {});
   }
 
   void verify_connectivity() const {
@@ -1139,10 +1139,10 @@ TEST(GuessFchargeOnly, Sulfonyl) {
     mut.add_atom(kPt[6]);
     mut.add_atom(kPt[7]);
 
-    mut.add_bond(0, 1, BondData(constants::kDoubleBond));
-    mut.add_bond(0, 2, BondData(constants::kDoubleBond));
-    mut.add_bond(0, 3, BondData(constants::kSingleBond));
-    mut.add_bond(0, 4, BondData(constants::kSingleBond));
+    mut.register_bond(0, 1, BondData(constants::kDoubleBond));
+    mut.register_bond(0, 2, BondData(constants::kDoubleBond));
+    mut.register_bond(0, 3, BondData(constants::kSingleBond));
+    mut.register_bond(0, 4, BondData(constants::kSingleBond));
   }
 
   mol.atom(3).data().set_implicit_hydrogens(3);
@@ -1166,21 +1166,26 @@ TEST(GuessFchargeOnly, Thiophene) {
     mut.add_atom(kPt[6]);
     mut.add_atom(kPt[6]);
 
-    mut.add_bond(0, 1,
-                 BondData(constants::kSingleBond)
-                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
-    mut.add_bond(1, 2,
-                 BondData(constants::kDoubleBond)
-                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
-    mut.add_bond(2, 3,
-                 BondData(constants::kSingleBond)
-                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
-    mut.add_bond(3, 4,
-                 BondData(constants::kDoubleBond)
-                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
-    mut.add_bond(4, 0,
-                 BondData(constants::kSingleBond)
-                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
+    mut.register_bond(0, 1,
+                      BondData(constants::kSingleBond)
+                          .add_flags(BondFlags::kAromatic
+                                     | BondFlags::kConjugated));
+    mut.register_bond(1, 2,
+                      BondData(constants::kDoubleBond)
+                          .add_flags(BondFlags::kAromatic
+                                     | BondFlags::kConjugated));
+    mut.register_bond(2, 3,
+                      BondData(constants::kSingleBond)
+                          .add_flags(BondFlags::kAromatic
+                                     | BondFlags::kConjugated));
+    mut.register_bond(3, 4,
+                      BondData(constants::kDoubleBond)
+                          .add_flags(BondFlags::kAromatic
+                                     | BondFlags::kConjugated));
+    mut.register_bond(4, 0,
+                      BondData(constants::kSingleBond)
+                          .add_flags(BondFlags::kAromatic
+                                     | BondFlags::kConjugated));
   }
 
   for (int i = 1; i < 4; ++i)
@@ -1210,21 +1215,26 @@ TEST(GuessFchargeOnly, ChargedThiophene) {
     mut.add_atom(kPt[6]);
     mut.add_atom(kPt[6]);
 
-    mut.add_bond(0, 1,
-                 BondData(constants::kSingleBond)
-                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
-    mut.add_bond(1, 2,
-                 BondData(constants::kDoubleBond)
-                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
-    mut.add_bond(2, 3,
-                 BondData(constants::kSingleBond)
-                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
-    mut.add_bond(3, 4,
-                 BondData(constants::kDoubleBond)
-                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
-    mut.add_bond(4, 0,
-                 BondData(constants::kSingleBond)
-                     .add_flags(BondFlags::kAromatic | BondFlags::kConjugated));
+    mut.register_bond(0, 1,
+                      BondData(constants::kSingleBond)
+                          .add_flags(BondFlags::kAromatic
+                                     | BondFlags::kConjugated));
+    mut.register_bond(1, 2,
+                      BondData(constants::kDoubleBond)
+                          .add_flags(BondFlags::kAromatic
+                                     | BondFlags::kConjugated));
+    mut.register_bond(2, 3,
+                      BondData(constants::kSingleBond)
+                          .add_flags(BondFlags::kAromatic
+                                     | BondFlags::kConjugated));
+    mut.register_bond(3, 4,
+                      BondData(constants::kDoubleBond)
+                          .add_flags(BondFlags::kAromatic
+                                     | BondFlags::kConjugated));
+    mut.register_bond(4, 0,
+                      BondData(constants::kSingleBond)
+                          .add_flags(BondFlags::kAromatic
+                                     | BondFlags::kConjugated));
   }
 
   for (auto atom: mol)

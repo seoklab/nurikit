@@ -65,17 +65,17 @@ protected:
       }
       mutator.add_atom({ kPt[11], 0, +1 });
 
-      mutator.add_bond(0, 4, BondData { constants::kSingleBond });
-      mutator.add_bond(3, 2, BondData { constants::kSingleBond });
-      mutator.add_bond(3, 1, BondData { constants::kDoubleBond });
-      mutator.add_bond(1, 2, BondData { constants::kSingleBond });
-      mutator.add_bond(2, 0, BondData { constants::kSingleBond });
-      mutator.add_bond(4, 5, BondData { constants::kSingleBond });
-      mutator.add_bond(3, 6, BondData { constants::kSingleBond });
-      mutator.add_bond(1, 7, BondData { constants::kSingleBond });
-      mutator.add_bond(2, 8, BondData { constants::kSingleBond });
-      mutator.add_bond(0, 9, BondData { constants::kSingleBond });
-      mutator.add_bond(0, 10, BondData { constants::kSingleBond });
+      mutator.register_bond(0, 4, BondData { constants::kSingleBond });
+      mutator.register_bond(3, 2, BondData { constants::kSingleBond });
+      mutator.register_bond(3, 1, BondData { constants::kDoubleBond });
+      mutator.register_bond(1, 2, BondData { constants::kSingleBond });
+      mutator.register_bond(2, 0, BondData { constants::kSingleBond });
+      mutator.register_bond(4, 5, BondData { constants::kSingleBond });
+      mutator.register_bond(3, 6, BondData { constants::kSingleBond });
+      mutator.register_bond(1, 7, BondData { constants::kSingleBond });
+      mutator.register_bond(2, 8, BondData { constants::kSingleBond });
+      mutator.register_bond(0, 9, BondData { constants::kSingleBond });
+      mutator.register_bond(0, 10, BondData { constants::kSingleBond });
     }
 
     ASSERT_EQ(mol_.num_atoms(), 12);
@@ -399,17 +399,17 @@ protected:
       }
       mutator.add_atom({ kPt[11], 0, +1 });
 
-      mutator.add_bond(0, 4, BondData { constants::kSingleBond });
-      mutator.add_bond(3, 2, BondData { constants::kSingleBond });
-      mutator.add_bond(3, 1, BondData { constants::kDoubleBond });
-      mutator.add_bond(1, 2, BondData { constants::kSingleBond });
-      mutator.add_bond(2, 0, BondData { constants::kSingleBond });
-      mutator.add_bond(4, 5, BondData { constants::kSingleBond });
-      mutator.add_bond(3, 6, BondData { constants::kSingleBond });
-      mutator.add_bond(1, 7, BondData { constants::kSingleBond });
-      mutator.add_bond(2, 8, BondData { constants::kSingleBond });
-      mutator.add_bond(0, 9, BondData { constants::kSingleBond });
-      mutator.add_bond(0, 10, BondData { constants::kSingleBond });
+      mutator.register_bond(0, 4, BondData { constants::kSingleBond });
+      mutator.register_bond(3, 2, BondData { constants::kSingleBond });
+      mutator.register_bond(3, 1, BondData { constants::kDoubleBond });
+      mutator.register_bond(1, 2, BondData { constants::kSingleBond });
+      mutator.register_bond(2, 0, BondData { constants::kSingleBond });
+      mutator.register_bond(4, 5, BondData { constants::kSingleBond });
+      mutator.register_bond(3, 6, BondData { constants::kSingleBond });
+      mutator.register_bond(1, 7, BondData { constants::kSingleBond });
+      mutator.register_bond(2, 8, BondData { constants::kSingleBond });
+      mutator.register_bond(0, 9, BondData { constants::kSingleBond });
+      mutator.register_bond(0, 10, BondData { constants::kSingleBond });
     }
 
     ASSERT_EQ(mol_.num_atoms(), 12);

@@ -26,9 +26,14 @@ int lid(const GT &g, int i) {
   return g[i].data();
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 auto lemon_add_edge(GT &g, int src, int dst, int data) {
   return g.add_edge(lid(g, src), lid(g, dst), data);
 }
+
+#pragma GCC diagnostic pop
 
 GT lemon_c_n(int n) {
   GT g;

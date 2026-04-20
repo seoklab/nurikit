@@ -182,7 +182,7 @@ public:
 
   PyAtom add_atom(AtomData &&data);
 
-  PyBond add_bond(int src, int dst, BondData &&data);
+  int register_bond(int src, int dst, BondData &&data);
 
   void clear_atoms() {
     mut().clear_atoms();

@@ -918,7 +918,7 @@ bool Molecule::add_hydrogens(const bool update_confs, const bool optimize) {
     for (auto atom: *this) {
       for (int i = 0; i < atom.data().implicit_hydrogens(); ++i) {
         int h = mut.add_atom({ kPt[1], 0, 0, constants::kTerminal });
-        mut.add_bond(atom.id(), h, BondData(constants::kSingleBond));
+        mut.register_bond(atom.id(), h, BondData(constants::kSingleBond));
       }
     }
   }

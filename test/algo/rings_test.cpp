@@ -40,16 +40,16 @@ protected:
       }
 
       // 0-5-0 is a ring, 4-8-4 is a ring
-      m.add_bond(0, 1, BondData(kAromaticBond));
-      m.add_bond(0, 5, BondData(kAromaticBond));
-      m.add_bond(1, 2, BondData(kAromaticBond));
-      m.add_bond(2, 3, BondData(kAromaticBond));
-      m.add_bond(3, 4, BondData(kAromaticBond));
-      m.add_bond(4, 5, BondData(kAromaticBond));
-      m.add_bond(4, 8, BondData(kAromaticBond));
-      m.add_bond(5, 6, BondData(kAromaticBond));
-      m.add_bond(6, 7, BondData(kAromaticBond));
-      m.add_bond(7, 8, BondData(kAromaticBond));
+      m.register_bond(0, 1, BondData(kAromaticBond));
+      m.register_bond(0, 5, BondData(kAromaticBond));
+      m.register_bond(1, 2, BondData(kAromaticBond));
+      m.register_bond(2, 3, BondData(kAromaticBond));
+      m.register_bond(3, 4, BondData(kAromaticBond));
+      m.register_bond(4, 5, BondData(kAromaticBond));
+      m.register_bond(4, 8, BondData(kAromaticBond));
+      m.register_bond(5, 6, BondData(kAromaticBond));
+      m.register_bond(6, 7, BondData(kAromaticBond));
+      m.register_bond(7, 8, BondData(kAromaticBond));
     }
   }
 
@@ -181,28 +181,30 @@ TEST_F(IndoleRingTest, MaxFiveRingSets) {
 class CubaneRingTest: public ::testing::Test {
 protected:
   static void SetUpTestSuite() {
-    auto m = mol_.mutator();
-    for (int i = 0; i < 8; ++i) {
-      m.add_atom(kPt[6]);
-    }
-    for (int i = 0; i < 8; ++i) {
-      mol_.atom(i).data().set_implicit_hydrogens(1);
-    }
+    {
+      auto m = mol_.mutator();
+      for (int i = 0; i < 8; ++i) {
+        m.add_atom(kPt[6]);
+      }
+      for (int i = 0; i < 8; ++i) {
+        mol_.atom(i).data().set_implicit_hydrogens(1);
+      }
 
-    // Six relevant rings:
-    // 0-1-2-3-0, 0-3-4-5-0, 0-1-6-5-0, 1-2-7-6-1, 2-3-4-7-2, 4-5-6-7-4
-    m.add_bond(0, 1, BondData(kSingleBond));
-    m.add_bond(0, 3, BondData(kSingleBond));
-    m.add_bond(0, 5, BondData(kSingleBond));
-    m.add_bond(1, 2, BondData(kSingleBond));
-    m.add_bond(1, 6, BondData(kSingleBond));
-    m.add_bond(2, 3, BondData(kSingleBond));
-    m.add_bond(2, 7, BondData(kSingleBond));
-    m.add_bond(3, 4, BondData(kSingleBond));
-    m.add_bond(4, 5, BondData(kSingleBond));
-    m.add_bond(4, 7, BondData(kSingleBond));
-    m.add_bond(5, 6, BondData(kSingleBond));
-    m.add_bond(6, 7, BondData(kSingleBond));
+      // Six relevant rings:
+      // 0-1-2-3-0, 0-3-4-5-0, 0-1-6-5-0, 1-2-7-6-1, 2-3-4-7-2, 4-5-6-7-4
+      m.register_bond(0, 1, BondData(kSingleBond));
+      m.register_bond(0, 3, BondData(kSingleBond));
+      m.register_bond(0, 5, BondData(kSingleBond));
+      m.register_bond(1, 2, BondData(kSingleBond));
+      m.register_bond(1, 6, BondData(kSingleBond));
+      m.register_bond(2, 3, BondData(kSingleBond));
+      m.register_bond(2, 7, BondData(kSingleBond));
+      m.register_bond(3, 4, BondData(kSingleBond));
+      m.register_bond(4, 5, BondData(kSingleBond));
+      m.register_bond(4, 7, BondData(kSingleBond));
+      m.register_bond(5, 6, BondData(kSingleBond));
+      m.register_bond(6, 7, BondData(kSingleBond));
+    }
 
     sub_.update_atoms({ 1, 2, 4, 5, 6, 7 });
   }

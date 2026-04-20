@@ -15,6 +15,8 @@
 #include <utility>
 #include <vector>
 
+#include <absl/algorithm/container.h>
+#include <absl/base/attributes.h>
 #include <absl/base/optimization.h>
 #include <absl/container/flat_hash_set.h>
 #include <absl/log/absl_check.h>
@@ -438,6 +440,17 @@ namespace internal {
 
   template <class, bool>
   class SubEdgeWrapper;
+
+  template <class T>
+  struct OffsetForwarder {
+    template <class U>
+    T operator()(const U &edge) const {
+      return T { edge.src().id() + offset, edge.dst().id() + offset,
+                 edge.data() };
+    }
+
+    int offset;
+  };
 }  // namespace internal
 
 using NodesErased = std::pair<std::pair<int, std::vector<int>>,
@@ -461,18 +474,18 @@ class Subgraph;
 template <class NT, class ET>
 class Graph {
 private:
-  struct StoredEdge {
-    int src;
-    int dst;
-    ET data;
-  };
-
   struct AdjEntry {
     int dst;
     int eid;
   };
 
 public:
+  struct StoredEdge {
+    int src;
+    int dst;
+    ET data;
+  };
+
   using node_data_type = NT;
   using edge_data_type = ET;
 
@@ -515,7 +528,7 @@ public:
    * @param num_nodes The number of nodes in the graph. All node data will be
    *        default-constructed.
    */
-  Graph(int num_nodes): adj_list_(num_nodes), nodes_(num_nodes) { }
+  Graph(int num_nodes): offsets_(num_nodes + 1), nodes_(num_nodes) { }
 
   /**
    * @brief Create a graph with \p num_nodes nodes, each initialized with
@@ -524,7 +537,7 @@ public:
    * @param data The data to copy-initialize each node with.
    */
   Graph(int num_nodes, const NT &data)
-      : adj_list_(num_nodes), nodes_(num_nodes, data) { }
+      : offsets_(num_nodes + 1), nodes_(num_nodes, data) { }
 
   bool empty() const {
     // GCOV_EXCL_START
@@ -547,14 +560,17 @@ public:
   }
   int num_edges() const { return static_cast<int>(edges_.size()); }
 
-  int degree(int id) const { return static_cast<int>(adj_list_[id].size()); }
+  int degree(int id) const { return offsets_[id + 1] - offsets_[id]; }
 
   void reserve(int num_nodes) {
     nodes_.reserve(num_nodes);
-    adj_list_.reserve(num_nodes);
+    offsets_.reserve(num_nodes + 1);
   }
 
-  void reserve_edges(int num_edges) { edges_.reserve(num_edges); }
+  void reserve_edges(int num_edges) {
+    edges_.reserve(num_edges);
+    adj_list_.reserve(num_edges * 2);
+  }
 
   /**
    * @brief Add a node to the graph.
@@ -565,7 +581,7 @@ public:
   int add_node(const NT &data) {
     int id = num_nodes();
     nodes_.push_back(data);
-    adj_list_.push_back({});
+    offsets_.push_back(offsets_[id]);
     return id;
   }
 
@@ -578,7 +594,7 @@ public:
   int add_node(NT &&data) noexcept {
     int id = num_nodes();
     nodes_.push_back(std::move(data));
-    adj_list_.push_back({});
+    offsets_.push_back(offsets_[id]);
     return id;
   }
 
@@ -588,13 +604,17 @@ public:
    *         a value type implicitly convertible to `NT`.
    * @param begin The beginning of the range of nodes to be added.
    * @param end The end of the range of nodes to be added.
+   * @return The first node id among the newly added nodes, or num_nodes() if no
+   *         nodes are added.
    * @note Time complexity: \f$O(N)\f$.
    */
   template <class Iterator,
             internal::enable_if_compatible_iter_t<Iterator, NT> = 0>
-  void add_nodes(Iterator begin, Iterator end) {
+  int add_nodes(Iterator begin, Iterator end) {
+    const int first = num_nodes();
     nodes_.insert(nodes_.end(), begin, end);
-    adj_list_.resize(num_nodes());
+    offsets_.resize(num_nodes() + 1, offsets_.back());
+    return first;
   }
 
   /**
@@ -603,16 +623,21 @@ public:
    * @param dst The destination node id.
    * @param data The data to copy-construct the edge with.
    * @return The id of the newly added edge.
-   * @note Time complexity: \f$O(1)\f$ amortized.
+   * @note Time complexity: \f$O(V+E)\f$ in the worst case; \f$O(V-v_\min)\f$
+   *       when \f$v_\min = \min(\mathtt{src}, \mathtt{dst})\f$ is at least the
+   *       number of nodes that existed before the last edge addition (the
+   *       merge() hot path).
    * @note If \p src or \p dst is out of range, \p src equals \p dst, or an edge
    *       between \p src and \p dst already exists, the behavior is undefined.
+   * @deprecated Slow, due to CSR recompilation; prefer add_edges() / merge().
    */
+  ABSL_DEPRECATED("Slow, due to CSR recompilation.")
   int add_edge(int src, int dst, const ET &data) {
     ABSL_DCHECK_NE(src, dst) << "self-loop is not allowed";
 
     int eid = num_edges();
     edges_.push_back({ src, dst, data });
-    add_adjacency_entry(src, dst, eid);
+    publish_edges_from(eid);
     return eid;
   }
 
@@ -622,17 +647,42 @@ public:
    * @param dst The destination node id.
    * @param data The data to move-construct the edge with.
    * @return The id of the newly added edge.
-   * @note Time complexity: \f$O(1)\f$ amortized.
+   * @note Time complexity: same as add_edge(int, int, const ET&).
    * @note If \p src or \p dst is out of range, \p src equals \p dst, or an edge
    *       between \p src and \p dst already exists, the behavior is undefined.
+   * @deprecated Slow, due to CSR recompilation; prefer add_edges() / merge().
    */
+  ABSL_DEPRECATED("Slow, due to CSR recompilation.")
   int add_edge(int src, int dst, ET &&data) noexcept {
     ABSL_DCHECK_NE(src, dst) << "self-loop is not allowed";
 
     int eid = num_edges();
     edges_.push_back({ src, dst, std::move(data) });
-    add_adjacency_entry(src, dst, eid);
+    publish_edges_from(eid);
     return eid;
+  }
+
+  /**
+   * @brief Add multiple edges to the graph.
+   * @tparam Iterator The type of the iterator for edges. Must be
+   *         dereferenceable to a value type implicitly convertible to
+   *         `StoredEdge`.
+   * @param begin The beginning of the range of edges to be added.
+   * @param end The end of the range of edges to be added.
+   * @return The first edge id among the newly added edges, or num_edges() if
+   *         no edges are added.
+   * @note Time complexity: \f$O(V + E')\f$ in general, where \f$E'\f$ is the
+   *       length of `[begin, end)`. Degenerates to \f$O(E')\f$ when every new
+   *       edge's endpoints are among the nodes added since the last edge
+   *       publish (the merge() hot path).
+   */
+  template <class Iterator,
+            internal::enable_if_compatible_iter_t<Iterator, StoredEdge> = 0>
+  int add_edges(Iterator begin, Iterator end) {
+    const int first = num_edges();
+    edges_.insert(edges_.end(), begin, end);
+    publish_edges_from(first);
+    return first;
   }
 
   NodeRef operator[](int id) { return node(id); }
@@ -648,22 +698,7 @@ public:
     nodes_.clear();
     edges_.clear();
     adj_list_.clear();
-  }
-
-  /**
-   * @brief Erase a node and all its associated edge(s) from the graph.
-   *
-   * @param id The id of the node to be erased.
-   * @return The data of the erased node.
-   * @sa erase_nodes()
-   * @note Time complexity: \f$O(V)\f$ if only trailing node is erased,
-   *       \f$O(V+E)\f$ otherwise.
-   * @note If \p id is out of range, the behavior is undefined.
-   */
-  NT pop_node(int id) {
-    NT ret = std::move(nodes_[id]);
-    erase_nodes(begin() + id, begin() + id + 1);
-    return ret;
+    offsets_ = { 0 };
   }
 
   /**
@@ -680,12 +715,9 @@ public:
    *         before this operation. Otherwise, `new end id` will be set to -1
    *         and erased nodes will be marked as -1 in the mapping. The same rule
    *         applies to edges.
-   * @sa pop_node()
    * @note Time complexity:
-   *         1. \f$O(N)\f$ if no nodes are erased,
-   *         2. \f$O(V)\f$ if only trailing nodes are erased and no edges are
-   *            erased,
-   *         3. \f$O(V+E)\f$ otherwise.
+   *         1. \f$O(V)\f$ if no nodes are erased,
+   *         2. \f$O(V+E)\f$ otherwise.
    * @note If any of the iterators in range `[`\p begin, \p end`)` is out of
    *       range, the behavior is undefined.
    */
@@ -711,7 +743,6 @@ public:
    *         before this operation. Otherwise, `new end id` will be set to -1
    *         and erased nodes will be marked as -1 in the mapping. The same rule
    *         applies to edges.
-   * @sa pop_node()
    * @note Time complexity: same as erase_nodes(const_iterator, const_iterator).
    * @note If any of the iterators in range `[`\p begin, \p end`)` is out of
    *       range, the behavior is undefined.
@@ -736,7 +767,6 @@ public:
    *         before this operation. Otherwise, `new end id` will be set to -1
    *         and erased nodes will be marked as -1 in the mapping. The same rule
    *         applies to edges.
-   * @sa pop_node()
    * @note Time complexity: same as erase_nodes(const_iterator, const_iterator).
    * @note If any of the iterators in range `[`\p begin, \p end`)` points to an
    *       invalid node id, the behavior is undefined.
@@ -769,7 +799,7 @@ public:
    * @param src The source node id.
    * @param dst The destination node id.
    * @return Iterator to the edge if found, otherwise the end iterator.
-   * @note Time complexity: \f$O(V/E)\f$.
+   * @note Time complexity: \f$O(E/V)\f$.
    * @note If \p src or \p dst is out of range, the behavior is undefined.
    */
   edge_iterator find_edge(int src, int dst) {
@@ -820,32 +850,16 @@ public:
    */
   void clear_edges() {
     edges_.clear();
-    for (std::vector<AdjEntry> &adj: adj_list_)
-      adj.clear();
+    adj_list_.clear();
+    absl::c_fill(offsets_, 0);
   }
 
   /**
    * @brief Erase an edge from the graph.
    *
    * @param id The id of the edge to be erased.
-   * @return The data of the erased edge.
-   * @sa erase_edge(), erase_edge_between(), erase_edges()
-   * @note Time complexity: same as erase_edge().
-   * @note If \p id is out of range, the behavior is undefined.
-   */
-  ET pop_edge(int id) {
-    ET ret = std::move(edges_[id].data);
-    erase_edge(id);
-    return ret;
-  }
-
-  /**
-   * @brief Erase an edge from the graph.
-   *
-   * @param id The id of the edge to be erased.
-   * @sa pop_edge(), erase_edge_between(), erase_edges()
-   * @note Time complexity: \f$O(E/V)\f$ if the edge is the last edge,
-   *       \f$O(V+E)\f$ otherwise.
+   * @sa erase_edge_between(), erase_edges()
+   * @note Time complexity: \f$O(V+E)\f$.
    * @note If \p id is out of range, the behavior is undefined.
    */
   void erase_edge(int id) {
@@ -863,7 +877,7 @@ public:
    * @param src The source node, interchangeable with \p dst.
    * @param dst The destination node, interchangeable with \p src.
    * @return Whether the edge is erased.
-   * @sa pop_edge(), erase_edge(), erase_edges()
+   * @sa erase_edge(), erase_edges()
    * @note Time complexity: same as erase_edge().
    * @note If \p src or \p dst is out of range, the behavior is undefined.
    */
@@ -875,7 +889,7 @@ public:
    * @param src The source node, interchangeable with \p dst.
    * @param dst The destination node, interchangeable with \p src.
    * @return Whether the edge is erased.
-   * @sa pop_edge(), erase_edge(), erase_edges()
+   * @sa erase_edge(), erase_edges()
    * @note Time complexity: same as erase_edge().
    * @note If \p src or \p dst does not belong to this graph, the behavior is
    *       undefined.
@@ -896,8 +910,8 @@ public:
    *         edge removal), `new end id` will be equal to the size of the graph
    *         before this operation. Otherwise, `new end id` will be set to -1
    *         and erased edges will be marked as -1 in the mapping.
-   * @sa pop_edge(), erase_edge(), erase_edge_between()
-   * @note Time complexity: \f$O(N)\f$ if no edges were removed, \f$O(V+E)\f$
+   * @sa erase_edge(), erase_edge_between()
+   * @note Time complexity: \f$O(E)\f$ if no edges were removed, \f$O(V+E)\f$
    *       otherwise.
    * @note If any of the iterators in range `[`\p begin, \p end`)` is out of
    *       range, the behavior is undefined.
@@ -923,7 +937,7 @@ public:
    *         trailing edge removal), `new end id` will be equal to the size of
    *         the graph before this operation. Otherwise, `new end id` will be
    *         set to -1 and erased edges will be marked as -1 in the mapping.
-   * @sa pop_edge(), erase_edge(), erase_edge_between()
+   * @sa erase_edge(), erase_edge_between()
    * @note Time complexity: same as
    *       erase_edges(const_edge_iterator, const_edge_iterator).
    * @note If any of the iterators in range `[`\p begin, \p end`)` is out of
@@ -948,7 +962,7 @@ public:
    *         trailing edge removal), `new end id` will be equal to the size of
    *         the graph before this operation. Otherwise, `new end id` will be
    *         set to -1 and erased edges will be marked as -1 in the mapping.
-   * @sa pop_edge(), erase_edge(), erase_edge_between()
+   * @sa erase_edge(), erase_edge_between()
    * @note Time complexity: same as
    *       erase_edges(const_edge_iterator, const_edge_iterator).
    * @note If any iterator in range `[`\p begin, \p end`)` references an invalid
@@ -975,7 +989,7 @@ public:
    * @param dst The destination node id.
    * @return Iterator to the adjacency entry if found, otherwise the end
    *         iterator of the adjacency list of \p src.
-   * @note Time complexity: \f$O(V/E)\f$.
+   * @note Time complexity: \f$O(E/V)\f$.
    * @note If \p src or \p dst is out of range, the behavior is undefined.
    */
   adjacency_iterator find_adjacent(int src, int dst) {
@@ -988,7 +1002,7 @@ public:
    * @param dst The destination node id.
    * @return Iterator to the adjacency entry if found, otherwise the end
    *         iterator of the adjacency list of \p src.
-   * @note Time complexity: \f$O(V/E)\f$.
+   * @note Time complexity: \f$O(E/V)\f$.
    * @note If \p src or \p dst is out of range, the behavior is undefined.
    */
   const_adjacency_iterator find_adjacent(int src, int dst) const {
@@ -1001,7 +1015,7 @@ public:
    * @param dst The destination node.
    * @return Iterator to the adjacency entry if found, otherwise the end
    *         iterator of the adjacency list of \p src.
-   * @note Time complexity: \f$O(V/E)\f$.
+   * @note Time complexity: \f$O(E/V)\f$.
    * @note If \p src or \p dst does not belong to this graph, the behavior is
    *       undefined.
    */
@@ -1015,7 +1029,7 @@ public:
    * @param dst The destination node.
    * @return Iterator to the adjacency entry if found, otherwise the end
    *         iterator of the adjacency list of \p src.
-   * @note Time complexity: \f$O(V/E)\f$.
+   * @note Time complexity: \f$O(E/V)\f$.
    * @note If \p src or \p dst does not belong to this graph, the behavior is
    *       undefined.
    */
@@ -1055,8 +1069,9 @@ public:
     auto edges = other.edges();
     reserve_edges(num_edges() + edges.size());
 
-    for (auto edge: edges)
-      add_edge(edge.src().id() + offset, edge.dst().id() + offset, edge.data());
+    internal::OffsetForwarder<StoredEdge> as_stored_edge { offset };
+    add_edges(internal::make_transform_iterator(edges.begin(), as_stored_edge),
+              internal::make_transform_iterator(edges.end(), as_stored_edge));
   }
 
 private:
@@ -1106,34 +1121,66 @@ private:
   void erase_edges_common(std::vector<int> &edge_keep, int first_erased_id,
                           bool erase_trailing);
 
-  void add_adjacency_entry(int src, int dst, int eid) {
-    adj_list_[src].push_back({ dst, eid });
-    adj_list_[dst].push_back({ src, eid });
-  }
+  /**
+   * @brief Publish CSR adjacency entries for `edges_[first_eid .. end())`.
+   *
+   * Performs a delta-only update: only slices of nodes touched by the new
+   * edges are shifted, and only the new endpoints are materialized.
+   *
+   * Precondition: `offsets_` and `adj_list_` form a valid CSR view of
+   * `edges_[0 .. first_eid)`, and `offsets_.size() == nodes_.size() + 1`.
+   *
+   * @note Complexity: `O((V - v_min) + (E_total - first_eid))`, where
+   *       `v_min` is the smallest endpoint among the new edges. Degenerates
+   *       to `O(E_total - first_eid)` in the merge() hot path, i.e. when
+   *       every new edge's endpoints are among the nodes added since the
+   *       previous publish (so their adjacency slices are all empty and no
+   *       existing entries need to be shifted).
+   */
+  void publish_edges_from(int first_eid);
 
   auto find_adjacency_entry(int src, int dst) {
-    return std::find_if(adj_list_[src].begin(), adj_list_[src].end(),
+    return std::find_if(adj_list_.begin() + offsets_[src],
+                        adj_list_.begin() + offsets_[src + 1],
                         [dst](const AdjEntry &adj) { return adj.dst == dst; });
   }
 
-  void erase_adjacency_entry(
-      int src, typename std::vector<AdjEntry>::const_iterator srcit, int dst,
-      typename std::vector<AdjEntry>::const_iterator dstit) {
-    adj_list_[src].erase(srcit);
-    adj_list_[dst].erase(dstit);
+  void erase_adjacency_entry(int src,
+                             typename std::vector<AdjEntry>::iterator srcit,
+                             int dst,
+                             typename std::vector<AdjEntry>::iterator dstit) {
+    if (src > dst) {
+      erase_adjacency_entry(dst, dstit, src, srcit);
+      return;
+    }
+
+    // Close the two gaps left by the removed entries via a pair of back-to-back
+    // left shifts on the flat buffer.
+    std::move(srcit + 1, dstit, srcit);
+    std::move(dstit + 1, adj_list_.end(), dstit - 1);
+    adj_list_.resize(adj_list_.size() - 2);
+
+    // Slices of nodes in (src, dst] shrink by 1 (one entry gone before them);
+    // slices of nodes > dst shrink by 2.
+    for (int v = src + 1; v <= dst; ++v)
+      --offsets_[v];
+    for (int v = dst + 1, n = static_cast<int>(offsets_.size()); v < n; ++v)
+      offsets_[v] -= 2;
   }
 
   AdjRef adjacent(int nid, int idx) {
-    const AdjEntry &adj = adj_list_[nid][idx];
+    const AdjEntry &adj = adj_list_[offsets_[nid] + idx];
     return { *this, nid, adj.dst, adj.eid };
   }
 
   ConstAdjRef adjacent(int nid, int idx) const {
-    const AdjEntry &adj = adj_list_[nid][idx];
+    const AdjEntry &adj = adj_list_[offsets_[nid] + idx];
     return { *this, nid, adj.dst, adj.eid };
   }
 
-  std::vector<std::vector<AdjEntry>> adj_list_;
+  std::vector<int> offsets_ = { 0 };
+  std::vector<AdjEntry> adj_list_;
+
   std::vector<NT> nodes_;
   std::vector<StoredEdge> edges_;
 };
@@ -1238,42 +1285,95 @@ Graph<NT, ET>::erase_nodes_common(std::vector<int> &node_keep,
 
   // Phase III: erase the nodes & adjacencies
   if (erase_trailing) {
-    // Fast path 2: if only trailing nodes are erased, no node number needs to
-    // be updated.
-    ABSL_DLOG(INFO) << "resizing adjacency & node list";
+    // Fast path 2: only trailing nodes with incident edges; the edge erase
+    // above already compacted adj_list_, so just trim nodes_/offsets_.
+    ABSL_DLOG(INFO) << "resizing offset table & node list";
     // O(1) operations
     nodes_.resize(first_erased_id);
-    adj_list_.resize(nodes_.size());
+    offsets_.resize(first_erased_id + 1);
     return ret;
   }
 
-  // Erase unused nodes and adjacencies, O(V)
+  // Erase unused nodes, O(V)
   int i = 0;
   erase_if(nodes_,
            [&](const NT & /* unused */) { return node_keep[i++] == 0; });
-  i = 0;
-  erase_if(adj_list_, [&](const std::vector<AdjEntry> & /* unused */) {
-    return node_keep[i++] == 0;
-  });
 
   // Phase IV: update the node numbers in adjacencies and edges, O(V+E)
   mask_to_map(node_keep);
 
-  for (std::vector<AdjEntry> &adjs: adj_list_)
-    for (AdjEntry &adj: adjs)
-      adj.dst = node_keep[adj.dst];
+  for (int v = 0; v < static_cast<int>(node_keep.size()); ++v) {
+    int w = node_keep[v];
+    if (w < 0)
+      continue;
+    offsets_[w + 1] = offsets_[v + 1];
+  }
+  offsets_.resize(nodes_.size() + 1);
+
+  for (AdjEntry &adj: adj_list_)
+    adj.dst = node_keep[adj.dst];
 
   for (StoredEdge &edge: edges_) {
     edge.src = node_keep[edge.src];
     edge.dst = node_keep[edge.dst];
   }
 
+  return ret;
+}
+
+template <class NT, class ET>
+void Graph<NT, ET>::publish_edges_from(const int first_eid) {
+  const int total_edges = num_edges();
+  if (first_eid == total_edges)
+    return;
+
+  const int n = num_nodes();
+
+  // Phase 1: count per-node delta from just the new edges; track v_min.
+  std::vector<int> delta(n, 0);
+  for (int eid = first_eid; eid < total_edges; ++eid) {
+    const StoredEdge &e = edges_[eid];
+    ++delta[e.src];
+    ++delta[e.dst];
+  }
+  const int v_min = static_cast<int>(
+      absl::c_find_if(delta, [](int d) { return d > 0; }) - delta.begin());
+
+  // Phase 2: grow the flat buffer by the total number of new endpoints.
+  const int added = 2 * (total_edges - first_eid);
+  adj_list_.resize(adj_list_.size() + added);
+
+  // Phase 3: back-to-front shift of existing slices; update offsets_ in place.
+  //
+  // Invariant on entry to iteration `v`: `shift == sum(delta[v..n-1])`, which
+  // equals `shift_{v+1}` (= the offset-shift that was applied to node v+1's
+  // slice). Subtracting `delta[v]` yields `shift_v` for the current node.
+  int shift = added;
+  for (int i = n - 1; i > v_min; --i) {
+    const int old_end = offsets_[i + 1], old_start = offsets_[i],
+              old_deg = old_end - old_start;
+
+    offsets_[i + 1] = old_end + shift;
+    shift -= delta[i];
+    const int new_start = old_start + shift;
+    std::move_backward(adj_list_.begin() + old_start,
+                       adj_list_.begin() + old_end,
+                       adj_list_.begin() + new_start + old_deg);
+  }
+  offsets_[v_min + 1] += shift;
+
   // GCOV_EXCL_START
-  ABSL_DCHECK(num_nodes() == adj_list_.size())
-      << "node count mismatch: " << num_nodes() << " vs " << adj_list_.size();
+  ABSL_DCHECK_EQ(shift, delta[v_min])
+      << "shift mismatch: " << shift << " vs " << delta[v_min];
   // GCOV_EXCL_STOP
 
-  return ret;
+  // Phase 4: place new adjacency entries in eid order.
+  for (int eid = first_eid; eid < total_edges; ++eid) {
+    const StoredEdge &e = edges_[eid];
+    int sd = delta[e.src]--, dd = delta[e.dst]--;
+    adj_list_[offsets_[e.src + 1] - sd] = { e.dst, eid };
+    adj_list_[offsets_[e.dst + 1] - dd] = { e.src, eid };
+  }
 }
 
 template <class NT, class ET>
@@ -1282,7 +1382,7 @@ bool Graph<NT, ET>::erase_edge_between(int src, int dst) {
     return erase_edge_between(dst, src);
 
   auto srcit = find_adjacency_entry(src, dst);
-  if (srcit == adj_list_[src].end())
+  if (srcit == adj_list_.begin() + offsets_[src + 1])
     return false;
 
   int eid = srcit->eid;
@@ -1297,17 +1397,15 @@ bool Graph<NT, ET>::erase_edge_between(int src, int dst) {
 
 template <class NT, class ET>
 void Graph<NT, ET>::erase_edge_common(int id) {
-  int orig_edges = num_edges();
+  const int orig_edges = num_edges();
   edges_.erase(edges_.begin() + id);
 
   if (id == orig_edges - 1)
     return;
 
-  for (std::vector<AdjEntry> &adjs: adj_list_) {
-    for (AdjEntry &adj: adjs) {
-      if (adj.eid > id)
-        --adj.eid;
-    }
+  for (AdjEntry &adj: adj_list_) {
+    if (adj.eid > id)
+      --adj.eid;
   }
 }
 
@@ -1320,7 +1418,7 @@ Graph<NT, ET>::erase_edges(const_edge_iterator begin, const_edge_iterator end,
   if (begin >= end)
     return { num_edges(), {} };
 
-  // Phase I: mark edges for removal, O(N)
+  // Phase I: mark edges for removal, O(E)
   std::vector<int> edge_keep(num_edges(), 1);
   int first_erased_id = -1;
   bool erase_trailing = end == this->edge_end();
@@ -1350,7 +1448,7 @@ std::pair<int, std::vector<int>> Graph<NT, ET>::erase_edges(Iterator begin,
   if (begin == end)
     return { num_edges(), {} };
 
-  // Phase I: mark edges for removal, O(N)
+  // Phase I: mark edges for removal, O(E)
   std::vector<int> edge_keep(num_edges(), 1);
   int first_erased_id = num_edges();
   for (auto it = begin; it != end; ++it) {
@@ -1379,10 +1477,19 @@ void Graph<NT, ET>::erase_edges_common(std::vector<int> &edge_keep,
   if (first_erased_id < 0 || first_erased_id >= num_edges())
     return;
 
-  // Phase II: erase unused adjacencies, O(V+E)
-  for (std::vector<AdjEntry> &adjs: adj_list_)
-    erase_if(adjs,
-             [&](const AdjEntry &adj) { return edge_keep[adj.eid] == 0; });
+  // Phase II: compact adj_list_ and rewrite offsets_ in place, O(V+E).
+  const int n = num_nodes();
+  int p = 0, old_end = 0;
+  for (int i = 0; i < n; ++i) {
+    const int old_start = old_end;
+    old_end = offsets_[i + 1];
+    for (int q = old_start; q < old_end; ++q) {
+      if (edge_keep[adj_list_[q].eid] != 0)
+        adj_list_[p++] = adj_list_[q];
+    }
+    offsets_[i + 1] = p;
+  }
+  adj_list_.resize(p);
 
   // Fast path 2: if only trailing edges are erased, no edge number needs to
   // be updated.
@@ -1399,12 +1506,11 @@ void Graph<NT, ET>::erase_edges_common(std::vector<int> &edge_keep,
     return edge_keep[i++] == 0;
   });
 
-  // Phase IV: update the edge numbers in adjacencies, O(V+E)
+  // Phase IV: update the edge numbers in adjacencies, O(E)
   mask_to_map(edge_keep);
 
-  for (std::vector<AdjEntry> &adjs: adj_list_)
-    for (AdjEntry &adj: adjs)
-      adj.eid = edge_keep[adj.eid];
+  for (AdjEntry &adj: adj_list_)
+    adj.eid = edge_keep[adj.eid];
 }
 
 namespace internal {

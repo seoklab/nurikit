@@ -754,7 +754,7 @@ TEST(SDFFormatTest, V2000Correct) {
     auto mut = mol.mutator();
     mut.add_atom(kPt[6]);
     mut.add_atom(kPt[6]);
-    mut.add_bond(0, 1, BondData(constants::kSingleBond));
+    mut.register_bond(0, 1, BondData(constants::kSingleBond));
   }
 
   mol[1].data().set_isotope(13).set_formal_charge(1);
@@ -805,7 +805,7 @@ TEST(SDFFormatTest, V3000Correct) {
     auto mut = mol.mutator();
     mut.add_atom(kPt[6]);
     mut.add_atom(kPt[6]);
-    mut.add_bond(0, 1, BondData(constants::kSingleBond));
+    mut.register_bond(0, 1, BondData(constants::kSingleBond));
   }
 
   mol[1].data().set_isotope(13).set_formal_charge(1);

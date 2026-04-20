@@ -256,7 +256,7 @@ int add_bond(MoleculeMutator &mutator, ImplicitAromatics &aromatics,
   ABSL_DVLOG(3) << "Trying to add bond " << prev << " -> " << curr << ": "
                 << bond_data.order();
 
-  auto [eid, success] = mutator.add_bond(prev, curr, bond_data);
+  auto [eid, success] = mutator.register_bond(prev, curr, std::move(bond_data));
   if (implicit_aromatic)
     aromatics.push_back(eid);
   return success ? eid : -1;
