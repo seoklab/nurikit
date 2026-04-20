@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include <absl/container/flat_hash_map.h>
 #include <absl/log/absl_check.h>
 #include <Eigen/Dense>
 
