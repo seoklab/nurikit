@@ -1688,7 +1688,7 @@ TEST_F(Mol2Test, Write2D) {
     for (int i = 0; i < 6; ++i)
       mut.add_atom(kPt[6]);
     for (int i = 0; i < 5; ++i)
-      mut.add_bond(i, i + 1, BondData { constants::kSingleBond });
+      mut.register_bond(i, i + 1, BondData { constants::kSingleBond });
   }
 
   guess_hydrogens_2d(m);

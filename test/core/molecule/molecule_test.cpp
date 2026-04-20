@@ -68,16 +68,16 @@ TEST(Basic2DMoleculeTest, AddBondsTest) {
     bool success;
 
     auto mutator = ten.mutator();
-    std::tie(b1, success) = mutator.add_bond(0, 1, BondData(kSingleBond));
+    std::tie(b1, success) = mutator.register_bond(0, 1, BondData(kSingleBond));
     EXPECT_TRUE(success);
 
-    std::tie(b2, success) = mutator.add_bond(1, 0, BondData(kDoubleBond));
+    std::tie(b2, success) = mutator.register_bond(1, 0, BondData(kDoubleBond));
     EXPECT_EQ(b1, b2);
     EXPECT_FALSE(success);
   }
   {
     auto mutator = ten.mutator();
-    EXPECT_FALSE(mutator.add_bond(1, 0, BondData(kDoubleBond)).second);
+    EXPECT_FALSE(mutator.register_bond(1, 0, BondData(kDoubleBond)).second);
   }
 
   EXPECT_EQ(ten.num_bonds(), 1);
@@ -119,17 +119,17 @@ protected:
       }
       mutator.add_atom({ pt[11], 0, +1 });
 
-      mutator.add_bond(0, 1, BondData { kDoubleBond });
-      mutator.add_bond(0, 2, BondData { kSingleBond });
-      mutator.add_bond(1, 2, BondData { kSingleBond });
-      mutator.add_bond(2, 3, BondData { kSingleBond });
-      mutator.add_bond(3, 4, BondData { kSingleBond });
-      mutator.add_bond(4, 5, BondData { kSingleBond });
-      mutator.add_bond(0, 6, BondData { kSingleBond });
-      mutator.add_bond(1, 7, BondData { kSingleBond });
-      mutator.add_bond(2, 8, BondData { kSingleBond });
-      mutator.add_bond(3, 9, BondData { kSingleBond });
-      mutator.add_bond(3, 10, BondData { kSingleBond });
+      mutator.register_bond(0, 1, BondData { kDoubleBond });
+      mutator.register_bond(0, 2, BondData { kSingleBond });
+      mutator.register_bond(1, 2, BondData { kSingleBond });
+      mutator.register_bond(2, 3, BondData { kSingleBond });
+      mutator.register_bond(3, 4, BondData { kSingleBond });
+      mutator.register_bond(4, 5, BondData { kSingleBond });
+      mutator.register_bond(0, 6, BondData { kSingleBond });
+      mutator.register_bond(1, 7, BondData { kSingleBond });
+      mutator.register_bond(2, 8, BondData { kSingleBond });
+      mutator.register_bond(3, 9, BondData { kSingleBond });
+      mutator.register_bond(3, 10, BondData { kSingleBond });
     }
 
     ASSERT_EQ(mol_.num_atoms(), 12);
@@ -196,7 +196,7 @@ TEST_F(MoleculeTest, AddAtomsTest) {
 TEST_F(MoleculeTest, AddBonds) {
   {
     auto mutator = mol_.mutator();
-    mutator.add_bond(4, 11, {});
+    mutator.register_bond(4, 11, {});
   }
 
   EXPECT_EQ(mol_.num_bonds(), 12);
@@ -418,7 +418,7 @@ TEST(EraseNontrivialHydrogensTest, ExplicitH2) {
     auto mut = mol.mutator();
     mut.add_atom(pt[1]);
     mut.add_atom(pt[1]);
-    mut.add_bond(0, 1, BondData(kSingleBond));
+    mut.register_bond(0, 1, BondData(kSingleBond));
   }
 
   mol.erase_hydrogens();
@@ -446,8 +446,8 @@ TEST(EraseNontrivialHydrogensTest, BridgingH) {
     mut.add_atom(pt[5]);
     mut.add_atom(pt[1]);
     mut.add_atom(pt[5]);
-    mut.add_bond(0, 1, BondData(kSingleBond));
-    mut.add_bond(1, 2, BondData(kSingleBond));
+    mut.register_bond(0, 1, BondData(kSingleBond));
+    mut.register_bond(1, 2, BondData(kSingleBond));
   }
 
   mol.erase_hydrogens();
@@ -468,10 +468,10 @@ TEST(EraseNontrivialHydrogensTest, ChiralH) {
       mut.add_atom(pt[17]);
       mut.add_atom(pt[35]);
 
-      mut.add_bond(0, 1, BondData(kSingleBond));
-      mut.add_bond(0, 2, BondData(kSingleBond));
-      mut.add_bond(0, 3, BondData(kSingleBond));
-      mut.add_bond(0, 4, BondData(kSingleBond));
+      mut.register_bond(0, 1, BondData(kSingleBond));
+      mut.register_bond(0, 2, BondData(kSingleBond));
+      mut.register_bond(0, 3, BondData(kSingleBond));
+      mut.register_bond(0, 4, BondData(kSingleBond));
     }
 
     mol.erase_hydrogens();
@@ -495,10 +495,10 @@ TEST(EraseNontrivialHydrogensTest, ChiralH) {
       mut.add_atom(pt[17]);
       mut.add_atom(pt[35]);
 
-      mut.add_bond(0, 1, BondData(kSingleBond));
-      mut.add_bond(0, 2, BondData(kSingleBond));
-      mut.add_bond(0, 3, BondData(kSingleBond));
-      mut.add_bond(0, 4, BondData(kSingleBond));
+      mut.register_bond(0, 1, BondData(kSingleBond));
+      mut.register_bond(0, 2, BondData(kSingleBond));
+      mut.register_bond(0, 3, BondData(kSingleBond));
+      mut.register_bond(0, 4, BondData(kSingleBond));
     }
 
     mol.erase_hydrogens();
@@ -657,7 +657,7 @@ TEST_F(MoleculeTest, MergeOther) {
     mut.add_atom(pt[6]);
     mut.add_atom(pt[6]);
 
-    mut.add_bond(0, 1, BondData(kSingleBond));
+    mut.register_bond(0, 1, BondData(kSingleBond));
   }
 
   mol_.merge(mol);
@@ -730,16 +730,16 @@ TEST(SanitizeTest, FindRingsTest) {
       mut.add_atom(pt[6]);
     }
 
-    mut.add_bond(0, 3, BondData(kSingleBond));
-    mut.add_bond(0, 6, BondData(kSingleBond));
-    mut.add_bond(1, 4, BondData(kSingleBond));
-    mut.add_bond(1, 5, BondData(kSingleBond));
-    mut.add_bond(1, 7, BondData(kSingleBond));
-    mut.add_bond(2, 5, BondData(kSingleBond));
-    mut.add_bond(3, 4, BondData(kSingleBond));
-    mut.add_bond(3, 6, BondData(kSingleBond));
-    mut.add_bond(4, 6, BondData(kSingleBond));
-    mut.add_bond(5, 7, BondData(kSingleBond));
+    mut.register_bond(0, 3, BondData(kSingleBond));
+    mut.register_bond(0, 6, BondData(kSingleBond));
+    mut.register_bond(1, 4, BondData(kSingleBond));
+    mut.register_bond(1, 5, BondData(kSingleBond));
+    mut.register_bond(1, 7, BondData(kSingleBond));
+    mut.register_bond(2, 5, BondData(kSingleBond));
+    mut.register_bond(3, 4, BondData(kSingleBond));
+    mut.register_bond(3, 6, BondData(kSingleBond));
+    mut.register_bond(4, 6, BondData(kSingleBond));
+    mut.register_bond(5, 7, BondData(kSingleBond));
 
     for (int i: { 1, 3, 4, 5, 6 }) {
       mol.atom(i).data().set_implicit_hydrogens(1);
@@ -763,9 +763,9 @@ TEST(SanitizeTest, ConjugatedTest) {
     mut.add_atom(pt[8]);
     mut.add_atom(pt[8]);
 
-    mut.add_bond(0, 1, BondData(kSingleBond));
-    mut.add_bond(0, 2, BondData(kDoubleBond));
-    mut.add_bond(0, 3, BondData(kSingleBond));
+    mut.register_bond(0, 1, BondData(kSingleBond));
+    mut.register_bond(0, 2, BondData(kDoubleBond));
+    mut.register_bond(0, 3, BondData(kSingleBond));
 
     mol.atom(1).data().set_implicit_hydrogens(3);
     mol.atom(3).data().set_implicit_hydrogens(1);
@@ -799,7 +799,7 @@ TEST(SanitizeTest, ConjugatedTest) {
     mut.add_atom(pt[6]);
 
     for (int i = 0; i < 5; ++i) {
-      mut.add_bond(i, (i + 1) % 5, BondData(kAromaticBond));
+      mut.register_bond(i, (i + 1) % 5, BondData(kAromaticBond));
       mol.atom(i).data().set_implicit_hydrogens(1);
     }
   }
@@ -836,11 +836,11 @@ TEST(SanitizeTest, ConjugatedTest) {
     for (int i = 0; i < 6; ++i) {
       mut.add_atom(pt[6]);
     }
-    mut.add_bond(0, 4, BondData(kDoubleBond));
-    mut.add_bond(0, 1, BondData(kDoubleBond));
-    mut.add_bond(1, 3, BondData(kSingleBond));
-    mut.add_bond(3, 2, BondData(kTripleBond));
-    mut.add_bond(4, 5, BondData(kSingleBond));
+    mut.register_bond(0, 4, BondData(kDoubleBond));
+    mut.register_bond(0, 1, BondData(kDoubleBond));
+    mut.register_bond(1, 3, BondData(kSingleBond));
+    mut.register_bond(3, 2, BondData(kTripleBond));
+    mut.register_bond(4, 5, BondData(kSingleBond));
 
     for (int i: { 1, 2, 4 }) {
       mol.atom(i).data().set_implicit_hydrogens(1);
@@ -876,10 +876,10 @@ TEST(SanitizeTest, ConjugatedTest) {
     mut.add_atom(pt[7]);
     mut.add_atom(pt[6]);
     mut.add_atom(pt[7]);
-    mut.add_bond(0, 3, BondData(kDoubleBond));
-    mut.add_bond(0, 4, BondData(kSingleBond));
-    mut.add_bond(1, 2, BondData(kSingleBond));
-    mut.add_bond(1, 4, BondData(kSingleBond));
+    mut.register_bond(0, 3, BondData(kDoubleBond));
+    mut.register_bond(0, 4, BondData(kSingleBond));
+    mut.register_bond(1, 2, BondData(kSingleBond));
+    mut.register_bond(1, 4, BondData(kSingleBond));
 
     for (int i: { 1, 4 }) {
       mol.atom(i).data().set_implicit_hydrogens(1);
@@ -915,11 +915,11 @@ TEST(SanitizeTest, AromaticTest) {
     mut.add_atom(pt[6]);
     mut.add_atom(pt[6]);
 
-    mut.add_bond(0, 1, BondData(kSingleBond));
-    mut.add_bond(1, 3, BondData(kDoubleBond));
-    mut.add_bond(3, 2, BondData(kSingleBond));
-    mut.add_bond(2, 4, BondData(kDoubleBond));
-    mut.add_bond(4, 0, BondData(kSingleBond));
+    mut.register_bond(0, 1, BondData(kSingleBond));
+    mut.register_bond(1, 3, BondData(kDoubleBond));
+    mut.register_bond(3, 2, BondData(kSingleBond));
+    mut.register_bond(2, 4, BondData(kDoubleBond));
+    mut.register_bond(4, 0, BondData(kSingleBond));
 
     for (int i = 0; i < 5; ++i) {
       mol.atom(i).data().set_implicit_hydrogens(1);
@@ -972,11 +972,11 @@ TEST(SanitizeTest, AromaticTest) {
     mut.add_atom(pt[6]);
     mut.add_atom(pt[6]);
 
-    mut.add_bond(0, 1, BondData(kSingleBond));
-    mut.add_bond(1, 2, BondData(kDoubleBond));
-    mut.add_bond(2, 3, BondData(kSingleBond));
-    mut.add_bond(3, 4, BondData(kDoubleBond));
-    mut.add_bond(4, 0, BondData(kSingleBond));
+    mut.register_bond(0, 1, BondData(kSingleBond));
+    mut.register_bond(1, 2, BondData(kDoubleBond));
+    mut.register_bond(2, 3, BondData(kSingleBond));
+    mut.register_bond(3, 4, BondData(kDoubleBond));
+    mut.register_bond(4, 0, BondData(kSingleBond));
 
     for (int i = 0; i < 5; ++i) {
       mol.atom(i).data().set_implicit_hydrogens(1);
@@ -1020,14 +1020,14 @@ TEST(SanitizeTest, AromaticTest) {
     mut.add_atom(pt[8]);
     mut.add_atom(pt[8]);
 
-    mut.add_bond(0, 1, BondData(kSingleBond));
-    mut.add_bond(1, 2, BondData(kDoubleBond));
-    mut.add_bond(2, 3, BondData(kSingleBond));
-    mut.add_bond(3, 4, BondData(kSingleBond));
-    mut.add_bond(4, 5, BondData(kDoubleBond));
-    mut.add_bond(5, 0, BondData(kSingleBond));
-    mut.add_bond(0, 6, BondData(kDoubleBond));
-    mut.add_bond(3, 7, BondData(kDoubleBond));
+    mut.register_bond(0, 1, BondData(kSingleBond));
+    mut.register_bond(1, 2, BondData(kDoubleBond));
+    mut.register_bond(2, 3, BondData(kSingleBond));
+    mut.register_bond(3, 4, BondData(kSingleBond));
+    mut.register_bond(4, 5, BondData(kDoubleBond));
+    mut.register_bond(5, 0, BondData(kSingleBond));
+    mut.register_bond(0, 6, BondData(kDoubleBond));
+    mut.register_bond(3, 7, BondData(kDoubleBond));
 
     for (int i: { 1, 2, 4, 5 }) {
       mol.atom(i).data().set_implicit_hydrogens(1);
@@ -1087,11 +1087,11 @@ TEST(SanitizeTest, FusedAromaticTest) {
       }
     }
     for (int i = 0; i < 6; ++i) {
-      mut.add_bond(i, (i + 1) % 6, BondData(kAromaticBond));
-      mut.add_bond(i + 6, (i + 1) % 6 + 6, BondData(kAromaticBond));
+      mut.register_bond(i, (i + 1) % 6, BondData(kAromaticBond));
+      mut.register_bond(i + 6, (i + 1) % 6 + 6, BondData(kAromaticBond));
     }
-    mut.add_bond(0, 11, BondData(kSingleBond));
-    mut.add_bond(5, 6, BondData(kSingleBond));
+    mut.register_bond(0, 11, BondData(kSingleBond));
+    mut.register_bond(5, 6, BondData(kSingleBond));
   }
   verify_bcb();
 
@@ -1142,12 +1142,12 @@ TEST(SanitizeTest, FusedAromaticTest) {
       }
     }
     for (int i = 0; i < 6; ++i) {
-      ASSERT_TRUE(mut.add_bond(i, i + 1, BondData(kAromaticBond)).second);
+      ASSERT_TRUE(mut.register_bond(i, i + 1, BondData(kAromaticBond)).second);
     }
-    ASSERT_TRUE(mut.add_bond(6, 0, BondData(kSingleBond)).second);
+    ASSERT_TRUE(mut.register_bond(6, 0, BondData(kSingleBond)).second);
     for (int i = 6; i < 10; ++i) {
       ASSERT_TRUE(
-          mut.add_bond(i, (i + 1) % 10, BondData(kAromaticBond)).second);
+          mut.register_bond(i, (i + 1) % 10, BondData(kAromaticBond)).second);
     }
   }
   verify_azulene();
@@ -1183,17 +1183,17 @@ TEST(SanitizeTest, Samples) {
     mut.add_atom(pt[6]);
     mut.add_atom(pt[7]);
 
-    mut.add_bond(0, 1, BondData(kDoubleBond));
-    mut.add_bond(1, 2, BondData(kAromaticBond));
-    mut.add_bond(2, 3, BondData(kAromaticBond));
-    mut.add_bond(3, 4, BondData(kAromaticBond));
-    mut.add_bond(4, 5, BondData(kAromaticBond));
-    mut.add_bond(5, 6, BondData(kAromaticBond));
-    mut.add_bond(6, 2, BondData(kAromaticBond));
-    mut.add_bond(6, 7, BondData(kAromaticBond));
-    mut.add_bond(7, 8, BondData(kAromaticBond));
-    mut.add_bond(8, 9, BondData(kAromaticBond));
-    mut.add_bond(9, 1, BondData(kAromaticBond));
+    mut.register_bond(0, 1, BondData(kDoubleBond));
+    mut.register_bond(1, 2, BondData(kAromaticBond));
+    mut.register_bond(2, 3, BondData(kAromaticBond));
+    mut.register_bond(3, 4, BondData(kAromaticBond));
+    mut.register_bond(4, 5, BondData(kAromaticBond));
+    mut.register_bond(5, 6, BondData(kAromaticBond));
+    mut.register_bond(6, 2, BondData(kAromaticBond));
+    mut.register_bond(6, 7, BondData(kAromaticBond));
+    mut.register_bond(7, 8, BondData(kAromaticBond));
+    mut.register_bond(8, 9, BondData(kAromaticBond));
+    mut.register_bond(9, 1, BondData(kAromaticBond));
   }
 
   for (int i: { 3, 4, 8, 9 })
@@ -1226,12 +1226,12 @@ TEST(SanitizeTest, Samples) {
     mut.add_atom(pt[7]);
     mut.add_atom(pt[7]);
 
-    mut.add_bond(0, 1, BondData(kDoubleBond));
-    mut.add_bond(1, 2, BondData(kAromaticBond));
-    mut.add_bond(2, 3, BondData(kAromaticBond));
-    mut.add_bond(3, 4, BondData(kAromaticBond));
-    mut.add_bond(4, 5, BondData(kAromaticBond));
-    mut.add_bond(5, 1, BondData(kAromaticBond));
+    mut.register_bond(0, 1, BondData(kDoubleBond));
+    mut.register_bond(1, 2, BondData(kAromaticBond));
+    mut.register_bond(2, 3, BondData(kAromaticBond));
+    mut.register_bond(3, 4, BondData(kAromaticBond));
+    mut.register_bond(4, 5, BondData(kAromaticBond));
+    mut.register_bond(5, 1, BondData(kAromaticBond));
   }
 
   for (int i: { 3, 5 })
@@ -1259,10 +1259,10 @@ TEST(SanitizeTest, NonstandardTest) {
     mut.add_atom(pt[8]);
     mut.add_atom(pt[8]);
 
-    mut.add_bond(0, 1, BondData(kDoubleBond));
-    mut.add_bond(0, 2, BondData(kDoubleBond));
-    mut.add_bond(0, 3, BondData(kDoubleBond));
-    mut.add_bond(0, 4, BondData(kDoubleBond));
+    mut.register_bond(0, 1, BondData(kDoubleBond));
+    mut.register_bond(0, 2, BondData(kDoubleBond));
+    mut.register_bond(0, 3, BondData(kDoubleBond));
+    mut.register_bond(0, 4, BondData(kDoubleBond));
   }
 
   {
@@ -1284,7 +1284,7 @@ TEST(SanitizeTest, NonstandardTest) {
     mut.add_atom(pt[6]);
 
     for (int i = 0; i < 5; ++i) {
-      mut.add_bond(i, (i + 1) % 5, BondData(kAromaticBond));
+      mut.register_bond(i, (i + 1) % 5, BondData(kAromaticBond));
       mol.atom(i).data().set_implicit_hydrogens(1);
     }
   }
@@ -1310,7 +1310,7 @@ TEST(SanitizeTest, NonstandardTest) {
     mut.add_atom(pt[6]);
 
     for (int i = 0; i < 5; ++i) {
-      mut.add_bond(i, (i + 1) % 5, BondData(kAromaticBond));
+      mut.register_bond(i, (i + 1) % 5, BondData(kAromaticBond));
       mol.atom(i).data().set_implicit_hydrogens(1);
     }
   }
@@ -1348,8 +1348,8 @@ TEST(SanitizeTest, ErrorMolTest) {
     mut.add_atom(pt[8]);
     mut.add_atom(pt[8]);
     mut.add_atom(pt[8]);
-    mut.add_bond(0, 1, BondData(kDoubleBond));
-    mut.add_bond(0, 2, BondData(kDoubleBond));
+    mut.register_bond(0, 1, BondData(kDoubleBond));
+    mut.register_bond(0, 2, BondData(kDoubleBond));
   }
 
   {
@@ -1365,9 +1365,9 @@ TEST(SanitizeTest, ErrorMolTest) {
     for (int i = 0; i < 4; ++i) {
       mut.add_atom(pt[6]);
     }
-    mut.add_bond(0, 1, BondData(kAromaticBond));
-    mut.add_bond(1, 2, BondData(kAromaticBond));
-    mut.add_bond(2, 3, BondData(kAromaticBond));
+    mut.register_bond(0, 1, BondData(kAromaticBond));
+    mut.register_bond(1, 2, BondData(kAromaticBond));
+    mut.register_bond(2, 3, BondData(kAromaticBond));
   }
 
   {
@@ -1413,12 +1413,12 @@ TEST(SanitizeTest, ErrorMolTest) {
     mut.add_atom(pt[6]);
     mut.add_atom(pt[6]);
 
-    mut.add_bond(0, 1, BondData(kAromaticBond));
-    mut.add_bond(1, 2, BondData(kAromaticBond));
-    mut.add_bond(2, 3, BondData(kAromaticBond));
-    mut.add_bond(3, 4, BondData(kAromaticBond));
-    mut.add_bond(4, 5, BondData(kAromaticBond));
-    mut.add_bond(5, 0, BondData(kAromaticBond));
+    mut.register_bond(0, 1, BondData(kAromaticBond));
+    mut.register_bond(1, 2, BondData(kAromaticBond));
+    mut.register_bond(2, 3, BondData(kAromaticBond));
+    mut.register_bond(3, 4, BondData(kAromaticBond));
+    mut.register_bond(4, 5, BondData(kAromaticBond));
+    mut.register_bond(5, 0, BondData(kAromaticBond));
 
     for (int i = 0; i < 6; ++i) {
       mol.atom(i).data().set_implicit_hydrogens(1);
@@ -1441,10 +1441,10 @@ TEST(SanitizeTest, ErrorMolTest) {
     mut.add_atom(pt[8]);
     mut.add_atom(pt[8]);
 
-    mut.add_bond(0, 1, BondData(kDoubleBond));
-    mut.add_bond(0, 2, BondData(kDoubleBond));
-    mut.add_bond(0, 3, BondData(kDoubleBond));
-    mut.add_bond(0, 4, BondData(kDoubleBond));
+    mut.register_bond(0, 1, BondData(kDoubleBond));
+    mut.register_bond(0, 2, BondData(kDoubleBond));
+    mut.register_bond(0, 3, BondData(kDoubleBond));
+    mut.register_bond(0, 4, BondData(kDoubleBond));
   }
 
   {

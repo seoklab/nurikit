@@ -614,7 +614,7 @@ void update_struct_conn(MoleculeMutator &mut,
     }
 
     auto [_, ok] =
-        mut.add_bond(sit->second, dit->second, BondData(conn.order()));
+        mut.register_bond(sit->second, dit->second, BondData(conn.order()));
     if (!ok)
       ABSL_LOG(WARNING) << "Duplicate bond between atoms " << sit->second
                         << " and " << dit->second;

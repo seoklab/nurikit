@@ -30,16 +30,16 @@ def mol():
         n9 = mut.add_atom(7).update(formal_charge=-1)
         mut.add_atom(11).update(formal_charge=+1)
 
-        mut.add_bond(c0, n9)
-        mut.add_bond(c3, c2)
-        mut.add_bond(c3, c1, BondOrder.Double)
-        mut.add_bond(c1, c2)
-        mut.add_bond(c2, c0)
-        mut.add_bond(c2, hs[4])
-        mut.add_bond(n9, hs[5])
-        mut.add_bond(c3, hs[6])
-        mut.add_bond(c1, hs[7])
-        mut.add_bond(c0, hs[8])
+        mut.register_bond(c0, n9)
+        mut.register_bond(c3, c2)
+        mut.register_bond(c3, c1, BondOrder.Double)
+        mut.register_bond(c1, c2)
+        mut.register_bond(c2, c0)
+        mut.register_bond(c2, hs[4])
+        mut.register_bond(n9, hs[5])
+        mut.register_bond(c3, hs[6])
+        mut.register_bond(c1, hs[7])
+        mut.register_bond(c0, hs[8])
 
     return mol
 

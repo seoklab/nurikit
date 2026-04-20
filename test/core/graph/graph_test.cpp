@@ -81,6 +81,9 @@ class BasicGraphTest: public testing::Test { };
 
 TYPED_TEST_SUITE(BasicGraphTest, Implementations);
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 TYPED_TEST(BasicGraphTest, CreationTest) {
   using Graph = nuri::Graph<TypeParam, TypeParam>;
 
@@ -264,6 +267,8 @@ TYPED_TEST(BasicGraphTest, AddEdgeTest) {
                 "const edge iterator should not be assignable");
 }
 
+#pragma GCC diagnostic pop
+
 template <class T>
 class AdvancedGraphTest: public testing::Test {
 public:
@@ -279,19 +284,22 @@ protected:
       graph_.add_node({ i });
     }
 
-    graph_.add_edge(0, 1, { 100 });
-    graph_.add_edge(0, 2, { 101 });
-    graph_.add_edge(5, 0, { 102 });
-    graph_.add_edge(6, 0, { 103 });
-
-    graph_.add_edge(1, 2, { 104 });
-    graph_.add_edge(7, 1, { 105 });
-    graph_.add_edge(8, 1, { 106 });
-
-    graph_.add_edge(2, 3, { 107 });
-    graph_.add_edge(9, 2, { 108 });
-
-    graph_.add_edge(3, 4, { 109 });
+    typename Graph::StoredEdge edges[] = {
+      { 0, 1, { 100 } },
+      { 0, 2, { 101 } },
+      { 5, 0, { 102 } },
+      { 6, 0, { 103 } },
+      //
+      { 1, 2, { 104 } },
+      { 7, 1, { 105 } },
+      { 8, 1, { 106 } },
+      //
+      { 2, 3, { 107 } },
+      { 9, 2, { 108 } },
+      //
+      { 3, 4, { 109 } },
+    };
+    graph_.add_edges(std::begin(edges), std::end(edges));
   }
 
   /**
@@ -548,35 +556,6 @@ TYPED_TEST(AdvancedGraphTest, AdjIteratorTest) {
   ASSERT_EQ(it1[2].edge_data(), -1);
 }
 
-TYPED_TEST(AdvancedGraphTest, PopNodeTest) {
-  using Graph = nuri::Graph<TypeParam, TypeParam>;
-  Graph &graph = this->graph_;
-
-  auto data = graph.pop_node(0);
-  ASSERT_EQ(data, 0);
-  ASSERT_EQ(graph.num_nodes(), 10);
-  ASSERT_EQ(graph.num_edges(), 6);
-  for (int i = 0; i < 10; ++i) {
-    ASSERT_EQ(graph.node(i).id(), i);
-    ASSERT_EQ(graph.node(i).data(), i + 1);
-  }
-
-  ASSERT_NE(graph.find_adjacent(0, 1), graph.adj_end(0));
-  ASSERT_NE(graph.find_adjacent(0, 6), graph.adj_end(0));
-  ASSERT_NE(graph.find_adjacent(0, 7), graph.adj_end(0));
-  ASSERT_NE(graph.find_adjacent(1, 2), graph.adj_end(1));
-  ASSERT_NE(graph.find_adjacent(1, 8), graph.adj_end(1));
-  ASSERT_NE(graph.find_adjacent(2, 3), graph.adj_end(2));
-
-  data = graph.pop_node(1);
-  ASSERT_EQ(data, 2);
-  ASSERT_EQ(graph.num_nodes(), 9);
-  ASSERT_EQ(graph.num_edges(), 3);
-  ASSERT_NE(graph.find_adjacent(0, 5), graph.adj_end(0));
-  ASSERT_NE(graph.find_adjacent(0, 6), graph.adj_end(0));
-  ASSERT_NE(graph.find_adjacent(1, 2), graph.adj_end(1));
-}
-
 TYPED_TEST(AdvancedGraphTest, EraseNoNodeTest) {
   using Graph = nuri::Graph<TypeParam, TypeParam>;
   Graph &graph = this->graph_;
@@ -687,23 +666,6 @@ TYPED_TEST(AdvancedGraphTest, EraseMixedNodesTest) {
   ASSERT_EQ(graph.find_adjacent(0, 3)->edge_data(), 105);
 }
 
-TYPED_TEST(AdvancedGraphTest, PopEdgeTest) {
-  using Graph = nuri::Graph<TypeParam, TypeParam>;
-  Graph &graph = this->graph_;
-
-  auto data = graph.pop_edge(0);
-  ASSERT_EQ(data, 100);
-  ASSERT_EQ(graph.num_edges(), 9);
-  ASSERT_EQ(graph.find_adjacent(0, 1), graph.adj_end(0));
-
-  data = graph.pop_edge(1);
-  ASSERT_EQ(data, 102);
-  ASSERT_EQ(graph.num_edges(), 8);
-  ASSERT_EQ(graph.find_adjacent(0, 5), graph.adj_end(0));
-
-  ASSERT_EQ(graph.num_nodes(), 11);
-}
-
 TYPED_TEST(AdvancedGraphTest, EraseEdgeTest) {
   using Graph = nuri::Graph<TypeParam, TypeParam>;
   Graph &graph = this->graph_;
@@ -756,11 +718,14 @@ TYPED_TEST(AdvancedGraphTest, EraseMixedEdgesTest) {
   ASSERT_EQ(graph.find_adjacent(3, 4)->edge_data(), 109);
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 TYPED_TEST(AdvancedGraphTest, EraseAddTest) {
   using Graph = nuri::Graph<TypeParam, TypeParam>;
   Graph &graph = this->graph_;
 
-  graph.pop_node(1);
+  graph.erase_nodes(graph.begin() + 1, graph.begin() + 2);
   graph.add_node({ 11 });
   ASSERT_EQ(graph.num_nodes(), 11);
 
@@ -806,6 +771,8 @@ TYPED_TEST(AdvancedGraphTest, MergeOther) {
   EXPECT_EQ(graph.node(12).data(), 12);
   EXPECT_EQ(graph.find_edge(11, 12)->data(), 1112);
 }
+
+#pragma GCC diagnostic pop
 }  // namespace
 
 // Explicit instantiation of few template classes for coverage report.

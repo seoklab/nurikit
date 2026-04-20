@@ -23,7 +23,7 @@ def _get_mol():
     with m.mutator() as mut:
         mut.add_atom(6)
         mut.add_atom(6)
-        mut.add_bond(0, 1)
+        mut.register_bond(0, 1)
     return m
 
 

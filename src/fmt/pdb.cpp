@@ -1975,7 +1975,8 @@ void read_connect_line(std::string_view line, const int src,
       continue;
     }
 
-    auto [_, added] = mut.add_bond(src, *dst, BondData(constants::kSingleBond));
+    auto [_, added] =
+        mut.register_bond(src, *dst, BondData(constants::kSingleBond));
     if (added)
       ABSL_VLOG(1) << "Added bond " << src << " -> " << *dst << " from CONECT";
   }

@@ -380,14 +380,15 @@ PyAtom PyMutator::add_atom(AtomData &&data) {
   return mol_->pyatom(idx);
 }
 
-PyBond PyMutator::add_bond(int src, int dst, BondData &&data) {
+int PyMutator::register_bond(int src, int dst, BondData &&data) {
   if (src == dst)
     throw py::value_error("source and destination atoms are the same");
 
-  auto [eid, ok] = mut().add_bond(src, dst, std::move(data));
+  auto [eid, ok] = mut().register_bond(src, dst, std::move(data));
   if (!ok)
     throw py::value_error("duplicate bond");
-  return mol_->pybond(eid);
+
+  return eid;
 }
 
 void PyBond::rotate(double angle, bool reverse, bool strict,
@@ -493,7 +494,7 @@ molecule:
 >>> with mol.mutator() as mut:  # doctest: +IGNORE_RESULT
 ...     src = mut.add_atom(6)
 ...     dst = mut.add_atom(6)
-...     mut.add_bond(src, dst)
+...     mut.register_bond(src, dst)
 >>> print(mol.num_atoms())
 2
 >>> print(mol.num_bonds())
@@ -545,7 +546,8 @@ We only document the differences from the original class. Refer to the
 :class:`BondData` class for common properties and methods.
 
 .. note:: Unlike the underlying data object, the bond cannot be created
-  directly. Use the :meth:`Mutator.add_bond` method to add a bond to a molecule.
+  directly. Use the :meth:`Mutator.register_bond` method to add a bond to a
+  molecule.
 )doc");
   py::class_<PyBondsWrapper> bonds(m, "_BondsWrapper");
 
@@ -1226,70 +1228,75 @@ context manager is exited.
 :param atom: The atom to erase.
 )doc")
       .def(
-          "add_bond",
+          "register_bond",
           [](PyMutator &self, int src, int dst, constants::BondOrder order) {
             std::tie(src, dst) = check_bond_ends(self.mol(), src, dst);
-            return self.add_bond(src, dst, BondData(get_or_throw_ord(order)));
+            return self.register_bond(src, dst,
+                                      BondData(get_or_throw_ord(order)));
           },
           py::arg("src"), py::arg("dst"),
-          py::arg("order") = constants::kSingleBond, kReturnsSubobject,
+          py::arg("order") = constants::kSingleBond,
           R"doc(
-Add a bond to the molecule.
+Register a bond to be added to the molecule. The bond is not actually added
+until the mutator context is exited.
 
 :param src: The index of the source atom.
 :param dst: The index of the destination atom.
 :param order: The order of the bond to add. Other properties of the bond are set
   to default. If not given, the bond is added with single bond order.
-:returns: The created bond.
+:returns: Index of the registered bond, after addition and before any deletions.
 )doc")
       .def(
-          "add_bond",
+          "register_bond",
           [](PyMutator &self, PyAtom &src, PyAtom &dst,
              constants::BondOrder order) {
             auto [sa, da] = check_bond_ends(self.mol(), src, dst);
-            return self.add_bond(sa.id(), da.id(),
-                                 BondData(get_or_throw_ord(order)));
+            return self.register_bond(sa.id(), da.id(),
+                                      BondData(get_or_throw_ord(order)));
           },
           py::arg("src"), py::arg("dst"),
-          py::arg("order") = constants::kSingleBond, kReturnsSubobject,
+          py::arg("order") = constants::kSingleBond,
           R"doc(
-Add a bond to the molecule.
+Register a bond to be added to the molecule. The bond is not actually added
+until the mutator context is exited.
 
 :param src: The source atom.
 :param dst: The destination atom.
 :param order: The order of the bond to add. Other properties of the bond are set
   to default. If not given, the bond is added with single bond order.
-:returns: The created bond.
+:returns: Index of the registered bond, after addition and before any deletions.
 )doc")
       .def(
-          "add_bond",
+          "register_bond",
           [](PyMutator &self, int src, int dst, const BondData &data) {
             std::tie(src, dst) = check_bond_ends(self.mol(), src, dst);
-            return self.add_bond(src, dst, BondData { data });
+            return self.register_bond(src, dst, BondData { data });
           },
-          py::arg("src"), py::arg("dst"), py::arg("data"), kReturnsSubobject,
+          py::arg("src"), py::arg("dst"), py::arg("data"),
           R"doc(
-Add a bond to the molecule.
+Register a bond to be added to the molecule. The bond is not actually added
+until the mutator context is exited.
 
 :param src: The index of the source atom.
 :param dst: The index of the destination atom.
 :param data: The data of the bond to add.
-:returns: The created bond.
+:returns: Index of the registered bond, after addition and before any deletions.
 )doc")
       .def(
-          "add_bond",
+          "register_bond",
           [](PyMutator &self, PyAtom &src, PyAtom &dst, const BondData &data) {
             auto [sa, da] = check_bond_ends(self.mol(), src, dst);
-            return self.add_bond(sa.id(), da.id(), BondData { data });
+            return self.register_bond(sa.id(), da.id(), BondData { data });
           },
-          py::arg("src"), py::arg("dst"), py::arg("data"), kReturnsSubobject,
+          py::arg("src"), py::arg("dst"), py::arg("data"),
           R"doc(
-Add a bond to the molecule.
+Register a bond to be added to the molecule. The bond is not actually added
+until the mutator context is exited.
 
 :param src: The source atom.
 :param dst: The destination atom.
 :param data: The data of the bond to add.
-:returns: The created bond.
+:returns: Index of the registered bond, after addition and before any deletions.
 )doc")
       .def(
           "mark_bond_erase",

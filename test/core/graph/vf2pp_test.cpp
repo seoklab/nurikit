@@ -27,6 +27,7 @@ int lid(const GT &g, int i) {
 }
 
 auto lemon_add_edge(GT &g, int src, int dst, int data) {
+  // NOLINTNEXTLINE(*-deprecated-declarations)
   return g.add_edge(lid(g, src), lid(g, dst), data);
 }
 

@@ -50,17 +50,17 @@ def arginine():
 @pytest.fixture()
 def arginine_bonds(arginine: Molecule):
     with arginine.mutator() as mut:
-        mut.add_bond(0, 1)
-        mut.add_bond(1, 2)
-        mut.add_bond(1, 4)
-        mut.add_bond(2, 3)
-        mut.add_bond(2, 11)
-        mut.add_bond(4, 5)
-        mut.add_bond(5, 6)
-        mut.add_bond(6, 7)
-        mut.add_bond(7, 8)
-        mut.add_bond(8, 9)
-        mut.add_bond(8, 10)
+        mut.register_bond(0, 1)
+        mut.register_bond(1, 2)
+        mut.register_bond(1, 4)
+        mut.register_bond(2, 3)
+        mut.register_bond(2, 11)
+        mut.register_bond(4, 5)
+        mut.register_bond(5, 6)
+        mut.register_bond(6, 7)
+        mut.register_bond(7, 8)
+        mut.register_bond(8, 9)
+        mut.register_bond(8, 10)
 
     return arginine
 

@@ -94,7 +94,7 @@ namespace {
           continue;
 
         if (distsq[k] <= rcov_sum_sq(e, f, threshold))
-          mut.add_bond(i, j, {});
+          mut.register_bond(i, j, {});
       }
     }
   }
@@ -124,7 +124,7 @@ namespace {
           continue;
 
         if (distsq[i] <= rcov_sum_sq(e, f, threshold))
-          mut.add_bond(src.id(), dst.id(), {});
+          mut.register_bond(src.id(), dst.id(), {});
       }
     }
   }
@@ -174,6 +174,8 @@ namespace {
       guess_connectivity_small(mut, threshold, dist);
     else
       guess_connectivity_large(mut, threshold, oct);
+
+    mut.finalize();
 
     no_excess_bonds(mut.mol(), [&](Molecule::Atom atom, int max_neighbors) {
       remove_excess_bonds_max_n(mut, mut.mol()[atom.id()], max_neighbors, pos);

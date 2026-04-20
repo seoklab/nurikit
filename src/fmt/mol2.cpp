@@ -369,7 +369,7 @@ bool parse_bond_block(MoleculeMutator &mutator, Iter &it, const Iter end) {
     }
 
     auto [_, success] =
-        mutator.add_bond(mol_ids[0], mol_ids[1], std::get<1>(tokens));
+        mutator.register_bond(mol_ids[0], mol_ids[1], std::get<1>(tokens));
     if (!success) {
       ABSL_LOG(WARNING) << "Failed to add bond " << ids[0] << " -> " << ids[1]
                         << "; check mol2 file consistency";

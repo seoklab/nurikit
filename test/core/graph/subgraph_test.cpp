@@ -275,16 +275,19 @@ protected:
       graph_.add_node({ i });
     }
 
-    graph_.add_edge(3, 1, { 100 });
-    graph_.add_edge(3, 2, { 101 });
-    graph_.add_edge(5, 3, { 102 });
-    graph_.add_edge(6, 3, { 103 });
-    graph_.add_edge(1, 2, { 104 });
-    graph_.add_edge(7, 1, { 105 });
-    graph_.add_edge(8, 1, { 106 });
-    graph_.add_edge(2, 0, { 107 });
-    graph_.add_edge(9, 2, { 108 });
-    graph_.add_edge(0, 4, { 109 });
+    Graph::StoredEdge edges[] = {
+      { 3, 1, 100 },
+      { 3, 2, 101 },
+      { 5, 3, 102 },
+      { 6, 3, 103 },
+      { 1, 2, 104 },
+      { 7, 1, 105 },
+      { 8, 1, 106 },
+      { 2, 0, 107 },
+      { 9, 2, 108 },
+      { 0, 4, 109 },
+    };
+    graph_.add_edges(std::begin(edges), std::end(edges));
 
     sg_ = subgraph_from_nodes(graph_, { 3, 10, 1, 2 });
     ASSERT_EQ(sg_.size(), 4);
@@ -482,6 +485,7 @@ TEST_F(AdvancedSubgraphTest, UpdateEdges) {
 }
 
 TEST_F(AdvancedSubgraphTest, RefreshEdges) {
+  // NOLINTNEXTLINE(*-deprecated-declarations)
   graph_.add_edge(2, 10, { 110 });
 
   sg_.refresh_edges();

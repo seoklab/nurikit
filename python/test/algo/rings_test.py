@@ -16,11 +16,11 @@ def bcp():
         for _ in range(4):
             mut.add_atom(6)
 
-        mut.add_bond(0, 1)
-        mut.add_bond(0, 2)
-        mut.add_bond(1, 2)
-        mut.add_bond(1, 3)
-        mut.add_bond(2, 3)
+        mut.register_bond(0, 1)
+        mut.register_bond(0, 2)
+        mut.register_bond(1, 2)
+        mut.register_bond(1, 3)
+        mut.register_bond(2, 3)
 
     mol.sanitize()
     return mol
@@ -33,18 +33,18 @@ def cubane():
         for _ in range(8):
             mut.add_atom(6)
 
-        mut.add_bond(0, 1)
-        mut.add_bond(0, 3)
-        mut.add_bond(0, 5)
-        mut.add_bond(1, 2)
-        mut.add_bond(1, 6)
-        mut.add_bond(2, 7)
-        mut.add_bond(2, 3)
-        mut.add_bond(3, 4)
-        mut.add_bond(4, 5)
-        mut.add_bond(4, 7)
-        mut.add_bond(5, 6)
-        mut.add_bond(6, 7)
+        mut.register_bond(0, 1)
+        mut.register_bond(0, 3)
+        mut.register_bond(0, 5)
+        mut.register_bond(1, 2)
+        mut.register_bond(1, 6)
+        mut.register_bond(2, 7)
+        mut.register_bond(2, 3)
+        mut.register_bond(3, 4)
+        mut.register_bond(4, 5)
+        mut.register_bond(4, 7)
+        mut.register_bond(5, 6)
+        mut.register_bond(6, 7)
 
     mol.sanitize()
     return mol
