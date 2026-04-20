@@ -484,8 +484,10 @@ TEST_F(AdvancedSubgraphTest, UpdateEdges) {
   EXPECT_TRUE(sg_.contains_node(8));
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 TEST_F(AdvancedSubgraphTest, RefreshEdges) {
-  // NOLINTNEXTLINE(*-deprecated-declarations)
   graph_.add_edge(2, 10, { 110 });
 
   sg_.refresh_edges();
@@ -493,6 +495,8 @@ TEST_F(AdvancedSubgraphTest, RefreshEdges) {
   EXPECT_EQ(sg_.num_edges(), 4);
   EXPECT_TRUE(sg_.contains_edge(10));
 }
+
+#pragma GCC diagnostic pop
 
 TEST_F(AdvancedSubgraphTest, AddEdges) {
   sg_.add_edge(2);
