@@ -593,13 +593,17 @@ public:
    *         a value type implicitly convertible to `NT`.
    * @param begin The beginning of the range of nodes to be added.
    * @param end The end of the range of nodes to be added.
+   * @return The first node id among the newly added nodes, or num_nodes() if no
+   *         nodes are added.
    * @note Time complexity: \f$O(N)\f$.
    */
   template <class Iterator,
             internal::enable_if_compatible_iter_t<Iterator, NT> = 0>
-  void add_nodes(Iterator begin, Iterator end) {
+  int add_nodes(Iterator begin, Iterator end) {
+    const int first = num_nodes();
     nodes_.insert(nodes_.end(), begin, end);
     offsets_.resize(num_nodes() + 1, offsets_.back());
+    return first;
   }
 
   /**
@@ -654,6 +658,8 @@ public:
    *         `StoredEdge`.
    * @param begin The beginning of the range of edges to be added.
    * @param end The end of the range of edges to be added.
+   * @return The first edge id among the newly added edges, or num_edges() if
+   *         no edges are added.
    * @note Time complexity: \f$O(V + E')\f$ in general, where \f$E'\f$ is the
    *       length of `[begin, end)`. Degenerates to \f$O(E')\f$ when every new
    *       edge's endpoints are among the nodes added since the last edge
@@ -661,10 +667,11 @@ public:
    */
   template <class Iterator,
             internal::enable_if_compatible_iter_t<Iterator, StoredEdge> = 0>
-  void add_edges(Iterator begin, Iterator end) {
+  int add_edges(Iterator begin, Iterator end) {
     const int first = num_edges();
     edges_.insert(edges_.end(), begin, end);
     publish_edges_from(first);
+    return first;
   }
 
   NodeRef operator[](int id) { return node(id); }
