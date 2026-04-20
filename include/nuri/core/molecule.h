@@ -20,6 +20,7 @@
 #include <absl/base/attributes.h>
 #include <absl/base/optimization.h>
 #include <absl/container/fixed_array.h>
+#include <absl/container/flat_hash_map.h>
 #include <absl/log/absl_check.h>
 #include <boost/container/flat_map.hpp>
 #include <Eigen/Dense>
@@ -1745,14 +1746,17 @@ private:
 /**
  * @brief A class to mutate a molecule.
  *
- * Atom and bond addition is directly applied to the molecule, but atom and bond
- * erasure is delayed until the `finalize()` method is called. This is because
- * the erasure of atoms might change the atom indices of the remaining atoms,
- * and might give unexpected results if the erasure is done before any other
- * mutations. The erasures will be applied in this order:
+ * Atom addition is directly applied to the molecule, but bond addition and
+ * atom/bond erasure are delayed until the `finalize()` method is called. This
+ * is because bulk bond addition is more efficient than individual bond
+ * addition, and atom erasure might change the atom indices of the remaining
+ * atoms, resulting in unexpected behavior if the mutation is not applied in the
+ * correct order. The `finalize()` method applies the mutations in the following
+ * order:
  *
- * 1. Bond erasures.
- * 2. Atom erasures.
+ * 1. Add registered bonds.
+ * 2. Erase marked bonds.
+ * 3. Erase marked atoms.
  *
  * If `finalize()` method is not explicitly called, the destructor will
  * automatically call it.
@@ -1773,8 +1777,7 @@ public:
    * @param mol The molecule to mutate.
    */
   MoleculeMutator(Molecule &mol)
-      : mol_(&mol), prev_num_atoms_(mol.num_atoms()),
-        prev_num_bonds_(mol.num_bonds()) { }
+      : mol_(&mol), prev_num_atoms_(mol.num_atoms()) { }
 
   MoleculeMutator() = delete;
   MoleculeMutator(const MoleculeMutator &) = delete;
@@ -1829,41 +1832,48 @@ public:
   void clear_atoms() noexcept;
 
   /**
-   * @brief Add a bond to the molecule.
+   * @brief Register a bond to be added to the molecule.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
    * @param bond The data of the bond to add.
-   * @return A pair of (bond index, was added). If not added, the bond index is
-   *         the index of the existing bond (the data is not modified).
+   * @return A pair of (tentative bond index, will be added). The tentative bond
+   *         index is the index of the bond if it is added (before any erasure
+   *         is applied), or the index of the existing bond if it is not added.
+   *         The data of the existing bond is not modified.
    * @note The behavior is undefined if any of the atom indices is out of range,
    *       or if src == dst.
    */
-  std::pair<int, bool> add_bond(int src, int dst, const BondData &bond);
+  std::pair<int, bool> register_bond(int src, int dst, const BondData &bond);
 
   /**
-   * @brief Add a bond to the molecule.
+   * @brief Register a bond to be added to the molecule.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
    * @param bond The data of the bond to add.
-   * @return A pair of (bond index, was added). If not added, the bond index is
-   *         the index of the existing bond (the data is not modified).
+   * @return A pair of (tentative bond index, will be added). The tentative bond
+   *         index is the index of the bond if it is added (before any erasure
+   *         is applied), or the index of the existing bond if it is not added.
+   *         The data of the existing bond is not modified.
    * @note The behavior is undefined if any of the atom indices is out of range,
    *       or if src == dst.
    */
-  std::pair<int, bool> add_bond(int src, int dst, BondData &&bond) noexcept;
+  std::pair<int, bool> register_bond(int src, int dst,
+                                     BondData &&bond) noexcept;
 
   /**
-   * @brief Add a bond to the molecule.
+   * @brief Register a bond to be added to the molecule.
    * @param src Index of the source atom of the bond.
    * @param dst Index of the destination atom of the bond.
    * @param bond The bond to copy the data from.
-   * @return A pair of (bond index, was added). If not added, the bond index is
-   *         the index of the existing bond (the data is not modified).
+   * @return A pair of (tentative bond index, will be added). The tentative bond
+   *         index is the index of the bond if it is added (before any erasure
+   *         is applied), or the index of the existing bond if it is not added.
+   *         The data of the existing bond is not modified.
    * @note The behavior is undefined if any of the atom indices is out of range,
    *       or if src == dst.
    */
-  std::pair<int, bool> add_bond(int src, int dst, Molecule::Bond bond) {
-    return add_bond(src, dst, bond.data());
+  std::pair<int, bool> register_bond(int src, int dst, Molecule::Bond bond) {
+    return register_bond(src, dst, bond.data());
   }
 
   /**
@@ -1904,14 +1914,9 @@ public:
   void clear() noexcept;
 
   /**
-   * @brief Cancel all pending atom and bond removals.
-   */
-  void discard_erasure() noexcept;
-
-  /**
    * @brief Finalize the mutation.
-   * @note The mutator internally calls discard_erasure() after applying
-   *       changes. Thus, successive calls to finalize() have no effect.
+   * @note The mutator internally calls discard() after applying changes. Thus,
+   *       successive calls to finalize() have no effect.
    * @sa Molecule::sanitize()
    *
    * This will effectively call Molecule::update_topology(), if any atoms or
@@ -1932,9 +1937,15 @@ public:
   // GCOV_EXCL_STOP
 
 private:
+  void discard_bonds() noexcept;
+
+  void discard() noexcept;
+
   Molecule *mol_;
   int prev_num_atoms_;
-  int prev_num_bonds_;
+
+  std::vector<Molecule::GraphType::StoredEdge> bond_registry_;
+  absl::flat_hash_map<int, std::vector<std::pair<int, int>>> delta_adj_;
 
   std::vector<int> erased_atoms_;
   std::vector<int> erased_bonds_;
