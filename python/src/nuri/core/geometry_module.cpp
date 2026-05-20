@@ -3,15 +3,20 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <optional>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include <absl/strings/str_cat.h>
 #include <Eigen/Dense>
+#include <pybind11/cast.h>
 #include <pybind11/eigen.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
+#include <pybind11/pytypes.h>
+#include <pybind11/stl.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/geometry.h"
@@ -72,6 +77,35 @@ check_convert_points(const NpArrayWrapper<3> &q_arr,
 auto default_qcp(ConstRef<Matrix3Xd> query, ConstRef<Matrix3Xd> templ,
                  AlignMode mode, bool reflection) {
   return qcp(query, templ, mode, reflection);
+}
+
+struct OCTreeWrapper {
+  OCTree tree;
+  Matrix3Xd pts;
+};
+
+template <class T>
+auto vector_as_eigen(const std::vector<T> &v) {
+  return E::Map<const E::Array<T, E::Dynamic, 1>>(
+      v.data(), static_cast<E::Index>(v.size()));
+}
+
+void find_neighbors_d(const OCTree &octree, const Vector3d &query, double d,
+                      int /* k */, std::vector<int> &idxs,
+                      std::vector<double> &distsq) {
+  octree.find_neighbors_d(query, d, idxs, distsq);
+}
+
+void find_neighbors_k(const OCTree &octree, const Vector3d &query,
+                      double /* d */, int k, std::vector<int> &idxs,
+                      std::vector<double> &distsq) {
+  octree.find_neighbors_k(query, k, idxs, distsq);
+}
+
+void find_neighbors_kd(const OCTree &octree, const Vector3d &query, double d,
+                       int k, std::vector<int> &idxs,
+                       std::vector<double> &distsq) {
+  octree.find_neighbors_kd(query, k, d, idxs, distsq);
 }
 
 NURI_PYTHON_MODULE(m) {
@@ -208,6 +242,180 @@ Effectively, this function is roughly equivalent to the following Python code:
 
 :warning: This function does not check if the transformation tensor is a valid
   affine transformation matrix.
+)doc");
+
+  py::class_<OCTreeWrapper>(m, "Octree", R"doc(
+An octree implementation for 3D point clouds.
+
+The octree partitions 3D space into axis-aligned boxes recursively, allowing
+efficient spatial queries such as nearest neighbor search.
+
+This implementation is designed for static point clouds; each octree instance
+keeps a copy of the original point set that could not be modified in any way.
+To update the point set, one must :py:meth:`rebuild()` the octree.
+)doc")
+      .def(py::init([](const py::handle &obj, int bucket_size) {
+             auto py_arr = py_array_cast<3>(obj);
+             OCTreeWrapper self { OCTree(), py_arr.eigen() };
+             self.tree.rebuild(self.pts, bucket_size);
+             return self;
+           }),
+           py::arg("pts"), py::arg("bucket_size") = 32, R"doc(
+Initialize the octree with a set of points.
+
+:param pts: The points to build the octree with. Must be representable as a 2D
+  numpy array of shape ``(N, 3)``.
+:param bucket_size: The maximum number of points in each leaf node of the
+  octree. Defaults to 32.
+)doc")
+      .def(
+          "rebuild",
+          [](OCTreeWrapper &self, const py::handle &obj, int bucket_size) {
+            auto py_arr = py_array_cast<3>(obj);
+            self.pts = py_arr.eigen();
+            self.tree.rebuild(self.pts, bucket_size);
+          },
+          py::arg("pts"), py::arg("bucket_size") = 32, R"doc(
+Rebuild the octree with a new set of points.
+
+:param pts: The points to build the octree with. Must be representable as a 2D
+  numpy array of shape ``(N, 3)``.
+:param bucket_size: The maximum number of points in each leaf node of the
+  octree. Defaults to 32.
+)doc")
+      .def(
+          "find_neighbors",
+          [](const OCTreeWrapper &self, const py::handle &obj,
+             std::optional<double> xd, std::optional<int> xk) {
+            auto py_arr = py_array_cast<3>(obj);
+            if (!xd && !xk) {
+              throw py::value_error(
+                  "either cutoff distance or number of neighbors must be "
+                  "specified");
+            }
+
+            void (*impl)(const OCTree &, const Vector3d &, double, int,
+                         std::vector<int> &, std::vector<double> &);
+            if (!xk) {
+              impl = find_neighbors_d;
+            } else if (!xd) {
+              impl = find_neighbors_k;
+            } else {
+              impl = find_neighbors_kd;
+            }
+            const double d = xd.value_or(0.0);
+            const int k = xk.value_or(0);
+
+            const auto pts = py_arr.eigen();
+            std::vector<std::vector<int>> all_idxs(pts.cols());
+            std::vector<std::vector<double>> all_distsq(pts.cols());
+            py::ssize_t total_neighbors = 0;
+            for (E::Index i = 0; i < pts.cols(); ++i) {
+              impl(self.tree, pts.col(i), d, k, all_idxs[i], all_distsq[i]);
+              total_neighbors += static_cast<py::ssize_t>(all_idxs[i].size());
+            }
+
+            auto py_idxs =
+                empty_numpy<2, E::Dynamic, int>({ 2, total_neighbors });
+            auto py_dist =
+                empty_numpy<E::Dynamic, 1, double>({ total_neighbors });
+
+            E::Index left = 0;
+            for (int i = 0; i < pts.cols(); ++i) {
+              const auto &idxs = all_idxs[i];
+              const auto &distsq = all_distsq[i];
+
+              auto iblk = py_idxs.eigen().middleCols(left, idxs.size());
+              iblk.row(0).setConstant(i);
+              iblk.row(1) = vector_as_eigen(idxs);
+
+              py_dist.eigen().segment(left, idxs.size()) =
+                  vector_as_eigen(distsq);
+
+              left += static_cast<py::ssize_t>(idxs.size());
+            }
+            py_dist.eigen() = py_dist.eigen().cwiseMax(0.0).cwiseSqrt();
+
+            return std::make_pair(std::move(py_idxs).numpy(),
+                                  std::move(py_dist).numpy());
+          },
+          py::arg("query"), py::kw_only(), py::arg("d") = py::none(),
+          py::arg("k") = py::none(), R"doc(
+Find neighbors of each point in the octree.
+
+:param query: The query points. Must be representable as a 2D numpy array of
+  shape ``(M, 3)``.
+:param d: The cutoff distance. If specified, only neighbors within this
+  distance will be returned.
+:param k: The number of nearest neighbors to return. If specified, at most k
+  nearest neighbors will be returned, from the closest to the farthest. If both
+  ``d`` and ``k`` are specified, only neighbors within distance ``d`` will be
+  considered when finding the k nearest neighbors.
+:returns: A tuple of two numpy arrays. The first array contains the indices of
+  the neighbors in the original point set, and the second array contains the
+  distances to the neighbors. If the query contains ``M`` points and a total of
+  ``N`` neighbors are found, the first array will have shape ``(N, 2)``, where
+  each row is a pair of (query index, neighbor index), and the second array will
+  have shape ``(N,)``, where each element is the distance to the corresponding
+  neighbor.
+)doc")
+      .def(
+          "query_tree",
+          [](const OCTreeWrapper &self, const OCTreeWrapper &other,
+             double d) -> pyt::List<py::array_t<int>> {
+            if (d < 0)
+              throw py::value_error(absl::StrCat(
+                  "cutoff distance must be non-negative; got ", d));
+
+            std::vector<std::vector<int>> idxs =
+                self.tree.find_neighbors_tree(other.tree, d);
+
+            auto ret = py::list(self.pts.cols());
+            for (int i = 0; i < idxs.size(); ++i) {
+              const auto &nbrs = idxs[i];
+              auto py_nbrs = empty_numpy<E::Dynamic, 1, int>(
+                  { static_cast<py::ssize_t>(nbrs.size()) });
+              py_nbrs.eigen() = vector_as_eigen(nbrs);
+              ret[i] = std::move(py_nbrs).numpy();
+            }
+            return ret;
+          },
+          py::arg("other"), py::kw_only(), py::arg("d"), R"doc(
+Find all neighbors in another octree.
+
+:param other: The other octree to query.
+:param d: The cutoff distance for neighbors. Must be non-negative.
+:returns: A list of numpy arrays. For point ``i`` in the original octree,
+  ``results[i]`` is a 1D numpy array containing the indices of its neighbors in
+  the ``other`` octree.
+)doc")
+      .def(
+          "query_pairs",
+          [](const OCTreeWrapper &self, double d) {
+            if (d < 0)
+              throw py::value_error(absl::StrCat(
+                  "cutoff distance must be non-negative; got ", d));
+
+            std::vector<int> is, js;
+            self.tree.find_neighbors_self(d, is, js);
+
+            auto py_idxs = empty_numpy<2, E::Dynamic, int>(
+                { 2, static_cast<py::ssize_t>(is.size()) });
+            if (is.empty())
+              return std::move(py_idxs).numpy();
+
+            py_idxs.eigen().row(0) = vector_as_eigen(is);
+            py_idxs.eigen().row(1) = vector_as_eigen(js);
+            return std::move(py_idxs).numpy();
+          },
+          py::kw_only(), py::arg("d"), R"doc(
+Find all non-redundant pairs of neighbors in the octree.
+
+:param d: The cutoff distance for neighbors. Must be non-negative.
+:returns: A numpy array of shape ``(N, 2)``, where each row is a pair of
+  neighbor indices in the original point set. The pairs are non-redundant,
+  meaning that if :math:`(i, j)` is in the array, then :math:`(j, i)` will not
+  be in the array, and :math:`i \neq j`.
 )doc");
 }
 }  // namespace

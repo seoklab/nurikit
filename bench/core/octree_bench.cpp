@@ -32,6 +32,25 @@ namespace {
     return std::move(mol.confs()[0]);
   }
 
+  void octree_build(benchmark::State &state) {
+    Matrix3Xd pts = read_1ubq(state);
+    if (state.skipped())
+      return;
+
+    pts = pts.leftCols(state.range(0));
+    for (auto _: state) {
+      OCTree tree(pts);
+      benchmark::DoNotOptimize(tree);
+    }
+
+    state.SetComplexityN(state.range(0));
+  }
+  BENCHMARK(octree_build)
+      ->RangeMultiplier(2)
+      ->Range(16, 1024)
+      ->Complexity(benchmark::oNLogN)
+      ->Unit(benchmark::kMicrosecond);
+
   void octree_distance_query(benchmark::State &state) {
     Matrix3Xd pts = read_1ubq(state);
     if (state.skipped())
@@ -92,6 +111,48 @@ namespace {
       ->RangeMultiplier(2)
       ->Range(16, 1024)
       ->Complexity(benchmark::oNLogN)
+      ->Unit(benchmark::kMicrosecond);
+
+  void octree_inter_query(benchmark::State &state) {
+    Matrix3Xd pts = read_1ubq(state);
+    if (state.skipped())
+      return;
+
+    pts.conservativeResize(Eigen::NoChange, state.range(0));
+    const OCTree tree(pts);
+    const double cutoff = 5.0;
+
+    std::vector<int> is, js;
+    tree.find_neighbors_tree(tree, cutoff, is, js);
+
+    for (auto _: state) {
+      tree.find_neighbors_tree(tree, cutoff, is, js);
+    }
+  }
+  BENCHMARK(octree_inter_query)
+      ->RangeMultiplier(2)
+      ->Range(16, 1024)
+      ->Unit(benchmark::kMicrosecond);
+
+  void octree_intra_query(benchmark::State &state) {
+    Matrix3Xd pts = read_1ubq(state);
+    if (state.skipped())
+      return;
+
+    pts.conservativeResize(Eigen::NoChange, state.range(0));
+    const OCTree tree(pts);
+    const double cutoff = 5.0;
+
+    std::vector<int> is, js;
+    tree.find_neighbors_self(cutoff, is, js);
+
+    for (auto _: state) {
+      tree.find_neighbors_self(cutoff, is, js);
+    }
+  }
+  BENCHMARK(octree_intra_query)
+      ->RangeMultiplier(2)
+      ->Range(16, 1024)
       ->Unit(benchmark::kMicrosecond);
 }  // namespace
 }  // namespace nuri
