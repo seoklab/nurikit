@@ -244,8 +244,7 @@ TEST(OCTreeTest, FindNeighborTree) {
   double cutoff = std::pow(2.0 * 5 / 100, 1.0 / 3.0);
 
   OCTree ltree(x), rtree(y);
-  std::vector<std::vector<int>> idxs;
-  ltree.find_neighbors_tree(rtree, cutoff, idxs);
+  std::vector<std::vector<int>> idxs = ltree.find_neighbors_tree(rtree, cutoff);
 
   for (int i = 0; i < x.cols(); ++i) {
     std::vector<int> &nbrs = idxs[i];
@@ -274,8 +273,7 @@ TEST(OCTreeTest, FindNeighborTreeAsymmetric) {
   double cutoff = std::pow(2.0 * 5 / 100, 1.0 / 3.0);
 
   OCTree ltree(x), rtree(y);
-  std::vector<std::vector<int>> idxs;
-  ltree.find_neighbors_tree(rtree, cutoff, idxs);
+  std::vector<std::vector<int>> idxs = ltree.find_neighbors_tree(rtree, cutoff);
 
   for (int i = 0; i < x.cols(); ++i) {
     std::vector<int> &nbrs = idxs[i];
@@ -295,7 +293,7 @@ TEST(OCTreeTest, FindNeighborTreeAsymmetric) {
     }
   }
 
-  rtree.find_neighbors_tree(ltree, cutoff, idxs);
+  idxs = rtree.find_neighbors_tree(ltree, cutoff);
 
   for (int j = 0; j < y.cols(); ++j) {
     std::vector<int> &nbrs = idxs[j];
@@ -321,8 +319,7 @@ TEST(OCTreeTest, FindNeighborTreeFull) {
   Matrix3Xd y = Matrix3Xd::Random(3, 100);
 
   OCTree ltree(x), rtree(y);
-  std::vector<std::vector<int>> idxs;
-  ltree.find_neighbors_tree(rtree, 10.0, idxs);
+  std::vector<std::vector<int>> idxs = ltree.find_neighbors_tree(rtree, 10.0);
 
   for (int i = 0; i < x.cols(); ++i) {
     std::vector<int> &nbrs = idxs[i];
@@ -333,6 +330,70 @@ TEST(OCTreeTest, FindNeighborTreeFull) {
     for (int j = 0; j < y.cols(); ++j) {
       ASSERT_LT(j, nbrs.size());
       ASSERT_EQ(nbrs[j], j) << "i = " << i << ", j = " << j;
+    }
+  }
+}
+
+TEST(OCTreeTest, FindNeighborSelf) {
+  Matrix3Xd x = Matrix3Xd::Random(3, 100);
+  MatrixXd dmat = cdist(x, x);
+
+  OCTree tree(x, 8);
+  std::vector<int> is, js;
+
+  {
+    double cutoff = std::pow(2.0 * 5 / 100, 1.0 / 3.0);
+    tree.find_neighbors_self(cutoff, is, js);
+
+    std::vector<std::vector<int>> nbrs(tree.pts().cols());
+    for (int p = 0; p < is.size(); ++p) {
+      nbrs[is[p]].push_back(js[p]);
+      nbrs[js[p]].push_back(is[p]);
+    }
+
+    for (int i = 0; i < x.cols(); ++i) {
+      absl::c_sort(nbrs[i]);
+      int k = 0;
+
+      ASSERT_EQ(nbrs[i].size(), (dmat.row(i).array() <= cutoff).count() - 1)
+          << "i = " << i;
+
+      for (int j = 0; j < x.cols(); ++j) {
+        double d = dmat(i, j);
+        if (d <= cutoff && i != j) {
+          ASSERT_LT(k, nbrs[i].size());
+          ASSERT_EQ(nbrs[i][k], j) << "i = " << i << ", j = " << j;
+          ++k;
+        }
+      }
+    }
+  }
+
+  {
+    double cutoff = 1;
+    tree.find_neighbors_self(cutoff, is, js);
+
+    std::vector<std::vector<int>> nbrs(tree.pts().cols());
+    for (int p = 0; p < is.size(); ++p) {
+      nbrs[is[p]].push_back(js[p]);
+      nbrs[js[p]].push_back(is[p]);
+    }
+
+    for (int i = 0; i < x.cols(); ++i) {
+      absl::c_sort(nbrs[i]);
+      int k = 0;
+
+      ASSERT_EQ(nbrs[i].size(), (dmat.row(i).array() <= cutoff).count() - 1)
+          << "i = " << i;
+
+      for (int j = 0; j < x.cols(); ++j) {
+        double d = dmat(i, j);
+        if (d <= cutoff && i != j) {
+          ASSERT_LT(k, nbrs[i].size());
+          ASSERT_EQ(nbrs[i][k], j) << "i = " << i << ", j = " << j;
+          ++k;
+        }
+      }
     }
   }
 }
