@@ -116,7 +116,14 @@ public:
                          std::vector<double> &distsq) const;
 
   void find_neighbors_tree(const OCTree &oct, double cutoff,
-                           std::vector<std::vector<int>> &idxs) const;
+                           std::vector<int> &self,
+                           std::vector<int> &other) const;
+
+  std::vector<std::vector<int>> find_neighbors_tree(const OCTree &oct,
+                                                    double cutoff) const;
+
+  void find_neighbors_self(double cutoff, std::vector<int> &left,
+                           std::vector<int> &right) const;
 
   const Points &pts() const { return pts_; }
 
