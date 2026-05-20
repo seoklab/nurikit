@@ -3,11 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <optional>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
+#include <vector>
 
-#include <absl/algorithm/container.h>
 #include <absl/strings/str_cat.h>
 #include <Eigen/Dense>
 #include <pybind11/cast.h>
@@ -400,7 +401,7 @@ Find all neighbors in another octree.
 
             auto py_idxs = empty_numpy<2, E::Dynamic, int>(
                 { 2, static_cast<py::ssize_t>(is.size()) });
-            if (is.size() == 0)
+            if (is.empty())
               return std::move(py_idxs).numpy();
 
             py_idxs.eigen().row(0) = vector_as_eigen(is);
