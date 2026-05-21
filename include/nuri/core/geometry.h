@@ -104,16 +104,12 @@ public:
     rebuild();
   }
 
-  void find_neighbors_k(const Vector3d &pt, int k, std::vector<int> &idxs,
-                        std::vector<double> &distsq) const;
+  void find_neighbors_kd(const Vector3d &pt, int k, std::vector<int> &idxs,
+                         std::vector<double> &distsq, double cutoff = -1) const;
 
   void find_neighbors_d(const Vector3d &pt, double cutoff,
                         std::vector<int> &idxs,
                         std::vector<double> &distsq) const;
-
-  void find_neighbors_kd(const Vector3d &pt, int k, double cutoff,
-                         std::vector<int> &idxs,
-                         std::vector<double> &distsq) const;
 
   void find_neighbors_tree(const OCTree &oct, double cutoff,
                            std::vector<int> &self,
