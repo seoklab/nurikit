@@ -176,6 +176,137 @@ private:
   int bucket_size_ = 32;
 };
 
+/**
+ * @brief A uniform voxel-grid (cell list) index for 3D point clouds with a
+ *        fixed neighbor cutoff.
+ *
+ * Unlike OCTree, the cutoff distance is baked in at build time and equals the
+ * voxel edge length. Neighbor queries therefore only need to scan the 3x3x3 =
+ * 27 voxels around each query point. The grid stores its contents in a
+ * CSR-style layout:
+ *  - `cell_offset()` is a prefix-sum array of length `num_cells() + 1`.
+ *  - `cell_pts()` contains all atom indices grouped by voxel, of length
+ *    equal to the number of input points.
+ *
+ * The grid owns its own copy of the input coordinates, reordered so that
+ * points belonging to the same voxel are contiguous in memory. `pts()`
+ * returns this reordered copy, not the original input; the `p`-th column of
+ * `pts()` corresponds to the original input point `cell_pts()[p]`. The
+ * original point set is *not* referenced after rebuild() returns, so the
+ * caller is free to mutate or destroy it.
+ */
+class VoxelGrid {
+public:
+  using Points = Eigen::Map<const Matrix3Xd>;
+
+  VoxelGrid() = default;
+
+  template <
+      class MatrixLike,
+      std::enable_if_t<
+          std::is_same_v<internal::remove_cvref_t<typename MatrixLike::Scalar>,
+                         double>
+              && !MatrixLike::IsRowMajor && MatrixLike::RowsAtCompileTime == 3
+              && MatrixLike::InnerStrideAtCompileTime == 1
+              && MatrixLike::OuterStrideAtCompileTime == 3,
+          int> = 0>
+  explicit VoxelGrid(const MatrixLike &pts, double cutoff): cutoff_(cutoff) {
+    rebuild_impl(Points(pts.data(), 3, pts.cols()));
+  }
+
+  template <
+      class MatrixLike,
+      std::enable_if_t<
+          std::is_same_v<internal::remove_cvref_t<typename MatrixLike::Scalar>,
+                         double>
+              && !MatrixLike::IsRowMajor && MatrixLike::RowsAtCompileTime == 3
+              && MatrixLike::InnerStrideAtCompileTime == 1
+              && MatrixLike::OuterStrideAtCompileTime == 3,
+          int> = 0>
+  void rebuild(const MatrixLike &pts, double cutoff = -1.0) {
+    if (cutoff > 0)
+      cutoff_ = cutoff;
+    rebuild_impl(Points(pts.data(), 3, pts.cols()));
+  }
+
+  /**
+   * @brief Find indices of all points within the build-time cutoff of a query
+   *        point.
+   * @param pt The query point.
+   * @param idxs Output indices into pts() of the matched points.
+   * @param distsq Output squared distances corresponding to each matched
+   *        index.
+   */
+  void find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
+                        std::vector<double> &distsq) const;
+
+  /**
+   * @brief Find all pairs (i, j) where i is in *this and j is in @p grid and
+   *        the distance between the points is within the build-time cutoff of
+   *        *this.
+   * @param grid The other voxel grid; only its point set is used.
+   * @param self Output indices into *this.
+   * @param other Output indices into @p grid.
+   */
+  void find_neighbors_grid(const VoxelGrid &grid, std::vector<int> &self,
+                           std::vector<int> &other) const;
+
+  /**
+   * @brief Convenience overload returning a per-self adjacency list.
+   * @param grid The other voxel grid; only its point set is used.
+   * @return A vector of size `pts().cols()`; the i-th entry contains the
+   *         indices into @p grid whose points are within the cutoff of
+   *         point i in *this.
+   */
+  std::vector<std::vector<int>>
+  find_neighbors_grid(const VoxelGrid &grid) const;
+
+  /**
+   * @brief Find all non-redundant pairs of neighbors within the build-time
+   *        cutoff.
+   * @param left Output indices of the first member of each pair.
+   * @param right Output indices of the second member of each pair.
+   *
+   * Each pair is reported exactly once with `i != j`; if `(i, j)` is emitted
+   * then `(j, i)` will not be. The ordering between `left[k]` and `right[k]`
+   * is unspecified.
+   */
+  void find_neighbors_self(std::vector<int> &left,
+                           std::vector<int> &right) const;
+
+  /**
+   * @brief The grid-owned, cell-reordered copy of the input coordinates.
+   *
+   * The `p`-th column corresponds to the original input point at index
+   * `cell_pts()[p]`. Use `cell_pts()` to translate between the internal
+   * layout and the caller's indexing.
+   */
+  const Matrix3Xd &pts() const { return pts_; }
+
+  double cutoff() const { return cutoff_; }
+
+  const Vector3d &origin() const { return origin_; }
+
+  const Array3i &dims() const { return dims_; }
+
+  int num_cells() const { return static_cast<int>(cell_offset_.size()) - 1; }
+
+  const ArrayXi &cell_offset() const { return cell_offset_; }
+
+  const ArrayXi &cell_pts() const { return cell_pts_; }
+
+private:
+  void rebuild_impl(const Points &src);
+
+  Matrix3Xd pts_;
+  Vector3d origin_;
+  Array3i dims_;
+  ArrayXi cell_offset_;
+  ArrayXi cell_pts_;
+  double cutoff_;
+  int max_occ_;
+};
+
 namespace constants {
   constexpr double kPi =
       3.1415926535897932384626433832795028841971693993751058209749445923078164;
