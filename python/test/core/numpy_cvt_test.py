@@ -11,7 +11,7 @@ from nuri.core._core import _py_array_cast_test_helper as cast_test_helper
 
 def _assert_same_array(arr1: np.ndarray, arr2: np.ndarray):
     assert arr1.shape == arr2.shape
-    assert arr1.data.obj is arr2.data.obj
+    assert arr1.ctypes.data == arr2.ctypes.data
 
 
 def test_cast_1d():
@@ -20,8 +20,8 @@ def test_cast_1d():
     with pytest.raises(ValueError, match="expected 2D"):
         cast_test_helper(arr, "matrix")
 
-    with pytest.raises(ValueError, match="expected 2D"):
-        cast_test_helper(arr, "dynamic")
+    out = cast_test_helper(arr, "dynamic")
+    _assert_same_array(arr[None, :], out)
 
     out = cast_test_helper(arr, "col_vector")
     _assert_same_array(arr, out)
@@ -65,7 +65,7 @@ def test_cast_shape_mismatch():
 def _assert_same_content(arr1: np.ndarray, arr2: np.ndarray):
     assert arr1.shape == arr2.shape
     assert np.allclose(arr1, arr2)
-    assert arr1.data.obj is not arr2.data.obj
+    assert arr1.ctypes.data != arr2.ctypes.data
 
 
 def test_cast_inner_strided():
