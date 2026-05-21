@@ -20,8 +20,8 @@ def test_cast_1d():
     with pytest.raises(ValueError, match="expected 2D"):
         cast_test_helper(arr, "matrix")
 
-    with pytest.raises(ValueError, match="expected 2D"):
-        cast_test_helper(arr, "dynamic")
+    out = cast_test_helper(arr, "dynamic")
+    _assert_same_array(arr[None, :], out)
 
     out = cast_test_helper(arr, "col_vector")
     _assert_same_array(arr, out)
