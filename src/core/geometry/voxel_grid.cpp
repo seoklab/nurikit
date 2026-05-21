@@ -231,23 +231,18 @@ VoxelGrid::find_neighbors_grid(const VoxelGrid &grid) const {
 }
 
 namespace {
-  // Forward half-shell of 13 neighbor cells, ordered so each unordered cell
-  // pair is visited exactly once: (dx > 0, dy = 0, dz = 0), then any
-  // (dy > 0, dz = 0), then any (dz > 0).
-  constexpr int kHalfShell[13][3] = {
-    {  1,  0, 0 },
-    { -1,  1, 0 },
-    {  0,  1, 0 },
-    {  1,  1, 0 },
-    { -1, -1, 1 },
-    {  0, -1, 1 },
-    {  1, -1, 1 },
-    { -1,  0, 1 },
-    {  0,  0, 1 },
-    {  1,  0, 1 },
-    { -1,  1, 1 },
-    {  0,  1, 1 },
-    {  1,  1, 1 },
+  // Forward half-shell of 13 neighbor cells, grouped into 5 rows of contiguous
+  // dx ranges per (dy, dz). Each row enumerates every unordered cell pair
+  // exactly once: the (dy=0, dz=0) row spans dx > 0 only, the four (dy != 0 or
+  // dz > 0) rows span dx ∈ {-1, 0, 1}. Fusing the dx range into one wider qts
+  // slab amortises per-call overhead vs. the unfused 13-entry walk.
+  constexpr int kHalfShellRows[5][4] = {
+    // { dy, dz, dx_lo, dx_hi }
+    {  0, 0,  1, 1 },
+    {  1, 0, -1, 1 },
+    { -1, 1, -1, 1 },
+    {  0, 1, -1, 1 },
+    {  1, 1, -1, 1 },
   };
 }  // namespace
 
@@ -259,13 +254,14 @@ void VoxelGrid::find_neighbors_self(std::vector<int> &left,
   if (pts_.cols() == 0)
     return;
 
-  VectorXd dsqbuf(max_occ_);
-  ArrayXi jbuf(max_occ_);
-
-  const double cutsq = cutoff_ * cutoff_;
   const int nx = dims_.x();
   const int ny = dims_.y();
   const int nz = dims_.z();
+
+  VectorXd dsqbuf(3 * max_occ_);
+  ArrayXi jbuf(dsqbuf.size());
+
+  const double cutsq = cutoff_ * cutoff_;
 
   for (int cz = 0; cz < nz; ++cz) {
     for (int cy = 0; cy < ny; ++cy) {
@@ -289,16 +285,17 @@ void VoxelGrid::find_neighbors_self(std::vector<int> &left,
                         cell_pts_.data() + ab + p + 1, cnt, cutsq);
         }
 
-        for (const auto &d: kHalfShell) {
-          const int bx = cx + d[0];
-          const int by = cy + d[1];
-          const int bz = cz + d[2];
-          if (bx < 0 || bx >= nx || by < 0 || by >= ny || bz < 0 || bz >= nz)
+        for (auto [dy, dz, dxlo, dxhi]: kHalfShellRows) {
+          const int by = cy + dy;
+          const int bz = cz + dz;
+          const int bxlo = nuri::max(cx + dxlo, 0);
+          const int bxhi = nuri::min(cx + dxhi, nx - 1);
+          if (by < 0 || by >= ny || bz < 0 || bz >= nz || bxlo > bxhi)
             continue;
 
-          const int vb = bx + nx * (by + ny * bz);
-          const int bb = cell_offset_[vb];
-          const int be = cell_offset_[vb + 1];
+          const int baserow = nx * (by + ny * bz);
+          const int bb = cell_offset_[bxlo + baserow];
+          const int be = cell_offset_[bxhi + baserow + 1];
           const int nb = be - bb;
           if (nb == 0)
             continue;
