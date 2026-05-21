@@ -197,36 +197,18 @@ private:
  */
 class VoxelGrid {
 public:
-  using Points = Eigen::Map<const Matrix3Xd>;
+  using Points = ConstRef<Matrix3Xd>;
 
   VoxelGrid() = default;
 
-  template <
-      class MatrixLike,
-      std::enable_if_t<
-          std::is_same_v<internal::remove_cvref_t<typename MatrixLike::Scalar>,
-                         double>
-              && !MatrixLike::IsRowMajor && MatrixLike::RowsAtCompileTime == 3
-              && MatrixLike::InnerStrideAtCompileTime == 1
-              && MatrixLike::OuterStrideAtCompileTime == 3,
-          int> = 0>
-  explicit VoxelGrid(const MatrixLike &pts, double cutoff): cutoff_(cutoff) {
-    rebuild_impl(Points(pts.data(), 3, pts.cols()));
+  explicit VoxelGrid(Points pts, double cutoff): cutoff_(cutoff) {
+    rebuild_impl(pts);
   }
 
-  template <
-      class MatrixLike,
-      std::enable_if_t<
-          std::is_same_v<internal::remove_cvref_t<typename MatrixLike::Scalar>,
-                         double>
-              && !MatrixLike::IsRowMajor && MatrixLike::RowsAtCompileTime == 3
-              && MatrixLike::InnerStrideAtCompileTime == 1
-              && MatrixLike::OuterStrideAtCompileTime == 3,
-          int> = 0>
-  void rebuild(const MatrixLike &pts, double cutoff = -1.0) {
+  void rebuild(Points pts, double cutoff = -1.0) {
     if (cutoff > 0)
       cutoff_ = cutoff;
-    rebuild_impl(Points(pts.data(), 3, pts.cols()));
+    rebuild_impl(pts);
   }
 
   /**
@@ -296,7 +278,7 @@ public:
   const ArrayXi &cell_pts() const { return cell_pts_; }
 
 private:
-  void rebuild_impl(const Points &src);
+  void rebuild_impl(Points src);
 
   Matrix3Xd pts_;
   Vector3d origin_;

@@ -20,7 +20,7 @@ namespace {
   }
 }  // namespace
 
-void VoxelGrid::rebuild_impl(const Points &src) {
+void VoxelGrid::rebuild_impl(Points src) {
   ABSL_DCHECK_GT(cutoff_, 0.0);
 
   const int n = static_cast<int>(src.cols());
