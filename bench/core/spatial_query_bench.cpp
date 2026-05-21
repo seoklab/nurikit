@@ -3,6 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <utility>
+#include <vector>
+
 #include <benchmark/benchmark.h>
 #include <Eigen/Dense>
 
@@ -12,6 +15,8 @@
 
 namespace nuri {
 namespace {
+  constexpr double kCutoff = 5.0;
+
   Matrix3Xd read_1ubq(benchmark::State &state) {
     FileMoleculeReader<> reader("pdb", "test/test_data/1ubqFH.pdb");
     auto stream = reader.stream();
@@ -113,6 +118,35 @@ namespace {
       ->Complexity(benchmark::oNLogN)
       ->Unit(benchmark::kMicrosecond);
 
+  void octree_count_distance_query(benchmark::State &state) {
+    Matrix3Xd pts = read_1ubq(state);
+    if (state.skipped())
+      return;
+
+    const OCTree tree(pts);
+    const int count = 10;
+
+    std::vector<int> idxs;
+    std::vector<double> dsqs;
+
+    for (int i = 0; i < state.range(0); ++i)
+      tree.find_neighbors_kd(pts.col(i), count, 5.0, idxs, dsqs);
+
+    for (auto _: state) {
+      for (int i = 0; i < state.range(0); ++i) {
+        const Vector3d query_pt = pts.col(i);
+        tree.find_neighbors_kd(query_pt, count, 5.0, idxs, dsqs);
+      }
+    }
+
+    state.SetComplexityN(state.range(0));
+  }
+  BENCHMARK(octree_count_distance_query)
+      ->RangeMultiplier(2)
+      ->Range(16, 1024)
+      ->Complexity(benchmark::oNLogN)
+      ->Unit(benchmark::kMicrosecond);
+
   void octree_inter_query(benchmark::State &state) {
     Matrix3Xd pts = read_1ubq(state);
     if (state.skipped())
@@ -153,6 +187,103 @@ namespace {
   BENCHMARK(octree_intra_query)
       ->RangeMultiplier(2)
       ->Range(16, 1024)
+      ->Unit(benchmark::kMicrosecond);
+
+  void voxel_grid_build(benchmark::State &state) {
+    Matrix3Xd pts = read_1ubq(state);
+    if (state.skipped())
+      return;
+
+    pts = pts.leftCols(state.range(0));
+    for (auto _: state) {
+      VoxelGrid grid(pts, kCutoff);
+      benchmark::DoNotOptimize(grid);
+    }
+
+    state.SetComplexityN(state.range(0));
+  }
+  BENCHMARK(voxel_grid_build)
+      ->RangeMultiplier(2)
+      ->Range(16, 1024)
+      ->Complexity(benchmark::oN)
+      ->Unit(benchmark::kMicrosecond);
+
+  void voxel_grid_distance_query(benchmark::State &state) {
+    Matrix3Xd pts = read_1ubq(state);
+    if (state.skipped())
+      return;
+
+    const VoxelGrid grid(pts, kCutoff);
+
+    std::vector<int> idxs;
+    std::vector<double> dsqs;
+
+    ArrayXi sizes(state.range(0));
+    for (int i = 0; i < state.range(0); ++i) {
+      grid.find_neighbors_d(pts.col(i), idxs, dsqs);
+      sizes[i] = static_cast<int>(idxs.size());
+    }
+
+    for (auto _: state) {
+      for (int i = 0; i < state.range(0); ++i) {
+        const Vector3d query_pt = pts.col(i);
+        grid.find_neighbors_d(query_pt, idxs, dsqs);
+      }
+    }
+
+    state.SetComplexityN(state.range(0));
+    state.counters["nnei"] = sizes.cast<double>().mean();
+  }
+  BENCHMARK(voxel_grid_distance_query)
+      ->RangeMultiplier(2)
+      ->Range(16, 1024)
+      ->Complexity(benchmark::oN)
+      ->Unit(benchmark::kMicrosecond);
+
+  void voxel_grid_inter_query(benchmark::State &state) {
+    Matrix3Xd pts = read_1ubq(state);
+    if (state.skipped())
+      return;
+
+    pts.conservativeResize(Eigen::NoChange, state.range(0));
+    const VoxelGrid grid(pts, kCutoff);
+
+    std::vector<int> is, js;
+    grid.find_neighbors_grid(grid, is, js);
+
+    for (auto _: state) {
+      grid.find_neighbors_grid(grid, is, js);
+    }
+
+    state.SetComplexityN(state.range(0));
+  }
+  BENCHMARK(voxel_grid_inter_query)
+      ->RangeMultiplier(2)
+      ->Range(16, 1024)
+      ->Complexity(benchmark::oN)
+      ->Unit(benchmark::kMicrosecond);
+
+  void voxel_grid_intra_query(benchmark::State &state) {
+    Matrix3Xd pts = read_1ubq(state);
+    if (state.skipped())
+      return;
+
+    pts.conservativeResize(Eigen::NoChange, state.range(0));
+    const VoxelGrid grid(pts, kCutoff);
+
+    std::vector<int> is, js;
+    grid.find_neighbors_self(is, js);
+
+    for (auto _: state) {
+      grid.find_neighbors_self(is, js);
+    }
+
+    state.SetComplexityN(state.range(0));
+  }
+  BENCHMARK(voxel_grid_intra_query)
+      ->RangeMultiplier(2)
+      ->Range(16, 1024)
+      ->Complexity(benchmark::oN)
       ->Unit(benchmark::kMicrosecond);
 }  // namespace
 }  // namespace nuri
