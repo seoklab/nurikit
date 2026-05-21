@@ -5,6 +5,7 @@
 
 #include <vector>
 
+#include <absl/base/attributes.h>
 #include <absl/log/absl_check.h>
 #include <Eigen/Dense>
 
