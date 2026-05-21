@@ -126,6 +126,19 @@ namespace {
 
     return lohi;
   }
+
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline void
+  emit_filtered(std::vector<int> &left, std::vector<int> &right,
+                const VectorXd &dsqbuf, ArrayXi &jbuf, const int i,
+                const int *jsrc, int count, double cutsq) {
+    int n = 0;
+    for (int k = 0; k < count; ++k) {
+      jbuf[n] = jsrc[k];
+      n += value_if(dsqbuf[k] <= cutsq);
+    }
+    left.insert(left.end(), n, i);
+    right.insert(right.end(), jbuf.data(), jbuf.data() + n);
+  }
 }  // namespace
 
 void VoxelGrid::find_neighbors_grid(const VoxelGrid &grid,
@@ -153,7 +166,9 @@ void VoxelGrid::find_neighbors_grid(const VoxelGrid &grid,
            zlim = axis_cell_range(nz, origin_.z(), cutoff_,  //
                                   gnz, grid.origin_.z(), grid.cutoff_);
 
-  VectorXd dsqbuf(grid.max_occ_);
+  const int max_xrange = (xlim.row(1) - xlim.row(0) + 1).cwiseMax(0).maxCoeff();
+  VectorXd dsqbuf(max_xrange * grid.max_occ_);
+  ArrayXi jbuf(dsqbuf.size());
   const double cutsq = cutoff_ * cutoff_;
 
   for (int cz = 0; cz < nz; ++cz) {
@@ -184,27 +199,18 @@ void VoxelGrid::find_neighbors_grid(const VoxelGrid &grid,
           const int basey = gny * kz;
           for (int ky = cylim[0]; ky <= cylim[1]; ++ky) {
             const int basex = gnx * (ky + basey);
-            for (int kx = cxlim[0]; kx <= cxlim[1]; ++kx) {
-              const int vb = kx + basex;
-              const int bb = grid.cell_offset_[vb];
-              const int be = grid.cell_offset_[vb + 1];
-              const int nb = be - bb;
-              if (nb == 0)
-                continue;
+            const int bb = grid.cell_offset_[cxlim[0] + basex];
+            const int be = grid.cell_offset_[cxlim[1] + 1 + basex];
+            const int nb = be - bb;
+            if (nb == 0)
+              continue;
 
-              auto qts = grid.pts_.middleCols(bb, nb);
-              for (int p = 0; p < na; ++p) {
-                const Vector3d pi = pts.col(p);
-                const int i = cell_pts_[ab + p];
-
-                dsqbuf.head(nb) = (qts.colwise() - pi).colwise().squaredNorm();
-                for (int k = 0; k < nb; ++k) {
-                  if (dsqbuf[k] <= cutsq) {
-                    self.push_back(i);
-                    other.push_back(grid.cell_pts_[bb + k]);
-                  }
-                }
-              }
+            auto qts = grid.pts_.middleCols(bb, nb);
+            for (int p = 0; p < na; ++p) {
+              const Vector3d pi = pts.col(p);
+              dsqbuf.head(nb) = (qts.colwise() - pi).colwise().squaredNorm();
+              emit_filtered(self, other, dsqbuf, jbuf, cell_pts_[ab + p],
+                            grid.cell_pts_.data() + bb, nb, cutsq);
             }
           }
         }
@@ -243,19 +249,6 @@ namespace {
     {  0,  1, 1 },
     {  1,  1, 1 },
   };
-
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline void
-  emit_filtered(std::vector<int> &left, std::vector<int> &right,
-                const VectorXd &dsqbuf, ArrayXi &jbuf, const int i,
-                const int *jsrc, int count, double cutsq) {
-    int n = 0;
-    for (int k = 0; k < count; ++k) {
-      jbuf[n] = jsrc[k];
-      n += value_if(dsqbuf[k] <= cutsq);
-    }
-    left.insert(left.end(), n, i);
-    right.insert(right.end(), jbuf.data(), jbuf.data() + n);
-  }
 }  // namespace
 
 void VoxelGrid::find_neighbors_self(std::vector<int> &left,
