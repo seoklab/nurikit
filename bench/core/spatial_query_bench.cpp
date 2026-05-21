@@ -110,12 +110,12 @@ namespace {
     std::vector<double> dsqs;
 
     for (int i = 0; i < state.range(0); ++i)
-      tree.find_neighbors_k(pts.col(i), count, idxs, dsqs);
+      tree.find_neighbors_kd(pts.col(i), count, idxs, dsqs);
 
     for (auto _: state) {
       for (int i = 0; i < state.range(0); ++i) {
         const Vector3d query_pt = pts.col(i);
-        tree.find_neighbors_k(query_pt, count, idxs, dsqs);
+        tree.find_neighbors_kd(query_pt, count, idxs, dsqs);
       }
     }
 
@@ -139,12 +139,12 @@ namespace {
     std::vector<double> dsqs;
 
     for (int i = 0; i < state.range(0); ++i)
-      tree.find_neighbors_kd(pts.col(i), count, 5.0, idxs, dsqs);
+      tree.find_neighbors_kd(pts.col(i), count, idxs, dsqs, 5.0);
 
     for (auto _: state) {
       for (int i = 0; i < state.range(0); ++i) {
         const Vector3d query_pt = pts.col(i);
-        tree.find_neighbors_kd(query_pt, count, 5.0, idxs, dsqs);
+        tree.find_neighbors_kd(query_pt, count, idxs, dsqs, 5.0);
       }
     }
 

@@ -103,16 +103,10 @@ void find_neighbors_d(const OCTree &octree, const Vector3d &query, double d,
   octree.find_neighbors_d(query, d, idxs, distsq);
 }
 
-void find_neighbors_k(const OCTree &octree, const Vector3d &query,
-                      double /* d */, int k, std::vector<int> &idxs,
-                      std::vector<double> &distsq) {
-  octree.find_neighbors_k(query, k, idxs, distsq);
-}
-
 void find_neighbors_kd(const OCTree &octree, const Vector3d &query, double d,
                        int k, std::vector<int> &idxs,
                        std::vector<double> &distsq) {
-  octree.find_neighbors_kd(query, k, d, idxs, distsq);
+  octree.find_neighbors_kd(query, k, idxs, distsq, d);
 }
 
 NURI_PYTHON_MODULE(m) {
@@ -305,12 +299,10 @@ Rebuild the octree with a new set of points.
                          std::vector<int> &, std::vector<double> &);
             if (!xk) {
               impl = find_neighbors_d;
-            } else if (!xd) {
-              impl = find_neighbors_k;
             } else {
               impl = find_neighbors_kd;
             }
-            const double d = xd.value_or(0.0);
+            const double d = xd.value_or(-1);
             const int k = xk.value_or(0);
 
             const auto pts = py_arr.eigen();

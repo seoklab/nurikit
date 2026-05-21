@@ -47,17 +47,6 @@ namespace {
     return max - size.cwiseProduct(kOctantMasks[octant]);
   }
 
-  bool leaf_node(const OCTree &tree, const OCTreeNode &node) {
-    return node.nleaf() <= tree.bucket_size();
-  }
-
-  absl::Span<const int> node_points(const OCTree &tree,
-                                    const OCTreeNode &node) {
-    const int *p = node.leaf() ? node.children().data()
-                               : tree.idxs().data() + node.begin();
-    return absl::MakeConstSpan(p, node.nleaf());
-  }
-
   // partition begin - end into two parts:
   // +: [begin, ret), -: [ret, end)
   int partition_sub(ArrayXi &idxs, int begin, int end,
@@ -157,19 +146,29 @@ void OCTree::rebuild() {
 namespace {
   using Array8d = Array<double, 8, 1>;
 
-  struct PQEntry {
-    bool leaf;
+  struct NodeEntry {
     int idx;
     Vector3d maxs;
     Vector3d size;
-    double distsq;
+    double min_dsq;
   };
 
-  bool pq_cmp(const PQEntry &p1, const PQEntry &p2) {
-    return p1.distsq > p2.distsq;
+  bool node_cmp(const NodeEntry &a, const NodeEntry &b) {
+    return a.min_dsq > b.min_dsq;
   }
 
-  using PQ = internal::ClearablePQ<PQEntry, decltype(&pq_cmp)>;
+  using NodeHeap = internal::ClearablePQ<NodeEntry, decltype(&node_cmp)>;
+
+  struct CandEntry {
+    double dsq;
+    int idx;
+  };
+
+  bool cand_cmp(const CandEntry &a, const CandEntry &b) {
+    return a.dsq < b.dsq;
+  }
+
+  using CandHeap = internal::ClearablePQ<CandEntry, decltype(&cand_cmp)>;
 
   int octant_idx(const Vector3d &diff) {
     Array3i isneg = (diff.array() < 0.).cast<int>();
@@ -197,75 +196,99 @@ namespace {
     return octant_distsq;
   }
 
-  template <class UnaryPred>
-  void find_neighbors_k_impl(const OCTree &oct, const Vector3d &pt, int k,
-                             std::vector<int> &idxs,
-                             std::vector<double> &distsq, UnaryPred pred) {
-    idxs.clear();
-    distsq.clear();
-    if (k <= 0) {
-      ABSL_LOG(WARNING) << "k is not a positive number: " << k;
-      return;
-    }
-    if (k > oct.pts().cols()) {
-      ABSL_LOG(WARNING) << "k " << k << " is larger than the number of points "
-                        << oct.pts().cols();
-    }
+  bool leaf_node(const OCTree &tree, const OCTreeNode &node) {
+    return node.nleaf() <= tree.bucket_size();
+  }
 
-    PQ minheap(pq_cmp);
-    minheap.push({ false, oct.root(), oct.max(), oct.len(), 0 });
+  absl::Span<const int> node_points(const OCTree &tree,
+                                    const OCTreeNode &node) {
+    const int *p = node.leaf() ? node.children().data()
+                               : tree.idxs().data() + node.begin();
+    return absl::MakeConstSpan(p, node.nleaf());
+  }
 
-    while (!minheap.empty() && k > 0) {
-      auto [leaf, idx, maxs, size, dsq] = minheap.pop_get();
-      if (leaf) {
-        idxs.push_back(idx);
-        distsq.push_back(dsq);
-        --k;
-        continue;
-      }
-
-      const OCTreeNode &node = oct[idx];
-      if (leaf_node(oct, node)) {
-        for (const int i: node_points(oct, node)) {
-          double d = (pt - oct.pts().col(i)).squaredNorm();
-          if (pred(d))
-            minheap.push({ true, i, maxs, size, d });
-        }
-        continue;
-      }
-
-      Vector3d half = size * 0.5;
-      Vector3d cntr_diff = pt - maxs + half;
-      int octant = octant_idx(cntr_diff);
-      Array8d octant_distsq =
-          octant_min_distsq(octant, cntr_diff.cwiseAbs2(), dsq);
-
-      for (int i = 0; i < 8; ++i) {
-        int cid = node[i];
-        if (cid < 0 || !pred(octant_distsq[i]))
-          continue;
-
-        minheap.push(
-            { false, cid, max_of(i, maxs, half), half, octant_distsq[i] });
-      }
-    }
+  double maxsq_box_point(const Vector3d &box_max, const Vector3d &box_len,
+                         const Vector3d &pt) {
+    Vector3d box_min = box_max - box_len;
+    Vector3d minmax = box_min - pt, maxmin = pt - box_max;
+    double max_dsq =
+        minmax.cwiseAbs().cwiseMax(maxmin.cwiseAbs()).squaredNorm();
+    return max_dsq;
   }
 }  // namespace
 
-void OCTree::find_neighbors_k(const Vector3d &pt, const int k,
-                              std::vector<int> &idxs,
-                              std::vector<double> &distsq) const {
-  find_neighbors_k_impl(*this, pt, k, idxs, distsq,
-                        [](double /* dsq */) { return true; });
-}
-
 void OCTree::find_neighbors_kd(const Vector3d &pt, const int k,
-                               const double cutoff, std::vector<int> &idxs,
-                               std::vector<double> &distsq) const {
-  find_neighbors_k_impl(*this, pt, k, idxs, distsq,
-                        [cutoffsq = cutoff * cutoff](double dsq) {
-                          return dsq <= cutoffsq;
-                        });
+                               std::vector<int> &idxs,
+                               std::vector<double> &distsq,
+                               double cutoff) const {
+  idxs.clear();
+  distsq.clear();
+  if (k <= 0) {
+    ABSL_LOG(WARNING) << "k is not a positive number: " << k;
+    return;
+  }
+  if (k > pts().cols()) {
+    ABSL_LOG(WARNING)
+        << "k " << k << " is larger than the number of points " << pts().cols();
+  }
+
+  double worst_dsq;
+  if (cutoff > 0) {
+    worst_dsq = cutoff * cutoff;
+  } else {
+    worst_dsq = maxsq_box_point(max_, len_, pt);
+  }
+
+  NodeHeap node_heap(node_cmp);
+  CandHeap best_heap(cand_cmp);
+  node_heap.push({ root(), max(), len(), 0 });
+
+  while (!node_heap.empty()) {
+    auto [idx, maxs, size, min_dsq] = node_heap.pop_get();
+    // Nodes are popped in order of increasing min_dsq, so once min_dsq
+    // exceeds worst_dsq we cannot improve the answer anymore.
+    if (min_dsq > worst_dsq)
+      break;
+
+    const OCTreeNode &node = nodes()[idx];
+    if (leaf_node(*this, node)) {
+      for (const int i: node_points(*this, node)) {
+        double d = (pt - pts().col(i)).squaredNorm();
+        if (d > worst_dsq)
+          continue;
+
+        best_heap.push({ d, i });
+        if (static_cast<int>(best_heap.size()) > k) {
+          best_heap.pop();
+          worst_dsq = best_heap.top().dsq;
+        }
+      }
+      continue;
+    }
+
+    Vector3d half = size * 0.5;
+    Vector3d cntr_diff = pt - maxs + half;
+    int octant = octant_idx(cntr_diff);
+    Array8d octant_distsq =
+        octant_min_distsq(octant, cntr_diff.cwiseAbs2(), min_dsq);
+
+    for (int i = 0; i < 8; ++i) {
+      int cid = node[i];
+      if (cid < 0 || octant_distsq[i] > worst_dsq)
+        continue;
+
+      node_heap.push({ cid, max_of(i, maxs, half), half, octant_distsq[i] });
+    }
+  }
+
+  const int n = static_cast<int>(best_heap.size());
+  idxs.resize(n);
+  distsq.resize(n);
+  for (int i = n - 1; i >= 0; --i) {
+    auto e = best_heap.pop_get();
+    idxs[i] = e.idx;
+    distsq[i] = e.dsq;
+  }
 }
 
 namespace {

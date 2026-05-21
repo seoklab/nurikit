@@ -124,7 +124,7 @@ void verify_octree_neighbor_k(const OCTree &tree, const Vector3d &qry,
 
   std::vector<int> idxs;
   std::vector<double> distsq;
-  tree.find_neighbors_k(qry, n, idxs, distsq);
+  tree.find_neighbors_kd(qry, n, idxs, distsq);
   ASSERT_EQ(idxs.size(), answer.size());
 
   for (int i = 0; i < idxs.size(); ++i) {
@@ -206,7 +206,7 @@ void verify_octree_neighbor_kd(const OCTree &tree, const Vector3d &qry,
 
   std::vector<int> idxs;
   std::vector<double> distsq;
-  tree.find_neighbors_kd(qry, n, cutoff, idxs, distsq);
+  tree.find_neighbors_kd(qry, n, idxs, distsq, cutoff);
   ASSERT_EQ(idxs.size(), answer.size()) << onerr;
 
   for (int i = 0; i < idxs.size(); ++i) {
