@@ -223,7 +223,7 @@ class TestOctree:
     ):
         pts, _ = cloud
         tree = ngeom.Octree(pts)
-        with pytest.raises(ValueError, match="non-negative"):
+        with pytest.raises(ValueError, match="must be positive"):
             tree.query_pairs(d=-1.0)
 
     def test_query_tree(self, cloud: Tuple[np.ndarray, np.ndarray]):
@@ -245,7 +245,7 @@ class TestOctree:
         pts, qry = cloud
         tree = ngeom.Octree(pts)
         other = ngeom.Octree(qry)
-        with pytest.raises(ValueError, match="non-negative"):
+        with pytest.raises(ValueError, match="must be positive"):
             tree.query_tree(other, d=-1.0)
 
 
@@ -280,7 +280,7 @@ class TestVoxelGrid:
         cutoff: float,
     ):
         pts, _ = cloud
-        with pytest.raises(ValueError, match="positive"):
+        with pytest.raises(ValueError, match="must be positive"):
             ngeom.VoxelGrid(pts, cutoff=cutoff)
 
     def test_rebuild_invalid_cutoff(
@@ -288,9 +288,9 @@ class TestVoxelGrid:
     ):
         pts, _ = cloud
         grid = ngeom.VoxelGrid(pts, cutoff=1.5)
-        with pytest.raises(ValueError, match="positive"):
+        with pytest.raises(ValueError, match="must be positive"):
             grid.rebuild(pts, cutoff=-1.0)
-        with pytest.raises(ValueError, match="positive"):
+        with pytest.raises(ValueError, match="must be positive"):
             grid.rebuild(pts, cutoff=0.0)
 
     def test_find_neighbors(self, cloud: Tuple[np.ndarray, np.ndarray]):
