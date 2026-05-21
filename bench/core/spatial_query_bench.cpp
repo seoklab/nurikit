@@ -37,6 +37,15 @@ namespace {
     return std::move(mol.confs()[0]);
   }
 
+  Matrix3Xd create_sample(const Matrix3Xd &full, int64_t ref_size,
+                          int query_size = 128) {
+    Matrix3Xd sample = full.rightCols(query_size);
+    Vector3d ref_cntr = full.leftCols(ref_size).rowwise().mean();
+    Vector3d qry_cntr = sample.rowwise().mean();
+    sample.colwise() += ref_cntr - qry_cntr;
+    return sample;
+  }
+
   void octree_build(benchmark::State &state) {
     Matrix3Xd pts = read_1ubq(state);
     if (state.skipped())
@@ -152,16 +161,20 @@ namespace {
     if (state.skipped())
       return;
 
+    Matrix3Xd qpts = create_sample(pts, state.range(0));
+
     pts.conservativeResize(Eigen::NoChange, state.range(0));
     const OCTree tree(pts);
-    const double cutoff = 5.0;
+    const OCTree qtree(qpts);
 
     std::vector<int> is, js;
-    tree.find_neighbors_tree(tree, cutoff, is, js);
+    tree.find_neighbors_tree(qtree, kCutoff, is, js);
 
     for (auto _: state) {
-      tree.find_neighbors_tree(tree, cutoff, is, js);
+      tree.find_neighbors_tree(qtree, kCutoff, is, js);
     }
+
+    state.counters["npairs"] = static_cast<double>(is.size());
   }
   BENCHMARK(octree_inter_query)
       ->RangeMultiplier(2)
@@ -245,17 +258,21 @@ namespace {
     if (state.skipped())
       return;
 
+    Matrix3Xd qpts = create_sample(pts, state.range(0));
+
     pts.conservativeResize(Eigen::NoChange, state.range(0));
     const VoxelGrid grid(pts, kCutoff);
+    const VoxelGrid qgrid(qpts, kCutoff);
 
     std::vector<int> is, js;
-    grid.find_neighbors_grid(grid, is, js);
+    grid.find_neighbors_grid(qgrid, is, js);
 
     for (auto _: state) {
-      grid.find_neighbors_grid(grid, is, js);
+      grid.find_neighbors_grid(qgrid, is, js);
     }
 
     state.SetComplexityN(state.range(0));
+    state.counters["npairs"] = static_cast<double>(is.size());
   }
   BENCHMARK(voxel_grid_inter_query)
       ->RangeMultiplier(2)
