@@ -398,6 +398,219 @@ TEST(OCTreeTest, FindNeighborSelf) {
   }
 }
 
+TEST(VoxelGridTest, Create) {
+  Matrix3Xd m = Matrix3Xd::Random(3, 500);
+  const double cutoff = 0.3;
+  VoxelGrid grid(m, cutoff);
+
+  EXPECT_EQ(grid.pts().cols(), m.cols());
+  EXPECT_EQ(grid.cutoff(), cutoff);
+  EXPECT_EQ(grid.cell_pts().size(), m.cols());
+  ASSERT_EQ(grid.cell_offset().size(), grid.num_cells() + 1);
+  ASSERT_TRUE((grid.dims() >= 1).all());
+
+  ASSERT_EQ(grid.cell_offset()[0], 0);
+  ASSERT_EQ(grid.cell_offset()[grid.num_cells()], m.cols());
+  for (int v = 0; v < grid.num_cells(); ++v)
+    EXPECT_LE(grid.cell_offset()[v], grid.cell_offset()[v + 1]) << "v = " << v;
+
+  ArrayXi seen = grid.cell_pts();
+  absl::c_sort(seen);
+  for (int i = 0; i < m.cols(); ++i)
+    EXPECT_EQ(seen[i], i) << "i = " << i;
+
+  for (int p = 0; p < m.cols(); ++p)
+    EXPECT_TRUE(grid.pts().col(p) == m.col(grid.cell_pts()[p]))
+        << "p = " << p;
+
+  const int nx = grid.dims().x();
+  const int ny = grid.dims().y();
+  const Array3i upper = grid.dims() - 1;
+  for (int v = 0; v < grid.num_cells(); ++v) {
+    const int cz = v / (nx * ny);
+    const int cy = (v / nx) % ny;
+    const int cx = v % nx;
+    for (int p = grid.cell_offset()[v]; p < grid.cell_offset()[v + 1]; ++p) {
+      Array3i c = ((grid.pts().col(p) - grid.origin()).array() / cutoff)
+                      .floor()
+                      .cast<int>()
+                      .min(upper)
+                      .max(0);
+      EXPECT_EQ(c.x(), cx) << "v = " << v << ", p = " << p;
+      EXPECT_EQ(c.y(), cy) << "v = " << v << ", p = " << p;
+      EXPECT_EQ(c.z(), cz) << "v = " << v << ", p = " << p;
+    }
+  }
+}
+
+TEST(VoxelGridTest, FindNeighborByDistance) {
+  Matrix3Xd m = Matrix3Xd::Random(3, 500);
+  Matrix3Xd test = Matrix3Xd::Random(3, 50);
+  const double cutoff = 0.5;
+  const double cutsq = cutoff * cutoff;
+
+  VoxelGrid grid(m, cutoff);
+  std::vector<int> idxs;
+  std::vector<double> distsq;
+
+  for (int q = 0; q < test.cols(); ++q) {
+    const Vector3d qry = test.col(q);
+
+    std::vector<int> answer;
+    std::vector<double> answer_dsq;
+    for (int i = 0; i < m.cols(); ++i) {
+      double dsq = (m.col(i) - qry).squaredNorm();
+      if (dsq <= cutsq) {
+        answer.push_back(i);
+        answer_dsq.push_back(dsq);
+      }
+    }
+
+    grid.find_neighbors_d(qry, idxs, distsq);
+    ASSERT_EQ(idxs.size(), answer.size()) << "q = " << q;
+
+    for (int k = 0; k < idxs.size(); ++k)
+      EXPECT_NEAR((m.col(idxs[k]) - qry).squaredNorm(), distsq[k], 1e-12)
+          << "q = " << q << ", k = " << k;
+
+    absl::c_sort(idxs);
+    for (int k = 0; k < idxs.size(); ++k)
+      EXPECT_EQ(idxs[k], answer[k]) << "q = " << q << ", k = " << k;
+  }
+}
+
+TEST(VoxelGridTest, FindNeighborGrid) {
+  Matrix3Xd x = Matrix3Xd::Random(3, 100);
+  Matrix3Xd y = Matrix3Xd::Random(3, 100);
+  MatrixXd dmat = cdist(x, y);
+
+  double cutoff = std::pow(2.0 * 5 / 100, 1.0 / 3.0);
+
+  VoxelGrid lgrid(x, cutoff), rgrid(y, cutoff);
+  std::vector<std::vector<int>> idxs = lgrid.find_neighbors_grid(rgrid);
+
+  for (int i = 0; i < x.cols(); ++i) {
+    std::vector<int> &nbrs = idxs[i];
+    absl::c_sort(nbrs);
+    int k = 0;
+
+    ASSERT_EQ(nbrs.size(), (dmat.row(i).array() <= cutoff).count())
+        << "i = " << i;
+
+    for (int j = 0; j < y.cols(); ++j) {
+      double d = dmat(i, j);
+      if (d <= cutoff) {
+        ASSERT_LT(k, nbrs.size());
+        ASSERT_EQ(nbrs[k], j) << "i = " << i << ", j = " << j;
+        ++k;
+      }
+    }
+  }
+}
+
+TEST(VoxelGridTest, FindNeighborGridAsymmetric) {
+  Matrix3Xd x = Matrix3Xd::Random(3, 10);
+  Matrix3Xd y = Matrix3Xd::Random(3, 100);
+  MatrixXd dmat = cdist(x, y);
+
+  double cutoff = std::pow(2.0 * 5 / 100, 1.0 / 3.0);
+
+  VoxelGrid lgrid(x, cutoff), rgrid(y, cutoff);
+  std::vector<std::vector<int>> idxs = lgrid.find_neighbors_grid(rgrid);
+
+  for (int i = 0; i < x.cols(); ++i) {
+    std::vector<int> &nbrs = idxs[i];
+    absl::c_sort(nbrs);
+    int k = 0;
+
+    ASSERT_EQ(nbrs.size(), (dmat.row(i).array() <= cutoff).count())
+        << "i = " << i;
+
+    for (int j = 0; j < y.cols(); ++j) {
+      double d = dmat(i, j);
+      if (d <= cutoff) {
+        ASSERT_LT(k, nbrs.size());
+        ASSERT_EQ(nbrs[k], j) << "i = " << i << ", j = " << j;
+        ++k;
+      }
+    }
+  }
+
+  idxs = rgrid.find_neighbors_grid(lgrid);
+
+  for (int j = 0; j < y.cols(); ++j) {
+    std::vector<int> &nbrs = idxs[j];
+    absl::c_sort(nbrs);
+    int k = 0;
+
+    ASSERT_EQ(nbrs.size(), (dmat.col(j).array() <= cutoff).count())
+        << "j = " << j;
+
+    for (int i = 0; i < x.cols(); ++i) {
+      double d = dmat(i, j);
+      if (d <= cutoff) {
+        ASSERT_LT(k, nbrs.size());
+        ASSERT_EQ(nbrs[k], i) << "i = " << i << ", j = " << j;
+        ++k;
+      }
+    }
+  }
+}
+
+TEST(VoxelGridTest, FindNeighborGridFull) {
+  Matrix3Xd x = Matrix3Xd::Random(3, 10);
+  Matrix3Xd y = Matrix3Xd::Random(3, 100);
+
+  VoxelGrid lgrid(x, 10.0), rgrid(y, 10.0);
+  std::vector<std::vector<int>> idxs = lgrid.find_neighbors_grid(rgrid);
+
+  for (int i = 0; i < x.cols(); ++i) {
+    std::vector<int> &nbrs = idxs[i];
+    absl::c_sort(nbrs);
+
+    ASSERT_EQ(nbrs.size(), y.cols()) << "i = " << i;
+    for (int j = 0; j < y.cols(); ++j)
+      EXPECT_EQ(nbrs[j], j) << "i = " << i << ", j = " << j;
+  }
+}
+
+TEST(VoxelGridTest, FindNeighborSelf) {
+  Matrix3Xd x = Matrix3Xd::Random(3, 100);
+  MatrixXd dmat = cdist(x, x);
+
+  std::vector<int> is, js;
+
+  for (double cutoff: { std::pow(2.0 * 5 / 100, 1.0 / 3.0), 1.0 }) {
+    VoxelGrid grid(x, cutoff);
+    grid.find_neighbors_self(is, js);
+
+    std::vector<std::vector<int>> nbrs(grid.pts().cols());
+    for (int p = 0; p < is.size(); ++p) {
+      ASSERT_NE(is[p], js[p]) << "p = " << p;
+      nbrs[is[p]].push_back(js[p]);
+      nbrs[js[p]].push_back(is[p]);
+    }
+
+    for (int i = 0; i < x.cols(); ++i) {
+      absl::c_sort(nbrs[i]);
+      int k = 0;
+
+      ASSERT_EQ(nbrs[i].size(), (dmat.row(i).array() <= cutoff).count() - 1)
+          << "cutoff = " << cutoff << ", i = " << i;
+
+      for (int j = 0; j < x.cols(); ++j) {
+        double d = dmat(i, j);
+        if (d <= cutoff && i != j) {
+          ASSERT_LT(k, nbrs[i].size());
+          ASSERT_EQ(nbrs[i][k], j)
+              << "cutoff = " << cutoff << ", i = " << i << ", j = " << j;
+          ++k;
+        }
+      }
+    }
+  }
+}
+
 TEST(FitPlaneTest, CheckCorrectness) {
   Matrix3Xd m(3, 4);
   m.transpose() << 0.83204366, 0.51745906, 0.2127645,  //
