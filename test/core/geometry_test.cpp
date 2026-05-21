@@ -420,8 +420,7 @@ TEST(VoxelGridTest, Create) {
     EXPECT_EQ(seen[i], i) << "i = " << i;
 
   for (int p = 0; p < m.cols(); ++p)
-    EXPECT_TRUE(grid.pts().col(p) == m.col(grid.cell_pts()[p]))
-        << "p = " << p;
+    EXPECT_TRUE(grid.pts().col(p) == m.col(grid.cell_pts()[p])) << "p = " << p;
 
   const int nx = grid.dims().x();
   const int ny = grid.dims().y();
@@ -555,6 +554,61 @@ TEST(VoxelGridTest, FindNeighborGridAsymmetric) {
       }
     }
   }
+}
+
+TEST(VoxelGridTest, FindNeighborGridMismatched) {
+  // Locks the per-axis broad-phase math against regressions: the two grids
+  // are built with different cutoffs *and* their point sets sit on
+  // different (but partially overlapping) AABBs, so the (origin, voxel
+  // side) of *this and grid differ on every axis.
+  Matrix3Xd x = Matrix3Xd::Random(3, 80);
+  Matrix3Xd y = Matrix3Xd::Random(3, 120);
+  y.colwise() += Vector3d(0.7, -0.4, 0.3);
+
+  MatrixXd dmat = cdist(x, y);
+
+  // Exercise both cutoff <  grid.cutoff_ (small candidate box per A) and
+  // cutoff >  grid.cutoff_ (larger candidate box per A) regimes.
+  struct Case {
+    double lcut, rcut, cutoff;
+  };
+  for (const Case &c: {
+           Case { 0.4, 1.5, 0.4 }, //
+           Case { 1.2, 0.3, 1.2 }, //
+           Case { 0.5, 0.9, 0.5 }
+  }) {
+    VoxelGrid lgrid(x, c.lcut), rgrid(y, c.rcut);
+    std::vector<std::vector<int>> idxs = lgrid.find_neighbors_grid(rgrid);
+    ASSERT_EQ(idxs.size(), x.cols());
+
+    for (int i = 0; i < x.cols(); ++i) {
+      std::vector<int> &nbrs = idxs[i];
+      absl::c_sort(nbrs);
+      int k = 0;
+
+      ASSERT_EQ(nbrs.size(), (dmat.row(i).array() <= c.cutoff).count())
+          << "lcut = " << c.lcut << ", rcut = " << c.rcut << ", i = " << i;
+
+      for (int j = 0; j < y.cols(); ++j) {
+        double d = dmat(i, j);
+        if (d <= c.cutoff) {
+          ASSERT_LT(k, nbrs.size());
+          ASSERT_EQ(nbrs[k], j) << "lcut = " << c.lcut << ", rcut = " << c.rcut
+                                << ", i = " << i << ", j = " << j;
+          ++k;
+        }
+      }
+    }
+  }
+
+  // Disjoint AABBs: the per-axis ranges must collapse and yield zero pairs.
+  Matrix3Xd y_far = y;
+  y_far.colwise() += Vector3d(100.0, 100.0, 100.0);
+  VoxelGrid lgrid(x, 0.4), rgrid_far(y_far, 0.4);
+  std::vector<int> is, js;
+  lgrid.find_neighbors_grid(rgrid_far, is, js);
+  EXPECT_TRUE(is.empty());
+  EXPECT_TRUE(js.empty());
 }
 
 TEST(VoxelGridTest, FindNeighborGridFull) {
