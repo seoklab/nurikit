@@ -82,24 +82,32 @@ void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
   Array3i imin = (c - 1).max(0);
   Array3i imax = (c + 1).min(dims_ - 1);
 
+  VectorXd dsqbuf(3 * max_occ_), doutbuf(dsqbuf.size());
+  ArrayXi jbuf(dsqbuf.size());
+
   const int nx = dims_.x();
   const int ny = dims_.y();
   for (int z = imin.z(); z <= imax.z(); ++z) {
     const int basey = ny * z;
     for (int y = imin.y(); y <= imax.y(); ++y) {
       const int basex = nx * (y + basey);
-      for (int x = imin.x(); x <= imax.x(); ++x) {
-        const int v = basex + x;
-        const int beg = cell_offset_[v];
-        const int end = cell_offset_[v + 1];
-        for (int p = beg; p < end; ++p) {
-          double d2 = (pts_.col(p) - pt).squaredNorm();
-          if (d2 <= cutsq) {
-            idxs.push_back(cell_pts_[p]);
-            distsq.push_back(d2);
-          }
-        }
+      const int beg = cell_offset_[imin.x() + basex];
+      const int end = cell_offset_[imax.x() + 1 + basex];
+      const int cnt = end - beg;
+      if (cnt == 0)
+        continue;
+
+      dsqbuf.head(cnt) =
+          (pts_.middleCols(beg, cnt).colwise() - pt).colwise().squaredNorm();
+
+      int n = 0;
+      for (int k = 0; k < cnt; ++k) {
+        jbuf[n] = cell_pts_[beg + k];
+        doutbuf[n] = dsqbuf[k];
+        n += value_if(dsqbuf[k] <= cutsq);
       }
+      idxs.insert(idxs.end(), jbuf.data(), jbuf.data() + n);
+      distsq.insert(distsq.end(), doutbuf.data(), doutbuf.data() + n);
     }
   }
 }
