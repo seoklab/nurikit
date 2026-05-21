@@ -288,6 +288,29 @@ template <Eigen::Index Rows = Eigen::Dynamic,
           Eigen::Index Cols = Eigen::Dynamic, class DT = double>
 class NpArrayWrapper;
 
+/**
+ * @brief Broadcast a numpy 1D array to a 2D array if it is compatible with the
+ * given shape.
+ *
+ * @tparam Rows Number of rows in the target shape.
+ * @tparam Cols Number of columns in the target shape. Must be Eigen::Dynamic,
+ *         otherwise the broadcasting is not performed. When Cols is 1, we
+ *         interpret that as a vector so also no broadcasting is performed.
+ */
+template <Eigen::Index Rows, Eigen::Index Cols, class DT>
+void broadcast_if_compatible(py::array_t<DT> &arr) {
+  if constexpr (Rows == 1 || Cols != Eigen::Dynamic)
+    return;
+
+  // Compatibility will be checked later
+  if (arr.ndim() != 1)
+    return;
+
+  const DT *data = arr.data();
+  arr = arr.reshape({ static_cast<py::ssize_t>(1), arr.shape(0) });
+  ABSL_DCHECK_EQ(data, arr.data());
+}
+
 template <Eigen::Index Rows, Eigen::Index Cols, class DT>
 void numpy_to_eigen_check_compat(const py::array_t<DT> &arr) {
   constexpr bool is_vector = Rows == 1 || Cols == 1;
@@ -436,6 +459,7 @@ NpArrayWrapper<Rows, Cols, DT> py_array_cast(py::handle h) {
   }
 
   py::array_t<DT> arr = py::reinterpret_steal<py::array_t<DT>>(result);
+  broadcast_if_compatible<Rows, Cols, DT>(arr);
   numpy_to_eigen_check_compat<Rows, Cols, DT>(arr);
 
   auto maybe_copy = [&arr](Eigen::Index rows, Eigen::Index cols, auto strides) {
