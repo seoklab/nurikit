@@ -105,23 +105,6 @@ void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
 }
 
 namespace {
-  // Branchless emit of pairs (i_global, jsrc[k]) for which `dsqbuf[k] <=
-  // cutsq`. Compacts surviving j-indices into `jbuf[0..n)` using
-  // value_if-predication, then appends them to (left, right) with one
-  // vector::insert per call.
-  ABSL_ATTRIBUTE_ALWAYS_INLINE inline void
-  emit_filtered(std::vector<int> &left, std::vector<int> &right,
-                const VectorXd &dsqbuf, ArrayXi &jbuf, const int i,
-                const int *jsrc, int count, double cutsq) {
-    int n = 0;
-    for (int k = 0; k < count; ++k) {
-      jbuf[n] = jsrc[k];
-      n += value_if(dsqbuf[k] <= cutsq);
-    }
-    left.insert(left.end(), n, i);
-    right.insert(right.end(), jbuf.data(), jbuf.data() + n);
-  }
-
   Array2Xi axis_cell_range(int ldim, double lorg, double lcut,  //
                            int rdim, double rorg, double rcut) {
     Array2Xi lohi(2, ldim);
@@ -171,8 +154,6 @@ void VoxelGrid::find_neighbors_grid(const VoxelGrid &grid,
                                   gnz, grid.origin_.z(), grid.cutoff_);
 
   VectorXd dsqbuf(grid.max_occ_);
-  ArrayXi jbuf(grid.max_occ_);
-
   const double cutsq = cutoff_ * cutoff_;
 
   for (int cz = 0; cz < nz; ++cz) {
@@ -200,8 +181,9 @@ void VoxelGrid::find_neighbors_grid(const VoxelGrid &grid,
         auto pts = pts_.middleCols(ab, na);
 
         for (int kz = czlim[0]; kz <= czlim[1]; ++kz) {
+          const int basey = gny * kz;
           for (int ky = cylim[0]; ky <= cylim[1]; ++ky) {
-            const int basex = gnx * (ky + gny * kz);
+            const int basex = gnx * (ky + basey);
             for (int kx = cxlim[0]; kx <= cxlim[1]; ++kx) {
               const int vb = kx + basex;
               const int bb = grid.cell_offset_[vb];
@@ -213,9 +195,15 @@ void VoxelGrid::find_neighbors_grid(const VoxelGrid &grid,
               auto qts = grid.pts_.middleCols(bb, nb);
               for (int p = 0; p < na; ++p) {
                 const Vector3d pi = pts.col(p);
+                const int i = cell_pts_[ab + p];
+
                 dsqbuf.head(nb) = (qts.colwise() - pi).colwise().squaredNorm();
-                emit_filtered(self, other, dsqbuf, jbuf, cell_pts_[ab + p],
-                              grid.cell_pts_.data() + bb, nb, cutsq);
+                for (int k = 0; k < nb; ++k) {
+                  if (dsqbuf[k] <= cutsq) {
+                    self.push_back(i);
+                    other.push_back(grid.cell_pts_[bb + k]);
+                  }
+                }
               }
             }
           }
@@ -255,6 +243,19 @@ namespace {
     {  0,  1, 1 },
     {  1,  1, 1 },
   };
+
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline void
+  emit_filtered(std::vector<int> &left, std::vector<int> &right,
+                const VectorXd &dsqbuf, ArrayXi &jbuf, const int i,
+                const int *jsrc, int count, double cutsq) {
+    int n = 0;
+    for (int k = 0; k < count; ++k) {
+      jbuf[n] = jsrc[k];
+      n += value_if(dsqbuf[k] <= cutsq);
+    }
+    left.insert(left.end(), n, i);
+    right.insert(right.end(), jbuf.data(), jbuf.data() + n);
+  }
 }  // namespace
 
 void VoxelGrid::find_neighbors_self(std::vector<int> &left,
