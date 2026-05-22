@@ -37,6 +37,7 @@ namespace internal {
     bool leaf() const { return nleaf_ <= 8; }
 
     int begin() const { return begin_; }
+    int end() const { return begin_ + nleaf_; }
 
     int nleaf() const { return nleaf_; }
 
@@ -53,55 +54,31 @@ namespace internal {
  * The octree partitions 3D space into axis-aligned boxes recursively, allowing
  * efficient spatial queries such as nearest neighbor search.
  *
- * This implementation is designed for static point clouds; each octree instance
- * keeps a constant reference to the original point set, so the points must
- * outlive the octree instance and should not be modified before or during the
- * usage of the octree in any way. To update the point set, one must
- * rebuild(const MatrixLike &) the octree.
+ * This implementation is designed for static point clouds. To update the point
+ * set, one must rebuild(const MatrixLike &) the octree.
  *
  * One notable exception is that if the points are only scaled uniformly in each
  * axis and/or translated in any order, the octree can still be used without
- * rebuilding, by updating max and len values accordingly with
- * notify_transform() due to the axis-aligned nature of the octree. Note that,
+ * rebuilding, due to the axis-aligned nature of the octree. Note that,
  * however, it is the user's responsibility to ensure that the points are
  * "correctly" transformed separately from the octree; otherwise, the behavior
  * is undefined.
  */
 class OCTree {
 public:
-  using Points = Eigen::Map<const Matrix3Xd>;
+  using Points = ConstRef<Matrix3Xd>;
 
-  OCTree(): pts_(nullptr, 3, 0) { }
+  OCTree() = default;
 
-  template <
-      class MatrixLike,
-      std::enable_if_t<
-          std::is_same_v<internal::remove_cvref_t<typename MatrixLike::Scalar>,
-                         double>
-              && !MatrixLike::IsRowMajor && MatrixLike::RowsAtCompileTime == 3
-              && MatrixLike::InnerStrideAtCompileTime == 1
-              && MatrixLike::OuterStrideAtCompileTime == 3,
-          int> = 0>
-  explicit OCTree(const MatrixLike &pts, int bucket_size = 32)
-      : pts_(pts.data(), 3, pts.cols()), bucket_size_(bucket_size) {
-    rebuild();
+  explicit OCTree(Points pts, int bucket_size = 32): bucket_size_(bucket_size) {
+    rebuild_impl(pts);
   }
 
-  template <
-      class MatrixLike,
-      std::enable_if_t<
-          std::is_same_v<internal::remove_cvref_t<typename MatrixLike::Scalar>,
-                         double>
-              && !MatrixLike::IsRowMajor && MatrixLike::RowsAtCompileTime == 3
-              && MatrixLike::InnerStrideAtCompileTime == 1
-              && MatrixLike::OuterStrideAtCompileTime == 3,
-          int> = 0>
-  void rebuild(const MatrixLike &pts, int bucket_size = -1) {
-    new (&pts_) Points(pts.data(), 3, pts.cols());
+  void rebuild(Points pts, int bucket_size = -1) {
     if (bucket_size > 0)
       bucket_size_ = bucket_size;
 
-    rebuild();
+    rebuild_impl(pts);
   }
 
   void find_neighbors_kd(const Vector3d &pt, int k, std::vector<int> &idxs,
@@ -121,7 +98,7 @@ public:
   void find_neighbors_self(double cutoff, std::vector<int> &left,
                            std::vector<int> &right) const;
 
-  const Points &pts() const { return pts_; }
+  const Matrix3Xd &pts() const { return pts_; }
 
   const Vector3d &max() const { return max_; }
 
@@ -129,22 +106,16 @@ public:
 
   /**
    * @brief Notify the octree that the point set has been transformed by
-   *        scaling and/or translation, by updating the bounding box info.
+   *        scaling and/or translation.
    *
    * @param new_max The new maximum corner of the bounding box.
    * @param new_len The new length of the bounding box in each axis.
    *
-   * @warning This method does not modify the point set itself, nor does it
-   *          any kind of bookkeeping to track the transformation applied to the
-   *          point set. It only updates the bounding box info of the octree.\n
-   *          It is the user's responsibility to ensure that the points are
+   * @warning It is the user's responsibility to ensure that the points are
    *          "correctly" transformed separately from the octree; otherwise, the
    *          behavior is undefined.
    */
-  void notify_transform(const Vector3d &new_max, const Vector3d &new_len) {
-    max_ = new_max;
-    len_ = new_len;
-  }
+  void notify_transform(const Vector3d &new_max, const Vector3d &new_len);
 
   const std::vector<internal::OCTreeNode> &nodes() const { return nodes_; }
 
@@ -161,9 +132,9 @@ public:
   const internal::OCTreeNode &operator[](int idx) const { return nodes_[idx]; }
 
 private:
-  void rebuild();
+  void rebuild_impl(Points src);
 
-  Points pts_;
+  Matrix3Xd pts_;
   Vector3d max_;
   Vector3d len_;
   std::vector<internal::OCTreeNode> nodes_;

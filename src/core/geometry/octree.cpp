@@ -49,8 +49,8 @@ namespace {
 
   // partition begin - end into two parts:
   // +: [begin, ret), -: [ret, end)
-  int partition_sub(ArrayXi &idxs, int begin, int end,
-                    const OCTree::Points &pts, const Vector3d &cntr, int axis) {
+  int partition_sub(ArrayXi &idxs, int begin, int end, OCTree::Points pts,
+                    const Vector3d &cntr, int axis) {
     auto it =
         std::partition(idxs.begin() + begin, idxs.begin() + end,
                        [&](int idx) { return pts(axis, idx) >= cntr[axis]; });
@@ -58,7 +58,7 @@ namespace {
   }
 
   Array8i partition_octant(ArrayXi &idxs, int begin, int end,
-                           const OCTree::Points &pts, const Vector3d &cntr) {
+                           OCTree::Points pts, const Vector3d &cntr) {
     Array8i ptrs;
     ptrs[7] = end;
 
@@ -88,7 +88,7 @@ namespace {
     return ptrs;
   }
 
-  int build_octree(const OCTree::Points &pts, std::vector<OCTreeNode> &data,
+  int build_octree(OCTree::Points pts, std::vector<OCTreeNode> &data,
                    const Vector3d &max, const Vector3d &size, ArrayXi &idxs,
                    const int begin, const int nleaf, const int bucket_size) {
     Array8i children;
@@ -100,8 +100,6 @@ namespace {
 
     if (nleaf <= bucket_size) {
       std::sort(idxs.begin() + begin, idxs.begin() + begin + nleaf);
-      if (nleaf <= 8)
-        children.head(nleaf) = idxs.segment(begin, nleaf);
       return epilog();
     }
 
@@ -128,19 +126,22 @@ namespace {
   }
 }  // namespace
 
-void OCTree::rebuild() {
+void OCTree::rebuild_impl(Points src) {
   bucket_size_ = std::max(8, bucket_size_);
 
-  max_ = pts_.rowwise().maxCoeff();
-  len_ = max_ - pts_.rowwise().minCoeff();
+  max_ = src.rowwise().maxCoeff();
+  len_ = max_ - src.rowwise().minCoeff();
 
-  idxs_.resize(pts_.cols());
+  idxs_.resize(src.cols());
   std::iota(idxs_.begin(), idxs_.end(), 0);
 
-  internal::AllowEigenMallocScoped<false> ems;
+  {
+    internal::AllowEigenMallocScoped<false> ems;
+    build_octree(src, nodes_, max_, len_, idxs_, 0,
+                 static_cast<int>(src.cols()), bucket_size_);
+  }
 
-  build_octree(pts_, nodes_, max_, len_, idxs_, 0,
-               static_cast<int>(pts_.cols()), bucket_size_);
+  pts_ = src(E::all, idxs_);
 }
 
 namespace {
@@ -200,13 +201,6 @@ namespace {
     return node.nleaf() <= tree.bucket_size();
   }
 
-  absl::Span<const int> node_points(const OCTree &tree,
-                                    const OCTreeNode &node) {
-    const int *p = node.leaf() ? node.children().data()
-                               : tree.idxs().data() + node.begin();
-    return absl::MakeConstSpan(p, node.nleaf());
-  }
-
   double maxsq_box_point(const Vector3d &box_max, const Vector3d &box_len,
                          const Vector3d &pt) {
     Vector3d box_min = box_max - box_len;
@@ -239,6 +233,8 @@ void OCTree::find_neighbors_kd(const Vector3d &pt, const int k,
     worst_dsq = maxsq_box_point(max_, len_, pt);
   }
 
+  ArrayXd dsqbuf(bucket_size_);
+
   NodeHeap node_heap(node_cmp);
   CandHeap best_heap(cand_cmp);
   node_heap.push({ root(), max(), len(), 0 });
@@ -252,12 +248,17 @@ void OCTree::find_neighbors_kd(const Vector3d &pt, const int k,
 
     const OCTreeNode &node = nodes()[idx];
     if (leaf_node(*this, node)) {
-      for (const int i: node_points(*this, node)) {
-        double d = (pt - pts().col(i)).squaredNorm();
+      const int cnt = node.nleaf();
+      dsqbuf.head(cnt) = (pts().middleCols(node.begin(), cnt).colwise() - pt)
+                             .colwise()
+                             .squaredNorm();
+
+      for (int i = 0; i < cnt; ++i) {
+        double d = dsqbuf[i];
         if (d > worst_dsq)
           continue;
 
-        best_heap.push({ d, i });
+        best_heap.push({ d, idxs_[i + node.begin()] });
         if (static_cast<int>(best_heap.size()) > k) {
           best_heap.pop();
           worst_dsq = best_heap.top().dsq;
@@ -294,11 +295,19 @@ void OCTree::find_neighbors_kd(const Vector3d &pt, const int k,
 namespace {
   void find_candidates_d(const OCTree &oct, const Vector3d &pt,
                          const double cutoffsq, std::vector<int> &idxs,
-                         const OCTreeNode &node, const Vector3d &maxs,
-                         const Vector3d &size) {
+                         std::vector<double> &distsq, const OCTreeNode &node,
+                         const Vector3d &maxs, const Vector3d &size,
+                         ArrayXd &dsqbuf) {
     if (leaf_node(oct, node)) {
-      auto pts = node_points(oct, node);
-      idxs.insert(idxs.end(), pts.begin(), pts.end());
+      const int cnt = node.nleaf();
+      dsqbuf.head(cnt) =
+          (oct.pts().middleCols(node.begin(), cnt).colwise() - pt)
+              .colwise()
+              .squaredNorm();
+
+      idxs.insert(idxs.end(), oct.idxs().data() + node.begin(),
+                  oct.idxs().data() + node.end());
+      distsq.insert(distsq.end(), dsqbuf.data(), dsqbuf.data() + cnt);
       return;
     }
 
@@ -312,8 +321,8 @@ namespace {
       if (octant_distsq[i] > cutoffsq || cid < 0)
         continue;
 
-      find_candidates_d(oct, pt, cutoffsq, idxs, oct[cid],
-                        max_of(i, maxs, half), half);
+      find_candidates_d(oct, pt, cutoffsq, idxs, distsq, oct[cid],
+                        max_of(i, maxs, half), half, dsqbuf);
     }
   }
 }  // namespace
@@ -324,16 +333,20 @@ void OCTree::find_neighbors_d(const Vector3d &pt, const double cutoff,
   const double cutoffsq = cutoff * cutoff;
 
   idxs.clear();
-  find_candidates_d(*this, pt, cutoffsq, idxs, node(root()), max_, len_);
-
   distsq.clear();
-  erase_if(idxs, [&](int idx) {
-    double d = (pts_.col(idx) - pt).squaredNorm();
-    bool far = d > cutoffsq;
-    if (!far)
-      distsq.push_back(d);
-    return far;
-  });
+
+  ArrayXd dsqbuf(bucket_size_);
+  find_candidates_d(*this, pt, cutoffsq, idxs, distsq, node(root()), max_, len_,
+                    dsqbuf);
+
+  int n = 0;
+  for (int i = 0; i < idxs.size(); ++i) {
+    idxs[n] = idxs[i];
+    const double dsq = distsq[n] = distsq[i];
+    n += value_if(dsq <= cutoffsq);
+  }
+  idxs.resize(n);
+  distsq.resize(n);
 }
 
 namespace {
@@ -370,8 +383,13 @@ namespace {
 
     absl::Span<const int> idxs() const {
       ABSL_DCHECK_GE(id(), 0);
-      return node_points(tree(), node());
+      const int *p = tree().idxs().data() + begin();
+      return absl::MakeConstSpan(p, nleaf());
     }
+
+    int begin() const { return node().begin(); }
+    int end() const { return node().end(); }
+    int nleaf() const { return node().nleaf(); }
 
     int id() const { return nid_; }
 
@@ -423,42 +441,47 @@ namespace {
 
   template <bool intra>
   void find_neighbors_bucket(std::vector<int> &is, std::vector<int> &js,
-                             Matrix3Xd &buffer, VectorXd &dsqbuf, ArrayXi &jbuf,
+                             VectorXd &dsqbuf, ArrayXi &jbuf,
                              const OCTreeBox &left, const OCTreeBox &right,
                              const double cutoffsq) {
-    auto lp = left.idxs();
-
-    auto rp = right.idxs();
-    buffer.leftCols(rp.size()) = right.pts()(E::all, rp);
+    const auto rp = right.idxs();
 
     if constexpr (intra) {
       if (left.id() == right.id()) {
-        for (int i = 0; i < static_cast<int>(lp.size()) - 1; ++i) {
-          const Vector3d lpt = buffer.col(i);
-          const int cnt = static_cast<int>(lp.size()) - i - 1;
-          dsqbuf.head(cnt) = (buffer.middleCols(i + 1, cnt).colwise() - lpt)
-                                 .colwise()
-                                 .squaredNorm();
-          fill_conditional_buffered(dsqbuf, jbuf, is, js, lp[i],
-                                    lp.subspan(i + 1, cnt), cutoffsq);
+        const Matrix3Xd &pts = left.pts();
+
+        for (int i = 0; i < left.nleaf() - 1; ++i) {
+          const int cnt = left.nleaf() - i - 1;
+          const Vector3d lpt = pts.col(left.begin() + i);
+          dsqbuf.head(cnt) =
+              (pts.middleCols(left.begin() + i + 1, cnt).colwise() - lpt)
+                  .colwise()
+                  .squaredNorm();
+
+          fill_conditional_buffered(dsqbuf, jbuf, is, js, left.idxs()[i],
+                                    rp.subspan(i + 1, cnt), cutoffsq);
         }
         return;
       }
     }
 
-    for (const int i: lp) {
+    const int cnt = right.nleaf();
+    auto rpts = right.pts().middleCols(right.begin(), cnt);
+
+    for (int i = left.begin(); i < left.end(); ++i) {
       const Vector3d lpt = left.pts().col(i);
-      dsqbuf.head(rp.size()) =
-          (buffer.leftCols(rp.size()).colwise() - lpt).colwise().squaredNorm();
-      fill_conditional_buffered(dsqbuf, jbuf, is, js, i, rp, cutoffsq);
+      dsqbuf.head(cnt) = (rpts.colwise() - lpt).colwise().squaredNorm();
+
+      fill_conditional_buffered(dsqbuf, jbuf, is, js, left.tree().idxs()[i], rp,
+                                cutoffsq);
     }
   }
 
   template <bool intra>
   void find_neighbors_tree_impl(std::vector<int> &is, std::vector<int> &js,
-                                Matrix3Xd &buffer, VectorXd &dsqbuf,
-                                ArrayXi &jbuf, const OCTreeBox &left,
-                                const OCTreeBox &right, const double cutoffsq) {
+                                VectorXd &dsqbuf, ArrayXi &jbuf,
+                                const OCTreeBox &left, const OCTreeBox &right,
+                                const double cutoffsq) {
     auto [min_dsq, max_dsq] = left.minmax_distsq(right);
 
     if (min_dsq > cutoffsq)
@@ -470,8 +493,7 @@ namespace {
     }
 
     if (left.leaf_node() && right.leaf_node()) {
-      find_neighbors_bucket<intra>(is, js, buffer, dsqbuf, jbuf, left, right,
-                                   cutoffsq);
+      find_neighbors_bucket<intra>(is, js, dsqbuf, jbuf, left, right, cutoffsq);
       return;
     }
 
@@ -480,7 +502,7 @@ namespace {
         if (!right.has_child(j))
           continue;
 
-        find_neighbors_tree_impl<intra>(is, js, buffer, dsqbuf, jbuf, left,
+        find_neighbors_tree_impl<intra>(is, js, dsqbuf, jbuf, left,
                                         right.child(j), cutoffsq);
       }
       return;
@@ -491,8 +513,8 @@ namespace {
         if (!left.has_child(i))
           continue;
 
-        find_neighbors_tree_impl<intra>(is, js, buffer, dsqbuf, jbuf,
-                                        left.child(i), right, cutoffsq);
+        find_neighbors_tree_impl<intra>(is, js, dsqbuf, jbuf, left.child(i),
+                                        right, cutoffsq);
       }
       return;
     }
@@ -511,7 +533,7 @@ namespace {
         if (!right.has_child(j))
           continue;
 
-        find_neighbors_tree_impl<intra>(is, js, buffer, dsqbuf, jbuf, lc,
+        find_neighbors_tree_impl<intra>(is, js, dsqbuf, jbuf, lc,
                                         right.child(j), cutoffsq);
       }
     }
@@ -525,12 +547,12 @@ void OCTree::find_neighbors_tree(const OCTree &oct, const double cutoff,
 
   self.clear();
   other.clear();
-  Matrix3Xd buffer(3, oct.bucket_size_);
+
   VectorXd dsqbuf(oct.bucket_size_);
   ArrayXi jbuf(oct.bucket_size_);
 
-  find_neighbors_tree_impl<false>(self, other, buffer, dsqbuf, jbuf,
-                                  OCTreeBox(*this), OCTreeBox(oct), cutoffsq);
+  find_neighbors_tree_impl<false>(self, other, dsqbuf, jbuf, OCTreeBox(*this),
+                                  OCTreeBox(oct), cutoffsq);
 }
 
 std::vector<std::vector<int>> OCTree::find_neighbors_tree(const OCTree &oct,
@@ -551,12 +573,22 @@ void OCTree::find_neighbors_self(double cutoff, std::vector<int> &left,
 
   left.clear();
   right.clear();
-  Matrix3Xd buffer(3, bucket_size_);
+
   VectorXd dsqbuf(bucket_size_);
   ArrayXi jbuf(bucket_size_);
 
   OCTreeBox root(*this);
-  find_neighbors_tree_impl<true>(left, right, buffer, dsqbuf, jbuf, root, root,
+  find_neighbors_tree_impl<true>(left, right, dsqbuf, jbuf, root, root,
                                  cutoffsq);
+}
+
+void OCTree::notify_transform(const Vector3d &new_max,
+                              const Vector3d &new_len) {
+  Vector3d scale = new_len.cwiseQuotient(len_);
+  Vector3d trs = new_max - max_.cwiseProduct(scale);
+
+  max_ = new_max;
+  len_ = new_len;
+  pts_ = (pts_.array().colwise() * scale.array()).matrix().colwise() + trs;
 }
 }  // namespace nuri
