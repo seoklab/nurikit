@@ -12,6 +12,7 @@
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
 #include <Eigen/Dense>
+#include <eigen3/Eigen/src/Geometry/Transform.h>
 
 #include <gtest/gtest.h>
 
@@ -40,14 +41,13 @@ Vector3d max_of(int octant, const Vector3d &max, const Vector3d &size) {
   return max - size.cwiseProduct(kOctantMasks[octant]);
 }
 
-void verify_oct_range(int idx, const OCTree &oct, const Vector3d &max,
-                      const Vector3d &size) {
+void verify_oct_range(int idx, const Matrix3Xd &pts, const OCTree &oct,
+                      const Vector3d &max, const Vector3d &size) {
   const auto &node = oct[idx];
   if (node.nleaf() <= oct.bucket_size()) {
-    const int *ptr = node.leaf() ? node.children().data()
-                                 : oct.idxs().data() + node.begin();
+    const int *ptr = oct.idxs().data() + node.begin();
     for (int i = 0; i < node.nleaf(); ++i) {
-      const Vector3d &pt = oct.pts().col(ptr[i]);
+      const Vector3d &pt = pts.col(ptr[i]);
       EXPECT_TRUE((pt.array() <= max.array() + 1e-6).all()) << "node = " << idx;
       EXPECT_TRUE((pt.array() >= (max - size).array() - 1e-6).all())
           << "node = " << idx;
@@ -59,7 +59,7 @@ void verify_oct_range(int idx, const OCTree &oct, const Vector3d &max,
   for (int i = 0; i < 8; ++i) {
     if (node[i] < 0)
       continue;
-    verify_oct_range(node[i], oct, max_of(i, max, half), half);
+    verify_oct_range(node[i], pts, oct, max_of(i, max, half), half);
   }
 }
 
@@ -71,12 +71,6 @@ TEST(OCTreeTest, Create) {
   for (int i = 0; i < tree.size(); ++i) {
     const auto &node = tree[i];
     if (node.nleaf() <= tree.bucket_size()) {
-      if (node.leaf()) {
-        ASSERT_TRUE((tree.idxs().segment(node.begin(), node.nleaf())
-                     == node.children().head(node.nleaf()))
-                        .all());
-      }
-
       idxs.insert(idxs.end(), tree.idxs().begin() + node.begin(),
                   tree.idxs().begin() + node.begin() + node.nleaf());
     } else {
@@ -86,7 +80,7 @@ TEST(OCTreeTest, Create) {
     }
   }
 
-  verify_oct_range(tree.root(), tree, tree.max(), tree.len());
+  verify_oct_range(tree.root(), m, tree, tree.max(), tree.len());
 
   ASSERT_EQ(childs.size(), tree.size());
   std::sort(childs.begin(), childs.end());
@@ -99,10 +93,8 @@ TEST(OCTreeTest, Create) {
     EXPECT_EQ(idxs[i], i) << "i = " << i;
 }
 
-void verify_octree_neighbor_k(const OCTree &tree, const Vector3d &qry,
-                              const int n) {
-  const Matrix3Xd &pts = tree.pts();
-
+void verify_octree_neighbor_k(const Matrix3Xd &pts, const OCTree &tree,
+                              const Vector3d &qry, const int n) {
   std::vector<int> answer(n, -1);
   std::vector<double> dsq_ref(n, 1e+10);
   for (int i = 0; i < pts.cols(); ++i) {
@@ -142,13 +134,11 @@ TEST(OCTreeTest, FindNeighborByCount) {
 
   OCTree tree(m);
   for (int i = 0; i < test.cols(); ++i)
-    verify_octree_neighbor_k(tree, test.col(i), k);
+    verify_octree_neighbor_k(m, tree, test.col(i), k);
 }
 
-void verify_octree_neighbor_d(const OCTree &tree, const Vector3d &qry,
-                              double cutoff) {
-  const Matrix3Xd &pts = tree.pts();
-
+void verify_octree_neighbor_d(const Matrix3Xd &pts, const OCTree &tree,
+                              const Vector3d &qry, double cutoff) {
   std::vector<int> answer;
   for (int i = 0; i < pts.cols(); ++i)
     if ((pts.col(i) - qry).squaredNorm() <= cutoff * cutoff)
@@ -173,13 +163,12 @@ TEST(OCTreeTest, FindNeighborByDistance) {
 
   OCTree tree(m);
   for (int i = 0; i < test.cols(); ++i)
-    verify_octree_neighbor_d(tree, test.col(i), cutoff);
+    verify_octree_neighbor_d(m, tree, test.col(i), cutoff);
 }
 
-void verify_octree_neighbor_kd(const OCTree &tree, const Vector3d &qry,
-                               const int n, const double cutoff,
-                               std::string_view onerr) {
-  const Matrix3Xd &pts = tree.pts();
+void verify_octree_neighbor_kd(const Matrix3Xd &pts, const OCTree &tree,
+                               const Vector3d &qry, const int n,
+                               const double cutoff, std::string_view onerr) {
   const double cutoffsq = cutoff * cutoff;
 
   std::vector<int> answer(n, -1);
@@ -226,13 +215,13 @@ TEST(OCTreeTest, FindNeighborByCountAndDistance) {
 
   OCTree tree(m);
   for (int i = 0; i < test.cols(); ++i)
-    verify_octree_neighbor_kd(tree, test.col(i), k, cutoff,
+    verify_octree_neighbor_kd(m, tree, test.col(i), k, cutoff,
                               absl::StrCat("On line ", __LINE__));
 
   // 15 neighbors in average
   cutoff = std::pow(2.0 * 15 / 500, 1.0 / 3.0);
   for (int i = 0; i < test.cols(); ++i)
-    verify_octree_neighbor_kd(tree, test.col(i), k, cutoff,
+    verify_octree_neighbor_kd(m, tree, test.col(i), k, cutoff,
                               absl::StrCat("On line ", __LINE__));
 }
 
@@ -395,6 +384,25 @@ TEST(OCTreeTest, FindNeighborSelf) {
         }
       }
     }
+  }
+}
+
+TEST(OCTreeTest, NotifyTransformTest) {
+  Matrix3Xd m = Matrix3Xd::Random(3, 500);
+  OCTree tree(m);
+
+  Vector3d scale(2.0, 0.5, 1.5);
+  Vector3d trs(1.0, -1.0, 0.5);
+  E::Affine3d x = E::Translation3d(trs) * E::Scaling(scale);
+  m = x * m;
+
+  Vector3d new_max = m.rowwise().maxCoeff(), new_min = m.rowwise().minCoeff(),
+           new_len = new_max - new_min;
+  tree.notify_transform(new_max, new_len);
+
+  for (int i = 0; i < tree.pts().cols(); ++i) {
+    NURI_EXPECT_EIGEN_EQ_TOL(tree.pts().col(i), m.col(tree.idxs()[i]), 1e-6)
+        << "i = " << i;
   }
 }
 
