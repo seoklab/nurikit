@@ -83,7 +83,7 @@ void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
   Array3i imin = (c - 1).max(0);
   Array3i imax = (c + 1).min(dims_ - 1);
 
-  VectorXd dsqbuf(3 * max_occ_), doutbuf(dsqbuf.size());
+  VectorXd dsqbuf(3 * max_occ_);
   ArrayXi jbuf(dsqbuf.size());
 
   const int nx = dims_.x();
@@ -104,11 +104,11 @@ void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
       int n = 0;
       for (int k = 0; k < cnt; ++k) {
         jbuf[n] = cell_pts_[beg + k];
-        doutbuf[n] = dsqbuf[k];
-        n += value_if(dsqbuf[k] <= cutsq);
+        const double dsq = dsqbuf[n] = dsqbuf[k];
+        n += value_if(dsq <= cutsq);
       }
       idxs.insert(idxs.end(), jbuf.data(), jbuf.data() + n);
-      distsq.insert(distsq.end(), doutbuf.data(), doutbuf.data() + n);
+      distsq.insert(distsq.end(), dsqbuf.data(), dsqbuf.data() + n);
     }
   }
 }
