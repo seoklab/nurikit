@@ -100,7 +100,7 @@ namespace {
   }
 
   void guess_connectivity_large(MoleculeMutator &mut, const double threshold,
-                                const OCTree &oct) {
+                                const OCTree &oct, const Matrix3Xd &pos) {
     std::vector<int> idxs;
     std::vector<double> distsq;
 
@@ -111,8 +111,7 @@ namespace {
         continue;
 
       // No atoms will form bonds > 5.0 A.
-      oct.find_neighbors_d(oct.pts().col(src.id()), 5.0 + threshold, idxs,
-                           distsq);
+      oct.find_neighbors_d(pos.col(src.id()), 5.0 + threshold, idxs, distsq);
 
       for (int i = 0; i < idxs.size(); i++) {
         auto dst = mol.atom(idxs[i]);
@@ -173,7 +172,7 @@ namespace {
     if (mut.mol().size() <= kSmallLimit)
       guess_connectivity_small(mut, threshold, dist);
     else
-      guess_connectivity_large(mut, threshold, oct);
+      guess_connectivity_large(mut, threshold, oct, pos);
 
     mut.finalize();
 
