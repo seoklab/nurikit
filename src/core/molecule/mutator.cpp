@@ -124,7 +124,7 @@ namespace {
     }
 
     for (Matrix3Xd &conf: confs) {
-      Matrix3Xd updated = conf(Eigen::all, idxs);
+      Matrix3Xd updated = conf(EP::all, idxs);
       conf = std::move(updated);
     }
   }

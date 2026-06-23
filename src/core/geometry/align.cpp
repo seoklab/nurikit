@@ -221,7 +221,7 @@ namespace {
     auto bsqnrm = Bt.colwise().squaredNorm().array().eval();
     Eigen::Array3i idxs = argsort<3>(bsqnrm);
 
-    Bt(Eigen::all, idxs).array().rowwise() *=
+    Bt(EP::all, idxs).array().rowwise() *=
         (bsqnrm > kEps).select(bsqnrm.sqrt().inverse(), 0)(idxs);
     if (!safe_gram_schmidt(Bt, idxs[1], idxs[2]))
       return false;

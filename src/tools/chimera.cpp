@@ -69,8 +69,8 @@ extern MmResult match_maker(ConstRef<Matrix3Xd> query,
     auto t = tbuf.leftCols(nali);
     auto p = order.head(nali);
 
-    q = query(E::all, p);
-    t = templ(E::all, p);
+    q = query(EP::all, p);
+    t = templ(EP::all, p);
     std::tie(xform, msd) = qcp_inplace(q, t);
   }
 

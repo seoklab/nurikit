@@ -525,8 +525,8 @@ inline double cos_angle(const Vector3d &o, const Vector3d &a,
 template <class Scalar, class Indexer, int N, auto... Extra>
 inline std::pair<Scalar, Scalar>
 sum_tan2_half(const Matrix<Scalar, 3, N, 0, Extra...> &m, const Indexer &idxs) {
-  double csum = (m + m(Eigen::all, idxs)).colwise().norm().sum(),
-         ssum = (m - m(Eigen::all, idxs)).colwise().norm().sum();
+  double csum = (m + m(EP::all, idxs)).colwise().norm().sum(),
+         ssum = (m - m(EP::all, idxs)).colwise().norm().sum();
   return std::make_pair(ssum, csum);
 }
 
@@ -601,7 +601,13 @@ template <class MatrixLike>
 Vector4d fit_plane(const MatrixLike &pts, bool normalize = true) {
   Vector3d cntr = pts.rowwise().mean();
   MatrixXd m = pts.colwise() - cntr;
-  auto svd = m.jacobiSvd(Eigen::ComputeThinU);
+
+  auto svd =
+#if EIGEN_VERSION_AT_LEAST(5, 0, 0)
+      m.jacobiSvd<E::ComputeThinU>();
+#else
+      m.jacobiSvd(E::ComputeThinU);
+#endif
 
   Vector4d ret;
   ret.head<3>() = svd.matrixU().col(2);

@@ -9,7 +9,6 @@
 #include <fstream>
 
 #include <Eigen/Dense>
-#include <eigen3/Eigen/src/Core/Matrix.h>
 
 #include <gtest/gtest.h>
 
@@ -39,7 +38,7 @@ Matrix3Xd read_first_calphas(const fs::path &path) {
     }
   }
 
-  return model.major_conf()(E::all, calphas);
+  return model.major_conf()(EP::all, calphas);
 }
 
 TEST(ChimeraTest, MatchMaker) {

@@ -171,15 +171,15 @@ namespace internal {
 
       // Put new rows in blocks (1,1), (2,1) and (2,2).
       wn1.row(cm1).head(col).noalias() =
-          wy(free, cm1).transpose() * wy(free, Eigen::all);
+          wy(free, cm1).transpose() * wy(free, EP::all);
       wn1.row(m + cm1).head(col).noalias() =
-          ws(bound, cm1).transpose() * wy(bound, Eigen::all);
+          ws(bound, cm1).transpose() * wy(bound, EP::all);
       wn1.row(m + cm1).segment(m, col).noalias() =
-          ws(bound, cm1).transpose() * ws(bound, Eigen::all);
+          ws(bound, cm1).transpose() * ws(bound, EP::all);
 
       // Put new column in block (2,1)
       wn1.col(cm1).segment(m, col).noalias() =
-          ws(free, Eigen::all).transpose() * wy(free, cm1);
+          ws(free, EP::all).transpose() * wy(free, cm1);
     }
 
     void formk_update_wn1(LBfgsBase &L, LBfgsBImpl &impl) {
@@ -193,33 +193,29 @@ namespace internal {
       // in the set of free variables.
       for (int j = 0; j < upcl; ++j) {
         wn1.col(j).segment(j, upcl - j).noalias() +=
-            wy(enter, Eigen::all).transpose().bottomRows(upcl - j)
-            * wy(enter, j);
+            wy(enter, EP::all).transpose().bottomRows(upcl - j) * wy(enter, j);
         wn1.col(j).segment(j, upcl - j).noalias() -=
-            wy(leave, Eigen::all).transpose().bottomRows(upcl - j)
-            * wy(leave, j);
+            wy(leave, EP::all).transpose().bottomRows(upcl - j) * wy(leave, j);
       }
       for (int j = 0; j < upcl; ++j) {
         wn1.col(m + j).segment(m + j, upcl - j).noalias() -=
-            ws(enter, Eigen::all).transpose().bottomRows(upcl - j)
-            * ws(enter, j);
+            ws(enter, EP::all).transpose().bottomRows(upcl - j) * ws(enter, j);
         wn1.col(m + j).segment(m + j, upcl - j).noalias() +=
-            ws(leave, Eigen::all).transpose().bottomRows(upcl - j)
-            * ws(leave, j);
+            ws(leave, EP::all).transpose().bottomRows(upcl - j) * ws(leave, j);
       }
 
       // Modify the old parts in block (2,1)
       for (int j = 0; j < upcl; ++j) {
         wn1.col(j).segment(m, j + 1).noalias() +=
-            ws(enter, Eigen::all).transpose().topRows(j + 1) * wy(enter, j);
+            ws(enter, EP::all).transpose().topRows(j + 1) * wy(enter, j);
         wn1.col(j).segment(m + j + 1, upcl - j - 1).noalias() -=
-            ws(enter, Eigen::all).transpose().bottomRows(upcl - j - 1)
+            ws(enter, EP::all).transpose().bottomRows(upcl - j - 1)
             * wy(enter, j);
 
         wn1.col(j).segment(m, j + 1).noalias() -=
-            ws(leave, Eigen::all).transpose().topRows(j + 1) * wy(leave, j);
+            ws(leave, EP::all).transpose().topRows(j + 1) * wy(leave, j);
         wn1.col(j).segment(m + j + 1, upcl - j - 1).noalias() +=
-            ws(leave, Eigen::all).transpose().bottomRows(upcl - j - 1)
+            ws(leave, EP::all).transpose().bottomRows(upcl - j - 1)
             * wy(leave, j);
       }
     }
@@ -316,8 +312,8 @@ namespace internal {
       if (!lbfgs_bmv_impl(p, smul, c, sy, wtt))
         return false;
 
-      r.noalias() += wy(free, Eigen::all) * p.head(col);
-      r.noalias() += theta * (ws(free, Eigen::all) * p.tail(col));
+      r.noalias() += wy(free, EP::all) * p.head(col);
+      r.noalias() += theta * (ws(free, EP::all) * p.tail(col));
 
       return true;
     }
@@ -634,8 +630,8 @@ namespace internal {
       return true;
 
     // Compute wv = W'Zd.
-    wv.head(col).noalias() = wy(free, Eigen::all).transpose() * d;
-    wv.tail(col).noalias() = theta * (ws(free, Eigen::all).transpose() * d);
+    wv.head(col).noalias() = wy(free, EP::all).transpose() * d;
+    wv.tail(col).noalias() = theta * (ws(free, EP::all).transpose() * d);
 
     // Compute wv:=K^(-1)wv.
     if ((wnt.diagonal().array() == 0).any())
@@ -645,8 +641,8 @@ namespace internal {
     wnt.triangularView<Eigen::Lower>().transpose().solveInPlace(wv);
 
     // Compute d = (1/theta)d + (1/theta**2)Z'W wv.
-    d.noalias() += (1 / theta) * (wy(free, Eigen::all) * wv.head(col));
-    d.noalias() += ws(free, Eigen::all) * wv.tail(col);
+    d.noalias() += (1 / theta) * (wy(free, EP::all) * wv.head(col));
+    d.noalias() += ws(free, EP::all) * wv.tail(col);
     d /= theta;
 
     // -----------------------------------------------------

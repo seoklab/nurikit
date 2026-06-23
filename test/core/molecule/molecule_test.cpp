@@ -19,6 +19,7 @@
 #include "nuri/core/geometry.h"
 
 namespace {
+namespace EP = nuri::EP;
 using std::string_literals::operator""s;
 
 using nuri::AtomData;
@@ -252,8 +253,7 @@ TEST_F(MoleculeTest, RotateBondTest) {
   std::vector<int> fixed { 0, 1, 2, 3, 6, 7, 8, 11 };
   const auto &confs = mol_all.confs();
   for (int i = 0; i < confs.size(); ++i) {
-    EXPECT_TRUE(
-        confs[i](Eigen::all, fixed).isApprox(confs[i](Eigen::all, fixed)));
+    EXPECT_TRUE(confs[i](EP::all, fixed).isApprox(confs[i](EP::all, fixed)));
   }
 
   std::vector<int> rotated { 4, 5, 9, 10 };
@@ -265,8 +265,8 @@ TEST_F(MoleculeTest, RotateBondTest) {
       1.0480, 0.9803, -0.2199,                            //
       -0.1401, 1.7976, 0.8236;
   EXPECT_TRUE(
-      mol_all.confs()[0](Eigen::all, rotated).isApprox(result_coords, 1e-3))
-      << mol_all.confs()[0](Eigen::all, rotated);
+      mol_all.confs()[0](EP::all, rotated).isApprox(result_coords, 1e-3))
+      << mol_all.confs()[0](EP::all, rotated);
 
   // Rotated with UCSF Chimera
   result_coords.transpose() << -0.6589, 3.4347, 2.0590,  //
@@ -275,8 +275,8 @@ TEST_F(MoleculeTest, RotateBondTest) {
       -0.7645, 4.1952, 0.1036;
 
   EXPECT_TRUE(
-      mol_all.confs()[1](Eigen::all, rotated).isApprox(result_coords, 1e-3))
-      << mol_all.confs()[1](Eigen::all, rotated);
+      mol_all.confs()[1](EP::all, rotated).isApprox(result_coords, 1e-3))
+      << mol_all.confs()[1](EP::all, rotated);
 
   Molecule mol_one(mol_all);
 
@@ -333,7 +333,7 @@ TEST_F(MoleculeTest, EraseAtomsTest) {
 
   std::vector<int> keep { 1, 2, 3, 5, 6, 7, 8, 10, 11 };
   for (int i = 0; i < mol3.confs().size(); ++i) {
-    EXPECT_TRUE(mol3.confs()[i].isApprox(mol_.confs()[i](Eigen::all, keep)));
+    EXPECT_TRUE(mol3.confs()[i].isApprox(mol_.confs()[i](EP::all, keep)));
     EXPECT_EQ(mol3.confs()[i].cols(), 9);
   }
 }

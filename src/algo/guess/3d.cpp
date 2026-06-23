@@ -132,7 +132,7 @@ namespace {
                                  Molecule::MutableAtom atom, int n,
                                  const Matrix3Xd &pos) {
     VectorXd dsqs =
-        (pos(Eigen::all, as_index(atom)).colwise() - pos.col(atom.id()))
+        (pos(EP::all, as_index(atom)).colwise() - pos.col(atom.id()))
             .colwise()
             .squaredNorm();
     ArrayXi idxs = argpartition(dsqs, n);
@@ -282,7 +282,7 @@ namespace {
     ABSL_DCHECK(atom.degree() == 3);
 
     Matrix3d vectors = internal::safe_colwise_normalized(
-        pos(Eigen::all, as_index(atom)).colwise() - pos.col(atom.id()));
+        pos(EP::all, as_index(atom)).colwise() - pos.col(atom.id()));
     return hyb_from_vectors(vectors);
   }
 
@@ -310,7 +310,7 @@ namespace {
     ArrayXi::ConstMapType rv(ring.data(), n);
 
     // vectors i -> i+1
-    MatrixMax36d vectors = pos(Eigen::all, rv(next)) - pos(Eigen::all, rv);
+    MatrixMax36d vectors = pos(EP::all, rv(next)) - pos(EP::all, rv);
 
     // cross product of (i -> i+1) and (i+1 -> i+2), cyclic
     MatrixMax36d cross(3, n);
@@ -520,7 +520,7 @@ namespace {
     int total = ncnt + ocnt + scnt;
 
     VectorMax3d dsqs =
-        (pos(Eigen::all, as_index(atom)).colwise() - pos.col(atom.id()))
+        (pos(EP::all, as_index(atom)).colwise() - pos.col(atom.id()))
             .colwise()
             .squaredNorm();
 
@@ -692,7 +692,7 @@ namespace {
     if (oxygens.size() < ocnt)
       return;
 
-    ArrayMax4d dsqs = (pos(Eigen::all, oxygens).colwise() - pos.col(atom.id()))
+    ArrayMax4d dsqs = (pos(EP::all, oxygens).colwise() - pos.col(atom.id()))
                           .colwise()
                           .squaredNorm();
 

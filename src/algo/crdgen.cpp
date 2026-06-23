@@ -555,7 +555,7 @@ namespace {
                             const RefTetrad &tetrad) {
     auto x3d = x.topRows(3);
 
-    Matrix<double, 3, 4> zs = x3d(Eigen::all, tetrad.idxs);
+    Matrix<double, 3, 4> zs = x3d(EP::all, tetrad.idxs);
     zs.leftCols<3>().colwise() -= zs.col(3);
 
     Matrix<double, 3, 4> grad;
@@ -577,7 +577,7 @@ namespace {
 
     grad.col(3) = -grad.leftCols<3>().rowwise().sum();
 
-    g.topRows(3)(Eigen::all, tetrad.idxs) += grad.array();
+    g.topRows(3)(EP::all, tetrad.idxs) += grad.array();
 
     return vol_err * vol_err;
   }

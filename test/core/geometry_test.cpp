@@ -12,7 +12,6 @@
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
 #include <Eigen/Dense>
-#include <eigen3/Eigen/src/Geometry/Transform.h>
 
 #include <gtest/gtest.h>
 

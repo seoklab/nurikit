@@ -40,8 +40,14 @@
 namespace nuri {
 //! @privatesection
 
-// NOLINTNEXTLINE(*-naming)
+// NOLINTBEGIN(*-naming,*-unused-*)
 namespace E = Eigen;
+
+#if EIGEN_VERSION_AT_LEAST(5, 0, 0)
+namespace EP = Eigen::placeholders;
+#else
+namespace EP = Eigen;
+#endif
 
 using E::Array;
 using E::Array3d;
@@ -89,6 +95,8 @@ using E::Translation3d;
 
 template <class DT, int Dim>
 using IsometryT = E::Transform<DT, Dim, E::Isometry>;
+
+// NOLINTEND(*-naming,*-unused-*)
 
 template <class Raw, int Options = 0,
           class StrideType =

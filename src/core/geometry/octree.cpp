@@ -141,7 +141,7 @@ void OCTree::rebuild_impl(Points src) {
                  static_cast<int>(src.cols()), bucket_size_);
   }
 
-  pts_ = src(E::all, idxs_);
+  pts_ = src(EP::all, idxs_);
 }
 
 namespace {

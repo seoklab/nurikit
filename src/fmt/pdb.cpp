@@ -2024,7 +2024,7 @@ void remove_hbonds(MoleculeMutator &mut) {
       continue;
 
     int argmin;
-    (conf(Eigen::all, as_index(atom)).colwise() - conf.col(atom.id()))
+    (conf(EP::all, as_index(atom)).colwise() - conf.col(atom.id()))
         .colwise()
         .squaredNorm()
         .minCoeff(&argmin);

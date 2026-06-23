@@ -98,8 +98,8 @@ namespace internal {
         }
       }
 
-      Matrix3d qpts = query.ref()(Eigen::all, coms.first);
-      Matrix3d tpts = templ.ref()(Eigen::all, coms.second);
+      Matrix3d qpts = query.ref()(EP::all, coms.first);
+      Matrix3d tpts = templ.ref()(EP::all, coms.second);
 
       candidate.xform = qcp_inplace(qpts, tpts, AlignMode::kXformOnly).first;
 

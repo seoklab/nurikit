@@ -44,7 +44,7 @@ namespace internal {
                                   const int n) {
       Vector3d mean = safe_normalized(
           safe_colwise_normalized(
-              conf(Eigen::all, as_index(atom)).leftCols(n).colwise()
+              conf(EP::all, as_index(atom)).leftCols(n).colwise()
               - conf.col(atom.id()))
               .rowwise()
               .sum());
@@ -262,7 +262,7 @@ namespace internal {
       vecs.col(1) = axes.col(2) - axes.col(0) + axes.col(1);
       vecs.col(2) = axes.col(2) - axes.col(0) - axes.col(1);
 
-      conf(Eigen::all, as_index(atom)).rightCols(nh) =
+      conf(EP::all, as_index(atom)).rightCols(nh) =
           (vecs.colwise() + conf.col(atom.id())).leftCols(nh);
 
       return false;
@@ -274,7 +274,7 @@ namespace internal {
       Array3i cnts;
 
       axes.rightCols<2>() =
-          -(conf(Eigen::all, as_index(atom)).leftCols<2>().colwise()
+          -(conf(EP::all, as_index(atom)).leftCols<2>().colwise()
             - conf.col(atom.id()));
       safe_colwise_normalize(axes.rightCols<2>());
 
@@ -306,7 +306,7 @@ namespace internal {
     gen_sp3d_axes_counts_fixed3(Molecule::Atom atom, const Matrix3Xd &conf) {
       Array3i cnts;
 
-      Matrix3d vecs = -(conf(Eigen::all, as_index(atom)).leftCols<3>().colwise()
+      Matrix3d vecs = -(conf(EP::all, as_index(atom)).leftCols<3>().colwise()
                         - conf.col(atom.id()));
       safe_colwise_normalize(vecs);
 
@@ -320,8 +320,8 @@ namespace internal {
         { 2, 0, 1 },
       };
 
-      Array3d cos_xyz = (vecs(Eigen::all, selector[0]).array()
-                         * vecs(Eigen::all, selector[1]).array())
+      Array3d cos_xyz = (vecs(EP::all, selector[0]).array()
+                         * vecs(EP::all, selector[1]).array())
                             .colwise()
                             .sum()
                             .transpose();
@@ -424,7 +424,7 @@ namespace internal {
       Array3i cnts;
 
       axes.rightCols<2>() =
-          -(conf(Eigen::all, as_index(atom)).leftCols<2>().colwise()
+          -(conf(EP::all, as_index(atom)).leftCols<2>().colwise()
             - conf.col(atom.id()));
       safe_colwise_normalize(axes.rightCols<2>());
 
@@ -449,7 +449,7 @@ namespace internal {
       Matrix3d vecs;
       Array3i cnts;
 
-      vecs = -(conf(Eigen::all, as_index(atom)).leftCols<3>().colwise()
+      vecs = -(conf(EP::all, as_index(atom)).leftCols<3>().colwise()
                - conf.col(atom.id()));
       safe_colwise_normalize(vecs);
 
@@ -463,8 +463,8 @@ namespace internal {
         { 2, 0, 1 },
       };
 
-      Array3d cos_xyz = (vecs(Eigen::all, selector[0]).array()
-                         * vecs(Eigen::all, selector[1]).array())
+      Array3d cos_xyz = (vecs(EP::all, selector[0]).array()
+                         * vecs(EP::all, selector[1]).array())
                             .colwise()
                             .sum()
                             .transpose();
@@ -497,7 +497,7 @@ namespace internal {
       Array3i cnts;
 
       Matrix<double, 3, 4> vecs =
-          -(conf(Eigen::all, as_index(atom)).leftCols<4>().colwise()
+          -(conf(EP::all, as_index(atom)).leftCols<4>().colwise()
             - conf.col(atom.id()));
       safe_colwise_normalize(vecs);
 
@@ -507,8 +507,8 @@ namespace internal {
         { 4, 5, 3, 2, 0, 1 }, // complement cosine indices
       };
 
-      Array6d cos_xyz = (vecs(Eigen::all, selector[0]).array()
-                         * vecs(Eigen::all, selector[1]).array())
+      Array6d cos_xyz = (vecs(EP::all, selector[0]).array()
+                         * vecs(EP::all, selector[1]).array())
                             .colwise()
                             .sum()
                             .transpose();
@@ -875,7 +875,7 @@ namespace internal {
     if (free_hs.empty())
       return true;
 
-    Matrix3Xd current = conf(Eigen::all, free_hs);
+    Matrix3Xd current = conf(EP::all, free_hs);
     FreeHProxy h_proxy(mol, conf, current, free_hs);
 
     LBfgs<internal::LBfgsImpl> minimizer(current.reshaped().array(),
@@ -904,7 +904,7 @@ namespace internal {
       return false;
     }
 
-    conf(Eigen::all, free_hs) = current;
+    conf(EP::all, free_hs) = current;
     return true;
   }
 }  // namespace internal

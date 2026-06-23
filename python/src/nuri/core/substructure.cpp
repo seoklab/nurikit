@@ -113,7 +113,7 @@ private:
   }
 
   auto deref(const std::vector<Matrix3Xd> &confs, int idx) const {
-    auto sub = confs[idx](Eigen::all, (**sub_).atom_ids());
+    auto sub = confs[idx](EP::all, (**sub_).atom_ids());
     return eigen_as_numpy(sub);
   }
 
@@ -522,7 +522,7 @@ Get a neighbor of the substructure.
       [](P &self, int conf) {
         Molecule &mol = *self.parent();
         conf = check_conf(mol, conf);
-        return eigen_as_numpy(mol.confs()[conf](Eigen::all, self->atom_ids()));
+        return eigen_as_numpy(mol.confs()[conf](EP::all, self->atom_ids()));
       },
       py::arg("conf") = 0, R"doc(
 Get the coordinates of the atoms in a conformation of the substructure.
@@ -540,7 +540,7 @@ Get the coordinates of the atoms in a conformation of the substructure.
       [](P &self, const py::handle &obj, int conf) {
         Molecule &mol = *self.parent();
         conf = check_conf(mol, conf);
-        auto block = mol.confs()[conf](Eigen::all, self->atom_ids());
+        auto block = mol.confs()[conf](EP::all, self->atom_ids());
         assign_conf(block, obj);
       },
       py::arg("coords"), py::arg("conf") = 0, R"doc(
