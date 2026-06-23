@@ -67,7 +67,7 @@ void VoxelGrid::rebuild_impl(Points src) {
     }
   }
 
-  pts_ = src(EP::all, cell_pts_);
+  pts_.noalias() = src(EP::all, cell_pts_);
 }
 
 void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,

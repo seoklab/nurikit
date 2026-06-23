@@ -307,7 +307,7 @@ namespace internal {
       }
 
       auto r = L.r().head(impl.nfree()).matrix();
-      r = (theta * (x - z) - gx)(free);
+      r.noalias() = (theta * (x - z) - gx)(free).matrix();
 
       if (!lbfgs_bmv_impl(p, smul, c, sy, wtt))
         return false;

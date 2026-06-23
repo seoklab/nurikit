@@ -198,8 +198,8 @@ namespace internal {
                         AL1 &&dsqs, const AL2 &i_ali, ArrayXi &j_ali,
                         const ML2 &x, const ML2 &y, const double d_cutoff,
                         const double score_d8sq_cutoff, const double d0sq_inv) {
-      rx.leftCols(i_ali.size()) = x(EP::all, i_ali);
-      ry.leftCols(i_ali.size()) = y(EP::all, i_ali);
+      rx.leftCols(i_ali.size()).noalias() = x(EP::all, i_ali);
+      ry.leftCols(i_ali.size()).noalias() = y(EP::all, i_ali);
 
       auto [xform, flag] = qcp_inplace(rx.leftCols(i_ali.size()),
                                        ry.leftCols(i_ali.size()),
