@@ -17,7 +17,15 @@ if [[ ! -d build ]]; then
 fi
 
 cf_args=("-i")
+nproc="$(nproc)"
+
 ct_args=(--warnings-as-errors='*')
+if command -v gcc &>/dev/null; then
+	ct_args+=(
+		--extra-arg="--gcc-install-dir=$(dirname "$(gcc -print-libgcc-file-name)")"
+	)
+fi
+
 while getopts 'cj:x:' opt; do
 	case "$opt" in
 	c) cf_args=(-n --Werror) ;;
@@ -29,22 +37,23 @@ done
 
 shift $((OPTIND - 1))
 
+if [[ $# -eq 0 ]]; then
+	tidy_paths=(include src python/include python/src)
+	format_paths=("${tidy_paths[@]}" test)
+else
+	tidy_paths=("$@")
+	format_paths=("$@")
+fi
+
 tmpd="$(mktemp -d)"
 trap 'rm -rf "$tmpd"' INT TERM EXIT
 
-if [[ $# -eq 0 ]]; then
-	find include src python/include python/src \
-		\( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) -print0 \
-		>"$tmpd/tidy-checks"
+find "${tidy_paths[@]}" \
+	\( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) \
+	-print0 >"$tmpd/tidy-checks"
+find "${format_paths[@]}" \
+	\( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) \
+	-print0 >"$tmpd/format-checks"
 
-	cp "$tmpd/tidy-checks" "$tmpd/format-checks"
-
-	find test \( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) -print0 \
-		>>"$tmpd/format-checks"
-else
-	printf '%s\0' "$@" >"$tmpd/tidy-checks"
-	cp "$tmpd/tidy-checks" "$tmpd/format-checks"
-fi
-
-xargs -0 -P"${nproc-0}" -n1 clang-format "${cf_args[@]}" <"$tmpd/format-checks"
-xargs -0 -P"${nproc-0}" -n1 clang-tidy -p build "${ct_args[@]}" <"$tmpd/tidy-checks"
+xargs -0 -P"$nproc" -n1 clang-format "${cf_args[@]}" <"$tmpd/format-checks"
+xargs -0 -P"$nproc" -n1 clang-tidy -p build "${ct_args[@]}" <"$tmpd/tidy-checks"
