@@ -10,26 +10,35 @@ cpp_test=false
 py_test=false
 output_args=()
 output=''
+jobs="$(nproc)"
 
-while getopts ':-:' opt; do
+while getopts ':j:-:' opt; do
 	case "$opt" in
-	-) ;;
-	*) exit 1 ;;
-	esac
-
-	case "$OPTARG" in
-	cpp) cpp_test=true ;;
-	python) py_test=true ;;
-	html)
-		output_args=(--html-details)
-		output="coverage/html/index.html"
+	j) jobs="$OPTARG" ;;
+	-)
+		case "$OPTARG" in
+		cpp) cpp_test=true ;;
+		python) py_test=true ;;
+		html)
+			output_args=(--html-details)
+			output="coverage/html/index.html"
+			;;
+		json)
+			output_args=(--coveralls)
+			output="coverage/json/coverage.json"
+			;;
+		*)
+			echo >&2 "Unknown option: --$OPTARG"
+			exit 1
+			;;
+		esac
 		;;
-	json)
-		output_args=(--coveralls)
-		output="coverage/json/coverage.json"
+	:)
+		echo >&2 "Option -$OPTARG requires an argument"
+		exit 1
 		;;
 	*)
-		echo >&2 "Unknown option: --$OPTARG"
+		echo >&2 "Unknown option: -$OPTARG"
 		exit 1
 		;;
 	esac
@@ -47,13 +56,13 @@ cd "$prj_root"
 
 if [[ $cpp_test = true ]]; then
 	pushd "$build_dir"
-	ctest -"j$(nproc)" --output-on-failure
+	ctest -"j$jobs" --output-on-failure
 	popd
 fi
 
 if [[ $py_test = true ]]; then
-	pytest -v -"n$(nproc)" python/test
-	cmake --build "$build_dir" --target NuriPythonDoctest -"j$(nproc)"
+	pytest -v -"n$jobs" python/test
+	cmake --build "$build_dir" --target NuriPythonDoctest -"j$jobs"
 fi
 
 if [[ -n $output ]]; then

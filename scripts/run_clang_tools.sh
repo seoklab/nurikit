@@ -17,7 +17,15 @@ if [[ ! -d build ]]; then
 fi
 
 cf_args=("-i")
+nproc="$(nproc)"
+
 ct_args=(--warnings-as-errors='*')
+if command -v gcc &>/dev/null; then
+	ct_args+=(
+		--extra-arg="--gcc-install-dir=$(dirname "$(gcc -print-libgcc-file-name)")"
+	)
+fi
+
 while getopts 'cj:x:' opt; do
 	case "$opt" in
 	c) cf_args=(-n --Werror) ;;
@@ -46,5 +54,5 @@ else
 	cp "$tmpd/tidy-checks" "$tmpd/format-checks"
 fi
 
-xargs -0 -P"${nproc-0}" -n1 clang-format "${cf_args[@]}" <"$tmpd/format-checks"
-xargs -0 -P"${nproc-0}" -n1 clang-tidy -p build "${ct_args[@]}" <"$tmpd/tidy-checks"
+xargs -0 -P"$nproc" -n1 clang-format "${cf_args[@]}" <"$tmpd/format-checks"
+xargs -0 -P"$nproc" -n1 clang-tidy -p build "${ct_args[@]}" <"$tmpd/tidy-checks"
