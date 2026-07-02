@@ -37,22 +37,23 @@ done
 
 shift $((OPTIND - 1))
 
+if [[ $# -eq 0 ]]; then
+	tidy_paths=(include src python/include python/src)
+	format_paths=("${tidy_paths[@]}" test)
+else
+	tidy_paths=("$@")
+	format_paths=("$@")
+fi
+
 tmpd="$(mktemp -d)"
 trap 'rm -rf "$tmpd"' INT TERM EXIT
 
-if [[ $# -eq 0 ]]; then
-	find include src python/include python/src \
-		\( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) -print0 \
-		>"$tmpd/tidy-checks"
-
-	cp "$tmpd/tidy-checks" "$tmpd/format-checks"
-
-	find test \( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) -print0 \
-		>>"$tmpd/format-checks"
-else
-	printf '%s\0' "$@" >"$tmpd/tidy-checks"
-	cp "$tmpd/tidy-checks" "$tmpd/format-checks"
-fi
+find "${tidy_paths[@]}" \
+	\( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) \
+	-print0 >"$tmpd/tidy-checks"
+find "${format_paths[@]}" \
+	\( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) \
+	-print0 >"$tmpd/format-checks"
 
 xargs -0 -P"$nproc" -n1 clang-format "${cf_args[@]}" <"$tmpd/format-checks"
 xargs -0 -P"$nproc" -n1 clang-tidy -p build "${ct_args[@]}" <"$tmpd/tidy-checks"
