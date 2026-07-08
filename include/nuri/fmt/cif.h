@@ -215,6 +215,8 @@ namespace internal {
 
     bool empty() const { return keys_.empty() || rows_.empty(); }
 
+    std::string validate() const;
+
   private:
     std::vector<std::string> keys_;
     std::vector<std::vector<CifValue>> rows_;
@@ -281,7 +283,7 @@ namespace internal {
       return tables_[tbl].col(col);
     }
 
-    std::string validate() const;
+    std::string validate(bool recursive = true) const;
 
   private:
     std::string name_;
@@ -321,6 +323,8 @@ namespace internal {
     const std::vector<CifFrame> &save_frames() const { return save_; }
 
     Type type() const { return type_; }
+
+    std::string validate(bool recursive = true) const;
 
     constexpr operator bool() const {
       return type_ != Type::kEOF && type_ != Type::kError;

@@ -16,6 +16,7 @@
 
 #include <absl/algorithm/container.h>
 #include <absl/base/optimization.h>
+#include <absl/container/flat_hash_set.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/ascii.h>
@@ -286,29 +287,57 @@ void CifTable::add_data(CifValue &&value) {
   rows_.back().push_back(std::move(value));
 }
 
+namespace {
+// A valid CIF data name is ``_`` followed by one or more non-blank printable
+// ASCII characters (no whitespace, control, or non-ASCII bytes).
+bool is_valid_cif_key(std::string_view key) {
+  return key.size() >= 2 && key[0] == '_'
+         && absl::c_all_of(key, absl::ascii_isgraph);
+}
+}  // namespace
+
+std::string CifTable::validate() const {
+  absl::flat_hash_set<std::string_view> seen;
+  for (const std::string &key: keys_) {
+    if (!is_valid_cif_key(key))
+      return absl::StrCat("Invalid CIF key: ", key);
+    if (!seen.insert(key).second)
+      return absl::StrCat("Duplicate CIF key: ", key);
+  }
+
+  for (const std::vector<CifValue> &row: rows_) {
+    if (row.size() != keys_.size())
+      return "Inconsistent table size";
+  }
+
+  return "";
+}
+
 CifFrame::CifFrame(std::vector<CifTable> &&tables, std::string &&name)
     : name_(std::move(name)), tables_(std::move(tables)) {
   for (int i = 0; i < tables_.size(); ++i) {
     for (int j = 0; j < tables_[i].cols(); ++j) {
-      auto [_, ok] = index_.insert({
+      // Keep the first occurrence on duplicate keys; validate() reports it.
+      index_.insert({
           tables_[i].keys()[j],
           { i, j },
       });
-
-      ABSL_DCHECK(ok) << "Duplicate key: " << tables_[i].keys()[j];
     }
   }
 }
 
-std::string CifFrame::validate() const {
-  if (!absl::c_all_of(tables_, [](const CifTable &table) {
-        return absl::c_all_of(table, [&](const std::vector<CifValue> &row) {
-          return row.size() == table.keys().size();
-        });
-      })) {
-    return "Inconsistent table size";
+std::string CifFrame::validate(bool recursive) const {
+  // Each table is internally consistent (valid, unique keys; one value per
+  // key).
+  if (recursive) {
+    for (const CifTable &table: tables_) {
+      std::string err = table.validate();
+      if (!err.empty())
+        return err;
+    }
   }
 
+  // Keys must also be unique across the whole frame.
   for (int i = 0; i < tables_.size(); ++i) {
     for (int j = 0; j < tables_[i].cols(); ++j) {
       auto [iref, jref] = find(tables_[i].keys()[j]);
@@ -316,6 +345,34 @@ std::string CifFrame::validate() const {
         return absl::StrCat("Duplicate or missing key in index: ",
                             tables_[i].keys()[j]);
     }
+  }
+
+  return "";
+}
+
+std::string CifBlock::validate(bool recursive) const {
+  // The eof/error sentinels carry no data frame to validate.
+  if (!*this)
+    return "";
+
+  if (recursive) {
+    std::string err = frame_.validate();
+    if (!err.empty())
+      return err;
+  }
+
+  absl::flat_hash_set<std::string_view> seen;
+  for (const CifFrame &save: save_) {
+    if (recursive) {
+      std::string err = save.validate();
+      if (!err.empty())
+        return absl::StrCat(err, " in save frame ", save.name());
+    }
+
+    if (save.name().empty())
+      return "Save frame with empty name";
+    if (!seen.insert(save.name()).second)
+      return absl::StrCat("Duplicate save frame name: ", save.name());
   }
 
   return "";
@@ -479,17 +536,9 @@ internal::CifBlock CifParser::next() {
 
   internal::CifBlock block = internal::next_block(*this, lexer_, name_, block_);
 
-  std::string err = block.data().validate();
+  std::string err = block.validate();
   if (!err.empty())
     return error(err);
-
-  for (const auto &frame: block.save_frames()) {
-    err = frame.validate();
-    if (!err.empty()) {
-      absl::StrAppend(&err, " in save block ", frame.name());
-      return error(err);
-    }
-  }
 
   return block;
 }
@@ -499,4 +548,5 @@ internal::CifBlock CifParser::error(std::string_view reason) {
   block_ = BlockType::kError;
   return internal::CifBlock::error(reason);
 }
+
 }  // namespace nuri
