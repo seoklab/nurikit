@@ -182,12 +182,12 @@ public:
   explicit PyCifParser(std::ifstream &&ifs)
       : ifs_(std::move(ifs)), parser_(ifs_) { }
 
-  static std::unique_ptr<PyCifParser> from_file(const fs::path &path) {
+  static pyt::Iterator<PyCifBlock> from_file(const fs::path &path) {
     std::ifstream ifs(path);
     if (!ifs)
       throw file_error(path.c_str());
 
-    return std::make_unique<PyCifParser>(std::move(ifs));
+    return py::cast(std::make_unique<PyCifParser>(std::move(ifs)));
   }
 
   PyCifBlock next() { return PyCifBlock(parser_.next()); }
@@ -340,15 +340,15 @@ Search for the first table containing a column starting with the given prefix.
       .def_property_readonly("save_frames", &PyCifBlock::save_frames);
   def_property_readonly_subobject(cb, "data", &PyCifBlock::data);
 
-  py::class_<PyCifParser>(m, "CifParser")
+  py::class_<PyCifParser>(m, "_CifParser")
       .def("__iter__", pass_through<PyCifParser>)
       .def("__next__", &PyCifParser::next);
 
-  m.def("read_cif", &PyCifParser::from_file, py::arg("path"), R"doc(
+  m.def("read_cif", PyCifParser::from_file, py::arg("path"), R"doc(
 Create a parser object from a CIF file path.
 
 :param path: The path to the CIF file.
-:return: A parser object that can be used to iterate over the blocks in the file.
+:return: An iterator over the blocks in the file.
 )doc")
       .def("cif_ddl2_frame_as_dict", cif_ddl2_frame_as_dict, py::arg("frame"),
            R"doc(
