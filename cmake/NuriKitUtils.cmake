@@ -172,6 +172,11 @@ function(find_or_fetch_abseil)
       )
       Fetchcontent_MakeAvailable(absl)
 
+      # The extracted tarball is upstream's `cmake --install` tree; expose it so
+      # the install step can ship it beside libnuri (imported abseil has no
+      # install rules of its own).
+      set(NURI_ABSL_PREBUILT_DIR "${absl_SOURCE_DIR}" PARENT_SCOPE)
+
       set(absl_findpackage_args PATHS "${absl_SOURCE_DIR}" NO_DEFAULT_PATH)
     else()
       set(absl_findpackage_args QUIET)
