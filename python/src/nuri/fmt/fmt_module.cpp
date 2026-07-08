@@ -287,7 +287,19 @@ Convert a molecule to PDB string.
   will not produce a valid PDB file.
 )doc");
 
-  bind_cif(m);
+  py::module_ cif =
+      m.def_submodule("cif", "CIF format-specific handlers and utilities.");
+  bind_cif(cif);
+
+  // Backward-compatible aliases: CIF used to live directly in nuri.fmt.
+  m.attr("CifValue") = cif.attr("Value");
+  m.attr("CifTable") = cif.attr("Table");
+  m.attr("CifFrame") = cif.attr("Frame");
+  m.attr("CifBlock") = cif.attr("Block");
+  m.attr("read_cif") = cif.attr("read_blocks");
+  m.attr("write_cif") = cif.attr("write");
+  m.attr("cif_ddl2_frame_as_dict") = cif.attr("Frame").attr("as_ddl2_dict");
+  m.attr("mmcif_load_frame") = cif.attr("Frame").attr("as_mols");
 
   py::module_ pdb =
       m.def_submodule("pdb", "PDB format-specific handlers and utilities.");
