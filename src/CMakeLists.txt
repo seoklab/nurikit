@@ -107,13 +107,17 @@ if(NURI_INSTALL_RPATH)
   set_target_properties(
     NuriLib
     PROPERTIES
-    INSTALL_RPATH "${NURI_RPATH_PREFIX}"
+    INSTALL_RPATH "${NURI_RPATH_PREFIX};${NURI_RPATH_PREFIX}/../lib64"
   )
 
+  set(exe_rpath
+    "${NURI_RPATH_PREFIX}/../${CMAKE_INSTALL_LIBDIR}"
+    "${NURI_RPATH_PREFIX}/../lib64"
+  )
   set_target_properties(
     NuriExe
     PROPERTIES
-    INSTALL_RPATH "${NURI_RPATH_PREFIX}/../${CMAKE_INSTALL_LIBDIR}"
+    INSTALL_RPATH "${exe_rpath}"
   )
 endif()
 

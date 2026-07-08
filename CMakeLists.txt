@@ -176,8 +176,7 @@ if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON OR BUILD_TESTING)
   # When we downloaded a prebuilt (imported) abseil, ship it beside libnuri so
   # the C++ install / release tarball is self-contained: consumers resolve the
   # runtime via RPATH, and downstream find_package(absl) uses the bundled cmake
-  # config. Imported abseil has no install rules of its own. Skipped under
-  # SKBUILD (wheels consume this tarball's abseil via find_package instead).
+  # config. Imported abseil has no install rules of its own.
   #
   # The tarball is already an install tree; copy it wholesale. This is declared
   # before add_subdirectory(src), so abseil (including its lib->lib64 symlink)
@@ -185,7 +184,7 @@ if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON OR BUILD_TESTING)
   # pre-existing dir to clash with, and abseil's cmake config stays valid.
   # Order is guaranteed: CMP0082 is NEW (cmake_minimum_required 3.16 >= 3.14),
   # so install rules run in declaration order; do not move this after src.
-  if(NURI_ABSL_PREBUILT_DIR AND NOT SKBUILD)
+  if(NURI_ABSL_PREBUILT_DIR)
     install(DIRECTORY "${NURI_ABSL_PREBUILT_DIR}/" DESTINATION ".")
   endif()
 
