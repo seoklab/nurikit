@@ -6,7 +6,8 @@ nuri.fmt
 ========
 
 .. automodule:: nuri.fmt
-    :exclude-members: MoleculeReader, readfile, readstring, to_smiles, to_mol2, to_sdf, to_pdb
+    :exclude-members: MoleculeReader, CifBlock, CifFrame, CifTable, CifValue,
+        readfile, readstring, to_smiles, to_mol2, to_sdf, to_pdb
 
     .. autoclass:: MoleculeReader
 
@@ -17,6 +18,22 @@ nuri.fmt
         .. automethod:: __next__
 
             Returns the next molecule.
+
+    .. autoclass:: CifBlock
+
+        .. automethod:: __init__
+
+    .. autoclass:: CifFrame
+
+        .. automethod:: __init__
+
+    .. autoclass:: CifTable
+
+        .. automethod:: __init__
+
+    .. autoclass:: CifValue
+
+        .. automethod:: __init__
 
 ------------------
 PDB Format Support
