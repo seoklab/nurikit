@@ -9,7 +9,6 @@
 #include <fstream>
 
 #include <Eigen/Dense>
-#include <eigen3/Eigen/src/Core/Matrix.h>
 
 #include <gtest/gtest.h>
 
