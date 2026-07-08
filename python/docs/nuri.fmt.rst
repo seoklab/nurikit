@@ -6,8 +6,8 @@ nuri.fmt
 ========
 
 .. automodule:: nuri.fmt
-    :exclude-members: MoleculeReader, CifBlock, CifFrame, CifTable, CifValue,
-        readfile, readstring, to_smiles, to_mol2, to_sdf, to_pdb
+    :exclude-members: MoleculeReader, readfile, readstring, to_smiles, to_mol2,
+        to_sdf, to_pdb
 
     .. autoclass:: MoleculeReader
 
@@ -19,19 +19,30 @@ nuri.fmt
 
             Returns the next molecule.
 
-    .. autoclass:: CifBlock
+------------------
+CIF Format Support
+------------------
+
+.. code-block:: python
+
+   from nuri.fmt import cif
+
+.. automodule:: nuri.fmt.cif
+    :exclude-members: Block, Frame, Table, Value
+
+    .. autoclass:: Block
 
         .. automethod:: __init__
 
-    .. autoclass:: CifFrame
+    .. autoclass:: Frame
 
         .. automethod:: __init__
 
-    .. autoclass:: CifTable
+    .. autoclass:: Table
 
         .. automethod:: __init__
 
-    .. autoclass:: CifValue
+    .. autoclass:: Value
 
         .. automethod:: __init__
 
