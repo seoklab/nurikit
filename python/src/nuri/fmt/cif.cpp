@@ -610,6 +610,14 @@ Load this frame as a list of molecules.
 :return: A list of molecules loaded from the frame.
 )doc");
 
+  // Compat shims; might be removed in a future release.
+  // Need to bind as free functions additionally, otherwise stubgen will not
+  // generate the correct signatures.
+  m.def("_frame_as_ddl2_dict", cif_ddl2_frame_as_dict, py::arg("frame"),
+        R"doc(Deprecated alias for :meth:`Frame.as_ddl2_dict`.)doc");
+  m.def("_frame_as_mols", mmcif_load_cif_frame, py::arg("frame"),
+        R"doc(Deprecated alias for :meth:`Frame.as_mols`.)doc");
+
   bind_opaque_vector<internal::CifFrame, PyCifFrame, wrap_cif_frame>(
       m, "_FrameList", "_FrameList index out of range");
 

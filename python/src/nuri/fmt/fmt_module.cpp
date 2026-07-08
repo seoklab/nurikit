@@ -298,8 +298,8 @@ Convert a molecule to PDB string.
   m.attr("CifBlock") = cif.attr("Block");
   m.attr("read_cif") = cif.attr("read_blocks");
   m.attr("write_cif") = cif.attr("write");
-  m.attr("cif_ddl2_frame_as_dict") = cif.attr("Frame").attr("as_ddl2_dict");
-  m.attr("mmcif_load_frame") = cif.attr("Frame").attr("as_mols");
+  m.attr("cif_ddl2_frame_as_dict") = cif.attr("_frame_as_ddl2_dict");
+  m.attr("mmcif_load_frame") = cif.attr("_frame_as_mols");
 
   py::module_ pdb =
       m.def_submodule("pdb", "PDB format-specific handlers and utilities.");
