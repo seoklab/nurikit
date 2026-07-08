@@ -1154,6 +1154,18 @@ TEST_P(CifWriteAlignTest, EmptyTable) {
   EXPECT_TRUE(out.empty());
 }
 
+TEST_P(CifWriteAlignTest, KeysWithoutRows) {
+  // A table with keys but no data rows is semantically empty: it must not emit
+  // a loop_ header with zero packets (invalid CIF), just nothing.
+  CifTable table;
+  table.add_key("_x");
+  table.add_key("_y");
+
+  std::string out;
+  EXPECT_TRUE(write_cif_table(out, table, align()));
+  EXPECT_TRUE(out.empty());
+}
+
 TEST(CifWriteBlockTest, AlignedTextFieldInLoop) {
   // Aligned loop with an embedded-newline cell: inline columns are padded to
   // the widest cell, and the text field still starts at line start (any

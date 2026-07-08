@@ -788,7 +788,7 @@ bool write_cif_loop_aligned(std::string &out, const CifTable &table) {
 }  // namespace
 
 bool write_cif_table(std::string &out, const CifTable &table, bool align) {
-  if (table.cols() == 0)
+  if (table.empty())
     return true;
 
   if (table.size() == 1)
