@@ -10,7 +10,7 @@ import numpy as np
 
 import nuri
 from nuri.core import Molecule
-from nuri.fmt import mmcif_load_frame, read_cif
+from nuri.fmt.cif import read_blocks
 
 
 def _validate_3cye_part(mols: List[Molecule]):
@@ -60,6 +60,6 @@ def test_read_mmcif(test_data: Path):
 
 
 def test_load_mmcif_from_frame(test_data: Path):
-    frame = next(read_cif(test_data / "3cye_part.cif")).data
-    mols = mmcif_load_frame(frame)
+    frame = next(read_blocks(test_data / "3cye_part.cif")).data
+    mols = frame.as_mols()
     _validate_3cye_part(mols)
