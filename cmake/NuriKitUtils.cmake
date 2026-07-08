@@ -168,7 +168,7 @@ function(find_or_fetch_abseil)
 
       Fetchcontent_Declare(
         absl
-        URL "https://github.com/jnooree/abseil-cpp/releases/latest/download/libabsl-static-${os_arch}.tar.gz"
+        URL "https://github.com/jnooree/abseil-cpp/releases/latest/download/libabsl-shared-${os_arch}.tar.gz"
       )
       Fetchcontent_MakeAvailable(absl)
 
@@ -204,13 +204,12 @@ function(find_or_fetch_abseil)
     NAME absl
     OPTIONS
     "BUILD_TESTING OFF"
-    "BUILD_SHARED_LIBS OFF"
+    "BUILD_SHARED_LIBS ON"
     "ABSL_ENABLE_INSTALL ON"
     "ABSL_BUILD_TESTING OFF"
     "ABSL_PROPAGATE_CXX_STD ON"
     "ABSL_USE_SYSTEM_INCLUDES ON"
     URL https://github.com/jnooree/abseil-cpp/releases/latest/download/abseil-cpp-latest.tar.gz
-    EXCLUDE_FROM_ALL ON
     SYSTEM ON
   )
 endfunction()

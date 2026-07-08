@@ -102,6 +102,14 @@ target_link_libraries(NuriExe PRIVATE NuriLib absl::log_initialize)
 set_target_properties(NuriExe PROPERTIES OUTPUT_NAME nuri)
 
 if(NURI_INSTALL_RPATH)
+  # DT_RUNPATH is not transitive, so consumers' RPATH cannot resolve libnuri's
+  # own shared abseil dependencies; libnuri must locate its siblings itself.
+  set_target_properties(
+    NuriLib
+    PROPERTIES
+    INSTALL_RPATH "${NURI_RPATH_PREFIX}"
+  )
+
   set_target_properties(
     NuriExe
     PROPERTIES
