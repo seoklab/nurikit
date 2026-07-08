@@ -169,9 +169,13 @@ produce_text_field_impl(CifLexer &lexer, std::string &buf) {
       }
     }
 
-    std::string_view line = absl::StripTrailingAsciiWhitespace(lexer.line());
-    if constexpr (kContinuation)
-      cont = absl::EndsWith(line, "\\");
+    std::string_view line = lexer.line();
+    if constexpr (kContinuation) {
+      std::string_view stripped = absl::StripTrailingAsciiWhitespace(line);
+      cont = absl::EndsWith(stripped, "\\");
+      if (cont)
+        line = stripped;
+    }
 
     absl::StrAppend(&buf, sep, line);
   }
@@ -193,11 +197,16 @@ produce_text_field_impl(CifLexer &lexer, std::string &buf) {
 
 std::pair<std::string_view, CifToken> produce_text_field(CifLexer &lexer,
                                                          std::string &buf) {
-  buf = slice_rstrip(lexer.line(), lexer.p() - lexer.begin() + 1,
-                     lexer.end() - lexer.begin());
-  if (buf == "\\")
+  // Preserve trailing whitespace of the content, but detect the line-folding
+  // marker (`\` as the only non-blank character) on the stripped first line.
+  std::string_view first = slice(lexer.line(), lexer.p() - lexer.begin() + 1,
+                                 lexer.end() - lexer.begin());
+  if (absl::StripTrailingAsciiWhitespace(first) == "\\") {
+    buf = "\\";
     return produce_text_field_impl<true>(lexer, buf);
+  }
 
+  buf = first;
   return produce_text_field_impl<false>(lexer, buf);
 }
 }  // namespace

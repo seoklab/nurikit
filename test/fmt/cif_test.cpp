@@ -190,7 +190,7 @@ TEST_F(CifLexerTest, TextField) {
     {     "_test_value",   CifToken::kTag },
     { R"text(First line
     Second line
-Third line)text",
+Third line   )text",
      CifToken::kValue                    },
     {            "test",  CifToken::kData },
     {           "_key1",   CifToken::kTag },
