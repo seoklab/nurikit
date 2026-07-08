@@ -46,13 +46,18 @@
 
 #include "nuri/fmt/cif.h"
 
+#include <cstddef>
 #include <fstream>
 #include <initializer_list>
 #include <sstream>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include <absl/container/flat_hash_map.h>
 #include <absl/strings/match.h>
+#include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
 
 #include <gtest/gtest.h>
@@ -186,17 +191,14 @@ TEST_F(CifLexerTest, TextField) {
   });
 
   expected_ = {
-    {   "verbatim_test",CifToken::kData                        },
-    {     "_test_value",   CifToken::kTag },
-    { R"text(First line
-    Second line
-Third line   )text",
-     CifToken::kValue                    },
-    {            "test",  CifToken::kData },
-    {           "_key1",   CifToken::kTag },
-    {         "foo bar", CifToken::kValue },
-    {           "_key2",   CifToken::kTag },
-    {         "value 2", CifToken::kValue },
+    {                              "verbatim_test",  CifToken::kData },
+    {                                "_test_value",   CifToken::kTag },
+    { "First line\n    Second line\nThird line   ", CifToken::kValue },
+    {                                       "test",  CifToken::kData },
+    {                                      "_key1",   CifToken::kTag },
+    {                                    "foo bar", CifToken::kValue },
+    {                                      "_key2",   CifToken::kTag },
+    {                                    "value 2", CifToken::kValue },
   };
 }
 
@@ -348,6 +350,20 @@ name
 )",  //
         CifToken::kValue,
      },
+  };
+}
+
+TEST_F(CifLexerTest, LineContinuationKeepsLiteralTrailingWhitespace) {
+  set_data({
+      ";\\",
+      "literal line with trailing ws  ",
+      "next\\",
+      "joined",
+      ";",
+  });
+
+  expected_ = {
+    { "literal line with trailing ws  \nnextjoined", CifToken::kValue },
   };
 }
 
@@ -754,6 +770,615 @@ data_publication
   EXPECT_EQ(static_cast<int>(block.type()),
             static_cast<int>(CifBlock::Type::kError));
   EXPECT_PRED2(str_case_contains, block.error_msg(), "unterminated quote");
+}
+
+// ---------------------------------------------------------------------------
+// Writer tests
+// ---------------------------------------------------------------------------
+
+std::string write_value(const CifValue &value) {
+  std::string out;
+  EXPECT_NE(write_cif_value(out, value), CifValueKind::kError);
+  return out;
+}
+
+// Feed an emitted single value back through the lexer.
+CifValue relex_value(std::string_view emitted) {
+  std::stringstream ss { std::string(emitted) };
+  CifLexer lexer(ss);
+  auto [data, type] = lexer.next();
+  EXPECT_TRUE(is_value_token(type)) << "not a value token: " << emitted;
+  return CifValue(data, type);
+}
+
+void expect_roundtrips(const CifValue &value) {
+  std::string out;
+  ASSERT_NE(write_cif_value(out, value), CifValueKind::kError)
+      << "value: " << *value;
+  CifValue back = relex_value(out);
+  EXPECT_EQ(back.value(), value.value()) << "emitted: [" << out << "]";
+  EXPECT_EQ(back.is_null(), value.is_null()) << "emitted: [" << out << "]";
+  EXPECT_EQ(static_cast<bool>(back.type() & CifValue::Type::kUnknown),
+            static_cast<bool>(value.type() & CifValue::Type::kUnknown))
+      << "emitted: [" << out << "]";
+}
+
+TEST(CifWriteValueTest, NullValues) {
+  EXPECT_EQ(write_value(CifValue::unknown()), "?");
+  EXPECT_EQ(write_value(CifValue::inapplicable()), ".");
+  EXPECT_EQ(write_value(CifValue()), ".");
+}
+
+TEST(CifWriteValueTest, BareValues) {
+  EXPECT_EQ(write_value(CifValue::generic("1.234")), "1.234");
+  EXPECT_EQ(write_value(CifValue::generic("N")), "N");
+  EXPECT_EQ(write_value(CifValue::generic("a#b")), "a#b");
+  EXPECT_EQ(write_value(CifValue::generic("a'b")), "a'b");
+  // "loop" (no underscore) is not a reserved word
+  EXPECT_EQ(write_value(CifValue::generic("loop")), "loop");
+}
+
+TEST(CifWriteValueTest, ValueSemantics) {
+  EXPECT_EQ(write_value(CifValue::generic("42")), "42");
+  EXPECT_EQ(write_value(CifValue::string("42")), "'42'");
+  EXPECT_EQ(write_value(CifValue::string("-1.5e3")), "'-1.5e3'");
+  EXPECT_EQ(write_value(CifValue::string("bare")), "bare");
+  EXPECT_EQ(write_value(CifValue::string("N")), "N");
+
+  // CIF 1.1 numbers stay quoted so they re-lex as strings, not numbers
+  EXPECT_EQ(write_value(CifValue::string("+12")), "'+12'");
+  EXPECT_EQ(write_value(CifValue::string(".5")), "'.5'");
+  EXPECT_EQ(write_value(CifValue::string("5.")), "'5.'");
+  EXPECT_EQ(write_value(CifValue::string("12e3")), "'12e3'");
+  EXPECT_EQ(write_value(CifValue::string("-3.4E-5")), "'-3.4E-5'");
+  // standard uncertainty is part of the numeric grammar
+  EXPECT_EQ(write_value(CifValue::string("1.234(5)")), "'1.234(5)'");
+  // non-CIF-numbers are not forced to quote
+  EXPECT_EQ(write_value(CifValue::string("nan")), "nan");
+  EXPECT_EQ(write_value(CifValue::string("inf")), "inf");
+  EXPECT_EQ(write_value(CifValue::string("0x1f")), "0x1f");
+  EXPECT_EQ(write_value(CifValue::string("1.2.3")), "1.2.3");
+  EXPECT_EQ(write_value(CifValue::string("+")), "+");
+
+  EXPECT_EQ(write_value(cif_value(42)), "42");
+  EXPECT_EQ(write_value(cif_value("42")), "'42'");
+  EXPECT_EQ(write_value(cif_value("hello")), "hello");
+  EXPECT_EQ(write_value(cif_value(1.5)), "1.5");
+  EXPECT_EQ(write_value(cif_value(3.14159, 2)), "3.14");
+  EXPECT_EQ(write_value(cif_value(7, 4)), "0007");
+  EXPECT_EQ(write_value(cif_value(true)), "yes");
+  EXPECT_EQ(write_value(cif_value(false)), "no");
+  EXPECT_EQ(write_value(cif_value(true, true)), "y");
+  EXPECT_EQ(write_value(cif_value(false, true)), "n");
+
+  // zero-padded width includes the sign
+  EXPECT_EQ(write_value(cif_value(-7, 4)), "-007");
+
+  // generic overload: non-arithmetic, non-string_view, StrCat-able -> quoted
+  CifValue hex = cif_value(absl::Hex(255));
+  EXPECT_EQ(hex.type(), CifValue::Type::kString);
+  EXPECT_EQ(hex.value(), "ff");
+}
+
+TEST(CifWriteValueTest, NullFactory) {
+  EXPECT_EQ(write_value(CifValue::null(true)), "?");
+  EXPECT_EQ(write_value(CifValue::null(false)), ".");
+  EXPECT_TRUE(CifValue::null(true).is_null());
+  EXPECT_TRUE(CifValue::null(false).is_null());
+}
+
+TEST(CifWriteValueTest, EmptyString) {
+  EXPECT_EQ(write_value(CifValue::generic("")), "''");
+  EXPECT_EQ(write_value(CifValue::string("")), "''");
+}
+
+TEST(CifWriteValueTest, Quoted) {
+  EXPECT_EQ(write_value(CifValue::generic("a b")), "'a b'");
+  // leading special characters force quoting
+  EXPECT_EQ(write_value(CifValue::generic("_tag")), "'_tag'");
+  EXPECT_EQ(write_value(CifValue::generic("#c")), "'#c'");
+  EXPECT_EQ(write_value(CifValue::generic("$x")), "'$x'");
+  EXPECT_EQ(write_value(CifValue::generic("[x")), "'[x'");
+  EXPECT_EQ(write_value(CifValue::generic(";x")), "';x'");
+  // "?" / "." as real values must be quoted, not emitted as null
+  EXPECT_EQ(write_value(CifValue::generic("?")), "'?'");
+  EXPECT_EQ(write_value(CifValue::generic(".")), "'.'");
+  // reserved words
+  EXPECT_EQ(write_value(CifValue::generic("data_x")), "'data_x'");
+  EXPECT_EQ(write_value(CifValue::generic("loop_")), "'loop_'");
+  EXPECT_EQ(write_value(CifValue::generic("GLOBAL_")), "'GLOBAL_'");
+}
+
+TEST(CifWriteValueTest, DoubleQuoted) {
+  // contains a single-quote followed by whitespace -> use double quotes
+  EXPECT_EQ(write_value(CifValue::generic("a' b")), "\"a' b\"");
+  // a double-quote followed by whitespace (no conflicting single quote) ->
+  // stays single-quoted
+  EXPECT_EQ(write_value(CifValue::generic("a\" b")), "'a\" b'");
+}
+
+TEST(CifWriteValueTest, TextField) {
+  // embedded newline forces a text field
+  EXPECT_EQ(write_value(CifValue::generic("a\nb")), "\n;a\nb\n;\n");
+  // both quote styles conflict -> text field
+  EXPECT_EQ(write_value(CifValue::generic("a' b\" c")), "\n;a' b\" c\n;\n");
+  // trailing whitespace is preserved, not rejected
+  EXPECT_EQ(write_value(CifValue::generic("a \nb")), "\n;a \nb\n;\n");
+}
+
+TEST(CifWriteValueTest, Unrepresentable) {
+  std::string out;
+  // subsequent line begins with ';'; the error message replaces `out`
+  EXPECT_EQ(write_cif_value(out, CifValue::generic("a\n;b")),
+            CifValueKind::kError);
+  EXPECT_PRED2(str_case_contains, out, "';'");
+}
+
+TEST(CifWriteValueTest, RoundTrip) {
+  expect_roundtrips(CifValue::unknown());
+  expect_roundtrips(CifValue::inapplicable());
+  for (std::string_view s: { "1.234",
+                             "N",
+                             "a#b",
+                             "a'b",
+                             "loop",
+                             "",
+                             "a b",
+                             "_tag",
+                             "#c",
+                             "$x",
+                             "[x",
+                             ";x",
+                             "?",
+                             ".",
+                             "data_x",
+                             "loop_",
+                             "a' b",
+                             "a\" b",
+                             "a' b\" c",
+                             "a\nb",
+                             "a \nb",
+                             "trailing spaces  \nsecond line",
+                             "line one\nline two\nline three",
+                             "\nleading newline",
+                             "trailing newline\n",
+                             "'single'",
+                             "\"double\"",
+                             "  padded  " }) {
+    expect_roundtrips(CifValue::generic(s));
+  }
+}
+
+// Collect a frame into an order-independent {key -> column values} map so that
+// loop_ / key-value canonicalization does not affect comparison.
+using FrameMap =
+    absl::flat_hash_map<std::string, std::vector<std::pair<bool, std::string>>>;
+
+FrameMap frame_map(const CifFrame &frame) {
+  FrameMap map;
+  for (const CifTable &table: frame) {
+    for (size_t j = 0; j < table.cols(); ++j) {
+      auto &col = map[table.keys()[j]];
+      for (size_t i = 0; i < table.size(); ++i) {
+        const CifValue &v = table.row(i)[j];
+        col.emplace_back(v.is_null(), std::string(v.value()));
+      }
+    }
+  }
+  return map;
+}
+
+CifBlock reparse(const std::string &cif) {
+  std::stringstream ss { cif };
+  CifParser parser(ss);
+  return parser.next();
+}
+
+CifTable
+make_table(std::initializer_list<std::string_view> keys,
+           std::initializer_list<std::initializer_list<CifValue>> rows) {
+  CifTable table;
+  for (std::string_view key: keys)
+    table.add_key(key);
+  for (const auto &row: rows) {
+    for (const CifValue &v: row)
+      table.add_data(CifValue(v));
+  }
+  return table;
+}
+
+class CifWriteAlignTest: public ::testing::TestWithParam<bool> {
+protected:
+  static bool align() { return GetParam(); }
+};
+
+INSTANTIATE_TEST_SUITE_P(, CifWriteAlignTest, ::testing::Bool(),
+                         [](const ::testing::TestParamInfo<bool> &pinfo) {
+                           return pinfo.param ? "Aligned" : "Plain";
+                         });
+
+TEST_P(CifWriteAlignTest, BuildAndRoundTrip) {
+  std::vector<CifTable> tables;
+  {
+    CifTable t;
+    t.add_key("_entry.id");
+    t.add_data(CifValue::generic("TEST"));
+    tables.push_back(std::move(t));
+  }
+  {
+    CifTable t;
+    t.add_key("_atom.id");
+    t.add_key("_atom.name");
+    t.add_key("_atom.alt");
+    for (int i = 1; i <= 3; ++i) {
+      t.add_data(CifValue::generic(std::to_string(i)));
+      t.add_data(CifValue::string("atom with space"));
+      t.add_data(CifValue::unknown());
+    }
+    tables.push_back(std::move(t));
+  }
+
+  CifFrame frame(std::move(tables), "test");
+  CifBlock block(std::move(frame), {}, CifBlock::Type::kData);
+
+  std::string out;
+  ASSERT_TRUE(write_cif_block(out, block, align()));
+
+  CifBlock back = reparse(out);
+  ASSERT_TRUE(back) << out;
+  EXPECT_EQ(back.name(), "test");
+  EXPECT_EQ(frame_map(block.data()), frame_map(back.data()));
+}
+
+TEST(CifWriteBlockTest, TextFieldInPair) {
+  CifTable table = make_table({ "_desc" }, { { CifValue::generic("l1\nl2") } });
+  std::string out;
+  ASSERT_TRUE(write_cif_table(out, table, false));
+  EXPECT_EQ(out, "_desc\n;l1\nl2\n;\n");
+}
+
+TEST(CifWriteBlockTest, AlignedPairs) {
+  CifTable table = make_table(
+      {
+          "_short", "_a_longer_key"
+  },
+      { { CifValue::generic("1"), CifValue::generic("2") } });
+
+  std::string plain, aligned;
+  ASSERT_TRUE(write_cif_table(plain, table, false));
+  ASSERT_TRUE(write_cif_table(aligned, table, true));
+
+  EXPECT_EQ(plain, "_short 1\n_a_longer_key 2\n");
+  // values aligned to the widest key (_a_longer_key)
+  EXPECT_EQ(aligned, "_short        1\n_a_longer_key 2\n");
+}
+
+TEST(CifWriteBlockTest, TextFieldInLoop) {
+  // A value after a text field starts on a new line (not on the terminator
+  // line), and no blank line is emitted around it.
+  CifTable table = make_table(
+      {
+          "_x", "_y"
+  },
+      { { CifValue::generic("a\nb"), CifValue::generic("z") },
+        { CifValue::generic("p"), CifValue::generic("c\nd") } });
+  std::string out;
+  ASSERT_TRUE(write_cif_table(out, table, false));
+  EXPECT_EQ(out, "loop_\n_x\n_y\n;a\nb\n;\nz\np\n;c\nd\n;\n");
+}
+
+TEST(CifWriteBlockTest, Align) {
+  CifTable table = make_table(
+      {
+          "_a", "_b"
+  },
+      { { CifValue::generic("1"), CifValue::generic("longvalue") },
+        { CifValue::generic("2000"), CifValue::generic("x") } });
+
+  std::string plain, aligned;
+  ASSERT_TRUE(write_cif_table(plain, table, false));
+  ASSERT_TRUE(write_cif_table(aligned, table, true));
+
+  EXPECT_NE(plain, aligned);
+  // aligned output pads the first column: "1   " before the second value
+  EXPECT_PRED2(str_case_contains, aligned, "1    longvalue");
+
+  std::vector<CifTable> pt, at;
+  pt.push_back(make_table(
+      {
+          "_a", "_b"
+  },
+      { { CifValue::generic("1"), CifValue::generic("x") } }));
+  // reparse both, ensure identical data model
+  CifBlock pb = reparse("data_x\n" + plain);
+  CifBlock ab = reparse("data_x\n" + aligned);
+  ASSERT_TRUE(pb);
+  ASSERT_TRUE(ab);
+  EXPECT_EQ(frame_map(pb.data()), frame_map(ab.data()));
+}
+
+TEST_P(CifWriteAlignTest, SaveFrames) {
+  std::vector<CifTable> main_tables;
+  {
+    CifTable t;
+    t.add_key("_data.id");
+    t.add_data(CifValue::generic("main"));
+    main_tables.push_back(std::move(t));
+  }
+
+  std::vector<CifFrame> saves;
+  {
+    std::vector<CifTable> st;
+    CifTable t;
+    t.add_key("_frag.weight");
+    t.add_data(CifValue::generic("234"));
+    st.push_back(std::move(t));
+    saves.emplace_back(std::move(st), "fragment_1");
+  }
+
+  CifFrame frame(std::move(main_tables), "blk");
+  CifBlock block(std::move(frame), std::move(saves), CifBlock::Type::kData);
+
+  std::string out;
+  ASSERT_TRUE(write_cif_block(out, block, align()));
+
+  CifBlock back = reparse(out);
+  ASSERT_TRUE(back) << out;
+  ASSERT_EQ(back.save_frames().size(), 1U);
+  EXPECT_EQ(back.save_frames()[0].name(), "fragment_1");
+  EXPECT_EQ(frame_map(block.save_frames()[0]),
+            frame_map(back.save_frames()[0]));
+}
+
+TEST_P(CifWriteAlignTest, PDB1A8ORoundTrip) {
+  std::ifstream ifs(test_data("1a8o.cif"));
+  ASSERT_TRUE(ifs) << "Failed to open file: 1a8o.cif";
+
+  CifParser parser(ifs);
+  CifBlock block = parser.next();
+  ASSERT_TRUE(block) << "Failed to parse";
+
+  std::string out;
+  ASSERT_TRUE(write_cif_block(out, block, align()));
+
+  CifBlock back = reparse(out);
+  ASSERT_TRUE(back) << "Failed to re-parse written CIF";
+  EXPECT_EQ(back.name(), "1A8O");
+  EXPECT_EQ(frame_map(block.data()), frame_map(back.data()));
+}
+
+TEST_P(CifWriteAlignTest, EmptyTable) {
+  CifTable table;
+  std::string out;
+  EXPECT_TRUE(write_cif_table(out, table, align()));
+  EXPECT_TRUE(out.empty());
+}
+
+TEST(CifWriteBlockTest, AlignedTextFieldInLoop) {
+  // Aligned loop with an embedded-newline cell: inline columns are padded to
+  // the widest cell, and the text field still starts at line start (any
+  // pending padding before it is stripped).
+  CifTable table = make_table(
+      {
+          "_x", "_y"
+  },
+      { { CifValue::generic("aaaa"), CifValue::generic("z") },
+        { CifValue::generic("p"), CifValue::generic("c\nd") } });
+
+  std::string out;
+  ASSERT_TRUE(write_cif_table(out, table, true));
+  EXPECT_EQ(out, "loop_\n_x\n_y\naaaa z\np\n;c\nd\n;\n");
+
+  CifBlock back = reparse("data_x\n" + out);
+  ASSERT_TRUE(back) << out;
+  std::vector<CifTable> tv;
+  tv.push_back(make_table(
+      {
+          "_x", "_y"
+  },
+      { { CifValue::generic("aaaa"), CifValue::generic("z") },
+        { CifValue::generic("p"), CifValue::generic("c\nd") } }));
+  CifFrame frame(std::move(tv), "x");
+  EXPECT_EQ(frame_map(frame), frame_map(back.data()));
+}
+
+TEST_P(CifWriteAlignTest, UnrepresentablePropagates) {
+  // A value whose next line begins with ';' cannot be serialized; the failure
+  // must propagate out of table/frame/block serialization.
+  auto bad_table = [] {
+    return make_table(
+        {
+            "_x", "_y"
+    },
+        { { CifValue::generic("ok"), CifValue::generic("a\n;b") },
+          { CifValue::generic("p"), CifValue::generic("q") } });
+  };
+
+  {
+    CifTable table = bad_table();
+    std::string out;
+    EXPECT_FALSE(write_cif_table(out, table, align()));
+    EXPECT_PRED2(str_case_contains, out, "';'");
+  }
+
+  // single-row table -> key-value pairs path
+  {
+    CifTable pairs = make_table({ "_x" }, { { CifValue::generic("a\n;b") } });
+    std::string out;
+    EXPECT_FALSE(write_cif_table(out, pairs, align()));
+    EXPECT_PRED2(str_case_contains, out, "';'");
+  }
+
+  std::vector<CifTable> tv;
+  tv.push_back(bad_table());
+  CifFrame frame(std::move(tv), "blk");
+  std::string fout;
+  EXPECT_FALSE(write_cif_frame(fout, frame, CifFrame::Type::kData, align()));
+  EXPECT_PRED2(str_case_contains, fout, "';'");
+
+  std::vector<CifTable> btv;
+  btv.push_back(bad_table());
+  CifBlock block(CifFrame(std::move(btv), "blk"), {}, CifBlock::Type::kData);
+  std::string bout;
+  EXPECT_FALSE(write_cif_block(bout, block, align()));
+  EXPECT_PRED2(str_case_contains, bout, "';'");
+
+  // global block with a valid frame but an unrepresentable value
+  std::vector<CifTable> gtv;
+  gtv.push_back(bad_table());
+  CifBlock gblock(CifFrame(std::move(gtv), ""), {}, CifBlock::Type::kGlobal);
+  std::string gout;
+  EXPECT_FALSE(write_cif_block(gout, gblock, align()));
+  EXPECT_PRED2(str_case_contains, gout, "';'");
+
+  // data block whose save frame carries an unrepresentable value
+  std::vector<CifTable> main_tv;
+  {
+    CifTable t;
+    t.add_key("_ok");
+    t.add_data(CifValue::generic("1"));
+    main_tv.push_back(std::move(t));
+  }
+  std::vector<CifFrame> saves;
+  std::vector<CifTable> stv;
+  stv.push_back(bad_table());
+  saves.emplace_back(std::move(stv), "save1");
+  CifBlock sblock(CifFrame(std::move(main_tv), "blk"), std::move(saves),
+                  CifBlock::Type::kData);
+  std::string sout;
+  EXPECT_FALSE(write_cif_block(sout, sblock, align()));
+  EXPECT_PRED2(str_case_contains, sout, "';'");
+}
+
+TEST(CifFrameValidateTest, RejectsMalformed) {
+  // 2 keys but a single data value -> inconsistent table.
+  std::vector<CifTable> itv;
+  itv.push_back(make_table({ "_a", "_b" }, { { CifValue::generic("1") } }));
+  EXPECT_PRED2(str_case_contains, CifFrame(std::move(itv), "blk").validate(),
+               "inconsistent");
+
+  // duplicate key across the frame.
+  std::vector<CifTable> dtv;
+  dtv.push_back(make_table({ "_a" }, { { CifValue::generic("1") } }));
+  dtv.push_back(make_table({ "_a" }, { { CifValue::generic("2") } }));
+  EXPECT_PRED2(str_case_contains, CifFrame(std::move(dtv), "blk").validate(),
+               "duplicate");
+
+  // malformed key name.
+  std::vector<CifTable> ktv;
+  ktv.push_back(make_table({ "bad key" }, { { CifValue::generic("1") } }));
+  CifFrame kframe(std::move(ktv), "blk");
+  EXPECT_PRED2(str_case_contains, kframe.validate(), "invalid cif key");
+  // non-recursive skips per-table checks (assumes tables already validated).
+  EXPECT_EQ(kframe.validate(false), "");
+
+  // a well-formed frame validates clean.
+  std::vector<CifTable> otv;
+  otv.push_back(make_table({ "_a.x" }, { { CifValue::generic("1") } }));
+  EXPECT_EQ(CifFrame(std::move(otv), "blk").validate(), "");
+}
+
+TEST(CifTableValidateTest, RejectsMalformed) {
+  EXPECT_PRED2(
+      str_case_contains,
+      make_table({ "bad key" }, { { CifValue::generic("1") } }).validate(),
+      "invalid cif key");
+
+  EXPECT_PRED2(str_case_contains,
+               make_table(
+                   {
+                       "_a", "_a"
+  },
+                   { { CifValue::generic("1"), CifValue::generic("2") } })
+                   .validate(),
+               "duplicate");
+
+  EXPECT_PRED2(
+      str_case_contains,
+      make_table({ "_a", "_b" }, { { CifValue::generic("1") } }).validate(),
+      "inconsistent");
+
+  EXPECT_EQ(make_table({ "_a.x" }, { { CifValue::generic("1") } }).validate(),
+            "");
+}
+
+TEST(CifBlockValidateTest, RejectsMalformed) {
+  auto data = [] {
+    std::vector<CifTable> tv;
+    tv.push_back(make_table({ "_a.x" }, { { CifValue::generic("1") } }));
+    return CifFrame(std::move(tv), "blk");
+  };
+  auto save = [](std::string_view name) {
+    std::vector<CifTable> tv;
+    tv.push_back(make_table({ "_s.y" }, { { CifValue::generic("2") } }));
+    return CifFrame(std::move(tv), std::string(name));
+  };
+  auto block = [&](std::vector<CifFrame> saves) {
+    return CifBlock(data(), std::move(saves), CifBlock::Type::kData);
+  };
+
+  std::vector<CifFrame> ok;
+  ok.push_back(save("one"));
+  ok.push_back(save("two"));
+  EXPECT_EQ(block(std::move(ok)).validate(), "");
+
+  std::vector<CifFrame> dup;
+  dup.push_back(save("dup"));
+  dup.push_back(save("dup"));
+  EXPECT_PRED2(str_case_contains, block(std::move(dup)).validate(),
+               "duplicate save frame");
+
+  std::vector<CifFrame> unnamed;
+  unnamed.push_back(save(""));
+  EXPECT_PRED2(str_case_contains, block(std::move(unnamed)).validate(),
+               "empty name");
+
+  // A malformed table inside a save frame is reported recursively, tagged with
+  // the offending save frame name.
+  std::vector<CifFrame> bad_save;
+  {
+    std::vector<CifTable> tv;
+    tv.push_back(
+        make_table({ "_s.y", "_s.y" }, { { CifValue::generic("2") } }));
+    bad_save.emplace_back(std::move(tv), "sf");
+  }
+  std::string bad_save_err = block(std::move(bad_save)).validate();
+  EXPECT_PRED2(str_case_contains, bad_save_err, "duplicate cif key");
+  EXPECT_PRED2(str_case_contains, bad_save_err, "in save frame sf");
+
+  // sentinels carry no data frame.
+  EXPECT_EQ(CifBlock::eof().validate(), "");
+  EXPECT_EQ(CifBlock::error("boom").validate(), "");
+}
+
+TEST_P(CifWriteAlignTest, GlobalBlock) {
+  std::vector<CifTable> tv;
+  {
+    CifTable t;
+    t.add_key("_g.x");
+    t.add_data(CifValue::generic("1"));
+    tv.push_back(std::move(t));
+  }
+  CifBlock block(CifFrame(std::move(tv), ""), {}, CifBlock::Type::kGlobal);
+
+  std::string out;
+  ASSERT_TRUE(write_cif_block(out, block, align()));
+  EXPECT_TRUE(absl::StartsWith(out, "global_")) << out;
+
+  CifBlock back = reparse(out);
+  ASSERT_TRUE(back) << out;
+  EXPECT_EQ(back.type(), CifBlock::Type::kGlobal);
+  EXPECT_EQ(frame_map(block.data()), frame_map(back.data()));
+}
+
+TEST(CifWriteBlockTest, NonSerializableBlock) {
+  std::string out;
+  EXPECT_FALSE(write_cif_block(out, CifBlock::eof()));
+  EXPECT_PRED2(str_case_contains, out, "cannot serialize");
+
+  out.clear();
+  EXPECT_FALSE(write_cif_block(out, CifBlock::error("boom")));
+  EXPECT_PRED2(str_case_contains, out, "cannot serialize");
 }
 }  // namespace
 }  // namespace internal
