@@ -26,6 +26,7 @@
 #include <boost/fusion/include/std_pair.hpp>
 #include <boost/spirit/home/x3.hpp>
 
+#include "nuri/eigen_config.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -115,6 +116,21 @@ const auto valued_keyword = x3::no_case[valued_keyword_heading]
                             >> x3::raw[*non_blank_char];
 
 const auto keyword = (simple_keyword | valued_keyword) >> x3::omit[cif_delim];
+
+// CIF 1.1 numeric grammar (spec productions Number/Numeric). A number may carry
+// a standard uncertainty, e.g. 1.234(5). x3::eoi anchors a full-string match.
+constexpr auto num_sign = -(x3::char_('+') | x3::char_('-'));
+constexpr auto num_uint = +x3::digit;
+constexpr auto num_exp = (x3::char_('e') | x3::char_('E')) >> num_sign
+                         >> num_uint;
+constexpr auto num_integer = num_sign >> num_uint;
+constexpr auto num_decimal = num_sign
+                             >> (*x3::digit >> x3::char_('.') >> num_uint
+                                 | +x3::digit >> x3::char_('.'));
+constexpr auto num_float = num_integer >> num_exp | num_decimal >> -num_exp;
+constexpr auto numeric = (num_float | num_integer)
+                         >> -(x3::char_('(') >> num_uint >> x3::char_(')'))
+                         >> x3::eoi;
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
@@ -549,4 +565,285 @@ internal::CifBlock CifParser::error(std::string_view reason) {
   return internal::CifBlock::error(reason);
 }
 
+namespace internal {
+namespace {
+struct ValueScan {
+  bool has_space = false;
+  bool has_newline = false;
+  // A quote conflicts when followed by whitespace; an interior or trailing
+  // quote is safe.
+  bool single_conflict = false;
+  bool double_conflict = false;
+  // A newline is immediately followed by ';': such a line would close a text
+  // field early, so the value cannot be serialized.
+  bool semicolon_line = false;
+};
+
+constexpr absl::CharSet kValueScanChars { "\n'\"" };
+
+ValueScan scan_value(std::string_view s) {
+  ValueScan r;
+
+  r.has_space = absl::c_any_of(s, absl::ascii_isspace);
+  if (!r.has_space)
+    return r;
+
+  for (size_t i = 0; i < s.size(); ++i) {
+    char c = s[i];
+    if (!kValueScanChars.contains(c))
+      continue;
+
+    switch (c) {
+    case '\'':
+    case '"':
+      if (i + 1 < s.size() && absl::ascii_isspace(s[i + 1]))
+        (c == '\'' ? r.single_conflict : r.double_conflict) = true;
+      break;
+    case '\n':
+      r.has_newline = true;
+      if (i + 1 < s.size() && s[i + 1] == ';')
+        r.semicolon_line = true;
+      break;
+    default:
+      ABSL_UNREACHABLE();
+    }
+  }
+  return r;
+}
+
+// Leading characters the lexer intercepts before a bare value.
+constexpr absl::CharSet kBareLeadingForbidden = kSpecialChars
+                                                | absl::CharSet("#'\";");
+
+bool bare_safe(std::string_view s, bool has_space) {
+  ABSL_DCHECK(!s.empty());
+
+  if (has_space || kBareLeadingForbidden.contains(s.front()))
+    return false;
+
+  // "?" / "." would re-lex as null values; we only consider Generic/String here
+  if (s == "?" || s == ".")
+    return false;
+
+  auto it = s.begin();
+  return !x3::parse(it, s.end(), parser::keyword);
+}
+
+bool looks_like_number(std::string_view s) {
+  auto it = s.begin();
+  return x3::parse(it, s.end(), parser::numeric);
+}
+}  // namespace
+
+CifValueKind write_cif_value(std::string &out, const CifValue &value) {
+  // NOLINTNEXTLINE(clang-diagnostic-switch-enum)
+  switch (value.type()) {
+  case CifValue::Type::kUnknown:
+    out.push_back('?');
+    return CifValueKind::kInline;
+  case CifValue::Type::kInapplicable:
+    out.push_back('.');
+    return CifValueKind::kInline;
+  default:
+    break;
+  }
+
+  std::string_view s = value.value();
+  if (s.empty()) {
+    out.append("''");
+    return CifValueKind::kInline;
+  }
+
+  ValueScan sc = scan_value(s);
+
+  if (sc.has_newline || (sc.single_conflict && sc.double_conflict)) {
+    if (sc.semicolon_line) {
+      out = "CIF value cannot be written: line begins with ';'";
+      return CifValueKind::kError;
+    }
+
+    // Drop any pending separator/padding whitespace so the leading newline
+    // below starts the field at line start.
+    absl::StripTrailingAsciiWhitespace(&out);
+    absl::StrAppend(&out, "\n;", s, "\n;\n");
+    return CifValueKind::kTextField;
+  }
+
+  // Keep a numeric-looking string quoted so it stays a string (42 vs '42').
+  bool force_quote = value.type() == CifValue::Type::kString
+                     && looks_like_number(s);
+  if (!force_quote && bare_safe(s, sc.has_space)) {
+    out.append(s);
+    return CifValueKind::kInline;
+  }
+
+  std::string_view q = sc.single_conflict ? "\"" : "'";
+  absl::StrAppend(&out, q, s, q);
+  return CifValueKind::kInline;
+}
+}  // namespace internal
+
+namespace {
+using internal::CifBlock;
+using internal::CifFrame;
+using internal::CifTable;
+using internal::CifValue;
+using internal::CifValueKind;
+using internal::write_cif_value;
+
+bool write_cif_pairs(std::string &out, const CifTable &table, bool align) {
+  size_t width = 0;
+  if (align)
+    for (const std::string &key: table.keys())
+      width = nuri::max(width, key.size());
+
+  const std::vector<CifValue> &row = table.row(0);
+  for (size_t j = 0; j < table.cols(); ++j) {
+    const std::string &key = table.keys()[j];
+    out.append(key);
+    if (align)
+      out.append(width - key.size(), ' ');
+    out.push_back(' ');
+
+    CifValueKind kind = write_cif_value(out, row[j]);
+    if (kind == CifValueKind::kError)
+      return false;
+    if (kind == CifValueKind::kInline)
+      out.push_back('\n');
+  }
+  return true;
+}
+
+bool write_cif_loop_plain(std::string &out, const CifTable &table) {
+  for (size_t i = 0; i < table.size(); ++i) {
+    const std::vector<CifValue> &row = table.row(i);
+    bool end_newline = true;
+    for (size_t j = 0; j < table.cols(); ++j) {
+      if (!end_newline)
+        out.push_back(' ');
+
+      CifValueKind kind = write_cif_value(out, row[j]);
+      if (kind == CifValueKind::kError)
+        return false;
+      end_newline = kind == CifValueKind::kTextField;
+    }
+    if (!end_newline)
+      out.push_back('\n');
+  }
+  return true;
+}
+
+bool write_cif_loop_aligned(std::string &out, const CifTable &table) {
+  const int ncol = static_cast<int>(table.cols());
+  const int nrow = static_cast<int>(table.size());
+
+  ArrayXb texts = ArrayXb::Zero(static_cast<E::Index>(nrow) * ncol);
+  ArrayXi widths = ArrayXi::Zero(ncol);
+
+  std::vector<std::string> cells(texts.size());
+  for (int i = 0, k = 0; i < nrow; ++i) {
+    for (int j = 0; j < ncol; ++j, ++k) {
+      std::string &cell = cells[k];
+      CifValueKind kind = write_cif_value(cell, table.row(i)[j]);
+      if (kind == CifValueKind::kError) {
+        out = std::move(cell);
+        return false;
+      }
+
+      bool is_text = kind == CifValueKind::kTextField;
+      texts[k] = is_text;
+      if (!is_text)
+        widths[j] = nuri::max(widths[j], static_cast<int>(cell.size()));
+    }
+  }
+
+  for (int i = 0, k = 0; i < nrow; ++i) {
+    bool end_newline = true;
+
+    for (int j = 0; j < ncol; ++j, ++k) {
+      const std::string &cell = cells[k];
+      if (texts[k]) {
+        // Strip the trailing newline (at line start) or alignment padding so
+        // the text field's own leading newline starts it at line start;
+        // same as in write_cif_value.
+        absl::StripTrailingAsciiWhitespace(&out);
+        out.append(cell);
+        end_newline = true;
+        continue;
+      }
+
+      if (!end_newline)
+        out.push_back(' ');
+      out.append(cell);
+      if (j + 1 < ncol)
+        out.append(widths[j] - cell.size(), ' ');
+      end_newline = false;
+    }
+
+    if (!end_newline)
+      out.push_back('\n');
+  }
+  return true;
+}
+}  // namespace
+
+bool write_cif_table(std::string &out, const CifTable &table, bool align) {
+  if (table.cols() == 0)
+    return true;
+
+  if (table.size() == 1)
+    return write_cif_pairs(out, table, align);
+
+  out.append("loop_\n");
+  for (const std::string &key: table.keys())
+    absl::StrAppend(&out, key, "\n");
+
+  return align ? write_cif_loop_aligned(out, table)
+               : write_cif_loop_plain(out, table);
+}
+
+bool write_cif_frame(std::string &out, const CifFrame &frame,
+                     CifFrame::Type type, bool align) {
+  if (type == CifFrame::Type::kGlobal) {
+    out.append("global_\n");
+  } else {
+    absl::StrAppend(&out, type == CifFrame::Type::kData ? "data_" : "save_",
+                    frame.name(), "\n");
+  }
+
+  for (const CifTable &table: frame) {
+    if (!write_cif_table(out, table, align))
+      return false;
+  }
+
+  if (type == CifFrame::Type::kSave)
+    out.append("save_\n");
+
+  return true;
+}
+
+bool write_cif_block(std::string &out, const CifBlock &block, bool align) {
+  // NOLINTNEXTLINE(clang-diagnostic-switch-enum)
+  switch (block.type()) {
+  case CifBlock::Type::kData:
+    if (!write_cif_frame(out, block.data(), CifFrame::Type::kData, align))
+      return false;
+    break;
+  case CifBlock::Type::kGlobal: {
+    if (!write_cif_frame(out, block.data(), CifFrame::Type::kGlobal, align))
+      return false;
+    break;
+  }
+  default:
+    out = "cannot serialize an EOF or error CIF block";
+    return false;
+  }
+
+  for (const CifFrame &save: block.save_frames()) {
+    if (!write_cif_frame(out, save, CifFrame::Type::kSave, align))
+      return false;
+  }
+
+  return true;
+}
 }  // namespace nuri
