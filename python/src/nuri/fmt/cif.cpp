@@ -198,9 +198,7 @@ class PyCifTableIterator
 public:
   using Parent::Parent;
 
-  static auto bind(py::module &m) {
-    return Parent::bind(m, "_CifTableIterator");
-  }
+  static auto bind(py::module &m) { return Parent::bind(m, "_TableIterator"); }
 
 private:
   friend Parent;
@@ -235,7 +233,7 @@ public:
 
   pyt::List<pyt::Optional<py::str>> get(int row) const {
     row = py_check_index(static_cast<int>(table().size()), row,
-                         "CifTable row index out of range");
+                         "CIF table row index out of range");
     return cif_table_row(table(), row);
   }
 
@@ -260,7 +258,7 @@ public:
   using Parent::PyIterator;
 
   static auto bind(py::module &m) {
-    return Parent::bind(m, "_CifFrameIterator", kReturnsSubobject);
+    return Parent::bind(m, "_FrameIterator", kReturnsSubobject);
   }
 
 private:
@@ -304,7 +302,7 @@ public:
 
   PyCifTable get(int idx) const {
     idx = py_check_index(static_cast<int>(frame().size()), idx,
-                         "CifFrame table index out of range");
+                         "CIF frame table index out of range");
     return PyCifTable(frame()[idx]);
   }
 
@@ -528,20 +526,20 @@ py::str write_cif_from_frame(const PyCifFrame &frame, bool align) {
 }  // namespace
 
 void bind_cif(py::module &m) {
-  // Register CifValue first so it resolves to its Python name (not the C++ type
-  // name) in the CifTable cell annotation below.
-  py::class_<internal::CifValue> cv(m, "CifValue", R"doc(
-An explicit CIF value, for use as a :class:`CifTable` cell.
+  // Register Value first so it resolves to its Python name (not the C++ type
+  // name) in the Table cell annotation below.
+  py::class_<internal::CifValue> cv(m, "Value", R"doc(
+An explicit CIF value, for use as a :class:`Table` cell.
 
 Most cells can be given as plain Python objects (:class:`str`, :class:`int`,
-:class:`bool`, :class:`float`, or ``None``); construct a :class:`CifValue`
+:class:`bool`, :class:`float`, or ``None``); construct a :class:`Value`
 directly only when you need control over the formatting. The constructor is
 overloaded on the type of ``value``.
 )doc");
 
   PyCifTableIterator::bind(m);
 
-  py::class_<PyCifTable>(m, "CifTable")
+  py::class_<PyCifTable>(m, "Table")
       .def(py::init<const CifKeys &, const CifRows &, std::string_view,
                     const CifFormatKwargs &>(),
            py::arg("keys"), py::arg("rows"), py::arg("category") = "",
@@ -552,17 +550,17 @@ Construct a CIF table from column keys and rows of values.
   ``["atom_site.id", "atom_site.type_symbol"]``); a ``_`` is prepended to each.
 :param rows: The rows of the table. Each row must have exactly ``len(keys)``
   cells. A cell may be a :class:`str`, :class:`int`, :class:`bool`,
-  :class:`float`, ``None``, or a :class:`CifValue`.
+  :class:`float`, ``None``, or a :class:`Value`.
 :param category: Optional DDL2 category. When non-empty, each key is formed as
   ``_<category>.<key>``, so ``keys`` may list just the attribute names (e.g.
   ``category="atom_site", keys=["id", "type_symbol"]``). Empty (the default)
   leaves keys as given.
 :param formatter_kwargs: Optional per-column formatting options, mapping a
   column key (as given in ``keys``) to the keyword arguments forwarded to the
-  :class:`CifValue` constructor when a plain scalar (or ``None``) cell in that
+  :class:`Value` constructor when a plain scalar (or ``None``) cell in that
   column is converted. Each keyword applies only to cells of its matching type
-  (see :class:`CifValue`); columns not listed use the defaults. Explicit
-  :class:`CifValue` cells are unaffected.
+  (see :class:`Value`); columns not listed use the defaults. Explicit
+  :class:`Value` cells are unaffected.
 :raises ValueError: If a row length differs from the number of keys, a key is
   not a valid or unique CIF data name, or ``formatter_kwargs`` names an unknown
   key or an invalid option.
@@ -581,7 +579,7 @@ Construct a CIF table from column keys and rows of values.
 
   PyCifFrameIterator::bind(m);
 
-  py::class_<PyCifFrame> cf(m, "CifFrame");
+  py::class_<PyCifFrame> cf(m, "Frame");
   cf.def(py::init<std::string, const CifTables &>(), py::arg("name"),
          py::arg("tables"), R"doc(
 Construct a CIF frame (data block body or save frame) from tables.
@@ -600,11 +598,30 @@ Search for the first table containing a column starting with the given prefix.
 :return: The first table containing the given prefix, or None if not found.
 )doc");
   cf.def_property_readonly("name", &PyCifFrame::name);
+  cf.def("as_ddl2_dict", cif_ddl2_frame_as_dict, R"doc(
+Convert this DDL2 (mmCIF) frame to a dictionary of lists of dictionaries.
+
+:return: A dictionary of lists of dictionaries, where the keys are the parent
+  keys and the values are the rows of the table.
+)doc");
+  cf.def("as_mols", mmcif_load_cif_frame, R"doc(
+Load this frame as a list of molecules.
+
+:return: A list of molecules loaded from the frame.
+)doc");
+
+  // Compat shims; might be removed in a future release.
+  // Need to bind as free functions additionally, otherwise stubgen will not
+  // generate the correct signatures.
+  m.def("_frame_as_ddl2_dict", cif_ddl2_frame_as_dict, py::arg("frame"),
+        R"doc(Deprecated alias for :meth:`Frame.as_ddl2_dict`.)doc");
+  m.def("_frame_as_mols", mmcif_load_cif_frame, py::arg("frame"),
+        R"doc(Deprecated alias for :meth:`Frame.as_mols`.)doc");
 
   bind_opaque_vector<internal::CifFrame, PyCifFrame, wrap_cif_frame>(
-      m, "_CifFrameList", "_CifFrameList index out of range");
+      m, "_FrameList", "_FrameList index out of range");
 
-  py::class_<PyCifBlock> cb(m, "CifBlock");
+  py::class_<PyCifBlock> cb(m, "Block");
   cb.def(py::init(&build_cif_block), py::arg("data"),
          py::arg("save") = py::tuple(), R"doc(
 Construct a CIF block.
@@ -618,30 +635,15 @@ Construct a CIF block.
       .def_property_readonly("save_frames", &PyCifBlock::save_frames);
   def_property_readonly_subobject(cb, "data", &PyCifBlock::data);
 
-  py::class_<PyCifParser>(m, "_CifParser")
+  py::class_<PyCifParser>(m, "_Parser")
       .def("__iter__", pass_through<PyCifParser>)
       .def("__next__", &PyCifParser::next);
 
-  m.def("read_cif", PyCifParser::from_file, py::arg("path"), R"doc(
+  m.def("read_blocks", PyCifParser::from_file, py::arg("path"), R"doc(
 Create a parser object from a CIF file path.
 
 :param path: The path to the CIF file.
 :return: An iterator over the blocks in the file.
-)doc")
-      .def("cif_ddl2_frame_as_dict", cif_ddl2_frame_as_dict, py::arg("frame"),
-           R"doc(
-Convert a CIF frame to a dictionary of lists of dictionaries.
-
-:param frame: The CIF frame to convert.
-:return: A dictionary of lists of dictionaries, where the keys are the parent
-  keys and the values are the rows of the table.
-)doc")
-      .def("mmcif_load_frame", mmcif_load_cif_frame, py::arg("frame"),
-           R"doc(
-Load a CIF frame as a list of molecules.
-
-:param frame: The CIF frame to load.
-:return: A list of molecules loaded from the frame.
 )doc");
 
   cv.def(py::init([](std::string_view value, bool raw) {
@@ -695,22 +697,22 @@ Store a null CIF value.
 :raises ValueError: If ``null_token`` is not ``"?"`` or ``"."``.
 )doc");
 
-  m.def("write_cif", write_cif_from_frame, py::arg("frame"),
+  m.def("write", write_cif_from_frame, py::arg("frame"),
         py::arg("align") = false, R"doc(
 Serialize a CIF frame to a CIF 1.1 string.
 
-:param frame: The :class:`CifFrame` to serialize, written as a ``data_`` block.
+:param frame: The :class:`Frame` to serialize, written as a ``data_`` block.
   Both freshly constructed and parsed objects are accepted.
 :param align: Whether to pad the columns of ``loop_`` tables so that values
   line up. Defaults to ``False``.
 :return: The serialized CIF string.
 :raises ValueError: If a value cannot be represented in CIF 1.1.
 )doc")
-      .def("write_cif", write_cif_from_block, py::arg("block"),
+      .def("write", write_cif_from_block, py::arg("block"),
            py::arg("align") = false, R"doc(
 Serialize a CIF block to a CIF 1.1 string.
 
-:param block: The :class:`CifBlock` to serialize.
+:param block: The :class:`Block` to serialize.
 :param align: Whether to pad the columns of ``loop_`` tables so that values
   line up. Defaults to ``False``.
 :return: The serialized CIF string.
@@ -724,9 +726,9 @@ Serialize a CIF block to a CIF 1.1 string.
   is **not** valid CIF 1.1; a warning is logged in that case.
 
 >>> import nuri
->>> table = nuri.fmt.CifTable(["x.a", "x.b"], [[1, "two words"], [None, nuri.fmt.CifValue(None, null_token=".")]])
->>> block = nuri.fmt.CifBlock(nuri.fmt.CifFrame("demo", [table]))
->>> print(nuri.fmt.write_cif(block))
+>>> table = nuri.fmt.cif.Table(["x.a", "x.b"], [[1, "two words"], [None, nuri.fmt.cif.Value(None, null_token=".")]])
+>>> block = nuri.fmt.cif.Block(nuri.fmt.cif.Frame("demo", [table]))
+>>> print(nuri.fmt.cif.write(block))
 data_demo
 loop_
 _x.a
