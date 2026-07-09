@@ -1,0 +1,45 @@
+#
+# Project NuriKit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+name: Compute wheel build matrix
+
+on:
+  workflow_call:
+    inputs:
+      minimal:
+        type: boolean
+        description: "Minimal build (only cp38, plus any requested via commit message)"
+        required: false
+        default: false
+    outputs:
+      include:
+        value: ${{ jobs.targets.outputs.include }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  targets:
+    name: Compute wheel targets
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.compute.outputs.include }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Compute targets
+        id: compute
+        run: |
+          include="$(.github/scripts/wheel-targets.sh)"
+          echo "include=$include" >>"$GITHUB_OUTPUT"
+
+          echo "::group::Selected wheel targets"
+          jq -r '.[].python' <<<"$include"
+          echo "::endgroup::"
+        env:
+          MINIMAL: ${{ inputs.minimal }}
