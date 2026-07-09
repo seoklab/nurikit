@@ -6,9 +6,11 @@
 #include "nuri/fmt/cif.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -16,34 +18,177 @@
 
 #include <absl/container/flat_hash_map.h>
 #include <absl/log/absl_check.h>
+#include <absl/log/absl_log.h>
 #include <absl/strings/match.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/strip.h>
 #include <pybind11/pybind11.h>
+#include <pybind11/pytypes.h>
 #include <pybind11/stl/filesystem.h>
+#include <pybind11/typing.h>
 
 #include "fmt_internal.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/mmcif.h"
 #include "nuri/python/core/core_module.h"
 #include "nuri/python/exception.h"
+#include "nuri/python/typing.h"
 #include "nuri/python/utils.h"
-#include "nuri/utils.h"
 
 namespace nuri {
 namespace python_internal {
 namespace {
 namespace fs = std::filesystem;
 
+class PyCifTable;
+
+using CifCell = pyt::Union<py::str, py::int_, py::float_, py::bool_,
+                           internal::CifValue, py::none>;
+using CifKeys = Sequence<py::str>;
+using CifRow = Sequence<CifCell>;
+using CifRows = Sequence<CifRow>;
+using CifFormatKwargs = pyt::Dict<py::str, pyt::Dict<py::str, py::object>>;
+using CifTables = Sequence<PyCifTable>;
+
+// Per-column formatting options, mirroring the CifValue constructor keywords.
+// Applied when a plain scalar (or None) cell is turned into a CifValue.
+struct ColumnFormat {
+  int width = 0;             // int:   zero-pad to at least this many digits
+  int precision = -1;        // float: digits after '.', <0 = shortest
+  bool raw = false;          // str:   generic literal vs. quoted string
+  bool short_form = false;   // bool:  y/n vs. yes/no
+  bool null_unknown = true;  // None:  '?' (unknown) vs. '.' (inapplicable)
+};
+
 pyt::List<pyt::Optional<py::str>> cif_table_row(const internal::CifTable &table,
                                                 int row) {
-  pyt::List<pyt::Optional<py::str>> data;
+  pyt::List<pyt::Optional<py::str>> data(table.cols());
   for (int i = 0; i < table.cols(); ++i) {
     const internal::CifValue &val = table.data()[row][i];
-    data.append(val.is_null() ? py::none().cast<py::object>()
-                              : py::str(*val).cast<py::object>());
+    data[i] = val.is_null() ? py::none().cast<py::object>()
+                            : py::str(*val).cast<py::object>();
   }
   return data;
+}
+
+// Convert a table cell. ``None`` becomes the null value whose kind is decided
+// by the column (``?`` if @p fmt.null_unknown, else ``.``).
+internal::CifValue py_to_cif_value(py::handle cell, const ColumnFormat &fmt) {
+  if (cell.is_none())
+    return internal::CifValue::null(fmt.null_unknown);
+  if (py::isinstance<py::str>(cell)) {
+    auto text = cell.cast<std::string_view>();
+    return fmt.raw ? internal::CifValue::generic(text)
+                   : internal::CifValue::string(text);
+  }
+  if (py::isinstance<py::bool_>(cell))
+    return cif_value(cell.cast<bool>(), fmt.short_form);
+  if (py::isinstance<py::int_>(cell))
+    return cif_value(cell.cast<std::int64_t>(), fmt.width);
+  if (py::isinstance<py::float_>(cell))
+    return cif_value(cell.cast<double>(), fmt.precision);
+  if (py::isinstance<internal::CifValue>(cell))
+    return cell.cast<internal::CifValue>();
+
+  throw py::type_error(
+      "CIF value must be str, int, bool, float, None, or CifValue");
+}
+
+// Form a full CIF data name: prepend the leading ``_`` (the inverse of
+// cif_ddl2_frame_as_dict) and, when non-empty, the DDL2 @p category
+// (``_<category>.<key>``). Validity is checked by CifFrame::validate when the
+// table is placed into a frame.
+std::string make_cif_key(std::string_view category, std::string_view key) {
+  if (!category.empty())
+    return absl::StrCat("_", category, ".", key);
+  return absl::StrCat("_", key);
+}
+
+// Map a CIF null token string to CifValue::null's boolean (``?`` -> unknown,
+// ``.`` -> inapplicable).
+bool parse_null_token(std::string_view token) {
+  if (token == "?")
+    return true;
+  if (token == ".")
+    return false;
+  throw py::value_error(
+      absl::StrCat(R"(null_token must be "?" or ".", got: )", token));
+}
+
+// Build per-column formatting options from the ``formatter_kwargs`` mapping,
+// keyed by (underscore-less) column key. Unknown column keys or option names
+// raise ValueError.
+std::vector<ColumnFormat>
+parse_column_formats(const CifKeys &keys,
+                     const CifFormatKwargs &formatter_kwargs) {
+  std::vector<ColumnFormat> formats(py::len(keys));
+
+  absl::flat_hash_map<std::string, int> index;
+  int i = 0;
+  for (py::handle key: keys)
+    index.emplace(key.cast<std::string>(), i++);
+
+  for (auto item: formatter_kwargs) {
+    auto col = item.first.cast<std::string_view>();
+    auto it = index.find(col);
+    if (it == index.end()) {
+      throw py::value_error(
+          absl::StrCat("Unknown key in formatter_kwargs: ", col));
+    }
+
+    ColumnFormat &fmt = formats[it->second];
+    for (auto kw: item.second.cast<py::dict>()) {
+      auto name = kw.first.cast<std::string_view>();
+      py::handle val = kw.second;
+      if (name == "raw") {
+        fmt.raw = val.cast<bool>();
+      } else if (name == "short_form") {
+        fmt.short_form = val.cast<bool>();
+      } else if (name == "width") {
+        fmt.width = val.cast<int>();
+      } else if (name == "precision") {
+        fmt.precision = val.cast<int>();
+        if (fmt.precision < 0)
+          throw py::value_error("precision must be non-negative");
+      } else if (name == "null_token") {
+        fmt.null_unknown = parse_null_token(val.cast<std::string_view>());
+      } else {
+        throw py::value_error(absl::StrCat("Unknown formatter option: ", name));
+      }
+    }
+  }
+
+  return formats;
+}
+
+internal::CifTable build_cif_table(const CifKeys &keys, const CifRows &rows,
+                                   std::string_view category,
+                                   const CifFormatKwargs &formatter_kwargs) {
+  internal::CifTable table;
+
+  size_t ncols = py::len(keys);
+  for (py::handle key: keys)
+    table.add_key(make_cif_key(category, key.cast<std::string_view>()));
+
+  std::vector<ColumnFormat> formats =
+      parse_column_formats(keys, formatter_kwargs);
+
+  for (py::handle row_handle: rows) {
+    auto row = row_handle.cast<CifRow>();
+    if (py::len(row) != ncols) {
+      throw py::value_error(absl::StrCat("CIF row has ", py::len(row),
+                                         " values but the table has ", ncols,
+                                         " keys"));
+    }
+    for (size_t j = 0; j < ncols; ++j)
+      table.add_data(py_to_cif_value(row[j], formats[j]));
+  }
+
+  std::string err = table.validate();
+  if (!err.empty())
+    throw py::value_error(err);
+
+  return table;
 }
 
 // NOLINTBEGIN(*-unused-member-function)
@@ -72,25 +217,40 @@ private:
 
 class PyCifTable {
 public:
-  explicit PyCifTable(const internal::CifTable &table): table_(&table) {
-    for (const std::string &key: table_->keys())
-      keys_.append(key);
+  // View over a parser-owned table.
+  explicit PyCifTable(const internal::CifTable &table): ext_(&table) {
+    init_keys();
   }
 
-  PyCifTableIterator iter() const { return PyCifTableIterator(*table_); }
+  // Owning table built from Python.
+  PyCifTable(const CifKeys &keys, const CifRows &rows,
+             std::string_view category, const CifFormatKwargs &formatter_kwargs)
+      : owned_(build_cif_table(keys, rows, category, formatter_kwargs)) {
+    init_keys();
+  }
+
+  const internal::CifTable &table() const { return owned_ ? *owned_ : *ext_; }
+
+  PyCifTableIterator iter() const { return PyCifTableIterator(table()); }
 
   pyt::List<pyt::Optional<py::str>> get(int row) const {
-    row = py_check_index(static_cast<int>(table_->size()), row,
+    row = py_check_index(static_cast<int>(table().size()), row,
                          "CifTable row index out of range");
-    return cif_table_row(*table_, row);
+    return cif_table_row(table(), row);
   }
 
-  size_t size() const { return table_->size(); }
+  size_t size() const { return table().size(); }
 
   pyt::List<py::str> keys() const { return keys_.attr("copy")(); }
 
 private:
-  internal::Nonnull<const internal::CifTable *> table_;
+  void init_keys() {
+    for (const std::string &key: table().keys())
+      keys_.append(key);
+  }
+
+  std::optional<internal::CifTable> owned_;
+  const internal::CifTable *ext_ = nullptr;
   pyt::List<py::str> keys_;
 };
 
@@ -117,43 +277,65 @@ private:
 
 class PyCifFrame {
 public:
-  explicit PyCifFrame(const internal::CifFrame &frame): frame_(&frame) { }
+  // View over a parser-owned frame.
+  explicit PyCifFrame(const internal::CifFrame &frame): ext_(&frame) { }
 
-  std::string_view name() const { return frame_->name(); }
+  // Owning frame built from Python tables.
+  PyCifFrame(std::string name, const CifTables &tables) {
+    std::vector<internal::CifTable> ts;
+    ts.reserve(py::len(tables));
+    for (py::handle table_handle: tables)
+      ts.push_back(table_handle.cast<const PyCifTable &>().table());
 
-  PyCifFrameIterator iter() const { return PyCifFrameIterator(*frame_); }
+    owned_.emplace(std::move(ts), std::move(name));
 
-  PyCifTable get(int idx) const {
-    idx = py_check_index(static_cast<int>(frame_->size()), idx,
-                         "CifFrame table index out of range");
-    return PyCifTable((*frame_)[idx]);
+    // Each table was already validated by its PyCifTable; only the frame-level
+    // invariant (keys unique across tables) remains.
+    std::string err = owned_->validate(false);
+    if (!err.empty())
+      throw py::value_error(err);
   }
 
-  size_t size() const { return frame_->size(); }
+  const internal::CifFrame &frame() const { return owned_ ? *owned_ : *ext_; }
+
+  std::string_view name() const { return frame().name(); }
+
+  PyCifFrameIterator iter() const { return PyCifFrameIterator(frame()); }
+
+  PyCifTable get(int idx) const {
+    idx = py_check_index(static_cast<int>(frame().size()), idx,
+                         "CifFrame table index out of range");
+    return PyCifTable(frame()[idx]);
+  }
+
+  size_t size() const { return frame().size(); }
 
   pyt::Optional<PyCifTable> prefix_search_first(std::string_view prefix) const {
-    auto it = frame_->prefix_search(prefix);
+    auto it = frame().prefix_search(prefix);
     if (it.empty() || !absl::StartsWith(it.begin()->first, prefix))
       return py::none();
 
-    return py::cast(PyCifTable((*frame_)[it.begin()->second.first]));
+    return py::cast(PyCifTable(frame()[it.begin()->second.first]));
   }
 
-  const internal::CifFrame &operator*() const { return *frame_; }
+  const internal::CifFrame &operator*() const { return frame(); }
 
 private:
-  internal::Nonnull<const internal::CifFrame *> frame_;
+  std::optional<internal::CifFrame> owned_;
+  const internal::CifFrame *ext_ = nullptr;
 };
 
 class PyCifBlock {
 public:
-  explicit PyCifBlock(internal::CifBlock &&block): block_(std::move(block)) {
+  PyCifBlock(internal::CifBlock &&block): block_(std::move(block)) {
     if (block_.type() == internal::CifBlock::Type::kEOF)
       throw py::stop_iteration();
 
     if (block_.type() == internal::CifBlock::Type::kError)
       throw py::value_error(std::string(block_.error_msg()));
   }
+
+  const internal::CifBlock &block() const { return block_; }
 
   PyCifFrame data() const { return PyCifFrame(block_.data()); }
 
@@ -171,6 +353,29 @@ private:
   internal::CifBlock block_;
 };
 
+internal::CifFrame clone_cif_frame(const internal::CifFrame &frame) {
+  std::vector<internal::CifTable> ts(frame.tables());
+  return internal::CifFrame(std::move(ts), std::string(frame.name()));
+}
+
+PyCifBlock build_cif_block(const PyCifFrame &data,
+                           const pyt::Iterable<PyCifFrame> &save) {
+  std::vector<internal::CifFrame> saves;
+  for (py::handle sf: save)
+    saves.push_back(clone_cif_frame(*sf.cast<const PyCifFrame &>()));
+
+  internal::CifBlock block(clone_cif_frame(*data), std::move(saves),
+                           internal::CifBlock::Type::kData);
+
+  // The frames were validated when their PyCifFrame wrappers were built; only
+  // the block-level invariant (save-frame names) remains.
+  std::string err = block.validate(false);
+  if (!err.empty())
+    throw py::value_error(err);
+
+  return PyCifBlock(std::move(block));
+}
+
 class PyCifParser {
 public:
   PyCifParser(const PyCifParser &) = delete;
@@ -182,12 +387,12 @@ public:
   explicit PyCifParser(std::ifstream &&ifs)
       : ifs_(std::move(ifs)), parser_(ifs_) { }
 
-  static std::unique_ptr<PyCifParser> from_file(const fs::path &path) {
+  static pyt::Iterator<PyCifBlock> from_file(const fs::path &path) {
     std::ifstream ifs(path);
     if (!ifs)
       throw file_error(path.c_str());
 
-    return std::make_unique<PyCifParser>(std::move(ifs));
+    return py::cast(std::make_unique<PyCifParser>(std::move(ifs)));
   }
 
   PyCifBlock next() { return PyCifBlock(parser_.next()); }
@@ -300,12 +505,69 @@ pyt::List<PyMol> mmcif_load_cif_frame(const PyCifFrame &frame) {
     pymols[i] = PyMol(std::move(mols[i]));
   return pymols;
 }
+
+py::str write_cif_from_block(const PyCifBlock &block, bool align) {
+  ABSL_LOG_IF(WARNING, block.is_global())
+      << "global_ blocks are a STAR feature; output will be an invalid CIF 1.1 "
+         "file";
+
+  std::string out;
+  if (!write_cif_block(out, block.block(), align))
+    throw py::value_error(out);
+
+  return py::str(out);
+}
+
+py::str write_cif_from_frame(const PyCifFrame &frame, bool align) {
+  std::string out;
+  if (!write_cif_frame(out, *frame, internal::CifFrame::Type::kData, align))
+    throw py::value_error(out);
+
+  return py::str(out);
+}
 }  // namespace
 
 void bind_cif(py::module &m) {
+  // Register CifValue first so it resolves to its Python name (not the C++ type
+  // name) in the CifTable cell annotation below.
+  py::class_<internal::CifValue> cv(m, "CifValue", R"doc(
+An explicit CIF value, for use as a :class:`CifTable` cell.
+
+Most cells can be given as plain Python objects (:class:`str`, :class:`int`,
+:class:`bool`, :class:`float`, or ``None``); construct a :class:`CifValue`
+directly only when you need control over the formatting. The constructor is
+overloaded on the type of ``value``.
+)doc");
+
   PyCifTableIterator::bind(m);
 
   py::class_<PyCifTable>(m, "CifTable")
+      .def(py::init<const CifKeys &, const CifRows &, std::string_view,
+                    const CifFormatKwargs &>(),
+           py::arg("keys"), py::arg("rows"), py::arg("category") = "",
+           py::arg("formatter_kwargs") = py::dict(), R"doc(
+Construct a CIF table from column keys and rows of values.
+
+:param keys: The column keys, given **without** the leading underscore (e.g.
+  ``["atom_site.id", "atom_site.type_symbol"]``); a ``_`` is prepended to each.
+:param rows: The rows of the table. Each row must have exactly ``len(keys)``
+  cells. A cell may be a :class:`str`, :class:`int`, :class:`bool`,
+  :class:`float`, ``None``, or a :class:`CifValue`.
+:param category: Optional DDL2 category. When non-empty, each key is formed as
+  ``_<category>.<key>``, so ``keys`` may list just the attribute names (e.g.
+  ``category="atom_site", keys=["id", "type_symbol"]``). Empty (the default)
+  leaves keys as given.
+:param formatter_kwargs: Optional per-column formatting options, mapping a
+  column key (as given in ``keys``) to the keyword arguments forwarded to the
+  :class:`CifValue` constructor when a plain scalar (or ``None``) cell in that
+  column is converted. Each keyword applies only to cells of its matching type
+  (see :class:`CifValue`); columns not listed use the defaults. Explicit
+  :class:`CifValue` cells are unaffected.
+:raises ValueError: If a row length differs from the number of keys, a key is
+  not a valid or unique CIF data name, or ``formatter_kwargs`` names an unknown
+  key or an invalid option.
+:raises TypeError: If a cell has an unsupported type.
+)doc")
       .def("__iter__", &PyCifTable::iter, kReturnsSubobject)
       .def("__getitem__", &PyCifTable::get, py::arg("idx"))
       .def("__len__", &PyCifTable::size)
@@ -320,6 +582,14 @@ void bind_cif(py::module &m) {
   PyCifFrameIterator::bind(m);
 
   py::class_<PyCifFrame> cf(m, "CifFrame");
+  cf.def(py::init<std::string, const CifTables &>(), py::arg("name"),
+         py::arg("tables"), R"doc(
+Construct a CIF frame (data block body or save frame) from tables.
+
+:param name: The frame name.
+:param tables: The tables that make up the frame.
+:raises ValueError: If a column key is duplicated across the tables.
+)doc");
   add_sequence_interface(cf, &PyCifFrame::size, &PyCifFrame::get,
                          &PyCifFrame::iter);
   cf.def("prefix_search_first", &PyCifFrame::prefix_search_first,
@@ -335,20 +605,28 @@ Search for the first table containing a column starting with the given prefix.
       m, "_CifFrameList", "_CifFrameList index out of range");
 
   py::class_<PyCifBlock> cb(m, "CifBlock");
+  cb.def(py::init(&build_cif_block), py::arg("data"),
+         py::arg("save") = py::tuple(), R"doc(
+Construct a CIF block.
+
+:param data: The main frame of the block; its name is used as the block name.
+:param save: The save frames contained in the block.
+:raises ValueError: If a save frame has an empty name or two share a name.
+)doc");
   cb.def_property_readonly("name", &PyCifBlock::name)
       .def_property_readonly("is_global", &PyCifBlock::is_global)
       .def_property_readonly("save_frames", &PyCifBlock::save_frames);
   def_property_readonly_subobject(cb, "data", &PyCifBlock::data);
 
-  py::class_<PyCifParser>(m, "CifParser")
+  py::class_<PyCifParser>(m, "_CifParser")
       .def("__iter__", pass_through<PyCifParser>)
       .def("__next__", &PyCifParser::next);
 
-  m.def("read_cif", &PyCifParser::from_file, py::arg("path"), R"doc(
+  m.def("read_cif", PyCifParser::from_file, py::arg("path"), R"doc(
 Create a parser object from a CIF file path.
 
 :param path: The path to the CIF file.
-:return: A parser object that can be used to iterate over the blocks in the file.
+:return: An iterator over the blocks in the file.
 )doc")
       .def("cif_ddl2_frame_as_dict", cif_ddl2_frame_as_dict, py::arg("frame"),
            R"doc(
@@ -364,6 +642,98 @@ Load a CIF frame as a list of molecules.
 
 :param frame: The CIF frame to load.
 :return: A list of molecules loaded from the frame.
+)doc");
+
+  cv.def(py::init([](std::string_view value, bool raw) {
+           return raw ? internal::CifValue::generic(value)
+                      : internal::CifValue::string(value);
+         }),
+         py::arg("value"), py::arg("raw") = false, R"doc(
+Store text as a CIF value.
+
+:param value: The text to store.
+:param raw: If ``True``, store the text as an unquoted generic literal (e.g. a
+  standard-uncertainty token like ``1.234(5)``). Defaults to ``False``: a
+  string, quoted on write only if its content requires it.
+)doc");
+  cv.def(py::init(&cif_value<bool>), py::arg("value"),
+         py::arg("short_form") = false, R"doc(
+Store a boolean CIF value.
+
+:param value: The boolean to store.
+:param short_form: Use ``y``/``n`` instead of ``yes``/``no``.
+)doc");
+  cv.def(py::init(&cif_value<std::int64_t>), py::arg("value"),
+         py::arg("width") = 0, R"doc(
+Store an integer CIF value.
+
+:param value: The integer to store.
+:param width: If positive, zero-pad the number to at least this many digits.
+)doc");
+  cv.def(py::init([](double value, std::optional<int> prec) {
+           if (prec.has_value() && prec.value() < 0)
+             throw py::value_error("precision must be non-negative");
+
+           return cif_value(value, prec.value_or(-1));
+         }),
+         py::arg("value"), py::arg("precision") = py::none(), R"doc(
+Store a floating-point CIF value.
+
+:param value: The number to store.
+:param precision: Digits after the decimal point; if ``None`` (the default), use
+  the shortest round-trip representation. Must be non-negative if provided.
+)doc");
+  cv.def(py::init([](const py::none &, std::string_view null_token) {
+           return internal::CifValue::null(parse_null_token(null_token));
+         }),
+         py::arg("value"), py::arg("null_token") = "?", R"doc(
+Store a null CIF value.
+
+:param value: ``None``.
+:param null_token: The CIF null token: ``"?"`` (the default) for the unknown
+  value, or ``"."`` for the inapplicable value.
+:raises ValueError: If ``null_token`` is not ``"?"`` or ``"."``.
+)doc");
+
+  m.def("write_cif", write_cif_from_frame, py::arg("frame"),
+        py::arg("align") = false, R"doc(
+Serialize a CIF frame to a CIF 1.1 string.
+
+:param frame: The :class:`CifFrame` to serialize, written as a ``data_`` block.
+  Both freshly constructed and parsed objects are accepted.
+:param align: Whether to pad the columns of ``loop_`` tables so that values
+  line up. Defaults to ``False``.
+:return: The serialized CIF string.
+:raises ValueError: If a value cannot be represented in CIF 1.1.
+)doc")
+      .def("write_cif", write_cif_from_block, py::arg("block"),
+           py::arg("align") = false, R"doc(
+Serialize a CIF block to a CIF 1.1 string.
+
+:param block: The :class:`CifBlock` to serialize.
+:param align: Whether to pad the columns of ``loop_`` tables so that values
+  line up. Defaults to ``False``.
+:return: The serialized CIF string.
+:raises ValueError: If a value cannot be represented in CIF 1.1 (e.g. a
+  multi-line value with a line beginning with ``;`` or with significant
+  trailing whitespace).
+
+.. note::
+  A ``global_`` block (only ever produced by the parser, from a STAR file) is
+  written back as-is, i.e. as a ``global_`` block. This is a STAR construct and
+  is **not** valid CIF 1.1; a warning is logged in that case.
+
+>>> import nuri
+>>> table = nuri.fmt.CifTable(["x.a", "x.b"], [[1, "two words"], [None, nuri.fmt.CifValue(None, null_token=".")]])
+>>> block = nuri.fmt.CifBlock(nuri.fmt.CifFrame("demo", [table]))
+>>> print(nuri.fmt.write_cif(block))
+data_demo
+loop_
+_x.a
+_x.b
+1 'two words'
+? .
+<BLANKLINE>
 )doc");
 }
 }  // namespace python_internal

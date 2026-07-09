@@ -21,6 +21,7 @@
 #include <absl/container/btree_map.h>
 #include <absl/log/absl_check.h>
 #include <absl/strings/str_cat.h>
+#include <absl/strings/str_format.h>
 #include <boost/range/iterator_range.hpp>
 //! @endcond
 
@@ -167,6 +168,27 @@ namespace internal {
       }
     }
 
+    // An unquoted literal (number, boolean, or standard uncertainty). Written
+    // verbatim when the content permits.
+    template <class T>
+    static CifValue generic(T &&value) {
+      return CifValue(std::forward<T>(value), Type::kGeneric);
+    }
+
+    // A string value. Quoted only when its content requires it.
+    template <class T>
+    static CifValue string(T &&value) {
+      return CifValue(std::forward<T>(value), Type::kString);
+    }
+
+    static CifValue unknown() { return CifValue("", Type::kUnknown); }
+
+    static CifValue inapplicable() { return CifValue("", Type::kInapplicable); }
+
+    static CifValue null(bool is_unk) {
+      return CifValue("", is_unk ? Type::kUnknown : Type::kInapplicable);
+    }
+
     std::string_view operator*() const { return value_; }
     std::string_view value() const { return value_; }
 
@@ -183,6 +205,10 @@ namespace internal {
     bool operator==(std::string_view other) const;
 
   private:
+    template <class T>
+    CifValue(T &&value, Type type)
+        : value_(std::forward<T>(value)), type_(type) { }
+
     std::string value_;
     Type type_ = Type::kGeneric;
   };
@@ -215,6 +241,8 @@ namespace internal {
 
     bool empty() const { return keys_.empty() || rows_.empty(); }
 
+    std::string validate() const;
+
   private:
     std::vector<std::string> keys_;
     std::vector<std::vector<CifValue>> rows_;
@@ -242,6 +270,12 @@ namespace internal {
 
   class CifFrame {
   public:
+    enum class Type : int {
+      kGlobal = static_cast<int>(CifToken::kGlobal),  // global_
+      kData = static_cast<int>(CifToken::kData),      // data_[<name>]
+      kSave = static_cast<int>(CifToken::kSave),      // save_[<name>]
+    };
+
     CifFrame(std::vector<CifTable> &&tables, std::string &&name);
 
     CifFrame() noexcept = default;
@@ -281,7 +315,7 @@ namespace internal {
       return tables_[tbl].col(col);
     }
 
-    std::string validate() const;
+    std::string validate(bool recursive = true) const;
 
   private:
     std::string name_;
@@ -322,6 +356,8 @@ namespace internal {
 
     Type type() const { return type_; }
 
+    std::string validate(bool recursive = true) const;
+
     constexpr operator bool() const {
       return type_ != Type::kEOF && type_ != Type::kError;
     }
@@ -356,6 +392,141 @@ private:
   std::string name_;
   internal::CifBlock::Type block_ = internal::CifBlock::Type::kEOF;
 };
+
+/**
+ * @brief Create a string CIF value from text.
+ * @param value the string to store.
+ * @return A string CifValue (quoted on write only if its content requires it).
+ */
+inline internal::CifValue cif_value(std::string_view value) {
+  return internal::CifValue::string(value);
+}
+
+/**
+ * @brief Create a boolean CIF value.
+ * @param value the boolean to store.
+ * @param short_form if true, use @c y / @c n instead of @c yes / @c no.
+ * @return An unquoted CifValue holding the boolean literal.
+ *
+ * @note Implemented as a template (not a plain @c bool overload) so that
+ *       pointers do not implicitly convert to @c bool and steal the
+ *       std::string_view overload.
+ */
+template <class T, std::enable_if_t<std::is_same_v<T, bool>, int> = 0>
+internal::CifValue cif_value(T value, bool short_form = false) {
+  return internal::CifValue::generic(value ? (short_form ? "y" : "yes")
+                                           : (short_form ? "n" : "no"));
+}
+
+/**
+ * @brief Create an integral CIF value.
+ * @param value the integer to store.
+ * @param width if positive, zero-pad the number to at least this many digits.
+ * @return An unquoted CifValue holding the formatted integer.
+ */
+template <
+    class T,
+    std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>, int> = 0>
+internal::CifValue cif_value(T value, int width = 0) {
+  if (width <= 0)
+    return internal::CifValue::generic(absl::StrCat(value));
+
+  return internal::CifValue::generic(
+      absl::StrFormat("%0*d", width, static_cast<std::int64_t>(value)));
+}
+
+/**
+ * @brief Create a floating-point CIF value.
+ * @param value the number to store.
+ * @param precision if non-negative, format with this many digits after the
+ *        decimal point; otherwise use the shortest round-trip representation.
+ * @return An unquoted CifValue holding the formatted number.
+ */
+template <class T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
+internal::CifValue cif_value(T value, int precision = -1) {
+  if (precision < 0)
+    return internal::CifValue::generic(absl::StrCat(value));
+
+  return internal::CifValue::generic(
+      absl::StrFormat("%.*f", precision, static_cast<double>(value)));
+}
+
+/**
+ * @brief Create a string CIF value from any absl::StrCat-able type.
+ * @param value the object to stringify and store.
+ * @return A string CifValue holding the stringified object.
+ *
+ * Participates in overload resolution only for non-arithmetic types that are
+ * not convertible to std::string_view.
+ */
+template <class T,
+          std::enable_if_t<!std::is_arithmetic_v<std::decay_t<T>>
+                               && !std::is_convertible_v<T, std::string_view>,
+                           int> = 0>
+internal::CifValue cif_value(T &&value) {
+  return internal::CifValue::string(absl::StrCat(std::forward<T>(value)));
+}
+
+namespace internal {
+  enum class CifValueKind { kError, kInline, kTextField };
+
+  extern CifValueKind write_cif_value(std::string &out,
+                                      const internal::CifValue &value);
+}  // namespace internal
+
+/**
+ * @brief Serialize a CIF table (key-value pairs or a @c loop_), appending to
+ *        @p out.
+ *
+ * A single-row table is written as key-value pairs; otherwise a @c loop_ is
+ * emitted.
+ *
+ * @param out the buffer to append to. On error, it is overwritten with the
+ *        error message.
+ * @param table the table to serialize.
+ * @param align if true, pad columns/keys for readability.
+ * @return true on success; false if any value could not be serialized.
+ */
+extern bool write_cif_table(std::string &out, const internal::CifTable &table,
+                            bool align = false);
+
+/**
+ * @brief Serialize a CIF frame, appending to @p out.
+ *
+ * Emits a @c data_, @c save_, or @c global_ heading followed by each table. The
+ * frame is @b not validated; pass a frame that satisfies
+ * internal::CifFrame::validate (e.g. one built through the public API).
+ *
+ * @param out the buffer to append to. On error, it is overwritten with the
+ *        error message.
+ * @param frame the frame to serialize.
+ * @param type the type of block to write: @c data_ (default), @c save_, or
+ *        @c global_.
+ * @param align if true, pad columns/keys for readability.
+ * @return true on success; false if any value could not be serialized.
+ */
+extern bool
+write_cif_frame(std::string &out, const internal::CifFrame &frame,
+                internal::CifFrame::Type type = internal::CifFrame::Type::kData,
+                bool align = false);
+
+/**
+ * @brief Serialize a CIF block (a data or global block plus its save frames),
+ *        appending to @p out.
+ *
+ * The block is @b not validated; pass a block that satisfies
+ * internal::CifBlock::validate (e.g. one built through the public API).
+ *
+ * @param out the buffer to append to. On error, it is overwritten with the
+ *        error message.
+ * @param block the block to serialize. EOF and error blocks cannot be
+ *        serialized.
+ * @param align if true, pad columns/keys for readability.
+ * @return true on success; false if the block is EOF/error or any value could
+ *         not be serialized.
+ */
+extern bool write_cif_block(std::string &out, const internal::CifBlock &block,
+                            bool align = false);
 
 // Test helpers
 
