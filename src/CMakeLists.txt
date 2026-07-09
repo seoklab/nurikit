@@ -54,7 +54,7 @@ target_link_libraries(NuriLib
   PRIVATE
   Spectra::Spectra
 )
-set_target_properties(NuriLib PROPERTIES OUTPUT_NAME nuri)
+set_target_properties(NuriLib PROPERTIES OUTPUT_NAME nuri SOVERSION 0)
 
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
   list(APPEND NURI_LIBRARY_FLAGS
@@ -122,12 +122,17 @@ if(NURI_INSTALL_RPATH)
 endif()
 
 install(
-  TARGETS NuriLib NuriExe
+  TARGETS NuriLib
   EXPORT "${PROJECT_NAME}Targets"
   INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 )
+
+# NuriExe is an upstream stub (int main(){return 0;}); not installed.
+# install(
+#   TARGETS NuriExe
+#   RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+# )
 
 if(NOT SKBUILD)
   install(
