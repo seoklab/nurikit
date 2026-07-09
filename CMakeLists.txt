@@ -201,6 +201,12 @@ if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON OR BUILD_TESTING)
     GIT_TAG 3.4.1
   )
 
+  # A list value can't ride through CPM's "KEY VALUE" OPTIONS string, so set the
+  # Boost superproject's library list as a cache variable directly.
+  set(BOOST_INCLUDE_LIBRARIES
+    spirit fusion optional container iterator range graph property_map
+    CACHE INTERNAL "" FORCE
+  )
   set(Boost_USE_MULTITHREADED ON)
   set(Boost_USE_STATIC_RUNTIME OFF)
   find_or_add_package(
@@ -214,9 +220,6 @@ if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON OR BUILD_TESTING)
     "BOOST_ENABLE_CMAKE ON"
     "BOOST_SKIP_INSTALL_RULES OFF"
     "BOOST_ENABLE_COMPATIBILITY_TARGETS ON"
-    "BOOST_INCLUDE_LIBRARIES \
-spirit\\\;fusion\\\;optional\\\;container\\\;iterator\\\;range\\\;\
-graph\\\;property_map"
     URL "https://github.com/boostorg/boost/releases/download/boost-1.89.0/boost-1.89.0-cmake.tar.xz"
   )
 

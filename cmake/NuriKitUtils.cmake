@@ -107,12 +107,18 @@ function(find_or_add_package)
     set(_pkg_MIN_VERSION "${_pkg_CPM_VERSION}")
   endif()
 
+  if(_pkg_COMPONENTS)
+    set(find_pkg_components COMPONENTS ${_pkg_COMPONENTS})
+  else()
+    set(find_pkg_components "")
+  endif()
+
   find_package(
     "${_pkg_NAME}"
     "${_pkg_MIN_VERSION}"
     QUIET
-    COMPONENTS "${_pkg_COMPONENTS}"
     NO_MODULE
+    ${find_pkg_components}
   )
 
   if(${_pkg_NAME}_FOUND)
@@ -125,8 +131,6 @@ function(find_or_add_package)
 
   message(STATUS "Could not find ${_pkg_NAME}. Adding with CPM.")
 
-  string(REPLACE "\\" "\\\\" extra_args "${_pkg_UNPARSED_ARGUMENTS}")
-
   include(CPM)
   set(CPM_USE_LOCAL_PACKAGES OFF)
   CPMAddPackage(
@@ -134,7 +138,7 @@ function(find_or_add_package)
     VERSION "${_pkg_CPM_VERSION}"
     EXCLUDE_FROM_ALL ON
     SYSTEM ON
-    "${extra_args}"
+    "${_pkg_UNPARSED_ARGUMENTS}"
   )
 
   # emulate find_package behavior

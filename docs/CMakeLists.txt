@@ -39,7 +39,11 @@ set(DOXYGEN_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 set(DOXYGEN_OUTPUT_DIR "${DOXYGEN_OUTPUT_DIR}" PARENT_SCOPE)
 configure_file(Doxyfile.in Doxyfile @ONLY)
 
-file(GLOB_RECURSE nuri_public_headers "${PROJECT_SOURCE_DIR}/include/nuri/*.h")
+file(
+  GLOB_RECURSE nuri_public_headers
+  CONFIGURE_DEPENDS
+  "${PROJECT_SOURCE_DIR}/include/nuri/*.h"
+)
 add_custom_command(
   OUTPUT "${DOXYGEN_OUTPUT_DIR}/html/cpp/index.html"
   COMMAND ${CMAKE_COMMAND} -E make_directory "${DOXYGEN_OUTPUT_DIR}/html"

@@ -19,7 +19,7 @@ find_or_add_package(
 add_custom_target(NuriAllBench ALL)
 add_compile_options(-Wno-error)
 
-file(GLOB_RECURSE NURI_BENCH_SRCS *.cpp)
+file(GLOB_RECURSE NURI_BENCH_SRCS CONFIGURE_DEPENDS *.cpp)
 
 foreach(nuri_bench_src IN LISTS NURI_BENCH_SRCS)
   nuri_add_benchmark("${nuri_bench_src}")

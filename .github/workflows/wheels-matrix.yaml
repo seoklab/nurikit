@@ -51,7 +51,7 @@ jobs:
   targets:
     uses: ./.github/workflows/_wheel-targets.yaml
     with:
-      minimal: ${{ inputs.minimal }}
+      minimal: ${{ inputs.minimal || false }}
 
   build-wheels:
     needs: [common, targets]
