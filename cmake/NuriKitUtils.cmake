@@ -131,8 +131,6 @@ function(find_or_add_package)
 
   message(STATUS "Could not find ${_pkg_NAME}. Adding with CPM.")
 
-  string(REPLACE "\\" "\\\\" extra_args "${_pkg_UNPARSED_ARGUMENTS}")
-
   include(CPM)
   set(CPM_USE_LOCAL_PACKAGES OFF)
   CPMAddPackage(
@@ -140,7 +138,7 @@ function(find_or_add_package)
     VERSION "${_pkg_CPM_VERSION}"
     EXCLUDE_FROM_ALL ON
     SYSTEM ON
-    "${extra_args}"
+    "${_pkg_UNPARSED_ARGUMENTS}"
   )
 
   # emulate find_package behavior
