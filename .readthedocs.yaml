@@ -8,12 +8,7 @@ version: 2
 build:
   os: ubuntu-24.04
   tools:
-    python: "mambaforge-23.11"
-  apt_packages:
-    - build-essential
-    - ninja-build
-    - doxygen
-    - graphviz
+    python: "miniconda3-3.12-24.9"
   jobs:
     post_checkout:
       - (git show -s --format="%an" | grep -vq "\[bot\]$") || exit 183
@@ -21,16 +16,16 @@ build:
         if git show -s --format="%B" | grep -Eq "\[(skip docs|docs skip)\]"; then
           exit 183
         fi
-    pre_install:
+    install:
       - |
-        cmake -S . -B pre-install -G Ninja \
+        cmake -S . -B install -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
           -DBUILD_TESTING=OFF \
           -DNURI_PREBUILT_ABSL=OFF \
           -DNURI_ENABLE_IPO=OFF \
           -DNURI_OPTIMIZATION_LEVEL=O0
-    post_install:
-      - cmake --build pre-install --target clean
+      - python -m pip install '.[docs]' -v -Cbuild-dir=install -Cbuild.verbose=true
+      - cmake --build install --target clean
     pre_build:
       - |
         cmake -S . -B build -G Ninja \
@@ -46,13 +41,6 @@ build:
 
 conda:
   environment: docs/environment.yaml
-
-python:
-  install:
-    - method: pip
-      path: "."
-      extra_requirements:
-        - docs
 
 sphinx:
   configuration: "python/docs/conf.py"
