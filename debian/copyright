@@ -2,6 +2,11 @@ Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: NuriKit
 Upstream-Contact: Nuri Jung <jnooree@gmail.com>
 Source: https://github.com/seoklab/nurikit
+Comment:
+ Small third-party code portions and imported test data are embedded in the
+ source under their own permissive licenses (BSD-2-Clause, BSD-3-Clause,
+ BSL-1.0, and permissive-custom terms); see the upstream NOTICE.md, shipped in
+ the binary packages, for the per-component attributions.
 
 Files: *
 Copyright: 2023-2026 SNU Compbio Lab
