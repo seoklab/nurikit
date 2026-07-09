@@ -1,0 +1,51 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/pkg-info.mk
+
+NURI_VERSION := $(DEB_VERSION_UPSTREAM)
+DESTDIR := debian/tmp
+PYBUILD := debian/pybuild
+PYWHEEL := debian/wheel
+
+export DEB_CXXFLAGS_MAINT_APPEND = -DNDEBUG
+export CMAKE_PREFIX_PATH=$(CURDIR)/$(DESTDIR)/usr
+
+%:
+	dh $@ -S cmake+ninja --with python3
+
+# C++ pass only: build/stage libnuri + headers + cmake config. The pybind11
+# bindings are left to scikit-build-core in the install step, so it handles
+# the Python install rather than us hand-placing the extension modules.
+override_dh_auto_configure:
+	dh_auto_configure -- \
+		-DNURI_BUILD_PYTHON=OFF \
+		-DNURI_INSTALL_RPATH=OFF \
+		-DNURI_ENABLE_IPO=OFF \
+		-DNURI_FORCE_VERSION=$(NURI_VERSION)
+
+override_dh_auto_install:
+	dh_auto_install --destdir $(DESTDIR)
+
+	# pyproject.toml is generated from pyproject.toml.in by CMake's
+	# configure_file (it is gitignored). Run a configure-only pass to emit it.
+	dh_auto_configure -B $(PYBUILD) -- \
+		-DBUILD_TESTING=OFF \
+		-DNURI_BUILD_LIB=OFF \
+		-DNURI_BUILD_PYTHON_STUBS=ON \
+		-DNURI_INSTALL_RPATH=OFF \
+		-DNURI_ENABLE_IPO=OFF \
+		-DNURI_FORCE_VERSION=$(NURI_VERSION)
+
+	python3 -m build --wheel --no-isolation \
+		-C build-dir=$(PYBUILD) --outdir $(PYWHEEL)
+
+	DEB_PYTHON_INSTALL_LAYOUT=deb python3 -m installer \
+		--destdir $(DESTDIR) --prefix /usr $(PYWHEEL)/nurikit-*.whl
+
+# NuriKit has no stable ABI policy yet; pin consumers to the exact libnuri0 version.
+override_dh_makeshlibs:
+	dh_makeshlibs -V'libnuri0 (= $${binary:Version})'
+
+override_dh_clean:
+	rm -rf $(PYBUILD) $(PYWHEEL)
+	dh_clean

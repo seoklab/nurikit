@@ -1,0 +1,8 @@
+#!/bin/sh
+
+set -eu
+
+# Run the upstream Python test suite against the installed python3-nurikit.
+# Run from the source tree so the conftest test_data fixture (which resolves
+# relative to the tree root) finds test/test_data.
+python3 -m pytest -v python/test

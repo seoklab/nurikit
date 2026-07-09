@@ -1,0 +1,5 @@
+nurikit (0.1.0b1-1) unstable; urgency=medium
+
+  * Initial Debian packaging: libnuri0, libnuri-dev, python3-nurikit.
+
+ -- Nuri Jung <jnooree@gmail.com>  Thu, 09 Jul 2026 16:01:46 +0900

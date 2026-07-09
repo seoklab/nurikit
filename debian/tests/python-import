@@ -1,0 +1,5 @@
+#!/bin/sh
+
+set -eu
+
+python3 -c "import nuri; from nuri.core import periodic_table; print(periodic_table['C'])"

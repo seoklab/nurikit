@@ -1,0 +1,3 @@
+usr/include/nuri
+usr/lib/*/libnuri.so
+usr/lib/*/cmake/NuriKit

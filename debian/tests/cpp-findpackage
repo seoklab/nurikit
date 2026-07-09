@@ -1,0 +1,29 @@
+#!/bin/sh
+
+set -eu
+
+# Smoke-test the installed CMake package config against libnuri-dev.
+cd "$AUTOPKGTEST_TMP"
+
+cat >smoke.cpp <<'EOF'
+#include <nuri/core/element.h>
+
+int main() {
+  // find_element(symbol) is defined in libnuri (non-inline), so this both
+  // links against and exercises real nurikit code.
+  const nuri::Element *carbon = nuri::PeriodicTable::get().find_element("C");
+  return (carbon != nullptr && carbon->atomic_number() == 6) ? 0 : 1;
+}
+EOF
+
+cat >CMakeLists.txt <<'EOF'
+cmake_minimum_required(VERSION 3.16)
+project(nuri_smoke CXX)
+find_package(NuriKit REQUIRED)
+add_executable(smoke smoke.cpp)
+target_link_libraries(smoke NuriKit::NuriLib)
+EOF
+
+cmake -S . -B build
+cmake --build build
+./build/smoke
