@@ -107,12 +107,18 @@ function(find_or_add_package)
     set(_pkg_MIN_VERSION "${_pkg_CPM_VERSION}")
   endif()
 
+  if(_pkg_COMPONENTS)
+    set(find_pkg_components COMPONENTS ${_pkg_COMPONENTS})
+  else()
+    set(find_pkg_components "")
+  endif()
+
   find_package(
     "${_pkg_NAME}"
     "${_pkg_MIN_VERSION}"
     QUIET
-    COMPONENTS "${_pkg_COMPONENTS}"
     NO_MODULE
+    ${find_pkg_components}
   )
 
   if(${_pkg_NAME}_FOUND)
