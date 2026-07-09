@@ -6,7 +6,7 @@
 @PACKAGE_INIT@
 
 include(CMakeFindDependencyMacro)
-find_dependency(Boost @Boost_VERSION@ REQUIRED COMPONENTS headers)
+find_dependency(Boost @Boost_VERSION@ REQUIRED COMPONENTS headers graph)
 find_dependency(absl @absl_VERSION@ REQUIRED)
 find_dependency(Eigen3 @Eigen3_VERSION@ REQUIRED)
 
