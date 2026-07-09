@@ -11,7 +11,7 @@ clear_coverage_data(NuriAllFuzz)
 add_compile_options(-Wno-error)
 
 include_directories("${CMAKE_CURRENT_LIST_DIR}/include")
-file(GLOB_RECURSE NURI_FUZZ_SRCS *.cpp)
+file(GLOB_RECURSE NURI_FUZZ_SRCS CONFIGURE_DEPENDS *.cpp)
 
 foreach(nuri_fuzz_src IN LISTS NURI_FUZZ_SRCS)
   nuri_add_fuzz("${nuri_fuzz_src}")
