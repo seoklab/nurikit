@@ -97,6 +97,8 @@ if.from-sdist = false
 if.scikit-build-version = ">=0.11.0"
 
 build.requires = ["pybind11-stubgen", "numpy"]
+
+inherit.cmake.define = "append"
 cmake.define.NURI_BUILD_PYTHON_STUBS = "ON"
 
 [tool.cibuildwheel]
