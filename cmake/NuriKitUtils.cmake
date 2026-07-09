@@ -168,7 +168,7 @@ function(find_or_fetch_abseil)
 
       Fetchcontent_Declare(
         absl
-        URL "https://github.com/jnooree/abseil-cpp/releases/latest/download/libabsl-static-${os_arch}.tar.gz"
+        URL "https://github.com/jnooree/abseil-cpp/releases/latest/download/libabsl-shared-${os_arch}.tar.gz"
       )
       Fetchcontent_MakeAvailable(absl)
 
@@ -183,6 +183,11 @@ function(find_or_fetch_abseil)
       message(STATUS "Found absl ${absl_VERSION}")
       set(absl_FOUND "${absl_FOUND}" PARENT_SCOPE)
       set(absl_VERSION "${absl_VERSION}" PARENT_SCOPE)
+
+      # The extracted tarball is upstream's `cmake --install` tree; expose it so
+      # the install step can ship it beside libnuri (imported abseil has no
+      # install rules of its own).
+      set(NURI_ABSL_PREBUILT_DIR "${absl_SOURCE_DIR}" PARENT_SCOPE)
 
       if(NURI_PREBUILT_ABSL AND CMAKE_SYSTEM_NAME MATCHES Linux)
         set(ABSL_USES_OLD_ABI ON PARENT_SCOPE)
@@ -204,13 +209,12 @@ function(find_or_fetch_abseil)
     NAME absl
     OPTIONS
     "BUILD_TESTING OFF"
-    "BUILD_SHARED_LIBS OFF"
+    "BUILD_SHARED_LIBS ON"
     "ABSL_ENABLE_INSTALL ON"
     "ABSL_BUILD_TESTING OFF"
     "ABSL_PROPAGATE_CXX_STD ON"
     "ABSL_USE_SYSTEM_INCLUDES ON"
     URL https://github.com/jnooree/abseil-cpp/releases/latest/download/abseil-cpp-latest.tar.gz
-    EXCLUDE_FROM_ALL ON
     SYSTEM ON
   )
 endfunction()
