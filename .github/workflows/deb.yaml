@@ -1,0 +1,75 @@
+#
+# Project NuriKit - Copyright 2026 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+name: Debian package
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "release/**"
+  pull_request:
+    branches:
+      - "release/**"
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    if: ${{ !github.event.pull_request.draft }}
+
+    runs-on: ubuntu-latest
+
+    container:
+      image: debian:unstable
+
+    steps:
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git ca-certificates dpkg-dev lintian autopkgtest
+
+      - uses: actions/checkout@v7
+        with:
+          path: src
+
+      - name: Prepare orig tarball
+        working-directory: src
+        run: |
+          ver="$(dpkg-parsechangelog -SVersion | sed -E 's/-[^-]+$//')"
+          git archive --prefix="nurikit-${ver}/" -o "../nurikit_${ver}.orig.tar.gz" HEAD
+
+      - run: apt-get build-dep -y ./src
+
+      - run: dpkg-buildpackage --no-sign
+        working-directory: src
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: deb-package
+          path: |
+            *
+            !src/
+
+      - run: lintian --info --display-info --pedantic *.changes || true
+
+      - run: autopkgtest --no-built-binaries *.changes -- null
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
