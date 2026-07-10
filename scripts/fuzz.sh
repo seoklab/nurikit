@@ -7,7 +7,7 @@
 set -euo pipefail
 
 project_root="$(dirname "$(dirname "$(realpath "$0")")")"
-suppression="$(printf '%q' "$project_root/.github/ubsanignore.txt")"
+suppression="$project_root/.github/ubsanignore.txt"
 
 coverage=false
 corpus=corpus
@@ -42,14 +42,37 @@ if [[ $coverage == true ]]; then
 	type llvm-profdata llvm-cov c++filt
 fi
 
+if ! symbolizer="$(command -v llvm-symbolizer)"; then
+	echo >&2 "$0: type: llvm-symbolizer: not found"
+	exit 1
+fi
+printf 'llvm-symbolizer is %s\n' "$symbolizer"
+
 libsan=(
 	"$(clang++ -print-file-name=libclang_rt.asan-x86_64.so)"
 	"$(clang++ -print-file-name=libubsan.so)"
 )
 
+# Force the external llvm-symbolizer instead of compiler-rt's in-process
+# symbolizer. For llvm 18, both the in-process copy and llvm-symbolizer binary
+# hang symbolizing on some hosts (e.g. Ubuntu 24.04); force the external
+# symbolizer to allow user customize the symbolizer path (e.g. put a newer
+# llvm-symbolizer in PATH).
+# Quote paths with "" to avoid issues with special characters in the path.
+common_opts=("external_symbolizer_path=\"$symbolizer\"")
+asan_opts=("${common_opts[@]}")
+ubsan_opts=(
+	"${common_opts[@]}"
+	"suppressions=\"$suppression\""
+	"print_stacktrace=1"
+)
+
+# Append any caller-supplied options last so they override ours (e.g.
+# UBSAN_OPTIONS=...:symbolize=0 to work around a hanging symbolizer).
 LLVM_PROFILE_FILE='coverage.profraw' \
 	LD_PRELOAD="${libsan[*]}" \
-	UBSAN_OPTIONS="suppressions=$suppression print_stacktrace=1" \
+	ASAN_OPTIONS="${asan_opts[*]} ${ASAN_OPTIONS-}" \
+	UBSAN_OPTIONS="${ubsan_opts[*]} ${UBSAN_OPTIONS-}" \
 	"$exe" "$corpus" "$@"
 
 if [[ $coverage == true ]]; then
