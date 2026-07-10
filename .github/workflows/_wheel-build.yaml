@@ -73,7 +73,8 @@ jobs:
           CIBW_ARCHS: "all"
           SKBUILD_CMAKE_ARGS:
             "-DCMAKE_INSTALL_RPATH=${{ steps.resolve.outputs.ldpath }};\
-            -DNURI_BUILD_LIB=OFF"
+            -DNURI_BUILD_LIB=OFF;\
+            -DNURI_PREBUILT_ABSL=OFF"  # absl bundled with libnuri
 
       - name: Upload wheels
         uses: actions/upload-artifact@v7
