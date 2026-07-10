@@ -101,6 +101,20 @@ build.requires = ["pybind11-stubgen", "numpy"]
 inherit.cmake.define = "append"
 cmake.define.NURI_BUILD_PYTHON_STUBS = "ON"
 
+[[tool.scikit-build.overrides]]
+# Anything non-empty == we're building a deb package
+if.env.DEB_HOST_ARCH = "."
+
+# Delegate to the debian build system to handle debug symbols and stripping:
+# scikit-build's own install strip is off, and CMAKE_STRIP is neutralized so
+# pybind11's post-build strip (pybind11_strip) leaves the modules unstripped for
+# dh_strip to process into a -dbgsym package.
+install.strip = false
+build.verbose = true
+
+inherit.cmake.define = "append"
+cmake.define.CMAKE_STRIP = "/bin/true"
+
 [tool.cibuildwheel]
 build = ["cp*-manylinux_x86_64", "cp*-macosx_x86_64", "cp*-macosx_arm64"]
 enable = ["cpython-freethreading"]
