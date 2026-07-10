@@ -52,10 +52,18 @@ jobs:
       - run: |
           cmake -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_TESTING=OFF \
-            -DNURI_PREBUILT_ABSL=ON \
             -DNURI_BUILD_PYTHON_STUBS=ON \
+            -DNURI_PREBUILT_ABSL=ON \
+            -DNURI_ENABLE_IPO=OFF \
+            -DNURI_OPTIMIZATION_LEVEL=O0 \
             -S . -B build -G Ninja
           cmake --build build --target NuriPythonStubs -j
+
+          # Reconfigure for downstream build
+          cmake -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
+            -DNURI_PREBUILT_ABSL=ON \
+            -S . -B genconfig -G Ninja
 
       - run: pipx run build --sdist -v -Cbuild.requires=""
 
