@@ -114,9 +114,15 @@ Report the top `nuri` frame as `file:line`; the parser lives in
 
 ## 6. Coverage report (on request)
 
+`--coverage` must come **first** — `fuzz.sh` parses it with `getopts`, which
+stops at the first non-dash token (the binary path). Pass `-runs=0` so libFuzzer
+replays the corpus once and exits; without it (or `-max_total_time`) it replays
+then fuzzes forever. Don't pass the corpus dir positionally — the script already
+appends the default `corpus`.
+
 ```bash
 cd "$RUNDIR/$fmt"
-"$REPO/scripts/fuzz.sh" --coverage "$REPO/build/fuzzer/fuzz/$bin" corpus
+"$REPO/scripts/fuzz.sh" --coverage "$REPO/build/fuzzer/fuzz/$bin" -runs=0
 ```
 
 Emits `cov-html/` + a text summary in the run dir. Report line-coverage % and

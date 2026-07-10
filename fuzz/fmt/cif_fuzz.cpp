@@ -24,10 +24,16 @@ NURI_FUZZ_MAIN(data, size) {
       std::string { reinterpret_cast<const char *>(data), size });
   nuri::CifParser parser(iss);
 
+  std::string out;
   while (true) {
     auto block = parser.next();
     if (!block)
       break;
+
+    out.clear();
+    nuri::write_cif_block(out, block, false);
+    out.clear();
+    nuri::write_cif_block(out, block, true);
   }
 
   return 0;
