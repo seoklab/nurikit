@@ -11,7 +11,6 @@ if(NURI_BUILD_PYTHON)
     NAME pybind11
     MIN_VERSION 2.13
     CPM_VERSION 2.13.6
-    OPTIONS "BUILD_TESTING OFF"
     GIT_REPOSITORY https://github.com/pybind/pybind11.git
   )
 

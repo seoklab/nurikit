@@ -9,7 +9,6 @@ include(NuriKitUtils)
 find_or_add_package(
   NAME Spectra
   CPM_VERSION 1.0
-  OPTIONS "BUILD_TESTING OFF"
   GIT_REPOSITORY https://github.com/yixuan/spectra.git
   GIT_TAG v1.2.0
 )

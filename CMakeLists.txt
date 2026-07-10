@@ -5,6 +5,10 @@
 
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR) # Version for Ubuntu 20.04 LTS
 
+if(POLICY CMP0077)
+  cmake_policy(SET CMP0077 NEW)
+endif()
+
 if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
 endif()
@@ -39,6 +43,7 @@ option(NURI_BUILD_DEV_MODE "Turn on development options" OFF)
 
 option(NURI_BUILD_LIB "Build NuriKit library" ON)
 option(NURI_BUILD_PYTHON "Build Python bindings" ON)
+option(NURI_BUILD_TESTING "Build C++ tests" ON)
 option(NURI_BUILD_DOCS "Build documentation" ${NURI_BUILD_DEV_MODE})
 option(NURI_BUILD_PYTHON_DOCS "Build python documentation" ${NURI_BUILD_DEV_MODE})
 option(NURI_BUILD_PYTHON_DOCTEST "Build python doctest" ${NURI_BUILD_DEV_MODE})
@@ -63,6 +68,13 @@ mark_as_advanced(
   NURI_FORCE_VERSION
 )
 
+if(NURI_BUILD_TESTING)
+  enable_testing()
+endif()
+
+# We don't need subproject tests
+set(BUILD_TESTING OFF)
+
 # cmake includes
 file(
   DOWNLOAD
@@ -74,7 +86,6 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_BINARY_DIR}/cmake")
 include(CPM)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
-include(CTest) # For BUILD_TESTING
 include(ProcessorCount)
 
 # Global configuration
@@ -170,7 +181,7 @@ if(NURI_ENABLE_SANITIZERS)
 endif()
 
 # Find/download dependencies
-if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON OR BUILD_TESTING)
+if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON OR NURI_BUILD_TESTING)
   find_or_fetch_abseil()
 
   # When we downloaded a prebuilt (imported) abseil, ship it beside libnuri so
@@ -193,7 +204,6 @@ if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON OR BUILD_TESTING)
     MIN_VERSION 3.4
     CPM_VERSION 3.4.1
     OPTIONS
-    "BUILD_TESTING OFF"
     "EIGEN_BUILD_DOC OFF"
     "EIGEN_BUILD_PKGCONFIG OFF"
     "EIGEN_BUILD_CMAKE_PACKAGE ON"
@@ -215,7 +225,6 @@ if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON OR BUILD_TESTING)
     CPM_VERSION 1.89.0
     COMPONENTS graph
     OPTIONS
-    "BUILD_TESTING OFF"
     "BUILD_SHARED_LIBS OFF"
     "BOOST_ENABLE_CMAKE ON"
     "BOOST_SKIP_INSTALL_RULES OFF"
@@ -223,7 +232,7 @@ if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON OR BUILD_TESTING)
     URL "https://github.com/boostorg/boost/releases/download/boost-1.89.0/boost-1.89.0-cmake.tar.xz"
   )
 
-  if(BUILD_TESTING)
+  if(NURI_BUILD_TESTING)
     find_or_add_package(
       NAME GTest
       CPM_VERSION 1.17.0
@@ -313,7 +322,7 @@ if(NURI_BUILD_LIB)
   endif()
 endif()
 
-if(BUILD_TESTING)
+if(NURI_BUILD_TESTING)
   add_subdirectory(test)
 endif()
 

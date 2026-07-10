@@ -29,8 +29,8 @@ override_dh_auto_install:
 	# pyproject.toml is generated from pyproject.toml.in by CMake's
 	# configure_file (it is gitignored). Run a configure-only pass to emit it.
 	dh_auto_configure -B $(PYBUILD) -- \
-		-DBUILD_TESTING=OFF \
 		-DNURI_BUILD_LIB=OFF \
+		-DNURI_BUILD_TESTING=OFF \
 		-DNURI_BUILD_PYTHON_STUBS=ON \
 		-DNURI_INSTALL_RPATH=OFF \
 		-DNURI_ENABLE_IPO=OFF \
