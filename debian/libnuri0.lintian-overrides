@@ -1,0 +1,3 @@
+# ABI is intentionally not versioned per release; the shlibs file pins consumers
+# to the exact libnuri0 version (see debian/rules override_dh_makeshlibs).
+libnuri0: distant-prerequisite-in-shlibs libnuri0 *

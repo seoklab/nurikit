@@ -1,0 +1,10 @@
+Tests: python-import
+Depends: python3-nurikit, python3-numpy
+Restrictions: superficial
+
+Tests: pytest
+Depends: python3-nurikit, python3-numpy, python3-pytest, python3-scipy
+Restrictions: allow-stderr
+
+Tests: cpp-findpackage
+Depends: libnuri-dev, build-essential, cmake

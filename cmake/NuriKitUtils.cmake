@@ -212,7 +212,6 @@ function(find_or_fetch_abseil)
   CPMAddPackage(
     NAME absl
     OPTIONS
-    "BUILD_TESTING OFF"
     "BUILD_SHARED_LIBS ON"
     "ABSL_ENABLE_INSTALL ON"
     "ABSL_BUILD_TESTING OFF"

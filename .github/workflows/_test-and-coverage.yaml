@@ -16,7 +16,8 @@ defaults:
     shell: bash
 
 env:
-  SKBUILD_CMAKE_ARGS: "-DNURI_BUILD_PYTHON_DOCTEST=ON;-DNURI_BUILD_PYTHON_STUBS=OFF;-DNURI_PREBUILT_ABSL=ON"
+  # non-sdist build forces stub generation; override pyproject.toml.in here
+  SKBUILD_CMAKE_ARGS: "-DNURI_BUILD_PYTHON_STUBS=OFF"
 
 jobs:
   coverage:
@@ -41,6 +42,7 @@ jobs:
         run: |
           cmake -G Ninja -S . -B build \
             -DCMAKE_BUILD_TYPE=Debug \
+            -DNURI_BUILD_PYTHON_DOCTEST=ON \
             -DNURI_PREBUILT_ABSL=ON \
             -DNURI_TEST_COVERAGE=ON
 
@@ -89,6 +91,7 @@ jobs:
           cmake -G Ninja -S . -B build \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_CXX_FLAGS=-Werror \
+            -DNURI_BUILD_PYTHON_DOCTEST=ON \
             -DNURI_ENABLE_SANITIZERS=ON
 
       - name: Build
@@ -97,7 +100,6 @@ jobs:
             pip install -v '.[test,docs]'
         env:
           SKBUILD_BUILD_DIR: build
-          SKBUILD_CMAKE_DEFINE: "BUILD_TESTING=ON"
           LD_PRELOAD: ""
           ASAN_OPTIONS: detect_leaks=0
 

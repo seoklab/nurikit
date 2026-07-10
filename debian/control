@@ -1,0 +1,67 @@
+Source: nurikit
+Section: science
+Priority: optional
+Maintainer: Nuri Jung <jnooree@gmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ dh-python,
+ cmake,
+ ninja-build,
+ libabsl-dev,
+ libeigen3-dev,
+ libboost-graph-dev,
+ libspectra-dev,
+ libgtest-dev,
+ libgmock-dev,
+ pybind11-dev,
+ python3-dev,
+ python3-numpy,
+ python3-build,
+ python3-installer,
+ python3-scikit-build-core,
+ pybind11-stubgen,
+Standards-Version: 4.7.4
+Homepage: https://github.com/seoklab/nurikit
+Rules-Requires-Root: no
+
+Package: libnuri0
+Section: libs
+Architecture: amd64
+Multi-Arch: same
+Pre-Depends: ${misc:Pre-Depends}
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+Description: fundamental software platform for chem- and bio-informatics
+ NuriKit is a C++/Python library and platform for chem- and bio-informatics.
+ .
+ This package provides the shared runtime library.
+
+Package: libnuri-dev
+Section: libdevel
+Architecture: amd64
+Multi-Arch: same
+Depends:
+ libnuri0 (= ${binary:Version}),
+ libabsl-dev,
+ libeigen3-dev,
+ libboost-graph-dev,
+ ${misc:Depends},
+Description: fundamental software platform for chem- and bio-informatics (development)
+ NuriKit is a C++/Python library and platform for chem- and bio-informatics.
+ .
+ This package provides the C++ headers and CMake package configuration
+ (find_package(NuriKit)) needed to build against libnuri.
+
+Package: python3-nurikit
+Section: python
+Architecture: amd64
+Depends:
+ ${python3:Depends},
+ ${shlibs:Depends},
+ ${misc:Depends},
+ libnuri0 (= ${binary:Version}),
+Description: fundamental software platform for chem- and bio-informatics (Python 3)
+ NuriKit is a C++/Python library and platform for chem- and bio-informatics.
+ .
+ This package provides the Python 3 bindings (the "nuri" import package).
