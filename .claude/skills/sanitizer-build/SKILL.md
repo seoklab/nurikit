@@ -29,7 +29,7 @@ cmake -DCMAKE_CXX_COMPILER=clang++ \
 Set these environment variables at build time:
 
 ```bash
-LD_PRELOAD="$(gcc -print-file-name=libubsan.so.1)" \
+LD_PRELOAD="$(clang++ -print-file-name=libubsan.so)" \
   ASAN_OPTIONS="detect_odr_violation=0 detect_leaks=0" \
   cmake --build ...
 ```

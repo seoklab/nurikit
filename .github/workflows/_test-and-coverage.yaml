@@ -68,7 +68,6 @@ jobs:
       CC: clang
       CXX: clang++
       CMAKE_BUILD_PARALLEL_LEVEL: "24"
-      LD_PRELOAD: /usr/lib/x86_64-linux-gnu/libubsan.so.1
       UBSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/ubsanignore.txt print_stacktrace=1
 
     steps:
@@ -85,6 +84,11 @@ jobs:
           python-version: "3.8"
 
       - run: pip install sphinx
+
+      - name: Setup LD_PRELOAD for UBSan
+        run: |
+          ld_preload="$(clang++ -print-file-name=libubsan.so) $LD_PRELOAD"
+          echo "LD_PRELOAD=$ld_preload" >>"$GITHUB_ENV"
 
       - name: Configure
         run: |

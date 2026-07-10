@@ -42,8 +42,13 @@ if [[ $coverage == true ]]; then
 	type llvm-profdata llvm-cov c++filt
 fi
 
+libsan=(
+	"$(clang++ -print-file-name=libclang_rt.asan-x86_64.so)"
+	"$(clang++ -print-file-name=libubsan.so)"
+)
+
 LLVM_PROFILE_FILE='coverage.profraw' \
-	LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) /usr/lib/x86_64-linux-gnu/libubsan.so.1" \
+	LD_PRELOAD="${libsan[*]}" \
 	UBSAN_OPTIONS="suppressions=$suppression print_stacktrace=1" \
 	"$exe" "$corpus" "$@"
 
