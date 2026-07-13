@@ -11,6 +11,7 @@ import pytest
 
 from nuri.fmt.cif import (
     Block,
+    ColumnFormat,
     Frame,
     Table,
     Value,
@@ -152,7 +153,7 @@ def test_write_cif_none_defaults_to_unknown():
     table = Table(
         ["a.x", "a.y"],
         [[None, None]],
-        formatter_kwargs={"a.y": {"null_token": "."}},
+        column_formats={"a.y": ColumnFormat(null_token=".")},
     )
     text = write(Block(Frame("d", [table])))
     assert "_a.x ?" in text  # x -> unknown (default)
@@ -315,15 +316,15 @@ def test_cif_table_category():
         Table(["id"], [["1"]], category="bad category")
 
 
-def test_cif_table_formatter_kwargs():
+def test_cif_table_column_formats():
     table = Table(
         ["v.i", "v.f", "v.s", "v.b"],
         [[3, 2.5, "1.234(5)", True]],
-        formatter_kwargs={
-            "v.i": {"width": 4},
-            "v.f": {"precision": 3},
-            "v.s": {"raw": True},
-            "v.b": {"short_form": True},
+        column_formats={
+            "v.i": ColumnFormat(width=4),
+            "v.f": ColumnFormat(precision=3),
+            "v.s": ColumnFormat(raw=True),
+            "v.b": ColumnFormat(short_form=True),
         },
     )
     text = write(Block(Frame("d", [table])))
@@ -333,15 +334,36 @@ def test_cif_table_formatter_kwargs():
     assert "_v.b y" in text  # short form
 
 
-def test_cif_table_formatter_kwargs_strict():
-    with pytest.raises(ValueError, match="Unknown key in formatter_kwargs"):
-        Table(["a"], [["1"]], formatter_kwargs={"b": {"raw": True}})
-    with pytest.raises(ValueError, match="Unknown formatter option"):
-        Table(["a"], [["1"]], formatter_kwargs={"a": {"bogus": True}})
+def test_cif_column_format():
+    fmt = ColumnFormat()
+    assert fmt.width == 0
+    assert fmt.precision is None
+    assert fmt.raw is False
+    assert fmt.short_form is False
+    assert fmt.null_token == "?"
+    assert fmt.coerce_nonfinite is False
+
+    fmt = ColumnFormat(width=4, precision=3, raw=True, null_token=".")
+    assert fmt.width == 4
+    assert fmt.precision == 3
+    assert fmt.raw is True
+    assert fmt.null_token == "."
+    assert "width=4" in repr(fmt)
+    assert "precision=3" in repr(fmt)
+
+    with pytest.raises(TypeError):
+        ColumnFormat(bogus=True)
     with pytest.raises(ValueError, match="null_token"):
-        Table(["a"], [[None]], formatter_kwargs={"a": {"null_token": "x"}})
+        ColumnFormat(null_token="x")
     with pytest.raises(ValueError, match="precision must be non-negative"):
-        Table(["a"], [[1.5]], formatter_kwargs={"a": {"precision": -1}})
+        ColumnFormat(precision=-1)
+    with pytest.raises(TypeError):
+        ColumnFormat(4)  # keyword-only
+
+
+def test_cif_table_column_formats_strict():
+    with pytest.raises(ValueError, match="Unknown key in column_formats"):
+        Table(["a"], [["1"]], column_formats={"b": ColumnFormat(raw=True)})
 
 
 def test_cif_value_bad_null_token():
@@ -371,8 +393,8 @@ def test_write_cif_nonfinite_coerced_nan():
                 math.nan,
             ]
         ],
-        formatter_kwargs={
-            "v.j": {"coerce_nonfinite": True, "null_token": "."}
+        column_formats={
+            "v.j": ColumnFormat(coerce_nonfinite=True, null_token=".")
         },
     )
     text = write(Block(Frame("d", [table])))
@@ -385,9 +407,9 @@ def test_write_cif_nonfinite_coerced_inf():
     table = Table(
         ["v.p", "v.n"],
         [[math.inf, -math.inf]],
-        formatter_kwargs={
-            "v.p": {"coerce_nonfinite": True},
-            "v.n": {"coerce_nonfinite": True},
+        column_formats={
+            "v.p": ColumnFormat(coerce_nonfinite=True),
+            "v.n": ColumnFormat(coerce_nonfinite=True),
         },
     )
     text = write(Block(Frame("d", [table])))
