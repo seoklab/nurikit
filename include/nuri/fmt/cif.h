@@ -152,8 +152,6 @@ namespace internal {
       kInapplicable = 1U << 31,  // .
     };
 
-    CifValue(): type_(Type::kUnknown) { }
-
     CifValue(std::string_view value, internal::CifToken type): value_(value) {
       if (type == internal::CifToken::kQuotedValue) {
         type_ = Type::kString;

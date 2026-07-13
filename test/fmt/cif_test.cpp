@@ -809,8 +809,6 @@ void expect_roundtrips(const CifValue &value) {
 TEST(CifWriteValueTest, NullValues) {
   EXPECT_EQ(write_value(CifValue::unknown()), "?");
   EXPECT_EQ(write_value(CifValue::inapplicable()), ".");
-  // a default-constructed value is unknown ('?'), the default null everywhere
-  EXPECT_EQ(write_value(CifValue()), "?");
 }
 
 TEST(CifWriteValueTest, BareValues) {

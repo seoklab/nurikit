@@ -88,7 +88,7 @@ public:
   }
 
   const internal::CifValue &operator[](int row) const {
-    static const internal::CifValue placeholder {};
+    static const internal::CifValue placeholder = internal::CifValue::unknown();
 
     if (ABSL_PREDICT_FALSE(!*this))
       return placeholder;
