@@ -135,8 +135,12 @@ void parse_mol_block(Molecule &mol, Iter &it, const Iter end) {
   std::pair<unsigned int, boost::optional<unsigned int>> nums;
   bool parser_ok = x3::parse(lit, it->end(), parser::mol_nums_line, nums);
   if (parser_ok) {
-    mol.reserve(static_cast<int>(nums.first));
-    mol.reserve_bonds(static_cast<int>(nums.second.value_or(0)));
+    // Cap reservation to the number of remaining lines for untrusted/malformed
+    // sources
+    const auto remaining = static_cast<unsigned int>(end - it);
+    mol.reserve(static_cast<int>(nuri::min(nums.first, remaining)));
+    mol.reserve_bonds(
+        static_cast<int>(nuri::min(nums.second.value_or(0U), remaining)));
   } else {
     ABSL_LOG(WARNING) << "Failed to parse mol block line; this file might be "
                          "incompatible with future versions of NuriKit";
