@@ -27,8 +27,9 @@
 - **Docs** - **Write docs/docstrings only when asked.** C++ is Doxygen (`docs/`),
   Python is Sphinx (`python/docs/`). For Python docstrings, always use
   Sphinx-compatible reST.
-- **Format & lint** - C++ with `scripts/run_clang_tools.sh` (slow, run only when
-  needed). `ruff` and other checks run via `pre-commit`.
+- **Format & lint** - C++ with `scripts/run_clang_tools.sh` (slow; pass
+  `-d [<ref>]` to check only files changed vs `<ref>`, default `origin/main`).
+  `ruff` and other checks run via `pre-commit`.
 
 ### C++ style guide
 
@@ -63,6 +64,10 @@ Avoid using others unless explicitly requested.
 | C++ tests         | `ctest -j"$(nproc)" --test-dir <build> --output-on-failure`                                                                             |
 | Python tests      | `PYTHONPATH="$PWD/python/src" pytest -vs python/test`                                                                                   |
 | Python doctest    | `PYTHONPATH="$PWD/python/src" cmake --build <build> --target NuriPythonDoctest`                                                         |
-| Format & lint C++ | `scripts/run_clang_tools.sh -j"$(nproc)" [files...]`                                                                                    |
-| Coverage          | `scripts/check_coverage.sh <build>`                                                                                                     |
+| Format & lint C++ | `scripts/run_clang_tools.sh [-d [<ref>]] [-b <build>] [files...]`                                                                       |
+| Coverage          | `scripts/check_coverage.sh [--cpp] [--python] [--html] [--json] [<build>]`                                                              |
 | C++ API docs      | `cmake --build <build> --target NuriDocs`                                                                                               |
+
+Both scripts take `-h` for full usage and default the build dir to
+`<project_root>/build`. `check_coverage.sh` runs the whole suite unless
+`--cpp`/`--python` narrows it, and `--html`/`--json` add a gcovr report.

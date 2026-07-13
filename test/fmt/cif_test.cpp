@@ -46,9 +46,11 @@
 
 #include "nuri/fmt/cif.h"
 
+#include <cmath>
 #include <cstddef>
 #include <fstream>
 #include <initializer_list>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -57,6 +59,7 @@
 
 #include <absl/container/flat_hash_map.h>
 #include <absl/strings/match.h>
+#include <absl/strings/numbers.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
 
@@ -806,7 +809,6 @@ void expect_roundtrips(const CifValue &value) {
 TEST(CifWriteValueTest, NullValues) {
   EXPECT_EQ(write_value(CifValue::unknown()), "?");
   EXPECT_EQ(write_value(CifValue::inapplicable()), ".");
-  EXPECT_EQ(write_value(CifValue()), ".");
 }
 
 TEST(CifWriteValueTest, BareValues) {
@@ -947,6 +949,65 @@ TEST(CifWriteValueTest, RoundTrip) {
                              "  padded  " }) {
     expect_roundtrips(CifValue::generic(s));
   }
+}
+
+TEST(CifWriteValueTest, NonfiniteRejectedByDefault) {
+  constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+  constexpr double inf = std::numeric_limits<double>::infinity();
+
+  for (double v: { nan, inf, -inf }) {
+    CifValue value = cif_value(v);
+    EXPECT_EQ(value.type(), CifValue::Type::kFloatNonfinite);
+    EXPECT_FALSE(value.is_null());
+
+    std::string out;
+    EXPECT_EQ(write_cif_value(out, value), CifValueKind::kError)
+        << "value: " << v;
+    EXPECT_PRED2(str_case_contains, out, "non-finite");
+  }
+
+  // float, not only double
+  CifValue f = cif_value(std::numeric_limits<float>::infinity());
+  EXPECT_EQ(f.type(), CifValue::Type::kFloatNonfinite);
+}
+
+TEST(CifWriteValueTest, NonfiniteCoercedNaN) {
+  constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+
+  CifValue inapplicable = cif_value(nan, -1, true, false);
+  EXPECT_EQ(inapplicable.type(), CifValue::Type::kInapplicable);
+  EXPECT_TRUE(inapplicable.is_null());
+  EXPECT_EQ(write_value(inapplicable), ".");
+
+  CifValue unknown = cif_value(nan, -1, true, true);
+  EXPECT_EQ(unknown.type(), CifValue::Type::kUnknown);
+  EXPECT_TRUE(unknown.is_null());
+  EXPECT_EQ(write_value(unknown), "?");
+
+  // default coercion is unknown ('?'), matching the Python binding default
+  EXPECT_EQ(write_value(cif_value(nan, -1, true)), "?");
+}
+
+TEST(CifWriteValueTest, NonfiniteCoercedInf) {
+  constexpr double inf = std::numeric_limits<double>::infinity();
+
+  // +/-Inf -> a sentinel whose magnitude overflows on reparse, so an
+  // IEEE-conformant parser reads it back as the original infinity.
+  EXPECT_EQ(write_value(cif_value(inf, -1, true)), "8e+88888888");
+  EXPECT_EQ(write_value(cif_value(-inf, -1, true)), "-8e+88888888");
+
+  // the sentinel is a valid CIF number and re-lexes verbatim
+  expect_roundtrips(cif_value(inf, -1, true));
+  expect_roundtrips(cif_value(-inf, -1, true));
+
+  // an abseil parse of the emitted value overflows back to the infinity
+  double d;
+  ASSERT_TRUE(absl::SimpleAtod(write_value(cif_value(inf, -1, true)), &d));
+  EXPECT_TRUE(std::isinf(d));
+  EXPECT_GT(d, 0);
+  ASSERT_TRUE(absl::SimpleAtod(write_value(cif_value(-inf, -1, true)), &d));
+  EXPECT_TRUE(std::isinf(d));
+  EXPECT_LT(d, 0);
 }
 
 // Collect a frame into an order-independent {key -> column values} map so that

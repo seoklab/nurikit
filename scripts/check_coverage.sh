@@ -12,11 +12,39 @@ output_args=()
 output=''
 jobs="$(nproc)"
 
-while getopts ':j:-:' opt; do
+usage() {
+	cat <<EOF
+Usage: $0 [OPTIONS] [BUILD_DIR]
+
+Run the test suite(s) against a coverage build and report with gcovr.
+BUILD_DIR is the CMake build directory (default: ${prj_root}/build).
+
+Options:
+      --cpp      Run only the C++ tests (ctest).
+      --python   Run only the Python tests (pytest + doctest).
+                 Without --cpp or --python, both suites run.
+      --html     Write an HTML report to
+                 BUILD_DIR/coverage/html/index.html.
+      --json     Write a Coveralls JSON report to
+                 BUILD_DIR/coverage/json/coverage.json.
+  -j N           Number of parallel jobs (default: ${jobs}).
+  -h, --help     Show this help and exit.
+EOF
+}
+
+while getopts ':hj:-:' opt; do
 	case "$opt" in
+	h)
+		usage
+		exit 0
+		;;
 	j) jobs="$OPTARG" ;;
 	-)
 		case "$OPTARG" in
+		help)
+			usage
+			exit 0
+			;;
 		cpp) cpp_test=true ;;
 		python) py_test=true ;;
 		html)
@@ -29,23 +57,26 @@ while getopts ':j:-:' opt; do
 			;;
 		*)
 			echo >&2 "Unknown option: --$OPTARG"
+			usage >&2
 			exit 1
 			;;
 		esac
 		;;
 	:)
 		echo >&2 "Option -$OPTARG requires an argument"
+		usage >&2
 		exit 1
 		;;
 	*)
 		echo >&2 "Unknown option: -$OPTARG"
+		usage >&2
 		exit 1
 		;;
 	esac
 done
 
 shift $((OPTIND - 1))
-build_dir="$(realpath "${1-build}")"
+build_dir="$(realpath "${1-${prj_root}/build}")"
 
 if [[ $cpp_test = false && $py_test = false ]]; then
 	cpp_test=true

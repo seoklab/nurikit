@@ -7,6 +7,7 @@
 #define NURI_FMT_CIF_H_
 
 //! @cond
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <istream>
@@ -18,6 +19,7 @@
 #include <vector>
 
 #include <absl/base/attributes.h>
+#include <absl/base/optimization.h>
 #include <absl/container/btree_map.h>
 #include <absl/log/absl_check.h>
 #include <absl/strings/str_cat.h>
@@ -143,13 +145,12 @@ namespace internal {
 
       // Reserved for future use
 
+      // Nurikit-specific: non-finite float encountered
+      kFloatNonfinite = 1U << 2,
+
       kUnknown = 1U << 30,       // ?
       kInapplicable = 1U << 31,  // .
-
-      kNull = kUnknown | kInapplicable,  // any null value
     };
-
-    CifValue(): type_(Type::kInapplicable) { }
 
     CifValue(std::string_view value, internal::CifToken type): value_(value) {
       if (type == internal::CifToken::kQuotedValue) {
@@ -189,6 +190,11 @@ namespace internal {
       return CifValue("", is_unk ? Type::kUnknown : Type::kInapplicable);
     }
 
+    template <class T>
+    static CifValue float_nonfinite(T &&repr) {
+      return CifValue(std::forward<T>(repr), Type::kFloatNonfinite);
+    }
+
     std::string_view operator*() const { return value_; }
     std::string_view value() const { return value_; }
 
@@ -197,7 +203,7 @@ namespace internal {
     Type type() const { return type_; }
 
     constexpr bool is_null() const {
-      return static_cast<bool>(type_ & Type::kNull);
+      return static_cast<bool>(type_ & (Type::kUnknown | Type::kInapplicable));
     }
 
     constexpr operator bool() const { return !is_null(); }
@@ -435,15 +441,36 @@ internal::CifValue cif_value(T value, int width = 0) {
       absl::StrFormat("%0*d", width, static_cast<std::int64_t>(value)));
 }
 
+namespace internal {
+  extern CifValue cif_float_nonfinite(double value, bool coerce_nonfinite,
+                                      bool is_unk);
+}
+
 /**
  * @brief Create a floating-point CIF value.
  * @param value the number to store.
  * @param precision if non-negative, format with this many digits after the
- *        decimal point; otherwise use the shortest round-trip representation.
+ *        decimal point; otherwise yields at most 6 significant digits.
+ * @param coerce_nonfinite if true, coerce non-finite values to a
+ *        CIF-representable form that reparses faithfully:
+ *         - @c NaN -> @c ? or @c . depending on @p is_unk
+ *         - @c +Inf -> @c 8e+88888888
+ *         - @c -Inf -> @c -8e+88888888
+ *        The infinity sentinel overflows on reparse, so any IEEE-conformant
+ *        parser (up to @c binary256) reads it back as the original infinity.
+ * @param is_unk if true (the default), @c NaN is coerced to @c ? (unknown);
+ *        otherwise it is coerced to @c . (inapplicable).
  * @return An unquoted CifValue holding the formatted number.
  */
 template <class T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
-internal::CifValue cif_value(T value, int precision = -1) {
+internal::CifValue cif_value(T value, int precision = -1,
+                             bool coerce_nonfinite = false,
+                             bool is_unk = true) {
+  if (ABSL_PREDICT_FALSE(!std::isfinite(value))) {
+    return internal::cif_float_nonfinite(static_cast<double>(value),
+                                         coerce_nonfinite, is_unk);
+  }
+
   if (precision < 0)
     return internal::CifValue::generic(absl::StrCat(value));
 
