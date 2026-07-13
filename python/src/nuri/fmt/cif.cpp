@@ -42,14 +42,6 @@ namespace fs = std::filesystem;
 
 class PyCifTable;
 
-using CifCell = pyt::Union<py::str, py::int_, py::float_, py::bool_,
-                           internal::CifValue, py::none>;
-using CifKeys = Sequence<py::str>;
-using CifRow = Sequence<CifCell>;
-using CifRows = Sequence<CifRow>;
-using CifFormatKwargs = pyt::Dict<py::str, pyt::Dict<py::str, py::object>>;
-using CifTables = Sequence<PyCifTable>;
-
 // Per-column formatting options, mirroring the CifValue constructor keywords.
 // Applied when a plain scalar (or None) cell is turned into a CifValue.
 struct ColumnFormat {
@@ -60,6 +52,14 @@ struct ColumnFormat {
   bool null_unknown = true;  // None:  '?' (unknown) vs. '.' (inapplicable)
   bool coerce_nonfinite = false;  // float: coerce NaN/Inf to a safe value
 };
+
+using CifCell = pyt::Union<py::str, py::int_, py::float_, py::bool_,
+                           internal::CifValue, py::none>;
+using CifKeys = Sequence<py::str>;
+using CifRow = Sequence<CifCell>;
+using CifRows = Sequence<CifRow>;
+using CifColumnFormats = pyt::Dict<py::str, ColumnFormat>;
+using CifTables = Sequence<PyCifTable>;
 
 pyt::List<pyt::Optional<py::str>> cif_table_row(const internal::CifTable &table,
                                                 int row) {
@@ -117,12 +117,11 @@ bool parse_null_token(std::string_view token) {
       absl::StrCat(R"(null_token must be "?" or ".", got: )", token));
 }
 
-// Build per-column formatting options from the ``formatter_kwargs`` mapping,
-// keyed by (underscore-less) column key. Unknown column keys or option names
-// raise ValueError.
+// Resolve per-column formatting options from the ``column_formats`` mapping,
+// keyed by (underscore-less) column key. Unknown column keys raise ValueError.
 std::vector<ColumnFormat>
 parse_column_formats(const CifKeys &keys,
-                     const CifFormatKwargs &formatter_kwargs) {
+                     const CifColumnFormats &column_formats) {
   std::vector<ColumnFormat> formats(py::len(keys));
 
   absl::flat_hash_map<std::string, int> index;
@@ -130,36 +129,15 @@ parse_column_formats(const CifKeys &keys,
   for (py::handle key: keys)
     index.emplace(key.cast<std::string>(), i++);
 
-  for (auto item: formatter_kwargs) {
+  for (auto item: column_formats) {
     auto col = item.first.cast<std::string_view>();
     auto it = index.find(col);
     if (it == index.end()) {
       throw py::value_error(
-          absl::StrCat("Unknown key in formatter_kwargs: ", col));
+          absl::StrCat("Unknown key in column_formats: ", col));
     }
 
-    ColumnFormat &fmt = formats[it->second];
-    for (auto kw: item.second.cast<py::dict>()) {
-      auto name = kw.first.cast<std::string_view>();
-      py::handle val = kw.second;
-      if (name == "raw") {
-        fmt.raw = val.cast<bool>();
-      } else if (name == "short_form") {
-        fmt.short_form = val.cast<bool>();
-      } else if (name == "width") {
-        fmt.width = val.cast<int>();
-      } else if (name == "precision") {
-        fmt.precision = val.cast<int>();
-        if (fmt.precision < 0)
-          throw py::value_error("precision must be non-negative");
-      } else if (name == "null_token") {
-        fmt.null_unknown = parse_null_token(val.cast<std::string_view>());
-      } else if (name == "coerce_nonfinite") {
-        fmt.coerce_nonfinite = val.cast<bool>();
-      } else {
-        throw py::value_error(absl::StrCat("Unknown formatter option: ", name));
-      }
-    }
+    formats[it->second] = item.second.cast<ColumnFormat>();
   }
 
   return formats;
@@ -167,7 +145,7 @@ parse_column_formats(const CifKeys &keys,
 
 internal::CifTable build_cif_table(const CifKeys &keys, const CifRows &rows,
                                    std::string_view category,
-                                   const CifFormatKwargs &formatter_kwargs) {
+                                   const CifColumnFormats &column_formats) {
   internal::CifTable table;
 
   size_t ncols = py::len(keys);
@@ -175,7 +153,7 @@ internal::CifTable build_cif_table(const CifKeys &keys, const CifRows &rows,
     table.add_key(make_cif_key(category, key.cast<std::string_view>()));
 
   std::vector<ColumnFormat> formats =
-      parse_column_formats(keys, formatter_kwargs);
+      parse_column_formats(keys, column_formats);
 
   for (py::handle row_handle: rows) {
     auto row = row_handle.cast<CifRow>();
@@ -226,8 +204,8 @@ public:
 
   // Owning table built from Python.
   PyCifTable(const CifKeys &keys, const CifRows &rows,
-             std::string_view category, const CifFormatKwargs &formatter_kwargs)
-      : owned_(build_cif_table(keys, rows, category, formatter_kwargs)) {
+             std::string_view category, const CifColumnFormats &column_formats)
+      : owned_(build_cif_table(keys, rows, category, column_formats)) {
     init_keys();
   }
 
@@ -541,13 +519,78 @@ directly only when you need control over the formatting. The constructor is
 overloaded on the type of ``value``.
 )doc");
 
+  py::class_<ColumnFormat>(m, "ColumnFormat")
+      .def(py::init([](int width, std::optional<int> precision, bool raw,
+                       bool short_form, std::string_view null_token,
+                       bool coerce_nonfinite) {
+             if (precision.has_value() && *precision < 0)
+               throw py::value_error("precision must be non-negative");
+             return ColumnFormat {
+               width,      precision.value_or(-1),       raw,
+               short_form, parse_null_token(null_token), coerce_nonfinite
+             };
+           }),
+           py::kw_only(), py::arg("width") = 0,
+           py::arg("precision") = py::none(), py::arg("raw") = false,
+           py::arg("short_form") = false, py::arg("null_token") = "?",
+           py::arg("coerce_nonfinite") = false, R"doc(
+Per-column value formatting for :class:`Table`.
+
+Groups the keyword options of the :class:`Value` constructor so a whole column
+of plain scalar (or ``None``) cells can be formatted at once. Each option
+applies only to cells of its matching type; the others are ignored. Explicit
+:class:`Value` cells are never affected.
+
+:param width: For :class:`int` cells, zero-pad the number to at least this many
+  digits.
+:param precision: For :class:`float` cells, digits after the decimal point; if
+  ``None`` (the default), yields at most 6 significant digits. Must be
+  non-negative if provided.
+:param raw: For :class:`str` cells, store the text as an unquoted generic
+  literal instead of a quoted string.
+:param short_form: For :class:`bool` cells, use ``y``/``n`` instead of
+  ``yes``/``no``.
+:param null_token: The CIF null token used for ``None`` cells (and for ``NaN``
+  when ``coerce_nonfinite`` is set): ``"?"`` (the default) for unknown, or
+  ``"."`` for inapplicable.
+:param coerce_nonfinite: For :class:`float` cells, coerce a non-finite value to
+  a safe representation (``NaN`` to the ``null_token``, ``+/-Inf`` to a
+  sentinel) instead of raising when serialized.
+:raises ValueError: If ``precision`` is negative or ``null_token`` is not
+  ``"?"`` or ``"."``.
+)doc")
+      .def_readonly("width", &ColumnFormat::width)
+      .def_property_readonly(
+          "precision",
+          [](const ColumnFormat &f) -> pyt::Optional<py::int_> {
+            if (f.precision < 0)
+              return py::none();
+            return py::int_(f.precision);
+          })
+      .def_readonly("raw", &ColumnFormat::raw)
+      .def_readonly("short_form", &ColumnFormat::short_form)
+      .def_property_readonly("null_token",
+                             [](const ColumnFormat &f) {
+                               return f.null_unknown ? "?" : ".";
+                             })
+      .def_readonly("coerce_nonfinite", &ColumnFormat::coerce_nonfinite)
+      .def("__repr__", [](const ColumnFormat &f) {
+        auto pybool = [](bool v) { return v ? "True" : "False"; };
+        return absl::StrCat(
+            "ColumnFormat(width=", f.width, ", precision=",
+            f.precision < 0 ? std::string("None") : absl::StrCat(f.precision),
+            ", raw=", pybool(f.raw), ", short_form=", pybool(f.short_form),
+            ", null_token='", f.null_unknown ? "?" : ".",
+            "', coerce_nonfinite=", pybool(f.coerce_nonfinite), ")");
+      });
+
   PyCifTableIterator::bind(m);
 
   py::class_<PyCifTable>(m, "Table")
       .def(py::init<const CifKeys &, const CifRows &, std::string_view,
-                    const CifFormatKwargs &>(),
+                    const CifColumnFormats &>(),
            py::arg("keys"), py::arg("rows"), py::arg("category") = "",
-           py::arg("formatter_kwargs") = py::dict(), R"doc(
+           py::arg("column_formats") = py::dict(), R"doc(
 Construct a CIF table from column keys and rows of values.
 
 :param keys: The column keys, given **without** the leading underscore (e.g.
@@ -559,15 +602,14 @@ Construct a CIF table from column keys and rows of values.
   ``_<category>.<key>``, so ``keys`` may list just the attribute names (e.g.
   ``category="atom_site", keys=["id", "type_symbol"]``). Empty (the default)
   leaves keys as given.
-:param formatter_kwargs: Optional per-column formatting options, mapping a
-  column key (as given in ``keys``) to the keyword arguments forwarded to the
-  :class:`Value` constructor when a plain scalar (or ``None``) cell in that
-  column is converted. Each keyword applies only to cells of its matching type
-  (see :class:`Value`); columns not listed use the defaults. Explicit
-  :class:`Value` cells are unaffected.
+:param column_formats: Optional per-column formatting options, mapping a column
+  key (as given in ``keys``) to a :class:`ColumnFormat` applied when a plain
+  scalar (or ``None``) cell in that column is converted. Each option applies
+  only to cells of its matching type (see :class:`ColumnFormat`); columns not
+  listed use the defaults. Explicit :class:`Value` cells are unaffected.
 :raises ValueError: If a row length differs from the number of keys, a key is
-  not a valid or unique CIF data name, or ``formatter_kwargs`` names an unknown
-  key or an invalid option.
+  not a valid or unique CIF data name, or ``column_formats`` names an unknown
+  key.
 :raises TypeError: If a cell has an unsupported type.
 )doc")
       .def("__iter__", &PyCifTable::iter, kReturnsSubobject)
