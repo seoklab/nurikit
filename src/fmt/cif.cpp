@@ -6,8 +6,10 @@
 #include "nuri/fmt/cif.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -280,7 +282,6 @@ bool CifValue::operator==(std::string_view other) const {
 std::ostream &operator<<(std::ostream &os, const CifValue &value) {
   using ValueType = CifValue::Type;
 
-  // NOLINTNEXTLINE(clang-diagnostic-switch-enum)
   switch (value.type()) {
   case ValueType::kGeneric:
     return os << value.value();
@@ -290,11 +291,24 @@ std::ostream &operator<<(std::ostream &os, const CifValue &value) {
     return os << '?';
   case ValueType::kInapplicable:
     return os << '.';
-  default:
-    ABSL_UNREACHABLE();
+  case ValueType::kFloatNonfinite:
+    return os << "<non-finite: " << value.value() << '>';
   }
+  ABSL_UNREACHABLE();
 }
 // GCOV_EXCL_STOP
+
+CifValue cif_float_nonfinite(double value, bool coerce_nonfinite, bool is_unk) {
+  if (!coerce_nonfinite)
+    return CifValue::float_nonfinite(absl::StrCat(value));
+
+  if (std::isnan(value))
+    return is_unk ? CifValue::unknown() : CifValue::inapplicable();
+
+  return CifValue::generic(
+      absl::StrCat(value > 0 ? std::numeric_limits<double>::max()
+                             : std::numeric_limits<double>::lowest()));
+}
 
 void CifTable::add_data(CifValue &&value) {
   if (rows_.empty() || rows_.back().size() == keys_.size())
@@ -636,7 +650,6 @@ bool looks_like_number(std::string_view s) {
 }  // namespace
 
 CifValueKind write_cif_value(std::string &out, const CifValue &value) {
-  // NOLINTNEXTLINE(clang-diagnostic-switch-enum)
   switch (value.type()) {
   case CifValue::Type::kUnknown:
     out.push_back('?');
@@ -644,7 +657,12 @@ CifValueKind write_cif_value(std::string &out, const CifValue &value) {
   case CifValue::Type::kInapplicable:
     out.push_back('.');
     return CifValueKind::kInline;
-  default:
+  case CifValue::Type::kFloatNonfinite:
+    out = absl::StrCat("Non-finite float value cannot be written: ",
+                       value.value());
+    return CifValueKind::kError;
+  case CifValue::Type::kGeneric:
+  case CifValue::Type::kString:
     break;
   }
 
