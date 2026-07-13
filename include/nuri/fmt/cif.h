@@ -452,7 +452,7 @@ namespace internal {
  * @brief Create a floating-point CIF value.
  * @param value the number to store.
  * @param precision if non-negative, format with this many digits after the
- *        decimal point; otherwise use the shortest round-trip representation.
+ *        decimal point; otherwise yields at most 6 significant digits.
  * @param coerce_nonfinite if true, coerce non-finite values to a "safe"
  *        representation:
  *         - @c NaN -> @c ? or @c . depending on @p is_unk
