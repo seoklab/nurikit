@@ -809,7 +809,8 @@ void expect_roundtrips(const CifValue &value) {
 TEST(CifWriteValueTest, NullValues) {
   EXPECT_EQ(write_value(CifValue::unknown()), "?");
   EXPECT_EQ(write_value(CifValue::inapplicable()), ".");
-  EXPECT_EQ(write_value(CifValue()), ".");
+  // a default-constructed value is unknown ('?'), the default null everywhere
+  EXPECT_EQ(write_value(CifValue()), "?");
 }
 
 TEST(CifWriteValueTest, BareValues) {
@@ -984,6 +985,9 @@ TEST(CifWriteValueTest, NonfiniteCoercedNaN) {
   EXPECT_EQ(unknown.type(), CifValue::Type::kUnknown);
   EXPECT_TRUE(unknown.is_null());
   EXPECT_EQ(write_value(unknown), "?");
+
+  // default coercion is unknown ('?'), matching the Python binding default
+  EXPECT_EQ(write_value(cif_value(nan, -1, true)), "?");
 }
 
 TEST(CifWriteValueTest, NonfiniteCoercedInf) {

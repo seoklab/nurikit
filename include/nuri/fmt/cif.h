@@ -152,7 +152,7 @@ namespace internal {
       kInapplicable = 1U << 31,  // .
     };
 
-    CifValue(): type_(Type::kInapplicable) { }
+    CifValue(): type_(Type::kUnknown) { }
 
     CifValue(std::string_view value, internal::CifToken type): value_(value) {
       if (type == internal::CifToken::kQuotedValue) {
@@ -460,14 +460,14 @@ namespace internal {
  *         - @c -Inf -> @c -8e+88888888
  *        The infinity sentinel overflows on reparse, so any IEEE-conformant
  *        parser (up to @c binary256) reads it back as the original infinity.
- * @param is_unk if true, @c NaN is coerced to @c ?; otherwise it is coerced to
- *        @c . (inapplicable).
+ * @param is_unk if true (the default), @c NaN is coerced to @c ? (unknown);
+ *        otherwise it is coerced to @c . (inapplicable).
  * @return An unquoted CifValue holding the formatted number.
  */
 template <class T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
 internal::CifValue cif_value(T value, int precision = -1,
                              bool coerce_nonfinite = false,
-                             bool is_unk = false) {
+                             bool is_unk = true) {
   if (ABSL_PREDICT_FALSE(!std::isfinite(value))) {
     return internal::cif_float_nonfinite(static_cast<double>(value),
                                          coerce_nonfinite, is_unk);
