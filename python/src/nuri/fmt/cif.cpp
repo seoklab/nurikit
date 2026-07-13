@@ -695,8 +695,9 @@ Store a floating-point CIF value.
 :param coerce_nonfinite: How to handle a non-finite ``value``. If ``False`` (the
   default), a non-finite value has no valid CIF representation and raises
   :exc:`ValueError` when serialized. If ``True``, ``NaN`` becomes the null value
-  chosen by ``null_token`` and ``+/-Inf`` becomes the largest/smallest finite
-  ``float``.
+  chosen by ``null_token`` and ``+/-Inf`` becomes the sentinel
+  ``+/-8e+88888888``, which any IEEE-conformant parser (up to ``binary256``)
+  reads back as the original infinity.
 :param null_token: The CIF null token that ``NaN`` is coerced to when
   ``coerce_nonfinite`` is ``True``: ``"?"`` (the default) for unknown, or
   ``"."`` for inapplicable. Ignored for finite values.

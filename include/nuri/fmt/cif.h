@@ -453,13 +453,15 @@ namespace internal {
  * @param value the number to store.
  * @param precision if non-negative, format with this many digits after the
  *        decimal point; otherwise yields at most 6 significant digits.
- * @param coerce_nonfinite if true, coerce non-finite values to a "safe"
- *        representation:
+ * @param coerce_nonfinite if true, coerce non-finite values to a
+ *        CIF-representable form that reparses faithfully:
  *         - @c NaN -> @c ? or @c . depending on @p is_unk
- *         - @c +Inf -> @c std::numeric_limits<double>::max()
- *         - @c -Inf -> @c std::numeric_limits<double>::lowest()
- * @param is_unk if true, non-finite values are coerced to @c ?; otherwise they
- *        are coerced to @c . (inapplicable).
+ *         - @c +Inf -> @c 8e+88888888
+ *         - @c -Inf -> @c -8e+88888888
+ *        The infinity sentinel overflows on reparse, so any IEEE-conformant
+ *        parser (up to @c binary256) reads it back as the original infinity.
+ * @param is_unk if true, @c NaN is coerced to @c ?; otherwise it is coerced to
+ *        @c . (inapplicable).
  * @return An unquoted CifValue holding the formatted number.
  */
 template <class T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>

@@ -59,6 +59,7 @@
 
 #include <absl/container/flat_hash_map.h>
 #include <absl/strings/match.h>
+#include <absl/strings/numbers.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
 
@@ -988,14 +989,23 @@ TEST(CifWriteValueTest, NonfiniteCoercedNaN) {
 TEST(CifWriteValueTest, NonfiniteCoercedInf) {
   constexpr double inf = std::numeric_limits<double>::infinity();
 
-  // +Inf -> double max, -Inf -> double lowest; StrCat already emits exponential
-  // notation, which the CIF numeric grammar accepts.
-  EXPECT_EQ(write_value(cif_value(inf, -1, true)), "1.79769e+308");
-  EXPECT_EQ(write_value(cif_value(-inf, -1, true)), "-1.79769e+308");
+  // +/-Inf -> a sentinel whose magnitude overflows on reparse, so an
+  // IEEE-conformant parser reads it back as the original infinity.
+  EXPECT_EQ(write_value(cif_value(inf, -1, true)), "8e+88888888");
+  EXPECT_EQ(write_value(cif_value(-inf, -1, true)), "-8e+88888888");
 
-  // coerced infinities re-lex as plain numbers
+  // the sentinel is a valid CIF number and re-lexes verbatim
   expect_roundtrips(cif_value(inf, -1, true));
   expect_roundtrips(cif_value(-inf, -1, true));
+
+  // an abseil parse of the emitted value overflows back to the infinity
+  double d;
+  ASSERT_TRUE(absl::SimpleAtod(write_value(cif_value(inf, -1, true)), &d));
+  EXPECT_TRUE(std::isinf(d));
+  EXPECT_GT(d, 0);
+  ASSERT_TRUE(absl::SimpleAtod(write_value(cif_value(-inf, -1, true)), &d));
+  EXPECT_TRUE(std::isinf(d));
+  EXPECT_LT(d, 0);
 }
 
 // Collect a frame into an order-independent {key -> column values} map so that

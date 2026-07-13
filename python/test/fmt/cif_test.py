@@ -391,8 +391,11 @@ def test_write_cif_nonfinite_coerced_inf():
         },
     )
     text = write(Block(Frame("d", [table])))
-    assert "_v.p 1.79769e+308" in text
-    assert "_v.n -1.79769e+308" in text
+    assert "_v.p 8e+88888888" in text
+    assert "_v.n -8e+88888888" in text
+    # the sentinel reparses faithfully back to infinity
+    assert float("8e+88888888") == math.inf
+    assert float("-8e+88888888") == -math.inf
 
 
 def test_cif_value_float_bad_null_token():
