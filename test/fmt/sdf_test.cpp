@@ -590,6 +590,31 @@ $$$$
   NURI_FMT_TEST_NEXT_MOL("test", 1, 0);
 }
 
+TEST_F(SDFTest, V3000HugeCountCapped) {
+  // Found with fuzzing: an untrusted, oversized V3000 COUNTS line must not
+  // drive an over-large reserve (out-of-memory). The counts are capped to the
+  // remaining input lines; the real atoms/bonds are still read line-by-line.
+  set_test_string(R"sdf(huge
+ OpenBabel 3D
+Exported
+  0  0  0     0  0            999 V3000
+M  V30 BEGIN CTAB
+M  V30 COUNTS 4000000000 4000000000 0 0 1
+M  V30 BEGIN ATOM
+M  V30 1 C 0 0 0 0
+M  V30 2 C 1 0 0 0
+M  V30 END ATOM
+M  V30 BEGIN BOND
+M  V30 1 1 1 2
+M  V30 END BOND
+M  V30 END CTAB
+M  END
+$$$$
+)sdf");
+
+  NURI_FMT_TEST_NEXT_MOL("huge", 2, 1);
+}
+
 TEST_F(SDFTest, MalformedParsing) {
   set_test_string(R"sdf(test
 $$$$
