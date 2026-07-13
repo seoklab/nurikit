@@ -4,6 +4,7 @@
 #
 
 import logging
+import math
 from pathlib import Path
 
 import pytest
@@ -346,6 +347,57 @@ def test_cif_table_formatter_kwargs_strict():
 def test_cif_value_bad_null_token():
     with pytest.raises(ValueError, match="null_token"):
         Value(None, null_token="x")
+
+
+@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
+def test_write_cif_nonfinite_rejected(value):
+    # non-finite floats have no valid CIF representation; rejected by default,
+    # whether given as a plain float or an explicit Value.
+    for cell in (value, Value(value)):
+        block = Block(Frame("d", [Table(["a.x"], [[cell]])]))
+        with pytest.raises(ValueError, match=r"(?i)non-finite"):
+            write(block)
+
+
+def test_write_cif_nonfinite_coerced_nan():
+    # NaN coerces to the null token chosen by null_token, via both the Value
+    # constructor and the per-column formatter.
+    table = Table(
+        ["v.u", "v.i", "v.j"],
+        [
+            [
+                Value(math.nan, coerce_nonfinite=True),
+                Value(math.nan, coerce_nonfinite=True, null_token="."),
+                math.nan,
+            ]
+        ],
+        formatter_kwargs={
+            "v.j": {"coerce_nonfinite": True, "null_token": "."}
+        },
+    )
+    text = write(Block(Frame("d", [table])))
+    assert "_v.u ?" in text
+    assert "_v.i ." in text
+    assert "_v.j ." in text
+
+
+def test_write_cif_nonfinite_coerced_inf():
+    table = Table(
+        ["v.p", "v.n"],
+        [[math.inf, -math.inf]],
+        formatter_kwargs={
+            "v.p": {"coerce_nonfinite": True},
+            "v.n": {"coerce_nonfinite": True},
+        },
+    )
+    text = write(Block(Frame("d", [table])))
+    assert "_v.p 1.79769e+308" in text
+    assert "_v.n -1.79769e+308" in text
+
+
+def test_cif_value_float_bad_null_token():
+    with pytest.raises(ValueError, match="null_token"):
+        Value(1.5, null_token="x")
 
 
 def test_write_cif_bad_type():

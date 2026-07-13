@@ -58,6 +58,7 @@ struct ColumnFormat {
   bool raw = false;          // str:   generic literal vs. quoted string
   bool short_form = false;   // bool:  y/n vs. yes/no
   bool null_unknown = true;  // None:  '?' (unknown) vs. '.' (inapplicable)
+  bool coerce_nonfinite = false;  // float: coerce NaN/Inf to a safe value
 };
 
 pyt::List<pyt::Optional<py::str>> cif_table_row(const internal::CifTable &table,
@@ -86,7 +87,8 @@ internal::CifValue py_to_cif_value(py::handle cell, const ColumnFormat &fmt) {
   if (py::isinstance<py::int_>(cell))
     return cif_value(cell.cast<std::int64_t>(), fmt.width);
   if (py::isinstance<py::float_>(cell))
-    return cif_value(cell.cast<double>(), fmt.precision);
+    return cif_value(cell.cast<double>(), fmt.precision, fmt.coerce_nonfinite,
+                     fmt.null_unknown);
   if (py::isinstance<internal::CifValue>(cell))
     return cell.cast<internal::CifValue>();
 
@@ -152,6 +154,8 @@ parse_column_formats(const CifKeys &keys,
           throw py::value_error("precision must be non-negative");
       } else if (name == "null_token") {
         fmt.null_unknown = parse_null_token(val.cast<std::string_view>());
+      } else if (name == "coerce_nonfinite") {
+        fmt.coerce_nonfinite = val.cast<bool>();
       } else {
         throw py::value_error(absl::StrCat("Unknown formatter option: ", name));
       }
@@ -672,18 +676,31 @@ Store an integer CIF value.
 :param value: The integer to store.
 :param width: If positive, zero-pad the number to at least this many digits.
 )doc");
-  cv.def(py::init([](double value, std::optional<int> prec) {
+  cv.def(py::init([](double value, std::optional<int> prec,
+                     bool coerce_nonfinite, std::string_view null_token) {
            if (prec.has_value() && prec.value() < 0)
              throw py::value_error("precision must be non-negative");
 
-           return cif_value(value, prec.value_or(-1));
+           return cif_value(value, prec.value_or(-1), coerce_nonfinite,
+                            parse_null_token(null_token));
          }),
-         py::arg("value"), py::arg("precision") = py::none(), R"doc(
+         py::arg("value"), py::arg("precision") = py::none(),
+         py::arg("coerce_nonfinite") = false, py::arg("null_token") = "?",
+         R"doc(
 Store a floating-point CIF value.
 
 :param value: The number to store.
-:param precision: Digits after the decimal point; if ``None`` (the default), use
-  the shortest round-trip representation. Must be non-negative if provided.
+:param precision: Digits after the decimal point; if ``None`` (the default),
+  yields at most 6 significant digits. Must be non-negative if provided.
+:param coerce_nonfinite: How to handle a non-finite ``value``. If ``False`` (the
+  default), a non-finite value has no valid CIF representation and raises
+  :exc:`ValueError` when serialized. If ``True``, ``NaN`` becomes the null value
+  chosen by ``null_token`` and ``+/-Inf`` becomes the largest/smallest finite
+  ``float``.
+:param null_token: The CIF null token that ``NaN`` is coerced to when
+  ``coerce_nonfinite`` is ``True``: ``"?"`` (the default) for unknown, or
+  ``"."`` for inapplicable. Ignored for finite values.
+:raises ValueError: If ``null_token`` is not ``"?"`` or ``"."``.
 )doc");
   cv.def(py::init([](const py::none &, std::string_view null_token) {
            return internal::CifValue::null(parse_null_token(null_token));
