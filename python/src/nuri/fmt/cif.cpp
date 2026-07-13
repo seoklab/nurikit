@@ -734,9 +734,7 @@ Serialize a CIF block to a CIF 1.1 string.
 :param align: Whether to pad the columns of ``loop_`` tables so that values
   line up. Defaults to ``False``.
 :return: The serialized CIF string.
-:raises ValueError: If a value cannot be represented in CIF 1.1 (e.g. a
-  multi-line value with a line beginning with ``;`` or with significant
-  trailing whitespace).
+:raises ValueError: If a value cannot be represented in CIF 1.1.
 
 .. note::
   A ``global_`` block (only ever produced by the parser, from a STAR file) is
