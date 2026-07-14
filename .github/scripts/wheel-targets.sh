@@ -14,16 +14,12 @@
 
 set -euo pipefail
 
-pyvers=(cp37 cp38 cp39 cp310 cp311 cp312 cp313 cp313t)
+pyvers=(cp38 cp39 cp310 cp311 cp312 cp313 cp314 cp314t)
 oses=(manylinux_x86_64 macosx_x86_64 macosx_arm64)
 
 targets=()
 for p in "${pyvers[@]}"; do
 	for o in "${oses[@]}"; do
-		# https://github.com/pypa/cibuildwheel/issues/1278
-		if [[ $p = cp37 && $o = macosx_arm64 ]]; then
-			continue
-		fi
 		targets+=("$p-$o")
 	done
 done

@@ -63,7 +63,7 @@ option(NURI_BUILD_FUZZING "Enable fuzzing build" OFF)
 option(NURI_BUILD_BENCHMARK "Enable benchmark build" OFF)
 
 option(NURI_BUILD_PYTHON_STUBS "Build python stub files" ${NURI_BUILD_DEV_MODE})
-option(NURI_PREBUILT_ABSL "Download prebuilt abseil binary" ${NURI_BUILD_DEV_MODE})
+option(NURI_PREBUILT_ABSL "Download prebuilt abseil binary" OFF)
 set(NURI_FORCE_VERSION "" CACHE STRING "Set NuriKit version to this value")
 mark_as_advanced(
   NURI_BUILD_PYTHON_STUBS
