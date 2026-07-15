@@ -36,6 +36,10 @@
 
 - **Unsafe C-style string manipulation functions are forbidden.** Use `absl` for
   string formatting and manipulation.
+- **Use `nuri::min`/`max`/`minmax`/`clamp` (`include/nuri/utils.h`) not `std::`
+  ones.** The `nuri::` variants take trivially-copyable types by value and
+  return by value, sidestepping possible dangling reference problem in `std::`
+  impls; non-trivial types still bind by reference.
 - **Don't write inline parameter-name comments** (e.g. `foo(/*flag=*/true)`).
   Leave argument annotation to tooling (clangd); don't add them by hand.
 
