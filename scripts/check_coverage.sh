@@ -6,8 +6,8 @@
 
 prj_root="$(dirname "$(dirname "$(realpath "$0")")")"
 
-cpp_test=false
-py_test=false
+cpp_test=''
+py_test=''
 output_args=()
 output=''
 jobs="$(nproc)"
@@ -19,14 +19,18 @@ Usage: $0 [OPTIONS] [BUILD_DIR]
 Run the test suite(s) against a coverage build and report with gcovr.
 BUILD_DIR is the CMake build directory (default: ${prj_root}/build).
 
-Options:
+Test selection (default: run both C++ and Python tests):
       --cpp      Run only the C++ tests (ctest).
       --python   Run only the Python tests (pytest + doctest).
-                 Without --cpp or --python, both suites run.
+      --norun    Skip running the tests, only generate the coverage report.
+
+Report format:
       --html     Write an HTML report to
                  BUILD_DIR/coverage/html/index.html.
       --json     Write a Coveralls JSON report to
                  BUILD_DIR/coverage/json/coverage.json.
+
+Miscellaneous:
   -j N           Number of parallel jobs (default: ${jobs}).
   -h, --help     Show this help and exit.
 EOF
@@ -47,6 +51,10 @@ while getopts ':hj:-:' opt; do
 			;;
 		cpp) cpp_test=true ;;
 		python) py_test=true ;;
+		norun)
+			cpp_test=false
+			py_test=false
+			;;
 		html)
 			output_args=(--html-details)
 			output="coverage/html/index.html"
@@ -78,7 +86,7 @@ done
 shift $((OPTIND - 1))
 build_dir="$(realpath "${1-${prj_root}/build}")"
 
-if [[ $cpp_test = false && $py_test = false ]]; then
+if [[ -z $cpp_test && -z $py_test ]]; then
 	cpp_test=true
 	py_test=true
 fi
@@ -86,14 +94,12 @@ fi
 cd "$prj_root"
 
 if [[ $cpp_test = true ]]; then
-	pushd "$build_dir"
-	ctest -"j$jobs" --output-on-failure
-	popd
+	ctest --test-dir "$build_dir" -j"$jobs" --output-on-failure
 fi
 
 if [[ $py_test = true ]]; then
-	pytest -v -"n$jobs" python/test
-	cmake --build "$build_dir" --target NuriPythonDoctest -"j$jobs"
+	pytest -v -n"$jobs" python/test
+	cmake --build "$build_dir" --target NuriPythonDoctest -j"$jobs"
 fi
 
 if [[ -n $output ]]; then
