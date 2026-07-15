@@ -45,7 +45,6 @@ function(nuri_add_test file)
 
   gtest_discover_tests(
     "${NURI_TEST_TARGET}"
-    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
     ${NURI_GTEST_EXTRA_ARGS}
   )
 

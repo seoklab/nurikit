@@ -15,6 +15,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 include_directories("${CMAKE_CURRENT_LIST_DIR}/include")
+add_compile_definitions("NURI_TEST_DATA_DIR=\"${CMAKE_CURRENT_LIST_DIR}/test_data\"")
+
 file(GLOB_RECURSE NURI_TEST_SRCS CONFIGURE_DEPENDS *.cpp)
 
 foreach(nuri_test_src IN LISTS NURI_TEST_SRCS)

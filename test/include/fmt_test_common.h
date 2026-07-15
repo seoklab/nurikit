@@ -66,7 +66,7 @@ inline void print_mol(const Molecule &mol) {
 }
 
 inline std::filesystem::path test_data(std::string_view name) {
-  return std::filesystem::path("test/test_data") / name;
+  return std::filesystem::path(NURI_TEST_DATA_DIR) / name;
 }
 
 template <class MoleculeReader>
