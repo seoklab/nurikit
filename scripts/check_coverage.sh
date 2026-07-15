@@ -94,7 +94,7 @@ fi
 cd "$prj_root"
 
 if [[ $cpp_test = true ]]; then
-	ctest --test-dir "$build_dir" -j"$jobs" --output-on-failure
+	ctest --test-dir "$build_dir" -j"$jobs" --no-tests=error --output-on-failure
 fi
 
 if [[ $py_test = true ]]; then
