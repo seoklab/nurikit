@@ -24,9 +24,14 @@ for p in "${pyvers[@]}"; do
 	done
 done
 
-selected=("${targets[@]}")
+declare -a selected
 
-if [[ ${MINIMAL-} = true ]]; then
+function select-targets() {
+	if [[ ${MINIMAL-} != true ]]; then
+		selected=("${targets[@]}")
+		return
+	fi
+
 	if [[ ${GITHUB_EVENT_NAME-} = pull_request ]]; then
 		msg="$(git log --no-merges --format=%B -n 1 HEAD)"
 	else
@@ -38,15 +43,21 @@ if [[ ${MINIMAL-} = true ]]; then
 		prefix+=("${words[@]}")
 	done < <(grep -oE '\[wheel[^]]*\]' <<<"$msg" | sed -E 's/\[wheel//g; s/\]//g')
 
-	selected=()
 	for tgt in "${targets[@]}"; do
 		for pfx in "${prefix[@]}"; do
+			if [[ $pfx = all ]]; then
+				selected=("${targets[@]}")
+				return
+			fi
+
 			if [[ $tgt = "$pfx"* ]]; then
 				selected+=("$tgt")
 				break
 			fi
 		done
 	done
-fi
+}
+
+select-targets
 
 jq -nc '$ARGS.positional | map({python: .})' --args "${selected[@]}"
