@@ -23,6 +23,12 @@
 #define NURI_CLANG_ANALYZER_NOLINT_END
 #endif
 
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14
+#define NURI_NO_DANGLING [[gnu::no_dangling]]
+#else
+#define NURI_NO_DANGLING
+#endif
+
 namespace nuri {
 namespace internal {
   // Use of std::underlying_type_t on non-enum types is UB until C++20.

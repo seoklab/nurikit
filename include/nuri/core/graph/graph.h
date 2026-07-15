@@ -124,7 +124,7 @@ namespace internal {
     constexpr auto dst() const noexcept { return graph_->node(dst_); }
 
     constexpr int eid() const noexcept { return eid_; }
-    constexpr edge_value_type &edge_data() const noexcept {
+    NURI_NO_DANGLING constexpr edge_value_type &edge_data() const noexcept {
       return graph_->edge_data(eid_);
     }
 
@@ -234,7 +234,7 @@ namespace internal {
 
     constexpr int id() const noexcept { return nid_; }
 
-    constexpr value_type &data() const noexcept {
+    NURI_NO_DANGLING constexpr value_type &data() const noexcept {
       return graph_->node_data(nid_);
     }
 
@@ -343,7 +343,7 @@ namespace internal {
       return graph_->edge_dst(eid_);
     }
 
-    constexpr value_type &data() const noexcept {
+    NURI_NO_DANGLING constexpr value_type &data() const noexcept {
       return graph_->edge_data(eid_);
     }
 
