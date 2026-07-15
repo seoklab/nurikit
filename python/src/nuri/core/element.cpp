@@ -16,6 +16,7 @@
 #include <pybind11/pytypes.h>
 
 #include "nuri/python/core/core_module.h"
+#include "nuri/python/typing.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
@@ -160,8 +161,13 @@ void bind_element(py::module &m) {
                              ":type: float")
       .def_property_readonly("major_isotope", &Element::major_isotope,
                              rvp::reference, ":type: Isotope")
-      .def_property_readonly("isotopes", &Element::isotopes, rvp::reference,
-                             ":type: collections.abc.Sequence[Isotope]")
+      .def_property_readonly(
+          "isotopes",
+          [](const Element &self) {
+            return py_masquerade<Sequence<Isotope>>(self.isotopes(),
+                                                    rvp::reference);
+          },
+          ":type: collections.abc.Sequence[Isotope]")
       .def("get_isotope", isotope_from_element_and_mass, rvp::reference,
            py::arg("mass_number"), R"doc(
 Get an isotope of this element by mass number.

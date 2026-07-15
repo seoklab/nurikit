@@ -25,6 +25,7 @@
 
 #include "fmt_internal.h"
 #include "nuri/python/exception.h"
+#include "nuri/python/typing.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
@@ -187,13 +188,15 @@ void bind_pdb(py::module &m) {
   bind_readonly_vector<PDBAtomSite>(m, "_AtomSiteList",
                                     "_AtomSiteListIterator");
 
-  py::class_<PDBAtom>(m, "Atom")
-      .def_property_readonly("res_id", &PDBAtom::rid)
+  py::class_<PDBAtom> atom(m, "Atom");
+  atom.def_property_readonly("res_id", &PDBAtom::rid)
       .def_property_readonly("name", &PDBAtom::name)
       .def_property_readonly("element", &PDBAtom::element, rvp::reference)
       .def_property_readonly("formal_charge", &PDBAtom::fcharge)
-      .def_property_readonly("hetero", &PDBAtom::hetero)
-      .def_property_readonly("sites", &PDBAtom::sites);
+      .def_property_readonly("hetero", &PDBAtom::hetero);
+  def_property_readonly_subobject(atom, "sites", [](const PDBAtom &self) {
+    return py_masquerade<Sequence<PDBAtomSite>>(self.sites(), rvp::reference);
+  });
   bind_readonly_vector<PDBAtom>(m, "_AtomList", "_AtomListIterator");
 
   py::class_<PDBResidue>(m, "Residue")
@@ -226,15 +229,21 @@ void bind_pdb(py::module &m) {
                                  self.residues().size(), " residues, ",
                                  self.atoms().size(), " atoms>");
            })
-      .def_property_readonly("chains", &PDBModel::chains)
-      .def_property_readonly("residues", &PDBModel::residues)
-      .def_property_readonly("atoms", &PDBModel::atoms)
       .def_property_readonly("major_conf",
                              [](const PDBModel &self) {
                                return eigen_as_numpy(self.major_conf());
                              })
       .def_property_readonly("props", py::overload_cast<>(&PDBModel::props))
       .def("as_dict", &model_as_dict, "Convert the PDB model to a dictionary.");
+  def_property_readonly_subobject(model, "chains", [](const PDBModel &self) {
+    return py_masquerade<Sequence<PDBChain>>(self.chains(), rvp::reference);
+  });
+  def_property_readonly_subobject(model, "residues", [](const PDBModel &self) {
+    return py_masquerade<Sequence<PDBResidue>>(self.residues(), rvp::reference);
+  });
+  def_property_readonly_subobject(model, "atoms", [](const PDBModel &self) {
+    return py_masquerade<Sequence<PDBAtom>>(self.atoms(), rvp::reference);
+  });
 
   m.def(
       "read_models",

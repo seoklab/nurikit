@@ -677,8 +677,11 @@ Construct a CIF block.
 :raises ValueError: If a save frame has an empty name or two share a name.
 )doc");
   cb.def_property_readonly("name", &PyCifBlock::name)
-      .def_property_readonly("is_global", &PyCifBlock::is_global)
-      .def_property_readonly("save_frames", &PyCifBlock::save_frames);
+      .def_property_readonly("is_global", &PyCifBlock::is_global);
+  def_property_readonly_subobject(cb, "save_frames", [](const PyCifBlock &self) {
+    return py_masquerade<Sequence<PyCifFrame>>(self.save_frames(),
+                                               rvp::reference);
+  });
   def_property_readonly_subobject(cb, "data", &PyCifBlock::data);
 
   py::class_<PyCifParser>(m, "_Parser")

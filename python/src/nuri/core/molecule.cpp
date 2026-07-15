@@ -32,6 +32,7 @@
 #include "nuri/desc/pcharge.h"
 #include "nuri/python/core/containers.h"
 #include "nuri/python/core/core_module.h"
+#include "nuri/python/typing.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
@@ -624,7 +625,10 @@ Get an atom of the molecule.
 Get the number of atoms in the molecule. Equivalent to ``len(mol)``.
 )doc")
       .def(
-          "bonds", [](PyMol &self) { return PyBondsWrapper { &self }; },
+          "bonds",
+          [](PyMol &self) {
+            return py_masquerade<Sequence<PyBond>>(PyBondsWrapper { &self });
+          },
           kReturnsSubobject, R"doc(
 :rtype: collections.abc.Sequence[Bond]
 

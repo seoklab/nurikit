@@ -26,6 +26,7 @@
 #include "nuri/core/molecule.h"
 #include "nuri/python/core/containers.h"
 #include "nuri/python/core/core_module.h"
+#include "nuri/python/typing.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
@@ -351,7 +352,11 @@ Get a substructure atom from a parent atom.
 The number of atoms in the substructure. Equivalent to ``len(sub)``.
 )doc");
   sub.def(
-      "bonds", [](P &self) { return PySubBondsWrapper<P> { &self }; },
+      "bonds",
+      [](P &self) {
+        return py_masquerade<Sequence<PySubBond<P>>>(
+            PySubBondsWrapper<P> { &self });
+      },
       kReturnsSubobject,
       R"doc(
 :rtype: collections.abc.Sequence[SubBond]
