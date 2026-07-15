@@ -31,7 +31,11 @@ A copy of 4x4 best-fit rigid-body transformation tensor, to align ``query`` to
 ``template``.
 )doc")
       .def_property_readonly(
-          "selected", [](MmResult &r) -> ArrayXi & { return r.sel; },
+          "selected",
+          [](py::handle self) {
+            auto &r = self.cast<MmResult &>();
+            return eigen_as_numpy_view(r.sel, self);
+          },
           R"doc(
 The final indices of the selected (inlier) points used in the alignment.
 )doc")
