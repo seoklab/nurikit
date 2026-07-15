@@ -239,13 +239,17 @@ void bind_atom(py::class_<AtomData> &atom_data, py::class_<PyAtom> &atom) {
              return AtomData(get_or_throw_z(atomic_number));
            }),
            py::arg("atomic_number"))
-      .def(py::init<const Element &>(), py::arg("element"))
-      .def_property(
-          "props", py::overload_cast<>(&AtomData::props),
-          [](AtomData &self, const internal::PropertyMap &props) {
-            self.props() = props;
-          },
-          R"doc(
+      .def(py::init<const Element &>(), py::arg("element"));
+  def_property_subobject(
+      atom_data, "props",
+      [](AtomData &self) {
+        return py_masquerade<MutableMapping<py::str, py::str>>(self.props(),
+                                                              rvp::reference);
+      },
+      [](AtomData &self, const Mapping<py::str, py::str> &props) {
+        self.props() = to_property_map(props);
+      },
+      R"doc(
 :type: collections.abc.MutableMapping[str, str]
 
 A dictionary-like object to store additional properties of the atom. The keys
@@ -312,13 +316,17 @@ void bind_bond(py::class_<PyBondsWrapper> &bonds,
 Create a bond data with the given bond order.
 
 :param BondOrder|int order: The bond order of the bond.
-)doc")
-      .def_property(
-          "props", py::overload_cast<>(&BondData::props),
-          [](BondData &self, const internal::PropertyMap &props) {
-            self.props() = props;
-          },
-          R"doc(
+)doc");
+  def_property_subobject(
+      bond_data, "props",
+      [](BondData &self) {
+        return py_masquerade<MutableMapping<py::str, py::str>>(self.props(),
+                                                              rvp::reference);
+      },
+      [](BondData &self, const Mapping<py::str, py::str> &props) {
+        self.props() = to_property_map(props);
+      },
+      R"doc(
 :type: collections.abc.MutableMapping[str, str]
 
 A dictionary-like object to store additional properties of the bond. The keys
@@ -1113,11 +1121,11 @@ of the molecule with this object.
   def_property_subobject(
       mol, "props",
       [](PyMol &self) {
-        return ProxyPropertyMap(
-            &self->props(), 0, [](std::uint64_t /* unused */) { return true; });
+        return py_masquerade<MutableMapping<py::str, py::str>>(ProxyPropertyMap(
+            &self->props(), 0, [](std::uint64_t /* unused */) { return true; }));
       },
-      [](PyMol &self, const internal::PropertyMap &props) {
-        self->props() = props;
+      [](PyMol &self, const Mapping<py::str, py::str> &props) {
+        self->props() = to_property_map(props);
       },
       rvp::automatic,
       R"doc(

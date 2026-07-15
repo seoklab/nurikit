@@ -233,7 +233,6 @@ void bind_pdb(py::module &m) {
                              [](const PDBModel &self) {
                                return eigen_as_numpy(self.major_conf());
                              })
-      .def_property_readonly("props", py::overload_cast<>(&PDBModel::props))
       .def("as_dict", &model_as_dict, "Convert the PDB model to a dictionary.");
   def_property_readonly_subobject(model, "chains", [](const PDBModel &self) {
     return py_masquerade<Sequence<PDBChain>>(self.chains(), rvp::reference);
@@ -243,6 +242,10 @@ void bind_pdb(py::module &m) {
   });
   def_property_readonly_subobject(model, "atoms", [](const PDBModel &self) {
     return py_masquerade<Sequence<PDBAtom>>(self.atoms(), rvp::reference);
+  });
+  def_property_readonly_subobject(model, "props", [](PDBModel &self) {
+    return py_masquerade<MutableMapping<py::str, py::str>>(self.props(),
+                                                           rvp::reference);
   });
 
   m.def(

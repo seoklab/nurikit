@@ -21,6 +21,20 @@ template <class T>
 class Sequence: public pybind11::sequence {
   using sequence::sequence;
 };
+
+// As Sequence, but for mappings; the PyMapping_Check guard validates inputs
+// when used as a parameter (Sequence is return-only).
+template <class K, class V>
+class Mapping: public pybind11::object {
+public:
+  PYBIND11_OBJECT_DEFAULT(Mapping, object, PyMapping_Check)
+};
+
+template <class K, class V>
+class MutableMapping: public pybind11::object {
+public:
+  PYBIND11_OBJECT_DEFAULT(MutableMapping, object, PyMapping_Check)
+};
 }  // namespace python_internal
 }  // namespace nuri
 
@@ -31,6 +45,22 @@ struct handle_type_name<nuri::python_internal::Sequence<T>> {
   // NOLINTNEXTLINE(readability-identifier-naming)
   constexpr static auto name =
       const_name("Sequence[") + make_caster<T>::name + const_name("]");
+};
+
+template <class K, class V>
+struct handle_type_name<nuri::python_internal::Mapping<K, V>> {
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  constexpr static auto name = const_name("Mapping[") + make_caster<K>::name
+                               + const_name(", ") + make_caster<V>::name
+                               + const_name("]");
+};
+
+template <class K, class V>
+struct handle_type_name<nuri::python_internal::MutableMapping<K, V>> {
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  constexpr static auto name = const_name("MutableMapping[")
+                               + make_caster<K>::name + const_name(", ")
+                               + make_caster<V>::name + const_name("]");
 };
 PYBIND11_NAMESPACE_END(detail)
 PYBIND11_NAMESPACE_END(PYBIND11_NAMESPACE)

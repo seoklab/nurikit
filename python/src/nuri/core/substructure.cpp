@@ -1068,11 +1068,11 @@ Here, we only provide the methods that are additional to the
   def_property_subobject(
       sub, "props",
       [](PySubstruct &self) {
-        return ProxyPropertyMap(
-            &self->props(), 0, [](std::uint64_t /* unused */) { return true; });
+        return py_masquerade<MutableMapping<py::str, py::str>>(ProxyPropertyMap(
+            &self->props(), 0, [](std::uint64_t /* unused */) { return true; }));
       },
-      [](PySubstruct &self, const internal::PropertyMap &props) {
-        self->props() = props;
+      [](PySubstruct &self, const Mapping<py::str, py::str> &props) {
+        self->props() = to_property_map(props);
       },
       rvp::automatic,
       R"doc(
@@ -1085,10 +1085,11 @@ keys and values are both strings.
   def_property_subobject(
       psub, "props",
       [](ProxySubstruct &self) {
-        return ProxyPropertyMap(&self->props(), self);
+        return py_masquerade<MutableMapping<py::str, py::str>>(
+            ProxyPropertyMap(&self->props(), self));
       },
-      [](ProxySubstruct &self, const internal::PropertyMap &props) {
-        self->props() = props;
+      [](ProxySubstruct &self, const Mapping<py::str, py::str> &props) {
+        self->props() = to_property_map(props);
       },
       rvp::automatic,
       R"doc(

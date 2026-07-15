@@ -24,10 +24,10 @@
 #include <pybind11/stl.h>
 
 #include "nuri/eigen_config.h"
-#include "nuri/core/container/property_map.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/python/core/containers.h"
+#include "nuri/python/typing.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
@@ -1180,10 +1180,11 @@ Set the position of the atom.
   def_property_subobject(
       cls, "props",
       [](T &self) {
-        return ProxyPropertyMap(&self->data().props(), self.parent());
+        return py_masquerade<MutableMapping<py::str, py::str>>(
+            ProxyPropertyMap(&self->data().props(), self.parent()));
       },
-      [](T &self, const internal::PropertyMap &props) {
-        self->data().props() = props;
+      [](T &self, const Mapping<py::str, py::str> &props) {
+        self->data().props() = to_property_map(props);
       },
       rvp::automatic,
       R"doc(
@@ -1479,10 +1480,11 @@ Calculate the length of the bond.
   def_property_subobject(
       cls, "props",
       [](T &self) {
-        return ProxyPropertyMap(&self->data().props(), self.parent());
+        return py_masquerade<MutableMapping<py::str, py::str>>(
+            ProxyPropertyMap(&self->data().props(), self.parent()));
       },
-      [](T &self, const internal::PropertyMap &props) {
-        self->data().props() = props;
+      [](T &self, const Mapping<py::str, py::str> &props) {
+        self->data().props() = to_property_map(props);
       },
       rvp::automatic,
       R"doc(
