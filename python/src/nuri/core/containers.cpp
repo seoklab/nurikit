@@ -16,6 +16,7 @@
 #include <pybind11/typing.h>
 
 #include "nuri/core/container/property_map.h"
+#include "nuri/python/typing.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
@@ -332,6 +333,8 @@ py::class_<T> &add_map_interface(py::class_<T> &cls) {
 void bind_property_map(py::module &m) {
   py::class_<internal::PropertyMap> pm(m, "_PropertyMap");
   py::class_<ProxyPropertyMap> ppm(m, "_ProxyPropertyMap");
+  register_abc(pm, kAbcMutableMapping);
+  register_abc(ppm, kAbcMutableMapping);
 
   MapKeyIterator::bind(m);
   MapValIterator::bind(m);

@@ -556,6 +556,7 @@ We only document the differences from the original class. Refer to the
   molecule.
 )doc");
   py::class_<PyBondsWrapper> bonds(m, "_BondsWrapper");
+  register_abc(bonds, kAbcSequence);
 
   PyAtomIterator::bind(m);
   PyBondIterator::bind(m);

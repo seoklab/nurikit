@@ -393,6 +393,7 @@ void bind_opaque_vector(py::module &m, const char *name, const char *onerror) {
   using CifList = std::vector<CppType>;
 
   PyProxyCls<CifList> cl(m, name);
+  register_abc(cl, kAbcSequence);
   cl.def("__iter__", [](const CifList &self) {
     return py::make_iterator(
         internal::make_transform_iterator<wrapper>(self.begin()),

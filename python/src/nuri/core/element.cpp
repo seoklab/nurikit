@@ -112,7 +112,9 @@ void bind_element(py::module &m) {
       .def("__repr__", isotope_repr);
 
   using IsotopeList = std::vector<Isotope>;
-  PyProxyCls<IsotopeList>(m, "_IsotopeList")
+  PyProxyCls<IsotopeList> isotope_list(m, "_IsotopeList");
+  register_abc(isotope_list, kAbcSequence);
+  isotope_list  //
       .def("__len__", &IsotopeList::size)
       .def(
           "__getitem__",

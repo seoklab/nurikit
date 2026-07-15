@@ -62,6 +62,7 @@ py::class_<std::vector<T>> bind_readonly_vector(py::module &m, const char *name,
   I::bind(m, iter_name);
 
   py::class_<V> cls(m, name);
+  register_abc(cls, kAbcSequence);
   add_sequence_interface(
       cls, &V::size,
       [](const V &v, int idx) {

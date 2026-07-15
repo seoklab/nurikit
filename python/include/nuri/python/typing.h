@@ -6,6 +6,8 @@
 #ifndef NURI_PYTHON_TYPING_H_
 #define NURI_PYTHON_TYPING_H_
 
+#include <string_view>
+
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/typing.h>
@@ -35,6 +37,17 @@ class MutableMapping: public pybind11::object {
 public:
   PYBIND11_OBJECT_DEFAULT(MutableMapping, object, PyMapping_Check)
 };
+
+constexpr inline std::string_view kAbcSequence = "Sequence";
+constexpr inline std::string_view kAbcMutableMapping = "MutableMapping";
+
+// Sequence/Mapping lack the structural __subclasshook__ that abc.Iterator has,
+// so a masqueraded wrapper needs explicit registration for isinstance to match.
+inline void register_abc(pybind11::handle cls, std::string_view name) {
+  pybind11::module_::import("collections.abc")
+      .attr(pybind11::str(name.data(), name.size()))
+      .attr("register")(cls);
+}
 }  // namespace python_internal
 }  // namespace nuri
 

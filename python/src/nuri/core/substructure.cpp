@@ -1018,6 +1018,7 @@ This is a read-only collection of bonds in a substructure. The collection is
 invalidated when the parent molecule is modified, or if the substructure is
 modified.
 )doc");
+  register_abc(sub_bonds, kAbcSequence);
   py::class_<PySubAtom<PySubstruct>> sub_atom(m, "SubAtom", R"doc(
 Atom of a substructure.
 )doc");
@@ -1046,6 +1047,7 @@ Here, we only provide the methods that are additional to the
 :class:`Substructure` class.
 )doc");
   py::class_<PySubBondsWrapper<ProxySubstruct>> psub_bonds(m, "_ProxySubBonds");
+  register_abc(psub_bonds, kAbcSequence);
   py::class_<PySubAtom<ProxySubstruct>> psub_atom(m, "ProxySubAtom");
   py::class_<PySubBond<ProxySubstruct>> psub_bond(m, "ProxySubBond");
   py::class_<PySubNeigh<ProxySubstruct>> psub_nei(m, "ProxySubNeighbor");
