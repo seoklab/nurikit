@@ -1,0 +1,99 @@
+{
+  "version": 2,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "NURI_BUILD_DOCS": "ON",
+        "NURI_BUILD_PYTHON_DOCS": "ON",
+        "NURI_BUILD_PYTHON_DOCTEST": "ON",
+        "NURI_BUILD_PYTHON_STUBS": "ON",
+        "NURI_PREBUILT_ABSL": "ON"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug",
+      "description": "Disable optimizations - include debug information.",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "description": "Optimize for speed - exclude debug information.",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "minsize",
+      "displayName": "MinSizeRel",
+      "description": "Optimize for smallest binary size - exclude debug information.",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel"
+      }
+    },
+    {
+      "name": "reldeb",
+      "displayName": "RelWithDebInfo",
+      "description": "Optimize for speed - include debug information.",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "coverage",
+      "displayName": "Coverage",
+      "description": "Coverage build.",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "NURI_TEST_COVERAGE": "ON"
+      }
+    },
+    {
+      "name": "bench",
+      "displayName": "Benchmark",
+      "description": "Benchmarking build.",
+      "inherits": "reldeb",
+      "cacheVariables": {
+        "NURI_BUILD_BENCHMARK": "ON"
+      }
+    },
+    {
+      "name": "sanitizer",
+      "displayName": "Sanitizer",
+      "description": "Build with sanitizers on (Clang required; see sanitizer-build skill for the build/run env).",
+      "inherits": "reldeb",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
+        "NURI_ENABLE_SANITIZERS": "ON"
+      }
+    },
+    {
+      "name": "fuzzer",
+      "displayName": "Fuzzer",
+      "description": "Fuzzing build (Clang required; see fuzzer-build skill for the build/run env).",
+      "inherits": "sanitizer",
+      "cacheVariables": {
+        "NURI_BUILD_FUZZING": "ON",
+        "NURI_BUILD_PYTHON": "OFF",
+        "NURI_BUILD_TESTING": "OFF",
+        "NURI_BUILD_DOCS": "OFF",
+        "NURI_BUILD_PYTHON_DOCS": "OFF",
+        "NURI_BUILD_PYTHON_DOCTEST": "OFF",
+        "NURI_BUILD_PYTHON_STUBS": "OFF"
+      }
+    }
+  ]
+}

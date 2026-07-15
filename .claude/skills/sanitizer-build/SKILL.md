@@ -1,27 +1,25 @@
 ---
 name: sanitizer-build
 description: >-
-  Configure and build the `sanitizers` (ASan/UBSan) CMake variant of nurikit.
+  Configure and build the `sanitizer` (ASan/UBSan) CMake preset of nurikit.
   Use when building, configuring, or running the sanitizer build — or when a
   sanitizer build fails to link/run under GCC. Covers the clang++ requirement
-  (active GCC bug), the required CMake flags, and the build-time environment
-  variables.
+  (active GCC bug), the preset, and the build-time environment variables.
 ---
 
 # Sanitizer builds
 
-Sanitizer builds (the `sanitizers` CMake variant) must use `clang++` due to an
+Sanitizer builds (the `sanitizer` CMake preset) must use `clang++` due to an
 active GCC bug. Building the sanitizer variant with GCC will fail to link or run
 correctly.
 
 ## Configure
 
-Use `clang++` and point it at the GCC install so the correct runtime is found:
+Use the `sanitizer` preset. Append the `--gcc-install-dir` flag to support mixed GCC runtime:
 
 ```bash
-cmake -DCMAKE_CXX_COMPILER=clang++ \
-  -DCMAKE_CXX_FLAGS="--gcc-install-dir=$(dirname "$(gcc -print-libgcc-file-name)")" \
-  ...
+cmake --preset sanitizer \
+  -DCMAKE_CXX_FLAGS="--gcc-install-dir=$(dirname "$(gcc -print-libgcc-file-name)")"
 ```
 
 ## Build
@@ -31,7 +29,7 @@ Set these environment variables at build time:
 ```bash
 LD_PRELOAD="$(clang++ -print-file-name=libubsan.so)" \
   ASAN_OPTIONS="detect_odr_violation=0 detect_leaks=0" \
-  cmake --build ...
+  cmake --build build/sanitizer -j"$(nproc)"
 ```
 
 ## Run the tests
@@ -46,14 +44,14 @@ export LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) $(clan
 export ASAN_OPTIONS="detect_odr_violation=0 detect_leaks=0"
 ```
 
-C++ (build with `-DNURI_BUILD_TESTING=ON`):
+C++ (`NURI_BUILD_TESTING` is ON by default):
 
 ```bash
-ctest --test-dir <build> -j"$(nproc)" --output-on-failure
+ctest --test-dir build/sanitizer -j"$(nproc)" --output-on-failure
 ```
 
-Python (build with `-DNURI_BUILD_PYTHON=ON`; the dev build stages the extensions
-into `python/src/nuri/`):
+Python (`NURI_BUILD_PYTHON` is ON by default; the dev build stages the
+extensions into `python/src/nuri/`):
 
 ```bash
 PYTHONPATH="$PWD/python/src" python -m pytest -v python/test

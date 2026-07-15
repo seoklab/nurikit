@@ -8,8 +8,9 @@
   `clang-format`/`clang-tidy`, `pre-commit`, and `python` are installed
   globally; don't check. C++ deps are fetched by CPM at configure time. If a
   tool is genuinely missing, surface the error instead of working around it.
-- **Build dir** - Drive the project CMake-first through `build/<variant>` at the
-  repo root; see `cmake-variants.json` for variants.
+- **Build dir** - Drive the project CMake-first via presets; each `--preset
+  <variant>` configures into `build/<variant>` at the repo root. See
+  `CMakePresets.json` for variants.
 - **Reconfigure** - Re-run the configure step after pulling or switching
   branches.
 
@@ -47,26 +48,23 @@
 
 Use `ninja` generator for faster compilation.
 
-Below, `<build>` is `build/<variant>`; `<variant>` is one defined in
-`cmake-variants.json`: `debug`, `release`, `minsize`, `reldeb`, `coverage`,
-`sanitizers`, `fuzzer`. Prefer:
+Below, `<variant>` is a preset defined in `CMakePresets.json`; `<build>` is
+its build dir, `build/<variant>`. Use:
 
 - `coverage` for local development and debugging,
-- `sanitizers` for memory and UB safety, and
+- `sanitizer` for memory and UB safety, and
 - `reldeb` for performance profiling.
 
-Avoid using others unless explicitly requested.
-
-| Task              | Command                                                                                                                                 |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Configure         | `cmake -G Ninja -S . -B <build> -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DNURI_BUILD_DEV_MODE=ON && cp <build>/compile_commands.json build/` |
-| Build             | `cmake --build <build> -j"$(nproc)"`                                                                                                    |
-| C++ tests         | `ctest -j"$(nproc)" --test-dir <build> --output-on-failure`                                                                             |
-| Python tests      | `PYTHONPATH="$PWD/python/src" pytest -vs python/test`                                                                                   |
-| Python doctest    | `PYTHONPATH="$PWD/python/src" cmake --build <build> --target NuriPythonDoctest`                                                         |
-| Format & lint C++ | `scripts/run_clang_tools.sh [-d [<ref>]] [-b <build>] [files...]`                                                                       |
-| Coverage          | `scripts/check_coverage.sh [--cpp] [--python] [--html] [--json] [<build>]`                                                              |
-| C++ API docs      | `cmake --build <build> --target NuriDocs`                                                                                               |
+| Task              | Command                                                                         |
+| ----------------- | ------------------------------------------------------------------------------- |
+| Configure         | `cmake --preset <variant> && cp <build>/compile_commands.json build/`           |
+| Build             | `cmake --build <build> -j"$(nproc)"`                                            |
+| C++ tests         | `ctest --test-dir <build> -j"$(nproc)" --output-on-failure`                     |
+| Python tests      | `PYTHONPATH="$PWD/python/src" pytest -vs python/test`                           |
+| Python doctest    | `PYTHONPATH="$PWD/python/src" cmake --build <build> --target NuriPythonDoctest` |
+| Format & lint C++ | `scripts/run_clang_tools.sh [-d [<ref>]] [-b <build>] [files...]`               |
+| Coverage          | `scripts/check_coverage.sh [--cpp] [--python] [--html] [--json] [<build>]`      |
+| C++ API docs      | `cmake --build <build> --target NuriDocs`                                       |
 
 Both scripts take `-h` for full usage and default the build dir to
 `<project_root>/build`. `check_coverage.sh` runs the whole suite unless

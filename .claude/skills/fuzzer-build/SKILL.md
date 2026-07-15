@@ -55,14 +55,13 @@ RUNDIR="<absolute path from memory or the user>"
 
 ## 3. Build the `fuzzer` variant (clang++)
 
-```bash
-cmake -G Ninja -S "$REPO" -B "$REPO/build/fuzzer" \
-  -DNURI_BUILD_PYTHON=OFF -DNURI_BUILD_TESTING=OFF -DNURI_BUILD_FUZZING=ON \
-  -DCMAKE_CXX_COMPILER=clang++ \
-  -DCMAKE_CXX_FLAGS="--gcc-install-dir=$(dirname "$(gcc -print-libgcc-file-name)")" \
-  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+Append the `--gcc-install-dir` flag to support mixed GCC runtime:
 
-LD_PRELOAD="$(gcc -print-file-name=libubsan.so.1)" \
+```bash
+cmake --preset fuzzer \
+  -DCMAKE_CXX_FLAGS="--gcc-install-dir=$(dirname "$(gcc -print-libgcc-file-name)")"
+
+LD_PRELOAD="$(clang++ -print-file-name=libubsan.so)" \
   ASAN_OPTIONS="detect_odr_violation=0 detect_leaks=0" \
   cmake --build "$REPO/build/fuzzer" --target NuriAllFuzz -j"$(nproc)"
 ```
