@@ -1121,8 +1121,9 @@ of the molecule with this object.
   def_property_subobject(
       mol, "props",
       [](PyMol &self) {
-        return py_masquerade<MutableMapping<py::str, py::str>>(ProxyPropertyMap(
-            &self->props(), 0, [](std::uint64_t /* unused */) { return true; }));
+        return py_masquerade<MutableMapping<py::str, py::str>>(
+            ProxyPropertyMap(&self->props(), 0,
+                             [](std::uint64_t /* unused */) { return true; }));
       },
       [](PyMol &self, const Mapping<py::str, py::str> &props) {
         self->props() = to_property_map(props);
