@@ -85,7 +85,7 @@ def test_add_atom():
         with pytest.raises(ValueError, match="invalid atomic number"):
             mut.add_atom(1000)
 
-        with pytest.raises(ValueError, match="invalid hybridization"):
+        with pytest.raises(ValueError, match="is not a valid Hyb"):
             atom.update(hyb=Hyb(100))
 
         atom_data = atom.copy_data()
@@ -133,7 +133,7 @@ def test_add_bond():
 
         mut.add_atom(8)
 
-        with pytest.raises(ValueError, match="invalid bond order"):
+        with pytest.raises(ValueError, match="is not a valid BondOrder"):
             mut.register_bond(0, 2, BondOrder(1000))
 
         mut.register_bond(0, 2, BondOrder.Double)
