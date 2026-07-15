@@ -222,6 +222,13 @@ T &pass_through(T &x) {
   return x;
 }
 
+// Casts obj to a py::object-derived typing annotation M (e.g. pyt::Iterator<T>)
+// so stubgen renders M's public name instead of the concrete runtime class.
+template <class M, class T, class... Extra>
+M py_masquerade(T &&obj, Extra &&...extra) {
+  return py::cast(std::forward<T>(obj), std::forward<Extra>(extra)...);
+}
+
 template <class T, std::enable_if_t<std::is_default_constructible_v<T>
                                         && std::is_copy_constructible_v<T>,
                                     int> = 0>
@@ -243,6 +250,14 @@ public:
       throw std::runtime_error("container changed size during iteration");
 
     return static_cast<const Derived *>(this)->deref(*container_, index_++);
+  }
+
+  // value_type is resolved in the body: Derived is still incomplete while the
+  // CRTP base is instantiated.
+  static auto make(C &cont) {
+    using value_type =
+        std::decay_t<decltype(Derived::deref(std::declval<C &>(), 0))>;
+    return py_masquerade<pyt::Iterator<value_type>>(Derived(cont));
   }
 
 protected:
