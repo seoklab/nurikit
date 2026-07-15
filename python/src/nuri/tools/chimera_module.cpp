@@ -23,12 +23,14 @@ NURI_PYTHON_MODULE(m) {
   py::class_<MmResult>(m, "MmResult")
       .def_property_readonly(
           "transform",
-          [](const MmResult &r) {
-            return eigen_as_numpy(r.xform.matrix().transpose());
+          [](py::handle self) {
+            auto &r = self.cast<MmResult &>();
+            auto xform = r.xform.matrix().transpose();
+            return eigen_as_numpy_view(xform, self);
           },
           R"doc(
-A copy of 4x4 best-fit rigid-body transformation tensor, to align ``query`` to
-``template``.
+A 4x4 view of the best-fit rigid-body transformation tensor, to align ``query``
+to ``template``.
 )doc")
       .def_property_readonly(
           "selected",
