@@ -238,7 +238,11 @@ This is a read-only property.
   sub_atom.def("as_parent", &Atom::as_parent, kReturnsSubobject,
                "Returns the parent atom of this atom.");
   sub_atom.def(
-      "__iter__", [](Atom &atom) { return PySubNeighIterator<P>(atom); },
+      "__iter__",
+      [](Atom &atom) {
+        return py_masquerade<pyt::Iterator<PySubNeigh<P>>>(
+            PySubNeighIterator<P>(atom));
+      },
       kReturnsSubobject);
 
   add_common_bond_interface(sub_bond);
@@ -283,7 +287,7 @@ This is a read-only property.
         return substruct.pysubbond(idx);
       },
       [](PySubBondsWrapper<P> &self) {
-        return PySubBondIterator<P>(*self.sub);
+        return PySubBondIterator<P>::make(*self.sub);
       });
   sub_bonds.def(
       "__getitem__",
@@ -563,7 +567,8 @@ Get the number of conformations of the substructure.
   sub.def(
       "conformers",
       [](P &self) {
-        return SubConformersIterator<P>(self.parent()->confs(), self);
+        return py_masquerade<pyt::Iterator<py::array_t<double>>>(
+            SubConformersIterator<P>(self.parent()->confs(), self));
       },
       kReturnsSubobject, R"doc(
 Get an iterable object of all conformations of the substructure. Each
@@ -878,7 +883,7 @@ The category of the substructure. This is used to categorize the substructure.
         idx = check_subatom(*self, idx);
         return self.pysubatom(idx);
       },
-      [](P &self) { return PySubAtomIterator<P>(self); });
+      [](P &self) { return PySubAtomIterator<P>::make(self); });
   sub.def("__contains__", [](P &self, PySubAtom<P> &atom) {
     atom.check();
     return same_parent(self, atom.parent());
@@ -1104,7 +1109,9 @@ A collection of substructures of a molecule.
         idx = check_sub(*self.mol(), idx);
         return self.get(idx);
       },
-      [](ProxySubstructContainer &self) { return self.iter(); })
+      [](ProxySubstructContainer &self) {
+        return ProxySubstructIterator::make(self);
+      })
       .def("__setitem__",
            [](ProxySubstructContainer &self, int idx, PySubstruct &other) {
              idx = check_sub(*self.mol(), idx);

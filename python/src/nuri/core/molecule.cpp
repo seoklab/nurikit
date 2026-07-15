@@ -296,7 +296,7 @@ hydrogens.
         idx = check_nei(ma, idx);
         return self.neighbor(idx);
       },
-      [](PyAtom &self) { return PyNeighborIterator(self); });
+      [](PyAtom &self) { return PyNeighborIterator::make(self); });
 }
 
 void bind_bond(py::class_<PyBondsWrapper> &bonds,
@@ -364,7 +364,7 @@ counter-clockwise with respect to the src -> dst vector.
         idx = check_bond(*pm, idx);
         return pm.pybond(idx);
       },
-      [](PyBondsWrapper &self) { return PyBondIterator(*self.mol); });
+      [](PyBondsWrapper &self) { return PyBondIterator::make(*self.mol); });
   bonds.def("__contains__", [](const PyBondsWrapper &self, PyBond &pb) {
     pb.check();
     return same_parent(*self.mol, pb.parent());
@@ -589,7 +589,7 @@ The bond between the source and destination atoms.
         idx = check_atom(*self, idx);
         return self.pyatom(idx);
       },
-      [](PyMol &self) { return PyAtomIterator(self); });
+      [](PyMol &self) { return PyAtomIterator::make(self); });
   mol.def("__contains__",
           [](PyMol &self, PyAtom &pa) {
             pa.check();
@@ -928,7 +928,7 @@ Remove all conformations from the molecule.
 )doc")
       .def(
           "conformers",
-          [](PyMol &self) { return ConformersIterator(self->confs()); },
+          [](PyMol &self) { return ConformersIterator::make(self->confs()); },
           kReturnsSubobject, R"doc(
 Get an iterable object of all conformations of the molecule. Each conformation
 is a 2D array of shape ``(num_atoms, 3)``. It is not available to update the

@@ -68,7 +68,7 @@ py::class_<std::vector<T>> bind_readonly_vector(py::module &m, const char *name,
                              "Index out of range");
         return v[idx];
       },
-      [](const V &v) { return I(v); });
+      [](const V &v) { return I::make(v); });
   cls.def("__repr__", [name](const V &v) {
     return absl::StrCat("<", name, " of ", v.size(), " items>");
   });

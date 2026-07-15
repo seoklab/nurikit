@@ -211,7 +211,7 @@ public:
 
   const internal::CifTable &table() const { return owned_ ? *owned_ : *ext_; }
 
-  PyCifTableIterator iter() const { return PyCifTableIterator(table()); }
+  auto iter() const { return PyCifTableIterator::make(table()); }
 
   pyt::List<pyt::Optional<py::str>> get(int row) const {
     row = py_check_index(static_cast<int>(table().size()), row,
@@ -280,7 +280,7 @@ public:
 
   std::string_view name() const { return frame().name(); }
 
-  PyCifFrameIterator iter() const { return PyCifFrameIterator(frame()); }
+  auto iter() const { return PyCifFrameIterator::make(frame()); }
 
   PyCifTable get(int idx) const {
     idx = py_check_index(static_cast<int>(frame().size()), idx,
