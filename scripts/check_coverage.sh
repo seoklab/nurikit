@@ -107,4 +107,4 @@ if [[ -n $output ]]; then
 	mkdir -p "$(dirname "$output")"
 	output_args+=("$output")
 fi
-gcovr "${output_args[@]}" "$build_dir"
+gcovr -j"$jobs" --object-directory "$build_dir" "${output_args[@]}"
