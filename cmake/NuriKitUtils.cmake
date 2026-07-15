@@ -165,7 +165,7 @@ function(find_or_fetch_abseil)
       message(NOTICE "Fetching prebuilt abseil binary.")
 
       if(CMAKE_SYSTEM_NAME MATCHES Linux)
-        set(os_arch "manylinux2014_x86_64")
+        set(os_arch "manylinux_2_28_x86_64")
       elseif(CMAKE_SYSTEM_NAME MATCHES Darwin)
         set(os_arch "macosx_universal2")
       endif()
@@ -192,15 +192,6 @@ function(find_or_fetch_abseil)
       # the install step can ship it beside libnuri (imported abseil has no
       # install rules of its own).
       set(NURI_ABSL_PREBUILT_DIR "${absl_SOURCE_DIR}" PARENT_SCOPE)
-
-      if(NURI_PREBUILT_ABSL AND CMAKE_SYSTEM_NAME MATCHES Linux)
-        set(ABSL_USES_OLD_ABI ON PARENT_SCOPE)
-        set(
-          CMAKE_CXX_FLAGS
-          "${CMAKE_CXX_FLAGS} -D_GLIBCXX_USE_CXX11_ABI=0"
-          PARENT_SCOPE
-        )
-      endif()
       return()
     endif()
   endif()

@@ -14,23 +14,24 @@
 
 set -euo pipefail
 
-pyvers=(cp37 cp38 cp39 cp310 cp311 cp312 cp313 cp313t)
+pyvers=(cp38 cp39 cp310 cp311 cp312 cp313 cp314 cp314t)
 oses=(manylinux_x86_64 macosx_x86_64 macosx_arm64)
 
 targets=()
 for p in "${pyvers[@]}"; do
 	for o in "${oses[@]}"; do
-		# https://github.com/pypa/cibuildwheel/issues/1278
-		if [[ $p = cp37 && $o = macosx_arm64 ]]; then
-			continue
-		fi
 		targets+=("$p-$o")
 	done
 done
 
-selected=("${targets[@]}")
+declare -a selected
 
-if [[ ${MINIMAL-} = true ]]; then
+function select-targets() {
+	if [[ ${MINIMAL-} != true ]]; then
+		selected=("${targets[@]}")
+		return
+	fi
+
 	if [[ ${GITHUB_EVENT_NAME-} = pull_request ]]; then
 		msg="$(git log --no-merges --format=%B -n 1 HEAD)"
 	else
@@ -42,15 +43,21 @@ if [[ ${MINIMAL-} = true ]]; then
 		prefix+=("${words[@]}")
 	done < <(grep -oE '\[wheel[^]]*\]' <<<"$msg" | sed -E 's/\[wheel//g; s/\]//g')
 
-	selected=()
 	for tgt in "${targets[@]}"; do
 		for pfx in "${prefix[@]}"; do
+			if [[ $pfx = all ]]; then
+				selected=("${targets[@]}")
+				return
+			fi
+
 			if [[ $tgt = "$pfx"* ]]; then
 				selected+=("$tgt")
 				break
 			fi
 		done
 	done
-fi
+}
+
+select-targets
 
 jq -nc '$ARGS.positional | map({python: .})' --args "${selected[@]}"

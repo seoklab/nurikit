@@ -14,6 +14,7 @@
 #include <Eigen/Dense>
 #include <pybind11/cast.h>
 #include <pybind11/eigen.h>
+#include <pybind11/native_enum.h>
 #include <pybind11/numpy.h>
 #include <pybind11/options.h>
 #include <pybind11/pybind11.h>
@@ -984,14 +985,16 @@ Substructure create_substruct(Molecule &mol,
 }
 
 void bind_substructure(py::module &m) {
-  py::enum_<SubstructCategory>(m, "SubstructureCategory", R"doc(
+  py::native_enum<SubstructCategory>(m, "SubstructureCategory", "enum.IntEnum",
+                                     R"doc(
 The category of a substructure.
 
 This is used to categorize the substructure. Mainly used for the proteins.
 )doc")
       .value("Unknown", SubstructCategory::kUnknown)
       .value("Residue", SubstructCategory::kResidue)
-      .value("Chain", SubstructCategory::kChain);
+      .value("Chain", SubstructCategory::kChain)
+      .finalize();
 
   py::class_<PySubstruct> sub(m, "Substructure", R"doc(
 A substructure of a molecule.

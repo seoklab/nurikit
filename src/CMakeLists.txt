@@ -37,10 +37,6 @@ target_compile_definitions(NuriLib
   $<$<CONFIG:Debug>:NURI_DEBUG;EIGEN_RUNTIME_NO_MALLOC>
 )
 
-if(ABSL_USES_OLD_ABI)
-  target_compile_definitions(NuriLib PUBLIC _GLIBCXX_USE_CXX11_ABI=0)
-endif()
-
 target_link_libraries(NuriLib
   PUBLIC
   Eigen3::Eigen

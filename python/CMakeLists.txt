@@ -9,8 +9,8 @@ if(NURI_BUILD_PYTHON)
   set(PYBIND11_FINDPYTHON ON)
   find_or_add_package(
     NAME pybind11
-    MIN_VERSION 2.13
-    CPM_VERSION 2.13.6
+    MIN_VERSION 3.0
+    CPM_VERSION 3.0.4
     GIT_REPOSITORY https://github.com/pybind/pybind11.git
   )
 

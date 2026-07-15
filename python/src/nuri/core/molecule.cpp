@@ -20,6 +20,7 @@
 #include <pybind11/attr.h>
 #include <pybind11/cast.h>
 #include <pybind11/eigen.h>
+#include <pybind11/native_enum.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
@@ -126,7 +127,7 @@ struct PyBondsWrapper {
 };
 
 void bind_enums(py::module &m) {
-  py::enum_<constants::Hybridization>(m, "Hyb")
+  py::native_enum<constants::Hybridization>(m, "Hyb", "enum.IntEnum")
       .value("Unbound", constants::Hybridization::kUnbound)
       .value("Terminal", constants::Hybridization::kTerminal)
       .value("SP", constants::Hybridization::kSP)
@@ -134,21 +135,19 @@ void bind_enums(py::module &m) {
       .value("SP3", constants::Hybridization::kSP3)
       .value("SP3D", constants::Hybridization::kSP3D)
       .value("SP3D2", constants::Hybridization::kSP3D2)
-      .value("Other", constants::Hybridization::kOtherHyb);
+      .value("Other", constants::Hybridization::kOtherHyb)
+      .finalize();
 
-  py::implicitly_convertible<int, constants::Hybridization>();
-
-  py::enum_<constants::BondOrder>(m, "BondOrder")
+  py::native_enum<constants::BondOrder>(m, "BondOrder", "enum.IntEnum")
       .value("Other", constants::BondOrder::kOtherBond)
       .value("Single", constants::BondOrder::kSingleBond)
       .value("Double", constants::BondOrder::kDoubleBond)
       .value("Triple", constants::BondOrder::kTripleBond)
       .value("Quadruple", constants::BondOrder::kQuadrupleBond)
-      .value("Aromatic", constants::BondOrder::kAromaticBond);
+      .value("Aromatic", constants::BondOrder::kAromaticBond)
+      .finalize();
 
-  py::implicitly_convertible<int, constants::BondOrder>();
-
-  py::enum_<Chirality>(m, "Chirality", R"doc(
+  py::native_enum<Chirality>(m, "Chirality", "enum.IntEnum", R"doc(
 Chirality of an atom.
 
 When viewed from the first neighboring atom of a "chiral" atom, the chirality
@@ -221,16 +220,14 @@ by adding back the implicit hydrogen (which will be placed at the end).
 )doc")
       .value("Unknown", Chirality::kNone)
       .value("CW", Chirality::kCW)
-      .value("CCW", Chirality::kCCW);
+      .value("CCW", Chirality::kCCW)
+      .finalize();
 
-  py::implicitly_convertible<int, Chirality>();
-
-  py::enum_<BondConfig>(m, "BondConfig")
+  py::native_enum<BondConfig>(m, "BondConfig", "enum.IntEnum")
       .value("Unknown", BondConfig::kNone)
       .value("Trans", BondConfig::kTrans)
-      .value("Cis", BondConfig::kCis);
-
-  py::implicitly_convertible<int, BondConfig>();
+      .value("Cis", BondConfig::kCis)
+      .finalize();
 }
 
 void bind_atom(py::class_<AtomData> &atom_data, py::class_<PyAtom> &atom) {
@@ -501,8 +498,8 @@ molecule:
 1
 >>> print(mol.atom(0).atomic_number)
 6
->>> print(mol.bond(0).order)
-BondOrder.Single
+>>> print(mol.bond(0).order.name)
+Single
 
 .. note::
   The mutator is invalidated when the context is exited. It is an error to use

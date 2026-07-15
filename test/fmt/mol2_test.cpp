@@ -39,6 +39,25 @@ NO_CHARGES
   EXPECT_EQ(internal::get_key(mol().props(), "mol2_charge_type"), "NO_CHARGES");
 }
 
+TEST_F(Mol2Test, HugeReserveCountCapped) {
+  // Found with fuzzing: an untrusted, oversized atom/bond count in the MOLECULE
+  // header must not drive an over-large reserve (std::length_error / OOM). The
+  // count is capped to the remaining input lines.
+  set_test_string(R"mol2(
+@<TRIPOS>MOLECULE
+huge
+4294967295 4294967295 0 0 0
+SMALL
+NO_CHARGES
+
+
+@<TRIPOS>ATOM
+   1 C1            -0.0127     1.0858     0.0080 C.3
+)mol2");
+
+  NURI_FMT_TEST_NEXT_MOL("huge", 1, 0);
+}
+
 TEST_F(Mol2Test, MalformedParsing) {
   set_test_string(R"mol2(
 @<TRIPOS>MOLECULE

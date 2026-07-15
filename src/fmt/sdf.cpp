@@ -872,10 +872,16 @@ bool read_v3000(Molecule &mol, std::vector<Vector3d> &coords,
     return false;
   }
 
-  mol.reserve(metadata.natoms());
-  coords.reserve(metadata.natoms());
+  // The V3000 counts line is untrusted and unbounded (unlike the fixed-width
+  // V2000 header); cap reservations to the remaining input lines
+  const int remaining = static_cast<int>(end - it);
+  const int atom_hint = nuri::clamp(metadata.natoms(), 0, remaining),
+            bond_hint = nuri::clamp(metadata.nbonds(), 0, remaining);
 
-  mol.reserve_bonds(metadata.nbonds());
+  mol.reserve(atom_hint);
+  coords.reserve(atom_hint);
+
+  mol.reserve_bonds(bond_hint);
 
   auto mut = mol.mutator();
 

@@ -501,6 +501,50 @@ decltype(auto) eigen_as_numpy(const ML &mat) {
   return std::move(arr).numpy();
 }
 
+template <class MLR, class ML = std::decay_t<MLR>,
+          bool Readonly = (ML::Flags & Eigen::LvalueBit) == 0
+                          || std::is_const_v<std::remove_reference_t<MLR>>,
+          std::enable_if_t<std::is_lvalue_reference_v<MLR>
+                               && (ML::Flags & Eigen::DirectAccessBit) != 0,
+                           int> = 0>
+decltype(auto) eigen_as_numpy_view(
+    // NOLINTNEXTLINE(*-missing-std-forward)
+    MLR &&mat, py::handle owner, bool readonly = Readonly) {
+  using Scalar = typename ML::Scalar;
+  using SizeVec = std::vector<py::ssize_t>;
+  constexpr auto dsize = static_cast<py::ssize_t>(sizeof(Scalar));
+  constexpr bool is_vector = ML::RowsAtCompileTime == 1
+                             || ML::ColsAtCompileTime == 1;
+
+  // pybind11 does the same anyway
+  auto ptr = const_cast<Scalar *>(mat.data());
+
+  py::buffer_info info = [&] {
+    if constexpr (is_vector) {
+      return py::buffer_info(ptr,
+                             SizeVec { static_cast<py::ssize_t>(mat.size()) },
+                             SizeVec { dsize * mat.innerStride() }, readonly);
+    }
+
+    return py::buffer_info(
+        ptr,
+        SizeVec { static_cast<py::ssize_t>(mat.cols()),
+                  static_cast<py::ssize_t>(mat.rows()) },
+        SizeVec { dsize * mat.colStride(), dsize * mat.rowStride() }, readonly);
+  }();
+
+  py::array_t<Scalar> arr(info, owner);
+
+  // array(buffer_info, base) ignores buffer_info::readonly and is writeable by
+  // default; clear the flag directly
+  if (readonly) {
+    py::detail::array_proxy(arr.ptr())->flags &=
+        ~py::detail::npy_api::NPY_ARRAY_WRITEABLE_;
+  }
+
+  return arr;
+}
+
 inline int py_check_index(int size, int idx, const char *onerror) {
   if (idx < 0)
     idx += size;

@@ -39,6 +39,22 @@ TM-tools
       .. automethod:: __init__
       .. automethod:: from_alignment
 
+----------------
+Chimera/ChimeraX
+----------------
+
+.. currentmodule:: nuri.tools.chimera
+
+.. code-block:: python
+
+   from nuri.tools import chimera
+
+.. automodule:: nuri.tools.chimera
+
+   This module provides clean-room re-implementations of selected UCSF
+   Chimera/ChimeraX routines for biomolecular structure analysis. Outputs should
+   match the original routines to within floating-point tolerance.
+
 ------
 GAlign
 ------

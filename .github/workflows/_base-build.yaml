@@ -128,7 +128,7 @@ jobs:
             -w /work \
             -e CMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
             -e NURI_VERSION="$NURI_VERSION" \
-            quay.io/pypa/manylinux2014_x86_64:latest \
+            quay.io/pypa/manylinux_2_28_x86_64:latest \
             .github/scripts/build-lib.sh ${{ matrix.os }}_${{ matrix.arch }}
 
       - if: ${{ matrix.os == 'macosx' }}
