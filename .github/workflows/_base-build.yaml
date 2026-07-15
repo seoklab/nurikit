@@ -118,7 +118,7 @@ jobs:
           name: sdist
           path: dist
 
-      - run: cd dist && tar -xf *.tar* -C . --strip-components=1
+      - run: tar -xf dist/*.tar* -C dist --strip-components=1
 
       - if: ${{ matrix.os == 'linux' }}
         run: |

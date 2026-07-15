@@ -112,8 +112,7 @@ jobs:
           LD_PRELOAD="$(clang++ -print-file-name=libclang_rt.asan-x86_64.so) $LD_PRELOAD"
           export LD_PRELOAD
 
-          cd build
-          ctest --no-tests=error --output-on-failure -j24
+          ctest --test-dir build --no-tests=error --output-on-failure -j24
 
       - name: Python tests
         run: |

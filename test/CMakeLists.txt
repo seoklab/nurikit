@@ -15,17 +15,10 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 include_directories("${CMAKE_CURRENT_LIST_DIR}/include")
+add_compile_definitions("NURI_TEST_DATA_DIR=\"${CMAKE_CURRENT_LIST_DIR}/test_data\"")
+
 file(GLOB_RECURSE NURI_TEST_SRCS CONFIGURE_DEPENDS *.cpp)
 
 foreach(nuri_test_src IN LISTS NURI_TEST_SRCS)
   nuri_add_test("${nuri_test_src}")
 endforeach()
-
-add_custom_command(
-  TARGET NuriAllTest
-  POST_BUILD
-  COMMAND "${CMAKE_COMMAND}"
-  -P "${PROJECT_SOURCE_DIR}/cmake/NuriKitClearTestDiscovery.cmake"
-  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
-  VERBATIM
-)
