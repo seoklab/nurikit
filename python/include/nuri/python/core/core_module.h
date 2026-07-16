@@ -619,8 +619,8 @@ private:
 
   static int size_of(ProxySubstructContainer &cont) { return cont.size(); }
 
-  static ProxySubstruct deref(ProxySubstructContainer &cont, int idx) {
-    return cont.get(idx);
+  static As<PySubstruct> deref(ProxySubstructContainer &cont, int idx) {
+    return masquerade_cast<As<PySubstruct>>(cont.get(idx));
   }
 };
 

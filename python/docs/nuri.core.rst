@@ -56,11 +56,6 @@ nuri.core
 
    .. autoclass:: Substructure
 
-   .. autoclass:: ProxySubstructure
-      :no-members:
-      :no-undoc-members:
-      :members: copy
-
    .. autoclass:: SubAtom
 
    .. autoclass:: SubBond

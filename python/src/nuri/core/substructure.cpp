@@ -1030,25 +1030,18 @@ Neighbor of a substructure.
   py::class_<PySubNeighIterator<PySubstruct>> nei_iter(m,
                                                        "_SubNeighborIterator");
 
-  py::class_<ProxySubstruct> psub(m, "ProxySubstructure", R"doc(
-This represents a substructure managed by a molecule. If a user wishes to
-create a short-lived substructure not managed by a molecule, use
-:meth:`Molecule.substructure` method instead.
+  py::class_<ProxySubstruct> psub(m, "_ProxySubstructure", R"doc(
+A molecule-managed substructure. Masqueraded as :class:`Substructure` in public
+signatures; see that class for the full interface.
 
 This will invalidate when the parent molecule is modified, or any substructures
 are removed from the parent molecule. If the substructure must be kept alive,
 convert the substructure first with :meth:`copy` method.
-
-.. seealso::
-  :class:`Substructure`
-
-Here, we only provide the methods that are additional to the
-:class:`Substructure` class.
 )doc");
   py::class_<PySubBondsWrapper<ProxySubstruct>> psub_bonds(m, "_ProxySubBonds");
-  py::class_<PySubAtom<ProxySubstruct>> psub_atom(m, "ProxySubAtom");
-  py::class_<PySubBond<ProxySubstruct>> psub_bond(m, "ProxySubBond");
-  py::class_<PySubNeigh<ProxySubstruct>> psub_nei(m, "ProxySubNeighbor");
+  py::class_<PySubAtom<ProxySubstruct>> psub_atom(m, "_ProxySubAtom");
+  py::class_<PySubBond<ProxySubstruct>> psub_bond(m, "_ProxySubBond");
+  py::class_<PySubNeigh<ProxySubstruct>> psub_nei(m, "_ProxySubNeighbor");
   py::class_<PySubNeighIterator<ProxySubstruct>> pnei_iter(
       m, "_ProxySubNeighborIterator");
 
@@ -1114,11 +1107,12 @@ A collection of substructures of a molecule.
       subs, [](ProxySubstructContainer &self) { return self.size(); },
       [](ProxySubstructContainer &self, int idx) {
         idx = check_sub(*self.mol(), idx);
-        return self.get(idx);
+        return masquerade_cast<As<PySubstruct>>(self.get(idx));
       },
       [](ProxySubstructContainer &self) {
         return ProxySubstructIterator::make(self);
-      })
+      },
+      kReturnsSubobject)
       .def("__setitem__",
            [](ProxySubstructContainer &self, int idx, PySubstruct &other) {
              idx = check_sub(*self.mol(), idx);
@@ -1168,7 +1162,7 @@ Remove a substructure from the collection and return it.
              const std::optional<BondsArg> &bonds, SubstructCategory cat) {
             int idx = self.size();
             insert_substruct(self, idx, atoms, bonds, cat);
-            return self.get(idx);
+            return masquerade_cast<As<PySubstruct>>(self.get(idx));
           },
           py::arg("atoms") = py::none(),  //
           py::arg("bonds") = py::none(),
@@ -1206,7 +1200,7 @@ This has three mode of operations:
             idx = wrap_insert_index(self.size(), idx);
             insert_substruct(self, idx, atoms, bonds, cat);
             self.mol().tock();
-            return self.get(idx);
+            return masquerade_cast<As<PySubstruct>>(self.get(idx));
           },
           py::arg("idx"),                 //
           py::arg("atoms") = py::none(),  //
@@ -1268,7 +1262,7 @@ Add a substructure to the collection.
           py::arg("other"), R"doc(
 Add a substructure to the collection.
 
-:param ProxySubstructure other: The substructure to add.
+:param Substructure other: The substructure to add.
 
 .. note::
   The given substructure is copied to the collection.
@@ -1317,7 +1311,7 @@ all currently existing substructures.
   ``max(0, len(subs) + idx)``). Otherwise, the substructure is added at
   ``min(idx, len(subs))``. This resembles the behavior of Python's
   :meth:`list.insert` method.
-:param ProxySubstructure other: The substructure to add.
+:param Substructure other: The substructure to add.
 
 .. note::
   The given substructure is copied to the collection, so modifying the given

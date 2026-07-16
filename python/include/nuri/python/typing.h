@@ -7,6 +7,7 @@
 #define NURI_PYTHON_TYPING_H_
 
 #include <string_view>
+#include <utility>
 
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
@@ -36,6 +37,17 @@ template <class K, class V>
 class MutableMapping: public pybind11::object {
 public:
   PYBIND11_OBJECT_DEFAULT(MutableMapping, object, PyMapping_Check)
+};
+
+// Return-only annotation that renders as ``T``'s registered Python name while
+// the runtime object stays whatever was cast. Masquerades a view wrapper (e.g.
+// a Proxy* type) as its owned equivalent in generated signatures.
+template <class T>
+class As: public pybind11::object {
+public:
+  using object::object;
+  // NOLINTNEXTLINE(google-explicit-constructor)
+  As(pybind11::object obj) noexcept: pybind11::object(std::move(obj)) { }
 };
 
 constexpr inline std::string_view kAbcSequence = "Sequence";
@@ -74,6 +86,12 @@ struct handle_type_name<nuri::python_internal::MutableMapping<K, V>> {
   constexpr static auto name = const_name("MutableMapping[")
                                + make_caster<K>::name + const_name(", ")
                                + make_caster<V>::name + const_name("]");
+};
+
+template <class T>
+struct handle_type_name<nuri::python_internal::As<T>> {
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  constexpr static auto name = make_caster<T>::name;
 };
 PYBIND11_NAMESPACE_END(detail)
 PYBIND11_NAMESPACE_END(PYBIND11_NAMESPACE)

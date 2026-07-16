@@ -37,9 +37,6 @@ autodoc_type_aliases = {
     "Hyb": "nuri.core.Hyb",
     "BondOrder": "nuri.core.BondOrder",
     "SubstructCategory": "nuri.core.SubstructCategory",
-    "ProxySubAtom": "nuri.core.SubAtom",
-    "ProxySubBond": "nuri.core.SubBond",
-    "ProxySubNeighbor": "nuri.core.SubNeighbor",
 }
 autodoc_default_options = {
     "members": True,
@@ -105,3 +102,41 @@ class OutputChecker(doctest.OutputChecker):
 
 
 doctest.OutputChecker = OutputChecker
+
+_overload_re = re.compile(r"^(\d+)\. ")
+
+
+def _strip_proxy_overloads(app, what, name, obj, options, lines):
+    """Drop pybind11 overloads whose signature takes a private ``_Proxy*`` type.
+
+    These runtime-only overloads exist so molecule-managed (proxy) views are
+    accepted where their owned equivalent is expected; they are implementation
+    detail and duplicate the owned overload, so they are removed from the docs.
+    """
+    if not any(line.strip() == "Overloaded function." for line in lines):
+        return
+
+    start = next(
+        (i for i, line in enumerate(lines) if _overload_re.match(line)), None
+    )
+    if start is None:
+        return
+
+    blocks = []
+    for line in lines[start:]:
+        if _overload_re.match(line):
+            blocks.append([line])
+        elif blocks:
+            blocks[-1].append(line)
+
+    kept = [block for block in blocks if "_Proxy" not in block[0]]
+
+    out = lines[:start]
+    for number, block in enumerate(kept, 1):
+        out.append(_overload_re.sub(f"{number}. ", block[0]))
+        out.extend(block[1:])
+    lines[:] = out
+
+
+def setup(app):
+    app.connect("autodoc-process-docstring", _strip_proxy_overloads)
