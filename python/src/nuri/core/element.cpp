@@ -113,33 +113,30 @@ void bind_element(py::module &m) {
 
   using IsotopeList = std::vector<Isotope>;
   PyProxyCls<IsotopeList> isotope_list(m, "_IsotopeList");
-  register_abc(isotope_list, kAbcSequence);
+  add_sequence_interface(
+      isotope_list, &IsotopeList::size,
+      [](const IsotopeList &self, int i) -> const Isotope & {
+        i = py_check_index(static_cast<int>(self.size()), i,
+                           "_IsotopeList index out of range");
+        return self[i];
+      },
+      [](const IsotopeList &self) {
+        return py::make_iterator(self.begin(), self.end(), rvp::reference);
+      },
+      rvp::reference);
   isotope_list  //
-      .def("__len__", &IsotopeList::size)
-      .def(
-          "__getitem__",
-          [](const IsotopeList &self, int i) -> const Isotope & {
-            i = py_check_index(static_cast<int>(self.size()), i,
-                               "_IsotopeList index out of range");
-            return self[i];
-          },
-          py::arg("index"), rvp::reference)
       .def("__repr__",
            [](const IsotopeList &self) {
              return absl::StrCat("<_IsotopeList of ",
                                  kPt[self[0].atomic_number].name(), ">");
            })
-      .def("__str__",
-           [](const IsotopeList &self) {
-             return "<_IsotopeList ["
-                    + absl::StrJoin(self, ", ",
-                                    [](std::string *s, const Isotope &iso) {
-                                      absl::StrAppend(s, isotope_repr(iso));
-                                    })
-                    + "]>";
-           })
-      .def("__iter__", [](const IsotopeList &self) {
-        return py::make_iterator(self.begin(), self.end(), rvp::reference);
+      .def("__str__", [](const IsotopeList &self) {
+        return "<_IsotopeList ["
+               + absl::StrJoin(self, ", ",
+                               [](std::string *s, const Isotope &iso) {
+                                 absl::StrAppend(s, isotope_repr(iso));
+                               })
+               + "]>";
       });
 
   py_elem  //
@@ -167,7 +164,7 @@ void bind_element(py::module &m) {
           "isotopes",
           [](const Element &self) {
             return masquerade_cast<Sequence<Isotope>>(self.isotopes(),
-                                                    rvp::reference);
+                                                      rvp::reference);
           },
           ":type: collections.abc.Sequence[Isotope]")
       .def("get_isotope", isotope_from_element_and_mass, rvp::reference,

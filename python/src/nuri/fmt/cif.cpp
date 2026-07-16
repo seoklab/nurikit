@@ -393,21 +393,18 @@ void bind_opaque_vector(py::module &m, const char *name, const char *onerror) {
   using CifList = std::vector<CppType>;
 
   PyProxyCls<CifList> cl(m, name);
-  register_abc(cl, kAbcSequence);
-  cl.def("__iter__", [](const CifList &self) {
-    return py::make_iterator(
-        internal::make_transform_iterator<wrapper>(self.begin()),
-        internal::make_transform_iterator<wrapper>(self.end()),
-        kReturnsSubobject);
-  });
-  cl.def(
-      "__getitem__",
+  add_sequence_interface(
+      cl, &CifList::size,
       [onerror](const CifList &self, int i) {
         i = py_check_index(static_cast<int>(self.size()), i, onerror);
         return wrapper(self[i]);
       },
-      kReturnsSubobject);
-  cl.def("__len__", &CifList::size);
+      [](const CifList &self) {
+        return py::make_iterator(
+            internal::make_transform_iterator<wrapper>(self.begin()),
+            internal::make_transform_iterator<wrapper>(self.end()),
+            kReturnsSubobject);
+      });
   cl.def("__repr__", [name](const CifList &self) {
     return absl::StrCat("<", name, " of ", self.size(), " tables>");
   });
@@ -587,11 +584,11 @@ applies only to cells of its matching type; the others are ignored. Explicit
 
   PyCifTableIterator::bind(m);
 
-  py::class_<PyCifTable>(m, "Table")
-      .def(py::init<const CifKeys &, const CifRows &, std::string_view,
-                    const CifColumnFormats &>(),
-           py::arg("keys"), py::arg("rows"), py::arg("category") = "",
-           py::arg("column_formats") = py::dict(), R"doc(
+  py::class_<PyCifTable> table(m, "Table");
+  table.def(py::init<const CifKeys &, const CifRows &, std::string_view,
+                     const CifColumnFormats &>(),
+            py::arg("keys"), py::arg("rows"), py::arg("category") = "",
+            py::arg("column_formats") = py::dict(), R"doc(
 Construct a CIF table from column keys and rows of values.
 
 :param keys: The column keys, given **without** the leading underscore (e.g.
@@ -612,17 +609,10 @@ Construct a CIF table from column keys and rows of values.
   not a valid or unique CIF data name, or ``column_formats`` names an unknown
   key.
 :raises TypeError: If a cell has an unsupported type.
-)doc")
-      .def("__iter__", &PyCifTable::iter, kReturnsSubobject)
-      .def("__getitem__", &PyCifTable::get, py::arg("idx"))
-      .def("__len__", &PyCifTable::size)
-      .def(
-          "__contains__",
-          [](const PyCifTable &self, int idx) {
-            return 0 <= idx && idx < self.size();
-          },
-          py::arg("idx"))
-      .def("keys", &PyCifTable::keys);
+)doc");
+  add_sequence_interface(table, &PyCifTable::size, &PyCifTable::get,
+                         &PyCifTable::iter, rvp::automatic);
+  table.def("keys", &PyCifTable::keys);
 
   PyCifFrameIterator::bind(m);
 
@@ -679,10 +669,11 @@ Construct a CIF block.
 )doc");
   cb.def_property_readonly("name", &PyCifBlock::name)
       .def_property_readonly("is_global", &PyCifBlock::is_global);
-  def_property_readonly_subobject(cb, "save_frames", [](const PyCifBlock &self) {
-    return masquerade_cast<Sequence<PyCifFrame>>(self.save_frames(),
-                                               rvp::reference);
-  });
+  def_property_readonly_subobject(
+      cb, "save_frames", [](const PyCifBlock &self) {
+        return masquerade_cast<Sequence<PyCifFrame>>(self.save_frames(),
+                                                     rvp::reference);
+      });
   def_property_readonly_subobject(cb, "data", &PyCifBlock::data);
 
   py::class_<PyCifParser>(m, "_Parser")

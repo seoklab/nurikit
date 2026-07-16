@@ -30,6 +30,7 @@
 
 #include "nuri/eigen_config.h"
 #include "nuri/meta.h"
+#include "nuri/python/typing.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -571,9 +572,10 @@ inline int py_check_index(int size, int idx, const char *onerror) {
 constexpr py::keep_alive<0, 1> kReturnsSubobject {};
 constexpr py::call_guard<py::gil_scoped_release> kThreadSafe {};
 
-template <class T, class Size, class Getter, class Iter>
-py::class_<T> &add_sequence_interface(py::class_<T> &cls, Size size,
-                                      Getter &&getter, Iter &&iter) {
+template <class Cls, class Size, class Getter, class Iter, class... GetterExtra>
+Cls &add_sequence_interface(Cls &cls, Size size, Getter &&getter, Iter &&iter,
+                            GetterExtra &&...getter_extra) {
+  using T = typename Cls::type;
   cls.def("__len__", size);
   cls.def(
       "__contains__",
@@ -581,9 +583,16 @@ py::class_<T> &add_sequence_interface(py::class_<T> &cls, Size size,
         return 0 <= idx && idx < std::invoke(size, self);
       },
       py::arg("idx"));
-  cls.def("__getitem__", std::forward<Getter>(getter), kReturnsSubobject,
-          py::arg("idx"));
+
+  if constexpr (sizeof...(GetterExtra) > 0) {
+    cls.def("__getitem__", std::forward<Getter>(getter), py::arg("idx"),
+            std::forward<GetterExtra>(getter_extra)...);
+  } else {
+    cls.def("__getitem__", std::forward<Getter>(getter), py::arg("idx"),
+            kReturnsSubobject);
+  }
   cls.def("__iter__", std::forward<Iter>(iter), kReturnsSubobject);
+  register_abc(cls, kAbcSequence);
   return cls;
 }
 

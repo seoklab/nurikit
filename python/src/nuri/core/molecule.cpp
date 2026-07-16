@@ -243,8 +243,8 @@ void bind_atom(py::class_<AtomData> &atom_data, py::class_<PyAtom> &atom) {
   def_property_subobject(
       atom_data, "props",
       [](AtomData &self) {
-        return masquerade_cast<MutableMapping<py::str, py::str>>(self.props(),
-                                                              rvp::reference);
+        return masquerade_cast<MutableMapping<py::str, py::str>>(
+            self.props(), rvp::reference);
       },
       [](AtomData &self, const Mapping<py::str, py::str> &props) {
         self.props() = to_property_map(props);
@@ -320,8 +320,8 @@ Create a bond data with the given bond order.
   def_property_subobject(
       bond_data, "props",
       [](BondData &self) {
-        return masquerade_cast<MutableMapping<py::str, py::str>>(self.props(),
-                                                              rvp::reference);
+        return masquerade_cast<MutableMapping<py::str, py::str>>(
+            self.props(), rvp::reference);
       },
       [](BondData &self, const Mapping<py::str, py::str> &props) {
         self.props() = to_property_map(props);
@@ -556,7 +556,6 @@ We only document the differences from the original class. Refer to the
   molecule.
 )doc");
   py::class_<PyBondsWrapper> bonds(m, "_BondsWrapper");
-  register_abc(bonds, kAbcSequence);
 
   PyAtomIterator::bind(m);
   PyBondIterator::bind(m);
