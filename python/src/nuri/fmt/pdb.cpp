@@ -196,7 +196,7 @@ void bind_pdb(py::module &m) {
       .def_property_readonly("formal_charge", &PDBAtom::fcharge)
       .def_property_readonly("hetero", &PDBAtom::hetero);
   def_property_readonly_subobject(atom, "sites", [](const PDBAtom &self) {
-    return py_masquerade<Sequence<PDBAtomSite>>(self.sites(), rvp::reference);
+    return masquerade_cast<Sequence<PDBAtomSite>>(self.sites(), rvp::reference);
   });
   bind_readonly_vector<PDBAtom>(m, "_AtomList", "_AtomListIterator");
 
@@ -236,17 +236,18 @@ void bind_pdb(py::module &m) {
                              })
       .def("as_dict", &model_as_dict, "Convert the PDB model to a dictionary.");
   def_property_readonly_subobject(model, "chains", [](const PDBModel &self) {
-    return py_masquerade<Sequence<PDBChain>>(self.chains(), rvp::reference);
+    return masquerade_cast<Sequence<PDBChain>>(self.chains(), rvp::reference);
   });
   def_property_readonly_subobject(model, "residues", [](const PDBModel &self) {
-    return py_masquerade<Sequence<PDBResidue>>(self.residues(), rvp::reference);
+    return masquerade_cast<Sequence<PDBResidue>>(self.residues(),
+                                                 rvp::reference);
   });
   def_property_readonly_subobject(model, "atoms", [](const PDBModel &self) {
-    return py_masquerade<Sequence<PDBAtom>>(self.atoms(), rvp::reference);
+    return masquerade_cast<Sequence<PDBAtom>>(self.atoms(), rvp::reference);
   });
   def_property_readonly_subobject(model, "props", [](PDBModel &self) {
-    return py_masquerade<MutableMapping<py::str, py::str>>(self.props(),
-                                                           rvp::reference);
+    return masquerade_cast<MutableMapping<py::str, py::str>>(self.props(),
+                                                             rvp::reference);
   });
 
   m.def(

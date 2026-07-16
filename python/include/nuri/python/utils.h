@@ -225,7 +225,7 @@ T &pass_through(T &x) {
 // Casts obj to a py::object-derived typing annotation M (e.g. pyt::Iterator<T>)
 // so stubgen renders M's public name instead of the concrete runtime class.
 template <class M, class T, class... Extra>
-M py_masquerade(T &&obj, Extra &&...extra) {
+M masquerade_cast(T &&obj, Extra &&...extra) {
   return py::cast(std::forward<T>(obj), std::forward<Extra>(extra)...);
 }
 
@@ -257,7 +257,7 @@ public:
   static auto make(C &cont) {
     using value_type =
         std::decay_t<decltype(Derived::deref(std::declval<C &>(), 0))>;
-    return py_masquerade<pyt::Iterator<value_type>>(Derived(cont));
+    return masquerade_cast<pyt::Iterator<value_type>>(Derived(cont));
   }
 
 protected:

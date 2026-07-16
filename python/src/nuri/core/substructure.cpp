@@ -241,7 +241,7 @@ This is a read-only property.
   sub_atom.def(
       "__iter__",
       [](Atom &atom) {
-        return py_masquerade<pyt::Iterator<PySubNeigh<P>>>(
+        return masquerade_cast<pyt::Iterator<PySubNeigh<P>>>(
             PySubNeighIterator<P>(atom));
       },
       kReturnsSubobject);
@@ -354,7 +354,7 @@ The number of atoms in the substructure. Equivalent to ``len(sub)``.
   sub.def(
       "bonds",
       [](P &self) {
-        return py_masquerade<Sequence<PySubBond<P>>>(
+        return masquerade_cast<Sequence<PySubBond<P>>>(
             PySubBondsWrapper<P> { &self });
       },
       kReturnsSubobject,
@@ -572,7 +572,7 @@ Get the number of conformations of the substructure.
   sub.def(
       "conformers",
       [](P &self) {
-        return py_masquerade<pyt::Iterator<py::array_t<double>>>(
+        return masquerade_cast<pyt::Iterator<py::array_t<double>>>(
             SubConformersIterator<P>(self.parent()->confs(), self));
       },
       kReturnsSubobject, R"doc(
@@ -1070,7 +1070,7 @@ Here, we only provide the methods that are additional to the
   def_property_subobject(
       sub, "props",
       [](PySubstruct &self) {
-        return py_masquerade<MutableMapping<py::str, py::str>>(
+        return masquerade_cast<MutableMapping<py::str, py::str>>(
             ProxyPropertyMap(&self->props(), 0,
                              [](std::uint64_t /* unused */) { return true; }));
       },
@@ -1088,7 +1088,7 @@ keys and values are both strings.
   def_property_subobject(
       psub, "props",
       [](ProxySubstruct &self) {
-        return py_masquerade<MutableMapping<py::str, py::str>>(
+        return masquerade_cast<MutableMapping<py::str, py::str>>(
             ProxyPropertyMap(&self->props(), self));
       },
       [](ProxySubstruct &self, const Mapping<py::str, py::str> &props) {

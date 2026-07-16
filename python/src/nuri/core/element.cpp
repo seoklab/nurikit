@@ -166,7 +166,7 @@ void bind_element(py::module &m) {
       .def_property_readonly(
           "isotopes",
           [](const Element &self) {
-            return py_masquerade<Sequence<Isotope>>(self.isotopes(),
+            return masquerade_cast<Sequence<Isotope>>(self.isotopes(),
                                                     rvp::reference);
           },
           ":type: collections.abc.Sequence[Isotope]")

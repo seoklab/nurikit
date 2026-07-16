@@ -1180,7 +1180,7 @@ Set the position of the atom.
   def_property_subobject(
       cls, "props",
       [](T &self) {
-        return py_masquerade<MutableMapping<py::str, py::str>>(
+        return masquerade_cast<MutableMapping<py::str, py::str>>(
             ProxyPropertyMap(&self->data().props(), self.parent()));
       },
       [](T &self, const Mapping<py::str, py::str> &props) {
@@ -1480,7 +1480,7 @@ Calculate the length of the bond.
   def_property_subobject(
       cls, "props",
       [](T &self) {
-        return py_masquerade<MutableMapping<py::str, py::str>>(
+        return masquerade_cast<MutableMapping<py::str, py::str>>(
             ProxyPropertyMap(&self->data().props(), self.parent()));
       },
       [](T &self, const Mapping<py::str, py::str> &props) {

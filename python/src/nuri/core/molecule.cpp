@@ -243,7 +243,7 @@ void bind_atom(py::class_<AtomData> &atom_data, py::class_<PyAtom> &atom) {
   def_property_subobject(
       atom_data, "props",
       [](AtomData &self) {
-        return py_masquerade<MutableMapping<py::str, py::str>>(self.props(),
+        return masquerade_cast<MutableMapping<py::str, py::str>>(self.props(),
                                                               rvp::reference);
       },
       [](AtomData &self, const Mapping<py::str, py::str> &props) {
@@ -320,7 +320,7 @@ Create a bond data with the given bond order.
   def_property_subobject(
       bond_data, "props",
       [](BondData &self) {
-        return py_masquerade<MutableMapping<py::str, py::str>>(self.props(),
+        return masquerade_cast<MutableMapping<py::str, py::str>>(self.props(),
                                                               rvp::reference);
       },
       [](BondData &self, const Mapping<py::str, py::str> &props) {
@@ -636,7 +636,7 @@ Get the number of atoms in the molecule. Equivalent to ``len(mol)``.
       .def(
           "bonds",
           [](PyMol &self) {
-            return py_masquerade<Sequence<PyBond>>(PyBondsWrapper { &self });
+            return masquerade_cast<Sequence<PyBond>>(PyBondsWrapper { &self });
           },
           kReturnsSubobject, R"doc(
 :rtype: collections.abc.Sequence[Bond]
@@ -1122,7 +1122,7 @@ of the molecule with this object.
   def_property_subobject(
       mol, "props",
       [](PyMol &self) {
-        return py_masquerade<MutableMapping<py::str, py::str>>(
+        return masquerade_cast<MutableMapping<py::str, py::str>>(
             ProxyPropertyMap(&self->props(), 0,
                              [](std::uint64_t /* unused */) { return true; }));
       },
