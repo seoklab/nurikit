@@ -1094,6 +1094,15 @@ convert the substructure first with :meth:`copy` method.
 A dictionary-like object to store additional properties of the substructure. The
 keys and values are both strings.
 )doc");
+  sub.def(
+      "copy",
+      [](PySubstruct &self) {
+        return PySubstruct::from_mol(self.parent(), Substructure(*self));
+      },
+      kReturnsSubobject, R"doc(
+Create a copy of the substructure. The returned substructure is not managed by
+the parent molecule.
+)doc");
 
   def_property_subobject(
       psub, "props",
