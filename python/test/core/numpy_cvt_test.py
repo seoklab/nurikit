@@ -6,7 +6,7 @@
 import numpy as np
 import pytest
 
-from nuri.core._core import _py_array_cast_test_helper as cast_test_helper
+from nuri.core import _py_array_cast_test_helper as cast_test_helper
 
 
 def _assert_same_array(arr1: np.ndarray, arr2: np.ndarray):

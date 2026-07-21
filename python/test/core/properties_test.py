@@ -14,8 +14,8 @@ from nuri.core import (
     Chirality,
     Hyb,
     Molecule,
+    _PropertyMap,
 )
-from nuri.core._core import _PropertyMap
 
 
 def _get_mol():

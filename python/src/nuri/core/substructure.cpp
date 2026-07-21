@@ -21,11 +21,13 @@
 #include <pybind11/pytypes.h>
 
 #include "nuri/eigen_config.h"
+#include "core_internal.h"
 #include "nuri/core/container/index_set.h"
 #include "nuri/core/container/property_map.h"
 #include "nuri/core/molecule.h"
 #include "nuri/python/core/containers.h"
 #include "nuri/python/core/core_module.h"
+#include "nuri/python/typing.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
@@ -238,7 +240,11 @@ This is a read-only property.
   sub_atom.def("as_parent", &Atom::as_parent, kReturnsSubobject,
                "Returns the parent atom of this atom.");
   sub_atom.def(
-      "__iter__", [](Atom &atom) { return PySubNeighIterator<P>(atom); },
+      "__iter__",
+      [](Atom &atom) {
+        return masquerade_cast<pyt::Iterator<PySubNeigh<P>>>(
+            PySubNeighIterator<P>(atom));
+      },
       kReturnsSubobject);
 
   add_common_bond_interface(sub_bond);
@@ -283,7 +289,7 @@ This is a read-only property.
         return substruct.pysubbond(idx);
       },
       [](PySubBondsWrapper<P> &self) {
-        return PySubBondIterator<P>(*self.sub);
+        return PySubBondIterator<P>::make(*self.sub);
       });
   sub_bonds.def(
       "__getitem__",
@@ -347,11 +353,13 @@ Get a substructure atom from a parent atom.
 The number of atoms in the substructure. Equivalent to ``len(sub)``.
 )doc");
   sub.def(
-      "bonds", [](P &self) { return PySubBondsWrapper<P> { &self }; },
+      "bonds",
+      [](P &self) {
+        return masquerade_cast<Sequence<PySubBond<P>>>(
+            PySubBondsWrapper<P> { &self });
+      },
       kReturnsSubobject,
       R"doc(
-:rtype: collections.abc.Sequence[SubBond]
-
 Get a collection of bonds in the substructure. Invalidated when the parent
 molecule is modified, or if the substructure is modified.
 )doc");
@@ -563,15 +571,14 @@ Get the number of conformations of the substructure.
   sub.def(
       "conformers",
       [](P &self) {
-        return SubConformersIterator<P>(self.parent()->confs(), self);
+        return masquerade_cast<pyt::Iterator<py::array_t<double>>>(
+            SubConformersIterator<P>(self.parent()->confs(), self));
       },
       kReturnsSubobject, R"doc(
 Get an iterable object of all conformations of the substructure. Each
 conformation is a 2D array of shape ``(num_atoms, 3)``. It is not available to
 update the coordinates from the returned conformers; you should manually assign
 to the conformers to update the coordinates.
-
-:rtype: collections.abc.Iterable[numpy.ndarray]
 
 .. seealso::
   :meth:`get_conf`, :meth:`set_conf`
@@ -878,7 +885,7 @@ The category of the substructure. This is used to categorize the substructure.
         idx = check_subatom(*self, idx);
         return self.pysubatom(idx);
       },
-      [](P &self) { return PySubAtomIterator<P>(self); });
+      [](P &self) { return PySubAtomIterator<P>::make(self); });
   sub.def("__contains__", [](P &self, PySubAtom<P> &atom) {
     atom.check();
     return same_parent(self, atom.parent());
@@ -984,7 +991,7 @@ Substructure create_substruct(Molecule &mol,
   return mol.bond_substructure(std::move(bonds_set), cat);
 }
 
-void bind_substructure(py::module &m) {
+void bind_substructure_impl(py::module &m) {
   py::native_enum<SubstructCategory>(m, "SubstructureCategory", "enum.IntEnum",
                                      R"doc(
 The category of a substructure.
@@ -996,7 +1003,12 @@ This is used to categorize the substructure. Mainly used for the proteins.
       .value("Chain", SubstructCategory::kChain)
       .finalize();
 
-  py::class_<PySubstruct> sub(m, "Substructure", R"doc(
+  // Metaclass must extend a bound pybind11 type's metaclass; borrow Atom's.
+  py::object abc_meta =
+      py::module_::import("nuri._support.masquerade")
+          .attr("make_virtual_subclass_metaclass")(py::type::of<PyAtom>());
+
+  py::class_<PySubstruct> sub(m, "Substructure", py::metaclass(abc_meta), R"doc(
 A substructure of a molecule.
 
 This will invalidate when the parent molecule is modified.
@@ -1008,37 +1020,35 @@ This is a read-only collection of bonds in a substructure. The collection is
 invalidated when the parent molecule is modified, or if the substructure is
 modified.
 )doc");
-  py::class_<PySubAtom<PySubstruct>> sub_atom(m, "SubAtom", R"doc(
+  py::class_<PySubAtom<PySubstruct>> sub_atom(m, "SubAtom",
+                                              py::metaclass(abc_meta),
+                                              R"doc(
 Atom of a substructure.
 )doc");
-  py::class_<PySubBond<PySubstruct>> sub_bond(m, "SubBond", R"doc(
+  py::class_<PySubBond<PySubstruct>> sub_bond(m, "SubBond",
+                                              py::metaclass(abc_meta),
+                                              R"doc(
 Bond of a substructure.
 )doc");
-  py::class_<PySubNeigh<PySubstruct>> sub_nei(m, "SubNeighbor", R"doc(
+  py::class_<PySubNeigh<PySubstruct>> sub_nei(m, "SubNeighbor",
+                                              py::metaclass(abc_meta), R"doc(
 Neighbor of a substructure.
 )doc");
   py::class_<PySubNeighIterator<PySubstruct>> nei_iter(m,
                                                        "_SubNeighborIterator");
 
-  py::class_<ProxySubstruct> psub(m, "ProxySubstructure", R"doc(
-This represents a substructure managed by a molecule. If a user wishes to
-create a short-lived substructure not managed by a molecule, use
-:meth:`Molecule.substructure` method instead.
+  py::class_<ProxySubstruct> psub(m, "_ProxySubstructure", R"doc(
+A molecule-managed substructure. Masqueraded as :class:`Substructure` in public
+signatures; see that class for the full interface.
 
 This will invalidate when the parent molecule is modified, or any substructures
 are removed from the parent molecule. If the substructure must be kept alive,
 convert the substructure first with :meth:`copy` method.
-
-.. seealso::
-  :class:`Substructure`
-
-Here, we only provide the methods that are additional to the
-:class:`Substructure` class.
 )doc");
   py::class_<PySubBondsWrapper<ProxySubstruct>> psub_bonds(m, "_ProxySubBonds");
-  py::class_<PySubAtom<ProxySubstruct>> psub_atom(m, "ProxySubAtom");
-  py::class_<PySubBond<ProxySubstruct>> psub_bond(m, "ProxySubBond");
-  py::class_<PySubNeigh<ProxySubstruct>> psub_nei(m, "ProxySubNeighbor");
+  py::class_<PySubAtom<ProxySubstruct>> psub_atom(m, "_ProxySubAtom");
+  py::class_<PySubBond<ProxySubstruct>> psub_bond(m, "_ProxySubBond");
+  py::class_<PySubNeigh<ProxySubstruct>> psub_nei(m, "_ProxySubNeighbor");
   py::class_<PySubNeighIterator<ProxySubstruct>> pnei_iter(
       m, "_ProxySubNeighborIterator");
 
@@ -1055,14 +1065,20 @@ Here, we only provide the methods that are additional to the
   bind_substructure_kind(psub, psub_bonds, psub_atom, psub_bond, psub_nei,
                          pnei_iter);
 
+  sub.attr("register")(psub);
+  sub_atom.attr("register")(psub_atom);
+  sub_bond.attr("register")(psub_bond);
+  sub_nei.attr("register")(psub_nei);
+
   def_property_subobject(
       sub, "props",
       [](PySubstruct &self) {
-        return ProxyPropertyMap(
-            &self->props(), 0, [](std::uint64_t /* unused */) { return true; });
+        return masquerade_cast<MutableMapping<py::str, py::str>>(
+            ProxyPropertyMap(&self->props(), 0,
+                             [](std::uint64_t /* unused */) { return true; }));
       },
-      [](PySubstruct &self, const internal::PropertyMap &props) {
-        self->props() = props;
+      [](PySubstruct &self, const Mapping<py::str, py::str> &props) {
+        self->props() = to_property_map(props);
       },
       rvp::automatic,
       R"doc(
@@ -1071,14 +1087,24 @@ Here, we only provide the methods that are additional to the
 A dictionary-like object to store additional properties of the substructure. The
 keys and values are both strings.
 )doc");
+  sub.def(
+      "copy",
+      [](PySubstruct &self) {
+        return PySubstruct::from_mol(self.parent(), Substructure(*self));
+      },
+      kReturnsSubobject, R"doc(
+Create a copy of the substructure. The returned substructure is not managed by
+the parent molecule.
+)doc");
 
   def_property_subobject(
       psub, "props",
       [](ProxySubstruct &self) {
-        return ProxyPropertyMap(&self->props(), self);
+        return masquerade_cast<MutableMapping<py::str, py::str>>(
+            ProxyPropertyMap(&self->props(), self));
       },
-      [](ProxySubstruct &self, const internal::PropertyMap &props) {
-        self->props() = props;
+      [](ProxySubstruct &self, const Mapping<py::str, py::str> &props) {
+        self->props() = to_property_map(props);
       },
       rvp::automatic,
       R"doc(
@@ -1102,9 +1128,12 @@ A collection of substructures of a molecule.
       subs, [](ProxySubstructContainer &self) { return self.size(); },
       [](ProxySubstructContainer &self, int idx) {
         idx = check_sub(*self.mol(), idx);
-        return self.get(idx);
+        return masquerade_cast<As<PySubstruct>>(self.get(idx));
       },
-      [](ProxySubstructContainer &self) { return self.iter(); })
+      [](ProxySubstructContainer &self) {
+        return ProxySubstructIterator::make(self);
+      },
+      kReturnsSubobject)
       .def("__setitem__",
            [](ProxySubstructContainer &self, int idx, PySubstruct &other) {
              idx = check_sub(*self.mol(), idx);
@@ -1154,7 +1183,7 @@ Remove a substructure from the collection and return it.
              const std::optional<BondsArg> &bonds, SubstructCategory cat) {
             int idx = self.size();
             insert_substruct(self, idx, atoms, bonds, cat);
-            return self.get(idx);
+            return masquerade_cast<As<PySubstruct>>(self.get(idx));
           },
           py::arg("atoms") = py::none(),  //
           py::arg("bonds") = py::none(),
@@ -1192,7 +1221,7 @@ This has three mode of operations:
             idx = wrap_insert_index(self.size(), idx);
             insert_substruct(self, idx, atoms, bonds, cat);
             self.mol().tock();
-            return self.get(idx);
+            return masquerade_cast<As<PySubstruct>>(self.get(idx));
           },
           py::arg("idx"),                 //
           py::arg("atoms") = py::none(),  //
@@ -1254,7 +1283,7 @@ Add a substructure to the collection.
           py::arg("other"), R"doc(
 Add a substructure to the collection.
 
-:param ProxySubstructure other: The substructure to add.
+:param Substructure other: The substructure to add.
 
 .. note::
   The given substructure is copied to the collection.
@@ -1303,7 +1332,7 @@ all currently existing substructures.
   ``max(0, len(subs) + idx)``). Otherwise, the substructure is added at
   ``min(idx, len(subs))``. This resembles the behavior of Python's
   :meth:`list.insert` method.
-:param ProxySubstructure other: The substructure to add.
+:param Substructure other: The substructure to add.
 
 .. note::
   The given substructure is copied to the collection, so modifying the given

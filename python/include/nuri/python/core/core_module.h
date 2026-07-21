@@ -12,7 +12,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -24,10 +23,10 @@
 #include <pybind11/stl.h>
 
 #include "nuri/eigen_config.h"
-#include "nuri/core/container/property_map.h"
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/python/core/containers.h"
+#include "nuri/python/typing.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
@@ -619,8 +618,8 @@ private:
 
   static int size_of(ProxySubstructContainer &cont) { return cont.size(); }
 
-  static ProxySubstruct deref(ProxySubstructContainer &cont, int idx) {
-    return cont.get(idx);
+  static As<PySubstruct> deref(ProxySubstructContainer &cont, int idx) {
+    return masquerade_cast<As<PySubstruct>>(cont.get(idx));
   }
 };
 
@@ -1180,10 +1179,11 @@ Set the position of the atom.
   def_property_subobject(
       cls, "props",
       [](T &self) {
-        return ProxyPropertyMap(&self->data().props(), self.parent());
+        return masquerade_cast<MutableMapping<py::str, py::str>>(
+            ProxyPropertyMap(&self->data().props(), self.parent()));
       },
-      [](T &self, const internal::PropertyMap &props) {
-        self->data().props() = props;
+      [](T &self, const Mapping<py::str, py::str> &props) {
+        self->data().props() = to_property_map(props);
       },
       rvp::automatic,
       R"doc(
@@ -1479,10 +1479,11 @@ Calculate the length of the bond.
   def_property_subobject(
       cls, "props",
       [](T &self) {
-        return ProxyPropertyMap(&self->data().props(), self.parent());
+        return masquerade_cast<MutableMapping<py::str, py::str>>(
+            ProxyPropertyMap(&self->data().props(), self.parent()));
       },
-      [](T &self, const internal::PropertyMap &props) {
-        self->data().props() = props;
+      [](T &self, const Mapping<py::str, py::str> &props) {
+        self->data().props() = to_property_map(props);
       },
       rvp::automatic,
       R"doc(
@@ -1508,20 +1509,6 @@ Copy the underlying :class:`BondData` object.
 )doc");
   return cls;
 }
-
-using AtomsArg = pyt::Iterable<std::variant<PyAtom, int>>;
-using BondsArg = pyt::Iterable<std::variant<PyBond, int>>;
-
-extern Substructure create_substruct(Molecule &mol,
-                                     const std::optional<AtomsArg> &atoms,
-                                     const std::optional<BondsArg> &bonds,
-                                     SubstructCategory cat);
-
-/* Called from bind_molecule, don't call directly */
-extern void bind_substructure(pybind11::module &m);
-
-extern void bind_element(pybind11::module &m);
-extern void bind_molecule(pybind11::module &m);
 }  // namespace python_internal
 }  // namespace nuri
 

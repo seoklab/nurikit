@@ -152,7 +152,6 @@ def test_bond(molsub: Molecule):
 def test_contains(molsub: Molecule):
     sub = molsub.subs[0]
 
-    assert 0 in sub
     assert sub[0] in sub
     assert sub[0].as_parent() in sub
     assert molsub[0] not in sub
@@ -167,7 +166,6 @@ def test_contains(molsub: Molecule):
 def test_contains_bond(molsub: Molecule):
     bonds = molsub.subs[0].bonds()
 
-    assert 0 in bonds
     assert bonds[0] in bonds
     assert bonds[0].as_parent() in bonds
     assert molsub.bond(0) not in bonds

@@ -16,6 +16,7 @@
 #include <pybind11/typing.h>
 
 #include "nuri/core/container/property_map.h"
+#include "nuri/python/typing.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
@@ -227,18 +228,17 @@ py::class_<T> &add_map_interface(py::class_<T> &cls) {
   cls.def("__len__", [](T &self) { return prolog(self).size(); });
   cls.def(
       "__iter__",
-      [](T &self) { return typename MapTraits<T>::key_iterator { self }; },
+      [](T &self) { return MapTraits<T>::key_iterator::make(self); },
       kReturnsSubobject);
   cls.def(
-      "keys",
-      [](T &self) { return typename MapTraits<T>::key_iterator { self }; },
+      "keys", [](T &self) { return MapTraits<T>::key_iterator::make(self); },
       kReturnsSubobject);
   cls.def(
       "values",
-      [](T &self) { return typename MapTraits<T>::value_iterator { self }; },
+      [](T &self) { return MapTraits<T>::value_iterator::make(self); },
       kReturnsSubobject);
   cls.def(
-      "items", [](T &self) { return typename MapTraits<T>::iterator { self }; },
+      "items", [](T &self) { return MapTraits<T>::iterator::make(self); },
       kReturnsSubobject);
   cls.def("get", [](T &self, std::string_view key) {
     internal::PropertyMap &map = prolog(self);
@@ -327,6 +327,7 @@ py::class_<T> &add_map_interface(py::class_<T> &cls) {
       },
       py::arg("memo"));
 
+  register_abc(cls, kAbcMutableMapping);
   return cls;
 }
 

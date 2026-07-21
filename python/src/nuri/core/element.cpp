@@ -15,7 +15,9 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 
+#include "core_internal.h"
 #include "nuri/python/core/core_module.h"
+#include "nuri/python/typing.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
@@ -52,7 +54,7 @@ const Isotope &isotope_from_element_and_mass(const Element &elem,
   return *iso;
 }
 
-void bind_element(py::module &m) {
+void bind_element_impl(py::module &m) {
   PyProxyCls<Element> py_elem(m, "Element", R"doc(
     An element.
 
@@ -111,32 +113,31 @@ void bind_element(py::module &m) {
       .def("__repr__", isotope_repr);
 
   using IsotopeList = std::vector<Isotope>;
-  PyProxyCls<IsotopeList>(m, "_IsotopeList")
-      .def("__len__", &IsotopeList::size)
-      .def(
-          "__getitem__",
-          [](const IsotopeList &self, int i) -> const Isotope & {
-            i = py_check_index(static_cast<int>(self.size()), i,
-                               "_IsotopeList index out of range");
-            return self[i];
-          },
-          py::arg("index"), rvp::reference)
+  PyProxyCls<IsotopeList> isotope_list(m, "_IsotopeList");
+  add_sequence_interface(
+      isotope_list, &IsotopeList::size,
+      [](const IsotopeList &self, int i) -> const Isotope & {
+        i = py_check_index(static_cast<int>(self.size()), i,
+                           "_IsotopeList index out of range");
+        return self[i];
+      },
+      [](const IsotopeList &self) {
+        return py::make_iterator(self.begin(), self.end(), rvp::reference);
+      },
+      rvp::reference);
+  isotope_list  //
       .def("__repr__",
            [](const IsotopeList &self) {
              return absl::StrCat("<_IsotopeList of ",
                                  kPt[self[0].atomic_number].name(), ">");
            })
-      .def("__str__",
-           [](const IsotopeList &self) {
-             return "<_IsotopeList ["
-                    + absl::StrJoin(self, ", ",
-                                    [](std::string *s, const Isotope &iso) {
-                                      absl::StrAppend(s, isotope_repr(iso));
-                                    })
-                    + "]>";
-           })
-      .def("__iter__", [](const IsotopeList &self) {
-        return py::make_iterator(self.begin(), self.end(), rvp::reference);
+      .def("__str__", [](const IsotopeList &self) {
+        return "<_IsotopeList ["
+               + absl::StrJoin(self, ", ",
+                               [](std::string *s, const Isotope &iso) {
+                                 absl::StrAppend(s, isotope_repr(iso));
+                               })
+               + "]>";
       });
 
   py_elem  //
@@ -160,8 +161,13 @@ void bind_element(py::module &m) {
                              ":type: float")
       .def_property_readonly("major_isotope", &Element::major_isotope,
                              rvp::reference, ":type: Isotope")
-      .def_property_readonly("isotopes", &Element::isotopes, rvp::reference,
-                             ":type: collections.abc.Sequence[Isotope]")
+      .def_property_readonly(
+          "isotopes",
+          [](const Element &self) {
+            return masquerade_cast<Sequence<Isotope>>(self.isotopes(),
+                                                      rvp::reference);
+          },
+          ":type: collections.abc.Sequence[Isotope]")
       .def("get_isotope", isotope_from_element_and_mass, rvp::reference,
            py::arg("mass_number"), R"doc(
 Get an isotope of this element by mass number.

@@ -25,6 +25,7 @@
 
 #include "fmt_internal.h"
 #include "nuri/python/exception.h"
+#include "nuri/python/typing.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
@@ -68,7 +69,7 @@ py::class_<std::vector<T>> bind_readonly_vector(py::module &m, const char *name,
                              "Index out of range");
         return v[idx];
       },
-      [](const V &v) { return I(v); });
+      [](const V &v) { return I::make(v); });
   cls.def("__repr__", [name](const V &v) {
     return absl::StrCat("<", name, " of ", v.size(), " items>");
   });
@@ -187,13 +188,19 @@ void bind_pdb(py::module &m) {
   bind_readonly_vector<PDBAtomSite>(m, "_AtomSiteList",
                                     "_AtomSiteListIterator");
 
-  py::class_<PDBAtom>(m, "Atom")
-      .def_property_readonly("res_id", &PDBAtom::rid)
+  py::class_<PDBAtom> atom(m, "Atom");
+  atom.def_property_readonly("res_id", &PDBAtom::rid)
       .def_property_readonly("name", &PDBAtom::name)
       .def_property_readonly("element", &PDBAtom::element, rvp::reference)
       .def_property_readonly("formal_charge", &PDBAtom::fcharge)
-      .def_property_readonly("hetero", &PDBAtom::hetero)
-      .def_property_readonly("sites", &PDBAtom::sites);
+      .def_property_readonly("hetero", &PDBAtom::hetero);
+  def_property_readonly_subobject(
+      atom, "sites",
+      [](const PDBAtom &self) {
+        return masquerade_cast<Sequence<PDBAtomSite>>(self.sites(),
+                                                      rvp::reference);
+      },
+      ":type: collections.abc.Sequence[AtomSite]");
   bind_readonly_vector<PDBAtom>(m, "_AtomList", "_AtomListIterator");
 
   py::class_<PDBResidue>(m, "Residue")
@@ -226,15 +233,38 @@ void bind_pdb(py::module &m) {
                                  self.residues().size(), " residues, ",
                                  self.atoms().size(), " atoms>");
            })
-      .def_property_readonly("chains", &PDBModel::chains)
-      .def_property_readonly("residues", &PDBModel::residues)
-      .def_property_readonly("atoms", &PDBModel::atoms)
       .def_property_readonly("major_conf",
                              [](const PDBModel &self) {
                                return eigen_as_numpy(self.major_conf());
                              })
-      .def_property_readonly("props", py::overload_cast<>(&PDBModel::props))
       .def("as_dict", &model_as_dict, "Convert the PDB model to a dictionary.");
+  def_property_readonly_subobject(
+      model, "chains",
+      [](const PDBModel &self) {
+        return masquerade_cast<Sequence<PDBChain>>(self.chains(),
+                                                   rvp::reference);
+      },
+      ":type: collections.abc.Sequence[Chain]");
+  def_property_readonly_subobject(
+      model, "residues",
+      [](const PDBModel &self) {
+        return masquerade_cast<Sequence<PDBResidue>>(self.residues(),
+                                                     rvp::reference);
+      },
+      ":type: collections.abc.Sequence[Residue]");
+  def_property_readonly_subobject(
+      model, "atoms",
+      [](const PDBModel &self) {
+        return masquerade_cast<Sequence<PDBAtom>>(self.atoms(), rvp::reference);
+      },
+      ":type: collections.abc.Sequence[Atom]");
+  def_property_readonly_subobject(
+      model, "props",
+      [](PDBModel &self) {
+        return masquerade_cast<MutableMapping<py::str, py::str>>(
+            self.props(), rvp::reference);
+      },
+      ":type: collections.abc.MutableMapping[str, str]");
 
   m.def(
       "read_models",

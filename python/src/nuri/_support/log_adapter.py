@@ -10,8 +10,8 @@ logger = logging.getLogger("nuri")
 _setLevel = logger.setLevel
 
 try:
-    from ._log_interface import _init as _init_logging
-    from ._log_interface import set_log_level
+    from .log_interface import _init as _init_logging
+    from .log_interface import set_log_level
 
     _init_logging()
     del _init_logging

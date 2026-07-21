@@ -30,6 +30,7 @@
 
 #include "nuri/eigen_config.h"
 #include "nuri/meta.h"
+#include "nuri/python/typing.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -222,6 +223,12 @@ T &pass_through(T &x) {
   return x;
 }
 
+// Cast to annotation M so stubgen renders M, not the concrete runtime class.
+template <class M, class T, class... Extra>
+M masquerade_cast(T &&obj, Extra &&...extra) {
+  return py::cast(std::forward<T>(obj), std::forward<Extra>(extra)...);
+}
+
 template <class T, std::enable_if_t<std::is_default_constructible_v<T>
                                         && std::is_copy_constructible_v<T>,
                                     int> = 0>
@@ -243,6 +250,13 @@ public:
       throw std::runtime_error("container changed size during iteration");
 
     return static_cast<const Derived *>(this)->deref(*container_, index_++);
+  }
+
+  // Derived is incomplete during CRTP base instantiation; resolve in-body.
+  static auto make(C &cont) {
+    using value_type =
+        std::decay_t<decltype(Derived::deref(std::declval<C &>(), 0))>;
+    return masquerade_cast<pyt::Iterator<value_type>>(Derived(cont));
   }
 
 protected:
@@ -556,19 +570,20 @@ inline int py_check_index(int size, int idx, const char *onerror) {
 constexpr py::keep_alive<0, 1> kReturnsSubobject {};
 constexpr py::call_guard<py::gil_scoped_release> kThreadSafe {};
 
-template <class T, class Size, class Getter, class Iter>
-py::class_<T> &add_sequence_interface(py::class_<T> &cls, Size size,
-                                      Getter &&getter, Iter &&iter) {
+template <class Cls, class Size, class Getter, class Iter, class... GetterExtra>
+Cls &add_sequence_interface(Cls &cls, Size size, Getter &&getter, Iter &&iter,
+                            GetterExtra &&...getter_extra) {
   cls.def("__len__", size);
-  cls.def(
-      "__contains__",
-      [size](T &self, int idx) {
-        return 0 <= idx && idx < std::invoke(size, self);
-      },
-      py::arg("idx"));
-  cls.def("__getitem__", std::forward<Getter>(getter), kReturnsSubobject,
-          py::arg("idx"));
+
+  if constexpr (sizeof...(GetterExtra) > 0) {
+    cls.def("__getitem__", std::forward<Getter>(getter), py::arg("idx"),
+            std::forward<GetterExtra>(getter_extra)...);
+  } else {
+    cls.def("__getitem__", std::forward<Getter>(getter), py::arg("idx"),
+            kReturnsSubobject);
+  }
   cls.def("__iter__", std::forward<Iter>(iter), kReturnsSubobject);
+  register_abc(cls, kAbcSequence);
   return cls;
 }
 

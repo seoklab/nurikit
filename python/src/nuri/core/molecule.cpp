@@ -27,11 +27,13 @@
 #include <pybind11/typing.h>
 
 #include "nuri/eigen_config.h"
+#include "core_internal.h"
 #include "nuri/core/container/property_map.h"
 #include "nuri/core/element.h"
 #include "nuri/desc/pcharge.h"
 #include "nuri/python/core/containers.h"
 #include "nuri/python/core/core_module.h"
+#include "nuri/python/typing.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
@@ -238,13 +240,17 @@ void bind_atom(py::class_<AtomData> &atom_data, py::class_<PyAtom> &atom) {
              return AtomData(get_or_throw_z(atomic_number));
            }),
            py::arg("atomic_number"))
-      .def(py::init<const Element &>(), py::arg("element"))
-      .def_property(
-          "props", py::overload_cast<>(&AtomData::props),
-          [](AtomData &self, const internal::PropertyMap &props) {
-            self.props() = props;
-          },
-          R"doc(
+      .def(py::init<const Element &>(), py::arg("element"));
+  def_property_subobject(
+      atom_data, "props",
+      [](AtomData &self) {
+        return masquerade_cast<MutableMapping<py::str, py::str>>(
+            self.props(), rvp::reference);
+      },
+      [](AtomData &self, const Mapping<py::str, py::str> &props) {
+        self.props() = to_property_map(props);
+      },
+      R"doc(
 :type: collections.abc.MutableMapping[str, str]
 
 A dictionary-like object to store additional properties of the atom. The keys
@@ -296,7 +302,7 @@ hydrogens.
         idx = check_nei(ma, idx);
         return self.neighbor(idx);
       },
-      [](PyAtom &self) { return PyNeighborIterator(self); });
+      [](PyAtom &self) { return PyNeighborIterator::make(self); });
 }
 
 void bind_bond(py::class_<PyBondsWrapper> &bonds,
@@ -311,13 +317,17 @@ void bind_bond(py::class_<PyBondsWrapper> &bonds,
 Create a bond data with the given bond order.
 
 :param BondOrder|int order: The bond order of the bond.
-)doc")
-      .def_property(
-          "props", py::overload_cast<>(&BondData::props),
-          [](BondData &self, const internal::PropertyMap &props) {
-            self.props() = props;
-          },
-          R"doc(
+)doc");
+  def_property_subobject(
+      bond_data, "props",
+      [](BondData &self) {
+        return masquerade_cast<MutableMapping<py::str, py::str>>(
+            self.props(), rvp::reference);
+      },
+      [](BondData &self, const Mapping<py::str, py::str> &props) {
+        self.props() = to_property_map(props);
+      },
+      R"doc(
 :type: collections.abc.MutableMapping[str, str]
 
 A dictionary-like object to store additional properties of the bond. The keys
@@ -364,7 +374,7 @@ counter-clockwise with respect to the src -> dst vector.
         idx = check_bond(*pm, idx);
         return pm.pybond(idx);
       },
-      [](PyBondsWrapper &self) { return PyBondIterator(*self.mol); });
+      [](PyBondsWrapper &self) { return PyBondIterator::make(*self.mol); });
   bonds.def("__contains__", [](const PyBondsWrapper &self, PyBond &pb) {
     pb.check();
     return same_parent(*self.mol, pb.parent());
@@ -473,7 +483,7 @@ check_bond_ends(const Molecule &mol, PyAtom &src, PyAtom &dst) {
   return { *src, *dst };
 }
 
-void bind_molecule(py::module &m) {
+void bind_molecule_impl(py::module &m) {
   bind_enums(m);
 
   py::class_<PyMol> mol(m, "Molecule", R"doc(
@@ -553,7 +563,7 @@ We only document the differences from the original class. Refer to the
   PyNeighborIterator::bind(m);
   ConformersIterator::bind(m);
 
-  bind_substructure(m);
+  bind_substructure_impl(m);
 
   bind_atom(atom_data, atom);
   bind_bond(bonds, bond_data, bond);
@@ -589,7 +599,7 @@ The bond between the source and destination atoms.
         idx = check_atom(*self, idx);
         return self.pyatom(idx);
       },
-      [](PyMol &self) { return PyAtomIterator(self); });
+      [](PyMol &self) { return PyAtomIterator::make(self); });
   mol.def("__contains__",
           [](PyMol &self, PyAtom &pa) {
             pa.check();
@@ -624,10 +634,11 @@ Get an atom of the molecule.
 Get the number of atoms in the molecule. Equivalent to ``len(mol)``.
 )doc")
       .def(
-          "bonds", [](PyMol &self) { return PyBondsWrapper { &self }; },
+          "bonds",
+          [](PyMol &self) {
+            return masquerade_cast<Sequence<PyBond>>(PyBondsWrapper { &self });
+          },
           kReturnsSubobject, R"doc(
-:rtype: collections.abc.Sequence[Bond]
-
 A wrapper object to access the bonds of the molecule. You can iterate the bonds
 of the molecule with this object.
 )doc")
@@ -928,14 +939,12 @@ Remove all conformations from the molecule.
 )doc")
       .def(
           "conformers",
-          [](PyMol &self) { return ConformersIterator(self->confs()); },
+          [](PyMol &self) { return ConformersIterator::make(self->confs()); },
           kReturnsSubobject, R"doc(
 Get an iterable object of all conformations of the molecule. Each conformation
 is a 2D array of shape ``(num_atoms, 3)``. It is not available to update the
 coordinates from the returned conformers; you should manually assign to the
 conformers to update the coordinates.
-
-:rtype: collections.abc.Iterable[numpy.ndarray]
 
 .. seealso::
   :meth:`get_conf`, :meth:`set_conf`
@@ -1109,11 +1118,12 @@ of the molecule with this object.
   def_property_subobject(
       mol, "props",
       [](PyMol &self) {
-        return ProxyPropertyMap(
-            &self->props(), 0, [](std::uint64_t /* unused */) { return true; });
+        return masquerade_cast<MutableMapping<py::str, py::str>>(
+            ProxyPropertyMap(&self->props(), 0,
+                             [](std::uint64_t /* unused */) { return true; }));
       },
-      [](PyMol &self, const internal::PropertyMap &props) {
-        self->props() = props;
+      [](PyMol &self, const Mapping<py::str, py::str> &props) {
+        self->props() = to_property_map(props);
       },
       rvp::automatic,
       R"doc(

@@ -1,0 +1,29 @@
+Subject: [PATCH] collect imports for names that appear only as union members
+
+pybind11-stubgen (<= 2.5.5) recurses union members through
+`parse_type_str`, which the `FixMissingImports` mixin does not hook,
+whereas parametrized-generic arguments recurse through
+`parse_annotation_str` (which does). A qualified name that appears
+*only* as a union member is therefore emitted into the stub without its
+import, e.g.:
+
+  - `os.PathLike` from pybind11's std::filesystem::path caster
+    (`os.PathLike | str | bytes`) -> stub uses `os` without `import os`
+  - `nuri.core.Hyb` / `nuri.core.Chirality` etc. in `X | None` args
+    -> stub references an unimported `nuri.core`
+
+Recurse union members through `parse_annotation_str` (identical parse
+result, plus the import hook). Fixed upstream by
+pybind/pybind11-stubgen#280, unreleased as of 2.5.5.
+
+--- a/pybind11_stubgen/parser/mixins/parse.py
++++ b/pybind11_stubgen/parser/mixins/parse.py
+@@ -583,7 +583,7 @@
+         assert isinstance(union_t, ResolvedType)
+         return ResolvedType(
+             name=union_t.name,
+-            parameters=[self.parse_type_str(variant) for variant in variants],
++            parameters=[self.parse_annotation_str(variant) for variant in variants],
+         )
+ 
+     def parse_type_str(

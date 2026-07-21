@@ -15,6 +15,16 @@ namespace nuri {
 namespace python_internal {
 using ProxyPropertyMap = TypeErasedProxyWrapper<internal::PropertyMap *>;
 
+inline internal::PropertyMap to_property_map(const py::object &obj) {
+  try {
+    return obj.cast<internal::PropertyMap>();
+  } catch (const py::cast_error &) {
+    // .cast() alone would bury the real "keys/values must be strings" error.
+    return py::type::of<internal::PropertyMap>()(py::dict(obj))
+        .cast<internal::PropertyMap>();
+  }
+}
+
 extern void bind_containers(py::module &m);
 }  // namespace python_internal
 }  // namespace nuri

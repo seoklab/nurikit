@@ -136,7 +136,7 @@ NURI_PYTHON_MODULE(m) {
   // For types
   py::module_::import("nuri.core");
 
-  py::class_<PyMoleculeReader>(m, "MoleculeReader")
+  py::class_<PyMoleculeReader>(m, "_MoleculeReader")
       .def("__iter__", pass_through<PyMoleculeReader>, kThreadSafe)
       .def("__next__", &PyMoleculeReader::next, kThreadSafe);
 
@@ -148,10 +148,11 @@ NURI_PYTHON_MODULE(m) {
          if (!*pifs)
            throw file_error(path.c_str());
 
-         return PyMoleculeReader(std::move(pifs), fmt, sanitize, skip_on_error);
+         return masquerade_cast<pyt::Iterator<PyMol>>(
+             PyMoleculeReader(std::move(pifs), fmt, sanitize, skip_on_error));
        },
        py::arg("fmt"), py::arg("path"), py::arg("sanitize") = true,
-       py::arg("skip_on_error") = false, kThreadSafe,
+       py::arg("skip_on_error") = false,
        R"doc(
 Read a molecule from a file.
 
@@ -166,18 +167,17 @@ Read a molecule from a file.
 :raises OSError: If any file-related error occurs.
 :raises ValueError: If the format is unknown or sanitization fails, unless
   `skip_on_error` is set.
-:rtype: collections.abc.Iterable[Molecule]
 )doc")
       .def(
           "readstring",
           [](std::string_view fmt, std::string_view data, bool sanitize,
              bool skip_on_error) {
-            return PyMoleculeReader(
+            return masquerade_cast<pyt::Iterator<PyMol>>(PyMoleculeReader(
                 std::make_unique<std::istringstream>(std::string(data)), fmt,
-                sanitize, skip_on_error);
+                sanitize, skip_on_error));
           },
           py::arg("fmt"), py::arg("data"), py::arg("sanitize") = true,
-          py::arg("skip_on_error") = false, kThreadSafe,
+          py::arg("skip_on_error") = false,
           R"doc(
 Read a molecule from string.
 
@@ -191,7 +191,6 @@ Read a molecule from string.
   raising an exception.
 :raises ValueError: If the format is unknown or sanitization fails, unless
   `skip_on_error` is set.
-:rtype: collections.abc.Iterable[Molecule]
 
 The returned object is an iterable of molecules.
 

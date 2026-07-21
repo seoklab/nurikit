@@ -8,7 +8,7 @@ import gc
 import pytest
 
 from nuri.core import Molecule, Substructure
-from nuri.core._core import ProxySubstructure
+from nuri.core import _ProxySubstructure as ProxySubstructure
 
 
 def _assert_invalidated(func, *args, **kwargs):

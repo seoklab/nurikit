@@ -28,7 +28,7 @@ namespace {
 const Matrix3Xd &galign_try_get_conf(const PyMol &mol,
                                      std::optional<int> conf) {
   if (mol->confs().empty()) {
-    throw pybind11::value_error(
+    throw py::value_error(
         "GAlign requires at least one 3D conformation in the molecule");
   }
 
@@ -40,7 +40,7 @@ const Matrix3Xd &galign_try_get_conf(const PyMol &mol,
 GARigidMolInfo galign_init(const PyMol &mol, std::optional<int> conf,
                            double vdw_scale, double hetero_scale, int dcut) {
   if (mol->size() < 3) {
-    throw pybind11::value_error(absl::StrCat(
+    throw py::value_error(absl::StrCat(
         "GAlign requires at least 3 atoms in the template molecule, got ",
         mol->size()));
   }
@@ -48,15 +48,15 @@ GARigidMolInfo galign_init(const PyMol &mol, std::optional<int> conf,
   const Matrix3Xd &ref = galign_try_get_conf(mol, conf);
 
   if (vdw_scale <= 0.0) {
-    throw pybind11::value_error(
+    throw py::value_error(
         absl::StrCat("vdw_scale must be positive, got ", vdw_scale));
   }
   if (hetero_scale <= 0.0) {
-    throw pybind11::value_error(
+    throw py::value_error(
         absl::StrCat("hetero_scale must be positive, got ", hetero_scale));
   }
   if (dcut < 1) {
-    throw pybind11::value_error(
+    throw py::value_error(
         absl::StrCat("dcut must be at least 1 angstrom, got ", dcut));
   }
 
@@ -74,50 +74,50 @@ galign_align(const GARigidMolInfo &self, const PyMol &query, bool flexible,
   const Matrix3Xd &seed = galign_try_get_conf(query, conf);
 
   if (max_conf < 1) {
-    throw pybind11::value_error(
+    throw py::value_error(
         absl::StrCat("max_confs must be at least 1, got ", max_conf));
   }
 
   GAMinimizeArgs margs;
   if (flexible) {
     if (max_trs < 0.0) {
-      throw pybind11::value_error(
+      throw py::value_error(
           absl::StrCat("max_translation must be nonnegative, got ", max_trs));
     }
     if (max_rot < 0.0) {
-      throw pybind11::value_error(
+      throw py::value_error(
           absl::StrCat("max_rotation must be nonnegative, got ", max_rot));
     }
     if (max_tors < 0.0) {
-      throw pybind11::value_error(
+      throw py::value_error(
           absl::StrCat("max_torsion must be nonnegative, got ", max_tors));
     }
     if (pool_size < 1) {
-      throw pybind11::value_error(
+      throw py::value_error(
           absl::StrCat("pool_size must be at least 1, got ", pool_size));
     }
     if (sample_size < 1) {
-      throw pybind11::value_error(
+      throw py::value_error(
           absl::StrCat("sample_size must be at least 1, got ", sample_size));
     }
     if (max_gen < 1) {
-      throw pybind11::value_error(
+      throw py::value_error(
           absl::StrCat("max_generations must be at least 1, got ", max_gen));
     }
     if (mut_cnt < 0) {
-      throw pybind11::value_error(
+      throw py::value_error(
           absl::StrCat("n_mutation must be nonnegative, got ", mut_cnt));
     }
     if (mut_prob < 0.0 || mut_prob > 1.0) {
-      throw pybind11::value_error(
+      throw py::value_error(
           absl::StrCat("p_mutation must be between 0 and 1, got ", mut_prob));
     }
     if (ftol <= 0.0) {
-      throw pybind11::value_error(
+      throw py::value_error(
           absl::StrCat("opt_ftol must be positive, got ", ftol));
     }
     if (max_iters < 1) {
-      throw pybind11::value_error(
+      throw py::value_error(
           absl::StrCat("opt_max_iters must be at least 1, got ", max_iters));
     }
 
