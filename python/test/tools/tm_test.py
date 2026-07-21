@@ -242,3 +242,28 @@ def test_tm_short_secstr():
     # indexing when one secondary structure is inferred).
     with pytest.raises(ValueError, match="at least 5 residues"):
         tmtools.TMAlign(np.zeros((5, 3)), np.zeros((3, 3)), query_ss="CCCCC")
+
+
+def test_tm_invalid_score_args(query: np.ndarray, templ: np.ndarray):
+    # None already means "auto"; a non-positive value used to be silently
+    # reinterpreted as such instead of raising.
+    with pytest.raises(ValueError, match="d0 must be positive"):
+        tmtools.tm_align(query, templ, d0=0.0)
+    with pytest.raises(ValueError, match="l_norm must be positive"):
+        tmtools.tm_align(query, templ, l_norm=0)
+    with pytest.raises(ValueError, match="l_norm must be positive"):
+        tmtools.tm_score(query, templ, l_norm=-1)
+
+    tm = tmtools.TMAlign(query, templ)
+    with pytest.raises(ValueError, match="l_norm must be positive"):
+        tm.score(0)
+
+
+def test_tm_nonfinite(query: np.ndarray, templ: np.ndarray):
+    with pytest.raises(ValueError, match="finite"):
+        tmtools.tm_align(query, templ, d0=float("nan"))
+
+    bad = query.copy()
+    bad[0, 0] = np.inf
+    with pytest.raises(ValueError, match="NaN or infinite"):
+        tmtools.tm_align(bad, templ)

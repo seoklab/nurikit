@@ -47,18 +47,9 @@ GARigidMolInfo galign_init(const PyMol &mol, std::optional<int> conf,
 
   const Matrix3Xd &ref = galign_try_get_conf(mol, conf);
 
-  if (vdw_scale <= 0.0) {
-    throw py::value_error(
-        absl::StrCat("vdw_scale must be positive, got ", vdw_scale));
-  }
-  if (hetero_scale <= 0.0) {
-    throw py::value_error(
-        absl::StrCat("hetero_scale must be positive, got ", hetero_scale));
-  }
-  if (dcut < 1) {
-    throw py::value_error(
-        absl::StrCat("dcut must be at least 1 angstrom, got ", dcut));
-  }
+  check_positive(vdw_scale, "vdw_scale");
+  check_positive(hetero_scale, "hetero_scale");
+  check_positive(dcut, "dcut");
 
   GARigidMolInfo galign(*mol, ref, vdw_scale, hetero_scale, dcut);
   return galign;
@@ -73,54 +64,24 @@ galign_align(const GARigidMolInfo &self, const PyMol &query, bool flexible,
              int max_iters) {
   const Matrix3Xd &seed = galign_try_get_conf(query, conf);
 
-  if (max_conf < 1) {
-    throw py::value_error(
-        absl::StrCat("max_confs must be at least 1, got ", max_conf));
-  }
+  // Every scalar below reaches GASamplingArgs regardless of `flexible`.
+  check_positive(max_conf, "max_confs");
+  check_positive(max_trs, "max_translation", Bounds::kClosed);
+  check_positive(max_rot, "max_rotation", Bounds::kClosed);
+  check_positive(max_tors, "max_torsion", Bounds::kClosed);
+  check_positive(rigid_min_rmsd, "rigid_min_msd", Bounds::kClosed);
+  check_positive(rigid_max_conf, "rigid_max_confs");
+  check_positive(pool_size, "pool_size");
+  check_positive(sample_size, "sample_size");
+  check_positive(max_gen, "max_generations");
+  check_positive(patience, "patience");
+  check_positive(mut_cnt, "n_mutation", Bounds::kClosed);
+  check_interval(mut_prob, 0.0, 1.0, "p_mutation");
+  check_positive(ftol, "opt_ftol");
+  check_positive(max_iters, "opt_max_iters");
 
   GAMinimizeArgs margs;
   if (flexible) {
-    if (max_trs < 0.0) {
-      throw py::value_error(
-          absl::StrCat("max_translation must be nonnegative, got ", max_trs));
-    }
-    if (max_rot < 0.0) {
-      throw py::value_error(
-          absl::StrCat("max_rotation must be nonnegative, got ", max_rot));
-    }
-    if (max_tors < 0.0) {
-      throw py::value_error(
-          absl::StrCat("max_torsion must be nonnegative, got ", max_tors));
-    }
-    if (pool_size < 1) {
-      throw py::value_error(
-          absl::StrCat("pool_size must be at least 1, got ", pool_size));
-    }
-    if (sample_size < 1) {
-      throw py::value_error(
-          absl::StrCat("sample_size must be at least 1, got ", sample_size));
-    }
-    if (max_gen < 1) {
-      throw py::value_error(
-          absl::StrCat("max_generations must be at least 1, got ", max_gen));
-    }
-    if (mut_cnt < 0) {
-      throw py::value_error(
-          absl::StrCat("n_mutation must be nonnegative, got ", mut_cnt));
-    }
-    if (mut_prob < 0.0 || mut_prob > 1.0) {
-      throw py::value_error(
-          absl::StrCat("p_mutation must be between 0 and 1, got ", mut_prob));
-    }
-    if (ftol <= 0.0) {
-      throw py::value_error(
-          absl::StrCat("opt_ftol must be positive, got ", ftol));
-    }
-    if (max_iters < 1) {
-      throw py::value_error(
-          absl::StrCat("opt_max_iters must be at least 1, got ", max_iters));
-    }
-
     margs.ftol = ftol;
     margs.max_iters = max_iters;
   }

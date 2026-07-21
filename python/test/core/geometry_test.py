@@ -77,6 +77,16 @@ def test_align_nonfinite(method: str):
         ngeom.align_rmsd(q, t, method=method, reflection=True)
 
 
+def test_transform_nonfinite():
+    with pytest.raises(ValueError, match="NaN or infinite"):
+        ngeom.transform(np.eye(4), np.full((5, 3), np.nan))
+
+    bad_xform = np.eye(4)
+    bad_xform[0, 0] = np.inf
+    with pytest.raises(ValueError, match="NaN or infinite"):
+        ngeom.transform(bad_xform, np.zeros((5, 3)))
+
+
 @pytest.fixture(scope="module")
 def cloud():
     rng = np.random.default_rng(42)
@@ -105,6 +115,31 @@ class TestOctree:
         assert dist.shape == (5,)
         assert np.array_equal(idxs[:, 1], np.arange(5))
         assert np.allclose(dist, 0.0)
+
+    def test_nonfinite_and_invalid_args(
+        self, cloud: tuple[np.ndarray, np.ndarray]
+    ):
+        pts, query = cloud
+        bad = pts.copy()
+        bad[0, 0] = np.nan
+
+        with pytest.raises(ValueError, match="NaN or infinite"):
+            ngeom.Octree(bad)
+        with pytest.raises(ValueError, match="bucket size"):
+            ngeom.Octree(pts, bucket_size=0)
+
+        tree = ngeom.Octree(pts)
+        with pytest.raises(ValueError, match="NaN or infinite"):
+            tree.rebuild(bad)
+
+        bad_q = query.copy()
+        bad_q[0, 1] = np.inf
+        with pytest.raises(ValueError, match="NaN or infinite"):
+            tree.find_neighbors(bad_q, k=1)
+        with pytest.raises(ValueError, match="cutoff"):
+            tree.find_neighbors(query, d=np.nan)
+        with pytest.raises(ValueError, match="number of neighbors"):
+            tree.find_neighbors(query, k=0)
 
     def test_find_neighbors_requires_d_or_k(
         self, cloud: tuple[np.ndarray, np.ndarray]
@@ -292,6 +327,23 @@ class TestVoxelGrid:
             grid.rebuild(pts, cutoff=-1.0)
         with pytest.raises(ValueError, match="must be positive"):
             grid.rebuild(pts, cutoff=0.0)
+
+    def test_nonfinite_coords(self, cloud: tuple[np.ndarray, np.ndarray]):
+        pts, query = cloud
+        bad = pts.copy()
+        bad[0, 0] = np.nan
+
+        with pytest.raises(ValueError, match="NaN or infinite"):
+            ngeom.VoxelGrid(bad, cutoff=1.5)
+
+        grid = ngeom.VoxelGrid(pts, cutoff=1.5)
+        with pytest.raises(ValueError, match="NaN or infinite"):
+            grid.rebuild(bad)
+
+        bad_q = query.copy()
+        bad_q[0, 0] = np.inf
+        with pytest.raises(ValueError, match="NaN or infinite"):
+            grid.find_neighbors(bad_q)
 
     def test_find_neighbors(self, cloud: tuple[np.ndarray, np.ndarray]):
         pts, qry = cloud

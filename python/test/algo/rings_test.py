@@ -108,3 +108,6 @@ def test_ring_size(cubane: Molecule):
 
     with pytest.raises(ValueError, match="must be positive"):
         algo.find_all_rings(cubane, -1)
+
+    # None is the "unlimited" sentinel, not a rejected value
+    assert len(algo.find_all_rings(cubane, None)) > len(rings)

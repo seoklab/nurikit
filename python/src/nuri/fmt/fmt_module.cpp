@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include <absl/algorithm/container.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
@@ -22,6 +23,7 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/stl/filesystem.h>
 
+#include "nuri/eigen_config.h"
 #include "fmt_internal.h"
 #include "nuri/algo/guess.h"
 #include "nuri/core/molecule.h"
@@ -37,6 +39,11 @@
 namespace nuri {
 namespace python_internal {
 namespace {
+bool all_confs_finite(const Molecule &mol) {
+  return absl::c_all_of(mol.confs(),
+                        [](const Matrix3Xd &conf) { return conf.allFinite(); });
+}
+
 class PyMoleculeReader {
 public:
   PyMoleculeReader(std::unique_ptr<std::istream> is, std::string_view fmt,
@@ -76,6 +83,11 @@ public:
                                         "\n  "));
         }
         log_or_throw(text.c_str());
+        continue;
+      }
+
+      if (!all_confs_finite(mol)) {
+        log_or_throw("Molecule has non-finite (NaN or infinite) coordinates.");
         continue;
       }
 

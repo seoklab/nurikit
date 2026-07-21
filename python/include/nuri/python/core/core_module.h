@@ -656,12 +656,6 @@ void assign_conf(MatrixLike &conf, const py::handle &obj) {
   conf = mat;
 }
 
-inline int check_implicit_hydrogens(int n) {
-  if (n < 0)
-    throw py::value_error("negative number of implicit hydrogens");
-  return n;
-}
-
 inline void update_hyb(AtomData &self, constants::Hybridization hyb) {
   self.set_hybridization(get_or_throw_hyb(hyb));
 }
@@ -736,7 +730,7 @@ The hybridization of the atom.
       "implicit_hydrogens",
       [](T &self) { return atom_prolog(self).implicit_hydrogens(); },
       [](T &self, int n) {
-        n = check_implicit_hydrogens(n);
+        check_positive(n, "implicit_hydrogens", Bounds::kClosed);
         atom_prolog(self).set_implicit_hydrogens(n);
       },
       rvp::automatic,
@@ -768,6 +762,7 @@ The formal charge of the atom.
       "partial_charge",
       [](T &self) { return atom_prolog(self).partial_charge(); },
       [](T &self, double charge) {
+        check_finite(charge, "partial_charge");
         atom_prolog(self).set_partial_charge(charge);
       },
       rvp::automatic,
@@ -1025,8 +1020,9 @@ The name of the atom. Returns an empty string if the name is not set.
         if (hyb)
           *hyb = get_or_throw_hyb(*hyb);
 
-        if (implicit_hydrogens)
-          *implicit_hydrogens = check_implicit_hydrogens(*implicit_hydrogens);
+        check_positive(implicit_hydrogens, "implicit_hydrogens",
+                       Bounds::kClosed);
+        check_finite(partial_charge, "partial_charge");
 
         if (atomic_number && element != nullptr)
           throw py::value_error(

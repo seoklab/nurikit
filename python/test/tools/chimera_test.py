@@ -86,6 +86,15 @@ def test_match_maker_errors(query: np.ndarray, templ: np.ndarray):
     ):
         chimera.match_maker(query, templ, viol_ratio=1.5)
 
+    # Lower bound is exclusive here, unlike galign's p_mutation
+    with pytest.raises(
+        ValueError, match="global_ratio must be between 0 and 1"
+    ):
+        chimera.match_maker(query, templ, global_ratio=0.0)
+
+    with pytest.raises(ValueError, match="finite"):
+        chimera.match_maker(query, templ, global_ratio=np.nan)
+
     query[0] = np.nan
-    with pytest.raises(RuntimeError, match="alignment failed"):
+    with pytest.raises(ValueError, match="NaN or infinite"):
         chimera.match_maker(query, templ)

@@ -127,3 +127,28 @@ def test_flexible_galign(
         atol=1e-6,
     )
     assert result.score >= 0.95
+
+
+def test_galign_nonfinite(templ: Molecule, query: Molecule) -> None:
+    with pytest.raises(ValueError, match="finite"):
+        galign(query, templ, vdw_scale=float("nan"))
+    with pytest.raises(ValueError, match="finite"):
+        galign(query, templ, flexible=True, opt_ftol=float("nan"))
+
+
+def test_galign_sampling_args_validation(
+    templ: Molecule, query: Molecule
+) -> None:
+    # These reach GASamplingArgs even in rigid mode, so they are validated
+    # regardless of `flexible`.
+    with pytest.raises(ValueError, match="pool_size must be positive"):
+        galign(query, templ, pool_size=0)
+    with pytest.raises(ValueError, match="patience must be positive"):
+        galign(query, templ, patience=0)
+    with pytest.raises(ValueError, match="rigid_max_confs must be positive"):
+        galign(query, templ, rigid_max_confs=0)
+    with pytest.raises(ValueError, match="rigid_min_msd must be non-negative"):
+        galign(query, templ, rigid_min_msd=-1.0)
+
+    # Lower bound is inclusive here, unlike chimera's global_ratio
+    assert galign(query, templ, flexible=False, p_mutation=0.0, n_mutation=0)

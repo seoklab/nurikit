@@ -86,5 +86,16 @@ def test_guess_types(arginine_bonds: Molecule):
 
 
 def test_guess_error(arginine: Molecule):
-    with arginine.mutator() as mut, pytest.raises(IndexError):
-        algo.guess_everything(mut, 100)
+    with arginine.mutator() as mut:
+        with pytest.raises(IndexError):
+            algo.guess_everything(mut, 100)
+
+        with pytest.raises(ValueError, match="finite"):
+            algo.guess_everything(mut, threshold=float("nan"))
+        with pytest.raises(ValueError, match="finite"):
+            algo.guess_connectivity(mut, threshold=float("inf"))
+
+        with pytest.raises(ValueError, match="threshold must be non-negative"):
+            algo.guess_everything(mut, threshold=-1.0)
+        with pytest.raises(ValueError, match="threshold must be non-negative"):
+            algo.guess_connectivity(mut, threshold=-1.0)

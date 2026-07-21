@@ -116,3 +116,8 @@ def test_sr_sasa_errors(phenol: Molecule):
     radii[-2] = -1.0
     with pytest.raises(ValueError, match="radii must be positive"):
         shrake_rupley_sasa(pts, radii)
+
+    radii[-2] = 1.0
+    pts[0, 0] = np.nan
+    with pytest.raises(ValueError, match="NaN or infinite"):
+        shrake_rupley_sasa(pts, radii)

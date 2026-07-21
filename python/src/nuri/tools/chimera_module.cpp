@@ -59,19 +59,10 @@ The root-mean-square deviation of the selected (inlier) points after alignment.
                            "number of points, got ",
                            query.eigen().cols(), " vs ", templ.eigen().cols()));
         }
-
-        if (cutoff <= 0.0) {
-          throw py::value_error(
-              absl::StrCat("distance cutoff must be positive, got ", cutoff));
-        }
-        if (global_ratio <= 0.0 || global_ratio > 1.0) {
-          throw py::value_error(absl::StrCat(
-              "global_ratio must be between 0 and 1, got ", global_ratio));
-        }
-        if (viol_ratio <= 0.0 || viol_ratio > 1.0) {
-          throw py::value_error(absl::StrCat(
-              "viol_ratio must be between 0 and 1, got ", viol_ratio));
-        }
+        check_positive(cutoff, "cutoff");
+        check_interval(global_ratio, 0.0, 1.0, "global_ratio",
+                       Bounds::kLeftOpen);
+        check_interval(viol_ratio, 0.0, 1.0, "viol_ratio", Bounds::kLeftOpen);
 
         auto ret = match_maker(query.eigen(), templ.eigen(), cutoff,
                                global_ratio, viol_ratio);

@@ -183,6 +183,9 @@ def test_add_conformer():
     with pytest.raises(ValueError, match="different number of atoms"):
         mol.add_conf(np.arange(9).reshape(3, 3))
 
+    with pytest.raises(ValueError, match="NaN or infinite"):
+        mol.add_conf(np.full((2, 3), np.nan))
+
     assert mol.num_confs() == 1
 
     conf = mol.get_conf()
@@ -257,6 +260,15 @@ def test_update_atom(mol: Molecule):
 
     atom.aromatic = True
     assert atom.aromatic
+
+    with pytest.raises(ValueError, match="finite partial_charge"):
+        atom.update(partial_charge=np.nan)
+    with pytest.raises(ValueError, match="finite partial_charge"):
+        atom.partial_charge = np.inf
+    with pytest.raises(
+        ValueError, match="implicit_hydrogens must be non-negative"
+    ):
+        atom.implicit_hydrogens = -1
 
 
 def test_update_bond(mol: Molecule):
@@ -468,6 +480,9 @@ def test_set_conformer(mol3d: Molecule):
     assert np.allclose(atom.get_pos(), [400, 500, 600])
     assert np.allclose(mol3d.get_conf()[1], [400, 500, 600])
 
+    with pytest.raises(ValueError, match="NaN or infinite"):
+        mol3d.set_conf(np.full_like(conf, np.inf))
+
 
 def test_add_conformer_index(mol3d: Molecule):
     conf = np.zeros((mol3d.num_atoms(), 3))
@@ -538,6 +553,9 @@ def test_bond_rotation(mol3d: Molecule):
     assert np.allclose(mol3d.get_conf(), rotated, atol=1e-3)
     bond.rotate(-30, True)
     assert np.allclose(mol3d.get_conf(), original, atol=1e-3)
+
+    with pytest.raises(ValueError, match="finite"):
+        bond.rotate(np.nan)
 
 
 def test_clear_conformers(mol3d: Molecule):

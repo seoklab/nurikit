@@ -7,9 +7,11 @@
 #define NURI_PYTHON_UTILS_H_
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -38,6 +40,68 @@ namespace python_internal {
 template <class CppType, class... Args>
 using PyProxyCls =
     py::class_<CppType, std::unique_ptr<CppType, py::nodelete>, Args...>;
+
+inline double check_finite(double x, const char *what = "value") {
+  if (!std::isfinite(x))
+    throw py::value_error(
+        absl::StrCat("expected a finite ", what, ", got ", x));
+  return x;
+}
+
+inline std::optional<double> check_finite(std::optional<double> x,
+                                          const char *what = "value") {
+  if (x)
+    check_finite(*x, what);
+  return x;
+}
+
+// Selects whether the lower bound is inclusive (kClosed) or exclusive
+// (kLeftOpen). The upper bound of check_interval() is always inclusive.
+enum class Bounds { kClosed, kLeftOpen };
+
+template <class T>
+T check_positive(T v, const char *what, Bounds b = Bounds::kLeftOpen) {
+  if constexpr (std::is_floating_point_v<T>)
+    check_finite(v, what);
+
+  const bool open = b == Bounds::kLeftOpen;
+  if (open ? v <= 0 : v < 0) {
+    throw py::value_error(absl::StrCat(
+        what, open ? " must be positive, got " : " must be non-negative, got ",
+        v));
+  }
+  return v;
+}
+
+template <class T>
+std::optional<T> check_positive(std::optional<T> v, const char *what,
+                                Bounds b = Bounds::kLeftOpen) {
+  if (v)
+    check_positive(*v, what, b);
+  return v;
+}
+
+template <class T>
+T check_interval(T v, T lo, T hi, const char *what,
+                 Bounds b = Bounds::kClosed) {
+  if constexpr (std::is_floating_point_v<T>)
+    check_finite(v, what);
+
+  const bool lo_ok = b == Bounds::kClosed ? v >= lo : v > lo;
+  if (!lo_ok || v > hi) {
+    throw py::value_error(
+        absl::StrCat(what, " must be between ", lo, " and ", hi, ", got ", v));
+  }
+  return v;
+}
+
+template <class T>
+std::optional<T> check_interval(std::optional<T> v, T lo, T hi,
+                                const char *what, Bounds b = Bounds::kClosed) {
+  if (v)
+    check_interval(*v, lo, hi, what, b);
+  return v;
+}
 
 template <class Derived, class T>
 class ParentWrapper {
@@ -428,6 +492,13 @@ private:
     }
   }
 
+  void check_finite() const {
+    if constexpr (std::is_floating_point_v<DT>) {
+      if (!eigen().allFinite())
+        throw py::value_error("NaN or infinite values in array");
+    }
+  }
+
   template <Eigen::Index R, Eigen::Index C, class DU>
   friend NpArrayWrapper<R, C, DU>
   empty_numpy(std::vector<py::ssize_t> &&eigen_shape);
@@ -476,9 +547,12 @@ NpArrayWrapper<Rows, Cols, DT> py_array_cast(py::handle h) {
   broadcast_if_compatible<Rows, Cols, DT>(arr);
   numpy_to_eigen_check_compat<Rows, Cols, DT>(arr);
 
-  auto maybe_copy = [&arr](Eigen::Index rows, Eigen::Index cols, auto strides) {
-    if (strides.inner() == 1)
-      return NpArrayWrapper<Rows, Cols, DT> { std::move(arr) };
+  auto finalize = [&arr](Eigen::Index rows, Eigen::Index cols, auto strides) {
+    if (strides.inner() == 1) {
+      NpArrayWrapper<Rows, Cols, DT> wrapper(std::move(arr));
+      wrapper.check_finite();
+      return wrapper;
+    }
 
     ABSL_DLOG(INFO) << "copy triggered";
 
@@ -487,6 +561,7 @@ NpArrayWrapper<Rows, Cols, DT> py_array_cast(py::handle h) {
 
     auto wrapper = empty_like(data);
     wrapper.eigen() = data;
+    wrapper.check_finite();
     return wrapper;
   };
 
@@ -499,12 +574,11 @@ NpArrayWrapper<Rows, Cols, DT> py_array_cast(py::handle h) {
       rows = 1;
       cols = arr.size();
     }
-    return maybe_copy(rows, cols,
-                      Eigen::InnerStride<> { eigen_stride(arr, 0) });
+    return finalize(rows, cols, Eigen::InnerStride<> { eigen_stride(arr, 0) });
   } else {
-    return maybe_copy(arr.shape()[1], arr.shape()[0],
-                      py::EigenDStride { eigen_stride(arr, 0),
-                                         eigen_stride(arr, 1) });
+    return finalize(arr.shape()[1], arr.shape()[0],
+                    py::EigenDStride { eigen_stride(arr, 0),
+                                       eigen_stride(arr, 1) });
   }
 }
 
