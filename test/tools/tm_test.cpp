@@ -313,6 +313,20 @@ TEST(TMAlignComponentTest, AssignSecStr) {
   EXPECT_EQ(ss_str, "CCEEEECTHHCCEECCECCC");
 }
 
+TEST(TMAlignComponentTest, AssignSecStrShort) {
+  // Fewer than 5 residues cannot be classified; the assignment must return
+  // all-coil instead of indexing out of bounds.
+  const auto coil = static_cast<std::int8_t>(SecStr::kCoil);
+  Matrix3Xd buf(3, 8);
+  for (int n = 0; n <= 4; ++n) {
+    Matrix3Xd x = Matrix3Xd::Random(3, n);
+    ArrayXc ss = assign_secstr_approx_full(x, buf);
+    ASSERT_EQ(ss.size(), n);
+    for (int i = 0; i < n; ++i)
+      EXPECT_EQ(ss[i], coil) << "n = " << n << ", i = " << i;
+  }
+}
+
 class TMAlignTestBase: public ::testing::Test {
 public:
   constexpr static int lx = 19, ly = 20, l_min = 19, l_max = 20;

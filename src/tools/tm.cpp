@@ -55,6 +55,12 @@ namespace internal {
   ArrayXc assign_secstr_approx_full(ConstRef<Matrix3Xd> pts, Matrix3Xd &buf) {
     const int n = static_cast<int>(pts.cols());
 
+    // Classification needs 5-residue windows; for shorter inputs the indexing
+    // below would run out of bounds (e.g. dists.col(n - 4) for n < 4). Return
+    // all-coil - TM-align rejects structures with fewer than 5 residues anyway.
+    if (n < 5)
+      return ArrayXc::Constant(n, static_cast<std::int8_t>(SecStr::kCoil));
+
     auto dists = buf.leftCols(n - 2).array();
     for (int i = 0; i < n - 4; ++i) {
       // (2, 3, 4) - 0, ..., (n-3, n-2, n-1) - n-5

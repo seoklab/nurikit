@@ -234,3 +234,11 @@ def test_tm_errors():
 
     with pytest.raises(ValueError, match="must have the same length"):
         tmtools.tm_score(np.zeros((11, 3)), np.zeros((10, 3)))
+
+
+def test_tm_short_secstr():
+    # Secondary-structure assignment on a structure shorter than the
+    # 5-residue window must raise, not crash (regression: out-of-bounds
+    # indexing when one secondary structure is inferred).
+    with pytest.raises(ValueError, match="at least 5 residues"):
+        tmtools.TMAlign(np.zeros((5, 3)), np.zeros((3, 3)), query_ss="CCCCC")
