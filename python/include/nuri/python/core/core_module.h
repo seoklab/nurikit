@@ -1524,6 +1524,7 @@ extern void bind_substructure(pybind11::module &m);
 
 extern void bind_element(pybind11::module &m);
 extern void bind_molecule(pybind11::module &m);
+extern void bind_geometry(pybind11::module &m);
 }  // namespace python_internal
 }  // namespace nuri
 

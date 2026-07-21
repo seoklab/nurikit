@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "nuri/core/geometry.h"
+
 #include <optional>
 #include <stdexcept>
 #include <string_view>
@@ -19,7 +21,7 @@
 #include <pybind11/stl.h>
 
 #include "nuri/eigen_config.h"
-#include "nuri/core/geometry.h"
+#include "nuri/python/core/core_module.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
@@ -108,8 +110,9 @@ void find_neighbors_kd(const OCTree &octree, const Vector3d &query, double d,
                        std::vector<double> &distsq) {
   octree.find_neighbors_kd(query, k, idxs, distsq, d);
 }
+}  // namespace
 
-NURI_PYTHON_MODULE(m) {
+void bind_geometry(py::module &m) {
   m.def(
       "align_points",
       [](const py::handle &q_py, const py::handle &t_py,
@@ -558,6 +561,5 @@ Find all non-redundant pairs of neighbors in the voxel grid.
   be in the array, and :math:`i \neq j`.
 )doc");
 }
-}  // namespace
 }  // namespace python_internal
 }  // namespace nuri

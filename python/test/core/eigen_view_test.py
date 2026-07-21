@@ -8,7 +8,7 @@ from typing import List, Tuple
 import numpy as np
 import pytest
 
-from nuri.core._core import _EigenViewTestData
+from nuri.core import _EigenViewTestData
 
 _DYNAMIC = np.arange(12, dtype=np.float64).reshape(4, 3)
 _SEMI_DYNAMIC = np.arange(15, dtype=np.float64).reshape(5, 3)

@@ -4,7 +4,7 @@
 #
 
 import nuri
-from nuri.core._core import _random_test_helper
+from nuri.core import _random_test_helper
 
 
 def test_seed_thread():

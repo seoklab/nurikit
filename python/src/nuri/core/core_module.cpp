@@ -3,13 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "nuri/python/core/core_module.h"
+
 #include <cstdint>
 #include <optional>
 #include <string_view>
 
 #include "nuri/eigen_config.h"
 #include "nuri/python/core/containers.h"
-#include "nuri/python/core/core_module.h"
 #include "nuri/python/utils.h"
 #include "nuri/random.h"
 
@@ -34,9 +35,21 @@ py::array wrap_view(T &d, py::handle owner, bool readonly, bool transpose) {
 }
 
 NURI_PYTHON_MODULE(m) {
+  m.doc() = R"doc(
+The core module of NuriKit.
+
+This module contains the core classes of NuriKit. The core module is not
+very useful by itself, but is a dependency of many other modules. Chemical
+data structures, such as elements, isotopes, and molecules, and also the
+graph structure and algorithms, are defined in this module.
+)doc";
+
   bind_containers(m);
   bind_element(m);
   bind_molecule(m);
+
+  py::module_ geometry = m.def_submodule("geometry");
+  bind_geometry(geometry);
 
   m.def(
       "seed_thread",

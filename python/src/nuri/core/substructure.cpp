@@ -1004,7 +1004,7 @@ This is used to categorize the substructure. Mainly used for the proteins.
 
   // Metaclass must extend a bound pybind11 type's metaclass; borrow Atom's.
   py::object abc_meta =
-      py::module_::import("nuri.core._masquerade_support")
+      py::module_::import("nuri._masquerade_support")
           .attr("make_virtual_subclass_metaclass")(py::type::of<PyAtom>());
 
   py::class_<PySubstruct> sub(m, "Substructure", py::metaclass(abc_meta), R"doc(

@@ -31,16 +31,14 @@ target_link_libraries("${NURI_PYTHON_MODULE_TARGET}"
   PRIVATE absl::log_initialize
 )
 
-nuri_python_add_module(_core OUTPUT_DIRECTORY "core"
-  nuri/core/_core_module.cpp
+nuri_python_add_module(core
+  nuri/core/core_module.cpp
   nuri/core/containers.cpp
   nuri/core/element.cpp
   nuri/core/molecule.cpp
   nuri/core/substructure.cpp
-)
-
-nuri_python_add_module(geometry OUTPUT_DIRECTORY "core"
-  nuri/core/geometry_module.cpp
+  nuri/core/geometry.cpp
+  OUTPUT_STUBS nuri/core/__init__.pyi nuri/core/geometry.pyi
 )
 
 nuri_python_add_module(algo

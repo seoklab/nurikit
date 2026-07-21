@@ -7,14 +7,13 @@ import collections.abc as abc
 
 import pytest
 
-import nuri.core
+from nuri import core
 from nuri.core import (
     Molecule,
     SubAtom,
     SubBond,
     SubNeighbor,
     Substructure,
-    _core,
 )
 
 
@@ -45,14 +44,13 @@ def test_proxy_types_are_private_virtual_subclasses():
         "ProxySubBond",
         "ProxySubNeighbor",
     ):
-        assert not hasattr(nuri.core, name)
-        assert not hasattr(_core, name)
-    assert hasattr(_core, "_ProxySubstructure")
+        assert not hasattr(core, name)
+    assert hasattr(core, "_ProxySubstructure")
 
-    assert issubclass(_core._ProxySubstructure, Substructure)
-    assert issubclass(_core._ProxySubAtom, SubAtom)
-    assert issubclass(_core._ProxySubBond, SubBond)
-    assert issubclass(_core._ProxySubNeighbor, SubNeighbor)
+    assert issubclass(core._ProxySubstructure, Substructure)
+    assert issubclass(core._ProxySubAtom, SubAtom)
+    assert issubclass(core._ProxySubBond, SubBond)
+    assert issubclass(core._ProxySubNeighbor, SubNeighbor)
 
 
 def test_virtual_subclass_negatives(mol: Molecule):
