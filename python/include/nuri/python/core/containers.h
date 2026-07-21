@@ -19,8 +19,7 @@ inline internal::PropertyMap to_property_map(const py::object &obj) {
   try {
     return obj.cast<internal::PropertyMap>();
   } catch (const py::cast_error &) {
-    // Invoke _PropertyMap(dict) explicitly; a plain .cast() would swallow its
-    // "keys/values must be strings" TypeError into an opaque cast_error.
+    // .cast() alone would bury the real "keys/values must be strings" error.
     return py::type::of<internal::PropertyMap>()(py::dict(obj))
         .cast<internal::PropertyMap>();
   }

@@ -1006,9 +1006,7 @@ This is used to categorize the substructure. Mainly used for the proteins.
       .value("Chain", SubstructCategory::kChain)
       .finalize();
 
-  // Owned classes accept their molecule-managed (proxy) counterparts as virtual
-  // subclasses; see the register() calls below. The metaclass is sourced from
-  // an already-bound class (Atom).
+  // Metaclass must extend a bound pybind11 type's metaclass; borrow Atom's.
   py::object abc_meta =
       py::module_::import("nuri.core._masquerade_support")
           .attr("make_virtual_subclass_metaclass")(py::type::of<PyAtom>());
@@ -1070,8 +1068,6 @@ convert the substructure first with :meth:`copy` method.
   bind_substructure_kind(psub, psub_bonds, psub_atom, psub_bond, psub_nei,
                          pnei_iter);
 
-  // Register the proxy views as virtual subclasses of their owned equivalents
-  // so isinstance/issubclass stays truthful with the masqueraded signatures.
   sub.attr("register")(psub);
   sub_atom.attr("register")(psub_atom);
   sub_bond.attr("register")(psub_bond);

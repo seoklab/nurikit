@@ -107,12 +107,7 @@ _overload_re = re.compile(r"^(\d+)\. ")
 
 
 def _strip_proxy_overloads(app, what, name, obj, options, lines):
-    """Drop pybind11 overloads whose signature takes a private ``_Proxy*`` type.
-
-    These runtime-only overloads exist so molecule-managed (proxy) views are
-    accepted where their owned equivalent is expected; they are implementation
-    detail and duplicate the owned overload, so they are removed from the docs.
-    """
+    """Drop doc overloads whose signature takes a private ``_Proxy*`` type."""
     if not any(line.strip() == "Overloaded function." for line in lines):
         return
 

@@ -3,13 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-"""Support for masquerading molecule-managed (proxy) views as their owned
-equivalents.
-
-Defines the metaclass that lets an owned pybind11 class accept its proxy
-counterpart as a virtual subclass, so ``isinstance``/``issubclass`` agree with
-the masqueraded type annotations.
-"""
+"""Metaclass letting owned pybind11 classes accept proxy views as virtual
+subclasses."""
 
 from collections import defaultdict
 from typing import Dict, Set

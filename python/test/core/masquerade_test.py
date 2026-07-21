@@ -39,7 +39,6 @@ def test_substructure_masquerades_as_owned(mol: Molecule, factory):
 
 
 def test_proxy_types_are_private_virtual_subclasses():
-    # Public API exposes only the owned names; proxy views are private.
     for name in (
         "ProxySubstructure",
         "ProxySubAtom",
@@ -50,7 +49,6 @@ def test_proxy_types_are_private_virtual_subclasses():
         assert not hasattr(_core, name)
     assert hasattr(_core, "_ProxySubstructure")
 
-    # Private proxy views register as virtual subclasses of the owned types.
     assert issubclass(_core._ProxySubstructure, Substructure)
     assert issubclass(_core._ProxySubAtom, SubAtom)
     assert issubclass(_core._ProxySubBond, SubBond)
@@ -68,7 +66,7 @@ def test_virtual_subclass_negatives(mol: Molecule):
 
 def test_container_registrations_intact(mol: Molecule):
     assert isinstance(mol, abc.Sequence)
-    assert isinstance(mol[0], abc.Sequence)  # atom -> neighbor sequence
+    assert isinstance(mol[0], abc.Sequence)
     assert isinstance(mol.bonds(), abc.Sequence)
     assert isinstance(mol.subs, abc.Sequence)
 
@@ -87,7 +85,5 @@ def test_copy_returns_independent_owned(mol: Molecule, factory):
     assert dup.num_atoms() == sub.num_atoms()
     assert dup.num_bonds() == sub.num_bonds()
 
-    # The copy is standalone: clearing the molecule's substructures does not
-    # invalidate it.
     mol.subs.clear()
     assert dup.num_atoms() > 0

@@ -223,8 +223,7 @@ T &pass_through(T &x) {
   return x;
 }
 
-// Casts obj to a py::object-derived typing annotation M (e.g. pyt::Iterator<T>)
-// so stubgen renders M's public name instead of the concrete runtime class.
+// Cast to annotation M so stubgen renders M, not the concrete runtime class.
 template <class M, class T, class... Extra>
 M masquerade_cast(T &&obj, Extra &&...extra) {
   return py::cast(std::forward<T>(obj), std::forward<Extra>(extra)...);
@@ -253,8 +252,7 @@ public:
     return static_cast<const Derived *>(this)->deref(*container_, index_++);
   }
 
-  // value_type is resolved in the body: Derived is still incomplete while the
-  // CRTP base is instantiated.
+  // Derived is incomplete during CRTP base instantiation; resolve in-body.
   static auto make(C &cont) {
     using value_type =
         std::decay_t<decltype(Derived::deref(std::declval<C &>(), 0))>;

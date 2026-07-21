@@ -25,8 +25,6 @@ class Sequence: public pybind11::sequence {
   using sequence::sequence;
 };
 
-// As Sequence, but for mappings; the PyMapping_Check guard validates inputs
-// when used as a parameter (Sequence is return-only).
 template <class K, class V>
 class Mapping: public pybind11::object {
 public:
@@ -39,9 +37,7 @@ public:
   PYBIND11_OBJECT_DEFAULT(MutableMapping, object, PyMapping_Check)
 };
 
-// Return-only annotation that renders as ``T``'s registered Python name while
-// the runtime object stays whatever was cast. Masquerades a view wrapper (e.g.
-// a Proxy* type) as its owned equivalent in generated signatures.
+// Renders as T in signatures; the runtime object stays whatever was cast.
 template <class T>
 class As: public pybind11::object {
 public:
@@ -53,8 +49,8 @@ public:
 constexpr inline std::string_view kAbcSequence = "Sequence";
 constexpr inline std::string_view kAbcMutableMapping = "MutableMapping";
 
-// Sequence/Mapping lack the structural __subclasshook__ that abc.Iterator has,
-// so a masqueraded wrapper needs explicit registration for isinstance to match.
+// abc.Sequence/Mapping lack Iterator's structural __subclasshook__, so
+// masqueraded wrappers need an explicit register() for isinstance to match.
 inline void register_abc(pybind11::handle cls, std::string_view name) {
   pybind11::module_::import("collections.abc")
       .attr(pybind11::str(name.data(), name.size()))
