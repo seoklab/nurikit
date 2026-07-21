@@ -43,7 +43,7 @@ Vector3d max_of(int octant, const Vector3d &max, const Vector3d &size) {
 void verify_oct_range(int idx, const Matrix3Xd &pts, const OCTree &oct,
                       const Vector3d &max, const Vector3d &size) {
   const auto &node = oct[idx];
-  if (node.nleaf() <= oct.bucket_size()) {
+  if (node.leaf()) {
     const int *ptr = oct.idxs().data() + node.begin();
     for (int i = 0; i < node.nleaf(); ++i) {
       const Vector3d &pt = pts.col(ptr[i]);
@@ -69,7 +69,7 @@ TEST(OCTreeTest, Create) {
   std::vector<int> childs { tree.root() }, idxs;
   for (int i = 0; i < tree.size(); ++i) {
     const auto &node = tree[i];
-    if (node.nleaf() <= tree.bucket_size()) {
+    if (node.leaf()) {
       idxs.insert(idxs.end(), tree.idxs().begin() + node.begin(),
                   tree.idxs().begin() + node.begin() + node.nleaf());
     } else {
@@ -403,6 +403,107 @@ TEST(OCTreeTest, NotifyTransformTest) {
     NURI_EXPECT_EIGEN_EQ_TOL(tree.pts().col(i), m.col(tree.idxs()[i]), 1e-6)
         << "i = " << i;
   }
+}
+
+TEST(OCTreeTest, CoincidentPoints) {
+  // More than bucket_size exactly-coincident points must not recurse forever
+  // (stack overflow); they collapse into one over-full leaf and every query
+  // must still find them all.
+  const int n = 100;
+  const Vector3d p(1.0, 2.0, 3.0);
+  Matrix3Xd m = p.replicate(1, n);
+
+  OCTree tree(m);
+  ASSERT_GT(tree.size(), 0);
+
+  std::vector<int> idxs;
+  std::vector<double> distsq;
+
+  tree.find_neighbors_d(p, 0.5, idxs, distsq);
+  ASSERT_EQ(idxs.size(), n);
+  std::sort(idxs.begin(), idxs.end());
+  for (int i = 0; i < n; ++i)
+    EXPECT_EQ(idxs[i], i) << "i = " << i;
+  for (double d: distsq)
+    EXPECT_DOUBLE_EQ(d, 0.0);
+
+  tree.find_neighbors_kd(p, n, idxs, distsq);
+  EXPECT_EQ(idxs.size(), n);
+
+  std::vector<int> is, js;
+  tree.find_neighbors_self(0.5, is, js);
+  EXPECT_EQ(is.size(), static_cast<size_t>(n) * (n - 1) / 2);
+
+  OCTree other(m);
+  is.clear();
+  js.clear();
+  tree.find_neighbors_tree(other, 0.5, is, js);
+  EXPECT_EQ(is.size(), static_cast<size_t>(n) * n);
+}
+
+TEST(OCTreeTest, CoincidentPointsStructure) {
+  // A cloud mixing scattered points with an over-full coincident cluster has
+  // both internal nodes and a leaf whose nleaf() exceeds bucket_size(). Walking
+  // the tree must classify the latter by leaf(), not by its size.
+  const int nscat = 400, ncoin = 100;
+  Matrix3Xd m(3, nscat + ncoin);
+  m.leftCols(nscat) = Matrix3Xd::Random(3, nscat);
+  m.rightCols(ncoin) = Vector3d(0.25, -0.5, 0.75).replicate(1, ncoin);
+
+  OCTree tree(m);
+  EXPECT_GT(tree.max_nleaf(), tree.bucket_size());
+
+  std::vector<int> childs { tree.root() }, idxs;
+  for (int i = 0; i < tree.size(); ++i) {
+    const auto &node = tree[i];
+    if (node.leaf()) {
+      EXPECT_LE(node.nleaf(), tree.max_nleaf());
+      idxs.insert(idxs.end(), tree.idxs().begin() + node.begin(),
+                  tree.idxs().begin() + node.begin() + node.nleaf());
+    } else {
+      for (int c: node.children())
+        if (c >= 0)
+          childs.push_back(c);
+    }
+  }
+
+  verify_oct_range(tree.root(), m, tree, tree.max(), tree.len());
+
+  ASSERT_EQ(childs.size(), tree.size());
+  std::sort(childs.begin(), childs.end());
+  for (int i = 0; i < childs.size(); ++i)
+    EXPECT_EQ(childs[i], i) << "i = " << i;
+
+  ASSERT_EQ(idxs.size(), m.cols());
+  std::sort(idxs.begin(), idxs.end());
+  for (int i = 0; i < idxs.size(); ++i)
+    EXPECT_EQ(idxs[i], i) << "i = " << i;
+}
+
+TEST(OCTreeTest, EmptyCloud) {
+  Matrix3Xd empty(3, 0);
+  OCTree tree(empty);
+  EXPECT_EQ(tree.size(), 0);
+
+  std::vector<int> idxs;
+  std::vector<double> distsq;
+  tree.find_neighbors_d(Vector3d::Zero(), 1.0, idxs, distsq);
+  EXPECT_TRUE(idxs.empty());
+  tree.find_neighbors_kd(Vector3d::Zero(), 5, idxs, distsq);
+  EXPECT_TRUE(idxs.empty());
+
+  std::vector<int> is, js;
+  tree.find_neighbors_self(1.0, is, js);
+  EXPECT_TRUE(is.empty());
+  OCTree other(empty);
+  tree.find_neighbors_tree(other, 1.0, is, js);
+  EXPECT_TRUE(is.empty());
+
+  // rebuild non-empty then empty again to exercise the reset path
+  tree.rebuild(Matrix3Xd::Random(3, 20));
+  EXPECT_GT(tree.size(), 0);
+  tree.rebuild(empty);
+  EXPECT_EQ(tree.size(), 0);
 }
 
 TEST(VoxelGridTest, Create) {

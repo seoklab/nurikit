@@ -10,6 +10,7 @@
 #include <vector>
 
 #include <absl/base/attributes.h>
+#include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/types/span.h>
@@ -24,6 +25,10 @@ namespace nuri {
 namespace {
   using internal::Array8i;
   using internal::OCTreeNode;
+
+  // Sentinel values stored in OCTreeNode::children_[i].
+  constexpr int kNoChild = -1;     // octant i is empty
+  constexpr int kLeafMarker = -2;  // in children_[0] only: unsplittable leaf
 
   // Octant index is (xyz):
   // 000 -> +++, 100 -> -++, 010 -> +-+, 110 -> --+,
@@ -90,7 +95,8 @@ namespace {
 
   int build_octree(OCTree::Points pts, std::vector<OCTreeNode> &data,
                    const Vector3d &max, const Vector3d &size, ArrayXi &idxs,
-                   const int begin, const int nleaf, const int bucket_size) {
+                   const int begin, const int nleaf, const int bucket_size,
+                   int &max_nleaf) {
     Array8i children;
     auto epilog = [&]() {
       int id = static_cast<int>(data.size());
@@ -98,14 +104,27 @@ namespace {
       return id;
     };
 
-    if (nleaf <= bucket_size) {
+    auto mark_leaf = [&]() {
       std::sort(idxs.begin() + begin, idxs.begin() + begin + nleaf);
+      children[0] = kLeafMarker;
+    };
+
+    if (nleaf <= bucket_size) {
+      mark_leaf();
       return epilog();
     }
 
     Vector3d half = size * 0.5;
-    Array8i ptrs =
-        partition_octant(idxs, begin, begin + nleaf, pts, max - half);
+    Vector3d cntr = max - half;
+
+    // This bounds the recursion at floating-point precision
+    if (ABSL_PREDICT_FALSE((cntr.array() == max.array()).all())) {
+      mark_leaf();
+      max_nleaf = nuri::max(max_nleaf, nleaf);
+      return epilog();
+    }
+
+    Array8i ptrs = partition_octant(idxs, begin, begin + nleaf, pts, cntr);
 
     int right = begin;
     for (int i = 0; i < 8; ++i) {
@@ -114,31 +133,47 @@ namespace {
 
       int nchild = right - left;
       if (nchild <= 0) {
-        children[i] = -1;
+        children[i] = kNoChild;
         continue;
       }
 
       children[i] = build_octree(pts, data, max_of(i, max, half), half, idxs,
-                                 left, nchild, bucket_size);
+                                 left, nchild, bucket_size, max_nleaf);
     }
 
     return epilog();
   }
 }  // namespace
 
+bool internal::OCTreeNode::leaf() const {
+  return children_[0] == kLeafMarker;
+}
+
 void OCTree::rebuild_impl(Points src) {
-  bucket_size_ = std::max(8, bucket_size_);
+  bucket_size_ = nuri::max(8, bucket_size_);
+  nodes_.clear();
+
+  const int n = static_cast<int>(src.cols());
+  if (n == 0) {
+    max_.setZero();
+    len_.setZero();
+    idxs_.resize(0);
+    pts_.resize(3, 0);
+    max_nleaf_ = 0;
+    return;
+  }
 
   max_ = src.rowwise().maxCoeff();
   len_ = max_ - src.rowwise().minCoeff();
 
-  idxs_.resize(src.cols());
+  idxs_.resize(n);
   std::iota(idxs_.begin(), idxs_.end(), 0);
 
+  max_nleaf_ = bucket_size_;
   {
     internal::AllowEigenMallocScoped<false> ems;
-    build_octree(src, nodes_, max_, len_, idxs_, 0,
-                 static_cast<int>(src.cols()), bucket_size_);
+    build_octree(src, nodes_, max_, len_, idxs_, 0, n, bucket_size_,
+                 max_nleaf_);
   }
 
   pts_ = src(E::all, idxs_);
@@ -197,10 +232,6 @@ namespace {
     return octant_distsq;
   }
 
-  bool leaf_node(const OCTree &tree, const OCTreeNode &node) {
-    return node.nleaf() <= tree.bucket_size();
-  }
-
   double maxsq_box_point(const Vector3d &box_max, const Vector3d &box_len,
                          const Vector3d &pt) {
     Vector3d box_min = box_max - box_len;
@@ -221,6 +252,8 @@ void OCTree::find_neighbors_kd(const Vector3d &pt, const int k,
     ABSL_LOG(WARNING) << "k is not a positive number: " << k;
     return;
   }
+  if (nodes_.empty())
+    return;
   if (k > pts().cols()) {
     ABSL_LOG(WARNING)
         << "k " << k << " is larger than the number of points " << pts().cols();
@@ -233,7 +266,7 @@ void OCTree::find_neighbors_kd(const Vector3d &pt, const int k,
     worst_dsq = maxsq_box_point(max_, len_, pt);
   }
 
-  ArrayXd dsqbuf(bucket_size_);
+  ArrayXd dsqbuf(max_nleaf());
 
   NodeHeap node_heap(node_cmp);
   CandHeap best_heap(cand_cmp);
@@ -247,7 +280,7 @@ void OCTree::find_neighbors_kd(const Vector3d &pt, const int k,
       break;
 
     const OCTreeNode &node = nodes()[idx];
-    if (leaf_node(*this, node)) {
+    if (node.leaf()) {
       const int cnt = node.nleaf();
       dsqbuf.head(cnt) = (pts().middleCols(node.begin(), cnt).colwise() - pt)
                              .colwise()
@@ -298,7 +331,7 @@ namespace {
                          std::vector<double> &distsq, const OCTreeNode &node,
                          const Vector3d &maxs, const Vector3d &size,
                          ArrayXd &dsqbuf) {
-    if (leaf_node(oct, node)) {
+    if (node.leaf()) {
       const int cnt = node.nleaf();
       dsqbuf.head(cnt) =
           (oct.pts().middleCols(node.begin(), cnt).colwise() - pt)
@@ -334,8 +367,10 @@ void OCTree::find_neighbors_d(const Vector3d &pt, const double cutoff,
 
   idxs.clear();
   distsq.clear();
+  if (nodes_.empty())
+    return;
 
-  ArrayXd dsqbuf(bucket_size_);
+  ArrayXd dsqbuf(max_nleaf());
   find_candidates_d(*this, pt, cutoffsq, idxs, distsq, node(root()), max_, len_,
                     dsqbuf);
 
@@ -379,7 +414,7 @@ namespace {
                        half);
     }
 
-    bool leaf_node() const { return nuri::leaf_node(tree(), node()); }
+    bool leaf_node() const { return node().leaf(); }
 
     absl::Span<const int> idxs() const {
       ABSL_DCHECK_GE(id(), 0);
@@ -547,9 +582,12 @@ void OCTree::find_neighbors_tree(const OCTree &oct, const double cutoff,
 
   self.clear();
   other.clear();
+  if (nodes_.empty() || oct.nodes_.empty())
+    return;
 
-  VectorXd dsqbuf(oct.bucket_size_);
-  ArrayXi jbuf(oct.bucket_size_);
+  const int cap = nuri::max(max_nleaf(), oct.max_nleaf());
+  VectorXd dsqbuf(cap);
+  ArrayXi jbuf(cap);
 
   find_neighbors_tree_impl<false>(self, other, dsqbuf, jbuf, OCTreeBox(*this),
                                   OCTreeBox(oct), cutoffsq);
@@ -573,9 +611,11 @@ void OCTree::find_neighbors_self(double cutoff, std::vector<int> &left,
 
   left.clear();
   right.clear();
+  if (nodes_.empty())
+    return;
 
-  VectorXd dsqbuf(bucket_size_);
-  ArrayXi jbuf(bucket_size_);
+  VectorXd dsqbuf(max_nleaf());
+  ArrayXi jbuf(max_nleaf());
 
   OCTreeBox root(*this);
   find_neighbors_tree_impl<true>(left, right, dsqbuf, jbuf, root, root,

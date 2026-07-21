@@ -34,7 +34,7 @@ namespace internal {
 
     int operator[](int i) const { return child(i); }
 
-    bool leaf() const { return nleaf_ <= 8; }
+    bool leaf() const;
 
     int begin() const { return begin_; }
     int end() const { return begin_ + nleaf_; }
@@ -42,9 +42,9 @@ namespace internal {
     int nleaf() const { return nleaf_; }
 
   private:
-    Array8i children_;  // < 0 -> not exist, >= 0 -> index of child
+    Array8i children_;  // child index (>= 0) or a sentinel
     int begin_;
-    int nleaf_;  // <= 8 -> leaf, > 8 -> internal node
+    int nleaf_;
   };
 }  // namespace internal
 
@@ -125,6 +125,8 @@ public:
 
   int bucket_size() const { return bucket_size_; }
 
+  int max_nleaf() const { return max_nleaf_; }
+
   const ArrayXi &idxs() const { return idxs_; }
 
   const internal::OCTreeNode &node(int i) const { return nodes_[i]; }
@@ -141,6 +143,7 @@ private:
   ArrayXi idxs_;
 
   int bucket_size_ = 32;
+  int max_nleaf_ = 0;
 };
 
 /**
