@@ -26,12 +26,12 @@ extern Substructure create_substruct(Molecule &mol,
                                      SubstructCategory cat);
 
 /* Called from bind_molecule, don't call directly */
-extern void bind_substructure_impl(pybind11::module &m);
+extern void bind_substructure_impl(py::module &m);
 
-extern void bind_element_impl(pybind11::module &m);
-extern void bind_molecule_impl(pybind11::module &m);
+extern void bind_element_impl(py::module &m);
+extern void bind_molecule_impl(py::module &m);
 
-extern void bind_geometry(pybind11::module &m);
+extern void bind_geometry(py::module &m);
 }  // namespace python_internal
 }  // namespace nuri
 

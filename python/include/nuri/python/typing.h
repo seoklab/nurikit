@@ -17,33 +17,33 @@ namespace nuri {
 namespace python_internal {
 // Typed ``collections.abc.Sequence`` annotation, mirroring pybind11's own
 // ``typing::List`` (which pybind11 2.13 provides but without a ``Sequence``
-// counterpart). Inheriting ``pybind11::sequence`` keeps identical runtime
+// counterpart). Inheriting ``py::sequence`` keeps identical runtime
 // behavior -- the element type ``T`` is annotation-only, as with
 // ``pyt::List``/``Iterable``.
 template <class T>
-class Sequence: public pybind11::sequence {
+class Sequence: public py::sequence {
   using sequence::sequence;
 };
 
 template <class K, class V>
-class Mapping: public pybind11::object {
+class Mapping: public py::object {
 public:
   PYBIND11_OBJECT_DEFAULT(Mapping, object, PyMapping_Check)
 };
 
 template <class K, class V>
-class MutableMapping: public pybind11::object {
+class MutableMapping: public py::object {
 public:
   PYBIND11_OBJECT_DEFAULT(MutableMapping, object, PyMapping_Check)
 };
 
 // Renders as T in signatures; the runtime object stays whatever was cast.
 template <class T>
-class As: public pybind11::object {
+class As: public py::object {
 public:
   using object::object;
   // NOLINTNEXTLINE(google-explicit-constructor)
-  As(pybind11::object obj) noexcept: pybind11::object(std::move(obj)) { }
+  As(py::object obj) noexcept: py::object(std::move(obj)) { }
 };
 
 constexpr inline std::string_view kAbcSequence = "Sequence";
@@ -51,9 +51,9 @@ constexpr inline std::string_view kAbcMutableMapping = "MutableMapping";
 
 // abc.Sequence/Mapping lack Iterator's structural __subclasshook__, so
 // masqueraded wrappers need an explicit register() for isinstance to match.
-inline void register_abc(pybind11::handle cls, std::string_view name) {
-  pybind11::module_::import("collections.abc")
-      .attr(pybind11::str(name.data(), name.size()))
+inline void register_abc(py::handle cls, std::string_view name) {
+  py::module_::import("collections.abc")
+      .attr(py::str(name.data(), name.size()))
       .attr("register")(cls);
 }
 }  // namespace python_internal

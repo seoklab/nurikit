@@ -19,10 +19,9 @@
 
 namespace nuri {
 namespace python_internal {
-// NOLINTNEXTLINE(misc-unused-alias-decls)
 namespace py = pybind11;
 // NOLINTNEXTLINE(misc-unused-alias-decls)
-namespace pyt = pybind11::typing;
+namespace pyt = py::typing;
 
 using rvp = py::return_value_policy;
 }  // namespace python_internal
