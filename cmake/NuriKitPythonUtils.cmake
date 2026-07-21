@@ -21,6 +21,7 @@ function(nuri_python_generate_stubs module output dependency)
     -E env "PYTHONPATH=${pypath_orig}${CMAKE_CURRENT_LIST_DIR}" ${SANITIZER_ENVS}
     "${PYBIND11_STUBGEN}"
     -o "${CMAKE_CURRENT_LIST_DIR}"
+    --exit-code
     --enum-class-locations .*:nuri.core._core
     --numpy-array-remove-parameters
     ${ARGN}
