@@ -573,14 +573,7 @@ constexpr py::call_guard<py::gil_scoped_release> kThreadSafe {};
 template <class Cls, class Size, class Getter, class Iter, class... GetterExtra>
 Cls &add_sequence_interface(Cls &cls, Size size, Getter &&getter, Iter &&iter,
                             GetterExtra &&...getter_extra) {
-  using T = typename Cls::type;
   cls.def("__len__", size);
-  cls.def(
-      "__contains__",
-      [size](T &self, int idx) {
-        return 0 <= idx && idx < std::invoke(size, self);
-      },
-      py::arg("idx"));
 
   if constexpr (sizeof...(GetterExtra) > 0) {
     cls.def("__getitem__", std::forward<Getter>(getter), py::arg("idx"),
