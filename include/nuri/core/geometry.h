@@ -164,6 +164,10 @@ private:
  * `pts()` corresponds to the original input point `cell_pts()[p]`. The
  * original point set is *not* referenced after rebuild() returns, so the
  * caller is free to mutate or destroy it.
+ *
+ * @warning The cutoff must be a positive, finite number. Building with a
+ *          non-positive or non-finite cutoff is undefined behavior (the voxel
+ *          index divides coordinates by the cutoff); callers must validate it.
  */
 class VoxelGrid {
 public:
@@ -599,9 +603,14 @@ inline double cos_dihedral(const Vector3d &a, const Vector3d &b,
  * @param normalize Whether to normalize the normal vector. Defaults to true.
  * @return The best-fit plane defined by a 4-vector (a, b, c, d), such that
  *         ax + by + cz + d = 0.
+ *
+ * @note Passing fewer than 3 points is undefined behavior (the thin-U SVD has
+ *       no third column); it is the caller's responsibility to ensure N >= 3.
  */
 template <class MatrixLike>
 Vector4d fit_plane(const MatrixLike &pts, bool normalize = true) {
+  ABSL_DCHECK_GE(pts.cols(), 3);
+
   Vector3d cntr = pts.rowwise().mean();
   MatrixXd m = pts.colwise() - cntr;
   auto svd = m.jacobiSvd(Eigen::ComputeThinU);
