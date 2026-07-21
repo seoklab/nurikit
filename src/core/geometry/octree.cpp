@@ -624,7 +624,8 @@ void OCTree::find_neighbors_self(double cutoff, std::vector<int> &left,
 
 void OCTree::notify_transform(const Vector3d &new_max,
                               const Vector3d &new_len) {
-  Vector3d scale = new_len.cwiseQuotient(len_);
+  Vector3d scale =
+      (len_.array() > 0).select(new_len.array() / len_.array(), 1.0);
   Vector3d trs = new_max - max_.cwiseProduct(scale);
 
   max_ = new_max;

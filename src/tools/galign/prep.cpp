@@ -170,7 +170,8 @@ namespace internal {
       (reverse ? std::tie(r.ref_, r.origin_) : std::tie(r.origin_, r.ref_)) =
           pf.edge_data(i);
 
-      r.normalizer_ = 1 / (ref.col(r.origin_) - ref.col(r.ref_)).norm();
+      r.normalizer_ =
+          safe_normalizer((ref.col(r.origin_) - ref.col(r.ref_)).squaredNorm());
 
       std::vector<int> &moving = reverse ? rb.right_atoms : rb.left_atoms;
       auto pit =

@@ -432,6 +432,10 @@ auto msd(const ML1 &a, const ML2 &b) {
 }
 
 namespace internal {
+  constexpr double safe_reciprocal(double val, double eps = 1e-12) {
+    return val > eps ? 1 / val : 0;
+  }
+
   constexpr double safe_normalizer(double sqn, double eps = 1e-12) {
     return sqn > eps ? 1 / std::sqrt(sqn) : 0;
   }
