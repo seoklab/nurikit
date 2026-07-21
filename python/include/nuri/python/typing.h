@@ -68,22 +68,22 @@ PYBIND11_NAMESPACE_BEGIN(detail)
 template <class T>
 struct handle_type_name<nuri::python_internal::Sequence<T>> {
   // NOLINTNEXTLINE(readability-identifier-naming)
-  constexpr static auto name =
-      const_name("Sequence[") + make_caster<T>::name + const_name("]");
+  constexpr static auto name = const_name("collections.abc.Sequence[")
+                               + make_caster<T>::name + const_name("]");
 };
 
 template <class K, class V>
 struct handle_type_name<nuri::python_internal::Mapping<K, V>> {
   // NOLINTNEXTLINE(readability-identifier-naming)
-  constexpr static auto name = const_name("Mapping[") + make_caster<K>::name
-                               + const_name(", ") + make_caster<V>::name
-                               + const_name("]");
+  constexpr static auto name = const_name("collections.abc.Mapping[")
+                               + make_caster<K>::name + const_name(", ")
+                               + make_caster<V>::name + const_name("]");
 };
 
 template <class K, class V>
 struct handle_type_name<nuri::python_internal::MutableMapping<K, V>> {
   // NOLINTNEXTLINE(readability-identifier-naming)
-  constexpr static auto name = const_name("MutableMapping[")
+  constexpr static auto name = const_name("collections.abc.MutableMapping[")
                                + make_caster<K>::name + const_name(", ")
                                + make_caster<V>::name + const_name("]");
 };
