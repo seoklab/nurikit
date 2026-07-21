@@ -27,6 +27,7 @@
 #include <pybind11/typing.h>
 
 #include "nuri/eigen_config.h"
+#include "core_internal.h"
 #include "nuri/core/container/property_map.h"
 #include "nuri/core/element.h"
 #include "nuri/desc/pcharge.h"
@@ -482,7 +483,7 @@ check_bond_ends(const Molecule &mol, PyAtom &src, PyAtom &dst) {
   return { *src, *dst };
 }
 
-void bind_molecule(py::module &m) {
+void bind_molecule_impl(py::module &m) {
   bind_enums(m);
 
   py::class_<PyMol> mol(m, "Molecule", R"doc(
@@ -562,7 +563,7 @@ We only document the differences from the original class. Refer to the
   PyNeighborIterator::bind(m);
   ConformersIterator::bind(m);
 
-  bind_substructure(m);
+  bind_substructure_impl(m);
 
   bind_atom(atom_data, atom);
   bind_bond(bonds, bond_data, bond);

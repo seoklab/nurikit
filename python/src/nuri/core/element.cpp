@@ -15,6 +15,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 
+#include "core_internal.h"
 #include "nuri/python/core/core_module.h"
 #include "nuri/python/typing.h"
 #include "nuri/python/utils.h"
@@ -53,7 +54,7 @@ const Isotope &isotope_from_element_and_mass(const Element &elem,
   return *iso;
 }
 
-void bind_element(py::module &m) {
+void bind_element_impl(py::module &m) {
   PyProxyCls<Element> py_elem(m, "Element", R"doc(
     An element.
 

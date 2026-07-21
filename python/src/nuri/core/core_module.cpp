@@ -10,6 +10,7 @@
 #include <string_view>
 
 #include "nuri/eigen_config.h"
+#include "core_internal.h"
 #include "nuri/python/core/containers.h"
 #include "nuri/python/utils.h"
 #include "nuri/random.h"
@@ -45,8 +46,8 @@ graph structure and algorithms, are defined in this module.
 )doc";
 
   bind_containers(m);
-  bind_element(m);
-  bind_molecule(m);
+  bind_element_impl(m);
+  bind_molecule_impl(m);
 
   py::module_ geometry = m.def_submodule("geometry");
   bind_geometry(geometry);

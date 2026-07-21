@@ -21,7 +21,7 @@
 #include <pybind11/stl.h>
 
 #include "nuri/eigen_config.h"
-#include "nuri/python/core/core_module.h"
+#include "core_internal.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {

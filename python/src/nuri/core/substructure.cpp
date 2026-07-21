@@ -21,6 +21,7 @@
 #include <pybind11/pytypes.h>
 
 #include "nuri/eigen_config.h"
+#include "core_internal.h"
 #include "nuri/core/container/index_set.h"
 #include "nuri/core/container/property_map.h"
 #include "nuri/core/molecule.h"
@@ -990,7 +991,7 @@ Substructure create_substruct(Molecule &mol,
   return mol.bond_substructure(std::move(bonds_set), cat);
 }
 
-void bind_substructure(py::module &m) {
+void bind_substructure_impl(py::module &m) {
   py::native_enum<SubstructCategory>(m, "SubstructureCategory", "enum.IntEnum",
                                      R"doc(
 The category of a substructure.
