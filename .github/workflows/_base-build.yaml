@@ -41,6 +41,18 @@ jobs:
 
       - run: .github/scripts/setup-deps.sh
 
+      # Remove once pybind/pybind11-stubgen#280 is released.
+      - name: Patch pybind11-stubgen for union-member imports
+        run: |
+          root="$(python -c 'import sysconfig, os; print(sysconfig.get_path("purelib"))')"
+          if grep -Fq '[self.parse_type_str(variant) for variant in variants]' \
+              "$root/pybind11_stubgen/parser/mixins/parse.py"; then
+            patch -p1 -d "$root" \
+              <.github/patches/pybind11-stubgen-union-member-imports.patch
+          else
+            echo >&2 "pybind11-stubgen already fixed upstream; skipping patch"
+          fi
+
       - if: ${{ inputs.emulate-version != '' }}
         run: |
           git config user.name 'github-actions[bot]'
