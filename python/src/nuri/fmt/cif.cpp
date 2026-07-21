@@ -670,10 +670,12 @@ Construct a CIF block.
   cb.def_property_readonly("name", &PyCifBlock::name)
       .def_property_readonly("is_global", &PyCifBlock::is_global);
   def_property_readonly_subobject(
-      cb, "save_frames", [](const PyCifBlock &self) {
+      cb, "save_frames",
+      [](const PyCifBlock &self) {
         return masquerade_cast<Sequence<PyCifFrame>>(self.save_frames(),
                                                      rvp::reference);
-      });
+      },
+      ":type: collections.abc.Sequence[Frame]");
   def_property_readonly_subobject(cb, "data", &PyCifBlock::data);
 
   py::class_<PyCifParser>(m, "_Parser")

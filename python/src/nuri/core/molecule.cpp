@@ -638,8 +638,6 @@ Get the number of atoms in the molecule. Equivalent to ``len(mol)``.
             return masquerade_cast<Sequence<PyBond>>(PyBondsWrapper { &self });
           },
           kReturnsSubobject, R"doc(
-:rtype: collections.abc.Sequence[Bond]
-
 A wrapper object to access the bonds of the molecule. You can iterate the bonds
 of the molecule with this object.
 )doc")
@@ -946,8 +944,6 @@ Get an iterable object of all conformations of the molecule. Each conformation
 is a 2D array of shape ``(num_atoms, 3)``. It is not available to update the
 coordinates from the returned conformers; you should manually assign to the
 conformers to update the coordinates.
-
-:rtype: collections.abc.Iterable[numpy.ndarray]
 
 .. seealso::
   :meth:`get_conf`, :meth:`set_conf`

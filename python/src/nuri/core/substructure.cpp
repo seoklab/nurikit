@@ -359,8 +359,6 @@ The number of atoms in the substructure. Equivalent to ``len(sub)``.
       },
       kReturnsSubobject,
       R"doc(
-:rtype: collections.abc.Sequence[SubBond]
-
 Get a collection of bonds in the substructure. Invalidated when the parent
 molecule is modified, or if the substructure is modified.
 )doc");
@@ -580,8 +578,6 @@ Get an iterable object of all conformations of the substructure. Each
 conformation is a 2D array of shape ``(num_atoms, 3)``. It is not available to
 update the coordinates from the returned conformers; you should manually assign
 to the conformers to update the coordinates.
-
-:rtype: collections.abc.Iterable[numpy.ndarray]
 
 .. seealso::
   :meth:`get_conf`, :meth:`set_conf`

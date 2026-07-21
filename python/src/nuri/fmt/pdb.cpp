@@ -194,9 +194,13 @@ void bind_pdb(py::module &m) {
       .def_property_readonly("element", &PDBAtom::element, rvp::reference)
       .def_property_readonly("formal_charge", &PDBAtom::fcharge)
       .def_property_readonly("hetero", &PDBAtom::hetero);
-  def_property_readonly_subobject(atom, "sites", [](const PDBAtom &self) {
-    return masquerade_cast<Sequence<PDBAtomSite>>(self.sites(), rvp::reference);
-  });
+  def_property_readonly_subobject(
+      atom, "sites",
+      [](const PDBAtom &self) {
+        return masquerade_cast<Sequence<PDBAtomSite>>(self.sites(),
+                                                      rvp::reference);
+      },
+      ":type: collections.abc.Sequence[AtomSite]");
   bind_readonly_vector<PDBAtom>(m, "_AtomList", "_AtomListIterator");
 
   py::class_<PDBResidue>(m, "Residue")
@@ -234,20 +238,33 @@ void bind_pdb(py::module &m) {
                                return eigen_as_numpy(self.major_conf());
                              })
       .def("as_dict", &model_as_dict, "Convert the PDB model to a dictionary.");
-  def_property_readonly_subobject(model, "chains", [](const PDBModel &self) {
-    return masquerade_cast<Sequence<PDBChain>>(self.chains(), rvp::reference);
-  });
-  def_property_readonly_subobject(model, "residues", [](const PDBModel &self) {
-    return masquerade_cast<Sequence<PDBResidue>>(self.residues(),
-                                                 rvp::reference);
-  });
-  def_property_readonly_subobject(model, "atoms", [](const PDBModel &self) {
-    return masquerade_cast<Sequence<PDBAtom>>(self.atoms(), rvp::reference);
-  });
-  def_property_readonly_subobject(model, "props", [](PDBModel &self) {
-    return masquerade_cast<MutableMapping<py::str, py::str>>(self.props(),
-                                                             rvp::reference);
-  });
+  def_property_readonly_subobject(
+      model, "chains",
+      [](const PDBModel &self) {
+        return masquerade_cast<Sequence<PDBChain>>(self.chains(),
+                                                   rvp::reference);
+      },
+      ":type: collections.abc.Sequence[Chain]");
+  def_property_readonly_subobject(
+      model, "residues",
+      [](const PDBModel &self) {
+        return masquerade_cast<Sequence<PDBResidue>>(self.residues(),
+                                                     rvp::reference);
+      },
+      ":type: collections.abc.Sequence[Residue]");
+  def_property_readonly_subobject(
+      model, "atoms",
+      [](const PDBModel &self) {
+        return masquerade_cast<Sequence<PDBAtom>>(self.atoms(), rvp::reference);
+      },
+      ":type: collections.abc.Sequence[Atom]");
+  def_property_readonly_subobject(
+      model, "props",
+      [](PDBModel &self) {
+        return masquerade_cast<MutableMapping<py::str, py::str>>(
+            self.props(), rvp::reference);
+      },
+      ":type: collections.abc.MutableMapping[str, str]");
 
   m.def(
       "read_models",
