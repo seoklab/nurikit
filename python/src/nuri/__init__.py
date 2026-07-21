@@ -25,6 +25,6 @@ try:
 except ImportError:
     __version__ = __full_version__ = "unknown"
 
-from . import _log_adapter
+from ._support import log_adapter as _log_adapter
 from .core import periodic_table, seed_thread
 from .fmt import readfile, readstring, to_mol2, to_pdb, to_sdf, to_smiles

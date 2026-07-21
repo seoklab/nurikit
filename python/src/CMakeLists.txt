@@ -26,7 +26,9 @@ endif()
 
 include(NuriKitPythonUtils)
 
-nuri_python_add_module(_log_interface nuri/_log_interface_module.cpp)
+nuri_python_add_module(log_interface OUTPUT_DIRECTORY "_support"
+  nuri/_support/log_interface_module.cpp
+)
 target_link_libraries("${NURI_PYTHON_MODULE_TARGET}"
   PRIVATE absl::log_initialize
 )
