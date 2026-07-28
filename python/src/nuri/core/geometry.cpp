@@ -274,7 +274,7 @@ To update the point set, one must :py:meth:`rebuild()` the octree.
 )doc")
       .def(py::init([](const py::handle &obj, int bucket_size) {
              auto py_arr = py_array_cast<3>(obj);
-             check_positive(bucket_size, "bucket size");
+             check_interval(bucket_size, "bucket size", Bounds::kLeftOpen, 0);
              OCTreeWrapper self { OCTree(), py_arr.eigen() };
              self.tree.rebuild(self.pts, bucket_size);
              return self;
@@ -293,7 +293,7 @@ Initialize the octree with a set of points.
           "rebuild",
           [](OCTreeWrapper &self, const py::handle &obj, int bucket_size) {
             auto py_arr = py_array_cast<3>(obj);
-            check_positive(bucket_size, "bucket size");
+            check_interval(bucket_size, "bucket size", Bounds::kLeftOpen, 0);
             self.pts = py_arr.eigen();
             self.tree.rebuild(self.pts, bucket_size);
           },
@@ -317,8 +317,8 @@ Rebuild the octree with a new set of points.
                   "either cutoff distance or number of neighbors must be "
                   "specified");
             }
-            check_positive(xd, "cutoff");
-            check_positive(xk, "number of neighbors");
+            check_interval(xd, "cutoff", Bounds::kLeftOpen, 0);
+            check_interval(xk, "number of neighbors", Bounds::kLeftOpen, 0);
 
             void (*impl)(const OCTree &, const Vector3d &, double, int,
                          std::vector<int> &, std::vector<double> &);
@@ -390,7 +390,7 @@ Find neighbors of each point in the octree.
           "query_tree",
           [](const OCTreeWrapper &self, const OCTreeWrapper &other,
              double d) -> pyt::List<py::array_t<int>> {
-            check_positive(d, "cutoff");
+            check_interval(d, "cutoff", Bounds::kLeftOpen, 0);
 
             std::vector<std::vector<int>> idxs =
                 self.tree.find_neighbors_tree(other.tree, d);
@@ -419,7 +419,7 @@ Find all neighbors in another octree.
       .def(
           "query_pairs",
           [](const OCTreeWrapper &self, double d) {
-            check_positive(d, "cutoff");
+            check_interval(d, "cutoff", Bounds::kLeftOpen, 0);
 
             std::vector<int> is, js;
             self.tree.find_neighbors_self(d, is, js);
@@ -452,7 +452,7 @@ The voxel grid partitions 3D space into uniform cells, allowing efficient
 distance queries with the cutoff specified at construction time.
 )doc")
       .def(py::init([](const py::handle &obj, double cutoff) {
-             check_positive(cutoff, "cutoff");
+             check_interval(cutoff, "cutoff", Bounds::kLeftOpen, 0);
 
              auto py_arr = py_array_cast<3>(obj);
 
@@ -477,7 +477,7 @@ Initialize the voxel grid with a set of points and cutoff distance.
             double cutoff = self.cutoff();
             if (xcutoff) {
               cutoff = *xcutoff;
-              check_positive(cutoff, "cutoff");
+              check_interval(cutoff, "cutoff", Bounds::kLeftOpen, 0);
             }
 
             auto py_arr = py_array_cast<3>(obj);

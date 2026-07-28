@@ -244,15 +244,15 @@ def test_tm_short_secstr():
 
 def test_tm_invalid_score_args(query: np.ndarray, templ: np.ndarray):
     # None already means "auto"; non-positive used to be silently reinterpreted
-    with pytest.raises(ValueError, match="d0 must be positive"):
+    with pytest.raises(ValueError, match=r"d0 must be in \(0, inf\)"):
         tmtools.tm_align(query, templ, d0=0.0)
-    with pytest.raises(ValueError, match="l_norm must be positive"):
+    with pytest.raises(ValueError, match=r"l_norm must be in \(0, inf\)"):
         tmtools.tm_align(query, templ, l_norm=0)
-    with pytest.raises(ValueError, match="l_norm must be positive"):
+    with pytest.raises(ValueError, match=r"l_norm must be in \(0, inf\)"):
         tmtools.tm_score(query, templ, l_norm=-1)
 
     tm = tmtools.TMAlign(query, templ)
-    with pytest.raises(ValueError, match="l_norm must be positive"):
+    with pytest.raises(ValueError, match=r"l_norm must be in \(0, inf\)"):
         tm.score(0)
 
 

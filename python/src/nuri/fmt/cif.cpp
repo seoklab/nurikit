@@ -521,7 +521,7 @@ overloaded on the type of ``value``.
       .def(py::init([](int width, std::optional<int> precision, bool raw,
                        bool short_form, std::string_view null_token,
                        bool coerce_nonfinite) {
-             check_positive(precision, "precision", Bounds::kClosed);
+             check_interval(precision, "precision", Bounds::kClosed, 0);
              return ColumnFormat {
                width,      precision.value_or(-1),       raw,
                short_form, parse_null_token(null_token), coerce_nonfinite
@@ -716,7 +716,7 @@ Store an integer CIF value.
 )doc");
   cv.def(py::init([](double value, std::optional<int> prec,
                      bool coerce_nonfinite, std::string_view null_token) {
-           check_positive(prec, "precision", Bounds::kClosed);
+           check_interval(prec, "precision", Bounds::kClosed, 0);
 
            return cif_value(value, prec.value_or(-1), coerce_nonfinite,
                             parse_null_token(null_token));

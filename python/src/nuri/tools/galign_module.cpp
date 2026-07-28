@@ -47,9 +47,9 @@ GARigidMolInfo galign_init(const PyMol &mol, std::optional<int> conf,
 
   const Matrix3Xd &ref = galign_try_get_conf(mol, conf);
 
-  check_positive(vdw_scale, "vdw_scale");
-  check_positive(hetero_scale, "hetero_scale");
-  check_positive(dcut, "dcut");
+  check_interval(vdw_scale, "vdw_scale", Bounds::kLeftOpen, 0);
+  check_interval(hetero_scale, "hetero_scale", Bounds::kLeftOpen, 0);
+  check_interval(dcut, "dcut", Bounds::kLeftOpen, 0);
 
   GARigidMolInfo galign(*mol, ref, vdw_scale, hetero_scale, dcut);
   return galign;
@@ -64,20 +64,20 @@ galign_align(const GARigidMolInfo &self, const PyMol &query, bool flexible,
              int max_iters) {
   const Matrix3Xd &seed = galign_try_get_conf(query, conf);
 
-  check_positive(max_conf, "max_confs");
-  check_positive(max_trs, "max_translation", Bounds::kClosed);
-  check_positive(max_rot, "max_rotation", Bounds::kClosed);
-  check_positive(max_tors, "max_torsion", Bounds::kClosed);
-  check_positive(rigid_min_rmsd, "rigid_min_rmsd", Bounds::kClosed);
-  check_positive(rigid_max_conf, "rigid_max_confs");
-  check_positive(pool_size, "pool_size");
-  check_positive(sample_size, "sample_size");
-  check_positive(max_gen, "max_generations");
-  check_positive(patience, "patience");
-  check_positive(mut_cnt, "n_mutation", Bounds::kClosed);
-  check_interval(mut_prob, 0.0, 1.0, "p_mutation");
-  check_positive(ftol, "opt_ftol");
-  check_positive(max_iters, "opt_max_iters");
+  check_interval(max_conf, "max_confs", Bounds::kLeftOpen, 0);
+  check_interval(max_trs, "max_translation", Bounds::kClosed, 0);
+  check_interval(max_rot, "max_rotation", Bounds::kClosed, 0);
+  check_interval(max_tors, "max_torsion", Bounds::kClosed, 0);
+  check_interval(rigid_min_rmsd, "rigid_min_rmsd", Bounds::kClosed, 0);
+  check_interval(rigid_max_conf, "rigid_max_confs", Bounds::kLeftOpen, 0);
+  check_interval(pool_size, "pool_size", Bounds::kLeftOpen, 0);
+  check_interval(sample_size, "sample_size", Bounds::kLeftOpen, 0);
+  check_interval(max_gen, "max_generations", Bounds::kLeftOpen, 0);
+  check_interval(patience, "patience", Bounds::kLeftOpen, 0);
+  check_interval(mut_cnt, "n_mutation", Bounds::kClosed, 0);
+  check_interval(mut_prob, "p_mutation", Bounds::kClosed, 0.0, 1.0);
+  check_interval(ftol, "opt_ftol", Bounds::kLeftOpen, 0);
+  check_interval(max_iters, "opt_max_iters", Bounds::kLeftOpen, 0);
 
   GAMinimizeArgs margs;
   if (flexible) {

@@ -71,7 +71,7 @@ def test_match_maker_errors(query: np.ndarray, templ: np.ndarray):
     with pytest.raises(ValueError, match="have different number of points"):
         chimera.match_maker(query[:3], templ)
 
-    with pytest.raises(ValueError, match="cutoff must be positive"):
+    with pytest.raises(ValueError, match=r"cutoff must be in \(0, inf\)"):
         chimera.match_maker(query, templ, -1)
 
     with pytest.raises(

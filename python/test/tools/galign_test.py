@@ -140,14 +140,16 @@ def test_galign_sampling_args_validation(
     templ: Molecule, query: Molecule
 ) -> None:
     # Sampling args are validated even when `flexible` is False
-    with pytest.raises(ValueError, match="pool_size must be positive"):
+    with pytest.raises(ValueError, match=r"pool_size must be in \(0, inf\)"):
         galign(query, templ, pool_size=0)
-    with pytest.raises(ValueError, match="patience must be positive"):
+    with pytest.raises(ValueError, match=r"patience must be in \(0, inf\)"):
         galign(query, templ, patience=0)
-    with pytest.raises(ValueError, match="rigid_max_confs must be positive"):
+    with pytest.raises(
+        ValueError, match=r"rigid_max_confs must be in \(0, inf\)"
+    ):
         galign(query, templ, rigid_max_confs=0)
     with pytest.raises(
-        ValueError, match="rigid_min_rmsd must be non-negative"
+        ValueError, match=r"rigid_min_rmsd must be in \[0, inf\)"
     ):
         galign(query, templ, rigid_min_rmsd=-1.0)
 

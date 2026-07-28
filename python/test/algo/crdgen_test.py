@@ -48,5 +48,5 @@ def test_crdgen_distgeom(sample: Molecule):
 
 
 def test_crdgen_invalid_args(sample: Molecule):
-    with pytest.raises(ValueError, match="max_trial must be positive"):
+    with pytest.raises(ValueError, match=r"max_trial must be in \(0, inf\)"):
         algo.generate_coords(sample, max_trial=0)

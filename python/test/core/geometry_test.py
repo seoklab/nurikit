@@ -258,7 +258,7 @@ class TestOctree:
     ):
         pts, _ = cloud
         tree = ngeom.Octree(pts)
-        with pytest.raises(ValueError, match="must be positive"):
+        with pytest.raises(ValueError, match=r"must be in \(0, inf\)"):
             tree.query_pairs(d=-1.0)
 
     def test_query_tree(self, cloud: tuple[np.ndarray, np.ndarray]):
@@ -280,7 +280,7 @@ class TestOctree:
         pts, qry = cloud
         tree = ngeom.Octree(pts)
         other = ngeom.Octree(qry)
-        with pytest.raises(ValueError, match="must be positive"):
+        with pytest.raises(ValueError, match=r"must be in \(0, inf\)"):
             tree.query_tree(other, d=-1.0)
 
 
@@ -315,7 +315,7 @@ class TestVoxelGrid:
         cutoff: float,
     ):
         pts, _ = cloud
-        with pytest.raises(ValueError, match="must be positive"):
+        with pytest.raises(ValueError, match=r"must be in \(0, inf\)"):
             ngeom.VoxelGrid(pts, cutoff=cutoff)
 
     def test_rebuild_invalid_cutoff(
@@ -323,9 +323,9 @@ class TestVoxelGrid:
     ):
         pts, _ = cloud
         grid = ngeom.VoxelGrid(pts, cutoff=1.5)
-        with pytest.raises(ValueError, match="must be positive"):
+        with pytest.raises(ValueError, match=r"must be in \(0, inf\)"):
             grid.rebuild(pts, cutoff=-1.0)
-        with pytest.raises(ValueError, match="must be positive"):
+        with pytest.raises(ValueError, match=r"must be in \(0, inf\)"):
             grid.rebuild(pts, cutoff=0.0)
 
     def test_too_fine_cutoff(self, cloud: tuple[np.ndarray, np.ndarray]):

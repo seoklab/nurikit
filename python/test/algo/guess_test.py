@@ -95,7 +95,11 @@ def test_guess_error(arginine: Molecule):
         with pytest.raises(ValueError, match="finite"):
             algo.guess_connectivity(mut, threshold=float("inf"))
 
-        with pytest.raises(ValueError, match="threshold must be non-negative"):
+        with pytest.raises(
+            ValueError, match=r"threshold must be in \[0, inf\)"
+        ):
             algo.guess_everything(mut, threshold=-1.0)
-        with pytest.raises(ValueError, match="threshold must be non-negative"):
+        with pytest.raises(
+            ValueError, match=r"threshold must be in \[0, inf\)"
+        ):
             algo.guess_connectivity(mut, threshold=-1.0)

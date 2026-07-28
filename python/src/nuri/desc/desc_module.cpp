@@ -16,8 +16,8 @@ namespace nuri {
 namespace python_internal {
 namespace {
 void sr_sasa_validate_common_args(int nprobe, double rprobe) {
-  check_positive(nprobe, "number of probes");
-  check_positive(rprobe, "radius of probes");
+  check_interval(nprobe, "number of probes", Bounds::kLeftOpen, 0);
+  check_interval(rprobe, "radius of probes", Bounds::kLeftOpen, 0);
 }
 
 NURI_PYTHON_MODULE(m) {

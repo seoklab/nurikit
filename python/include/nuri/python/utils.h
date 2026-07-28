@@ -57,47 +57,42 @@ inline std::optional<double> check_finite(std::optional<double> x,
 
 enum class Bounds { kClosed, kLeftOpen };
 
+// Blocks deduction so bound literals convert to T instead of fixing it
 template <class T>
-T check_positive(T v, const char *what, Bounds b = Bounds::kLeftOpen) {
+struct NoDeduce {
+  using type = T;
+};
+
+template <class T>
+using NoDeduceT = typename NoDeduce<T>::type;
+
+/**
+ * Reject @p v unless it lies in the interval [@p lo, @p hi], where an absent
+ * bound means unbounded and @p b selects whether @p lo itself is allowed.
+ */
+template <class T>
+T check_interval(T v, const char *what, Bounds b,
+                 std::optional<NoDeduceT<T>> lo = {},
+                 std::optional<NoDeduceT<T>> hi = {}) {
   if constexpr (std::is_floating_point_v<T>)
     check_finite(v, what);
 
   const bool open = b == Bounds::kLeftOpen;
-  if (open ? v <= 0 : v < 0) {
-    throw py::value_error(absl::StrCat(
-        what, open ? " must be positive, got " : " must be non-negative, got ",
-        v));
-  }
-  return v;
+  if ((!lo || (open ? v > *lo : v >= *lo)) && (!hi || v <= *hi))
+    return v;
+
+  throw py::value_error(absl::StrCat(
+      what, " must be in ", open || !lo ? "(" : "[",
+      lo ? absl::StrCat(*lo) : "-inf", ", ", hi ? absl::StrCat(*hi) : "inf",
+      hi ? "], got " : "), got ", v));
 }
 
 template <class T>
-std::optional<T> check_positive(std::optional<T> v, const char *what,
-                                Bounds b = Bounds::kLeftOpen) {
+std::optional<T> check_interval(std::optional<T> v, const char *what, Bounds b,
+                                std::optional<NoDeduceT<T>> lo = {},
+                                std::optional<NoDeduceT<T>> hi = {}) {
   if (v)
-    check_positive(*v, what, b);
-  return v;
-}
-
-template <class T>
-T check_interval(T v, T lo, T hi, const char *what,
-                 Bounds b = Bounds::kClosed) {
-  if constexpr (std::is_floating_point_v<T>)
-    check_finite(v, what);
-
-  const bool open = b == Bounds::kLeftOpen;
-  if ((open ? v <= lo : v < lo) || v > hi) {
-    throw py::value_error(absl::StrCat(what, " must be in ", open ? "(" : "[",
-                                       lo, ", ", hi, "], got ", v));
-  }
-  return v;
-}
-
-template <class T>
-std::optional<T> check_interval(std::optional<T> v, T lo, T hi,
-                                const char *what, Bounds b = Bounds::kClosed) {
-  if (v)
-    check_interval(*v, lo, hi, what, b);
+    check_interval(*v, what, b, lo, hi);
   return v;
 }
 

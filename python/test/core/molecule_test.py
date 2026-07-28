@@ -266,7 +266,7 @@ def test_update_atom(mol: Molecule):
     with pytest.raises(ValueError, match="finite partial_charge"):
         atom.partial_charge = np.inf
     with pytest.raises(
-        ValueError, match="implicit_hydrogens must be non-negative"
+        ValueError, match=r"implicit_hydrogens must be in \[0, inf\)"
     ):
         atom.implicit_hydrogens = -1
 

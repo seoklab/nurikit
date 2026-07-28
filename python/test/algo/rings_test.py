@@ -106,7 +106,7 @@ def test_ring_size(cubane: Molecule):
     for ring in rings:
         assert len(ring) <= 6
 
-    with pytest.raises(ValueError, match="must be positive"):
+    with pytest.raises(ValueError, match=r"must be in \(0, inf\)"):
         algo.find_all_rings(cubane, -1)
 
     # None means "unlimited", not a rejected value

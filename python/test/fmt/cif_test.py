@@ -355,7 +355,7 @@ def test_cif_column_format():
         ColumnFormat(bogus=True)
     with pytest.raises(ValueError, match="null_token"):
         ColumnFormat(null_token="x")
-    with pytest.raises(ValueError, match="precision must be non-negative"):
+    with pytest.raises(ValueError, match=r"precision must be in \[0, inf\)"):
         ColumnFormat(precision=-1)
     with pytest.raises(TypeError):
         ColumnFormat(4)  # keyword-only
