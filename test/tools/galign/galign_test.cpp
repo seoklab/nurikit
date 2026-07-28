@@ -153,5 +153,32 @@ TEST(GAlign, Flexible) {
   NURI_EXPECT_EIGEN_EQ_TOL(random.matrix(), result.xform.matrix(), 1e-6);
   EXPECT_GE(result.align_score, 0.95);
 }
+
+TEST(GAlign, FlexibleMaxConfClampedToPool) {
+  // A rotatable bond is required: without one the flexible path
+  // short-circuits to rigid alignment and never builds a pool.
+  Molecule mol = read_smiles({ "CCCC" });
+
+  Matrix3Xd &conf = mol.confs().emplace_back(3, mol.num_atoms());
+  conf.transpose() << 0.0, 0.0, 0.0,  //
+      1.5, 0.0, 0.0,                  //
+      2.0, 1.4, 0.0,                  //
+      3.5, 1.4, 0.0;
+
+  GARigidMolInfo info(mol, conf);
+
+  GASamplingArgs sampling;
+  sampling.pool_size = 1;
+  sampling.sample_size = 1;
+  sampling.max_gen = 1;
+  sampling.patience = 1;
+
+  GAMinimizeArgs minimize;
+  minimize.max_iters = 1;
+
+  internal::seed_thread(42);
+  std::vector results = galign(mol, conf, info, true, 10, sampling, minimize);
+  EXPECT_EQ(results.size(), sampling.pool_size + sampling.sample_size);
+}
 }  // namespace
 }  // namespace nuri

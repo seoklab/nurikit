@@ -419,6 +419,7 @@ namespace internal {
       prev_max = current_max;
     }
 
+    max_conf = nuri::min(max_conf, static_cast<int>(pool.size()));
     auto topk = argpartition(pool, max_conf, std::greater<>());
 
     std::vector<GAlignResult> flex_result;
