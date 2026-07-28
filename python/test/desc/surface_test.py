@@ -107,10 +107,10 @@ def test_sr_sasa_errors(phenol: Molecule):
     with pytest.raises(ValueError, match="number of points"):
         shrake_rupley_sasa(pts, radii[:-1])
 
-    with pytest.raises(ValueError, match="number of probes"):
+    with pytest.raises(ValueError, match="nprobe"):
         shrake_rupley_sasa(pts, radii, nprobe=0)
 
-    with pytest.raises(ValueError, match="radius of probes"):
+    with pytest.raises(ValueError, match="rprobe"):
         shrake_rupley_sasa(pts, radii, rprobe=-1.0)
 
     radii[-2] = -1.0

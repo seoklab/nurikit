@@ -125,7 +125,7 @@ class TestOctree:
 
         with pytest.raises(ValueError, match="NaN or infinite"):
             ngeom.Octree(bad)
-        with pytest.raises(ValueError, match="bucket size"):
+        with pytest.raises(ValueError, match="bucket_size"):
             ngeom.Octree(pts, bucket_size=0)
 
         tree = ngeom.Octree(pts)
@@ -136,9 +136,9 @@ class TestOctree:
         bad_q[0, 1] = np.inf
         with pytest.raises(ValueError, match="NaN or infinite"):
             tree.find_neighbors(bad_q, k=1)
-        with pytest.raises(ValueError, match="cutoff"):
+        with pytest.raises(ValueError, match="finite d"):
             tree.find_neighbors(query, d=np.nan)
-        with pytest.raises(ValueError, match="number of neighbors"):
+        with pytest.raises(ValueError, match=r"k must be in \(0, inf\)"):
             tree.find_neighbors(query, k=0)
 
     def test_find_neighbors_requires_d_or_k(
