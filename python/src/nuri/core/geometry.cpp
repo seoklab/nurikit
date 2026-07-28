@@ -249,8 +249,9 @@ Effectively, this function is roughly equivalent to the following Python code:
   of shape ``(N, 3)``.
 :returns: The transformed points.
 
-:warning: This function does not check if the transformation tensor is a valid
-  affine transformation matrix.
+.. warning::
+  This function does not check if the transformation tensor is a valid affine
+  transformation matrix.
 )doc");
 
   py::class_<OCTreeWrapper>(m, "Octree", R"doc(
