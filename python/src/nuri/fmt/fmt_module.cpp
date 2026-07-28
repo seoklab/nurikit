@@ -177,8 +177,12 @@ Read a molecule from a file.
 :param skip_on_error: Whether to skip a molecule if an error occurs, instead of
   raising an exception.
 :raises OSError: If any file-related error occurs.
-:raises ValueError: If the format is unknown or sanitization fails, unless
-  `skip_on_error` is set.
+:raises ValueError: If the format is unknown, or if a molecule cannot be read
+  or sanitized, unless `skip_on_error` is set.
+
+.. note::
+  The yielded molecules always have finite coordinates; NaN or infinite
+  coordinates are considered an error.
 )doc")
       .def(
           "readstring",
@@ -201,14 +205,18 @@ Read a molecule from string.
   (:func:`nuri.algo.guess_everything()`).
 :param skip_on_error: Whether to skip a molecule if an error occurs, instead of
   raising an exception.
-:raises ValueError: If the format is unknown or sanitization fails, unless
-  `skip_on_error` is set.
+:raises ValueError: If the format is unknown, or if a molecule cannot be read
+  or sanitized, unless `skip_on_error` is set.
 
-The returned object is an iterable of molecules.
+The returned object is an iterator of molecules.
 
 >>> for mol in nuri.readstring("smi", "C"):
 ...     print(mol[0].atomic_number)
 6
+
+.. note::
+  The yielded molecules always have finite coordinates; NaN or infinite
+  coordinates are considered an error.
 )doc");
 
   m.def(
