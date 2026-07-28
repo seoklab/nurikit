@@ -529,6 +529,11 @@ def test_pop_substruct(molsub: Molecule):
     assert len(subs) == 0
     assert len(sub) == 3
 
+    with pytest.raises(IndexError):
+        subs.pop()
+    with pytest.raises(IndexError):
+        subs.pop(0)
+
 
 def test_clear_substruct(molsub: Molecule):
     subs = molsub.subs
