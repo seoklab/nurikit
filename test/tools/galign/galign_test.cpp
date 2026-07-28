@@ -155,8 +155,7 @@ TEST(GAlign, Flexible) {
 }
 
 TEST(GAlign, FlexibleMaxConfClampedToPool) {
-  // A rotatable bond is required: without one the flexible path
-  // short-circuits to rigid alignment and never builds a pool.
+  // Needs a rotatable bond; otherwise the flexible path never builds a pool
   Molecule mol = read_smiles({ "CCCC" });
 
   Matrix3Xd &conf = mol.confs().emplace_back(3, mol.num_atoms());
@@ -179,6 +178,27 @@ TEST(GAlign, FlexibleMaxConfClampedToPool) {
   internal::seed_thread(42);
   std::vector results = galign(mol, conf, info, true, 10, sampling, minimize);
   EXPECT_EQ(results.size(), sampling.pool_size + sampling.sample_size);
+}
+
+TEST(GAlign, CoincidentRotatableBond) {
+  Molecule mol = read_smiles({ "CCCC" });
+
+  Matrix3Xd &conf = mol.confs().emplace_back(3, mol.num_atoms());
+  conf.transpose() << 0.0, 0.0, 0.0,  //
+      1.5, 0.0, 0.0,                  //
+      2.0, 1.4, 0.0,                  //
+      3.5, 1.4, 0.0;
+
+  const auto nrot = GARigidMolInfo(mol, conf).rot_info().size();
+  ASSERT_GT(nrot, 0);
+
+  // A zero-length axis would turn the rotation into a cos(angle) scaling
+  conf.col(2) = conf.col(1);
+  GARigidMolInfo degen(mol, conf);
+  EXPECT_EQ(degen.rot_info().size(), nrot - 1);
+
+  for (const internal::GARotationInfo &r: degen.rot_info())
+    EXPECT_GT(r.normalizer(), 0);
 }
 }  // namespace
 }  // namespace nuri
