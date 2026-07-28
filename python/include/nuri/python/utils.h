@@ -55,8 +55,6 @@ inline std::optional<double> check_finite(std::optional<double> x,
   return x;
 }
 
-// Selects whether the lower bound is inclusive (kClosed) or exclusive
-// (kLeftOpen). The upper bound of check_interval() is always inclusive.
 enum class Bounds { kClosed, kLeftOpen };
 
 template <class T>
@@ -87,10 +85,10 @@ T check_interval(T v, T lo, T hi, const char *what,
   if constexpr (std::is_floating_point_v<T>)
     check_finite(v, what);
 
-  const bool lo_ok = b == Bounds::kClosed ? v >= lo : v > lo;
-  if (!lo_ok || v > hi) {
-    throw py::value_error(
-        absl::StrCat(what, " must be between ", lo, " and ", hi, ", got ", v));
+  const bool open = b == Bounds::kLeftOpen;
+  if ((open ? v <= lo : v < lo) || v > hi) {
+    throw py::value_error(absl::StrCat(what, " must be in ", open ? "(" : "[",
+                                       lo, ", ", hi, "], got ", v));
   }
   return v;
 }

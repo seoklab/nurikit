@@ -76,20 +76,17 @@ def test_match_maker_errors(query: np.ndarray, templ: np.ndarray):
 
     with pytest.raises(
         ValueError,
-        match="global_ratio must be between 0 and 1",
+        match=r"global_ratio must be in \(0, 1\]",
     ):
         chimera.match_maker(query, templ, global_ratio=1.5)
 
     with pytest.raises(
         ValueError,
-        match="viol_ratio must be between 0 and 1",
+        match=r"viol_ratio must be in \(0, 1\]",
     ):
         chimera.match_maker(query, templ, viol_ratio=1.5)
 
-    # Lower bound is exclusive here, unlike galign's p_mutation
-    with pytest.raises(
-        ValueError, match="global_ratio must be between 0 and 1"
-    ):
+    with pytest.raises(ValueError, match=r"global_ratio must be in \(0, 1\]"):
         chimera.match_maker(query, templ, global_ratio=0.0)
 
     with pytest.raises(ValueError, match="finite"):
