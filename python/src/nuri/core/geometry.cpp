@@ -103,6 +103,15 @@ void find_neighbors_kd(const OCTree &octree, const Vector3d &query, double d,
 }  // namespace
 
 void bind_geometry(py::module &m) {
+  m.doc() = R"doc(
+Geometric utilities for 3D point clouds.
+
+.. note::
+  Every function and method in this module rejects floating-point array inputs
+  containing NaN or infinite values, raising :exc:`ValueError`. This is not
+  repeated in the individual descriptions below.
+)doc";
+
   m.def(
       "align_points",
       [](const py::handle &q_py, const py::handle &t_py,
@@ -152,6 +161,9 @@ Find a 4x4 best-fit rigid-body transformation tensor, to align ``query`` to
   ``False``.
 
 :returns: A tuple of the transformation tensor and the RMSD of the alignment.
+
+:raises ValueError: If the two point sets have different sizes, or if the
+  alignment method is unknown.
 )doc");
 
   m.def(
@@ -196,6 +208,9 @@ Calculate the RMSD of the best-fit rigid-body alignment of ``query`` to
   ``False``.
 
 :returns: The RMSD of the alignment.
+
+:raises ValueError: If the two point sets have different sizes, or if the
+  alignment method is unknown.
 )doc");
 
   m.def(
@@ -262,6 +277,8 @@ Initialize the octree with a set of points.
   numpy array of shape ``(N, 3)``.
 :param bucket_size: The maximum number of points in each leaf node of the
   octree. Defaults to 32.
+
+:raises ValueError: If ``bucket_size`` is not positive.
 )doc")
       .def(
           "rebuild",
@@ -278,6 +295,8 @@ Rebuild the octree with a new set of points.
   numpy array of shape ``(N, 3)``.
 :param bucket_size: The maximum number of points in each leaf node of the
   octree. Defaults to 32.
+
+:raises ValueError: If ``bucket_size`` is not positive.
 )doc")
       .def(
           "find_neighbors",
@@ -354,6 +373,9 @@ Find neighbors of each point in the octree.
   each row is a pair of (query index, neighbor index), and the second array will
   have shape ``(N,)``, where each element is the distance to the corresponding
   neighbor.
+
+:raises ValueError: If neither ``d`` nor ``k`` is specified, or if either is
+  not positive.
 )doc")
       .def(
           "query_tree",
@@ -378,10 +400,12 @@ Find neighbors of each point in the octree.
 Find all neighbors in another octree.
 
 :param other: The other octree to query.
-:param d: The cutoff distance for neighbors. Must be non-negative.
+:param d: The cutoff distance for neighbors. Must be positive.
 :returns: A list of numpy arrays. For point ``i`` in the original octree,
   ``results[i]`` is a 1D numpy array containing the indices of its neighbors in
   the ``other`` octree.
+
+:raises ValueError: If ``d`` is not positive.
 )doc")
       .def(
           "query_pairs",
@@ -403,11 +427,13 @@ Find all neighbors in another octree.
           py::kw_only(), py::arg("d"), R"doc(
 Find all non-redundant pairs of neighbors in the octree.
 
-:param d: The cutoff distance for neighbors. Must be non-negative.
+:param d: The cutoff distance for neighbors. Must be positive.
 :returns: A numpy array of shape ``(N, 2)``, where each row is a pair of
   neighbor indices in the original point set. The pairs are non-redundant,
   meaning that if :math:`(i, j)` is in the array, then :math:`(j, i)` will not
   be in the array, and :math:`i \neq j`.
+
+:raises ValueError: If ``d`` is not positive.
 )doc");
 
   py::class_<VoxelGrid>(m, "VoxelGrid", R"doc(
@@ -428,6 +454,8 @@ Initialize the voxel grid with a set of points and cutoff distance.
 :param pts: The points to build the grid with. Must be representable as a 2D
   numpy array of shape ``(N, 3)``.
 :param cutoff: The cutoff distance for neighbor queries. Must be positive.
+
+:raises ValueError: If ``cutoff`` is not positive.
 )doc")
       .def(
           "rebuild",
@@ -449,6 +477,8 @@ Rebuild the voxel grid with a new set of points.
   numpy array of shape ``(N, 3)``.
 :param cutoff: The cutoff distance for neighbor queries. If omitted, the
   current cutoff is reused. Must be positive when specified.
+
+:raises ValueError: If ``cutoff`` is specified and not positive.
 )doc")
       .def_property_readonly(
           "cutoff", [](const VoxelGrid &self) { return self.cutoff(); },

@@ -156,15 +156,11 @@ Align the given query molecule to the template structure.
 :param query: The query molecule to be aligned. Must have at least one 3D
   conformation.
 :param flexible: Whether to perform flexible alignment. When ``False``, only
-  rigid alignment is performed and the flexible alignment parameters are ignored.
+  rigid alignment is performed and the flexible alignment parameters are
+  ignored, though they are still validated.
 :param max_confs: The maximum number of alignment results to return.
 :param conf: The conformation index to use as the query structure. If not
   provided, the first conformation is used.
-:param vdw_scale: The scale factor for van der Waals radii when calculating
-  shape overlap score.
-:param hetero_scale: The scale factor for atom type mismatch when calculating
-  shape overlap score.
-:param dcut: The distance cutoff for neighbor search, in angstroms.
 :param max_translation: The maximum translation allowed during flexible
   alignment, in angstroms.
 :param max_rotation: The maximum rotation allowed during flexible alignment,
@@ -236,7 +232,8 @@ Align the given query molecule to the template structure.
 :param templ: The template structure. Must have at least 3 atoms and 3D
   coordinates.
 :param flexible: Whether to perform flexible alignment. When ``False``, only
-  rigid alignment is performed and the flexible alignment parameters are ignored.
+  rigid alignment is performed and the flexible alignment parameters are
+  ignored, though they are still validated.
 :param max_confs: The maximum number of alignment results to return.
 :param qconf: The conformation index to use as the query structure. If not
   provided, the first conformation is used.
