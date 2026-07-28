@@ -390,6 +390,13 @@ namespace internal {
     for (GeneticConf &conf: pool)
       minimize_one_conf(conf, nm, simplex, inv, buf);
 
+    // Only the first pool_size entries seed the generations, and the resize
+    // below drops the rest, so the best must come first
+    if (static_cast<int>(pool.size()) > sampling.pool_size) {
+      std::nth_element(pool.begin(), pool.begin() + sampling.pool_size - 1,
+                       pool.end(), std::greater<>());
+    }
+
     const std::vector<GeneticConf> initial_pool(pool);
     ArrayXd cutoffs(sampling.pool_size * 2);
     exp_cumsum_scores(cutoffs.head(sampling.pool_size), initial_pool);

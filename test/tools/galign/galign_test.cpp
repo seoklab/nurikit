@@ -180,6 +180,42 @@ TEST(GAlign, FlexibleMaxConfClampedToPool) {
   EXPECT_EQ(results.size(), sampling.pool_size + sampling.sample_size);
 }
 
+TEST(GAlign, FlexiblePrunesExcessRigidSeeds) {
+  Molecule mol = read_smiles({ "CCCCCC" });
+
+  Matrix3Xd &conf = mol.confs().emplace_back(3, mol.num_atoms());
+  conf.transpose() << 0.00, 0.0, 0.0,  //
+      1.25, 0.9, 0.0,                  //
+      2.50, 0.0, 0.0,                  //
+      3.75, 0.9, 0.0,                  //
+      5.00, 0.0, 0.0,                  //
+      6.25, 0.9, 0.0;
+
+  GARigidMolInfo info(mol, conf);
+
+  GASamplingArgs sampling;
+  sampling.rigid_min_msd = 0;
+  sampling.rigid_max_conf = 8;
+  sampling.pool_size = 1;
+  sampling.sample_size = 1;
+  sampling.max_gen = 1;
+  sampling.patience = 1;
+
+  GAMinimizeArgs minimize;
+  minimize.max_iters = 1;
+
+  internal::seed_thread(42);
+  std::vector rigid = galign(mol, conf, info, false, sampling.rigid_max_conf,
+                             sampling, minimize);
+  ASSERT_GT(rigid.size(), sampling.pool_size + sampling.sample_size);
+
+  internal::seed_thread(42);
+  std::vector results = galign(mol, conf, info, true, 10, sampling, minimize);
+  ASSERT_EQ(results.size(), sampling.pool_size + sampling.sample_size);
+  for (const GAlignResult &r: results)
+    EXPECT_GE(r.align_score, 0);
+}
+
 TEST(GAlign, CoincidentRotatableBond) {
   Molecule mol = read_smiles({ "CCCC" });
 
