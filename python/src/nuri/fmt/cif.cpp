@@ -40,6 +40,10 @@ namespace python_internal {
 namespace {
 namespace fs = std::filesystem;
 
+// A 64-bit integer never needs more than 20 digits, and a CIF line is
+// conventionally at most 80 characters wide
+constexpr int kMaxWidth = 80;
+
 class PyCifTable;
 
 // Per-column formatting options, mirroring the CifValue constructor keywords.
@@ -521,6 +525,7 @@ overloaded on the type of ``value``.
       .def(py::init([](int width, std::optional<int> precision, bool raw,
                        bool short_form, std::string_view null_token,
                        bool coerce_nonfinite) {
+             check_interval(width, "width", Bounds::kClosed, 0, kMaxWidth);
              check_interval(precision, "precision", Bounds::kClosed, 0);
              return ColumnFormat {
                width,      precision.value_or(-1),       raw,
@@ -539,7 +544,7 @@ applies only to cells of its matching type; the others are ignored. Explicit
 :class:`Value` cells are never affected.
 
 :param width: For :class:`int` cells, zero-pad the number to at least this many
-  digits.
+  digits. Must be between 0 and 80.
 :param precision: For :class:`float` cells, digits after the decimal point; if
   ``None`` (the default), yields at most 6 significant digits. Must be
   non-negative if provided.
@@ -707,12 +712,16 @@ Store a boolean CIF value.
 :param value: The boolean to store.
 :param short_form: Use ``y``/``n`` instead of ``yes``/``no``.
 )doc");
-  cv.def(py::init(&cif_value<std::int64_t>), py::arg("value"),
-         py::arg("width") = 0, R"doc(
+  cv.def(py::init([](std::int64_t value, int width) {
+           check_interval(width, "width", Bounds::kClosed, 0, kMaxWidth);
+           return cif_value(value, width);
+         }),
+         py::arg("value"), py::arg("width") = 0, R"doc(
 Store an integer CIF value.
 
 :param value: The integer to store.
 :param width: If positive, zero-pad the number to at least this many digits.
+  Must be at most 80.
 )doc");
   cv.def(py::init([](double value, std::optional<int> prec,
                      bool coerce_nonfinite, std::string_view null_token) {
