@@ -110,8 +110,7 @@ def test_mol2_file(tmp_path: Path):
 
 
 def test_mol2_nonfinite():
-    # Parsers accept "nan"/"inf" coordinate text; the reader must reject the
-    # resulting molecule instead of yielding non-finite coordinates.
+    # The parser itself accepts "nan"/"inf" coordinate text
     data = """\
 @<TRIPOS>MOLECULE
 Nan
@@ -125,7 +124,6 @@ NO_CHARGES
     with pytest.raises(ValueError, match="non-finite"):
         list(nuri.readstring("mol2", data))
 
-    # skip_on_error should drop it silently instead of raising
     assert list(nuri.readstring("mol2", data, skip_on_error=True)) == []
 
 

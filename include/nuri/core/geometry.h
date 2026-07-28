@@ -42,7 +42,7 @@ namespace internal {
     int nleaf() const { return nleaf_; }
 
   private:
-    Array8i children_;  // child index (>= 0) or a sentinel
+    Array8i children_;
     int begin_;
     int nleaf_;
   };

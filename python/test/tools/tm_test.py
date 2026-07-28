@@ -237,16 +237,13 @@ def test_tm_errors():
 
 
 def test_tm_short_secstr():
-    # Secondary-structure assignment on a structure shorter than the
-    # 5-residue window must raise, not crash (regression: out-of-bounds
-    # indexing when one secondary structure is inferred).
+    # Regression: the inferred template ss indexed out of bounds before raising
     with pytest.raises(ValueError, match="at least 5 residues"):
         tmtools.TMAlign(np.zeros((5, 3)), np.zeros((3, 3)), query_ss="CCCCC")
 
 
 def test_tm_invalid_score_args(query: np.ndarray, templ: np.ndarray):
-    # None already means "auto"; a non-positive value used to be silently
-    # reinterpreted as such instead of raising.
+    # None already means "auto"; non-positive used to be silently reinterpreted
     with pytest.raises(ValueError, match="d0 must be positive"):
         tmtools.tm_align(query, templ, d0=0.0)
     with pytest.raises(ValueError, match="l_norm must be positive"):

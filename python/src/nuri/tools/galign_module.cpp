@@ -64,7 +64,6 @@ galign_align(const GARigidMolInfo &self, const PyMol &query, bool flexible,
              int max_iters) {
   const Matrix3Xd &seed = galign_try_get_conf(query, conf);
 
-  // Every scalar below reaches GASamplingArgs regardless of `flexible`.
   check_positive(max_conf, "max_confs");
   check_positive(max_trs, "max_translation", Bounds::kClosed);
   check_positive(max_rot, "max_rotation", Bounds::kClosed);

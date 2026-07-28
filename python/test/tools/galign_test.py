@@ -139,8 +139,7 @@ def test_galign_nonfinite(templ: Molecule, query: Molecule) -> None:
 def test_galign_sampling_args_validation(
     templ: Molecule, query: Molecule
 ) -> None:
-    # These reach GASamplingArgs even in rigid mode, so they are validated
-    # regardless of `flexible`.
+    # Sampling args are validated even when `flexible` is False
     with pytest.raises(ValueError, match="pool_size must be positive"):
         galign(query, templ, pool_size=0)
     with pytest.raises(ValueError, match="patience must be positive"):
@@ -152,5 +151,5 @@ def test_galign_sampling_args_validation(
     ):
         galign(query, templ, rigid_min_rmsd=-1.0)
 
-    # Lower bound is inclusive here, unlike chimera's global_ratio
+    # p_mutation's lower bound is inclusive
     assert galign(query, templ, flexible=False, p_mutation=0.0, n_mutation=0)

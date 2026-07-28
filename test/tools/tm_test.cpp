@@ -314,8 +314,6 @@ TEST(TMAlignComponentTest, AssignSecStr) {
 }
 
 TEST(TMAlignComponentTest, AssignSecStrShort) {
-  // Fewer than 5 residues cannot be classified; the assignment must return
-  // all-coil instead of indexing out of bounds.
   const auto coil = static_cast<std::int8_t>(SecStr::kCoil);
   Matrix3Xd buf(3, 8);
   for (int n = 0; n <= 4; ++n) {

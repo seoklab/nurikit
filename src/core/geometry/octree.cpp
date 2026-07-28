@@ -26,9 +26,8 @@ namespace {
   using internal::Array8i;
   using internal::OCTreeNode;
 
-  // Sentinel values stored in OCTreeNode::children_[i].
-  constexpr int kNoChild = -1;     // octant i is empty
-  constexpr int kLeafMarker = -2;  // in children_[0] only: unsplittable leaf
+  constexpr int kNoChild = -1;
+  constexpr int kLeafMarker = -2;  // children_[0] only
 
   // Octant index is (xyz):
   // 000 -> +++, 100 -> -++, 010 -> +-+, 110 -> --+,
@@ -117,7 +116,7 @@ namespace {
     Vector3d half = size * 0.5;
     Vector3d cntr = max - half;
 
-    // This bounds the recursion at floating-point precision
+    // Bounds the recursion at floating-point precision
     if (ABSL_PREDICT_FALSE((cntr.array() == max.array()).all())) {
       mark_leaf();
       max_nleaf = nuri::max(max_nleaf, nleaf);

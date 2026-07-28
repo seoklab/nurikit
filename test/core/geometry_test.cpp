@@ -406,8 +406,7 @@ TEST(OCTreeTest, NotifyTransformTest) {
 }
 
 TEST(OCTreeTest, NotifyTransformDegenerate) {
-  // Points flat on one axis have zero extent there; notify_transform must not
-  // divide by zero when recovering the per-axis scale.
+  // Zero extent on one axis: the per-axis scale would divide by zero
   Matrix3Xd m = Matrix3Xd::Random(3, 50);
   m.row(2).setConstant(5.0);
   OCTree tree(m);
@@ -429,9 +428,7 @@ TEST(OCTreeTest, NotifyTransformDegenerate) {
 }
 
 TEST(OCTreeTest, CoincidentPoints) {
-  // More than bucket_size exactly-coincident points must not recurse forever
-  // (stack overflow); they collapse into one over-full leaf and every query
-  // must still find them all.
+  // Over-full coincident cluster: octant splitting can never separate them
   const int n = 100;
   const Vector3d p(1.0, 2.0, 3.0);
   Matrix3Xd m = p.replicate(1, n);
@@ -465,9 +462,7 @@ TEST(OCTreeTest, CoincidentPoints) {
 }
 
 TEST(OCTreeTest, CoincidentPointsStructure) {
-  // A cloud mixing scattered points with an over-full coincident cluster has
-  // both internal nodes and a leaf whose nleaf() exceeds bucket_size(). Walking
-  // the tree must classify the latter by leaf(), not by its size.
+  // Mixed cloud: internal nodes plus a leaf whose nleaf() exceeds bucket_size()
   const int nscat = 400, ncoin = 100;
   Matrix3Xd m(3, nscat + ncoin);
   m.leftCols(nscat) = Matrix3Xd::Random(3, nscat);
@@ -522,7 +517,6 @@ TEST(OCTreeTest, EmptyCloud) {
   tree.find_neighbors_tree(other, 1.0, is, js);
   EXPECT_TRUE(is.empty());
 
-  // rebuild non-empty then empty again to exercise the reset path
   tree.rebuild(Matrix3Xd::Random(3, 20));
   EXPECT_GT(tree.size(), 0);
   tree.rebuild(empty);
