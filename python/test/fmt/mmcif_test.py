@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import List
 
 import numpy as np
 
@@ -13,7 +14,7 @@ from nuri.core import Molecule
 from nuri.fmt.cif import read_blocks
 
 
-def _validate_3cye_part(mols: List[Molecule]):
+def _validate_3cye_part(mols: list[Molecule]):
     assert len(mols) == 2
 
     mol = mols[0]

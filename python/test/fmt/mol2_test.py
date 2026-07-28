@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import List
 
 import numpy as np
 import pytest
@@ -80,7 +81,7 @@ NO_CHARGES
 """
 
 
-def _verify_mols(mols: List[Molecule]):
+def _verify_mols(mols: list[Molecule]):
     assert len(mols) == 2
 
     assert len(mols[0]) == 1

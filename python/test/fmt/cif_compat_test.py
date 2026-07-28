@@ -8,7 +8,7 @@ names must keep working."""
 
 from pathlib import Path
 
-import nuri.fmt as fmt
+from nuri import fmt
 from nuri.fmt import cif
 
 

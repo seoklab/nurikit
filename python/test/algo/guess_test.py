@@ -86,6 +86,5 @@ def test_guess_types(arginine_bonds: Molecule):
 
 
 def test_guess_error(arginine: Molecule):
-    with arginine.mutator() as mut:
-        with pytest.raises(IndexError):
-            algo.guess_everything(mut, 100)
+    with arginine.mutator() as mut, pytest.raises(IndexError):
+        algo.guess_everything(mut, 100)

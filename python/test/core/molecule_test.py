@@ -52,13 +52,11 @@ def test_mutator_errors():
         with pytest.raises(RuntimeError):
             mol.clear_bonds()
 
-        with pytest.raises(RuntimeError):
-            with mol.mutator():
-                pass
+        with pytest.raises(RuntimeError), mol.mutator():
+            pass
 
-        with pytest.raises(RuntimeError):
-            with mut1:
-                pass
+        with pytest.raises(RuntimeError), mut1:
+            pass
 
         mut1.add_atom(7)
 

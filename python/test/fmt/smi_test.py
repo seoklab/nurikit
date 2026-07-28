@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import List
 
 import nuri
 from nuri.core import Hyb, Molecule
@@ -17,7 +18,7 @@ C1=CC=CC=C1 benzene
 """
 
 
-def _verify_mols(mols: List[Molecule]):
+def _verify_mols(mols: list[Molecule]):
     assert len(mols) == 4
     assert len(mols[0]) == 1
     assert len(mols[1]) == 2

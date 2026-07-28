@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from typing import List, Tuple
+from __future__ import annotations
 
 import numpy as np
 import pytest
@@ -71,7 +71,7 @@ def test_view_matches_source(source: str, readonly: bool, transpose: bool):
 def test_empty_unset_member():
     data = _EigenViewTestData()
 
-    cases: List[Tuple[np.ndarray, Tuple[int, ...]]] = [
+    cases: list[tuple[np.ndarray, tuple[int, ...]]] = [
         (data.dynamic(False, False), (0, 0)),
         (data.semi_dynamic(False, False), (0, 3)),
         (data.vector(False, False), (0,)),

@@ -7,6 +7,10 @@ extend-exclude = [".github/**", "*.pyc", "*.pyi"]
 
 [lint]
 extend-select = [
+    "E4",
+    "E7",
+    "E9",
+    "F",
     "W6",
     "I",
     "N80",
