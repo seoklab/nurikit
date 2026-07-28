@@ -69,7 +69,7 @@ galign_align(const GARigidMolInfo &self, const PyMol &query, bool flexible,
   check_positive(max_trs, "max_translation", Bounds::kClosed);
   check_positive(max_rot, "max_rotation", Bounds::kClosed);
   check_positive(max_tors, "max_torsion", Bounds::kClosed);
-  check_positive(rigid_min_rmsd, "rigid_min_msd", Bounds::kClosed);
+  check_positive(rigid_min_rmsd, "rigid_min_rmsd", Bounds::kClosed);
   check_positive(rigid_max_conf, "rigid_max_confs");
   check_positive(pool_size, "pool_size");
   check_positive(sample_size, "sample_size");
@@ -145,7 +145,7 @@ Prepare GAlign algorithm with the given template structure.
            py::arg("conf") = py::none(), py::arg("max_translation") = 2.5,
            py::arg("max_rotation") = deg2rad(120),
            py::arg("max_torsion") = deg2rad(120),
-           py::arg("rigid_min_msd") = 9.0, py::arg("rigid_max_confs") = 4,
+           py::arg("rigid_min_rmsd") = 3.0, py::arg("rigid_max_confs") = 4,
            py::arg("pool_size") = 10, py::arg("sample_size") = 30,
            py::arg("max_generations") = 50, py::arg("patience") = 5,
            py::arg("n_mutation") = 5, py::arg("p_mutation") = 0.5,
@@ -222,7 +222,7 @@ Align the given query molecule to the template structure.
       py::arg("vdw_scale") = 0.8, py::arg("hetero_scale") = 0.7,
       py::arg("dcut") = 6, py::arg("max_translation") = 2.5,
       py::arg("max_rotation") = deg2rad(120),
-      py::arg("max_torsion") = deg2rad(120), py::arg("rigid_min_msd") = 9.0,
+      py::arg("max_torsion") = deg2rad(120), py::arg("rigid_min_rmsd") = 3.0,
       py::arg("rigid_max_confs") = 4, py::arg("pool_size") = 10,
       py::arg("sample_size") = 30, py::arg("max_generations") = 50,
       py::arg("patience") = 5, py::arg("n_mutation") = 5,

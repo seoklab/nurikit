@@ -147,8 +147,10 @@ def test_galign_sampling_args_validation(
         galign(query, templ, patience=0)
     with pytest.raises(ValueError, match="rigid_max_confs must be positive"):
         galign(query, templ, rigid_max_confs=0)
-    with pytest.raises(ValueError, match="rigid_min_msd must be non-negative"):
-        galign(query, templ, rigid_min_msd=-1.0)
+    with pytest.raises(
+        ValueError, match="rigid_min_rmsd must be non-negative"
+    ):
+        galign(query, templ, rigid_min_rmsd=-1.0)
 
     # Lower bound is inclusive here, unlike chimera's global_ratio
     assert galign(query, templ, flexible=False, p_mutation=0.0, n_mutation=0)
