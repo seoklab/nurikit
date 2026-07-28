@@ -24,7 +24,7 @@ namespace nuri {
 namespace python_internal {
 namespace {
 int check_size(std::optional<int> size) {
-  return check_interval(size, "max_size", Bounds::kLeftOpen, 0).value_or(-1);
+  return check_interval(size, "max_size", Bounds::kOpenLo, 0).value_or(-1);
 }
 
 template <class AtomIndexer>
@@ -324,7 +324,7 @@ void bind_crdgen(py::module_ &m) {
         if (absl::AsciiStrToUpper(method) != "DG")
           throw py::value_error(absl::StrCat("Unsupported method: ", method));
 
-        check_interval(trial, "max_trial", Bounds::kLeftOpen, 0);
+        check_interval(trial, "max_trial", Bounds::kOpenLo, 0);
 
         bool success = generate_coords(*mol, trial);
         if (!success)

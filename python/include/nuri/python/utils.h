@@ -36,7 +36,19 @@
 #include "nuri/utils.h"
 
 namespace nuri {
+namespace internal {
+// Which ends of a check_interval() range are exclusive
+enum class Bounds : std::uint8_t {
+  kClosed = 0x0,
+  kOpenLo = 0x1,
+  kOpenHi = 0x2,
+  kOpen = 0x3,
+};
+}  // namespace internal
+
 namespace python_internal {
+using internal::Bounds;
+
 template <class CppType, class... Args>
 using PyProxyCls =
     py::class_<CppType, std::unique_ptr<CppType, py::nodelete>, Args...>;
@@ -55,8 +67,6 @@ inline std::optional<double> check_finite(std::optional<double> x,
   return x;
 }
 
-enum class Bounds { kClosed, kLeftOpen };
-
 // Blocks deduction so bound literals convert to T instead of fixing it
 template <class T>
 struct NoDeduce {
@@ -68,7 +78,7 @@ using NoDeduceT = typename NoDeduce<T>::type;
 
 /**
  * Reject @p v unless it lies in the interval [@p lo, @p hi], where an absent
- * bound means unbounded and @p b selects whether @p lo itself is allowed.
+ * bound means unbounded and @p b selects which ends are exclusive.
  */
 template <class T>
 T check_interval(T v, const char *what, Bounds b,
@@ -77,14 +87,17 @@ T check_interval(T v, const char *what, Bounds b,
   if constexpr (std::is_floating_point_v<T>)
     check_finite(v, what);
 
-  const bool open = b == Bounds::kLeftOpen;
-  if ((!lo || (open ? v > *lo : v >= *lo)) && (!hi || v <= *hi))
+  const bool open_lo = internal::check_flag(b, Bounds::kOpenLo);
+  const bool open_hi = internal::check_flag(b, Bounds::kOpenHi);
+
+  if ((!lo || (open_lo ? v > *lo : v >= *lo))
+      && (!hi || (open_hi ? v < *hi : v <= *hi)))
     return v;
 
   throw py::value_error(absl::StrCat(
-      what, " must be in ", open || !lo ? "(" : "[",
+      what, " must be in ", open_lo || !lo ? "(" : "[",
       lo ? absl::StrCat(*lo) : "-inf", ", ", hi ? absl::StrCat(*hi) : "inf",
-      hi ? "], got " : "), got ", v));
+      open_hi || !hi ? ")" : "]", ", got ", v));
 }
 
 template <class T>
