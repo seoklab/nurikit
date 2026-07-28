@@ -6,14 +6,15 @@
 """Metaclass letting owned pybind11 classes accept proxy views as virtual
 subclasses."""
 
+from __future__ import annotations
+
 from collections import defaultdict
-from typing import Dict, Set
 
 __all__ = ["make_virtual_subclass_metaclass"]
 
 
 def make_virtual_subclass_metaclass(pybind11_cls: type) -> type:
-    registry: Dict[type, Set[type]] = defaultdict(set)
+    registry: dict[type, set[type]] = defaultdict(set)
 
     class _VirtualSubclassMeta(type(pybind11_cls)):
         def register(cls, subclass):

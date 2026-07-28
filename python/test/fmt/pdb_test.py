@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import List
 
 import numpy as np
 import pytest
@@ -46,7 +47,7 @@ ENDMDL
 """
 
 
-def _verify_mols(mols: List[Molecule]):
+def _verify_mols(mols: list[Molecule]):
     assert len(mols) == 2
 
     assert len(mols[0]) == 8
@@ -150,9 +151,7 @@ def test_pdb_models(tmp_path: Path):
 
     assert len(model.chains) == 2
     for chain in model.chains:
-        if chain.id == "A":
-            assert len(chain.res_idxs) == 1
-        elif chain.id == "B":
+        if chain.id in ("A", "B"):
             assert len(chain.res_idxs) == 1
         else:
             pytest.fail(f"Invalid chain ID {chain.id}")

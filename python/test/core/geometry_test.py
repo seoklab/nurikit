@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from typing import Tuple
+from __future__ import annotations
 
 import numpy as np
 import pytest
@@ -32,7 +32,7 @@ def points():
         ),
     ],
 )
-def test_align(points: Tuple[np.ndarray, np.ndarray], method: str):
+def test_align(points: tuple[np.ndarray, np.ndarray], method: str):
     q, t = points
 
     xform, rmsd = ngeom.align_points(q, t, method=method, reflection=False)
@@ -92,7 +92,7 @@ def _brute_pairs(pts: np.ndarray, query: np.ndarray, d: float):
 
 
 class TestOctree:
-    def test_construct_and_rebuild(self, cloud: Tuple[np.ndarray, np.ndarray]):
+    def test_construct_and_rebuild(self, cloud: tuple[np.ndarray, np.ndarray]):
         pts, _ = cloud
         tree = ngeom.Octree(pts)
 
@@ -107,7 +107,7 @@ class TestOctree:
         assert np.allclose(dist, 0.0)
 
     def test_find_neighbors_requires_d_or_k(
-        self, cloud: Tuple[np.ndarray, np.ndarray]
+        self, cloud: tuple[np.ndarray, np.ndarray]
     ):
         pts, qry = cloud
         tree = ngeom.Octree(pts)
@@ -116,7 +116,7 @@ class TestOctree:
             tree.find_neighbors(qry)
 
     def test_find_neighbors_by_distance(
-        self, cloud: Tuple[np.ndarray, np.ndarray]
+        self, cloud: tuple[np.ndarray, np.ndarray]
     ):
         pts, qry = cloud
         tree = ngeom.Octree(pts)
@@ -139,7 +139,7 @@ class TestOctree:
         assert np.allclose(dist, rebuilt, atol=1e-9)
 
     def test_find_neighbors_by_count(
-        self, cloud: Tuple[np.ndarray, np.ndarray]
+        self, cloud: tuple[np.ndarray, np.ndarray]
     ):
         pts, qry = cloud
         tree = ngeom.Octree(pts)
@@ -164,7 +164,7 @@ class TestOctree:
             assert np.all(np.diff(dists) >= -1e-12)
 
     def test_find_neighbors_by_count_and_distance(
-        self, cloud: Tuple[np.ndarray, np.ndarray]
+        self, cloud: tuple[np.ndarray, np.ndarray]
     ):
         pts, qry = cloud
         tree = ngeom.Octree(pts)
@@ -193,7 +193,7 @@ class TestOctree:
             )
             assert np.all(np.diff(dists) >= -1e-12)
 
-    def test_query_pairs(self, cloud: Tuple[np.ndarray, np.ndarray]):
+    def test_query_pairs(self, cloud: tuple[np.ndarray, np.ndarray]):
         pts, _ = cloud
         tree = ngeom.Octree(pts)
         d = 1.5
@@ -219,14 +219,14 @@ class TestOctree:
         assert np.array_equal(got, exp)
 
     def test_query_pairs_negative_d(
-        self, cloud: Tuple[np.ndarray, np.ndarray]
+        self, cloud: tuple[np.ndarray, np.ndarray]
     ):
         pts, _ = cloud
         tree = ngeom.Octree(pts)
         with pytest.raises(ValueError, match="must be positive"):
             tree.query_pairs(d=-1.0)
 
-    def test_query_tree(self, cloud: Tuple[np.ndarray, np.ndarray]):
+    def test_query_tree(self, cloud: tuple[np.ndarray, np.ndarray]):
         pts, qry = cloud
         tree = ngeom.Octree(pts)
         other = ngeom.Octree(qry)
@@ -241,7 +241,7 @@ class TestOctree:
             expect = np.flatnonzero(dmat[i] <= d)
             assert np.array_equal(np.sort(arr), expect), f"point {i}"
 
-    def test_query_tree_negative_d(self, cloud: Tuple[np.ndarray, np.ndarray]):
+    def test_query_tree_negative_d(self, cloud: tuple[np.ndarray, np.ndarray]):
         pts, qry = cloud
         tree = ngeom.Octree(pts)
         other = ngeom.Octree(qry)
@@ -250,7 +250,7 @@ class TestOctree:
 
 
 class TestVoxelGrid:
-    def test_construct_and_rebuild(self, cloud: Tuple[np.ndarray, np.ndarray]):
+    def test_construct_and_rebuild(self, cloud: tuple[np.ndarray, np.ndarray]):
         pts, _ = cloud
         grid = ngeom.VoxelGrid(pts, cutoff=1.5)
         assert grid.cutoff == pytest.approx(1.5)
@@ -276,7 +276,7 @@ class TestVoxelGrid:
     @pytest.mark.parametrize("cutoff", [0.0, -1.0])
     def test_invalid_cutoff(
         self,
-        cloud: Tuple[np.ndarray, np.ndarray],
+        cloud: tuple[np.ndarray, np.ndarray],
         cutoff: float,
     ):
         pts, _ = cloud
@@ -284,7 +284,7 @@ class TestVoxelGrid:
             ngeom.VoxelGrid(pts, cutoff=cutoff)
 
     def test_rebuild_invalid_cutoff(
-        self, cloud: Tuple[np.ndarray, np.ndarray]
+        self, cloud: tuple[np.ndarray, np.ndarray]
     ):
         pts, _ = cloud
         grid = ngeom.VoxelGrid(pts, cutoff=1.5)
@@ -293,7 +293,7 @@ class TestVoxelGrid:
         with pytest.raises(ValueError, match="must be positive"):
             grid.rebuild(pts, cutoff=0.0)
 
-    def test_find_neighbors(self, cloud: Tuple[np.ndarray, np.ndarray]):
+    def test_find_neighbors(self, cloud: tuple[np.ndarray, np.ndarray]):
         pts, qry = cloud
         d = 1.5
         grid = ngeom.VoxelGrid(pts, cutoff=d)
@@ -314,7 +314,7 @@ class TestVoxelGrid:
         rebuilt = np.linalg.norm(pts[idxs[:, 1]] - qry[idxs[:, 0]], axis=-1)
         assert np.allclose(dist, rebuilt, atol=1e-9)
 
-    def test_query_pairs(self, cloud: Tuple[np.ndarray, np.ndarray]):
+    def test_query_pairs(self, cloud: tuple[np.ndarray, np.ndarray]):
         pts, _ = cloud
         d = 1.5
         grid = ngeom.VoxelGrid(pts, cutoff=d)
@@ -339,7 +339,7 @@ class TestVoxelGrid:
         exp = np.unique(iu[expect_mask] * n + ju[expect_mask])
         assert np.array_equal(got, exp)
 
-    def test_query_grid(self, cloud: Tuple[np.ndarray, np.ndarray]):
+    def test_query_grid(self, cloud: tuple[np.ndarray, np.ndarray]):
         pts, qry = cloud
         d = 1.5
         grid = ngeom.VoxelGrid(pts, cutoff=d)
@@ -355,7 +355,7 @@ class TestVoxelGrid:
             assert np.array_equal(np.sort(arr), expect), f"point {i}"
 
     def test_query_grid_mismatched_cutoff(
-        self, cloud: Tuple[np.ndarray, np.ndarray]
+        self, cloud: tuple[np.ndarray, np.ndarray]
     ):
         pts, qry = cloud
         grid = ngeom.VoxelGrid(pts, cutoff=1.5)

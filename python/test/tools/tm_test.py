@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from typing import List, Tuple
+from __future__ import annotations
 
 import numpy as np
 import pytest
@@ -129,7 +129,7 @@ def aln_out():
 def test_tm_align(
     query: np.ndarray,
     templ: np.ndarray,
-    refs: Tuple[np.ndarray, float, float],
+    refs: tuple[np.ndarray, float, float],
 ):
     xform_ref, score_ref, _ = refs
     xform, score = tmtools.tm_align(query, templ)
@@ -141,8 +141,8 @@ def test_tm_align(
 def test_tm_score(
     query: np.ndarray,
     templ: np.ndarray,
-    aln_in: List[Tuple[int, int]],
-    refs: Tuple[np.ndarray, float, float],
+    aln_in: list[tuple[int, int]],
+    refs: tuple[np.ndarray, float, float],
 ):
     xform_ref, score_ref, score_keep_ref = refs
 
@@ -165,9 +165,9 @@ def test_tm_score_self(query: np.ndarray):
 def test_tm_align_full(
     query: np.ndarray,
     templ: np.ndarray,
-    aln_in: List[Tuple[int, int]],
+    aln_in: list[tuple[int, int]],
     aln_out: np.ndarray,
-    refs: Tuple[np.ndarray, float, float],
+    refs: tuple[np.ndarray, float, float],
 ):
     xform_ref, score_ref, _ = refs
     rmsd_ref = 1.9107255286124583
@@ -207,8 +207,8 @@ def test_tm_align_full(
 def test_tm_score_full(
     query: np.ndarray,
     templ: np.ndarray,
-    aln_in: List[Tuple[int, int]],
-    refs: Tuple[np.ndarray, float, float],
+    aln_in: list[tuple[int, int]],
+    refs: tuple[np.ndarray, float, float],
 ):
     xform_ref, _, score_ref = refs
     rmsd_ref = 3.590177

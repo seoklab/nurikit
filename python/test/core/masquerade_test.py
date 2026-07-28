@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import collections.abc as abc
+from collections import abc
 
 import pytest
 
