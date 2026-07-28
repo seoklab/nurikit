@@ -328,6 +328,27 @@ class TestVoxelGrid:
         with pytest.raises(ValueError, match="must be positive"):
             grid.rebuild(pts, cutoff=0.0)
 
+    def test_too_fine_cutoff(self, cloud: tuple[np.ndarray, np.ndarray]):
+        pts, _ = cloud
+        with pytest.raises(ValueError, match="cutoff is too small"):
+            ngeom.VoxelGrid(pts, cutoff=1e-9)
+
+        grid = ngeom.VoxelGrid(pts, cutoff=1.5)
+        before = grid.find_neighbors(pts[0])
+        with pytest.raises(ValueError, match="cutoff is too small"):
+            grid.rebuild(pts, cutoff=1e-9)
+
+        # the effective cutoff is checked even when it is inherited
+        far = np.vstack([pts, [1e9, 1e9, 1e9]])
+        with pytest.raises(ValueError, match="cutoff is too small"):
+            grid.rebuild(far)
+
+        # a rejected rebuild must leave the grid as it was
+        assert grid.cutoff == pytest.approx(1.5)
+        after = grid.find_neighbors(pts[0])
+        assert np.array_equal(after[0], before[0])
+        assert np.allclose(after[1], before[1])
+
     def test_nonfinite_coords(self, cloud: tuple[np.ndarray, np.ndarray]):
         pts, query = cloud
         bad = pts.copy()

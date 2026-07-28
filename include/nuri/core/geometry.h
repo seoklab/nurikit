@@ -168,6 +168,11 @@ private:
  * @warning The cutoff must be a positive, finite number. Building with a
  *          non-positive or non-finite cutoff is undefined behavior (the voxel
  *          index divides coordinates by the cutoff); callers must validate it.
+ * @warning The cutoff must also be coarse enough that the point cloud spans at
+ *          most kMaxCells voxels. A finer one is widened to span the whole
+ *          cloud in a single voxel, so queries then report every point;
+ *          cutoff() returns the widened value, and callers that need the
+ *          requested cutoff honored must validate it.
  */
 class VoxelGrid {
 public:
@@ -259,8 +264,8 @@ private:
   Array3i dims_;
   ArrayXi cell_offset_;
   ArrayXi cell_pts_;
-  double cutoff_;
-  int max_occ_;
+  double cutoff_ = 0;
+  int max_occ_ = 0;
 };
 
 namespace constants {

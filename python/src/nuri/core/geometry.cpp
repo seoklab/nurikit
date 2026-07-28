@@ -100,6 +100,14 @@ void find_neighbors_kd(const OCTree &octree, const Vector3d &query, double d,
                        std::vector<double> &distsq) {
   octree.find_neighbors_kd(query, k, idxs, distsq, d);
 }
+
+void check_cutoff_honored(const VoxelGrid &grid, double cutoff) {
+  if (grid.cutoff() > cutoff) {
+    throw py::value_error(absl::StrCat(
+        "cutoff is too small for the given points and would be widened to ",
+        grid.cutoff()));
+  }
+}
 }  // namespace
 
 void bind_geometry(py::module &m) {
@@ -447,7 +455,10 @@ distance queries with the cutoff specified at construction time.
              check_positive(cutoff, "cutoff");
 
              auto py_arr = py_array_cast<3>(obj);
-             return VoxelGrid(py_arr.eigen(), cutoff);
+
+             VoxelGrid grid(py_arr.eigen(), cutoff);
+             check_cutoff_honored(grid, cutoff);
+             return grid;
            }),
            py::arg("pts"), py::arg("cutoff"), R"doc(
 Initialize the voxel grid with a set of points and cutoff distance.
@@ -456,20 +467,25 @@ Initialize the voxel grid with a set of points and cutoff distance.
   numpy array of shape ``(N, 3)``.
 :param cutoff: The cutoff distance for neighbor queries. Must be positive.
 
-:raises ValueError: If ``cutoff`` is not positive.
+:raises ValueError: If ``cutoff`` is not positive, or is so small that the
+  points would need too many voxels to index.
 )doc")
       .def(
           "rebuild",
           [](VoxelGrid &self, const py::handle &obj,
              std::optional<double> xcutoff) {
-            double cutoff = -1.0;
+            double cutoff = self.cutoff();
             if (xcutoff) {
               cutoff = *xcutoff;
               check_positive(cutoff, "cutoff");
             }
 
             auto py_arr = py_array_cast<3>(obj);
-            self.rebuild(py_arr.eigen(), cutoff);
+
+            // Built aside so a rejected cutoff leaves self untouched
+            VoxelGrid grid(py_arr.eigen(), cutoff);
+            check_cutoff_honored(grid, cutoff);
+            self = std::move(grid);
           },
           py::arg("pts"), py::arg("cutoff") = py::none(), R"doc(
 Rebuild the voxel grid with a new set of points.
@@ -479,7 +495,9 @@ Rebuild the voxel grid with a new set of points.
 :param cutoff: The cutoff distance for neighbor queries. If omitted, the
   current cutoff is reused. Must be positive when specified.
 
-:raises ValueError: If ``cutoff`` is specified and not positive.
+:raises ValueError: If ``cutoff`` is specified and not positive, or if the
+  points would need too many voxels to index at the effective cutoff. The grid
+  is left unchanged in either case.
 )doc")
       .def_property_readonly(
           "cutoff", [](const VoxelGrid &self) { return self.cutoff(); },

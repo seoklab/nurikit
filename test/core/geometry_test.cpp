@@ -567,6 +567,63 @@ TEST(VoxelGridTest, Create) {
   }
 }
 
+TEST(VoxelGridTest, TooFineCutoff) {
+  Matrix3Xd m = Matrix3Xd::Random(3, 200);
+  const double cutoff = 1e-18;
+
+  VoxelGrid grid(m, cutoff);
+  ASSERT_TRUE((grid.dims() == 1).all());
+  ASSERT_GT(grid.cutoff(), cutoff);
+  EXPECT_EQ(grid.num_cells(), 1);
+
+  MatrixXd dmat = cdist(m, m);
+
+  std::vector<int> idxs;
+  std::vector<double> distsq;
+  for (int q = 0; q < m.cols(); ++q) {
+    grid.find_neighbors_d(m.col(q), idxs, distsq);
+    EXPECT_EQ(idxs.size(), (dmat.row(q).array() <= grid.cutoff()).count())
+        << "q = " << q;
+  }
+
+  std::vector<int> is, js;
+  grid.find_neighbors_self(is, js);
+  EXPECT_EQ(is.size(),
+            ((dmat.array() <= grid.cutoff()).count() - m.cols()) / 2);
+}
+
+TEST(VoxelGridTest, EmptyCloud) {
+  Matrix3Xd empty(3, 0);
+  VoxelGrid grid(empty, 1.0);
+  EXPECT_EQ(grid.pts().cols(), 0);
+
+  std::vector<int> idxs;
+  std::vector<double> distsq;
+  grid.find_neighbors_d(Vector3d::Zero(), idxs, distsq);
+  EXPECT_TRUE(idxs.empty());
+
+  std::vector<int> is, js;
+  grid.find_neighbors_self(is, js);
+  EXPECT_TRUE(is.empty());
+
+  VoxelGrid other(Matrix3Xd::Random(3, 20), 1.0);
+  grid.find_neighbors_grid(other, is, js);
+  EXPECT_TRUE(is.empty());
+  EXPECT_TRUE(grid.find_neighbors_grid(other).empty());
+
+  other.find_neighbors_grid(grid, is, js);
+  EXPECT_TRUE(is.empty());
+
+  // rebuild non-empty then empty again to exercise the reset path
+  grid.rebuild(Matrix3Xd::Random(3, 20));
+  EXPECT_EQ(grid.pts().cols(), 20);
+  grid.rebuild(empty);
+  EXPECT_EQ(grid.pts().cols(), 0);
+
+  grid.find_neighbors_d(Vector3d::Zero(), idxs, distsq);
+  EXPECT_TRUE(idxs.empty());
+}
+
 TEST(VoxelGridTest, FindNeighborByDistance) {
   Matrix3Xd m = Matrix3Xd::Random(3, 500);
   Matrix3Xd test = Matrix3Xd::Random(3, 50);
