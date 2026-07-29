@@ -730,7 +730,7 @@ The hybridization of the atom.
       "implicit_hydrogens",
       [](T &self) { return atom_prolog(self).implicit_hydrogens(); },
       [](T &self, int n) {
-        check_interval(n, "implicit_hydrogens", Bounds::kClosed, 0);
+        check_nonneg(n, "implicit_hydrogens");
         atom_prolog(self).set_implicit_hydrogens(n);
       },
       rvp::automatic,
@@ -1020,8 +1020,7 @@ The name of the atom. Returns an empty string if the name is not set.
         if (hyb)
           *hyb = get_or_throw_hyb(*hyb);
 
-        check_interval(implicit_hydrogens, "implicit_hydrogens",
-                       Bounds::kClosed, 0);
+        check_nonneg(implicit_hydrogens, "implicit_hydrogens");
         check_finite(partial_charge, "partial_charge");
 
         if (atomic_number && element != nullptr)

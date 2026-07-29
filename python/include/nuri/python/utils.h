@@ -13,6 +13,7 @@
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -23,6 +24,7 @@
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/str_cat.h>
+#include <boost/type_traits/type_identity.hpp>
 #include <Eigen/Dense>
 #include <pybind11/attr.h>
 #include <pybind11/eigen.h>
@@ -36,24 +38,12 @@
 #include "nuri/utils.h"
 
 namespace nuri {
-namespace internal {
-// Which ends of a check_interval() range are exclusive
-enum class Bounds : std::uint8_t {
-  kClosed = 0x0,
-  kOpenLo = 0x1,
-  kOpenHi = 0x2,
-  kOpen = 0x3,
-};
-}  // namespace internal
-
 namespace python_internal {
-using internal::Bounds;
-
 template <class CppType, class... Args>
 using PyProxyCls =
     py::class_<CppType, std::unique_ptr<CppType, py::nodelete>, Args...>;
 
-inline double check_finite(double x, const char *what = "value") {
+inline double check_finite(double x, std::string_view what = "value") {
   if (!std::isfinite(x))
     throw py::value_error(
         absl::StrCat("expected a finite ", what, ", got ", x));
@@ -61,52 +51,64 @@ inline double check_finite(double x, const char *what = "value") {
 }
 
 inline std::optional<double> check_finite(std::optional<double> x,
-                                          const char *what = "value") {
+                                          std::string_view what = "value") {
   if (x)
     check_finite(*x, what);
   return x;
 }
 
-// Blocks deduction so bound literals convert to T instead of fixing it
-template <class T>
-struct NoDeduce {
-  using type = T;
+enum class Bounds : std::uint8_t {
+  kClosed = 0x0,
+  kLeftOpen = 0x1,
+  kRightOpen = 0x2,
+  kOpen = kLeftOpen | kRightOpen,
 };
-
-template <class T>
-using NoDeduceT = typename NoDeduce<T>::type;
 
 /**
  * Reject @p v unless it lies in the interval [@p lo, @p hi], where an absent
  * bound means unbounded and @p b selects which ends are exclusive.
  */
 template <class T>
-T check_interval(T v, const char *what, Bounds b,
-                 std::optional<NoDeduceT<T>> lo = {},
-                 std::optional<NoDeduceT<T>> hi = {}) {
+T check_interval(T v, std::string_view what, Bounds b,
+                 std::optional<boost::type_identity_t<T>> lo = std::nullopt,
+                 std::optional<boost::type_identity_t<T>> hi = std::nullopt) {
   if constexpr (std::is_floating_point_v<T>)
     check_finite(v, what);
 
-  const bool open_lo = internal::check_flag(b, Bounds::kOpenLo);
-  const bool open_hi = internal::check_flag(b, Bounds::kOpenHi);
+  const bool open_lo = internal::check_flag(b, Bounds::kLeftOpen) || !lo;
+  const bool open_hi = internal::check_flag(b, Bounds::kRightOpen) || !hi;
 
   if ((!lo || (open_lo ? v > *lo : v >= *lo))
       && (!hi || (open_hi ? v < *hi : v <= *hi)))
     return v;
 
+  constexpr std::string_view lefts[] { "[", "(" };
+  constexpr std::string_view rights[] { "]", ")" };
+
   throw py::value_error(absl::StrCat(
-      what, " must be in ", open_lo || !lo ? "(" : "[",
+      what, " must be in ", lefts[value_if(open_lo)],
       lo ? absl::StrCat(*lo) : "-inf", ", ", hi ? absl::StrCat(*hi) : "inf",
-      open_hi || !hi ? ")" : "]", ", got ", v));
+      rights[value_if(open_hi)], ", got ", v));
 }
 
 template <class T>
-std::optional<T> check_interval(std::optional<T> v, const char *what, Bounds b,
-                                std::optional<NoDeduceT<T>> lo = {},
-                                std::optional<NoDeduceT<T>> hi = {}) {
+std::optional<T>
+check_interval(std::optional<T> v, std::string_view what, Bounds b,
+               std::optional<boost::type_identity_t<T>> lo = std::nullopt,
+               std::optional<boost::type_identity_t<T>> hi = std::nullopt) {
   if (v)
     check_interval(*v, what, b, lo, hi);
   return v;
+}
+
+template <class T>
+T check_nonneg(T v, std::string_view what) {
+  return check_interval(v, what, Bounds::kClosed, 0);
+}
+
+template <class T>
+T check_positive(T v, std::string_view what) {
+  return check_interval(v, what, Bounds::kLeftOpen, 0);
 }
 
 template <class Derived, class T>

@@ -134,8 +134,8 @@ TMAlign tmalign_init_aln(py::handle query, py::handle templ, py::handle aln,
 }
 
 void check_score_args(std::optional<int> l_norm, std::optional<double> d0) {
-  check_interval(l_norm, "l_norm", Bounds::kOpenLo, 0);
-  check_interval(d0, "d0", Bounds::kOpenLo, 0);
+  check_positive(l_norm, "l_norm");
+  check_positive(d0, "d0");
 }
 
 pyt::Tuple<py::array_t<double>, double>

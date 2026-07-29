@@ -525,8 +525,8 @@ overloaded on the type of ``value``.
       .def(py::init([](std::optional<int> width, std::optional<int> precision,
                        bool raw, bool short_form, std::string_view null_token,
                        bool coerce_nonfinite) {
-             check_interval(width, "width", Bounds::kOpenLo, 1, kMaxWidth);
-             check_interval(precision, "precision", Bounds::kClosed, 0);
+             check_interval(width, "width", Bounds::kLeftOpen, 1, kMaxWidth);
+             check_nonneg(precision, "precision");
              return ColumnFormat {
                width.value_or(0), precision.value_or(-1),       raw,
                short_form,        parse_null_token(null_token), coerce_nonfinite
@@ -722,7 +722,7 @@ Store a boolean CIF value.
 :param short_form: Use ``y``/``n`` instead of ``yes``/``no``.
 )doc");
   cv.def(py::init([](std::int64_t value, std::optional<int> width) {
-           check_interval(width, "width", Bounds::kOpenLo, 1, kMaxWidth);
+           check_interval(width, "width", Bounds::kLeftOpen, 1, kMaxWidth);
            return cif_value(value, width.value_or(0));
          }),
          py::arg("value"), py::arg("width") = py::none(), R"doc(
@@ -735,7 +735,7 @@ Store an integer CIF value.
 )doc");
   cv.def(py::init([](double value, std::optional<int> prec,
                      bool coerce_nonfinite, std::string_view null_token) {
-           check_interval(prec, "precision", Bounds::kClosed, 0);
+           check_nonneg(prec, "precision");
 
            return cif_value(value, prec.value_or(-1), coerce_nonfinite,
                             parse_null_token(null_token));

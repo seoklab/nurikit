@@ -59,9 +59,10 @@ The root-mean-square deviation of the selected (inlier) points after alignment.
                            "number of points, got ",
                            query.eigen().cols(), " vs ", templ.eigen().cols()));
         }
-        check_interval(cutoff, "cutoff", Bounds::kOpenLo, 0);
-        check_interval(global_ratio, "global_ratio", Bounds::kOpenLo, 0.0, 1.0);
-        check_interval(viol_ratio, "viol_ratio", Bounds::kOpenLo, 0.0, 1.0);
+        check_positive(cutoff, "cutoff");
+        check_interval(global_ratio, "global_ratio", Bounds::kLeftOpen, 0.0,
+                       1.0);
+        check_interval(viol_ratio, "viol_ratio", Bounds::kLeftOpen, 0.0, 1.0);
 
         auto ret = match_maker(query.eigen(), templ.eigen(), cutoff,
                                global_ratio, viol_ratio);
