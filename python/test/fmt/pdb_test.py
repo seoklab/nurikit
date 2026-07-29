@@ -220,3 +220,18 @@ def test_pdb_model_asdict(tmp_path: Path):
         "chains": [{"id": chain.id} for chain in model.chains],
         "props": dict(model.props),
     }
+
+
+def test_pdb_atomless_model(tmp_path: Path):
+    file = tmp_path / "empty.pdb"
+    file.write_text(
+        "HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY\n"
+    )
+
+    models = pdb.read_models(file)
+    assert len(models) == 1
+
+    model = models[0]
+    assert len(model.atoms) == 0
+    assert len(model.residues) == 0
+    assert len(model.chains) == 0

@@ -25,7 +25,7 @@ namespace fs = std::filesystem;
 Matrix3Xd read_first_calphas(const fs::path &path) {
   std::ifstream ifs(path);
   PDBReader reader(ifs);
-  PDBModel model = read_pdb_model(reader.next());
+  PDBModel model = internal::must_parse(read_pdb_model(reader.next()));
 
   std::vector<int> calphas;
   for (const PDBResidue &res: model.residues()) {

@@ -8,6 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 import nuri
 from nuri.core import Molecule
@@ -64,3 +65,33 @@ def test_load_mmcif_from_frame(test_data: Path):
     frame = next(read_blocks(test_data / "3cye_part.cif")).data
     mols = frame.as_mols()
     _validate_3cye_part(mols)
+
+
+def test_load_mmcif_no_atom_sites(tmp_path: Path):
+    file = tmp_path / "meta.cif"
+    file.write_text("data_meta\n_x.y 1\n")
+
+    frame = next(read_blocks(file)).data
+    assert len(frame.as_mols()) == 0
+
+
+def test_load_mmcif_malformed_row(tmp_path: Path):
+    file = tmp_path / "bad.cif"
+    file.write_text(
+        "data_bad\n"
+        "loop_\n"
+        "_atom_site.id\n"
+        "_atom_site.type_symbol\n"
+        "_atom_site.label_atom_id\n"
+        "_atom_site.label_comp_id\n"
+        "_atom_site.auth_asym_id\n"
+        "_atom_site.auth_seq_id\n"
+        "_atom_site.Cartn_x\n"
+        "_atom_site.Cartn_y\n"
+        "_atom_site.Cartn_z\n"
+        "1 N N ALA A notanumber 1.000 2.000 3.000\n"
+    )
+
+    frame = next(read_blocks(file)).data
+    with pytest.raises(ValueError, match="_atom_site"):
+        frame.as_mols()

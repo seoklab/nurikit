@@ -282,8 +282,7 @@ ENDMDL
 
   int cnt = 0;
   while (ms.advance()) {
-    const Molecule &mol = ms.current();
-    EXPECT_TRUE(mol.empty());
+    EXPECT_FALSE(ms.ok()) << "Molecule index: " << cnt;
     ++cnt;
   }
   EXPECT_EQ(cnt, 4);
@@ -486,6 +485,142 @@ TEST(PDBWriteTest, Molecule2D) {
 
   EXPECT_EQ(mols[0].num_atoms(), 1);
   EXPECT_EQ(mols[0][0].data().atomic_number(), 6);
+}
+
+TEST(PDBEmptyTest, HeaderOnly) {
+  std::istringstream iss(
+      "HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY\n");
+  PDBReader reader(iss);
+  auto ms = reader.stream();
+
+  ASSERT_TRUE(ms.advance());
+  ASSERT_TRUE(ms.ok()) << ms.error_msg();
+  EXPECT_EQ(ms.current().name(), "ONLY");
+  EXPECT_TRUE(ms.current().empty());
+  EXPECT_EQ(internal::get_key(ms.current().props(), "classification"),
+            "TEST CLASSIFICATION");
+
+  EXPECT_FALSE(ms.advance());
+}
+
+TEST(PDBEmptyTest, EmptyModelBlock) {
+  std::vector<std::string> block {
+    "HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY",
+    "MODEL        1", "ENDMDL"
+  };
+
+  ParseResult<Molecule> mol = read_pdb(block);
+  ASSERT_TRUE(mol) << mol.error_msg();
+  EXPECT_EQ(mol->name(), "ONLY");
+  EXPECT_TRUE(mol->empty());
+  EXPECT_EQ(internal::get_key(mol->props(), "model"), "1");
+  ASSERT_EQ(mol->confs().size(), 1);
+  EXPECT_EQ(mol->confs()[0].cols(), 0);
+
+  ParseResult<PDBModel> model = read_pdb_model(block);
+  ASSERT_TRUE(model) << model.error_msg();
+  EXPECT_TRUE(model->atoms().empty());
+  EXPECT_TRUE(model->residues().empty());
+  EXPECT_TRUE(model->chains().empty());
+  EXPECT_EQ(model->major_conf().cols(), 0);
+}
+
+TEST(PDBEmptyTest, EmptyFirstModelInStream) {
+  std::istringstream iss(
+      R"pdb(HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY
+MODEL        1
+ENDMDL
+MODEL        2
+ATOM      1  N   ALA A   1      11.104   6.134  -6.504  1.00  0.00           N
+ENDMDL
+END
+)pdb");
+  PDBReader reader(iss);
+  auto ms = reader.stream();
+
+  ASSERT_TRUE(ms.advance());
+  ASSERT_TRUE(ms.ok()) << ms.error_msg();
+  EXPECT_TRUE(ms.current().empty());
+  EXPECT_EQ(internal::get_key(ms.current().props(), "model"), "1");
+
+  ASSERT_TRUE(ms.advance());
+  ASSERT_TRUE(ms.ok()) << ms.error_msg();
+  EXPECT_EQ(ms.current().num_atoms(), 1);
+  EXPECT_EQ(internal::get_key(ms.current().props(), "model"), "2");
+
+  EXPECT_FALSE(ms.advance());
+}
+
+TEST(PDBEmptyTest, AllModelsEmptyInStream) {
+  std::istringstream iss(
+      R"pdb(HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY
+MODEL        1
+ENDMDL
+MODEL        2
+ENDMDL
+END
+)pdb");
+  PDBReader reader(iss);
+  auto ms = reader.stream();
+
+  for (std::string_view model: { "1", "2" }) {
+    ASSERT_TRUE(ms.advance());
+    ASSERT_TRUE(ms.ok()) << ms.error_msg();
+    EXPECT_TRUE(ms.current().empty());
+    EXPECT_EQ(internal::get_key(ms.current().props(), "model"), model);
+  }
+
+  EXPECT_FALSE(ms.advance());
+}
+
+TEST(PDBEmptyTest, TrailingRecordsAfterLastModel) {
+  std::istringstream iss(
+      R"pdb(HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY
+MODEL        1
+ATOM      1  N   ALA A   1      11.104   6.134  -6.504  1.00  0.00           N
+ENDMDL
+REMARK   2 RESOLUTION.
+END
+)pdb");
+  PDBReader reader(iss);
+  auto ms = reader.stream();
+
+  ASSERT_TRUE(ms.advance());
+  ASSERT_TRUE(ms.ok()) << ms.error_msg();
+  EXPECT_EQ(ms.current().num_atoms(), 1);
+
+  EXPECT_FALSE(ms.advance());
+}
+
+TEST(PDBEmptyTest, EmptyBlockIsError) {
+  ParseResult<Molecule> mol = read_pdb({});
+  ASSERT_FALSE(mol);
+  EXPECT_THAT(mol.error_msg(), testing::HasSubstr("empty PDB block"));
+
+  ParseResult<PDBModel> model = read_pdb_model({});
+  ASSERT_FALSE(model);
+  EXPECT_THAT(model.error_msg(), testing::HasSubstr("empty PDB block"));
+}
+
+TEST(PDBWriteTest, EmptyMolecule) {
+  Molecule mol;
+  mol.name() = "empty";
+
+  std::string pdb;
+  EXPECT_GE(write_pdb(pdb, mol), 0);
+  EXPECT_TRUE(pdb.empty()) << pdb;
+
+  ASSERT_FALSE(mol.is_3d());
+  mol.confs().emplace_back(3, 0);
+  ASSERT_TRUE(mol.is_3d());
+
+  pdb.clear();
+  EXPECT_GE(write_pdb(pdb, mol), 0);
+  EXPECT_TRUE(pdb.empty()) << pdb;
+
+  pdb.clear();
+  EXPECT_GE(write_pdb(pdb, mol, 1), 0);
+  NURI_EXPECT_STRTRIM_EQ(pdb, "MODEL        1\nENDMDL\n");
 }
 
 TEST(PDBWriteTest, MixedSubstructs) {

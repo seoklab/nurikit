@@ -42,6 +42,7 @@
 #include "nuri/core/graph/graph.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
+#include "nuri/fmt/parse_result.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -85,22 +86,27 @@ bool pdb_next_nomodel(std::istream &is, std::string &line,
 }
 
 bool pdb_next_model(std::istream &is, std::string &line,
-                    std::vector<std::string> &block) {
-  size_t orig = block.size();
+                    std::vector<std::string> &block, bool in_model) {
+  bool has_model = in_model;
 
   while (std::getline(is, line)) {
-    // Stop if END/ENDMDL/MASTER/CONECT is found
-    // (coordinate section is over)
+    // Stop if END/MASTER/CONECT is found (coordinate section is over)
     if (line.size() >= 3
-        && (fast_startswith(line, "END") || fast_startswith(line, "MAS")
-            || fast_startswith(line, "CON"))) {
+        && (fast_startswith(line, "MAS")      // MASTER
+            || fast_startswith(line, "CON")   // CONECT
+            || (fast_startswith(line, "END")  // END (and not ENDMDL)
+                && !absl::StartsWith(line, "ENDMDL")))) {
       break;
     }
 
+    if (absl::StartsWith(line, "ENDMDL"))
+      return has_model;
+
+    has_model = has_model || absl::StartsWith(line, "MODEL");
     block.push_back(line);
   }
 
-  return block.size() != orig;
+  return has_model;
 }
 }  // namespace
 
@@ -115,7 +121,8 @@ bool PDBReader::getnext(std::vector<std::string> &block) {
   std::string line;
   line.reserve(80);
 
-  if (!has_model_) {
+  const bool first_model = !has_model_;
+  if (first_model) {
     has_model_ = pdb_next_nomodel(*is_, line, header_, rfooter_);
     if (!has_model_) {
       if (header_.empty()) {
@@ -135,7 +142,7 @@ bool PDBReader::getnext(std::vector<std::string> &block) {
     block = header_;
   }
 
-  if (!pdb_next_model(*is_, line, block)) {
+  if (!pdb_next_model(*is_, line, block, first_model)) {
     block.clear();
     return false;
   }
@@ -2041,6 +2048,8 @@ void remove_hbonds(MoleculeMutator &mut) {
 }
 
 struct PDBInternals {
+  std::string error;
+
   std::string_view name;
   internal::PropertyMap props;
 
@@ -2056,7 +2065,7 @@ struct PDBInternals {
 PDBInternals read_pdb_internal(Iterator &it, const Iterator end,
                                std::string &buf, int cap_hint) {
   PDBInternals internals {
-    {}, {}, {}, {}, {}, {}, {}, { static_cast<size_t>(cap_hint) + 1 },
+    {}, {}, {}, {}, {}, {}, {}, {}, { static_cast<size_t>(cap_hint) + 1 },
   };
 
   // Order:
@@ -2108,27 +2117,26 @@ PDBInternals read_pdb_internal(Iterator &it, const Iterator end,
     if (it != end)
       line = *it;
 
-    ABSL_LOG(ERROR) << "Invalid coordinate section record: " << line;
-    internals.atoms.clear();
+    internals.error = absl::StrCat("invalid coordinate section record: ", line);
   }
 
   return internals;
 }
 }  // namespace
 
-Molecule read_pdb(const std::vector<std::string> &pdb) {
-  Molecule mol;
+ParseResult<Molecule> read_pdb(const std::vector<std::string> &pdb) {
   if (ABSL_PREDICT_FALSE(pdb.empty()))
-    return mol;
+    return ParseResult<Molecule>::error("empty PDB block");
 
   auto it = pdb.begin();
   const auto end = pdb.end();
   std::string buf;
 
   PDBInternals internals = read_pdb_internal(it, end, buf, last_serial(pdb));
-  if (internals.atoms.empty())
-    return mol;
+  if (!internals.error.empty())
+    return ParseResult<Molecule>::error(internals.error);
 
+  Molecule mol;
   mol.name() = internals.name;
   mol.props() = std::move(internals.props);
 
@@ -2154,7 +2162,7 @@ Molecule read_pdb(const std::vector<std::string> &pdb) {
         return id.ins_code == ' ' ? "" : std::string_view(&id.ins_code, 1);
       });
 
-  return mol;
+  return std::move(mol);
 }
 
 const bool PDBReaderFactory::kRegistered =
@@ -2195,27 +2203,21 @@ PDBModel::PDBModel(std::vector<PDBAtom> &&atoms,
       chains_(std::move(chains)), major_conf_(build_major_conf(atoms_)),
       props_(std::move(props)) { }
 
-PDBModel read_pdb_model(const std::vector<std::string> &pdb) {
-  std::vector<PDBAtom> atoms;
-  std::vector<PDBResidue> residues;
-  std::vector<PDBChain> chains;
-
-  internal::PropertyMap props;
-
-  if (ABSL_PREDICT_FALSE(pdb.empty())) {
-    return { std::move(atoms), std::move(residues), std::move(chains),
-             std::move(props) };
-  }
+ParseResult<PDBModel> read_pdb_model(const std::vector<std::string> &pdb) {
+  if (ABSL_PREDICT_FALSE(pdb.empty()))
+    return ParseResult<PDBModel>::error("empty PDB block");
 
   auto pit = pdb.begin();
   const auto end = pdb.end();
   std::string buf;
 
   PDBInternals internals = read_pdb_internal(pit, end, buf, last_serial(pdb));
-  if (internals.atoms.empty()) {
-    return { std::move(atoms), std::move(residues), std::move(chains),
-             std::move(props) };
-  }
+  if (!internals.error.empty())
+    return ParseResult<PDBModel>::error(internals.error);
+
+  std::vector<PDBAtom> atoms;
+  std::vector<PDBResidue> residues;
+  std::vector<PDBChain> chains;
 
   atoms.reserve(internals.atoms.size());
   for (const PDBAtomData &pd: internals.atoms)
@@ -2250,8 +2252,8 @@ PDBModel read_pdb_model(const std::vector<std::string> &pdb) {
   for (auto &p: chain_residues)
     chains.push_back(PDBChain(p.first, std::move(p.second)));
 
-  return { std::move(atoms), std::move(residues), std::move(chains),
-           std::move(internals.props) };
+  return PDBModel(std::move(atoms), std::move(residues), std::move(chains),
+                  std::move(internals.props));
 }
 
 namespace {
@@ -2466,9 +2468,8 @@ next_chain_residue(const std::vector<PDBResolvedResidue> &residues) {
   return { 1, '\0', ' ' };
 }
 
-std::vector<PDBResolvedResidue> resolve_residues(const Molecule &mol) {
-  std::vector<PDBResolvedResidue> residues;
-
+bool resolve_residues(const Molecule &mol,
+                      std::vector<PDBResolvedResidue> &residues) {
   std::vector<std::vector<int>> sub_to_atoms = group_atoms(mol);
 
   for (int i = 0; i < mol.substructures().size(); ++i) {
@@ -2477,17 +2478,13 @@ std::vector<PDBResolvedResidue> resolve_residues(const Molecule &mol) {
 
     const auto &sub = mol.substructures()[i];
     PDBResidueId id = generate_rid_sub(sub);
-    if (id.chain_id == '\0') {
-      residues.clear();
-      return residues;
-    }
+    if (id.chain_id == '\0')
+      return false;
 
     std::vector names =
         resolve_atom_names(mol, sub_to_atoms[i + 1], id, sub.name());
-    if (names.empty()) {
-      residues.clear();
-      return residues;
-    }
+    if (names.empty())
+      return false;
 
     residues.push_back(
         { id, sub.name(), std::move(sub_to_atoms[i + 1]), std::move(names) });
@@ -2495,27 +2492,24 @@ std::vector<PDBResolvedResidue> resolve_residues(const Molecule &mol) {
 
   if (!sub_to_atoms[0].empty()) {
     PDBResidueId id = next_chain_residue(residues);
-    if (id.chain_id == '\0') {
-      residues.clear();
-      return residues;
-    }
+    if (id.chain_id == '\0')
+      return false;
 
     std::vector names = resolve_atom_names(mol, sub_to_atoms[0], id, "UNK");
-    if (names.empty()) {
-      residues.clear();
-      return residues;
-    }
+    if (names.empty())
+      return false;
 
     residues.push_back(
         { id, "UNK", std::move(sub_to_atoms[0]), std::move(names) });
   }
 
-  return residues;
+  return true;
 }
 
 bool can_write_coordinates(const Matrix3Xd &pts) {
-  double min = pts.minCoeff(), max = pts.maxCoeff();
-  return min >= -999.999 && max <= 9999.999;
+  bool underflow = (pts.array() < -999.999).any(),
+       overflow = (pts.array() > 9999.999).any();
+  return !underflow && !overflow;
 }
 
 constexpr std::string_view kNonHetResidues[] {
@@ -2565,8 +2559,8 @@ int write_pdb_single_conf(std::string &out, const Molecule &mol,
 }  // namespace
 
 int write_pdb(std::string &out, const Molecule &mol, int model, int conf) {
-  const std::vector residues = resolve_residues(mol);
-  if (residues.empty()) {
+  std::vector<PDBResolvedResidue> residues;
+  if (!resolve_residues(mol, residues)) {
     ABSL_LOG(ERROR) << "Failed to resolve PDB residues";
     return -1;
   }

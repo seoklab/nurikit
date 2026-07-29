@@ -33,6 +33,7 @@
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 #include "nuri/fmt/cif.h"
+#include "nuri/fmt/parse_result.h"
 #include "nuri/meta.h"
 #include "nuri/utils.h"
 
@@ -699,7 +700,8 @@ private:
 };
 }  // namespace
 
-std::vector<Molecule> mmcif_load_frame(const internal::CifFrame &frame) {
+ParseResult<std::vector<Molecule>>
+mmcif_load_frame(const internal::CifFrame &frame) {
   std::vector<Molecule> mols;
 
   ResidueIndexer res_idx = ResidueIndexer::atom_site(frame);
@@ -736,10 +738,6 @@ std::vector<Molecule> mmcif_load_frame(const internal::CifFrame &frame) {
         coords.tables()[0], coords.tables()[1], coords.tables()[2],
         comp_id.table(), atom_id.table(), alt_id.table(), type_symbol.table(),
         occupancy.table(), model_num.table(), fchg.table() });
-  if (nsite == 0) {
-    ABSL_LOG(WARNING) << "No atom site entries found";
-    return mols;
-  }
 
   std::vector<MmcifModelData> models;
   absl::flat_hash_map<int, int> model_map;
@@ -749,9 +747,8 @@ std::vector<Molecule> mmcif_load_frame(const internal::CifFrame &frame) {
     auto info = MmcifAtomInfo::from_row(group_pdb, res_idx, atom_id, alt_id,
                                         occupancy, i);
     if (!info) {
-      ABSL_LOG(WARNING)
-          << "Invalid atom info; ignoring atom with serial number " << id;
-      return mols;
+      return ParseResult<std::vector<Molecule>>::error(
+          "invalid _atom_site row with serial number ", *id);
     }
 
     const int mid = model_num[i];
@@ -801,38 +798,78 @@ std::vector<Molecule> mmcif_load_frame(const internal::CifFrame &frame) {
         .add_prop("model", absl::StrCat(mid));
   }
 
-  return mols;
+  return ParseResult<std::vector<Molecule>>(std::move(mols));
 }
 
-std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
+ParseResult<std::vector<Molecule>> mmcif_read_next_block(CifParser &parser) {
   auto block = parser.next();
   if (!block) {
-    if (block.type() == internal::CifBlock::Type::kError)
-      ABSL_LOG(ERROR) << "Cannot parse cif block: " << block.error_msg();
+    if (block.status() == ParseStatus::kError) {
+      return ParseResult<std::vector<Molecule>>::error(
+          "cannot parse cif block: ", block.error_msg());
+    }
 
-    return {};
+    return ParseResult<std::vector<Molecule>>::eof();
   }
 
-  return mmcif_load_frame(block.data());
+  return mmcif_load_frame(block->data());
+}
+
+namespace {
+constexpr int kReaderDone = -2;
 }
 
 bool MmcifReader::getnext(std::vector<std::string> &block) {
   block.clear();
 
-  if (mols_.empty()) {
-    mols_ = mmcif_read_next_block(parser_);
-    next_ = -1;
-  }
+  if (next_ == kReaderDone)
+    return false;
 
-  return ++next_ < mols_.size();
+  if (res_ && ++next_ < res_->size())
+    return true;
+
+  next_ = -1;
+
+  while (true) {
+    ParseResult<internal::CifBlock> blk = parser_.next();
+    if (!blk) {
+      next_ = kReaderDone;
+
+      if (blk.status() != ParseStatus::kError) {
+        res_.reset();
+        return false;
+      }
+
+      res_ = ParseResult<std::vector<Molecule>>::error(
+          "cannot parse cif block: ", blk.error_msg());
+      return true;
+    }
+
+    res_ = mmcif_load_frame(blk->data());
+    if (!res_)
+      return true;
+
+    if (res_->empty()) {
+      ABSL_LOG(INFO) << "No molecules in block " << blk->name() << "; skipping";
+      continue;
+    }
+
+    next_ = 0;
+    return true;
+  }
 }
 
-Molecule
+ParseResult<Molecule>
 MmcifReader::parse(const std::vector<std::string> & /* block */) const {
-  ABSL_DCHECK_GE(next_, 0);
-  ABSL_DCHECK_LT(next_, mols_.size());
+  ABSL_DCHECK(res_.status() != ParseStatus::kEOF);
 
-  return mols_[next_];
+  if (!res_)
+    return ParseResult<Molecule>::error(res_.error_msg());
+
+  ABSL_DCHECK_GE(next_, 0);
+  ABSL_DCHECK_LT(next_, res_->size());
+
+  return Molecule((*res_)[next_]);
 }
 
 const bool MmcifReaderFactory::kRegistered =

@@ -12,6 +12,7 @@
 
 #include "fuzz_utils.h"
 #include "nuri/fmt/cif.h"
+#include "nuri/fmt/parse_result.h"
 
 NURI_FUZZ_MAIN(data, size) {
   static absl::once_flag flag;
@@ -31,9 +32,9 @@ NURI_FUZZ_MAIN(data, size) {
       break;
 
     out.clear();
-    nuri::write_cif_block(out, block, false);
+    nuri::write_cif_block(out, *block, false);
     out.clear();
-    nuri::write_cif_block(out, block, true);
+    nuri::write_cif_block(out, *block, true);
   }
 
   return 0;

@@ -15,8 +15,10 @@
 #include <gtest/gtest.h>
 
 #include "fmt_test_common.h"
+#include "test_utils.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
+#include "nuri/fmt/parse_result.h"
 
 namespace nuri {
 namespace {
@@ -984,6 +986,47 @@ TEST_F(SmilesTest, ManyRings) {
   EXPECT_EQ(mol().num_sssr(), 131);
 }
 
+TEST(SmilesEmptyTest, EmptyMolecule) {
+  ParseResult<Molecule> res = read_smiles({ "" });
+  ASSERT_FALSE(res);
+  EXPECT_THAT(res.error_msg(), testing::HasSubstr("invalid SMILES"));
+
+  res = read_smiles({ "\tname" });
+  ASSERT_FALSE(res);
+  EXPECT_THAT(res.error_msg(), testing::HasSubstr("invalid SMILES"));
+
+  res = read_smiles({ "  CCO" });
+  ASSERT_FALSE(res);
+  EXPECT_THAT(res.error_msg(), testing::HasSubstr("invalid SMILES"));
+
+  res = read_smiles({});
+  ASSERT_FALSE(res);
+  EXPECT_THAT(res.error_msg(), testing::HasSubstr("empty SMILES block"));
+
+  res = read_smiles({ "error" });
+  ASSERT_FALSE(res);
+  EXPECT_THAT(res.error_msg(), testing::HasSubstr("invalid SMILES"));
+}
+
+TEST_F(SmilesTest, IgnoreWhitespaceLeadingLines) {
+  set_test_string("  CCO\n\tname\n\nC methane\n");
+  NURI_FMT_TEST_NEXT_MOL("methane", 1, 0);
+}
+
+TEST(SmilesEmptyTest, WriteEmptyMolecule) {
+  Molecule mol;
+  mol.name() = "empty mol";
+
+  std::string smi;
+  ASSERT_TRUE(write_smiles(smi, mol));
+  EXPECT_EQ(smi, "\tempty mol\n");
+
+  std::istringstream iss(smi);
+  SmilesReader reader(iss);
+  auto ms = reader.stream();
+  EXPECT_FALSE(ms.advance());
+}
+
 TEST(SmilesFactoryTest, CreationTest) {
   std::istringstream iss("C methane");
   const MoleculeReaderFactory *smiles_factory =
@@ -995,7 +1038,7 @@ TEST(SmilesFactoryTest, CreationTest) {
   std::vector<std::string> block = sr->next();
   ASSERT_FALSE(block.empty());
 
-  Molecule mol = sr->parse(block);
+  Molecule mol = internal::must_parse(sr->parse(block));
   EXPECT_FALSE(mol.empty());
 
   MoleculeSanitizer sanitizer(mol);

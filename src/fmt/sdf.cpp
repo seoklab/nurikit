@@ -41,6 +41,7 @@
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
+#include "nuri/fmt/parse_result.h"
 #include "nuri/meta.h"
 #include "nuri/utils.h"
 
@@ -907,7 +908,7 @@ bool read_v3000(Molecule &mol, std::vector<Vector3d> &coords,
 }
 }  // namespace
 
-Molecule read_sdf(const std::vector<std::string> &sdf) {
+ParseResult<Molecule> read_sdf(const std::vector<std::string> &sdf) {
   Molecule mol;
   std::vector<Vector3d> coords;
 
@@ -915,30 +916,25 @@ Molecule read_sdf(const std::vector<std::string> &sdf) {
   const auto end = sdf.end();
 
   auto metadata = read_sdf_header(mol, it, end);
-  if (!metadata) {
-    ABSL_LOG(ERROR) << "Failed to read SDF header";
-    mol.clear();
-    return mol;
-  }
+  if (!metadata)
+    return ParseResult<Molecule>::error("failed to read SDF header");
 
-  if (++it >= end) {
-    ABSL_LOG(ERROR) << "No atom block found";
-    mol.clear();
-    return mol;
-  }
+  if (++it >= end)
+    return ParseResult<Molecule>::error("no atom block found");
 
-  bool ok = false;
+  bool ok;
   if (metadata.version() == 2000) {
     ok = read_v2000(mol, coords, metadata, it, end);
   } else if (metadata.version() == 3000) {
     ok = read_v3000(mol, coords, metadata, it, end);
   } else {
-    ABSL_LOG(ERROR) << "Unknown SDF version: " << metadata.version();
+    return ParseResult<Molecule>::error("unknown SDF version: ",
+                                        metadata.version());
   }
 
   if (!ok) {
-    mol.clear();
-    return mol;
+    return ParseResult<Molecule>::error("failed to read V", metadata.version(),
+                                        " body");
   }
 
   ABSL_LOG_IF(WARNING, mol.num_atoms() != metadata.natoms())
@@ -957,7 +953,7 @@ Molecule read_sdf(const std::vector<std::string> &sdf) {
 
   mol.confs().emplace_back(stack(coords));
 
-  return mol;
+  return std::move(mol);
 }
 
 namespace {

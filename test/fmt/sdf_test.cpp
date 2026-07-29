@@ -641,17 +641,6 @@ $$$$
 test
 
 
- 15 16  0     1  0  0  0  0  0999 V2000
-M  V30 BEGIN CTAB
-M  V30 COUNTS 6 5 0 0 1
-M  V30 BEGIN ATOM
-M  V30 END ATOM
-M  V30 END CTAB
-M  END
-$$$$
-test
-
-
   1  0  0     1  0  0  0  0  0999 V2000
    74.7080   60.5120   32.8430 ZZ  0  0  0  0  0  0  0  0  0  0  0  0
 M END
@@ -704,8 +693,62 @@ M END
 $$$$
 )sdf");
 
-  for (int i = 0; i < 12; ++i)
+  for (int i = 0; i < 11; ++i)
     NURI_FMT_TEST_PARSE_FAIL();
+}
+
+TEST_F(SDFTest, ReportMalformedReason) {
+  set_test_string(R"sdf(test
+
+
+ 15 16  0     1  0  0  0  0  0999 V1000
+M  END
+$$$$
+)sdf");
+
+  NURI_FMT_TEST_PARSE_FAIL_MSG("unknown SDF version");
+}
+
+TEST_F(SDFTest, EmptyMolecule) {
+  set_test_string(R"sdf(v2000 empty
+
+
+  0  0  0     0  0  0  0  0  0999 V2000
+M  END
+$$$$
+v3000 empty
+
+
+  0  0  0     0  0  0  0  0  0999 V3000
+M  V30 BEGIN CTAB
+M  V30 COUNTS 0 0 0 0 0
+M  V30 BEGIN ATOM
+M  V30 END ATOM
+M  V30 END CTAB
+M  END
+$$$$
+declared but absent
+
+
+ 15 16  0     1  0  0  0  0  0999 V2000
+M  V30 BEGIN CTAB
+M  V30 COUNTS 6 5 0 0 1
+M  V30 BEGIN ATOM
+M  V30 END ATOM
+M  V30 END CTAB
+M  END
+$$$$
+)sdf");
+
+  NURI_FMT_TEST_NEXT_EMPTY_MOL("v2000 empty");
+  ASSERT_EQ(mol().confs().size(), 1);
+  EXPECT_EQ(mol().confs()[0].cols(), 0);
+
+  NURI_FMT_TEST_NEXT_EMPTY_MOL("v3000 empty");
+  ASSERT_EQ(mol().confs().size(), 1);
+  EXPECT_EQ(mol().confs()[0].cols(), 0);
+
+  NURI_FMT_TEST_NEXT_EMPTY_MOL("declared but absent");
 }
 
 TEST_F(SDFTest, Write2D) {

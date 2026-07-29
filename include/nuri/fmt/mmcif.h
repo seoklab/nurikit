@@ -17,11 +17,13 @@
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 #include "nuri/fmt/cif.h"
+#include "nuri/fmt/parse_result.h"
 
 namespace nuri {
-std::vector<Molecule> mmcif_load_frame(const internal::CifFrame &frame);
+ParseResult<std::vector<Molecule>>
+mmcif_load_frame(const internal::CifFrame &frame);
 
-std::vector<Molecule> mmcif_read_next_block(CifParser &parser);
+ParseResult<std::vector<Molecule>> mmcif_read_next_block(CifParser &parser);
 
 class MmcifReader final: public MoleculeReader {
 public:
@@ -29,13 +31,14 @@ public:
 
   bool getnext(std::vector<std::string> &block) override;
 
-  Molecule parse(const std::vector<std::string> &block) const override;
+  ParseResult<Molecule>
+  parse(const std::vector<std::string> &block) const override;
 
   bool bond_valid() const override { return false; }
 
 private:
   CifParser parser_;
-  std::vector<Molecule> mols_;
+  ParseResult<std::vector<Molecule>> res_ = std::vector<Molecule> {};
   int next_ = -1;
 };
 

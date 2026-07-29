@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include "test_utils.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/smiles.h"
 
@@ -14,7 +15,7 @@ namespace nuri {
 namespace {
 // From the original Gasteiger paper
 TEST(ChargeGasteiger, Ethane) {
-  Molecule mol = read_smiles({ "CC" });
+  Molecule mol = internal::must_parse(read_smiles({ "CC" }));
   ASSERT_TRUE(MoleculeSanitizer(mol).sanitize_all());
 
   ASSERT_TRUE(assign_charges_gasteiger(mol));
@@ -26,7 +27,7 @@ TEST(ChargeGasteiger, Ethane) {
 }
 
 TEST(ChargeGasteiger, AcetateIon) {
-  Molecule mol = read_smiles({ "CC(=O)[O-]" });
+  Molecule mol = internal::must_parse(read_smiles({ "CC(=O)[O-]" }));
   ASSERT_TRUE(MoleculeSanitizer(mol).sanitize_all());
 
   ASSERT_TRUE(assign_charges_gasteiger(mol));
@@ -36,7 +37,7 @@ TEST(ChargeGasteiger, AcetateIon) {
 }
 
 TEST(ChargeGasteiger, GuanidiniumChloride) {
-  Molecule mol = read_smiles({ "NC(=[NH2+])N.[Cl-]" });
+  Molecule mol = internal::must_parse(read_smiles({ "NC(=[NH2+])N.[Cl-]" }));
   ASSERT_TRUE(MoleculeSanitizer(mol).sanitize_all());
 
   ASSERT_TRUE(assign_charges_gasteiger(mol));

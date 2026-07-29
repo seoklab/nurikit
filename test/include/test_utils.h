@@ -15,6 +15,7 @@
 
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
+#include "nuri/fmt/parse_result.h"
 
 #define NURI_EXPECT_EIGEN_EQ(a, b)                                             \
   EXPECT_PRED2(                                                                \
@@ -84,10 +85,19 @@ inline bool expect_line_eq_trim(std::string_view lhs, std::string_view rhs) {
   return lit == lhs_split.end() && rit == rhs_split.end();
 }
 
+template <class T>
+T must_parse(ParseResult<T> &&res) {
+  ABSL_CHECK(res)
+      << "Failed to parse: "
+      << (res.status() == ParseStatus::kEOF ? "end of input" : res.error_msg());
+  return *std::move(res);
+}
+
 inline Molecule read_first(std::string_view fmt, std::string_view data) {
   StringMoleculeReader<> reader(fmt, std::string { data });
   MoleculeStream<> stream = reader.stream();
   ABSL_CHECK(stream.advance());
+  ABSL_CHECK(stream.ok()) << stream.error_msg();
   return stream.current();
 }
 

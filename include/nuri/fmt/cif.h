@@ -27,6 +27,7 @@
 #include <boost/range/iterator_range.hpp>
 //! @endcond
 
+#include "nuri/fmt/parse_result.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -332,29 +333,14 @@ namespace internal {
   class CifBlock {
   public:
     enum class Type : int {
-      kEOF = static_cast<int>(CifToken::kEOF),        // sentinel, end of file
-      kError = static_cast<int>(CifToken::kError),    // sentinel, error state
       kGlobal = static_cast<int>(CifToken::kGlobal),  // global_
       kData = static_cast<int>(CifToken::kData),      // data_[<name>]
     };
 
     CifBlock(CifFrame &&frame, std::vector<CifFrame> &&save, Type type) noexcept
-        : frame_(std::move(frame)), save_(std::move(save)), type_(type) {
-      ABSL_DCHECK(*this);
-    }
+        : frame_(std::move(frame)), save_(std::move(save)), type_(type) { }
 
-    static CifBlock eof() noexcept { return {}; }
-
-    static CifBlock error(std::string_view reason) { return { reason }; }
-    std::string_view error_msg() const {
-      ABSL_DCHECK(type_ == Type::kError);
-      return frame_.name();
-    }
-
-    std::string_view name() const {
-      ABSL_DCHECK(type_ != Type::kError);
-      return frame_.name();
-    }
+    std::string_view name() const { return frame_.name(); }
 
     const CifFrame &data() const { return frame_; }
 
@@ -364,16 +350,7 @@ namespace internal {
 
     std::string validate(bool recursive = true) const;
 
-    constexpr operator bool() const {
-      return type_ != Type::kEOF && type_ != Type::kError;
-    }
-
   private:
-    CifBlock() noexcept: type_(Type::kEOF) { }
-
-    CifBlock(std::string_view error_msg)
-        : frame_({}, std::string { error_msg }), type_(Type::kError) { }
-
     CifFrame frame_;
     std::vector<CifFrame> save_;
     Type type_;
@@ -387,16 +364,16 @@ public:
   /**
    * @brief Parse the next block in the CIF file.
    */
-  internal::CifBlock next();
+  ParseResult<internal::CifBlock> next();
 
   //! @private
-  internal::CifBlock error(std::string_view reason);
+  ParseResult<internal::CifBlock> error(std::string_view reason);
 
 private:
   internal::CifLexer lexer_;
 
-  std::string name_;
-  internal::CifBlock::Type block_ = internal::CifBlock::Type::kEOF;
+  std::string buf_;
+  internal::CifToken block_ = internal::CifToken::kEOF;
 };
 
 /**
@@ -546,11 +523,9 @@ write_cif_frame(std::string &out, const internal::CifFrame &frame,
  *
  * @param out the buffer to append to. On error, it is overwritten with the
  *        error message.
- * @param block the block to serialize. EOF and error blocks cannot be
- *        serialized.
+ * @param block the block to serialize.
  * @param align if true, pad columns/keys for readability.
- * @return true on success; false if the block is EOF/error or any value could
- *         not be serialized.
+ * @return true on success; false if any value could not be serialized.
  */
 extern bool write_cif_block(std::string &out, const internal::CifBlock &block,
                             bool align = false);
@@ -567,9 +542,9 @@ namespace internal {
   parse_data(CifGlobalCtx ctx, std::vector<CifTable> &tables, CifLexer &lexer,
              std::string_view name);
 
-  extern CifBlock next_block(CifParser &parser, CifLexer &lexer,
-                             std::string &next_name,
-                             internal::CifBlock::Type &next_block);
+  extern ParseResult<CifBlock> next_block(CifParser &parser, CifLexer &lexer,
+                                          std::string &next_name,
+                                          CifToken &next_block);
 }  // namespace internal
 }  // namespace nuri
 

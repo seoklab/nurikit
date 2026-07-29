@@ -36,9 +36,9 @@ verify_rotation_info(const internal::GARotationInfo &ri, int ref,
 }
 
 TEST(GAlign, RotationInfo) {
-  Molecule mol = read_smiles({
+  Molecule mol = internal::must_parse(read_smiles({
       "O=C(C1CCC(CC(C)OC)CC1)c2cc3c(CC)ccc(C(C)C)c3cc2.Cl.[H][H]",
-  });
+  }));
 
   Matrix3Xd &conf = mol.confs().emplace_back(3, mol.num_atoms());
   conf.transpose() << -2.2395, -1.8709, 7.9552,  //

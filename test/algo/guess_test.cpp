@@ -1058,7 +1058,7 @@ TEST(GuessSelectedMolecules, GH358) {
 
   int i = 0;
   for (; i < smiles_answers.size() && reader.getnext(blk); ++i) {
-    Molecule mol = reader.parse(blk);
+    Molecule mol = internal::must_parse(reader.parse(blk));
     EXPECT_TRUE(internal::guess_update_subs(mol));
 
     std::string smi = NURI_WRITE_ONCE(write_smiles, mol);
@@ -1099,7 +1099,7 @@ TEST(GuessSelectedMolecules, GH367) {
 
   int i = 0;
   for (; i < smiles_answers.size() && reader.getnext(blk); ++i) {
-    Molecule mol = reader.parse(blk);
+    Molecule mol = internal::must_parse(reader.parse(blk));
     EXPECT_TRUE(internal::guess_update_subs(mol));
 
     std::string smi = NURI_WRITE_ONCE(write_smiles, mol);
@@ -1255,6 +1255,32 @@ TEST(GuessFchargeOnly, ChargedThiophene) {
   EXPECT_EQ(mol[0].data().formal_charge(), +1);
   for (int i = 1; i < 4; ++i)
     EXPECT_EQ(mol[i].data().formal_charge(), 0);
+}
+
+TEST(GuessAtomlessMolecule, GuessUpdateSubs) {
+  Molecule mol;
+  mol.confs().emplace_back(3, 0);
+  ASSERT_TRUE(mol.is_3d());
+
+  EXPECT_TRUE(internal::guess_update_subs(mol));
+
+  EXPECT_TRUE(mol.empty());
+  EXPECT_EQ(mol.num_bonds(), 0);
+  ASSERT_EQ(mol.confs().size(), 1);
+  EXPECT_EQ(mol.confs()[0].cols(), 0);
+}
+
+TEST(GuessAtomlessMolecule, GuessEverything) {
+  Molecule mol;
+  mol.confs().emplace_back(3, 0);
+
+  {
+    auto mut = mol.mutator();
+    EXPECT_TRUE(guess_everything(mut));
+  }
+
+  EXPECT_TRUE(mol.empty());
+  EXPECT_EQ(mol.num_bonds(), 0);
 }
 }  // namespace
 }  // namespace nuri

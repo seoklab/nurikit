@@ -24,6 +24,7 @@
 #include <pybind11/typing.h>
 
 #include "fmt_internal.h"
+#include "nuri/fmt/parse_result.h"
 #include "nuri/python/exception.h"
 #include "nuri/python/typing.h"
 #include "nuri/python/utils.h"
@@ -97,17 +98,17 @@ pyt::List<PDBModel> read_pdb_models(std::istream &is, bool skip_on_error) {
   pyt::List<PDBModel> models;
   std::vector<std::string> block;
   while (reader.getnext(block)) {
-    PDBModel model = read_pdb_model(block);
+    ParseResult<PDBModel> model = read_pdb_model(block);
 
-    if (model.atoms().empty()) {
+    if (!model) {
       if (skip_on_error)
         continue;
 
-      throw py::value_error(
-          absl::StrCat("Failed to read PDB model ", models.size()));
+      throw py::value_error(absl::StrCat(
+          "Failed to read PDB model ", models.size(), ": ", model.error_msg()));
     }
 
-    models.append(std::move(model));
+    models.append(*std::move(model));
   }
 
   return models;

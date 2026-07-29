@@ -13,6 +13,7 @@
 #include <string>
 #include <string_view>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include "nuri/core/molecule.h"
@@ -21,12 +22,35 @@
 #define NURI_FMT_TEST_PARSE_FAIL()                                             \
   do {                                                                         \
     ASSERT_TRUE(this->advance()) << "Molecule index: " << this->idx_;          \
+    EXPECT_FALSE(this->ok()) << "Molecule index: " << this->idx_;              \
+  } while (false)
+
+#define NURI_FMT_TEST_PARSE_FAIL_MSG(substr)                                   \
+  do {                                                                         \
+    ASSERT_TRUE(this->advance()) << "Molecule index: " << this->idx_;          \
+    ASSERT_FALSE(this->ok()) << "Molecule index: " << this->idx_;              \
+    EXPECT_THAT(this->error_msg(), ::testing::HasSubstr(substr))               \
+        << "Molecule index: " << this->idx_;                                   \
+  } while (false)
+
+#define NURI_FMT_TEST_NEXT_EMPTY_MOL(mol_name)                                 \
+  do {                                                                         \
+    ASSERT_TRUE(this->advance()) << "Molecule index: " << this->idx_;          \
+    ASSERT_TRUE(this->ok()) << this->error_msg();                              \
+                                                                               \
+    MoleculeSanitizer sanitizer(this->mol());                                  \
+    EXPECT_TRUE(sanitizer.sanitize_all()) << "Molecule index: " << this->idx_; \
+                                                                               \
+    EXPECT_EQ(this->mol().name(), mol_name)                                    \
+        << "Molecule index: " << this->idx_;                                   \
     EXPECT_TRUE(this->mol().empty()) << "Molecule index: " << this->idx_;      \
+    EXPECT_EQ(this->mol().num_bonds(), 0) << "Molecule index: " << this->idx_; \
   } while (false)
 
 #define NURI_FMT_TEST_ERROR_MOL()                                              \
   do {                                                                         \
     ASSERT_TRUE(this->advance()) << "Molecule index: " << this->idx_;          \
+    ASSERT_TRUE(this->ok()) << this->error_msg();                              \
     MoleculeSanitizer sanitizer(this->mol());                                  \
     EXPECT_FALSE(sanitizer.sanitize_all())                                     \
         << "Molecule index: " << this->idx_;                                   \
@@ -35,6 +59,7 @@
 #define NURI_FMT_TEST_NEXT_MOL(mol_name, natoms, nbonds)                       \
   do {                                                                         \
     ASSERT_TRUE(this->advance()) << "Molecule index: " << this->idx_;          \
+    ASSERT_TRUE(this->ok()) << this->error_msg();                              \
                                                                                \
     MoleculeSanitizer sanitizer(this->mol());                                  \
     EXPECT_TRUE(sanitizer.sanitize_all()) << "Molecule index: " << this->idx_; \
@@ -90,6 +115,10 @@ public:
     return ms_.advance();
   }
 
+  bool ok() const { return ms_.ok(); }
+
+  std::string_view error_msg() const { return ms_.error_msg(); }
+
   Molecule &mol() { return ms_.current(); }
 
 protected:
@@ -123,6 +152,10 @@ public:
     ++idx_;
     return ms_.advance();
   }
+
+  bool ok() const { return ms_.ok(); }
+
+  std::string_view error_msg() const { return ms_.error_msg(); }
 
   Molecule &mol() { return ms_.current(); }
 
