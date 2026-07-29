@@ -487,6 +487,54 @@ TEST(PDBWriteTest, Molecule2D) {
   EXPECT_EQ(mols[0][0].data().atomic_number(), 6);
 }
 
+TEST(PDBEmptyTest, HeaderOnly) {
+  std::istringstream iss(
+      "HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY\n");
+  PDBReader reader(iss);
+  auto ms = reader.stream();
+
+  ASSERT_TRUE(ms.advance());
+  ASSERT_TRUE(ms.ok()) << ms.error_msg();
+  EXPECT_EQ(ms.current().name(), "ONLY");
+  EXPECT_TRUE(ms.current().empty());
+  EXPECT_EQ(internal::get_key(ms.current().props(), "classification"),
+            "TEST CLASSIFICATION");
+
+  EXPECT_FALSE(ms.advance());
+}
+
+TEST(PDBEmptyTest, EmptyModelBlock) {
+  std::vector<std::string> block {
+    "HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY",
+    "MODEL        1", "ENDMDL"
+  };
+
+  ParseResult<Molecule> mol = read_pdb(block);
+  ASSERT_TRUE(mol) << mol.error_msg();
+  EXPECT_EQ(mol->name(), "ONLY");
+  EXPECT_TRUE(mol->empty());
+  EXPECT_EQ(internal::get_key(mol->props(), "model"), "1");
+  ASSERT_EQ(mol->confs().size(), 1);
+  EXPECT_EQ(mol->confs()[0].cols(), 0);
+
+  ParseResult<PDBModel> model = read_pdb_model(block);
+  ASSERT_TRUE(model) << model.error_msg();
+  EXPECT_TRUE(model->atoms().empty());
+  EXPECT_TRUE(model->residues().empty());
+  EXPECT_TRUE(model->chains().empty());
+  EXPECT_EQ(model->major_conf().cols(), 0);
+}
+
+TEST(PDBEmptyTest, EmptyBlockIsError) {
+  ParseResult<Molecule> mol = read_pdb({});
+  ASSERT_FALSE(mol);
+  EXPECT_THAT(mol.error_msg(), testing::HasSubstr("empty PDB block"));
+
+  ParseResult<PDBModel> model = read_pdb_model({});
+  ASSERT_FALSE(model);
+  EXPECT_THAT(model.error_msg(), testing::HasSubstr("empty PDB block"));
+}
+
 TEST(PDBWriteTest, EmptyMolecule) {
   Molecule mol;
   mol.name() = "empty";

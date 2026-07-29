@@ -2130,9 +2130,6 @@ ParseResult<Molecule> read_pdb(const std::vector<std::string> &pdb) {
   if (!internals.error.empty())
     return ParseResult<Molecule>::error(internals.error);
 
-  if (internals.atoms.empty())
-    return ParseResult<Molecule>::error("no ATOM/HETATM records found");
-
   Molecule mol;
   mol.name() = internals.name;
   mol.props() = std::move(internals.props);
@@ -2211,9 +2208,6 @@ ParseResult<PDBModel> read_pdb_model(const std::vector<std::string> &pdb) {
   PDBInternals internals = read_pdb_internal(pit, end, buf, last_serial(pdb));
   if (!internals.error.empty())
     return ParseResult<PDBModel>::error(internals.error);
-
-  if (internals.atoms.empty())
-    return ParseResult<PDBModel>::error("no ATOM/HETATM records found");
 
   std::vector<PDBAtom> atoms;
   std::vector<PDBResidue> residues;

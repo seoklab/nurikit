@@ -637,9 +637,6 @@ ParseResult<Molecule> read_mol2(const std::vector<std::string> &mol2) {
     }
   }
 
-  if (mol.empty())
-    return ParseResult<Molecule>::error("no atom block found");
-
   return std::move(mol);
 }
 

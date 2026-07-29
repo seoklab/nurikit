@@ -61,12 +61,6 @@ NO_CHARGES
 TEST_F(Mol2Test, MalformedParsing) {
   set_test_string(R"mol2(
 @<TRIPOS>MOLECULE
-@<TRIPOS>MOLECULE
-empty error
-@<TRIPOS>MOLECULE
-******
-a b c d
-@<TRIPOS>MOLECULE
 @<TRIPOS>BOND
      1     1     2    1
 @<TRIPOS>MOLECULE
@@ -116,13 +110,6 @@ NO_CHARGES
      1     1     2    1
      2     2     1    1
 @<TRIPOS>MOLECULE
-corina - carboxylic acid
-   4    3    0    0    0
-SMALL
-NO_CHARGES
-
-
-@<TRIPOS>MOLECULE
 *****
  1 0 0 0 0
 SMALL
@@ -160,9 +147,59 @@ GASTEIGER
 charge 1
 )mol2");
 
-  for (int i = 0; i < 12; ++i) {
+  for (int i = 0; i < 8; ++i) {
     NURI_FMT_TEST_PARSE_FAIL();
   }
+}
+
+TEST_F(Mol2Test, ReportMalformedReason) {
+  set_test_string(R"mol2(
+@<TRIPOS>MOLECULE
+*****
+ 1 0 0 0 0
+SMALL
+NO_CHARGES
+
+
+@<TRIPOS>ATOM
+      1 N           0    0.0000    0.0000 N.3
+@<TRIPOS>BOND
+     1     1     2    1
+)mol2");
+
+  NURI_FMT_TEST_PARSE_FAIL_MSG("failed to parse mol2 block");
+}
+
+TEST_F(Mol2Test, EmptyMolecule) {
+  set_test_string(R"mol2(
+@<TRIPOS>MOLECULE
+@<TRIPOS>MOLECULE
+empty error
+@<TRIPOS>MOLECULE
+******
+a b c d
+@<TRIPOS>MOLECULE
+corina - carboxylic acid
+   4    3    0    0    0
+SMALL
+NO_CHARGES
+
+
+@<TRIPOS>MOLECULE
+zero rows
+ 0 0 0 0 0
+SMALL
+NO_CHARGES
+
+
+@<TRIPOS>ATOM
+)mol2");
+
+  NURI_FMT_TEST_NEXT_EMPTY_MOL("");
+  NURI_FMT_TEST_NEXT_EMPTY_MOL("empty error");
+  NURI_FMT_TEST_NEXT_EMPTY_MOL("******");
+  NURI_FMT_TEST_NEXT_EMPTY_MOL("corina - carboxylic acid");
+  NURI_FMT_TEST_NEXT_EMPTY_MOL("zero rows");
 }
 
 /* From here, some molecules are written twice: one for openbabel, the other

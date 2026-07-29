@@ -953,9 +953,6 @@ ParseResult<Molecule> read_sdf(const std::vector<std::string> &sdf) {
 
   mol.confs().emplace_back(stack(coords));
 
-  if (mol.empty())
-    return ParseResult<Molecule>::error("no atoms found");
-
   return std::move(mol);
 }
 
