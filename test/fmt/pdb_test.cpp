@@ -525,6 +525,73 @@ TEST(PDBEmptyTest, EmptyModelBlock) {
   EXPECT_EQ(model->major_conf().cols(), 0);
 }
 
+TEST(PDBEmptyTest, EmptyFirstModelInStream) {
+  std::istringstream iss(
+      R"pdb(HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY
+MODEL        1
+ENDMDL
+MODEL        2
+ATOM      1  N   ALA A   1      11.104   6.134  -6.504  1.00  0.00           N
+ENDMDL
+END
+)pdb");
+  PDBReader reader(iss);
+  auto ms = reader.stream();
+
+  ASSERT_TRUE(ms.advance());
+  ASSERT_TRUE(ms.ok()) << ms.error_msg();
+  EXPECT_TRUE(ms.current().empty());
+  EXPECT_EQ(internal::get_key(ms.current().props(), "model"), "1");
+
+  ASSERT_TRUE(ms.advance());
+  ASSERT_TRUE(ms.ok()) << ms.error_msg();
+  EXPECT_EQ(ms.current().num_atoms(), 1);
+  EXPECT_EQ(internal::get_key(ms.current().props(), "model"), "2");
+
+  EXPECT_FALSE(ms.advance());
+}
+
+TEST(PDBEmptyTest, AllModelsEmptyInStream) {
+  std::istringstream iss(
+      R"pdb(HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY
+MODEL        1
+ENDMDL
+MODEL        2
+ENDMDL
+END
+)pdb");
+  PDBReader reader(iss);
+  auto ms = reader.stream();
+
+  for (std::string_view model: { "1", "2" }) {
+    ASSERT_TRUE(ms.advance());
+    ASSERT_TRUE(ms.ok()) << ms.error_msg();
+    EXPECT_TRUE(ms.current().empty());
+    EXPECT_EQ(internal::get_key(ms.current().props(), "model"), model);
+  }
+
+  EXPECT_FALSE(ms.advance());
+}
+
+TEST(PDBEmptyTest, TrailingRecordsAfterLastModel) {
+  std::istringstream iss(
+      R"pdb(HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY
+MODEL        1
+ATOM      1  N   ALA A   1      11.104   6.134  -6.504  1.00  0.00           N
+ENDMDL
+REMARK   2 RESOLUTION.
+END
+)pdb");
+  PDBReader reader(iss);
+  auto ms = reader.stream();
+
+  ASSERT_TRUE(ms.advance());
+  ASSERT_TRUE(ms.ok()) << ms.error_msg();
+  EXPECT_EQ(ms.current().num_atoms(), 1);
+
+  EXPECT_FALSE(ms.advance());
+}
+
 TEST(PDBEmptyTest, EmptyBlockIsError) {
   ParseResult<Molecule> mol = read_pdb({});
   ASSERT_FALSE(mol);

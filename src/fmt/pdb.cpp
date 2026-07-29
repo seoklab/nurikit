@@ -86,22 +86,27 @@ bool pdb_next_nomodel(std::istream &is, std::string &line,
 }
 
 bool pdb_next_model(std::istream &is, std::string &line,
-                    std::vector<std::string> &block) {
-  size_t orig = block.size();
+                    std::vector<std::string> &block, bool in_model) {
+  bool has_model = in_model;
 
   while (std::getline(is, line)) {
-    // Stop if END/ENDMDL/MASTER/CONECT is found
-    // (coordinate section is over)
+    // Stop if END/MASTER/CONECT is found (coordinate section is over)
     if (line.size() >= 3
-        && (fast_startswith(line, "END") || fast_startswith(line, "MAS")
-            || fast_startswith(line, "CON"))) {
+        && (fast_startswith(line, "MAS")      // MASTER
+            || fast_startswith(line, "CON")   // CONECT
+            || (fast_startswith(line, "END")  // END (and not ENDMDL)
+                && !absl::StartsWith(line, "ENDMDL")))) {
       break;
     }
 
+    if (absl::StartsWith(line, "ENDMDL"))
+      return has_model;
+
+    has_model = has_model || absl::StartsWith(line, "MODEL");
     block.push_back(line);
   }
 
-  return block.size() != orig;
+  return has_model;
 }
 }  // namespace
 
@@ -116,7 +121,8 @@ bool PDBReader::getnext(std::vector<std::string> &block) {
   std::string line;
   line.reserve(80);
 
-  if (!has_model_) {
+  const bool first_model = !has_model_;
+  if (first_model) {
     has_model_ = pdb_next_nomodel(*is_, line, header_, rfooter_);
     if (!has_model_) {
       if (header_.empty()) {
@@ -136,7 +142,7 @@ bool PDBReader::getnext(std::vector<std::string> &block) {
     block = header_;
   }
 
-  if (!pdb_next_model(*is_, line, block)) {
+  if (!pdb_next_model(*is_, line, block, first_model)) {
     block.clear();
     return false;
   }
