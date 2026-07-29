@@ -47,7 +47,8 @@ bool SmilesReader::getnext(std::vector<std::string> &block) {
   }
 
   std::string &smiles = block[0];
-  while (std::getline(*is_, smiles) && smiles.empty()) { }
+  while (std::getline(*is_, smiles)
+         && (smiles.empty() || absl::ascii_isspace(smiles[0]))) { }
   return static_cast<bool>(*is_);
 }
 
