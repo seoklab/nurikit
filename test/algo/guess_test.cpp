@@ -1256,5 +1256,31 @@ TEST(GuessFchargeOnly, ChargedThiophene) {
   for (int i = 1; i < 4; ++i)
     EXPECT_EQ(mol[i].data().formal_charge(), 0);
 }
+
+TEST(GuessAtomlessMolecule, GuessUpdateSubs) {
+  Molecule mol;
+  mol.confs().emplace_back(3, 0);
+  ASSERT_TRUE(mol.is_3d());
+
+  EXPECT_TRUE(internal::guess_update_subs(mol));
+
+  EXPECT_TRUE(mol.empty());
+  EXPECT_EQ(mol.num_bonds(), 0);
+  ASSERT_EQ(mol.confs().size(), 1);
+  EXPECT_EQ(mol.confs()[0].cols(), 0);
+}
+
+TEST(GuessAtomlessMolecule, GuessEverything) {
+  Molecule mol;
+  mol.confs().emplace_back(3, 0);
+
+  {
+    auto mut = mol.mutator();
+    EXPECT_TRUE(guess_everything(mut));
+  }
+
+  EXPECT_TRUE(mol.empty());
+  EXPECT_EQ(mol.num_bonds(), 0);
+}
 }  // namespace
 }  // namespace nuri

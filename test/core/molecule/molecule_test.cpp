@@ -719,6 +719,15 @@ TEST_F(MoleculeTest, Properties) {
   EXPECT_EQ(mol_.bond_begin()->data().get_name(), "test");
 }
 
+TEST(SanitizeTest, AtomlessMolecule) {
+  Molecule mol;
+  EXPECT_TRUE(MoleculeSanitizer(mol).sanitize_all());
+
+  mol.confs().emplace_back(3, 0);
+  ASSERT_TRUE(mol.is_3d());
+  EXPECT_TRUE(MoleculeSanitizer(mol).sanitize_all());
+}
+
 TEST(SanitizeTest, FindRingsTest) {
   Molecule mol;
 
