@@ -38,7 +38,7 @@ public:
 
 private:
   CifParser parser_;
-  std::vector<Molecule> mols_;
+  ParseResult<std::vector<Molecule>> res_ = std::vector<Molecule> {};
   int next_ = -1;
 };
 
