@@ -400,6 +400,8 @@ int PyMutator::register_bond(int src, int dst, BondData &&data) {
 
 void PyBond::rotate(double angle, bool reverse, bool strict,
                     std::optional<int> conf) {
+  check_finite(angle, "angle");
+
   Molecule::Bond bond = **this;
   if (strict && !bond.data().is_rotatable())
     throw py::value_error("bond is not rotatable");
@@ -489,6 +491,9 @@ void bind_molecule_impl(py::module &m) {
   py::class_<PyMol> mol(m, "Molecule", R"doc(
 A molecule.
 Refer to the ``nuri::Molecule`` class in the |cppdocs| for more details.
+
+Stored coordinates are always finite; NaN and infinite values are rejected with
+:exc:`ValueError`.
 )doc");
   py::class_<PyMutator> mutator(m, "Mutator", R"doc(
 A mutator for a molecule. Use this as a context manager to make changes to a

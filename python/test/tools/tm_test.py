@@ -234,3 +234,33 @@ def test_tm_errors():
 
     with pytest.raises(ValueError, match="must have the same length"):
         tmtools.tm_score(np.zeros((11, 3)), np.zeros((10, 3)))
+
+
+def test_tm_short_secstr():
+    # Regression: the inferred template ss indexed out of bounds before raising
+    with pytest.raises(ValueError, match="at least 5 residues"):
+        tmtools.TMAlign(np.zeros((5, 3)), np.zeros((3, 3)), query_ss="CCCCC")
+
+
+def test_tm_invalid_score_args(query: np.ndarray, templ: np.ndarray):
+    # None already means "auto"; non-positive used to be silently reinterpreted
+    with pytest.raises(ValueError, match=r"d0 must be in \(0, inf\)"):
+        tmtools.tm_align(query, templ, d0=0.0)
+    with pytest.raises(ValueError, match=r"l_norm must be in \(0, inf\)"):
+        tmtools.tm_align(query, templ, l_norm=0)
+    with pytest.raises(ValueError, match=r"l_norm must be in \(0, inf\)"):
+        tmtools.tm_score(query, templ, l_norm=-1)
+
+    tm = tmtools.TMAlign(query, templ)
+    with pytest.raises(ValueError, match=r"l_norm must be in \(0, inf\)"):
+        tm.score(0)
+
+
+def test_tm_nonfinite(query: np.ndarray, templ: np.ndarray):
+    with pytest.raises(ValueError, match="finite"):
+        tmtools.tm_align(query, templ, d0=float("nan"))
+
+    bad = query.copy()
+    bad[0, 0] = np.inf
+    with pytest.raises(ValueError, match="NaN or infinite"):
+        tmtools.tm_align(bad, templ)

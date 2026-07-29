@@ -70,9 +70,6 @@ check_convert_points(const NpArrayWrapper<3> &q_arr,
                      query.cols(), " and ", templ.cols()));
   }
 
-  if (!query.array().isFinite().all() || !templ.array().isFinite().all())
-    throw py::value_error("NaN or infinite values in the points");
-
   return { query, templ };
 }
 
@@ -92,13 +89,6 @@ auto vector_as_eigen(const std::vector<T> &v) {
       v.data(), static_cast<E::Index>(v.size()));
 }
 
-void check_cutoff(double cutoff) {
-  if (!(cutoff > 0)) {
-    throw py::value_error(
-        absl::StrCat("cutoff distance must be positive; got ", cutoff));
-  }
-}
-
 void find_neighbors_d(const OCTree &octree, const Vector3d &query, double d,
                       int /* k */, std::vector<int> &idxs,
                       std::vector<double> &distsq) {
@@ -110,9 +100,26 @@ void find_neighbors_kd(const OCTree &octree, const Vector3d &query, double d,
                        std::vector<double> &distsq) {
   octree.find_neighbors_kd(query, k, idxs, distsq, d);
 }
+
+void check_cutoff_honored(const VoxelGrid &grid, double cutoff) {
+  if (grid.cutoff() > cutoff) {
+    throw py::value_error(absl::StrCat(
+        "cutoff is too small for the given points and would be widened to ",
+        grid.cutoff()));
+  }
+}
 }  // namespace
 
 void bind_geometry(py::module &m) {
+  m.doc() = R"doc(
+Geometric utilities for 3D point clouds.
+
+.. note::
+  Every function and method in this module rejects floating-point array inputs
+  containing NaN or infinite values, raising :exc:`ValueError`. This is not
+  repeated in the individual descriptions below.
+)doc";
+
   m.def(
       "align_points",
       [](const py::handle &q_py, const py::handle &t_py,
@@ -162,6 +169,9 @@ Find a 4x4 best-fit rigid-body transformation tensor, to align ``query`` to
   ``False``.
 
 :returns: A tuple of the transformation tensor and the RMSD of the alignment.
+
+:raises ValueError: If the two point sets have different sizes, or if the
+  alignment method is unknown.
 )doc");
 
   m.def(
@@ -206,6 +216,9 @@ Calculate the RMSD of the best-fit rigid-body alignment of ``query`` to
   ``False``.
 
 :returns: The RMSD of the alignment.
+
+:raises ValueError: If the two point sets have different sizes, or if the
+  alignment method is unknown.
 )doc");
 
   m.def(
@@ -244,8 +257,9 @@ Effectively, this function is roughly equivalent to the following Python code:
   of shape ``(N, 3)``.
 :returns: The transformed points.
 
-:warning: This function does not check if the transformation tensor is a valid
-  affine transformation matrix.
+.. warning::
+  This function does not check if the transformation tensor is a valid affine
+  transformation matrix.
 )doc");
 
   py::class_<OCTreeWrapper>(m, "Octree", R"doc(
@@ -260,6 +274,7 @@ To update the point set, one must :py:meth:`rebuild()` the octree.
 )doc")
       .def(py::init([](const py::handle &obj, int bucket_size) {
              auto py_arr = py_array_cast<3>(obj);
+             check_positive(bucket_size, "bucket_size");
              OCTreeWrapper self { OCTree(), py_arr.eigen() };
              self.tree.rebuild(self.pts, bucket_size);
              return self;
@@ -271,11 +286,14 @@ Initialize the octree with a set of points.
   numpy array of shape ``(N, 3)``.
 :param bucket_size: The maximum number of points in each leaf node of the
   octree. Defaults to 32.
+
+:raises ValueError: If ``bucket_size`` is not positive.
 )doc")
       .def(
           "rebuild",
           [](OCTreeWrapper &self, const py::handle &obj, int bucket_size) {
             auto py_arr = py_array_cast<3>(obj);
+            check_positive(bucket_size, "bucket_size");
             self.pts = py_arr.eigen();
             self.tree.rebuild(self.pts, bucket_size);
           },
@@ -286,6 +304,8 @@ Rebuild the octree with a new set of points.
   numpy array of shape ``(N, 3)``.
 :param bucket_size: The maximum number of points in each leaf node of the
   octree. Defaults to 32.
+
+:raises ValueError: If ``bucket_size`` is not positive.
 )doc")
       .def(
           "find_neighbors",
@@ -297,6 +317,8 @@ Rebuild the octree with a new set of points.
                   "either cutoff distance or number of neighbors must be "
                   "specified");
             }
+            check_positive(xd, "d");
+            check_positive(xk, "k");
 
             void (*impl)(const OCTree &, const Vector3d &, double, int,
                          std::vector<int> &, std::vector<double> &);
@@ -360,12 +382,15 @@ Find neighbors of each point in the octree.
   each row is a pair of (query index, neighbor index), and the second array will
   have shape ``(N,)``, where each element is the distance to the corresponding
   neighbor.
+
+:raises ValueError: If neither ``d`` nor ``k`` is specified, or if either is
+  not positive.
 )doc")
       .def(
           "query_tree",
           [](const OCTreeWrapper &self, const OCTreeWrapper &other,
              double d) -> pyt::List<py::array_t<int>> {
-            check_cutoff(d);
+            check_positive(d, "d");
 
             std::vector<std::vector<int>> idxs =
                 self.tree.find_neighbors_tree(other.tree, d);
@@ -384,15 +409,17 @@ Find neighbors of each point in the octree.
 Find all neighbors in another octree.
 
 :param other: The other octree to query.
-:param d: The cutoff distance for neighbors. Must be non-negative.
+:param d: The cutoff distance for neighbors. Must be positive.
 :returns: A list of numpy arrays. For point ``i`` in the original octree,
   ``results[i]`` is a 1D numpy array containing the indices of its neighbors in
   the ``other`` octree.
+
+:raises ValueError: If ``d`` is not positive.
 )doc")
       .def(
           "query_pairs",
           [](const OCTreeWrapper &self, double d) {
-            check_cutoff(d);
+            check_positive(d, "d");
 
             std::vector<int> is, js;
             self.tree.find_neighbors_self(d, is, js);
@@ -409,11 +436,13 @@ Find all neighbors in another octree.
           py::kw_only(), py::arg("d"), R"doc(
 Find all non-redundant pairs of neighbors in the octree.
 
-:param d: The cutoff distance for neighbors. Must be non-negative.
+:param d: The cutoff distance for neighbors. Must be positive.
 :returns: A numpy array of shape ``(N, 2)``, where each row is a pair of
   neighbor indices in the original point set. The pairs are non-redundant,
   meaning that if :math:`(i, j)` is in the array, then :math:`(j, i)` will not
   be in the array, and :math:`i \neq j`.
+
+:raises ValueError: If ``d`` is not positive.
 )doc");
 
   py::class_<VoxelGrid>(m, "VoxelGrid", R"doc(
@@ -423,10 +452,13 @@ The voxel grid partitions 3D space into uniform cells, allowing efficient
 distance queries with the cutoff specified at construction time.
 )doc")
       .def(py::init([](const py::handle &obj, double cutoff) {
-             check_cutoff(cutoff);
+             check_positive(cutoff, "cutoff");
 
              auto py_arr = py_array_cast<3>(obj);
-             return VoxelGrid(py_arr.eigen(), cutoff);
+
+             VoxelGrid grid(py_arr.eigen(), cutoff);
+             check_cutoff_honored(grid, cutoff);
+             return grid;
            }),
            py::arg("pts"), py::arg("cutoff"), R"doc(
 Initialize the voxel grid with a set of points and cutoff distance.
@@ -434,19 +466,26 @@ Initialize the voxel grid with a set of points and cutoff distance.
 :param pts: The points to build the grid with. Must be representable as a 2D
   numpy array of shape ``(N, 3)``.
 :param cutoff: The cutoff distance for neighbor queries. Must be positive.
+
+:raises ValueError: If ``cutoff`` is not positive, or is so small that the
+  points would need too many voxels to index.
 )doc")
       .def(
           "rebuild",
           [](VoxelGrid &self, const py::handle &obj,
              std::optional<double> xcutoff) {
-            double cutoff = -1.0;
+            double cutoff = self.cutoff();
             if (xcutoff) {
               cutoff = *xcutoff;
-              check_cutoff(cutoff);
+              check_positive(cutoff, "cutoff");
             }
 
             auto py_arr = py_array_cast<3>(obj);
-            self.rebuild(py_arr.eigen(), cutoff);
+
+            // Built aside so a rejected cutoff leaves self untouched
+            VoxelGrid grid(py_arr.eigen(), cutoff);
+            check_cutoff_honored(grid, cutoff);
+            self = std::move(grid);
           },
           py::arg("pts"), py::arg("cutoff") = py::none(), R"doc(
 Rebuild the voxel grid with a new set of points.
@@ -455,6 +494,10 @@ Rebuild the voxel grid with a new set of points.
   numpy array of shape ``(N, 3)``.
 :param cutoff: The cutoff distance for neighbor queries. If omitted, the
   current cutoff is reused. Must be positive when specified.
+
+:raises ValueError: If ``cutoff`` is specified and not positive, or if the
+  points would need too many voxels to index at the effective cutoff. The grid
+  is left unchanged in either case.
 )doc")
       .def_property_readonly(
           "cutoff", [](const VoxelGrid &self) { return self.cutoff(); },

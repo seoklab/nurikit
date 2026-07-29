@@ -109,6 +109,24 @@ def test_mol2_file(tmp_path: Path):
     _verify_mols(mols)
 
 
+def test_mol2_nonfinite():
+    # The parser itself accepts "nan"/"inf" coordinate text
+    data = """\
+@<TRIPOS>MOLECULE
+Nan
+ 1 0 0 0 0
+SMALL
+NO_CHARGES
+
+@<TRIPOS>ATOM
+ 1 C1            nan    0.0000    0.0000 C.3
+"""
+    with pytest.raises(ValueError, match="non-finite"):
+        list(nuri.readstring("mol2", data))
+
+    assert list(nuri.readstring("mol2", data, skip_on_error=True)) == []
+
+
 def test_mol2_str():
     mols = list(nuri.readstring("mol2", mol2_data))
     _verify_mols(mols)

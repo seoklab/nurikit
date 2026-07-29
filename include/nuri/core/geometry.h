@@ -34,7 +34,7 @@ namespace internal {
 
     int operator[](int i) const { return child(i); }
 
-    bool leaf() const { return nleaf_ <= 8; }
+    bool leaf() const;
 
     int begin() const { return begin_; }
     int end() const { return begin_ + nleaf_; }
@@ -42,9 +42,9 @@ namespace internal {
     int nleaf() const { return nleaf_; }
 
   private:
-    Array8i children_;  // < 0 -> not exist, >= 0 -> index of child
+    Array8i children_;
     int begin_;
-    int nleaf_;  // <= 8 -> leaf, > 8 -> internal node
+    int nleaf_;
   };
 }  // namespace internal
 
@@ -125,6 +125,8 @@ public:
 
   int bucket_size() const { return bucket_size_; }
 
+  int max_nleaf() const { return max_nleaf_; }
+
   const ArrayXi &idxs() const { return idxs_; }
 
   const internal::OCTreeNode &node(int i) const { return nodes_[i]; }
@@ -141,6 +143,7 @@ private:
   ArrayXi idxs_;
 
   int bucket_size_ = 32;
+  int max_nleaf_ = 0;
 };
 
 /**
@@ -161,6 +164,15 @@ private:
  * `pts()` corresponds to the original input point `cell_pts()[p]`. The
  * original point set is *not* referenced after rebuild() returns, so the
  * caller is free to mutate or destroy it.
+ *
+ * @warning The cutoff must be a positive, finite number. Building with a
+ *          non-positive or non-finite cutoff is undefined behavior (the voxel
+ *          index divides coordinates by the cutoff); callers must validate it.
+ * @warning The cutoff must also be coarse enough that the point cloud spans at
+ *          most kMaxCells voxels. A finer one is widened to span the whole
+ *          cloud in a single voxel, so queries then report every point;
+ *          cutoff() returns the widened value, and callers that need the
+ *          requested cutoff honored must validate it.
  */
 class VoxelGrid {
 public:
@@ -252,8 +264,8 @@ private:
   Array3i dims_;
   ArrayXi cell_offset_;
   ArrayXi cell_pts_;
-  double cutoff_;
-  int max_occ_;
+  double cutoff_ = 0;
+  int max_occ_ = 0;
 };
 
 namespace constants {
@@ -425,6 +437,10 @@ auto msd(const ML1 &a, const ML2 &b) {
 }
 
 namespace internal {
+  constexpr double safe_reciprocal(double val, double eps = 1e-12) {
+    return val > eps ? 1 / val : 0;
+  }
+
   constexpr double safe_normalizer(double sqn, double eps = 1e-12) {
     return sqn > eps ? 1 / std::sqrt(sqn) : 0;
   }
@@ -596,9 +612,14 @@ inline double cos_dihedral(const Vector3d &a, const Vector3d &b,
  * @param normalize Whether to normalize the normal vector. Defaults to true.
  * @return The best-fit plane defined by a 4-vector (a, b, c, d), such that
  *         ax + by + cz + d = 0.
+ *
+ * @note Passing fewer than 3 points is undefined behavior (the thin-U SVD has
+ *       no third column); it is the caller's responsibility to ensure N >= 3.
  */
 template <class MatrixLike>
 Vector4d fit_plane(const MatrixLike &pts, bool normalize = true) {
+  ABSL_DCHECK_GE(pts.cols(), 3);
+
   Vector3d cntr = pts.rowwise().mean();
   MatrixXd m = pts.colwise() - cntr;
   auto svd = m.jacobiSvd(Eigen::ComputeThinU);

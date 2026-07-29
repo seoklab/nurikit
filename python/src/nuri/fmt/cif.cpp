@@ -40,6 +40,10 @@ namespace python_internal {
 namespace {
 namespace fs = std::filesystem;
 
+// A 64-bit integer never needs more than 20 digits, and a CIF line is
+// conventionally at most 80 characters wide
+constexpr int kMaxWidth = 80;
+
 class PyCifTable;
 
 // Per-column formatting options, mirroring the CifValue constructor keywords.
@@ -518,17 +522,17 @@ overloaded on the type of ``value``.
 )doc");
 
   py::class_<ColumnFormat>(m, "ColumnFormat")
-      .def(py::init([](int width, std::optional<int> precision, bool raw,
-                       bool short_form, std::string_view null_token,
+      .def(py::init([](std::optional<int> width, std::optional<int> precision,
+                       bool raw, bool short_form, std::string_view null_token,
                        bool coerce_nonfinite) {
-             if (precision.has_value() && *precision < 0)
-               throw py::value_error("precision must be non-negative");
+             check_interval(width, "width", Bounds::kClosed, 1, kMaxWidth);
+             check_nonneg(precision, "precision");
              return ColumnFormat {
-               width,      precision.value_or(-1),       raw,
-               short_form, parse_null_token(null_token), coerce_nonfinite
+               width.value_or(0), precision.value_or(-1),       raw,
+               short_form,        parse_null_token(null_token), coerce_nonfinite
              };
            }),
-           py::kw_only(), py::arg("width") = 0,
+           py::kw_only(), py::arg("width") = py::none(),
            py::arg("precision") = py::none(), py::arg("raw") = false,
            py::arg("short_form") = false, py::arg("null_token") = "?",
            py::arg("coerce_nonfinite") = false, R"doc(
@@ -540,7 +544,8 @@ applies only to cells of its matching type; the others are ignored. Explicit
 :class:`Value` cells are never affected.
 
 :param width: For :class:`int` cells, zero-pad the number to at least this many
-  digits.
+  digits. If ``None`` (the default), the number is not padded. Must be between
+  1 and 80 if provided.
 :param precision: For :class:`float` cells, digits after the decimal point; if
   ``None`` (the default), yields at most 6 significant digits. Must be
   non-negative if provided.
@@ -554,10 +559,16 @@ applies only to cells of its matching type; the others are ignored. Explicit
 :param coerce_nonfinite: For :class:`float` cells, coerce a non-finite value to
   a safe representation (``NaN`` to the ``null_token``, ``+/-Inf`` to a
   sentinel) instead of raising when serialized.
-:raises ValueError: If ``precision`` is negative or ``null_token`` is not
-  ``"?"`` or ``"."``.
+:raises ValueError: If ``width`` or ``precision`` is out of range, or
+  ``null_token`` is not ``"?"`` or ``"."``.
 )doc")
-      .def_readonly("width", &ColumnFormat::width)
+      .def_property_readonly(
+          "width",
+          [](const ColumnFormat &f) -> pyt::Optional<py::int_> {
+            if (f.width <= 0)
+              return py::none();
+            return py::int_(f.width);
+          })
       .def_property_readonly(
           "precision",
           [](const ColumnFormat &f) -> pyt::Optional<py::int_> {
@@ -575,7 +586,9 @@ applies only to cells of its matching type; the others are ignored. Explicit
       .def("__repr__", [](const ColumnFormat &f) {
         auto pybool = [](bool v) { return v ? "True" : "False"; };
         return absl::StrCat(
-            "ColumnFormat(width=", f.width, ", precision=",
+            "ColumnFormat(width=",
+            f.width <= 0 ? std::string("None") : absl::StrCat(f.width),
+            ", precision=",
             f.precision < 0 ? std::string("None") : absl::StrCat(f.precision),
             ", raw=", pybool(f.raw), ", short_form=", pybool(f.short_form),
             ", null_token='", f.null_unknown ? "?" : ".",
@@ -708,17 +721,21 @@ Store a boolean CIF value.
 :param value: The boolean to store.
 :param short_form: Use ``y``/``n`` instead of ``yes``/``no``.
 )doc");
-  cv.def(py::init(&cif_value<std::int64_t>), py::arg("value"),
-         py::arg("width") = 0, R"doc(
+  cv.def(py::init([](std::int64_t value, std::optional<int> width) {
+           check_interval(width, "width", Bounds::kClosed, 1, kMaxWidth);
+           return cif_value(value, width.value_or(0));
+         }),
+         py::arg("value"), py::arg("width") = py::none(), R"doc(
 Store an integer CIF value.
 
 :param value: The integer to store.
-:param width: If positive, zero-pad the number to at least this many digits.
+:param width: Zero-pad the number to at least this many digits. If ``None``
+  (the default), the number is not padded. Must be between 1 and 80 if
+  provided.
 )doc");
   cv.def(py::init([](double value, std::optional<int> prec,
                      bool coerce_nonfinite, std::string_view null_token) {
-           if (prec.has_value() && prec.value() < 0)
-             throw py::value_error("precision must be non-negative");
+           check_nonneg(prec, "precision");
 
            return cif_value(value, prec.value_or(-1), coerce_nonfinite,
                             parse_null_token(null_token));

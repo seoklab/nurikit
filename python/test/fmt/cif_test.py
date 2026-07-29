@@ -336,7 +336,7 @@ def test_cif_table_column_formats():
 
 def test_cif_column_format():
     fmt = ColumnFormat()
-    assert fmt.width == 0
+    assert fmt.width is None
     assert fmt.precision is None
     assert fmt.raw is False
     assert fmt.short_form is False
@@ -355,10 +355,22 @@ def test_cif_column_format():
         ColumnFormat(bogus=True)
     with pytest.raises(ValueError, match="null_token"):
         ColumnFormat(null_token="x")
-    with pytest.raises(ValueError, match="precision must be non-negative"):
+    with pytest.raises(ValueError, match=r"precision must be in \[0, inf\)"):
         ColumnFormat(precision=-1)
     with pytest.raises(TypeError):
         ColumnFormat(4)  # keyword-only
+
+    # an unbounded width would zero-pad into a multi-gigabyte string
+    for bad in (-1, 0, 81, 2**31 - 1):
+        with pytest.raises(ValueError, match=r"width must be in \[1, 80\]"):
+            ColumnFormat(width=bad)
+        with pytest.raises(ValueError, match=r"width must be in \[1, 80\]"):
+            Value(3, width=bad)
+
+    assert ColumnFormat(width=1).width == 1
+    assert ColumnFormat(width=80).width == 80
+    assert ColumnFormat().width is None
+    assert "width=None" in repr(ColumnFormat())
 
 
 def test_cif_table_column_formats_strict():

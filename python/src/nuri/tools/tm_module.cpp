@@ -133,6 +133,11 @@ TMAlign tmalign_init_aln(py::handle query, py::handle templ, py::handle aln,
   return tmalign_try_construct_init(x, y, y2x, keep_alignment);
 }
 
+void check_score_args(std::optional<int> l_norm, std::optional<double> d0) {
+  check_positive(l_norm, "l_norm");
+  check_positive(d0, "d0");
+}
+
 pyt::Tuple<py::array_t<double>, double>
 tmalign_convert_result(const std::pair<Isometry3d, double> &result) {
   if (result.second < 0)
@@ -227,6 +232,7 @@ Prepare TM-align algorithm with the given structures and user-provided alignment
           "score",
           [](TMAlign &self, std::optional<int> l_norm,
              std::optional<double> d0) {
+            check_score_args(l_norm, d0);
             return tmalign_convert_result(
                 self.tm_score(l_norm.value_or(-1), d0.value_or(-1)));
           },
@@ -299,6 +305,7 @@ Get pairwise alignment of the query and template structures.
           std::optional<std::string_view> py_secx,
           std::optional<std::string_view> py_secy, std::optional<double> d0,
           bool gt, bool ss, bool local, bool lpss, bool fgt) {
+         check_score_args(l_norm, d0);
          TMAlign tm = tmalign_init(query, templ, py_secx, py_secy, gt, ss,
                                    local, lpss, fgt);
          return tmalign_convert_result(
@@ -364,6 +371,7 @@ Run TM-align algorithm with the given structures and parameters.
           [](py::handle query, py::handle templ, py::handle aln,
              std::optional<int> l_norm, std::optional<double> d0,
              bool keep_alignment) {
+            check_score_args(l_norm, d0);
             TMAlign tm = tmalign_init_aln(query, templ, aln, keep_alignment);
             return tmalign_convert_result(
                 tm.tm_score(l_norm.value_or(-1), d0.value_or(-1)));

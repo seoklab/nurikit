@@ -161,16 +161,21 @@ namespace internal {
     auto [pf, roots] = parent_forest(mol);
     std::vector rbs = split_components_by_bridge(pf, roots);
 
-    std::vector<GARotationInfo> ri(rbs.size());
+    std::vector<GARotationInfo> ri;
+    ri.reserve(rbs.size());
     for (int i = 0; i < rbs.size(); ++i) {
       RotatableBondComp &rb = rbs[i];
-      GARotationInfo &r = ri[i];
+      GARotationInfo r;
 
       const bool reverse = rb.right_atoms.size() < rb.left_atoms.size();
       (reverse ? std::tie(r.ref_, r.origin_) : std::tie(r.origin_, r.ref_)) =
           pf.edge_data(i);
 
-      r.normalizer_ = 1 / (ref.col(r.origin_) - ref.col(r.ref_)).norm();
+      r.normalizer_ =
+          safe_normalizer((ref.col(r.origin_) - ref.col(r.ref_)).squaredNorm());
+      // Coincident endpoints have no axis; rotating about it would scale
+      if (r.normalizer_ <= 0)
+        continue;
 
       std::vector<int> &moving = reverse ? rb.right_atoms : rb.left_atoms;
       auto pit =
@@ -181,6 +186,8 @@ namespace internal {
       r.moving_ = Eigen::Map<ArrayXi>(
           moving.data(), static_cast<Eigen::Index>(moving.size() - 1));
       absl::c_sort(r.moving_);
+
+      ri.push_back(std::move(r));
     }
 
     return ri;

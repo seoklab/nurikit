@@ -127,3 +127,31 @@ def test_flexible_galign(
         atol=1e-6,
     )
     assert result.score >= 0.95
+
+
+def test_galign_nonfinite(templ: Molecule, query: Molecule) -> None:
+    with pytest.raises(ValueError, match="finite"):
+        galign(query, templ, vdw_scale=float("nan"))
+    with pytest.raises(ValueError, match="finite"):
+        galign(query, templ, flexible=True, opt_ftol=float("nan"))
+
+
+def test_galign_sampling_args_validation(
+    templ: Molecule, query: Molecule
+) -> None:
+    # Sampling args are validated even when `flexible` is False
+    with pytest.raises(ValueError, match=r"pool_size must be in \(0, inf\)"):
+        galign(query, templ, pool_size=0)
+    with pytest.raises(ValueError, match=r"patience must be in \(0, inf\)"):
+        galign(query, templ, patience=0)
+    with pytest.raises(
+        ValueError, match=r"rigid_max_confs must be in \(0, inf\)"
+    ):
+        galign(query, templ, rigid_max_confs=0)
+    with pytest.raises(
+        ValueError, match=r"rigid_min_rmsd must be in \[0, inf\)"
+    ):
+        galign(query, templ, rigid_min_rmsd=-1.0)
+
+    # p_mutation's lower bound is inclusive
+    assert galign(query, templ, flexible=False, p_mutation=0.0, n_mutation=0)

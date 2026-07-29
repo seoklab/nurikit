@@ -674,7 +674,7 @@ namespace internal {
             rvdw_sq_inv_(mol.size()),  //
             mol_(&mol), conf_(&conf), free_hs_(&free_hs) {
         for (int h = 0; h < free_hs.size(); ++h)
-          opt_blsq_inv_[h] = 1 / xh_blsq(current, h);
+          opt_blsq_inv_[h] = safe_reciprocal(xh_blsq(current, h));
 
         ArrayXi free_h_inv = ArrayXi::Constant(mol.num_atoms(), -1);
         for (int h = 0; h < free_hs.size(); ++h)
@@ -705,12 +705,14 @@ namespace internal {
             bool near = mol.find_bond(j, k) != mol.bond_end();
             if (k_h > h) {
               if (near) {
-                neighbors(h).free_near.push_back({ k_h, 1 / dsqbuf[ki] });
+                neighbors(h).free_near.push_back(
+                    { k_h, safe_reciprocal(dsqbuf[ki]) });
               } else {
                 neighbors(h).free_far.push_back(k_h);
               }
             } else if (near && !free_h) {
-              neighbors(h).fixed_near.push_back({ k, 1 / dsqbuf[ki] });
+              neighbors(h).fixed_near.push_back(
+                  { k, safe_reciprocal(dsqbuf[ki]) });
             }
 
             ++ki;

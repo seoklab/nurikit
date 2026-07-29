@@ -47,18 +47,9 @@ GARigidMolInfo galign_init(const PyMol &mol, std::optional<int> conf,
 
   const Matrix3Xd &ref = galign_try_get_conf(mol, conf);
 
-  if (vdw_scale <= 0.0) {
-    throw py::value_error(
-        absl::StrCat("vdw_scale must be positive, got ", vdw_scale));
-  }
-  if (hetero_scale <= 0.0) {
-    throw py::value_error(
-        absl::StrCat("hetero_scale must be positive, got ", hetero_scale));
-  }
-  if (dcut < 1) {
-    throw py::value_error(
-        absl::StrCat("dcut must be at least 1 angstrom, got ", dcut));
-  }
+  check_positive(vdw_scale, "vdw_scale");
+  check_positive(hetero_scale, "hetero_scale");
+  check_positive(dcut, "dcut");
 
   GARigidMolInfo galign(*mol, ref, vdw_scale, hetero_scale, dcut);
   return galign;
@@ -73,54 +64,23 @@ galign_align(const GARigidMolInfo &self, const PyMol &query, bool flexible,
              int max_iters) {
   const Matrix3Xd &seed = galign_try_get_conf(query, conf);
 
-  if (max_conf < 1) {
-    throw py::value_error(
-        absl::StrCat("max_confs must be at least 1, got ", max_conf));
-  }
+  check_positive(max_conf, "max_confs");
+  check_nonneg(max_trs, "max_translation");
+  check_nonneg(max_rot, "max_rotation");
+  check_nonneg(max_tors, "max_torsion");
+  check_nonneg(rigid_min_rmsd, "rigid_min_rmsd");
+  check_positive(rigid_max_conf, "rigid_max_confs");
+  check_positive(pool_size, "pool_size");
+  check_positive(sample_size, "sample_size");
+  check_positive(max_gen, "max_generations");
+  check_positive(patience, "patience");
+  check_nonneg(mut_cnt, "n_mutation");
+  check_interval(mut_prob, "p_mutation", Bounds::kClosed, 0.0, 1.0);
+  check_positive(ftol, "opt_ftol");
+  check_positive(max_iters, "opt_max_iters");
 
   GAMinimizeArgs margs;
   if (flexible) {
-    if (max_trs < 0.0) {
-      throw py::value_error(
-          absl::StrCat("max_translation must be nonnegative, got ", max_trs));
-    }
-    if (max_rot < 0.0) {
-      throw py::value_error(
-          absl::StrCat("max_rotation must be nonnegative, got ", max_rot));
-    }
-    if (max_tors < 0.0) {
-      throw py::value_error(
-          absl::StrCat("max_torsion must be nonnegative, got ", max_tors));
-    }
-    if (pool_size < 1) {
-      throw py::value_error(
-          absl::StrCat("pool_size must be at least 1, got ", pool_size));
-    }
-    if (sample_size < 1) {
-      throw py::value_error(
-          absl::StrCat("sample_size must be at least 1, got ", sample_size));
-    }
-    if (max_gen < 1) {
-      throw py::value_error(
-          absl::StrCat("max_generations must be at least 1, got ", max_gen));
-    }
-    if (mut_cnt < 0) {
-      throw py::value_error(
-          absl::StrCat("n_mutation must be nonnegative, got ", mut_cnt));
-    }
-    if (mut_prob < 0.0 || mut_prob > 1.0) {
-      throw py::value_error(
-          absl::StrCat("p_mutation must be between 0 and 1, got ", mut_prob));
-    }
-    if (ftol <= 0.0) {
-      throw py::value_error(
-          absl::StrCat("opt_ftol must be positive, got ", ftol));
-    }
-    if (max_iters < 1) {
-      throw py::value_error(
-          absl::StrCat("opt_max_iters must be at least 1, got ", max_iters));
-    }
-
     margs.ftol = ftol;
     margs.max_iters = max_iters;
   }
@@ -184,7 +144,7 @@ Prepare GAlign algorithm with the given template structure.
            py::arg("conf") = py::none(), py::arg("max_translation") = 2.5,
            py::arg("max_rotation") = deg2rad(120),
            py::arg("max_torsion") = deg2rad(120),
-           py::arg("rigid_min_msd") = 9.0, py::arg("rigid_max_confs") = 4,
+           py::arg("rigid_min_rmsd") = 3.0, py::arg("rigid_max_confs") = 4,
            py::arg("pool_size") = 10, py::arg("sample_size") = 30,
            py::arg("max_generations") = 50, py::arg("patience") = 5,
            py::arg("n_mutation") = 5, py::arg("p_mutation") = 0.5,
@@ -195,15 +155,11 @@ Align the given query molecule to the template structure.
 :param query: The query molecule to be aligned. Must have at least one 3D
   conformation.
 :param flexible: Whether to perform flexible alignment. When ``False``, only
-  rigid alignment is performed and the flexible alignment parameters are ignored.
+  rigid alignment is performed and the flexible alignment parameters are
+  ignored, though they are still validated.
 :param max_confs: The maximum number of alignment results to return.
 :param conf: The conformation index to use as the query structure. If not
   provided, the first conformation is used.
-:param vdw_scale: The scale factor for van der Waals radii when calculating
-  shape overlap score.
-:param hetero_scale: The scale factor for atom type mismatch when calculating
-  shape overlap score.
-:param dcut: The distance cutoff for neighbor search, in angstroms.
 :param max_translation: The maximum translation allowed during flexible
   alignment, in angstroms.
 :param max_rotation: The maximum rotation allowed during flexible alignment,
@@ -261,7 +217,7 @@ Align the given query molecule to the template structure.
       py::arg("vdw_scale") = 0.8, py::arg("hetero_scale") = 0.7,
       py::arg("dcut") = 6, py::arg("max_translation") = 2.5,
       py::arg("max_rotation") = deg2rad(120),
-      py::arg("max_torsion") = deg2rad(120), py::arg("rigid_min_msd") = 9.0,
+      py::arg("max_torsion") = deg2rad(120), py::arg("rigid_min_rmsd") = 3.0,
       py::arg("rigid_max_confs") = 4, py::arg("pool_size") = 10,
       py::arg("sample_size") = 30, py::arg("max_generations") = 50,
       py::arg("patience") = 5, py::arg("n_mutation") = 5,
@@ -275,7 +231,8 @@ Align the given query molecule to the template structure.
 :param templ: The template structure. Must have at least 3 atoms and 3D
   coordinates.
 :param flexible: Whether to perform flexible alignment. When ``False``, only
-  rigid alignment is performed and the flexible alignment parameters are ignored.
+  rigid alignment is performed and the flexible alignment parameters are
+  ignored, though they are still validated.
 :param max_confs: The maximum number of alignment results to return.
 :param qconf: The conformation index to use as the query structure. If not
   provided, the first conformation is used.

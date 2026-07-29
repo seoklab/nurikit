@@ -24,10 +24,7 @@ namespace nuri {
 namespace python_internal {
 namespace {
 int check_size(std::optional<int> size) {
-  if (size && *size <= 0)
-    throw py::value_error("max_size must be positive number");
-
-  return size.value_or(-1);
+  return check_positive(size, "max_size").value_or(-1);
 }
 
 template <class AtomIndexer>
@@ -233,6 +230,7 @@ void bind_guess(py::module_ &m) {
   m.def(
        "guess_everything",
        [](PyMutator &mut, int conf, double threshold) {
+         check_nonneg(threshold, "threshold");
          conf = check_conf(mut.mol(), conf);
          bool success = guess_everything(mut.mut(), conf, threshold);
          if (!success)
@@ -268,6 +266,7 @@ efficient.
       .def(
           "guess_connectivity",
           [](PyMutator &mut, int conf, double threshold) {
+            check_nonneg(threshold, "threshold");
             conf = check_conf(mut.mol(), conf);
             guess_connectivity(mut.mut(), conf, threshold);
           },
@@ -324,6 +323,8 @@ void bind_crdgen(py::module_ &m) {
       [](PyMol &mol, std::string_view method, int trial) {
         if (absl::AsciiStrToUpper(method) != "DG")
           throw py::value_error(absl::StrCat("Unsupported method: ", method));
+
+        check_positive(trial, "max_trial");
 
         bool success = generate_coords(*mol, trial);
         if (!success)

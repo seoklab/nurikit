@@ -16,15 +16,8 @@ namespace nuri {
 namespace python_internal {
 namespace {
 void sr_sasa_validate_common_args(int nprobe, double rprobe) {
-  if (nprobe <= 0) {
-    throw py::value_error(
-        absl::StrCat("number of probes must be positive, got ", nprobe));
-  }
-
-  if (!(rprobe > 0)) {
-    throw py::value_error(
-        absl::StrCat("radius of probes must be positive, got ", rprobe));
-  }
+  check_positive(nprobe, "nprobe");
+  check_positive(rprobe, "rprobe");
 }
 
 NURI_PYTHON_MODULE(m) {

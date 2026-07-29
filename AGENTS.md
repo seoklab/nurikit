@@ -27,7 +27,8 @@
   `nuri_add_test()`); Python under `python/test/` (pytest).
 - **Docs** - **Write docs/docstrings only when asked.** C++ is Doxygen (`docs/`),
   Python is Sphinx (`python/docs/`). For Python docstrings, always use
-  Sphinx-compatible reST.
+  Sphinx-compatible reST. Document an exception only if it is non-obvious or
+  part of the API contract.
 - **Format & lint** - C++ with `scripts/run_clang_tools.sh` (slow; pass
   `-d [<ref>]` to check only files changed vs `<ref>`, default `origin/main`).
   `ruff` and other checks run via `pre-commit`.

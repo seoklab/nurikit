@@ -3,10 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <limits>
 #include <vector>
 
 #include <absl/base/attributes.h>
+#include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
+#include <absl/log/absl_log.h>
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
@@ -30,12 +33,31 @@ void VoxelGrid::rebuild_impl(Points src) {
     dims_.setZero();
     cell_offset_.setZero(1);
     cell_pts_.resize(0);
+    max_occ_ = 0;
     return;
   }
 
   origin_ = src.rowwise().minCoeff();
   Vector3d extent = src.rowwise().maxCoeff() - origin_;
-  dims_ = (extent.array() / cutoff_).ceil().cast<int>().max(1);
+
+  Array3d dims = (extent.array() / cutoff_).ceil().max(1.0);
+  const double req = dims.prod();
+
+  // 1000 is headroom for the arithmetic below; an overflowing count always
+  // overshoots by orders of magnitude, so nothing realistic lands in between
+  if (ABSL_PREDICT_FALSE(req > std::numeric_limits<int>::max() - 1e3)) {
+    const double prev = cutoff_;
+    // safety margin against floating-point rounding errors
+    cutoff_ = extent.maxCoeff() * 1.01;
+    dims.setOnes();
+
+    ABSL_LOG(WARNING) << "Cutoff " << prev
+                      << " would overflow the number of voxels for the given "
+                         "points; widening it to "
+                      << cutoff_;
+  }
+
+  dims_ = dims.cast<int>();
   const int ncells = dims_.prod();
 
   cell_offset_.setZero(ncells + 1);

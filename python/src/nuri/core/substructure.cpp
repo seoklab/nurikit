@@ -1158,12 +1158,11 @@ A collection of substructures of a molecule.
           [](ProxySubstructContainer &self, const std::optional<int> &oi) {
             Molecule &mol = *self.mol();
 
-            int idx;
-            if (oi) {
-              idx = check_sub(mol, *oi);
-            } else {
-              idx = static_cast<int>(mol.substructures().size() - 1);
-            }
+            if (mol.substructures().empty())
+              throw py::index_error("pop from empty substructure container");
+
+            int idx = oi ? check_sub(mol, *oi)
+                         : static_cast<int>(mol.substructures().size() - 1);
 
             PySubstruct ret = PySubstruct::from_mol(
                 self.mol(), std::move(mol.substructures()[idx]));

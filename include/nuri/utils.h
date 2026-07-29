@@ -248,7 +248,8 @@ auto generate_index(Eigen::Index size) {
 template <int N = Eigen::Dynamic, int... Extra, class Container,
           class Comp = std::less<>>
 auto argsort(const Container &container, Comp op = {}) {
-  auto idxs = generate_index<N, Extra...>(std::size(container));
+  auto idxs =
+      generate_index<N, Extra...>(static_cast<E::Index>(std::size(container)));
   std::sort(idxs.begin(), idxs.end(),
             [&](int i, int j) { return op(container[i], container[j]); });
   return idxs;
@@ -257,7 +258,12 @@ auto argsort(const Container &container, Comp op = {}) {
 template <int N = Eigen::Dynamic, int... Extra, class Container,
           class Comp = std::less<>>
 auto argpartition(const Container &container, int count, Comp op = {}) {
-  auto idxs = generate_index<N, Extra...>(std::size(container));
+  const auto size = std::size(container);
+  auto idxs = generate_index<N, Extra...>(static_cast<E::Index>(size));
+
+  if (count <= 0 || count > size)
+    return idxs;
+
   std::nth_element(idxs.begin(), idxs.begin() + count - 1, idxs.end(),
                    [&](int i, int j) {
                      return op(container[i], container[j]);
