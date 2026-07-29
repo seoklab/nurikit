@@ -380,10 +380,6 @@ std::string CifFrame::validate(bool recursive) const {
 }
 
 std::string CifBlock::validate(bool recursive) const {
-  // The eof/error sentinels carry no data frame to validate.
-  if (!*this)
-    return "";
-
   if (recursive) {
     std::string err = frame_.validate();
     if (!err.empty())
@@ -408,8 +404,6 @@ std::string CifBlock::validate(bool recursive) const {
 }
 
 namespace {
-using BlockType = CifBlock::Type;
-
 enum class CifParseCtx {
   kNonLoop,
 
@@ -482,10 +476,11 @@ std::pair<std::string_view, CifToken> parse_data(CifGlobalCtx ctx,
   ABSL_UNREACHABLE();
 }
 
-CifBlock next_block(CifParser &parser, CifLexer &lexer, std::string &next_name,
-                    BlockType &next_block) {
+ParseResult<CifBlock> next_block(CifParser &parser, CifLexer &lexer,
+                                 std::string &next_name,
+                                 CifToken &next_block) {
   std::string name = std::move(next_name);
-  BlockType block_type = next_block;
+  auto block_type = static_cast<CifBlock::Type>(next_block);
 
   std::vector<CifTable> tables;
   std::vector<CifFrame> save_frames;
@@ -501,7 +496,7 @@ CifBlock next_block(CifParser &parser, CifLexer &lexer, std::string &next_name,
       if (type == CifToken::kEOF || type == CifToken::kData
           || type == CifToken::kGlobal) {
         next_name = data;
-        next_block = static_cast<BlockType>(type);
+        next_block = type;
         break;
       }
 
@@ -533,7 +528,6 @@ CifBlock next_block(CifParser &parser, CifLexer &lexer, std::string &next_name,
 }
 }  // namespace internal
 
-using internal::BlockType;
 using internal::CifToken;
 
 CifParser::CifParser(std::istream &is): lexer_(is) {
@@ -546,8 +540,8 @@ CifParser::CifParser(std::istream &is): lexer_(is) {
     case CifToken::kError:
     case CifToken::kGlobal:
     case CifToken::kData:
-      name_ = data;
-      block_ = static_cast<BlockType>(type);
+      buf_ = data;
+      block_ = type;
       return;
     default:
       ABSL_LOG(INFO) << "Skipping stray token before data block: " << type;
@@ -556,26 +550,29 @@ CifParser::CifParser(std::istream &is): lexer_(is) {
   }
 }
 
-internal::CifBlock CifParser::next() {
-  if (block_ == BlockType::kEOF)
-    return internal::CifBlock::eof();
+ParseResult<internal::CifBlock> CifParser::next() {
+  if (block_ == CifToken::kEOF)
+    return ParseResult<internal::CifBlock>::eof();
 
-  if (block_ == BlockType::kError)
-    return internal::CifBlock::error(name_);
+  if (block_ == CifToken::kError)
+    return ParseResult<internal::CifBlock>::error(buf_);
 
-  internal::CifBlock block = internal::next_block(*this, lexer_, name_, block_);
+  ParseResult<internal::CifBlock> block =
+      internal::next_block(*this, lexer_, buf_, block_);
+  if (!block)
+    return block;
 
-  std::string err = block.validate();
+  std::string err = block->validate();
   if (!err.empty())
     return error(err);
 
   return block;
 }
 
-internal::CifBlock CifParser::error(std::string_view reason) {
-  name_ = reason;
-  block_ = BlockType::kError;
-  return internal::CifBlock::error(reason);
+ParseResult<internal::CifBlock> CifParser::error(std::string_view reason) {
+  buf_ = reason;
+  block_ = CifToken::kError;
+  return ParseResult<internal::CifBlock>::error(reason);
 }
 
 namespace internal {
@@ -840,20 +837,15 @@ bool write_cif_frame(std::string &out, const CifFrame &frame,
 }
 
 bool write_cif_block(std::string &out, const CifBlock &block, bool align) {
-  // NOLINTNEXTLINE(clang-diagnostic-switch-enum)
   switch (block.type()) {
   case CifBlock::Type::kData:
     if (!write_cif_frame(out, block.data(), CifFrame::Type::kData, align))
       return false;
     break;
-  case CifBlock::Type::kGlobal: {
+  case CifBlock::Type::kGlobal:
     if (!write_cif_frame(out, block.data(), CifFrame::Type::kGlobal, align))
       return false;
     break;
-  }
-  default:
-    out = "cannot serialize an EOF or error CIF block";
-    return false;
   }
 
   for (const CifFrame &save: block.save_frames()) {

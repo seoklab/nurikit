@@ -31,9 +31,9 @@ NURI_FUZZ_MAIN(data, size) {
       break;
 
     out.clear();
-    nuri::write_cif_block(out, block, false);
+    nuri::write_cif_block(out, *block, false);
     out.clear();
-    nuri::write_cif_block(out, block, true);
+    nuri::write_cif_block(out, *block, true);
   }
 
   return 0;

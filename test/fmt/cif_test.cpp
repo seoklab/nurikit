@@ -58,6 +58,7 @@
 #include <vector>
 
 #include <absl/container/flat_hash_map.h>
+#include <absl/log/absl_check.h>
 #include <absl/strings/match.h>
 #include <absl/strings/numbers.h>
 #include <absl/strings/str_cat.h>
@@ -504,10 +505,10 @@ TEST(CifParseTest, PDB1A8O) {
   ASSERT_TRUE(ifs) << "Failed to open file: 1a8o.cif";
 
   CifParser parser(ifs);
-  CifBlock block = parser.next();
+  ParseResult<CifBlock> block = parser.next();
   ASSERT_TRUE(block) << "Failed to parse";
 
-  const CifFrame &frame = block.data();
+  const CifFrame &frame = block->data();
   EXPECT_EQ(frame.name(), "1A8O");
   EXPECT_EQ(frame.total_cols(), 574);
 
@@ -677,11 +678,11 @@ TEST(CifParseTest, CCD) {
 
   CifParser parser(ifs);
   for (auto id: ids) {
-    CifBlock block = parser.next();
+    ParseResult<CifBlock> block = parser.next();
     if (!block)
       FAIL() << "Failed to parse block: " << id;
 
-    const CifFrame &frame = block.data();
+    const CifFrame &frame = block->data();
     EXPECT_EQ(frame.name(), id);
 
     {
@@ -692,8 +693,8 @@ TEST(CifParseTest, CCD) {
     }
   }
 
-  CifBlock block = parser.next();
-  EXPECT_TRUE(block.type() == CifBlock::Type::kEOF);
+  ParseResult<CifBlock> block = parser.next();
+  EXPECT_EQ(block.status(), ParseStatus::kEOF);
 }
 
 struct ExpectedData {
@@ -746,15 +747,15 @@ data_publication
   };
 
   for (auto [name, type, cols, saved]: expected) {
-    CifBlock block = parser.next();
+    ParseResult<CifBlock> block = parser.next();
     if (!block)
       FAIL() << "Failed to parse block: " << name;
 
-    const CifFrame &frame = block.data();
+    const CifFrame &frame = block->data();
     EXPECT_EQ(frame.name(), name);
-    EXPECT_EQ(static_cast<int>(block.type()), static_cast<int>(type));
-    EXPECT_EQ(block.data().total_cols(), cols);
-    EXPECT_EQ(block.save_frames().size(), saved);
+    EXPECT_EQ(static_cast<int>(block->type()), static_cast<int>(type));
+    EXPECT_EQ(block->data().total_cols(), cols);
+    EXPECT_EQ(block->save_frames().size(), saved);
   }
 }
 
@@ -767,11 +768,10 @@ data_publication
 )cif");
 
   CifParser parser(data);
-  CifBlock block = parser.next();
+  ParseResult<CifBlock> block = parser.next();
 
   EXPECT_FALSE(block) << "Block should error";
-  EXPECT_EQ(static_cast<int>(block.type()),
-            static_cast<int>(CifBlock::Type::kError));
+  EXPECT_EQ(block.status(), ParseStatus::kError);
   EXPECT_PRED2(str_case_contains, block.error_msg(), "unterminated quote");
 }
 
@@ -1032,7 +1032,11 @@ FrameMap frame_map(const CifFrame &frame) {
 CifBlock reparse(const std::string &cif) {
   std::stringstream ss { cif };
   CifParser parser(ss);
-  return parser.next();
+
+  ParseResult<CifBlock> res = parser.next();
+  ABSL_CHECK(res) << "Failed to re-parse written CIF: " << cif;
+
+  return *std::move(res);
 }
 
 CifTable
@@ -1086,7 +1090,6 @@ TEST_P(CifWriteAlignTest, BuildAndRoundTrip) {
   ASSERT_TRUE(write_cif_block(out, block, align()));
 
   CifBlock back = reparse(out);
-  ASSERT_TRUE(back) << out;
   EXPECT_EQ(back.name(), "test");
   EXPECT_EQ(frame_map(block.data()), frame_map(back.data()));
 }
@@ -1153,8 +1156,6 @@ TEST(CifWriteBlockTest, Align) {
   // reparse both, ensure identical data model
   CifBlock pb = reparse("data_x\n" + plain);
   CifBlock ab = reparse("data_x\n" + aligned);
-  ASSERT_TRUE(pb);
-  ASSERT_TRUE(ab);
   EXPECT_EQ(frame_map(pb.data()), frame_map(ab.data()));
 }
 
@@ -1184,7 +1185,6 @@ TEST_P(CifWriteAlignTest, SaveFrames) {
   ASSERT_TRUE(write_cif_block(out, block, align()));
 
   CifBlock back = reparse(out);
-  ASSERT_TRUE(back) << out;
   ASSERT_EQ(back.save_frames().size(), 1U);
   EXPECT_EQ(back.save_frames()[0].name(), "fragment_1");
   EXPECT_EQ(frame_map(block.save_frames()[0]),
@@ -1196,16 +1196,15 @@ TEST_P(CifWriteAlignTest, PDB1A8ORoundTrip) {
   ASSERT_TRUE(ifs) << "Failed to open file: 1a8o.cif";
 
   CifParser parser(ifs);
-  CifBlock block = parser.next();
+  ParseResult<CifBlock> block = parser.next();
   ASSERT_TRUE(block) << "Failed to parse";
 
   std::string out;
-  ASSERT_TRUE(write_cif_block(out, block, align()));
+  ASSERT_TRUE(write_cif_block(out, *block, align()));
 
   CifBlock back = reparse(out);
-  ASSERT_TRUE(back) << "Failed to re-parse written CIF";
   EXPECT_EQ(back.name(), "1A8O");
-  EXPECT_EQ(frame_map(block.data()), frame_map(back.data()));
+  EXPECT_EQ(frame_map(block->data()), frame_map(back.data()));
 }
 
 TEST_P(CifWriteAlignTest, EmptyTable) {
@@ -1243,7 +1242,6 @@ TEST(CifWriteBlockTest, AlignedTextFieldInLoop) {
   EXPECT_EQ(out, "loop_\n_x\n_y\naaaa z\np\n;c\nd\n;\n");
 
   CifBlock back = reparse("data_x\n" + out);
-  ASSERT_TRUE(back) << out;
   std::vector<CifTable> tv;
   tv.push_back(make_table(
       {
@@ -1418,10 +1416,6 @@ TEST(CifBlockValidateTest, RejectsMalformed) {
   std::string bad_save_err = block(std::move(bad_save)).validate();
   EXPECT_PRED2(str_case_contains, bad_save_err, "duplicate cif key");
   EXPECT_PRED2(str_case_contains, bad_save_err, "in save frame sf");
-
-  // sentinels carry no data frame.
-  EXPECT_EQ(CifBlock::eof().validate(), "");
-  EXPECT_EQ(CifBlock::error("boom").validate(), "");
 }
 
 TEST_P(CifWriteAlignTest, GlobalBlock) {
@@ -1439,20 +1433,10 @@ TEST_P(CifWriteAlignTest, GlobalBlock) {
   EXPECT_TRUE(absl::StartsWith(out, "global_")) << out;
 
   CifBlock back = reparse(out);
-  ASSERT_TRUE(back) << out;
   EXPECT_EQ(back.type(), CifBlock::Type::kGlobal);
   EXPECT_EQ(frame_map(block.data()), frame_map(back.data()));
 }
 
-TEST(CifWriteBlockTest, NonSerializableBlock) {
-  std::string out;
-  EXPECT_FALSE(write_cif_block(out, CifBlock::eof()));
-  EXPECT_PRED2(str_case_contains, out, "cannot serialize");
-
-  out.clear();
-  EXPECT_FALSE(write_cif_block(out, CifBlock::error("boom")));
-  EXPECT_PRED2(str_case_contains, out, "cannot serialize");
-}
 }  // namespace
 }  // namespace internal
 }  // namespace nuri

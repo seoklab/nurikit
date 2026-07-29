@@ -807,13 +807,13 @@ std::vector<Molecule> mmcif_load_frame(const internal::CifFrame &frame) {
 std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
   auto block = parser.next();
   if (!block) {
-    if (block.type() == internal::CifBlock::Type::kError)
+    if (block.status() == ParseStatus::kError)
       ABSL_LOG(ERROR) << "Cannot parse cif block: " << block.error_msg();
 
     return {};
   }
 
-  return mmcif_load_frame(block.data());
+  return mmcif_load_frame(block->data());
 }
 
 bool MmcifReader::getnext(std::vector<std::string> &block) {

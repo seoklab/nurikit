@@ -311,13 +311,7 @@ private:
 
 class PyCifBlock {
 public:
-  PyCifBlock(internal::CifBlock &&block): block_(std::move(block)) {
-    if (block_.type() == internal::CifBlock::Type::kEOF)
-      throw py::stop_iteration();
-
-    if (block_.type() == internal::CifBlock::Type::kError)
-      throw py::value_error(std::string(block_.error_msg()));
-  }
+  PyCifBlock(internal::CifBlock &&block): block_(std::move(block)) { }
 
   const internal::CifBlock &block() const { return block_; }
 
@@ -379,7 +373,19 @@ public:
     return py::cast(std::make_unique<PyCifParser>(std::move(ifs)));
   }
 
-  PyCifBlock next() { return PyCifBlock(parser_.next()); }
+  PyCifBlock next() {
+    ParseResult<internal::CifBlock> res = parser_.next();
+    switch (res.status()) {
+    case ParseStatus::kEOF:
+      throw py::stop_iteration();
+    case ParseStatus::kError:
+      throw py::value_error(std::string(res.error_msg()));
+    case ParseStatus::kValid:
+      break;
+    }
+
+    return PyCifBlock(*std::move(res));
+  }
 
 private:
   std::ifstream ifs_;
