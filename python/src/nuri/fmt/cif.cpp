@@ -525,7 +525,7 @@ overloaded on the type of ``value``.
       .def(py::init([](std::optional<int> width, std::optional<int> precision,
                        bool raw, bool short_form, std::string_view null_token,
                        bool coerce_nonfinite) {
-             check_interval(width, "width", Bounds::kLeftOpen, 1, kMaxWidth);
+             check_interval(width, "width", Bounds::kClosed, 1, kMaxWidth);
              check_nonneg(precision, "precision");
              return ColumnFormat {
                width.value_or(0), precision.value_or(-1),       raw,
@@ -545,7 +545,7 @@ applies only to cells of its matching type; the others are ignored. Explicit
 
 :param width: For :class:`int` cells, zero-pad the number to at least this many
   digits. If ``None`` (the default), the number is not padded. Must be between
-  2 and 80 if provided.
+  1 and 80 if provided.
 :param precision: For :class:`float` cells, digits after the decimal point; if
   ``None`` (the default), yields at most 6 significant digits. Must be
   non-negative if provided.
@@ -722,7 +722,7 @@ Store a boolean CIF value.
 :param short_form: Use ``y``/``n`` instead of ``yes``/``no``.
 )doc");
   cv.def(py::init([](std::int64_t value, std::optional<int> width) {
-           check_interval(width, "width", Bounds::kLeftOpen, 1, kMaxWidth);
+           check_interval(width, "width", Bounds::kClosed, 1, kMaxWidth);
            return cif_value(value, width.value_or(0));
          }),
          py::arg("value"), py::arg("width") = py::none(), R"doc(
@@ -730,7 +730,7 @@ Store an integer CIF value.
 
 :param value: The integer to store.
 :param width: Zero-pad the number to at least this many digits. If ``None``
-  (the default), the number is not padded. Must be between 2 and 80 if
+  (the default), the number is not padded. Must be between 1 and 80 if
   provided.
 )doc");
   cv.def(py::init([](double value, std::optional<int> prec,

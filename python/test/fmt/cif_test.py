@@ -360,14 +360,14 @@ def test_cif_column_format():
     with pytest.raises(TypeError):
         ColumnFormat(4)  # keyword-only
 
-    # an unbounded width would zero-pad into a multi-gigabyte string, and a
-    # width of 1 or less never pads at all
-    for bad in (-1, 0, 1, 81, 2**31 - 1):
-        with pytest.raises(ValueError, match=r"width must be in \(1, 80\]"):
+    # an unbounded width would zero-pad into a multi-gigabyte string
+    for bad in (-1, 0, 81, 2**31 - 1):
+        with pytest.raises(ValueError, match=r"width must be in \[1, 80\]"):
             ColumnFormat(width=bad)
-        with pytest.raises(ValueError, match=r"width must be in \(1, 80\]"):
+        with pytest.raises(ValueError, match=r"width must be in \[1, 80\]"):
             Value(3, width=bad)
 
+    assert ColumnFormat(width=1).width == 1
     assert ColumnFormat(width=80).width == 80
     assert ColumnFormat().width is None
     assert "width=None" in repr(ColumnFormat())
