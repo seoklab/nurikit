@@ -2468,9 +2468,8 @@ next_chain_residue(const std::vector<PDBResolvedResidue> &residues) {
   return { 1, '\0', ' ' };
 }
 
-std::vector<PDBResolvedResidue> resolve_residues(const Molecule &mol) {
-  std::vector<PDBResolvedResidue> residues;
-
+bool resolve_residues(const Molecule &mol,
+                      std::vector<PDBResolvedResidue> &residues) {
   std::vector<std::vector<int>> sub_to_atoms = group_atoms(mol);
 
   for (int i = 0; i < mol.substructures().size(); ++i) {
@@ -2479,17 +2478,13 @@ std::vector<PDBResolvedResidue> resolve_residues(const Molecule &mol) {
 
     const auto &sub = mol.substructures()[i];
     PDBResidueId id = generate_rid_sub(sub);
-    if (id.chain_id == '\0') {
-      residues.clear();
-      return residues;
-    }
+    if (id.chain_id == '\0')
+      return false;
 
     std::vector names =
         resolve_atom_names(mol, sub_to_atoms[i + 1], id, sub.name());
-    if (names.empty()) {
-      residues.clear();
-      return residues;
-    }
+    if (names.empty())
+      return false;
 
     residues.push_back(
         { id, sub.name(), std::move(sub_to_atoms[i + 1]), std::move(names) });
@@ -2497,27 +2492,24 @@ std::vector<PDBResolvedResidue> resolve_residues(const Molecule &mol) {
 
   if (!sub_to_atoms[0].empty()) {
     PDBResidueId id = next_chain_residue(residues);
-    if (id.chain_id == '\0') {
-      residues.clear();
-      return residues;
-    }
+    if (id.chain_id == '\0')
+      return false;
 
     std::vector names = resolve_atom_names(mol, sub_to_atoms[0], id, "UNK");
-    if (names.empty()) {
-      residues.clear();
-      return residues;
-    }
+    if (names.empty())
+      return false;
 
     residues.push_back(
         { id, "UNK", std::move(sub_to_atoms[0]), std::move(names) });
   }
 
-  return residues;
+  return true;
 }
 
 bool can_write_coordinates(const Matrix3Xd &pts) {
-  double min = pts.minCoeff(), max = pts.maxCoeff();
-  return min >= -999.999 && max <= 9999.999;
+  bool underflow = (pts.array() < -999.999).any(),
+       overflow = (pts.array() > 9999.999).any();
+  return !underflow && !overflow;
 }
 
 constexpr std::string_view kNonHetResidues[] {
@@ -2567,8 +2559,8 @@ int write_pdb_single_conf(std::string &out, const Molecule &mol,
 }  // namespace
 
 int write_pdb(std::string &out, const Molecule &mol, int model, int conf) {
-  const std::vector residues = resolve_residues(mol);
-  if (residues.empty()) {
+  std::vector<PDBResolvedResidue> residues;
+  if (!resolve_residues(mol, residues)) {
     ABSL_LOG(ERROR) << "Failed to resolve PDB residues";
     return -1;
   }

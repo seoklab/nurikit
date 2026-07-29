@@ -487,6 +487,27 @@ TEST(PDBWriteTest, Molecule2D) {
   EXPECT_EQ(mols[0][0].data().atomic_number(), 6);
 }
 
+TEST(PDBWriteTest, EmptyMolecule) {
+  Molecule mol;
+  mol.name() = "empty";
+
+  std::string pdb;
+  EXPECT_GE(write_pdb(pdb, mol), 0);
+  EXPECT_TRUE(pdb.empty()) << pdb;
+
+  ASSERT_FALSE(mol.is_3d());
+  mol.confs().emplace_back(3, 0);
+  ASSERT_TRUE(mol.is_3d());
+
+  pdb.clear();
+  EXPECT_GE(write_pdb(pdb, mol), 0);
+  EXPECT_TRUE(pdb.empty()) << pdb;
+
+  pdb.clear();
+  EXPECT_GE(write_pdb(pdb, mol, 1), 0);
+  NURI_EXPECT_STRTRIM_EQ(pdb, "MODEL        1\nENDMDL\n");
+}
+
 TEST(PDBWriteTest, MixedSubstructs) {
   Molecule mol;
   {
