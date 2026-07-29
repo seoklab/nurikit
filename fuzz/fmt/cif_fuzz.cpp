@@ -12,6 +12,7 @@
 
 #include "fuzz_utils.h"
 #include "nuri/fmt/cif.h"
+#include "nuri/fmt/parse_result.h"
 
 NURI_FUZZ_MAIN(data, size) {
   static absl::once_flag flag;

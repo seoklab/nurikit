@@ -39,6 +39,7 @@
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
+#include "nuri/fmt/parse_result.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -554,7 +555,7 @@ void fix_guadinium(Molecule &mol, const std::vector<int> &ccat) {
 }
 }  // namespace
 
-Molecule read_mol2(const std::vector<std::string> &mol2) {
+ParseResult<Molecule> read_mol2(const std::vector<std::string> &mol2) {
   Molecule mol;
   std::vector<Vector3d> pos;
   std::vector<int> ccat;
@@ -600,11 +601,8 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
     }
   }
 
-  if (!success) {
-    ABSL_LOG(ERROR) << "Failed to parse mol2 block";
-    mol.clear();
-    return mol;
-  }
+  if (!success)
+    return ParseResult<Molecule>::error("failed to parse mol2 block");
 
   fix_aromatic_bonds(mol);
 
@@ -639,7 +637,10 @@ Molecule read_mol2(const std::vector<std::string> &mol2) {
     }
   }
 
-  return mol;
+  if (mol.empty())
+    return ParseResult<Molecule>::error("no atom block found");
+
+  return std::move(mol);
 }
 
 namespace {

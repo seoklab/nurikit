@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 
 #include "fmt_test_common.h"
+#include "test_utils.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 
@@ -995,7 +996,7 @@ TEST(SmilesFactoryTest, CreationTest) {
   std::vector<std::string> block = sr->next();
   ASSERT_FALSE(block.empty());
 
-  Molecule mol = sr->parse(block);
+  Molecule mol = internal::must_parse(sr->parse(block));
   EXPECT_FALSE(mol.empty());
 
   MoleculeSanitizer sanitizer(mol);

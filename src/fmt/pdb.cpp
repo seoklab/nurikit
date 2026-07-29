@@ -42,6 +42,7 @@
 #include "nuri/core/graph/graph.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
+#include "nuri/fmt/parse_result.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -2041,6 +2042,8 @@ void remove_hbonds(MoleculeMutator &mut) {
 }
 
 struct PDBInternals {
+  std::string error;
+
   std::string_view name;
   internal::PropertyMap props;
 
@@ -2056,7 +2059,7 @@ struct PDBInternals {
 PDBInternals read_pdb_internal(Iterator &it, const Iterator end,
                                std::string &buf, int cap_hint) {
   PDBInternals internals {
-    {}, {}, {}, {}, {}, {}, {}, { static_cast<size_t>(cap_hint) + 1 },
+    {}, {}, {}, {}, {}, {}, {}, {}, { static_cast<size_t>(cap_hint) + 1 },
   };
 
   // Order:
@@ -2108,27 +2111,29 @@ PDBInternals read_pdb_internal(Iterator &it, const Iterator end,
     if (it != end)
       line = *it;
 
-    ABSL_LOG(ERROR) << "Invalid coordinate section record: " << line;
-    internals.atoms.clear();
+    internals.error = absl::StrCat("invalid coordinate section record: ", line);
   }
 
   return internals;
 }
 }  // namespace
 
-Molecule read_pdb(const std::vector<std::string> &pdb) {
-  Molecule mol;
+ParseResult<Molecule> read_pdb(const std::vector<std::string> &pdb) {
   if (ABSL_PREDICT_FALSE(pdb.empty()))
-    return mol;
+    return ParseResult<Molecule>::error("empty PDB block");
 
   auto it = pdb.begin();
   const auto end = pdb.end();
   std::string buf;
 
   PDBInternals internals = read_pdb_internal(it, end, buf, last_serial(pdb));
-  if (internals.atoms.empty())
-    return mol;
+  if (!internals.error.empty())
+    return ParseResult<Molecule>::error(internals.error);
 
+  if (internals.atoms.empty())
+    return ParseResult<Molecule>::error("no ATOM/HETATM records found");
+
+  Molecule mol;
   mol.name() = internals.name;
   mol.props() = std::move(internals.props);
 
@@ -2154,7 +2159,7 @@ Molecule read_pdb(const std::vector<std::string> &pdb) {
         return id.ins_code == ' ' ? "" : std::string_view(&id.ins_code, 1);
       });
 
-  return mol;
+  return std::move(mol);
 }
 
 const bool PDBReaderFactory::kRegistered =
@@ -2195,27 +2200,24 @@ PDBModel::PDBModel(std::vector<PDBAtom> &&atoms,
       chains_(std::move(chains)), major_conf_(build_major_conf(atoms_)),
       props_(std::move(props)) { }
 
-PDBModel read_pdb_model(const std::vector<std::string> &pdb) {
-  std::vector<PDBAtom> atoms;
-  std::vector<PDBResidue> residues;
-  std::vector<PDBChain> chains;
-
-  internal::PropertyMap props;
-
-  if (ABSL_PREDICT_FALSE(pdb.empty())) {
-    return { std::move(atoms), std::move(residues), std::move(chains),
-             std::move(props) };
-  }
+ParseResult<PDBModel> read_pdb_model(const std::vector<std::string> &pdb) {
+  if (ABSL_PREDICT_FALSE(pdb.empty()))
+    return ParseResult<PDBModel>::error("empty PDB block");
 
   auto pit = pdb.begin();
   const auto end = pdb.end();
   std::string buf;
 
   PDBInternals internals = read_pdb_internal(pit, end, buf, last_serial(pdb));
-  if (internals.atoms.empty()) {
-    return { std::move(atoms), std::move(residues), std::move(chains),
-             std::move(props) };
-  }
+  if (!internals.error.empty())
+    return ParseResult<PDBModel>::error(internals.error);
+
+  if (internals.atoms.empty())
+    return ParseResult<PDBModel>::error("no ATOM/HETATM records found");
+
+  std::vector<PDBAtom> atoms;
+  std::vector<PDBResidue> residues;
+  std::vector<PDBChain> chains;
 
   atoms.reserve(internals.atoms.size());
   for (const PDBAtomData &pd: internals.atoms)
@@ -2250,8 +2252,8 @@ PDBModel read_pdb_model(const std::vector<std::string> &pdb) {
   for (auto &p: chain_residues)
     chains.push_back(PDBChain(p.first, std::move(p.second)));
 
-  return { std::move(atoms), std::move(residues), std::move(chains),
-           std::move(internals.props) };
+  return PDBModel(std::move(atoms), std::move(residues), std::move(chains),
+                  std::move(internals.props));
 }
 
 namespace {

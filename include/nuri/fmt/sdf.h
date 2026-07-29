@@ -15,15 +15,16 @@
 
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
+#include "nuri/fmt/parse_result.h"
 
 namespace nuri {
 /**
  * @brief Read a single sdf string and return a molecule.
  *
  * @param sdf the sdf string to read.
- * @return A molecule. On failure, the returned molecule is empty.
+ * @return A molecule, or the reason it could not be parsed.
  */
-extern Molecule read_sdf(const std::vector<std::string> &sdf);
+extern ParseResult<Molecule> read_sdf(const std::vector<std::string> &sdf);
 
 class SDFReader final: public DefaultReaderImpl<read_sdf> {
 public:

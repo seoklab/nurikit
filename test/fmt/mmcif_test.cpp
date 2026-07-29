@@ -34,7 +34,8 @@ TEST_F(MmcifTest, BasicParsing) {
   set_test_file("1a8o.cif");
 
   CifParser parser(ifs_);
-  std::vector mols = mmcif_read_next_block(parser);
+  std::vector<Molecule> mols =
+      internal::must_parse(mmcif_read_next_block(parser));
   ASSERT_EQ(mols.size(), 1);
 
   const Molecule &mol = mols[0];
@@ -67,7 +68,8 @@ TEST_F(MmcifTest, HandleMultipleModels) {
   set_test_file("3cye_part.cif");
 
   CifParser parser(ifs_);
-  std::vector mols = mmcif_read_next_block(parser);
+  std::vector<Molecule> mols =
+      internal::must_parse(mmcif_read_next_block(parser));
   ASSERT_EQ(mols.size(), 2);
 
   EXPECT_EQ(mols[0].name(), "3CYE");
@@ -115,7 +117,8 @@ protected:
     ASSERT_TRUE(ifs) << "Failed to open file: 1alx.cif";
 
     CifParser parser(ifs);
-    std::vector<Molecule> mols = mmcif_read_next_block(parser);
+    std::vector<Molecule> mols =
+        internal::must_parse(mmcif_read_next_block(parser));
     ASSERT_EQ(mols.size(), 1);
 
     mol_ = std::move(mols[0]);

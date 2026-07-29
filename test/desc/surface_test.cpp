@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include "test_utils.h"
 #include "nuri/core/geometry.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/sdf.h"
@@ -76,7 +77,7 @@ TEST(SRSasaImpl, TwoSpheres) {
 }
 
 TEST(SRSasa, Phenol) {
-  Molecule mol = read_sdf({
+  Molecule mol = internal::must_parse(read_sdf({
       "",
       "     RDKit          3D",
       "",
@@ -108,7 +109,7 @@ TEST(SRSasa, Phenol) {
       "  6 12  1  0",
       "  7 13  1  0",
       "M  END",
-  });
+  }));
   ASSERT_TRUE(MoleculeSanitizer(mol).sanitize_all());
 
   // Values from RDKit

@@ -1058,7 +1058,7 @@ TEST(GuessSelectedMolecules, GH358) {
 
   int i = 0;
   for (; i < smiles_answers.size() && reader.getnext(blk); ++i) {
-    Molecule mol = reader.parse(blk);
+    Molecule mol = internal::must_parse(reader.parse(blk));
     EXPECT_TRUE(internal::guess_update_subs(mol));
 
     std::string smi = NURI_WRITE_ONCE(write_smiles, mol);
@@ -1099,7 +1099,7 @@ TEST(GuessSelectedMolecules, GH367) {
 
   int i = 0;
   for (; i < smiles_answers.size() && reader.getnext(blk); ++i) {
-    Molecule mol = reader.parse(blk);
+    Molecule mol = internal::must_parse(reader.parse(blk));
     EXPECT_TRUE(internal::guess_update_subs(mol));
 
     std::string smi = NURI_WRITE_ONCE(write_smiles, mol);

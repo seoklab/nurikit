@@ -113,14 +113,79 @@ public:
     return false;
   }
 
-  Molecule parse(const std::vector<std::string> & /* block */) const override {
-    return {};
+  ParseResult<Molecule>
+  parse(const std::vector<std::string> & /* block */) const override {
+    return Molecule();
   }
 
   bool bond_valid() const override { return true; }
 };
 
 class DummyReaderFactory: public DefaultReaderFactoryImpl<DummyReader> { };
+
+class StubReader: public MoleculeReader {
+public:
+  bool getnext(std::vector<std::string> &block) override {
+    if (next_ >= 3)
+      return false;
+
+    block.assign(1, std::to_string(next_++));
+    return true;
+  }
+
+  ParseResult<Molecule>
+  parse(const std::vector<std::string> &block) const override {
+    if (block[0] == "1")
+      return ParseResult<Molecule>::error("stub failure");
+
+    Molecule mol;
+    mol.name() = block[0];
+    if (block[0] == "2")
+      mol.mutator().add_atom({});
+
+    return ParseResult<Molecule>(std::move(mol));
+  }
+
+  bool bond_valid() const override { return true; }
+
+private:
+  int next_ = 0;
+};
+
+TEST(MoleculeStreamTest, ReportsParseStatus) {
+  StubReader reader;
+  MoleculeStream<> stream = reader.stream();
+
+  ASSERT_TRUE(stream.advance());
+  ASSERT_TRUE(stream.ok());
+  EXPECT_EQ(stream.current().name(), "0");
+  EXPECT_TRUE(stream.current().empty());
+
+  ASSERT_TRUE(stream.advance());
+  EXPECT_FALSE(stream.ok());
+  EXPECT_EQ(stream.error_msg(), "stub failure");
+
+  ASSERT_TRUE(stream.advance());
+  ASSERT_TRUE(stream.ok());
+  EXPECT_EQ(stream.current().num_atoms(), 1);
+
+  EXPECT_FALSE(stream.advance());
+}
+
+TEST(MoleculeStreamTest, ExtractKeepsValueOnFailure) {
+  StubReader reader;
+  MoleculeStream<> stream = reader.stream();
+
+  Molecule mol;
+  stream >> mol;
+  EXPECT_EQ(mol.name(), "0");
+
+  stream >> mol;
+  EXPECT_EQ(mol.name(), "0");
+
+  stream >> mol;
+  EXPECT_EQ(mol.name(), "2");
+}
 
 TEST(ReaderFactoryTest, CanFindFactory) {
   // Direct comparison of typeid fails on macOS x86_64.

@@ -20,6 +20,7 @@
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
+#include "nuri/fmt/parse_result.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -27,9 +28,9 @@ namespace nuri {
  * @brief Read a single PDB string and return a molecule.
  *
  * @param pdb the PDB string to read.
- * @return A molecule. On failure, the returned molecule is empty.
+ * @return A molecule, or the reason it could not be parsed.
  */
-extern Molecule read_pdb(const std::vector<std::string> &pdb);
+extern ParseResult<Molecule> read_pdb(const std::vector<std::string> &pdb);
 
 class PDBReader final: public DefaultReaderImpl<read_pdb> {
 public:
@@ -194,7 +195,8 @@ private:
   internal::PropertyMap props_;
 };
 
-extern PDBModel read_pdb_model(const std::vector<std::string> &pdb);
+extern ParseResult<PDBModel>
+read_pdb_model(const std::vector<std::string> &pdb);
 }  // namespace nuri
 
 #endif /* NURI_FMT_PDB_H_ */

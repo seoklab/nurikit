@@ -17,8 +17,6 @@
 #include <absl/algorithm/container.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/str_cat.h>
-#include <absl/strings/str_join.h>
-#include <absl/types/span.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/stl/filesystem.h>
@@ -29,6 +27,7 @@
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 #include "nuri/fmt/mol2.h"
+#include "nuri/fmt/parse_result.h"
 #include "nuri/fmt/pdb.h"
 #include "nuri/fmt/sdf.h"
 #include "nuri/fmt/smiles.h"
@@ -70,22 +69,14 @@ public:
       if (!reader_->getnext(block_))
         break;
 
-      Molecule mol = reader_->parse(block_);
-      if (mol.empty()) {
-        std::string text;
-        if (block_.empty()) {
-          absl::StrAppend(&text, "Empty block for molecule.");
-        } else {
-          absl::StrAppend(&text,
-                          "Failed to parse molecule or an empty molecule "
-                          "supplied. The first lines of block are: \n\n  ",
-                          absl::StrJoin(absl::MakeSpan(block_).subspan(0, 5),
-                                        "\n  "));
-        }
-        log_or_throw(text.c_str());
+      ParseResult<Molecule> res = reader_->parse(block_);
+      if (!res) {
+        log_or_throw(
+            absl::StrCat("Failed to parse molecule: ", res.error_msg()).c_str());
         continue;
       }
 
+      Molecule mol = *std::move(res);
       if (!all_confs_finite(mol)) {
         log_or_throw("Molecule has non-finite (NaN or infinite) coordinates.");
         continue;

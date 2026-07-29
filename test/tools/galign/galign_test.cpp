@@ -21,9 +21,9 @@
 namespace nuri {
 namespace {
 TEST(GAlign, Rigid) {
-  Molecule templ = read_smiles({
+  Molecule templ = internal::must_parse(read_smiles({
       "O=C(C1CCC(CC(C)OC)CC1)c2cc3c(CC)ccc(C(C)C)c3cc2.Cl.[H][H]",
-  });
+  }));
 
   Matrix3Xd &tconf = templ.confs().emplace_back(3, templ.num_atoms());
   tconf.transpose() << -2.2395, -1.8709, 7.9552,  //
@@ -82,9 +82,9 @@ TEST(GAlign, Rigid) {
 }
 
 TEST(GAlign, Flexible) {
-  Molecule templ = read_smiles({
+  Molecule templ = internal::must_parse(read_smiles({
       "O=C(C1CCC(CC(C)OC)CC1)c2cc3c(CC)ccc(C(C)C)c3cc2.Cl.[H][H]",
-  });
+  }));
 
   Matrix3Xd &tconf = templ.confs().emplace_back(3, templ.num_atoms());
   tconf.transpose() << -2.2395, -1.8709, 7.9552,  //
@@ -156,7 +156,7 @@ TEST(GAlign, Flexible) {
 
 TEST(GAlign, FlexibleMaxConfClampedToPool) {
   // Needs a rotatable bond; otherwise the flexible path never builds a pool
-  Molecule mol = read_smiles({ "CCCC" });
+  Molecule mol = internal::must_parse(read_smiles({ "CCCC" }));
 
   Matrix3Xd &conf = mol.confs().emplace_back(3, mol.num_atoms());
   conf.transpose() << 0.0, 0.0, 0.0,  //
@@ -181,7 +181,7 @@ TEST(GAlign, FlexibleMaxConfClampedToPool) {
 }
 
 TEST(GAlign, FlexiblePrunesExcessRigidSeeds) {
-  Molecule mol = read_smiles({ "CCCCCC" });
+  Molecule mol = internal::must_parse(read_smiles({ "CCCCCC" }));
 
   Matrix3Xd &conf = mol.confs().emplace_back(3, mol.num_atoms());
   conf.transpose() << 0.00, 0.0, 0.0,  //
@@ -217,7 +217,7 @@ TEST(GAlign, FlexiblePrunesExcessRigidSeeds) {
 }
 
 TEST(GAlign, CoincidentRotatableBond) {
-  Molecule mol = read_smiles({ "CCCC" });
+  Molecule mol = internal::must_parse(read_smiles({ "CCCC" }));
 
   Matrix3Xd &conf = mol.confs().emplace_back(3, mol.num_atoms());
   conf.transpose() << 0.0, 0.0, 0.0,  //

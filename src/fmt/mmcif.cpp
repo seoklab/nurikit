@@ -33,6 +33,7 @@
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 #include "nuri/fmt/cif.h"
+#include "nuri/fmt/parse_result.h"
 #include "nuri/meta.h"
 #include "nuri/utils.h"
 
@@ -699,7 +700,8 @@ private:
 };
 }  // namespace
 
-std::vector<Molecule> mmcif_load_frame(const internal::CifFrame &frame) {
+ParseResult<std::vector<Molecule>>
+mmcif_load_frame(const internal::CifFrame &frame) {
   std::vector<Molecule> mols;
 
   ResidueIndexer res_idx = ResidueIndexer::atom_site(frame);
@@ -738,7 +740,7 @@ std::vector<Molecule> mmcif_load_frame(const internal::CifFrame &frame) {
         occupancy.table(), model_num.table(), fchg.table() });
   if (nsite == 0) {
     ABSL_LOG(WARNING) << "No atom site entries found";
-    return mols;
+    return std::move(mols);
   }
 
   std::vector<MmcifModelData> models;
@@ -751,7 +753,7 @@ std::vector<Molecule> mmcif_load_frame(const internal::CifFrame &frame) {
     if (!info) {
       ABSL_LOG(WARNING)
           << "Invalid atom info; ignoring atom with serial number " << id;
-      return mols;
+      return std::move(mols);
     }
 
     const int mid = model_num[i];
@@ -801,16 +803,18 @@ std::vector<Molecule> mmcif_load_frame(const internal::CifFrame &frame) {
         .add_prop("model", absl::StrCat(mid));
   }
 
-  return mols;
+  return std::move(mols);
 }
 
-std::vector<Molecule> mmcif_read_next_block(CifParser &parser) {
+ParseResult<std::vector<Molecule>> mmcif_read_next_block(CifParser &parser) {
   auto block = parser.next();
   if (!block) {
-    if (block.status() == ParseStatus::kError)
-      ABSL_LOG(ERROR) << "Cannot parse cif block: " << block.error_msg();
+    if (block.status() == ParseStatus::kError) {
+      return ParseResult<std::vector<Molecule>>::error(
+          "cannot parse cif block: ", block.error_msg());
+    }
 
-    return {};
+    return ParseResult<std::vector<Molecule>>::eof();
   }
 
   return mmcif_load_frame(block->data());
@@ -820,19 +824,25 @@ bool MmcifReader::getnext(std::vector<std::string> &block) {
   block.clear();
 
   if (mols_.empty()) {
-    mols_ = mmcif_read_next_block(parser_);
+    ParseResult<std::vector<Molecule>> res = mmcif_read_next_block(parser_);
+    if (!res) {
+      ABSL_LOG_IF(ERROR, res.status() == ParseStatus::kError) << res.error_msg();
+      return false;
+    }
+
+    mols_ = *std::move(res);
     next_ = -1;
   }
 
   return ++next_ < mols_.size();
 }
 
-Molecule
+ParseResult<Molecule>
 MmcifReader::parse(const std::vector<std::string> & /* block */) const {
   ABSL_DCHECK_GE(next_, 0);
   ABSL_DCHECK_LT(next_, mols_.size());
 
-  return mols_[next_];
+  return Molecule(mols_[next_]);
 }
 
 const bool MmcifReaderFactory::kRegistered =

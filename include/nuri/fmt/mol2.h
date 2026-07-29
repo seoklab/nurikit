@@ -15,15 +15,16 @@
 
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
+#include "nuri/fmt/parse_result.h"
 
 namespace nuri {
 /**
  * @brief Read a single Mol2 string and return a molecule.
  *
  * @param mol2 the Mol2 string to read.
- * @return A molecule. On failure, the returned molecule is empty.
+ * @return A molecule, or the reason it could not be parsed.
  */
-extern Molecule read_mol2(const std::vector<std::string> &mol2);
+extern ParseResult<Molecule> read_mol2(const std::vector<std::string> &mol2);
 
 class Mol2Reader final: public DefaultReaderImpl<read_mol2> {
 public:

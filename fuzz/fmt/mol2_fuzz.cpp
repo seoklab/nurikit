@@ -4,6 +4,7 @@
 //
 
 #include <sstream>
+#include <utility>
 #include <vector>
 
 #include <absl/base/call_once.h>
@@ -14,6 +15,7 @@
 #include "fuzz_utils.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/mol2.h"
+#include "nuri/fmt/parse_result.h"
 
 NURI_FUZZ_MAIN(data, size) {
   static absl::once_flag flag;
@@ -29,9 +31,11 @@ NURI_FUZZ_MAIN(data, size) {
   std::vector<std::string> block;
   std::string mol2;
   while (reader.getnext(block)) {
-    nuri::Molecule mol = reader.parse(block);
-    if (mol.empty())
+    nuri::ParseResult<nuri::Molecule> res = reader.parse(block);
+    if (!res)
       continue;
+
+    nuri::Molecule mol = *std::move(res);
 
     nuri::write_mol2(mol2, mol);
     mol.confs().clear();

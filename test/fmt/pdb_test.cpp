@@ -282,8 +282,7 @@ ENDMDL
 
   int cnt = 0;
   while (ms.advance()) {
-    const Molecule &mol = ms.current();
-    EXPECT_TRUE(mol.empty());
+    EXPECT_FALSE(ms.ok()) << "Molecule index: " << cnt;
     ++cnt;
   }
   EXPECT_EQ(cnt, 4);

@@ -15,6 +15,7 @@
 
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
+#include "nuri/fmt/parse_result.h"
 
 namespace nuri {
 /**
@@ -23,9 +24,10 @@ namespace nuri {
  * @param smi_block the SMILES block to read. Only the first string is used;
  *                  the rest are ignored. This is to support the interface
  *                  of the reader.
- * @return A molecule. On failure, the returned molecule is empty.
+ * @return A molecule, or the reason it could not be parsed.
  */
-extern Molecule read_smiles(const std::vector<std::string> &smi_block);
+extern ParseResult<Molecule>
+read_smiles(const std::vector<std::string> &smi_block);
 
 class SmilesReader final: public DefaultReaderImpl<read_smiles> {
 public:

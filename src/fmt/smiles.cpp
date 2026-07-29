@@ -37,6 +37,7 @@
 #include "nuri/core/element.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
+#include "nuri/fmt/parse_result.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -710,13 +711,11 @@ void convert_chirality(Molecule &mol, const parser::RingBonds &ring_bonds) {
 }
 }  // namespace
 
-Molecule read_smiles(const std::vector<std::string> &smi_block) {
-  Molecule mol;
-  if (smi_block.empty()) {
-    ABSL_LOG(WARNING) << "Empty SMILES block";
-    return mol;
-  }
+ParseResult<Molecule> read_smiles(const std::vector<std::string> &smi_block) {
+  if (smi_block.empty())
+    return ParseResult<Molecule>::error("empty SMILES block");
 
+  Molecule mol;
   const std::string &smiles = smi_block[0];
 
   // Context variables
@@ -753,11 +752,8 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
       success = false;
     }
 
-    if (!success) {
-      ABSL_LOG(ERROR) << "Parsing failed: " << smiles;
-      mutator.clear();
-      return mol;
-    }
+    if (!success)
+      return ParseResult<Molecule>::error("invalid SMILES: ", smiles);
   }
 
   for (int bid: implicit_aromatics) {
@@ -769,11 +765,8 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
     }
   }
 
-  if (!update_bond_configuration(mol, bond_geometry_map)) {
-    ABSL_LOG(ERROR) << "Parsing failed: " << smiles;
-    mol.clear();
-    return mol;
-  }
+  if (!update_bond_configuration(mol, bond_geometry_map))
+    return ParseResult<Molecule>::error("invalid SMILES: ", smiles);
 
   auto hit = has_hydrogens.begin();
   for (auto atom: mol) {
@@ -787,11 +780,11 @@ Molecule read_smiles(const std::vector<std::string> &smi_block) {
 
   convert_chirality(mol, ring_bonds);
 
-  while (begin != smiles.end() && std::isspace(*begin) != 0)
+  while (begin != smiles.end() && absl::ascii_isspace(*begin))
     ++begin;
-  mol.name() = std::string_view(&*begin, smiles.end() - begin);
+  mol.name() = std::string_view(smiles).substr(begin - smiles.begin());
 
-  return mol;
+  return ParseResult<Molecule>(std::move(mol));
 }
 
 namespace {

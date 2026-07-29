@@ -28,6 +28,7 @@
 #include <boost/spirit/home/x3.hpp>
 
 #include "nuri/eigen_config.h"
+#include "nuri/fmt/parse_result.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -477,8 +478,7 @@ std::pair<std::string_view, CifToken> parse_data(CifGlobalCtx ctx,
 }
 
 ParseResult<CifBlock> next_block(CifParser &parser, CifLexer &lexer,
-                                 std::string &next_name,
-                                 CifToken &next_block) {
+                                 std::string &next_name, CifToken &next_block) {
   std::string name = std::move(next_name);
   auto block_type = static_cast<CifBlock::Type>(next_block);
 

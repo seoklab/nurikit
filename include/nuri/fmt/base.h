@@ -24,6 +24,7 @@
 
 #include "nuri/core/container/dumb_buffer.h"
 #include "nuri/core/molecule.h"
+#include "nuri/fmt/parse_result.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -51,35 +52,56 @@ public:
       return false;
     }
 
-    mol_ = reader_->parse(block_);
+    res_ = reader_->parse(block_);
     return true;
   }
 
   /**
+   * @brief Test whether the current block was parsed successfully.
+   * @pre Previous call to advance() must return true, otherwise the behavior
+   *      is undefined.
+   */
+  bool ok() const { return static_cast<bool>(res_); }
+
+  /**
+   * @brief Get the reason the current block could not be parsed.
+   * @pre Previous call to advance() must return true and ok() must return
+   *      false, otherwise the behavior is undefined.
+   */
+  std::string_view error_msg() const { return res_.error_msg(); }
+
+  /**
    * @brief Get the current molecule.
    * @return Reference to the current molecule.
-   * @pre Previous call to advance() must return true, otherwise the behavior
-   *      is unspecified.
+   * @pre Previous call to advance() and ok() must return true, otherwise the
+   *      behavior is undefined.
    */
-  Molecule &current() { return mol_; }
+  Molecule &current() { return *res_; }
 
   /**
    * @brief Get the current molecule.
    * @return Const reference to the current molecule.
-   * @pre Previous call to advance() must return true, otherwise the behavior
-   *      is unspecified.
+   * @pre Previous call to advance() and ok() must return true, otherwise the
+   *      behavior is undefined.
    */
-  const Molecule &current() const { return mol_; }
+  const Molecule &current() const { return *res_; }
 
 private:
   Reader *reader_;
   std::vector<std::string> block_;
-  Molecule mol_;
+  ParseResult<Molecule> res_;
 };
 
+/**
+ * @brief Read the next molecule from the stream.
+ * @note \p mol is left unchanged if the stream is at the end or the next block
+ *       could not be parsed. This operator cannot report the reason; use
+ *       MoleculeStream::advance() with MoleculeStream::ok() to distinguish the
+ *       two and to obtain the failure reason.
+ */
 template <class Stream>
 Stream &operator>>(Stream &stream, Molecule &mol) {
-  if (stream.advance()) {
+  if (stream.advance() && stream.ok()) {
     mol = std::move(stream.current());
   }
   return stream;
@@ -125,10 +147,12 @@ public:
   /**
    * @brief Parse the current block and return the molecule.
    * @param block The block to parse.
-   * @return The current molecule.
-   * @note The returned molecule will be empty if the block is empty.
+   * @return The current molecule, or the reason it could not be parsed.
+   * @note This never returns a result in the end-of-input state; use getnext()
+   *       to detect the end of the stream.
    */
-  virtual Molecule parse(const std::vector<std::string> &block) const = 0;
+  virtual ParseResult<Molecule>
+  parse(const std::vector<std::string> &block) const = 0;
 
   /**
    * @brief Test whether the reader implementation can provide valid bond
@@ -148,7 +172,8 @@ public:
   DefaultReaderImpl() = default;
   DefaultReaderImpl(std::istream &is): is_(&is) { }
 
-  Molecule parse(const std::vector<std::string> &block) const final {
+  ParseResult<Molecule>
+  parse(const std::vector<std::string> &block) const final {
     return parser(block);
   }
 
@@ -281,10 +306,9 @@ public:
   /**
    * @brief Parse the current block and return the molecule.
    * @param block The block to parse.
-   * @return The current molecule.
-   * @note The returned molecule will be empty if the block is empty.
+   * @return The current molecule, or the reason it could not be parsed.
    */
-  Molecule parse(const std::vector<std::string> &block) const {
+  ParseResult<Molecule> parse(const std::vector<std::string> &block) const {
     return reader_->parse(block);
   }
 
@@ -350,10 +374,9 @@ public:
   /**
    * @brief Parse the current block and return the molecule.
    * @param block The block to parse.
-   * @return The current molecule.
-   * @note The returned molecule will be empty if the block is empty.
+   * @return The current molecule, or the reason it could not be parsed.
    */
-  Molecule parse(const std::vector<std::string> &block) const {
+  ParseResult<Molecule> parse(const std::vector<std::string> &block) const {
     return reader_->parse(block);
   }
 
