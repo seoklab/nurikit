@@ -38,3 +38,35 @@ def test_reader_options():
 
     mols = list(nuri.readstring("smi", "error", skip_on_error=True))
     assert len(mols) == 0
+
+
+def test_reader_error_reason():
+    with pytest.raises(ValueError, match=r"Failed to parse molecule: .*error"):
+        list(nuri.readstring("smi", "error"))
+
+
+def test_atomless_molecule():
+    # OpenSMILES: a blank line, or one starting with whitespace, is ignored,
+    # so an atom-less molecule is not representable in a SMILES file.
+    assert list(nuri.readstring("smi", "\tempty name")) == []
+
+    sdf = "empty\n\n\n  0  0  0     0  0  0  0  0  0999 V2000\nM  END\n$$$$\n"
+    mols = list(nuri.readstring("sdf", sdf))
+    assert len(mols) == 1
+    assert len(mols[0]) == 0
+
+    mols = list(nuri.readstring("mol2", "@<TRIPOS>MOLECULE\nempty\n"))
+    assert len(mols) == 1
+    assert len(mols[0]) == 0
+    assert mols[0].name == "empty"
+
+    mols = list(
+        nuri.readstring(
+            "pdb",
+            "HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY"
+            + "\n",
+        )
+    )
+    assert len(mols) == 1
+    assert len(mols[0]) == 0
+    assert mols[0].name == "ONLY"
