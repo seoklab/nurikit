@@ -850,7 +850,7 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
 
   tm_try_init(
       InitFlags::kGaplessThreading,
-      [&]() {
+      [&] {
         return internal::tm_initial_gt(rx_, ry_, dsqs_, query(), templ(),
                                        y2x_local(), d0sq_inv, d0sq_search)
                > 0;
@@ -859,7 +859,7 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
 
   tm_try_init(
       InitFlags::kSecStr,
-      [&]() {
+      [&] {
         internal::tm_initial_ss(y2x_local(), path, val, secx, secy);
         return true;
       },
@@ -867,7 +867,7 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
 
   tm_try_init(
       InitFlags::kLocal,
-      [&]() {
+      [&] {
         return internal::tm_initial_local(rx_, ry_, dsqs_, path, val, xy_,
                                           y2x_local(), y2x_buf(), d0sq_inv,
                                           d01sq_inv, d0sq_search)
@@ -877,7 +877,7 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
 
   tm_try_init(
       InitFlags::kLocalPlusSecStr,
-      [&]() {
+      [&] {
         xy_.remap(y2x_best);
         return internal::tm_initial_ssplus(rx_, ry_, path, val, xy_,
                                            y2x_local(), secx, secy, d01sq_inv);
@@ -886,7 +886,7 @@ bool TMAlign::initialize(const InitFlags flags, ConstRef<ArrayXc> secx,
 
   tm_try_init(
       InitFlags::kFragmentGaplessThreading,
-      [&]() {
+      [&] {
         return internal::tm_initial_fgt(rx_, ry_, dsqs_, query(), templ(),
                                         y2x_local(), dcu0_sq, d0sq_inv,
                                         d0sq_search)

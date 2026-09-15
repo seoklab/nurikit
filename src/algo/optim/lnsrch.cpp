@@ -32,7 +32,7 @@ namespace internal {
                 const double dp, const double stpmin, const double stpmax) {
       const double sgnd = dp * std::copysign(1.0, dx);
 
-      auto theta_gamma_common = [&]() {
+      auto theta_gamma_common = [&] {
         double theta = 3 * (fx - fp) / (stp - stx) + dx + dp;
         double s = Array3d { theta, dx, dp }.abs().maxCoeff();
         double theta_scaled = theta / s;

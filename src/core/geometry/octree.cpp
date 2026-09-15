@@ -33,7 +33,7 @@ namespace {
   // 000 -> +++, 100 -> -++, 010 -> +-+, 110 -> --+,
   // 001 -> ++-, 101 -> -+-, 011 -> +--, 111 -> ---
 
-  const std::array<Vector3d, 8> kOctantMasks = []() {
+  const std::array<Vector3d, 8> kOctantMasks = [] {
     std::array<Vector3d, 8> masks;
     for (int i = 0; i < 8; ++i) {
       auto mask_of = [&](int axis) {
@@ -97,13 +97,13 @@ namespace {
                    const int begin, const int nleaf, const int bucket_size,
                    int &max_nleaf) {
     Array8i children;
-    auto epilog = [&]() {
+    auto epilog = [&] {
       int id = static_cast<int>(data.size());
       data.emplace_back(std::move(children), begin, nleaf);
       return id;
     };
 
-    auto mark_leaf = [&]() {
+    auto mark_leaf = [&] {
       std::sort(idxs.begin() + begin, idxs.begin() + begin + nleaf);
       children[0] = kLeafMarker;
     };

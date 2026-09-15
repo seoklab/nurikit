@@ -944,7 +944,7 @@ void ProxySubstruct::erase_hydrogens() {
 void PySubstruct::erase_hydrogens() {
   Molecule &mol = *parent();
   Substructure &substruct = mol.substructures().emplace_back(std::move(**this));
-  absl::Cleanup c = [&]() {
+  absl::Cleanup c = [&] {
     **this = std::move(substruct);
     mol.substructures().erase(--mol.substructures().end());
   };
