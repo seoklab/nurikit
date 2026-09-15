@@ -279,11 +279,23 @@ void mask_to_map(Container &mask) {
   }
 }
 
-template <typename Derived, typename Base>
-std::unique_ptr<Derived>
-static_unique_ptr_cast(std::unique_ptr<Base> &&p) noexcept {
-  auto d = static_cast<Derived *>(p.release());
-  return std::unique_ptr<Derived>(d);
+template <class To, class From>
+To down_cast(From &&src) noexcept {
+  if constexpr (std::is_pointer_v<To>) {
+    ABSL_DCHECK(src == nullptr || dynamic_cast<To>(src) != nullptr)
+        << "Incompatible cast";
+    return static_cast<To>(std::forward<From>(src));
+  } else {
+    static_assert(std::is_reference_v<To>,
+                  "down_cast target must be a pointer or reference type");
+    return static_cast<To>(
+        *down_cast<std::add_pointer_t<To>>(std::addressof(src)));
+  }
+}
+
+template <class To, class From>
+std::unique_ptr<To> down_cast(std::unique_ptr<From> &&src) noexcept {
+  return std::unique_ptr<To>(down_cast<To *>(src.release()));
 }
 
 inline std::string_view extension_no_dot(const std::filesystem::path &ext) {
