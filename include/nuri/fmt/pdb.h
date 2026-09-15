@@ -7,6 +7,7 @@
 #define NURI_FMT_PDB_H_
 
 //! @cond
+#include <memory>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -32,15 +33,23 @@ namespace nuri {
  */
 extern ParseResult<Molecule> read_pdb(const std::vector<std::string> &pdb);
 
-class PDBReader final: public DefaultReaderImpl<read_pdb> {
-public:
-  using DefaultReaderImpl<read_pdb>::DefaultReaderImpl;
+using PDBRecord = TextRecordImpl<std::vector<std::string>, read_pdb>;
 
-  bool getnext(std::vector<std::string> &block) override;
+class PDBReader final: public StreamReaderBase {
+public:
+  using Record = PDBRecord;
+
+  using StreamReaderBase::StreamReaderBase;
+
+  std::unique_ptr<MoleculeRecord> make_record() const override {
+    return std::make_unique<Record>();
+  }
 
   bool bond_valid() const override { return false; }
 
 private:
+  bool fill(MoleculeRecord &record) override;
+
   std::vector<std::string> header_;
   std::vector<std::string> rfooter_;
   bool has_model_ = false;

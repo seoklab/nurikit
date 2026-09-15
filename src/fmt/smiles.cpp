@@ -41,15 +41,20 @@
 #include "nuri/utils.h"
 
 namespace nuri {
-bool SmilesReader::getnext(std::vector<std::string> &block) {
-  if (block.empty()) {
-    block.emplace_back();
-  }
+bool SmilesReader::fill(MoleculeRecord &record) {
+  auto &text_record = down_cast<Record &>(record);
+  auto &block = text_record.text();
+  block.clear();
+
+  block.emplace_back();
 
   std::string &smiles = block[0];
   while (std::getline(*is_, smiles)
          && (smiles.empty() || absl::ascii_isspace(smiles[0]))) { }
-  return static_cast<bool>(*is_);
+  if (*is_)
+    return true;
+  block.clear();
+  return false;
 }
 
 const bool SmilesReaderFactory::kRegistered =

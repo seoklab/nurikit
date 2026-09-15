@@ -7,6 +7,7 @@
 #define NURI_FMT_MOL2_H_
 
 //! @cond
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -26,15 +27,23 @@ namespace nuri {
  */
 extern ParseResult<Molecule> read_mol2(const std::vector<std::string> &mol2);
 
-class Mol2Reader final: public DefaultReaderImpl<read_mol2> {
-public:
-  using DefaultReaderImpl<read_mol2>::DefaultReaderImpl;
+using Mol2Record = TextRecordImpl<std::vector<std::string>, read_mol2>;
 
-  bool getnext(std::vector<std::string> &block) override;
+class Mol2Reader final: public StreamReaderBase {
+public:
+  using Record = Mol2Record;
+
+  using StreamReaderBase::StreamReaderBase;
+
+  std::unique_ptr<MoleculeRecord> make_record() const override {
+    return std::make_unique<Record>();
+  }
 
   bool bond_valid() const override { return true; }
 
 private:
+  bool fill(MoleculeRecord &record) override;
+
   bool read_mol_header_ = false;
 };
 

@@ -1054,11 +1054,11 @@ TEST(GuessSelectedMolecules, GH358) {
 
   std::ifstream ifs(internal::test_data("gh-358.pdb"));
   PDBReader reader(ifs);
-  std::vector<std::string> blk;
+  auto record = reader.make_record();
 
   int i = 0;
-  for (; i < smiles_answers.size() && reader.getnext(blk); ++i) {
-    Molecule mol = internal::must_parse(reader.parse(blk));
+  for (; i < smiles_answers.size() && reader.getnext(*record); ++i) {
+    Molecule mol = internal::must_parse_first(record->parse());
     EXPECT_TRUE(internal::guess_update_subs(mol));
 
     std::string smi = NURI_WRITE_ONCE(write_smiles, mol);
@@ -1095,11 +1095,11 @@ TEST(GuessSelectedMolecules, GH367) {
 
   std::ifstream ifs(internal::test_data("gh-367.pdb"));
   PDBReader reader(ifs);
-  std::vector<std::string> blk;
+  auto record = reader.make_record();
 
   int i = 0;
-  for (; i < smiles_answers.size() && reader.getnext(blk); ++i) {
-    Molecule mol = internal::must_parse(reader.parse(blk));
+  for (; i < smiles_answers.size() && reader.getnext(*record); ++i) {
+    Molecule mol = internal::must_parse_first(record->parse());
     EXPECT_TRUE(internal::guess_update_subs(mol));
 
     std::string smi = NURI_WRITE_ONCE(write_smiles, mol);

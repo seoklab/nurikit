@@ -13,6 +13,8 @@
 #include <string>
 #include <string_view>
 
+#include <absl/log/absl_check.h>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -100,7 +102,7 @@ public:
   // NOLINTBEGIN(readability-identifier-naming)
   std::istringstream iss_;
   MoleculeReader mr_ = { iss_ };
-  MoleculeStream<MoleculeReader> ms_ = { mr_ };
+  ParseResult<MoleculeBatch> result_;
   int idx_;
   bool print_;
   // NOLINTEND(readability-identifier-naming)
@@ -112,14 +114,18 @@ public:
 
   bool advance() {
     ++idx_;
-    return ms_.advance();
+    result_ = mr_.next()->parse();
+    return result_.status() != ParseStatus::kEOF;
   }
 
-  bool ok() const { return ms_.ok(); }
+  bool ok() const { return static_cast<bool>(result_); }
 
-  std::string_view error_msg() const { return ms_.error_msg(); }
+  std::string_view error_msg() const { return result_.error_msg(); }
 
-  Molecule &mol() { return ms_.current(); }
+  Molecule &mol() {
+    ABSL_CHECK_EQ(result_->data().size(), 1);
+    return result_->data().front();
+  }
 
 protected:
   void SetUp() override {
@@ -138,7 +144,7 @@ public:
   // NOLINTBEGIN(readability-identifier-naming)
   std::ifstream ifs_;
   MoleculeReader mr_ = { ifs_ };
-  MoleculeStream<MoleculeReader> ms_ = { mr_ };
+  ParseResult<MoleculeBatch> result_;
   int idx_;
   bool print_;
   // NOLINTEND(readability-identifier-naming)
@@ -150,14 +156,18 @@ public:
 
   bool advance() {
     ++idx_;
-    return ms_.advance();
+    result_ = mr_.next()->parse();
+    return result_.status() != ParseStatus::kEOF;
   }
 
-  bool ok() const { return ms_.ok(); }
+  bool ok() const { return static_cast<bool>(result_); }
 
-  std::string_view error_msg() const { return ms_.error_msg(); }
+  std::string_view error_msg() const { return result_.error_msg(); }
 
-  Molecule &mol() { return ms_.current(); }
+  Molecule &mol() {
+    ABSL_CHECK_EQ(result_->data().size(), 1);
+    return result_->data().front();
+  }
 
 protected:
   void SetUp() override {

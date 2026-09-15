@@ -117,7 +117,11 @@ std::ostream &operator<<(std::ostream &os, const PDBResidueId &id) {
   return os;
 }
 
-bool PDBReader::getnext(std::vector<std::string> &block) {
+bool PDBReader::fill(MoleculeRecord &record) {
+  auto &text_record = down_cast<Record &>(record);
+  auto &block = text_record.text();
+  block.clear();
+
   std::string line;
   line.reserve(80);
 
@@ -125,13 +129,10 @@ bool PDBReader::getnext(std::vector<std::string> &block) {
   if (first_model) {
     has_model_ = pdb_next_nomodel(*is_, line, header_, rfooter_);
     if (!has_model_) {
-      if (header_.empty()) {
-        block.clear();
+      if (header_.empty())
         return false;
-      }
 
       std::swap(block, header_);
-      header_.clear();
       return true;
     }
 
@@ -182,18 +183,14 @@ constexpr std::string_view kTitleSection[] = {
 // constexpr std::string_view kPrimaryStructSection[] = {  //
 //   "DBREF", "SEQADV", "SEQRES", "MODRES"
 // };
-constexpr std::string_view kHeterogenSection[] = {  //
-  // HET conflicts with HETATM if no space is present
-  "HET ", "HETNAM", "HETSYN", "FORMUL"
-};
+// HET conflicts with HETATM if no space is present
+constexpr std::string_view kHeterogenSection[] = { "HET ", "HETNAM", "HETSYN",
+                                                   "FORMUL" };
 constexpr std::string_view kSecStructSection[] = { "HELIX", "SHEET" };
-constexpr std::string_view kConnAnnotSection[] = {  //
-  "SSBOND", "LINK", "CISPEP"
-};
+constexpr std::string_view kConnAnnotSection[] = { "SSBOND", "LINK", "CISPEP" };
 // constexpr std::string_view kMiscSection[] = { "SITE" };
-constexpr std::string_view kXtalCrdXformSection[] = {  //
-  "CRYST1", "ORIGX", "SCALE", "MTRIX"
-};
+constexpr std::string_view kXtalCrdXformSection[] = { "CRYST1", "ORIGX",
+                                                      "SCALE", "MTRIX" };
 // constexpr std::string_view kIgnoredRecords[] = {  //
 //   "TER", "MASTER", "ENDMDL", "END"
 // };

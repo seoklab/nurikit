@@ -93,7 +93,9 @@ void advance_header_read(std::istream &is, std::vector<std::string> &block,
 }
 }  // namespace
 
-bool Mol2Reader::getnext(std::vector<std::string> &block) {
+bool Mol2Reader::fill(MoleculeRecord &record) {
+  auto &text_record = down_cast<Record &>(record);
+  auto &block = text_record.text();
   block.clear();
 
   if (read_mol_header_) {

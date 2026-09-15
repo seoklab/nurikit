@@ -1023,8 +1023,7 @@ TEST(SmilesEmptyTest, WriteEmptyMolecule) {
 
   std::istringstream iss(smi);
   SmilesReader reader(iss);
-  auto ms = reader.stream();
-  EXPECT_FALSE(ms.advance());
+  EXPECT_EQ(reader.next()->parse().status(), ParseStatus::kEOF);
 }
 
 TEST(SmilesFactoryTest, CreationTest) {
@@ -1035,10 +1034,7 @@ TEST(SmilesFactoryTest, CreationTest) {
 
   std::unique_ptr<MoleculeReader> sr = smiles_factory->from_stream(iss);
   ASSERT_TRUE(sr);
-  std::vector<std::string> block = sr->next();
-  ASSERT_FALSE(block.empty());
-
-  Molecule mol = internal::must_parse(sr->parse(block));
+  Molecule mol = internal::must_parse_first(sr->next()->parse());
   EXPECT_FALSE(mol.empty());
 
   MoleculeSanitizer sanitizer(mol);
@@ -1048,7 +1044,7 @@ TEST(SmilesFactoryTest, CreationTest) {
   EXPECT_EQ(mol.num_bonds(), 0);
   EXPECT_EQ(mol.atom(0).data().implicit_hydrogens(), 4);
 
-  ASSERT_TRUE(sr->next().empty());
+  EXPECT_EQ(sr->next()->parse().status(), ParseStatus::kEOF);
 }
 }  // namespace
 }  // namespace nuri

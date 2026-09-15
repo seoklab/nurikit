@@ -46,7 +46,9 @@
 #include "nuri/utils.h"
 
 namespace nuri {
-bool SDFReader::getnext(std::vector<std::string> &block) {
+bool SDFReader::fill(MoleculeRecord &record) {
+  auto &text_record = down_cast<Record &>(record);
+  auto &block = text_record.text();
   block.clear();
 
   std::string line;

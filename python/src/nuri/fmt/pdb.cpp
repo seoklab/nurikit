@@ -8,7 +8,6 @@
 #include <filesystem>
 #include <fstream>
 #include <istream>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -96,9 +95,9 @@ pyt::List<PDBModel> read_pdb_models(std::istream &is, bool skip_on_error) {
   PDBReader reader(is);
 
   pyt::List<PDBModel> models;
-  std::vector<std::string> block;
-  while (reader.getnext(block)) {
-    ParseResult<PDBModel> model = read_pdb_model(block);
+  PDBRecord record;
+  while (reader.getnext(record)) {
+    ParseResult<PDBModel> model = read_pdb_model(record.text());
 
     if (!model) {
       if (skip_on_error)

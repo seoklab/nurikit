@@ -28,7 +28,6 @@
 #include <pybind11/typing.h>
 
 #include "fmt_internal.h"
-#include "nuri/core/molecule.h"
 #include "nuri/fmt/mmcif.h"
 #include "nuri/fmt/parse_result.h"
 #include "nuri/python/core/core_module.h"
@@ -487,11 +486,11 @@ cif_ddl2_frame_as_dict(const PyCifFrame &frame) {
 }
 
 pyt::List<PyMol> mmcif_load_cif_frame(const PyCifFrame &frame) {
-  ParseResult<std::vector<Molecule>> res = mmcif_load_frame(*frame);
+  auto res = mmcif_load_frame(*frame);
   if (!res)
     throw py::value_error(std::move(res).error_msg());
 
-  std::vector<Molecule> mols = *std::move(res);
+  auto mols = *std::move(res);
 
   pyt::List<PyMol> pymols(mols.size());
   for (int i = 0; i < mols.size(); ++i)

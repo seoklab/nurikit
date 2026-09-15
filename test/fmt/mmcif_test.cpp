@@ -37,8 +37,9 @@ TEST_F(MmcifTest, BasicParsing) {
   set_test_file("1a8o.cif");
 
   CifParser parser(ifs_);
-  std::vector<Molecule> mols =
-      internal::must_parse(mmcif_read_next_block(parser));
+  auto block = internal::must_parse(parser.next());
+  MoleculeBatch::Container mols =
+      internal::must_parse(mmcif_load_frame(block.data()));
   ASSERT_EQ(mols.size(), 1);
 
   const Molecule &mol = mols[0];
@@ -71,8 +72,9 @@ TEST_F(MmcifTest, HandleMultipleModels) {
   set_test_file("3cye_part.cif");
 
   CifParser parser(ifs_);
-  std::vector<Molecule> mols =
-      internal::must_parse(mmcif_read_next_block(parser));
+  auto block = internal::must_parse(parser.next());
+  MoleculeBatch::Container mols =
+      internal::must_parse(mmcif_load_frame(block.data()));
   ASSERT_EQ(mols.size(), 2);
 
   EXPECT_EQ(mols[0].name(), "3CYE");
@@ -161,27 +163,26 @@ TEST(MmcifLoadFrameTest, NoAtomSites) {
   ParseResult<internal::CifBlock> block = parser.next();
   ASSERT_TRUE(block) << "Failed to parse";
 
-  ParseResult<std::vector<Molecule>> mols = mmcif_load_frame(block->data());
+  ParseResult<MoleculeBatch::Container> mols = mmcif_load_frame(block->data());
   ASSERT_TRUE(mols) << mols.error_msg();
   EXPECT_TRUE(mols->empty());
 }
 
-TEST(MmcifReaderTest, SkipBlocksWithoutAtomSites) {
+TEST(MmcifReaderTest, EmptyBatchDoesNotEndInput) {
   std::istringstream iss(std::string { kThreeBlocks });
   MmcifReader reader(iss);
-  auto ms = reader.stream();
+  Molecule first = internal::must_parse_first(reader.next()->parse());
+  EXPECT_EQ(first.name(), "first");
+  EXPECT_EQ(first.num_atoms(), 2);
 
-  ASSERT_TRUE(ms.advance());
-  ASSERT_TRUE(ms.ok()) << ms.error_msg();
-  EXPECT_EQ(ms.current().name(), "first");
-  EXPECT_EQ(ms.current().num_atoms(), 2);
+  auto empty = reader.next()->parse();
+  ASSERT_TRUE(empty);
+  EXPECT_TRUE(empty->data().empty());
 
-  ASSERT_TRUE(ms.advance());
-  ASSERT_TRUE(ms.ok()) << ms.error_msg();
-  EXPECT_EQ(ms.current().name(), "last");
-  EXPECT_EQ(ms.current().num_atoms(), 1);
-
-  EXPECT_FALSE(ms.advance());
+  Molecule last = internal::must_parse_first(reader.next()->parse());
+  EXPECT_EQ(last.name(), "last");
+  EXPECT_EQ(last.num_atoms(), 1);
+  EXPECT_EQ(reader.next()->parse().status(), ParseStatus::kEOF);
 }
 
 TEST(MmcifReaderTest, ReportMalformedAtomSiteRow) {
@@ -201,13 +202,11 @@ _atom_site.Cartn_z
 )cif");
 
   MmcifReader reader(iss);
-  auto ms = reader.stream();
+  auto result = reader.next()->parse();
+  ASSERT_EQ(result.status(), ParseStatus::kError);
+  EXPECT_THAT(result.error_msg(), testing::HasSubstr("_atom_site"));
 
-  ASSERT_TRUE(ms.advance());
-  EXPECT_FALSE(ms.ok());
-  EXPECT_THAT(ms.error_msg(), testing::HasSubstr("_atom_site"));
-
-  EXPECT_FALSE(ms.advance());
+  EXPECT_EQ(reader.next()->parse().status(), ParseStatus::kEOF);
 }
 
 TEST(MmcifReaderTest, ContinuePastMalformedBlock) {
@@ -254,33 +253,25 @@ ATOM 1 O O HOH B 1 5.000 6.000 7.000
 )cif");
 
   MmcifReader reader(iss);
-  auto ms = reader.stream();
+  EXPECT_EQ(internal::must_parse_first(reader.next()->parse()).name(), "first");
 
-  ASSERT_TRUE(ms.advance());
-  ASSERT_TRUE(ms.ok()) << ms.error_msg();
-  EXPECT_EQ(ms.current().name(), "first");
+  auto error = reader.next()->parse();
+  ASSERT_EQ(error.status(), ParseStatus::kError);
+  EXPECT_THAT(error.error_msg(), testing::HasSubstr("_atom_site"));
 
-  ASSERT_TRUE(ms.advance());
-  EXPECT_FALSE(ms.ok());
-  EXPECT_THAT(ms.error_msg(), testing::HasSubstr("_atom_site"));
+  EXPECT_EQ(internal::must_parse_first(reader.next()->parse()).name(), "last");
 
-  ASSERT_TRUE(ms.advance());
-  ASSERT_TRUE(ms.ok()) << ms.error_msg();
-  EXPECT_EQ(ms.current().name(), "last");
-
-  EXPECT_FALSE(ms.advance());
+  EXPECT_EQ(reader.next()->parse().status(), ParseStatus::kEOF);
 }
 
 TEST(MmcifReaderTest, ReportCifSyntaxError) {
   std::istringstream iss("data_bad\n_x.y 'unterminated\n");
   MmcifReader reader(iss);
-  auto ms = reader.stream();
+  auto result = reader.next()->parse();
+  ASSERT_EQ(result.status(), ParseStatus::kError);
+  EXPECT_THAT(result.error_msg(), testing::HasSubstr("cannot parse cif block"));
 
-  ASSERT_TRUE(ms.advance());
-  EXPECT_FALSE(ms.ok());
-  EXPECT_THAT(ms.error_msg(), testing::HasSubstr("cannot parse cif block"));
-
-  EXPECT_FALSE(ms.advance());
+  EXPECT_EQ(reader.next()->parse().status(), ParseStatus::kEOF);
 }
 
 class PDB1alxTest: public testing::Test {
@@ -291,8 +282,9 @@ protected:
     ASSERT_TRUE(ifs) << "Failed to open file: 1alx.cif";
 
     CifParser parser(ifs);
-    std::vector<Molecule> mols =
-        internal::must_parse(mmcif_read_next_block(parser));
+    auto block = internal::must_parse(parser.next());
+    MoleculeBatch::Container mols =
+        internal::must_parse(mmcif_load_frame(block.data()));
     ASSERT_EQ(mols.size(), 1);
 
     mol_ = std::move(mols[0]);

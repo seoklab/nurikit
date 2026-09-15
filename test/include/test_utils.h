@@ -93,12 +93,18 @@ T must_parse(ParseResult<T> &&res) {
   return *std::move(res);
 }
 
+inline Molecule must_parse_first(ParseResult<MoleculeBatch> &&res) {
+  auto batch = must_parse(std::move(res));
+  ABSL_CHECK_EQ(batch.data().size(), 1);
+  return std::move(batch.data().front());
+}
+
 inline Molecule read_first(std::string_view fmt, std::string_view data) {
-  StringMoleculeReader<> reader(fmt, std::string { data });
-  MoleculeStream<> stream = reader.stream();
-  ABSL_CHECK(stream.advance());
-  ABSL_CHECK(stream.ok()) << stream.error_msg();
-  return stream.current();
+  std::istringstream input(std::string { data });
+  auto *factory = MoleculeReaderFactory::find_factory(fmt);
+  ABSL_CHECK(factory != nullptr);
+  auto reader = factory->from_stream(input);
+  return must_parse_first(reader->next()->parse());
 }
 
 template <class Func, class... Args>
