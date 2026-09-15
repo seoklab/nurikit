@@ -23,8 +23,6 @@ namespace nuri {
 ParseResult<std::vector<Molecule>>
 mmcif_load_frame(const internal::CifFrame &frame);
 
-ParseResult<std::vector<Molecule>> mmcif_read_next_block(CifParser &parser);
-
 class MmcifRecord final: public MoleculeRecord {
 public:
   ParseResult<Molecule> next() override;
