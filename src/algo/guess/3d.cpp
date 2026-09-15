@@ -7,7 +7,6 @@
 #include <array>
 #include <cmath>
 #include <numeric>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -2103,10 +2102,7 @@ namespace {
   }
 
   bool guess_types_common(Molecule &mol, const Matrix3Xd &pos) {
-    Rings rings;
-    bool ok;
-
-    std::tie(rings, ok) = find_all_rings(mol, 6);
+    auto [rings, ok] = find_all_rings(mol, 6);
     if (!ok)
       rings = find_sssr(mol, 6);
 
