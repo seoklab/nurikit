@@ -169,20 +169,29 @@ TEST(MmcifLoadFrameTest, NoAtomSites) {
 }
 
 TEST(MmcifReaderTest, EmptyBatchDoesNotEndInput) {
-  std::istringstream iss(std::string { kThreeBlocks });
-  MmcifReader reader(iss);
-  Molecule first = internal::must_parse_first(reader.next()->parse());
-  EXPECT_EQ(first.name(), "first");
-  EXPECT_EQ(first.num_atoms(), 2);
+  std::istringstream input(std::string { kThreeBlocks });
+  MmcifRecord record;
+  ParseResult<MoleculeBatch> first, empty, last;
+  {
+    MmcifReader reader(input);
+    ASSERT_TRUE(reader.getnext(record));
+    first = record.parse();
+    ASSERT_TRUE(first);
+    ASSERT_EQ(first->data().size(), 1);
+    EXPECT_EQ(first->data()[0].name(), "first");
 
-  auto empty = reader.next()->parse();
-  ASSERT_TRUE(empty);
-  EXPECT_TRUE(empty->data().empty());
+    ASSERT_TRUE(reader.getnext(record));
+    empty = record.parse();
+    ASSERT_TRUE(empty);
+    EXPECT_TRUE(empty->data().empty());
 
-  Molecule last = internal::must_parse_first(reader.next()->parse());
-  EXPECT_EQ(last.name(), "last");
-  EXPECT_EQ(last.num_atoms(), 1);
-  EXPECT_EQ(reader.next()->parse().status(), ParseStatus::kEOF);
+    ASSERT_TRUE(reader.getnext(record));
+  }
+  last = record.parse();
+  ASSERT_TRUE(last);
+  ASSERT_EQ(last->data().size(), 1);
+  EXPECT_EQ(last->data()[0].name(), "last");
+  EXPECT_EQ(first->data()[0].num_atoms(), 2);
 }
 
 TEST(MmcifReaderTest, ReportMalformedAtomSiteRow) {
@@ -262,6 +271,59 @@ ATOM 1 O O HOH B 1 5.000 6.000 7.000
   EXPECT_EQ(internal::must_parse_first(reader.next()->parse()).name(), "last");
 
   EXPECT_EQ(reader.next()->parse().status(), ParseStatus::kEOF);
+}
+
+TEST(MmcifReaderTest, RefillPreservesEarlierBatch) {
+  std::istringstream input(R"cif(data_first
+loop_
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.pdbx_PDB_model_num
+1 C CA ALA A 1 1 2 3 1
+2 N N ALA A 1 4 5 6 2
+data_last
+loop_
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.pdbx_PDB_model_num
+1 C CA ALA A 1 1 2 3 1
+2 N N ALA A 1 4 5 6 2
+)cif");
+  MmcifReader reader(input);
+  MmcifRecord record;
+  ASSERT_TRUE(reader.getnext(record));
+  auto first = record.parse();
+  ASSERT_TRUE(first);
+  ASSERT_EQ(first->data().size(), 2);
+  EXPECT_EQ(first->data()[0].name(), "first");
+  EXPECT_EQ(internal::get_key(first->data()[0].props(), "model"), "1");
+
+  ASSERT_TRUE(reader.getnext(record));
+  auto last = record.parse();
+  ASSERT_TRUE(last);
+  ASSERT_EQ(last->data().size(), 2);
+  for (int i = 0; i < 2; ++i) {
+    const auto &mol = last->data()[i];
+    EXPECT_EQ(mol.name(), "last");
+    EXPECT_EQ(internal::get_key(mol.props(), "model"), std::to_string(i + 1));
+  }
+  EXPECT_EQ(first->data()[1].name(), "first");
+  EXPECT_FALSE(reader.getnext(record));
+  EXPECT_EQ(record.parse().status(), ParseStatus::kEOF);
 }
 
 TEST(MmcifReaderTest, ReportCifSyntaxError) {

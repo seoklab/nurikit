@@ -134,3 +134,98 @@ def test_concurrent_readers(threaded_input, shared, skip_on_error):
         readers = [reader() for _ in range(4)]
         expected = Counter({key: count * 4 for key, count in expected.items()})
     assert _concurrent_results(readers) == expected
+
+
+def _model_batch(models, atoms=1, first_x="1"):
+    header = """data_batch
+loop_
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.pdbx_PDB_model_num
+"""
+    rows = []
+    for model in range(1, models + 1):
+        for atom in range(1, atoms + 1):
+            x = first_x if model == 1 else "1"
+            rows.append(
+                f"{(model - 1) * atoms + atom} C C{atom} ALA A 1 "
+                f"{x} 2 3 {model}\n"
+            )
+    return header + "".join(rows)
+
+
+def test_shared_reader_final_batch():
+    text = _model_batch(32, atoms=32)
+    expected = Counter(_consume(nuri.readstring("cif", text, sanitize=False)))
+    reader = nuri.readstring("cif", text, sanitize=False)
+    assert _concurrent_results([reader] * 4) == expected
+
+
+def test_batch_outlives_consuming_thread():
+    reader = nuri.readstring("cif", _model_batch(8), sanitize=False)
+    completed = SimpleQueue()
+
+    def take_one():
+        try:
+            completed.put(next(reader))
+        except BaseException as exc:
+            completed.put(exc)
+
+    worker = Thread(target=take_one, daemon=True)
+    worker.start()
+    worker.join(timeout=10)
+    assert not worker.is_alive()
+    first = completed.get_nowait()
+    if isinstance(first, BaseException):
+        raise first
+    assert first.props["model"] == "1"
+    assert [mol.props["model"] for mol in reader] == [
+        str(i) for i in range(2, 9)
+    ]
+
+
+@pytest.mark.parametrize("skip_on_error", [False, True])
+def test_invalid_model_preserves_batch(skip_on_error):
+    reader = nuri.readstring(
+        "cif",
+        _model_batch(4, first_x="nan"),
+        sanitize=False,
+        skip_on_error=skip_on_error,
+    )
+    if not skip_on_error:
+        with pytest.raises(ValueError, match="non-finite"):
+            next(reader)
+    assert [mol.props["model"] for mol in reader] == ["2", "3", "4"]
+
+    def fresh_reader():
+        return nuri.readstring(
+            "cif",
+            _model_batch(4, first_x="nan"),
+            sanitize=False,
+            skip_on_error=skip_on_error,
+        )
+
+    expected = Counter(_consume(fresh_reader()))
+    shared = fresh_reader()
+    assert _concurrent_results([shared] * 4) == expected
+
+
+@pytest.mark.parametrize("skip_on_error", [False, True])
+def test_empty_batches_before_final_batch(skip_on_error):
+    text = "".join(f"data_empty{i}\n_x.y 1\n" for i in range(20))
+    text += _model_batch(8)
+    expected = Counter(_consume(nuri.readstring("cif", text, sanitize=False)))
+    reader = nuri.readstring(
+        "cif",
+        text,
+        sanitize=False,
+        skip_on_error=skip_on_error,
+    )
+    assert _concurrent_results([reader] * 4) == expected

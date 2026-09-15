@@ -478,6 +478,36 @@ TEST(PDBWriteTest, Molecule2D) {
   EXPECT_EQ(mols[0][0].data().atomic_number(), 6);
 }
 
+TEST(PDBReaderTest, RetainedTextIncludesHeaderAndFooter) {
+  PDBRecord record;
+  {
+    std::istringstream input(
+        R"pdb(HEADER    TEST CLASSIFICATION                     01-JAN-25   TEST
+MODEL        1
+HETATM    1  C1  LIG A   1       1.000   2.000   3.000  1.00  0.00           C
+HETATM    2  O1  LIG A   1       2.000   2.000   3.000  1.00  0.00           O
+ENDMDL
+MODEL        2
+HETATM    1  C1  LIG A   1       1.000   2.000   3.000  1.00  0.00           C
+HETATM    2  O1  LIG A   1       2.000   2.000   3.000  1.00  0.00           O
+ENDMDL
+CONECT    1    2
+END
+)pdb");
+    PDBReader reader(input);
+    ASSERT_TRUE(reader.getnext(record));
+    ASSERT_TRUE(reader.next()->parse());
+  }
+  const PDBRecord &view = record;
+  ASSERT_FALSE(view.text().empty());
+  EXPECT_EQ(view.text().front().substr(0, 6), "HEADER");
+  EXPECT_EQ(view.text().back(), "END");
+  EXPECT_TRUE(read_pdb_model(view.text()));
+  Molecule mol = internal::must_parse_first(record.parse());
+  EXPECT_EQ(mol.num_atoms(), 2);
+  EXPECT_EQ(mol.num_bonds(), 1);
+}
+
 TEST(PDBEmptyTest, HeaderOnly) {
   std::istringstream iss(
       "HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY\n");
@@ -631,5 +661,18 @@ TEST(PDBWriteTest, MixedSubstructs) {
   EXPECT_NE(internal::get_key(mols[0].substructures()[1].props(), "chain"),
             "A");
 }
+TEST(PDBReaderTest, EofClearsRetainedHeader) {
+  std::istringstream input("HEADER    EOF TEST\nMODEL        1\nENDMDL\nEND\n");
+  PDBReader reader(input);
+  PDBRecord record;
+  ASSERT_TRUE(reader.getnext(record));
+  EXPECT_TRUE(internal::must_parse_first(record.parse()).empty());
+
+  EXPECT_FALSE(reader.getnext(record));
+  EXPECT_TRUE(record.text().empty());
+  EXPECT_EQ(record.parse().status(), ParseStatus::kEOF);
+  EXPECT_EQ(reader.next()->parse().status(), ParseStatus::kEOF);
+}
+
 }  // namespace
 }  // namespace nuri
