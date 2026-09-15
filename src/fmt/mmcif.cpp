@@ -801,20 +801,6 @@ mmcif_load_frame(const internal::CifFrame &frame) {
   return ParseResult<MoleculeBatch::Container>(std::move(mols));
 }
 
-ParseResult<MoleculeBatch::Container> mmcif_read_next_block(CifParser &parser) {
-  auto block = parser.next();
-  if (!block) {
-    if (block.status() == ParseStatus::kError) {
-      return ParseResult<MoleculeBatch::Container>::error(
-          "cannot parse cif block: ", block.error_msg());
-    }
-
-    return ParseResult<MoleculeBatch::Container>::eof();
-  }
-
-  return mmcif_load_frame(block->data());
-}
-
 bool MmcifReader::fill(MoleculeRecord &record) {
   auto &mmcif_record = down_cast<MmcifRecord &>(record);
   mmcif_record.block_.reset();
