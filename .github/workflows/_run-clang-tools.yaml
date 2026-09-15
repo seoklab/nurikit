@@ -31,7 +31,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.8"
+          python-version: "3.9"
 
       - uses: actions/checkout@v7
 
@@ -76,7 +76,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.8"
+          python-version: "3.9"
 
       - uses: actions/checkout@v7
 
