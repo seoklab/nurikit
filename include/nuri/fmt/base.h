@@ -281,7 +281,7 @@ public:
       return;
     }
 
-    reader_ = static_unique_ptr_cast<Reader>(factory->from_stream(is_));
+    reader_ = down_cast<Reader>(factory->from_stream(is_));
   }
 
   /**
@@ -336,7 +336,7 @@ public:
       return;
     }
 
-    reader_ = static_unique_ptr_cast<Reader>(factory->from_stream(is_));
+    reader_ = down_cast<Reader>(factory->from_stream(is_));
   }
 
   MoleculeReaderWrapper(std::string_view fmt, const std::filesystem::path &path)
@@ -349,7 +349,7 @@ public:
       return;
     }
 
-    reader_ = static_unique_ptr_cast<Reader>(factory->from_stream(is_));
+    reader_ = down_cast<Reader>(factory->from_stream(is_));
   }
 
   /**
