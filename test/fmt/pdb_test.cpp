@@ -487,6 +487,40 @@ TEST(PDBWriteTest, Molecule2D) {
   EXPECT_EQ(mols[0][0].data().atomic_number(), 6);
 }
 
+TEST(PDBReaderTest, RetainedTextIncludesHeaderAndFooter) {
+  PDBRecord record;
+  {
+    std::istringstream input(
+        R"pdb(HEADER    TEST CLASSIFICATION                     01-JAN-25   TEST
+MODEL        1
+HETATM    1  C1  LIG A   1       1.000   2.000   3.000  1.00  0.00           C
+HETATM    2  O1  LIG A   1       2.000   2.000   3.000  1.00  0.00           O
+ENDMDL
+MODEL        2
+HETATM    1  C1  LIG A   1       1.000   2.000   3.000  1.00  0.00           C
+HETATM    2  O1  LIG A   1       2.000   2.000   3.000  1.00  0.00           O
+ENDMDL
+CONECT    1    2
+END
+)pdb");
+    PDBReader reader(input);
+    ASSERT_TRUE(reader.getnext(record));
+    auto later = reader.next();
+    ASSERT_NE(later, nullptr);
+    ASSERT_TRUE(later->next());
+  }
+  const PDBRecord &view = record;
+  ASSERT_FALSE(view.text().empty());
+  EXPECT_EQ(view.text().front().substr(0, 6), "HEADER");
+  EXPECT_EQ(view.text().back(), "END");
+  EXPECT_TRUE(read_pdb_model(view.text()));
+  auto mol = record.next();
+  ASSERT_TRUE(mol);
+  EXPECT_EQ(mol->num_atoms(), 2);
+  EXPECT_EQ(mol->num_bonds(), 1);
+  EXPECT_TRUE(record.text().empty());
+}
+
 TEST(PDBEmptyTest, HeaderOnly) {
   std::istringstream iss(
       "HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY\n");

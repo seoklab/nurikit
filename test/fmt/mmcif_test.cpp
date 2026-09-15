@@ -273,6 +273,57 @@ ATOM 1 O O HOH B 1 5.000 6.000 7.000
   EXPECT_FALSE(ms.advance());
 }
 
+TEST(MmcifReaderTest, ResetPartiallyConsumedRecord) {
+  std::istringstream input(R"cif(data_first
+loop_
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.pdbx_PDB_model_num
+1 C CA ALA A 1 1 2 3 1
+2 N N ALA A 1 4 5 6 2
+data_last
+loop_
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.pdbx_PDB_model_num
+1 C CA ALA A 1 1 2 3 1
+2 N N ALA A 1 4 5 6 2
+)cif");
+  MmcifReader reader(input);
+  MmcifRecord record;
+  ASSERT_TRUE(reader.getnext(record));
+  auto first = record.next();
+  ASSERT_TRUE(first);
+  EXPECT_EQ(first->name(), "first");
+  EXPECT_EQ(internal::get_key(first->props(), "model"), "1");
+  record.reset();
+  EXPECT_EQ(record.next().status(), ParseStatus::kEOF);
+
+  ASSERT_TRUE(reader.getnext(record));
+  for (std::string_view model: { "1", "2" }) {
+    auto mol = record.next();
+    ASSERT_TRUE(mol);
+    EXPECT_EQ(mol->name(), "last");
+    EXPECT_EQ(internal::get_key(mol->props(), "model"), model);
+  }
+  EXPECT_EQ(record.next().status(), ParseStatus::kEOF);
+  EXPECT_FALSE(reader.getnext(record));
+}
+
 TEST(MmcifReaderTest, ReportCifSyntaxError) {
   std::istringstream iss("data_bad\n_x.y 'unterminated\n");
   MmcifReader reader(iss);
