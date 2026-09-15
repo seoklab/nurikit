@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <fstream>
 #include <utility>
 #include <vector>
 
@@ -11,14 +12,15 @@
 
 #include "nuri/core/geometry.h"
 #include "nuri/core/molecule.h"
-#include "nuri/fmt/base.h"
+#include "nuri/fmt/pdb.h"
 
 namespace nuri {
 namespace {
   constexpr double kCutoff = 5.0;
 
   Matrix3Xd read_1ubq(benchmark::State &state) {
-    FileMoleculeReader<> reader("pdb", "test/test_data/1ubqFH.pdb");
+    std::ifstream input("test/test_data/1ubqFH.pdb");
+    PDBReader reader(input);
     auto stream = reader.stream();
     Molecule mol;
     stream >> mol;

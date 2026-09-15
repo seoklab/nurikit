@@ -28,10 +28,10 @@ NURI_FUZZ_MAIN(data, size) {
       std::string { reinterpret_cast<const char *>(data), size });
   nuri::Mol2Reader reader(iss);
 
-  std::vector<std::string> block;
+  auto record = reader.make_record();
   std::string mol2;
-  while (reader.getnext(block)) {
-    nuri::ParseResult<nuri::Molecule> res = reader.parse(block);
+  while (reader.getnext(*record)) {
+    nuri::ParseResult<nuri::Molecule> res = record->next();
     if (!res)
       continue;
 

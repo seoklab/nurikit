@@ -841,7 +841,7 @@ namespace internal {
       return fx;
     }
 
-    double hydrogen_minimizer_funcgrad(FreeHProxy &proxy, ArrayXd &gxa,
+    double hydrogen_minimizer_funcgrad(const FreeHProxy &proxy, ArrayXd &gxa,
                                        ConstRef<ArrayXd> xa, double lj_weight,
                                        double bl_weight, double ba_weight) {
       gxa.setZero();

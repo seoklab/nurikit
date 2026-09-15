@@ -987,25 +987,54 @@ TEST_F(SmilesTest, ManyRings) {
 }
 
 TEST(SmilesEmptyTest, EmptyMolecule) {
-  ParseResult<Molecule> res = read_smiles({ "" });
+  ParseResult<Molecule> res = read_smiles("");
   ASSERT_FALSE(res);
   EXPECT_THAT(res.error_msg(), testing::HasSubstr("invalid SMILES"));
 
-  res = read_smiles({ "\tname" });
+  res = read_smiles("\tname");
   ASSERT_FALSE(res);
   EXPECT_THAT(res.error_msg(), testing::HasSubstr("invalid SMILES"));
 
-  res = read_smiles({ "  CCO" });
+  res = read_smiles("  CCO");
   ASSERT_FALSE(res);
   EXPECT_THAT(res.error_msg(), testing::HasSubstr("invalid SMILES"));
 
-  res = read_smiles({});
-  ASSERT_FALSE(res);
-  EXPECT_THAT(res.error_msg(), testing::HasSubstr("empty SMILES block"));
-
-  res = read_smiles({ "error" });
+  res = read_smiles(std::string_view {});
   ASSERT_FALSE(res);
   EXPECT_THAT(res.error_msg(), testing::HasSubstr("invalid SMILES"));
+
+  res = read_smiles("error");
+  ASSERT_FALSE(res);
+  EXPECT_THAT(res.error_msg(), testing::HasSubstr("invalid SMILES"));
+}
+
+TEST(SmilesRecordTest, OwnsLineAndConsumesOnce) {
+  SmilesRecord record;
+  {
+    std::istringstream input(" \nCC ethane");
+    SmilesReader reader(input);
+    ASSERT_TRUE(reader.getnext(record));
+    EXPECT_EQ(record.text(), "CC ethane");
+  }
+
+  auto res = record.next();
+  ASSERT_TRUE(res);
+  EXPECT_EQ(res->name(), "ethane");
+  EXPECT_EQ(res->num_atoms(), 2);
+  EXPECT_EQ(record.text(), "");
+  EXPECT_EQ(record.next().status(), ParseStatus::kEOF);
+}
+
+TEST(SmilesParserTest, ReadsOnlyStringViewRange) {
+  const std::string input = "prefixCO methanol suffix";
+  auto res = read_smiles(std::string_view(input).substr(6, 11));
+  ASSERT_TRUE(res);
+  EXPECT_EQ(res->name(), "methanol");
+  EXPECT_EQ(res->num_atoms(), 2);
+  EXPECT_EQ(res->num_bonds(), 1);
+
+  res = read_smiles(std::string_view("C1CC1", 2));
+  EXPECT_EQ(res.status(), ParseStatus::kError);
 }
 
 TEST_F(SmilesTest, IgnoreWhitespaceLeadingLines) {
@@ -1035,10 +1064,10 @@ TEST(SmilesFactoryTest, CreationTest) {
 
   std::unique_ptr<MoleculeReader> sr = smiles_factory->from_stream(iss);
   ASSERT_TRUE(sr);
-  std::vector<std::string> block = sr->next();
-  ASSERT_FALSE(block.empty());
+  auto record = sr->next();
+  ASSERT_NE(record, nullptr);
 
-  Molecule mol = internal::must_parse(sr->parse(block));
+  Molecule mol = internal::must_parse(record->next());
   EXPECT_FALSE(mol.empty());
 
   MoleculeSanitizer sanitizer(mol);
@@ -1048,7 +1077,9 @@ TEST(SmilesFactoryTest, CreationTest) {
   EXPECT_EQ(mol.num_bonds(), 0);
   EXPECT_EQ(mol.atom(0).data().implicit_hydrogens(), 4);
 
-  ASSERT_TRUE(sr->next().empty());
+  auto exhausted = sr->next();
+  ASSERT_NE(exhausted, nullptr);
+  EXPECT_EQ(exhausted->next().status(), ParseStatus::kEOF);
 }
 }  // namespace
 }  // namespace nuri

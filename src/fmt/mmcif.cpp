@@ -801,75 +801,49 @@ mmcif_load_frame(const internal::CifFrame &frame) {
   return ParseResult<std::vector<Molecule>>(std::move(mols));
 }
 
-ParseResult<std::vector<Molecule>> mmcif_read_next_block(CifParser &parser) {
-  auto block = parser.next();
-  if (!block) {
-    if (block.status() == ParseStatus::kError) {
-      return ParseResult<std::vector<Molecule>>::error(
-          "cannot parse cif block: ", block.error_msg());
-    }
-
-    return ParseResult<std::vector<Molecule>>::eof();
-  }
-
-  return mmcif_load_frame(block->data());
-}
-
-namespace {
-constexpr int kReaderDone = -2;
-}
-
-bool MmcifReader::getnext(std::vector<std::string> &block) {
-  block.clear();
-
-  if (next_ == kReaderDone)
+bool MmcifReader::fill(MoleculeRecord &record) {
+  if (done_)
     return false;
 
-  if (res_ && ++next_ < res_->size())
-    return true;
-
-  next_ = -1;
-
-  while (true) {
-    ParseResult<internal::CifBlock> blk = parser_.next();
-    if (!blk) {
-      next_ = kReaderDone;
-
-      if (blk.status() != ParseStatus::kError) {
-        res_.reset();
-        return false;
-      }
-
-      res_ = ParseResult<std::vector<Molecule>>::error(
-          "cannot parse cif block: ", blk.error_msg());
-      return true;
-    }
-
-    res_ = mmcif_load_frame(blk->data());
-    if (!res_)
-      return true;
-
-    if (res_->empty()) {
-      ABSL_LOG(INFO) << "No molecules in block " << blk->name() << "; skipping";
-      continue;
-    }
-
-    next_ = 0;
-    return true;
-  }
+  auto &mmcif_record = down_cast<MmcifRecord &>(record);
+  mmcif_record.block_ = parser_.next();
+  done_ = !mmcif_record.block_;
+  return mmcif_record.block_.status() != ParseStatus::kEOF;
 }
 
-ParseResult<Molecule>
-MmcifReader::parse(const std::vector<std::string> & /* block */) const {
-  ABSL_DCHECK(res_.status() != ParseStatus::kEOF);
+ParseResult<Molecule> MmcifRecord::next() {
+  if (block_.status() == ParseStatus::kError) {
+    auto res = ParseResult<Molecule>::error("cannot parse cif block: ",
+                                            block_.error_msg());
+    reset();
+    return res;
+  }
 
-  if (!res_)
-    return ParseResult<Molecule>::error(res_.error_msg());
+  if (block_) {
+    res_ = mmcif_load_frame(block_->data());
+    ABSL_LOG_IF(INFO, res_ && res_->empty())
+        << "No molecules in block " << block_->name() << "; skipping";
+    block_.reset();
+  }
 
-  ABSL_DCHECK_GE(next_, 0);
-  ABSL_DCHECK_LT(next_, res_->size());
+  if (res_.status() == ParseStatus::kError) {
+    auto res = ParseResult<Molecule>::error(res_.error_msg());
+    reset();
+    return res;
+  }
 
-  return Molecule((*res_)[next_]);
+  if (!res_ || next_ == res_->size()) {
+    reset();
+    return ParseResult<Molecule>::eof();
+  }
+
+  return std::move((*res_)[next_++]);
+}
+
+void MmcifRecord::reset() noexcept {
+  block_.reset();
+  res_.reset();
+  next_ = 0;
 }
 
 const bool MmcifReaderFactory::kRegistered =

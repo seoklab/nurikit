@@ -93,8 +93,9 @@ void advance_header_read(std::istream &is, std::vector<std::string> &block,
 }
 }  // namespace
 
-bool Mol2Reader::getnext(std::vector<std::string> &block) {
-  block.clear();
+bool Mol2Reader::fill(MoleculeRecord &record) {
+  auto &text_record = down_cast<Record &>(record);
+  auto &block = text_record.text();
 
   if (read_mol_header_) {
     advance_header_read(*is_, block, read_mol_header_);
@@ -261,6 +262,8 @@ std::pair<bool, bool> parse_atom_block(
     std::get<1>(tokens).clear();
     std::get<2>(tokens).clear();
     std::get<3>(tokens).clear();
+    std::get<4>(tokens) = boost::none;
+    std::get<5>(tokens) = boost::none;
 
     auto lit = it->begin();
     if (!x3::parse(lit, it->end(), parser::atom_line, tokens)) {
@@ -493,6 +496,7 @@ bool parse_substructure_block(Molecule &mol, Iter &it, const Iter end) {
 
 // Some mol2 files set bond type of conjugated bonds to aromatic; just make
 // them non-aromatic, conjugated bonds
+// NOLINTNEXTLINE(misc-const-correctness)
 void fix_aromatic_bonds(Molecule &mol) {
   for (auto atom: mol) {
     if (atom.data().is_ring_atom() || atom.degree() < 2)

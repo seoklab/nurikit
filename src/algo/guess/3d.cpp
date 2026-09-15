@@ -7,7 +7,6 @@
 #include <array>
 #include <cmath>
 #include <numeric>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -34,6 +33,7 @@
 
 namespace nuri {
 namespace {
+  // NOLINTNEXTLINE(misc-const-correctness)
   void reset_atoms(Molecule &mol) {
     for (auto atom: mol) {
       atom.data()
@@ -330,6 +330,7 @@ namespace {
     }
   }
 
+  // NOLINTNEXTLINE(misc-const-correctness)
   void hyb_antialiasing(Molecule &mol) {
     for (auto atom: mol) {
       AtomData &data = atom.data();
@@ -717,6 +718,7 @@ namespace {
     }
   }
 
+  // NOLINTNEXTLINE(misc-const-correctness)
   void recognize_fg(Molecule &mol, const Matrix3Xd &pos) {
     ArrayXb visited = ArrayXb::Zero(mol.size());
 
@@ -801,6 +803,7 @@ namespace {
     n1.edge_data().set_order(bo_req);
   }
 
+  // NOLINTNEXTLINE(misc-const-correctness)
   void assign_priority_bonds(Molecule &mol, const Matrix3Xd &pos) {
     // Assign confident single bonds
     for (auto atom: mol)
@@ -970,7 +973,7 @@ namespace {
         variable.push_back(i);
     }
 
-    auto is_aromatic = [&]() {
+    auto is_aromatic = [&] {
       return pie_cnt.sum() % 4 == 2 && aromatic_can_conjugate(pie_cnt)
              && (aromatic_can_pair_doubles(db_cnt, 0)
                  || aromatic_can_pair_doubles(db_cnt, 1));
@@ -1397,6 +1400,7 @@ namespace {
   //      atom.
   //   2. Hybridization mismatch. This might also include unmarked conjugated
   //      atoms.
+  // NOLINTNEXTLINE(misc-const-correctness)
   bool guess_hyb_fcharge_hydrogens(Molecule &mol, Conflicts &conflicts) {
     auto log_degree_overflow = [](int line, Molecule::Atom atom,
                                   int max_degree) {
@@ -1958,6 +1962,7 @@ namespace {
     kOther,
   };
 
+  // NOLINTNEXTLINE(misc-const-correctness)
   void adjust_tautomers(Molecule &mol, const Matrix3Xd &pos) {
     absl::FixedArray<std::pair<int, Carbonyl>> carbonyls(
         mol.size(), { -1, Carbonyl::kNone });
@@ -2097,10 +2102,7 @@ namespace {
   }
 
   bool guess_types_common(Molecule &mol, const Matrix3Xd &pos) {
-    Rings rings;
-    bool ok;
-
-    std::tie(rings, ok) = find_all_rings(mol, 6);
+    auto [rings, ok] = find_all_rings(mol, 6);
     if (!ok)
       rings = find_sssr(mol, 6);
 

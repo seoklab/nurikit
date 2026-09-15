@@ -417,14 +417,12 @@ namespace {
 
 bool MoleculeSanitizer::sanitize_aromaticity() {
   for (auto bond: mol().bonds()) {
-    if (!bond.data().is_ring_bond()) {
-      if (bond.data().order() == constants::kAromaticBond) {
-        ABSL_LOG(WARNING)
-            << "Bond order between atoms " << bond.src().id() << " and "
-            << bond.dst().id()
-            << " is set aromatic, but the bond is not a ring bond";
-        return false;
-      }
+    if (!bond.data().is_ring_bond()
+        && bond.data().order() == constants::kAromaticBond) {
+      ABSL_LOG(WARNING) << "Bond order between atoms " << bond.src().id()
+                        << " and " << bond.dst().id()
+                        << " is set aromatic, but the bond is not a ring bond";
+      return false;
     }
   }
 

@@ -274,8 +274,8 @@ Refer to the ``nuri::PeriodicTable`` class in the |cppdocs| for details.
           an, rvp::reference)
       .def_static("__getitem__", element_from_symbol_or_name, asn,
                   rvp::reference)
-      .def_static("__len__", []() { return PeriodicTable::kElementCount_; })
-      .def_static("__iter__", []() {
+      .def_static("__len__", [] { return PeriodicTable::kElementCount_; })
+      .def_static("__iter__", [] {
         return py::make_iterator(kPt.begin(), kPt.end(), rvp::reference);
       });
 

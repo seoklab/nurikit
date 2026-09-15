@@ -26,6 +26,9 @@ CompileFlags:
     - -Wno-unsafe-buffer-usage
     - -Wno-switch-default
     - -Wno-nrvo
+    - -Wno-lifetime-safety-suggestions
+    - -Wno-lifetime-safety-invalidation
+    - -Wno-nullability-extension
   Remove:
     - "-fsanitize=*"
     - "-flto*"
