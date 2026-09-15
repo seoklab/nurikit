@@ -22,12 +22,6 @@ jobs:
     name: Wheel for ${{ inputs.python }}
     runs-on: ${{ contains(inputs.python, 'linux') && 'ubuntu-latest' || 'macos-latest' }}
     steps:
-      # https://github.com/pypa/cibuildwheel/issues/954
-      - if: ${{ inputs.python == 'cp38-macosx_arm64' }}
-        run: |
-          curl -o python-3.8.10-macos11.pkg https://www.python.org/ftp/python/3.8.10/python-3.8.10-macos11.pkg
-          sudo installer -pkg python-3.8.10-macos11.pkg -target /
-
       - uses: lukka/get-cmake@latest
         with:
           # Linux -> for Ubuntu 22.04

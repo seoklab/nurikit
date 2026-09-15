@@ -7,14 +7,14 @@
 
 # Print the wheel build matrix as a JSON array of {"python": "<pyver>-<os>"}.
 #
-# With MINIMAL=true, emit only the cp38 smoke-test set plus any targets
+# With MINIMAL=true, emit only the cp39 smoke-test set plus any targets
 # requested via a `[wheel <prefix> ...]` token in the last commit message;
 # each prefix is matched against the full target list. Otherwise emit the
 # full target list.
 
 set -euo pipefail
 
-pyvers=(cp38 cp39 cp310 cp311 cp312 cp313 cp314 cp314t)
+pyvers=(cp39 cp310 cp311 cp312 cp313 cp314 cp314t)
 oses=(manylinux_x86_64 macosx_x86_64 macosx_arm64)
 
 targets=()
@@ -38,7 +38,7 @@ function select-targets() {
 		msg="$(git log --format=%B -n 1 HEAD)"
 	fi
 
-	prefix=(cp38)
+	prefix=(cp39)
 	while read -r -a words; do
 		prefix+=("${words[@]}")
 	done < <(grep -oE '\[wheel[^]]*\]' <<<"$msg" | sed -E 's/\[wheel//g; s/\]//g')

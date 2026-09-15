@@ -78,7 +78,7 @@ jobs:
       - if: ${{ matrix.language == 'c-cpp' }}
         uses: actions/setup-python@v7
         with:
-          python-version: "3.8"
+          python-version: "3.9"
 
       - if: ${{ matrix.language == 'c-cpp' }}
         run: .github/scripts/setup-deps.sh

@@ -12,7 +12,7 @@ name = "nurikit"
 version = "@NURI_FULL_VERSION@"
 description = "*The* fundamental software platform for chem- and bio-informatics"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = { file = "LICENSE" }
 authors = [{ name = "Nuri Jung", email = "jnooree@snu.ac.kr" }]
 maintainers = [{ name = "Nuri Jung", email = "jnooree@snu.ac.kr" }]
@@ -23,7 +23,6 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: C++",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",

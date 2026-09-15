@@ -10,7 +10,7 @@ on:
     inputs:
       minimal:
         type: boolean
-        description: "Minimal build (only cp38, plus any requested via commit message)"
+        description: "Minimal build (only cp39, plus any requested via commit message)"
         required: false
         default: false
     outputs:
