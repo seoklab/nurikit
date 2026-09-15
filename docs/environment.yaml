@@ -15,7 +15,7 @@ dependencies:
   - libabseil>=20240116.0
   - eigen>=3.4,<5.0
   - spectralib>=1.0
-  - pybind11>=2.13,<3.0
+  - pybind11>=3.0,<3.1
   - doxygen
   - graphviz
   - pip

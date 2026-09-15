@@ -98,13 +98,20 @@ endfunction()
 function(find_or_add_package)
   cmake_parse_arguments(
     _pkg ""
-    "NAME;MIN_VERSION;CPM_VERSION;COMPONENTS"
+    "NAME;MIN_VERSION;MAX_VERSION;CPM_VERSION;COMPONENTS"
     ""
     "${ARGN}"
   )
 
   if(NOT _pkg_MIN_VERSION)
     set(_pkg_MIN_VERSION "${_pkg_CPM_VERSION}")
+  endif()
+
+  # find_package() version ranges need CMake 3.19
+  if(_pkg_MAX_VERSION AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.19)
+    set(find_pkg_version "${_pkg_MIN_VERSION}...${_pkg_MAX_VERSION}")
+  else()
+    set(find_pkg_version "${_pkg_MIN_VERSION}")
   endif()
 
   if(_pkg_COMPONENTS)
@@ -115,7 +122,7 @@ function(find_or_add_package)
 
   find_package(
     "${_pkg_NAME}"
-    "${_pkg_MIN_VERSION}"
+    "${find_pkg_version}"
     QUIET
     NO_MODULE
     ${find_pkg_components}
