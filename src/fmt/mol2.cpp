@@ -261,6 +261,8 @@ std::pair<bool, bool> parse_atom_block(
     std::get<1>(tokens).clear();
     std::get<2>(tokens).clear();
     std::get<3>(tokens).clear();
+    std::get<4>(tokens) = boost::none;
+    std::get<5>(tokens) = boost::none;
 
     auto lit = it->begin();
     if (!x3::parse(lit, it->end(), parser::atom_line, tokens)) {
