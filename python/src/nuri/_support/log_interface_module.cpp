@@ -84,7 +84,7 @@ public:
   static void init() {
     static absl::once_flag flag;
 
-    auto initializer = []() {
+    auto initializer = [] {
       // abseil/abseil-cpp#1656
       if (!absl::log_internal::IsInitialized())
         absl::InitializeLog();

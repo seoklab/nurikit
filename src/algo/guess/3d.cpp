@@ -970,7 +970,7 @@ namespace {
         variable.push_back(i);
     }
 
-    auto is_aromatic = [&]() {
+    auto is_aromatic = [&] {
       return pie_cnt.sum() % 4 == 2 && aromatic_can_conjugate(pie_cnt)
              && (aromatic_can_pair_doubles(db_cnt, 0)
                  || aromatic_can_pair_doubles(db_cnt, 1));
