@@ -34,6 +34,7 @@
 
 namespace nuri {
 namespace {
+  // NOLINTNEXTLINE(misc-const-correctness)
   void reset_atoms(Molecule &mol) {
     for (auto atom: mol) {
       atom.data()
@@ -330,6 +331,7 @@ namespace {
     }
   }
 
+  // NOLINTNEXTLINE(misc-const-correctness)
   void hyb_antialiasing(Molecule &mol) {
     for (auto atom: mol) {
       AtomData &data = atom.data();
@@ -717,6 +719,7 @@ namespace {
     }
   }
 
+  // NOLINTNEXTLINE(misc-const-correctness)
   void recognize_fg(Molecule &mol, const Matrix3Xd &pos) {
     ArrayXb visited = ArrayXb::Zero(mol.size());
 
@@ -801,6 +804,7 @@ namespace {
     n1.edge_data().set_order(bo_req);
   }
 
+  // NOLINTNEXTLINE(misc-const-correctness)
   void assign_priority_bonds(Molecule &mol, const Matrix3Xd &pos) {
     // Assign confident single bonds
     for (auto atom: mol)
@@ -1397,6 +1401,7 @@ namespace {
   //      atom.
   //   2. Hybridization mismatch. This might also include unmarked conjugated
   //      atoms.
+  // NOLINTNEXTLINE(misc-const-correctness)
   bool guess_hyb_fcharge_hydrogens(Molecule &mol, Conflicts &conflicts) {
     auto log_degree_overflow = [](int line, Molecule::Atom atom,
                                   int max_degree) {
@@ -1958,6 +1963,7 @@ namespace {
     kOther,
   };
 
+  // NOLINTNEXTLINE(misc-const-correctness)
   void adjust_tautomers(Molecule &mol, const Matrix3Xd &pos) {
     absl::FixedArray<std::pair<int, Carbonyl>> carbonyls(
         mol.size(), { -1, Carbonyl::kNone });
