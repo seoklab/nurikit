@@ -7,6 +7,7 @@
 #include <fstream>
 #include <istream>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -26,6 +27,7 @@
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 #include "nuri/fmt/mol2.h"
+#include "nuri/fmt/parse_result.h"
 #include "nuri/fmt/pdb.h"
 #include "nuri/fmt/sdf.h"
 #include "nuri/fmt/smiles.h"
@@ -65,29 +67,34 @@ public:
 
   auto next() {
     do {
-      if (!molecules_->advance())
-        break;
+      ParseResult<Molecule> res;
+      {
+        std::scoped_lock<std::mutex> lock(mutex_);
+        if (!molecules_->advance())
+          break;
 
-      if (!molecules_->state()) {
-        log_or_throw(absl::StrCat("Failed to parse molecule: ",
-                                  molecules_->state().error_msg())
-                         .c_str());
+        res = std::move(molecules_->state());
+      }
+
+      if (!res) {
+        std::string buf =
+            absl::StrCat("Failed to parse molecule: ", res.error_msg());
+        log_or_throw(buf.c_str());
         continue;
       }
 
-      Molecule mol = std::move(molecules_->current());
-      if (!all_confs_finite(mol)) {
+      if (!all_confs_finite(*res)) {
         log_or_throw("Molecule has non-finite (NaN or infinite) coordinates.");
         continue;
       }
 
-      if (guess_ && mol.is_3d()) {
-        if (!internal::guess_update_subs(mol)) {
+      if (guess_ && res->is_3d()) {
+        if (!internal::guess_update_subs(*res)) {
           log_or_throw("Failed to guess molecule atom/bond types");
           continue;
         }
-      } else if (sanitize_ && !MoleculeSanitizer(mol).sanitize_all()) {
-        ABSL_LOG_IF(WARNING, guess_ && !mol.is_3d())
+      } else if (sanitize_ && !MoleculeSanitizer(*res).sanitize_all()) {
+        ABSL_LOG_IF(WARNING, guess_ && !res->is_3d())
             << "Reader might produce molecules with invalid bonds, but the "
                "molecule is missing 3D coordinates; guessing is disabled.";
 
@@ -95,7 +102,7 @@ public:
         continue;
       }
 
-      return PyMol(std::move(mol));
+      return PyMol(std::move(*res));
     } while (skip_on_error_);
 
     throw py::stop_iteration();
@@ -112,6 +119,7 @@ private:
   std::unique_ptr<std::istream> stream_;
   std::unique_ptr<MoleculeReader> reader_;
   std::unique_ptr<MoleculeStream<>> molecules_;
+  std::mutex mutex_;
   bool sanitize_;
   bool skip_on_error_;
   bool guess_;
@@ -151,7 +159,8 @@ NURI_PYTHON_MODULE(m) {
            throw file_error(path.c_str());
 
          return masquerade_cast<pyt::Iterator<PyMol>>(
-             PyMoleculeReader(std::move(pifs), fmt, sanitize, skip_on_error));
+             std::make_unique<PyMoleculeReader>(std::move(pifs), fmt, sanitize,
+                                                skip_on_error));
        },
        py::arg("fmt"), py::arg("path"), py::arg("sanitize") = true,
        py::arg("skip_on_error") = false,
@@ -178,9 +187,10 @@ Read a molecule from a file.
           "readstring",
           [](std::string_view fmt, std::string_view data, bool sanitize,
              bool skip_on_error) {
-            return masquerade_cast<pyt::Iterator<PyMol>>(PyMoleculeReader(
-                std::make_unique<std::istringstream>(std::string(data)), fmt,
-                sanitize, skip_on_error));
+            return masquerade_cast<pyt::Iterator<PyMol>>(
+                std::make_unique<PyMoleculeReader>(
+                    std::make_unique<std::istringstream>(std::string(data)),
+                    fmt, sanitize, skip_on_error));
           },
           py::arg("fmt"), py::arg("data"), py::arg("sanitize") = true,
           py::arg("skip_on_error") = false,
