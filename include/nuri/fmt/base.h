@@ -8,18 +8,15 @@
 
 //! @cond
 #include <cstddef>
-#include <filesystem>
-#include <fstream>
 #include <istream>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <absl/base/attributes.h>
-#include <absl/base/optimization.h>
-#include <absl/log/absl_log.h>
+#include <absl/log/absl_check.h>
 //! @endcond
 
 #include "nuri/core/container/dumb_buffer.h"
@@ -29,11 +26,13 @@
 
 namespace nuri {
 class MoleculeReader;
+class MoleculeRecord;
 
-template <class Reader = MoleculeReader>
+template <class Reader = MoleculeReader, class Record = typename Reader::Record>
 class MoleculeStream {
 public:
-  MoleculeStream(Reader &reader): reader_(&reader) { }
+  MoleculeStream(Reader &reader)
+      : reader_(&reader), record_(down_cast<Record>(reader.make_record())) { }
 
   MoleculeStream(const MoleculeStream &) = delete;
   MoleculeStream &operator=(const MoleculeStream &) = delete;
@@ -45,50 +44,52 @@ public:
    * @brief Advance the stream to the next molecule.
    *
    * @return true if the stream is not at the end, false otherwise.
-   * @note If this function returns false, the current molecule is not changed.
+   * @note If this function returns false, the current result is invalidated.
    */
   ABSL_MUST_USE_RESULT bool advance() {
-    if (!reader_->getnext(block_)) {
-      return false;
-    }
+    ABSL_DCHECK(record_ != nullptr);
 
-    res_ = reader_->parse(block_);
-    return true;
+    while (true) {
+      res_ = record_->next();
+      if (res_.status() != ParseStatus::kEOF)
+        return true;
+      if (!reader_->getnext(*record_))
+        return false;
+    }
   }
 
   /**
-   * @brief Test whether the current block was parsed successfully.
-   * @pre Previous call to advance() must return true, otherwise the behavior
-   *      is undefined.
+   * @brief Get the current parse result.
+   * @return Reference to the current molecule, parse error, or EOF result.
+   * @note The result is EOF before the first advance() and after it returns
+   *       false. Each call to advance() replaces the result.
+   * @note The result may be moved out. Call advance() before accessing the
+   *       moved-from result again.
    */
-  bool ok() const { return static_cast<bool>(res_); }
+  ParseResult<Molecule> &state() { return res_; }
 
-  /**
-   * @brief Get the reason the current block could not be parsed.
-   * @pre Previous call to advance() must return true and ok() must return
-   *      false, otherwise the behavior is undefined.
-   */
-  std::string_view error_msg() const { return res_.error_msg(); }
+  //! @copydoc state()
+  const ParseResult<Molecule> &state() const { return res_; }
 
   /**
    * @brief Get the current molecule.
    * @return Reference to the current molecule.
-   * @pre Previous call to advance() and ok() must return true, otherwise the
-   *      behavior is undefined.
+   * @pre state() must contain a valid molecule, otherwise the behavior is
+   *      undefined.
    */
   Molecule &current() { return *res_; }
 
   /**
    * @brief Get the current molecule.
    * @return Const reference to the current molecule.
-   * @pre Previous call to advance() and ok() must return true, otherwise the
-   *      behavior is undefined.
+   * @pre state() must contain a valid molecule, otherwise the behavior is
+   *      undefined.
    */
   const Molecule &current() const { return *res_; }
 
 private:
   Reader *reader_;
-  std::vector<std::string> block_;
+  std::unique_ptr<Record> record_;
   ParseResult<Molecule> res_;
 };
 
@@ -96,19 +97,56 @@ private:
  * @brief Read the next molecule from the stream.
  * @note \p mol is left unchanged if the stream is at the end or the next block
  *       could not be parsed. This operator cannot report the reason; use
- *       MoleculeStream::advance() with MoleculeStream::ok() to distinguish the
- *       two and to obtain the failure reason.
+ *       MoleculeStream::state() after advance() to distinguish the two and
+ *       obtain the failure reason.
  */
 template <class Stream>
 Stream &operator>>(Stream &stream, Molecule &mol) {
-  if (stream.advance() && stream.ok()) {
+  if (stream.advance() && stream.state()) {
     mol = std::move(stream.current());
   }
   return stream;
 }
 
+class MoleculeRecord {
+public:
+  MoleculeRecord() = default;
+  MoleculeRecord(const MoleculeRecord &) = delete;
+  MoleculeRecord &operator=(const MoleculeRecord &) = delete;
+  MoleculeRecord(MoleculeRecord &&) noexcept = default;
+  MoleculeRecord &operator=(MoleculeRecord &&) noexcept = default;
+  virtual ~MoleculeRecord() noexcept = default;
+
+  virtual ParseResult<Molecule> next() = 0;
+  virtual void reset() noexcept = 0;
+};
+
+template <class T, auto parser>
+class TextRecordImpl final: public MoleculeRecord {
+public:
+  ParseResult<Molecule> next() final {
+    if (text_.empty())
+      return ParseResult<Molecule>::eof();
+
+    ParseResult<Molecule> res = parser(text_);
+    reset();
+    return res;
+  }
+
+  void reset() noexcept final { text_.clear(); }
+
+  T &text() { return text_; }
+
+  const T &text() const { return text_; }
+
+private:
+  T text_;
+};
+
 class MoleculeReader {
 public:
+  using Record = MoleculeRecord;
+
   MoleculeReader() = default;
   MoleculeReader(const MoleculeReader &) = delete;
   MoleculeReader &operator=(const MoleculeReader &) = delete;
@@ -116,43 +154,36 @@ public:
   MoleculeReader &operator=(MoleculeReader &&) noexcept = default;
   virtual ~MoleculeReader() noexcept = default;
 
+  virtual std::unique_ptr<MoleculeRecord> make_record() const = 0;
+
   /**
    * @brief Advance the reader to the next molecule.
-   * @return The next block containing the next molecule. If the stream is at
-   *         the end, an empty block is returned.
+   * @return The next record, or an empty record at the end of the stream.
    */
-  std::vector<std::string> next() {
-    std::vector<std::string> block;
-    if (!getnext(block)) {
-      block.clear();
-    }
-    return block;
+  std::unique_ptr<MoleculeRecord> next() {
+    auto record = make_record();
+    ABSL_DCHECK(record != nullptr);
+    static_cast<void>(getnext(*record));
+    return record;
   }
 
   /**
    * @brief Advance the reader to the next molecule.
-   * @param block The block containing the next molecule. If true is returned,
-   *              pre-existing contents of the block are discarded. Otherwise,
-   *              the block is in a valid but unspecified state.
+   * @param record The record containing the next molecule(s). If true is
+   *               returned, pre-existing contents of the record are discarded.
+   *               Otherwise, the record is reset (empty).
    * @return true if the reader has successfully advanced to the next molecule,
    *         false otherwise.
    * @note The name of this method is loosely based on the std::getline()
-   *       function due to its similar semantics. The name also prevents
-   *       name collision with the (non-virtual) next() method when subclasses
-   *       override this method.
+   *       function due to its similar semantics.
    */
-  ABSL_MUST_USE_RESULT virtual bool
-  getnext(std::vector<std::string> &block) = 0;
-
-  /**
-   * @brief Parse the current block and return the molecule.
-   * @param block The block to parse.
-   * @return The current molecule, or the reason it could not be parsed.
-   * @note This never returns a result in the end-of-input state; use getnext()
-   *       to detect the end of the stream.
-   */
-  virtual ParseResult<Molecule>
-  parse(const std::vector<std::string> &block) const = 0;
+  ABSL_MUST_USE_RESULT bool getnext(MoleculeRecord &record) {
+    record.reset();
+    if (fill(record))
+      return true;
+    record.reset();
+    return false;
+  }
 
   /**
    * @brief Test whether the reader implementation can provide valid bond
@@ -164,18 +195,14 @@ public:
    * @brief Convert the reader to a stream object.
    */
   MoleculeStream<MoleculeReader> stream() { return { *this }; }
+
+private:
+  virtual bool fill(MoleculeRecord &record) = 0;
 };
 
-template <auto parser>
-class DefaultReaderImpl: public MoleculeReader {
+class StreamReaderBase: public MoleculeReader {
 public:
-  DefaultReaderImpl() = default;
-  DefaultReaderImpl(std::istream &is): is_(&is) { }
-
-  ParseResult<Molecule>
-  parse(const std::vector<std::string> &block) const final {
-    return parser(block);
-  }
+  StreamReaderBase(std::istream &is): is_(&is) { }
 
 protected:
   // NOLINTBEGIN(*-non-private-member-variables-in-classes)
@@ -266,134 +293,6 @@ public:
     return std::make_unique<MoleculeReaderImpl>(is);
   }
 };
-
-template <class SourceStream, class Reader = MoleculeReader>
-class MoleculeReaderWrapper {
-public:
-  template <class... Args>
-  MoleculeReaderWrapper(std::string_view fmt, Args &&...args)
-      : is_(std::forward<Args>(args)...) {
-    const MoleculeReaderFactory *factory =
-        MoleculeReaderFactory::find_factory(fmt);
-
-    if (ABSL_PREDICT_FALSE(factory == nullptr)) {
-      ABSL_LOG(WARNING) << "No factory found for " << fmt;
-      return;
-    }
-
-    reader_ = down_cast<Reader>(factory->from_stream(is_));
-  }
-
-  /**
-   * @brief Advance the stream to the next molecule.
-   * @return The next block containing the next molecule. If the stream is at
-   *         the end, an empty block is returned.
-   */
-  std::vector<std::string> next() { return reader_->next(); }
-
-  /**
-   * @brief Advance the reader to the next molecule.
-   * @param block The block containing the next molecule. If true is returned,
-   *              pre-existing contents of the block are discarded. Otherwise,
-   *              the block is in a valid but unspecified state.
-   * @return true if the reader has successfully advanced to the next molecule,
-   *         false otherwise.
-   */
-  bool getnext(std::vector<std::string> &block) {
-    return reader_->getnext(block);
-  }
-
-  /**
-   * @brief Parse the current block and return the molecule.
-   * @param block The block to parse.
-   * @return The current molecule, or the reason it could not be parsed.
-   */
-  ParseResult<Molecule> parse(const std::vector<std::string> &block) const {
-    return reader_->parse(block);
-  }
-
-  MoleculeStream<Reader> stream() { return { *reader_ }; }
-
-  operator bool() const { return is_ && reader_; }
-
-private:
-  SourceStream is_;
-  std::unique_ptr<Reader> reader_;
-};
-
-template <class Reader>
-class MoleculeReaderWrapper<std::ifstream, Reader> {
-public:
-  explicit MoleculeReaderWrapper(const std::filesystem::path &path): is_(path) {
-    const std::filesystem::path full_ext = path.extension();
-    const std::string_view ext = extension_no_dot(full_ext);
-
-    const MoleculeReaderFactory *factory =
-        MoleculeReaderFactory::find_factory(ext);
-
-    if (ABSL_PREDICT_FALSE(factory == nullptr)) {
-      ABSL_LOG(WARNING) << "No factory found for " << ext;
-      return;
-    }
-
-    reader_ = down_cast<Reader>(factory->from_stream(is_));
-  }
-
-  MoleculeReaderWrapper(std::string_view fmt, const std::filesystem::path &path)
-      : is_(path) {
-    const MoleculeReaderFactory *factory =
-        MoleculeReaderFactory::find_factory(fmt);
-
-    if (ABSL_PREDICT_FALSE(factory == nullptr)) {
-      ABSL_LOG(WARNING) << "No factory found for " << fmt;
-      return;
-    }
-
-    reader_ = down_cast<Reader>(factory->from_stream(is_));
-  }
-
-  /**
-   * @brief Advance the stream to the next molecule.
-   * @return The next block containing the next molecule. If the stream is at
-   *         the end, an empty block is returned.
-   */
-  std::vector<std::string> next() { return reader_->next(); }
-
-  /**
-   * @brief Advance the reader to the next molecule.
-   * @param block The block containing the next molecule. If true is returned,
-   *              pre-existing contents of the block are discarded. Otherwise,
-   *              the block is in a valid but unspecified state.
-   * @return true if the reader has successfully advanced to the next molecule,
-   *         false otherwise.
-   */
-  bool getnext(std::vector<std::string> &block) {
-    return reader_->getnext(block);
-  }
-
-  /**
-   * @brief Parse the current block and return the molecule.
-   * @param block The block to parse.
-   * @return The current molecule, or the reason it could not be parsed.
-   */
-  ParseResult<Molecule> parse(const std::vector<std::string> &block) const {
-    return reader_->parse(block);
-  }
-
-  MoleculeStream<Reader> stream() { return { *reader_ }; }
-
-  operator bool() const { return is_ && reader_; }
-
-private:
-  std::ifstream is_;
-  std::unique_ptr<Reader> reader_;
-};
-
-template <class Reader = MoleculeReader>
-using FileMoleculeReader = MoleculeReaderWrapper<std::ifstream, Reader>;
-
-template <class Reader = MoleculeReader>
-using StringMoleculeReader = MoleculeReaderWrapper<std::istringstream, Reader>;
 
 class ReversedStream {
 public:

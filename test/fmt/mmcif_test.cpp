@@ -172,12 +172,12 @@ TEST(MmcifReaderTest, SkipBlocksWithoutAtomSites) {
   auto ms = reader.stream();
 
   ASSERT_TRUE(ms.advance());
-  ASSERT_TRUE(ms.ok()) << ms.error_msg();
+  ASSERT_TRUE(ms.state()) << ms.state().error_msg();
   EXPECT_EQ(ms.current().name(), "first");
   EXPECT_EQ(ms.current().num_atoms(), 2);
 
   ASSERT_TRUE(ms.advance());
-  ASSERT_TRUE(ms.ok()) << ms.error_msg();
+  ASSERT_TRUE(ms.state()) << ms.state().error_msg();
   EXPECT_EQ(ms.current().name(), "last");
   EXPECT_EQ(ms.current().num_atoms(), 1);
 
@@ -204,8 +204,8 @@ _atom_site.Cartn_z
   auto ms = reader.stream();
 
   ASSERT_TRUE(ms.advance());
-  EXPECT_FALSE(ms.ok());
-  EXPECT_THAT(ms.error_msg(), testing::HasSubstr("_atom_site"));
+  EXPECT_FALSE(ms.state());
+  EXPECT_THAT(ms.state().error_msg(), testing::HasSubstr("_atom_site"));
 
   EXPECT_FALSE(ms.advance());
 }
@@ -257,15 +257,15 @@ ATOM 1 O O HOH B 1 5.000 6.000 7.000
   auto ms = reader.stream();
 
   ASSERT_TRUE(ms.advance());
-  ASSERT_TRUE(ms.ok()) << ms.error_msg();
+  ASSERT_TRUE(ms.state()) << ms.state().error_msg();
   EXPECT_EQ(ms.current().name(), "first");
 
   ASSERT_TRUE(ms.advance());
-  EXPECT_FALSE(ms.ok());
-  EXPECT_THAT(ms.error_msg(), testing::HasSubstr("_atom_site"));
+  EXPECT_FALSE(ms.state());
+  EXPECT_THAT(ms.state().error_msg(), testing::HasSubstr("_atom_site"));
 
   ASSERT_TRUE(ms.advance());
-  ASSERT_TRUE(ms.ok()) << ms.error_msg();
+  ASSERT_TRUE(ms.state()) << ms.state().error_msg();
   EXPECT_EQ(ms.current().name(), "last");
 
   EXPECT_FALSE(ms.advance());
@@ -277,8 +277,9 @@ TEST(MmcifReaderTest, ReportCifSyntaxError) {
   auto ms = reader.stream();
 
   ASSERT_TRUE(ms.advance());
-  EXPECT_FALSE(ms.ok());
-  EXPECT_THAT(ms.error_msg(), testing::HasSubstr("cannot parse cif block"));
+  EXPECT_FALSE(ms.state());
+  EXPECT_THAT(ms.state().error_msg(),
+              testing::HasSubstr("cannot parse cif block"));
 
   EXPECT_FALSE(ms.advance());
 }

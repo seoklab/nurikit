@@ -115,9 +115,9 @@ public:
     return ms_.advance();
   }
 
-  bool ok() const { return ms_.ok(); }
+  bool ok() const { return static_cast<bool>(ms_.state()); }
 
-  std::string_view error_msg() const { return ms_.error_msg(); }
+  std::string_view error_msg() const { return ms_.state().error_msg(); }
 
   Molecule &mol() { return ms_.current(); }
 
@@ -153,9 +153,9 @@ public:
     return ms_.advance();
   }
 
-  bool ok() const { return ms_.ok(); }
+  bool ok() const { return static_cast<bool>(ms_.state()); }
 
-  std::string_view error_msg() const { return ms_.error_msg(); }
+  std::string_view error_msg() const { return ms_.state().error_msg(); }
 
   Molecule &mol() { return ms_.current(); }
 

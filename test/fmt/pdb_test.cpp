@@ -282,7 +282,7 @@ ENDMDL
 
   int cnt = 0;
   while (ms.advance()) {
-    EXPECT_FALSE(ms.ok()) << "Molecule index: " << cnt;
+    EXPECT_FALSE(ms.state()) << "Molecule index: " << cnt;
     ++cnt;
   }
   EXPECT_EQ(cnt, 4);
@@ -494,7 +494,7 @@ TEST(PDBEmptyTest, HeaderOnly) {
   auto ms = reader.stream();
 
   ASSERT_TRUE(ms.advance());
-  ASSERT_TRUE(ms.ok()) << ms.error_msg();
+  ASSERT_TRUE(ms.state()) << ms.state().error_msg();
   EXPECT_EQ(ms.current().name(), "ONLY");
   EXPECT_TRUE(ms.current().empty());
   EXPECT_EQ(internal::get_key(ms.current().props(), "classification"),
@@ -539,12 +539,12 @@ END
   auto ms = reader.stream();
 
   ASSERT_TRUE(ms.advance());
-  ASSERT_TRUE(ms.ok()) << ms.error_msg();
+  ASSERT_TRUE(ms.state()) << ms.state().error_msg();
   EXPECT_TRUE(ms.current().empty());
   EXPECT_EQ(internal::get_key(ms.current().props(), "model"), "1");
 
   ASSERT_TRUE(ms.advance());
-  ASSERT_TRUE(ms.ok()) << ms.error_msg();
+  ASSERT_TRUE(ms.state()) << ms.state().error_msg();
   EXPECT_EQ(ms.current().num_atoms(), 1);
   EXPECT_EQ(internal::get_key(ms.current().props(), "model"), "2");
 
@@ -565,7 +565,7 @@ END
 
   for (std::string_view model: { "1", "2" }) {
     ASSERT_TRUE(ms.advance());
-    ASSERT_TRUE(ms.ok()) << ms.error_msg();
+    ASSERT_TRUE(ms.state()) << ms.state().error_msg();
     EXPECT_TRUE(ms.current().empty());
     EXPECT_EQ(internal::get_key(ms.current().props(), "model"), model);
   }
@@ -586,7 +586,7 @@ END
   auto ms = reader.stream();
 
   ASSERT_TRUE(ms.advance());
-  ASSERT_TRUE(ms.ok()) << ms.error_msg();
+  ASSERT_TRUE(ms.state()) << ms.state().error_msg();
   EXPECT_EQ(ms.current().num_atoms(), 1);
 
   EXPECT_FALSE(ms.advance());

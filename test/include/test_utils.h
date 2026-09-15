@@ -94,10 +94,13 @@ T must_parse(ParseResult<T> &&res) {
 }
 
 inline Molecule read_first(std::string_view fmt, std::string_view data) {
-  StringMoleculeReader<> reader(fmt, std::string { data });
-  MoleculeStream<> stream = reader.stream();
+  std::istringstream input(std::string { data });
+  auto *factory = MoleculeReaderFactory::find_factory(fmt);
+  ABSL_CHECK(factory != nullptr);
+  auto reader = factory->from_stream(input);
+  MoleculeStream<> stream = reader->stream();
   ABSL_CHECK(stream.advance());
-  ABSL_CHECK(stream.ok()) << stream.error_msg();
+  ABSL_CHECK(stream.state()) << stream.state().error_msg();
   return stream.current();
 }
 

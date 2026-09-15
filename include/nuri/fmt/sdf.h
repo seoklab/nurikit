@@ -7,6 +7,7 @@
 #define NURI_FMT_SDF_H_
 
 //! @cond
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -26,13 +27,22 @@ namespace nuri {
  */
 extern ParseResult<Molecule> read_sdf(const std::vector<std::string> &sdf);
 
-class SDFReader final: public DefaultReaderImpl<read_sdf> {
-public:
-  using DefaultReaderImpl<read_sdf>::DefaultReaderImpl;
+using SDFRecord = TextRecordImpl<std::vector<std::string>, read_sdf>;
 
-  bool getnext(std::vector<std::string> &block) override;
+class SDFReader final: public StreamReaderBase {
+public:
+  using Record = SDFRecord;
+
+  using StreamReaderBase::StreamReaderBase;
+
+  std::unique_ptr<MoleculeRecord> make_record() const override {
+    return std::make_unique<Record>();
+  }
 
   bool bond_valid() const override { return true; }
+
+private:
+  bool fill(MoleculeRecord &record) override;
 };
 
 class SDFReaderFactory: public DefaultReaderFactoryImpl<SDFReader> {

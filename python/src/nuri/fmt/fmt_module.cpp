@@ -12,7 +12,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 #include <absl/algorithm/container.h>
 #include <absl/log/absl_log.h>
@@ -27,7 +26,6 @@
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 #include "nuri/fmt/mol2.h"
-#include "nuri/fmt/parse_result.h"
 #include "nuri/fmt/pdb.h"
 #include "nuri/fmt/sdf.h"
 #include "nuri/fmt/smiles.h"
@@ -61,22 +59,23 @@ public:
     if (!reader_)
       throw py::value_error(absl::StrCat("Failed to create reader for ", fmt));
 
+    molecules_ = std::make_unique<MoleculeStream<>>(*reader_);
     guess_ = sanitize && !reader_->bond_valid();
   }
 
   auto next() {
     do {
-      if (!reader_->getnext(block_))
+      if (!molecules_->advance())
         break;
 
-      ParseResult<Molecule> res = reader_->parse(block_);
-      if (!res) {
-        log_or_throw(
-            absl::StrCat("Failed to parse molecule: ", res.error_msg()).c_str());
+      if (!molecules_->state()) {
+        log_or_throw(absl::StrCat("Failed to parse molecule: ",
+                                  molecules_->state().error_msg())
+                         .c_str());
         continue;
       }
 
-      Molecule mol = *std::move(res);
+      Molecule mol = std::move(molecules_->current());
       if (!all_confs_finite(mol)) {
         log_or_throw("Molecule has non-finite (NaN or infinite) coordinates.");
         continue;
@@ -112,7 +111,7 @@ private:
 
   std::unique_ptr<std::istream> stream_;
   std::unique_ptr<MoleculeReader> reader_;
-  std::vector<std::string> block_;
+  std::unique_ptr<MoleculeStream<>> molecules_;
   bool sanitize_;
   bool skip_on_error_;
   bool guess_;

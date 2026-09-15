@@ -7,6 +7,7 @@
 #define NURI_FMT_SMILES_H_
 
 //! @cond
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -29,13 +30,22 @@ namespace nuri {
 extern ParseResult<Molecule>
 read_smiles(const std::vector<std::string> &smi_block);
 
-class SmilesReader final: public DefaultReaderImpl<read_smiles> {
-public:
-  using DefaultReaderImpl<read_smiles>::DefaultReaderImpl;
+using SmilesRecord = TextRecordImpl<std::vector<std::string>, read_smiles>;
 
-  bool getnext(std::vector<std::string> &block) override;
+class SmilesReader final: public StreamReaderBase {
+public:
+  using Record = SmilesRecord;
+
+  using StreamReaderBase::StreamReaderBase;
+
+  std::unique_ptr<MoleculeRecord> make_record() const override {
+    return std::make_unique<Record>();
+  }
 
   bool bond_valid() const override { return true; }
+
+private:
+  bool fill(MoleculeRecord &record) override;
 };
 
 class SmilesReaderFactory: public DefaultReaderFactoryImpl<SmilesReader> {

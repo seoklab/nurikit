@@ -105,27 +105,48 @@ TEST(EscapeTest, EscapeNewlines) {
   EXPECT_EQ(escaped, " \ta b\tc d e ????  ");
 }
 
+ParseResult<Molecule> stub_parse(const std::vector<std::string> &block) {
+  if (block[0] == "1")
+    return ParseResult<Molecule>::error("stub failure");
+
+  Molecule mol;
+  mol.name() = block[0];
+  if (block[0] == "2")
+    mol.mutator().add_atom({});
+  return ParseResult<Molecule>(std::move(mol));
+}
+
 class DummyReader: public MoleculeReader {
 public:
   DummyReader(std::istream & /* is */) { }
 
-  bool getnext(std::vector<std::string> & /* block */) override {
-    return false;
-  }
-
-  ParseResult<Molecule>
-  parse(const std::vector<std::string> & /* block */) const override {
-    return Molecule();
+  std::unique_ptr<MoleculeRecord> make_record() const override {
+    return std::make_unique<
+        TextRecordImpl<std::vector<std::string>, stub_parse>>();
   }
 
   bool bond_valid() const override { return true; }
+
+private:
+  bool fill(MoleculeRecord & /* record */) override { return false; }
 };
 
 class DummyReaderFactory: public DefaultReaderFactoryImpl<DummyReader> { };
 
 class StubReader: public MoleculeReader {
 public:
-  bool getnext(std::vector<std::string> &block) override {
+  using Record = TextRecordImpl<std::vector<std::string>, stub_parse>;
+
+  std::unique_ptr<MoleculeRecord> make_record() const override {
+    return std::make_unique<Record>();
+  }
+
+  bool bond_valid() const override { return true; }
+
+private:
+  bool fill(MoleculeRecord &record) override {
+    auto &text_record = down_cast<Record &>(record);
+    auto &block = text_record.text();
     if (next_ >= 3)
       return false;
 
@@ -133,43 +154,57 @@ public:
     return true;
   }
 
-  ParseResult<Molecule>
-  parse(const std::vector<std::string> &block) const override {
-    if (block[0] == "1")
-      return ParseResult<Molecule>::error("stub failure");
-
-    Molecule mol;
-    mol.name() = block[0];
-    if (block[0] == "2")
-      mol.mutator().add_atom({});
-
-    return ParseResult<Molecule>(std::move(mol));
-  }
-
-  bool bond_valid() const override { return true; }
-
-private:
   int next_ = 0;
 };
 
 TEST(MoleculeStreamTest, ReportsParseStatus) {
   StubReader reader;
   MoleculeStream<> stream = reader.stream();
+  const auto &view = stream;
+
+  EXPECT_EQ(view.state().status(), ParseStatus::kEOF);
 
   ASSERT_TRUE(stream.advance());
-  ASSERT_TRUE(stream.ok());
+  ASSERT_TRUE(stream.state());
   EXPECT_EQ(stream.current().name(), "0");
   EXPECT_TRUE(stream.current().empty());
+  EXPECT_EQ(&view.current(), &*view.state());
 
   ASSERT_TRUE(stream.advance());
-  EXPECT_FALSE(stream.ok());
-  EXPECT_EQ(stream.error_msg(), "stub failure");
+  EXPECT_FALSE(stream.state());
+  EXPECT_EQ(stream.state().error_msg(), "stub failure");
 
   ASSERT_TRUE(stream.advance());
-  ASSERT_TRUE(stream.ok());
+  ASSERT_TRUE(stream.state());
   EXPECT_EQ(stream.current().num_atoms(), 1);
 
   EXPECT_FALSE(stream.advance());
+  EXPECT_EQ(view.state().status(), ParseStatus::kEOF);
+  EXPECT_FALSE(stream.advance());
+  EXPECT_EQ(view.state().status(), ParseStatus::kEOF);
+}
+
+TEST(MoleculeStreamTest, RetainsMovedResultsAcrossAdvancement) {
+  StubReader reader;
+  auto stream = reader.stream();
+
+  ASSERT_TRUE(stream.advance());
+  auto first = std::move(stream.state());
+  ASSERT_TRUE(first);
+
+  ASSERT_TRUE(stream.advance());
+  auto error = std::move(stream.state());
+  ASSERT_EQ(error.status(), ParseStatus::kError);
+
+  ASSERT_TRUE(stream.advance());
+  auto last = std::move(stream.state());
+  ASSERT_TRUE(last);
+  EXPECT_FALSE(stream.advance());
+
+  EXPECT_EQ(first->name(), "0");
+  EXPECT_EQ(error.error_msg(), "stub failure");
+  EXPECT_EQ(last->name(), "2");
+  EXPECT_EQ(last->num_atoms(), 1);
 }
 
 TEST(MoleculeStreamTest, ExtractKeepsValueOnFailure) {
@@ -185,6 +220,11 @@ TEST(MoleculeStreamTest, ExtractKeepsValueOnFailure) {
 
   stream >> mol;
   EXPECT_EQ(mol.name(), "2");
+
+  stream >> mol;
+  EXPECT_EQ(mol.name(), "2");
+  EXPECT_EQ(mol.num_atoms(), 1);
+  EXPECT_EQ(stream.state().status(), ParseStatus::kEOF);
 }
 
 TEST(ReaderFactoryTest, CanFindFactory) {

@@ -41,7 +41,10 @@
 #include "nuri/utils.h"
 
 namespace nuri {
-bool SmilesReader::getnext(std::vector<std::string> &block) {
+bool SmilesReader::fill(MoleculeRecord &record) {
+  auto &text_record = down_cast<Record &>(record);
+  auto &block = text_record.text();
+
   if (block.empty()) {
     block.emplace_back();
   }

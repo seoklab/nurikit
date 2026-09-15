@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -12,6 +13,36 @@ import pytest
 
 import nuri
 from nuri.core import Hyb, Molecule
+
+
+@pytest.mark.parametrize("ending", ["$$$$", "$$$$\n", "$$$$ \t\n"])
+def test_empty_records(ending, caplog):
+    text = "$$$$\n" + ending
+    reader = nuri.readstring("sdf", text)
+    for _ in range(2):
+        with pytest.raises(ValueError, match="failed to read SDF header"):
+            next(reader)
+    with pytest.raises(StopIteration):
+        next(reader)
+
+    with caplog.at_level(logging.ERROR, logger="nuri"):
+        assert list(nuri.readstring("sdf", text, skip_on_error=True)) == []
+    assert (
+        sum("failed to read SDF header" in r.message for r in caplog.records)
+        == 2
+    )
+
+
+def test_empty_record_recovery(caplog):
+    text = "$$$$\n" + sdf_data
+    reader = nuri.readstring("sdf", text)
+    with pytest.raises(ValueError, match="failed to read SDF header"):
+        next(reader)
+    assert len(list(reader)) == 2
+    with caplog.at_level(logging.ERROR, logger="nuri"):
+        assert len(list(nuri.readstring("sdf", text, skip_on_error=True))) == 2
+    assert list(nuri.readstring("sdf", "")) == []
+
 
 sdf_data = """\
 L-Alanine
