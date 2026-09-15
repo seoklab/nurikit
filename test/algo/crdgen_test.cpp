@@ -23,8 +23,7 @@
 namespace nuri {
 namespace {
 TEST(Crdgen, CHEMBL2228334) {
-  Molecule mol =
-      internal::must_parse(read_smiles({ "CC(=O)OC1CCCC2COC(=O)C21" }));
+  Molecule mol = internal::must_parse(read_smiles("CC(=O)OC1CCCC2COC(=O)C21"));
   ASSERT_TRUE(MoleculeSanitizer(mol).sanitize_all());
 
   Matrix3Xd &conf = mol.confs().emplace_back(3, mol.num_atoms());
@@ -59,7 +58,7 @@ TEST(Crdgen, CHEMBL2228334) {
 
 TEST(Crdgen, CHEMBL2228334Chiral) {
   Molecule mol = internal::must_parse(
-      read_smiles({ "CC(=O)O[C@H]1CCC[C@@H]2COC(=O)[C@@H]21" }));
+      read_smiles("CC(=O)O[C@H]1CCC[C@@H]2COC(=O)[C@@H]21"));
   ASSERT_TRUE(MoleculeSanitizer(mol).sanitize_all());
 
   Matrix3Xd &conf = mol.confs().emplace_back(3, mol.num_atoms());
