@@ -338,10 +338,8 @@ namespace internal {
     }
 
     if (nfree_ > 0 && lbfgs.col() > 0) {
-      if (need_k) {
-        if (!lbfgsb_formk(lbfgs, *this))
-          return false;
-      }
+      if (need_k && !lbfgsb_formk(lbfgs, *this))
+        return false;
 
       if (!lbfgsb_cmprlb(lbfgs, *this, gx))
         return false;
@@ -421,15 +419,11 @@ namespace internal {
         if (iwhere[i] != 3 && iwhere[i] != -1) {
           iwhere[i] = 0;
 
-          if (bounds.has_lb(i)) {
-            if (x[i] <= bounds.lb(i) && neg_gxi <= 0)
-              iwhere[i] = 1;
-          }
+          if (bounds.has_lb(i) && x[i] <= bounds.lb(i) && neg_gxi <= 0)
+            iwhere[i] = 1;
 
-          if (bounds.has_ub(i)) {
-            if (x[i] >= bounds.ub(i) && neg_gxi >= 0)
-              iwhere[i] = 2;
-          }
+          if (bounds.has_ub(i) && x[i] >= bounds.ub(i) && neg_gxi >= 0)
+            iwhere[i] = 2;
 
           if (neg_gxi == 0)  // NOLINT(clang-diagnostic-float-equal)
             iwhere[i] = -3;
