@@ -176,7 +176,7 @@ PySubBond<P> subbond_from_parent(P &self, PyBond &bond) {
   return self.pysubbond(it->id());
 }
 
-void add_atom_single(std::vector<int> &idxs, Molecule &parent,
+void add_atom_single(std::vector<int> &idxs, const Molecule &parent,
                      const py::handle &obj) {
   if (py::isinstance<py::int_>(obj)) {
     int idx = obj.cast<int>();
@@ -193,7 +193,7 @@ void add_atom_single(std::vector<int> &idxs, Molecule &parent,
   idxs.push_back(cpp_atom.id());
 }
 
-void add_bond_single(std::vector<int> &idxs, Molecule &parent,
+void add_bond_single(std::vector<int> &idxs, const Molecule &parent,
                      const py::handle &obj) {
   if (py::isinstance<py::int_>(obj)) {
     int idx = obj.cast<int>();
@@ -587,7 +587,7 @@ to the conformers to update the coordinates.
       "add_atoms",
       [](P &self, const AtomsArg &atoms, bool add_bonds) {
         Substructure &substruct = *self;
-        Molecule &parent = *self.parent();
+        const Molecule &parent = *self.parent();
 
         std::vector<int> idxs;
         for (py::handle obj: atoms)
@@ -616,7 +616,7 @@ Add atoms to the substructure.
       "add_bonds",
       [](P &self, const BondsArg &bonds) {
         Substructure &substruct = *self;
-        Molecule &parent = *self.parent();
+        const Molecule &parent = *self.parent();
 
         std::vector<int> idxs;
         for (py::handle obj: bonds)
@@ -916,6 +916,7 @@ void insert_substruct(ProxySubstructContainer &cont, int idx,
                     create_substruct(mol, atoms, bonds, cat));
 }
 
+// NOLINTNEXTLINE(misc-const-correctness)
 void substruct_erase_hydrogens(PyMol &mol, Substructure &sub) {
   auto mut = mol.mutator();
 

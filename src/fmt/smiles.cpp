@@ -694,6 +694,7 @@ bool smiles_resolve_is_clockwise(Molecule::Atom atom,
   return consistent == atom.data().is_clockwise();
 }
 
+// NOLINTNEXTLINE(misc-const-correctness)
 void convert_chirality(Molecule &mol, const parser::RingBonds &ring_bonds) {
   ArrayXb is_ring_bond = ArrayXb::Zero(mol.num_bonds());
   is_ring_bond(ring_bonds) = true;

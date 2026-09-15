@@ -493,6 +493,7 @@ bool parse_substructure_block(Molecule &mol, Iter &it, const Iter end) {
 
 // Some mol2 files set bond type of conjugated bonds to aromatic; just make
 // them non-aromatic, conjugated bonds
+// NOLINTNEXTLINE(misc-const-correctness)
 void fix_aromatic_bonds(Molecule &mol) {
   for (auto atom: mol) {
     if (atom.data().is_ring_atom() || atom.degree() < 2)

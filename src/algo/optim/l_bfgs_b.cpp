@@ -293,7 +293,8 @@ namespace internal {
       return formk_factorize_wn(L.wnt(), L.col());
     }
 
-    bool lbfgsb_cmprlb(LBfgsBase &L, LBfgsBImpl &impl, const ArrayXd &gx) {
+    bool lbfgsb_cmprlb(LBfgsBase &L, const LBfgsBImpl &impl,
+                       const ArrayXd &gx) {
       const auto &x = L.x();
       auto ws = L.ws(), wy = L.wy();
       auto sy = L.sy(), wtt = L.wtt();
@@ -614,11 +615,12 @@ namespace internal {
     return true;
   }
 
-  bool lbfgsb_subsm(LBfgsBase &lbfgsb, LBfgsBImpl &impl, const ArrayXd &gg) {
+  bool lbfgsb_subsm(LBfgsBase &lbfgsb, const LBfgsBImpl &impl,
+                    const ArrayXd &gg) {
     // NOLINTNEXTLINE(readability-identifier-naming)
     auto &L = lbfgsb;
 
-    auto &xx = L.x();
+    const auto &xx = L.x();
     const auto &bounds = impl.bounds();
     auto wnt = L.wnt();
     auto ws = L.ws(), wy = L.wy();
