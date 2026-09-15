@@ -43,13 +43,7 @@
 namespace nuri {
 bool SmilesReader::fill(MoleculeRecord &record) {
   auto &text_record = down_cast<Record &>(record);
-  auto &block = text_record.text();
-
-  if (block.empty()) {
-    block.emplace_back();
-  }
-
-  std::string &smiles = block[0];
+  std::string &smiles = text_record.text();
   while (std::getline(*is_, smiles)
          && (smiles.empty() || absl::ascii_isspace(smiles[0]))) { }
   return static_cast<bool>(*is_);
@@ -716,12 +710,8 @@ void convert_chirality(Molecule &mol, const parser::RingBonds &ring_bonds) {
 }
 }  // namespace
 
-ParseResult<Molecule> read_smiles(const std::vector<std::string> &smi_block) {
-  if (smi_block.empty())
-    return ParseResult<Molecule>::error("empty SMILES block");
-
+ParseResult<Molecule> read_smiles(std::string_view smiles) {
   Molecule mol;
-  const std::string &smiles = smi_block[0];
 
   // Context variables
   parser::HydrogenIdx has_hydrogens;
@@ -787,7 +777,7 @@ ParseResult<Molecule> read_smiles(const std::vector<std::string> &smi_block) {
 
   while (begin != smiles.end() && absl::ascii_isspace(*begin))
     ++begin;
-  mol.name() = std::string_view(smiles).substr(begin - smiles.begin());
+  mol.name() = smiles.substr(begin - smiles.begin());
 
   return ParseResult<Molecule>(std::move(mol));
 }
