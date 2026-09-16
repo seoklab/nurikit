@@ -5,6 +5,7 @@
 
 #include "nuri/fmt/parse_result.h"
 
+#include <memory>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -108,6 +109,30 @@ TEST(ParseResultTest, TemporaryErrorString) {
   auto message = Result::error("bad input").error_msg();
   static_assert(std::is_same_v<decltype(message), std::string>);
   EXPECT_EQ(message, "bad input");
+}
+
+TEST(ParseResultTest, CastMoveOnlyValue) {
+  auto value = std::make_unique<int>(42);
+  const int *original = value.get();
+  ParseResult<std::unique_ptr<int>> result(std::move(value));
+
+  auto converted = std::move(result).cast<std::shared_ptr<int>>();
+  ASSERT_TRUE(converted);
+  EXPECT_EQ(converted->get(), original);
+  EXPECT_EQ(**converted, 42);
+}
+
+TEST(ParseResultTest, CastError) {
+  auto result = ParseResult<std::unique_ptr<int>>::error("cannot parse ", 42);
+  auto converted = std::move(result).cast<std::shared_ptr<int>>();
+  ASSERT_EQ(converted.status(), ParseStatus::kError);
+  EXPECT_EQ(converted.error_msg(), "cannot parse 42");
+}
+
+TEST(ParseResultTest, CastEof) {
+  auto result = ParseResult<std::unique_ptr<int>>::eof();
+  auto converted = std::move(result).cast<std::shared_ptr<int>>();
+  EXPECT_EQ(converted.status(), ParseStatus::kEOF);
 }
 }  // namespace
 }  // namespace nuri

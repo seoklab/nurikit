@@ -14,6 +14,7 @@
 #include <utility>
 #include <variant>
 
+#include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
 #include <absl/strings/str_cat.h>
 //! @endcond
@@ -116,6 +117,19 @@ public:
   std::string error_msg() && {
     ABSL_DCHECK(status() == ParseStatus::kError);
     return std::move(*std::get_if<std::string>(&data_));
+  }
+
+  template <class U>
+  ParseResult<U> cast() && {
+    switch (status()) {
+    case ParseStatus::kEOF:
+      return ParseResult<U>::eof();
+    case ParseStatus::kError:
+      return ParseResult<U>::error(std::move(*this).error_msg());
+    case ParseStatus::kValid:
+      return ParseResult<U>(U(*std::move(*this)));
+    }
+    ABSL_UNREACHABLE();
   }
 
 private:
