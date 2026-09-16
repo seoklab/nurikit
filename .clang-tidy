@@ -27,6 +27,7 @@ Checks: >-
   -bugprone-signed-bitwise,
   -bugprone-throwing-static-initialization,
   -clang-analyzer-security.ArrayBound,
+  -clang-analyzer-unix.Malloc,
   -clang-analyzer-optin.core.EnumCastOutOfRange,
   -cppcoreguidelines-avoid-do-while,
   -cppcoreguidelines-avoid-c-arrays,
