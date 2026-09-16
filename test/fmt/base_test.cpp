@@ -105,27 +105,49 @@ TEST(EscapeTest, EscapeNewlines) {
   EXPECT_EQ(escaped, " \ta b\tc d e ????  ");
 }
 
+ParseResult<Molecule> stub_parse(const std::vector<std::string> &block) {
+  if (block[0] == "1")
+    return ParseResult<Molecule>::error("stub failure");
+
+  Molecule mol;
+  mol.name() = block[0];
+  if (block[0] == "2")
+    mol.mutator().add_atom({});
+  return ParseResult<Molecule>(std::move(mol));
+}
+
 class DummyReader: public MoleculeReader {
 public:
   DummyReader(std::istream & /* is */) { }
 
-  bool getnext(std::vector<std::string> & /* block */) override {
-    return false;
-  }
-
-  ParseResult<Molecule>
-  parse(const std::vector<std::string> & /* block */) const override {
-    return Molecule();
+  std::unique_ptr<MoleculeRecord> make_record() const override {
+    return std::make_unique<
+        TextRecordImpl<std::vector<std::string>, stub_parse>>();
   }
 
   bool bond_valid() const override { return true; }
+
+private:
+  bool fill(MoleculeRecord & /* record */) override { return false; }
 };
 
 class DummyReaderFactory: public DefaultReaderFactoryImpl<DummyReader> { };
 
 class StubReader: public MoleculeReader {
 public:
-  bool getnext(std::vector<std::string> &block) override {
+  using Record = TextRecordImpl<std::vector<std::string>, stub_parse>;
+
+  std::unique_ptr<MoleculeRecord> make_record() const override {
+    return std::make_unique<Record>();
+  }
+
+  bool bond_valid() const override { return true; }
+
+private:
+  bool fill(MoleculeRecord &record) override {
+    auto &text_record = down_cast<Record &>(record);
+    auto &block = text_record.text();
+    block.clear();
     if (next_ >= 3)
       return false;
 
@@ -133,58 +155,54 @@ public:
     return true;
   }
 
-  ParseResult<Molecule>
-  parse(const std::vector<std::string> &block) const override {
-    if (block[0] == "1")
-      return ParseResult<Molecule>::error("stub failure");
-
-    Molecule mol;
-    mol.name() = block[0];
-    if (block[0] == "2")
-      mol.mutator().add_atom({});
-
-    return ParseResult<Molecule>(std::move(mol));
-  }
-
-  bool bond_valid() const override { return true; }
-
-private:
   int next_ = 0;
 };
 
-TEST(MoleculeStreamTest, ReportsParseStatus) {
+TEST(MoleculeBatchTest, ReportsParseStatus) {
   StubReader reader;
-  MoleculeStream<> stream = reader.stream();
+  auto record = reader.make_record();
+  EXPECT_EQ(record->parse().status(), ParseStatus::kEOF);
 
-  ASSERT_TRUE(stream.advance());
-  ASSERT_TRUE(stream.ok());
-  EXPECT_EQ(stream.current().name(), "0");
-  EXPECT_TRUE(stream.current().empty());
+  ASSERT_TRUE(reader.getnext(*record));
+  auto first = record->parse();
+  ASSERT_TRUE(first);
+  ASSERT_EQ(first->data().size(), 1);
+  EXPECT_EQ(first->data()[0].name(), "0");
+  EXPECT_TRUE(first->data()[0].empty());
 
-  ASSERT_TRUE(stream.advance());
-  EXPECT_FALSE(stream.ok());
-  EXPECT_EQ(stream.error_msg(), "stub failure");
+  ASSERT_TRUE(reader.getnext(*record));
+  auto error = record->parse();
+  ASSERT_EQ(error.status(), ParseStatus::kError);
+  EXPECT_EQ(error.error_msg(), "stub failure");
 
-  ASSERT_TRUE(stream.advance());
-  ASSERT_TRUE(stream.ok());
-  EXPECT_EQ(stream.current().num_atoms(), 1);
+  ASSERT_TRUE(reader.getnext(*record));
+  auto last = record->parse();
+  ASSERT_TRUE(last);
+  ASSERT_EQ(last->data().size(), 1);
+  EXPECT_EQ(last->data()[0].num_atoms(), 1);
 
-  EXPECT_FALSE(stream.advance());
+  EXPECT_FALSE(reader.getnext(*record));
+  EXPECT_EQ(record->parse().status(), ParseStatus::kEOF);
+  EXPECT_FALSE(reader.getnext(*record));
+  EXPECT_EQ(record->parse().status(), ParseStatus::kEOF);
+
+  EXPECT_EQ(first->data()[0].name(), "0");
+  EXPECT_EQ(error.error_msg(), "stub failure");
+  EXPECT_EQ(last->data()[0].name(), "2");
 }
 
-TEST(MoleculeStreamTest, ExtractKeepsValueOnFailure) {
-  StubReader reader;
-  MoleculeStream<> stream = reader.stream();
-
-  Molecule mol;
-  stream >> mol;
-  EXPECT_EQ(mol.name(), "0");
-
-  stream >> mol;
-  EXPECT_EQ(mol.name(), "0");
-
-  stream >> mol;
-  EXPECT_EQ(mol.name(), "2");
+TEST(MoleculeBatchTest, OwnsMovedContainer) {
+  MoleculeBatch::Container molecules;
+  for (int i = 0; i < 3; ++i) {
+    Molecule mol;
+    mol.name() = std::to_string(i);
+    molecules.push_back(std::move(mol));
+  }
+  MoleculeBatch batch(std::move(molecules));
+  const MoleculeBatch &view = batch;
+  ASSERT_EQ(view.data().size(), 3);
+  EXPECT_EQ(view.data()[0].name(), "0");
+  EXPECT_EQ(view.data()[2].name(), "2");
 }
 
 TEST(ReaderFactoryTest, CanFindFactory) {

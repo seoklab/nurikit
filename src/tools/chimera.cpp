@@ -30,9 +30,7 @@ extern MmResult match_maker(ConstRef<Matrix3Xd> query,
   ArrayXi order(n);
   absl::c_iota(order, 0);
 
-  Isometry3d xform;
-  double msd;
-  std::tie(xform, msd) = qcp_inplace(qbuf, tbuf);
+  auto [xform, msd] = qcp_inplace(qbuf, tbuf);
 
   int nali = n;
   while (true) {

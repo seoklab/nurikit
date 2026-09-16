@@ -277,7 +277,7 @@ namespace {
           }))
         continue;
 
-      for (auto &neighs: type_neighs) {
+      for (const auto &neighs: type_neighs) {
         if (neighs.size() < 2)
           continue;
 

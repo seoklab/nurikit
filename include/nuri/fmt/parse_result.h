@@ -14,6 +14,7 @@
 #include <utility>
 #include <variant>
 
+#include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
 #include <absl/strings/str_cat.h>
 //! @endcond
@@ -66,6 +67,10 @@ public:
     return ParseResult(absl::StrCat(args...));
   }
 
+  static ParseResult error(std::string &&msg) {
+    return ParseResult(std::move(msg));
+  }
+
   void reset() noexcept { data_ = std::monostate {}; }
 
   ParseStatus status() const { return static_cast<ParseStatus>(data_.index()); }
@@ -103,9 +108,28 @@ public:
    * @brief Get the failure reason.
    * @pre status() == ParseStatus::kError.
    */
-  std::string_view error_msg() const {
+  std::string_view error_msg() const & {
     ABSL_DCHECK(status() == ParseStatus::kError);
     return *std::get_if<std::string>(&data_);
+  }
+
+  //! @copydoc error_msg() const &
+  std::string error_msg() && {
+    ABSL_DCHECK(status() == ParseStatus::kError);
+    return std::move(*std::get_if<std::string>(&data_));
+  }
+
+  template <class U>
+  ParseResult<U> cast() && {
+    switch (status()) {
+    case ParseStatus::kEOF:
+      return ParseResult<U>::eof();
+    case ParseStatus::kError:
+      return ParseResult<U>::error(std::move(*this).error_msg());
+    case ParseStatus::kValid:
+      return ParseResult<U>(U(*std::move(*this)));
+    }
+    ABSL_UNREACHABLE();
   }
 
 private:

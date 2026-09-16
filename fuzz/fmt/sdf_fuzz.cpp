@@ -30,23 +30,23 @@ NURI_FUZZ_MAIN(data, size) {
       std::string { reinterpret_cast<const char *>(data), size });
   nuri::SDFReader reader(iss);
 
-  std::vector<std::string> block;
+  auto record = reader.make_record();
   std::string sdf;
-  while (reader.getnext(block)) {
-    nuri::ParseResult<nuri::Molecule> res;
+  while (reader.getnext(*record)) {
+    nuri::ParseResult<nuri::MoleculeBatch> res;
 
     try {
-      res = reader.parse(block);
+      res = record->parse();
     } catch (const std::length_error & /* e */) {
       return -1;
     } catch (const std::bad_alloc & /* e */) {
       return -1;
     }
 
-    if (!res)
+    if (!res || res->data().empty())
       continue;
 
-    nuri::Molecule mol = *std::move(res);
+    nuri::Molecule mol = std::move(res->data().front());
 
     nuri::write_sdf(sdf, mol, -1, nuri::SDFVersion::kAutomatic);
     nuri::write_sdf(sdf, mol, -1, nuri::SDFVersion::kV2000);

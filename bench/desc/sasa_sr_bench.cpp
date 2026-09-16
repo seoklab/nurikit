@@ -3,22 +3,27 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <fstream>
+
 #include <benchmark/benchmark.h>
 #include <Eigen/Dense>
 
 #include "nuri/core/molecule.h"
 #include "nuri/desc/surface.h"
-#include "nuri/fmt/base.h"
+#include "nuri/fmt/pdb.h"
 
 namespace nuri {
 namespace {
   std::pair<Matrix3Xd, ArrayXd> read_1ubq(benchmark::State &state) {
-    FileMoleculeReader<> reader("pdb", "test/test_data/1ubqFH.pdb");
-    auto stream = reader.stream();
-    Molecule mol;
-    stream >> mol;
-
-    if (mol.size() == 0) {
+    std::ifstream input("test/test_data/1ubqFH.pdb");
+    PDBReader reader(input);
+    auto result = reader.next()->parse();
+    if (!result || result->data().empty()) {
+      state.SkipWithError("Failed to parse PDB input");
+      return {};
+    }
+    Molecule mol = std::move(result->data().front());
+    if (mol.empty()) {
       state.SkipWithError("Failed to read molecule from PDB file");
       return {};
     }

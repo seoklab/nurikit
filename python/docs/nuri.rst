@@ -33,6 +33,11 @@ Top-level Functions
 Readers
 -------
 
+These functions return iterators of molecules. The iterator may be shared
+between threads: each molecule is yielded exactly once, and records are parsed
+in parallel with the GIL released. Which thread receives which molecule, and
+the order of molecules across threads, are unspecified.
+
 .. autofunction:: nuri.readfile
 
 .. autofunction:: nuri.readstring

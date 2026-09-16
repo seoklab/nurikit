@@ -7,7 +7,28 @@
 import numpy as np
 import pytest
 
+import nuri
 from nuri.core import AtomData, BondData, BondOrder, Hyb, Molecule
+
+
+@pytest.mark.parametrize("args", [(), ("gasteiger",)])
+def test_assign_charges(args):
+    mol = next(nuri.readstring("smi", "CC"))
+    assert mol.assign_charges(*args) is None
+    assert [atom.partial_charge for atom in mol] == pytest.approx(
+        [-0.068, -0.068], abs=5e-3
+    )
+    assert mol.props["mol2_charge_type"] == "GASTEIGER"
+
+
+def test_assign_charges_unknown_method():
+    mol = next(nuri.readstring("smi", "CC"))
+    before = [atom.partial_charge for atom in mol]
+    with pytest.raises(
+        ValueError, match="Unknown charge assignment method: unknown"
+    ):
+        mol.assign_charges("unknown")
+    assert [atom.partial_charge for atom in mol] == before
 
 
 def test_empty():

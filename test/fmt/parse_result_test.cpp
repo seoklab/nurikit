@@ -5,7 +5,10 @@
 
 #include "nuri/fmt/parse_result.h"
 
+#include <memory>
 #include <string>
+#include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -66,6 +69,70 @@ TEST(ParseResultTest, ConstAccess) {
   const Result res = std::vector { 1, 2, 3 };
   EXPECT_EQ(res->size(), 3);
   EXPECT_EQ((*res)[0], 1);
+}
+
+TEST(ParseResultTest, MoveErrorString) {
+  const std::string expected(128, 'x');
+  std::string message = expected;
+  const char *original = message.data();
+  auto result = Result::error(std::move(message));
+  ASSERT_EQ(result.status(), ParseStatus::kError);
+  EXPECT_EQ(result.error_msg(), expected);
+  EXPECT_EQ(result.error_msg().data(), original);
+
+  auto extracted = std::move(result).error_msg();
+  static_assert(std::is_same_v<decltype(extracted), std::string>);
+  EXPECT_EQ(extracted, expected);
+  EXPECT_EQ(extracted.data(), original);
+  result.reset();
+  EXPECT_EQ(extracted, expected);
+}
+
+TEST(ParseResultTest, BorrowErrorString) {
+  const std::string expected(128, 'x');
+  std::string message = expected;
+  auto result = Result::error(message);
+  message.clear();
+
+  auto borrowed = result.error_msg();
+  static_assert(std::is_same_v<decltype(borrowed), std::string_view>);
+  EXPECT_EQ(borrowed, expected);
+
+  const auto &const_result = result;
+  auto const_borrowed = const_result.error_msg();
+  static_assert(std::is_same_v<decltype(const_borrowed), std::string_view>);
+  EXPECT_EQ(const_borrowed, expected);
+  EXPECT_EQ(const_borrowed.data(), borrowed.data());
+}
+
+TEST(ParseResultTest, TemporaryErrorString) {
+  auto message = Result::error("bad input").error_msg();
+  static_assert(std::is_same_v<decltype(message), std::string>);
+  EXPECT_EQ(message, "bad input");
+}
+
+TEST(ParseResultTest, CastMoveOnlyValue) {
+  auto value = std::make_unique<int>(42);
+  const int *original = value.get();
+  ParseResult<std::unique_ptr<int>> result(std::move(value));
+
+  auto converted = std::move(result).cast<std::shared_ptr<int>>();
+  ASSERT_TRUE(converted);
+  EXPECT_EQ(converted->get(), original);
+  EXPECT_EQ(**converted, 42);
+}
+
+TEST(ParseResultTest, CastError) {
+  auto result = ParseResult<std::unique_ptr<int>>::error("cannot parse ", 42);
+  auto converted = std::move(result).cast<std::shared_ptr<int>>();
+  ASSERT_EQ(converted.status(), ParseStatus::kError);
+  EXPECT_EQ(converted.error_msg(), "cannot parse 42");
+}
+
+TEST(ParseResultTest, CastEof) {
+  auto result = ParseResult<std::unique_ptr<int>>::eof();
+  auto converted = std::move(result).cast<std::shared_ptr<int>>();
+  EXPECT_EQ(converted.status(), ParseStatus::kEOF);
 }
 }  // namespace
 }  // namespace nuri

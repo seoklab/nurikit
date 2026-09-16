@@ -199,7 +199,7 @@ public:
 
     //! Default initialization flags, combination of all initialization methods.
     kDefault = kGaplessThreading | kSecStr | kLocal | kLocalPlusSecStr
-               | kFragmentGaplessThreading,
+        | kFragmentGaplessThreading,
   };
 
   /**

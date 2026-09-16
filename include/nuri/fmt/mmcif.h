@@ -8,38 +8,46 @@
 
 //! @cond
 #include <istream>
-#include <string>
-#include <vector>
+#include <memory>
 
 #include <absl/base/attributes.h>
 //! @endcond
 
-#include "nuri/core/molecule.h"
 #include "nuri/fmt/base.h"
 #include "nuri/fmt/cif.h"
 #include "nuri/fmt/parse_result.h"
 
 namespace nuri {
-ParseResult<std::vector<Molecule>>
+ParseResult<MoleculeBatch::Container>
 mmcif_load_frame(const internal::CifFrame &frame);
 
-ParseResult<std::vector<Molecule>> mmcif_read_next_block(CifParser &parser);
+class MmcifRecord final: public MoleculeRecord {
+public:
+  ParseResult<MoleculeBatch> parse() override;
+
+private:
+  friend class MmcifReader;
+
+  ParseResult<internal::CifBlock> block_;
+};
 
 class MmcifReader final: public MoleculeReader {
 public:
+  using Record = MmcifRecord;
+
   explicit MmcifReader(std::istream &is): parser_(is) { }
 
-  bool getnext(std::vector<std::string> &block) override;
-
-  ParseResult<Molecule>
-  parse(const std::vector<std::string> &block) const override;
+  std::unique_ptr<MoleculeRecord> make_record() const override {
+    return std::make_unique<Record>();
+  }
 
   bool bond_valid() const override { return false; }
 
 private:
+  bool fill(MoleculeRecord &record) override;
+
   CifParser parser_;
-  ParseResult<std::vector<Molecule>> res_ = std::vector<Molecule> {};
-  int next_ = -1;
+  bool done_ = false;
 };
 
 class MmcifReaderFactory: public DefaultReaderFactoryImpl<MmcifReader> {

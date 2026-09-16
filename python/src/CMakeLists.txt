@@ -58,7 +58,7 @@ nuri_python_add_module(fmt
   OUTPUT_STUBS nuri/fmt/__init__.pyi nuri/fmt/cif.pyi nuri/fmt/pdb.pyi
 )
 target_link_libraries("${NURI_PYTHON_MODULE_TARGET}"
-  PRIVATE absl::span
+  PRIVATE absl::span absl::synchronization
 )
 
 nuri_python_add_module(tm OUTPUT_DIRECTORY "tools"

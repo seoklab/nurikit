@@ -23,6 +23,29 @@ namespace nuri {
 namespace {
 using SDFTest = internal::StringFormatTest<SDFReader>;
 
+TEST_F(SDFTest, DelimiterOnlyRecords) {
+  for (std::string_view ending: { "$$$$", "$$$$\n", "$$$$ \t\n" }) {
+    set_test_string(absl::StrCat("$$$$\n", ending));
+    NURI_FMT_TEST_PARSE_FAIL_MSG("failed to read SDF header");
+    NURI_FMT_TEST_PARSE_FAIL_MSG("failed to read SDF header");
+    EXPECT_FALSE(advance());
+    EXPECT_FALSE(advance());
+  }
+}
+
+TEST_F(SDFTest, DelimiterOnlyRecordRecovery) {
+  set_test_string(
+      "$$$$\nempty\n\n\n"
+      "  0  0  0     0  0  0  0  0  0999 V2000\n"
+      "M  END\n$$$$\n");
+  NURI_FMT_TEST_PARSE_FAIL_MSG("failed to read SDF header");
+  NURI_FMT_TEST_NEXT_EMPTY_MOL("empty");
+  EXPECT_FALSE(advance());
+
+  set_test_string("");
+  EXPECT_FALSE(advance());
+}
+
 TEST_F(SDFTest, BasicMolecule) {
   set_test_string(R"sdf(L-Alanine
   ABCDEFGH09071717443D

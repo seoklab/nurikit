@@ -42,16 +42,24 @@ dependencies = ["numpy"]
 Documentation = "https://nurikit.readthedocs.io/"
 Repository = "https://github.com/seoklab/nurikit.git"
 
-[project.optional-dependencies]
-test = ["pytest", "pytest-xdist", "scipy"]
+[dependency-groups]
 docs = [
+    "setuptools",           # required for pkg_resources
+    "sphinx-rtd-theme",
     "sphinx<8.2",
     "sphinxcontrib-bibtex",
-    "sphinx-rtd-theme",
     "urllib3<2.0",
-    "setuptools",           # required for pkg_resources
 ]
-coverage = ["gcovr"]
+test = [
+    "pytest",
+    "pytest-xdist",
+    "scipy",
+    { include-group = "docs" },
+]
+coverage = [
+    "gcovr",
+    { include-group = "test" },
+]
 
 [tool.scikit-build]
 minimum-version = "build-system.requires"
@@ -123,7 +131,7 @@ build-verbosity = 1
 
 manylinux-x86_64-image = "manylinux_2_28"
 
-test-extras = ["test", "docs"]
+test-groups = ["test"]
 test-command = [
     "pytest -v -s {project}/python/test",
     """

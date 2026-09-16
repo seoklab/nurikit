@@ -529,7 +529,7 @@ namespace internal {
   extern bool lbfgsb_cauchy(LBfgsBase &lbfgsb, LBfgsBImpl &impl,
                             const ArrayXd &gx, double sbgnrm);
 
-  extern bool lbfgsb_subsm(LBfgsBase &lbfgsb, LBfgsBImpl &impl,
+  extern bool lbfgsb_subsm(LBfgsBase &lbfgsb, const LBfgsBImpl &impl,
                            const ArrayXd &gg);
 }  // namespace internal
 

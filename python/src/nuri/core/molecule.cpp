@@ -1160,9 +1160,11 @@ The number of connected components (fragments) in the molecule.
   mol.def(
       "assign_charges",
       [](PyMol &self, std::string_view method) {
-        if (method == "gasteiger")
+        if (method == "gasteiger") {
           if (!assign_charges_gasteiger(*self))
             throw std::runtime_error("Failed to assign Gasteiger charges");
+          return;
+        }
 
         throw py::value_error(
             absl::StrCat("Unknown charge assignment method: ", method));

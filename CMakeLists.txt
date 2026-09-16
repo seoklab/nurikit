@@ -249,7 +249,10 @@ endif()
 # Put here so don't check coverage/fuzz external projects
 if(NURI_TEST_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   message(NOTICE "GNU/Clang detected, enabling coverage")
-  add_both_options(--coverage)
+
+  # Threaded tests race gcov counters without atomic updates:
+  # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=68080
+  add_both_options(--coverage -fprofile-update=atomic)
 endif()
 
 if(NURI_BUILD_FUZZING)

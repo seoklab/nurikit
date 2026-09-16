@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <memory>
+#include <utility>
 #include <vector>
 
 #include <absl/algorithm/container.h>
@@ -14,6 +16,78 @@
 
 namespace nuri {
 namespace {
+struct CastBase {
+  virtual ~CastBase() = default;
+};
+
+struct CastDerived: CastBase { };
+
+TEST(DownCastTest, DowncastsPointers) {
+  CastDerived derived;
+  CastBase *base = &derived;
+  EXPECT_EQ(down_cast<CastDerived *>(base), &derived);
+
+  const CastBase *const_base = &derived;
+  EXPECT_EQ(down_cast<const CastDerived *>(const_base), &derived);
+}
+
+TEST(DownCastTest, DowncastsNullPointers) {
+  CastBase *base = nullptr;
+  EXPECT_EQ(down_cast<CastDerived *>(base), nullptr);
+
+  const CastBase *const_base = nullptr;
+  EXPECT_EQ(down_cast<const CastDerived *>(const_base), nullptr);
+}
+
+TEST(DownCastTest, DowncastsReferences) {
+  CastDerived derived;
+  CastBase &base = derived;
+  EXPECT_EQ(&down_cast<CastDerived &>(base), &derived);
+
+  const CastBase &const_base = derived;
+  EXPECT_EQ(&down_cast<const CastDerived &>(const_base), &derived);
+
+  CastDerived &&rvalue = down_cast<CastDerived &&>(std::move(base));
+  EXPECT_EQ(&rvalue, &derived);
+
+  const CastDerived &&const_rvalue =
+      down_cast<const CastDerived &&>(std::move(const_base));
+  EXPECT_EQ(&const_rvalue, &derived);
+}
+
+TEST(DownCastTest, TransfersUniqueOwnership) {
+  struct Counted: CastBase {
+    explicit Counted(int &destroyed): destroyed_(&destroyed) { }
+    ~Counted() override { ++*destroyed_; }
+
+    int *destroyed_;
+  };
+
+  int destroyed = 0;
+  std::unique_ptr<CastBase> base = std::make_unique<Counted>(destroyed);
+  auto *original = base.get();
+  {
+    auto derived = down_cast<Counted>(std::move(base));
+    EXPECT_EQ(base, nullptr);
+    EXPECT_EQ(derived.get(), original);
+    EXPECT_EQ(destroyed, 0);
+  }
+  EXPECT_EQ(destroyed, 1);
+}
+
+TEST(DownCastTest, DowncastsConstUniqueOwnership) {
+  std::unique_ptr<const CastBase> base = std::make_unique<const CastDerived>();
+  const auto *original = base.get();
+  auto derived = down_cast<const CastDerived>(std::move(base));
+  EXPECT_EQ(base, nullptr);
+  EXPECT_EQ(derived.get(), original);
+}
+
+TEST(DownCastTest, DowncastsNullUniqueOwnership) {
+  std::unique_ptr<CastBase> base;
+  EXPECT_EQ(down_cast<CastDerived>(std::move(base)), nullptr);
+}
+
 TEST(BoolMatrixTest, EliminationTest) {
   /*
    * [[0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1],

@@ -46,13 +46,18 @@
 #include "nuri/utils.h"
 
 namespace nuri {
-bool SDFReader::getnext(std::vector<std::string> &block) {
+bool SDFReader::fill(MoleculeRecord &record) {
+  auto &text_record = down_cast<Record &>(record);
+  auto &block = text_record.text();
   block.clear();
 
   std::string line;
   while (std::getline(*is_, line)) {
-    if (absl::StripTrailingAsciiWhitespace(line) == "$$$$")
-      break;
+    if (absl::StripTrailingAsciiWhitespace(line) == "$$$$") {
+      if (block.empty())
+        block.push_back(line);
+      return true;
+    }
 
     block.push_back(line);
   }

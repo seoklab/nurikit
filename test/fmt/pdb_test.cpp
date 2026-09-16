@@ -42,11 +42,10 @@ std::vector<Molecule> recovered(const Molecule &mol) {
 
   std::istringstream pdbs(pdb);
   PDBReader reader(pdbs);
-  MoleculeStream<PDBReader> ms(reader);
-
+  PDBRecord record;
   std::vector<Molecule> mols;
-  while (ms.advance())
-    mols.push_back(std::move(ms.current()));
+  while (reader.getnext(record))
+    mols.push_back(internal::must_parse_first(record.parse()));
   return mols;
 }
 
@@ -278,11 +277,11 @@ ATOM      1      ALA A   1      11.104   6.134  -6.504  1.00  0.00           N
 ENDMDL
 )pdb");
   PDBReader reader(iss);
-  auto ms = reader.stream();
-
+  PDBRecord record;
   int cnt = 0;
-  while (ms.advance()) {
-    EXPECT_FALSE(ms.ok()) << "Molecule index: " << cnt;
+  while (reader.getnext(record)) {
+    EXPECT_EQ(record.parse().status(), ParseStatus::kError)
+        << "Molecule index: " << cnt;
     ++cnt;
   }
   EXPECT_EQ(cnt, 4);
@@ -299,10 +298,9 @@ ATOM   9007  H   SER B 153      30.485  52.658  25.676  0.00 58.61           H
 ENDMDL
 )pdb");
   PDBReader reader(iss);
-  auto ms = reader.stream();
-
-  while (ms.advance()) {
-    const Molecule &mol = ms.current();
+  PDBRecord record;
+  while (reader.getnext(record)) {
+    Molecule mol = internal::must_parse_first(record.parse());
     EXPECT_EQ(mol.num_atoms(), 1);
   }
 }
@@ -314,12 +312,8 @@ protected:
     std::ifstream ifs(internal::test_data("1alx_part.pdb"));
     ASSERT_TRUE(ifs) << "Failed to open file: 1alx_part.pdb";
     PDBReader reader(ifs);
-    MoleculeStream<PDBReader> ms(reader);
-
-    ASSERT_TRUE(ms.advance());
-    EXPECT_TRUE(internal::guess_update_subs(ms.current()));
-
-    mol_ = std::move(ms.current());
+    mol_ = internal::must_parse_first(reader.next()->parse());
+    EXPECT_TRUE(internal::guess_update_subs(mol_));
     ASSERT_EQ(mol_.name(), "1ALX");
     ASSERT_EQ(mol_.num_atoms(), 73);
     ASSERT_EQ(mol_.num_bonds(), 70);
@@ -327,7 +321,7 @@ protected:
     // 5 residues + 1 chain
     ASSERT_EQ(mol_.substructures().size(), 6);
 
-    ASSERT_FALSE(ms.advance());
+    ASSERT_EQ(reader.next()->parse().status(), ParseStatus::kEOF);
 
     mols_ = recovered(mol_);
     ASSERT_EQ(mols().size(), 3);
@@ -437,9 +431,9 @@ ATOM     24 3HD1 ILE A   3      31.985  -7.339-264.644  1.00  4.92
 )pdb");
 
   PDBReader reader(iss);
-  auto ms = reader.stream();
-  while (ms.advance()) {
-    const Molecule &mol = ms.current();
+  PDBRecord record;
+  while (reader.getnext(record)) {
+    Molecule mol = internal::must_parse_first(record.parse());
     EXPECT_EQ(mol.num_atoms(), 24);
 
     EXPECT_EQ(mol[0].data().atomic_number(), 26);
@@ -459,10 +453,7 @@ END
 )pdb");
 
   PDBReader reader(iss);
-  auto ms = reader.stream();
-
-  ASSERT_TRUE(ms.advance());
-  const Molecule &mol = ms.current();
+  Molecule mol = internal::must_parse_first(reader.next()->parse());
 
   EXPECT_EQ(mol.num_atoms(), 3);
 
@@ -470,7 +461,7 @@ END
   EXPECT_EQ(mol[1].data().formal_charge(), -1);
   EXPECT_EQ(mol[2].data().formal_charge(), 0);
 
-  EXPECT_FALSE(ms.advance());
+  EXPECT_EQ(reader.next()->parse().status(), ParseStatus::kEOF);
 }
 
 TEST(PDBWriteTest, Molecule2D) {
@@ -487,20 +478,47 @@ TEST(PDBWriteTest, Molecule2D) {
   EXPECT_EQ(mols[0][0].data().atomic_number(), 6);
 }
 
+TEST(PDBReaderTest, RetainedTextIncludesHeaderAndFooter) {
+  PDBRecord record;
+  {
+    std::istringstream input(
+        R"pdb(HEADER    TEST CLASSIFICATION                     01-JAN-25   TEST
+MODEL        1
+HETATM    1  C1  LIG A   1       1.000   2.000   3.000  1.00  0.00           C
+HETATM    2  O1  LIG A   1       2.000   2.000   3.000  1.00  0.00           O
+ENDMDL
+MODEL        2
+HETATM    1  C1  LIG A   1       1.000   2.000   3.000  1.00  0.00           C
+HETATM    2  O1  LIG A   1       2.000   2.000   3.000  1.00  0.00           O
+ENDMDL
+CONECT    1    2
+END
+)pdb");
+    PDBReader reader(input);
+    ASSERT_TRUE(reader.getnext(record));
+    ASSERT_TRUE(reader.next()->parse());
+  }
+  const PDBRecord &view = record;
+  ASSERT_FALSE(view.text().empty());
+  EXPECT_EQ(view.text().front().substr(0, 6), "HEADER");
+  EXPECT_EQ(view.text().back(), "END");
+  EXPECT_TRUE(read_pdb_model(view.text()));
+  Molecule mol = internal::must_parse_first(record.parse());
+  EXPECT_EQ(mol.num_atoms(), 2);
+  EXPECT_EQ(mol.num_bonds(), 1);
+}
+
 TEST(PDBEmptyTest, HeaderOnly) {
   std::istringstream iss(
       "HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY\n");
   PDBReader reader(iss);
-  auto ms = reader.stream();
-
-  ASSERT_TRUE(ms.advance());
-  ASSERT_TRUE(ms.ok()) << ms.error_msg();
-  EXPECT_EQ(ms.current().name(), "ONLY");
-  EXPECT_TRUE(ms.current().empty());
-  EXPECT_EQ(internal::get_key(ms.current().props(), "classification"),
+  Molecule mol = internal::must_parse_first(reader.next()->parse());
+  EXPECT_EQ(mol.name(), "ONLY");
+  EXPECT_TRUE(mol.empty());
+  EXPECT_EQ(internal::get_key(mol.props(), "classification"),
             "TEST CLASSIFICATION");
 
-  EXPECT_FALSE(ms.advance());
+  EXPECT_EQ(reader.next()->parse().status(), ParseStatus::kEOF);
 }
 
 TEST(PDBEmptyTest, EmptyModelBlock) {
@@ -536,19 +554,15 @@ ENDMDL
 END
 )pdb");
   PDBReader reader(iss);
-  auto ms = reader.stream();
+  Molecule mol = internal::must_parse_first(reader.next()->parse());
+  EXPECT_TRUE(mol.empty());
+  EXPECT_EQ(internal::get_key(mol.props(), "model"), "1");
 
-  ASSERT_TRUE(ms.advance());
-  ASSERT_TRUE(ms.ok()) << ms.error_msg();
-  EXPECT_TRUE(ms.current().empty());
-  EXPECT_EQ(internal::get_key(ms.current().props(), "model"), "1");
+  mol = internal::must_parse_first(reader.next()->parse());
+  EXPECT_EQ(mol.num_atoms(), 1);
+  EXPECT_EQ(internal::get_key(mol.props(), "model"), "2");
 
-  ASSERT_TRUE(ms.advance());
-  ASSERT_TRUE(ms.ok()) << ms.error_msg();
-  EXPECT_EQ(ms.current().num_atoms(), 1);
-  EXPECT_EQ(internal::get_key(ms.current().props(), "model"), "2");
-
-  EXPECT_FALSE(ms.advance());
+  EXPECT_EQ(reader.next()->parse().status(), ParseStatus::kEOF);
 }
 
 TEST(PDBEmptyTest, AllModelsEmptyInStream) {
@@ -561,16 +575,13 @@ ENDMDL
 END
 )pdb");
   PDBReader reader(iss);
-  auto ms = reader.stream();
-
   for (std::string_view model: { "1", "2" }) {
-    ASSERT_TRUE(ms.advance());
-    ASSERT_TRUE(ms.ok()) << ms.error_msg();
-    EXPECT_TRUE(ms.current().empty());
-    EXPECT_EQ(internal::get_key(ms.current().props(), "model"), model);
+    Molecule mol = internal::must_parse_first(reader.next()->parse());
+    EXPECT_TRUE(mol.empty());
+    EXPECT_EQ(internal::get_key(mol.props(), "model"), model);
   }
 
-  EXPECT_FALSE(ms.advance());
+  EXPECT_EQ(reader.next()->parse().status(), ParseStatus::kEOF);
 }
 
 TEST(PDBEmptyTest, TrailingRecordsAfterLastModel) {
@@ -583,13 +594,10 @@ REMARK   2 RESOLUTION.
 END
 )pdb");
   PDBReader reader(iss);
-  auto ms = reader.stream();
+  Molecule mol = internal::must_parse_first(reader.next()->parse());
+  EXPECT_EQ(mol.num_atoms(), 1);
 
-  ASSERT_TRUE(ms.advance());
-  ASSERT_TRUE(ms.ok()) << ms.error_msg();
-  EXPECT_EQ(ms.current().num_atoms(), 1);
-
-  EXPECT_FALSE(ms.advance());
+  EXPECT_EQ(reader.next()->parse().status(), ParseStatus::kEOF);
 }
 
 TEST(PDBEmptyTest, EmptyBlockIsError) {
@@ -653,5 +661,18 @@ TEST(PDBWriteTest, MixedSubstructs) {
   EXPECT_NE(internal::get_key(mols[0].substructures()[1].props(), "chain"),
             "A");
 }
+TEST(PDBReaderTest, EofClearsRetainedHeader) {
+  std::istringstream input("HEADER    EOF TEST\nMODEL        1\nENDMDL\nEND\n");
+  PDBReader reader(input);
+  PDBRecord record;
+  ASSERT_TRUE(reader.getnext(record));
+  EXPECT_TRUE(internal::must_parse_first(record.parse()).empty());
+
+  EXPECT_FALSE(reader.getnext(record));
+  EXPECT_TRUE(record.text().empty());
+  EXPECT_EQ(record.parse().status(), ParseStatus::kEOF);
+  EXPECT_EQ(reader.next()->parse().status(), ParseStatus::kEOF);
+}
+
 }  // namespace
 }  // namespace nuri

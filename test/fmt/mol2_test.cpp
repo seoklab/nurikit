@@ -39,6 +39,30 @@ NO_CHARGES
   EXPECT_EQ(internal::get_key(mol().props(), "mol2_charge_type"), "NO_CHARGES");
 }
 
+TEST_F(Mol2Test, OptionalAtomAttributesDoNotCarryOver) {
+  set_test_string(R"mol2(
+@<TRIPOS>MOLECULE
+optional attributes
+5 0 0 0 0
+SMALL
+USER_CHARGES
+
+@<TRIPOS>ATOM
+1 C1 0 0 0 C.3 1 RES1 0.25
+2 C2 1 0 0 C.3
+3 C3 2 0 0 C.3 2 RES2 -0.5
+)mol2"
+                  "4 C4 3 0 0 C.3 3 \n"
+                  "5 C5 4 0 0 C.3 4 RES4 \n");
+
+  NURI_FMT_TEST_NEXT_MOL("optional attributes", 5, 0);
+  EXPECT_DOUBLE_EQ(mol().atom(0).data().partial_charge(), 0.25);
+  EXPECT_DOUBLE_EQ(mol().atom(1).data().partial_charge(), 0);
+  EXPECT_DOUBLE_EQ(mol().atom(2).data().partial_charge(), -0.5);
+  EXPECT_DOUBLE_EQ(mol().atom(3).data().partial_charge(), 0);
+  EXPECT_DOUBLE_EQ(mol().atom(4).data().partial_charge(), 0);
+}
+
 TEST_F(Mol2Test, HugeReserveCountCapped) {
   // Found with fuzzing: an untrusted, oversized atom/bond count in the MOLECULE
   // header must not drive an over-large reserve (std::length_error / OOM). The
