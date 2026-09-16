@@ -46,7 +46,7 @@ jobs:
             -DNURI_PREBUILT_ABSL=ON \
             -DNURI_TEST_COVERAGE=ON
 
-      - run: pip install -v '.[test,docs,coverage]'
+      - run: pip install -v . --group coverage
         env:
           SKBUILD_BUILD_DIR: build
 
@@ -101,7 +101,7 @@ jobs:
       - name: Build
         run: |
           LD_LIBRARY_PATH="$(clang++ -print-resource-dir)/lib/linux:$LD_LIBRARY_PATH" \
-            pip install -v '.[test,docs]'
+            pip install -v . --group test
         env:
           SKBUILD_BUILD_DIR: build
           LD_PRELOAD: ""

@@ -23,7 +23,7 @@ build:
           -DNURI_BUILD_TESTING=OFF \
           -DNURI_ENABLE_IPO=OFF \
           -DNURI_OPTIMIZATION_LEVEL=O0
-      - python -m pip install '.[docs]' -v -Cbuild-dir=install -Cbuild.verbose=true
+      - python -m pip install . --group docs -v -Cbuild-dir=install -Cbuild.verbose=true
       - cmake --build install --target clean
     pre_build:
       - |

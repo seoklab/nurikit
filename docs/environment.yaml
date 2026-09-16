@@ -18,4 +18,4 @@ dependencies:
   - pybind11>=3.0,<3.1
   - doxygen
   - graphviz
-  - pip
+  - pip>=25.1
