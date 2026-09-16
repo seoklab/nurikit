@@ -6,8 +6,8 @@ nuri.fmt
 ========
 
 .. automodule:: nuri.fmt
-    :exclude-members: readfile, readstring, to_smiles, to_mol2,
-        to_sdf, to_pdb
+    :exclude-members: readfile, readstring, readstream, to_smiles,
+        to_mol2, to_sdf, to_pdb
 
 ------------------
 CIF Format Support
