@@ -3,11 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include <cstddef>
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <istream>
+#include <iterator>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -15,8 +17,10 @@
 #include <utility>
 
 #include <absl/algorithm/container.h>
+#include <absl/cleanup/cleanup.h>
 #include <absl/log/absl_log.h>
 #include <absl/strings/str_cat.h>
+#include <absl/synchronization/mutex.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/stl/filesystem.h>
@@ -61,7 +65,6 @@ public:
     if (!reader_)
       throw py::value_error(absl::StrCat("Failed to create reader for ", fmt));
 
-    record_ = reader_->make_record();
     guess_ = sanitize && !reader_->bond_valid();
   }
 
@@ -105,16 +108,44 @@ public:
 
 private:
   ParseResult<Molecule> next_molecule() {
-    while (next_ == batch_.size()) {
-      if (!reader_->getnext(*record_))
+    std::unique_lock<absl::Mutex> lock(mutex_);
+
+    while (pending_.empty()) {
+      auto record = reader_->make_record();
+      if (!reader_->getnext(*record)) {
+        mutex_.Await(absl::Condition(
+            +[](PyMoleculeReader *self) {
+              return !self->pending_.empty() || self->in_flight_ == 0;
+            },
+            this));
+        if (!pending_.empty())
+          break;
+
         return ParseResult<Molecule>::eof();
-      auto result = record_->parse();
+      }
+
+      ++in_flight_;
+      lock.unlock();
+      absl::Cleanup finish = [&] {
+        if (!lock.owns_lock())
+          lock.lock();
+        --in_flight_;
+      };
+
+      auto result = record->parse();
+      lock.lock();
+
       if (!result)
         return ParseResult<Molecule>::error(std::move(result).error_msg());
-      batch_ = std::move(result->data());
-      next_ = 0;
+
+      pending_.insert(pending_.end(),
+                      std::make_move_iterator(result->data().begin()),
+                      std::make_move_iterator(result->data().end()));
     }
-    return std::move(batch_[next_++]);
+
+    Molecule mol = std::move(pending_.front());
+    pending_.pop_front();
+    return mol;
   }
 
   void log_or_throw(const char *what) const {
@@ -126,9 +157,11 @@ private:
 
   std::unique_ptr<std::istream> stream_;
   std::unique_ptr<MoleculeReader> reader_;
-  std::unique_ptr<MoleculeRecord> record_;
-  MoleculeBatch::Container batch_;
-  std::size_t next_ = 0;
+
+  absl::Mutex mutex_;
+  std::deque<Molecule> pending_;
+  int in_flight_ = 0;
+
   bool sanitize_;
   bool skip_on_error_;
   bool guess_;
@@ -157,7 +190,7 @@ NURI_PYTHON_MODULE(m) {
 
   py::class_<PyMoleculeReader>(m, "_MoleculeReader")
       .def("__iter__", pass_through<PyMoleculeReader>, kThreadSafe)
-      .def("__next__", &PyMoleculeReader::next);
+      .def("__next__", &PyMoleculeReader::next, kThreadSafe);
 
   m.def(
        "readfile",
