@@ -66,6 +66,10 @@ public:
     return ParseResult(absl::StrCat(args...));
   }
 
+  static ParseResult error(std::string &&msg) {
+    return ParseResult(std::move(msg));
+  }
+
   void reset() noexcept { data_ = std::monostate {}; }
 
   ParseStatus status() const { return static_cast<ParseStatus>(data_.index()); }
@@ -103,9 +107,15 @@ public:
    * @brief Get the failure reason.
    * @pre status() == ParseStatus::kError.
    */
-  std::string_view error_msg() const {
+  std::string_view error_msg() const & {
     ABSL_DCHECK(status() == ParseStatus::kError);
     return *std::get_if<std::string>(&data_);
+  }
+
+  //! @copydoc error_msg() const &
+  std::string error_msg() && {
+    ABSL_DCHECK(status() == ParseStatus::kError);
+    return std::move(*std::get_if<std::string>(&data_));
   }
 
 private:

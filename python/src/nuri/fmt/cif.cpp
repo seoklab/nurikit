@@ -380,7 +380,7 @@ public:
     case ParseStatus::kEOF:
       throw py::stop_iteration();
     case ParseStatus::kError:
-      throw py::value_error(std::string(res.error_msg()));
+      throw py::value_error(std::move(res).error_msg());
     case ParseStatus::kValid:
       break;
     }
@@ -489,7 +489,7 @@ cif_ddl2_frame_as_dict(const PyCifFrame &frame) {
 pyt::List<PyMol> mmcif_load_cif_frame(const PyCifFrame &frame) {
   ParseResult<std::vector<Molecule>> res = mmcif_load_frame(*frame);
   if (!res)
-    throw py::value_error(std::string(res.error_msg()));
+    throw py::value_error(std::move(res).error_msg());
 
   std::vector<Molecule> mols = *std::move(res);
 

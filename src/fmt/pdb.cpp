@@ -2134,7 +2134,7 @@ ParseResult<Molecule> read_pdb(const std::vector<std::string> &pdb) {
 
   PDBInternals internals = read_pdb_internal(it, end, buf, last_serial(pdb));
   if (!internals.error.empty())
-    return ParseResult<Molecule>::error(internals.error);
+    return ParseResult<Molecule>::error(std::move(internals.error));
 
   Molecule mol;
   mol.name() = internals.name;
@@ -2213,7 +2213,7 @@ ParseResult<PDBModel> read_pdb_model(const std::vector<std::string> &pdb) {
 
   PDBInternals internals = read_pdb_internal(pit, end, buf, last_serial(pdb));
   if (!internals.error.empty())
-    return ParseResult<PDBModel>::error(internals.error);
+    return ParseResult<PDBModel>::error(std::move(internals.error));
 
   std::vector<PDBAtom> atoms;
   std::vector<PDBResidue> residues;
