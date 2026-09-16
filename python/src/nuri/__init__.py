@@ -12,6 +12,7 @@ __all__ = [
     "__version__",
     "periodic_table",
     "readfile",
+    "readstream",
     "readstring",
     "seed_thread",
     "to_mol2",
@@ -27,4 +28,12 @@ except ImportError:
 
 from ._support import log_adapter as _log_adapter
 from .core import periodic_table, seed_thread
-from .fmt import readfile, readstring, to_mol2, to_pdb, to_sdf, to_smiles
+from .fmt import (
+    readfile,
+    readstream,
+    readstring,
+    to_mol2,
+    to_pdb,
+    to_sdf,
+    to_smiles,
+)

@@ -22,6 +22,7 @@ if(NURI_BUILD_PYTHON)
     "${CMAKE_CURRENT_LIST_DIR}/include/nuri/python/config.h"
   )
 
+  add_subdirectory(libsrc)
   add_subdirectory(src)
 endif()
 

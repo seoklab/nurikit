@@ -37,6 +37,8 @@
 #include "nuri/fmt/smiles.h"
 #include "nuri/python/core/core_module.h"
 #include "nuri/python/exception.h"
+#include "nuri/python/stream.h"
+#include "nuri/python/typing.h"
 #include "nuri/python/utils.h"
 
 namespace nuri {
@@ -53,19 +55,14 @@ public:
                    bool sanitize, bool skip_on_error)
       : stream_(std::move(is)), sanitize_(sanitize),
         skip_on_error_(skip_on_error) {
-    if (!*stream_)
-      throw py::value_error(absl::StrCat("Invalid stream object"));
+    init(fmt);
+  }
 
-    const MoleculeReaderFactory *factory =
-        MoleculeReaderFactory::find_factory(fmt);
-    if (factory == nullptr)
-      throw py::value_error(absl::StrCat("Unknown format: ", fmt));
-
-    reader_ = factory->from_stream(*stream_);
-    if (!reader_)
-      throw py::value_error(absl::StrCat("Failed to create reader for ", fmt));
-
-    guess_ = sanitize && !reader_->bond_valid();
+  PyMoleculeReader(std::unique_ptr<PyIStream> is, std::string_view fmt,
+                   bool sanitize, bool skip_on_error)
+      : pybuf_(&is->buf()), stream_(std::move(is)), sanitize_(sanitize),
+        skip_on_error_(skip_on_error) {
+    init(fmt);
   }
 
   auto next() {
@@ -107,12 +104,36 @@ public:
   }
 
 private:
+  void init(std::string_view fmt) {
+    if (!*stream_)
+      throw py::value_error(absl::StrCat("Invalid stream object"));
+
+    const MoleculeReaderFactory *factory =
+        MoleculeReaderFactory::find_factory(fmt);
+    if (factory == nullptr)
+      throw py::value_error(absl::StrCat("Unknown format: ", fmt));
+
+    reader_ = factory->from_stream(*stream_);
+    if (!reader_)
+      throw py::value_error(absl::StrCat("Failed to create reader for ", fmt));
+    check_stream();
+
+    guess_ = sanitize_ && !reader_->bond_valid();
+  }
+
+  void check_stream() {
+    if (pybuf_ != nullptr)
+      pybuf_->rethrow_pending();
+  }
+
   ParseResult<Molecule> next_molecule() {
     std::unique_lock<absl::Mutex> lock(mutex_);
 
     while (pending_.empty()) {
       auto record = reader_->make_record();
-      if (!reader_->getnext(*record)) {
+      const bool advanced = reader_->getnext(*record);
+      check_stream();
+      if (!advanced) {
         mutex_.Await(absl::Condition(
             +[](PyMoleculeReader *self) {
               return !self->pending_.empty() || self->in_flight_ == 0;
@@ -155,6 +176,7 @@ private:
       throw py::value_error(what);
   }
 
+  PyStreamBuf *pybuf_ = nullptr;
   std::unique_ptr<std::istream> stream_;
   std::unique_ptr<MoleculeReader> reader_;
 
@@ -255,6 +277,58 @@ The returned object is an iterator of molecules.
 >>> for mol in nuri.readstring("smi", "C"):
 ...     print(mol[0].atomic_number)
 6
+
+.. note::
+  The yielded molecules always have finite coordinates; NaN or infinite
+  coordinates are considered an error.
+)doc")
+      .def(
+          "readstream",
+          [](std::string_view fmt, IO stream, bool sanitize,
+             bool skip_on_error) {
+            return masquerade_cast<pyt::Iterator<PyMol>>(
+                std::make_unique<PyMoleculeReader>(
+                    std::make_unique<PyIStream>(std::move(stream)), fmt,
+                    sanitize, skip_on_error));
+          },
+          py::arg("fmt"), py::arg("stream"), py::arg("sanitize") = true,
+          py::arg("skip_on_error") = false,
+          R"doc(
+Read molecules from a file-like object.
+
+:param fmt: The format of the stream.
+:param stream: A readable file-like object. Its ``read(n)`` method must return
+  :class:`bytes` (binary mode) or :class:`str` (text mode; encoded as UTF-8
+  before parsing). Binary mode is recommended: some formats (e.g. PDB) must
+  seek, and only seekable binary streams support this.
+:param sanitize: Whether to sanitize the produced molecule. For formats that is
+  known to produce molecules with insufficient bond information (e.g. PDB), this
+  option will trigger guessing based on the 3D coordinates
+  (:func:`nuri.algo.guess_everything()`).
+:param skip_on_error: Whether to skip a molecule if an error occurs, instead of
+  raising an exception.
+:raises TypeError: If `stream` has no ``read()`` method, or ``read()`` returns
+  an object that is neither bytes-like nor :class:`str`.
+:raises OSError: If the format requires seeking but `stream` does not support
+  it, e.g. a text-mode or non-seekable stream. Streams from the :mod:`io` module
+  raise :exc:`io.UnsupportedOperation` in that case.
+:raises ValueError: If the format is unknown, or if a molecule cannot be read
+  or sanitized, unless `skip_on_error` is set.
+
+The returned object is an iterator of molecules. Any exception raised by
+`stream` while reading propagates from the iterator regardless of
+`skip_on_error`; molecules read before the failure are still yielded.
+
+>>> import io
+>>> for mol in nuri.readstream("smi", io.StringIO("C")):
+...     print(mol[0].atomic_number)
+6
+
+Compressed files can be read without decompressing them to disk:
+
+>>> import gzip
+>>> with gzip.open("molecules.sdf.gz", "rb") as f:  # doctest: +SKIP
+...     mols = list(nuri.readstream("sdf", f))
 
 .. note::
   The yielded molecules always have finite coordinates; NaN or infinite

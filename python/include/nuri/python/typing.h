@@ -9,6 +9,7 @@
 #include <string_view>
 #include <utility>
 
+#include <abstract.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/typing.h>
@@ -44,6 +45,12 @@ public:
   using object::object;
   // NOLINTNEXTLINE(google-explicit-constructor)
   As(py::object obj) noexcept: py::object(std::move(obj)) { }
+};
+
+class IO: public py::object {
+public:
+  PYBIND11_OBJECT_DEFAULT(IO, object, PyObject_Type)
+  using object::object;
 };
 
 constexpr inline std::string_view kAbcSequence = "Sequence";
@@ -82,6 +89,12 @@ struct handle_type_name<nuri::python_internal::MutableMapping<K, V>> {
   constexpr static auto name = const_name("collections.abc.MutableMapping[")
                                + make_caster<K>::name + const_name(", ")
                                + make_caster<V>::name + const_name("]");
+};
+
+template <>
+struct handle_type_name<nuri::python_internal::IO> {
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  constexpr static auto name = const_name("typing.IO");
 };
 
 template <class T>

@@ -65,7 +65,7 @@ function(nuri_python_add_module name)
   string(REGEX REPLACE "\\._" "." target_name "${target_name}")
 
   pybind11_add_module("${target_name}" OPT_SIZE "${sources}")
-  target_link_libraries("${target_name}" PRIVATE "${PROJECT_NAME}::NuriLib")
+  target_link_libraries("${target_name}" PRIVATE "${PROJECT_NAME}::NuriPyLib")
   target_compile_definitions(
     "${target_name}"
     PRIVATE "NURI_PYTHON_MODULE_NAME=${name}"
