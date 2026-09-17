@@ -1,6 +1,8 @@
 # pyright: reportUnusedImport=false
 # ruff: noqa
 
+from __future__ import annotations
+
 import itertools
 import logging
 import math
@@ -24,6 +26,12 @@ from scipy.spatial.transform import Rotation as R
 from tqdm import tqdm
 
 app = typer.Typer(pretty_exceptions_enable=False)
+
+
+def _pairwise(iterable):
+    a, b = itertools.tee(iterable)
+    next(b, None)
+    return zip(a, b)
 
 
 def _normalize(v: np.ndarray) -> np.ndarray:
@@ -75,7 +83,7 @@ def _find_contacts_pairs(
     pairs = kdt.query_ball_tree(kdt, approx_cutoff * 2)
 
     contacts: list[Contact] = []
-    for i, (pi, sri, js) in enumerate(zip(kdt.data, sasr, pairs, strict=True)):
+    for i, (pi, sri, js) in enumerate(zip(kdt.data, sasr, pairs)):
         js = np.array(js)
         js = js[js > i]
         if js.size == 0:
@@ -152,10 +160,10 @@ class Vertex:
     right_begin: bool
 
 
-@dataclass(kw_only=True)
+@dataclass
 class Edge(ToroidSegment):
-    left: Intersection
-    right: Intersection
+    left: Intersection = None  # type: ignore[assignment]
+    right: Intersection = None  # type: ignore[assignment]
 
     def __post_init__(self):
         self.full = False
@@ -361,8 +369,7 @@ def _sas_arcs(
         tests = _points_on_circle_center(tij, mid[:, None])
         for test, ((b, ba), (e, ea)) in zip(
             tests,
-            itertools.pairwise(zip(vs, phis)),
-            strict=True,
+            _pairwise(zip(vs, phis)),
         ):
             if _probe_no_contact(kdt, allowed, test, sasr, cutoff, eps=eps):
                 segs.append(
@@ -863,7 +870,7 @@ def _concave_inside_angles_signs(
     angles: dict[int, tuple[float, float]] = {}
     normals = []
     signs = []
-    for p, (ci, cj, ck) in zip(probes, bcircles, strict=True):
+    for p, (ci, cj, ck) in zip(probes, bcircles):
         ijk = p.on
         triangle = (pts[ijk] - p.pt) / sasr[ijk, None]
 
@@ -911,7 +918,6 @@ def _concave_intersections(
         pcircles,
         bnormals,
         bsigns,
-        strict=True,
     ):
         for ci, cj in itertools.combinations(circles, 2):
             inter = _circle_intersections(pi, rprobe, ci, cj, eps=eps)
@@ -1007,8 +1013,7 @@ def _concave_arcs(
         tests = _points_on_circle_center(tij, mid[:, None])
         for test, ((b, ba), (e, ea)) in zip(
             tests,
-            itertools.pairwise(zip(vs, angles)),
-            strict=True,
+            _pairwise(zip(vs, angles)),
         ):
             if len(tij.on) == 1 and not _point_on_arc(
                 test,
@@ -1095,7 +1100,6 @@ def _concave_patches(
                 pxm,
                 normals,
                 signs,
-                strict=True,
             )
         )
     ]
