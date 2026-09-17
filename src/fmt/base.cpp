@@ -13,6 +13,7 @@
 #include <istream>
 #include <iterator>
 #include <memory>
+#include <streambuf>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -222,4 +223,49 @@ void ReversedStream::read_block() {
     is_->setstate(std::ios::eofbit);
   }
 }
+
+namespace internal {
+ViewStreamBuf::ViewStreamBuf(std::string_view data) {
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+  char *begin = const_cast<char *>(data.data());
+  setg(begin, begin, begin + data.size());
+}
+
+ViewStreamBuf::pos_type ViewStreamBuf::seekoff(off_type off,
+                                               std::ios_base::seekdir dir,
+                                               std::ios_base::openmode which) {
+  static const pos_type bad_pos = static_cast<off_type>(-1);
+
+  if ((which & std::ios_base::in) == 0)
+    return bad_pos;
+
+  off_type base = 0;
+  if (dir == std::ios_base::cur) {
+    base = gptr() - eback();
+  } else if (dir == std::ios_base::end) {
+    base = egptr() - eback();
+  }
+
+  const off_type pos = base + off;
+  if (pos < 0 || pos > egptr() - eback())
+    return bad_pos;
+
+  setg(eback(), eback() + pos, egptr());
+  return pos;
+}
+
+ViewStreamBuf::int_type ViewStreamBuf::underflow() {
+  if (gptr() < egptr())
+    return traits_type::to_int_type(*gptr());
+  return traits_type::eof();
+}
+
+std::streamsize ViewStreamBuf::showmanyc() {
+  std::streamsize c = egptr() - gptr();
+  if (c <= 0)
+    return -1;
+  return c;
+}
+
+}  // namespace internal
 }  // namespace nuri

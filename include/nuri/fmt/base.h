@@ -9,9 +9,11 @@
 //! @cond
 #include <cstddef>
 #include <initializer_list>
+#include <ios>
 #include <istream>
 #include <iterator>
 #include <memory>
+#include <streambuf>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -320,6 +322,49 @@ namespace internal {
   private:
     std::string data_;
     std::vector<int> segments_ { 0 };
+  };
+
+  /**
+   * @brief Read-only std::streambuf over a borrowed character range.
+   * @note The range must outlive the buffer.
+   */
+  class ViewStreamBuf final: public std::streambuf {
+  public:
+    explicit ViewStreamBuf(std::string_view data);
+
+  protected:
+    int_type underflow() override;
+
+    std::streamsize showmanyc() override;
+
+    pos_type seekoff(off_type off, std::ios_base::seekdir dir,
+                     std::ios_base::openmode which) override;
+
+    pos_type seekpos(pos_type pos, std::ios_base::openmode which) override {
+      return seekoff(static_cast<off_type>(pos), std::ios_base::beg, which);
+    }
+  };
+
+  /**
+   * @brief Seekable std::istream over a borrowed character range, without
+   *        copying it.
+   * @note The range must outlive the stream.
+   */
+  class ViewIStream final: public std::istream {
+  public:
+    explicit ViewIStream(std::string_view data)
+        : std::istream(nullptr), buf_(data) {
+      rdbuf(&buf_);
+    }
+
+    ViewIStream(const ViewIStream &) = delete;
+    ViewIStream &operator=(const ViewIStream &) = delete;
+    ViewIStream(ViewIStream &&) = delete;
+    ViewIStream &operator=(ViewIStream &&) = delete;
+    ~ViewIStream() noexcept override = default;
+
+  private:
+    ViewStreamBuf buf_;
   };
 
   /**

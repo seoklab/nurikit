@@ -6,6 +6,7 @@
 #include "nuri/fmt/base.h"
 
 #include <cstddef>
+#include <ios>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -176,6 +177,90 @@ TEST(TextBlockTest, ClearReuse) {
   block.push_back("c");
   ASSERT_EQ(block.size(), 1);
   EXPECT_EQ(block[0], "c");
+}
+
+std::streamoff pos_of(std::istream &is) {
+  return static_cast<std::streamoff>(is.tellg());
+}
+
+TEST(ViewIStreamTest, GetlineMatchesIstringstream) {
+  constexpr std::string_view data = "line1\nline2\n\nline4";
+  internal::ViewIStream vis(data);
+  std::istringstream iss(std::string { data });
+
+  std::string expected, actual;
+  while (std::getline(iss, expected)) {
+    ASSERT_TRUE(std::getline(vis, actual));
+    EXPECT_EQ(actual, expected);
+  }
+  EXPECT_FALSE(std::getline(vis, actual));
+  EXPECT_TRUE(vis.eof());
+}
+
+TEST(ViewIStreamTest, Empty) {
+  internal::ViewIStream vis(std::string_view {});
+  std::string line;
+  EXPECT_FALSE(std::getline(vis, line));
+
+  vis.clear();
+  vis.seekg(0, std::ios::end);
+  EXPECT_EQ(pos_of(vis), 0);
+
+  vis.clear();
+  ReversedStream reversed(vis);
+  EXPECT_FALSE(reversed.getline(line));
+}
+
+TEST(ViewIStreamTest, Seek) {
+  internal::ViewIStream vis("0123456789");
+
+  vis.seekg(2);
+  EXPECT_EQ(pos_of(vis), 2);
+  EXPECT_EQ(vis.get(), '2');
+
+  vis.seekg(-3, std::ios::end);
+  EXPECT_EQ(pos_of(vis), 7);
+  EXPECT_EQ(vis.get(), '7');
+
+  vis.seekg(-2, std::ios::cur);
+  EXPECT_EQ(pos_of(vis), 6);
+  vis.seekg(0, std::ios::cur);
+  EXPECT_EQ(pos_of(vis), 6);
+
+  vis.seekg(0, std::ios::end);
+  EXPECT_EQ(pos_of(vis), 10);
+  EXPECT_EQ(vis.get(), std::char_traits<char>::eof());
+
+  vis.clear();
+  vis.seekg(11);
+  EXPECT_TRUE(vis.fail());
+  vis.clear();
+  EXPECT_EQ(pos_of(vis), 10);
+
+  vis.seekg(-1, std::ios::beg);
+  EXPECT_TRUE(vis.fail());
+  vis.clear();
+  EXPECT_EQ(pos_of(vis), 10);
+}
+
+TEST(ViewIStreamTest, ReadBackwardsLines) {
+  internal::ViewIStream vis("line1\nline2\nline3\nline4");
+  ReversedStream reversed(vis, '\n', 7);
+
+  std::string line;
+  ASSERT_TRUE(reversed.getline(line));
+  EXPECT_EQ(line, "line4");
+
+  ASSERT_TRUE(reversed.getline(line));
+  EXPECT_EQ(line, "line3");
+
+  ASSERT_TRUE(reversed.getline(line));
+  EXPECT_EQ(line, "line2");
+
+  ASSERT_TRUE(reversed.getline(line));
+  EXPECT_EQ(line, "line1");
+
+  ASSERT_FALSE(reversed.getline(line));
 }
 
 TEST(EscapeTest, EscapeAll) {

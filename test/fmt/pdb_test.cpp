@@ -530,6 +530,22 @@ TEST(PDBReaderTest, RetainedTextReplaysHeaderAndFooterPerModel) {
   EXPECT_TRUE(record.text().empty());
 }
 
+TEST(PDBReaderTest, ReadsFromViewStream) {
+  internal::ViewIStream input(kTwoModelPdb);
+  PDBReader reader(input);
+
+  Molecule first = internal::must_parse_first(reader.next()->parse());
+  EXPECT_EQ(first.num_atoms(), 2);
+  EXPECT_EQ(first.num_bonds(), 1);
+
+  Molecule second = internal::must_parse_first(reader.next()->parse());
+  EXPECT_EQ(second.num_atoms(), 2);
+  EXPECT_EQ(second.num_bonds(), 1);
+  EXPECT_EQ(internal::get_key(second.props(), "model"), "2");
+
+  EXPECT_EQ(reader.next()->parse().status(), ParseStatus::kEOF);
+}
+
 TEST(PDBEmptyTest, HeaderOnly) {
   std::istringstream iss(
       "HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY\n");
