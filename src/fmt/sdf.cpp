@@ -257,7 +257,7 @@ void read_sdf_extra(Molecule &mol, Iterator it, const Iterator end) {
     if (!data.empty())
       data.pop_back();
 
-    mol.add_prop(std::string(key), data);
+    mol.add_prop(key, std::move(data));
 
     if (it == end)
       break;
@@ -489,7 +489,7 @@ ParseLineResult read_v2000_property_block(Molecule &mol,
     read_iso(mol, line);
   } else if (key != "END") {
     ABSL_LOG(INFO) << "Unimplemented property block: " << key;
-    mol.add_prop(std::string(key), std::string(line.substr(3)));
+    mol.add_prop(key, line.substr(3));
   }
 
   return ParseLineResult::kProp;
