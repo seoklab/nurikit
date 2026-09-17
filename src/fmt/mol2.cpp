@@ -211,11 +211,11 @@ constexpr auto atom_line = *x3::omit[x3::blank]         //
                                      >> -x3::double_))
                            >> x3::omit[+x3::space | x3::eoi];
 using AtomLine = std::tuple<
-    unsigned int, std::string, absl::InlinedVector<double, 3>, std::string,
+    unsigned int, SvRange, absl::InlinedVector<double, 3>, std::string,
     boost::optional<std::string>,
     boost::optional<std::pair<
         unsigned int,
-        boost::optional<std::pair<std::string, boost::optional<double>>>>>>;
+        boost::optional<std::pair<SvRange, boost::optional<double>>>>>>;
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
@@ -225,7 +225,7 @@ void process_optional_attrs(
         &substructs,
     boost::optional<std::pair<
         unsigned int,
-        boost::optional<std::pair<std::string, boost::optional<double>>>>>
+        boost::optional<std::pair<parser::SvRange, boost::optional<double>>>>>
         &attrs) {
   if (!attrs) {
     return;
@@ -238,7 +238,7 @@ void process_optional_attrs(
     return;
   }
 
-  substruct.second = std::move(attrs->second->first);
+  substruct.second = as_sv(attrs->second->first);
   if (!attrs->second->second) {
     return;
   }
@@ -262,7 +262,6 @@ std::pair<bool, bool> parse_atom_block(
       continue;
     }
 
-    std::get<1>(tokens).clear();
     std::get<2>(tokens).clear();
     std::get<3>(tokens).clear();
     std::get<4>(tokens) = boost::none;
@@ -468,7 +467,7 @@ const auto substructure_line = *x3::omit[x3::blank]         //
                                >> nonblank_trailing_blanks  //
                                >> +x3::omit[x3::digit]
                                >> x3::omit[+x3::space | x3::eoi];
-using SubstructureLine = std::pair<unsigned int, std::string>;
+using SubstructureLine = std::pair<unsigned int, SvRange>;
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
@@ -482,10 +481,7 @@ bool parse_substructure_block(Molecule &mol, Iter &it, const Iter end) {
       continue;
     }
 
-    data.second.clear();
-
     auto lit = line.begin();
-
     if (!x3::parse(lit, line.end(), parser::substructure_line, data)) {
       ABSL_LOG(WARNING) << "Failed to parse substructure line";
       ABSL_LOG(INFO) << "The line is: " << line;
@@ -494,7 +490,7 @@ bool parse_substructure_block(Molecule &mol, Iter &it, const Iter end) {
 
     Substructure &sub = mol.substructures().emplace_back(mol.substructure());
     sub.set_id(static_cast<int>(data.first));
-    sub.name() = std::move(data.second);
+    sub.name() = as_sv(data.second);
   }
 
   return true;

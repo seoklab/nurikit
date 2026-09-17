@@ -28,6 +28,7 @@
 #include <boost/spirit/home/x3.hpp>
 
 #include "nuri/eigen_config.h"
+#include "fmt_internal.h"
 #include "nuri/fmt/parse_result.h"
 #include "nuri/utils.h"
 
@@ -142,13 +143,6 @@ constexpr absl::CharSet kSpecialChars = absl::CharSet::Range(0, 32)
                                         | absl::CharSet::Char(127)
                                         | absl::CharSet("$_[]");
 
-std::string_view as_sv(SIter begin, SIter end) {
-  return { &*begin, static_cast<size_t>(end - begin) };
-}
-
-std::string_view as_sv(boost::iterator_range<SIter> range) {
-  return { &*range.begin(), range.size() };
-}
 }  // namespace
 
 namespace internal {
@@ -163,7 +157,7 @@ std::pair<std::string_view, CifToken> produce_quoted(CifLexer &lexer,
     if (!x3::parse(qit, lexer.end(), parser, quote_match))
       continue;
 
-    return lexer.produce(as_sv(lexer.p() + 1, quote_match.begin()),
+    return lexer.produce(xas_sv(lexer.p() + 1, quote_match.begin()),
                          CifToken::kQuotedValue, quote_match.end());
   }
 
@@ -247,7 +241,7 @@ std::pair<std::string_view, CifToken> CifLexer::next() {
 
     std::pair<CifToken, boost::iterator_range<SIter>> kw_match;
     if (x3::parse(p(), end(), parser::keyword, kw_match))
-      return produce(as_sv(kw_match.second), kw_match.first,
+      return produce(xas_sv(kw_match.second), kw_match.first,
                      kw_match.second.end());
 
     switch (c()) {

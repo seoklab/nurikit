@@ -562,7 +562,7 @@ namespace parser {
 constexpr auto v3000_line_header = kV3000LineHeaderCStr >> +x3::omit[x3::blank];
 
 constexpr auto v3000_meta_line_noheader =  //
-    *x3::omit[x3::blank] >> nonblank_trailing_blanks >> +~x3::blank;
+    *x3::omit[x3::blank] >> nonblank_trailing_blanks >> x3::raw[+~x3::blank];
 
 constexpr auto v3000_begin_block =  //
     v3000_line_header               //
@@ -592,7 +592,7 @@ constexpr auto v3000_atom_line =              //
     >> x3::omit[x3::space | x3::eoi];
 
 using AtomLine =
-    std::tuple<unsigned int, std::string, absl::InlinedVector<double, 3>, int,
+    std::tuple<unsigned int, SvRange, absl::InlinedVector<double, 3>, int,
                std::vector<std::pair<std::string, std::optional<int>>>>;
 
 constexpr auto v3000_bond_line =             //
@@ -693,7 +693,6 @@ bool try_read_v3000_atom_block(MoleculeMutator &mut,
   for (; ++it < end;) {
     line = reader.getline(it, end);
 
-    std::get<1>(parsed).clear();
     std::get<2>(parsed).clear();
     std::get<4>(parsed).clear();
 
@@ -701,7 +700,7 @@ bool try_read_v3000_atom_block(MoleculeMutator &mut,
       break;
 
     AtomData data;
-    if (!parse_sdf_atom(data, std::get<1>(parsed)))
+    if (!parse_sdf_atom(data, as_sv(std::get<1>(parsed))))
       break;
 
     coords.emplace_back(std::get<2>(parsed)[0], std::get<2>(parsed)[1],
@@ -804,7 +803,7 @@ bool try_read_v3000_optionals(MoleculeMutator &mut, Iterator &it,
   std::stack<std::string, std::vector<std::string>> tokens;
   tokens.push("CTAB");
 
-  std::pair<std::string, std::string> parsed;
+  std::pair<parser::SvRange, parser::SvRange> parsed;
 
   for (; it < end && !tokens.empty(); ++it) {
     std::string_view line = reader.getline(it, end);
@@ -812,15 +811,15 @@ bool try_read_v3000_optionals(MoleculeMutator &mut, Iterator &it,
       break;
 
     line = line.substr(kV3000LineHeader.size());
-    parsed.first.clear();
-    parsed.second.clear();
     if (!x3::parse(line.begin(), line.end(), parser::v3000_meta_line_noheader,
                    parsed))
       continue;
 
-    if (parsed.first == "BEGIN") {
-      if (parsed.second != "BOND") {
-        tokens.push(parsed.second);
+    const std::string_view directive = as_sv(parsed.first),
+                           block = as_sv(parsed.second);
+    if (directive == "BEGIN") {
+      if (block != "BOND") {
+        tokens.emplace(block);
         continue;
       }
 
@@ -833,9 +832,9 @@ bool try_read_v3000_optionals(MoleculeMutator &mut, Iterator &it,
         ABSL_LOG(WARNING) << "Block ended before END directive";
         break;
       }
-    } else if (parsed.first == "END") {
-      if (tokens.top() != parsed.second) {
-        ABSL_LOG(ERROR) << "Mismatched V3000 END directive: " << parsed.second
+    } else if (directive == "END") {
+      if (tokens.top() != block) {
+        ABSL_LOG(ERROR) << "Mismatched V3000 END directive: " << block
                         << " != " << tokens.top();
         return false;
       }
