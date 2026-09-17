@@ -212,8 +212,8 @@ constexpr auto update_charge_minuses = [](auto &ctx) {
 };
 
 const auto charge = (x3::char_("+-") >> x3::uint_)[update_charge_number]
-                    | (+x3::char_('+'))[update_charge_pluses]
-                    | (+x3::char_('-'))[update_charge_minuses];
+                    | x3::raw[+x3::lit('+')][update_charge_pluses]
+                    | x3::raw[+x3::lit('-')][update_charge_minuses];
 
 constants::BondOrder char_to_bond(char b) {
   switch (b) {
