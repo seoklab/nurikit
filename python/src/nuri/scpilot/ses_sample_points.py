@@ -50,7 +50,7 @@ from typing import Dict, List, Sequence, Tuple
 import numpy as np
 import typer
 
-import anal as sesdata
+from . import anal as sesdata
 
 app = typer.Typer(pretty_exceptions_enable=False)
 
