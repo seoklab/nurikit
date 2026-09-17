@@ -220,10 +220,12 @@ using AtomLine = std::tuple<
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
+using SubstructMap =
+    absl::flat_hash_map<unsigned int,
+                        std::pair<std::vector<int>, std::string_view>>;
+
 void process_optional_attrs(
-    Molecule::MutableAtom atom,
-    absl::flat_hash_map<unsigned int, std::pair<std::vector<int>, std::string>>
-        &substructs,
+    Molecule::MutableAtom atom, SubstructMap &substructs,
     boost::optional<std::pair<
         unsigned int,
         boost::optional<std::pair<parser::SvRange, boost::optional<double>>>>>
@@ -232,7 +234,7 @@ void process_optional_attrs(
     return;
   }
 
-  std::pair<std::vector<int>, std::string> &substruct =
+  std::pair<std::vector<int>, std::string_view> &substruct =
       substructs[attrs->first];
   substruct.first.push_back(atom.id());
   if (!attrs->second) {
@@ -247,12 +249,11 @@ void process_optional_attrs(
   atom.data().set_partial_charge(*attrs->second->second);
 }
 
-std::pair<bool, bool> parse_atom_block(
-    MoleculeMutator &mutator, std::vector<Vector3d> &pos,
-    std::vector<int> &ccat,
-    absl::flat_hash_map<unsigned int, std::pair<std::vector<int>, std::string>>
-        &substructs,
-    Iter &it, const Iter end) {
+std::pair<bool, bool> parse_atom_block(MoleculeMutator &mutator,
+                                       std::vector<Vector3d> &pos,
+                                       std::vector<int> &ccat,
+                                       SubstructMap &substructs, Iter &it,
+                                       const Iter end) {
   parser::AtomLine tokens;
   bool has_hydrogen = false;
 
@@ -306,7 +307,7 @@ std::pair<bool, bool> parse_atom_block(
                              as_sv(*optional_subtype), ccat);
     }
 
-    int idx = mutator.add_atom(data);
+    int idx = mutator.add_atom(std::move(data));
 
     auto &optional_attrs = std::get<5>(tokens);
     process_optional_attrs(mutator.mol().atom(idx), substructs, optional_attrs);
@@ -379,8 +380,8 @@ bool parse_bond_block(MoleculeMutator &mutator, Iter &it, const Iter end) {
       return false;
     }
 
-    auto [_, success] =
-        mutator.register_bond(mol_ids[0], mol_ids[1], std::get<1>(tokens));
+    auto [_, success] = mutator.register_bond(mol_ids[0], mol_ids[1],
+                                              std::move(std::get<1>(tokens)));
     if (!success) {
       ABSL_LOG(WARNING) << "Failed to add bond " << ids[0] << " -> " << ids[1]
                         << "; check mol2 file consistency";
@@ -440,8 +441,7 @@ std::pair<bool, bool> parse_atom_attr_block(Molecule &mol, Iter &it,
           absl::StrSplit(*it, ' ', absl::SkipEmpty());
 
       if (tokens.first != "charge") {
-        mol.atom(ids[0]).data().add_prop(std::string(tokens.first),
-                                         std::string(tokens.second));
+        mol.atom(ids[0]).data().add_prop(tokens.first, tokens.second);
         continue;
       }
 
@@ -565,8 +565,7 @@ ParseResult<Molecule> read_mol2(const internal::TextBlock &mol2) {
   Molecule mol;
   std::vector<Vector3d> pos;
   std::vector<int> ccat;
-  absl::flat_hash_map<unsigned int, std::pair<std::vector<int>, std::string>>
-      substructs;
+  SubstructMap substructs;
   bool success = true, has_hydrogen = false, has_fcharge = false;
   bool atom_parsed = false;
 
