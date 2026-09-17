@@ -289,6 +289,41 @@ def test_unencodable_text():
         next(nuri.readstream("smi", _ReadReturns("C\udc80\n")))
 
 
+@pytest.mark.parametrize("fmt", sorted(FORMATS))
+@pytest.mark.parametrize("wrap", [bytes, bytearray, memoryview])
+def test_readstring_bytes_like(fmt: str, wrap):
+    text, sanitize = FORMATS[fmt]
+    mols = nuri.readstring(fmt, wrap(text.encode()), sanitize=sanitize)
+    assert [_signature(m) for m in mols] == _expected(fmt)
+
+
+def test_readstring_rejects_non_text():
+    with pytest.raises(TypeError, match="bytes-like or str"):
+        nuri.readstring("smi", 42)
+
+
+def test_readstring_unencodable_text():
+    with pytest.raises(UnicodeEncodeError):
+        nuri.readstring("smi", "C\udc80\n")
+
+
+def test_readstring_copies_mutable_buffer():
+    buf = bytearray(smi_data.encode())
+    mols = nuri.readstring("smi", buf)
+    buf[:] = b"\0" * len(buf)
+    assert [_signature(m) for m in mols] == _expected("smi")
+
+
+def test_readstring_large_matches_readfile(tmp_path: Path):
+    text = sdf_data * 2000
+    path = _write(tmp_path, text)
+    expected = [_signature(m) for m in nuri.readfile("sdf", path)]
+    assert [_signature(m) for m in nuri.readstring("sdf", text)] == expected
+    assert [
+        _signature(m) for m in nuri.readstring("sdf", text.encode())
+    ] == expected
+
+
 class _SeekReturnsNone:
     def __init__(self, data: bytes):
         self._buf = io.BytesIO(data)

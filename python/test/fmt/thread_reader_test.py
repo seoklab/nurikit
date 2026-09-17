@@ -118,21 +118,16 @@ _atom_site.Cartn_z
 
 @pytest.mark.parametrize("shared", [True, False])
 @pytest.mark.parametrize("skip_on_error", [False, True])
-@pytest.mark.parametrize("via_stream", [False, True])
-def test_concurrent_readers(threaded_input, shared, skip_on_error, via_stream):
+@pytest.mark.parametrize("source", ["str", "bytes", "stream"])
+def test_concurrent_readers(threaded_input, shared, skip_on_error, source):
     fmt, text = threaded_input
 
     def reader():
-        if via_stream:
-            return nuri.readstream(
-                fmt,
-                io.BytesIO(text.encode()),
-                sanitize=fmt != "mmcif",
-                skip_on_error=skip_on_error,
-            )
-        return nuri.readstring(
-            fmt, text, sanitize=fmt != "mmcif", skip_on_error=skip_on_error
-        )
+        kwargs = dict(sanitize=fmt != "mmcif", skip_on_error=skip_on_error)
+        if source == "stream":
+            return nuri.readstream(fmt, io.BytesIO(text.encode()), **kwargs)
+        data = text if source == "str" else text.encode()
+        return nuri.readstring(fmt, data, **kwargs)
 
     expected = Counter(_consume(reader()))
     assert any(key[0] == "mol" for key in expected)

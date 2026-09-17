@@ -10,6 +10,7 @@
 #include <istream>
 #include <optional>
 #include <streambuf>
+#include <string_view>
 #include <utility>
 
 #include <pybind11/pybind11.h>
@@ -67,6 +68,17 @@ public:
 private:
   PyStreamBuf buf_;
 };
+
+/**
+ * @brief Borrow the UTF-8 text of a str or the bytes of a bytes-like object.
+ *
+ * A bytes-like object other than bytes is replaced with an owning bytes copy.
+ * The returned view is valid as long as (the possibly reassigned) @p obj
+ * lives. Requires the GIL.
+ * @throws py::error_already_set TypeError if @p obj is neither bytes-like nor
+ *         str.
+ */
+PYBIND11_EXPORT std::string_view borrow_utf8(py::object &obj);
 }  // namespace python_internal
 }  // namespace nuri
 

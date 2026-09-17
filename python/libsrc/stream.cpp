@@ -5,8 +5,10 @@
 
 #include "nuri/python/stream.h"
 
+#include <cstddef>
 #include <ios>
 #include <optional>
+#include <string_view>
 #include <utility>
 
 #include <abstract.h>
@@ -17,8 +19,6 @@
 #include <pybind11/gil.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
-
-#include "nuri/utils.h"
 
 namespace nuri {
 namespace python_internal {
@@ -68,35 +68,6 @@ PyStreamBuf::pos_type PyStreamBuf::seekoff(off_type off,
   }
 }
 
-namespace {
-internal::Nonnull<const char *> read_chunk(py::object &chunk,
-                                           Py_ssize_t &size) {
-  if (py::isinstance<py::str>(chunk)) {
-    const char *data = PyUnicode_AsUTF8AndSize(chunk.ptr(), &size);
-    if (data == nullptr)
-      throw py::error_already_set();
-    return data;
-  }
-
-  if (!py::isinstance<py::bytes>(chunk)) {
-    if (!py::isinstance<py::buffer>(chunk)) {
-      py::str msg = py::str("read() must return bytes-like or str, got {!r}")
-                        .format(py::type::of(chunk));
-      py::set_error(PyExc_TypeError, msg);
-      throw py::error_already_set();
-    }
-    chunk = py::reinterpret_steal<py::object>(PyBytes_FromObject(chunk.ptr()));
-    if (!chunk)
-      throw py::error_already_set();
-  }
-
-  char *raw;
-  if (PyBytes_AsStringAndSize(chunk.ptr(), &raw, &size) < 0 || raw == nullptr)
-    throw py::error_already_set();
-  return raw;
-}
-}  // namespace
-
 PyStreamBuf::int_type PyStreamBuf::fill() {
   constexpr py::ssize_t chunk_size = 1 << 16;
 
@@ -106,15 +77,14 @@ PyStreamBuf::int_type PyStreamBuf::fill() {
   if (chunk.is_none())
     return traits_type::eof();
 
-  Py_ssize_t size;
-  const char *data = read_chunk(chunk, size);
-  if (size == 0)
+  const std::string_view data = borrow_utf8(chunk);
+  if (data.empty())
     return traits_type::eof();
 
   chunk_ = std::move(chunk);
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-  char *begin = const_cast<char *>(data);
-  setg(begin, begin, begin + size);
+  char *begin = const_cast<char *>(data.data());
+  setg(begin, begin, begin + data.size());
   return traits_type::to_int_type(*begin);
 }
 
@@ -150,6 +120,34 @@ PyStreamBuf::pos_type PyStreamBuf::seek(off_type off,
   if (ret.is_none())
     return pos_type(as_offset(stream_.attr("tell")()));
   return pos_type(as_offset(ret));
+}
+
+std::string_view borrow_utf8(py::object &obj) {
+  Py_ssize_t size;
+
+  if (py::isinstance<py::str>(obj)) {
+    const char *data = PyUnicode_AsUTF8AndSize(obj.ptr(), &size);
+    if (data == nullptr)
+      throw py::error_already_set();
+    return { data, static_cast<std::size_t>(size) };
+  }
+
+  if (!py::isinstance<py::bytes>(obj)) {
+    if (!py::isinstance<py::buffer>(obj)) {
+      py::str msg = py::str("expected bytes-like or str, got {!r}")
+                        .format(py::type::of(obj));
+      py::set_error(PyExc_TypeError, msg);
+      throw py::error_already_set();
+    }
+    obj = py::reinterpret_steal<py::object>(PyBytes_FromObject(obj.ptr()));
+    if (!obj)
+      throw py::error_already_set();
+  }
+
+  char *raw;
+  if (PyBytes_AsStringAndSize(obj.ptr(), &raw, &size) < 0 || raw == nullptr)
+    throw py::error_already_set();
+  return { raw, static_cast<std::size_t>(size) };
 }
 }  // namespace python_internal
 }  // namespace nuri
