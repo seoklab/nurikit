@@ -98,7 +98,7 @@ if [[ -n $diff_base ]]; then
 	}
 
 	mapfile -d '' -t tidy_paths < <(
-		list-changed 'include/*' 'src/*' 'python/include/*' 'python/src/*'
+		list-changed 'include/*' 'src/*' 'python/include/*' 'python/*src/*'
 	)
 
 	mapfile -d '' -t format_paths < <(list-changed 'test/*')
