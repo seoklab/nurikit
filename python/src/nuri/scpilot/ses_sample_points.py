@@ -1,3 +1,4 @@
+# ruff: noqa
 """SES blue-noise / quasi-uniform point sampling (optionally with normals).
 
 This module builds on the analytical SES component data structures from

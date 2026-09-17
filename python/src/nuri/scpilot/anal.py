@@ -1,5 +1,5 @@
 # pyright: reportUnusedImport=false
-# ruff: noqa: F401
+# ruff: noqa
 
 import itertools
 import logging

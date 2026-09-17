@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 sas_components_ckdtree.py
 

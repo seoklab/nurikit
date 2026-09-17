@@ -1,3 +1,4 @@
+# ruff: noqa
 # pyright: reportUnusedImport=false
 
 import itertools

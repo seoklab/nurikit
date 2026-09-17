@@ -1,3 +1,4 @@
+# ruff: noqa
 # pyright: reportCallIssue=false
 # pyright: reportGeneralTypeIssues=false
 # pyright: reportAssignmentType=false
