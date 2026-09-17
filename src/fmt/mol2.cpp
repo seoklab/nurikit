@@ -397,8 +397,8 @@ bool parse_bond_block(MoleculeMutator &mutator, Iter &it, const Iter end) {
 
 // NOLINTBEGIN(readability-identifier-naming)
 namespace parser {
-constexpr auto unity_atom_attr_line = x3::uint_ >> +x3::omit[x3::blank]
-                                      >> x3::uint_
+constexpr auto unity_atom_attr_line = *x3::omit[x3::blank] >> x3::uint_
+                                      >> +x3::omit[x3::blank] >> x3::uint_
                                       >> x3::omit[+x3::space | x3::eoi];
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
