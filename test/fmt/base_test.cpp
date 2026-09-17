@@ -6,6 +6,7 @@
 #include "nuri/fmt/base.h"
 
 #include <cstddef>
+#include <ios>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -91,6 +92,177 @@ TEST(ReversedStreamTest, ReadBackwardsMixed) {
   }
 }
 
+TEST(TextBlockTest, PushBackAndIndex) {
+  internal::TextBlock block;
+  EXPECT_TRUE(block.empty());
+  EXPECT_EQ(block.size(), 0);
+  EXPECT_EQ(block.end() - block.begin(), 0);
+
+  block.push_back("first");
+  block.push_back("");
+  block.push_back("third");
+
+  EXPECT_FALSE(block.empty());
+  EXPECT_EQ(block.size(), 3);
+  EXPECT_EQ(block[0], "first");
+  EXPECT_EQ(block[1], "");
+  EXPECT_EQ(block[2], "third");
+  EXPECT_EQ(block.front(), "first");
+  EXPECT_EQ(block.back(), "third");
+}
+
+TEST(TextBlockTest, EmptyLineIsALine) {
+  internal::TextBlock block;
+  block.push_back("");
+  EXPECT_FALSE(block.empty());
+  EXPECT_EQ(block.size(), 1);
+  EXPECT_EQ(block[0], "");
+}
+
+TEST(TextBlockTest, InitializerList) {
+  internal::TextBlock block { "a", "bc", "" };
+  ASSERT_EQ(block.size(), 3);
+  EXPECT_EQ(block[1], "bc");
+  EXPECT_EQ(block.back(), "");
+}
+
+TEST(TextBlockTest, Iterator) {
+  internal::TextBlock block { "a", "bc", "def" };
+  auto it = block.begin();
+  const auto end = block.end();
+  EXPECT_EQ(end - it, 3);
+  EXPECT_EQ(*it, "a");
+  EXPECT_EQ(it[2], "def");
+
+  ++it;
+  EXPECT_LT(it, end);
+  EXPECT_EQ(*it, "bc");
+
+  it += 2;
+  EXPECT_EQ(it, end);
+
+  --it;
+  EXPECT_EQ(*it, "def");
+
+  std::vector<std::string_view> lines(block.begin(), block.end());
+  EXPECT_EQ(lines, (std::vector<std::string_view> { "a", "bc", "def" }));
+}
+
+TEST(TextBlockTest, Append) {
+  internal::TextBlock block { "x", "yy" };
+  internal::TextBlock other { "", "zzz" };
+  block.append(other);
+  ASSERT_EQ(block.size(), 4);
+  EXPECT_EQ(block[0], "x");
+  EXPECT_EQ(block[1], "yy");
+  EXPECT_EQ(block[2], "");
+  EXPECT_EQ(block[3], "zzz");
+
+  internal::TextBlock empty;
+  block.append(empty);
+  EXPECT_EQ(block.size(), 4);
+
+  empty.append(block);
+  ASSERT_EQ(empty.size(), 4);
+  EXPECT_EQ(empty.front(), "x");
+  EXPECT_EQ(empty.back(), "zzz");
+}
+
+TEST(TextBlockTest, ClearReuse) {
+  internal::TextBlock block { "a", "b" };
+  block.clear();
+  EXPECT_TRUE(block.empty());
+  EXPECT_EQ(block.size(), 0);
+
+  block.push_back("c");
+  ASSERT_EQ(block.size(), 1);
+  EXPECT_EQ(block[0], "c");
+}
+
+std::streamoff pos_of(std::istream &is) {
+  return static_cast<std::streamoff>(is.tellg());
+}
+
+TEST(ViewIStreamTest, GetlineMatchesIstringstream) {
+  constexpr std::string_view data = "line1\nline2\n\nline4";
+  internal::ViewIStream vis(data);
+  std::istringstream iss(std::string { data });
+
+  std::string expected, actual;
+  while (std::getline(iss, expected)) {
+    ASSERT_TRUE(std::getline(vis, actual));
+    EXPECT_EQ(actual, expected);
+  }
+  EXPECT_FALSE(std::getline(vis, actual));
+  EXPECT_TRUE(vis.eof());
+}
+
+TEST(ViewIStreamTest, Empty) {
+  internal::ViewIStream vis(std::string_view {});
+  std::string line;
+  EXPECT_FALSE(std::getline(vis, line));
+
+  vis.clear();
+  vis.seekg(0, std::ios::end);
+  EXPECT_EQ(pos_of(vis), 0);
+
+  vis.clear();
+  ReversedStream reversed(vis);
+  EXPECT_FALSE(reversed.getline(line));
+}
+
+TEST(ViewIStreamTest, Seek) {
+  internal::ViewIStream vis("0123456789");
+
+  vis.seekg(2);
+  EXPECT_EQ(pos_of(vis), 2);
+  EXPECT_EQ(vis.get(), '2');
+
+  vis.seekg(-3, std::ios::end);
+  EXPECT_EQ(pos_of(vis), 7);
+  EXPECT_EQ(vis.get(), '7');
+
+  vis.seekg(-2, std::ios::cur);
+  EXPECT_EQ(pos_of(vis), 6);
+  vis.seekg(0, std::ios::cur);
+  EXPECT_EQ(pos_of(vis), 6);
+
+  vis.seekg(0, std::ios::end);
+  EXPECT_EQ(pos_of(vis), 10);
+  EXPECT_EQ(vis.get(), std::char_traits<char>::eof());
+
+  vis.clear();
+  vis.seekg(11);
+  EXPECT_TRUE(vis.fail());
+  vis.clear();
+  EXPECT_EQ(pos_of(vis), 10);
+
+  vis.seekg(-1, std::ios::beg);
+  EXPECT_TRUE(vis.fail());
+  vis.clear();
+  EXPECT_EQ(pos_of(vis), 10);
+}
+
+TEST(ViewIStreamTest, ReadBackwardsLines) {
+  internal::ViewIStream vis("line1\nline2\nline3\nline4");
+  ReversedStream reversed(vis, '\n', 7);
+
+  std::string line;
+  ASSERT_TRUE(reversed.getline(line));
+  EXPECT_EQ(line, "line4");
+
+  ASSERT_TRUE(reversed.getline(line));
+  EXPECT_EQ(line, "line3");
+
+  ASSERT_TRUE(reversed.getline(line));
+  EXPECT_EQ(line, "line2");
+
+  ASSERT_TRUE(reversed.getline(line));
+  EXPECT_EQ(line, "line1");
+
+  ASSERT_FALSE(reversed.getline(line));
+}
+
 TEST(EscapeTest, EscapeAll) {
   // unicode thumbs up emoji (utf8)
   std::string_view unsafe = " \ta\nb\tc\rd e \xf0\x9f\x91\x8d \n";
@@ -105,7 +277,7 @@ TEST(EscapeTest, EscapeNewlines) {
   EXPECT_EQ(escaped, " \ta b\tc d e ????  ");
 }
 
-ParseResult<Molecule> stub_parse(const std::vector<std::string> &block) {
+ParseResult<Molecule> stub_parse(const internal::TextBlock &block) {
   if (block[0] == "1")
     return ParseResult<Molecule>::error("stub failure");
 
@@ -121,8 +293,7 @@ public:
   DummyReader(std::istream & /* is */) { }
 
   std::unique_ptr<MoleculeRecord> make_record() const override {
-    return std::make_unique<
-        TextRecordImpl<std::vector<std::string>, stub_parse>>();
+    return std::make_unique<TextRecordImpl<internal::TextBlock, stub_parse>>();
   }
 
   bool bond_valid() const override { return true; }
@@ -135,7 +306,7 @@ class DummyReaderFactory: public DefaultReaderFactoryImpl<DummyReader> { };
 
 class StubReader: public MoleculeReader {
 public:
-  using Record = TextRecordImpl<std::vector<std::string>, stub_parse>;
+  using Record = TextRecordImpl<internal::TextBlock, stub_parse>;
 
   std::unique_ptr<MoleculeRecord> make_record() const override {
     return std::make_unique<Record>();
@@ -151,7 +322,7 @@ private:
     if (next_ >= 3)
       return false;
 
-    block.assign(1, std::to_string(next_++));
+    block.push_back(std::to_string(next_++));
     return true;
   }
 

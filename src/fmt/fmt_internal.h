@@ -20,6 +20,7 @@
 #include <boost/container/container_fwd.hpp>
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
+#include <boost/range/iterator_range_core.hpp>
 #include <boost/spirit/home/x3.hpp>
 
 #include "nuri/eigen_config.h"
@@ -160,9 +161,39 @@ void pdb_update_substructs(
 
 // NOLINTNEXTLINE(misc-anonymous-namespace-in-header,google-build-namespaces)
 namespace {
+// NOLINTBEGIN(clang-diagnostic-unused-template)
+
+template <class Iter>
+std::string_view as_sv(Iter begin, Iter end) {
+  ABSL_DCHECK(begin != end);
+  return { &*begin, static_cast<size_t>(end - begin) };
+}
+
+template <class Iter>
+std::string_view xas_sv(Iter begin, Iter end) {
+  if (begin == end)
+    return {};
+  return as_sv(begin, end);
+}
+
+template <class Iter>
+std::string_view as_sv(boost::iterator_range<Iter> range) {
+  return as_sv(range.begin(), range.end());
+}
+
+template <class Iter>
+std::string_view xas_sv(boost::iterator_range<Iter> range) {
+  return xas_sv(range.begin(), range.end());
+}
+
+// NOLINTEND(clang-diagnostic-unused-template)
+
 // NOLINTBEGIN(readability-identifier-naming,*-unused-const-variable)
 namespace parser {
 namespace x3 = boost::spirit::x3;
+
+using SvIter = std::string_view::const_iterator;
+using SvRange = boost::iterator_range<SvIter>;
 
 template <class T>
 struct TrailingBlanksRuleTag;
@@ -182,8 +213,8 @@ struct TrailingBlanksRule: public x3::rule<Tag, T> {
 };
 
 constexpr auto nonblank_trailing_blanks =
-    TrailingBlanksRule<std::string, struct nonblank_trailing_blanks_tag>() =
-        +~x3::blank;
+    TrailingBlanksRule<SvRange, struct nonblank_trailing_blanks_tag>() =
+        x3::raw[+~x3::blank];
 
 constexpr auto double_trailing_blanks = TrailingBlanksRule<double>() =
     x3::double_;

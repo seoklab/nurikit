@@ -71,7 +71,7 @@ const bool SDFReaderFactory::kRegistered =
 namespace {
 namespace x3 = boost::spirit::x3;
 
-using Iterator = std::vector<std::string>::const_iterator;
+using Iterator = internal::TextBlock::const_iterator;
 
 struct HeaderReadResult {
   static HeaderReadResult failure() { return {}; }
@@ -198,16 +198,17 @@ bool parse_sdf_bond(BondData &data, unsigned int type) {
 
 // NOLINTBEGIN(readability-identifier-naming)
 namespace parser {
-constexpr auto
-    sdf_data_header_name = x3::rule<struct SDFDataHeaderName, std::string>("") =
-        '<' >> +(x3::char_ - (x3::lit('<') | '>')) >> '>';
+constexpr auto sdf_data_header_name =
+    x3::rule<struct SDFDataHeaderName, SvRange>("") =
+        '<' >> x3::raw[+(x3::char_ - (x3::lit('<') | '>'))] >> '>';
 
-constexpr auto sdf_data_header_num =
-    x3::rule<struct SDFDataHeaderNum, std::string>("") = "DT" >> +x3::digit;
+constexpr auto sdf_data_header_num =                  //
+    x3::rule<struct SDFDataHeaderNum, SvRange>("") =  //
+    "DT" >> x3::raw[+x3::digit];
 
-constexpr auto sdf_data_header_key =
-    x3::rule<struct SDFDataHeaderKey, std::string>("") =
-        sdf_data_header_name | sdf_data_header_num;
+constexpr auto sdf_data_header_key =                  //
+    x3::rule<struct SDFDataHeaderKey, SvRange>("") =  //
+    sdf_data_header_name | sdf_data_header_num;
 
 constexpr auto sdf_data_header =      //
     '>' >> +(+x3::omit[x3::blank] >>  //
@@ -217,7 +218,7 @@ constexpr auto sdf_data_header =      //
 // NOLINTEND(readability-identifier-naming)
 
 void read_sdf_extra(Molecule &mol, Iterator it, const Iterator end) {
-  absl::InlinedVector<std::string, 1> header;
+  absl::InlinedVector<parser::SvRange, 1> header;
   std::string_view key;
   std::string data;
 
@@ -233,11 +234,12 @@ void read_sdf_extra(Molecule &mol, Iterator it, const Iterator end) {
     bool parser_ok =
         x3::parse(line.begin(), line.end(), parser::sdf_data_header, header);
 
-    auto kit = absl::c_find_if(header,
-                               [](const std::string &s) { return !s.empty(); });
+    auto kit = absl::c_find_if(header, [](parser::SvRange token) {
+      return !token.empty();
+    });
 
     if (parser_ok && kit != header.end()) {
-      key = *kit;
+      key = as_sv(*kit);
     } else {
       ABSL_LOG(INFO) << "Unparseable data header: " << line;
       key = absl::StripAsciiWhitespace(line.substr(1));
@@ -245,16 +247,17 @@ void read_sdf_extra(Molecule &mol, Iterator it, const Iterator end) {
 
     data.clear();
     for (; ++it < end;) {
-      if (it->empty())
+      std::string_view next = *it;
+      if (next.empty())
         break;
 
-      absl::StrAppend(&data, *it, "\n");
+      absl::StrAppend(&data, next, "\n");
     }
 
     if (!data.empty())
       data.pop_back();
 
-    mol.add_prop(std::string(key), data);
+    mol.add_prop(key, std::move(data));
 
     if (it == end)
       break;
@@ -486,7 +489,7 @@ ParseLineResult read_v2000_property_block(Molecule &mol,
     read_iso(mol, line);
   } else if (key != "END") {
     ABSL_LOG(INFO) << "Unimplemented property block: " << key;
-    mol.add_prop(std::string(key), std::string(line.substr(3)));
+    mol.add_prop(key, line.substr(3));
   }
 
   return ParseLineResult::kProp;
@@ -561,24 +564,24 @@ namespace parser {
 constexpr auto v3000_line_header = kV3000LineHeaderCStr >> +x3::omit[x3::blank];
 
 constexpr auto v3000_meta_line_noheader =  //
-    *x3::omit[x3::blank] >> nonblank_trailing_blanks >> +~x3::blank;
+    *x3::omit[x3::blank] >> nonblank_trailing_blanks >> x3::raw[+~x3::blank];
 
 constexpr auto v3000_begin_block =  //
     v3000_line_header               //
-    >> "BEGIN" >> +x3::omit[x3::blank] >> +~x3::blank;
+    >> "BEGIN" >> +x3::omit[x3::blank] >> x3::raw[+~x3::blank];
 constexpr auto v3000_end_block =  //
     v3000_line_header             //
-    >> "END" >> +x3::omit[x3::blank] >> +~x3::blank;
+    >> "END" >> +x3::omit[x3::blank] >> x3::raw[+~x3::blank];
 
 constexpr auto v3000_counts_line =  //
     v3000_line_header               //
     >> "COUNTS" >> x3::repeat(2, x3::inf)[+x3::omit[x3::blank] >> x3::uint_]
     >> x3::omit[x3::space | x3::eoi];
 
-constexpr auto v3000_atom_optional_params  //
-    = x3::rule<struct V3000OptionalArgs,
-               std::pair<std::string, std::optional<int>>>("")  //
-    = +(x3::char_ - (x3::blank | '=')) >> '='
+constexpr auto v3000_atom_optional_params                   //
+    = x3::rule<struct V3000OptionalArgs,                    //
+               std::pair<SvRange, std::optional<int>>>("")  //
+    = x3::raw[+(x3::char_ - (x3::blank | '='))] >> '='
       >> (x3::int_ | x3::omit['(' >> +~x3::blank % +x3::blank >> ')']);
 
 constexpr auto v3000_atom_line =              //
@@ -591,8 +594,8 @@ constexpr auto v3000_atom_line =              //
     >> x3::omit[x3::space | x3::eoi];
 
 using AtomLine =
-    std::tuple<unsigned int, std::string, absl::InlinedVector<double, 3>, int,
-               std::vector<std::pair<std::string, std::optional<int>>>>;
+    std::tuple<unsigned int, SvRange, absl::InlinedVector<double, 3>, int,
+               std::vector<std::pair<SvRange, std::optional<int>>>>;
 
 constexpr auto v3000_bond_line =             //
     v3000_line_header >> x3::omit[x3::int_]  //
@@ -644,9 +647,9 @@ bool try_read_v3000_header(HeaderReadResult &metadata, Iterator &it,
                            const Iterator end, ContinuationReader &reader) {
   std::string_view line = reader.getline(it, end);
 
-  std::string key;
+  parser::SvRange key;
   if (!x3::parse(line.begin(), line.end(), parser::v3000_begin_block, key)
-      || key != "CTAB") {
+      || as_sv(key) != "CTAB") {
     ABSL_LOG(WARNING) << "Invalid V3000 connection table";
     ABSL_LOG(INFO) << "The line is: " << line;
     return false;
@@ -673,16 +676,16 @@ bool try_read_v3000_header(HeaderReadResult &metadata, Iterator &it,
 
 bool try_read_v3000_atom_block(MoleculeMutator &mut,
                                std::vector<Vector3d> &coords, Iterator &it,
-                               const Iterator end, ContinuationReader &reader,
-                               std::string &key) {
+                               const Iterator end, ContinuationReader &reader) {
   if (++it >= end) {
     ABSL_LOG(WARNING) << "Missing atom block";
     return false;
   }
 
   std::string_view line = reader.getline(it, end);
+  parser::SvRange key;
   if (!x3::parse(line.begin(), line.end(), parser::v3000_begin_block, key)
-      || key != "ATOM") {
+      || as_sv(key) != "ATOM") {
     ABSL_LOG(WARNING) << "Missing atom block";
     ABSL_LOG(INFO) << "The line is: " << line;
     return false;
@@ -692,7 +695,6 @@ bool try_read_v3000_atom_block(MoleculeMutator &mut,
   for (; ++it < end;) {
     line = reader.getline(it, end);
 
-    std::get<1>(parsed).clear();
     std::get<2>(parsed).clear();
     std::get<4>(parsed).clear();
 
@@ -700,13 +702,14 @@ bool try_read_v3000_atom_block(MoleculeMutator &mut,
       break;
 
     AtomData data;
-    if (!parse_sdf_atom(data, std::get<1>(parsed)))
+    if (!parse_sdf_atom(data, as_sv(std::get<1>(parsed))))
       break;
 
     coords.emplace_back(std::get<2>(parsed)[0], std::get<2>(parsed)[1],
                         std::get<2>(parsed)[2]);
 
-    for (const auto &[prop, value]: std::get<4>(parsed)) {
+    for (const auto &[prop_token, value]: std::get<4>(parsed)) {
+      const std::string_view prop = as_sv(prop_token);
       if (!value) {
         ABSL_LOG(INFO)
             << "Invalid value or unimplemented atom property: " << prop;
@@ -735,11 +738,10 @@ bool try_read_v3000_atom_block(MoleculeMutator &mut,
     return true;
   }
 
-  key.clear();
   if (x3::parse(line.begin(), line.end(), parser::v3000_end_block, key)) {
     ++it;
 
-    if (key != "ATOM") {
+    if (as_sv(key) != "ATOM") {
       ABSL_LOG(WARNING) << "Invalid atom block";
       ABSL_LOG(INFO) << "The line is: " << line;
       return false;
@@ -787,9 +789,9 @@ bool try_read_v3000_bond_block(MoleculeMutator &mut, Iterator &it,
     return true;
   }
 
-  std::string key;
+  parser::SvRange key;
   if (x3::parse(line.begin(), line.end(), parser::v3000_end_block, key)
-      && key != "BOND") {
+      && as_sv(key) != "BOND") {
     ABSL_LOG(WARNING) << "Invalid bond block";
     ABSL_LOG(INFO) << "The line is: " << line;
     return false;
@@ -803,7 +805,7 @@ bool try_read_v3000_optionals(MoleculeMutator &mut, Iterator &it,
   std::stack<std::string, std::vector<std::string>> tokens;
   tokens.push("CTAB");
 
-  std::pair<std::string, std::string> parsed;
+  std::pair<parser::SvRange, parser::SvRange> parsed;
 
   for (; it < end && !tokens.empty(); ++it) {
     std::string_view line = reader.getline(it, end);
@@ -811,15 +813,15 @@ bool try_read_v3000_optionals(MoleculeMutator &mut, Iterator &it,
       break;
 
     line = line.substr(kV3000LineHeader.size());
-    parsed.first.clear();
-    parsed.second.clear();
     if (!x3::parse(line.begin(), line.end(), parser::v3000_meta_line_noheader,
                    parsed))
       continue;
 
-    if (parsed.first == "BEGIN") {
-      if (parsed.second != "BOND") {
-        tokens.push(parsed.second);
+    const std::string_view directive = as_sv(parsed.first),
+                           block = as_sv(parsed.second);
+    if (directive == "BEGIN") {
+      if (block != "BOND") {
+        tokens.emplace(block);
         continue;
       }
 
@@ -832,9 +834,9 @@ bool try_read_v3000_optionals(MoleculeMutator &mut, Iterator &it,
         ABSL_LOG(WARNING) << "Block ended before END directive";
         break;
       }
-    } else if (parsed.first == "END") {
-      if (tokens.top() != parsed.second) {
-        ABSL_LOG(ERROR) << "Mismatched V3000 END directive: " << parsed.second
+    } else if (directive == "END") {
+      if (tokens.top() != block) {
+        ABSL_LOG(ERROR) << "Mismatched V3000 END directive: " << block
                         << " != " << tokens.top();
         return false;
       }
@@ -849,7 +851,7 @@ bool try_read_v3000_optionals(MoleculeMutator &mut, Iterator &it,
 }
 
 void skip_v3000_unknowns(Iterator &it, const Iterator end,
-                         ContinuationReader &reader, std::string &key) {
+                         ContinuationReader &reader) {
   if (it == end)
     return;
 
@@ -859,7 +861,6 @@ void skip_v3000_unknowns(Iterator &it, const Iterator end,
     if (!absl::StartsWith(line, "M"))
       break;
 
-    key.clear();
     if (absl::StartsWith(line, "M")
         && absl::StripAsciiWhitespace(line.substr(1)) == "END")
       break;
@@ -871,7 +872,6 @@ void skip_v3000_unknowns(Iterator &it, const Iterator end,
 bool read_v3000(Molecule &mol, std::vector<Vector3d> &coords,
                 HeaderReadResult metadata, Iterator &it, const Iterator end) {
   ContinuationReader reader;
-  std::string key;
 
   if (!try_read_v3000_header(metadata, it, end, reader)) {
     ABSL_LOG(ERROR) << "Failed to read V3000 header";
@@ -891,7 +891,7 @@ bool read_v3000(Molecule &mol, std::vector<Vector3d> &coords,
 
   auto mut = mol.mutator();
 
-  if (!try_read_v3000_atom_block(mut, coords, it, end, reader, key)) {
+  if (!try_read_v3000_atom_block(mut, coords, it, end, reader)) {
     ABSL_LOG(ERROR) << "Failed to read V3000 atom block";
     return false;
   }
@@ -907,13 +907,13 @@ bool read_v3000(Molecule &mol, std::vector<Vector3d> &coords,
     return false;
   }
 
-  skip_v3000_unknowns(it, end, reader, key);
+  skip_v3000_unknowns(it, end, reader);
 
   return true;
 }
 }  // namespace
 
-ParseResult<Molecule> read_sdf(const std::vector<std::string> &sdf) {
+ParseResult<Molecule> read_sdf(const internal::TextBlock &sdf) {
   Molecule mol;
   std::vector<Vector3d> coords;
 

@@ -31,9 +31,9 @@ namespace nuri {
  * @param pdb the PDB string to read.
  * @return A molecule, or the reason it could not be parsed.
  */
-extern ParseResult<Molecule> read_pdb(const std::vector<std::string> &pdb);
+extern ParseResult<Molecule> read_pdb(const internal::TextBlock &pdb);
 
-using PDBRecord = TextRecordImpl<std::vector<std::string>, read_pdb>;
+using PDBRecord = TextRecordImpl<internal::TextBlock, read_pdb>;
 
 class PDBReader final: public StreamReaderBase {
 public:
@@ -50,8 +50,8 @@ public:
 private:
   bool fill(MoleculeRecord &record) override;
 
-  std::vector<std::string> header_;
-  std::vector<std::string> rfooter_;
+  internal::TextBlock header_;
+  internal::TextBlock footer_;
   bool has_model_ = false;
 };
 
@@ -204,8 +204,7 @@ private:
   internal::PropertyMap props_;
 };
 
-extern ParseResult<PDBModel>
-read_pdb_model(const std::vector<std::string> &pdb);
+extern ParseResult<PDBModel> read_pdb_model(const internal::TextBlock &pdb);
 }  // namespace nuri
 
 #endif /* NURI_FMT_PDB_H_ */

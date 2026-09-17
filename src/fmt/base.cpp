@@ -8,10 +8,12 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
+#include <initializer_list>
 #include <ios>
 #include <istream>
 #include <iterator>
 #include <memory>
+#include <streambuf>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -25,6 +27,7 @@
 #include <absl/strings/ascii.h>
 #include <absl/strings/charset.h>
 
+#include "nuri/eigen_config.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -37,6 +40,32 @@ reader_factory_registry() {
 }  // namespace
 
 namespace internal {
+TextBlock::TextBlock(std::initializer_list<std::string_view> lines) {
+  for (std::string_view line: lines)
+    push_back(line);
+}
+
+void TextBlock::push_back(std::string_view line) {
+  data_.append(line);
+  segments_.push_back(static_cast<int>(data_.size()));
+}
+
+void TextBlock::append(const TextBlock &other) {
+  const int offset = static_cast<int>(data_.size());
+  data_.append(other.data_);
+
+  const auto cnt = static_cast<E::Index>(segments_.size());
+  segments_.insert(segments_.end(), other.segments_.begin() + 1,
+                   other.segments_.end());
+  E::Map<ArrayXi> m(segments_.data() + cnt, other.size());
+  m += offset;
+}
+
+void TextBlock::clear() noexcept {
+  data_.clear();
+  segments_.resize(1);
+}
+
 std::string ascii_safe(std::string_view str) {
   std::string ret(str);
 
@@ -194,4 +223,49 @@ void ReversedStream::read_block() {
     is_->setstate(std::ios::eofbit);
   }
 }
+
+namespace internal {
+ViewStreamBuf::ViewStreamBuf(std::string_view data) {
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+  char *begin = const_cast<char *>(data.data());
+  setg(begin, begin, begin + data.size());
+}
+
+ViewStreamBuf::pos_type ViewStreamBuf::seekoff(off_type off,
+                                               std::ios_base::seekdir dir,
+                                               std::ios_base::openmode which) {
+  static const pos_type bad_pos = static_cast<off_type>(-1);
+
+  if ((which & std::ios_base::in) == 0)
+    return bad_pos;
+
+  off_type base = 0;
+  if (dir == std::ios_base::cur) {
+    base = gptr() - eback();
+  } else if (dir == std::ios_base::end) {
+    base = egptr() - eback();
+  }
+
+  const off_type pos = base + off;
+  if (pos < 0 || pos > egptr() - eback())
+    return bad_pos;
+
+  setg(eback(), eback() + pos, egptr());
+  return pos;
+}
+
+ViewStreamBuf::int_type ViewStreamBuf::underflow() {
+  if (gptr() < egptr())
+    return traits_type::to_int_type(*gptr());
+  return traits_type::eof();
+}
+
+std::streamsize ViewStreamBuf::showmanyc() {
+  std::streamsize c = egptr() - gptr();
+  if (c <= 0)
+    return -1;
+  return c;
+}
+
+}  // namespace internal
 }  // namespace nuri

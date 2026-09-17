@@ -9,7 +9,6 @@
 //! @cond
 #include <memory>
 #include <string>
-#include <vector>
 
 #include <absl/base/attributes.h>
 //! @endcond
@@ -25,9 +24,9 @@ namespace nuri {
  * @param sdf the sdf string to read.
  * @return A molecule, or the reason it could not be parsed.
  */
-extern ParseResult<Molecule> read_sdf(const std::vector<std::string> &sdf);
+extern ParseResult<Molecule> read_sdf(const internal::TextBlock &sdf);
 
-using SDFRecord = TextRecordImpl<std::vector<std::string>, read_sdf>;
+using SDFRecord = TextRecordImpl<internal::TextBlock, read_sdf>;
 
 class SDFReader final: public StreamReaderBase {
 public:

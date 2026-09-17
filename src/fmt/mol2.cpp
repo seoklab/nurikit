@@ -46,7 +46,7 @@ namespace nuri {
 namespace {
 constexpr std::string_view kCommentIndicator = "****";
 
-bool advance_header_unread(std::istream &is, std::vector<std::string> &block,
+bool advance_header_unread(std::istream &is, internal::TextBlock &block,
                            bool &read_mol_header) {
   bool first = true;
 
@@ -65,13 +65,13 @@ bool advance_header_unread(std::istream &is, std::vector<std::string> &block,
       }
     }
 
-    block.push_back(std::move(line));
+    block.push_back(line);
   }
 
   return !block.empty();
 }
 
-void advance_header_read(std::istream &is, std::vector<std::string> &block,
+void advance_header_read(std::istream &is, internal::TextBlock &block,
                          bool &read_mol_header) {
   std::string line;
 
@@ -86,7 +86,7 @@ void advance_header_read(std::istream &is, std::vector<std::string> &block,
       continue;
     }
 
-    block.push_back(std::move(line));
+    block.push_back(line);
   }
 
   read_mol_header = false;
@@ -112,7 +112,7 @@ const bool Mol2ReaderFactory::kRegistered =
 namespace {
 namespace x3 = boost::spirit::x3;
 
-using Iter = std::vector<std::string>::const_iterator;
+using Iter = internal::TextBlock::const_iterator;
 
 // NOLINTBEGIN(readability-identifier-naming)
 namespace parser {
@@ -134,9 +134,10 @@ void parse_mol_block(Molecule &mol, Iter &it, const Iter end) {
   if (mol2_block_end(++it, end))
     return;
 
-  auto lit = it->begin();
+  const std::string_view line = *it;
+  auto lit = line.begin();
   std::pair<unsigned int, boost::optional<unsigned int>> nums;
-  bool parser_ok = x3::parse(lit, it->end(), parser::mol_nums_line, nums);
+  bool parser_ok = x3::parse(lit, line.end(), parser::mol_nums_line, nums);
   if (parser_ok) {
     // Cap reservation to the number of remaining lines for untrusted/malformed
     // sources
@@ -147,7 +148,7 @@ void parse_mol_block(Molecule &mol, Iter &it, const Iter end) {
   } else {
     ABSL_LOG(WARNING) << "Failed to parse mol block line; this file might be "
                          "incompatible with future versions of NuriKit";
-    ABSL_LOG(INFO) << "The line is: " << *it;
+    ABSL_LOG(INFO) << "The line is: " << line;
   }
 
   for (int i = 0; i < 2; ++i) {
@@ -203,41 +204,44 @@ constexpr auto atom_line = *x3::omit[x3::blank]         //
                            >> uint_trailing_blanks      //
                            >> nonblank_trailing_blanks  //
                            >> x3::repeat(3)[double_trailing_blanks]
-                           >> +x3::alpha >> -('.' >> +x3::alnum)  //
-                           >> -(+x3::omit[x3::blank]              //
-                                >> uint_trailing_blanks           //
-                                >> -(nonblank_trailing_blanks     //
+                           >> x3::raw[+x3::alpha]              //
+                           >> -('.' >> x3::raw[+x3::alnum])    //
+                           >> -(+x3::omit[x3::blank]           //
+                                >> uint_trailing_blanks        //
+                                >> -(nonblank_trailing_blanks  //
                                      >> -x3::double_))
                            >> x3::omit[+x3::space | x3::eoi];
 using AtomLine = std::tuple<
-    unsigned int, std::string, absl::InlinedVector<double, 3>, std::string,
-    boost::optional<std::string>,
+    unsigned int, SvRange, absl::InlinedVector<double, 3>, SvRange,
+    boost::optional<SvRange>,
     boost::optional<std::pair<
         unsigned int,
-        boost::optional<std::pair<std::string, boost::optional<double>>>>>>;
+        boost::optional<std::pair<SvRange, boost::optional<double>>>>>>;
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
+using SubstructMap =
+    absl::flat_hash_map<unsigned int,
+                        std::pair<std::vector<int>, std::string_view>>;
+
 void process_optional_attrs(
-    Molecule::MutableAtom atom,
-    absl::flat_hash_map<unsigned int, std::pair<std::vector<int>, std::string>>
-        &substructs,
+    Molecule::MutableAtom atom, SubstructMap &substructs,
     boost::optional<std::pair<
         unsigned int,
-        boost::optional<std::pair<std::string, boost::optional<double>>>>>
+        boost::optional<std::pair<parser::SvRange, boost::optional<double>>>>>
         &attrs) {
   if (!attrs) {
     return;
   }
 
-  std::pair<std::vector<int>, std::string> &substruct =
+  std::pair<std::vector<int>, std::string_view> &substruct =
       substructs[attrs->first];
   substruct.first.push_back(atom.id());
   if (!attrs->second) {
     return;
   }
 
-  substruct.second = std::move(attrs->second->first);
+  substruct.second = as_sv(attrs->second->first);
   if (!attrs->second->second) {
     return;
   }
@@ -245,37 +249,35 @@ void process_optional_attrs(
   atom.data().set_partial_charge(*attrs->second->second);
 }
 
-std::pair<bool, bool> parse_atom_block(
-    MoleculeMutator &mutator, std::vector<Vector3d> &pos,
-    std::vector<int> &ccat,
-    absl::flat_hash_map<unsigned int, std::pair<std::vector<int>, std::string>>
-        &substructs,
-    Iter &it, const Iter end) {
+std::pair<bool, bool> parse_atom_block(MoleculeMutator &mutator,
+                                       std::vector<Vector3d> &pos,
+                                       std::vector<int> &ccat,
+                                       SubstructMap &substructs, Iter &it,
+                                       const Iter end) {
   parser::AtomLine tokens;
   bool has_hydrogen = false;
 
   while (!mol2_block_end(++it, end)) {
-    if (std::all_of(it->begin(), it->end(), absl::ascii_isblank)) {
+    const std::string_view line = *it;
+    if (absl::c_all_of(line, absl::ascii_isblank)) {
       ABSL_LOG(INFO) << "Skipping blank line";
       continue;
     }
 
-    std::get<1>(tokens).clear();
     std::get<2>(tokens).clear();
-    std::get<3>(tokens).clear();
     std::get<4>(tokens) = boost::none;
     std::get<5>(tokens) = boost::none;
 
-    auto lit = it->begin();
-    if (!x3::parse(lit, it->end(), parser::atom_line, tokens)) {
+    auto lit = line.begin();
+    if (!x3::parse(lit, line.end(), parser::atom_line, tokens)) {
       ABSL_LOG(WARNING) << "Failed to parse atom line";
-      ABSL_LOG(INFO) << "The line is: " << *it;
+      ABSL_LOG(INFO) << "The line is: " << line;
       return { false, false };
     }
 
     pos.push_back(Vector3d(std::get<2>(tokens).data()));
 
-    std::string_view atom_sym = std::get<3>(tokens);
+    const std::string_view atom_sym = as_sv(std::get<3>(tokens));
     const Element *elem = kPt.find_element(atom_sym);
     if (elem == nullptr) {
       std::string sym_upper = absl::AsciiStrToUpper(atom_sym);
@@ -301,16 +303,16 @@ std::pair<bool, bool> parse_atom_block(
     AtomData data(*elem);
     auto &optional_subtype = std::get<4>(tokens);
     if (optional_subtype) {
-      atom_data_from_subtype(data, mutator.mol().size(), *optional_subtype,
-                             ccat);
+      atom_data_from_subtype(data, mutator.mol().size(),
+                             as_sv(*optional_subtype), ccat);
     }
 
-    int idx = mutator.add_atom(data);
+    int idx = mutator.add_atom(std::move(data));
 
     auto &optional_attrs = std::get<5>(tokens);
     process_optional_attrs(mutator.mol().atom(idx), substructs, optional_attrs);
 
-    ABSL_LOG_IF(WARNING, lit != it->end())
+    ABSL_LOG_IF(WARNING, lit != line.end())
         << "Ignoring extra tokens in atom line";
   }
 
@@ -346,17 +348,18 @@ bool parse_bond_block(MoleculeMutator &mutator, Iter &it, const Iter end) {
   parser::BondLine tokens;
 
   while (!mol2_block_end(++it, end)) {
-    if (std::all_of(it->begin(), it->end(), absl::ascii_isblank)) {
+    const std::string_view line = *it;
+    if (absl::c_all_of(line, absl::ascii_isblank)) {
       ABSL_LOG(INFO) << "Skipping blank line";
       continue;
     }
 
     std::get<0>(tokens).clear();
 
-    auto lit = it->begin();
-    if (!x3::parse(lit, it->end(), parser::bond_line, tokens)) {
+    auto lit = line.begin();
+    if (!x3::parse(lit, line.end(), parser::bond_line, tokens)) {
       ABSL_LOG(WARNING) << "Failed to parse bond line";
-      ABSL_LOG(INFO) << "The line is: " << *it;
+      ABSL_LOG(INFO) << "The line is: " << line;
       return false;
     }
 
@@ -377,15 +380,15 @@ bool parse_bond_block(MoleculeMutator &mutator, Iter &it, const Iter end) {
       return false;
     }
 
-    auto [_, success] =
-        mutator.register_bond(mol_ids[0], mol_ids[1], std::get<1>(tokens));
+    auto [_, success] = mutator.register_bond(mol_ids[0], mol_ids[1],
+                                              std::move(std::get<1>(tokens)));
     if (!success) {
       ABSL_LOG(WARNING) << "Failed to add bond " << ids[0] << " -> " << ids[1]
                         << "; check mol2 file consistency";
       return false;
     }
 
-    ABSL_LOG_IF(WARNING, lit != it->end())
+    ABSL_LOG_IF(WARNING, lit != line.end())
         << "Ignoring extra tokens in bond line";
   }
 
@@ -394,8 +397,8 @@ bool parse_bond_block(MoleculeMutator &mutator, Iter &it, const Iter end) {
 
 // NOLINTBEGIN(readability-identifier-naming)
 namespace parser {
-constexpr auto unity_atom_attr_line = x3::uint_ >> +x3::omit[x3::blank]
-                                      >> x3::uint_
+constexpr auto unity_atom_attr_line = *x3::omit[x3::blank] >> x3::uint_
+                                      >> +x3::omit[x3::blank] >> x3::uint_
                                       >> x3::omit[+x3::space | x3::eoi];
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
@@ -406,7 +409,8 @@ std::pair<bool, bool> parse_atom_attr_block(Molecule &mol, Iter &it,
   absl::InlinedVector<int, 2> ids;
 
   for (++it; !mol2_block_end(it, end);) {
-    if (std::all_of(it->begin(), it->end(), absl::ascii_isblank)) {
+    const std::string_view line = *it;
+    if (absl::c_all_of(line, absl::ascii_isblank)) {
       ABSL_LOG(INFO) << "Skipping blank line";
       ++it;
       continue;
@@ -414,15 +418,15 @@ std::pair<bool, bool> parse_atom_attr_block(Molecule &mol, Iter &it,
 
     ids.clear();
 
-    auto lit = it->begin();
-    if (!x3::parse(lit, it->end(), parser::unity_atom_attr_line, ids)) {
+    auto lit = line.begin();
+    if (!x3::parse(lit, line.end(), parser::unity_atom_attr_line, ids)) {
       ABSL_LOG(WARNING) << "Failed to parse atom attribute line";
-      ABSL_LOG(INFO) << "The line is: " << *it;
+      ABSL_LOG(INFO) << "The line is: " << line;
       return { false, false };
     }
 
     ABSL_DCHECK(ids.size() == 2);
-    ABSL_LOG_IF(INFO, lit != it->end())
+    ABSL_LOG_IF(INFO, lit != line.end())
         << "Ignoring extra tokens in atom attribute line";
 
     --ids[0];
@@ -437,8 +441,7 @@ std::pair<bool, bool> parse_atom_attr_block(Molecule &mol, Iter &it,
           absl::StrSplit(*it, ' ', absl::SkipEmpty());
 
       if (tokens.first != "charge") {
-        mol.atom(ids[0]).data().add_prop(std::string(tokens.first),
-                                         std::string(tokens.second));
+        mol.atom(ids[0]).data().add_prop(tokens.first, tokens.second);
         continue;
       }
 
@@ -464,7 +467,7 @@ const auto substructure_line = *x3::omit[x3::blank]         //
                                >> nonblank_trailing_blanks  //
                                >> +x3::omit[x3::digit]
                                >> x3::omit[+x3::space | x3::eoi];
-using SubstructureLine = std::pair<unsigned int, std::string>;
+using SubstructureLine = std::pair<unsigned int, SvRange>;
 }  // namespace parser
 // NOLINTEND(readability-identifier-naming)
 
@@ -472,24 +475,22 @@ bool parse_substructure_block(Molecule &mol, Iter &it, const Iter end) {
   parser::SubstructureLine data;
 
   while (!mol2_block_end(++it, end)) {
-    if (std::all_of(it->begin(), it->end(), absl::ascii_isblank)) {
+    const std::string_view line = *it;
+    if (absl::c_all_of(line, absl::ascii_isblank)) {
       ABSL_LOG(INFO) << "Skipping blank line";
       continue;
     }
 
-    data.second.clear();
-
-    auto lit = it->begin();
-
-    if (!x3::parse(lit, it->end(), parser::substructure_line, data)) {
+    auto lit = line.begin();
+    if (!x3::parse(lit, line.end(), parser::substructure_line, data)) {
       ABSL_LOG(WARNING) << "Failed to parse substructure line";
-      ABSL_LOG(INFO) << "The line is: " << *it;
+      ABSL_LOG(INFO) << "The line is: " << line;
       return false;
     }
 
     Substructure &sub = mol.substructures().emplace_back(mol.substructure());
     sub.set_id(static_cast<int>(data.first));
-    sub.name() = std::move(data.second);
+    sub.name() = as_sv(data.second);
   }
 
   return true;
@@ -560,12 +561,11 @@ void fix_guadinium(Molecule &mol, const std::vector<int> &ccat) {
 }
 }  // namespace
 
-ParseResult<Molecule> read_mol2(const std::vector<std::string> &mol2) {
+ParseResult<Molecule> read_mol2(const internal::TextBlock &mol2) {
   Molecule mol;
   std::vector<Vector3d> pos;
   std::vector<int> ccat;
-  absl::flat_hash_map<unsigned int, std::pair<std::vector<int>, std::string>>
-      substructs;
+  SubstructMap substructs;
   bool success = true, has_hydrogen = false, has_fcharge = false;
   bool atom_parsed = false;
 

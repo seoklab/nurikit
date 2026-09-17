@@ -11,7 +11,6 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -62,6 +61,14 @@ public:
                    bool sanitize, bool skip_on_error)
       : pybuf_(&is->buf()), stream_(std::move(is)), sanitize_(sanitize),
         skip_on_error_(skip_on_error) {
+    init(fmt);
+  }
+
+  PyMoleculeReader(py::object data, std::string_view fmt, bool sanitize,
+                   bool skip_on_error)
+      : owner_(std::move(data)), sanitize_(sanitize),
+        skip_on_error_(skip_on_error) {
+    stream_ = std::make_unique<internal::ViewIStream>(borrow_utf8(owner_));
     init(fmt);
   }
 
@@ -176,6 +183,7 @@ private:
       throw py::value_error(what);
   }
 
+  py::object owner_;
   PyStreamBuf *pybuf_ = nullptr;
   std::unique_ptr<std::istream> stream_;
   std::unique_ptr<MoleculeReader> reader_;
@@ -249,12 +257,11 @@ Read a molecule from a file.
 )doc")
       .def(
           "readstring",
-          [](std::string_view fmt, std::string_view data, bool sanitize,
-             bool skip_on_error) {
+          [](std::string_view fmt, pyt::Union<py::str, py::bytes> data,
+             bool sanitize, bool skip_on_error) {
             return masquerade_cast<pyt::Iterator<PyMol>>(
-                std::make_unique<PyMoleculeReader>(
-                    std::make_unique<std::istringstream>(std::string(data)),
-                    fmt, sanitize, skip_on_error));
+                std::make_unique<PyMoleculeReader>(std::move(data), fmt,
+                                                   sanitize, skip_on_error));
           },
           py::arg("fmt"), py::arg("data"), py::arg("sanitize") = true,
           py::arg("skip_on_error") = false,
@@ -262,13 +269,15 @@ Read a molecule from a file.
 Read a molecule from string.
 
 :param fmt: The format of the file.
-:param data: The string to read.
+:param data: The text to read, as :class:`str` or :class:`bytes`. Other
+  bytes-like objects are accepted and copied.
 :param sanitize: Whether to sanitize the produced molecule. For formats that is
   known to produce molecules with insufficient bond information (e.g. PDB), this
   option will trigger guessing based on the 3D coordinates
   (:func:`nuri.algo.guess_everything()`).
 :param skip_on_error: Whether to skip a molecule if an error occurs, instead of
   raising an exception.
+:raises TypeError: If `data` is neither bytes-like nor :class:`str`.
 :raises ValueError: If the format is unknown, or if a molecule cannot be read
   or sanitized, unless `skip_on_error` is set.
 

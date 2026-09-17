@@ -654,6 +654,26 @@ charge 0
   }
 }
 
+TEST_F(Mol2Test, PaddedAtomAttrLine) {
+  set_test_string(R"mol2(
+@<TRIPOS>MOLECULE
+*****
+ 1 0 0 0 0
+SMALL
+GASTEIGER
+
+@<TRIPOS>ATOM
+      1 N           0.0000    0.0000    0.0000 N.4     1  UNL1        1.0000
+@<TRIPOS>BOND
+@<TRIPOS>UNITY_ATOM_ATTR
+   1 1
+charge 1
+)mol2");
+
+  NURI_FMT_TEST_NEXT_MOL("*****", 1, 0);
+  EXPECT_EQ(mol().atom(0).data().formal_charge(), 1);
+}
+
 TEST_F(Mol2Test, CarboxylicAcid) {
   set_test_string(R"mol2(
 @<TRIPOS>MOLECULE
