@@ -81,14 +81,11 @@ function(nuri_python_add_module name)
       "${CMAKE_CURRENT_LIST_DIR}/nuri/${subdir}"
       "${CMAKE_CURRENT_LIST_DIR}/nuri/"
     )
-    set(module_rpath
+    set_property(
+      TARGET "${target_name}"
+      APPEND PROPERTY INSTALL_RPATH
       "${NURI_RPATH_PREFIX}/${dir_inv}${CMAKE_INSTALL_LIBDIR}"
       "${NURI_RPATH_PREFIX}/${dir_inv}lib64"
-    )
-    set_target_properties(
-      "${target_name}"
-      PROPERTIES
-      INSTALL_RPATH "${module_rpath}"
     )
   endif()
 

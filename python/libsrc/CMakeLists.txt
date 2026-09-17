@@ -29,10 +29,10 @@ set_target_properties(
 )
 
 if(NURI_INSTALL_RPATH)
-  set_target_properties(
-    NuriPyLib
-    PROPERTIES
-    INSTALL_RPATH "${NURI_RPATH_PREFIX};${NURI_RPATH_PREFIX}/../lib64"
+  set_property(
+    TARGET NuriPyLib
+    APPEND PROPERTY INSTALL_RPATH
+    "${NURI_RPATH_PREFIX}" "${NURI_RPATH_PREFIX}/../lib64"
   )
 endif()
 
