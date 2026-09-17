@@ -42,6 +42,8 @@ the order of molecules across threads, are unspecified.
 
 .. autofunction:: nuri.readstring
 
+.. autofunction:: nuri.readstream
+
 Writers
 -------
 

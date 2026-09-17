@@ -65,7 +65,7 @@ function(nuri_python_add_module name)
   string(REGEX REPLACE "\\._" "." target_name "${target_name}")
 
   pybind11_add_module("${target_name}" OPT_SIZE "${sources}")
-  target_link_libraries("${target_name}" PRIVATE "${PROJECT_NAME}::NuriLib")
+  target_link_libraries("${target_name}" PRIVATE "${PROJECT_NAME}::NuriPyLib")
   target_compile_definitions(
     "${target_name}"
     PRIVATE "NURI_PYTHON_MODULE_NAME=${name}"
@@ -76,19 +76,16 @@ function(nuri_python_add_module name)
     OUTPUT_NAME "${name}"
   )
 
-  if(NURI_BUILD_LIB AND NURI_INSTALL_RPATH)
+  if(NURI_INSTALL_RPATH)
     file(RELATIVE_PATH dir_inv
       "${CMAKE_CURRENT_LIST_DIR}/nuri/${subdir}"
       "${CMAKE_CURRENT_LIST_DIR}/nuri/"
     )
-    set(module_rpath
+    set_property(
+      TARGET "${target_name}"
+      APPEND PROPERTY INSTALL_RPATH
       "${NURI_RPATH_PREFIX}/${dir_inv}${CMAKE_INSTALL_LIBDIR}"
       "${NURI_RPATH_PREFIX}/${dir_inv}lib64"
-    )
-    set_target_properties(
-      "${target_name}"
-      PROPERTIES
-      INSTALL_RPATH "${module_rpath}"
     )
   endif()
 

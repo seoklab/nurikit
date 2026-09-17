@@ -11,11 +11,9 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/typing.h>
 
-#ifndef NURI_PYTHON_MODULE_NAME
-#error "NURI_PYTHON_MODULE_NAME is not defined"
-#endif
-
+#ifdef NURI_PYTHON_MODULE_NAME
 #define NURI_PYTHON_MODULE(m) PYBIND11_MODULE(NURI_PYTHON_MODULE_NAME, m)
+#endif
 
 namespace nuri {
 namespace python_internal {

@@ -20,8 +20,6 @@ clear_coverage_data(NuriPython)
 
 if(NURI_BUILD_LIB)
   add_dependencies(NuriPython NuriLib)
-else()
-  find_package("${PROJECT_NAME}" "${PROJECT_VERSION}" REQUIRED)
 endif()
 
 include(NuriKitPythonUtils)

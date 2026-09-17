@@ -22,6 +22,11 @@ if(NURI_BUILD_PYTHON)
     "${CMAKE_CURRENT_LIST_DIR}/include/nuri/python/config.h"
   )
 
+  if(NOT NURI_BUILD_LIB)
+    find_package("${PROJECT_NAME}" "${PROJECT_VERSION}" REQUIRED)
+  endif()
+
+  add_subdirectory(libsrc)
   add_subdirectory(src)
 endif()
 

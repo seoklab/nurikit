@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import io
 from collections import Counter
 from queue import SimpleQueue
 from threading import Barrier, Thread
@@ -117,10 +118,18 @@ _atom_site.Cartn_z
 
 @pytest.mark.parametrize("shared", [True, False])
 @pytest.mark.parametrize("skip_on_error", [False, True])
-def test_concurrent_readers(threaded_input, shared, skip_on_error):
+@pytest.mark.parametrize("via_stream", [False, True])
+def test_concurrent_readers(threaded_input, shared, skip_on_error, via_stream):
     fmt, text = threaded_input
 
     def reader():
+        if via_stream:
+            return nuri.readstream(
+                fmt,
+                io.BytesIO(text.encode()),
+                sanitize=fmt != "mmcif",
+                skip_on_error=skip_on_error,
+            )
         return nuri.readstring(
             fmt, text, sanitize=fmt != "mmcif", skip_on_error=skip_on_error
         )
