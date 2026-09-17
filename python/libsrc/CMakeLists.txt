@@ -28,7 +28,7 @@ set_target_properties(
   VISIBILITY_INLINES_HIDDEN ON
 )
 
-if(NURI_BUILD_LIB AND NURI_INSTALL_RPATH)
+if(NURI_INSTALL_RPATH)
   set_target_properties(
     NuriPyLib
     PROPERTIES

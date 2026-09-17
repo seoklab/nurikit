@@ -76,7 +76,7 @@ function(nuri_python_add_module name)
     OUTPUT_NAME "${name}"
   )
 
-  if(NURI_BUILD_LIB AND NURI_INSTALL_RPATH)
+  if(NURI_INSTALL_RPATH)
     file(RELATIVE_PATH dir_inv
       "${CMAKE_CURRENT_LIST_DIR}/nuri/${subdir}"
       "${CMAKE_CURRENT_LIST_DIR}/nuri/"

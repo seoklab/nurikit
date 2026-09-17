@@ -137,7 +137,7 @@ if(NURI_ENABLE_IPO)
 endif()
 
 # Option-dependent configurations
-if(NURI_BUILD_LIB AND NURI_INSTALL_RPATH)
+if(NURI_INSTALL_RPATH)
   if(CMAKE_SYSTEM_NAME MATCHES Linux)
     set(NURI_RPATH_PREFIX "$ORIGIN")
   elseif(CMAKE_SYSTEM_NAME MATCHES Darwin)
