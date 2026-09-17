@@ -204,15 +204,16 @@ constexpr auto atom_line = *x3::omit[x3::blank]         //
                            >> uint_trailing_blanks      //
                            >> nonblank_trailing_blanks  //
                            >> x3::repeat(3)[double_trailing_blanks]
-                           >> +x3::alpha >> -('.' >> +x3::alnum)  //
-                           >> -(+x3::omit[x3::blank]              //
-                                >> uint_trailing_blanks           //
-                                >> -(nonblank_trailing_blanks     //
+                           >> x3::raw[+x3::alpha]              //
+                           >> -('.' >> x3::raw[+x3::alnum])    //
+                           >> -(+x3::omit[x3::blank]           //
+                                >> uint_trailing_blanks        //
+                                >> -(nonblank_trailing_blanks  //
                                      >> -x3::double_))
                            >> x3::omit[+x3::space | x3::eoi];
 using AtomLine = std::tuple<
-    unsigned int, SvRange, absl::InlinedVector<double, 3>, std::string,
-    boost::optional<std::string>,
+    unsigned int, SvRange, absl::InlinedVector<double, 3>, SvRange,
+    boost::optional<SvRange>,
     boost::optional<std::pair<
         unsigned int,
         boost::optional<std::pair<SvRange, boost::optional<double>>>>>>;
@@ -263,7 +264,6 @@ std::pair<bool, bool> parse_atom_block(
     }
 
     std::get<2>(tokens).clear();
-    std::get<3>(tokens).clear();
     std::get<4>(tokens) = boost::none;
     std::get<5>(tokens) = boost::none;
 
@@ -276,7 +276,7 @@ std::pair<bool, bool> parse_atom_block(
 
     pos.push_back(Vector3d(std::get<2>(tokens).data()));
 
-    std::string_view atom_sym = std::get<3>(tokens);
+    const std::string_view atom_sym = as_sv(std::get<3>(tokens));
     const Element *elem = kPt.find_element(atom_sym);
     if (elem == nullptr) {
       std::string sym_upper = absl::AsciiStrToUpper(atom_sym);
@@ -302,8 +302,8 @@ std::pair<bool, bool> parse_atom_block(
     AtomData data(*elem);
     auto &optional_subtype = std::get<4>(tokens);
     if (optional_subtype) {
-      atom_data_from_subtype(data, mutator.mol().size(), *optional_subtype,
-                             ccat);
+      atom_data_from_subtype(data, mutator.mol().size(),
+                             as_sv(*optional_subtype), ccat);
     }
 
     int idx = mutator.add_atom(data);
