@@ -52,10 +52,11 @@ bool fast_startswith(std::string_view str, std::string_view prefix) {
   return std::memcmp(str.data(), prefix.data(), prefix.size()) == 0;
 }
 
-void pdb_read_footer(std::istream &is, std::string &line,
-                     std::vector<std::string> &rfooter) {
+void pdb_read_footer(std::istream &is, internal::TextBlock &footer) {
   auto save = is.tellg();
 
+  std::vector<std::string> rfooter;
+  std::string line;
   ReversedStream rs(is);
   while (rs.getline(line)
          && (line.size() < 3                   // invalid record, ignore
@@ -66,27 +67,30 @@ void pdb_read_footer(std::istream &is, std::string &line,
     rfooter.push_back(line);
   }
 
+  for (auto it = rfooter.rbegin(); it != rfooter.rend(); ++it)
+    footer.push_back(*it);
+
   is.clear();
   is.seekg(save);
 }
 
 bool pdb_next_nomodel(std::istream &is, std::string &line,
-                      std::vector<std::string> &header,
-                      std::vector<std::string> &rfooter) {
+                      internal::TextBlock &header,
+                      internal::TextBlock &footer) {
   while (std::getline(is, line)) {
-    header.push_back(line);
-
     if (absl::StartsWith(line, "MODEL")) {
-      pdb_read_footer(is, line, rfooter);
+      pdb_read_footer(is, footer);
       return true;
     }
+
+    header.push_back(line);
   }
 
   return false;
 }
 
 bool pdb_next_model(std::istream &is, std::string &line,
-                    std::vector<std::string> &block, bool in_model) {
+                    internal::TextBlock &block, bool in_model) {
   bool has_model = in_model;
 
   while (std::getline(is, line)) {
@@ -127,7 +131,7 @@ bool PDBReader::fill(MoleculeRecord &record) {
 
   const bool first_model = !has_model_;
   if (first_model) {
-    has_model_ = pdb_next_nomodel(*is_, line, header_, rfooter_);
+    has_model_ = pdb_next_nomodel(*is_, line, header_, footer_);
     if (!has_model_) {
       if (header_.empty())
         return false;
@@ -136,11 +140,10 @@ bool PDBReader::fill(MoleculeRecord &record) {
       return true;
     }
 
-    block = header_;
-    // last line was "MODEL", remove from header
-    header_.pop_back();
+    block.append(header_);
+    block.push_back(line);
   } else {
-    block = header_;
+    block.append(header_);
   }
 
   if (!pdb_next_model(*is_, line, block, first_model)) {
@@ -148,7 +151,7 @@ bool PDBReader::fill(MoleculeRecord &record) {
     return false;
   }
 
-  block.insert(block.end(), rfooter_.rbegin(), rfooter_.rend());
+  block.append(footer_);
   return true;
 }
 
@@ -235,7 +238,7 @@ bool operator==(const AtomId &lhs, const AtomId &rhs) {
 
 // NOLINTEND(*-identifier-naming,*-unused-function,*-unused-template)
 
-using Iterator = std::vector<std::string>::const_iterator;
+using Iterator = internal::TextBlock::const_iterator;
 
 bool is_record(Iterator it, Iterator end, std::string_view rec) {
   return it != end && absl::StartsWith(*it, rec);
@@ -1547,9 +1550,9 @@ std::pair<int, bool> parse_serial(std::string_view line) {
   return std::make_pair(serial, success && serial >= 0);
 }
 
-int last_serial(const std::vector<std::string> &pdb) {
-  for (auto it = pdb.rbegin(); it != pdb.rend(); ++it) {
-    std::string_view line = *it;
+int last_serial(const internal::TextBlock &pdb) {
+  for (int i = pdb.size() - 1; i >= 0; --i) {
+    std::string_view line = pdb[i];
     if (line.size() < 7)
       continue;
 
@@ -2121,7 +2124,7 @@ PDBInternals read_pdb_internal(Iterator &it, const Iterator end,
 }
 }  // namespace
 
-ParseResult<Molecule> read_pdb(const std::vector<std::string> &pdb) {
+ParseResult<Molecule> read_pdb(const internal::TextBlock &pdb) {
   if (ABSL_PREDICT_FALSE(pdb.empty()))
     return ParseResult<Molecule>::error("empty PDB block");
 
@@ -2200,7 +2203,7 @@ PDBModel::PDBModel(std::vector<PDBAtom> &&atoms,
       chains_(std::move(chains)), major_conf_(build_major_conf(atoms_)),
       props_(std::move(props)) { }
 
-ParseResult<PDBModel> read_pdb_model(const std::vector<std::string> &pdb) {
+ParseResult<PDBModel> read_pdb_model(const internal::TextBlock &pdb) {
   if (ABSL_PREDICT_FALSE(pdb.empty()))
     return ParseResult<PDBModel>::error("empty PDB block");
 

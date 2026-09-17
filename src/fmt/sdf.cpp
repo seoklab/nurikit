@@ -71,7 +71,7 @@ const bool SDFReaderFactory::kRegistered =
 namespace {
 namespace x3 = boost::spirit::x3;
 
-using Iterator = std::vector<std::string>::const_iterator;
+using Iterator = internal::TextBlock::const_iterator;
 
 struct HeaderReadResult {
   static HeaderReadResult failure() { return {}; }
@@ -245,10 +245,11 @@ void read_sdf_extra(Molecule &mol, Iterator it, const Iterator end) {
 
     data.clear();
     for (; ++it < end;) {
-      if (it->empty())
+      std::string_view next = *it;
+      if (next.empty())
         break;
 
-      absl::StrAppend(&data, *it, "\n");
+      absl::StrAppend(&data, next, "\n");
     }
 
     if (!data.empty())
@@ -913,7 +914,7 @@ bool read_v3000(Molecule &mol, std::vector<Vector3d> &coords,
 }
 }  // namespace
 
-ParseResult<Molecule> read_sdf(const std::vector<std::string> &sdf) {
+ParseResult<Molecule> read_sdf(const internal::TextBlock &sdf) {
   Molecule mol;
   std::vector<Vector3d> coords;
 

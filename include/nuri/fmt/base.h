@@ -8,7 +8,9 @@
 
 //! @cond
 #include <cstddef>
+#include <initializer_list>
 #include <istream>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -18,11 +20,13 @@
 #include <absl/base/attributes.h>
 #include <absl/container/inlined_vector.h>
 #include <absl/log/absl_check.h>
+#include <boost/iterator/iterator_facade.hpp>
 //! @endcond
 
 #include "nuri/core/container/dumb_buffer.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/parse_result.h"
+#include "nuri/iterator.h"
 
 namespace nuri {
 class MoleculeBatch {
@@ -249,6 +253,75 @@ private:
 };
 
 namespace internal {
+  class TextBlock {
+  public:
+    class const_iterator
+        : public ProxyIterator<const_iterator, std::string_view,
+                               std::random_access_iterator_tag, int> {
+    public:
+      const_iterator() noexcept = default;
+
+      constexpr const_iterator(const TextBlock &block, int index) noexcept
+          : block_(&block), index_(index) { }
+
+    private:
+      friend class boost::iterator_core_access;
+
+      std::string_view dereference() const noexcept {
+        return (*block_)[index_];
+      }
+
+      constexpr bool equal(const const_iterator &other) const noexcept {
+        return index_ == other.index_;
+      }
+
+      constexpr void increment() noexcept { ++index_; }
+
+      constexpr void decrement() noexcept { --index_; }
+
+      constexpr void advance(int n) noexcept { index_ += n; }
+
+      constexpr int distance_to(const const_iterator &other) const noexcept {
+        return other.index_ - index_;
+      }
+
+      const TextBlock *block_;
+      int index_;
+    };
+
+    TextBlock() = default;
+
+    TextBlock(std::initializer_list<std::string_view> lines);
+
+    void push_back(std::string_view line);
+
+    void append(const TextBlock &other);
+
+    void clear() noexcept;
+
+    bool empty() const { return segments_.size() == 1; }
+
+    int size() const { return static_cast<int>(segments_.size()) - 1; }
+
+    std::string_view operator[](int i) const {
+      ABSL_DCHECK(i >= 0 && i < size());
+      return std::string_view(data_.data() + segments_[i],
+                              segments_[i + 1] - segments_[i]);
+    }
+
+    std::string_view front() const { return (*this)[0]; }
+
+    std::string_view back() const { return (*this)[size() - 1]; }
+
+    const_iterator begin() const { return { *this, 0 }; }
+
+    const_iterator end() const { return { *this, size() }; }
+
+  private:
+    std::string data_;
+    std::vector<int> segments_ { 0 };
+  };
+
   /**
    * @brief Replace non-ascii and non-printable characters with '?' and replace
    *        all whitespace characters with '_'.

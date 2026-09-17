@@ -46,7 +46,7 @@ namespace nuri {
 namespace {
 constexpr std::string_view kCommentIndicator = "****";
 
-bool advance_header_unread(std::istream &is, std::vector<std::string> &block,
+bool advance_header_unread(std::istream &is, internal::TextBlock &block,
                            bool &read_mol_header) {
   bool first = true;
 
@@ -65,13 +65,13 @@ bool advance_header_unread(std::istream &is, std::vector<std::string> &block,
       }
     }
 
-    block.push_back(std::move(line));
+    block.push_back(line);
   }
 
   return !block.empty();
 }
 
-void advance_header_read(std::istream &is, std::vector<std::string> &block,
+void advance_header_read(std::istream &is, internal::TextBlock &block,
                          bool &read_mol_header) {
   std::string line;
 
@@ -86,7 +86,7 @@ void advance_header_read(std::istream &is, std::vector<std::string> &block,
       continue;
     }
 
-    block.push_back(std::move(line));
+    block.push_back(line);
   }
 
   read_mol_header = false;
@@ -112,7 +112,7 @@ const bool Mol2ReaderFactory::kRegistered =
 namespace {
 namespace x3 = boost::spirit::x3;
 
-using Iter = std::vector<std::string>::const_iterator;
+using Iter = internal::TextBlock::const_iterator;
 
 // NOLINTBEGIN(readability-identifier-naming)
 namespace parser {
@@ -134,9 +134,10 @@ void parse_mol_block(Molecule &mol, Iter &it, const Iter end) {
   if (mol2_block_end(++it, end))
     return;
 
-  auto lit = it->begin();
+  const std::string_view line = *it;
+  auto lit = line.begin();
   std::pair<unsigned int, boost::optional<unsigned int>> nums;
-  bool parser_ok = x3::parse(lit, it->end(), parser::mol_nums_line, nums);
+  bool parser_ok = x3::parse(lit, line.end(), parser::mol_nums_line, nums);
   if (parser_ok) {
     // Cap reservation to the number of remaining lines for untrusted/malformed
     // sources
@@ -147,7 +148,7 @@ void parse_mol_block(Molecule &mol, Iter &it, const Iter end) {
   } else {
     ABSL_LOG(WARNING) << "Failed to parse mol block line; this file might be "
                          "incompatible with future versions of NuriKit";
-    ABSL_LOG(INFO) << "The line is: " << *it;
+    ABSL_LOG(INFO) << "The line is: " << line;
   }
 
   for (int i = 0; i < 2; ++i) {
@@ -255,7 +256,8 @@ std::pair<bool, bool> parse_atom_block(
   bool has_hydrogen = false;
 
   while (!mol2_block_end(++it, end)) {
-    if (std::all_of(it->begin(), it->end(), absl::ascii_isblank)) {
+    const std::string_view line = *it;
+    if (absl::c_all_of(line, absl::ascii_isblank)) {
       ABSL_LOG(INFO) << "Skipping blank line";
       continue;
     }
@@ -266,10 +268,10 @@ std::pair<bool, bool> parse_atom_block(
     std::get<4>(tokens) = boost::none;
     std::get<5>(tokens) = boost::none;
 
-    auto lit = it->begin();
-    if (!x3::parse(lit, it->end(), parser::atom_line, tokens)) {
+    auto lit = line.begin();
+    if (!x3::parse(lit, line.end(), parser::atom_line, tokens)) {
       ABSL_LOG(WARNING) << "Failed to parse atom line";
-      ABSL_LOG(INFO) << "The line is: " << *it;
+      ABSL_LOG(INFO) << "The line is: " << line;
       return { false, false };
     }
 
@@ -310,7 +312,7 @@ std::pair<bool, bool> parse_atom_block(
     auto &optional_attrs = std::get<5>(tokens);
     process_optional_attrs(mutator.mol().atom(idx), substructs, optional_attrs);
 
-    ABSL_LOG_IF(WARNING, lit != it->end())
+    ABSL_LOG_IF(WARNING, lit != line.end())
         << "Ignoring extra tokens in atom line";
   }
 
@@ -346,17 +348,18 @@ bool parse_bond_block(MoleculeMutator &mutator, Iter &it, const Iter end) {
   parser::BondLine tokens;
 
   while (!mol2_block_end(++it, end)) {
-    if (std::all_of(it->begin(), it->end(), absl::ascii_isblank)) {
+    const std::string_view line = *it;
+    if (absl::c_all_of(line, absl::ascii_isblank)) {
       ABSL_LOG(INFO) << "Skipping blank line";
       continue;
     }
 
     std::get<0>(tokens).clear();
 
-    auto lit = it->begin();
-    if (!x3::parse(lit, it->end(), parser::bond_line, tokens)) {
+    auto lit = line.begin();
+    if (!x3::parse(lit, line.end(), parser::bond_line, tokens)) {
       ABSL_LOG(WARNING) << "Failed to parse bond line";
-      ABSL_LOG(INFO) << "The line is: " << *it;
+      ABSL_LOG(INFO) << "The line is: " << line;
       return false;
     }
 
@@ -385,7 +388,7 @@ bool parse_bond_block(MoleculeMutator &mutator, Iter &it, const Iter end) {
       return false;
     }
 
-    ABSL_LOG_IF(WARNING, lit != it->end())
+    ABSL_LOG_IF(WARNING, lit != line.end())
         << "Ignoring extra tokens in bond line";
   }
 
@@ -406,7 +409,8 @@ std::pair<bool, bool> parse_atom_attr_block(Molecule &mol, Iter &it,
   absl::InlinedVector<int, 2> ids;
 
   for (++it; !mol2_block_end(it, end);) {
-    if (std::all_of(it->begin(), it->end(), absl::ascii_isblank)) {
+    const std::string_view line = *it;
+    if (absl::c_all_of(line, absl::ascii_isblank)) {
       ABSL_LOG(INFO) << "Skipping blank line";
       ++it;
       continue;
@@ -414,15 +418,15 @@ std::pair<bool, bool> parse_atom_attr_block(Molecule &mol, Iter &it,
 
     ids.clear();
 
-    auto lit = it->begin();
-    if (!x3::parse(lit, it->end(), parser::unity_atom_attr_line, ids)) {
+    auto lit = line.begin();
+    if (!x3::parse(lit, line.end(), parser::unity_atom_attr_line, ids)) {
       ABSL_LOG(WARNING) << "Failed to parse atom attribute line";
-      ABSL_LOG(INFO) << "The line is: " << *it;
+      ABSL_LOG(INFO) << "The line is: " << line;
       return { false, false };
     }
 
     ABSL_DCHECK(ids.size() == 2);
-    ABSL_LOG_IF(INFO, lit != it->end())
+    ABSL_LOG_IF(INFO, lit != line.end())
         << "Ignoring extra tokens in atom attribute line";
 
     --ids[0];
@@ -472,18 +476,19 @@ bool parse_substructure_block(Molecule &mol, Iter &it, const Iter end) {
   parser::SubstructureLine data;
 
   while (!mol2_block_end(++it, end)) {
-    if (std::all_of(it->begin(), it->end(), absl::ascii_isblank)) {
+    const std::string_view line = *it;
+    if (absl::c_all_of(line, absl::ascii_isblank)) {
       ABSL_LOG(INFO) << "Skipping blank line";
       continue;
     }
 
     data.second.clear();
 
-    auto lit = it->begin();
+    auto lit = line.begin();
 
-    if (!x3::parse(lit, it->end(), parser::substructure_line, data)) {
+    if (!x3::parse(lit, line.end(), parser::substructure_line, data)) {
       ABSL_LOG(WARNING) << "Failed to parse substructure line";
-      ABSL_LOG(INFO) << "The line is: " << *it;
+      ABSL_LOG(INFO) << "The line is: " << line;
       return false;
     }
 
@@ -560,7 +565,7 @@ void fix_guadinium(Molecule &mol, const std::vector<int> &ccat) {
 }
 }  // namespace
 
-ParseResult<Molecule> read_mol2(const std::vector<std::string> &mol2) {
+ParseResult<Molecule> read_mol2(const internal::TextBlock &mol2) {
   Molecule mol;
   std::vector<Vector3d> pos;
   std::vector<int> ccat;

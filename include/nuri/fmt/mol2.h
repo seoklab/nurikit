@@ -9,7 +9,6 @@
 //! @cond
 #include <memory>
 #include <string>
-#include <vector>
 
 #include <absl/base/attributes.h>
 //! @endcond
@@ -25,9 +24,9 @@ namespace nuri {
  * @param mol2 the Mol2 string to read.
  * @return A molecule, or the reason it could not be parsed.
  */
-extern ParseResult<Molecule> read_mol2(const std::vector<std::string> &mol2);
+extern ParseResult<Molecule> read_mol2(const internal::TextBlock &mol2);
 
-using Mol2Record = TextRecordImpl<std::vector<std::string>, read_mol2>;
+using Mol2Record = TextRecordImpl<internal::TextBlock, read_mol2>;
 
 class Mol2Reader final: public StreamReaderBase {
 public:

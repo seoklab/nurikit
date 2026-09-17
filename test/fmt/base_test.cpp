@@ -91,6 +91,93 @@ TEST(ReversedStreamTest, ReadBackwardsMixed) {
   }
 }
 
+TEST(TextBlockTest, PushBackAndIndex) {
+  internal::TextBlock block;
+  EXPECT_TRUE(block.empty());
+  EXPECT_EQ(block.size(), 0);
+  EXPECT_EQ(block.end() - block.begin(), 0);
+
+  block.push_back("first");
+  block.push_back("");
+  block.push_back("third");
+
+  EXPECT_FALSE(block.empty());
+  EXPECT_EQ(block.size(), 3);
+  EXPECT_EQ(block[0], "first");
+  EXPECT_EQ(block[1], "");
+  EXPECT_EQ(block[2], "third");
+  EXPECT_EQ(block.front(), "first");
+  EXPECT_EQ(block.back(), "third");
+}
+
+TEST(TextBlockTest, EmptyLineIsALine) {
+  internal::TextBlock block;
+  block.push_back("");
+  EXPECT_FALSE(block.empty());
+  EXPECT_EQ(block.size(), 1);
+  EXPECT_EQ(block[0], "");
+}
+
+TEST(TextBlockTest, InitializerList) {
+  internal::TextBlock block { "a", "bc", "" };
+  ASSERT_EQ(block.size(), 3);
+  EXPECT_EQ(block[1], "bc");
+  EXPECT_EQ(block.back(), "");
+}
+
+TEST(TextBlockTest, Iterator) {
+  internal::TextBlock block { "a", "bc", "def" };
+  auto it = block.begin();
+  const auto end = block.end();
+  EXPECT_EQ(end - it, 3);
+  EXPECT_EQ(*it, "a");
+  EXPECT_EQ(it[2], "def");
+
+  ++it;
+  EXPECT_LT(it, end);
+  EXPECT_EQ(*it, "bc");
+
+  it += 2;
+  EXPECT_EQ(it, end);
+
+  --it;
+  EXPECT_EQ(*it, "def");
+
+  std::vector<std::string_view> lines(block.begin(), block.end());
+  EXPECT_EQ(lines, (std::vector<std::string_view> { "a", "bc", "def" }));
+}
+
+TEST(TextBlockTest, Append) {
+  internal::TextBlock block { "x", "yy" };
+  internal::TextBlock other { "", "zzz" };
+  block.append(other);
+  ASSERT_EQ(block.size(), 4);
+  EXPECT_EQ(block[0], "x");
+  EXPECT_EQ(block[1], "yy");
+  EXPECT_EQ(block[2], "");
+  EXPECT_EQ(block[3], "zzz");
+
+  internal::TextBlock empty;
+  block.append(empty);
+  EXPECT_EQ(block.size(), 4);
+
+  empty.append(block);
+  ASSERT_EQ(empty.size(), 4);
+  EXPECT_EQ(empty.front(), "x");
+  EXPECT_EQ(empty.back(), "zzz");
+}
+
+TEST(TextBlockTest, ClearReuse) {
+  internal::TextBlock block { "a", "b" };
+  block.clear();
+  EXPECT_TRUE(block.empty());
+  EXPECT_EQ(block.size(), 0);
+
+  block.push_back("c");
+  ASSERT_EQ(block.size(), 1);
+  EXPECT_EQ(block[0], "c");
+}
+
 TEST(EscapeTest, EscapeAll) {
   // unicode thumbs up emoji (utf8)
   std::string_view unsafe = " \ta\nb\tc\rd e \xf0\x9f\x91\x8d \n";
@@ -105,7 +192,7 @@ TEST(EscapeTest, EscapeNewlines) {
   EXPECT_EQ(escaped, " \ta b\tc d e ????  ");
 }
 
-ParseResult<Molecule> stub_parse(const std::vector<std::string> &block) {
+ParseResult<Molecule> stub_parse(const internal::TextBlock &block) {
   if (block[0] == "1")
     return ParseResult<Molecule>::error("stub failure");
 
@@ -121,8 +208,7 @@ public:
   DummyReader(std::istream & /* is */) { }
 
   std::unique_ptr<MoleculeRecord> make_record() const override {
-    return std::make_unique<
-        TextRecordImpl<std::vector<std::string>, stub_parse>>();
+    return std::make_unique<TextRecordImpl<internal::TextBlock, stub_parse>>();
   }
 
   bool bond_valid() const override { return true; }
@@ -135,7 +221,7 @@ class DummyReaderFactory: public DefaultReaderFactoryImpl<DummyReader> { };
 
 class StubReader: public MoleculeReader {
 public:
-  using Record = TextRecordImpl<std::vector<std::string>, stub_parse>;
+  using Record = TextRecordImpl<internal::TextBlock, stub_parse>;
 
   std::unique_ptr<MoleculeRecord> make_record() const override {
     return std::make_unique<Record>();
@@ -151,7 +237,7 @@ private:
     if (next_ >= 3)
       return false;
 
-    block.assign(1, std::to_string(next_++));
+    block.push_back(std::to_string(next_++));
     return true;
   }
 

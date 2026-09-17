@@ -8,6 +8,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <absl/algorithm/container.h>
@@ -478,11 +479,8 @@ TEST(PDBWriteTest, Molecule2D) {
   EXPECT_EQ(mols[0][0].data().atomic_number(), 6);
 }
 
-TEST(PDBReaderTest, RetainedTextIncludesHeaderAndFooter) {
-  PDBRecord record;
-  {
-    std::istringstream input(
-        R"pdb(HEADER    TEST CLASSIFICATION                     01-JAN-25   TEST
+constexpr std::string_view kTwoModelPdb =
+    R"pdb(HEADER    TEST CLASSIFICATION                     01-JAN-25   TEST
 MODEL        1
 HETATM    1  C1  LIG A   1       1.000   2.000   3.000  1.00  0.00           C
 HETATM    2  O1  LIG A   1       2.000   2.000   3.000  1.00  0.00           O
@@ -493,7 +491,12 @@ HETATM    2  O1  LIG A   1       2.000   2.000   3.000  1.00  0.00           O
 ENDMDL
 CONECT    1    2
 END
-)pdb");
+)pdb";
+
+TEST(PDBReaderTest, RetainedTextIncludesHeaderAndFooter) {
+  PDBRecord record;
+  {
+    std::istringstream input(std::string { kTwoModelPdb });
     PDBReader reader(input);
     ASSERT_TRUE(reader.getnext(record));
     ASSERT_TRUE(reader.next()->parse());
@@ -506,6 +509,25 @@ END
   Molecule mol = internal::must_parse_first(record.parse());
   EXPECT_EQ(mol.num_atoms(), 2);
   EXPECT_EQ(mol.num_bonds(), 1);
+}
+
+TEST(PDBReaderTest, RetainedTextReplaysHeaderAndFooterPerModel) {
+  std::istringstream input(std::string { kTwoModelPdb });
+  PDBReader reader(input);
+  PDBRecord record;
+  ASSERT_TRUE(reader.getnext(record));
+  ASSERT_TRUE(reader.getnext(record));
+
+  const internal::TextBlock &text = record.text();
+  ASSERT_EQ(text.size(), 6);
+  EXPECT_EQ(text[0].substr(0, 6), "HEADER");
+  EXPECT_EQ(text[1], "MODEL        2");
+  EXPECT_EQ(text[2].substr(0, 6), "HETATM");
+  EXPECT_EQ(text[4], "CONECT    1    2");
+  EXPECT_EQ(text[5], "END");
+
+  ASSERT_FALSE(reader.getnext(record));
+  EXPECT_TRUE(record.text().empty());
 }
 
 TEST(PDBEmptyTest, HeaderOnly) {
@@ -522,7 +544,7 @@ TEST(PDBEmptyTest, HeaderOnly) {
 }
 
 TEST(PDBEmptyTest, EmptyModelBlock) {
-  std::vector<std::string> block {
+  internal::TextBlock block {
     "HEADER    TEST CLASSIFICATION                     01-JAN-25   ONLY",
     "MODEL        1", "ENDMDL"
   };
