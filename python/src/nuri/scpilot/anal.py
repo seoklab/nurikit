@@ -800,6 +800,56 @@ def _triangle_areas(tangents: np.ndarray, rp: float) -> np.ndarray:
     return rp * rp * (2.0 * math.pi - total)
 
 
+@dataclass
+class FaceTriangles:
+    """Per probe with exactly three departure arcs: the hemisphere normals
+    ``tangents`` and the ``corners`` of the spherical triangle
+    ``{d : d . t_m <= 0}``, corner ``m`` opposite edge ``m`` (the edge on
+    the great circle of ``t_m``)."""
+
+    triangular: np.ndarray
+    tangents: np.ndarray
+    corners: np.ndarray
+
+
+def _face_triangles(n: int, dep_off, dep_t) -> FaceTriangles:
+    triangular = np.diff(dep_off) == 3
+    tangents = np.zeros((n, 3, 3))
+    corners = np.zeros((n, 3, 3))
+    idx = np.flatnonzero(triangular)
+    t = dep_t[dep_off[idx, None] + np.arange(3)]
+    tangents[idx] = t
+    for m in range(3):
+        v = cross(t[:, (m + 1) % 3], t[:, (m + 2) % 3])
+        v /= np.linalg.norm(v, axis=1, keepdims=True)
+        v *= -np.sign(np.einsum("ij,ij->i", t[:, m], v))[:, None]
+        corners[idx, m] = v
+    return FaceTriangles(triangular, tangents, corners)
+
+
+def _meets_triangle(tri: FaceTriangles, probe, axis, cos_a):
+    """Whether the cap ``(axis, cos a)`` on the sphere of ``probe`` meets
+    its spherical triangle: the axis is inside, or within ``a`` of an edge
+    arc, or within ``a`` of a corner. The cosine of the angle from the axis
+    to its foot on the great circle of ``t_m`` is ``sqrt(1 - (axis . t_m)^2)``
+    and the foot lies on the arc iff it is on the arc's side of the
+    midpoint's plane; probes without a triangle pass."""
+    t, c = tri.tangents[probe], tri.corners[probe]
+    along = np.einsum("kmj,kj->km", t, axis)
+    inside = np.all(along <= 0.0, axis=1)
+    near = np.any(np.einsum("kmj,kj->km", c, axis) > cos_a[:, None], axis=1)
+    for m in range(3):
+        p, q = c[:, (m + 1) % 3], c[:, (m + 2) % 3]
+        mid = p + q
+        foot = axis - along[:, m, None] * t[:, m]
+        cos_foot = np.sqrt(1.0 - along[:, m] * along[:, m])
+        on_arc = np.einsum("ij,ij->i", foot, mid) >= cos_foot * np.einsum(
+            "ij,ij->i", p, mid
+        )
+        near |= on_arc & (cos_foot > cos_a)
+    return ~tri.triangular[probe] | inside | near
+
+
 def _meets_plane_cap(hts: ProbeHeights, probe, axis, cos_a, sin_a):
     """Whether the cap ``(axis, cos a)`` on the sphere of ``probe`` overlaps
     the cap beyond the contact plane, ``d . normal > cos b``: the angle
@@ -810,7 +860,7 @@ def _meets_plane_cap(hts: ProbeHeights, probe, axis, cos_a, sin_a):
 
 
 def _probe_pair_caps(
-    probes, rp: float, hts: ProbeHeights
+    probes, rp: float, hts: ProbeHeights, tri: FaceTriangles
 ) -> tuple[np.ndarray, Caps]:
     """Caps cut into every probe sphere by the other probes within
     ``2 rp``, as ``(offsets, caps)`` sorted by probe; each pair is measured
@@ -818,7 +868,7 @@ def _probe_pair_caps(
     symmetric, so a pair is dropped for both probes as soon as one side
     cannot be cut: a pair is kept iff its ``cos`` is below 1, the same
     value the cap carries, both probes are low, and each cap meets the
-    other probe's beyond-plane cap."""
+    other probe's beyond-plane cap and spherical triangle."""
     pairs = cKDTree(probes).query_pairs(2.0 * rp, output_type="ndarray")
     if len(pairs) == 0:
         pairs = np.empty((0, 2), dtype=int)
@@ -836,6 +886,8 @@ def _probe_pair_caps(
     sin_a = np.sqrt(1.0 - cos_a * cos_a)
     keep = _meets_plane_cap(hts, pairs[:, 0], axis, cos_a, sin_a)
     keep &= _meets_plane_cap(hts, pairs[:, 1], -axis, cos_a, sin_a)
+    keep &= _meets_triangle(tri, pairs[:, 0], axis, cos_a)
+    keep &= _meets_triangle(tri, pairs[:, 1], -axis, cos_a)
     src = pairs[keep].T.ravel()
     axis = np.concatenate([axis[keep], -axis[keep]])
     cos_a = np.tile(cos_a[keep], 2)
@@ -853,13 +905,11 @@ def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
     n_active = sas.n_active_probes
     hts = _probe_heights(sas)
     dep_off, dep_t = _departure_caps(sas)
-    plain = ~hts.low[:n_active] & (np.diff(dep_off)[:n_active] == 3)
+    tri = _face_triangles(len(probes), dep_off, dep_t)
+    plain = ~hts.low[:n_active] & tri.triangular[:n_active]
     areas = np.zeros(n_active)
-    plain_idx = np.flatnonzero(plain)
-    areas[plain_idx] = _triangle_areas(
-        dep_t[dep_off[plain_idx, None] + np.arange(3)], sas.rp
-    )
-    nbr_off, nbr_caps = _probe_pair_caps(probes, sas.rp, hts)
+    areas[plain] = _triangle_areas(tri.tangents[:n_active][plain], sas.rp)
+    nbr_off, nbr_caps = _probe_pair_caps(probes, sas.rp, hts, tri)
     faces = []
     for q in range(n_active):
         atoms = sas.atoms_of(q)
