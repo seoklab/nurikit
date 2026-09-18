@@ -536,7 +536,7 @@ def _circles(coords, sas, pairs, d) -> Circles:
     ri, rj = sas[i], sas[j]
     axis = (coords[j] - coords[i]) / d[:, None]
     a = (d * d + ri * ri - rj * rj) / (2.0 * d)
-    rl = np.sqrt(np.maximum(ri * ri - a * a, 0.0))
+    rl = np.sqrt(ri * ri - a * a)
     centre = coords[i] + a[:, None] * axis
     e1 = any_perpendicular(axis)
     e2 = np.cross(axis, e1)
@@ -702,6 +702,8 @@ def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
         others = np.array([n for n in near[q] if n != q], dtype=int)
         diff = probes[others] - probes[q]
         dist = np.linalg.norm(diff, axis=1)
+        close = dist < 2.0 * sas.rp
+        others, diff, dist = others[close], diff[close], dist[close]
         tangents = dep_t[dep_off[q] : dep_off[q + 1]]
         cos_a = dist / (2.0 * sas.rp)
         caps = Caps(

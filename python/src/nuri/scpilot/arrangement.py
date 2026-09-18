@@ -140,7 +140,7 @@ def cluster_points(pts: np.ndarray, tol: float) -> np.ndarray:
 
 
 def prepare_caps(caps: Caps, radius: float) -> tuple[Caps, bool]:
-    """Drop empty caps, merge coincident ones, drop hidden (nested) ones.
+    """Merge coincident caps and drop hidden (nested) ones.
 
     Caps whose circles lie within ``TAU_C`` of each other everywhere (their
     ``radius * (axis, cos, sin)`` vectors that close) are one circle computed
@@ -149,9 +149,6 @@ def prepare_caps(caps: Caps, radius: float) -> tuple[Caps, bool]:
     whether two caps together cover the whole sphere, in which case no
     arrangement is needed at all.
     """
-    caps = caps.take(np.flatnonzero(caps.sin_a > 0.0))
-    if len(caps) == 0:
-        return caps, False
     caps, _ = _merge_coincident(caps, radius)
     hidden, covered, _ = classify_caps(caps)
     return caps.take(np.flatnonzero(~hidden)), covered
