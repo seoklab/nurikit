@@ -110,7 +110,7 @@ def prepare(coords, radii, rp, active=None):
     active &= ~inside
 
     i, j = pairs[:, 0], pairs[:, 1]
-    keep = (d < sas[i] + sas[j] - TAU_C) & ~inside[i] & ~inside[j]
+    keep = ~inside[i] & ~inside[j]
     pairs, d, i, j = pairs[keep], d[keep], i[keep], j[keep]
     need = active.copy()
     need[j[active[i]]] = True
@@ -126,7 +126,8 @@ def prepare(coords, radii, rp, active=None):
 
 
 def overlaps(coords, sas):
-    """All pairs ``(i < j)`` with touching SAS balls and their distances."""
+    """All pairs ``(i < j)`` whose SAS balls overlap by more than ``TAU_C``
+    and their distances; tangent pairs are not overlaps."""
     tree = cKDTree(coords)
     pairs = tree.query_pairs(2.0 * sas.max(), output_type="ndarray")
     if len(pairs) == 0:
@@ -135,8 +136,8 @@ def overlaps(coords, sas):
     d = np.linalg.norm(coords[j] - coords[i], axis=1)
     if np.any(d < 1e-3):
         raise ValueError("coincident atoms")
-    touching = d < sas[i] + sas[j]
-    return pairs[touching], d[touching]
+    overlapping = d < sas[i] + sas[j] - TAU_C
+    return pairs[overlapping], d[overlapping]
 
 
 def contained(n, pairs, d, sas):
