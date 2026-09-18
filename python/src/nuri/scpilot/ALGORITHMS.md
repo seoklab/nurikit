@@ -424,8 +424,113 @@ kernels can survive (see NOTES.md, C++ port: a `DCHECK`).
   its two extremes, the departure hemisphere and the cap of the arc's end
   vertex, which is already in the within-`2rp` list.
 
-  The face arrangement is solved locally with `solve_caps`; its area is the
-  concave area.
+  The face arrangement is solved locally with `solve_caps` for the faces and
+  caps that survive the filters below; its area is the concave area.
+
+### Which probes can cut a face
+
+Notation for a probe `x` on atoms `a` with contact directions
+`ĉ_a = (c_a − x)/R_a`: the **face cone** is `C = {Σ λ_a ĉ_a : λ_a ≥ 0}` (for
+an ordinary three-atom vertex, the complement of the three departure
+hemispheres), the **contact triangle** is `T = conv{c_a}`, and `t(d)` is the
+distance from `x` along the ray `d ∈ C` to `T`. Lemmas 1, 3 and 4 are
+stated for three-atom probes; merged k-fold probes take the unfiltered path.
+The face is cut by `y` where it enters the open ball `B°(y, rp)`.
+
+**Lemma 1 (cuts lie beyond the contact plane).** Let `y = x + v` be any
+point outside the interior of `U` — every accessible probe centre, rolling
+or resting, and every other SAS point. Then no face point `x + rp d` with
+`t(d) ≥ rp` lies in `B°(y, rp)`.
+
+*Proof.* `y ∉ B°(c_a, R_a)` gives `|x + v − c_a|² ≥ R_a²`, i.e.
+`v·ĉ_a ≤ |v|²/2R_a`. Write `d = Σ λ_a ĉ_a`; the ray meets the triangle at
+`t(d) d = Σ μ_a (c_a − x)` with `Σ μ_a = 1`, so `λ_a = μ_a R_a / t(d)` and
+`Σ λ_a / R_a = 1/t(d)`. Hence `v·d = Σ λ_a v·ĉ_a ≤ |v|²/2t(d)` and
+
+```
+|v − rp d|² = |v|² − 2 rp v·d + rp² ≥ |v|² (1 − rp/t(d)) + rp² ≥ rp².  ∎
+```
+
+**Corollary 1 (uncuttable faces).** `min_{d∈C} t(d) = dist(x, T)`, which is
+the plane distance `h` when the foot of the perpendicular lies inside `T`
+and larger otherwise. A probe with `dist(x, T) ≥ rp` — equivalently, whose
+own ball does not reach its contact triangle — is **high**: nothing cuts its
+face, which is the spherical triangle `{d : d·t_m ≤ 0}` bounded by the three
+departure great circles. Its area is `rp²` times the spherical excess,
+
+```
+A = rp² (Σ_m interior angle_m − π) = rp² (2π − Σ_m ∠(t_m, t_{m+1})),
+```
+
+with `∠(t_m, t_{m+1}) = atan2(|t_m × t_{m+1}|, t_m · t_{m+1})` (an angle
+consumed as an angle). Every other probe is **low** (k-fold probes count as
+low). `_probe_heights` decides this once for every probe, vectorised; high
+active faces never reach the neighbour query or `solve_caps`.
+
+**Lemma 2 (cutting is symmetric).** If the cap of `y` leaves an arc on the
+face of `x`, the cap of `x` leaves an arc on the face of `y`.
+
+*Proof.* Points `z` of that arc are at distance exactly `rp` from `x` and
+`y` and, being on the face boundary, at distance `≥ rp` from every other SAS
+point. Near `z`, the eroded region is therefore the complement of
+`B°(x, rp) ∪ B°(y, rp)`, and the SES is the outer boundary of that union:
+it contains points of `S(y, rp)` next to `z` (the two spheres cross
+transversally since `0 < |x − y| < 2rp`). Those points are SES points on
+the sphere of `y`, hence in the face of `y`: inside its cone and outside
+every other cap. The cap of `x` on `S(y, rp)` has `z` on its boundary and so
+contains face points of `y` next to `z`. ∎ (Generic position: the arc has
+positive length and no third probe ball passes through `z`; coincidences
+below `TAU_C` are merged upstream.)
+
+**Corollary 2 (both ends low).** A cutting pair has two low ends: if `y`
+cuts `x` then `x` cuts `y`, so `y`'s face is cut and `y` is low by
+Corollary 1. Because every filter below is a *necessary* condition for one
+side to be cut, and the pair cuts on both sides or neither, a pair is
+dropped **for both faces** as soon as either side fails any test.
+
+**Lemma 3 (the cap must reach the beyond-plane cap).** By Lemma 1 the cut
+part of the face lies inside `{d : d·n > cos β}`, `cos β = h/rp`, where `n`
+is the contact-plane normal pointing from `x` toward the triangle. A cap
+`{d : d·u > cos α}` meets it only if the angle between `u` and `n` is below
+`α + β`:
+
+```
+u · n > cos(α + β) = cos α cos β − sin α sin β.
+```
+
+All four values are stored; no angle is recovered.
+
+**Lemma 4 (the cap must meet the spherical triangle).** The cap meets the
+closed triangle `S = {d : d·t_m ≤ 0}` iff `u ∈ S` or the angular distance
+from `u` to the boundary of `S` is below `α`. Edge `m` is the arc of the
+great circle `t_m · d = 0` between the corners `p_{m+1}` and `p_{m+2}`,
+`p_m = ±(t_{m+1} × t_{m+2})/|·|` signed so that `t_m · p_m ≤ 0`. The foot of
+`u` on that great circle is `f = u − (u·t_m) t_m`, and the cosine of the
+angle from `u` to `f` is `|f| = √(1 − (u·t_m)²)`; `f` lies on the arc iff it
+is on the arc's side of the plane through the origin and the corners'
+bisector, `f · (p + q) ≥ |f| · p·(p + q)`. So the cap meets the boundary iff
+
+```
+(f on arc m  and  |f| > cos α)   for some m,   or   max_m u·p_m > cos α,
+```
+
+the corner test covering feet off their arcs. Comparisons are on cosines
+only. The condition is necessary for the cap to cut anything and, for a
+face with no other caps, sufficient.
+
+**Order and exactness.** Per structure: heights of all probes (Corollary 1)
+→ closed-form areas of the high active faces → probe pairs within `2rp`
+→ drop pairs with a high end (Corollary 2) → drop pairs failing Lemma 3 on
+either side → drop pairs failing Lemma 4 on either side → `solve_caps` on
+the low active faces with the surviving caps. Dropped caps contain no face
+point, so the arrangement's accessible region, its area and the dots are
+unchanged; the pilot's brute-force test (`anal_test.py`) checks per-face
+equality against solving every probe within `2rp`. On 1brs (4 374 faces,
+`rp = 1.7`, united-atom radii, every atom active): 3 782 faces are high;
+20 243 probe pairs lie within `2rp`, 1 243 have both ends low, 456 pass
+Lemma 3, 390 pass Lemma 4 and 292 finally leave an arc on both faces. The
+face stage of the 921-atom chain drops from 0.41 s to 0.06 s (0.16 s to
+0.02 s with 266 active atoms; login node, preliminary).
 
 ### What is discontinuous
 
@@ -494,7 +599,7 @@ clustering (≤ 40 points, so a pairwise test suffices in C++). Connected
 components everywhere are minimum-label propagation with pointer jumping, not
 sparse graphs. Sampling is linear in the number of dots. In the Python pilot
 what remains is one interpreter iteration per solved sphere (twice: merge,
-classify), per non-covered sphere (solve), per active face (solve) and per
-active atom and face (sampling): about 0.78 s + 0.40 s + 0.05 s for the
-921-atom chain with every atom active, 0.54 s + 0.16 s + 0.02 s with 266
-active atoms (login node, preliminary).
+classify), per non-covered sphere (solve), per low active face (solve; high
+faces are closed-form, see §3) and per active atom and face (sampling): about
+0.78 s + 0.06 s + 0.05 s for the 921-atom chain with every atom active,
+0.54 s + 0.02 s + 0.02 s with 266 active atoms (login node, preliminary).
