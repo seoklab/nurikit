@@ -131,19 +131,20 @@ def cluster_points(pts: np.ndarray, tol: float) -> np.ndarray:
     return components(len(pts), pairs)
 
 
-def prepare_caps(caps: Caps, radius: float) -> tuple[Caps, bool]:
+def prepare_caps(caps: Caps, radius: float) -> tuple[Caps, bool, np.ndarray]:
     """Merge coincident caps and drop hidden (nested) ones.
 
     Caps whose circles lie within ``TAU_C`` of each other everywhere (their
     ``radius * (axis, cos, sin)`` vectors that close) are one circle computed
     through different routes, e.g. the departure hemispheres of tangent arcs
-    at a pinch; they are merged into their renormalised mean. Also reports
-    whether two caps together cover the whole sphere, in which case no
-    arrangement is needed at all.
+    at a pinch; they are merged into their renormalised mean. Returns the
+    surviving caps, whether two caps together cover the whole sphere (no
+    arrangement is needed then) and the crossing matrix of the survivors.
     """
     caps, _ = _merge_coincident(caps, radius)
-    hidden, covered, _ = classify_caps(caps)
-    return caps.take(np.flatnonzero(~hidden)), covered
+    hidden, covered, crossing = classify_caps(caps)
+    keep = np.flatnonzero(~hidden)
+    return caps.take(keep), covered, crossing[np.ix_(keep, keep)]
 
 
 def classify_caps(
@@ -215,10 +216,12 @@ def _merge_coincident(caps: Caps, radius: float) -> tuple[Caps, np.ndarray]:
     return Caps(axis, trig[:, 0], trig[:, 1], tag), label
 
 
-def crossing_points(caps: Caps) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def crossing_points(
+    caps: Caps, crossing: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     """Raw intersection points of all crossing cap-circle pairs.
 
-    The crossing decision is :func:`pair_predicates`. For a crossing pair
+    ``crossing`` is the decision of :func:`pair_predicates`. For a crossing pair
     the point of the intersection line nearest the origin is written in the
     basis ``m = n_1 + n_2``, ``w = n_1 - n_2``:
 
@@ -230,13 +233,8 @@ def crossing_points(caps: Caps) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     predicate calls crossing but rounding puts at tangency yields two
     coincident points, which clustering merges into a pinch.
 
-    Returns ``(dirs (v, 3), pair (v, 2), crossing (m, m))``.
+    Returns ``(dirs (v, 3), pair (v, 2))``.
     """
-    m = len(caps)
-    if m < 2:
-        crossing = np.zeros((m, m), dtype=bool)
-        return np.empty((0, 3)), np.empty((0, 2), dtype=int), crossing
-    _, _, crossing = pair_predicates(caps)
     jj, kk = np.nonzero(np.triu(crossing, 1))
     n1, n2 = caps.axis[jj], caps.axis[kk]
     c1, c2 = caps.cos_a[jj], caps.cos_a[kk]
@@ -250,7 +248,7 @@ def crossing_points(caps: Caps) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     h = np.sqrt(hsq)[:, None]
     dirs = np.concatenate([base + h * perp, base - h * perp])
     pair = np.column_stack([jj, kk])
-    return dirs, np.concatenate([pair, pair]), crossing
+    return dirs, np.concatenate([pair, pair])
 
 
 def cap_components(crossing: np.ndarray) -> int:
@@ -270,10 +268,10 @@ def covered_arrangement(radius: float, caps: Caps) -> Arrangement:
 
 def solve_caps(radius: float, caps: Caps) -> Arrangement:
     """Solve an arrangement, clustering vertices locally."""
-    caps, covered = prepare_caps(caps, radius)
+    caps, covered, crossing = prepare_caps(caps, radius)
     if covered:
         return covered_arrangement(radius, caps)
-    dirs, pair, crossing = crossing_points(caps)
+    dirs, pair = crossing_points(caps, crossing)
     label = cluster_points(dirs * radius, TAU_C)
     n_clusters = int(label.max()) + 1 if len(label) else 0
     reps = np.zeros((n_clusters, 3))
