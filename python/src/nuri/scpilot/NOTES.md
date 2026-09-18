@@ -6,6 +6,55 @@ score. Spec sources: Connolly (1983) for the molecular surface, Quan & Stamm
 documentation for the statistic and defaults. Rosetta's `sc` app is used only
 as a black-box numeric oracle (`rosetta.py`).
 
+## Provenance
+
+Primary source: C. Quan, B. Stamm, "Mathematical analysis and calculation of
+molecular surfaces", J. Comput. Phys. 322 (2016) 760–782,
+doi:10.1016/j.jcp.2016.07.007. The pilot implements the paper's
+characterisation of the SES. ALGORITHMS.md §2–§3 carry their own derivations;
+the paper's Table 1 (`Ases = 32.23514`) is a test fixture.
+
+The authors' Matlab implementation, MolSurfComp (<https://github.com/quanchaoyu/MolSurfComp>, LGPL-3.0), is distributed under terms incompatible with this project's
+Apache-2.0. No code, formula, constant, tolerance, table, identifier or file
+structure from it appears in this source tree. The Python pilot was written
+from the paper; the C++ port is to be written from the paper, from this
+repository and from ALGORITHMS.md §3, and not with the Matlab source open.
+Neither is a translation of it.
+
+MolSurfComp was read in Sep 2026 — once for a correctness audit against the
+pilot, once more when that audit was reviewed. The reading surfaced four
+prunings of the cut set, none of them stated in the paper: Theorem 5.1 removes
+`B_rp(x)` for every SAS intersection point `x` within `2rp` and imposes no
+filter on that set.
+
+| MolSurfComp | There | Here |
+|---|---|---|
+| high probe ⇒ uncut face, by height over the plane of the three atom centres (`data_I_Cir.m`, `s2 < Rp`) | asserted | not adopted. Corollary 1, proved, on distance to the contact *triangle* |
+| only low probes may cut | asserted | not adopted. Corollary 2, proved from Lemma 2 (cut symmetry) and Corollary 1, again on triangle distance |
+| first-atom neighbourhood restriction | asserted | not adopted. Unproved, and unsound in a narrow cleft by the `R_a + R_d + 2rp` bound derived independently in §3 step 4. Lemma 4 prunes the same caps with a proof |
+| keep only the largest departure angle among probes sharing two atoms | asserted | proved here (pencil argument), but not a cutter-pruning code path; kept as a debug assertion |
+
+Neither of the first two is MolSurfComp's criterion. `dist(x, T) ≥ h`, so
+strictly more faces are uncut and the implementations disagree observably: on
+1brs, 3782 faces are high here against 3520 there; on 2ptc, 1686 against 1555.
+The proof sketch the audit offered for the first was found invalid
+(containment in the tetrahedron yields no margin) and was replaced. Lemma 2
+(cut symmetry) and Lemma 3 (beyond-plane cap) have no counterpart we found
+there. The closed-form area of an uncut face is the paper's Gauss–Bonnet
+formula (5.28) with `χ = 1` and great-circle edges; the general area formula
+in §2 step 7 is (4.19)/(5.25). A pencil argument also appears in §3 for an
+unrelated purpose — probes rolling along an arc need no cap of their own,
+their union being the departure hemisphere and the end vertex's cap — and
+predates the audit.
+
+Third-party material used as black-box numeric oracles for regression testing:
+Rosetta's `sc` application and MolSurfComp. Only their numeric output is used;
+no harness, parser, fixture or I/O code from either is vendored, and the
+comparison tooling is ours. Rosetta is invoked as an external binary and is
+neither linked nor redistributed. United-atom radii come from a published
+table, cited under "United-atom radii" below; no radii file is copied from any
+program.
+
 ## Layout
 
 | file | role |
@@ -129,7 +178,14 @@ where an angle is consumed as an angle (φ along a circle, dart angles).
   and probes that are the only vertex of a circle (zero face) follow from the
   same rule. Same-circle rolling probes need no extra cut: their caps are
   bounded by planes through the torus axis, a pencil whose union over an arc
-  is side-hemisphere ∪ cap(end vertex).
+  is side-hemisphere ∪ cap(end vertex). Cuts reach only the part of a face
+  beyond its contact plane, so a probe whose ball misses its contact
+  triangle ("high") has a plain spherical-triangle face with closed-form
+  area; cutting is symmetric, so a probe pair cuts only if both ends are
+  low, and it is dropped for both faces if either cap misses the other's
+  beyond-plane cap or spherical triangle (proofs in ALGORITHMS.md §3,
+  "Which probes can cut a face"). Areas are unchanged; a brute-force test
+  keeps it so.
 
 ## Sampler
 
@@ -300,6 +356,11 @@ active atom and face (sampling); everything inside is vectorised.
   dart array per sphere with curvature tie-break and snapped tie angles,
   Gauss–Bonnet with patch count from cap components). Same solver serves
   atom spheres and probe spheres.
+- Concave cutters: one height pass over all probes, closed-form high faces,
+  one pair pass that applies the both-low, beyond-plane and triangle tests
+  from both sides and keeps a pair for both faces or neither; every test is
+  a necessary condition, so the region solved is the same. Port the pilot's
+  brute-force equality test alongside.
 - Trig: store `(cos, sin)`, compare trig values, `atan2` only for angles that
   are consumed as angles (circle φ, dart angles, saddle β ranges).
 - Public surface API: `ses_dots(coords, radii, rp, density, active_mask)` →
