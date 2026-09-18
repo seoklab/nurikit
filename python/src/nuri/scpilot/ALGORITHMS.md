@@ -238,6 +238,12 @@ computed through different cap pairs (about `1e-12 × |coords|`) and stay below
 the smallest gap that must remain a gap; the test suite passes for any value in
 `[1e-8, 1e-4]`. All other comparisons are exact.
 
+`TAU_C` also bounds the circle radius from below: at the overlap threshold
+`d = R_i + R_j − TAU_C` the circle has `rl ≈ √(TAU_C · 2 R_i R_j / d) ≈
+1.8e-3 Å` and `R_i² − a² ≈ 3e-6`, far above rounding, so the `max(·, 0)` under
+that square root is a NaN guard the margin makes unreachable, not a case the
+kernels can survive (see NOTES.md, C++ port: a `DCHECK`).
+
 ## 3. `anal.py` — SAS and SES from arrangements
 
 ### Preparation (`prepare`)
