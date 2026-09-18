@@ -234,7 +234,7 @@ class SasGeometry:
         kept = (~solved | distinct).all(axis=1)
 
         covered = np.zeros(n_solve, dtype=bool)
-        sph_off, sph_edges = _sphere_edges(
+        sph_off, _, sph_edges = _sphere_incidence(
             tri.triples[kept], slots[kept], solved[kept], n_solve
         )
         for i, caps in enumerate(caps_of):
@@ -251,7 +251,7 @@ class SasGeometry:
 
         slots = _triple_slots(tri.circ, row_of, slot_of_row)
         kept &= (~solved | (slots >= 0).all(axis=2)).all(axis=1)
-        triples, slots = tri.triples[kept], slots[kept]
+        triples, slots, solved = tri.triples[kept], slots[kept], solved[kept]
         points = tri.points(kept)
 
         raw_pts = points.reshape(-1, 3)
@@ -260,35 +260,26 @@ class SasGeometry:
         n_clusters = int(label.max()) + 1 if len(label) else 0
         reps = np.zeros((n_clusters, 3))
         np.add.at(reps, label, raw_pts)
-        reps /= np.maximum(np.bincount(label, minlength=n_clusters), 1)[
-            :, None
-        ]
+        reps /= np.bincount(label, minlength=n_clusters)[:, None]
         atoms_key = np.unique(
             (label[:, None] * n + triples[raw_triple]).ravel()
         )
-        owner = np.full(n_clusters, n, dtype=int)
-        np.minimum.at(owner, label, triples[raw_triple, 0])
+        owner = _first_atoms(n, atoms_key, n_clusters)
 
-        tri_off, tri_flat, tri_pos = _inverted_index(triples, n_solve)
-        per_sphere = []
-        edges = [np.empty((0, 2), dtype=int)]
         cap_off = np.cumsum([0, *(len(c) for c in caps_of)])
-        accessible = np.zeros(n_clusters, dtype=bool)
-        for i, caps in enumerate(caps_of):
-            sel = tri_flat[tri_off[i] : tri_off[i + 1]]
-            islots = slots[sel, tri_pos[tri_off[i] : tri_off[i + 1]]]
-            edges.append(islots + cap_off[i])
-            raw = 2 * np.repeat(sel, 2) + np.tile([0, 1], len(sel))
-            local, inv = np.unique(label[raw], return_inverse=True)
-            local_reps = reps[local] - coords[i]
-            if len(local):
-                local_reps /= np.linalg.norm(local_reps, axis=1, keepdims=True)
-            per_sphere.append((islots, local, inv, local_reps))
-            mine = owner[local] == i
-            accessible[local[mine]] = _accessible_on_sphere(
-                caps, i, local[mine], local_reps[mine], circles, atoms_key, n
-            )
-        n_components = _components_per_sphere(cap_off, np.concatenate(edges))
+        sph_off, sph_tri, sph_edges = _sphere_incidence(
+            triples, slots, solved, n_solve
+        )
+        sphere = np.repeat(np.arange(n_solve), np.diff(sph_off))
+        gcap = sph_edges + cap_off[sphere, None]
+        cluster = label[2 * sph_tri[:, None] + np.array([0, 1])]
+        incidence = np.unique(
+            (cluster[:, :, None] * cap_off[-1] + gcap[:, None, :]).ravel()
+        )
+        n_components = _components_per_sphere(cap_off, gcap)
+        accessible = _accessible(
+            Caps.concat(caps_of), cap_off, coords, reps, owner, incidence
+        )
 
         probe_ids = np.flatnonzero(accessible)
         probe_map = np.full(n_clusters, -1, dtype=int)
@@ -301,14 +292,21 @@ class SasGeometry:
             if covered[i]:
                 arrangements.append(covered_arrangement(sas[i], caps))
                 continue
-            islots, local, inv, local_reps = per_sphere[i]
+            rows = slice(sph_off[i], sph_off[i + 1])
+            local, inv = np.unique(cluster[rows], return_inverse=True)
+            local_reps = reps[local] - coords[i]
+            local_reps /= np.linalg.norm(local_reps, axis=1, keepdims=True)
+            excused = np.zeros((len(local), len(caps)), dtype=bool)
+            excused[
+                inv.reshape(-1, 2)[:, :, None], sph_edges[rows, None, :]
+            ] = True
             sign = np.where(circles.pair[caps.tag, 0] == i, 1.0, -1.0)
             arr = solve(
                 sas[i],
                 caps,
-                np.repeat(islots, 2, axis=0),
-                inv,
+                sph_edges[rows],
                 local_reps,
+                excused,
                 accessible[local],
                 int(n_components[i]),
                 (circles.e1[caps.tag], sign[:, None] * circles.e2[caps.tag]),
@@ -373,15 +371,6 @@ def _neighbour_csr(n, pairs) -> tuple[np.ndarray, np.ndarray]:
     return np.searchsorted(both[:, 0], np.arange(n + 1)), both[:, 1]
 
 
-def _inverted_index(triples, n_solve):
-    """Triples touching each solved sphere as ``(offsets, triple, position
-    of the sphere within the triple)``."""
-    atom = triples.ravel()
-    order = np.argsort(atom, kind="stable")
-    tri, pos = np.divmod(order, 3)
-    return np.searchsorted(atom[order], np.arange(n_solve + 1)), tri, pos
-
-
 def _components_per_sphere(cap_off, edges) -> np.ndarray:
     """Connected components of every sphere's crossing graph, from one
     block-diagonal graph over all caps."""
@@ -440,11 +429,7 @@ def _triple_candidates(coords, sas, circles, nbr_off, nbr_flat, pair_keys):
     lo = np.searchsorted(nbr_key, i * n + j, "right")
     count = nbr_off[i + 1] - lo
     circ = np.repeat(np.arange(len(circles)), count)
-    k = nbr_flat[
-        np.repeat(lo, count)
-        + np.arange(int(count.sum()))
-        - np.repeat(np.cumsum(count) - count, count)
-    ]
+    k = nbr_flat[np.repeat(lo, count) + _within(count)]
     key = j[circ] * n + k
     pos = np.minimum(np.searchsorted(pair_keys, key), len(pair_keys) - 1)
     is_pair = pair_keys[pos] == key
@@ -488,14 +473,50 @@ def _triple_slots(circ, row_of, slot_of_row) -> np.ndarray:
     return np.append(slot_of_row, -1)[rows]
 
 
-def _sphere_edges(triples, slots, solved, n_solve):
-    """Crossing cap pairs of every solved sphere as ``(offsets, edges)``,
-    one edge per (kept triple, solved sphere of it)."""
+def _sphere_incidence(triples, slots, solved, n_solve):
+    """Every (solved sphere, triple touching it) incidence sorted by
+    sphere: ``(offsets, triple, the triple's two cap slots there)``."""
     sphere = triples[solved]
-    edges = slots[solved]
     order = np.argsort(sphere, kind="stable")
+    tri = np.repeat(np.arange(len(triples)), solved.sum(axis=1))
     offsets = np.searchsorted(sphere[order], np.arange(n_solve + 1))
-    return offsets, edges[order]
+    return offsets, tri[order], slots[solved][order]
+
+
+def _first_atoms(n, keys, n_clusters) -> np.ndarray:
+    """Smallest atom of every cluster from the sorted ``cluster * n + atom``
+    incidences; the owner sphere that decides its accessibility."""
+    cluster, atom = np.divmod(keys, n)
+    return atom[np.searchsorted(cluster, np.arange(n_clusters))]
+
+
+def _accessible(caps, cap_off, coords, reps, owner, incidence) -> np.ndarray:
+    """Accessibility of every cluster, decided once on its owner sphere.
+
+    A cluster is accessible iff it lies outside every cap of that sphere
+    except those whose crossing points merged into it (``incidence``,
+    sorted ``cluster * n_caps + cap`` keys). Every ball that could contain
+    a point of the sphere overlaps it and therefore is a cap there (or
+    nested inside one), so this equals the test against all SAS balls.
+    """
+    n_caps = int(cap_off[-1])
+    count = np.diff(cap_off)[owner]
+    cluster = np.repeat(np.arange(len(owner)), count)
+    cap = cap_off[owner[cluster]] + _within(count)
+    dirs = reps[cluster] - coords[owner[cluster]]
+    dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
+    inside = np.einsum("ij,ij->i", dirs, caps.axis[cap]) > caps.cos_a[cap]
+    key = cluster * n_caps + cap
+    pos = np.minimum(np.searchsorted(incidence, key), len(incidence) - 1)
+    excused = incidence[pos] == key
+    return np.bincount(cluster, inside & ~excused, minlength=len(owner)) == 0
+
+
+def _within(counts) -> np.ndarray:
+    """Index of every element within its segment of ``counts``."""
+    return np.arange(int(counts.sum())) - np.repeat(
+        np.cumsum(counts) - counts, counts
+    )
 
 
 def _circles(coords, sas, pairs, d) -> Circles:
@@ -510,26 +531,6 @@ def _circles(coords, sas, pairs, d) -> Circles:
     return Circles(pairs, centre, rl, axis, e1, e2, a, d)
 
 
-def _accessible_on_sphere(caps, i, clusters, dirs, circles, atoms_key, n):
-    """Accessibility of the clusters owned by sphere ``i`` (their
-    smallest atom), decided once against that sphere's caps.
-
-    A cluster is accessible iff it lies outside every cap except those of
-    its own atoms. Every ball that could contain a point of sphere ``i``
-    overlaps it and therefore is a cap here (or nested inside one), so
-    this equals the test against all SAS balls; deciding it once per
-    cluster keeps every sphere sharing the cluster consistent.
-    """
-    if len(clusters) == 0:
-        return np.zeros(0, dtype=bool)
-    inside = dirs @ caps.axis.T > caps.cos_a
-    other = circles.pair[caps.tag].sum(axis=1) - i
-    key = clusters[:, None] * n + other[None, :]
-    pos = np.minimum(np.searchsorted(atoms_key, key), len(atoms_key) - 1)
-    excused = atoms_key[pos] == key
-    return ~(inside & ~excused).any(axis=1)
-
-
 def _probe_atoms(n, keys, probe_ids) -> tuple[np.ndarray, np.ndarray]:
     """Sorted atoms of every probe as ``(offsets, flat)``; ``keys`` are
     the sorted unique ``cluster * n + atom`` incidences."""
@@ -537,11 +538,7 @@ def _probe_atoms(n, keys, probe_ids) -> tuple[np.ndarray, np.ndarray]:
     lo = np.searchsorted(cluster, probe_ids)
     hi = np.searchsorted(cluster, probe_ids + 1)
     count = hi - lo
-    flat = atom[
-        np.repeat(lo, count)
-        + np.arange(int(count.sum()))
-        - np.repeat(np.cumsum(count) - count, count)
-    ]
+    flat = atom[np.repeat(lo, count) + _within(count)]
     return np.concatenate([[0], np.cumsum(count)]), flat
 
 
@@ -665,10 +662,9 @@ def _departure_caps(sas: SasGeometry) -> tuple[np.ndarray, np.ndarray]:
     sign = np.repeat([1.0, -1.0], len(arcs))
     keep = probe >= 0
     probe, circ, sign = probe[keep], circ[keep], sign[keep]
-    radial = (sas.probes[probe] - circles.centre[circ]) / circles.radius[
-        circ, None
-    ]
-    tangents = sign[:, None] * np.cross(circles.axis[circ], radial)
+    radial = sas.probes[probe] - circles.centre[circ]
+    tangents = np.cross(circles.axis[circ], radial)
+    tangents *= (sign / np.linalg.norm(tangents, axis=1))[:, None]
     order = np.argsort(probe, kind="stable")
     offsets = np.searchsorted(probe[order], np.arange(len(sas.probes) + 1))
     return offsets, tangents[order]
