@@ -55,6 +55,16 @@ class Caps:
             self.axis[idx], self.cos_a[idx], self.sin_a[idx], self.tag[idx]
         )
 
+    @classmethod
+    def concat(cls, parts: list[Caps]) -> Caps:
+        parts = [cls.empty(), *parts]
+        return cls(
+            *(
+                np.concatenate([getattr(x, f) for x in parts])
+                for f in ("axis", "cos_a", "sin_a", "tag")
+            )
+        )
+
 
 @dataclass
 class Arcs:
@@ -287,51 +297,48 @@ def solve_caps(radius: float, caps: Caps) -> Arrangement:
     reps = np.zeros((n_clusters, 3))
     np.add.at(reps, label, dirs)
     reps /= np.linalg.norm(reps, axis=1, keepdims=True)
-    excused = _excused(n_clusters, len(caps), label, pair)
+    excused = np.zeros((n_clusters, len(caps)), dtype=bool)
+    excused[label[:, None], pair] = True
     inside = reps @ caps.axis.T > caps.cos_a
     accessible = ~(inside & ~excused).any(axis=1)
+    edges = pair[: len(pair) // 2]
     return solve(
-        radius, caps, pair, label, reps, accessible, cap_components(crossing)
+        radius,
+        caps,
+        edges,
+        reps,
+        excused,
+        accessible,
+        cap_components(crossing),
     )
-
-
-def _excused(n_clusters: int, m: int, label, pair) -> np.ndarray:
-    """(cluster, cap) incidence: caps whose crossing points merged into
-    the cluster are excused from its accessibility test."""
-    excused = np.zeros((n_clusters, m), dtype=bool)
-    excused[label, pair[:, 0]] = True
-    excused[label, pair[:, 1]] = True
-    return excused
 
 
 def solve(
     radius: float,
     caps: Caps,
-    pair: np.ndarray,
-    label: np.ndarray,
+    edges: np.ndarray,
     reps: np.ndarray,
+    excused: np.ndarray,
     accessible: np.ndarray,
     n_components: int,
     frames: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> Arrangement:
     """Solve an arrangement of prepared ``caps``.
 
-    ``pair`` names the two caps generating each raw crossing point and
-    ``label`` its cluster; ``reps`` (unit directions) and ``accessible``
-    are per cluster. The crossing pairs are exactly those in ``pair``;
-    ``n_components`` counts the connected components of that graph.
-    ``frames`` ``(e1, e2)`` per cap default to :func:`circle_frames`.
+    ``edges`` are the crossing cap pairs and ``n_components`` the number
+    of connected components of that graph. Per cluster: ``reps`` (unit
+    directions), ``excused`` (clusters x caps: the caps whose crossing
+    points merged into the cluster, which are its incident caps) and
+    ``accessible``. ``frames`` ``(e1, e2)`` per cap default to
+    :func:`circle_frames`.
     """
     m = len(caps)
     e1, e2 = circle_frames(caps.axis) if frames is None else frames
-    n_clusters = len(reps)
     crossing = np.zeros((m, m), dtype=bool)
-    crossing[pair[:, 0], pair[:, 1]] = True
-    crossing[pair[:, 1], pair[:, 0]] = True
+    crossing[edges[:, 0], edges[:, 1]] = True
+    crossing[edges[:, 1], edges[:, 0]] = True
 
-    excused = _excused(n_clusters, m, label, pair)
-    excused[~accessible] = False
-    vtx, cap = np.nonzero(excused)
+    vtx, cap = np.nonzero(excused & accessible[:, None])
 
     arcs = _build_arcs(caps, e1, e2, reps, vtx, cap, crossing)
     loops, turn_sum, geo_sum = _walk(caps, reps, arcs)
