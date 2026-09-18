@@ -703,32 +703,51 @@ def _departure_caps(sas: SasGeometry) -> tuple[np.ndarray, np.ndarray]:
     return offsets, tangents[order]
 
 
+def _probe_pair_caps(probes, rp: float) -> tuple[np.ndarray, Caps]:
+    """Caps cut into every probe sphere by the other probes within
+    ``2 rp``, as ``(offsets, caps)`` sorted by probe; each pair is measured
+    once and read from both sides with opposite axes."""
+    pairs = cKDTree(probes).query_pairs(2.0 * rp, output_type="ndarray")
+    if len(pairs) == 0:
+        pairs = np.empty((0, 2), dtype=int)
+    diff = probes[pairs[:, 1]] - probes[pairs[:, 0]]
+    dist = np.linalg.norm(diff, axis=1)
+    close = dist < 2.0 * rp
+    pairs, diff, dist = pairs[close], diff[close], dist[close]
+    src = np.concatenate([pairs[:, 0], pairs[:, 1]])
+    axis = np.concatenate([diff, -diff]) / np.tile(dist, 2)[:, None]
+    cos_a = np.tile(dist / (2.0 * rp), 2)
+    order = np.argsort(src, kind="stable")
+    offsets = np.searchsorted(src[order], np.arange(len(probes) + 1))
+    caps = Caps(
+        axis[order],
+        cos_a[order],
+        np.sqrt(1.0 - cos_a[order] ** 2),
+        np.zeros(len(order), dtype=int),
+    )
+    return offsets, caps
+
+
 def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
     probes = sas.probes
     if len(probes) == 0:
         return []
     dep_off, dep_t = _departure_caps(sas)
-    tree = cKDTree(probes)
-    near = tree.query_ball_point(probes, 2.0 * sas.rp)
+    nbr_off, nbr_caps = _probe_pair_caps(probes, sas.rp)
     faces = []
     for q in range(sas.n_active_probes):
         atoms = sas.atoms_of(q)
         contacts = sas.coords[atoms] - probes[q]
         contacts /= np.linalg.norm(contacts, axis=1, keepdims=True)
-        others = np.array([n for n in near[q] if n != q], dtype=int)
-        diff = probes[others] - probes[q]
-        dist = np.linalg.norm(diff, axis=1)
-        close = dist < 2.0 * sas.rp
-        others, diff, dist = others[close], diff[close], dist[close]
         tangents = dep_t[dep_off[q] : dep_off[q + 1]]
-        cos_a = dist / (2.0 * sas.rp)
-        caps = Caps(
-            np.concatenate([tangents, diff / dist[:, None]]),
-            np.concatenate([np.zeros(len(tangents)), cos_a]),
-            np.concatenate(
-                [np.ones(len(tangents)), np.sqrt(1.0 - cos_a * cos_a)]
-            ),
-            np.zeros(len(tangents) + len(others), dtype=int),
+        hemispheres = Caps(
+            tangents,
+            np.zeros(len(tangents)),
+            np.ones(len(tangents)),
+            np.zeros(len(tangents), dtype=int),
+        )
+        caps = Caps.concat(
+            [hemispheres, nbr_caps.take(slice(nbr_off[q], nbr_off[q + 1]))]
         )
         faces.append(ConcaveFace(q, atoms, contacts, solve_caps(sas.rp, caps)))
     return faces
