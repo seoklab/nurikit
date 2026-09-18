@@ -1,1468 +1,644 @@
-# pyright: reportUnusedImport=false
-# ruff: noqa
+#
+# Project NuriKit - Copyright 2026 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+"""Analytic solvent-accessible and solvent-excluded surfaces.
+
+Every atom sphere is solved as an independent cap arrangement
+(:mod:`nuri.scpilot.arrangement`). Vertices are clustered once, globally,
+before the per-sphere solves so that toroidal arcs and probe positions
+agree. Concave faces are arrangements on the probe spheres.
+"""
 
 from __future__ import annotations
 
-import itertools
-import logging
 import math
-import pickle
-from collections import defaultdict
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Sequence, TextIO
 
-import networkx as nx
 import numpy as np
-import nuri
-import seaborn as sns
-import typer
-from matplotlib import pyplot as plt
-from nuri.core import Molecule
-from nuri.desc import shrake_rupley_sasa
-from scipy.spatial import KDTree
-from scipy.spatial import distance as D
-from scipy.spatial.transform import Rotation as R
-from tqdm import tqdm
+from scipy.spatial import cKDTree
 
-app = typer.Typer(pretty_exceptions_enable=False)
-
-
-def _pairwise(iterable):
-    a, b = itertools.tee(iterable)
-    next(b, None)
-    return zip(a, b)
-
-
-def _normalize(v: np.ndarray) -> np.ndarray:
-    norm = np.linalg.norm(v, axis=-1, keepdims=True)
-    return v / norm
-
-
-def _any_perpendicular(v: np.ndarray) -> np.ndarray:
-    w = np.array(
-        [
-            math.copysign(v[2], v[0]),
-            math.copysign(v[2], v[1]),
-            -math.copysign(v[0], v[2]) - math.copysign(v[1], v[2]),
-        ]
-    )
-    return _normalize(w)
-
-
-def _angle_on_circle(
-    pts: np.ndarray,
-    cntr: np.ndarray,
-    frame: np.ndarray,
-    radius: float | None = None,
-):
-    vs = pts - cntr
-    if radius is None:
-        radius = np.linalg.norm(vs, axis=-1, keepdims=True)
-    vs /= radius
-    x, y = frame[:2]
-    theta = np.atan2(np.dot(vs, y), np.dot(vs, x))
-    return np.where(theta >= 0, theta, 2 * math.pi + theta)
+from .arrangement import (
+    TAU_C,
+    Arrangement,
+    Caps,
+    any_perpendicular,
+    cluster_points,
+    components,
+    covered_arrangement,
+    prepare_caps,
+    solve,
+    solve_caps,
+)
 
 
 @dataclass
-class Contact:
-    js: np.ndarray
-    dijs: np.ndarray
-
-    def __len__(self):
-        return len(self.js)
-
-
-def _find_contacts_pairs(
-    kdt: KDTree,
-    sasr: np.ndarray,
-    approx_cutoff: float,
-    eps: float = 1e-6,
-):
-    pairs = kdt.query_ball_tree(kdt, approx_cutoff * 2)
-
-    contacts: list[Contact] = []
-    for i, (pi, sri, js) in enumerate(zip(kdt.data, sasr, pairs)):
-        js = np.array(js)
-        js = js[js > i]
-        if js.size == 0:
-            contacts.append(
-                Contact(
-                    np.empty((0,), dtype=int),
-                    np.empty((0,), dtype=float),
-                )
-            )
-            continue
-
-        pjs = kdt.data[js]
-        dijs = np.linalg.norm(pjs - pi, axis=-1)
-        cmap = (dijs < sri + sasr[js]) & (dijs > np.abs(sri - sasr[js]) + eps)
-        contacts.append(Contact(js[cmap], dijs[cmap]))
-
-    return contacts
-
-
-@dataclass
-class Toroid:
-    id: int
-
-    frame: np.ndarray
-    cntr: np.ndarray
-    radius: float
-
-    on: np.ndarray
-    thetas: np.ndarray
-
-    def ij(self, sid: int) -> int:
-        return int(self.on[0] != sid)
-
-    def phi(self, pts: np.ndarray) -> np.ndarray:
-        return _angle_on_circle(pts, self.cntr, self.frame, self.radius)
-
-
-@dataclass
-class ToroidSegment:
-    id: int
-    parent: Toroid
-
-    pbegin: float = 0.0
-    pend: float = 2 * math.pi
-    full: bool = True
-
-    @property
-    def radian(self) -> float:
-        return self.pend - self.pbegin
-
-    @property
-    def test(self) -> np.ndarray:
-        phi = 0.5 * (self.pbegin + self.pend)
-        return _points_on_circle_center(self.parent, phi)
-
-
-@dataclass
-class Intersection:
-    id: int
-    pt: np.ndarray
-
-    on: list[int]
-    tor: list[Toroid]
-
-
-@dataclass
-class Vertex:
-    pt: np.ndarray
-
-    left: ToroidSegment
-    left_end: bool
-
-    right: ToroidSegment
-    right_begin: bool
-
-
-@dataclass
-class Edge(ToroidSegment):
-    left: Intersection = None  # type: ignore[assignment]
-    right: Intersection = None  # type: ignore[assignment]
-
-    def __post_init__(self):
-        self.full = False
-
-
-@dataclass
-class Loop:
-    arcs: list[ToroidSegment]
-    vertices: list[Vertex]
-
-    def __len__(self):
-        return len(self.vertices)
-
-
-def _find_toroids(kdt: KDTree, contacts: list[Contact], sasr: np.ndarray):
-    toroids: dict[tuple[int, int], Toroid] = {}
-
-    for i, (pi, c, sri) in enumerate(zip(tqdm(kdt.data[:-1]), contacts, sasr)):
-        if c.js.size == 0:
-            continue
-
-        pjs = kdt.data[c.js]
-        uijs = (pjs - pi) / c.dijs[:, None]
-        for j, pj, zij, srj, dij in zip(c.js, pjs, uijs, sasr[c.js], c.dijs):
-            tij = 0.5 * ((pi + pj) + (pj - pi) * (sri**2 - srj**2) / dij**2)
-            Rij = (
-                0.5
-                * math.sqrt(
-                    ((sri + srj) ** 2 - dij**2) * (dij**2 - (sri - srj) ** 2)
-                )
-                / dij
-            )
-
-            yij = _any_perpendicular(zij)
-            pk = tij + Rij * yij
-            it, jt = _angle_on_circle(
-                np.stack([pi, pj]),
-                pk,
-                np.stack([zij, yij]),
-            )
-            if jt < it:
-                yij = -yij
-                it = 2 * math.pi - it
-                jt = 2 * math.pi - jt
-
-            it = 1.5 * math.pi - it
-            jt = jt - 1.5 * math.pi
-
-            toroids[(i, j)] = Toroid(
-                id=len(toroids),
-                frame=np.stack([np.cross(yij, zij), yij, zij]),
-                cntr=tij,
-                radius=Rij,
-                on=np.array([i, j]),
-                thetas=np.array([it, jt]),
-            )
-
-    return toroids
-
-
-def _probe_no_contact(
-    kdt: KDTree,
-    allowed: set[int],
-    probe: np.ndarray,
-    sasr: np.ndarray,
-    cutoff: float,
-    eps: float = 1e-6,
-):
-    nbrs = kdt.query_ball_point(probe, cutoff)
-    nbrs = list(set(nbrs) - allowed)
-    npts = kdt.data[nbrs]
-    dists = D.cdist(probe[None], npts).squeeze(0)
-    return np.all(dists >= sasr[nbrs] - eps)
-
-
-def _circle_intersections(
-    center: np.ndarray,
-    radius: float,
-    ci: Toroid,
-    cj: Toroid,
-    eps: float = 1e-6,
-):
-    ui = ci.frame[2]
-    uj = cj.frame[2]
-    ti = ci.cntr
-
-    uij = np.cross(ui, uj)
-    sinw = np.linalg.norm(uij)
-    uij /= sinw
-
-    utb = np.cross(uij, ui)
-    bij = ti + utb * (np.dot(uj, cj.cntr - ti) / sinw)
-    hsq = radius**2 - np.dot(bij - center, bij - center)
-    if hsq <= eps:
-        return None
-
-    hij = math.sqrt(hsq)
-    return bij + hij * uij, bij - hij * uij
-
-
-def _sas_intersections(
-    kdt: KDTree,
-    contacts: list[Contact],
-    toroids: dict[tuple[int, int], Toroid],
-    sasr: np.ndarray,
-    cutoff: float,
-    eps: float = 1e-6,
-):
-    xm: list[Intersection] = []
-
-    for i, (pi, c, sri) in enumerate(zip(tqdm(kdt.data[:-1]), contacts, sasr)):
-        if len(c) < 2:
-            continue
-
-        j: int
-        for j in c.js:
-            ks = np.intersect1d(c.js, contacts[j].js, assume_unique=True)
-            if ks.size == 0:
-                continue
-
-            tij = toroids.get((i, j))
-            if tij is None:
-                continue
-
-            for k in ks:
-                tik = toroids.get((i, k))
-                if tik is None:
-                    continue
-
-                inter = _circle_intersections(pi, sri, tij, tik, eps=eps)
-                if inter is None:
-                    continue
-
-                allowed = {i, j, k}
-                for pt in inter:
-                    if _probe_no_contact(
-                        kdt, allowed, pt, sasr, cutoff, eps=eps
-                    ):
-                        xm.append(
-                            Intersection(
-                                id=len(xm),
-                                pt=pt,
-                                tor=[tij, tik, toroids[(j, k)]],
-                                on=[i, j, k],
-                            )
-                        )
-
-    return xm
-
-
-def _points_on_circle(
-    cntr: np.ndarray,
-    frame: np.ndarray,
-    radius: np.ndarray | float,
-    theta: np.ndarray | float,
-) -> np.ndarray:
-    x, y = frame[:2]
-    return cntr + radius * (x * np.cos(theta) + y * np.sin(theta))
-
-
-def _points_on_circle_center(
-    c: Toroid,
-    theta: np.ndarray | float,
-) -> np.ndarray:
-    return _points_on_circle(c.cntr, c.frame, c.radius, theta)
-
-
-def _sas_arcs(
-    kdt: KDTree,
-    toroids: dict[tuple[int, int], Toroid],
-    concave: list[Intersection],
-    sasr: np.ndarray,
-    cutoff: float,
-    eps: float = 1e-6,
-):
-    vertices: dict[tuple[int, int], list[Intersection]] = defaultdict(list)
-    for p in concave:
-        i, j, k = p.on
-        vertices[(i, j)].append(p)
-        vertices[(i, k)].append(p)
-        vertices[(j, k)].append(p)
-
-    segs: list[ToroidSegment] = []
-    for (i, j), tij in tqdm(toroids.items()):
-        allowed = {i, j}
-
-        vs = vertices[(i, j)]
-        if len(vs) < 2:
-            test = tij.cntr + tij.radius * tij.frame[0]
-            if _probe_no_contact(kdt, allowed, test, sasr, cutoff, eps=eps):
-                segs.append(ToroidSegment(id=len(segs), parent=tij))
-            continue
-
-        phis = tij.phi(np.stack([v.pt for v in vs]))
-        order = np.argsort(phis)
-        order = np.append(order, order[0])
-
-        phis = phis[order]
-        phis[-1] += 2 * math.pi
-        vs = [vs[i] for i in order]
-
-        mid = 0.5 * (phis[:-1] + phis[1:])
-        tests = _points_on_circle_center(tij, mid[:, None])
-        for test, ((b, ba), (e, ea)) in zip(
-            tests,
-            _pairwise(zip(vs, phis)),
-        ):
-            if _probe_no_contact(kdt, allowed, test, sasr, cutoff, eps=eps):
-                segs.append(
-                    Edge(
-                        id=len(segs),
-                        parent=tij,
-                        pbegin=ba,
-                        pend=ea,
-                        left=b,
-                        right=e,
-                    )
-                )
-
-    return segs
-
-
-def _merge_arcs(
-    sg: nx.MultiGraph,
-    edges: list[tuple[int, int, int, Edge]],
-    node_equiv: dict[int, int],
-    edge_equiv: dict[tuple[int, int, int], int],
-) -> list[tuple[int, int, int, Edge]]:
-    length = np.array([e.radian for *_, e in edges])
-    order = np.argsort(length)
-
-    length_sum: dict[int, float] = defaultdict(float)
-    for s, d, _, e in edges:
-        length_sum[s] += e.radian
-        length_sum[d] += e.radian
-
-    g = sg.copy()
-    idx: int
-    for idx in order:
-        s, d, k, e = edges[idx]
-        s = node_equiv.get(s, s)
-        d = node_equiv.get(d, d)
-        if s == d:
-            continue
-
-        k = edge_equiv.get((*sorted([s, d]), k), k)  # type: ignore
-        g.remove_edge(s, d, k)
-
-        sel = max(s, d, key=lambda x: length_sum[x])
-        nsel = min(s, d, key=lambda x: length_sum[x])
-        for old, new in node_equiv.items():
-            if new == nsel:
-                node_equiv[old] = sel
-        node_equiv[nsel] = sel
-
-        for _, nbr, nk, narc in list(g.edges(nsel, keys=True, data="arc")):
-            if nbr == sel:
-                continue
-
-            k = g.add_edge(sel, nbr, k=nk, arc=narc)
-            edge_equiv[(*sorted([sel, nbr]), nk)] = k  # type: ignore
-
-        g.remove_node(nsel)
-
-        if g.number_of_nodes() == g.number_of_edges() and all(
-            g.degree[n] == 2  # type: ignore
-            for n in g.nodes
-        ):
-            break
-
-    return [(s, d, k, g[s][d][k]["arc"]) for s, d, k in nx.edge_dfs(g)]
-
-
-def _traverse_forward(equiv: dict[int, int], arc: Edge, s: int, d: int):
-    l = equiv.get(arc.left.id, arc.left.id)
-    r = equiv.get(arc.right.id, arc.right.id)
-    assert (l, r) == (s, d) or (r, l) == (s, d)
-
-    forward = l == s
-    return forward
-
-
-def _loops_on_sphere(
-    sphere_arcs: Sequence[Sequence[ToroidSegment]],
-    inter: list[Intersection],
-):
-    sphere_loops: list[list[Loop]] = [[] for _ in range(len(sphere_arcs))]
-
-    for i, (arcs, loops) in enumerate(zip(tqdm(sphere_arcs), sphere_loops)):
-        if not arcs:
-            continue
-
-        g = nx.MultiGraph()
-        for a in arcs:
-            if a.full:
-                loops.append(Loop(arcs=[a], vertices=[]))
-                continue
-
-            assert isinstance(a, Edge)
-            g.add_edge(a.left.id, a.right.id, arc=a)
-
-        n_eq: dict[int, int] = {}
-        e_eq: dict[tuple[int, int, int], int] = {}
-        for comp in nx.connected_components(g):
-            sg: nx.MultiGraph = g.subgraph(comp)  # type: ignore
-            loop: list[tuple[int, int, int, Edge]] = [
-                (s, d, k, sg[s][d][k]["arc"]) for s, d, k in nx.edge_dfs(sg)
-            ]
-            if len(loop) != len(comp) or any(
-                sg.degree[n] != 2  # type: ignore
-                for n in sg.nodes
-            ):
-                logging.warning(
-                    "Sphere %d doesn't form a proper loop: l: %d, n: %d",
-                    i,
-                    len(loop),
-                    len(comp),
-                )
-                loop = _merge_arcs(sg, loop, n_eq, e_eq)
-
-            ps, pd, _, pe = loop[-1]
-            vertices: list[Vertex] = []
-            for cs, cd, _, ce in loop:
-                assert pd == cs
-                assert inter[cs].id == cs
-
-                vertices.append(
-                    Vertex(
-                        pt=inter[cs].pt,
-                        left=pe,
-                        left_end=_traverse_forward(n_eq, pe, ps, pd),
-                        right=ce,
-                        right_begin=_traverse_forward(n_eq, ce, cs, cd),
-                    )
-                )
-                ps, pd, pe = cs, cd, ce
-
-            loops.append(
-                Loop(arcs=[arc for *_, arc in loop], vertices=vertices)
-            )
-
-    return sphere_loops
-
-
-@dataclass
-class SphericalPatch:
-    sid: int
-    center: np.ndarray
-    radius: float
-
-    loops: list[Loop] = field(default_factory=list)
-
-
-def _nearest_point_on_circle(x: np.ndarray, c: Toroid, eps: float = 1e-6):
-    y, z = c.frame[1:]
-    v = x - c.cntr
-
-    proj = v - np.dot(v, z) * z
-    pnorm = np.linalg.norm(proj, axis=-1, keepdims=True)
-    proj = np.where(pnorm >= eps, proj / pnorm, y)
-    return c.cntr + c.radius * proj
-
-
-def _point_on_arc(
-    p: np.ndarray,
-    tor: Toroid,
-    bounds: tuple[float, float],
-    eps: float = 1e-6,
-):
-    phi = tor.phi(p).item()
-    tb, te = bounds
-    return (tb - eps <= phi <= te + eps) or (
-        tb - eps <= phi + 2 * math.pi <= te + eps
-    )
-
-
-def _point_on_segment(
-    p: np.ndarray,
-    seg: ToroidSegment,
-    eps: float = 1e-5,
-) -> bool:
-    if seg.full:
-        return True
-
-    return _point_on_arc(p, seg.parent, (seg.pbegin, seg.pend), eps=eps)
-
-
-def _point_inside_loop(xs: np.ndarray, loop: Loop, eps: float = 1e-6):
-    groups: dict[int, list[ToroidSegment]] = defaultdict(list)
-    for arc in loop.arcs:
-        groups[arc.parent.id].append(arc)
-
-    toroids = list(groups.values())
-    tests = [
-        _nearest_point_on_circle(xs, a0.parent, eps=eps) for a0, *_ in toroids
-    ]
-
-    inside: list[bool] = []
-    for x, test in zip(xs, tests):
-        dists = D.cdist(x[None], test).squeeze(0)
-        sel = np.argmin(dists)
-
-        xk0 = test[sel]
-        for arc in toroids[sel]:
-            if _point_on_segment(xk0, arc, eps=10.0 * eps):
-                inside.append(True)
-                break
-        else:
-            inside.append(False)
-
-    return inside
-
-
-def _sphere_loops_to_patch(
-    sid: int,
-    sri: float,
-    pi: np.ndarray,
-    ls: list[Loop],
-    kdt: KDTree,
-    sasr: np.ndarray,
-    cutoff: float,
-    eps: float = 1e-6,
-):
-    if not ls:
-        nbrs = kdt.query_ball_point(pi, sri + cutoff - eps)
-        nbrs = [n for n in nbrs if n != sid]
-        npts = kdt.data[nbrs]
-        dists = D.cdist(pi[None], npts).squeeze(0)
-        if np.all(dists >= sri + sasr[nbrs] - eps):
-            yield SphericalPatch(sid=sid, center=pi, radius=sri)
-            return
-
-    samples = [loop.arcs[0].test for loop in ls]
-
-    g = nx.DiGraph()
-    g.add_nodes_from(range(len(ls)))
-    for i, x in enumerate(samples):
-        for j, lj in enumerate(ls):
-            if i == j:
-                continue
-
-            if _point_inside_loop(x[None], lj, eps=eps)[0]:
-                g.add_edge(i, j)
-
-    for comp in nx.strongly_connected_components(g):
-        yield SphericalPatch(
-            sid=sid,
-            center=pi,
-            radius=sri,
-            loops=[ls[n] for n in comp],
+class Circles:
+    """Probe-centre circles of overlapping sphere pairs (``i < j``)."""
+
+    pair: np.ndarray
+    centre: np.ndarray
+    radius: np.ndarray
+    axis: np.ndarray
+    e1: np.ndarray
+    e2: np.ndarray
+    a: np.ndarray
+    d: np.ndarray
+
+    def __len__(self) -> int:
+        return len(self.radius)
+
+    def half_angles(self) -> tuple[np.ndarray, np.ndarray]:
+        """``theta_i, theta_j``: angles at the probe between the axis
+        plane and the contact directions toward atoms ``i`` and ``j``."""
+        return (
+            np.arctan2(self.a, self.radius),
+            np.arctan2(self.d - self.a, self.radius),
         )
 
 
-def _spherical_patches(
-    kdt: KDTree,
-    loops: list[list[Loop]],
-    sasr: np.ndarray,
-    cutoff: float,
-    eps: float = 1e-6,
-):
-    spherical: list[SphericalPatch] = []
-
-    for i, (pi, ls, sri) in enumerate(zip(tqdm(kdt.data), loops, sasr)):
-        spherical.extend(
-            _sphere_loops_to_patch(i, sri, pi, ls, kdt, sasr, cutoff, eps=eps)
-        )
-
-    return spherical
-
-
 @dataclass
-class SasComponents:
-    xm: list[Intersection]
-    lm: list[ToroidSegment]
-    pm: list[SphericalPatch]
+class TorusArcs:
+    """Accessible arcs of the probe circles, in each circle's frame."""
 
-    cm: dict[tuple[int, int], Toroid]
-    sasr: np.ndarray
+    circle: np.ndarray
+    phi_beg: np.ndarray
+    dphi: np.ndarray
+    v_beg: np.ndarray
+    v_end: np.ndarray
 
-
-def sas_components(pts: np.ndarray, sasr: np.ndarray, eps: float = 1e-6):
-    cutoff = np.max(sasr)
-
-    kdt = KDTree(pts)
-    contacts = _find_contacts_pairs(kdt, sasr, cutoff, eps=eps)
-    cm = _find_toroids(kdt, contacts, sasr)
-    xm = _sas_intersections(kdt, contacts, cm, sasr, cutoff, eps=eps)
-    lm = _sas_arcs(kdt, cm, xm, sasr, cutoff, eps=eps)
-
-    sphere_arcs: list[list[ToroidSegment]] = [[] for _ in range(len(kdt.data))]
-    for a in lm:
-        for sid in a.parent.on:
-            sphere_arcs[sid].append(a)
-
-    lons = _loops_on_sphere(sphere_arcs, xm)
-    pm = _spherical_patches(kdt, lons, sasr, cutoff, eps=eps)
-
-    return SasComponents(
-        xm=xm,
-        lm=lm,
-        pm=pm,
-        cm=cm,
-        sasr=sasr,
-    )
-
-
-def _vertex_angle(vtx: Vertex, patch: SphericalPatch):
-    ci = vtx.left.parent
-    cj = vtx.right.parent
-
-    vi = np.cross(ci.frame[2], (vtx.pt - ci.cntr) / ci.radius)
-    if not vtx.left_end:
-        vi = -vi
-    vj = np.cross(cj.frame[2], (vtx.pt - cj.cntr) / cj.radius)
-    if not vtx.right_begin:
-        vj = -vj
-
-    z = (vtx.pt - patch.center) / patch.radius
-    y = np.cross(z, vi)
-    theta = abs(math.atan2(np.dot(y, vj), np.dot(vi, vj)))
-    return theta
-
-
-def _loop_angle_total(loop: Loop, patch: SphericalPatch):
-    asum = sum(_vertex_angle(vtx, patch) for vtx in loop.vertices)
-    return asum
-
-
-def _gauss_bonnet_area(patch: SphericalPatch):
-    chi = 2 - len(patch.loops)
-
-    asum = sum(_loop_angle_total(loop, patch) for loop in patch.loops)
-
-    lsum = 0.0
-    for loop in patch.loops:
-        for seg in loop.arcs:
-            ij = seg.parent.ij(patch.sid)
-            lsum += seg.radian * np.sin(-seg.parent.thetas[ij])
-
-    area = patch.radius**2 * (2 * math.pi * chi - (asum + lsum))
-    return area, asum, lsum
-
-
-def sas_area(sas: SasComponents):
-    return np.array([_gauss_bonnet_area(p) for p in sas.pm])
-
-
-@dataclass
-class SaddlePatch:
-    arc: ToroidSegment
-
-    edge_cntrs: np.ndarray
-    edge_radii: np.ndarray
-    singular_theta: float = 0.0
+    def __len__(self) -> int:
+        return len(self.circle)
 
     @classmethod
-    def from_arc(
-        cls,
-        seg: ToroidSegment,
-        pts: np.ndarray,
-        sasr: np.ndarray,
-        rprobe: float,
-    ):
-        tor = seg.parent
-        ij = tor.on
-
-        # [2, 1]
-        sris = sasr[ij, None]
-        ris = sris - rprobe
-        scales = ris / sris
-        # [2, 3]
-        cntr = tor.cntr * scales + pts[ij] * (1 - scales)
-        radii = tor.radius * scales.squeeze(-1)
-
-        singular_theta = 0.0
-        if tor.radius < rprobe:
-            offset = math.sqrt(rprobe**2 - tor.radius**2)
-            singular_theta = math.atan2(offset, tor.radius)
-            assert singular_theta > 0.0
-
+    def concat(cls, parts: list[TorusArcs]) -> TorusArcs:
+        z = np.empty(0, dtype=int)
+        empty = cls(z, np.empty(0), np.empty(0), z, z)
+        parts = [empty, *parts]
         return cls(
-            arc=seg,
-            edge_cntrs=cntr,
-            edge_radii=radii,
-            singular_theta=singular_theta,
-        )
-
-
-def _loop_from_saddles(
-    sas: SphericalPatch,
-    rprobe: float,
-    loop: Loop,
-    saddles: list[SaddlePatch],
-):
-    segs = {seg.id: seg for seg in loop.arcs}
-    for i, seg in segs.items():
-        saddle = saddles[seg.id]
-        assert saddle.arc.id == seg.id
-
-        ij = saddle.arc.parent.ij(sas.sid)
-        center = saddle.edge_cntrs[ij]
-        radius = saddle.edge_radii[ij]
-
-        segs[i] = ToroidSegment(
-            id=-1,
-            parent=Toroid(
-                id=-1,
-                frame=saddle.arc.parent.frame,
-                cntr=center,
-                radius=radius,
-                on=saddle.arc.parent.on,
-                thetas=saddle.arc.parent.thetas,
-            ),
-            pbegin=saddle.arc.pbegin,
-            pend=saddle.arc.pend,
-            full=saddle.arc.full,
-        )
-
-    scale = rprobe / sas.radius
-    vertices = [
-        Vertex(
-            pt=vtx.pt * (1 - scale) + sas.center * scale,
-            left=segs[vtx.left.id],
-            left_end=vtx.left_end,
-            right=segs[vtx.right.id],
-            right_begin=vtx.right_begin,
-        )
-        for vtx in loop.vertices
-    ]
-
-    return Loop(arcs=list(segs.values()), vertices=vertices)
-
-
-def _ses_convex_from_sas_patch(
-    sas: SphericalPatch,
-    rprobe: float,
-    saddles: list[SaddlePatch],
-):
-    loops = [
-        _loop_from_saddles(sas, rprobe, loop, saddles) for loop in sas.loops
-    ]
-    ses = SphericalPatch(
-        sid=sas.sid,
-        center=sas.center,
-        radius=sas.radius - rprobe,
-        loops=loops,
-    )
-    return ses
-
-
-def _concave_circles(
-    probes: list[Intersection],
-    pcm: dict[tuple[int, int], Toroid],
-    atoms: np.ndarray,
-    sasr: np.ndarray,
-    rprobe: float,
-):
-    tors = [tij for tij in pcm.values()]
-
-    for i, p in enumerate(probes):
-        ijk = np.array(p.on)
-        aijk = atoms[ijk]
-        p = p.pt
-
-        scale = rprobe / sasr[ijk, None]
-        pijk = p * (1 - scale) + aijk * scale
-        vijk = (p - aijk) / sasr[ijk, None]
-
-        xs = _normalize(np.roll(pijk, -1, axis=0) - pijk)
-        ys = _normalize(vijk + np.roll(vijk, -1, axis=0))
-        frames = np.stack([xs, ys, np.cross(xs, ys, axis=-1)], axis=1)
-        for fr in frames:
-            tors.append(
-                Toroid(
-                    id=len(tors),
-                    frame=fr,
-                    cntr=p,
-                    radius=rprobe,
-                    on=np.array([i]),
-                    thetas=np.array([0.0]),
-                )
-            )
-
-    return tors
-
-
-def _point_inside_triangle(
-    pts: np.ndarray,
-    normals: np.ndarray,
-    signs: np.ndarray,
-):
-    return np.all(
-        np.einsum("...c,nc,n->...n", pts, normals, signs) >= 0,
-        axis=-1,
-    )
-
-
-def _concave_inside_angles_signs(
-    pts: np.ndarray,
-    probes: list[Intersection],
-    bcircles: list[list[Toroid]],
-    sasr: np.ndarray,
-):
-    angles: dict[int, tuple[float, float]] = {}
-    normals = []
-    signs = []
-    for p, (ci, cj, ck) in zip(probes, bcircles):
-        ijk = p.on
-        triangle = (pts[ijk] - p.pt) / sasr[ijk, None]
-
-        for pi, pj, circ in zip(
-            triangle,
-            np.roll(triangle, -1, axis=0),
-            [ci, cj, ck],
-        ):
-            tb, te = _angle_on_circle(
-                np.stack([pi, pj]),
-                np.zeros(3),
-                circ.frame,
-                1.0,
-            )
-            assert te > tb
-            angles[circ.id] = (tb, te)
-
-        test = np.sum(triangle, axis=0) / math.sqrt(
-            3 + 2 * np.sum(triangle * np.roll(triangle, -1, axis=0))
-        )
-
-        normal = np.stack([ci.frame[2], cj.frame[2], ck.frame[2]])
-        normals.append(normal)
-        signs.append(np.sign(np.einsum("c,nc->n", test, normal)))
-
-    assert len(angles) == len(probes) * 3
-    return angles, np.stack(normals), np.stack(signs)
-
-
-def _concave_intersections(
-    kdt: KDTree,
-    pcircles: list[list[Toroid]],
-    rprobe: float,
-    bangles: dict[int, tuple[float, float]],
-    bnormals: np.ndarray,
-    bsigns: np.ndarray,
-    eps: float = 1e-6,
-):
-    xm: list[list[Intersection]] = [[] for _ in range(len(kdt.data))]
-    idgen = itertools.count()
-
-    for xmi, pi, circles, bn, bs in zip(
-        tqdm(xm),
-        kdt.data,
-        pcircles,
-        bnormals,
-        bsigns,
-    ):
-        for ci, cj in itertools.combinations(circles, 2):
-            inter = _circle_intersections(pi, rprobe, ci, cj, eps=eps)
-            if inter is None:
-                continue
-
-            allowed = {*ci.on, *cj.on}
-            for pt in inter:
-                if (
-                    len(ci.on) > 1
-                    and len(cj.on) > 1
-                    and not _point_inside_triangle((pt - pi) / rprobe, bn, bs)
-                ):
-                    continue
-
-                if len(ci.on) == 1 and not _point_on_arc(
-                    pt,
-                    ci,
-                    bangles[ci.id],
-                ):
-                    continue
-
-                if len(cj.on) == 1 and not _point_on_arc(
-                    pt,
-                    cj,
-                    bangles[cj.id],
-                ):
-                    continue
-
-                nbrs = kdt.query_ball_point(pt, rprobe - eps)
-                if set(nbrs) - allowed:
-                    continue
-
-                xmi.append(
-                    Intersection(
-                        id=next(idgen),
-                        pt=pt,
-                        on=[*ci.on, *cj.on],
-                        tor=[ci, cj],
-                    )
-                )
-
-    return xm
-
-
-def _concave_arcs(
-    i: int,
-    kdt: KDTree,
-    circles: list[Toroid],
-    inter: list[Intersection],
-    rprobe: float,
-    bangles: dict[int, tuple[float, float]],
-    bnormal: np.ndarray,
-    bsign: np.ndarray,
-    idgen: itertools.count,
-    eps: float = 1e-6,
-):
-    vertices: dict[int, list[Intersection]] = defaultdict(list)
-    for p in inter:
-        for c in p.tor:
-            vertices[c.id].append(p)
-
-    arcs: list[ToroidSegment] = []
-    for tij in circles:
-        vs = vertices[tij.id]
-        pcntr = kdt.data[i]
-        allowed = set(tij.on)
-
-        if len(vs) < 2:
-            assert len(tij.on) == 2
-            test = tij.cntr + tij.radius * tij.frame[0]
-
-            if not _point_inside_triangle(
-                (test - pcntr) / rprobe, bnormal, bsign
-            ):
-                continue
-
-            nbrs = kdt.query_ball_point(test, rprobe - eps)
-            if not set(nbrs) - allowed:
-                arcs.append(ToroidSegment(id=next(idgen), parent=tij))
-
-            continue
-
-        angles = tij.phi(np.stack([v.pt for v in vs]))
-        order = np.argsort(angles)
-        order = np.append(order, order[0])
-
-        angles = angles[order]
-        angles[-1] += 2 * math.pi
-        vs = [vs[i] for i in order]
-
-        mid = 0.5 * (angles[:-1] + angles[1:])
-        tests = _points_on_circle_center(tij, mid[:, None])
-        for test, ((b, ba), (e, ea)) in zip(
-            tests,
-            _pairwise(zip(vs, angles)),
-        ):
-            if len(tij.on) == 1 and not _point_on_arc(
-                test,
-                tij,
-                bangles[tij.id],
-            ):
-                continue
-
-            if len(tij.on) > 1 and not _point_inside_triangle(
-                (test - pcntr) / rprobe, bnormal, bsign
-            ):
-                continue
-
-            nbrs = kdt.query_ball_point(test, rprobe - eps)
-            if not set(nbrs) - allowed:
-                arcs.append(
-                    Edge(
-                        id=next(idgen),
-                        parent=tij,
-                        pbegin=ba,
-                        pend=ea,
-                        left=b,
-                        right=e,
-                    )
-                )
-
-    return arcs
-
-
-def _concave_patches(
-    probes: list[Intersection],
-    atoms: np.ndarray,
-    sasr: np.ndarray,
-    rprobe: float,
-    eps: float = 1e-6,
-):
-    pts = np.stack([p.pt for p in probes])
-    kdt = KDTree(pts)
-
-    radii = np.full(len(pts), rprobe)
-    contacts = _find_contacts_pairs(kdt, radii, rprobe, eps=eps)
-
-    pcm = _find_toroids(kdt, contacts, radii)
-    circles = _concave_circles(probes, pcm, atoms, sasr, rprobe)
-    pcircles: list[list[Toroid]] = [[] for _ in range(len(pts))]
-    for c in circles:
-        for i in c.on:
-            pcircles[i].append(c)
-
-    bcircles: list[list[Toroid]] = [[] for _ in range(len(pts))]
-    for c in circles[len(pcm) :]:
-        bcircles[c.on[0]].append(c)
-    angles, normals, signs = _concave_inside_angles_signs(
-        atoms, probes, bcircles, sasr
-    )
-
-    pxm = _concave_intersections(
-        kdt,
-        pcircles,
-        rprobe,
-        angles,
-        normals,
-        signs,
-        eps=eps,
-    )
-
-    lm_id = itertools.count()
-    plm = [
-        _concave_arcs(
-            i,
-            kdt,
-            pci,
-            xmi,
-            rprobe,
-            angles,
-            bni,
-            bsi,
-            lm_id,
-            eps=eps,
-        )
-        for i, (pci, xmi, bni, bsi) in enumerate(
-            zip(
-                tqdm(pcircles),
-                pxm,
-                normals,
-                signs,
+            *(
+                np.concatenate([getattr(x, f) for x in parts])
+                for f in ("circle", "phi_beg", "dphi", "v_beg", "v_end")
             )
         )
-    ]
 
-    lons = _loops_on_sphere(plm, [x for xs in pxm for x in xs])
-    ppm = _spherical_patches(kdt, lons, radii, rprobe, eps=eps)
-    return ppm
+
+def prepare(coords, radii, rp, active=None):
+    """Order atoms as ``[active | need minus active | occluders]`` and
+    drop contained balls.
+
+    Returns ``(order, n_active, n_solve, pairs, d)``: ``order`` maps new to
+    old indices, ``pairs`` (``i < j``, sorted) are all overlapping pairs
+    in new indices with their distances. Everything downstream assumes
+    this shape: no contained or coincident balls, ``rp > 0``, and a pair
+    touches a solved sphere iff ``i < n_solve``.
+    """
+    coords = np.asarray(coords, dtype=float)
+    radii = np.asarray(radii, dtype=float)
+    if rp <= 0.0 or np.any(radii <= 0.0):
+        raise ValueError("probe and atom radii must be positive")
+    n = len(coords)
+    sas = radii + rp
+    pairs, d = overlaps(coords, sas)
+    inside = contained(n, pairs, d, sas)
+    active = (
+        np.ones(n, dtype=bool)
+        if active is None
+        else np.asarray(active, dtype=bool).copy()
+    )
+    active &= ~inside
+
+    i, j = pairs[:, 0], pairs[:, 1]
+    keep = (d < sas[i] + sas[j] - TAU_C) & ~inside[i] & ~inside[j]
+    pairs, d, i, j = pairs[keep], d[keep], i[keep], j[keep]
+    need = active.copy()
+    need[j[active[i]]] = True
+    need[i[active[j]]] = True
+
+    rank = np.where(active, 0, np.where(need, 1, np.where(inside, 3, 2)))
+    order = np.argsort(rank, kind="stable")[: int((rank < 3).sum())]
+    inv = np.empty(n, dtype=int)
+    inv[order] = np.arange(len(order))
+    pairs = np.sort(inv[pairs], axis=1)
+    o = np.lexsort((pairs[:, 1], pairs[:, 0]))
+    return order, int(active.sum()), int(need.sum()), pairs[o], d[o]
+
+
+def overlaps(coords, sas):
+    """All pairs ``(i < j)`` with touching SAS balls and their distances."""
+    tree = cKDTree(coords)
+    pairs = tree.query_pairs(2.0 * sas.max(), output_type="ndarray")
+    if len(pairs) == 0:
+        pairs = np.empty((0, 2), dtype=int)
+    i, j = pairs[:, 0], pairs[:, 1]
+    d = np.linalg.norm(coords[j] - coords[i], axis=1)
+    if np.any(d < 1e-3):
+        raise ValueError("coincident atoms")
+    touching = d < sas[i] + sas[j]
+    return pairs[touching], d[touching]
+
+
+def contained(n, pairs, d, sas):
+    """Balls lying inside another ball (within ``TAU_C``)."""
+    i, j = pairs[:, 0], pairs[:, 1]
+    inner = d <= np.abs(sas[i] - sas[j]) + TAU_C
+    smaller = np.where(sas[i] < sas[j], i, j)
+    out = np.zeros(n, dtype=bool)
+    out[smaller[inner]] = True
+    return out
 
 
 @dataclass
-class SesComponents:
-    convex: list[SphericalPatch]
-    saddle: list[SaddlePatch]
-    concave: list[SphericalPatch]
+class SasGeometry:
+    """Analytic SAS of atoms ordered by :func:`prepare`.
 
-    rprobe: float
+    Spheres ``< n_solve`` have arrangements; spheres ``< n_active`` own
+    surface. Every other sphere only occludes.
+    """
 
+    coords: np.ndarray
+    radii: np.ndarray
+    rp: float
+    sas: np.ndarray
+    n_active: int
+    n_solve: int
+    circles: Circles
+    arrangements: list[Arrangement]
+    probes: np.ndarray
+    probe_offsets: np.ndarray
+    probe_atoms: np.ndarray
+    arcs: TorusArcs
 
-def ses_components(
-    pts: np.ndarray,
-    sas: SasComponents,
-    rprobe: float = 1.4,
-    eps: float = 1e-6,
-):
-    saddle = [
-        SaddlePatch.from_arc(seg, pts, sas.sasr, rprobe)
-        for seg in tqdm(sas.lm)
-    ]
-    convex = [
-        _ses_convex_from_sas_patch(sp, rprobe, saddle) for sp in tqdm(sas.pm)
-    ]
-    concave = _concave_patches(sas.xm, pts, sas.sasr, rprobe, eps=eps)
+    @property
+    def sas_area(self) -> np.ndarray:
+        return np.array([arr.area for arr in self.arrangements])
 
-    return SesComponents(
-        convex=convex,
-        saddle=saddle,
-        concave=concave,
-        rprobe=rprobe,
-    )
-
-
-def _saddle_area(saddle: SaddlePatch, rprobe: float):
-    tor = saddle.arc.parent
-
-    area = (
-        rprobe
-        * saddle.arc.radian
-        * (
-            tor.radius
-            * (np.abs(np.sum(tor.thetas)) - 2 * saddle.singular_theta)
-            - rprobe
-            * (
-                np.abs(np.sum(np.sin(tor.thetas)))
-                - 2 * math.sin(saddle.singular_theta)
-            )
-        )
-    )
-    return area
-
-
-def ses_area(ses: SesComponents):
-    convex = np.array([_gauss_bonnet_area(p) for p in ses.convex])
-    saddle = np.array([_saddle_area(p, ses.rprobe) for p in ses.saddle])
-    concave = np.array([_gauss_bonnet_area(p) for p in ses.concave])
-    return convex, saddle, concave
-
-
-def _read_one(infile: Path, fmt: str):
-    if fmt == "xyzr":
-        data = np.loadtxt(infile)
-        pts = data[:, :3]
-        radii = data[:, 3]
-        return pts, radii
-
-    mol = next(nuri.readfile(fmt, infile, sanitize=False))
-    mol.conceal_hydrogens()
-    pts = mol.get_conf()
-    radii = np.array([atom.element.vdw_radius for atom in mol])
-    return pts, radii
-
-
-def _arc_positions(arc: ToroidSegment, sep: float = 0.1) -> np.ndarray:
-    npts = max(2, math.ceil(arc.radian / sep))
-    phis = np.linspace(arc.pbegin, arc.pend, npts, endpoint=False)
-    return _points_on_circle_center(arc.parent, phis[:, None])
-
-
-def _spherical_positions(
-    patch: SphericalPatch,
-    sep: float = 0.1,
-):
-    arcs = [
-        _arc_positions(seg, sep=sep)
-        for loop in patch.loops
-        for seg in loop.arcs
-    ]
-    if len(arcs) == 0:
-        return np.empty((0, 3)), np.empty((0, 3))
-
-    arcs = np.concat(arcs)
-    pts = [v.pt for loop in patch.loops for v in loop.vertices]
-    if pts:
-        pts = np.stack(pts)
-    else:
-        pts = np.empty((0, 3))
-    return arcs, pts
-
-
-def _saddle_positions(
-    saddle: SaddlePatch,
-    rprobe: float,
-    sep: float = 0.1,
-    singular_only: bool = False,
-):
-    if singular_only and saddle.singular_theta == 0.0:
-        return np.empty((0, 3))
-
-    tor = saddle.arc.parent
-    frame = tor.frame
-
-    z = frame[2]
-    tframe = R.from_rotvec((saddle.arc.pbegin - math.pi / 2) * z).apply(frame)
-    bframe = R.from_rotvec((saddle.arc.pend - math.pi / 2) * z).apply(frame)
-    npts = max(2, math.ceil(np.abs(np.sum(tor.thetas)) / sep))
-    thetas = 1.5 * math.pi + np.linspace(-tor.thetas[0], tor.thetas[1], npts)
-
-    if saddle.singular_theta != 0.0:
-        thetas = thetas[
-            (thetas <= 1.5 * math.pi - saddle.singular_theta)
-            | (thetas >= 1.5 * math.pi + saddle.singular_theta)
+    def atoms_of(self, probe: int) -> np.ndarray:
+        return self.probe_atoms[
+            self.probe_offsets[probe] : self.probe_offsets[probe + 1]
         ]
 
-    top = np.empty((0, 3))
-    bottom = np.empty((0, 3))
-    if not saddle.arc.full:
-        top = _points_on_circle(
-            tor.cntr + tframe[1] * tor.radius,
-            tframe[[2, 1]],
-            rprobe,
-            thetas[:, None],
+    @property
+    def probe_active(self) -> np.ndarray:
+        """Probes touching at least one active atom (atoms are sorted, so
+        the first atom of each probe is its smallest index)."""
+        return self.probe_atoms[self.probe_offsets[:-1]] < self.n_active
+
+    @classmethod
+    def from_atoms(
+        cls, coords, radii, rp: float, active=None
+    ) -> tuple[SasGeometry, np.ndarray]:
+        """Prepare, permute and build; also returns the new-to-old atom
+        index map."""
+        order, n_active, n_solve, pairs, d = prepare(coords, radii, rp, active)
+        coords = np.asarray(coords, dtype=float)[order]
+        radii = np.asarray(radii, dtype=float)[order]
+        return cls.build(coords, radii, rp, pairs, d, n_active, n_solve), order
+
+    @classmethod
+    def build(
+        cls, coords, radii, rp: float, pairs, d, n_active: int, n_solve: int
+    ) -> SasGeometry:
+        n = len(coords)
+        sas = radii + rp
+        n_circ = int(np.searchsorted(pairs[:, 0], n_solve))
+        circles = _circles(coords, sas, pairs[:n_circ], d[:n_circ])
+        nbr_off, nbr_flat = _neighbour_csr(n, pairs)
+        offsets, all_caps = _cap_rows(circles, sas, n_solve)
+
+        caps_of: list[Caps] = []
+        cap_slot = np.full((n_solve, n), -1, dtype=int)
+        covered = np.zeros(n_solve, dtype=bool)
+        for i in range(n_solve):
+            caps, covered[i] = prepare_caps(
+                all_caps.take(slice(offsets[i], offsets[i + 1])), sas[i]
+            )
+            caps_of.append(caps)
+            if not covered[i]:
+                other = circles.pair[caps.tag].sum(axis=1) - i
+                cap_slot[i, other] = np.arange(len(caps))
+
+        triples, points = _triple_vertices(
+            coords,
+            sas,
+            circles,
+            nbr_off,
+            nbr_flat,
+            pairs[:, 0] * n + pairs[:, 1],
         )
-        bottom = _points_on_circle(
-            tor.cntr + bframe[1] * tor.radius,
-            bframe[[2, 1]],
-            rprobe,
-            thetas[:, None],
+        raw_pts = points.reshape(-1, 3)
+        raw_triple = np.repeat(np.arange(len(triples)), 2)
+        label = cluster_points(raw_pts, TAU_C)
+        n_clusters = int(label.max()) + 1 if len(label) else 0
+        reps = np.zeros((n_clusters, 3))
+        np.add.at(reps, label, raw_pts)
+        reps /= np.maximum(np.bincount(label, minlength=n_clusters), 1)[
+            :, None
+        ]
+        atoms_key = np.unique(
+            (label[:, None] * n + triples[raw_triple]).ravel()
+        )
+        owner = np.full(n_clusters, n, dtype=int)
+        np.minimum.at(owner, label, triples[raw_triple, 0])
+
+        tri_off, tri_flat = _inverted_index(triples, n_solve)
+        per_sphere = []
+        edges = [np.empty((0, 2), dtype=int)]
+        cap_off = np.cumsum([0, *(len(c) for c in caps_of)])
+        accessible = np.zeros(n_clusters, dtype=bool)
+        for i, caps in enumerate(caps_of):
+            sel = tri_flat[tri_off[i] : tri_off[i + 1]]
+            others = triples[sel][triples[sel] != i].reshape(-1, 2)
+            slots = cap_slot[i][others]
+            present = np.all(slots >= 0, axis=1)
+            sel, slots = sel[present], slots[present]
+            edges.append(slots + cap_off[i])
+            raw = 2 * np.repeat(sel, 2) + np.tile([0, 1], len(sel))
+            local, inv = np.unique(label[raw], return_inverse=True)
+            local_reps = reps[local] - coords[i]
+            if len(local):
+                local_reps /= np.linalg.norm(local_reps, axis=1, keepdims=True)
+            per_sphere.append((slots, local, inv, local_reps))
+            mine = owner[local] == i
+            accessible[local[mine]] = _accessible_on_sphere(
+                caps, i, local[mine], local_reps[mine], circles, atoms_key, n
+            )
+        n_components = _components_per_sphere(cap_off, np.concatenate(edges))
+
+        probe_ids = np.flatnonzero(accessible)
+        probe_map = np.full(n_clusters, -1, dtype=int)
+        probe_map[probe_ids] = np.arange(len(probe_ids))
+        probe_offsets, probe_atoms = _probe_atoms(n, atoms_key, probe_ids)
+
+        arrangements: list[Arrangement] = []
+        arc_parts = []
+        for i, caps in enumerate(caps_of):
+            if covered[i]:
+                arrangements.append(covered_arrangement(sas[i], caps))
+                continue
+            slots, local, inv, local_reps = per_sphere[i]
+            crossing = np.zeros((len(caps), len(caps)), dtype=bool)
+            crossing[slots[:, 0], slots[:, 1]] = True
+            crossing[slots[:, 1], slots[:, 0]] = True
+            sign = np.where(circles.pair[caps.tag, 0] == i, 1.0, -1.0)
+            arr = solve(
+                sas[i],
+                caps,
+                np.repeat(slots, 2, axis=0),
+                inv,
+                local_reps,
+                accessible[local],
+                int(n_components[i]),
+                crossing,
+                (circles.e1[caps.tag], sign[:, None] * circles.e2[caps.tag]),
+            )
+            arrangements.append(arr)
+            arc_parts.append(_torus_arcs(i, arr, circles, probe_map[local]))
+
+        return cls(
+            coords,
+            radii,
+            rp,
+            sas,
+            n_active,
+            n_solve,
+            circles,
+            arrangements,
+            reps[probe_ids],
+            probe_offsets,
+            probe_atoms,
+            TorusArcs.concat(arc_parts),
         )
 
-    npts = max(2, math.ceil(saddle.arc.radian / sep))
-    phis = np.linspace(saddle.arc.pbegin, saddle.arc.pend, npts)[:, None]
 
-    left = _points_on_circle(
-        saddle.edge_cntrs[0],
-        saddle.arc.parent.frame,
-        saddle.edge_radii[0],
-        phis,
+def _cap_rows(circles: Circles, sas, n_solve: int):
+    """Caps of every solved sphere, gathered from the circle rows.
+
+    Circle ``(i, j)`` cuts sphere ``i`` with axis ``u`` and sphere ``j``
+    (when solved) with axis ``-u``; ``cos`` and ``sin`` are the distances
+    ``a`` / ``d - a`` and the circle radius over the sphere radius. Rows
+    are sorted by sphere; ``offsets`` delimits each sphere's slice and
+    ``tag`` is the circle id.
+    """
+    pi, pj = circles.pair[:, 0], circles.pair[:, 1]
+    circ = np.arange(len(circles))
+    second = pj < n_solve
+    atom = np.concatenate([pi, pj[second]])
+    circ = np.concatenate([circ, circ[second]])
+    sign = np.concatenate([np.ones(len(pi)), -np.ones(int(second.sum()))])
+    order = np.argsort(atom, kind="stable")
+    atom, circ, sign = atom[order], circ[order], sign[order]
+    offsets = np.searchsorted(atom, np.arange(n_solve + 1))
+    r = sas[atom]
+    a = np.where(
+        sign > 0.0, circles.a[circ], circles.d[circ] - circles.a[circ]
     )
-    right = _points_on_circle(
-        saddle.edge_cntrs[1],
-        saddle.arc.parent.frame,
-        saddle.edge_radii[1],
-        phis,
+    caps = Caps(
+        sign[:, None] * circles.axis[circ],
+        a / r,
+        circles.radius[circ] / r,
+        circ,
+    )
+    return offsets, caps
+
+
+def _neighbour_csr(n, pairs) -> tuple[np.ndarray, np.ndarray]:
+    """Sorted neighbour lists of every atom as ``(offsets, flat)``."""
+    both = np.concatenate([pairs, pairs[:, ::-1]])
+    both = both[np.lexsort((both[:, 1], both[:, 0]))]
+    return np.searchsorted(both[:, 0], np.arange(n + 1)), both[:, 1]
+
+
+def _inverted_index(triples, n_solve) -> tuple[np.ndarray, np.ndarray]:
+    """Triples touching each solved sphere as ``(offsets, flat)``."""
+    atom = triples.ravel()
+    order = np.argsort(atom, kind="stable")
+    tri = np.repeat(np.arange(len(triples)), 3)[order]
+    return np.searchsorted(atom[order], np.arange(n_solve + 1)), tri
+
+
+def _components_per_sphere(cap_off, edges) -> np.ndarray:
+    """Connected components of every sphere's crossing graph, from one
+    block-diagonal graph over all caps."""
+    n_nodes = int(cap_off[-1])
+    labels = components(n_nodes, edges)
+    sphere = np.repeat(np.arange(len(cap_off) - 1), np.diff(cap_off))
+    uniq = np.unique(sphere * n_nodes + labels)
+    return np.bincount(uniq // n_nodes, minlength=len(cap_off) - 1)
+
+
+def _triple_vertices(coords, sas, circles, nbr_off, nbr_flat, pair_keys):
+    """Vertices of all sphere triples touching a solved sphere.
+
+    Candidates are ``(i, j, k)`` with ``i < j < k``, ``(i, j)`` a circle
+    and ``k`` a later neighbour of ``i`` that also pairs with ``j``. Each
+    triple is intersected once (circle ``(i, j)`` against sphere ``k``)
+    so that all three spheres see identical points. Returns
+    ``(triples (t, 3) atom indices, points (t, 2, 3))``.
+    """
+    n = len(coords)
+    i, j = circles.pair[:, 0], circles.pair[:, 1]
+    nbr_key = np.repeat(np.arange(len(nbr_off) - 1), np.diff(nbr_off)) * n
+    nbr_key += nbr_flat
+    lo = np.searchsorted(nbr_key, i * n + j, "right")
+    count = nbr_off[i + 1] - lo
+    circ = np.repeat(np.arange(len(circles)), count)
+    k = nbr_flat[
+        np.repeat(lo, count)
+        + np.arange(int(count.sum()))
+        - np.repeat(np.cumsum(count) - count, count)
+    ]
+    key = j[circ] * n + k
+    pos = np.minimum(np.searchsorted(pair_keys, key), len(pair_keys) - 1)
+    is_pair = pair_keys[pos] == key
+    circ, k = circ[is_pair], k[is_pair]
+    triples = np.column_stack([i[circ], j[circ], k])
+
+    t, rl = circles.centre[circ], circles.radius[circ]
+    e1, e2 = circles.e1[circ], circles.e2[circ]
+    w = t - coords[k]
+    g = (sas[k] ** 2 - np.einsum("ij,ij->i", w, w) - rl * rl) / (2.0 * rl)
+    a = np.einsum("ij,ij->i", w, e1)
+    b = np.einsum("ij,ij->i", w, e2)
+    amp2 = a * a + b * b
+    hsq = amp2 - g * g
+    ok = hsq > 0.0
+    triples, t, rl, e1, e2 = triples[ok], t[ok], rl[ok], e1[ok], e2[ok]
+    g, a, b, amp2, h = g[ok], a[ok], b[ok], amp2[ok], np.sqrt(hsq[ok])
+    pts = []
+    for sign in (-1.0, 1.0):
+        cos_phi = (a * g + sign * b * h) / amp2
+        sin_phi = (b * g - sign * a * h) / amp2
+        radial = cos_phi[:, None] * e1 + sin_phi[:, None] * e2
+        pts.append(t + rl[:, None] * radial)
+    return triples, np.stack(pts, axis=1)
+
+
+def _circles(coords, sas, pairs, d) -> Circles:
+    i, j = pairs[:, 0], pairs[:, 1]
+    ri, rj = sas[i], sas[j]
+    axis = (coords[j] - coords[i]) / d[:, None]
+    a = (d * d + ri * ri - rj * rj) / (2.0 * d)
+    rl = np.sqrt(np.maximum(ri * ri - a * a, 0.0))
+    centre = coords[i] + a[:, None] * axis
+    e1 = any_perpendicular(axis)
+    e2 = np.cross(axis, e1)
+    return Circles(pairs, centre, rl, axis, e1, e2, a, d)
+
+
+def _accessible_on_sphere(caps, i, clusters, dirs, circles, atoms_key, n):
+    """Accessibility of the clusters owned by sphere ``i`` (their
+    smallest atom), decided once against that sphere's caps.
+
+    A cluster is accessible iff it lies outside every cap except those of
+    its own atoms. Every ball that could contain a point of sphere ``i``
+    overlaps it and therefore is a cap here (or nested inside one), so
+    this equals the test against all SAS balls; deciding it once per
+    cluster keeps every sphere sharing the cluster consistent.
+    """
+    if len(clusters) == 0:
+        return np.zeros(0, dtype=bool)
+    inside = dirs @ caps.axis.T > caps.cos_a
+    other = circles.pair[caps.tag].sum(axis=1) - i
+    key = clusters[:, None] * n + other[None, :]
+    pos = np.minimum(np.searchsorted(atoms_key, key), len(atoms_key) - 1)
+    excused = atoms_key[pos] == key
+    return ~(inside & ~excused).any(axis=1)
+
+
+def _probe_atoms(n, keys, probe_ids) -> tuple[np.ndarray, np.ndarray]:
+    """Sorted atoms of every probe as ``(offsets, flat)``; ``keys`` are
+    the sorted unique ``cluster * n + atom`` incidences."""
+    cluster, atom = np.divmod(keys, n)
+    lo = np.searchsorted(cluster, probe_ids)
+    hi = np.searchsorted(cluster, probe_ids + 1)
+    count = hi - lo
+    flat = atom[
+        np.repeat(lo, count)
+        + np.arange(int(count.sum()))
+        - np.repeat(np.cumsum(count) - count, count)
+    ]
+    return np.concatenate([[0], np.cumsum(count)]), flat
+
+
+def _torus_arcs(i, arr, circles, probe_of_local) -> TorusArcs:
+    """Arcs of sphere ``i`` on circles it is the smaller sphere of.
+
+    Those caps share the circle frame, so ``phi`` carries over as is; the
+    larger sphere reports nothing. A ``-1`` appended to the probe map
+    lets full circles (``-1`` ends) read back ``-1``.
+    """
+    arcs = arr.arcs
+    c = arr.caps.tag[arcs.cap]
+    keep = circles.pair[c, 0] == i
+    ext = np.append(probe_of_local, -1)
+    return TorusArcs(
+        c[keep],
+        arcs.phi_beg[keep],
+        arcs.dphi[keep],
+        ext[arcs.v_beg[keep]],
+        ext[arcs.v_end[keep]],
     )
 
-    return np.concat([top, left, bottom, right])
+
+@dataclass
+class Saddles:
+    """Valid generating-arc angle ranges per circle and area per arc.
+
+    The generating arc is parametrised by ``beta``, the angle from the
+    inward radial direction; ``beta < 0`` leans toward atom ``i``. Distance
+    from the axis is ``rl - rp cos(beta)``, zero at the cusp of a spindle.
+    ``ranges`` is ``(n_circles, 2, 2)``: the parts below and above the cusp,
+    zero-width where absent.
+    """
+
+    ranges: np.ndarray
+    area: np.ndarray
 
 
-def _concave_positions(
-    concave: SphericalPatch,
-    sep: float = 0.1,
-    singular_only: bool = False,
-):
-    nonsingular = (
-        len(concave.loops) == 1
-        and len(concave.loops[0]) == 3
-        and all(
-            len(arc.parent.on) == 1 and arc.parent.on[0] == concave.sid
-            for arc in concave.loops[0].arcs
+@dataclass
+class ConcaveFace:
+    probe: int
+    atoms: np.ndarray
+    contacts: np.ndarray
+    arrangement: Arrangement
+
+    @property
+    def area(self) -> float:
+        return self.arrangement.area
+
+
+@dataclass
+class SesGeometry:
+    sas: SasGeometry
+    convex_area: np.ndarray
+    saddles: Saddles
+    concave: list[ConcaveFace] = field(default_factory=list)
+
+    @property
+    def rp(self) -> float:
+        return self.sas.rp
+
+    @classmethod
+    def build(cls, sas: SasGeometry) -> SesGeometry:
+        ratio = sas.radii[: sas.n_solve] / sas.sas[: sas.n_solve]
+        convex = sas.sas_area * ratio * ratio
+        return cls(
+            sas,
+            convex,
+            _saddles(sas),
+            _concave_faces(sas),
         )
-    )
-    if singular_only and nonsingular:
-        return np.empty((0, 3)), np.empty((0, 3))
-
-    return _spherical_positions(concave, sep=sep)
 
 
-def debug_write_pts(file: Path, pts: np.ndarray, elem: int = 1):
-    mol = Molecule()
+def beta_ranges(rl, rp, theta_i, theta_j) -> np.ndarray:
+    """Valid ``beta`` ranges ``(..., 2, 2)`` of the generating arc.
 
-    with open(file, "w") as f:
-        with mol.mutator() as m:
-            for _ in pts:
-                m.add_atom().set_element(elem)
-        mol.add_conf(pts)
-        f.write(nuri.to_mol2(mol))
-
-
-def _write_one_patch(
-    f: TextIO,
-    arcs: np.ndarray,
-    index: itertools.count,
-    mol: Molecule,
-    extra: str,
-    pts: np.ndarray | None = None,
-):
-    if arcs.size == 0:
-        return
-
-    i = next(index)
-    print(f"{i = }, {extra}")
-
-    mol.clear()
-    with mol.mutator() as m:
-        for _ in arcs:
-            m.add_atom().set_element(1)
-        if pts is not None:
-            for _ in pts:
-                m.add_atom().set_element(2)
-
-    if pts is not None:
-        arcs = np.concat([arcs, pts])
-    mol.add_conf(arcs)
-
-    f.write(nuri.to_mol2(mol))
+    The arc runs from ``-theta_i`` (touching atom ``i``) to ``theta_j``.
+    On a spindle torus (``rl < rp``) the part ``|beta| < b0`` lies beyond
+    the axis and is cut out; ``b0`` is zero otherwise, so the two ranges
+    simply tile the arc. Absent parts come out zero-width.
+    """
+    rl, theta_i, theta_j = np.broadcast_arrays(rl, theta_i, theta_j)
+    lo, hi = -theta_i, theta_j
+    b0 = np.arctan2(np.sqrt(np.maximum(rp * rp - rl * rl, 0.0)), rl)
+    below = np.stack([lo, np.maximum(lo, np.minimum(hi, -b0))], axis=-1)
+    above = np.stack([np.minimum(hi, np.maximum(lo, b0)), hi], axis=-1)
+    return np.stack([below, above], axis=-2)
 
 
-@app.command()
-def main(
-    inf: Path,
-    fmt: str = "sdf",
-    load_sas: Path | None = None,
-    write_sas: Path | None = None,
-    write_pm: Path | None = None,
-    pm_sep: float = 0.1,
-    write_convex: Path | None = None,
-    convex_sep: float = 0.1,
-    write_saddle: Path | None = None,
-    saddle_sep: float = 0.1,
-    saddle_singular_only: bool = False,
-    write_concave: Path | None = None,
-    concave_sep: float = 0.1,
-    concave_singular_only: bool = False,
-    rprobe: float = 1.4,
-):
-    pts, radii = _read_one(inf, fmt)
+def saddle_area(rl, rp, ranges, dphi):
+    """Saddle area of ``ranges`` ``(..., 2, 2)`` swept over ``dphi``."""
+    lo, hi = ranges[..., 0], ranges[..., 1]
+    rl = np.asarray(rl)[..., None]
+    per_range = rl * (hi - lo) - rp * (np.sin(hi) - np.sin(lo))
+    return dphi * rp * per_range.sum(axis=-1)
 
-    if load_sas is not None:
-        with open(load_sas, "rb") as f:
-            sas: SasComponents = pickle.load(f)
-    else:
-        sas = sas_components(pts, radii + rprobe)
 
-    if write_sas is not None:
-        with open(write_sas, "wb") as f:
-            pickle.dump(sas, f)
+def _saddles(sas: SasGeometry) -> Saddles:
+    circles, arcs = sas.circles, sas.arcs
+    theta_i, theta_j = circles.half_angles()
+    ranges = beta_ranges(circles.radius, sas.rp, theta_i, theta_j)
+    c = arcs.circle
+    area = saddle_area(circles.radius[c], sas.rp, ranges[c], arcs.dphi)
+    return Saddles(ranges, area)
 
-    sasa = sas_area(sas)
 
-    atom_sasa = np.zeros(len(sas.sasr))
-    for p, a in zip(sas.pm, sasa):
-        atom_sasa[p.sid] += a[0]
+def _departure_caps(sas: SasGeometry) -> tuple[np.ndarray, np.ndarray]:
+    """Unit tangents of the accessible arcs leaving each probe, as
+    ``(offsets, tangents)`` sorted by probe.
 
-    sr_sasa = shrake_rupley_sasa(pts, radii, nprobe=5000, rprobe=rprobe)
-    print(atom_sasa)
-    print(sr_sasa)
-    print("SASA comparison:")
-    print(f"Gauss-Bonnet SASA: {np.sum(atom_sasa)}")
-    print(f"Shrake-Rupley SASA: {np.sum(sr_sasa)}")
-    print(f"Difference: {np.sum(atom_sasa) - np.sum(sr_sasa)}")
+    The probe rolls away along each such arc, so the half of its sphere
+    facing the tangent is swept and cannot be concave face. For an
+    ordinary three-atom vertex these are the three side planes of the
+    contact triangle; k-fold vertices and single-vertex circles fall out
+    of the same rule. The tangent at a probe on circle ``c`` is
+    ``axis x radial``; leaving toward decreasing ``phi`` flips it.
+    """
+    arcs, circles = sas.arcs, sas.circles
+    probe = np.concatenate([arcs.v_beg, arcs.v_end])
+    circ = np.concatenate([arcs.circle, arcs.circle])
+    sign = np.repeat([1.0, -1.0], len(arcs))
+    keep = probe >= 0
+    probe, circ, sign = probe[keep], circ[keep], sign[keep]
+    radial = (sas.probes[probe] - circles.centre[circ]) / circles.radius[
+        circ, None
+    ]
+    tangents = sign[:, None] * np.cross(circles.axis[circ], radial)
+    order = np.argsort(probe, kind="stable")
+    offsets = np.searchsorted(probe[order], np.arange(len(sas.probes) + 1))
+    return offsets, tangents[order]
 
-    ses = ses_components(pts, sas, rprobe=rprobe)
-    convex, saddle, concave = ses_area(ses)
-    np.savez(
-        "area_components.npz",
-        pm=sasa,
-        convex=convex,
-        saddle=saddle,
-        concave=concave,
-    )
 
-    assert np.all(convex[:, 0] < sasa[:, 0])
-    assert np.all(convex[:, 0] >= 0)
-    assert np.all(saddle >= 0)
-    assert np.all(concave[:, 0] >= 0)
-
-    vsum = np.sum(convex[:, 0])
-    ssum = np.sum(saddle)
-    csum = np.sum(concave[:, 0])
-
-    print(
-        (
-            f"SES area: convex = {vsum}, saddle = {ssum}, concave = {csum}, "
-            f"total = {vsum + ssum + csum}"
+def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
+    probes = sas.probes
+    if len(probes) == 0:
+        return []
+    dep_off, dep_t = _departure_caps(sas)
+    tree = cKDTree(probes)
+    near = tree.query_ball_point(probes, 2.0 * sas.rp)
+    faces = []
+    for q in np.flatnonzero(sas.probe_active):
+        atoms = sas.atoms_of(q)
+        contacts = sas.coords[atoms] - probes[q]
+        contacts /= np.linalg.norm(contacts, axis=1, keepdims=True)
+        others = np.array([n for n in near[q] if n != q], dtype=int)
+        diff = probes[others] - probes[q]
+        dist = np.linalg.norm(diff, axis=1)
+        tangents = dep_t[dep_off[q] : dep_off[q + 1]]
+        cos_a = dist / (2.0 * sas.rp)
+        caps = Caps(
+            np.concatenate([tangents, diff / dist[:, None]]),
+            np.concatenate([np.zeros(len(tangents)), cos_a]),
+            np.concatenate(
+                [np.ones(len(tangents)), np.sqrt(1.0 - cos_a * cos_a)]
+            ),
+            np.concatenate([-np.arange(1, len(tangents) + 1), others]),
         )
+        faces.append(ConcaveFace(q, atoms, contacts, solve_caps(sas.rp, caps)))
+    return faces
+
+
+def ses_area(ses: SesGeometry):
+    """Per-atom convex, per-arc saddle, per-face concave areas."""
+    concave = np.array([f.area for f in ses.concave])
+    return ses.convex_area, ses.saddles.area, concave
+
+
+def two_sphere_ses_area(r1: float, r2: float, d: float, rp: float):
+    """Closed-form SES area of two intersecting spheres, per patch kind
+    (convex, toroidal, concave); Quan & Stamm (2016) eqs. 5.26-5.27."""
+    R1, R2 = r1 + rp, r2 + rp
+    if d >= R1 + R2:
+        return 4 * math.pi * (r1 * r1 + r2 * r2), 0.0, 0.0
+    a = (d * d + R1 * R1 - R2 * R2) / (2.0 * d)
+    rl = math.sqrt(R1 * R1 - a * a)
+    th1 = math.atan2(a, rl)
+    th2 = math.atan2(d - a, rl)
+    convex = (
+        2 * math.pi * (r1 * r1 * (1 + a / R1) + r2 * r2 * (1 + (d - a) / R2))
     )
-
-    mol = Molecule()
-    if write_pm:
-        index = itertools.count(1)
-        with open(write_pm, "w") as f:
-            for patch in sas.pm:
-                arcs, pts = _spherical_positions(patch, sep=pm_sep)
-                _write_one_patch(
-                    f,
-                    arcs,
-                    index,
-                    mol,
-                    f"{patch.sid = }",
-                    pts=pts,
-                )
-
-    if write_convex:
-        index = itertools.count(1)
-        with open(write_convex, "w") as f:
-            for patch in ses.convex:
-                arcs, pts = _spherical_positions(patch, sep=convex_sep)
-                _write_one_patch(
-                    f,
-                    arcs,
-                    index,
-                    mol,
-                    f"{patch.sid = }",
-                    pts=pts,
-                )
-
-    if write_saddle:
-        index = itertools.count(1)
-        with open(write_saddle, "w") as f:
-            for patch in ses.saddle:
-                arcs = _saddle_positions(
-                    patch,
-                    ses.rprobe,
-                    sep=saddle_sep,
-                    singular_only=saddle_singular_only,
-                )
-                _write_one_patch(
-                    f,
-                    arcs,
-                    index,
-                    mol,
-                    f"{patch.arc.parent.on = }",
-                )
-
-    if write_concave:
-        index = itertools.count(1)
-        with open(write_concave, "w") as f:
-            probe_patches: dict[int, list[SphericalPatch]] = defaultdict(list)
-            for patch in ses.concave:
-                probe_patches[patch.sid].append(patch)
-
-            for pid, patches in probe_patches.items():
-                pts = [
-                    _concave_positions(
-                        patch,
-                        sep=concave_sep,
-                        singular_only=concave_singular_only,
-                    )
-                    for patch in patches
-                ]
-                arcs = np.concat([arc for arc, _ in pts])
-                pts = np.concat([pt for _, pt in pts])
-                _write_one_patch(f, arcs, index, mol, f"{pid = }", pts=pts)
-
-
-if __name__ == "__main__":
-    app()
+    ranges = beta_ranges(rl, rp, th1, th2)
+    torus = float(saddle_area(rl, rp, ranges, 2.0 * math.pi))
+    return convex, torus, 0.0
