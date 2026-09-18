@@ -74,9 +74,16 @@ and sines:
   **disjoint**;
 - **crossing**: everything in between.
 
-Everything downstream therefore sees only caps that can contribute boundary,
-and the same three comparisons drive hiding, the covered exit, the crossing
-graph of step 7 and the arc test of step 5, so none of them can disagree.
+On a probe sphere these three comparisons are the only source of the
+classification. On a SAS sphere the crossing decision is made elsewhere, once
+per sphere triple (§3 step 3), and is passed in; the remaining pairs are split
+into nested and apart by `cos γ > c_j c_k`, which lies `s_j s_k` away from
+either boundary and therefore can never contradict a crossing decision reached
+by another route. Hiding is applied before the covered exit (a cap that covers
+the sphere together with a smaller cap covers it together with the larger
+one). Everything downstream sees only caps that can contribute boundary, and
+hiding, the covered exit, the crossing graph of step 7 and the arc test of
+step 5 all read one classification.
 
 ### Step 2 — crossing points (`crossing_points`)
 
@@ -212,8 +219,12 @@ n_patches = 1 + n_loops − n_cap_components
 ```
 
 (a pinch visited twice by one walk counts as one loop). With no caps there are
-no loops and no components, and the formula gives one patch of area `4πR²`;
-no other zero-loop case survives step 1.
+no loops and no components, and the formula gives one patch of area `4πR²`.
+Three or more caps can cover the sphere with no covering pair; then there are
+no loops and one component, and the formula gives no patch and area 0. Loops
+are counted as cycles of the successor permutation with the same
+label-propagation routine that clusters vertices; their contents are never
+needed.
 
 ### Tolerances (summary)
 
@@ -231,20 +242,25 @@ the smallest gap that must remain a gap; the test suite passes for any value in
 
 ### Preparation (`prepare`)
 
-1. **Overlaps.** KD-tree pairs `(i < j)` with `d < R_i + R_j`. Coincident
-   centres (`d < 1e-3 Å`) raise. `rp ≤ 0` or a non-positive radius raises.
+1. **Overlaps.** KD-tree pairs `(i < j)` with `d < R_i + R_j − TAU_C`,
+   decided once; a pair tangent to within `TAU_C` is not an overlap.
+   Coincident centres (`d < 1e-3 Å`) raise. `rp ≤ 0` or a non-positive
+   radius raises.
 2. **Contained balls.** If `d ≤ |R_i − R_j| + TAU_C` the smaller ball is
    contained: it has no surface and generates no caps. These atoms are
    dropped from everything that follows.
 3. **Order.** `active` is the caller's mask minus contained atoms; `need` is
    `active ∪ neighbours(active)`. Atoms are permuted to
-   `[active | need \ active | occluders]` and the overlapping pairs
-   (`d < R_i + R_j − TAU_C`, neither contained) are remapped and sorted by
-   `(i, j)`. From here on state is read from index ranges: a sphere is solved
-   iff its index is `< n_solve`, owns dots iff `< n_active`; a pair touches a
-   solved sphere iff its smaller index is `< n_solve`; a probe is active iff
-   its smallest atom is. Dot owners are mapped back through the permutation
-   at the very end.
+   `[active | need \ active | occluders]` and the overlapping pairs (neither
+   contained) are remapped and sorted by `(i, j)`. From here on state is read
+   from index ranges: a sphere is solved iff its index is `< n_solve`, owns
+   dots iff `< n_active`; a pair touches a solved sphere iff its smaller
+   index is `< n_solve`. Vertex clusters are relabelled by their smallest
+   atom, so probes are owner-sorted; active probes, active circles and active
+   torus arcs are prefixes whose lengths (`n_active_probes`,
+   `n_active_circles`, `n_active_arcs`) are counted once in `build` and read
+   everywhere else. Dot owners are mapped back through the permutation at the
+   very end.
 4. **What the mask makes exact.** Every atom occludes, so the caps of a solved
    sphere are complete and convex patches of active atoms are exact. A torus
    arc is emitted for circles whose smaller atom is active; that sphere is
@@ -274,9 +290,11 @@ the smallest gap that must remain a gap; the test suite passes for any value in
    `cos α = a/R_i`, `sin α = rl/R_i`, frame `(e1, e2)`, and, if `j` is solved,
    sphere `j` with axis `−u`, `cos α = (d − a)/R_j`, `sin α = rl/R_j`, frame
    `(e1, −e2)` (right-handed about `−u`). All rows are sorted by sphere once;
-   a sphere's caps are a slice, tagged by circle id. No cap geometry is
+   a sphere's caps are a slice, tagged `2·circle + side` (side 0 on the
+   circle's first sphere), so the circle, the axis sign and the other atom
+   are tag arithmetic wherever they are needed. No cap geometry is
    recomputed, and the smaller sphere's arc `φ` *is* the circle's `φ`.
-3. **Triple vertices, computed once** (`_triple_vertices`). Candidates are
+3. **Triple vertices, computed once** (`_triple_candidates`). Candidates are
    `(i < j < k)` with `(i, j)` a circle and `k` a later neighbour of `i` that
    also pairs with `j` (all vectorised over the neighbour lists). The circle
    `(i, j)` is intersected with sphere `k`: with `w = t − c_k`,
@@ -289,30 +307,46 @@ the smallest gap that must remain a gap; the test suite passes for any value in
    ```
 
    which is `φ_0 ± acos(g/amp)` with `φ_0 = atan2(B, A)` written without
-   inverse trig. The identical 3-D points are then handed to every sphere of
-   the triple on which both caps are present (a hidden cap makes the triple
-   absent on that sphere only). Computing the decision once per triple is what
-   keeps the three spheres consistent; deciding `h² > 0` independently per
-   sphere produced a vertex on one sphere and none on another at exact
-   tangency, and hence a phantom concave face.
+   inverse trig. This is the **only** crossing decision on SAS spheres: a
+   candidate with `h² > 0` whose two caps are present and distinct (after
+   coincident-cap merging) on every solved sphere of the triple is a crossing
+   pair on each of them. Those pairs form each sphere's crossing graph, which
+   step 1 of §2 takes as given to split the other pairs into nested and apart
+   and to hide nested caps. A triple one of whose caps is hidden on some
+   sphere has no vertex (its points lie inside the hiding ball) but keeps its
+   crossing edges on the spheres where both caps survive: dropping the edge
+   there would let a cap whose remaining vertices are all inaccessible pass
+   as a full circle tested against too few caps. Only then are the points
+   computed, once per surviving triple, and handed to every sphere of it.
+   Deciding `h² > 0` independently per sphere produced a vertex on one sphere
+   and none on another at exact tangency, and hence a phantom concave face;
+   deciding crossing by the trig comparisons of §2 while producing vertices
+   from `h²` lost exactly one cap's area whenever rounding put an internally
+   tangent pair on different sides of the two tests.
 4. **Global clustering.** All raw points are clustered at `TAU_C`. A cluster's
    atoms are the union of its triples; k-fold coincidences give probes with
-   four or more atoms.
+   four or more atoms. Clusters are relabelled by their smallest atom, the
+   owner.
 5. **Accessibility on the owner sphere.** Each cluster is decided once, on the
    sphere of its smallest atom, with the test of §2 step 4 against that
-   sphere's caps (excusing caps of the cluster's own atoms). Every ball that
-   can contain a point of the sphere overlaps it and so is one of its caps
-   (or nested inside one), so this equals the test against all SAS balls; a
+   sphere's caps, excusing the caps of the triples that generated it: the
+   same incidence the per-sphere solve uses for its arcs, so a vertex is
+   never accepted for a cap that then gets no dart. Every ball that can
+   contain a point of the sphere overlaps it and so is one of its caps (or
+   nested inside one), so this equals the test against all SAS balls; a
    single decision per cluster keeps every sphere sharing the cluster
-   consistent. Accessible clusters are the **probes**.
-6. **Per-sphere solve.** Each solved sphere receives its raw points, their
-   global cluster labels, the projected representatives, the accessibility
-   flags and its frames, and runs steps 5–7 of §2. The per-sphere crossing
-   matrix is derived from the same triples, and the cap components of all
-   spheres come from one connected-components call on a block-diagonal graph.
+   consistent. All clusters are decided in one vectorised pass, covered
+   owner spheres included (two covering caps touching at one point host a
+   legitimate probe). Accessible clusters are the **probes**.
+6. **Per-sphere solve.** Each non-covered sphere receives its crossing edges,
+   the (cluster, cap) incidence of its kept triples, the projected
+   representatives, the accessibility flags and its frames, and runs steps
+   5–7 of §2; a covered sphere gets an empty arrangement. The cap components
+   of all spheres come from one label-propagation pass over a block-diagonal
+   graph.
 7. **Torus arcs.** The arcs of a sphere on circles it is the smaller sphere of
-   are the torus arcs as they stand (same frame, same `φ`); the larger sphere
-   reports nothing. Vertex ids are mapped to probe ids through a map with a
+   (tag side bit 0) are the torus arcs as they stand (same frame, same `φ`);
+   the larger sphere reports nothing. Vertex ids are mapped to probe ids through a map with a
    `-1` appended, so full-circle ends (`-1`) read back `-1` without a branch.
 
 ### SES (`SesGeometry.build`)
@@ -342,25 +376,34 @@ the smallest gap that must remain a gap; the test suite passes for any value in
   cover every case: they tile the arc for an ordinary torus, cut out the
   spindle, and collapse to zero width where a part is absent (which also
   happens when `a < 0` or `d − a < 0`, since `θ_i > β0` iff `a > 0`). They
-  are stored per circle as one `(n_circles, 2, 2)` array, and the area is
+  are stored per active circle as one `(n_circles, 2, 2)` array, and the
+  area is
 
   ```
   A = dphi · rp · Σ_ranges [ rl (β_hi − β_lo) − rp (sin β_hi − sin β_lo) ].
   ```
+
+  Endpoints are selected together with their sines (`sin θ_i = a/R_i`,
+  `sin θ_j = (d − a)/R_j`, `sin β0 = √(rp² − rl²)/rp`; all `β` lie in
+  `(−π/2, π/2)`), so no sine of a selected angle is evaluated, and the
+  bracketed integral of each range is stored once per circle; the arc areas
+  and the sampler's row totals are both gathers of it.
 
   The range is never empty once contained balls are gone: `θ_i + θ_j` is the
   angle at the probe in the triangle `(c_i, q, c_j)`, positive for any
   overlapping, non-contained pair.
 - **Concave face** of probe `q` (only probes whose smallest atom is active).
   Caps on the probe sphere:
-  1. one cap for every other probe `q'` within `2rp`: axis `(q' − q)/|q' − q|`,
-     `cos α = |q' − q| / 2rp`, `sin α = √(1 − cos² α)` (a tangent probe gives
-     `sin α = 0` and is dropped as empty);
+  1. one cap for every other probe `q'` strictly within `2rp` (a tangent probe
+     cuts nothing): axis `(q' − q)/|q' − q|`, `cos α = |q' − q| / 2rp`,
+     `sin α = √(1 − cos² α)`; every probe pair is measured once and read from
+     both sides with opposite axes;
   2. one **hemisphere per accessible arc leaving `q`**, axis = the arc's
      departure tangent `±(u × radial)` at `q` (`+` when the arc leaves toward
      increasing `φ`). Rolling along that arc, the probe sweeps the half of its
      sphere facing the tangent, so that half is not SES. All departure
-     tangents are computed in one pass and grouped by probe.
+     tangents are computed in one pass from the cluster mean, normalised (the
+     mean is off the circle by up to `TAU_C`) and grouped by probe.
 
   For an ordinary three-atom vertex, rule 2 gives exactly the three side planes
   of the contact triangle (the departure tangent of circle `(a, b)` is normal
@@ -410,17 +453,23 @@ quantity.
      dropped (recorded in `Dots.dropped_area`). Zero-width rows drop zero area
      and emit nothing through the same arithmetic.
   4. Dot position `p = q(φ) + rp (−cos β · radial(φ) + sin β · u)`, normal
-     `(q − p)/rp`, owner the nearer of the two atoms.
+     `(q − p)/rp`, owner the atom whose vdW surface is nearer. `cos β`,
+     `sin β` and the owner are per ring: `|p − c_i|² = R_i² + rp² −
+     2 rp (rl cos β − a sin β)` and `|p − c_j|² = R_j² + rp² − 2 rp (rl cos β +
+     (d − a) sin β)` do not depend on `φ`. Ring edge sines are shared between
+     neighbouring rings.
 
   This is the "reading 2" scheme: uniform spacing along the generating arc,
   φ count proportional to the ring's true area. Density is uniform, cusp
   rings get few or no dots instead of crowding, and there is no `ceil` bias.
-- **Concave** (face of probe `q`). The probe-sphere Fibonacci lattice
-  (`round(4π rp² · density)` directions) is rotated so that its pole points at
-  the contact centroid; a direction is kept iff it is outside every cap of the
-  face arrangement, which encodes both the polygon of departure hemispheres and
-  the neighbour-probe cuts. Dot = `q + rp d`, normal `−d`, weight
-  `A_face / n_kept`, owner the atom whose vdW surface is nearest.
+- **Concave** (face of probe `q`). One probe-sphere Fibonacci lattice
+  (`round(4π rp² · density)` directions, not rotated per face: weights are
+  `A_face / n_kept`, so orientation is unbiased) is tested against the face
+  arrangement; a direction is kept iff it is outside every cap, which encodes
+  both the polygon of departure hemispheres and the neighbour-probe cuts.
+  Dot = `q + rp d`, normal `−d`, weight `A_face / n_kept`, owner the atom whose
+  vdW surface is nearest, from one matmul with the contact directions:
+  `|p − c_a|² = R_a² + rp² − 2 rp R_a (d · ĉ_a)`.
 
 Normals point from the SES into the solvent; for toroidal and concave dots that
 is toward the probe centre, so `Dots.probes = pts + rp · normals` recovers the
@@ -431,8 +480,15 @@ probe positions used by the buried/trim tests in `sc.py`.
 Overlap enumeration uses one KD-tree; triple candidates come from sorted
 neighbour lists and a `searchsorted` pair lookup. Each sphere's arrangement is
 `O(m²)` in its cap count `m` (10–40 for proteins) and independent of all other
-spheres; the only global steps are one KD-tree clustering of the raw vertices
-and one connected-components call for all cap graphs. Sampling is linear in
-the number of dots. In the Python pilot what remains is one interpreter
-iteration per solved sphere and per concave face (about 0.65 s + 0.27 s for a
-921-atom chain with 266 active atoms, plus 0.04 s of sampling).
+spheres. Global steps: one KD-tree clustering of the raw vertices, one
+label-propagation pass for all cap graphs, one vectorised accessibility test
+for all clusters, one probe-pair query for all faces. Per sphere and per face
+there remain a KD-tree query for coincident caps and one for local vertex
+clustering (≤ 40 points, so a pairwise test suffices in C++). Connected
+components everywhere are minimum-label propagation with pointer jumping, not
+sparse graphs. Sampling is linear in the number of dots. In the Python pilot
+what remains is one interpreter iteration per solved sphere (twice: merge,
+classify), per non-covered sphere (solve), per active face (solve) and per
+active atom and face (sampling): about 0.78 s + 0.40 s + 0.05 s for the
+921-atom chain with every atom active, 0.54 s + 0.16 s + 0.02 s with 266
+active atoms (login node, preliminary).

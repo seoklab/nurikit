@@ -29,13 +29,24 @@ structures (`1ar1`, `2ptc`, `1brs`, `1vfb`, `1cho`) are in `test/test_data/`.
 dropped, and atoms are permuted to `[active | need | occluders]` (`need` =
 active ∪ neighbours of active). Every kernel after that assumes clean input
 and reads state from index ranges instead of masks: spheres `< n_solve` get
-arrangements, spheres `< n_active` own dots, a circle or arc is active iff
-its smaller atom is `< n_active`, a probe iff its smallest atom is. Dot
-owners are mapped back through `order` at the end. Exceptional cases that
-would otherwise be branches inside kernels are data instead: a `-1`
-appended to the probe map so full-circle ends (`-1`) read back `-1`,
-self-successors so a full circle is its own loop, zero-width saddle ranges
-where a spindle part is absent.
+arrangements, spheres `< n_active` own dots; vertex clusters are relabelled
+by smallest atom, so active probes, circles and torus arcs are prefixes
+whose lengths are counted once in `build`. Dot owners are mapped back
+through `order` at the end. Exceptional cases that would otherwise be
+branches inside kernels are data instead: a `-1` appended to the probe map
+so full-circle ends (`-1`) read back `-1`, self-successors so a full circle
+is its own loop, zero-width saddle ranges where a spindle part is absent.
+
+Every decision class has exactly one predicate and every consumer reads its
+stored result: overlap (`d < R_i + R_j − TAU_C`), containment, coincident
+caps, hidden and covered (`classify_caps`), crossing (the triple test on SAS
+spheres, the trig comparisons on probe spheres), vertex accessibility (owner
+sphere, excusing generating-pair caps), arc validity (midpoint against
+crossing caps), circle side (tag bit). An audit found two places where a
+decision was made twice with formulas that could disagree at rounding-level
+tangencies, each of which lost or added exactly one cap's area
+(`test_internally_tangent_caps_under_rotation`,
+`test_cap_hidden_elsewhere_keeps_crossing`).
 
 ## Geometry core
 
@@ -51,8 +62,10 @@ where an angle is consumed as an angle (φ along a circle, dart angles).
   comparisons: nested (`cos γ ≥ c₁c₂ + s₁s₂`, dropped), apart
   (`cos γ ≤ c₁c₂ − s₁s₂`; a cover of the whole sphere when `c₁ + c₂ < 0`,
   which ends the solve as `covered`, disjoint otherwise), crossing in
-  between. Crossing points are written in the `n₁ ± n₂` basis so nearly
-  parallel caps lose no precision. Crossing points of the same pair are
+  between. On SAS spheres crossing is given (the triple test below) and the
+  rest is split by `cos γ > c₁c₂`, `s₁s₂` away from either boundary.
+  Crossing points are written in the `n₁ ± n₂` basis so nearly parallel
+  caps lose no precision. Crossing points of the same pair are
   never merged; coincident points from *different* pairs are clustered
   (`TAU_C = 1e-6 Å`). Accessibility of a cluster is an exact comparison
   against every cap except those whose own crossing points merged into it.
@@ -84,13 +97,18 @@ where an angle is consumed as an angle (φ along a circle, dart angles).
   arcs, with φ carried over unchanged.
 - SAS: triple vertices are intersected **once** per sorted triple `(i<j<k)`
   (candidates from the neighbour lists, circle `(i,j)` against sphere `k`,
-  points by algebra without trig) and the identical points are handed to all
-  three spheres, then clustered globally. Without this, exact tangencies
-  gave a vertex on one sphere and none on the others (phantom faces). A
-  cluster's accessibility is decided once, on the sphere of its smallest
-  atom against that sphere's caps; every ball that could contain a point of
-  the sphere is one of its caps, so this equals the test against all SAS
-  balls without a KD-tree sweep.
+  points by algebra without trig). `h² > 0` with both caps present and
+  distinct on every solved sphere is *the* crossing decision; each sphere's
+  crossing graph is handed to `classify_caps`, and a triple with a hidden
+  cap keeps its edges where both caps survive but contributes no vertex.
+  The identical points of surviving triples go to all three spheres, then
+  are clustered globally. Without this, exact tangencies gave a vertex on
+  one sphere and none on the others (phantom faces). A cluster's
+  accessibility is decided once, on the sphere of its smallest atom against
+  that sphere's caps, excusing the caps of its generating triples; every
+  ball that could contain a point of the sphere is one of its caps, so this
+  equals the test against all SAS balls. All clusters are decided in one
+  vectorised pass.
 - Spindle tori (`rl < rp`) are the hard case: every probe on such a circle
   is exactly `rp` from the two cusp points, so k probe spheres and the
   adjacent face sides all pass through one point. Clustering plus dart
@@ -99,8 +117,10 @@ where an angle is consumed as an angle (φ along a circle, dart angles).
 - Saddle per circle: generating angle β from the inward radial direction,
   `θ = atan2(a, rl)` per side, valid ranges `[-θ_i, -β0] ∪ [β0, θ_j]` with
   `β0 = atan2(√(rp² − rl²), rl)` (zero for `rl ≥ rp`, so the two ranges tile
-  the arc); absent parts are zero-width. Stored as one `(n_circles, 2, 2)`
-  array; closed-form area per arc.
+  the arc); absent parts are zero-width. Endpoints carry their sines
+  algebraically and are selected together; stored as one `(n_circles, 2, 2)`
+  array plus the per-range integral, which the arc areas and the sampler
+  share.
 - Concave face per probe: arrangement on the probe sphere whose caps are the
   neighbouring probes within `2rp` (`cos α = d/2rp`) **plus one hemisphere
   per accessible arc leaving the probe** (axis = departure tangent
@@ -123,10 +143,12 @@ patches too small to receive a dot). Dot **counts** are the sampled quantity.
   equal β width; per ring `k_φ = round(ring_area·density)` (exact ring
   integral), φ uniform inside the arc; ranges whose rings all round to zero get
   one ring. All (arc, range) rows are expanded to rings and dots in one
-  vectorised pass. A uniform (φ, θ) grid would scale density as 1/ρ and
-  over-count saddles; rings sized by exact area avoid that.
-- Concave: Fibonacci lattice on the probe sphere rotated to the contact
-  centroid, keep directions outside every cap of the face arrangement.
+  vectorised pass; ring trig and dot owners are per ring. A uniform (φ, θ)
+  grid would scale density as 1/ρ and over-count saddles; rings sized by
+  exact area avoid that.
+- Concave: one Fibonacci lattice on the probe sphere (no per-face rotation),
+  keep directions outside every cap of the face arrangement; owners from one
+  matmul with the contact directions.
 
 ## Validation
 
@@ -165,19 +187,19 @@ deposited):
 
 | interface | Sc ours / Rosetta | Δ | sep Δ Å | area Δ |
 |---|---|---|---|---|
-| 1ar1 H\|L | 0.7042 / 0.7062 | −0.002 | −0.003 | −0.4 % |
-| 1ar1 A\|HL | 0.2514 / 0.2460 | +0.005 | −0.021 | −4.2 % |
-| 1ar1 A\|H (133 Å²) | 0.3070 / 0.3204 | −0.013 | +0.000 | −8.6 % |
-| 1ar1 A\|L | 0.2426 / 0.2343 | +0.008 | −0.061 | −4.7 % |
-| 2PTC E\|I | 0.7662 / 0.7665 | −0.000 | +0.001 | −0.4 % |
-| 1BRS A\|D | 0.7073 / 0.7200 | −0.013 | +0.012 | +1.8 % |
-| 1BRS B\|E | 0.7260 / 0.7283 | −0.002 | +0.006 | −1.0 % |
-| 1BRS C\|F | 0.7304 / 0.7312 | −0.001 | +0.010 | −2.1 % |
-| 1VFB AB\|C | 0.7306 / 0.7230 | +0.008 | −0.004 | −4.6 % |
-| 1VFB A\|B | 0.7749 / 0.7709 | +0.004 | −0.007 | −0.9 % |
-| 1CHO EFG\|I | 0.7121 / 0.7048 | +0.007 | −0.013 | −1.3 % |
+| 1ar1 H\|L | 0.7034 / 0.7062 | −0.003 | −0.001 | −0.4 % |
+| 1ar1 A\|HL | 0.2509 / 0.2460 | +0.005 | −0.016 | −4.0 % |
+| 1ar1 A\|H (133 Å²) | 0.3086 / 0.3204 | −0.012 | +0.002 | −8.7 % |
+| 1ar1 A\|L | 0.2421 / 0.2343 | +0.008 | −0.055 | −4.6 % |
+| 2PTC E\|I | 0.7655 / 0.7665 | −0.001 | +0.002 | −0.5 % |
+| 1BRS A\|D | 0.7083 / 0.7200 | −0.012 | +0.010 | +1.7 % |
+| 1BRS B\|E | 0.7264 / 0.7283 | −0.002 | +0.006 | −1.0 % |
+| 1BRS C\|F | 0.7296 / 0.7312 | −0.002 | +0.009 | −2.1 % |
+| 1VFB AB\|C | 0.7301 / 0.7230 | +0.007 | −0.002 | −4.8 % |
+| 1VFB A\|B | 0.7756 / 0.7709 | +0.005 | −0.007 | −0.8 % |
+| 1CHO EFG\|I | 0.7121 / 0.7048 | +0.007 | −0.012 | −1.4 % |
 
-Summary: ΔSc mean +0.000, rms 0.007, max 0.013. Rosetta's own density
+Summary: ΔSc mean +0.000, rms 0.007, max 0.012. Rosetta's own density
 5→30 spread is ≈0.015, so the remaining difference is sampling noise.
 `oracle_test.py` checks all eleven interfaces against Rosetta when the
 binary is available.
@@ -222,22 +244,24 @@ Parity numbers are the table above.
 
 | interface | density 5 | 15 | 30 |
 |---|---|---|---|
-| 1ar1 H\|L ours / Rosetta | 0.694 / 0.696 | 0.704 / 0.706 | 0.709 / 0.710 |
-| 2PTC E\|I ours / Rosetta | 0.755 / 0.754 | 0.766 / 0.767 | 0.771 / 0.769 |
-| 1ar1 A\|HL ours / Rosetta | 0.244 / 0.245 | 0.251 / 0.246 | 0.251 / 0.252 |
+| 1ar1 H\|L ours / Rosetta | 0.699 / 0.696 | 0.703 / 0.706 | 0.708 / 0.710 |
+| 2PTC E\|I ours / Rosetta | 0.752 / 0.754 | 0.765 / 0.767 | 0.770 / 0.769 |
+| 1ar1 A\|HL ours / Rosetta | 0.249 / 0.245 | 0.251 / 0.246 | 0.252 / 0.252 |
 
 The median is exact; a 0.02-bin interpolated median (Rosetta's estimator)
 differs by less than 0.001.
 Area-weighted vs unweighted median on 1ar1 H|L: 0.7064 vs 0.7055.
 
-### Runtime (python, 1ar1 chain H, 921 atoms, 266 active)
+### Runtime (python, 1ar1 chain H, 921 atoms, 266 active; login node)
 
-1.0 s per side: `SasGeometry.build` 0.65 s, `SesGeometry.build` 0.27 s,
-sampling 0.04 s. Full analytic
-SES of the chain with every atom active: 1.7 s (SAS 6366 Å², SES 5007 Å²).
-Rosetta: 1.9 s per interface (brute-force O(N²) C++). What remains is one
-Python iteration per solved sphere and per concave face; everything inside
-is vectorised.
+0.72 s per side: `SasGeometry.build` 0.54 s, `SesGeometry.build` 0.16 s,
+sampling 0.02 s. Full analytic SES of the chain with every atom active:
+1.23 s (SAS 6366 Å², SES 5007 Å²), down from 2.4 s before the 2026-09-18
+pass (no sparse graphs, one probe-pair table, per-ring sampler trig,
+vectorised accessibility). Rosetta: 1.9 s per interface (brute-force O(N²)
+C++). What remains is one Python iteration per solved sphere (merge and
+classify), per non-covered sphere and per active face (solve), and per
+active atom and face (sampling); everything inside is vectorised.
 
 ## Known deviations from Rosetta (intentional)
 
@@ -249,11 +273,27 @@ is vectorised.
   ≈ ±0.01.
 - Peripheral band and buried tests are identical in definition.
 
+## Known limitations
+
+- Two circles of one sphere that coincide exactly (collinear centres with
+  matched radii, codimension 2) are merged into one cap whose tag is the
+  first member's circle; the other circle then gets no torus arc. Real
+  structures never hit this; if one does, the merged label from
+  `_merge_coincident` is where the fix goes.
+- Under an `active` mask a concave face can in principle miss the cut of a
+  probe hosted by atoms up to `2rp` beyond the overlap shell (see
+  ALGORITHMS.md §3); 0 of 495k dots on the eleven interfaces.
+
 ## Settled design for the C++ port
 
 - Pipeline: a preparation stage (coincident, contained, need-first order)
   followed by kernels that assume clean input; state lives in index ranges
-  and sentinels, not masks and guards.
+  and sentinels, not masks and guards. One predicate per decision class
+  (overlap, containment, coincident caps, hidden/covered, crossing,
+  accessibility, arc validity, circle side, active prefixes); consumers read
+  the stored result and never re-derive it by another formula or default.
+  Crossing on SAS spheres is the triple discriminant; edges survive hiding
+  elsewhere, vertices do not.
 - Geometry core: cap arrangement per sphere as above (`Caps` as
   `(axis, cos α, sin α)`, crossing points, global vertex clustering with
   per-cluster excusal, arcs tested against crossing caps only, one sorted
