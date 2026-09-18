@@ -29,6 +29,7 @@ from .arrangement import (
     cluster_points,
     components,
     covered_arrangement,
+    cross,
     solve,
     solve_caps,
 )
@@ -498,16 +499,22 @@ def _accessible(caps, cap_off, coords, reps, owner, incidence) -> np.ndarray:
     nested inside one), so this equals the test against all SAS balls.
     """
     n_caps = int(cap_off[-1])
+    dirs = reps - coords[owner]
+    dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
     count = np.diff(cap_off)[owner]
+    start = np.cumsum(count) - count
     cluster = np.repeat(np.arange(len(owner)), count)
     cap = cap_off[owner[cluster]] + _within(count)
-    dirs = reps[cluster] - coords[owner[cluster]]
-    dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
-    inside = np.einsum("ij,ij->i", dirs, caps.axis[cap]) > caps.cos_a[cap]
-    key = cluster * n_caps + cap
-    pos = np.minimum(np.searchsorted(incidence, key), len(incidence) - 1)
-    excused = incidence[pos] == key
-    return np.bincount(cluster, inside & ~excused, minlength=len(owner)) == 0
+    inside = (
+        np.einsum("ij,ij->i", dirs[cluster], caps.axis[cap]) > caps.cos_a[cap]
+    )
+
+    inc_cluster, inc_cap = np.divmod(incidence, n_caps)
+    sphere_of = np.repeat(np.arange(len(cap_off) - 1), np.diff(cap_off))
+    own = sphere_of[inc_cap] == owner[inc_cluster]
+    inc_cluster, inc_cap = inc_cluster[own], inc_cap[own]
+    inside[start[inc_cluster] + inc_cap - cap_off[owner[inc_cluster]]] = False
+    return np.bincount(cluster, inside, minlength=len(owner)) == 0
 
 
 def _within(counts) -> np.ndarray:
@@ -525,7 +532,7 @@ def _circles(coords, sas, pairs, d) -> Circles:
     rl = np.sqrt(ri * ri - a * a)
     centre = coords[i] + a[:, None] * axis
     e1 = any_perpendicular(axis)
-    e2 = np.cross(axis, e1)
+    e2 = cross(axis, e1)
     return Circles(pairs, centre, rl, axis, e1, e2, a, d)
 
 
@@ -696,7 +703,7 @@ def _departure_caps(sas: SasGeometry) -> tuple[np.ndarray, np.ndarray]:
     circ = np.concatenate([arcs.circle, arcs.circle])
     sign = np.repeat([1.0, -1.0], len(arcs))
     radial = sas.probes[probe] - circles.centre[circ]
-    tangents = np.cross(circles.axis[circ], radial)
+    tangents = cross(circles.axis[circ], radial)
     tangents *= (sign / np.linalg.norm(tangents, axis=1))[:, None]
     order = np.argsort(probe, kind="stable")
     offsets = np.searchsorted(probe[order], np.arange(len(sas.probes) + 1))
