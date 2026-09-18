@@ -777,18 +777,19 @@ def _triangle_areas(tangents: np.ndarray, rp: float) -> np.ndarray:
     return rp * rp * (2.0 * math.pi - total)
 
 
-def _probe_pair_caps(probes, rp: float) -> tuple[np.ndarray, Caps]:
+def _probe_pair_caps(probes, rp: float, low) -> tuple[np.ndarray, Caps]:
     """Caps cut into every probe sphere by the other probes within
     ``2 rp``, as ``(offsets, caps)`` sorted by probe; each pair is measured
-    once and read from both sides with opposite axes. The pair is kept iff
-    its ``cos`` is below 1, the same value the cap carries."""
+    once and read from both sides with opposite axes. A pair is kept iff
+    its ``cos`` is below 1, the same value the cap carries, and both probes
+    are low: cutting is symmetric, and a high face is never cut."""
     pairs = cKDTree(probes).query_pairs(2.0 * rp, output_type="ndarray")
     if len(pairs) == 0:
         pairs = np.empty((0, 2), dtype=int)
     diff = probes[pairs[:, 1]] - probes[pairs[:, 0]]
     dist = np.linalg.norm(diff, axis=1)
     cos_a = dist / (2.0 * rp)
-    close = cos_a < 1.0
+    close = (cos_a < 1.0) & low[pairs[:, 0]] & low[pairs[:, 1]]
     diff, dist, cos_a = diff[close], dist[close], cos_a[close]
     src = pairs[close].T.ravel()
     axis = np.concatenate([diff, -diff]) / np.tile(dist, 2)[:, None]
@@ -813,7 +814,7 @@ def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
     areas[plain_idx] = _triangle_areas(
         dep_t[dep_off[plain_idx, None] + np.arange(3)], sas.rp
     )
-    nbr_off, nbr_caps = _probe_pair_caps(probes, sas.rp)
+    nbr_off, nbr_caps = _probe_pair_caps(probes, sas.rp, low)
     faces = []
     for q in range(n_active):
         atoms = sas.atoms_of(q)
