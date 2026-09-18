@@ -171,6 +171,9 @@ class SasGeometry:
     probe_offsets: np.ndarray
     probe_atoms: np.ndarray
     arcs: TorusArcs
+    n_active_circles: int
+    n_active_probes: int
+    n_active_arcs: int
 
     @property
     def sas_area(self) -> np.ndarray:
@@ -180,12 +183,6 @@ class SasGeometry:
         return self.probe_atoms[
             self.probe_offsets[probe] : self.probe_offsets[probe + 1]
         ]
-
-    @property
-    def probe_active(self) -> np.ndarray:
-        """Probes touching at least one active atom (atoms are sorted, so
-        the first atom of each probe is its smallest index)."""
-        return self.probe_atoms[self.probe_offsets[:-1]] < self.n_active
 
     @classmethod
     def from_atoms(
@@ -256,15 +253,13 @@ class SasGeometry:
 
         raw_pts = points.reshape(-1, 3)
         raw_triple = np.repeat(np.arange(len(triples)), 2)
-        label = cluster_points(raw_pts, TAU_C)
-        n_clusters = int(label.max()) + 1 if len(label) else 0
+        label, atoms_key, owner = _clusters_by_owner(
+            cluster_points(raw_pts, TAU_C), triples[raw_triple], n
+        )
+        n_clusters = len(owner)
         reps = np.zeros((n_clusters, 3))
         np.add.at(reps, label, raw_pts)
         reps /= np.bincount(label, minlength=n_clusters)[:, None]
-        atoms_key = np.unique(
-            (label[:, None] * n + triples[raw_triple]).ravel()
-        )
-        owner = _first_atoms(n, atoms_key, n_clusters)
 
         cap_off = np.cumsum([0, *(len(c) for c in caps_of)])
         sph_off, sph_tri, sph_edges = _sphere_incidence(
@@ -288,6 +283,7 @@ class SasGeometry:
 
         arrangements: list[Arrangement] = []
         arc_parts = []
+        n_active_arcs = 0
         for i, caps in enumerate(caps_of):
             if covered[i]:
                 arrangements.append(covered_arrangement(sas[i], caps))
@@ -313,6 +309,7 @@ class SasGeometry:
             )
             arrangements.append(arr)
             arc_parts.append(_torus_arcs(i, arr, circles, probe_map[local]))
+            n_active_arcs += len(arc_parts[-1]) * (i < n_active)
 
         return cls(
             coords,
@@ -327,6 +324,9 @@ class SasGeometry:
             probe_offsets,
             probe_atoms,
             TorusArcs.concat(arc_parts),
+            int(np.searchsorted(circles.pair[:, 0], n_active)),
+            int(np.searchsorted(owner[probe_ids], n_active)),
+            n_active_arcs,
         )
 
 
@@ -483,11 +483,23 @@ def _sphere_incidence(triples, slots, solved, n_solve):
     return offsets, tri[order], slots[solved][order]
 
 
-def _first_atoms(n, keys, n_clusters) -> np.ndarray:
-    """Smallest atom of every cluster from the sorted ``cluster * n + atom``
-    incidences; the owner sphere that decides its accessibility."""
+def _clusters_by_owner(label, atoms, n):
+    """Relabel clusters so that they are sorted by owner, the smallest atom
+    of the cluster, which is the sphere deciding its accessibility.
+
+    Returns ``(label, atoms_key, owner)`` with ``atoms_key`` the sorted
+    unique ``cluster * n + atom`` incidences (``atoms`` (k, 3) per raw
+    point).
+    """
+    keys = np.unique((label[:, None] * n + atoms).ravel())
     cluster, atom = np.divmod(keys, n)
-    return atom[np.searchsorted(cluster, np.arange(n_clusters))]
+    n_clusters = int(label.max()) + 1 if len(label) else 0
+    first = np.searchsorted(cluster, np.arange(n_clusters))
+    order = np.argsort(atom[first], kind="stable")
+    rank = np.empty(n_clusters, dtype=int)
+    rank[order] = np.arange(n_clusters)
+    keys = np.unique(rank[cluster] * n + atom)
+    return rank[label], keys, atom[first][order]
 
 
 def _accessible(caps, cap_off, coords, reps, owner, incidence) -> np.ndarray:
@@ -564,7 +576,8 @@ def _torus_arcs(i, arr, circles, probe_of_local) -> TorusArcs:
 
 @dataclass
 class Saddles:
-    """Valid generating-arc angle ranges per circle and area per arc.
+    """Valid generating-arc angle ranges per active circle and area per
+    active arc.
 
     The generating arc is parametrised by ``beta``, the angle from the
     inward radial direction; ``beta < 0`` leans toward atom ``i``. Distance
@@ -602,8 +615,8 @@ class SesGeometry:
 
     @classmethod
     def build(cls, sas: SasGeometry) -> SesGeometry:
-        ratio = sas.radii[: sas.n_solve] / sas.sas[: sas.n_solve]
-        convex = sas.sas_area * ratio * ratio
+        ratio = sas.radii[: sas.n_active] / sas.sas[: sas.n_active]
+        convex = sas.sas_area[: sas.n_active] * ratio * ratio
         return cls(
             sas,
             convex,
@@ -637,11 +650,15 @@ def saddle_area(rl, rp, ranges, dphi):
 
 
 def _saddles(sas: SasGeometry) -> Saddles:
+    """Ranges of the active circles and areas of the active arcs, both
+    prefixes."""
     circles, arcs = sas.circles, sas.arcs
+    nc, na = sas.n_active_circles, sas.n_active_arcs
     theta_i, theta_j = circles.half_angles()
-    ranges = beta_ranges(circles.radius, sas.rp, theta_i, theta_j)
-    c = arcs.circle
-    area = saddle_area(circles.radius[c], sas.rp, ranges[c], arcs.dphi)
+    rl = circles.radius[:nc]
+    ranges = beta_ranges(rl, sas.rp, theta_i[:nc], theta_j[:nc])
+    c = arcs.circle[:na]
+    area = saddle_area(rl[c], sas.rp, ranges[c], arcs.dphi[:na])
     return Saddles(ranges, area)
 
 
@@ -678,7 +695,7 @@ def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
     tree = cKDTree(probes)
     near = tree.query_ball_point(probes, 2.0 * sas.rp)
     faces = []
-    for q in np.flatnonzero(sas.probe_active):
+    for q in range(sas.n_active_probes):
         atoms = sas.atoms_of(q)
         contacts = sas.coords[atoms] - probes[q]
         contacts /= np.linalg.norm(contacts, axis=1, keepdims=True)
