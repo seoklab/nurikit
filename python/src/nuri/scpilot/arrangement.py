@@ -20,8 +20,6 @@ import math
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.sparse import coo_matrix
-from scipy.sparse.csgraph import connected_components
 from scipy.spatial import cKDTree
 
 TAU_C = 1e-6
@@ -102,25 +100,48 @@ def any_perpendicular(u: np.ndarray) -> np.ndarray:
     u = np.asarray(u, dtype=float).reshape(-1, 3)
     onehot = np.zeros_like(u)
     onehot[np.arange(len(u)), np.argmin(np.abs(u), axis=1)] = 1.0
-    v = np.cross(u, onehot)
+    v = cross(u, onehot)
     return v / np.linalg.norm(v, axis=1, keepdims=True)
 
 
 def circle_frames(axis: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     e1 = any_perpendicular(axis)
-    return e1, np.cross(axis, e1)
+    return e1, cross(axis, e1)
+
+
+def cross(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Row-wise cross product of ``(k, 3)`` arrays."""
+    return np.column_stack(
+        [
+            a[:, 1] * b[:, 2] - a[:, 2] * b[:, 1],
+            a[:, 2] * b[:, 0] - a[:, 0] * b[:, 2],
+            a[:, 0] * b[:, 1] - a[:, 1] * b[:, 0],
+        ]
+    )
 
 
 def components(n: int, edges: np.ndarray) -> np.ndarray:
-    """Connected-component labels of ``n`` nodes joined by ``edges``."""
-    if n == 0:
-        return np.empty(0, dtype=int)
-    if len(edges) == 0:
-        return np.arange(n)
-    data = np.ones(len(edges), dtype=np.int8)
-    graph = coo_matrix((data, (edges[:, 0], edges[:, 1])), shape=(n, n))
-    _, labels = connected_components(graph, directed=False)
-    return labels
+    """Connected-component labels ``0 .. k-1`` of ``n`` nodes joined by
+    ``edges``, numbered by smallest member.
+
+    Minimum-label propagation with pointer jumping: labels are node ids,
+    every round takes the minimum over each edge and then the label of the
+    label, so a component collapses to its smallest node in logarithmically
+    many rounds.
+    """
+    label = np.arange(n)
+    a, b = edges[:, 0], edges[:, 1]
+    while True:
+        new = label.copy()
+        np.minimum.at(new, a, label[b])
+        np.minimum.at(new, b, label[a])
+        new = new[new]
+        if np.array_equal(new, label):
+            break
+        label = new
+    is_root = np.zeros(n, dtype=bool)
+    is_root[label] = True
+    return (np.cumsum(is_root) - 1)[label]
 
 
 def cluster_points(pts: np.ndarray, tol: float) -> np.ndarray:
@@ -128,6 +149,8 @@ def cluster_points(pts: np.ndarray, tol: float) -> np.ndarray:
     if len(pts) < 2:
         return np.arange(len(pts))
     pairs = cKDTree(pts).query_pairs(tol, output_type="ndarray")
+    if len(pairs) == 0:
+        return np.arange(len(pts))
     return components(len(pts), pairs)
 
 
@@ -243,7 +266,7 @@ def crossing_points(
         (c1 - c2) / np.einsum("ij,ij->i", dif, dif)
     )[:, None] * dif
     hsq = np.maximum(1.0 - np.einsum("ij,ij->i", base, base), 0.0)
-    perp = np.cross(n1, n2)
+    perp = cross(n1, n2)
     perp /= np.linalg.norm(perp, axis=1, keepdims=True)
     h = np.sqrt(hsq)[:, None]
     dirs = np.concatenate([base + h * perp, base - h * perp])
@@ -412,8 +435,10 @@ def _walk(caps, reps, arcs):
         succ[arc[ins]] = arc[prev[ins]]
         turn[arc[ins]] = math.pi - iota
 
-    n_loops = len(
-        np.unique(components(n, np.column_stack([np.arange(n), succ])))
+    n_loops = (
+        int(components(n, np.column_stack([np.arange(n), succ])).max()) + 1
+        if n
+        else 0
     )
     return n_loops, float(turn.sum()), geo_sum
 
@@ -433,10 +458,10 @@ def _sorted_darts(caps, reps, arcs, idx):
     cap = arcs.cap[arc]
     u = reps[vertex]
     side = 2 * kind - 1
-    t = np.cross(caps.axis[cap], u) * side[:, None]
+    t = cross(caps.axis[cap], u) * side[:, None]
     kappa = (caps.cos_a / caps.sin_a)[cap] * side
     ea = any_perpendicular(reps)[vertex]
-    eb = np.cross(u, ea)
+    eb = cross(u, ea)
     angle = np.arctan2(
         np.einsum("ij,ij->i", t, eb), np.einsum("ij,ij->i", t, ea)
     )
