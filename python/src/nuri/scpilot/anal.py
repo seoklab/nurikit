@@ -738,29 +738,52 @@ def _segment_distance(x, p, q) -> np.ndarray:
     return np.linalg.norm(x - p - np.clip(t, 0.0, 1.0)[:, None] * e, axis=1)
 
 
-def _low_probes(sas: SasGeometry) -> np.ndarray:
-    """Probes whose ball reaches their contact triangle
-    (``dist(x, triangle) < rp``); only such faces can be cut, and only
-    such probes can cut (ALGORITHMS.md, "Which probes can cut a face").
-    Probes with more than three atoms count as low."""
-    low = np.ones(len(sas.probes), dtype=bool)
+@dataclass
+class ProbeHeights:
+    """Per probe: whether its ball reaches its contact triangle (``low``),
+    and for three-atom probes the unit normal of the contact plane pointing
+    from the probe toward the triangle with ``cos b = h / rp`` for the
+    plane distance ``h``. Probes with more than three atoms count as low
+    and are never ``planar``."""
+
+    low: np.ndarray
+    planar: np.ndarray
+    normal: np.ndarray
+    cos_b: np.ndarray
+    sin_b: np.ndarray
+
+
+def _probe_heights(sas: SasGeometry) -> ProbeHeights:
+    """Only low faces can be cut, and only low probes can cut, and only in
+    the cap of the face beyond the contact plane (ALGORITHMS.md, "Which
+    probes can cut a face")."""
+    n = len(sas.probes)
+    low = np.ones(n, dtype=bool)
+    planar = np.zeros(n, dtype=bool)
+    normal = np.zeros((n, 3))
+    cos_b, sin_b = np.zeros(n), np.zeros(n)
     idx, tri = _triples(sas)
     if len(idx) == 0:
-        return low
+        return ProbeHeights(low, planar, normal, cos_b, sin_b)
     x = sas.probes[idx]
     a, b, c = tri[:, 0], tri[:, 1], tri[:, 2]
-    normal = cross(b - a, c - a)
-    normal /= np.linalg.norm(normal, axis=1, keepdims=True)
-    signed = np.einsum("ij,ij->i", x - a, normal)
-    foot = x - signed[:, None] * normal
+    nrm = cross(b - a, c - a)
+    nrm /= np.linalg.norm(nrm, axis=1, keepdims=True)
+    signed = np.einsum("ij,ij->i", x - a, nrm)
+    foot = x - signed[:, None] * nrm
     inside = np.ones(len(idx), dtype=bool)
     edge_dist = np.empty((3, len(idx)))
     for m, (p, q) in enumerate(((a, b), (b, c), (c, a))):
-        inside &= np.einsum("ij,ij->i", cross(q - p, foot - p), normal) >= 0
+        inside &= np.einsum("ij,ij->i", cross(q - p, foot - p), nrm) >= 0
         edge_dist[m] = _segment_distance(x, p, q)
-    dist = np.where(inside, np.abs(signed), edge_dist.min(axis=0))
+    h = np.abs(signed)
+    dist = np.where(inside, h, edge_dist.min(axis=0))
     low[idx] = dist < sas.rp
-    return low
+    planar[idx] = True
+    normal[idx] = -np.sign(signed)[:, None] * nrm
+    cos_b[idx] = np.minimum(h / sas.rp, 1.0)
+    sin_b[idx] = np.sqrt(1.0 - cos_b[idx] * cos_b[idx])
+    return ProbeHeights(low, planar, normal, cos_b, sin_b)
 
 
 def _triangle_areas(tangents: np.ndarray, rp: float) -> np.ndarray:
@@ -777,23 +800,45 @@ def _triangle_areas(tangents: np.ndarray, rp: float) -> np.ndarray:
     return rp * rp * (2.0 * math.pi - total)
 
 
-def _probe_pair_caps(probes, rp: float, low) -> tuple[np.ndarray, Caps]:
+def _meets_plane_cap(hts: ProbeHeights, probe, axis, cos_a, sin_a):
+    """Whether the cap ``(axis, cos a)`` on the sphere of ``probe`` overlaps
+    the cap beyond the contact plane, ``d . normal > cos b``: the angle
+    between the axes is below ``a + b``. Probes without a plane pass."""
+    threshold = cos_a * hts.cos_b[probe] - sin_a * hts.sin_b[probe]
+    inner = np.einsum("ij,ij->i", axis, hts.normal[probe])
+    return ~hts.planar[probe] | (inner > threshold)
+
+
+def _probe_pair_caps(
+    probes, rp: float, hts: ProbeHeights
+) -> tuple[np.ndarray, Caps]:
     """Caps cut into every probe sphere by the other probes within
     ``2 rp``, as ``(offsets, caps)`` sorted by probe; each pair is measured
-    once and read from both sides with opposite axes. A pair is kept iff
-    its ``cos`` is below 1, the same value the cap carries, and both probes
-    are low: cutting is symmetric, and a high face is never cut."""
+    once and read from both sides with opposite axes. Cutting is
+    symmetric, so a pair is dropped for both probes as soon as one side
+    cannot be cut: a pair is kept iff its ``cos`` is below 1, the same
+    value the cap carries, both probes are low, and each cap meets the
+    other probe's beyond-plane cap."""
     pairs = cKDTree(probes).query_pairs(2.0 * rp, output_type="ndarray")
     if len(pairs) == 0:
         pairs = np.empty((0, 2), dtype=int)
     diff = probes[pairs[:, 1]] - probes[pairs[:, 0]]
     dist = np.linalg.norm(diff, axis=1)
     cos_a = dist / (2.0 * rp)
-    close = (cos_a < 1.0) & low[pairs[:, 0]] & low[pairs[:, 1]]
-    diff, dist, cos_a = diff[close], dist[close], cos_a[close]
-    src = pairs[close].T.ravel()
-    axis = np.concatenate([diff, -diff]) / np.tile(dist, 2)[:, None]
-    cos_a = np.tile(cos_a, 2)
+    close = (cos_a < 1.0) & hts.low[pairs[:, 0]] & hts.low[pairs[:, 1]]
+    pairs, diff, dist, cos_a = (
+        pairs[close],
+        diff[close],
+        dist[close],
+        cos_a[close],
+    )
+    axis = diff / dist[:, None]
+    sin_a = np.sqrt(1.0 - cos_a * cos_a)
+    keep = _meets_plane_cap(hts, pairs[:, 0], axis, cos_a, sin_a)
+    keep &= _meets_plane_cap(hts, pairs[:, 1], -axis, cos_a, sin_a)
+    src = pairs[keep].T.ravel()
+    axis = np.concatenate([axis[keep], -axis[keep]])
+    cos_a = np.tile(cos_a[keep], 2)
     order = np.argsort(src, kind="stable")
     offsets = np.searchsorted(src[order], np.arange(len(probes) + 1))
     cos_a = cos_a[order]
@@ -806,15 +851,15 @@ def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
     if len(probes) == 0:
         return []
     n_active = sas.n_active_probes
-    low = _low_probes(sas)
+    hts = _probe_heights(sas)
     dep_off, dep_t = _departure_caps(sas)
-    plain = ~low[:n_active] & (np.diff(dep_off)[:n_active] == 3)
+    plain = ~hts.low[:n_active] & (np.diff(dep_off)[:n_active] == 3)
     areas = np.zeros(n_active)
     plain_idx = np.flatnonzero(plain)
     areas[plain_idx] = _triangle_areas(
         dep_t[dep_off[plain_idx, None] + np.arange(3)], sas.rp
     )
-    nbr_off, nbr_caps = _probe_pair_caps(probes, sas.rp, low)
+    nbr_off, nbr_caps = _probe_pair_caps(probes, sas.rp, hts)
     faces = []
     for q in range(n_active):
         atoms = sas.atoms_of(q)
