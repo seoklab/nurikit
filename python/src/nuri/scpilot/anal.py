@@ -539,7 +539,7 @@ def _circles(coords, sas, pairs, d) -> Circles:
     ri, rj = sas[i], sas[j]
     axis = (coords[j] - coords[i]) / d[:, None]
     a = (d * d + ri * ri - rj * rj) / (2.0 * d)
-    rl = np.sqrt(ri * ri - a * a)
+    rl = np.sqrt(np.maximum(ri * ri - a * a, 0.0))
     centre = coords[i] + a[:, None] * axis
     e1 = any_perpendicular(axis)
     e2 = cross(axis, e1)
@@ -723,23 +723,26 @@ def _departure_caps(sas: SasGeometry) -> tuple[np.ndarray, np.ndarray]:
 def _probe_pair_caps(probes, rp: float) -> tuple[np.ndarray, Caps]:
     """Caps cut into every probe sphere by the other probes within
     ``2 rp``, as ``(offsets, caps)`` sorted by probe; each pair is measured
-    once and read from both sides with opposite axes."""
+    once and read from both sides with opposite axes. The pair is kept iff
+    its ``cos`` is below 1, the same value the cap carries."""
     pairs = cKDTree(probes).query_pairs(2.0 * rp, output_type="ndarray")
     if len(pairs) == 0:
         pairs = np.empty((0, 2), dtype=int)
     diff = probes[pairs[:, 1]] - probes[pairs[:, 0]]
     dist = np.linalg.norm(diff, axis=1)
-    close = dist < 2.0 * rp
-    pairs, diff, dist = pairs[close], diff[close], dist[close]
-    src = np.concatenate([pairs[:, 0], pairs[:, 1]])
+    cos_a = dist / (2.0 * rp)
+    close = cos_a < 1.0
+    diff, dist, cos_a = diff[close], dist[close], cos_a[close]
+    src = pairs[close].T.ravel()
     axis = np.concatenate([diff, -diff]) / np.tile(dist, 2)[:, None]
-    cos_a = np.tile(dist / (2.0 * rp), 2)
+    cos_a = np.tile(cos_a, 2)
     order = np.argsort(src, kind="stable")
     offsets = np.searchsorted(src[order], np.arange(len(probes) + 1))
+    cos_a = cos_a[order]
     caps = Caps(
         axis[order],
-        cos_a[order],
-        np.sqrt(1.0 - cos_a[order] ** 2),
+        cos_a,
+        np.sqrt(1.0 - cos_a * cos_a),
         np.zeros(len(order), dtype=int),
     )
     return offsets, caps
@@ -783,7 +786,7 @@ def two_sphere_ses_area(r1: float, r2: float, d: float, rp: float):
     if d >= R1 + R2:
         return 4 * math.pi * (r1 * r1 + r2 * r2), 0.0, 0.0
     a = (d * d + R1 * R1 - R2 * R2) / (2.0 * d)
-    rl = math.sqrt(R1 * R1 - a * a)
+    rl = float(np.sqrt(np.maximum(R1 * R1 - a * a, 0.0)))
     convex = (
         2 * math.pi * (r1 * r1 * (1 + a / R1) + r2 * r2 * (1 + (d - a) / R2))
     )

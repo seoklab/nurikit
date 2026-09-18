@@ -197,13 +197,15 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
     a_i, a_j, rl_r = circles.a[cr], circles.d[cr] - circles.a[cr], rl[row]
     depth_i = (
         np.sqrt(
-            sas.sas[i] ** 2 + rp * rp - 2.0 * rp * (rl_r * cos_b - a_i * sin_b)
+            sas.radii[i] ** 2
+            + 2.0 * rp * (sas.sas[i] - rl_r * cos_b + a_i * sin_b)
         )
         - sas.radii[i]
     )
     depth_j = (
         np.sqrt(
-            sas.sas[j] ** 2 + rp * rp - 2.0 * rp * (rl_r * cos_b + a_j * sin_b)
+            sas.radii[j] ** 2
+            + 2.0 * rp * (sas.sas[j] - rl_r * cos_b - a_j * sin_b)
         )
         - sas.radii[j]
     )
