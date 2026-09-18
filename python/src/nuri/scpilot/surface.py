@@ -167,11 +167,12 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
     circles, arcs = sas.circles, sas.arcs
     n_arcs = sas.n_active_arcs
     arc = np.repeat(np.arange(n_arcs), 2)
+    part = np.tile([0, 1], n_arcs)
     c = arcs.circle[arc]
-    rng = ses.saddles.ranges[c, np.tile([0, 1], n_arcs)]
-    lo, hi = rng[:, 0], rng[:, 1]
+    lo, hi = ses.saddles.ranges[c, part].T
     rl, dphi = circles.radius[c], arcs.dphi[arc]
     width = hi - lo
+    total = rp * dphi * ses.saddles.integral[c, part]
 
     k_beta = np.maximum(np.round(rp * width * math.sqrt(density)), 1).astype(
         int
@@ -186,7 +187,6 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
     )
     k_phi = np.round(area * density).astype(int)
 
-    total = np.bincount(row, area, minlength=len(arc))
     starved = np.bincount(row, k_phi > 0, minlength=len(arc)) == 0
     collapse = first[starved]
     beta[collapse] = 0.5 * (lo + hi)[starved]
