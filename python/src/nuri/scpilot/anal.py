@@ -671,14 +671,14 @@ def _departure_caps(sas: SasGeometry) -> tuple[np.ndarray, np.ndarray]:
     ordinary three-atom vertex these are the three side planes of the
     contact triangle; k-fold vertices and single-vertex circles fall out
     of the same rule. The tangent at a probe on circle ``c`` is
-    ``axis x radial``; leaving toward decreasing ``phi`` flips it.
+    ``axis x radial``; leaving toward decreasing ``phi`` flips it. The
+    ``-1`` ends of full circles sort before every probe and are never
+    sliced.
     """
     arcs, circles = sas.arcs, sas.circles
     probe = np.concatenate([arcs.v_beg, arcs.v_end])
     circ = np.concatenate([arcs.circle, arcs.circle])
     sign = np.repeat([1.0, -1.0], len(arcs))
-    keep = probe >= 0
-    probe, circ, sign = probe[keep], circ[keep], sign[keep]
     radial = sas.probes[probe] - circles.centre[circ]
     tangents = np.cross(circles.axis[circ], radial)
     tangents *= (sign / np.linalg.norm(tangents, axis=1))[:, None]
@@ -712,7 +712,7 @@ def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
             np.concatenate(
                 [np.ones(len(tangents)), np.sqrt(1.0 - cos_a * cos_a)]
             ),
-            np.concatenate([-np.arange(1, len(tangents) + 1), others]),
+            np.zeros(len(tangents) + len(others), dtype=int),
         )
         faces.append(ConcaveFace(q, atoms, contacts, solve_caps(sas.rp, caps)))
     return faces

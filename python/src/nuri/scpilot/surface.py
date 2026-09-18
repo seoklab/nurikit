@@ -149,12 +149,12 @@ def _convex(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
         )
 
 
-def _segments(counts: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _segments(counts: np.ndarray):
     """Expand per-segment ``counts`` into ``(segment id, index within
-    segment)`` for every element."""
+    segment)`` for every element, plus the start of every segment."""
     seg = np.repeat(np.arange(len(counts)), counts)
-    start = np.repeat(np.cumsum(counts) - counts, counts)
-    return seg, np.arange(len(seg)) - start
+    start = np.cumsum(counts) - counts
+    return seg, np.arange(len(seg)) - start[seg], start
 
 
 def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
@@ -176,7 +176,7 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
     k_beta = np.maximum(np.round(rp * width * math.sqrt(density)), 1).astype(
         int
     )
-    row, m = _segments(k_beta)
+    row, m, first = _segments(k_beta)
     dbeta = (width / k_beta)[row]
     e_lo = lo[row] + m * dbeta
     e_hi = e_lo + dbeta
@@ -188,7 +188,6 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
 
     total = np.bincount(row, area, minlength=len(arc))
     starved = np.bincount(row, k_phi > 0, minlength=len(arc)) == 0
-    first = np.cumsum(k_beta) - k_beta
     collapse = first[starved]
     beta[collapse] = 0.5 * (lo + hi)[starved]
     area[collapse] = total[starved]
@@ -202,7 +201,7 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
     covered = np.bincount(row, area, minlength=len(arc))
     area *= (total / np.where(covered > 0.0, covered, 1.0))[row]
 
-    ring, n_in_ring = _segments(k_phi)
+    ring, n_in_ring, _ = _segments(k_phi)
     r = row[ring]
     cc = c[r]
     phi = arcs.phi_beg[arc[r]] + (n_in_ring + 0.5) * dphi[r] / k_phi[ring]
