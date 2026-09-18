@@ -50,14 +50,6 @@ class Circles:
     def __len__(self) -> int:
         return len(self.radius)
 
-    def half_angles(self) -> tuple[np.ndarray, np.ndarray]:
-        """``theta_i, theta_j``: angles at the probe between the axis
-        plane and the contact directions toward atoms ``i`` and ``j``."""
-        return (
-            np.arctan2(self.a, self.radius),
-            np.arctan2(self.d - self.a, self.radius),
-        )
-
 
 @dataclass
 class TorusArcs:
@@ -570,17 +562,20 @@ def _torus_arcs(arr, probe_of_local) -> TorusArcs:
 
 @dataclass
 class Saddles:
-    """Valid generating-arc angle ranges per active circle and area per
-    active arc.
+    """Valid generating-arc angle ranges per active circle, their area
+    integrals, and the area of every active arc.
 
     The generating arc is parametrised by ``beta``, the angle from the
     inward radial direction; ``beta < 0`` leans toward atom ``i``. Distance
     from the axis is ``rl - rp cos(beta)``, zero at the cusp of a spindle.
     ``ranges`` is ``(n_circles, 2, 2)``: the parts below and above the cusp,
-    zero-width where absent.
+    zero-width where absent; ``integral`` ``(n_circles, 2)`` is
+    ``rl (hi - lo) - rp (sin hi - sin lo)`` per part, so that a saddle
+    swept over ``dphi`` has area ``dphi rp sum(integral)``.
     """
 
     ranges: np.ndarray
+    integral: np.ndarray
     area: np.ndarray
 
 
@@ -619,41 +614,68 @@ class SesGeometry:
         )
 
 
-def beta_ranges(rl, rp, theta_i, theta_j) -> np.ndarray:
-    """Valid ``beta`` ranges ``(..., 2, 2)`` of the generating arc.
+def _pick(cond, x, sin_x, y, sin_y):
+    return np.where(cond, x, y), np.where(cond, sin_x, sin_y)
 
-    The arc runs from ``-theta_i`` (touching atom ``i``) to ``theta_j``.
-    On a spindle torus (``rl < rp``) the part ``|beta| < b0`` lies beyond
-    the axis and is cut out; ``b0`` is zero otherwise, so the two ranges
-    simply tile the arc. Absent parts come out zero-width.
+
+def saddle_ranges(rl, rp, a_i, a_j, sas_i, sas_j):
+    """Valid ``beta`` ranges ``(..., 2, 2)`` of the generating arc and the
+    area integral ``(..., 2)`` of each.
+
+    ``a_i``, ``a_j`` are the distances from the circle centre to the two
+    sphere centres along the axis (``a`` and ``d - a``). The arc runs from
+    ``-theta_i`` (touching atom ``i``) to ``theta_j`` with
+    ``sin theta = a / R``. On a spindle torus (``rl < rp``) the part
+    ``|beta| < b0`` lies beyond the axis and is cut out; ``b0`` is zero
+    otherwise, so the two ranges simply tile the arc. Absent parts come out
+    zero-width. Endpoints are selected together with their sines, so no
+    sine of a selected angle is ever evaluated.
     """
-    rl, theta_i, theta_j = np.broadcast_arrays(rl, theta_i, theta_j)
-    lo, hi = -theta_i, theta_j
-    b0 = np.arctan2(np.sqrt(np.maximum(rp * rp - rl * rl, 0.0)), rl)
-    below = np.stack([lo, np.maximum(lo, np.minimum(hi, -b0))], axis=-1)
-    above = np.stack([np.minimum(hi, np.maximum(lo, b0)), hi], axis=-1)
-    return np.stack([below, above], axis=-2)
-
-
-def saddle_area(rl, rp, ranges, dphi):
-    """Saddle area of ``ranges`` ``(..., 2, 2)`` swept over ``dphi``."""
-    lo, hi = ranges[..., 0], ranges[..., 1]
-    rl = np.asarray(rl)[..., None]
-    per_range = rl * (hi - lo) - rp * (np.sin(hi) - np.sin(lo))
-    return dphi * rp * per_range.sum(axis=-1)
+    rl, a_i, a_j, sas_i, sas_j = np.broadcast_arrays(
+        rl, a_i, a_j, sas_i, sas_j
+    )
+    lo, sin_lo = -np.arctan2(a_i, rl), -a_i / sas_i
+    hi, sin_hi = np.arctan2(a_j, rl), a_j / sas_j
+    root = np.sqrt(np.maximum(rp * rp - rl * rl, 0.0))
+    b0, sin_b0 = np.arctan2(root, rl), root / rp
+    m, sin_m = _pick(hi < -b0, hi, sin_hi, -b0, -sin_b0)
+    below_hi, sin_below_hi = _pick(lo > m, lo, sin_lo, m, sin_m)
+    m, sin_m = _pick(lo > b0, lo, sin_lo, b0, sin_b0)
+    above_lo, sin_above_lo = _pick(hi < m, hi, sin_hi, m, sin_m)
+    ranges = np.stack(
+        [np.stack([lo, below_hi], axis=-1), np.stack([above_lo, hi], axis=-1)],
+        axis=-2,
+    )
+    sines = np.stack(
+        [
+            np.stack([sin_lo, sin_below_hi], axis=-1),
+            np.stack([sin_above_lo, sin_hi], axis=-1),
+        ],
+        axis=-2,
+    )
+    integral = rl[..., None] * (ranges[..., 1] - ranges[..., 0]) - rp * (
+        sines[..., 1] - sines[..., 0]
+    )
+    return ranges, integral
 
 
 def _saddles(sas: SasGeometry) -> Saddles:
-    """Ranges of the active circles and areas of the active arcs, both
-    prefixes."""
+    """Ranges and integrals of the active circles and areas of the active
+    arcs, both prefixes."""
     circles, arcs = sas.circles, sas.arcs
     nc, na = sas.n_active_circles, sas.n_active_arcs
-    theta_i, theta_j = circles.half_angles()
-    rl = circles.radius[:nc]
-    ranges = beta_ranges(rl, sas.rp, theta_i[:nc], theta_j[:nc])
+    pair, a, d = circles.pair[:nc], circles.a[:nc], circles.d[:nc]
+    ranges, integral = saddle_ranges(
+        circles.radius[:nc],
+        sas.rp,
+        a,
+        d - a,
+        sas.sas[pair[:, 0]],
+        sas.sas[pair[:, 1]],
+    )
     c = arcs.circle[:na]
-    area = saddle_area(rl[c], sas.rp, ranges[c], arcs.dphi[:na])
-    return Saddles(ranges, area)
+    area = arcs.dphi[:na] * sas.rp * integral[c].sum(axis=-1)
+    return Saddles(ranges, integral, area)
 
 
 def _departure_caps(sas: SasGeometry) -> tuple[np.ndarray, np.ndarray]:
@@ -726,11 +748,8 @@ def two_sphere_ses_area(r1: float, r2: float, d: float, rp: float):
         return 4 * math.pi * (r1 * r1 + r2 * r2), 0.0, 0.0
     a = (d * d + R1 * R1 - R2 * R2) / (2.0 * d)
     rl = math.sqrt(R1 * R1 - a * a)
-    th1 = math.atan2(a, rl)
-    th2 = math.atan2(d - a, rl)
     convex = (
         2 * math.pi * (r1 * r1 * (1 + a / R1) + r2 * r2 * (1 + (d - a) / R2))
     )
-    ranges = beta_ranges(rl, rp, th1, th2)
-    torus = float(saddle_area(rl, rp, ranges, 2.0 * math.pi))
-    return convex, torus, 0.0
+    _, integral = saddle_ranges(rl, rp, a, d - a, R1, R2)
+    return convex, float(2.0 * math.pi * rp * integral.sum()), 0.0
