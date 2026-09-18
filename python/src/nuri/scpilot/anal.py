@@ -724,6 +724,59 @@ def _departure_caps(sas: SasGeometry) -> tuple[np.ndarray, np.ndarray]:
     return offsets, tangents[order]
 
 
+def _triples(sas: SasGeometry) -> tuple[np.ndarray, np.ndarray]:
+    """Indices of the three-atom probes and their contact triangles
+    ``(k, 3, 3)``."""
+    idx = np.flatnonzero(np.diff(sas.probe_offsets) == 3)
+    atoms = sas.probe_atoms[sas.probe_offsets[idx, None] + np.arange(3)]
+    return idx, sas.coords[atoms]
+
+
+def _segment_distance(x, p, q) -> np.ndarray:
+    e = q - p
+    t = np.einsum("ij,ij->i", x - p, e) / np.einsum("ij,ij->i", e, e)
+    return np.linalg.norm(x - p - np.clip(t, 0.0, 1.0)[:, None] * e, axis=1)
+
+
+def _low_probes(sas: SasGeometry) -> np.ndarray:
+    """Probes whose ball reaches their contact triangle
+    (``dist(x, triangle) < rp``); only such faces can be cut, and only
+    such probes can cut (ALGORITHMS.md, "Which probes can cut a face").
+    Probes with more than three atoms count as low."""
+    low = np.ones(len(sas.probes), dtype=bool)
+    idx, tri = _triples(sas)
+    if len(idx) == 0:
+        return low
+    x = sas.probes[idx]
+    a, b, c = tri[:, 0], tri[:, 1], tri[:, 2]
+    normal = cross(b - a, c - a)
+    normal /= np.linalg.norm(normal, axis=1, keepdims=True)
+    signed = np.einsum("ij,ij->i", x - a, normal)
+    foot = x - signed[:, None] * normal
+    inside = np.ones(len(idx), dtype=bool)
+    edge_dist = np.empty((3, len(idx)))
+    for m, (p, q) in enumerate(((a, b), (b, c), (c, a))):
+        inside &= np.einsum("ij,ij->i", cross(q - p, foot - p), normal) >= 0
+        edge_dist[m] = _segment_distance(x, p, q)
+    dist = np.where(inside, np.abs(signed), edge_dist.min(axis=0))
+    low[idx] = dist < sas.rp
+    return low
+
+
+def _triangle_areas(tangents: np.ndarray, rp: float) -> np.ndarray:
+    """Areas of the spherical triangles ``{d : d . t_m <= 0}`` bounded by
+    the hemispheres of tangent triples ``(k, 3, 3)``: ``rp^2`` times the
+    excess ``2 pi - sum of the angles between the three normals``."""
+    total = np.zeros(len(tangents))
+    for m in range(3):
+        t1, t2 = tangents[:, m], tangents[:, (m + 1) % 3]
+        total += np.arctan2(
+            np.linalg.norm(cross(t1, t2), axis=1),
+            np.einsum("ij,ij->i", t1, t2),
+        )
+    return rp * rp * (2.0 * math.pi - total)
+
+
 def _probe_pair_caps(probes, rp: float) -> tuple[np.ndarray, Caps]:
     """Caps cut into every probe sphere by the other probes within
     ``2 rp``, as ``(offsets, caps)`` sorted by probe; each pair is measured
@@ -751,10 +804,18 @@ def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
     probes = sas.probes
     if len(probes) == 0:
         return []
+    n_active = sas.n_active_probes
+    low = _low_probes(sas)
     dep_off, dep_t = _departure_caps(sas)
+    plain = ~low[:n_active] & (np.diff(dep_off)[:n_active] == 3)
+    areas = np.zeros(n_active)
+    plain_idx = np.flatnonzero(plain)
+    areas[plain_idx] = _triangle_areas(
+        dep_t[dep_off[plain_idx, None] + np.arange(3)], sas.rp
+    )
     nbr_off, nbr_caps = _probe_pair_caps(probes, sas.rp)
     faces = []
-    for q in range(sas.n_active_probes):
+    for q in range(n_active):
         atoms = sas.atoms_of(q)
         contacts = sas.coords[atoms] - probes[q]
         contacts /= np.linalg.norm(contacts, axis=1, keepdims=True)
@@ -762,6 +823,11 @@ def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
         hemispheres = Caps(
             tangents, np.zeros(len(tangents)), np.ones(len(tangents))
         )
+        if plain[q]:
+            faces.append(
+                ConcaveFace(q, atoms, contacts, hemispheres, areas[q])
+            )
+            continue
         caps = Caps.concat(
             [hemispheres, nbr_caps.take(slice(nbr_off[q], nbr_off[q + 1]))]
         )
