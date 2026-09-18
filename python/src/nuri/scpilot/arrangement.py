@@ -82,17 +82,11 @@ class Arcs:
 class Arrangement:
     radius: float
     caps: Caps
-    e1: np.ndarray
-    e2: np.ndarray
     verts: np.ndarray
     arcs: Arcs
-    loops: list[np.ndarray]
+    n_loops: int
     n_patches: int
     area: float
-
-    @property
-    def n_loops(self) -> int:
-        return len(self.loops)
 
     @property
     def covered(self) -> bool:
@@ -100,8 +94,6 @@ class Arrangement:
 
     def contains(self, dirs: np.ndarray) -> np.ndarray:
         """True where unit directions ``dirs`` lie inside any cap."""
-        if len(self.caps) == 0:
-            return np.zeros(len(dirs), dtype=bool)
         return np.any(dirs @ self.caps.axis.T > self.caps.cos_a, axis=1)
 
 
@@ -167,10 +159,7 @@ def classify_caps(
         return np.zeros(m, dtype=bool), False, np.zeros((m, m), dtype=bool)
     nested, covering, crossing = pair_predicates(caps, crossing)
     c = caps.cos_a
-    smaller = (c[:, None] > c[None, :]) | (
-        (c[:, None] == c[None, :]) & (np.arange(m)[:, None] > np.arange(m))
-    )
-    hidden = np.any(nested & smaller, axis=1)
+    hidden = np.any(nested & (c[:, None] > c[None, :]), axis=1)
     return hidden, bool(covering.any()), crossing
 
 
@@ -220,7 +209,7 @@ def _merge_coincident(caps: Caps, radius: float) -> tuple[Caps, np.ndarray]:
     np.add.at(mean, label, vec)
     axis = mean[:, :3] / np.linalg.norm(mean[:, :3], axis=1, keepdims=True)
     trig = mean[:, 3:] / np.linalg.norm(mean[:, 3:], axis=1, keepdims=True)
-    tag = np.full(k, -1, dtype=int)
+    tag = np.empty(k, dtype=int)
     first = np.unique(label, return_index=True)[1]
     tag[label[first]] = caps.tag[first]
     return Caps(axis, trig[:, 0], trig[:, 1], tag), label
@@ -260,7 +249,6 @@ def crossing_points(caps: Caps) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     perp /= np.linalg.norm(perp, axis=1, keepdims=True)
     h = np.sqrt(hsq)[:, None]
     dirs = np.concatenate([base + h * perp, base - h * perp])
-    dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
     pair = np.column_stack([jj, kk])
     return dirs, np.concatenate([pair, pair]), crossing
 
@@ -275,12 +263,9 @@ def cap_components(crossing: np.ndarray) -> int:
 
 
 def covered_arrangement(radius: float, caps: Caps) -> Arrangement:
-    e1, e2 = circle_frames(caps.axis)
     z = np.empty(0, dtype=int)
     arcs = Arcs(z, z, z, np.empty(0), np.empty(0))
-    return Arrangement(
-        radius, caps, e1, e2, np.empty((0, 3)), arcs, [], 0, 0.0
-    )
+    return Arrangement(radius, caps, np.empty((0, 3)), arcs, 0, 0, 0.0)
 
 
 def solve_caps(radius: float, caps: Caps) -> Arrangement:
@@ -338,14 +323,13 @@ def solve(
     vtx, cap = np.nonzero(excused & accessible[:, None])
 
     arcs = _build_arcs(caps, e1, e2, reps, vtx, cap, crossing)
-    loops, turn_sum, geo_sum = _walk(caps, reps, arcs)
+    n_loops, turn_sum, geo_sum = _walk(caps, reps, arcs)
 
-    n_loops = len(loops)
     n_patches = 1 + n_loops - n_components
     chi = 2 * n_patches - n_loops
     area = radius * radius * (2.0 * math.pi * chi - turn_sum + geo_sum)
     return Arrangement(
-        radius, caps, e1, e2, reps, arcs, loops, n_patches, float(area)
+        radius, caps, reps, arcs, n_loops, n_patches, float(area)
     )
 
 
@@ -404,8 +388,8 @@ def _walk(caps, reps, arcs):
     ``v_beg``. Every arc leaving a vertex is an out-dart there and every
     arc arriving is a reversed in-dart; sorting all darts by (vertex,
     angle, curvature) gives the cyclic order at every vertex at once. A
-    full circle has no darts and is its own loop. Returns ``(loops, sum of
-    turning angles, sum of geodesic curvature integrals)``.
+    full circle has no darts and is its own loop. Returns ``(number of
+    loops, sum of turning angles, sum of geodesic curvature integrals)``.
     """
     n = len(arcs)
     geo_sum = float(np.sum(arcs.dphi * caps.cos_a[arcs.cap]))
@@ -430,19 +414,10 @@ def _walk(caps, reps, arcs):
         succ[arc[ins]] = arc[prev[ins]]
         turn[arc[ins]] = math.pi - iota
 
-    loops: list[np.ndarray] = []
-    seen = np.zeros(n, dtype=bool)
-    for start in range(n):
-        if seen[start]:
-            continue
-        loop = []
-        a = start
-        while not seen[a]:
-            seen[a] = True
-            loop.append(a)
-            a = succ[a]
-        loops.append(np.array(loop, dtype=int))
-    return loops, float(turn.sum()), geo_sum
+    n_loops = len(
+        np.unique(components(n, np.column_stack([np.arange(n), succ])))
+    )
+    return n_loops, float(turn.sum()), geo_sum
 
 
 def _sorted_darts(caps, reps, arcs, idx):
@@ -461,8 +436,6 @@ def _sorted_darts(caps, reps, arcs, idx):
     u = reps[vertex]
     t = np.cross(caps.axis[cap], u)
     t[kind == 0] *= -1.0
-    t -= np.einsum("ij,ij->i", t, u)[:, None] * u
-    t /= np.linalg.norm(t, axis=1, keepdims=True)
     cot = caps.cos_a[cap] / caps.sin_a[cap]
     kappa = np.where(kind == 1, cot, -cot)
     ea = any_perpendicular(reps)[vertex]
