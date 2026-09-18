@@ -197,18 +197,22 @@ class SasGeometry:
         n_circ = int(np.searchsorted(pairs[:, 0], n_solve))
         circles = _circles(coords, sas, pairs[:n_circ], d[:n_circ])
         nbr_off, nbr_flat = _neighbour_csr(n, pairs)
-        offsets, all_caps, row_of = _cap_rows(
+        offsets, all_caps, all_tags, row_of = _cap_rows(
             circles, sas, n_solve, len(pairs)
         )
 
         caps_of: list[Caps] = []
+        tags_of: list[np.ndarray] = []
         slot_of_row = np.empty(len(all_caps), dtype=int)
         for i in range(n_solve):
             sl = slice(offsets[i], offsets[i + 1])
-            caps, slot_of_row[sl] = _merge_coincident(
-                all_caps.take(sl), sas[i]
-            )
+            caps, label = _merge_coincident(all_caps.take(sl), sas[i])
+            slot_of_row[sl] = label
+            first = np.unique(label, return_index=True)[1]
+            tags = np.empty(len(caps), dtype=int)
+            tags[label[first]] = all_tags[sl][first]
             caps_of.append(caps)
+            tags_of.append(tags)
 
         tri = _triple_candidates(
             coords,
@@ -237,6 +241,7 @@ class SasGeometry:
             crossing[e[:, 1], e[:, 0]] = True
             hidden, covered[i], _ = classify_caps(caps, crossing)
             caps_of[i] = caps.take(np.flatnonzero(~hidden))
+            tags_of[i] = tags_of[i][~hidden]
             renumber = np.where(hidden, -1, np.cumsum(~hidden) - 1)
             sl = slice(offsets[i], offsets[i + 1])
             slot_of_row[sl] = renumber[slot_of_row[sl]]
@@ -283,7 +288,7 @@ class SasGeometry:
         probe_offsets, probe_atoms = _probe_atoms(n, atoms_key, probe_ids)
 
         arrangements: list[Arrangement] = [
-            covered_arrangement(sas[i], caps_of[i]) for i in range(n_solve)
+            covered_arrangement(caps) for caps in caps_of
         ]
         arc_parts = []
         n_active_arcs = 0
@@ -298,7 +303,8 @@ class SasGeometry:
             excused[
                 inv.reshape(-1, 2)[:, :, None], sph_edges[vrows, None, :]
             ] = True
-            circ, sign = caps.tag >> 1, 1.0 - 2.0 * (caps.tag & 1)
+            tags = tags_of[i]
+            circ, sign = tags >> 1, 1.0 - 2.0 * (tags & 1)
             arr = solve(
                 sas[i],
                 caps,
@@ -310,7 +316,7 @@ class SasGeometry:
                 (circles.e1[circ], sign[:, None] * circles.e2[circ]),
             )
             arrangements[i] = arr
-            arc_parts.append(_torus_arcs(arr, probe_map[local]))
+            arc_parts.append(_torus_arcs(arr, tags, probe_map[local]))
             n_active_arcs += len(arc_parts[-1]) * (i < n_active)
 
         return cls(
@@ -338,7 +344,7 @@ def _cap_rows(circles: Circles, sas, n_solve: int, n_pairs: int):
     Circle ``(i, j)`` cuts sphere ``i`` with axis ``u`` and sphere ``j``
     (when solved) with axis ``-u``; ``cos`` and ``sin`` are the distances
     ``a`` / ``d - a`` and the circle radius over the sphere radius. Rows
-    are sorted by sphere; ``offsets`` delimits each sphere's slice. A cap's
+    are sorted by sphere; ``offsets`` delimits each sphere's slice. A row's
     ``tag`` is ``2 * circle + side`` with side 0 on the circle's first
     sphere; ``row_of[tag]`` is its row, ``-1`` where the sphere is not
     solved.
@@ -354,10 +360,10 @@ def _cap_rows(circles: Circles, sas, n_solve: int, n_pairs: int):
     atom, tag, a, axis = atom[order], tag[order], a[order], axis[order]
     offsets = np.searchsorted(atom, np.arange(n_solve + 1))
     r = sas[atom]
-    caps = Caps(axis, a / r, circles.radius[tag >> 1] / r, tag)
+    caps = Caps(axis, a / r, circles.radius[tag >> 1] / r)
     row_of = np.full(2 * n_pairs, -1, dtype=int)
     row_of[tag] = np.arange(len(tag))
-    return offsets, caps, row_of
+    return offsets, caps, tag, row_of
 
 
 def _neighbour_csr(n, pairs) -> tuple[np.ndarray, np.ndarray]:
@@ -557,15 +563,16 @@ def _probe_atoms(n, keys, probe_ids) -> tuple[np.ndarray, np.ndarray]:
     return np.concatenate([[0], np.cumsum(count)]), flat
 
 
-def _torus_arcs(arr, probe_of_local) -> TorusArcs:
-    """Arcs of sphere ``i`` on circles it is the smaller sphere of.
+def _torus_arcs(arr, tags, probe_of_local) -> TorusArcs:
+    """Arcs of a sphere on circles it is the smaller sphere of (``tags``
+    per cap, side bit 0).
 
     Those caps share the circle frame, so ``phi`` carries over as is; the
     larger sphere reports nothing. A ``-1`` appended to the probe map
     lets full circles (``-1`` ends) read back ``-1``.
     """
     arcs = arr.arcs
-    tag = arr.caps.tag[arcs.cap]
+    tag = tags[arcs.cap]
     keep = (tag & 1) == 0
     ext = np.append(probe_of_local, -1)
     return TorusArcs(
@@ -739,12 +746,7 @@ def _probe_pair_caps(probes, rp: float) -> tuple[np.ndarray, Caps]:
     order = np.argsort(src, kind="stable")
     offsets = np.searchsorted(src[order], np.arange(len(probes) + 1))
     cos_a = cos_a[order]
-    caps = Caps(
-        axis[order],
-        cos_a,
-        np.sqrt(1.0 - cos_a * cos_a),
-        np.zeros(len(order), dtype=int),
-    )
+    caps = Caps(axis[order], cos_a, np.sqrt(1.0 - cos_a * cos_a))
     return offsets, caps
 
 
@@ -761,10 +763,7 @@ def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
         contacts /= np.linalg.norm(contacts, axis=1, keepdims=True)
         tangents = dep_t[dep_off[q] : dep_off[q + 1]]
         hemispheres = Caps(
-            tangents,
-            np.zeros(len(tangents)),
-            np.ones(len(tangents)),
-            np.zeros(len(tangents), dtype=int),
+            tangents, np.zeros(len(tangents)), np.ones(len(tangents))
         )
         caps = Caps.concat(
             [hemispheres, nbr_caps.take(slice(nbr_off[q], nbr_off[q + 1]))]

@@ -24,7 +24,7 @@ def caps_from(axes, alphas) -> Caps:
     axes = np.asarray(axes, dtype=float).reshape(-1, 3)
     axes = axes / np.linalg.norm(axes, axis=1, keepdims=True)
     alphas = np.asarray(alphas, dtype=float).reshape(-1)
-    return Caps(axes, np.cos(alphas), np.sin(alphas), np.arange(len(alphas)))
+    return Caps(axes, np.cos(alphas), np.sin(alphas))
 
 
 def lattice_area(arr, radius=1.0):
@@ -62,7 +62,7 @@ def test_two_crossing_caps():
     arr = solve_caps(1.0, caps_from([[0, 0, 1], [1, 0, 1]], [0.6, 0.5]))
     assert arr.n_loops == 1
     assert arr.n_patches == 1
-    assert len(arr.verts) == 2
+    assert len(np.unique(arr.arcs.v_beg)) == 2
     assert arr.area == pytest.approx(lattice_area(arr), rel=2e-3)
 
 
@@ -89,9 +89,8 @@ def test_three_circles_through_one_point():
     alphas = [0.4, 0.6, 0.5]
     axes = [polar_axis(a, psi) for a, psi in zip(alphas, [0.0, 2.1, 4.0])]
     arr = solve_caps(1.0, caps_from(axes, alphas))
-    pole = np.array([0.0, 0.0, 1.0])
-    at_pole = np.linalg.norm(arr.verts - pole, axis=1) < 1e-9
-    assert at_pole.sum() == 1
+    ends = np.concatenate([arr.arcs.v_beg, arr.arcs.v_end])
+    assert (len(arr.arcs), len(np.unique(ends)), arr.n_loops) == (3, 3, 1)
     assert arr.area == pytest.approx(lattice_area(arr), rel=2e-3)
 
 
@@ -141,7 +140,7 @@ def test_nearly_parallel_crossing_caps(gamma):
 
 def test_fully_covered():
     arr = solve_caps(1.0, caps_from([[0, 0, 1], [0, 0, -1]], [2.2, 2.2]))
-    assert arr.covered
+    assert arr.n_patches == 0
     assert arr.area == 0.0
 
 

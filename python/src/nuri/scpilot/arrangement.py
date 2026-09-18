@@ -38,7 +38,6 @@ class Caps:
     axis: np.ndarray
     cos_a: np.ndarray
     sin_a: np.ndarray
-    tag: np.ndarray
 
     def __len__(self) -> int:
         return len(self.cos_a)
@@ -46,12 +45,10 @@ class Caps:
     @classmethod
     def empty(cls) -> Caps:
         z = np.empty(0)
-        return cls(np.empty((0, 3)), z, z.copy(), np.empty(0, dtype=int))
+        return cls(np.empty((0, 3)), z, z.copy())
 
     def take(self, idx: np.ndarray) -> Caps:
-        return Caps(
-            self.axis[idx], self.cos_a[idx], self.sin_a[idx], self.tag[idx]
-        )
+        return Caps(self.axis[idx], self.cos_a[idx], self.sin_a[idx])
 
     @classmethod
     def concat(cls, parts: list[Caps]) -> Caps:
@@ -59,7 +56,7 @@ class Caps:
         return cls(
             *(
                 np.concatenate([getattr(x, f) for x in parts])
-                for f in ("axis", "cos_a", "sin_a", "tag")
+                for f in ("axis", "cos_a", "sin_a")
             )
         )
 
@@ -78,17 +75,11 @@ class Arcs:
 
 @dataclass
 class Arrangement:
-    radius: float
     caps: Caps
-    verts: np.ndarray
     arcs: Arcs
     n_loops: int
     n_patches: int
     area: float
-
-    @property
-    def covered(self) -> bool:
-        return self.n_patches == 0
 
     def contains(self, dirs: np.ndarray) -> np.ndarray:
         """True where unit directions ``dirs`` lie inside any cap."""
@@ -233,10 +224,7 @@ def _merge_coincident(caps: Caps, radius: float) -> tuple[Caps, np.ndarray]:
     np.add.at(mean, label, vec)
     axis = mean[:, :3] / np.linalg.norm(mean[:, :3], axis=1, keepdims=True)
     trig = mean[:, 3:] / np.linalg.norm(mean[:, 3:], axis=1, keepdims=True)
-    tag = np.empty(k, dtype=int)
-    first = np.unique(label, return_index=True)[1]
-    tag[label[first]] = caps.tag[first]
-    return Caps(axis, trig[:, 0], trig[:, 1], tag), label
+    return Caps(axis, trig[:, 0], trig[:, 1]), label
 
 
 def crossing_points(
@@ -283,17 +271,18 @@ def cap_components(crossing: np.ndarray) -> int:
     return int(components(m, edges).max()) + 1
 
 
-def covered_arrangement(radius: float, caps: Caps) -> Arrangement:
+def covered_arrangement(caps: Caps) -> Arrangement:
     z = np.empty(0, dtype=int)
-    arcs = Arcs(z, z, z, np.empty(0), np.empty(0))
-    return Arrangement(radius, caps, np.empty((0, 3)), arcs, 0, 0, 0.0)
+    return Arrangement(
+        caps, Arcs(z, z, z, np.empty(0), np.empty(0)), 0, 0, 0.0
+    )
 
 
 def solve_caps(radius: float, caps: Caps) -> Arrangement:
     """Solve an arrangement, clustering vertices locally."""
     caps, covered, crossing = prepare_caps(caps, radius)
     if covered:
-        return covered_arrangement(radius, caps)
+        return covered_arrangement(caps)
     dirs, edges = crossing_points(caps, crossing)
     label = cluster_points(dirs * radius, TAU_C)
     n_clusters = int(label.max()) + 1 if len(label) else 0
@@ -348,9 +337,7 @@ def solve(
     n_patches = 1 + n_loops - n_components
     chi = 2 * n_patches - n_loops
     area = radius * radius * (2.0 * math.pi * chi - turn_sum + geo_sum)
-    return Arrangement(
-        radius, caps, reps, arcs, n_loops, n_patches, float(area)
-    )
+    return Arrangement(caps, arcs, n_loops, n_patches, float(area))
 
 
 def _build_arcs(caps, e1, e2, reps, vtx, cap, crossing) -> Arcs:
