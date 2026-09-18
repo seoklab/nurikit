@@ -608,11 +608,8 @@ class ConcaveFace:
     probe: int
     atoms: np.ndarray
     contacts: np.ndarray
-    arrangement: Arrangement
-
-    @property
-    def area(self) -> float:
-        return self.arrangement.area
+    caps: Caps
+    area: float
 
 
 @dataclass
@@ -768,7 +765,8 @@ def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
         caps = Caps.concat(
             [hemispheres, nbr_caps.take(slice(nbr_off[q], nbr_off[q + 1]))]
         )
-        faces.append(ConcaveFace(q, atoms, contacts, solve_caps(sas.rp, caps)))
+        arr = solve_caps(sas.rp, caps)
+        faces.append(ConcaveFace(q, atoms, contacts, arr.caps, arr.area))
     return faces
 
 
