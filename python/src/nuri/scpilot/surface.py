@@ -21,7 +21,6 @@ from enum import IntEnum
 import numpy as np
 
 from .anal import SasGeometry, SesGeometry
-from .arrangement import any_perpendicular
 
 
 class Patch(IntEnum):
@@ -70,14 +69,6 @@ def fibonacci_sphere(n: int) -> np.ndarray:
     golden = math.pi * (3.0 - math.sqrt(5.0))
     phi = golden * i
     return np.column_stack([r * np.cos(phi), r * np.sin(phi), z])
-
-
-def _rotation_to(z_target: np.ndarray) -> np.ndarray:
-    """Rotation matrix mapping +z onto the unit vector ``z_target``."""
-    ez = z_target
-    ex = any_perpendicular(ez)[0]
-    ey = np.cross(ez, ex)
-    return np.column_stack([ex, ey, ez])
 
 
 class _DotBuffer:
@@ -178,12 +169,15 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
         int
     )
     row, m, first = _segments(k_beta)
-    dbeta = (width / k_beta)[row]
-    e_lo = lo[row] + m * dbeta
-    e_hi = e_lo + dbeta
-    beta = e_lo + 0.5 * dbeta
+    dbeta = width / k_beta
+    erow, em, estart = _segments(k_beta + 1)
+    sin_edge = np.sin(lo[erow] + em * dbeta[erow])
+    edge = estart[row] + m
+    beta = lo[row] + (m + 0.5) * dbeta[row]
     area = (
-        rp * dphi[row] * (rl[row] * dbeta - rp * (np.sin(e_hi) - np.sin(e_lo)))
+        rp
+        * dphi[row]
+        * (rl[row] * dbeta[row] - rp * (sin_edge[edge + 1] - sin_edge[edge]))
     )
     k_phi = np.round(area * density).astype(int)
 
@@ -201,6 +195,24 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
     covered = np.bincount(row, area, minlength=len(arc))
     area *= (total / np.where(covered > 0.0, covered, 1.0))[row]
 
+    cos_b, sin_b = np.cos(beta), np.sin(beta)
+    cr = c[row]
+    i, j = circles.pair[cr, 0], circles.pair[cr, 1]
+    a_i, a_j, rl_r = circles.a[cr], circles.d[cr] - circles.a[cr], rl[row]
+    depth_i = (
+        np.sqrt(
+            sas.sas[i] ** 2 + rp * rp - 2.0 * rp * (rl_r * cos_b - a_i * sin_b)
+        )
+        - sas.radii[i]
+    )
+    depth_j = (
+        np.sqrt(
+            sas.sas[j] ** 2 + rp * rp - 2.0 * rp * (rl_r * cos_b + a_j * sin_b)
+        )
+        - sas.radii[j]
+    )
+    owner = np.where(depth_i <= depth_j, i, j)
+
     ring, n_in_ring, _ = _segments(k_phi)
     r = row[ring]
     cc = c[r]
@@ -210,19 +222,12 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
         + np.sin(phi)[:, None] * (circles.e2[cc])
     )
     q = circles.centre[cc] + rl[r, None] * radial
-    b = beta[ring]
-    inward = (
-        -np.cos(b)[:, None] * radial + np.sin(b)[:, None] * circles.axis[cc]
-    )
-    pts = q + rp * inward
-    i, j = circles.pair[cc, 0], circles.pair[cc, 1]
-    di = np.linalg.norm(pts - sas.coords[i], axis=1) - sas.radii[i]
-    dj = np.linalg.norm(pts - sas.coords[j], axis=1) - sas.radii[j]
+    inward = -cos_b[ring, None] * radial + sin_b[ring, None] * circles.axis[cc]
     out.add(
-        pts,
+        q + rp * inward,
         -inward,
         (area / k_phi)[ring],
-        np.where(di <= dj, i, j),
+        owner[ring],
         Patch.TOROIDAL,
     )
 
@@ -237,24 +242,19 @@ def _concave(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
         area = face.area
         if area <= 0.0:
             continue
-        centroid = face.contacts.sum(axis=0)
-        cn = np.linalg.norm(centroid)
-        dirs = lattice
-        if cn > 1e-9:
-            dirs = lattice @ _rotation_to(centroid / cn).T
-        dirs = dirs[~face.arrangement.contains(dirs)]
+        dirs = lattice[~face.arrangement.contains(lattice)]
         if len(dirs) == 0:
             out.dropped += area
             continue
-        pts = sas.probes[face.probe] + rp * dirs
+        big, small = sas.sas[face.atoms], sas.radii[face.atoms]
         depth = (
-            np.linalg.norm(
-                pts[:, None, :] - sas.coords[face.atoms][None], axis=2
+            np.sqrt(
+                big * big + rp * rp - 2.0 * rp * big * (dirs @ face.contacts.T)
             )
-            - sas.radii[face.atoms][None, :]
+            - small
         )
         out.add(
-            pts,
+            sas.probes[face.probe] + rp * dirs,
             -dirs,
             area / len(dirs),
             face.atoms[np.argmin(depth, axis=1)],
