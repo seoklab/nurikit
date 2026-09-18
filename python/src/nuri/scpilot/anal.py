@@ -222,10 +222,12 @@ class SasGeometry:
         slots = _triple_slots(tri.circ, row_of, slot_of_row)
         distinct = (slots >= 0).all(axis=2) & (slots[..., 0] != slots[..., 1])
         kept = (~solved | distinct).all(axis=1)
+        triples, circ, solved = tri.triples[kept], tri.circ[kept], solved[kept]
+        slots = slots[kept]
 
         covered = np.zeros(n_solve, dtype=bool)
         sph_off, _, sph_edges = _sphere_incidence(
-            tri.triples[kept], slots[kept], solved[kept], n_solve
+            triples, slots, solved, n_solve
         )
         for i, caps in enumerate(caps_of):
             m = len(caps)
@@ -239,13 +241,13 @@ class SasGeometry:
             sl = slice(offsets[i], offsets[i + 1])
             slot_of_row[sl] = renumber[slot_of_row[sl]]
 
-        slots = _triple_slots(tri.circ, row_of, slot_of_row)
-        kept &= (~solved | (slots >= 0).all(axis=2)).all(axis=1)
-        triples, slots, solved = tri.triples[kept], slots[kept], solved[kept]
-        points = tri.points(kept)
+        slots = _triple_slots(circ, row_of, slot_of_row)
+        edge_on = solved & (slots >= 0).all(axis=2)
+        has_vertex = (~solved | edge_on).all(axis=1)
+        points = tri.points(kept)[has_vertex]
 
         raw_pts = points.reshape(-1, 3)
-        raw_triple = np.repeat(np.arange(len(triples)), 2)
+        raw_triple = np.repeat(np.flatnonzero(has_vertex), 2)
         label, atoms_key, owner = _clusters_by_owner(
             cluster_points(raw_pts, TAU_C), triples[raw_triple], n
         )
@@ -253,16 +255,22 @@ class SasGeometry:
         reps = np.zeros((n_clusters, 3))
         np.add.at(reps, label, raw_pts)
         reps /= np.bincount(label, minlength=n_clusters)[:, None]
+        label_of = np.full((len(triples), 2), -1, dtype=int)
+        label_of[has_vertex] = label.reshape(-1, 2)
 
         cap_off = np.cumsum([0, *(len(c) for c in caps_of)])
         sph_off, sph_tri, sph_edges = _sphere_incidence(
-            triples, slots, solved, n_solve
+            triples, slots, edge_on, n_solve
         )
         sphere = np.repeat(np.arange(n_solve), np.diff(sph_off))
         gcap = sph_edges + cap_off[sphere, None]
-        cluster = label[2 * sph_tri[:, None] + np.array([0, 1])]
+        cluster = label_of[sph_tri]
+        with_vertex = cluster[:, 0] >= 0
         incidence = np.unique(
-            (cluster[:, :, None] * cap_off[-1] + gcap[:, None, :]).ravel()
+            (
+                cluster[with_vertex, :, None] * cap_off[-1]
+                + gcap[with_vertex, None, :]
+            ).ravel()
         )
         n_components = _components_per_sphere(cap_off, gcap)
         accessible = _accessible(
@@ -282,12 +290,13 @@ class SasGeometry:
         for i in np.flatnonzero(~covered):
             caps = caps_of[i]
             rows = slice(sph_off[i], sph_off[i + 1])
-            local, inv = np.unique(cluster[rows], return_inverse=True)
+            vrows = np.flatnonzero(with_vertex[rows]) + sph_off[i]
+            local, inv = np.unique(cluster[vrows], return_inverse=True)
             local_reps = reps[local] - coords[i]
             local_reps /= np.linalg.norm(local_reps, axis=1, keepdims=True)
             excused = np.zeros((len(local), len(caps)), dtype=bool)
             excused[
-                inv.reshape(-1, 2)[:, :, None], sph_edges[rows, None, :]
+                inv.reshape(-1, 2)[:, :, None], sph_edges[vrows, None, :]
             ] = True
             circ, sign = caps.tag >> 1, 1.0 - 2.0 * (caps.tag & 1)
             arr = solve(
@@ -460,14 +469,15 @@ def _triple_slots(circ, row_of, slot_of_row) -> np.ndarray:
     return np.append(slot_of_row, -1)[rows]
 
 
-def _sphere_incidence(triples, slots, solved, n_solve):
-    """Every (solved sphere, triple touching it) incidence sorted by
-    sphere: ``(offsets, triple, the triple's two cap slots there)``."""
-    sphere = triples[solved]
+def _sphere_incidence(triples, slots, mask, n_solve):
+    """Every (sphere, triple) incidence selected by ``mask`` (t, 3),
+    sorted by sphere: ``(offsets, triple, the triple's two cap slots
+    there)``."""
+    sphere = triples[mask]
     order = np.argsort(sphere, kind="stable")
-    tri = np.repeat(np.arange(len(triples)), solved.sum(axis=1))
+    tri = np.repeat(np.arange(len(triples)), mask.sum(axis=1))
     offsets = np.searchsorted(sphere[order], np.arange(n_solve + 1))
-    return offsets, tri[order], slots[solved][order]
+    return offsets, tri[order], slots[mask][order]
 
 
 def _clusters_by_owner(label, atoms, n):
