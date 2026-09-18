@@ -165,10 +165,10 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
     sas = ses.sas
     rp = sas.rp
     circles, arcs = sas.circles, sas.arcs
-    active = np.flatnonzero(circles.pair[arcs.circle, 0] < sas.n_active)
-    arc = np.repeat(active, 2)
+    n_arcs = sas.n_active_arcs
+    arc = np.repeat(np.arange(n_arcs), 2)
     c = arcs.circle[arc]
-    rng = ses.saddles.ranges[c, np.tile([0, 1], len(active))]
+    rng = ses.saddles.ranges[c, np.tile([0, 1], n_arcs)]
     lo, hi = rng[:, 0], rng[:, 1]
     rl, dphi = circles.radius[c], arcs.dphi[arc]
     width = hi - lo
