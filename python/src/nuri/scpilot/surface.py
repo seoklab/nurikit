@@ -236,25 +236,20 @@ def _concave(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
     lattice = fibonacci_sphere(
         _lattice_count(4.0 * math.pi * rp * rp, density)
     )
-    for face in ses.concave:
-        area = face.area
-        if area <= 0.0:
-            continue
+    for face in (f for f in ses.concave if f.area > 0.0):
         dirs = lattice[~face.arrangement.contains(lattice)]
-        if len(dirs) == 0:
-            out.dropped += area
-            continue
+        out.dropped += face.area * (len(dirs) == 0)
         big, small = sas.sas[face.atoms], sas.radii[face.atoms]
         depth = (
             np.sqrt(
-                big * big + rp * rp - 2.0 * rp * big * (dirs @ face.contacts.T)
+                small * small + 2.0 * rp * big * (1.0 - dirs @ face.contacts.T)
             )
             - small
         )
         out.add(
             sas.probes[face.probe] + rp * dirs,
             -dirs,
-            area / len(dirs),
+            face.area / max(len(dirs), 1),
             face.atoms[np.argmin(depth, axis=1)],
             Patch.CONCAVE,
         )
