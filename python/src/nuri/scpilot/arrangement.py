@@ -50,6 +50,10 @@ class Caps:
     def take(self, idx: np.ndarray) -> Caps:
         return Caps(self.axis[idx], self.cos_a[idx], self.sin_a[idx])
 
+    def contains(self, dirs: np.ndarray) -> np.ndarray:
+        """True where unit directions ``dirs`` lie inside any cap."""
+        return np.any(dirs @ self.axis.T > self.cos_a, axis=1)
+
     @classmethod
     def concat(cls, parts: list[Caps]) -> Caps:
         parts = [cls.empty(), *parts]
@@ -82,8 +86,7 @@ class Arrangement:
     area: float
 
     def contains(self, dirs: np.ndarray) -> np.ndarray:
-        """True where unit directions ``dirs`` lie inside any cap."""
-        return np.any(dirs @ self.caps.axis.T > self.caps.cos_a, axis=1)
+        return self.caps.contains(dirs)
 
 
 def any_perpendicular(u: np.ndarray) -> np.ndarray:
