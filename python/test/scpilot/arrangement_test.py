@@ -97,7 +97,7 @@ def test_three_circles_through_one_point():
 
 def test_coincident_caps_merge():
     axes = [[0.0, 0.0, 1.0], [1e-15, 0.0, 1.0]]
-    caps, covered = prepare_caps(caps_from(axes, [math.pi / 2] * 2), 2.0)
+    caps, covered, _ = prepare_caps(caps_from(axes, [math.pi / 2] * 2), 2.0)
     assert not covered
     assert len(caps) == 1
     arr = solve_caps(2.0, caps_from(axes, [math.pi / 2] * 2))
@@ -106,7 +106,7 @@ def test_coincident_caps_merge():
 
 def test_nearby_caps_stay_distinct():
     axes = [[0.0, 0.0, 1.0], [1e-5, 0.0, 1.0]]
-    caps, _ = prepare_caps(caps_from(axes, [0.7, 0.7]), 1.0)
+    caps, _, _ = prepare_caps(caps_from(axes, [0.7, 0.7]), 1.0)
     assert len(caps) == 2
     arr = solve_caps(1.0, caps_from(axes, [0.7, 0.7]))
     assert arr.area == pytest.approx(
