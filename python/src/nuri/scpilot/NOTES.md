@@ -328,3 +328,16 @@ active atom and face (sampling); everything inside is vectorised.
   `1e-9 rad`. Every other comparison is exact. Any positive accessibility
   slack breaks consistency between vertex acceptance and arc tests; do not
   reintroduce one.
+- Square roots of differences (`ri² − a²` for the circle radius, `1 − cos²`
+  for probe caps) are clamped with `max(·, 0)` in the pilot. The clamp only
+  keeps NaN out; a clamped zero is still a degenerate circle or cap that
+  poisons the kernels downstream (`1 / rl`, `cot = cos / sin`). The overlap
+  and containment margins (`TAU_C`) make the negative case unreachable
+  (`rl ≥ 1.8e-3 Å` at the margin, relative error `2e-10`), and the probe
+  pair filter `cos < 1` on the very value the cap carries makes `1 − cos²`
+  positive under any rounding. In C++ these are therefore `ABSL_DCHECK_GE(x,
+  0)` before the `sqrt`, not a `max`; if a tolerance is ever loosened toward
+  rounding scale, the fix is a filter in the preparation stage, never a
+  clamp in a kernel. The spindle root `max(rp − rl, 0)` and the crossing
+  half-chord clamp are different: there the zero branch is a real case
+  (ordinary torus, pinch) that the formulas handle.
