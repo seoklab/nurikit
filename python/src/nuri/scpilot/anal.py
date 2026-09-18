@@ -23,11 +23,12 @@ from .arrangement import (
     TAU_C,
     Arrangement,
     Caps,
+    _merge_coincident,
     any_perpendicular,
+    classify_caps,
     cluster_points,
     components,
     covered_arrangement,
-    prepare_caps,
     solve,
     solve_caps,
 )
@@ -206,21 +207,20 @@ class SasGeometry:
         n_circ = int(np.searchsorted(pairs[:, 0], n_solve))
         circles = _circles(coords, sas, pairs[:n_circ], d[:n_circ])
         nbr_off, nbr_flat = _neighbour_csr(n, pairs)
-        offsets, all_caps = _cap_rows(circles, sas, n_solve)
+        offsets, all_caps, row_of = _cap_rows(
+            circles, sas, n_solve, len(pairs)
+        )
 
         caps_of: list[Caps] = []
-        cap_slot = np.full((n_solve, n), -1, dtype=int)
-        covered = np.zeros(n_solve, dtype=bool)
+        slot_of_row = np.empty(len(all_caps), dtype=int)
         for i in range(n_solve):
-            caps, covered[i] = prepare_caps(
-                all_caps.take(slice(offsets[i], offsets[i + 1])), sas[i]
+            sl = slice(offsets[i], offsets[i + 1])
+            caps, slot_of_row[sl] = _merge_coincident(
+                all_caps.take(sl), sas[i]
             )
             caps_of.append(caps)
-            if not covered[i]:
-                other = circles.pair[caps.tag].sum(axis=1) - i
-                cap_slot[i, other] = np.arange(len(caps))
 
-        triples, points = _triple_vertices(
+        tri = _triple_candidates(
             coords,
             sas,
             circles,
@@ -228,6 +228,32 @@ class SasGeometry:
             nbr_flat,
             pairs[:, 0] * n + pairs[:, 1],
         )
+        solved = tri.triples < n_solve
+        slots = _triple_slots(tri.circ, row_of, slot_of_row)
+        distinct = (slots >= 0).all(axis=2) & (slots[..., 0] != slots[..., 1])
+        kept = (~solved | distinct).all(axis=1)
+
+        covered = np.zeros(n_solve, dtype=bool)
+        sph_off, sph_edges = _sphere_edges(
+            tri.triples[kept], slots[kept], solved[kept], n_solve
+        )
+        for i, caps in enumerate(caps_of):
+            m = len(caps)
+            crossing = np.zeros((m, m), dtype=bool)
+            e = sph_edges[sph_off[i] : sph_off[i + 1]]
+            crossing[e[:, 0], e[:, 1]] = True
+            crossing[e[:, 1], e[:, 0]] = True
+            hidden, covered[i], _ = classify_caps(caps, crossing)
+            caps_of[i] = caps.take(np.flatnonzero(~hidden))
+            renumber = np.where(hidden, -1, np.cumsum(~hidden) - 1)
+            sl = slice(offsets[i], offsets[i + 1])
+            slot_of_row[sl] = renumber[slot_of_row[sl]]
+
+        slots = _triple_slots(tri.circ, row_of, slot_of_row)
+        kept &= (~solved | (slots >= 0).all(axis=2)).all(axis=1)
+        triples, slots = tri.triples[kept], slots[kept]
+        points = tri.points(kept)
+
         raw_pts = points.reshape(-1, 3)
         raw_triple = np.repeat(np.arange(len(triples)), 2)
         label = cluster_points(raw_pts, TAU_C)
@@ -243,24 +269,21 @@ class SasGeometry:
         owner = np.full(n_clusters, n, dtype=int)
         np.minimum.at(owner, label, triples[raw_triple, 0])
 
-        tri_off, tri_flat = _inverted_index(triples, n_solve)
+        tri_off, tri_flat, tri_pos = _inverted_index(triples, n_solve)
         per_sphere = []
         edges = [np.empty((0, 2), dtype=int)]
         cap_off = np.cumsum([0, *(len(c) for c in caps_of)])
         accessible = np.zeros(n_clusters, dtype=bool)
         for i, caps in enumerate(caps_of):
             sel = tri_flat[tri_off[i] : tri_off[i + 1]]
-            others = triples[sel][triples[sel] != i].reshape(-1, 2)
-            slots = cap_slot[i][others]
-            present = np.all(slots >= 0, axis=1)
-            sel, slots = sel[present], slots[present]
-            edges.append(slots + cap_off[i])
+            islots = slots[sel, tri_pos[tri_off[i] : tri_off[i + 1]]]
+            edges.append(islots + cap_off[i])
             raw = 2 * np.repeat(sel, 2) + np.tile([0, 1], len(sel))
             local, inv = np.unique(label[raw], return_inverse=True)
             local_reps = reps[local] - coords[i]
             if len(local):
                 local_reps /= np.linalg.norm(local_reps, axis=1, keepdims=True)
-            per_sphere.append((slots, local, inv, local_reps))
+            per_sphere.append((islots, local, inv, local_reps))
             mine = owner[local] == i
             accessible[local[mine]] = _accessible_on_sphere(
                 caps, i, local[mine], local_reps[mine], circles, atoms_key, n
@@ -278,20 +301,16 @@ class SasGeometry:
             if covered[i]:
                 arrangements.append(covered_arrangement(sas[i], caps))
                 continue
-            slots, local, inv, local_reps = per_sphere[i]
-            crossing = np.zeros((len(caps), len(caps)), dtype=bool)
-            crossing[slots[:, 0], slots[:, 1]] = True
-            crossing[slots[:, 1], slots[:, 0]] = True
+            islots, local, inv, local_reps = per_sphere[i]
             sign = np.where(circles.pair[caps.tag, 0] == i, 1.0, -1.0)
             arr = solve(
                 sas[i],
                 caps,
-                np.repeat(slots, 2, axis=0),
+                np.repeat(islots, 2, axis=0),
                 inv,
                 local_reps,
                 accessible[local],
                 int(n_components[i]),
-                crossing,
                 (circles.e1[caps.tag], sign[:, None] * circles.e2[caps.tag]),
             )
             arrangements.append(arr)
@@ -313,14 +332,15 @@ class SasGeometry:
         )
 
 
-def _cap_rows(circles: Circles, sas, n_solve: int):
+def _cap_rows(circles: Circles, sas, n_solve: int, n_pairs: int):
     """Caps of every solved sphere, gathered from the circle rows.
 
     Circle ``(i, j)`` cuts sphere ``i`` with axis ``u`` and sphere ``j``
     (when solved) with axis ``-u``; ``cos`` and ``sin`` are the distances
     ``a`` / ``d - a`` and the circle radius over the sphere radius. Rows
     are sorted by sphere; ``offsets`` delimits each sphere's slice and
-    ``tag`` is the circle id.
+    ``tag`` is the circle id. ``row_of[2 * pair + side]`` is the row of a
+    pair's cap on its first (``side`` 0) or second sphere, ``-1`` if none.
     """
     pi, pj = circles.pair[:, 0], circles.pair[:, 1]
     circ = np.arange(len(circles))
@@ -341,7 +361,9 @@ def _cap_rows(circles: Circles, sas, n_solve: int):
         circles.radius[circ] / r,
         circ,
     )
-    return offsets, caps
+    row_of = np.full(2 * n_pairs, -1, dtype=int)
+    row_of[2 * circ + (sign < 0.0)] = np.arange(len(circ))
+    return offsets, caps, row_of
 
 
 def _neighbour_csr(n, pairs) -> tuple[np.ndarray, np.ndarray]:
@@ -351,12 +373,13 @@ def _neighbour_csr(n, pairs) -> tuple[np.ndarray, np.ndarray]:
     return np.searchsorted(both[:, 0], np.arange(n + 1)), both[:, 1]
 
 
-def _inverted_index(triples, n_solve) -> tuple[np.ndarray, np.ndarray]:
-    """Triples touching each solved sphere as ``(offsets, flat)``."""
+def _inverted_index(triples, n_solve):
+    """Triples touching each solved sphere as ``(offsets, triple, position
+    of the sphere within the triple)``."""
     atom = triples.ravel()
     order = np.argsort(atom, kind="stable")
-    tri = np.repeat(np.arange(len(triples)), 3)[order]
-    return np.searchsorted(atom[order], np.arange(n_solve + 1)), tri
+    tri, pos = np.divmod(order, 3)
+    return np.searchsorted(atom[order], np.arange(n_solve + 1)), tri, pos
 
 
 def _components_per_sphere(cap_off, edges) -> np.ndarray:
@@ -369,14 +392,46 @@ def _components_per_sphere(cap_off, edges) -> np.ndarray:
     return np.bincount(uniq // n_nodes, minlength=len(cap_off) - 1)
 
 
-def _triple_vertices(coords, sas, circles, nbr_off, nbr_flat, pair_keys):
-    """Vertices of all sphere triples touching a solved sphere.
+@dataclass
+class _TripleCandidates:
+    """Sphere triples whose circle ``(i, j)`` meets sphere ``k`` in two
+    points, with the intersection geometry kept so that the points can be
+    computed for a subset later."""
 
-    Candidates are ``(i, j, k)`` with ``i < j < k``, ``(i, j)`` a circle
-    and ``k`` a later neighbour of ``i`` that also pairs with ``j``. Each
-    triple is intersected once (circle ``(i, j)`` against sphere ``k``)
-    so that all three spheres see identical points. Returns
-    ``(triples (t, 3) atom indices, points (t, 2, 3))``.
+    triples: np.ndarray
+    circ: np.ndarray
+    centre: np.ndarray
+    radius: np.ndarray
+    e1: np.ndarray
+    e2: np.ndarray
+    g: np.ndarray
+    a: np.ndarray
+    b: np.ndarray
+    h: np.ndarray
+
+    def points(self, mask) -> np.ndarray:
+        """Both intersection points ``(t, 2, 3)`` of the selected triples,
+        ``phi_0 -/+ acos(g / amp)`` written without inverse trig."""
+        g, a, b, h = self.g[mask], self.a[mask], self.b[mask], self.h[mask]
+        amp2 = a * a + b * b
+        t, rl = self.centre[mask], self.radius[mask, None]
+        e1, e2 = self.e1[mask], self.e2[mask]
+        pts = []
+        for sign in (-1.0, 1.0):
+            cos_phi = (a * g + sign * b * h) / amp2
+            sin_phi = (b * g - sign * a * h) / amp2
+            pts.append(
+                t + rl * (cos_phi[:, None] * e1 + sin_phi[:, None] * e2)
+            )
+        return np.stack(pts, axis=1)
+
+
+def _triple_candidates(coords, sas, circles, nbr_off, nbr_flat, pair_keys):
+    """Candidates ``(i, j, k)`` with ``i < j < k``, ``(i, j)`` a circle and
+    ``k`` a later neighbour of ``i`` that also pairs with ``j``, kept iff
+    circle ``(i, j)`` crosses sphere ``k`` (``h^2 > 0``). Each triple is
+    intersected once so that all three spheres see identical points.
+    ``circ`` holds the pair ids of ``(i, j)``, ``(i, k)`` and ``(j, k)``.
     """
     n = len(coords)
     i, j = circles.pair[:, 0], circles.pair[:, 1]
@@ -393,8 +448,8 @@ def _triple_vertices(coords, sas, circles, nbr_off, nbr_flat, pair_keys):
     key = j[circ] * n + k
     pos = np.minimum(np.searchsorted(pair_keys, key), len(pair_keys) - 1)
     is_pair = pair_keys[pos] == key
-    circ, k = circ[is_pair], k[is_pair]
-    triples = np.column_stack([i[circ], j[circ], k])
+    circ, k, pos_jk = circ[is_pair], k[is_pair], pos[is_pair]
+    pos_ik = np.searchsorted(pair_keys, i[circ] * n + k)
 
     t, rl = circles.centre[circ], circles.radius[circ]
     e1, e2 = circles.e1[circ], circles.e2[circ]
@@ -402,18 +457,45 @@ def _triple_vertices(coords, sas, circles, nbr_off, nbr_flat, pair_keys):
     g = (sas[k] ** 2 - np.einsum("ij,ij->i", w, w) - rl * rl) / (2.0 * rl)
     a = np.einsum("ij,ij->i", w, e1)
     b = np.einsum("ij,ij->i", w, e2)
-    amp2 = a * a + b * b
-    hsq = amp2 - g * g
+    hsq = a * a + b * b - g * g
     ok = hsq > 0.0
-    triples, t, rl, e1, e2 = triples[ok], t[ok], rl[ok], e1[ok], e2[ok]
-    g, a, b, amp2, h = g[ok], a[ok], b[ok], amp2[ok], np.sqrt(hsq[ok])
-    pts = []
-    for sign in (-1.0, 1.0):
-        cos_phi = (a * g + sign * b * h) / amp2
-        sin_phi = (b * g - sign * a * h) / amp2
-        radial = cos_phi[:, None] * e1 + sin_phi[:, None] * e2
-        pts.append(t + rl[:, None] * radial)
-    return triples, np.stack(pts, axis=1)
+    return _TripleCandidates(
+        np.column_stack([i[circ], j[circ], k])[ok],
+        np.column_stack([circ, pos_ik, pos_jk])[ok],
+        t[ok],
+        rl[ok],
+        e1[ok],
+        e2[ok],
+        g[ok],
+        a[ok],
+        b[ok],
+        np.sqrt(hsq[ok]),
+    )
+
+
+def _triple_slots(circ, row_of, slot_of_row) -> np.ndarray:
+    """Cap slots ``(t, 3, 2)`` of each triple's two caps on each of its
+    three spheres, ``-1`` where the sphere has no such cap."""
+    cij, cik, cjk = circ[:, 0], circ[:, 1], circ[:, 2]
+    rows = np.stack(
+        [
+            np.column_stack([row_of[2 * cij], row_of[2 * cik]]),
+            np.column_stack([row_of[2 * cij + 1], row_of[2 * cjk]]),
+            np.column_stack([row_of[2 * cik + 1], row_of[2 * cjk + 1]]),
+        ],
+        axis=1,
+    )
+    return np.append(slot_of_row, -1)[rows]
+
+
+def _sphere_edges(triples, slots, solved, n_solve):
+    """Crossing cap pairs of every solved sphere as ``(offsets, edges)``,
+    one edge per (kept triple, solved sphere of it)."""
+    sphere = triples[solved]
+    edges = slots[solved]
+    order = np.argsort(sphere, kind="stable")
+    offsets = np.searchsorted(sphere[order], np.arange(n_solve + 1))
+    return offsets, edges[order]
 
 
 def _circles(coords, sas, pairs, d) -> Circles:

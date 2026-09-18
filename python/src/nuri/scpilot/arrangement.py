@@ -142,51 +142,73 @@ def prepare_caps(caps: Caps, radius: float) -> tuple[Caps, bool]:
     caps = caps.take(np.flatnonzero(caps.sin_a > 0.0))
     if len(caps) == 0:
         return caps, False
-    caps = _merge_coincident(caps, radius)
+    caps, _ = _merge_coincident(caps, radius)
+    hidden, covered, _ = classify_caps(caps)
+    return caps.take(np.flatnonzero(~hidden)), covered
+
+
+def classify_caps(
+    caps: Caps, crossing: np.ndarray | None = None
+) -> tuple[np.ndarray, bool, np.ndarray]:
+    """``(hidden, covered, crossing)`` of a sphere's caps.
+
+    A cap nested inside a larger one is hidden. ``crossing`` may be given
+    (see :func:`pair_predicates`); it is returned as used.
+    """
     m = len(caps)
     if m < 2:
-        return caps, False
-    nested, covering, _ = pair_predicates(caps)
-    if covering.any():
-        return caps, True
+        return np.zeros(m, dtype=bool), False, np.zeros((m, m), dtype=bool)
+    nested, covering, crossing = pair_predicates(caps, crossing)
     c = caps.cos_a
     smaller = (c[:, None] > c[None, :]) | (
         (c[:, None] == c[None, :]) & (np.arange(m)[:, None] > np.arange(m))
     )
     hidden = np.any(nested & smaller, axis=1)
-    return caps.take(np.flatnonzero(~hidden)), False
+    return hidden, bool(covering.any()), crossing
 
 
-def pair_predicates(caps: Caps) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Classify every cap pair from trig values: ``(nested, covering,
-    crossing)`` boolean matrices with a false diagonal.
+def pair_predicates(
+    caps: Caps, crossing: np.ndarray | None = None
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Classify every cap pair: ``(nested, covering, crossing)`` boolean
+    matrices with a false diagonal.
 
     With ``g = n_j . n_k`` and ``c, s`` the cosines and sines: nested iff
     ``g >= c_j c_k + s_j s_k`` (``gamma <= |a_j - a_k|``); apart iff
     ``g <= c_j c_k - s_j s_k`` (``gamma >= a_j + a_k`` or
     ``gamma >= 2 pi - a_j - a_k``), which is a cover of the whole sphere when
-    ``c_j + c_k < 0`` and disjoint otherwise; crossing in between. One set
-    of comparisons drives hiding, the early covered exit, the crossing
-    graph and the arc tests.
+    ``c_j + c_k < 0`` and disjoint otherwise; crossing in between.
+
+    When the crossing decision was already made elsewhere (SAS spheres
+    decide it once per sphere triple), it is passed in and the remaining
+    pairs are split into nested and apart by ``g > c_j c_k``, which lies
+    ``s_j s_k`` away from either boundary and so never disagrees with a
+    crossing decision made by any other route.
     """
     cosg = caps.axis @ caps.axis.T
     c, s = caps.cos_a, caps.sin_a
-    cc, ss = c[:, None] * c[None, :], s[:, None] * s[None, :]
-    nested = cosg >= cc + ss
-    apart = cosg <= cc - ss
+    cc = c[:, None] * c[None, :]
+    if crossing is None:
+        ss = s[:, None] * s[None, :]
+        nested = cosg >= cc + ss
+        apart = cosg <= cc - ss
+        crossing = ~nested & ~apart
+    else:
+        nested = (cosg > cc) & ~crossing
+        apart = ~nested & ~crossing
     covering = apart & (c[:, None] + c[None, :] < 0.0)
-    crossing = ~nested & ~apart
     for x in (nested, covering, crossing):
         np.fill_diagonal(x, False)
     return nested, covering, crossing
 
 
-def _merge_coincident(caps: Caps, radius: float) -> Caps:
+def _merge_coincident(caps: Caps, radius: float) -> tuple[Caps, np.ndarray]:
+    """Merged caps and the merged index of every input cap."""
     vec = radius * np.column_stack([caps.axis, caps.cos_a, caps.sin_a])
     label = cluster_points(vec, TAU_C)
-    k = int(label.max()) + 1
+    k = len(np.unique(label))
     if k == len(caps):
-        return caps
+        return caps, label
     mean = np.zeros((k, 5))
     np.add.at(mean, label, vec)
     axis = mean[:, :3] / np.linalg.norm(mean[:, :3], axis=1, keepdims=True)
@@ -194,7 +216,7 @@ def _merge_coincident(caps: Caps, radius: float) -> Caps:
     tag = np.full(k, -1, dtype=int)
     first = np.unique(label, return_index=True)[1]
     tag[label[first]] = caps.tag[first]
-    return Caps(axis, trig[:, 0], trig[:, 1], tag)
+    return Caps(axis, trig[:, 0], trig[:, 1], tag), label
 
 
 def crossing_points(caps: Caps) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -290,24 +312,22 @@ def solve(
     reps: np.ndarray,
     accessible: np.ndarray,
     n_components: int,
-    crossing: np.ndarray | None = None,
     frames: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> Arrangement:
     """Solve an arrangement of prepared ``caps``.
 
     ``pair`` names the two caps generating each raw crossing point and
     ``label`` its cluster; ``reps`` (unit directions) and ``accessible``
-    are per cluster. ``crossing`` (m, m) defaults to the pairs present in
-    ``pair``; ``n_components`` counts its connected components. ``frames``
-    ``(e1, e2)`` per cap default to :func:`circle_frames`.
+    are per cluster. The crossing pairs are exactly those in ``pair``;
+    ``n_components`` counts the connected components of that graph.
+    ``frames`` ``(e1, e2)`` per cap default to :func:`circle_frames`.
     """
     m = len(caps)
     e1, e2 = circle_frames(caps.axis) if frames is None else frames
     n_clusters = len(reps)
-    if crossing is None:
-        crossing = np.zeros((m, m), dtype=bool)
-        crossing[pair[:, 0], pair[:, 1]] = True
-        crossing[pair[:, 1], pair[:, 0]] = True
+    crossing = np.zeros((m, m), dtype=bool)
+    crossing[pair[:, 0], pair[:, 1]] = True
+    crossing[pair[:, 1], pair[:, 0]] = True
 
     excused = _excused(n_clusters, m, label, pair)
     excused[~accessible] = False
