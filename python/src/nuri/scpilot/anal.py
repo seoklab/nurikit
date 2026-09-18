@@ -273,13 +273,13 @@ class SasGeometry:
         probe_map[probe_ids] = np.arange(len(probe_ids))
         probe_offsets, probe_atoms = _probe_atoms(n, atoms_key, probe_ids)
 
-        arrangements: list[Arrangement] = []
+        arrangements: list[Arrangement] = [
+            covered_arrangement(sas[i], caps_of[i]) for i in range(n_solve)
+        ]
         arc_parts = []
         n_active_arcs = 0
-        for i, caps in enumerate(caps_of):
-            if covered[i]:
-                arrangements.append(covered_arrangement(sas[i], caps))
-                continue
+        for i in np.flatnonzero(~covered):
+            caps = caps_of[i]
             rows = slice(sph_off[i], sph_off[i + 1])
             local, inv = np.unique(cluster[rows], return_inverse=True)
             local_reps = reps[local] - coords[i]
@@ -299,7 +299,7 @@ class SasGeometry:
                 int(n_components[i]),
                 (circles.e1[circ], sign[:, None] * circles.e2[circ]),
             )
-            arrangements.append(arr)
+            arrangements[i] = arr
             arc_parts.append(_torus_arcs(arr, probe_map[local]))
             n_active_arcs += len(arc_parts[-1]) * (i < n_active)
 

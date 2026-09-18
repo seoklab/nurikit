@@ -356,7 +356,7 @@ def _build_arcs(caps, e1, e2, reps, vtx, cap, crossing) -> Arcs:
     nxt = np.arange(k) + 1
     nxt[np.flatnonzero(np.roll(first, -1))] = np.flatnonzero(first)
     span = phi[nxt] - phi
-    span[span <= 0.0] += 2.0 * math.pi
+    span += 2.0 * math.pi * (span <= 0.0)
 
     empty = np.flatnonzero(np.bincount(cap, minlength=m) == 0)
     cap_ix = np.concatenate([cap, empty])
@@ -408,7 +408,7 @@ def _walk(caps, reps, arcs):
             )
         ins = np.flatnonzero(kind == 1)
         iota = angle[ins] - angle[prev[ins]]
-        iota[iota < 0.0] += 2.0 * math.pi
+        iota += 2.0 * math.pi * (iota < 0.0)
         succ[arc[ins]] = arc[prev[ins]]
         turn[arc[ins]] = math.pi - iota
 
@@ -432,10 +432,9 @@ def _sorted_darts(caps, reps, arcs, idx):
     arc = np.concatenate([idx, idx])
     cap = arcs.cap[arc]
     u = reps[vertex]
-    t = np.cross(caps.axis[cap], u)
-    t[kind == 0] *= -1.0
-    cot = caps.cos_a[cap] / caps.sin_a[cap]
-    kappa = np.where(kind == 1, cot, -cot)
+    side = 2 * kind - 1
+    t = np.cross(caps.axis[cap], u) * side[:, None]
+    kappa = (caps.cos_a / caps.sin_a)[cap] * side
     ea = any_perpendicular(reps)[vertex]
     eb = np.cross(u, ea)
     angle = np.arctan2(

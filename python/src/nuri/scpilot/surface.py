@@ -118,23 +118,19 @@ def _lattice_count(area: float, density: float) -> int:
 def _convex(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
     sas = ses.sas
     lattices: dict[int, np.ndarray] = {}
-    for i in range(sas.n_active):
+    for i in np.flatnonzero(ses.convex_area > 0.0):
         area = ses.convex_area[i]
-        if area <= 0.0:
-            continue
         r = sas.radii[i]
         count = _lattice_count(4.0 * math.pi * r * r, density)
         if count not in lattices:
             lattices[count] = fibonacci_sphere(count)
         dirs = lattices[count]
         dirs = dirs[~sas.arrangements[i].contains(dirs)]
-        if len(dirs) == 0:
-            out.dropped += area
-            continue
+        out.dropped += area * (len(dirs) == 0)
         out.add(
             sas.coords[i] + r * dirs,
             dirs,
-            area / len(dirs),
+            area / max(len(dirs), 1),
             i,
             Patch.CONVEX,
         )
@@ -193,7 +189,7 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
     )
     row, beta, area, k_phi = row[keep], beta[keep], area[keep], k_phi[keep]
     covered = np.bincount(row, area, minlength=len(arc))
-    area *= (total / np.where(covered > 0.0, covered, 1.0))[row]
+    area *= total[row] / covered[row]
 
     cos_b, sin_b = np.cos(beta), np.sin(beta)
     cr = c[row]
