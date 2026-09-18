@@ -7,6 +7,7 @@ import math
 
 import numpy as np
 import pytest
+from scipy.spatial.transform import Rotation
 
 from nuri.scpilot.anal import (
     SasGeometry,
@@ -146,6 +147,32 @@ def test_exact_coincidence_merges_probes():
     np.testing.assert_allclose(
         analytic_areas(coincident_case(0.0), [R] * 4, RP), limit, rtol=1e-3
     )
+
+
+def test_internally_tangent_caps_under_rotation():
+    """Two caps of one sphere touching from inside: whether rounding calls
+    the pair crossing (a pinch vertex) or nested (hidden), the area is that
+    of the outer cap's complement; nothing may survive as a full circle."""
+    r0, a_out, a_in = 3.0, 1.0, 0.4
+    d_out, d_in = 2 * r0 * math.cos(a_out), 2 * r0 * math.cos(a_in)
+    g = a_out - a_in
+    base = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, d_out],
+            [d_in * math.sin(g), 0.0, d_in * math.cos(g)],
+        ]
+    )
+    radii = np.full(3, r0 - RP)
+    exact = 2 * math.pi * r0 * r0 * (1 + math.cos(a_out))
+    rng = np.random.default_rng(1)
+    for _ in range(100):
+        coords = Rotation.random(random_state=rng).apply(base)
+        coords += rng.uniform(-5.0, 5.0, size=3)
+        sas, _ = SasGeometry.from_atoms(coords, radii, RP)
+        assert sas.sas_area[0] == pytest.approx(exact, abs=1e-9)
+        assert len(sas.arrangements[0].arcs) == 1
+        assert len(sas.probes) <= 1
 
 
 def test_exact_tangency_has_no_phantom():
