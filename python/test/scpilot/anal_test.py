@@ -175,6 +175,24 @@ def test_internally_tangent_caps_under_rotation():
         assert len(sas.probes) <= 1
 
 
+def test_cap_hidden_elsewhere_keeps_crossing():
+    """Ball k lies inside the union of balls j and l, so cap (j, k) is
+    hidden on sphere j and the triple (i, j, k) has no vertex. Its caps
+    still cross on sphere i, where cap (i, k) has only inaccessible
+    vertices; the crossing must be kept so that the cap is not mistaken
+    for an accessible full circle."""
+    rp = 1.0
+    coords = np.array(
+        [[3.5, 0.0, 2.25], [0.0, 0.0, 0.0], [0.0, 0.0, 2.0], [0.1, 0.0, 3.2]]
+    )
+    radii = np.array([2.0, 3.0, 2.0, 2.4]) - rp
+    sas, _ = SasGeometry.from_atoms(coords, radii, rp)
+    without_k, _ = SasGeometry.from_atoms(
+        coords[[0, 1, 3]], radii[[0, 1, 3]], rp
+    )
+    assert sas.sas_area[0] == pytest.approx(without_k.sas_area[0], abs=1e-9)
+
+
 def test_exact_tangency_has_no_phantom():
     with_tangent = analytic_areas(tangent_case(0.0), [R] * 4, RP)
     without = analytic_areas(tangent_case(1e-1), [R] * 4, RP)

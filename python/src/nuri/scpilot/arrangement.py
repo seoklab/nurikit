@@ -256,7 +256,8 @@ def crossing_points(
     predicate calls crossing but rounding puts at tangency yields two
     coincident points, which clustering merges into a pinch.
 
-    Returns ``(dirs (v, 3), pair (v, 2))``.
+    Returns ``(dirs (2e, 3), edges (e, 2))``: the two points of edge ``k``
+    are rows ``k`` and ``e + k``.
     """
     jj, kk = np.nonzero(np.triu(crossing, 1))
     n1, n2 = caps.axis[jj], caps.axis[kk]
@@ -270,8 +271,7 @@ def crossing_points(
     perp /= np.linalg.norm(perp, axis=1, keepdims=True)
     h = np.sqrt(hsq)[:, None]
     dirs = np.concatenate([base + h * perp, base - h * perp])
-    pair = np.column_stack([jj, kk])
-    return dirs, np.concatenate([pair, pair])
+    return dirs, np.column_stack([jj, kk])
 
 
 def cap_components(crossing: np.ndarray) -> int:
@@ -294,17 +294,16 @@ def solve_caps(radius: float, caps: Caps) -> Arrangement:
     caps, covered, crossing = prepare_caps(caps, radius)
     if covered:
         return covered_arrangement(radius, caps)
-    dirs, pair = crossing_points(caps, crossing)
+    dirs, edges = crossing_points(caps, crossing)
     label = cluster_points(dirs * radius, TAU_C)
     n_clusters = int(label.max()) + 1 if len(label) else 0
     reps = np.zeros((n_clusters, 3))
     np.add.at(reps, label, dirs)
     reps /= np.linalg.norm(reps, axis=1, keepdims=True)
     excused = np.zeros((n_clusters, len(caps)), dtype=bool)
-    excused[label[:, None], pair] = True
+    excused[label[:, None], np.concatenate([edges, edges])] = True
     inside = reps @ caps.axis.T > caps.cos_a
     accessible = ~(inside & ~excused).any(axis=1)
-    edges = pair[: len(pair) // 2]
     return solve(
         radius,
         caps,
