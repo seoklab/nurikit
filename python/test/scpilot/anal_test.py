@@ -7,14 +7,18 @@ import math
 
 import numpy as np
 import pytest
+from scipy.spatial import cKDTree
 from scipy.spatial.transform import Rotation
 
 from nuri.scpilot.anal import (
     SasGeometry,
     SesGeometry,
+    _departure_caps,
+    _probe_heights,
     ses_area,
     two_sphere_ses_area,
 )
+from nuri.scpilot.arrangement import Caps, solve_caps
 from nuri.scpilot.io import load_structure
 from nuri.scpilot.surface import Patch, ses_dots
 
@@ -206,6 +210,64 @@ def test_protein_fragment_vs_sampled(test_data, last_residue):
     analytic = analytic_areas(st.coords, st.vdw_radii, 1.7)
     assert_dots_match(
         st.coords, st.vdw_radii, 1.7, analytic, density=100, rtol=1e-2
+    )
+
+
+def brute_force_face_areas(sas):
+    """Every active face solved against every other probe within 2rp."""
+    probes, rp = sas.probes, sas.rp
+    dep_off, dep_t = _departure_caps(sas)
+    tree = cKDTree(probes)
+    areas = []
+    for q in range(sas.n_active_probes):
+        ys = np.array(tree.query_ball_point(probes[q], 2.0 * rp), dtype=int)
+        diff = probes[ys] - probes[q]
+        dist = np.linalg.norm(diff, axis=1)
+        close = (dist > 0.0) & (dist < 2.0 * rp)
+        cos_a = dist[close] / (2.0 * rp)
+        tangents = dep_t[dep_off[q] : dep_off[q + 1]]
+        caps = Caps.concat(
+            [
+                Caps(
+                    tangents, np.zeros(len(tangents)), np.ones(len(tangents))
+                ),
+                Caps(
+                    diff[close] / dist[close, None],
+                    cos_a,
+                    np.sqrt(1.0 - cos_a * cos_a),
+                ),
+            ]
+        )
+        areas.append(solve_caps(rp, caps).area)
+    return np.array(areas)
+
+
+def dense_cluster():
+    rng = np.random.default_rng(0)
+    return rng.uniform(0.0, 6.0, size=(8, 3)), rng.uniform(1.4, 1.9, size=8)
+
+
+def protein_fragment(test_data):
+    st = load_structure(test_data / "1ar1.pdb").chains("H")
+    st = st.subset(st.residue_seqs <= 40)
+    return st.coords, st.vdw_radii
+
+
+@pytest.mark.parametrize("case", ["cluster", "protein"])
+def test_concave_cutter_filters_match_brute_force(test_data, case):
+    coords, radii = (
+        dense_cluster() if case == "cluster" else protein_fragment(test_data)
+    )
+    sas, _ = SasGeometry.from_atoms(coords, radii, 1.5)
+    ses = SesGeometry.build(sas)
+    low = _probe_heights(sas).low[: sas.n_active_probes]
+    assert 0 < low.sum() < len(low)
+    assert any(len(f.caps) > 3 for f in ses.concave)
+    np.testing.assert_allclose(
+        [f.area for f in ses.concave],
+        brute_force_face_areas(sas),
+        rtol=0.0,
+        atol=1e-9,
     )
 
 
