@@ -1,9 +1,9 @@
 # Algorithms: `arrangement.py`, `anal.py`, `surface.py`
 
-This document explains how the pilot computes the analytic solvent-accessible
-surface (SAS) and solvent-excluded surface (SES) and how it places dots on the
-SES. It is written for the C++ port: every step is stated in terms of exact
-geometric predicates, and the reasons behind the tolerance choices are given.
+How the pilot computes the analytic solvent-accessible surface (SAS) and
+solvent-excluded surface (SES) and places dots on the SES. Written for the C++
+port: every step is stated as an exact geometric predicate, and the reason
+behind each tolerance is given.
 
 Two conventions run through everything. **Filter first**: exceptional input
 (coincident atoms, contained balls, inactive atoms, `rp ≤ 0`) is removed or
@@ -16,108 +16,102 @@ used only where an angle is consumed as an angle.
 
 - Atom `i` has centre `c_i`, van der Waals radius `r_i`, and SAS radius
   `R_i = r_i + rp`, where `rp` is the probe radius.
-- The **SAS** is the boundary of `U = ⋃_i B(c_i, R_i)`. A point of the SAS is
-  an *accessible probe centre*.
-- The **SES** is the boundary of the rp-erosion of `U`, that is of
-  `E = {p : B(p, rp) ⊂ U}`. Equivalently a point `p` is on the SES iff its
-  distance to the SAS is exactly `rp`.
+- `U = ⋃_i B(c_i, R_i)`. The **SAS** is the boundary of `U`; its points are
+  the accessible probe centres. An SAS point `s` *touches* the atoms `a` with
+  `|s − c_a| = R_a`.
+- The **SES** is the boundary of `{p : B(p, rp) ⊂ U}`: the points at distance
+  exactly `rp` from the SAS. A point closer than `rp` to some SAS point `s` is
+  *cut* by `s`.
 - The SES decomposes into three patch families (Connolly 1983):
   - **convex**: the probe touches one atom; the patch is the atom's vdW sphere
     scaled from the accessible part of its SAS sphere;
   - **toroidal (saddle)**: the probe rolls on two atoms; its centre traces an
     arc of the circle where the two SAS spheres meet;
   - **concave**: the probe rests on three (or more) atoms; its centre is a
-    vertex of the SAS and the patch is a region of the probe sphere.
+    **vertex** of the SAS and the patch is a region of the probe sphere.
+- A **cap** on a unit sphere is `{x : n · x > cos α}` for a unit axis `n`,
+  stored as `(n, cos α, sin α)`. The cap that a ball `B(y, rp)` cuts on the
+  probe sphere `S(x, rp)` has axis `(y − x)/|y − x|` and
+  `cos α = |x − y| / 2rp`; it is empty unless `|x − y| < 2rp`, and `α ≤ π/2`.
 
-Every family is derived from **arrangements of spherical caps**: the accessible
+Every patch family is derived from **arrangements of caps**: the accessible
 part of a SAS sphere is the sphere minus the caps cut by neighbouring SAS
-spheres, and the concave face of a probe is the probe sphere minus the caps
-cut by neighbouring probe balls and by the tori it rolls off along.
+spheres, and the concave face of a vertex is the probe sphere minus the caps
+cut by neighbouring vertex probes and by the arcs it rolls off along.
 
 ## 2. `arrangement.py` — caps on one sphere
 
 ### Input and output
 
-A cap is `(axis n, cos α, sin α)`: the set of unit directions `x` with
-`n · x > cos α`. The solver takes a sphere radius `R` and a list of caps and
-returns:
+The solver takes a sphere radius `R` and a list of caps and returns
 
 - `arcs`: for each cap circle the accessible sub-arcs, as `(cap, v_beg, v_end,
   phi_beg, dphi)` in the circle's own frame `(e1, e2, n)`; `v_* = -1` marks a
   full circle;
-- `verts`: cluster representatives (unit directions);
-- `loops`: sequences of arcs traversed with the accessible region on the left
-  (seen from outside the sphere);
-- `n_patches`, `area`.
+- `n_loops`, `n_patches`, `area`.
 
 The frame defaults to `e1 = any_perpendicular(n)`, `e2 = n × e1`; callers
 may supply frames (the SAS passes the circle frames, §3).
 
 ### Step 1 — cap hygiene (`prepare_caps`)
 
-Empty caps (`sin α ≤ 0`) are dropped. Caps whose circles coincide to within
-`TAU_C` — the 5-vectors `R · (n, cos α, sin α)` closer than `TAU_C`, clustered
-exactly like vertices in step 3 — are one circle computed through different
-routes (the departure hemispheres of tangent arcs at a pinch, for instance)
-and are merged into their renormalised mean.
+Caps whose circles coincide to within `TAU_C` — the 5-vectors
+`R · (n, cos α, sin α)` closer than `TAU_C`, clustered exactly like vertices
+in step 3 — are one circle computed through different routes (the departure
+hemispheres of tangent arcs at a pinch, for instance) and are merged into
+their renormalised mean.
 
 Every remaining pair is then classified once, from trig values only
 (`pair_predicates`). With `cos γ = n_j · n_k` and `c, s` the stored cosines
 and sines:
 
 - **nested**: `cos γ ≥ c_j c_k + s_j s_k` (`γ ≤ |α_j − α_k|`): the smaller cap
-  lies inside the larger and is dropped; it adds nothing to the union;
+  lies inside the larger and is dropped;
 - **apart**: `cos γ ≤ c_j c_k − s_j s_k` (`γ ≥ α_j + α_k` or
-  `γ ≥ 2π − α_j − α_k`). With `c_j + c_k < 0` (`α_j + α_k > π`) the two caps
-  **cover** the sphere: the solve ends immediately with area 0 and no
-  patches, and nothing downstream sees this case. Otherwise they are
+  `γ ≥ 2π − α_j − α_k`). With `c_j + c_k < 0` the two caps **cover** the
+  sphere: the solve ends with area 0 and no patches. Otherwise they are
   **disjoint**;
 - **crossing**: everything in between.
 
 On a probe sphere these three comparisons are the only source of the
 classification. On a SAS sphere the crossing decision is made elsewhere, once
-per sphere triple (§3 step 3), and is passed in; the remaining pairs are split
-into nested and apart by `cos γ > c_j c_k`, which lies `s_j s_k` away from
-either boundary and therefore can never contradict a crossing decision reached
-by another route. Hiding is applied before the covered exit (a cap that covers
-the sphere together with a smaller cap covers it together with the larger
-one). Everything downstream sees only caps that can contribute boundary, and
-hiding, the covered exit, the crossing graph of step 7 and the arc test of
-step 5 all read one classification.
+per sphere triple (§3), and is passed in; the remaining pairs are split into
+nested and apart by `cos γ > c_j c_k`, which lies `s_j s_k` away from either
+boundary and therefore never contradicts a crossing decision reached by
+another route. Hiding is applied before the covered exit. Hiding, the covered
+exit, the crossing graph of step 7 and the arc test of step 5 all read this
+one classification.
 
 ### Step 2 — crossing points (`crossing_points`)
 
-For a crossing pair the two circle intersections solve
-`n_1 · x = c_1`, `n_2 · x = c_2`, `|x| = 1`. The point of the intersection
-line nearest the origin is written in the basis `m = n_1 + n_2`,
-`w = n_1 − n_2` (orthogonal, `|m|² = 2(1 + g)`, `|w|² = 2(1 − g)`):
+For a crossing pair the two circle intersections solve `n_1 · x = c_1`,
+`n_2 · x = c_2`, `|x| = 1`. The point of the intersection line nearest the
+origin is written in the basis `m = n_1 + n_2`, `w = n_1 − n_2` (orthogonal,
+`|m|² = 2(1 + g)`, `|w|² = 2(1 − g)`):
 
 ```
 base = (c_1 + c_2)/|m|² · m + (c_1 − c_2)/|w|² · w
 h² = max(1 − |base|², 0),   x± = base ± h (n_1 × n_2)/|n_1 × n_2|
 ```
 
-The textbook form `A n_1 + B n_2` with `A = (c_1 − c_2 g)/(1 − g²)` is the
-same point, but for nearly parallel axes it computes `c_1 − c_2 g` with
-cancellation and divides by `1 − g² ≈ γ²`, so a rounding error `ε` in the
-cosines moves the point by `ε/γ²`; the geometry itself only moves by `ε/γ`
-(two nearly parallel planes at offsets differing by `ε` meet `ε/γ` away),
-which is what the `m, w` form gives. The clamp on `h²` handles a pair the
-predicate calls crossing but rounding puts exactly at tangency: both points
-coincide and step 3 merges them into a pinch.
+The textbook form `A n_1 + B n_2` with `A = (c_1 − c_2 g)/(1 − g²)` amplifies
+a rounding error `ε` in the cosines to `ε/γ²` for nearly parallel axes; the
+geometry itself only moves by `ε/γ`, which is what the `m, w` form gives. The
+clamp on `h²` handles a pair the predicate calls crossing but rounding puts
+exactly at tangency: both points coincide and step 3 merges them into a pinch.
 
 ### Step 3 — vertex clustering (`cluster_points`)
 
 Raw crossing points closer than `TAU_C = 1e-6 Å` are merged into one cluster
-(connected components of the KD-tree pair graph). This handles points that are
-the *same* geometric vertex produced by different cap pairs: k circles through
-one point yield `k(k−1)/2` raw points. The two crossing points of a *single*
-pair are never closer than `2h`, so they merge only when the circles are
-tangent to within the tolerance, which is the intended "pinch" case.
+(connected components of the KD-tree pair graph). This merges points that are
+the *same* geometric vertex produced by different cap pairs: `k` circles
+through one point yield `k(k−1)/2` raw points. The two crossing points of a
+*single* pair are never closer than `2h`, so they merge only when the circles
+are tangent to within the tolerance, which is the intended "pinch" case.
 
 The cluster representative is the renormalised mean. Its incident caps are the
 union of the generating pairs of its members. Callers may supply clustering
-labels computed elsewhere (see §3, global SAS clustering).
+labels computed elsewhere (§3, global SAS clustering).
 
 ### Step 4 — vertex accessibility
 
@@ -129,11 +123,9 @@ cap is noise. No epsilon is needed: a non-incident cap passing through the
 point within noise would have deposited its own crossing points within noise
 of it, so clustering would already have made it incident.
 
-Any larger, "permissive" slack breaks consistency: a vertex inside cap `l` by
-`δ` would be accepted while the arc it starts is rejected by the midpoint test
-of step 5 once its exit point from `l` lies farther than `TAU_C` (tangential
-approach), leaving a vertex with an odd number of darts. A slack of `1e-7 Å`
-produces exactly this failure.
+Any positive slack breaks consistency: a vertex inside cap `l` by `δ` would be
+accepted while the arc it starts is rejected by the midpoint test of step 5,
+leaving a vertex with an odd number of darts.
 
 ### Step 5 — arcs (`_build_arcs`)
 
@@ -142,38 +134,32 @@ Each incidence gets the angle `φ = atan2(x · e2, x · e1)` of its vertex in th
 cap frame; sorting by `(cap, φ)` makes consecutive incidences of a cap the
 candidate arcs (wrapping around by `2π`; a cap with exactly one vertex yields
 one arc from the vertex around to itself with `dphi = 2π`). Caps with no
-vertices contribute one full-circle candidate with `-1` ends. Nothing here
-branches on the case.
+vertices contribute one full-circle candidate with `-1` ends.
 
 A candidate is kept iff its midpoint is outside every cap **that crosses its
-circle** (exact comparison). Caps that do not cross the circle are not
-consulted: a disjoint cap cannot contain any point of the circle, and a cap
-containing the whole circle would have made it nested (step 1). Consulting
-them anyway is not harmless: at an exact tangency the midpoint can sit exactly
-on the tangent cap's boundary, and the comparison is then a rounding coin
-flip that can veto an arc although the crossing decision produced no vertex
-there. The arc test and the crossing decision must be the same decision.
-
-Consistency with step 3: a sliver arc between the two crossing points of a
-near-tangent pair lies inside the other cap by about `h²/2R > 0`, so with exact
-comparisons it is always rejected, as it must be (it bounds the lens inside
-both caps, not the accessible region). Once `2h < TAU_C` the two points merge
-into a pinch instead.
+circle** (exact comparison). A disjoint cap cannot contain any point of the
+circle, and a cap containing the whole circle would have made it nested
+(step 1). Consulting them anyway is harmful: at an exact tangency the midpoint
+can sit exactly on the tangent cap's boundary, and the comparison becomes a
+rounding coin flip that can veto an arc although the crossing decision
+produced no vertex there. The arc test and the crossing decision must be the
+same decision. A sliver arc between the two crossing points of a near-tangent
+pair lies inside the other cap by about `h²/2R > 0` and is always rejected;
+once `2h < TAU_C` the two points merge into a pinch instead.
 
 ### Step 6 — face walking with one dart array (`_walk`)
 
 Arcs are stored with increasing `φ`, which runs counter-clockwise around the
 cap axis with the cap on the left. The accessible region is therefore
-traversed from `v_end` to `v_beg`, i.e. with decreasing `φ`. Each arc is one
-*dart* leaving `v_end` and arriving at `v_beg`.
+traversed from `v_end` to `v_beg`. Each arc is one *dart* leaving `v_end` and
+arriving at `v_beg`.
 
 Every arc with vertices contributes two rows to one dart array: an out-dart at
 `v_end` with departure tangent `t = −(n × u)/|n × u|` and a reversed in-dart at
 `v_beg` with tangent `+(n × u)/|n × u|`, projected into the tangent plane of
 the vertex `u` and measured as an angle in a frame there. Signed geodesic
-curvature is `−cot α` for out-darts (cap on the right, curving right) and
-`+cot α` for reversed in-darts, with `cot α = cos α / sin α` from the stored
-values.
+curvature is `−cot α` for out-darts and `+cot α` for reversed in-darts, with
+`cot α = cos α / sin α` from the stored values.
 
 The array is sorted by `(vertex, angle)`. Within a vertex, darts whose angles
 differ by less than `_TAU_DIR = 1e-9 rad` form a group (tangent circles,
@@ -183,15 +169,14 @@ merged the same way. Every group shares its first angle, and a second sort by
 wedge between grouped darts is exactly zero. In the resulting cyclic order per
 vertex, reversed-in and out darts must strictly alternate; otherwise
 `DegenerateGeometryError` is raised (nothing is merged or dropped silently).
-A vertex with out-darts only fails the same check.
 
 The successor of an in-dart is the previous dart in that order (the first
 out-dart clockwise from its reversed tangent). The interior angle of the
 region at that corner is `ι = angle(rev-in) − angle(out)` taken in `[0, 2π)`
-and the turning angle is `π − ι` (left turn positive; a pinch has `ι = 0`,
-turn `+π`). Successors default to the arc itself, so a full circle is its own
-loop with no special case; loops are then traced by following successors until
-an arc repeats.
+and the turning angle is `π − ι` (a pinch has `ι = 0`, turn `+π`). Successors
+default to the arc itself, so a full circle is its own loop; loops are counted
+as cycles of the successor permutation with the same label-propagation routine
+that clusters vertices.
 
 ### Step 7 — Gauss–Bonnet area
 
@@ -202,9 +187,8 @@ A = R² · [ 2π χ − Σ_vertices turn + Σ_arcs dphi · cos α ]
 ```
 
 The last term is `−∮ κ_g ds` for a small-circle arc traversed with its cap on
-the right (`κ_g = −cot α / R`, `ds = R sin α dφ`); great circles (`cos α = 0`)
-contribute nothing. `χ = 2·n_patches − n_loops`. Sanity check: a single cap
-gives `2πR²(1 + cos α)`.
+the right (`κ_g = −cot α / R`, `ds = R sin α dφ`); great circles contribute
+nothing. `χ = 2·n_patches − n_loops`.
 
 `n_patches` is obtained without grouping loops into patches. The inaccessible
 region is the union of the caps; its connected components are the components
@@ -218,15 +202,11 @@ exactly one cap component. Hence
 n_patches = 1 + n_loops − n_cap_components
 ```
 
-(a pinch visited twice by one walk counts as one loop). With no caps there are
-no loops and no components, and the formula gives one patch of area `4πR²`.
-Three or more caps can cover the sphere with no covering pair; then there are
-no loops and one component, and the formula gives no patch and area 0. Loops
-are counted as cycles of the successor permutation with the same
-label-propagation routine that clusters vertices; their contents are never
-needed.
+(a pinch visited twice by one walk counts as one loop). No caps: no loops, no
+components, one patch of area `4πR²`. Three or more caps covering the sphere
+with no covering pair: no loops, one component, no patch, area 0.
 
-### Tolerances (summary)
+### Tolerances
 
 | symbol | value | role |
 |---|---|---|
@@ -241,8 +221,8 @@ the smallest gap that must remain a gap; the test suite passes for any value in
 `TAU_C` also bounds the circle radius from below: at the overlap threshold
 `d = R_i + R_j − TAU_C` the circle has `rl ≈ √(TAU_C · 2 R_i R_j / d) ≈
 1.8e-3 Å` and `R_i² − a² ≈ 3e-6`, far above rounding, so the `max(·, 0)` under
-that square root is a NaN guard the margin makes unreachable, not a case the
-kernels can survive (see NOTES.md, C++ port: a `DCHECK`).
+that square root is a NaN guard the margin makes unreachable (a `DCHECK` in
+C++), not a case the kernels can survive.
 
 ## 3. `anal.py` — SAS and SES from arrangements
 
@@ -268,21 +248,16 @@ kernels can survive (see NOTES.md, C++ port: a `DCHECK`).
    everywhere else. Dot owners are mapped back through the permutation at the
    very end.
 4. **What the mask makes exact.** Every atom occludes, so the caps of a solved
-   sphere are complete and convex patches of active atoms are exact. A torus
-   arc is emitted for circles whose smaller atom is active; that sphere is
-   solved, and its vertices come from triples whose smallest atom overlaps an
-   active atom and is therefore solved too, so toroidal patches are exact. A
-   concave face of a probe on active atom `a` is cut by competing probes
-   within `2rp`; a competing probe hosted by atom `d` needs
-   `|c_a − c_d| < R_a + R_d + 2rp`, so `d` may lie up to `2rp` beyond the
-   overlap shell and outside `need`, in which case its probe is never
-   enumerated and the cut is missing. This requires a crevice with probes on
-   opposing walls. On the eleven oracle interfaces it does not occur: of
-   495k dots produced under the mask, none lies inside any probe ball of the
-   full-molecule SES (which has 25.6k vertex probes to the masked runs'
-   11.8k). Should a structure ever need it, the remedy is a fourth atom class
-   of probe hosts within `R_a + R_d + 2rp` of an active atom whose triples
-   are enumerated and clustered without solving their arrangements.
+   sphere are complete and convex patches of active atoms are exact. Torus
+   arcs come from solved spheres whose vertices come from solved triples, so
+   toroidal patches are exact. A concave face on active atom `a` may be cut
+   by a probe hosted by an atom `d` with `|c_a − c_d| < R_a + R_d + 2rp`,
+   which can lie up to `2rp` beyond the overlap shell and outside `need`;
+   that probe is then never enumerated and the cut is missing. This needs a
+   crevice with probes on opposing walls and has not been observed on the
+   oracle interfaces; the remedy would be a fourth atom class of probe hosts
+   whose triples are enumerated and clustered without solving their
+   arrangements.
 
 ### SAS (`SasGeometry.build`)
 
@@ -299,7 +274,7 @@ kernels can survive (see NOTES.md, C++ port: a `DCHECK`).
    a sphere's caps are a slice, tagged `2·circle + side` (side 0 on the
    circle's first sphere), so the circle, the axis sign and the other atom
    are tag arithmetic wherever they are needed. No cap geometry is
-   recomputed, and the smaller sphere's arc `φ` *is* the circle's `φ`.
+   recomputed, and the first sphere's arc `φ` *is* the circle's `φ`.
 3. **Triple vertices, computed once** (`_triple_candidates`). Candidates are
    `(i < j < k)` with `(i, j)` a circle and `k` a later neighbour of `i` that
    also pairs with `j` (all vectorised over the neighbour lists). The circle
@@ -316,44 +291,35 @@ kernels can survive (see NOTES.md, C++ port: a `DCHECK`).
    inverse trig. This is the **only** crossing decision on SAS spheres: a
    candidate with `h² > 0` whose two caps are present and distinct (after
    coincident-cap merging) on every solved sphere of the triple is a crossing
-   pair on each of them. Those pairs form each sphere's crossing graph, which
-   step 1 of §2 takes as given to split the other pairs into nested and apart
-   and to hide nested caps. A triple one of whose caps is hidden on some
-   sphere has no vertex (its points lie inside the hiding ball) but keeps its
-   crossing edges on the spheres where both caps survive: dropping the edge
-   there would let a cap whose remaining vertices are all inaccessible pass
-   as a full circle tested against too few caps. Only then are the points
-   computed, once per surviving triple, and handed to every sphere of it.
-   Deciding `h² > 0` independently per sphere produced a vertex on one sphere
-   and none on another at exact tangency, and hence a phantom concave face;
-   deciding crossing by the trig comparisons of §2 while producing vertices
-   from `h²` lost exactly one cap's area whenever rounding put an internally
-   tangent pair on different sides of the two tests.
+   pair on each of them, and those pairs form the crossing graphs that step 1
+   of §2 takes as given. A triple one of whose caps is hidden on some sphere
+   has no vertex but keeps its crossing edges where both caps survive:
+   dropping the edge would let a cap whose remaining vertices are all
+   inaccessible pass as a full circle tested against too few caps. The points
+   are computed once per surviving triple and handed to all three spheres.
 4. **Global clustering.** All raw points are clustered at `TAU_C`. A cluster's
    atoms are the union of its triples; k-fold coincidences give probes with
    four or more atoms. Clusters are relabelled by their smallest atom, the
    owner.
 5. **Accessibility on the owner sphere.** Each cluster is decided once, on the
    sphere of its smallest atom, with the test of §2 step 4 against that
-   sphere's caps, excusing the caps of the triples that generated it: the
-   same incidence the per-sphere solve uses for its arcs, so a vertex is
-   never accepted for a cap that then gets no dart. Every ball that can
-   contain a point of the sphere overlaps it and so is one of its caps (or
-   nested inside one), so this equals the test against all SAS balls; a
-   single decision per cluster keeps every sphere sharing the cluster
-   consistent. All clusters are decided in one vectorised pass, covered
-   owner spheres included (two covering caps touching at one point host a
-   legitimate probe). Accessible clusters are the **probes**.
+   sphere's caps, excusing the caps of the triples that generated it (the
+   same incidence the per-sphere solve uses for its arcs). Every ball that
+   can contain a point of the sphere is one of its caps or nested inside one,
+   so this equals the test against all SAS balls. Covered owner spheres are
+   included (two covering caps touching at one point host a legitimate
+   probe). Accessible clusters are the **probes**.
 6. **Per-sphere solve.** Each non-covered sphere receives its crossing edges,
    the (cluster, cap) incidence of its kept triples, the projected
    representatives, the accessibility flags and its frames, and runs steps
    5–7 of §2; a covered sphere gets an empty arrangement. The cap components
    of all spheres come from one label-propagation pass over a block-diagonal
    graph.
-7. **Torus arcs.** The arcs of a sphere on circles it is the smaller sphere of
+7. **Torus arcs.** The arcs of a sphere on circles it is the first sphere of
    (tag side bit 0) are the torus arcs as they stand (same frame, same `φ`);
-   the larger sphere reports nothing. Vertex ids are mapped to probe ids through a map with a
-   `-1` appended, so full-circle ends (`-1`) read back `-1` without a branch.
+   the second sphere reports nothing. Vertex ids are mapped to probe ids
+   through a map with a `-1` appended, so full-circle ends (`-1`) read back
+   `-1` without a branch.
 
 ### SES (`SesGeometry.build`)
 
@@ -372,7 +338,8 @@ kernels can survive (see NOTES.md, C++ port: a `DCHECK`).
   |p − q(φ + Δφ)|² = rp² + 2 ρ rl (1 − cos Δφ),
   ```
 
-  which is below `rp²` for all `Δφ ≠ 0` exactly when `ρ < 0`. With `β0 = 0`
+  which is below `rp²` for all `Δφ ≠ 0` exactly when `ρ < 0`. Nothing else
+  cuts a saddle (Lemma 1(b) below), so this cut is complete. With `β0 = 0`
   for `rl ≥ rp`, the two ranges
 
   ```
@@ -391,19 +358,15 @@ kernels can survive (see NOTES.md, C++ port: a `DCHECK`).
 
   Endpoints are selected together with their sines (`sin θ_i = a/R_i`,
   `sin θ_j = (d − a)/R_j`, `sin β0 = √(rp² − rl²)/rp`; all `β` lie in
-  `(−π/2, π/2)`), so no sine of a selected angle is evaluated, and the
-  bracketed integral of each range is stored once per circle; the arc areas
-  and the sampler's row totals are both gathers of it.
-
+  `(−π/2, π/2)`), and the bracketed integral of each range is stored once per
+  circle; the arc areas and the sampler's row totals are both gathers of it.
   The range is never empty once contained balls are gone: `θ_i + θ_j` is the
-  angle at the probe in the triangle `(c_i, q, c_j)`, positive for any
-  overlapping, non-contained pair.
+  angle at the probe in the triangle `(c_i, q, c_j)`.
 - **Concave face** of probe `q` (only probes whose smallest atom is active).
   Caps on the probe sphere:
-  1. one cap for every other probe `q'` strictly within `2rp` (a tangent probe
-     cuts nothing): axis `(q' − q)/|q' − q|`, `cos α = |q' − q| / 2rp`,
-     `sin α = √(1 − cos² α)`; every probe pair is measured once and read from
-     both sides with opposite axes;
+  1. one cap for every other vertex probe `q'` strictly within `2rp` (a
+     tangent probe cuts nothing), as defined in §1; every probe pair is
+     measured once and read from both sides with opposite axes;
   2. one **hemisphere per accessible arc leaving `q`**, axis = the arc's
      departure tangent `±(u × radial)` at `q` (`+` when the arc leaves toward
      increasing `φ`). Rolling along that arc, the probe sweeps the half of its
@@ -414,83 +377,182 @@ kernels can survive (see NOTES.md, C++ port: a `DCHECK`).
   For an ordinary three-atom vertex, rule 2 gives exactly the three side planes
   of the contact triangle (the departure tangent of circle `(a, b)` is normal
   to the plane through `q`, `c_a`, `c_b`). The same rule handles merged k-fold
-  vertices (one hemisphere per surviving arc, possibly more or fewer than
-  three), a vertex that is the only vertex on a circle (two opposite
-  hemispheres, zero face), and nearly coplanar contacts (zero face).
-
-  Rolling probes on the arcs themselves need no extra cut. Every such cap is
-  bounded by the bisector plane of `q` and `q(δ)`, and all these planes contain
-  the torus axis; over an arc they form a pencil whose union is the union of
-  its two extremes, the departure hemisphere and the cap of the arc's end
-  vertex, which is already in the within-`2rp` list.
-
-  The face arrangement is solved locally with `solve_caps` for the faces and
-  caps that survive the filters below; its area is the concave area.
+  vertices (one hemisphere per surviving arc), a vertex that is the only
+  vertex on a circle (two opposite hemispheres, zero face), and nearly
+  coplanar contacts (zero face). These two kinds of caps are all that is
+  needed: whatever SAS point cuts a face point, some vertex probe within `2rp`
+  cuts it too (Lemma 3). The face arrangement is solved with `solve_caps` for
+  the faces and caps that survive the filters below.
 
 ### Which probes can cut a face
 
-Notation for a probe `x` on atoms `a` with contact directions
-`ĉ_a = (c_a − x)/R_a`: the **face cone** is `C = {Σ λ_a ĉ_a : λ_a ≥ 0}` (for
+Notation for a vertex `x` on atoms `a` with contact directions
+`ĉ_a = (c_a − x)/R_a`: the **face cone** is `C_x = {Σ λ_a ĉ_a : λ_a ≥ 0}` (for
 an ordinary three-atom vertex, the complement of the three departure
-hemispheres), the **contact triangle** is `T = conv{c_a}`, and `t(d)` is the
-distance from `x` along the ray `d ∈ C` to `T`. Lemmas 1, 3 and 4 are
-stated for three-atom probes; merged k-fold probes take the unfiltered path.
-The face is cut by `y` where it enters the open ball `B°(y, rp)`.
+hemispheres), the **contact triangle** is `T_x = conv{c_a}`, and `t_x(d)` is
+the distance from `x` along the ray `d ∈ C_x` to `T_x`. The face is cut by a
+probe `y` where it enters the open ball `B°(y, rp)`. Merged k-fold probes take
+the unfiltered path; the filters are for three-atom probes.
 
-**Lemma 1 (cuts lie beyond the contact plane).** Let `y = x + v` be any
-point outside the interior of `U` — every accessible probe centre, rolling
-or resting, and every other SAS point. Then no face point `x + rp d` with
-`t(d) ≥ rp` lies in `B°(y, rp)`.
+**Lemma 1 (contact hull).** Points that lie between an SAS point and the atoms
+it touches are closer to that SAS point than to any other point outside `U`.
+Precisely: let `s` be an SAS point touching atoms `A(s)`, `v` any point not
+inside `U` (every SAS point qualifies), `q` any point of the convex hull of
+`{c_a : a ∈ A(s)}`, and `p = (1 − τ) s + τ q` with `0 ≤ τ ≤ 1`. Then
+`|p − v| ≥ |p − s|`, strictly for `τ < 1`.
 
-*Proof.* `y ∉ B°(c_a, R_a)` gives `|x + v − c_a|² ≥ R_a²`, i.e.
-`v·ĉ_a ≤ |v|²/2R_a`. Write `d = Σ λ_a ĉ_a`; the ray meets the triangle at
-`t(d) d = Σ μ_a (c_a − x)` with `Σ μ_a = 1`, so `λ_a = μ_a R_a / t(d)` and
-`Σ λ_a / R_a = 1/t(d)`. Hence `v·d = Σ λ_a v·ĉ_a ≤ |v|²/2t(d)` and
+*Proof.* `v` is outside the SAS ball of `a` and `s` is on it, so
+`|v − c_a| ≥ |s − c_a|`, which expands to `(c_a − s)·(v − s) ≤ |v − s|²/2`.
+Averaging over the weights of `q` gives the same bound for `(q − s)·(v − s)`,
+and then `|p − v|² − |p − s|² = |v − s|² − 2τ (q − s)·(v − s) ≥ (1 − τ)
+|v − s|²`. ∎
 
-```
-|v − rp d|² = |v|² − 2 rp v·d + rp² ≥ |v|² (1 − rp/t(d)) + rp² ≥ rp².  ∎
-```
+Three consequences:
 
-**Corollary 1 (uncuttable faces).** `min_{d∈C} t(d) = dist(x, T)`, which is
-the plane distance `h` when the foot of the perpendicular lies inside `T`
-and larger otherwise. A probe with `dist(x, T) ≥ rp` — equivalently, whose
-own ball does not reach its contact triangle — is **high**: nothing cuts its
-face, which is the spherical triangle `{d : d·t_m ≤ 0}` bounded by the three
-departure great circles. Its area is `rp²` times the spherical excess,
+- **(a) Cuts lie beyond the contact plane.** Take `s = x`, `q` the point where
+  the ray `d` meets `T_x`, `τ = rp / t_x(d)`: a face point `x + rp d` with
+  `t_x(d) ≥ rp` is cut by nothing. Since `t_x(d) · (d·n) = h`, where `n` is the
+  unit normal of the contact plane pointing from `x` toward it and `h` the
+  distance to the plane, the cut part of the face lies inside the
+  **beyond-plane cap** `D_x = {d : d·n > cos β}`, `cos β = h/rp`. The bound is
+  attained: `D_x` is exactly the cap cut by the mirror vertex `x + 2h n`, the
+  second point where the three SAS spheres meet.
+- **(b) Saddles are cut only in the spindle.** For a probe centre on the
+  circle of atoms `i, j`, the generating directions are the cone of
+  `ĉ_i, ĉ_j`, and the ray at angle `β` from the inward radial direction meets
+  the segment `[c_i, c_j]`, which lies on the torus axis, at distance
+  `rl / cos β`. So a saddle point with `rl ≥ rp cos β`, i.e. `ρ(β) ≥ 0`, is
+  cut by nothing, and the spindle cut of the saddle ranges above is the whole
+  cut.
+- **(c) High and low vertices.** `min_{d∈C_x} t_x(d) = dist(x, T_x)`: the
+  plane distance `h` when the foot of the perpendicular lies inside `T_x`,
+  the distance to the nearest edge otherwise. A vertex with
+  `dist(x, T_x) ≥ rp` — its own ball does not reach its contact triangle —
+  is **high**: nothing cuts its face, which is the spherical triangle
+  `{d : d·t_m ≤ 0}` bounded by the three departure great circles, with area
+  `rp²` times the spherical excess,
 
-```
-A = rp² (Σ_m interior angle_m − π) = rp² (2π − Σ_m ∠(t_m, t_{m+1})),
-```
+  ```
+  A = rp² (2π − Σ_m ∠(t_m, t_{m+1})),   ∠(t_m, t_{m+1}) = atan2(|t_m × t_{m+1}|, t_m · t_{m+1}).
+  ```
 
-with `∠(t_m, t_{m+1}) = atan2(|t_m × t_{m+1}|, t_m · t_{m+1})` (an angle
-consumed as an angle). Every other probe is **low** (k-fold probes count as
-low). `_probe_heights` decides this once for every probe, vectorised; high
-active faces never reach the neighbour query or `solve_caps`.
+  Every other vertex is **low** (k-fold probes count as low). `_probe_heights`
+  decides this once for every probe; high active faces never reach the pair
+  query or `solve_caps`.
 
-**Lemma 2 (cutting is symmetric).** If the cap of `y` leaves an arc on the
-face of `x`, the cap of `x` leaves an arc on the face of `y`.
+**Lemma 2 (a ball inside `U` that touches a vertex points into its cone).**
+If `B(q, ρ) ⊂ U` and the vertex `y` lies on its boundary, then the direction
+from `y` to `q` lies in `C_y`.
 
-*Proof.* Points `z` of that arc are at distance exactly `rp` from `x` and
-`y` and, being on the face boundary, at distance `≥ rp` from every other SAS
-point. Near `z`, the eroded region is therefore the complement of
-`B°(x, rp) ∪ B°(y, rp)`, and the SES is the outer boundary of that union:
-it contains points of `S(y, rp)` next to `z` (the two spheres cross
-transversally since `0 < |x − y| < 2rp`). Those points are SES points on
-the sphere of `y`, hence in the face of `y`: inside its cone and outside
-every other cap. The cap of `x` on `S(y, rp)` has `z` on its boundary and so
-contains face points of `y` next to `z`. ∎ (Generic position: the arc has
-positive length and no third probe ball passes through `z`; coincidences
-below `TAU_C` are merged upstream.)
+*Proof.* Suppose not. Then some direction `w` points away from every touched
+centre (`w·(c_b − y) ≤ 0` for all `b ∈ A(y)`) yet toward `q`
+(`w·(q − y) > 0`). Moving from `y` a short way along `w` leaves every SAS ball
+of the touched atoms (`|y + εw − c_b|² = R_b² − 2ε w·(c_b − y) + ε² > R_b²`)
+and stays outside the SAS balls `y` does not touch, so the point is outside
+`U`; yet it is inside `B(q, ρ)` (`|y + εw − q|² = ρ² − 2ε w·(q − y) + ε² < ρ²`
+for small `ε`), which lies in `U`. ∎
 
-**Corollary 2 (both ends low).** A cutting pair has two low ends: if `y`
-cuts `x` then `x` cuts `y`, so `y`'s face is cut and `y` is low by
-Corollary 1. Because every filter below is a *necessary* condition for one
-side to be cut, and the pair cuts on both sides or neither, a pair is
-dropped **for both faces** as soon as either side fails any test.
+**Lemma 3 (the first SAS point an inflating ball touches is a vertex).** Let
+`x` be a vertex and `d` a direction strictly inside `C_x` (all cone weights
+positive). Inflate the balls `B_t = B(x + t d, t)`, `t > 0`, which are nested
+and all pass through `x`, and let `t₁` be the largest `t` for which the open
+ball `B°_t` contains no SAS point. Then `t₁ > 0`, `B(x + t₁ d, t₁) ⊂ U`, and a
+second SAS point `s₁ ≠ x` lies on its boundary; for all but a null set of
+directions `d`, `s₁` is a vertex. Consequently, if `t₁ < rp`, the face point
+`x + rp d` is cut by the vertex `s₁`.
 
-**Lemma 3 (the cap must reach the beyond-plane cap).** By Lemma 1 the cut
-part of the face lies inside `{d : d·n > cos β}`, `cos β = h/rp`, where `n`
-is the contact-plane normal pointing from `x` toward the triangle. A cap
+*Proof.* *Small balls stay inside `U`.* A point of `B°_t` is `x + t(d + e)`
+with `|e| < 1`. It is inside the SAS ball of atom `a` iff
+`ĉ_a·(d + e) > t |d + e|² / 2R_a`. With `d = Σ λ_a ĉ_a`,
+`Σ λ_a ĉ_a·(d + e) = 1 + d·e > |d + e|²/2`, so the largest `ĉ_a·(d + e)`
+exceeds `|d + e|²/(2 Σ λ_a)`, which is at least `t |d + e|²/(2R_a)` once
+`t ≤ R_a / Σ λ_a`. So `B°_t ⊂ int U` for small `t`.
+
+*SAS points near `x` are never inside.* Near `x` the SAS consists of the
+sphere patches leaving `x`; a tangent direction `w` of the patch of atom `a`
+satisfies `w ⊥ ĉ_a` and `w·ĉ_b ≤ 0` for every other touched atom `b`. Hence
+`d·w = Σ_{b≠a} λ_b w·ĉ_b ≤ 0`, with equality only for `w = 0` because the
+contact directions span space. So `d·(s − x) < 0` for SAS points `s`
+close to `x`, and `|s − (x + t d)|² − t² = |s − x|² − 2t d·(s − x) > 0` for
+every `t`: no such `s` is in any `B°_t`.
+
+*The first touch.* Hence `t₁ > 0`, and it is finite whenever some SAS point
+lies in `B°_rp` (the only case used). The union of the open balls `B°_t`,
+`t < t₁`, is the open ball `B°(p₁, t₁)`, `p₁ = x + t₁ d`; it is connected,
+avoids the SAS and contains points inside `U`, so it lies inside `U`, and the
+closed ball lies in `U`. Slightly larger balls contain SAS points, which
+accumulate on the boundary of `B(p₁, t₁)` at an SAS point `s₁`, and `s₁ ≠ x`
+by the previous paragraph. So `x` and `s₁` are both nearest SAS points of
+`p₁`, at distance `t₁`, and `p₁` lies on the bisector plane of `x` and `s₁`.
+
+*`s₁` is not inside a sphere patch.* If it were, on the patch of atom `a`, the
+ball `B(p₁, t₁) ⊂ U` would touch the sphere `S(c_a, R_a)` from inside at
+`s₁`, so `p₁` lies on the radius from `c_a` to `s₁` at distance `R_a − t₁`
+from `c_a`. Then `|x − c_a| ≤ |x − p₁| + |p₁ − c_a| = R_a`, while `x`, an SAS
+point, has `|x − c_a| ≥ R_a`; equality puts `p₁` on the segment from `x` to
+`c_a`, so the radius through `p₁` is the radius through `x` and `s₁ = x`. (If
+`p₁ = c_a`, then `d = ĉ_a`, a cone edge, excluded.)
+
+*`s₁` is not inside an arc.* If it were, on the circle of atoms `a, b`, then
+near `s₁` the region `U` is the union of the two SAS balls, and a ball inside
+`U` touching their common boundary at `s₁` must have its centre in the wedge
+spanned at `s₁` by the directions to `c_a` and `c_b` — otherwise some
+direction leads out of both balls yet into `B(p₁, t₁)`, exactly as in
+Lemma 2. So `p₁` lies in the plane through `s₁` and the axis `c_a c_b`,
+within the angle at `s₁` of the triangle `(s₁, c_a, c_b)`. By Lemma 1 with
+`s = s₁`, `v = x`, no point strictly inside that triangle is equidistant from
+`x` and `s₁`, so `p₁` is on or beyond the segment `[c_a, c_b]`: on the axis
+or across it. Across the axis, `s₁` is the *farthest* point of the circle from
+`p₁` (`|p₁ − s(θ)|²` is a constant minus a positive multiple of `cos θ`,
+measured from `s₁`), so the end vertices of the arc through `s₁` are strictly
+closer than `t₁`, contradicting that no SAS point is closer than `t₁`. On the
+axis the whole circle is equidistant and an end vertex is also a nearest
+point; take it as `s₁`. (A vertex-free circle would need the ray of `d` to
+meet a fixed line: a null set of directions.)
+
+*The cut.* `p₁` is on the bisector plane of `x` and `s₁`, and `x + rp d` lies
+beyond `p₁` on the ray from `x` when `t₁ < rp`, so it is closer to `s₁` than
+to `x`: `|x + rp d − s₁| < rp`. ∎
+
+**Corollary (vertex caps suffice).** If any SAS point at all cuts a face point
+`x + rp d`, that point lies in `B°_rp`, so `t₁ < rp` and Lemma 3 supplies a
+vertex within `rp` of the face point. The concave face of `x` is therefore
+`C_x` minus the caps of the vertex probes within `2rp`, and nothing else. For
+the probes rolling along the arcs that leave `x` this is also visible
+directly: their bisector planes with `x` all contain the torus axis, and the
+union of their caps is the departure hemisphere together with the cap of the
+arc's end vertex.
+
+**Lemma 4 (cutting is symmetric).** Let `x`, `y` be vertices with
+`|x − y| < 2rp`, and suppose the cap of `y` removes a region of positive area
+from the face of `x` computed without `y` (the cone minus the caps of all
+other vertices within `2rp`). Then the ball of `x` reaches the face region of
+`y` beyond `y`'s contact plane: there is `e ∈ C_y` with
+`|y + rp e − x| < rp`, and `t_y(e) < rp`.
+
+*Proof.* Pick a removed face point `k = x + rp d` with `d` strictly inside the
+cone and outside the null set of Lemma 3. It is cut by `y` and by no other
+vertex. Since `y ∈ B°(k, rp) = B°_rp`, the first-touch radius of Lemma 3
+satisfies `t₁ < rp`, and its vertex `s₁` is within `rp` of `k`; the only such
+vertex is `y`. So `q = p₁` is equidistant from `x` and `y`, at distance
+`ρ = t₁ < rp`, and `B(q, ρ) ⊂ U`. By Lemma 2, `e = (q − y)/ρ ∈ C_y`. Then
+`|y + rp e − x| ≤ |y + rp e − q| + |q − x| = (rp − ρ) + ρ = rp`, with equality
+only if `q − x` and `q − y` point the same way, which with equal lengths means
+`x = y`. Finally Lemma 1(a) at `y`, with the SAS point `x`, gives
+`t_y(e) < rp`. ∎
+
+**Corollary (both ends low, symmetric drop).** If `y` cuts `x`, then `x`
+reaches `y`'s face beyond its plane: `y` is low (Lemma 1(c)), and the cap of
+`x` on `y`'s sphere meets both `y`'s beyond-plane cap and `y`'s spherical
+triangle. Every filter below is a *necessary* condition for one side to be
+cut, and the pair cuts on both sides or on neither, so a pair is dropped
+**for both faces** as soon as either side fails any test. The hypothesis
+"computed without `y`" cannot be dropped: a point of `x`'s beyond-plane cap
+can lie inside `y`'s ball while `x`'s ball misses `y`'s cone entirely; such a
+point is always inside some other vertex ball, which is what Lemma 3 finds.
+
+**Lemma 5 (the cap must reach the beyond-plane cap).** By Lemma 1(a) the cut
+part of the face lies inside `D_x = {d : d·n > cos β}`. A cap
 `{d : d·u > cos α}` meets it only if the angle between `u` and `n` is below
 `α + β`:
 
@@ -500,37 +562,45 @@ u · n > cos(α + β) = cos α cos β − sin α sin β.
 
 All four values are stored; no angle is recovered.
 
-**Lemma 4 (the cap must meet the spherical triangle).** The cap meets the
+**Lemma 6 (the cap must meet the spherical triangle).** The cap meets the
 closed triangle `S = {d : d·t_m ≤ 0}` iff `u ∈ S` or the angular distance
 from `u` to the boundary of `S` is below `α`. Edge `m` is the arc of the
 great circle `t_m · d = 0` between the corners `p_{m+1}` and `p_{m+2}`,
-`p_m = ±(t_{m+1} × t_{m+2})/|·|` signed so that `t_m · p_m ≤ 0`. The foot of
-`u` on that great circle is `f = u − (u·t_m) t_m`, and the cosine of the
-angle from `u` to `f` is `|f| = √(1 − (u·t_m)²)`; `f` lies on the arc iff it
-is on the arc's side of the plane through the origin and the corners'
-bisector, `f · (p + q) ≥ |f| · p·(p + q)`. So the cap meets the boundary iff
+`p_m = ±(t_{m+1} × t_{m+2})/|·|` signed so that `t_m · p_m ≤ 0`; the corners
+are perpendicular to `t_m`. The foot of `u` on that great circle is
+`f = u − (u·t_m) t_m`, the squared cosine of the angle from `u` to `f` is
+`|f|² = 1 − (u·t_m)²`, and `f` lies on the arc iff it is on the arc's side of
+the plane through the origin and the corners' bisector `p + q`. Because
+`p, q ⊥ t_m`, `f · (p + q) = u · (p + q)`, and the test is
 
 ```
-(f on arc m  and  |f| > cos α)   for some m,   or   max_m u·p_m > cos α,
+u·(p + q) ≥ 0   and   (u·(p + q))² ≥ (1 − (u·t_m)²) · (p·(p + q))².
 ```
 
-the corner test covering feet off their arcs. Comparisons are on cosines
-only. The condition is necessary for the cap to cut anything and, for a
-face with no other caps, sufficient.
+So the cap meets the boundary iff
 
-**Order and exactness.** Per structure: heights of all probes (Corollary 1)
+```
+(f on arc m  and  1 − (u·t_m)² > cos² α)   for some m,   or   max_m u·p_m > cos α,
+```
+
+the corner test covering feet off their arcs. No square root is taken; all
+comparisons are on cosines or their squares. The triangle exists only when
+the three tangents are linearly independent (`t_1 · (t_2 × t_3) ≠ 0`); probes
+failing this, like k-fold probes, pass the test and are solved unfiltered.
+The condition is necessary for the cap to cut anything and, for a face with
+no other caps, sufficient.
+
+**Order and exactness.** Per structure: heights of all probes (Lemma 1(c))
 → closed-form areas of the high active faces → probe pairs within `2rp`
-→ drop pairs with a high end (Corollary 2) → drop pairs failing Lemma 3 on
-either side → drop pairs failing Lemma 4 on either side → `solve_caps` on
-the low active faces with the surviving caps. Dropped caps contain no face
-point, so the arrangement's accessible region, its area and the dots are
-unchanged; the pilot's brute-force test (`anal_test.py`) checks per-face
-equality against solving every probe within `2rp`. On 1brs (4 374 faces,
-`rp = 1.7`, united-atom radii, every atom active): 3 782 faces are high;
-20 243 probe pairs lie within `2rp`, 1 243 have both ends low, 456 pass
-Lemma 3, 390 pass Lemma 4 and 292 finally leave an arc on both faces. The
-face stage of the 921-atom chain drops from 0.41 s to 0.06 s (0.16 s to
-0.02 s with 266 active atoms; login node, preliminary).
+→ drop pairs with a high end (both ends low) → drop pairs failing Lemma 5 on
+either side → drop pairs failing Lemma 6 on either side, tested on the
+survivors only → `solve_caps` on the low active faces with the surviving
+caps. Dropped caps contain no face point, so the arrangement's accessible
+region, its area and the dots are unchanged. The filters are necessary
+conditions evaluated in floating point: a rounding flip can only drop a cap
+that reaches the face by a rounding-scale sliver, an area effect far below
+the `1e-9` that the brute-force test (`anal_test.py`, every face solved
+against every probe within `2rp`) enforces, never a topological one.
 
 ### What is discontinuous
 
@@ -570,9 +640,6 @@ quantity.
      (d − a) sin β)` do not depend on `φ`. Ring edge sines are shared between
      neighbouring rings.
 
-  This is the "reading 2" scheme: uniform spacing along the generating arc,
-  φ count proportional to the ring's true area. Density is uniform, cusp
-  rings get few or no dots instead of crowding, and there is no `ceil` bias.
 - **Concave** (face of probe `q`). One probe-sphere Fibonacci lattice
   (`round(4π rp² · density)` directions, not rotated per face: weights are
   `A_face / n_kept`, so orientation is unbiased) is tested against the face
@@ -593,13 +660,8 @@ neighbour lists and a `searchsorted` pair lookup. Each sphere's arrangement is
 `O(m²)` in its cap count `m` (10–40 for proteins) and independent of all other
 spheres. Global steps: one KD-tree clustering of the raw vertices, one
 label-propagation pass for all cap graphs, one vectorised accessibility test
-for all clusters, one probe-pair query for all faces. Per sphere and per face
-there remain a KD-tree query for coincident caps and one for local vertex
-clustering (≤ 40 points, so a pairwise test suffices in C++). Connected
-components everywhere are minimum-label propagation with pointer jumping, not
-sparse graphs. Sampling is linear in the number of dots. In the Python pilot
-what remains is one interpreter iteration per solved sphere (twice: merge,
-classify), per non-covered sphere (solve), per low active face (solve; high
-faces are closed-form, see §3) and per active atom and face (sampling): about
-0.78 s + 0.06 s + 0.05 s for the 921-atom chain with every atom active,
-0.54 s + 0.02 s + 0.02 s with 266 active atoms (login node, preliminary).
+for all clusters, one height pass over all probes, one probe-pair query for
+all faces. Per sphere and per face there remain a KD-tree query for coincident
+caps and one for local vertex clustering (≤ 40 points, so a pairwise test
+suffices in C++). Connected components everywhere are minimum-label
+propagation with pointer jumping. Sampling is linear in the number of dots.
