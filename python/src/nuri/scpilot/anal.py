@@ -802,10 +802,11 @@ def _triangle_areas(tangents: np.ndarray, rp: float) -> np.ndarray:
 
 @dataclass
 class FaceTriangles:
-    """Per probe with exactly three departure arcs: the hemisphere normals
-    ``tangents`` and the ``corners`` of the spherical triangle
-    ``{d : d . t_m <= 0}``, corner ``m`` opposite edge ``m`` (the edge on
-    the great circle of ``t_m``)."""
+    """Per probe with exactly three linearly independent departure
+    tangents: the hemisphere normals ``tangents`` and the ``corners`` of the
+    spherical triangle ``{d : d . t_m <= 0}``, corner ``m`` opposite edge
+    ``m`` (the edge on the great circle of ``t_m``). Probes with coplanar
+    tangents have no corners and take the unfiltered path."""
 
     triangular: np.ndarray
     tangents: np.ndarray
@@ -818,6 +819,11 @@ def _face_triangles(n: int, dep_off, dep_t) -> FaceTriangles:
     corners = np.zeros((n, 3, 3))
     idx = np.flatnonzero(triangular)
     t = dep_t[dep_off[idx, None] + np.arange(3)]
+    independent = (
+        np.einsum("ij,ij->i", t[:, 0], cross(t[:, 1], t[:, 2])) != 0.0
+    )
+    triangular[idx[~independent]] = False
+    idx, t = idx[independent], t[independent]
     tangents[idx] = t
     for m in range(3):
         v = cross(t[:, (m + 1) % 3], t[:, (m + 2) % 3])
