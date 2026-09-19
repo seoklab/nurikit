@@ -271,6 +271,27 @@ def test_concave_cutter_filters_match_brute_force(test_data, case):
     )
 
 
+def random_cluster(seed):
+    rng = np.random.default_rng(seed)
+    n = int(rng.integers(6, 25))
+    coords = rng.uniform(0.0, rng.uniform(4.0, 9.0), size=(n, 3))
+    return coords, rng.uniform(1.2, 2.0, size=n), float(rng.uniform(1.0, 2.0))
+
+
+@pytest.mark.parametrize("seed", range(12))
+def test_concave_cutter_filters_random_sweep(seed):
+    coords, radii, rp = random_cluster(seed)
+    sas, _ = SasGeometry.from_atoms(coords, radii, rp)
+    ses = SesGeometry.build(sas)
+    assert len(ses.concave) > 0
+    np.testing.assert_allclose(
+        [f.area for f in ses.concave],
+        brute_force_face_areas(sas),
+        rtol=0.0,
+        atol=1e-9,
+    )
+
+
 def test_inactive_atoms_skip_geometry():
     coords = np.array([[0.0, 0.0, 0.0], [3.0, 0.0, 0.0], [20.0, 0.0, 0.0]])
     active = np.array([True, False, False])
