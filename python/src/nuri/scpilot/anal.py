@@ -741,10 +741,10 @@ def _segment_distance(x, p, q) -> np.ndarray:
 @dataclass
 class ProbeHeights:
     """Per probe: whether its ball reaches its contact triangle (``low``),
-    and for three-atom probes the unit normal of the contact plane pointing
-    from the probe toward the triangle with ``cos b = h / rp`` for the
-    plane distance ``h``. Probes with more than three atoms count as low
-    and are never ``planar``."""
+    and for low three-atom probes (``planar``) the unit normal of the
+    contact plane pointing from the probe toward the triangle with
+    ``cos b = h / rp`` for the plane distance ``h < rp``. Probes with more
+    than three atoms count as low and are never ``planar``."""
 
     low: np.ndarray
     planar: np.ndarray
@@ -770,18 +770,19 @@ def _probe_heights(sas: SasGeometry) -> ProbeHeights:
     nrm = cross(b - a, c - a)
     nrm /= np.linalg.norm(nrm, axis=1, keepdims=True)
     signed = np.einsum("ij,ij->i", x - a, nrm)
-    foot = x - signed[:, None] * nrm
     inside = np.ones(len(idx), dtype=bool)
     edge_dist = np.empty((3, len(idx)))
     for m, (p, q) in enumerate(((a, b), (b, c), (c, a))):
-        inside &= np.einsum("ij,ij->i", cross(q - p, foot - p), nrm) >= 0
+        inside &= np.einsum("ij,ij->i", cross(q - p, x - p), nrm) >= 0
         edge_dist[m] = _segment_distance(x, p, q)
     h = np.abs(signed)
     dist = np.where(inside, h, edge_dist.min(axis=0))
-    low[idx] = dist < sas.rp
+    is_low = dist < sas.rp
+    low[idx] = is_low
+    idx, signed, nrm, h = idx[is_low], signed[is_low], nrm[is_low], h[is_low]
     planar[idx] = True
     normal[idx] = -np.sign(signed)[:, None] * nrm
-    cos_b[idx] = np.minimum(h / sas.rp, 1.0)
+    cos_b[idx] = h / sas.rp
     sin_b[idx] = np.sqrt(1.0 - cos_b[idx] * cos_b[idx])
     return ProbeHeights(low, planar, normal, cos_b, sin_b)
 
@@ -836,23 +837,28 @@ def _face_triangles(n: int, dep_off, dep_t) -> FaceTriangles:
 def _meets_triangle(tri: FaceTriangles, probe, axis, cos_a):
     """Whether the cap ``(axis, cos a)`` on the sphere of ``probe`` meets
     its spherical triangle: the axis is inside, or within ``a`` of an edge
-    arc, or within ``a`` of a corner. The cosine of the angle from the axis
-    to its foot on the great circle of ``t_m`` is ``sqrt(1 - (axis . t_m)^2)``
-    and the foot lies on the arc iff it is on the arc's side of the
-    midpoint's plane; probes without a triangle pass."""
+    arc, or within ``a`` of a corner. The squared cosine of the angle from
+    the axis to its foot on the great circle of ``t_m`` is
+    ``1 - (axis . t_m)^2``; the foot lies on the arc iff it is on the arc's
+    side of the plane through the corners' bisector, and since the corners
+    are perpendicular to ``t_m`` the foot's component along the bisector is
+    the axis's own. All comparisons are on squared cosines, no root is
+    taken. Probes without a triangle pass."""
     t, c = tri.tangents[probe], tri.corners[probe]
     along = np.einsum("kmj,kj->km", t, axis)
     inside = np.all(along <= 0.0, axis=1)
     near = np.any(np.einsum("kmj,kj->km", c, axis) > cos_a[:, None], axis=1)
+    cos2_a = cos_a * cos_a
     for m in range(3):
         p, q = c[:, (m + 1) % 3], c[:, (m + 2) % 3]
         mid = p + q
-        foot = axis - along[:, m, None] * t[:, m]
-        cos_foot = np.sqrt(1.0 - along[:, m] * along[:, m])
-        on_arc = np.einsum("ij,ij->i", foot, mid) >= cos_foot * np.einsum(
-            "ij,ij->i", p, mid
+        axis_mid = np.einsum("ij,ij->i", axis, mid)
+        p_mid = np.einsum("ij,ij->i", p, mid)
+        cos2_foot = 1.0 - along[:, m] * along[:, m]
+        on_arc = (axis_mid >= 0.0) & (
+            axis_mid * axis_mid >= cos2_foot * p_mid * p_mid
         )
-        near |= on_arc & (cos_foot > cos_a)
+        near |= on_arc & (cos2_foot > cos2_a)
     return ~tri.triangular[probe] | inside | near
 
 
@@ -892,16 +898,16 @@ def _probe_pair_caps(
     sin_a = np.sqrt(1.0 - cos_a * cos_a)
     keep = _meets_plane_cap(hts, pairs[:, 0], axis, cos_a, sin_a)
     keep &= _meets_plane_cap(hts, pairs[:, 1], -axis, cos_a, sin_a)
-    keep &= _meets_triangle(tri, pairs[:, 0], axis, cos_a)
-    keep &= _meets_triangle(tri, pairs[:, 1], -axis, cos_a)
+    idx = np.flatnonzero(keep)
+    keep[idx] = _meets_triangle(tri, pairs[idx, 0], axis[idx], cos_a[idx])
+    idx = idx[keep[idx]]
+    keep[idx] = _meets_triangle(tri, pairs[idx, 1], -axis[idx], cos_a[idx])
     src = pairs[keep].T.ravel()
     axis = np.concatenate([axis[keep], -axis[keep]])
-    cos_a = np.tile(cos_a[keep], 2)
+    cos_a, sin_a = np.tile(cos_a[keep], 2), np.tile(sin_a[keep], 2)
     order = np.argsort(src, kind="stable")
     offsets = np.searchsorted(src[order], np.arange(len(probes) + 1))
-    cos_a = cos_a[order]
-    caps = Caps(axis[order], cos_a, np.sqrt(1.0 - cos_a * cos_a))
-    return offsets, caps
+    return offsets, Caps(axis[order], cos_a[order], sin_a[order])
 
 
 def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
