@@ -335,10 +335,71 @@ def test_shared_circle_middles_are_dropped(order):
 
 
 def test_inactive_atoms_skip_geometry():
-    coords = np.array([[0.0, 0.0, 0.0], [3.0, 0.0, 0.0], [20.0, 0.0, 0.0]])
-    active = np.array([True, False, False])
-    sas, order = SasGeometry.from_atoms(coords, [1.5] * 3, 1.4, active)
-    assert (sas.n_active, sas.n_solve) == (1, 2)
+    coords = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [3.0, 0.0, 0.0],
+            [6.0, 0.0, 0.0],
+            [9.0, 0.0, 0.0],
+            [20.0, 0.0, 0.0],
+        ]
+    )
+    active = np.array([True, False, False, False, False])
+    sas, order = SasGeometry.from_atoms(coords, [1.5] * 5, 1.4, active)
+    assert (sas.n_active, sas.n_solve, sas.n_enum) == (1, 2, 3)
     assert len(sas.arrangements) == 2
-    np.testing.assert_array_equal(order, [0, 1, 2])
+    np.testing.assert_array_equal(order, [0, 1, 2, 3, 4])
     assert len(sas.arcs) > 0
+
+
+def active_faces(sas, ses):
+    """Concave areas of the active probes keyed by probe position."""
+    probes = sas.probes[: sas.n_active_probes]
+    return probes, np.array([f.area for f in ses.concave])
+
+
+def assert_masked_faces_match_full(coords, radii, rp, active):
+    full, _ = SasGeometry.from_atoms(coords, radii, rp)
+    masked, _ = SasGeometry.from_atoms(coords, radii, rp, active)
+    probes, areas = active_faces(masked, SesGeometry.build(masked))
+    d, idx = cKDTree(full.probes).query(probes, k=1)
+    assert np.all(d < 1e-9)
+    full_areas = np.array([f.area for f in SesGeometry.build(full).concave])
+    np.testing.assert_allclose(areas, full_areas[idx], rtol=0.0, atol=1e-9)
+    return len(areas)
+
+
+def test_masked_face_cut_by_second_shell_probe():
+    """The cutter's hosts (last three atoms but two) overlap none of the
+    active atom's hosts directly; they are neighbours of its
+    neighbours."""
+    coords = np.array(
+        [
+            [0.289994, 0.011600, 4.185441],
+            [0.069576, 2.656983, 0.140000],
+            [0.092311, -2.643437, 0.111000],
+            [1.359765, 2.557345, -1.155000],
+            [-2.895169, 0.050535, -1.140500],
+            [1.577853, -2.429681, -1.169500],
+            [2.983552, 0.013638, 1.146357],
+            [-2.877900, 0.256691, 2.436249],
+        ]
+    )
+    radii = np.full(8, 1.5)
+    active = np.zeros(8, dtype=bool)
+    active[0] = True
+    sas, _ = SasGeometry.from_atoms(coords, radii, 1.4, active)
+    assert (sas.n_solve, sas.n_enum) == (5, 8)
+    assert assert_masked_faces_match_full(coords, radii, 1.4, active) > 0
+
+
+@pytest.mark.parametrize("seed", range(10))
+def test_masked_faces_match_full_random(seed):
+    rng = np.random.default_rng(100 + seed)
+    n = int(rng.integers(10, 30))
+    coords = rng.uniform(0.0, rng.uniform(4.0, 9.0), size=(n, 3))
+    radii = rng.uniform(1.2, 2.0, size=n)
+    rp = float(rng.uniform(1.0, 2.0))
+    active = rng.random(n) < 0.4
+    active[0] = True
+    assert assert_masked_faces_match_full(coords, radii, rp, active) > 0
