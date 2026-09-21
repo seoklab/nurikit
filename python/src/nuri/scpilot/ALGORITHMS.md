@@ -399,7 +399,7 @@ it touches are closer to that SAS point than to any other point outside `U`.
 Precisely: let `s` be an SAS point touching atoms `A(s)`, `v` any point not
 inside `U` (every SAS point qualifies), `q` any point of the convex hull of
 `{c_a : a ∈ A(s)}`, and `p = (1 − τ) s + τ q` with `0 ≤ τ ≤ 1`. Then
-`|p − v| ≥ |p − s|`, strictly for `τ < 1`.
+`|p − v| ≥ |p − s|`, strictly for `τ < 1` and `v ≠ s`.
 
 *Proof.* `v` is outside the SAS ball of `a` and `s` is on it, so
 `|v − c_a| ≥ |s − c_a|`, which expands to `(c_a − s)·(v − s) ≤ |v − s|²/2`.
@@ -409,12 +409,17 @@ and then `|p − v|² − |p − s|² = |v − s|² − 2τ (q − s)·(v − s)
 
 Three consequences:
 
-- **(a) Cuts lie beyond the contact plane.** Take `s = x`, `q` the point where
-  the ray `d` meets `T_x`, `τ = rp / t_x(d)`: a face point `x + rp d` with
+- **(a) Cuts lie beyond the contact plane.** Every `d ∈ C_x` does meet `T_x`:
+  radial rescaling by `R_a` leaves the cone alone, so
+  `C_x = cone{ĉ_a} = cone{c_a − x}`, which is exactly the cone over
+  `conv{c_a}` from the apex `x`. Take `s = x`, `q` the point where the ray `d`
+  meets `T_x`, `τ = rp / t_x(d)`: a face point `x + rp d` with
   `t_x(d) ≥ rp` is cut by nothing. Since `t_x(d) · (d·n) = h`, where `n` is the
   unit normal of the contact plane pointing from `x` toward it and `h` the
   distance to the plane, the cut part of the face lies inside the
-  **beyond-plane cap** `D_x = {d : d·n > cos β}`, `cos β = h/rp`. The bound is
+  **beyond-plane cap** `D_x = {d : d·n > cos β}`, `cos β = h/rp`. This is a cap
+  only when `h < rp`, which holds on every low vertex since `h ≤ dist(x, T_x)`;
+  high vertices never reach any code that uses `β`. The bound is
   attained: `D_x` is exactly the cap cut by the mirror vertex `x + 2h n`, the
   second point where the three SAS spheres meet.
 - **(b) Saddles are cut only in the spindle.** For a probe centre on the
@@ -453,9 +458,10 @@ and stays outside the SAS balls `y` does not touch, so the point is outside
 for small `ε`), which lies in `U`. ∎
 
 **Lemma 3 (the first SAS point an inflating ball touches is a vertex).** Let
-`x` be a vertex and `d` a direction strictly inside `C_x` (all cone weights
-positive). Inflate the balls `B_t = B(x + t d, t)`, `t > 0`, which are nested
-and all pass through `x`, and let `t₁` be the largest `t` for which the open
+`x` be a vertex and `d` a unit direction strictly inside `C_x`
+(`d = Σ λ_a ĉ_a` with every `λ_a > 0`, scaled to `|d| = 1`). Inflate the
+balls `B_t = B(x + t d, t)`, `t > 0`, which are nested and all pass through
+`x`, and let `t₁` be the largest `t` for which the open
 ball `B°_t` contains no SAS point. Then `t₁ > 0`, `B(x + t₁ d, t₁) ⊂ U`, and a
 second SAS point `s₁ ≠ x` lies on its boundary; for all but a null set of
 directions `d`, `s₁` is a vertex. Consequently, if `t₁ < rp`, the face point
@@ -465,8 +471,8 @@ directions `d`, `s₁` is a vertex. Consequently, if `t₁ < rp`, the face point
 with `|e| < 1`. It is inside the SAS ball of atom `a` iff
 `ĉ_a·(d + e) > t |d + e|² / 2R_a`. With `d = Σ λ_a ĉ_a`,
 `Σ λ_a ĉ_a·(d + e) = 1 + d·e > |d + e|²/2`, so the largest `ĉ_a·(d + e)`
-exceeds `|d + e|²/(2 Σ λ_a)`, which is at least `t |d + e|²/(2R_a)` once
-`t ≤ R_a / Σ λ_a`. So `B°_t ⊂ int U` for small `t`.
+exceeds `|d + e|²/(2 Σ λ_a)`, which is at least `t |d + e|²/(2R_a)` for the
+maximising `a` once `t ≤ min_b R_b / Σ_b λ_b`.
 
 *SAS points near `x` are never inside.* Near `x` the SAS consists of the
 sphere patches leaving `x`; a tangent direction `w` of the patch of atom `a`
@@ -517,11 +523,18 @@ to `x`: `|x + rp d − s₁| < rp`. ∎
 **Corollary (vertex caps suffice).** If any SAS point at all cuts a face point
 `x + rp d`, that point lies in `B°_rp`, so `t₁ < rp` and Lemma 3 supplies a
 vertex within `rp` of the face point. The concave face of `x` is therefore
-`C_x` minus the caps of the vertex probes within `2rp`, and nothing else. For
-the probes rolling along the arcs that leave `x` this is also visible
-directly: their bisector planes with `x` all contain the torus axis, and the
-union of their caps is the departure hemisphere together with the cap of the
-arc's end vertex.
+`C_x` minus the caps of the vertex probes within `2rp`, and nothing else, up
+to a null set of directions (the cone boundary and the exceptions of
+Lemma 3), which affects neither area nor dots. For the probes rolling along
+the arcs that leave `x` this is also visible directly: their bisector planes
+with `x` all contain the torus axis, and the union of their caps is the
+departure hemisphere together with the cap of the arc's end vertex.
+
+This is Quan & Stamm's Theorem 5.1, `P₋ = P₀ \ ⋃_{x∈K} B_rp(x)`: the concave
+patch `P₋` is the uncut spherical triangle `P₀` minus the open probe balls of
+the other SAS intersection points `K` within `2rp`. The paper's Appendix A
+proves it in the plane and states that space adds no essential difficulty;
+Lemma 3 is the proof in `R³`.
 
 **Lemma 4 (cutting is symmetric).** Let `x`, `y` be vertices with
 `|x − y| < 2rp`, and suppose the cap of `y` removes a region of positive area
@@ -544,12 +557,17 @@ only if `q − x` and `q − y` point the same way, which with equal lengths mea
 **Corollary (both ends low, symmetric drop).** If `y` cuts `x`, then `x`
 reaches `y`'s face beyond its plane: `y` is low (Lemma 1(c)), and the cap of
 `x` on `y`'s sphere meets both `y`'s beyond-plane cap and `y`'s spherical
-triangle. Every filter below is a *necessary* condition for one side to be
-cut, and the pair cuts on both sides or on neither, so a pair is dropped
-**for both faces** as soon as either side fails any test. The hypothesis
-"computed without `y`" cannot be dropped: a point of `x`'s beyond-plane cap
-can lie inside `y`'s ball while `x`'s ball misses `y`'s cone entirely; such a
-point is always inside some other vertex ball, which is what Lemma 3 finds.
+triangle. Both filters below are *necessary* conditions for `y` to cut `x`: the
+x-side test is immediate from Lemma 1(a) (the removed direction lies in
+`cap(y) ∩ D_x ∩ triangle_x`), the y-side test is Lemma 4. By symmetry the same
+two conditions are necessary for `x` to cut `y`. So a failure on either side
+proves there is no cutting in either direction, and the pair is dropped
+**for both faces**.
+
+The hypothesis "computed without `y`" cannot be dropped: a point of `x`'s
+beyond-plane cap can lie inside `y`'s ball while `x`'s ball misses `y`'s cone
+entirely; such a point is always inside some other vertex ball, which is what
+Lemma 3 finds.
 
 **Lemma 5 (the cap must reach the beyond-plane cap).** By Lemma 1(a) the cut
 part of the face lies inside `D_x = {d : d·n > cos β}`. A cap
@@ -560,7 +578,11 @@ part of the face lies inside `D_x = {d : d·n > cos β}`. A cap
 u · n > cos(α + β) = cos α cos β − sin α sin β.
 ```
 
-All four values are stored; no angle is recovered.
+All four values are stored; no angle is recovered. The step `γ < α + β ⟺
+u·n > cos(α + β)` needs `α + β ≤ π`, which holds throughout: probe-on-probe
+caps have `cos α = |x − y|/2rp ≥ 0` and the beyond-plane cap has
+`cos β = h/rp ≥ 0`, so both are at most `π/2`. Under that bound the test is
+not merely necessary but exact for `cap ∩ D_x ≠ ∅`.
 
 **Lemma 6 (the cap must meet the spherical triangle).** The cap meets the
 closed triangle `S = {d : d·t_m ≤ 0}` iff `u ∈ S` or the angular distance
@@ -577,18 +599,26 @@ the plane through the origin and the corners' bisector `p + q`. Because
 u·(p + q) ≥ 0   and   (u·(p + q))² ≥ (1 − (u·t_m)²) · (p·(p + q))².
 ```
 
-So the cap meets the boundary iff
+So the cap meets the triangle iff
 
 ```
-(f on arc m  and  1 − (u·t_m)² > cos² α)   for some m,   or   max_m u·p_m > cos α,
+u·t_m ≤ 0 for all m                                        (axis inside S), or
+(f on arc m  and  1 − (u·t_m)² > cos² α)  for some m,      (edge reached), or
+max_m u·p_m > cos α                                        (corner reached),
 ```
 
-the corner test covering feet off their arcs. No square root is taken; all
-comparisons are on cosines or their squares. The triangle exists only when
-the three tangents are linearly independent (`t_1 · (t_2 × t_3) ≠ 0`); probes
-failing this, like k-fold probes, pass the test and are solved unfiltered.
-The condition is necessary for the cap to cut anything and, for a face with
-no other caps, sufficient.
+the corner test covering feet off their arcs. The first disjunct is not
+redundant: a neighbour probe whose cap lies entirely in the interior of the
+triangle — a hole punched in the middle of a face — meets `S` without meeting
+`∂S`, and dropping it would delete the hole.
+
+No square root is taken; all comparisons are on cosines or their squares. The
+triangle exists only when the three tangents are linearly independent
+(`t_1 · (t_2 × t_3) ≠ 0`); this also keeps every edge shorter than π, so
+`p + q ≠ 0 and p·(p + q) = 1 + p·q > 0`, which is what makes the squaring above
+sign-safe. Probes failing independence, like k-fold probes, pass the test and
+are solved unfiltered. The condition is necessary for the cap to cut anything
+and, for a face with no other caps, sufficient.
 
 **Order and exactness.** Per structure: heights of all probes (Lemma 1(c))
 → closed-form areas of the high active faces → probe pairs within `2rp`
@@ -604,9 +634,10 @@ against every probe within `2rp`) enforces, never a topological one.
 
 ### What is discontinuous
 
-The SES area is genuinely discontinuous at a four-sphere coincidence: for a
-fourth sphere passing `ε > 0` outside an existing vertex there are 8 probes
-near it, for `ε < 0` there are 4, and the two limits differ. Below `TAU_C` the
+The SES area is genuinely discontinuous at a four-sphere coincidence: a fourth
+sphere passing at distance `ε` from an existing vertex splits that vertex into
+the four triple points of the four spheres; all four are accessible for
+`ε > 0` and none for `ε < 0`, so the two limits differ. Below `TAU_C` the
 merged geometry reproduces the `ε → 0⁺` limit. Areas are continuous within
 each sign, and exact tangency gives the same area as a distant fourth sphere.
 
