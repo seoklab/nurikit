@@ -23,7 +23,6 @@ from .arrangement import (
     TAU_C,
     Arrangement,
     Caps,
-    _merge_coincident,
     any_perpendicular,
     classify_caps,
     cluster_points,
@@ -251,18 +250,14 @@ class SasGeometry:
             circles, sas, n_solve, len(pairs)
         )
 
-        caps_of: list[Caps] = []
-        tags_of: list[np.ndarray] = []
-        slot_of_row = np.empty(len(all_caps), dtype=int)
-        for i in range(n_solve):
-            sl = slice(offsets[i], offsets[i + 1])
-            caps, label = _merge_coincident(all_caps.take(sl), sas[i])
-            slot_of_row[sl] = label
-            first = np.unique(label, return_index=True)[1]
-            tags = np.empty(len(caps), dtype=int)
-            tags[label[first]] = all_tags[sl][first]
-            caps_of.append(caps)
-            tags_of.append(tags)
+        slot_of_row = _within(np.diff(offsets))
+        caps_of = [
+            all_caps.take(slice(offsets[i], offsets[i + 1]))
+            for i in range(n_solve)
+        ]
+        tags_of = [
+            all_tags[offsets[i] : offsets[i + 1]] for i in range(n_solve)
+        ]
 
         tri = _triple_candidates(
             coords,
@@ -270,12 +265,9 @@ class SasGeometry:
             circles,
             *_overlapping_triples(n, pairs, nbr_off, nbr_flat, n_circ),
         )
-        solved = tri.triples < n_solve
-        slots = _triple_slots(tri.circ, row_of, slot_of_row)
-        distinct = (slots >= 0).all(axis=2) & (slots[..., 0] != slots[..., 1])
-        kept = (~solved | distinct).all(axis=1)
-        triples, circ, solved = tri.triples[kept], tri.circ[kept], solved[kept]
-        slots = slots[kept]
+        triples, circ = tri.triples, tri.circ
+        solved = triples < n_solve
+        slots = _triple_slots(circ, row_of, slot_of_row)
 
         covered = np.zeros(n_solve, dtype=bool)
         sph_off, _, sph_edges = _sphere_incidence(
@@ -297,7 +289,7 @@ class SasGeometry:
         slots = _triple_slots(circ, row_of, slot_of_row)
         edge_on = solved & (slots >= 0).all(axis=2)
         has_vertex = (~solved | edge_on).all(axis=1)
-        points = tri.points(kept)[has_vertex]
+        points = tri.points(has_vertex)
 
         raw_pts = points.reshape(-1, 3)
         raw_triple = np.repeat(np.flatnonzero(has_vertex), 2)
