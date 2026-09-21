@@ -11,9 +11,17 @@ from pathlib import Path
 import typer
 
 from . import rosetta
+from .export import write_dots
 from .io import Structure, load_structure
 from .radii import united_atom_radii
-from .sc import ScParams, ScResult, shape_complementarity
+from .sc import (
+    ScParams,
+    ScResult,
+    build_sides,
+    pair_statistics,
+    shape_complementarity,
+)
+from .surface import Dots, ses_dots
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -110,6 +118,79 @@ def run(
                 weight=weight,
             )
             typer.echo(_fmt_rosetta(ref, time.perf_counter() - t0))
+
+
+def _dump(path: Path, dots: Dots, **kwargs) -> None:
+    with path.open("w") as f:
+        write_dots(f, dots, path.stem, **kwargs)
+    typer.echo(f"   {len(dots):>7} dots  area={dots.area():7.1f}  {path}")
+
+
+@app.command()
+def dump(
+    pdb: Path,
+    pairs: str = typer.Option("H:L", help="chain pairs, e.g. 'H:L,A:HL'"),
+    out_dir: Path = typer.Option(Path(), help="where the mol2 files go"),
+    raw: bool = typer.Option(
+        False, help="dump each chain's own SES instead of the interface"
+    ),
+    density: float = 15.0,
+    rp: float = 1.7,
+    weight: float = 0.5,
+    band: float = 1.5,
+    sep: float = 8.0,
+    radii: str = typer.Option("united", help="'united' or 'vdw'"),
+    radii_shift: float = typer.Option(0.0, help="added to every radius"),
+    radii_scale: float = typer.Option(1.0, help="multiplies every radius"),
+):
+    """Dump sampled SES dots as mol2 dot clouds.
+
+    Charges hold the dot areas, or the per-dot Sc score in the trimmed
+    files; the DB atom name marks buried dots and the CVX/TOR/CCV
+    substructures mark the patch kinds. In ChimeraX::
+
+        open 1ar1_H_dots.mol2
+        style sphere; size atomRadius 0.15
+        color :CVX cornflowerblue; color :TOR palegreen; color :CCV salmon
+        color byattribute charge
+    """
+    st = load_structure(pdb)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    params = ScParams(
+        rp=rp, density=density, weight=weight, band=band, sep=sep
+    )
+    for a, b in _pairs(pairs):
+        typer.echo(f"== {pdb.name} {a} | {b}")
+        sa, sb = st.chains(a), st.chains(b)
+        ra = _radii(sa, radii, radii_shift, radii_scale)
+        rb = _radii(sb, radii, radii_shift, radii_scale)
+        if raw:
+            for tag, side, rad in ((a, sa, ra), (b, sb, rb)):
+                dots = ses_dots(side.coords, rad, rp, density)
+                _dump(out_dir / f"{pdb.stem}_{tag}_ses.mol2", dots)
+            continue
+
+        sides = build_sides(sa.coords, ra, sb.coords, rb, params)
+        for tag, side, other in (
+            (a, sides[0], sides[1]),
+            (b, sides[1], sides[0]),
+        ):
+            _dump(
+                out_dir / f"{pdb.stem}_{tag}_dots.mol2",
+                side.dots,
+                buried=side.buried,
+            )
+            if len(side.trimmed) == 0 or len(other.trimmed) == 0:
+                typer.echo(f"   {tag}: no trimmed dots")
+                continue
+            s, _ = pair_statistics(
+                side.trimmed, other.trimmed, weight, params.clamp
+            )
+            _dump(
+                out_dir / f"{pdb.stem}_{tag}_trimmed.mol2",
+                side.trimmed,
+                scalar=s,
+            )
 
 
 @app.command()
