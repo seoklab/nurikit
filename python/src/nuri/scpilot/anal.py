@@ -81,9 +81,9 @@ def prepare(coords, radii, rp, active=None):
     """Order atoms as ``[active | need | shell | occluders]`` and drop
     balls without surface.
 
-    ``need`` is the overlap neighbourhood of the active atoms and
-    ``shell`` the neighbourhood of ``need``: every probe that can cut the
-    face of a probe on an active atom has a host in ``shell``
+    ``need`` holds the active atoms and every atom within ``TAU_C`` of
+    touching one, ``shell`` the same neighbourhood of ``need``: every probe
+    that can cut the face of a probe on an active atom has a host in ``shell``
     (ALGORITHMS.md, "Which probes can cut a face", host overlap), which
     needs ``R_min^2 >= 2 rp^2 + 2 TAU_C R_max`` for the SAS radii, about
     ``(sqrt 2 - 1) rp`` for the atom radii.
@@ -103,11 +103,15 @@ def prepare(coords, radii, rp, active=None):
     sas = radii + rp
     if sas.min() ** 2 < 2.0 * rp * rp + 2.0 * TAU_C * sas.max():
         raise ValueError("atom radii must be at least (sqrt 2 - 1) rp")
-    pairs, d = overlaps(coords, sas)
+    near, d_near = near_pairs(coords, sas)
+    i, j = near[:, 0], near[:, 1]
+    overlapping = d_near < sas[i] + sas[j] - TAU_C
+    pairs, d = near[overlapping], d_near[overlapping]
     inside = contained(n, pairs, d, sas)
     pairs, d = _without(pairs, d, inside)
     inside |= shared_circle_middles(coords, sas, pairs, d)
     pairs, d = _without(pairs, d, inside)
+    near, _ = _without(near, d_near, inside)
     active = (
         np.ones(n, dtype=bool)
         if active is None
@@ -115,7 +119,7 @@ def prepare(coords, radii, rp, active=None):
     )
     active &= ~inside
 
-    i, j = pairs[:, 0], pairs[:, 1]
+    i, j = near[:, 0], near[:, 1]
     need = _neighbourhood(active, i, j)
     shell = _neighbourhood(need, i, j)
 
@@ -147,19 +151,25 @@ def _neighbourhood(mask, i, j):
     return out
 
 
-def overlaps(coords, sas):
-    """All pairs ``(i < j)`` whose SAS balls overlap by more than ``TAU_C``
-    and their distances; tangent pairs are not overlaps."""
+def near_pairs(coords, sas):
+    """All pairs ``(i < j)`` whose SAS balls come within ``TAU_C`` of
+    touching, and their distances.
+
+    The pairs closer than ``R_i + R_j - TAU_C`` are the overlaps that carry
+    circles; the rest, tangent to within ``TAU_C``, only matter for the
+    neighbourhoods of :func:`prepare`: two hosts of one vertex cluster can
+    be that far apart without sharing a circle.
+    """
     tree = cKDTree(coords)
-    pairs = tree.query_pairs(2.0 * sas.max(), output_type="ndarray")
+    pairs = tree.query_pairs(2.0 * sas.max() + TAU_C, output_type="ndarray")
     if len(pairs) == 0:
         pairs = np.empty((0, 2), dtype=int)
     i, j = pairs[:, 0], pairs[:, 1]
     d = np.linalg.norm(coords[j] - coords[i], axis=1)
     if np.any(d < 1e-3):
         raise ValueError("coincident atoms")
-    overlapping = d < sas[i] + sas[j] - TAU_C
-    return pairs[overlapping], d[overlapping]
+    near = d <= sas[i] + sas[j] + TAU_C
+    return pairs[near], d[near]
 
 
 def contained(n, pairs, d, sas):

@@ -230,9 +230,13 @@ C++), not a case the kernels can survive.
 
 ### Preparation (`prepare`)
 
-1. **Overlaps.** KD-tree pairs `(i < j)` with `d < R_i + R_j − TAU_C`,
-   decided once; a pair tangent to within `TAU_C` is not an overlap.
-   Coincident centres (`d < 1e-3 Å`) raise. `rp ≤ 0`, a non-positive radius,
+1. **Pairs.** KD-tree pairs `(i < j)` with `d ≤ R_i + R_j + TAU_C` are the
+   *near* pairs; those with `d < R_i + R_j − TAU_C` are the **overlaps**,
+   decided once, and carry circles. A pair tangent to within `TAU_C` is near
+   but not an overlap: it has no circle, but it still counts as a neighbour
+   below, because two hosts of one vertex cluster can be exactly that far
+   apart (their contact points differ by up to `TAU_C`). Coincident centres
+   (`d < 1e-3 Å`) raise. `rp ≤ 0`, a non-positive radius,
    or SAS radii with `R_min² < 2rp² + 2 TAU_C R_max` (the hypothesis of
    Lemma 7 below; a vdW radius just above `(√2 − 1) rp`, about 0.7 Å for
    water) raise.
@@ -250,7 +254,8 @@ C++), not a case the kernels can survive.
    sphere's two caps would be exact complements, a tie for the covered test.
    With it, every solved sphere's caps lie on distinct circles.
 4. **Order.** `active` is the caller's mask minus dropped atoms; `need` is
-   `active ∪ neighbours(active)` and `shell` is `neighbours(need)`. Atoms
+   `active ∪ neighbours(active)` and `shell` is `neighbours(need)`, where
+   neighbours are the near pairs of step 1. Atoms
    are permuted to `[active | need | shell | occluders]` and the overlapping
    pairs among kept atoms are remapped and sorted by `(i, j)`. From here on
    state is read from index ranges: a sphere owns dots iff its index is
@@ -266,12 +271,14 @@ C++), not a case the kernels can survive.
    sphere below `n_enum` are complete and the convex patches of active atoms
    are exact. An active circle's first sphere is its active atom (active
    indices are the lowest), so active torus arcs come from solved spheres.
-   The hosts of a probe on an active atom are in `need`, so every circle
-   between two of them is solved and the probe's departure tangents are
-   complete. By Lemma 7, a probe that cuts the face of a probe on an active
-   atom has a host that overlaps one of that probe's hosts, hence a host in
-   `shell`: it is enumerated, its accessibility is decided on its owner
-   sphere as for every other cluster, and its cap is present. Its own
+   The hosts of a probe on an active atom are all near that atom (their
+   contact points lie within one cluster, `TAU_C` apart), so they are in
+   `need`, every circle between two of them is solved, and the probe's
+   departure tangents are complete. By Lemma 7, a probe that cuts the face
+   of a probe on an active atom has a host that overlaps one of that probe's
+   hosts, hence a host in `shell`: it is enumerated, its accessibility is
+   decided on its owner sphere as for every other cluster, and its cap is
+   present. Its own
    departure tangents may be incomplete (a circle between two shell atoms is
    never solved); it then fails the triangle predicate of Lemma 6 and is
    tested unfiltered, which is always allowed. One shell of neighbours is not
@@ -572,7 +579,8 @@ cone and outside the null set of Lemma 3. It is cut by `y` and by no other
 vertex. Since `y ∈ B°(k, rp) = B°_rp`, the first-touch radius of Lemma 3
 satisfies `t₁ < rp`, and its vertex `s₁` is within `rp` of `k`; the only such
 vertex is `y`. So `q = p₁` is equidistant from `x` and `y`, at distance
-`ρ = t₁ < rp`, and `B(q, ρ) ⊂ U`. By Lemma 2, `e = (q − y)/ρ ∈ C_y`. Then
+`ρ = t₁ < rp`, and `B(q, ρ) ⊂ U`. Both `x` and `y` lie on its boundary, so
+Lemma 2 applies at both: `u = (q − x)/ρ ∈ C_x` and `e = (q − y)/ρ ∈ C_y`. Then
 `|y + rp e − x| ≤ |y + rp e − q| + |q − x| = (rp − ρ) + ρ = rp`, with equality
 only if `q − x` and `q − y` point the same way, which with equal lengths means
 `x = y`. Finally Lemma 1(a) at `y`, with the SAS point `x`, gives
@@ -657,7 +665,8 @@ stage enforces for the smallest SAS radius; without the tolerance the bound
 is `|x − y|² > 2 R_x R_y` and the threshold is `R ≥ √2 rp`, i.e. a vdW
 radius of `(√2 − 1) rp`.
 
-*Proof.* Take the point `q` of Lemma 4: `x = q − ρu`, `y = q − ρe` with
+*Proof.* Take the point `q` from the proof of Lemma 4: `x = q − ρu`,
+`y = q − ρe` with
 `u ∈ C_x`, `e ∈ C_y`, `ρ < rp`. Write `w = x − y = ρ(e − u)`, `ℓ = |w|`,
 `γ = u·e < 1`, so `ℓ² = 2ρ²(1 − γ)`, `w·u = −ρ(1 − γ)`, `w·e = ρ(1 − γ)`. Let
 `u = Σ_a λ_a ĉ_a` and `e = Σ_d μ_d ĉ_d` with non-negative weights over the
@@ -687,13 +696,15 @@ the tolerance term is at most `4 TAU_C R_max Λ'M'`; hence
 `PQ [(1 − γ) − (R_x R_y − 2 TAU_C R_max)/ρ²] ≥ 2 − γ > 0`, so
 `R_x R_y − 2 TAU_C R_max < ρ²(1 − γ) = ℓ²/2`. ∎
 
-**Corollary (two neighbour shells suffice).** The hosts of an enumerated
-vertex `x` all overlap each other: they share the point `x`, and a pair
-tangent to within `TAU_C` has no circle, so a triple containing it is never
-a candidate. Hence a host of an effective cutter of `x` is within two
-overlap hops of every host of `x`, and enumerating the vertices that have a
-host in `active ∪ N(active) ∪ N²(active)` captures every cutter of every face
-on an active atom (§3, preparation step 5). One hop does not suffice, and the
+**Corollary (two neighbour shells suffice).** The hosts of a vertex cluster
+`x` are pairwise *near* (§3, preparation step 1): two hosts from one triple
+share a point, and two hosts from different triples of a merged cluster have
+contact points within `TAU_C`, so `|c_a − c_d| ≤ R_a + R_d + TAU_C`. An
+overlap is a near pair, so a host of an effective cutter of `x` is within
+two near hops of every host of `x`, and enumerating the vertices that have a
+host in `active ∪ N(active) ∪ N²(active)`, with `N` the near neighbourhood,
+captures every cutter of every face on an active atom (§3, preparation
+step 5). One hop does not suffice, and the
 radius threshold is not vacuous: with vdW radii of 0.03 Å at `rp ≈ 1` a
 cutter exists none of whose hosts overlaps any host of the cut face.
 

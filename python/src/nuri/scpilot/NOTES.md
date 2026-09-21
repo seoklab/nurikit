@@ -157,8 +157,9 @@ Sampler on 1ar1 H (active side toward L), density 15:
   inside the union of two others sharing their circle, radius check,
   `[active | need | shell | occluders]` order) followed by kernels that
   assume clean input; state lives in index ranges and sentinels, not masks
-  and guards. Spheres in `need` are solved; spheres in `shell` only carry
-  caps and host vertices, which is what makes masked runs exact
+  and guards. Neighbourhoods use near pairs (within `TAU_C` of touching),
+  circles use overlaps. Spheres in `need` are solved; spheres in `shell`
+  only carry caps and host vertices, which is what makes masked runs exact
   (ALGORITHMS.md §3, Lemma 7). One predicate per decision class (overlap,
   containment, shared circle, coincident probe caps, hidden/covered,
   crossing, accessibility, arc validity, circle side, active prefixes);
