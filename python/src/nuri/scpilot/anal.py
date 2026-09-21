@@ -78,20 +78,28 @@ class TorusArcs:
 
 
 def prepare(coords, radii, rp, active=None):
-    """Order atoms as ``[active | need minus active | occluders]`` and
-    drop contained balls.
+    """Order atoms as ``[active | need | shell | occluders]`` and drop
+    balls without surface.
 
-    Returns ``(order, n_active, n_solve, pairs, d)``: ``order`` maps new to
-    old indices, ``pairs`` (``i < j``, sorted) are all overlapping pairs
-    in new indices with their distances. Everything downstream assumes
-    this shape: no contained or coincident balls, no two caps of one
-    sphere on the same circle, ``rp > 0``, and a pair touches a solved
-    sphere iff ``i < n_solve``.
+    ``need`` is the overlap neighbourhood of the active atoms and
+    ``shell`` the neighbourhood of ``need``: every probe that can cut the
+    face of a probe on an active atom has a host in ``shell``
+    (ALGORITHMS.md, "Which probes can cut a face", host overlap), which
+    needs every atom radius to be at least ``(sqrt 2 - 1) rp``.
+
+    Returns ``(order, n_active, n_solve, n_enum, pairs, d)``: ``order``
+    maps new to old indices, ``pairs`` (``i < j``, sorted) are all
+    overlapping pairs in new indices with their distances. Everything
+    downstream assumes this shape: no contained or coincident balls, no
+    two caps of one sphere on the same circle, ``rp > 0``, and a pair
+    touches a sphere with caps iff ``i < n_enum``.
     """
     coords = np.asarray(coords, dtype=float)
     radii = np.asarray(radii, dtype=float)
     if rp <= 0.0 or np.any(radii <= 0.0):
         raise ValueError("probe and atom radii must be positive")
+    if np.any(radii < (math.sqrt(2.0) - 1.0) * rp):
+        raise ValueError("atom radii must be at least (sqrt 2 - 1) rp")
     n = len(coords)
     sas = radii + rp
     pairs, d = overlaps(coords, sas)
@@ -107,17 +115,35 @@ def prepare(coords, radii, rp, active=None):
     active &= ~inside
 
     i, j = pairs[:, 0], pairs[:, 1]
-    need = active.copy()
-    need[j[active[i]]] = True
-    need[i[active[j]]] = True
+    need = _neighbourhood(active, i, j)
+    shell = _neighbourhood(need, i, j)
 
-    rank = np.where(active, 0, np.where(need, 1, np.where(inside, 3, 2)))
-    order = np.argsort(rank, kind="stable")[: int((rank < 3).sum())]
+    rank = np.where(
+        active,
+        0,
+        np.where(need, 1, np.where(shell, 2, np.where(inside, 4, 3))),
+    )
+    order = np.argsort(rank, kind="stable")[: int((rank < 4).sum())]
     inv = np.empty(n, dtype=int)
     inv[order] = np.arange(len(order))
     pairs = np.sort(inv[pairs], axis=1)
     o = np.lexsort((pairs[:, 1], pairs[:, 0]))
-    return order, int(active.sum()), int(need.sum()), pairs[o], d[o]
+    return (
+        order,
+        int(active.sum()),
+        int(need.sum()),
+        int(shell.sum()),
+        pairs[o],
+        d[o],
+    )
+
+
+def _neighbourhood(mask, i, j):
+    """``mask`` together with every atom paired with a masked atom."""
+    out = mask.copy()
+    out[j[mask[i]]] = True
+    out[i[mask[j]]] = True
+    return out
 
 
 def overlaps(coords, sas):
@@ -197,8 +223,9 @@ def _without(pairs, d, dropped):
 class SasGeometry:
     """Analytic SAS of atoms ordered by :func:`prepare`.
 
-    Spheres ``< n_solve`` have arrangements; spheres ``< n_active`` own
-    surface. Every other sphere only occludes.
+    Spheres ``< n_active`` own surface, spheres ``< n_solve`` have
+    arrangements and torus arcs, spheres ``< n_enum`` have caps and host
+    vertices. Every other sphere only occludes.
     """
 
     coords: np.ndarray
@@ -207,6 +234,7 @@ class SasGeometry:
     sas: np.ndarray
     n_active: int
     n_solve: int
+    n_enum: int
     circles: Circles
     arrangements: list[Arrangement]
     probes: np.ndarray
@@ -232,31 +260,44 @@ class SasGeometry:
     ) -> tuple[SasGeometry, np.ndarray]:
         """Prepare, permute and build; also returns the new-to-old atom
         index map."""
-        order, n_active, n_solve, pairs, d = prepare(coords, radii, rp, active)
+        order, n_active, n_solve, n_enum, pairs, d = prepare(
+            coords, radii, rp, active
+        )
         coords = np.asarray(coords, dtype=float)[order]
         radii = np.asarray(radii, dtype=float)[order]
-        return cls.build(coords, radii, rp, pairs, d, n_active, n_solve), order
+        geometry = cls.build(
+            coords, radii, rp, pairs, d, n_active, n_solve, n_enum
+        )
+        return geometry, order
 
     @classmethod
     def build(
-        cls, coords, radii, rp: float, pairs, d, n_active: int, n_solve: int
+        cls,
+        coords,
+        radii,
+        rp: float,
+        pairs,
+        d,
+        n_active: int,
+        n_solve: int,
+        n_enum: int,
     ) -> SasGeometry:
         n = len(coords)
         sas = radii + rp
-        n_circ = int(np.searchsorted(pairs[:, 0], n_solve))
+        n_circ = int(np.searchsorted(pairs[:, 0], n_enum))
         circles = _circles(coords, sas, pairs[:n_circ], d[:n_circ])
         nbr_off, nbr_flat = _neighbour_csr(n, pairs)
         offsets, all_caps, all_tags, row_of = _cap_rows(
-            circles, sas, n_solve, len(pairs)
+            circles, sas, n_enum, len(pairs)
         )
 
         slot_of_row = _within(np.diff(offsets))
         caps_of = [
             all_caps.take(slice(offsets[i], offsets[i + 1]))
-            for i in range(n_solve)
+            for i in range(n_enum)
         ]
         tags_of = [
-            all_tags[offsets[i] : offsets[i + 1]] for i in range(n_solve)
+            all_tags[offsets[i] : offsets[i + 1]] for i in range(n_enum)
         ]
 
         tri = _triple_candidates(
@@ -266,12 +307,12 @@ class SasGeometry:
             *_overlapping_triples(n, pairs, nbr_off, nbr_flat, n_circ),
         )
         triples, circ = tri.triples, tri.circ
-        solved = triples < n_solve
+        capped = triples < n_enum
         slots = _triple_slots(circ, row_of, slot_of_row)
 
-        covered = np.zeros(n_solve, dtype=bool)
+        covered = np.zeros(n_enum, dtype=bool)
         sph_off, _, sph_edges = _sphere_incidence(
-            triples, slots, solved, n_solve
+            triples, slots, capped, n_enum
         )
         for i, caps in enumerate(caps_of):
             m = len(caps)
@@ -287,8 +328,8 @@ class SasGeometry:
             slot_of_row[sl] = renumber[slot_of_row[sl]]
 
         slots = _triple_slots(circ, row_of, slot_of_row)
-        edge_on = solved & (slots >= 0).all(axis=2)
-        has_vertex = (~solved | edge_on).all(axis=1)
+        edge_on = capped & (slots >= 0).all(axis=2)
+        has_vertex = (~capped | edge_on).all(axis=1)
         points = tri.points(has_vertex)
 
         raw_pts = points.reshape(-1, 3)
@@ -305,9 +346,9 @@ class SasGeometry:
 
         cap_off = np.cumsum([0, *(len(c) for c in caps_of)])
         sph_off, sph_tri, sph_edges = _sphere_incidence(
-            triples, slots, edge_on, n_solve
+            triples, slots, edge_on, n_enum
         )
-        sphere = np.repeat(np.arange(n_solve), np.diff(sph_off))
+        sphere = np.repeat(np.arange(n_enum), np.diff(sph_off))
         gcap = sph_edges + cap_off[sphere, None]
         cluster = label_of[sph_tri]
         with_vertex = cluster[:, 0] >= 0
@@ -328,11 +369,11 @@ class SasGeometry:
         probe_offsets, probe_atoms = _probe_atoms(n, atoms_key, probe_ids)
 
         arrangements: list[Arrangement] = [
-            covered_arrangement(caps) for caps in caps_of
+            covered_arrangement(caps) for caps in caps_of[:n_solve]
         ]
         arc_parts = []
         n_active_arcs = 0
-        for i in np.flatnonzero(~covered):
+        for i in np.flatnonzero(~covered[:n_solve]):
             caps = caps_of[i]
             rows = slice(sph_off[i], sph_off[i + 1])
             vrows = np.flatnonzero(with_vertex[rows]) + sph_off[i]
@@ -366,6 +407,7 @@ class SasGeometry:
             sas,
             n_active,
             n_solve,
+            n_enum,
             circles,
             arrangements,
             reps[probe_ids],
@@ -378,27 +420,27 @@ class SasGeometry:
         )
 
 
-def _cap_rows(circles: Circles, sas, n_solve: int, n_pairs: int):
-    """Caps of every solved sphere, gathered from the circle rows.
+def _cap_rows(circles: Circles, sas, n_enum: int, n_pairs: int):
+    """Caps of every sphere below ``n_enum``, gathered from the circle rows.
 
     Circle ``(i, j)`` cuts sphere ``i`` with axis ``u`` and sphere ``j``
-    (when solved) with axis ``-u``; ``cos`` and ``sin`` are the distances
-    ``a`` / ``d - a`` and the circle radius over the sphere radius. Rows
-    are sorted by sphere; ``offsets`` delimits each sphere's slice. A row's
-    ``tag`` is ``2 * circle + side`` with side 0 on the circle's first
-    sphere; ``row_of[tag]`` is its row, ``-1`` where the sphere is not
-    solved.
+    (when below ``n_enum``) with axis ``-u``; ``cos`` and ``sin`` are the
+    distances ``a`` / ``d - a`` and the circle radius over the sphere
+    radius. Rows are sorted by sphere; ``offsets`` delimits each sphere's
+    slice. A row's ``tag`` is ``2 * circle + side`` with side 0 on the
+    circle's first sphere; ``row_of[tag]`` is its row, ``-1`` where the
+    sphere has no caps.
     """
     pi, pj = circles.pair[:, 0], circles.pair[:, 1]
     circ = np.arange(len(circles))
-    second = np.flatnonzero(pj < n_solve)
+    second = np.flatnonzero(pj < n_enum)
     atom = np.concatenate([pi, pj[second]])
     tag = np.concatenate([2 * circ, 2 * second + 1])
     a = np.concatenate([circles.a, (circles.d - circles.a)[second]])
     axis = np.concatenate([circles.axis, -circles.axis[second]])
     order = np.argsort(atom, kind="stable")
     atom, tag, a, axis = atom[order], tag[order], a[order], axis[order]
-    offsets = np.searchsorted(atom, np.arange(n_solve + 1))
+    offsets = np.searchsorted(atom, np.arange(n_enum + 1))
     r = sas[atom]
     caps = Caps(axis, a / r, circles.radius[tag >> 1] / r)
     row_of = np.full(2 * n_pairs, -1, dtype=int)
@@ -522,14 +564,14 @@ def _triple_slots(circ, row_of, slot_of_row) -> np.ndarray:
     return np.append(slot_of_row, -1)[rows]
 
 
-def _sphere_incidence(triples, slots, mask, n_solve):
+def _sphere_incidence(triples, slots, mask, n_enum):
     """Every (sphere, triple) incidence selected by ``mask`` (t, 3),
     sorted by sphere: ``(offsets, triple, the triple's two cap slots
     there)``."""
     sphere = triples[mask]
     order = np.argsort(sphere, kind="stable")
     tri = np.repeat(np.arange(len(triples)), mask.sum(axis=1))
-    offsets = np.searchsorted(sphere[order], np.arange(n_solve + 1))
+    offsets = np.searchsorted(sphere[order], np.arange(n_enum + 1))
     return offsets, tri[order], slots[mask][order]
 
 
