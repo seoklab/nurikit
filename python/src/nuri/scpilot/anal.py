@@ -85,7 +85,8 @@ def prepare(coords, radii, rp, active=None):
     ``shell`` the neighbourhood of ``need``: every probe that can cut the
     face of a probe on an active atom has a host in ``shell``
     (ALGORITHMS.md, "Which probes can cut a face", host overlap), which
-    needs every atom radius to be at least ``(sqrt 2 - 1) rp``.
+    needs ``R_min^2 >= 2 rp^2 + 2 TAU_C R_max`` for the SAS radii, about
+    ``(sqrt 2 - 1) rp`` for the atom radii.
 
     Returns ``(order, n_active, n_solve, n_enum, pairs, d)``: ``order``
     maps new to old indices, ``pairs`` (``i < j``, sorted) are all
@@ -98,10 +99,10 @@ def prepare(coords, radii, rp, active=None):
     radii = np.asarray(radii, dtype=float)
     if rp <= 0.0 or np.any(radii <= 0.0):
         raise ValueError("probe and atom radii must be positive")
-    if np.any(radii < (math.sqrt(2.0) - 1.0) * rp):
-        raise ValueError("atom radii must be at least (sqrt 2 - 1) rp")
     n = len(coords)
     sas = radii + rp
+    if sas.min() ** 2 < 2.0 * rp * rp + 2.0 * TAU_C * sas.max():
+        raise ValueError("atom radii must be at least (sqrt 2 - 1) rp")
     pairs, d = overlaps(coords, sas)
     inside = contained(n, pairs, d, sas)
     pairs, d = _without(pairs, d, inside)

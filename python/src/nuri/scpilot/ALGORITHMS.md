@@ -232,8 +232,9 @@ C++), not a case the kernels can survive.
 1. **Overlaps.** KD-tree pairs `(i < j)` with `d < R_i + R_j − TAU_C`,
    decided once; a pair tangent to within `TAU_C` is not an overlap.
    Coincident centres (`d < 1e-3 Å`) raise. `rp ≤ 0`, a non-positive radius,
-   or a radius below `(√2 − 1) rp` (the hypothesis of Lemma 7 below, about
-   0.7 Å for water) raises.
+   or SAS radii with `R_min² < 2rp² + 2 TAU_C R_max` (the hypothesis of
+   Lemma 7 below; a vdW radius just above `(√2 − 1) rp`, about 0.7 Å for
+   water) raise.
 2. **Contained balls.** If `d ≤ |R_i − R_j| + TAU_C` the smaller ball is
    contained: it has no surface and generates no caps. These atoms are
    dropped from everything that follows.
@@ -642,10 +643,14 @@ and, for a face with no other caps, sufficient.
 atom under the first touches some atom under the second, provided no atom is
 smaller than about 0.41 probe radii. Precisely: let `y` be an effective
 cutter of `x` (Lemma 4), `R_x` and `R_y` the smallest SAS radii among the
-hosts of `x` and `y`. If no host of `y` overlaps any host of `x`, then
-`|x − y|² > 2 R_x R_y`. Since `|x − y| < 2rp`, some host pair overlaps
-whenever `R_x R_y ≥ 2rp²`, in particular whenever every vdW radius is at
-least `(√2 − 1) rp`.
+hosts of `x` and `y`, `R_max` the largest SAS radius of the structure, and
+call two atoms overlapping as the preparation does, `|c_a − c_d| < R_a + R_d
+− TAU_C`. If no host of `y` overlaps any host of `x`, then
+`|x − y|² > 2 R_x R_y − 4 TAU_C R_max`. Since `|x − y| < 2rp`, some host pair
+overlaps whenever `R_x R_y ≥ 2rp² + 2 TAU_C R_max`, which the preparation
+stage enforces for the smallest SAS radius; without the tolerance the bound
+is `|x − y|² > 2 R_x R_y` and the threshold is `R ≥ √2 rp`, i.e. a vdW
+radius of `(√2 − 1) rp`.
 
 *Proof.* Take the point `q` of Lemma 4: `x = q − ρu`, `y = q − ρe` with
 `u ∈ C_x`, `e ∈ C_y`, `ρ < rp`. Write `w = x − y = ρ(e − u)`, `ℓ = |w|`,
@@ -659,27 +664,33 @@ hosts, and abbreviate `Λ = Σ λ_a`, `Λ' = Σ λ_a/R_a`, `M = Σ μ_d`,
 summing, `−ρ(1 − γ) ≥ −(ℓ²/2) Λ' = −ρ²(1 − γ) Λ'`, i.e. `P ≥ 1`. Likewise
 `|x − c_d| ≥ R_d` gives `Q ≥ 1`.
 
-*A disjoint host pair.* `c_a − c_d = w + R_a ĉ_a − R_d ĉ_d`, so
-`|c_a − c_d| ≥ R_a + R_d` expands to
-`ℓ² + 2R_a w·ĉ_a − 2R_d w·ĉ_d ≥ 2R_a R_d (1 + ĉ_a·ĉ_d)`.
+*A non-overlapping host pair.* `c_a − c_d = w + R_a ĉ_a − R_d ĉ_d`, so
+`|c_a − c_d| ≥ R_a + R_d − TAU_C` expands to
+`ℓ² + 2R_a w·ĉ_a − 2R_d w·ĉ_d ≥ 2R_a R_d (1 + ĉ_a·ĉ_d) − 2 TAU_C (R_a + R_d)`
+(the `TAU_C²` term only helps and is dropped).
 
 *Average over both cones.* Multiply each pair's inequality by
 `λ_a μ_d / (R_a R_d)` and sum. The left side becomes
 `ℓ² Λ'M' + 2M' (w·u) − 2Λ' (w·e) = 2(1 − γ)(PQ − P − Q)`, the right side
-`2(ΛM + u·e) = 2(ΛM + γ)`; hence `(1 − γ)(PQ − P − Q) ≥ ΛM + γ`.
+`2(ΛM + γ) − 2 TAU_C (ΛM' + Λ'M)`. Since `Λ ≤ R_max Λ'` and `M ≤ R_max M'`,
+the tolerance term is at most `4 TAU_C R_max Λ'M'`; hence
+`(1 − γ)(PQ − P − Q) ≥ (ΛM − 2 TAU_C R_max Λ'M') + γ`.
 
-*Conclude.* `Λ ≥ R_x Λ'` and `M ≥ R_y M'` give `ΛM ≥ R_x R_y PQ / ρ²`, and
+*Conclude.* `Λ ≥ R_x Λ'` and `M ≥ R_y M'` give
+`ΛM − 2 TAU_C R_max Λ'M' ≥ (R_x R_y − 2 TAU_C R_max) PQ / ρ²`, and
 `P + Q ≥ 2` gives `(1 − γ)(PQ − 2) ≥ (1 − γ)(PQ − P − Q)`. Together,
-`PQ [(1 − γ) − R_x R_y/ρ²] ≥ 2 − γ > 0`, so `R_x R_y < ρ²(1 − γ) = ℓ²/2`. ∎
+`PQ [(1 − γ) − (R_x R_y − 2 TAU_C R_max)/ρ²] ≥ 2 − γ > 0`, so
+`R_x R_y − 2 TAU_C R_max < ρ²(1 − γ) = ℓ²/2`. ∎
 
-**Corollary (two neighbour shells suffice).** The hosts of `x` all overlap
-each other (they share the point `x`), so a host of an effective cutter of
-`x` is within two overlap hops of every host of `x`. Enumerating the vertices
-that have a host in `active ∪ N(active) ∪ N²(active)` therefore captures
-every cutter of every face on an active atom (§3, preparation step 5). The
-bound is sharp in the sense that one hop does not suffice, and the radius
-threshold is not vacuous: with vdW radii of 0.03 Å at `rp ≈ 1` a cutter
-exists none of whose hosts overlaps any host of the cut face.
+**Corollary (two neighbour shells suffice).** The hosts of an enumerated
+vertex `x` all overlap each other: they share the point `x`, and a pair
+tangent to within `TAU_C` has no circle, so a triple containing it is never
+a candidate. Hence a host of an effective cutter of `x` is within two
+overlap hops of every host of `x`, and enumerating the vertices that have a
+host in `active ∪ N(active) ∪ N²(active)` captures every cutter of every face
+on an active atom (§3, preparation step 5). One hop does not suffice, and the
+radius threshold is not vacuous: with vdW radii of 0.03 Å at `rp ≈ 1` a
+cutter exists none of whose hosts overlaps any host of the cut face.
 
 **Order and exactness.** Per structure: heights of all probes (Lemma 1(c))
 → closed-form areas of the high active faces → probe pairs within `2rp`
