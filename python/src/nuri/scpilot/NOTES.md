@@ -30,7 +30,7 @@ does not state (Theorem 5.1 removes `B_rp(x)` for every SAS intersection point
 |---|---|---|
 | high probe ⇒ uncut face, by height over the plane of the three atom centres | asserted | not adopted. Lemma 1(c), proved, on distance to the contact *triangle* |
 | only low probes may cut | asserted | not adopted. Corollary of Lemma 4 (cut symmetry), proved |
-| first-atom neighbourhood restriction | asserted | not adopted. Unproved, and unsound in a narrow cleft by the `R_a + R_d + 2rp` bound (ALGORITHMS.md §3). Lemma 6 prunes the same caps with a proof |
+| first-atom neighbourhood restriction | asserted | not adopted. Lemma 7 (host overlap) gives the provable version: a cutter's hosts reach the cut face's hosts within two overlap hops, one hop is not enough |
 | keep only the largest departure angle among probes sharing two atoms | asserted | proved (pencil argument), not a code path |
 
 `dist(x, T) ≥ h`, so strictly more faces are uncut here and the
@@ -151,27 +151,20 @@ Sampler on 1ar1 H (active side toward L), density 15:
   ≈ ±0.01.
 - Peripheral band and buried tests are identical in definition.
 
-## Known limitations
-
-- Two circles of one sphere that coincide exactly (collinear centres with
-  matched radii, codimension 2) are merged into one cap whose tag is the
-  first member's circle; the other circle then gets no torus arc. If a
-  structure ever hits this, the merged label from `_merge_coincident` is
-  where the fix goes.
-- Under an `active` mask a concave face can in principle miss the cut of a
-  probe hosted by atoms up to `2rp` beyond the overlap shell (ALGORITHMS.md
-  §3, preparation step 4); not observed on the oracle interfaces.
-
 ## Settled design for the C++ port
 
-- Pipeline: a preparation stage (coincident, contained, need-first order)
-  followed by kernels that assume clean input; state lives in index ranges
-  and sentinels, not masks and guards. One predicate per decision class
-  (overlap, containment, coincident caps, hidden/covered, crossing,
-  accessibility, arc validity, circle side, active prefixes); consumers read
-  the stored result and never re-derive it by another formula or default.
-  Crossing on SAS spheres is the triple discriminant; edges survive hiding
-  elsewhere, vertices do not.
+- Pipeline: a preparation stage (coincident atoms, contained balls, balls
+  inside the union of two others sharing their circle, radius check,
+  `[active | need | shell | occluders]` order) followed by kernels that
+  assume clean input; state lives in index ranges and sentinels, not masks
+  and guards. Spheres in `need` are solved; spheres in `shell` only carry
+  caps and host vertices, which is what makes masked runs exact
+  (ALGORITHMS.md §3, Lemma 7). One predicate per decision class (overlap,
+  containment, shared circle, coincident probe caps, hidden/covered,
+  crossing, accessibility, arc validity, circle side, active prefixes);
+  consumers read the stored result and never re-derive it by another formula
+  or default. Crossing on SAS spheres is the triple discriminant; edges
+  survive hiding elsewhere, vertices do not.
 - Geometry core: cap arrangement per sphere (`Caps` as `(axis, cos α, sin α)`,
   crossing points in the `n₁ ± n₂` basis, global vertex clustering with
   per-cluster excusal, arcs tested against crossing caps only, one sorted
