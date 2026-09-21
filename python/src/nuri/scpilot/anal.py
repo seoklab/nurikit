@@ -85,8 +85,9 @@ def prepare(coords, radii, rp, active=None):
     Returns ``(order, n_active, n_solve, pairs, d)``: ``order`` maps new to
     old indices, ``pairs`` (``i < j``, sorted) are all overlapping pairs
     in new indices with their distances. Everything downstream assumes
-    this shape: no contained or coincident balls, ``rp > 0``, and a pair
-    touches a solved sphere iff ``i < n_solve``.
+    this shape: no contained or coincident balls, no two caps of one
+    sphere on the same circle, ``rp > 0``, and a pair touches a solved
+    sphere iff ``i < n_solve``.
     """
     coords = np.asarray(coords, dtype=float)
     radii = np.asarray(radii, dtype=float)
@@ -96,6 +97,9 @@ def prepare(coords, radii, rp, active=None):
     sas = radii + rp
     pairs, d = overlaps(coords, sas)
     inside = contained(n, pairs, d, sas)
+    pairs, d = _without(pairs, d, inside)
+    inside |= shared_circle_middles(coords, sas, pairs, d)
+    pairs, d = _without(pairs, d, inside)
     active = (
         np.ones(n, dtype=bool)
         if active is None
@@ -104,8 +108,6 @@ def prepare(coords, radii, rp, active=None):
     active &= ~inside
 
     i, j = pairs[:, 0], pairs[:, 1]
-    keep = ~inside[i] & ~inside[j]
-    pairs, d, i, j = pairs[keep], d[keep], i[keep], j[keep]
     need = active.copy()
     need[j[active[i]]] = True
     need[i[active[j]]] = True
@@ -142,6 +144,54 @@ def contained(n, pairs, d, sas):
     out = np.zeros(n, dtype=bool)
     out[smaller[inner]] = True
     return out
+
+
+def shared_circle_middles(coords, sas, pairs, d):
+    """Balls whose sphere passes through the circle of two other spheres
+    with its centre between theirs on the axis.
+
+    Such a ball lies inside the union of the other two: each of its caps
+    is inside the neighbouring sphere's larger cap and the disc of the
+    circle is inside both. It has no surface, and keeping it would put two
+    caps of one sphere on the same circle. Two circles of sphere ``i``
+    coincide iff their centres agree within ``TAU_C`` and their axes are
+    parallel to within ``TAU_C / R_i``.
+    """
+    n = len(coords)
+    out = np.zeros(n, dtype=bool)
+    if len(pairs) == 0:
+        return out
+    o = np.lexsort((pairs[:, 1], pairs[:, 0]))
+    pairs, d = pairs[o], d[o]
+    nbr_off, nbr_flat = _neighbour_csr(n, pairs)
+    triples, pid = _overlapping_triples(
+        n, pairs, nbr_off, nbr_flat, len(pairs)
+    )
+    i, j, k = triples.T
+    u_ij, t_ij = _circle_plane(coords, sas, i, j, d[pid[:, 0]])
+    u_ik, t_ik = _circle_plane(coords, sas, i, k, d[pid[:, 1]])
+    same = np.linalg.norm(t_ij - t_ik, axis=1) < TAU_C
+    same &= sas[i] * np.linalg.norm(cross(u_ij, u_ik), axis=1) < TAU_C
+    triples, u_ij = triples[same], u_ij[same]
+    along = np.einsum(
+        "tmj,tj->tm", coords[triples] - coords[triples[:, :1]], u_ij
+    )
+    middle = triples[np.arange(len(triples)), np.argsort(along, axis=1)[:, 1]]
+    out[middle] = True
+    return out
+
+
+def _circle_plane(coords, sas, i, j, d):
+    """Unit axis and centre of the circle where spheres ``i`` and ``j``
+    meet."""
+    u = (coords[j] - coords[i]) / d[:, None]
+    a = (d * d + sas[i] ** 2 - sas[j] ** 2) / (2.0 * d)
+    return u, coords[i] + a[:, None] * u
+
+
+def _without(pairs, d, dropped):
+    keep = ~dropped[pairs[:, 0]] & ~dropped[pairs[:, 1]]
+    return pairs[keep], d[keep]
 
 
 @dataclass
@@ -218,9 +268,7 @@ class SasGeometry:
             coords,
             sas,
             circles,
-            nbr_off,
-            nbr_flat,
-            pairs[:, 0] * n + pairs[:, 1],
+            *_overlapping_triples(n, pairs, nbr_off, nbr_flat, n_circ),
         )
         solved = tri.triples < n_solve
         slots = _triple_slots(tri.circ, row_of, slot_of_row)
@@ -417,27 +465,34 @@ class _TripleCandidates:
         return np.stack(pts, axis=1)
 
 
-def _triple_candidates(coords, sas, circles, nbr_off, nbr_flat, pair_keys):
-    """Candidates ``(i, j, k)`` with ``i < j < k``, ``(i, j)`` a circle and
-    ``k`` a later neighbour of ``i`` that also pairs with ``j``, kept iff
-    circle ``(i, j)`` crosses sphere ``k`` (``h^2 > 0``). Each triple is
-    intersected once so that all three spheres see identical points.
-    ``circ`` holds the pair ids of ``(i, j)``, ``(i, k)`` and ``(j, k)``.
-    """
-    n = len(coords)
-    i, j = circles.pair[:, 0], circles.pair[:, 1]
-    nbr_key = np.repeat(np.arange(len(nbr_off) - 1), np.diff(nbr_off)) * n
-    nbr_key += nbr_flat
+def _overlapping_triples(n, pairs, nbr_off, nbr_flat, n_first):
+    """Triples ``(i, j, k)`` with ``i < j < k`` and all three pairs
+    overlapping, for ``(i, j)`` among the first ``n_first`` sorted pairs,
+    with the pair ids of ``(i, j)``, ``(i, k)`` and ``(j, k)``."""
+    keys = pairs[:, 0] * n + pairs[:, 1]
+    i, j = pairs[:n_first, 0], pairs[:n_first, 1]
+    nbr_key = np.repeat(np.arange(n), np.diff(nbr_off)) * n + nbr_flat
     lo = np.searchsorted(nbr_key, i * n + j, "right")
     count = nbr_off[i + 1] - lo
-    circ = np.repeat(np.arange(len(circles)), count)
+    p = np.repeat(np.arange(n_first), count)
     k = nbr_flat[np.repeat(lo, count) + _within(count)]
-    key = j[circ] * n + k
-    pos = np.minimum(np.searchsorted(pair_keys, key), len(pair_keys) - 1)
-    is_pair = pair_keys[pos] == key
-    circ, k, pos_jk = circ[is_pair], k[is_pair], pos[is_pair]
-    pos_ik = np.searchsorted(pair_keys, i[circ] * n + k)
+    key = j[p] * n + k
+    pos = np.minimum(np.searchsorted(keys, key), len(keys) - 1)
+    is_pair = keys[pos] == key
+    p, k, pos_jk = p[is_pair], k[is_pair], pos[is_pair]
+    pos_ik = np.searchsorted(keys, i[p] * n + k)
+    return np.column_stack([i[p], j[p], k]), np.column_stack(
+        [p, pos_ik, pos_jk]
+    )
 
+
+def _triple_candidates(coords, sas, circles, triples, pid):
+    """Candidates among the overlapping ``triples`` (``(i, j)`` a circle,
+    ``pid`` the pair ids of ``(i, j)``, ``(i, k)``, ``(j, k)``), kept iff
+    circle ``(i, j)`` crosses sphere ``k`` (``h^2 > 0``). Each triple is
+    intersected once so that all three spheres see identical points.
+    """
+    circ, k = pid[:, 0], triples[:, 2]
     t, rl = circles.centre[circ], circles.radius[circ]
     e1, e2 = circles.e1[circ], circles.e2[circ]
     w = t - coords[k]
@@ -447,8 +502,8 @@ def _triple_candidates(coords, sas, circles, nbr_off, nbr_flat, pair_keys):
     hsq = a * a + b * b - g * g
     ok = hsq > 0.0
     return _TripleCandidates(
-        np.column_stack([i[circ], j[circ], k])[ok],
-        np.column_stack([circ, pos_ik, pos_jk])[ok],
+        triples[ok],
+        pid[ok],
         t[ok],
         rl[ok],
         e1[ok],

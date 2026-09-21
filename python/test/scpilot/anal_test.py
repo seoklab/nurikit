@@ -292,6 +292,48 @@ def test_concave_cutter_filters_random_sweep(seed):
     )
 
 
+def collinear_case(order):
+    """Spheres on the x axis all passing through the circle at ``x = 1.5``
+    of radius ``sqrt(6.75)``; the outer two are indices 0 and -1 of the
+    natural order, the inner ones lie inside their union."""
+    xs = np.array([0.0, 3.0, 4.0, 5.0])[order]
+    sas = np.sqrt(6.75 + (xs - 1.5) ** 2)
+    coords = np.zeros((len(xs), 3))
+    coords[:, 0] = xs
+    return coords, sas - 1.0
+
+
+@pytest.mark.parametrize(
+    "order",
+    [
+        [0, 1, 2],
+        [1, 0, 2],
+        [0, 2, 1],
+        [2, 1, 0],
+        [1, 2, 0],
+        [2, 0, 1],
+        [0, 1, 2, 3],
+        [3, 1, 0, 2],
+        [1, 3, 2, 0],
+    ],
+)
+def test_shared_circle_middles_are_dropped(order):
+    coords, radii = collinear_case(order)
+    outer = [order.index(0), order.index(len(order) - 1)]
+    _, kept = SasGeometry.from_atoms(coords, radii, 1.0)
+    assert sorted(kept.tolist()) == sorted(outer)
+    convex, torus, _ = two_sphere_ses_area(
+        radii[outer[0]],
+        radii[outer[1]],
+        coords[outer[1], 0] - coords[outer[0], 0],
+        1.0,
+    )
+    areas = analytic_areas(coords, radii, 1.0)
+    np.testing.assert_allclose(
+        areas, [convex, torus, 0.0], rtol=1e-9, atol=1e-12
+    )
+
+
 def test_inactive_atoms_skip_geometry():
     coords = np.array([[0.0, 0.0, 0.0], [3.0, 0.0, 0.0], [20.0, 0.0, 0.0]])
     active = np.array([True, False, False])
