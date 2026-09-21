@@ -393,6 +393,16 @@ def test_masked_face_cut_by_second_shell_probe():
     assert assert_masked_faces_match_full(coords, radii, 1.4, active) > 0
 
 
+def test_tangent_neighbour_is_enumerated():
+    """A pair tangent to within TAU_C carries no circle but still joins
+    the neighbourhoods that decide which vertices are enumerated."""
+    coords = np.array([[0.0, 0.0, 0.0], [5.8, 0.0, 0.0], [12.0, 0.0, 0.0]])
+    active = np.array([True, False, False])
+    sas, _ = SasGeometry.from_atoms(coords, [1.5] * 3, 1.4, active)
+    assert len(sas.circles) == 0
+    assert (sas.n_active, sas.n_solve, sas.n_enum) == (1, 2, 2)
+
+
 def test_tiny_atoms_are_rejected():
     coords = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
     with pytest.raises(ValueError, match="sqrt 2"):
