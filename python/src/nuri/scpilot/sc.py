@@ -84,7 +84,7 @@ def pair_statistics(mine: Dots, theirs: Dots, weight: float, clamp: float):
 
 
 @dataclass
-class _Side:
+class Side:
     n_atoms: int
     active: np.ndarray
     dots: Dots
@@ -104,7 +104,7 @@ class _Side:
         keep = trim_peripheral(dots, buried, params.band)
         return cls(len(coords), active, dots, buried, dots.subset(keep))
 
-    def result(self, other: _Side, params: ScParams) -> SideResult:
+    def result(self, other: Side, params: ScParams) -> SideResult:
         s, d = pair_statistics(
             self.trimmed, other.trimmed, params.weight, params.clamp
         )
@@ -120,6 +120,19 @@ class _Side:
         )
 
 
+def build_sides(
+    coords_a,
+    radii_a,
+    coords_b,
+    radii_b,
+    params: ScParams = ScParams(),
+) -> tuple[Side, Side]:
+    return (
+        Side.build(coords_a, radii_a, coords_b, radii_b, params),
+        Side.build(coords_b, radii_b, coords_a, radii_a, params),
+    )
+
+
 def shape_complementarity(
     coords_a,
     radii_a,
@@ -127,8 +140,7 @@ def shape_complementarity(
     radii_b,
     params: ScParams = ScParams(),
 ) -> ScResult:
-    side_a = _Side.build(coords_a, radii_a, coords_b, radii_b, params)
-    side_b = _Side.build(coords_b, radii_b, coords_a, radii_a, params)
+    side_a, side_b = build_sides(coords_a, radii_a, coords_b, radii_b, params)
     if len(side_a.trimmed) == 0 or len(side_b.trimmed) == 0:
         raise ValueError("no interface dots survive trimming")
     a, b = side_a.result(side_b, params), side_b.result(side_a, params)
