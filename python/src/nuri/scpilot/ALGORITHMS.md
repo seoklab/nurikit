@@ -55,11 +55,12 @@ may supply frames (the SAS passes the circle frames, §3).
 
 ### Step 1 — cap hygiene (`prepare_caps`)
 
-Caps whose circles coincide to within `TAU_C` — the 5-vectors
-`R · (n, cos α, sin α)` closer than `TAU_C`, clustered exactly like vertices
-in step 3 — are one circle computed through different routes (the departure
-hemispheres of tangent arcs at a pinch, for instance) and are merged into
-their renormalised mean.
+On a probe sphere, caps whose circles coincide to within `TAU_C` — the
+5-vectors `R · (n, cos α, sin α)` closer than `TAU_C`, clustered exactly like
+vertices in step 3 — are one circle computed through different routes (the
+departure hemispheres of tangent arcs at a pinch, for instance) and are
+merged into their renormalised mean. On a SAS sphere no two caps share a
+circle: the preparation stage (§3) removes the atoms that would cause it.
 
 Every remaining pair is then classified once, from trig values only
 (`pair_predicates`). With `cos γ = n_j · n_k` and `c, s` the stored cosines
@@ -230,45 +231,63 @@ C++), not a case the kernels can survive.
 
 1. **Overlaps.** KD-tree pairs `(i < j)` with `d < R_i + R_j − TAU_C`,
    decided once; a pair tangent to within `TAU_C` is not an overlap.
-   Coincident centres (`d < 1e-3 Å`) raise. `rp ≤ 0` or a non-positive
-   radius raises.
+   Coincident centres (`d < 1e-3 Å`) raise. `rp ≤ 0`, a non-positive radius,
+   or a radius below `(√2 − 1) rp` (the hypothesis of Lemma 7 below, about
+   0.7 Å for water) raises.
 2. **Contained balls.** If `d ≤ |R_i − R_j| + TAU_C` the smaller ball is
    contained: it has no surface and generates no caps. These atoms are
    dropped from everything that follows.
-3. **Order.** `active` is the caller's mask minus contained atoms; `need` is
-   `active ∪ neighbours(active)`. Atoms are permuted to
-   `[active | need \ active | occluders]` and the overlapping pairs (neither
-   contained) are remapped and sorted by `(i, j)`. From here on state is read
-   from index ranges: a sphere is solved iff its index is `< n_solve`, owns
-   dots iff `< n_active`; a pair touches a solved sphere iff its smaller
-   index is `< n_solve`. Vertex clusters are relabelled by their smallest
-   atom, so probes are owner-sorted; active probes, active circles and active
-   torus arcs are prefixes whose lengths (`n_active_probes`,
+3. **Shared circles.** If a third sphere passes through the circle where two
+   others meet (collinear centres, radii matched to within `TAU_C`: the two
+   circles it makes with either of them have the same centre and parallel
+   axes), the sphere whose centre lies between the other two on the axis
+   lies inside their union — each of its two caps sits inside the
+   neighbouring sphere's larger cap, and the disc of the circle is inside
+   both. It has no surface and is dropped like a contained ball. Without
+   this, one sphere would carry two caps on the same circle, and the middle
+   sphere's two caps would be exact complements, a tie for the covered test.
+   With it, every solved sphere's caps lie on distinct circles.
+4. **Order.** `active` is the caller's mask minus dropped atoms; `need` is
+   `active ∪ neighbours(active)` and `shell` is `neighbours(need)`. Atoms
+   are permuted to `[active | need | shell | occluders]` and the overlapping
+   pairs among kept atoms are remapped and sorted by `(i, j)`. From here on
+   state is read from index ranges: a sphere owns dots iff its index is
+   `< n_active`, has an arrangement and torus arcs iff `< n_solve`, has caps
+   and hosts vertices iff `< n_enum`; a pair touches a sphere with caps iff
+   its smaller index is `< n_enum`. Vertex clusters are relabelled by their
+   smallest atom, so probes are owner-sorted; active probes, active circles
+   and active torus arcs are prefixes whose lengths (`n_active_probes`,
    `n_active_circles`, `n_active_arcs`) are counted once in `build` and read
    everywhere else. Dot owners are mapped back through the permutation at the
    very end.
-4. **What the mask makes exact.** Every atom occludes, so the caps of a solved
-   sphere are complete and convex patches of active atoms are exact. Torus
-   arcs come from solved spheres whose vertices come from solved triples, so
-   toroidal patches are exact. A concave face on active atom `a` may be cut
-   by a probe hosted by an atom `d` with `|c_a − c_d| < R_a + R_d + 2rp`,
-   which can lie up to `2rp` beyond the overlap shell and outside `need`;
-   that probe is then never enumerated and the cut is missing. This needs a
-   crevice with probes on opposing walls and has not been observed on the
-   oracle interfaces; the remedy would be a fourth atom class of probe hosts
-   whose triples are enumerated and clustered without solving their
-   arrangements.
+5. **What the mask makes exact.** Every atom occludes, so the caps of any
+   sphere below `n_enum` are complete and the convex patches of active atoms
+   are exact. An active circle's first sphere is its active atom (active
+   indices are the lowest), so active torus arcs come from solved spheres.
+   The hosts of a probe on an active atom are in `need`, so every circle
+   between two of them is solved and the probe's departure tangents are
+   complete. By Lemma 7, a probe that cuts the face of a probe on an active
+   atom has a host that overlaps one of that probe's hosts, hence a host in
+   `shell`: it is enumerated, its accessibility is decided on its owner
+   sphere as for every other cluster, and its cap is present. Its own
+   departure tangents may be incomplete (a circle between two shell atoms is
+   never solved); it then fails the triangle predicate of Lemma 6 and is
+   tested unfiltered, which is always allowed. One shell of neighbours is not
+   enough: the cutter's hosts need only touch a *neighbour* of the active
+   atom, and a probe wedged between two nearly opposite atoms and touched by
+   a third from above can be cut by a shallow probe on the other side whose
+   hosts overlap neither the third atom nor anything active.
 
 ### SAS (`SasGeometry.build`)
 
-1. **Circles.** For each overlapping pair `(i, j)` with `i < n_solve` (a
+1. **Circles.** For each overlapping pair `(i, j)` with `i < n_enum` (a
    prefix of the sorted pairs), unit axis `u = (c_j − c_i)/d`,
    `a = (d² + R_i² − R_j²)/2d`, centre `t = c_i + a u`, radius
    `rl = √(R_i² − a²)`, frame `(e1, e2, u)`, and `a`, `d` themselves. The
    half-angles `θ_i = atan2(a, rl)`, `θ_j = atan2(d − a, rl)` are derived only
    where the saddle formulas need them.
 2. **Caps from circle rows.** Circle `(i, j)` cuts sphere `i` with axis `u`,
-   `cos α = a/R_i`, `sin α = rl/R_i`, frame `(e1, e2)`, and, if `j` is solved,
+   `cos α = a/R_i`, `sin α = rl/R_i`, frame `(e1, e2)`, and, if `j < n_enum`,
    sphere `j` with axis `−u`, `cos α = (d − a)/R_j`, `sin α = rl/R_j`, frame
    `(e1, −e2)` (right-handed about `−u`). All rows are sorted by sphere once;
    a sphere's caps are a slice, tagged `2·circle + side` (side 0 on the
@@ -289,10 +308,9 @@ C++), not a case the kernels can survive.
 
    which is `φ_0 ± acos(g/amp)` with `φ_0 = atan2(B, A)` written without
    inverse trig. This is the **only** crossing decision on SAS spheres: a
-   candidate with `h² > 0` whose two caps are present and distinct (after
-   coincident-cap merging) on every solved sphere of the triple is a crossing
-   pair on each of them, and those pairs form the crossing graphs that step 1
-   of §2 takes as given. A triple one of whose caps is hidden on some sphere
+   candidate with `h² > 0` is a crossing pair on every sphere of the triple
+   below `n_enum`, and those pairs form the crossing graphs that step 1 of §2
+   takes as given. A triple one of whose caps is hidden on some sphere
    has no vertex but keeps its crossing edges where both caps survive:
    dropping the edge would let a cap whose remaining vertices are all
    inaccessible pass as a full circle tested against too few caps. The points
@@ -619,6 +637,49 @@ triangle exists only when the three tangents are linearly independent
 sign-safe. Probes failing independence, like k-fold probes, pass the test and
 are solved unfiltered. The condition is necessary for the cap to cut anything
 and, for a face with no other caps, sufficient.
+
+**Lemma 7 (host overlap).** Whenever one probe trims another's face, some
+atom under the first touches some atom under the second, provided no atom is
+smaller than about 0.41 probe radii. Precisely: let `y` be an effective
+cutter of `x` (Lemma 4), `R_x` and `R_y` the smallest SAS radii among the
+hosts of `x` and `y`. If no host of `y` overlaps any host of `x`, then
+`|x − y|² > 2 R_x R_y`. Since `|x − y| < 2rp`, some host pair overlaps
+whenever `R_x R_y ≥ 2rp²`, in particular whenever every vdW radius is at
+least `(√2 − 1) rp`.
+
+*Proof.* Take the point `q` of Lemma 4: `x = q − ρu`, `y = q − ρe` with
+`u ∈ C_x`, `e ∈ C_y`, `ρ < rp`. Write `w = x − y = ρ(e − u)`, `ℓ = |w|`,
+`γ = u·e < 1`, so `ℓ² = 2ρ²(1 − γ)`, `w·u = −ρ(1 − γ)`, `w·e = ρ(1 − γ)`. Let
+`u = Σ_a λ_a ĉ_a` and `e = Σ_d μ_d ĉ_d` with non-negative weights over the
+hosts, and abbreviate `Λ = Σ λ_a`, `Λ' = Σ λ_a/R_a`, `M = Σ μ_d`,
+`M' = Σ μ_d/R_d`, `P = ρΛ'`, `Q = ρM'`.
+
+*Both probes are outside the other's balls.* `|y − c_a| ≥ R_a` with
+`y − c_a = −w − R_a ĉ_a` gives `w·ĉ_a ≥ −ℓ²/2R_a`; weighting by `λ_a` and
+summing, `−ρ(1 − γ) ≥ −(ℓ²/2) Λ' = −ρ²(1 − γ) Λ'`, i.e. `P ≥ 1`. Likewise
+`|x − c_d| ≥ R_d` gives `Q ≥ 1`.
+
+*A disjoint host pair.* `c_a − c_d = w + R_a ĉ_a − R_d ĉ_d`, so
+`|c_a − c_d| ≥ R_a + R_d` expands to
+`ℓ² + 2R_a w·ĉ_a − 2R_d w·ĉ_d ≥ 2R_a R_d (1 + ĉ_a·ĉ_d)`.
+
+*Average over both cones.* Multiply each pair's inequality by
+`λ_a μ_d / (R_a R_d)` and sum. The left side becomes
+`ℓ² Λ'M' + 2M' (w·u) − 2Λ' (w·e) = 2(1 − γ)(PQ − P − Q)`, the right side
+`2(ΛM + u·e) = 2(ΛM + γ)`; hence `(1 − γ)(PQ − P − Q) ≥ ΛM + γ`.
+
+*Conclude.* `Λ ≥ R_x Λ'` and `M ≥ R_y M'` give `ΛM ≥ R_x R_y PQ / ρ²`, and
+`P + Q ≥ 2` gives `(1 − γ)(PQ − 2) ≥ (1 − γ)(PQ − P − Q)`. Together,
+`PQ [(1 − γ) − R_x R_y/ρ²] ≥ 2 − γ > 0`, so `R_x R_y < ρ²(1 − γ) = ℓ²/2`. ∎
+
+**Corollary (two neighbour shells suffice).** The hosts of `x` all overlap
+each other (they share the point `x`), so a host of an effective cutter of
+`x` is within two overlap hops of every host of `x`. Enumerating the vertices
+that have a host in `active ∪ N(active) ∪ N²(active)` therefore captures
+every cutter of every face on an active atom (§3, preparation step 5). The
+bound is sharp in the sense that one hop does not suffice, and the radius
+threshold is not vacuous: with vdW radii of 0.03 Å at `rp ≈ 1` a cutter
+exists none of whose hosts overlaps any host of the cut face.
 
 **Order and exactness.** Per structure: heights of all probes (Lemma 1(c))
 → closed-form areas of the high active faces → probe pairs within `2rp`
