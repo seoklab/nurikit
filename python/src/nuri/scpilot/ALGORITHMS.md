@@ -16,9 +16,10 @@ used only where an angle is consumed as an angle.
 
 - Atom `i` has centre `c_i`, van der Waals radius `r_i`, and SAS radius
   `R_i = r_i + rp`, where `rp` is the probe radius.
-- `U = ⋃_i B(c_i, R_i)`. The **SAS** is the boundary of `U`; its points are
-  the accessible probe centres. An SAS point `s` *touches* the atoms `a` with
-  `|s − c_a| = R_a`.
+- `B(c, R)` is the closed ball, `B°(c, R)` its interior, `S(c, R)` the
+  sphere. `U = ⋃_i B(c_i, R_i)` is closed. The **SAS** is the boundary of
+  `U`; its points are the accessible probe centres. An SAS point `s`
+  *touches* the atoms `a` with `|s − c_a| = R_a`.
 - The **SES** is the boundary of `{p : B(p, rp) ⊂ U}`: the points at distance
   exactly `rp` from the SAS. A point closer than `rp` to some SAS point `s` is
   *cut* by `s`.
@@ -477,8 +478,10 @@ and stays outside the SAS balls `y` does not touch, so the point is outside
 for small `ε`), which lies in `U`. ∎
 
 **Lemma 3 (the first SAS point an inflating ball touches is a vertex).** Let
-`x` be a vertex and `d` a unit direction strictly inside `C_x`
-(`d = Σ λ_a ĉ_a` with every `λ_a > 0`, scaled to `|d| = 1`). Inflate the
+`x` be a vertex whose contact directions span space (they fail to only when
+`x` lies in the plane of its atom centres, and then its face has no area)
+and `d` a unit direction strictly inside `C_x` (`d = Σ λ_a ĉ_a` with every
+`λ_a > 0`, scaled to `|d| = 1`). Inflate the
 balls `B_t = B(x + t d, t)`, `t > 0`, which are nested and all pass through
 `x`, and let `t₁` be the largest `t` for which the open
 ball `B°_t` contains no SAS point. Then `t₁ > 0`, `B(x + t₁ d, t₁) ⊂ U`, and a
@@ -497,9 +500,10 @@ maximising `a` once `t ≤ min_b R_b / Σ_b λ_b`.
 sphere patches leaving `x`; a tangent direction `w` of the patch of atom `a`
 satisfies `w ⊥ ĉ_a` and `w·ĉ_b ≤ 0` for every other touched atom `b`. Hence
 `d·w = Σ_{b≠a} λ_b w·ĉ_b ≤ 0`, with equality only for `w = 0` because the
-contact directions span space. So `d·(s − x) < 0` for SAS points `s`
-close to `x`, and `|s − (x + t d)|² − t² = |s − x|² − 2t d·(s − x) > 0` for
-every `t`: no such `s` is in any `B°_t`.
+contact directions span space by hypothesis. So `d·(s − x) < 0` for SAS
+points `s` close to `x`, and
+`|s − (x + t d)|² − t² = |s − x|² − 2t d·(s − x) > 0` for every `t`: no such
+`s` is in any `B°_t`.
 
 *The first touch.* Hence `t₁ > 0`, and it is finite whenever some SAS point
 lies in `B°_rp` (the only case used). The union of the open balls `B°_t`,
@@ -528,12 +532,13 @@ within the angle at `s₁` of the triangle `(s₁, c_a, c_b)`. By Lemma 1 with
 `s = s₁`, `v = x`, no point strictly inside that triangle is equidistant from
 `x` and `s₁`, so `p₁` is on or beyond the segment `[c_a, c_b]`: on the axis
 or across it. Across the axis, `s₁` is the *farthest* point of the circle from
-`p₁` (`|p₁ − s(θ)|²` is a constant minus a positive multiple of `cos θ`,
-measured from `s₁`), so the end vertices of the arc through `s₁` are strictly
-closer than `t₁`, contradicting that no SAS point is closer than `t₁`. On the
-axis the whole circle is equidistant and an end vertex is also a nearest
-point; take it as `s₁`. (A vertex-free circle would need the ray of `d` to
-meet a fixed line: a null set of directions.)
+`p₁`: writing `p₁ = t + z u + ξ r̂` with `r̂` the radial direction of `s₁`,
+`|p₁ − s(θ)|² = z² + ξ² + rl² − 2 ξ rl cos θ`, and across the axis `ξ < 0`,
+so the distance is largest at `θ = 0`. The end vertices of the arc through
+`s₁` are therefore strictly closer than `t₁`, contradicting that no SAS point
+is closer than `t₁`. On the axis the whole circle is equidistant and an end
+vertex is also a nearest point; take it as `s₁`. (A vertex-free circle would
+need the ray of `d` to meet a fixed line: a null set of directions.)
 
 *The cut.* `p₁` is on the bisector plane of `x` and `s₁`, and `x + rp d` lies
 beyond `p₁` on the ray from `x` when `t₁ < rp`, so it is closer to `s₁` than
@@ -552,8 +557,8 @@ departure hemisphere together with the cap of the arc's end vertex.
 This is Quan & Stamm's Theorem 5.1, `P₋ = P₀ \ ⋃_{x∈K} B_rp(x)`: the concave
 patch `P₋` is the uncut spherical triangle `P₀` minus the open probe balls of
 the other SAS intersection points `K` within `2rp`. The paper's Appendix A
-proves it in the plane and states that space adds no essential difficulty;
-Lemma 3 is the proof in `R³`.
+proves it in the plane (its Lemma 1.1) and states that space adds no
+essential difficulty; Lemma 3 is the proof in `R³`.
 
 **Lemma 4 (cutting is symmetric).** Let `x`, `y` be vertices with
 `|x − y| < 2rp`, and suppose the cap of `y` removes a region of positive area
@@ -697,7 +702,7 @@ cutter exists none of whose hosts overlaps any host of the cut face.
 → drop pairs with a high end (both ends low) → drop pairs failing Lemma 5 on
 either side → drop pairs failing Lemma 6 on either side, tested on the
 survivors only → `solve_caps` on the low active faces with the surviving
-caps. Dropped caps contain no face point, so the arrangement's accessible
+caps. Dropped caps remove no area, so the arrangement's accessible
 region, its area and the dots are unchanged. The filters are necessary
 conditions evaluated in floating point: a rounding flip can only drop a cap
 that reaches the face by a rounding-scale sliver, an area effect far below
