@@ -393,6 +393,13 @@ def test_masked_face_cut_by_second_shell_probe():
     assert assert_masked_faces_match_full(coords, radii, 1.4, active) > 0
 
 
+def test_tiny_atoms_are_rejected():
+    coords = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
+    with pytest.raises(ValueError, match="sqrt 2"):
+        SasGeometry.from_atoms(coords, [0.4, 1.5], 1.0)
+    SasGeometry.from_atoms(coords, [0.42, 1.5], 1.0)
+
+
 @pytest.mark.parametrize("seed", range(10))
 def test_masked_faces_match_full_random(seed):
     rng = np.random.default_rng(100 + seed)
