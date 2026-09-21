@@ -20,9 +20,9 @@ used only where an angle is consumed as an angle.
   sphere. `U = ⋃_i B(c_i, R_i)` is closed. The **SAS** is the boundary of
   `U`; its points are the accessible probe centres. An SAS point `s`
   *touches* the atoms `a` with `|s − c_a| = R_a`.
-- The **SES** is the boundary of `{p : B(p, rp) ⊂ U}`: the points at distance
-  exactly `rp` from the SAS. A point closer than `rp` to some SAS point `s` is
-  *cut* by `s`.
+- The **SES** is the boundary of `{p : B(p, rp) ⊂ U}`: the points of `U` at
+  distance exactly `rp` from the SAS. A point closer than `rp` to some SAS
+  point `s` is *cut* by `s`.
 - The SES decomposes into three patch families (Connolly 1983):
   - **convex**: the probe touches one atom; the patch is the atom's vdW sphere
     scaled from the accessible part of its SAS sphere;
@@ -230,16 +230,17 @@ C++), not a case the kernels can survive.
 
 ### Preparation (`prepare`)
 
-1. **Pairs.** KD-tree pairs `(i < j)` with `d ≤ R_i + R_j + TAU_C` are the
+1. **Pairs.** KD-tree pairs `(i < j)` with `d ≤ R_i + R_j + 2 TAU_C` are the
    *near* pairs; those with `d < R_i + R_j − TAU_C` are the **overlaps**,
    decided once, and carry circles. A pair tangent to within `TAU_C` is near
    but not an overlap: it has no circle, but it still counts as a neighbour
-   below, because two hosts of one vertex cluster can be exactly that far
-   apart (their contact points differ by up to `TAU_C`). Coincident centres
-   (`d < 1e-3 Å`) raise. `rp ≤ 0`, a non-positive radius,
-   or SAS radii with `R_min² < 2rp² + 2 TAU_C R_max` (the hypothesis of
-   Lemma 7 below; a vdW radius just above `(√2 − 1) rp`, about 0.7 Å for
-   water) raise.
+   below, because two hosts of one vertex cluster can be that far apart.
+   Their contact points are two members of the cluster, and the SAS build
+   checks that every member lies within `TAU_C` of the cluster mean, so they
+   differ by at most `2 TAU_C`. Coincident centres (`d < 1e-3 Å`) raise.
+   `rp ≤ 0`, a non-positive radius, or SAS radii with
+   `R_min² < 2rp² + 2 TAU_C R_max` (the hypothesis of Lemma 7 below; a vdW
+   radius just above `(√2 − 1) rp`, about 0.7 Å for water) raise.
 2. **Contained balls.** If `d ≤ |R_i − R_j| + TAU_C` the smaller ball is
    contained: it has no surface and generates no caps. These atoms are
    dropped from everything that follows.
@@ -272,7 +273,7 @@ C++), not a case the kernels can survive.
    are exact. An active circle's first sphere is its active atom (active
    indices are the lowest), so active torus arcs come from solved spheres.
    The hosts of a probe on an active atom are all near that atom (their
-   contact points lie within one cluster, `TAU_C` apart), so they are in
+   contact points lie within one cluster, `2 TAU_C` apart), so they are in
    `need`, every circle between two of them is solved, and the probe's
    departure tangents are complete. By Lemma 7, a probe that cuts the face
    of a probe on an active atom has a host that overlaps one of that probe's
@@ -304,8 +305,9 @@ C++), not a case the kernels can survive.
    are tag arithmetic wherever they are needed. No cap geometry is
    recomputed, and the first sphere's arc `φ` *is* the circle's `φ`.
 3. **Triple vertices, computed once** (`_triple_candidates`). Candidates are
-   `(i < j < k)` with `(i, j)` a circle and `k` a later neighbour of `i` that
-   also pairs with `j` (all vectorised over the neighbour lists). The circle
+   `(i < j < k)` with `(i, j)` a circle and `k` a later overlap partner of
+   `i` that also overlaps `j` (all vectorised over the sorted overlap lists;
+   near pairs without a circle take no part). The circle
    `(i, j)` is intersected with sphere `k`: with `w = t − c_k`,
    `g = (R_k² − |w|² − rl²)/2rl`, `A = w·e1`, `B = w·e2`, `amp² = A² + B²`,
    the points exist iff `h² = amp² − g² > 0` and are
@@ -326,8 +328,11 @@ C++), not a case the kernels can survive.
    are computed once per surviving triple and handed to all three spheres.
 4. **Global clustering.** All raw points are clustered at `TAU_C`. A cluster's
    atoms are the union of its triples; k-fold coincidences give probes with
-   four or more atoms. Clusters are relabelled by their smallest atom, the
-   owner.
+   four or more atoms. Every member must lie within `TAU_C` of the cluster
+   mean (a `DCHECK` in C++, `DegenerateGeometryError` in the pilot): the
+   scatter of one geometric point is about `1e-12 Å`, and the near-pair
+   margin of the preparation stage relies on the bound. Clusters are
+   relabelled by their smallest atom, the owner.
 5. **Accessibility on the owner sphere.** Each cluster is decided once, on the
    sphere of its smallest atom, with the test of §2 step 4 against that
    sphere's caps, excusing the caps of the triples that generated it (the
@@ -447,8 +452,9 @@ Three consequences:
   **beyond-plane cap** `D_x = {d : d·n > cos β}`, `cos β = h/rp`. This is a cap
   only when `h < rp`, which holds on every low vertex since `h ≤ dist(x, T_x)`;
   high vertices never reach any code that uses `β`. The bound is
-  attained: `D_x` is exactly the cap cut by the mirror vertex `x + 2h n`, the
-  second point where the three SAS spheres meet.
+  attained: `D_x` is exactly the cap cut by the mirror triple point
+  `x + 2h n`, the second point where the three SAS spheres meet (a vertex
+  only if it is accessible).
 - **(b) Saddles are cut only in the spindle.** For a probe centre on the
   circle of atoms `i, j`, the generating directions are the cone of
   `ĉ_i, ĉ_j`, and the ray at angle `β` from the inward radial direction meets
@@ -699,7 +705,8 @@ the tolerance term is at most `4 TAU_C R_max Λ'M'`; hence
 **Corollary (two neighbour shells suffice).** The hosts of a vertex cluster
 `x` are pairwise *near* (§3, preparation step 1): two hosts from one triple
 share a point, and two hosts from different triples of a merged cluster have
-contact points within `TAU_C`, so `|c_a − c_d| ≤ R_a + R_d + TAU_C`. An
+contact points within the cluster's diameter, at most `2 TAU_C` (§3, SAS
+step 4), so `|c_a − c_d| ≤ R_a + R_d + 2 TAU_C`. An
 overlap is a near pair, so a host of an effective cutter of `x` is within
 two near hops of every host of `x`, and enumerating the vertices that have a
 host in `active ∪ N(active) ∪ N²(active)`, with `N` the near neighbourhood,
@@ -774,8 +781,8 @@ probe positions used by the buried/trim tests in `sc.py`.
 
 ## 5. Complexity
 
-Overlap enumeration uses one KD-tree; triple candidates come from sorted
-neighbour lists and a `searchsorted` pair lookup. Each sphere's arrangement is
+Pair enumeration uses one KD-tree; triple candidates come from sorted
+overlap lists and a `searchsorted` pair lookup. Each sphere's arrangement is
 `O(m²)` in its cap count `m` (10–40 for proteins) and independent of all other
 spheres. Global steps: one KD-tree clustering of the raw vertices, one
 label-propagation pass for all cap graphs, one vectorised accessibility test

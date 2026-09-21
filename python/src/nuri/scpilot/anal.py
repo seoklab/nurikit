@@ -23,6 +23,7 @@ from .arrangement import (
     TAU_C,
     Arrangement,
     Caps,
+    DegenerateGeometryError,
     any_perpendicular,
     classify_caps,
     cluster_points,
@@ -81,7 +82,7 @@ def prepare(coords, radii, rp, active=None):
     """Order atoms as ``[active | need | shell | occluders]`` and drop
     balls without surface.
 
-    ``need`` holds the active atoms and every atom within ``TAU_C`` of
+    ``need`` holds the active atoms and every atom within ``2 TAU_C`` of
     touching one, ``shell`` the same neighbourhood of ``need``: every probe
     that can cut the face of a probe on an active atom has a host in ``shell``
     (ALGORITHMS.md, "Which probes can cut a face", host overlap), which
@@ -152,23 +153,26 @@ def _neighbourhood(mask, i, j):
 
 
 def near_pairs(coords, sas):
-    """All pairs ``(i < j)`` whose SAS balls come within ``TAU_C`` of
+    """All pairs ``(i < j)`` whose SAS balls come within ``2 TAU_C`` of
     touching, and their distances.
 
     The pairs closer than ``R_i + R_j - TAU_C`` are the overlaps that carry
-    circles; the rest, tangent to within ``TAU_C``, only matter for the
-    neighbourhoods of :func:`prepare`: two hosts of one vertex cluster can
-    be that far apart without sharing a circle.
+    circles; the rest only matter for the neighbourhoods of
+    :func:`prepare`: two hosts of one vertex cluster have contact points
+    within the cluster's diameter, at most ``2 TAU_C`` (checked in
+    :meth:`SasGeometry.build`), without necessarily sharing a circle.
     """
     tree = cKDTree(coords)
-    pairs = tree.query_pairs(2.0 * sas.max() + TAU_C, output_type="ndarray")
+    pairs = tree.query_pairs(
+        2.0 * sas.max() + 2.0 * TAU_C, output_type="ndarray"
+    )
     if len(pairs) == 0:
         pairs = np.empty((0, 2), dtype=int)
     i, j = pairs[:, 0], pairs[:, 1]
     d = np.linalg.norm(coords[j] - coords[i], axis=1)
     if np.any(d < 1e-3):
         raise ValueError("coincident atoms")
-    near = d <= sas[i] + sas[j] + TAU_C
+    near = d <= sas[i] + sas[j] + 2.0 * TAU_C
     return pairs[near], d[near]
 
 
@@ -199,7 +203,7 @@ def shared_circle_middles(coords, sas, pairs, d):
         return out
     o = np.lexsort((pairs[:, 1], pairs[:, 0]))
     pairs, d = pairs[o], d[o]
-    nbr_off, nbr_flat = _neighbour_csr(n, pairs)
+    nbr_off, nbr_flat = _overlap_csr(n, pairs)
     triples, pid = _overlapping_triples(
         n, pairs, nbr_off, nbr_flat, len(pairs)
     )
@@ -297,7 +301,7 @@ class SasGeometry:
         sas = radii + rp
         n_circ = int(np.searchsorted(pairs[:, 0], n_enum))
         circles = _circles(coords, sas, pairs[:n_circ], d[:n_circ])
-        nbr_off, nbr_flat = _neighbour_csr(n, pairs)
+        nbr_off, nbr_flat = _overlap_csr(n, pairs)
         offsets, all_caps, all_tags, row_of = _cap_rows(
             circles, sas, n_enum, len(pairs)
         )
@@ -352,6 +356,8 @@ class SasGeometry:
         reps = np.zeros((n_clusters, 3))
         np.add.at(reps, label, raw_pts)
         reps /= np.bincount(label, minlength=n_clusters)[:, None]
+        if np.any(np.linalg.norm(raw_pts - reps[label], axis=1) > TAU_C):
+            raise DegenerateGeometryError("vertex cluster wider than 2 TAU_C")
         label_of = np.full((len(triples), 2), -1, dtype=int)
         label_of[has_vertex] = label.reshape(-1, 2)
 
@@ -459,8 +465,8 @@ def _cap_rows(circles: Circles, sas, n_enum: int, n_pairs: int):
     return offsets, caps, tag, row_of
 
 
-def _neighbour_csr(n, pairs) -> tuple[np.ndarray, np.ndarray]:
-    """Sorted neighbour lists of every atom as ``(offsets, flat)``."""
+def _overlap_csr(n, pairs) -> tuple[np.ndarray, np.ndarray]:
+    """Sorted overlap partners of every atom as ``(offsets, flat)``."""
     both = np.concatenate([pairs, pairs[:, ::-1]])
     both = both[np.lexsort((both[:, 1], both[:, 0]))]
     return np.searchsorted(both[:, 0], np.arange(n + 1)), both[:, 1]
