@@ -771,11 +771,11 @@ quantity.
   lattice per distinct count, reused); a direction is kept iff it is outside
   every cap of the atom's arrangement (`Arrangement.contains`). Dot =
   `c_i + r_i d`, normal `d`, weight `A_convex(i) / n_kept`, owner `i`.
-- **Toroidal**, for every (arc, range) row of the active arcs at once. A
-  circle with `rl ≥ rp` has no cusp, so its two ranges are merged into one
-  row spanning `[lo_0, hi_1]` (the second row is left zero-width): rounding
-  the ring count on each half separately would double its error on narrow
-  saddles and leave a seam at `β = 0`.
+- **Toroidal**, row by row, one row per active arc and cusp side
+  (`SaddleRow`). A circle with `rl ≥ rp` has no cusp, so its two ranges are
+  merged into one row spanning `[lo_0, hi_1]`: rounding the ring count on
+  each half separately would double its error on narrow saddles and leave a
+  seam at `β = 0`.
   1. `k_β = max(round(rp (hi − lo) √density), 1)` rings of equal `β` width;
      ring `m` spans `[β_m, β_{m+1}]` and is sampled at its middle;
   2. exact ring area `a_m = rp · dphi · [rl Δβ − rp (sin β_{m+1} − sin β_m)]`;
@@ -786,8 +786,8 @@ quantity.
      rescaled so that the row's weights sum to its exact area; a row whose
      rings all round to zero is collapsed to one ring with
      `round(area · density)` dots, and only rows that still round to zero are
-     dropped (recorded in `Dots.dropped_area`). Zero-width rows drop zero area
-     and emit nothing through the same arithmetic.
+     dropped (recorded in `Dots.dropped_area`). An absent spindle side is a
+     zero-width row: it drops zero area and emits nothing.
   4. Dot position `p = q(φ) + rp (−cos β · radial(φ) + sin β · u)`, normal
      `(q − p)/rp`, owner the atom whose vdW surface is nearer. `cos β`,
      `sin β` and the owner are per ring: `|p − c_i|² = R_i² + rp² −

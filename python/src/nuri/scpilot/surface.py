@@ -20,8 +20,7 @@ from enum import IntEnum
 
 import numpy as np
 
-from .anal import SasGeometry, SesGeometry
-from .aos import scalars, vectors
+from .anal import Circle, SasGeometry, SesGeometry, TorusArc
 from .arrangement import contains
 
 
@@ -138,35 +137,35 @@ def _convex(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
         )
 
 
-def _segments(counts: np.ndarray):
-    """Expand per-segment ``counts`` into ``(segment id, index within
-    segment)`` for every element, plus the start of every segment."""
-    seg = np.repeat(np.arange(len(counts)), counts)
-    start = np.cumsum(counts) - counts
-    return seg, np.arange(len(seg)) - start[seg], start
+@dataclass
+class SaddleRow:
+    """One ``beta`` range of one active arc to sample: the arc, its circle,
+    the range ``[lo, hi]`` and the area integral of the range."""
+
+    arc: TorusArc
+    circle: Circle
+    lo: float
+    hi: float
+    integral: float
 
 
-def _saddle_rows(ses: SesGeometry):
-    """One ``(arc, range)`` row per active arc and cusp side: the ``beta``
-    range, its area integral, and the arc's circle. Where there is no cusp
-    both sides are one arc of ``beta`` and are merged into the first row,
-    leaving the second zero-width."""
+def _saddle_rows(ses: SesGeometry) -> list[SaddleRow]:
+    """One row per active arc and cusp side. A circle with ``rl >= rp`` has
+    no cusp, so its two sides are one arc of ``beta`` and make one merged
+    row; a side that is absent has zero width and emits nothing."""
     sas = ses.sas
-    n_arcs = sas.n_active_arcs
-    arc = np.repeat(np.arange(n_arcs), 2)
-    part = np.tile([0, 1], n_arcs)
-    c = scalars(sas.arcs[:n_arcs], "circle", int)[arc]
-    ranges = np.array([s.ranges for s in ses.saddles]).reshape(-1, 2, 2)
-    integrals = np.array([s.integral for s in ses.saddles]).reshape(-1, 2)
-    lo, hi = ranges[c, part].T.copy()
-    integral = integrals[c, part].copy()
-    whole = scalars(sas.circles, "rl")[c] >= sas.rp
-    first, second = whole & (part == 0), whole & (part == 1)
-    hi[first] = hi[second]
-    integral[first] += integral[second]
-    lo[second] = hi[second]
-    integral[second] = 0.0
-    return arc, c, lo, hi, integral
+    rows = []
+    for arc in sas.arcs[: sas.n_active_arcs]:
+        circle = sas.circles[arc.circle]
+        saddle = ses.saddles[arc.circle]
+        (lo0, hi0), (lo1, hi1) = saddle.ranges
+        int0, int1 = saddle.integral
+        if circle.rl >= sas.rp:
+            rows.append(SaddleRow(arc, circle, lo0, hi1, int0 + int1))
+        else:
+            rows.append(SaddleRow(arc, circle, lo0, hi0, int0))
+            rows.append(SaddleRow(arc, circle, lo1, hi1, int1))
+    return rows
 
 
 def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
@@ -176,92 +175,66 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
     sampled as one ring; rows that still round to zero are dropped."""
     sas = ses.sas
     rp = sas.rp
-    circles, arcs = sas.circles, sas.arcs
-    c_rl, c_a, c_d = (
-        scalars(circles, "rl"),
-        scalars(circles, "a"),
-        scalars(circles, "d"),
-    )
-    c_i, c_j = scalars(circles, "i", int), scalars(circles, "j", int)
-    c_centre, c_axis = vectors(circles, "centre"), vectors(circles, "axis")
-    c_e1, c_e2 = vectors(circles, "e1"), vectors(circles, "e2")
-    a_dphi, a_phi_beg = scalars(arcs, "dphi"), scalars(arcs, "phi_beg")
-    arc, c, lo, hi, integral = _saddle_rows(ses)
-    rl, dphi = c_rl[c], a_dphi[arc]
-    width = hi - lo
-    total = rp * dphi * integral
+    for row in _saddle_rows(ses):
+        arc, circle = row.arc, row.circle
+        width = row.hi - row.lo
+        total = rp * arc.dphi * row.integral
 
-    k_beta = np.maximum(np.round(rp * width * math.sqrt(density)), 1).astype(
-        int
-    )
-    row, m, first = _segments(k_beta)
-    dbeta = width / k_beta
-    erow, em, estart = _segments(k_beta + 1)
-    sin_edge = np.sin(lo[erow] + em * dbeta[erow])
-    edge = estart[row] + m
-    beta = lo[row] + (m + 0.5) * dbeta[row]
-    area = (
-        rp
-        * dphi[row]
-        * (rl[row] * dbeta[row] - rp * (sin_edge[edge + 1] - sin_edge[edge]))
-    )
-    k_phi = np.round(area * density).astype(int)
-
-    starved = np.bincount(row, k_phi > 0, minlength=len(arc)) == 0
-    collapse = first[starved]
-    beta[collapse] = 0.5 * (lo + hi)[starved]
-    area[collapse] = total[starved]
-    k_phi[collapse] = np.round(total[starved] * density).astype(int)
-
-    keep = k_phi > 0
-    out.dropped += float(
-        total[np.bincount(row, keep, minlength=len(arc)) == 0].sum()
-    )
-    row, beta, area, k_phi, m = (
-        row[keep],
-        beta[keep],
-        area[keep],
-        k_phi[keep],
-        m[keep],
-    )
-    covered = np.bincount(row, area, minlength=len(arc))
-    area *= total[row] / covered[row]
-
-    cos_b, sin_b = np.cos(beta), np.sin(beta)
-    cr = c[row]
-    i, j = c_i[cr], c_j[cr]
-    a_i, a_j, rl_r = c_a[cr], c_d[cr] - c_a[cr], rl[row]
-    depth_i = (
-        np.sqrt(
-            sas.radii[i] ** 2
-            + 2.0 * rp * (sas.sas[i] - rl_r * cos_b + a_i * sin_b)
+        k_beta = max(round(rp * width * math.sqrt(density)), 1)
+        dbeta = width / k_beta
+        sin_edge = np.sin(row.lo + np.arange(k_beta + 1) * dbeta)
+        beta = row.lo + (np.arange(k_beta) + 0.5) * dbeta
+        area = (
+            rp
+            * arc.dphi
+            * (circle.rl * dbeta - rp * (sin_edge[1:] - sin_edge[:-1]))
         )
-        - sas.radii[i]
-    )
-    depth_j = (
-        np.sqrt(
-            sas.radii[j] ** 2
-            + 2.0 * rp * (sas.sas[j] - rl_r * cos_b - a_j * sin_b)
-        )
-        - sas.radii[j]
-    )
-    owner = np.where(depth_i <= depth_j, i, j)
+        k_phi = np.round(area * density).astype(int)
+        if not np.any(k_phi > 0):
+            beta = np.array([0.5 * (row.lo + row.hi)])
+            area = np.array([total])
+            k_phi = np.array([round(total * density)])
+        keep = np.flatnonzero(k_phi > 0)
+        if len(keep) == 0:
+            out.dropped += total
+            continue
+        beta, area, k_phi = beta[keep], area[keep], k_phi[keep]
+        area *= total / area.sum()
 
-    ring, n_in_ring, _ = _segments(k_phi)
-    r = row[ring]
-    cc = c[r]
-    offset = (0.25 + 0.5 * (m[ring] % 2)) / k_phi[ring]
-    phi = a_phi_beg[arc[r]] + (n_in_ring / k_phi[ring] + offset) * dphi[r]
-    radial = np.cos(phi)[:, None] * c_e1[cc] + np.sin(phi)[:, None] * c_e2[cc]
-    q = c_centre[cc] + rl[r, None] * radial
-    inward = -cos_b[ring, None] * radial + sin_b[ring, None] * c_axis[cc]
-    out.add(
-        q + rp * inward,
-        -inward,
-        (area / k_phi)[ring],
-        owner[ring],
-        Patch.TOROIDAL,
-    )
+        cos_b, sin_b = np.cos(beta), np.sin(beta)
+        i, j = circle.i, circle.j
+        a_i, a_j = circle.a, circle.d - circle.a
+        depth_i = (
+            np.sqrt(
+                sas.radii[i] ** 2
+                + 2.0 * rp * (sas.sas[i] - circle.rl * cos_b + a_i * sin_b)
+            )
+            - sas.radii[i]
+        )
+        depth_j = (
+            np.sqrt(
+                sas.radii[j] ** 2
+                + 2.0 * rp * (sas.sas[j] - circle.rl * cos_b - a_j * sin_b)
+            )
+            - sas.radii[j]
+        )
+        owner = np.where(depth_i <= depth_j, i, j)
+
+        for ring, m in enumerate(keep):
+            n = np.arange(k_phi[ring])
+            offset = (0.25 + 0.5 * (m % 2)) / k_phi[ring]
+            phi = arc.phi_beg + (n / k_phi[ring] + offset) * arc.dphi
+            radial = np.cos(phi)[:, None] * circle.e1
+            radial += np.sin(phi)[:, None] * circle.e2
+            q = circle.centre + circle.rl * radial
+            inward = -cos_b[ring] * radial + sin_b[ring] * circle.axis
+            out.add(
+                q + rp * inward,
+                -inward,
+                area[ring] / k_phi[ring],
+                owner[ring],
+                Patch.TOROIDAL,
+            )
 
 
 def _concave(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
