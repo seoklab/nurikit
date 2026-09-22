@@ -89,12 +89,14 @@ def test_two_spheres_rings_merged_and_staggered():
     x, ring = np.unique(tor[:, 0].round(9), return_inverse=True)
     assert len(x) == round(rp * width * math.sqrt(density))
 
-    circles, arcs = sas.circles, sas.arcs
-    assert len(arcs) == 1
-    e1, e2 = circles.e1[arcs.circle[0]], circles.e2[arcs.circle[0]]
+    assert len(sas.arcs) == 1
+    (arc,) = sas.arcs
+    circle = sas.circles[arc.circle]
     for m in range(len(x)):
         p = tor[ring == m]
-        phi = (np.arctan2(p @ e2, p @ e1) - arcs.phi_beg[0]) % (2 * math.pi)
+        phi = (np.arctan2(p @ circle.e2, p @ circle.e1) - arc.phi_beg) % (
+            2 * math.pi
+        )
         frac = (np.sort(phi) * len(phi) / (2 * math.pi)) % 1.0
         np.testing.assert_allclose(frac, 0.25 + 0.5 * (m % 2), atol=1e-9)
 

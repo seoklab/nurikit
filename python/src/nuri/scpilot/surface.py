@@ -21,6 +21,7 @@ from enum import IntEnum
 import numpy as np
 
 from .anal import SasGeometry, SesGeometry
+from .aos import scalars, vectors
 from .arrangement import contains
 
 
@@ -154,10 +155,12 @@ def _saddle_rows(ses: SesGeometry):
     n_arcs = sas.n_active_arcs
     arc = np.repeat(np.arange(n_arcs), 2)
     part = np.tile([0, 1], n_arcs)
-    c = sas.arcs.circle[arc]
-    lo, hi = ses.saddles.ranges[c, part].T.copy()
-    integral = ses.saddles.integral[c, part].copy()
-    whole = sas.circles.radius[c] >= sas.rp
+    c = scalars(sas.arcs[:n_arcs], "circle", int)[arc]
+    ranges = np.array([s.ranges for s in ses.saddles]).reshape(-1, 2, 2)
+    integrals = np.array([s.integral for s in ses.saddles]).reshape(-1, 2)
+    lo, hi = ranges[c, part].T.copy()
+    integral = integrals[c, part].copy()
+    whole = scalars(sas.circles, "rl")[c] >= sas.rp
     first, second = whole & (part == 0), whole & (part == 1)
     hi[first] = hi[second]
     integral[first] += integral[second]
@@ -174,8 +177,17 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
     sas = ses.sas
     rp = sas.rp
     circles, arcs = sas.circles, sas.arcs
+    c_rl, c_a, c_d = (
+        scalars(circles, "rl"),
+        scalars(circles, "a"),
+        scalars(circles, "d"),
+    )
+    c_i, c_j = scalars(circles, "i", int), scalars(circles, "j", int)
+    c_centre, c_axis = vectors(circles, "centre"), vectors(circles, "axis")
+    c_e1, c_e2 = vectors(circles, "e1"), vectors(circles, "e2")
+    a_dphi, a_phi_beg = scalars(arcs, "dphi"), scalars(arcs, "phi_beg")
     arc, c, lo, hi, integral = _saddle_rows(ses)
-    rl, dphi = circles.radius[c], arcs.dphi[arc]
+    rl, dphi = c_rl[c], a_dphi[arc]
     width = hi - lo
     total = rp * dphi * integral
 
@@ -217,8 +229,8 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
 
     cos_b, sin_b = np.cos(beta), np.sin(beta)
     cr = c[row]
-    i, j = circles.pair[cr, 0], circles.pair[cr, 1]
-    a_i, a_j, rl_r = circles.a[cr], circles.d[cr] - circles.a[cr], rl[row]
+    i, j = c_i[cr], c_j[cr]
+    a_i, a_j, rl_r = c_a[cr], c_d[cr] - c_a[cr], rl[row]
     depth_i = (
         np.sqrt(
             sas.radii[i] ** 2
@@ -239,13 +251,10 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
     r = row[ring]
     cc = c[r]
     offset = (0.25 + 0.5 * (m[ring] % 2)) / k_phi[ring]
-    phi = arcs.phi_beg[arc[r]] + (n_in_ring / k_phi[ring] + offset) * dphi[r]
-    radial = (
-        np.cos(phi)[:, None] * circles.e1[cc]
-        + np.sin(phi)[:, None] * (circles.e2[cc])
-    )
-    q = circles.centre[cc] + rl[r, None] * radial
-    inward = -cos_b[ring, None] * radial + sin_b[ring, None] * circles.axis[cc]
+    phi = a_phi_beg[arc[r]] + (n_in_ring / k_phi[ring] + offset) * dphi[r]
+    radial = np.cos(phi)[:, None] * c_e1[cc] + np.sin(phi)[:, None] * c_e2[cc]
+    q = c_centre[cc] + rl[r, None] * radial
+    inward = -cos_b[ring, None] * radial + sin_b[ring, None] * c_axis[cc]
     out.add(
         q + rp * inward,
         -inward,
@@ -272,7 +281,7 @@ def _concave(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
             - small
         )
         out.add(
-            sas.probes[face.probe] + rp * dirs,
+            sas.probes[face.probe].pos + rp * dirs,
             -dirs,
             face.area / max(len(dirs), 1),
             face.atoms[np.argmin(depth, axis=1)],

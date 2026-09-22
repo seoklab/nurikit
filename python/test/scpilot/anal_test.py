@@ -18,6 +18,7 @@ from nuri.scpilot.anal import (
     ses_area,
     two_sphere_ses_area,
 )
+from nuri.scpilot.aos import vectors
 from nuri.scpilot.arrangement import Cap, caps_from_arrays, solve_caps
 from nuri.scpilot.io import load_structure
 from nuri.scpilot.surface import Patch, ses_dots
@@ -143,7 +144,7 @@ def test_degenerate_sweep_vs_sampled(case, eps):
 def test_exact_coincidence_merges_probes():
     sas, _ = SasGeometry.from_atoms(coincident_case(0.0), [R] * 4, RP)
     assert len(sas.probes) == 5
-    assert sorted(np.diff(sas.probe_offsets).tolist()) == [3, 3, 3, 3, 4]
+    assert sorted(len(p.atoms) for p in sas.probes) == [3, 3, 3, 3, 4]
     ses = SesGeometry.build(sas)
     assert len(ses.concave) == 5
     assert all(f.area > 0 for f in ses.concave)
@@ -215,7 +216,7 @@ def test_protein_fragment_vs_sampled(test_data, last_residue):
 
 def brute_force_face_areas(sas):
     """Every active face solved against every other probe within 2rp."""
-    probes, rp = sas.probes, sas.rp
+    probes, rp = vectors(sas.probes, "pos"), sas.rp
     dep_off, dep_t = _departure_caps(sas)
     tree = cKDTree(probes)
     areas = []
@@ -347,7 +348,7 @@ def test_inactive_atoms_skip_geometry():
 
 def active_faces(sas, ses):
     """Concave areas of the active probes keyed by probe position."""
-    probes = sas.probes[: sas.n_active_probes]
+    probes = vectors(sas.probes[: sas.n_active_probes], "pos")
     return probes, np.array([f.area for f in ses.concave])
 
 
@@ -355,7 +356,7 @@ def assert_masked_faces_match_full(coords, radii, rp, active):
     full, _ = SasGeometry.from_atoms(coords, radii, rp)
     masked, _ = SasGeometry.from_atoms(coords, radii, rp, active)
     probes, areas = active_faces(masked, SesGeometry.build(masked))
-    d, idx = cKDTree(full.probes).query(probes, k=1)
+    d, idx = cKDTree(vectors(full.probes, "pos")).query(probes, k=1)
     assert np.all(d < 1e-9)
     full_areas = np.array([f.area for f in SesGeometry.build(full).concave])
     np.testing.assert_allclose(areas, full_areas[idx], rtol=0.0, atol=1e-9)
