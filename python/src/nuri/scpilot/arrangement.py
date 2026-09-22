@@ -118,34 +118,43 @@ def components(n: int, edges: np.ndarray) -> np.ndarray:
     """Connected-component labels ``0 .. k-1`` of ``n`` nodes joined by
     ``edges``, numbered by smallest member.
 
-    Minimum-label propagation with pointer jumping: labels are node ids,
-    every round takes the minimum over each edge and then the label of the
-    label, so a component collapses to its smallest node in logarithmically
-    many rounds.
+    Union-find with path halving; the smaller root absorbs the larger, so
+    every root is the smallest node of its component.
     """
-    label = np.arange(n)
-    a, b = edges[:, 0], edges[:, 1]
-    while True:
-        new = label.copy()
-        np.minimum.at(new, a, label[b])
-        np.minimum.at(new, b, label[a])
-        new = new[new]
-        if np.array_equal(new, label):
-            break
-        label = new
-    is_root = np.zeros(n, dtype=bool)
-    is_root[label] = True
-    return (np.cumsum(is_root) - 1)[label]
+    parent = np.arange(n)
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for a, b in edges:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[max(ra, rb)] = min(ra, rb)
+
+    root = np.fromiter((find(x) for x in range(n)), dtype=int, count=n)
+    is_root = root == np.arange(n)
+    return (np.cumsum(is_root) - 1)[root]
 
 
 def cluster_points(pts: np.ndarray, tol: float) -> np.ndarray:
-    """Labels of connected components of points closer than ``tol``."""
+    """Labels of connected components of points closer than ``tol``,
+    with the pair search on a KD-tree (many points)."""
     if len(pts) < 2:
         return np.arange(len(pts))
     pairs = cKDTree(pts).query_pairs(tol, output_type="ndarray")
-    if len(pairs) == 0:
-        return np.arange(len(pts))
     return components(len(pts), pairs)
+
+
+def _cluster_dense(pts: np.ndarray, tol: float) -> np.ndarray:
+    """Labels of connected components of points closer than ``tol``, with
+    every pair tested (few points)."""
+    diff = pts[:, None, :] - pts[None, :, :]
+    near = np.einsum("ijk,ijk->ij", diff, diff) <= tol * tol
+    edges = np.column_stack(np.nonzero(np.triu(near, 1)))
+    return components(len(pts), edges)
 
 
 def prepare_caps(caps: Caps, radius: float) -> tuple[Caps, bool, np.ndarray]:
@@ -219,7 +228,7 @@ def pair_predicates(
 def _merge_coincident(caps: Caps, radius: float) -> tuple[Caps, np.ndarray]:
     """Merged caps and the merged index of every input cap."""
     vec = radius * np.column_stack([caps.axis, caps.cos_a, caps.sin_a])
-    label = cluster_points(vec, TAU_C)
+    label = _cluster_dense(vec, TAU_C)
     k = len(np.unique(label))
     if k == len(caps):
         return caps, label
@@ -287,7 +296,7 @@ def solve_caps(radius: float, caps: Caps) -> Arrangement:
     if covered:
         return covered_arrangement(caps)
     dirs, edges = crossing_points(caps, crossing)
-    label = cluster_points(dirs * radius, TAU_C)
+    label = _cluster_dense(dirs * radius, TAU_C)
     n_clusters = int(label.max()) + 1 if len(label) else 0
     reps = np.zeros((n_clusters, 3))
     np.add.at(reps, label, dirs)
