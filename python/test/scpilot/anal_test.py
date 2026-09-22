@@ -18,7 +18,7 @@ from nuri.scpilot.anal import (
     ses_area,
     two_sphere_ses_area,
 )
-from nuri.scpilot.arrangement import Caps, solve_caps
+from nuri.scpilot.arrangement import Cap, caps_from_arrays, solve_caps
 from nuri.scpilot.io import load_structure
 from nuri.scpilot.surface import Patch, ses_dots
 
@@ -226,17 +226,10 @@ def brute_force_face_areas(sas):
         close = (dist > 0.0) & (dist < 2.0 * rp)
         cos_a = dist[close] / (2.0 * rp)
         tangents = dep_t[dep_off[q] : dep_off[q + 1]]
-        caps = Caps.concat(
-            [
-                Caps(
-                    tangents, np.zeros(len(tangents)), np.ones(len(tangents))
-                ),
-                Caps(
-                    diff[close] / dist[close, None],
-                    cos_a,
-                    np.sqrt(1.0 - cos_a * cos_a),
-                ),
-            ]
+        caps = [Cap(t, 0.0, 1.0) for t in tangents] + caps_from_arrays(
+            diff[close] / dist[close, None],
+            cos_a,
+            np.sqrt(1.0 - cos_a * cos_a),
         )
         areas.append(solve_caps(rp, caps).area)
     return np.array(areas)

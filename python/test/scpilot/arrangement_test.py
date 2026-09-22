@@ -9,8 +9,9 @@ import numpy as np
 import pytest
 
 from nuri.scpilot.arrangement import (
-    Caps,
+    Cap,
     DegenerateGeometryError,
+    caps_from_arrays,
     cluster_points,
     prepare_caps,
     solve_caps,
@@ -20,11 +21,11 @@ from nuri.scpilot.surface import fibonacci_sphere
 LATTICE = fibonacci_sphere(2_000_000)
 
 
-def caps_from(axes, alphas) -> Caps:
+def caps_from(axes, alphas) -> list[Cap]:
     axes = np.asarray(axes, dtype=float).reshape(-1, 3)
     axes = axes / np.linalg.norm(axes, axis=1, keepdims=True)
     alphas = np.asarray(alphas, dtype=float).reshape(-1)
-    return Caps(axes, np.cos(alphas), np.sin(alphas))
+    return caps_from_arrays(axes, np.cos(alphas), np.sin(alphas))
 
 
 def lattice_area(arr, radius=1.0):
@@ -42,7 +43,7 @@ def polar_axis(alpha, psi):
 
 
 def test_no_caps():
-    arr = solve_caps(2.0, Caps.empty())
+    arr = solve_caps(2.0, [])
     assert len(arr.caps) == 0
     assert arr.n_patches == 1
     assert arr.area == pytest.approx(16.0 * math.pi)
@@ -62,7 +63,7 @@ def test_two_crossing_caps():
     arr = solve_caps(1.0, caps_from([[0, 0, 1], [1, 0, 1]], [0.6, 0.5]))
     assert arr.n_loops == 1
     assert arr.n_patches == 1
-    assert len(np.unique(arr.arcs.v_beg)) == 2
+    assert len({a.v_beg for a in arr.arcs}) == 2
     assert arr.area == pytest.approx(lattice_area(arr), rel=2e-3)
 
 
@@ -89,8 +90,8 @@ def test_three_circles_through_one_point():
     alphas = [0.4, 0.6, 0.5]
     axes = [polar_axis(a, psi) for a, psi in zip(alphas, [0.0, 2.1, 4.0])]
     arr = solve_caps(1.0, caps_from(axes, alphas))
-    ends = np.concatenate([arr.arcs.v_beg, arr.arcs.v_end])
-    assert (len(arr.arcs), len(np.unique(ends)), arr.n_loops) == (3, 3, 1)
+    ends = {a.v_beg for a in arr.arcs} | {a.v_end for a in arr.arcs}
+    assert (len(arr.arcs), len(ends), arr.n_loops) == (3, 3, 1)
     assert arr.area == pytest.approx(lattice_area(arr), rel=2e-3)
 
 

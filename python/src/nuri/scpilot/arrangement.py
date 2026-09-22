@@ -22,6 +22,8 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.spatial import cKDTree
 
+from .aos import scalars, vectors
+
 TAU_C = 1e-6
 _TAU_DIR = 1e-9
 
@@ -31,62 +33,53 @@ class DegenerateGeometryError(RuntimeError):
 
 
 @dataclass
-class Caps:
-    """Caps ``n . x > cos_a`` on the unit sphere; ``sin_a`` is kept
+class Cap:
+    """Cap ``axis . x > cos_a`` on the unit sphere; ``sin_a`` is kept
     alongside so no angle is ever recovered by inverse trig."""
 
     axis: np.ndarray
-    cos_a: np.ndarray
-    sin_a: np.ndarray
-
-    def __len__(self) -> int:
-        return len(self.cos_a)
-
-    @classmethod
-    def empty(cls) -> Caps:
-        z = np.empty(0)
-        return cls(np.empty((0, 3)), z, z.copy())
-
-    def take(self, idx: np.ndarray) -> Caps:
-        return Caps(self.axis[idx], self.cos_a[idx], self.sin_a[idx])
-
-    def contains(self, dirs: np.ndarray) -> np.ndarray:
-        """True where unit directions ``dirs`` lie inside any cap."""
-        return np.any(dirs @ self.axis.T > self.cos_a, axis=1)
-
-    @classmethod
-    def concat(cls, parts: list[Caps]) -> Caps:
-        parts = [cls.empty(), *parts]
-        return cls(
-            *(
-                np.concatenate([getattr(x, f) for x in parts])
-                for f in ("axis", "cos_a", "sin_a")
-            )
-        )
+    cos_a: float
+    sin_a: float
 
 
 @dataclass
-class Arcs:
-    cap: np.ndarray
-    v_beg: np.ndarray
-    v_end: np.ndarray
-    phi_beg: np.ndarray
-    dphi: np.ndarray
+class Arc:
+    """Accessible sub-arc of cap circle ``cap`` from vertex ``v_beg`` over
+    ``dphi`` to ``v_end`` in the circle frame; ``-1`` ends mark a full
+    circle."""
 
-    def __len__(self) -> int:
-        return len(self.cap)
+    cap: int
+    v_beg: int
+    v_end: int
+    phi_beg: float
+    dphi: float
 
 
 @dataclass
 class Arrangement:
-    caps: Caps
-    arcs: Arcs
+    caps: list[Cap]
+    arcs: list[Arc]
     n_loops: int
     n_patches: int
     area: float
 
     def contains(self, dirs: np.ndarray) -> np.ndarray:
-        return self.caps.contains(dirs)
+        return contains(self.caps, dirs)
+
+
+def caps_from_arrays(
+    axis: np.ndarray, cos_a: np.ndarray, sin_a: np.ndarray
+) -> list[Cap]:
+    return [
+        Cap(np.asarray(n, dtype=float), float(c), float(s))
+        for n, c, s in zip(axis, cos_a, sin_a)
+    ]
+
+
+def contains(caps: list[Cap], dirs: np.ndarray) -> np.ndarray:
+    """True where unit directions ``dirs`` lie inside any cap."""
+    inside = dirs @ vectors(caps, "axis").T > scalars(caps, "cos_a")
+    return np.any(inside, axis=1)
 
 
 def any_perpendicular(u: np.ndarray) -> np.ndarray:
@@ -157,7 +150,9 @@ def _cluster_dense(pts: np.ndarray, tol: float) -> np.ndarray:
     return components(len(pts), edges)
 
 
-def prepare_caps(caps: Caps, radius: float) -> tuple[Caps, bool, np.ndarray]:
+def prepare_caps(
+    caps: list[Cap], radius: float
+) -> tuple[list[Cap], bool, np.ndarray]:
     """Merge coincident caps and drop hidden (nested) ones.
 
     Caps whose circles lie within ``TAU_C`` of each other everywhere (their
@@ -167,14 +162,14 @@ def prepare_caps(caps: Caps, radius: float) -> tuple[Caps, bool, np.ndarray]:
     surviving caps, whether two caps together cover the whole sphere (no
     arrangement is needed then) and the crossing matrix of the survivors.
     """
-    caps, _ = _merge_coincident(caps, radius)
+    caps = _merge_coincident(caps, radius)
     hidden, covered, crossing = classify_caps(caps)
     keep = np.flatnonzero(~hidden)
-    return caps.take(keep), covered, crossing[np.ix_(keep, keep)]
+    return [caps[k] for k in keep], covered, crossing[np.ix_(keep, keep)]
 
 
 def classify_caps(
-    caps: Caps, crossing: np.ndarray | None = None
+    caps: list[Cap], crossing: np.ndarray | None = None
 ) -> tuple[np.ndarray, bool, np.ndarray]:
     """``(hidden, covered, crossing)`` of a sphere's caps.
 
@@ -185,13 +180,13 @@ def classify_caps(
     if m < 2:
         return np.zeros(m, dtype=bool), False, np.zeros((m, m), dtype=bool)
     nested, covering, crossing = pair_predicates(caps, crossing)
-    c = caps.cos_a
+    c = scalars(caps, "cos_a")
     hidden = np.any(nested & (c[:, None] > c[None, :]), axis=1)
     return hidden, bool(covering.any()), crossing
 
 
 def pair_predicates(
-    caps: Caps, crossing: np.ndarray | None = None
+    caps: list[Cap], crossing: np.ndarray | None = None
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Classify every cap pair: ``(nested, covering, crossing)`` boolean
     matrices with a false diagonal.
@@ -208,8 +203,9 @@ def pair_predicates(
     ``s_j s_k`` away from either boundary and so never disagrees with a
     crossing decision made by any other route.
     """
-    cosg = caps.axis @ caps.axis.T
-    c, s = caps.cos_a, caps.sin_a
+    axis = vectors(caps, "axis")
+    cosg = axis @ axis.T
+    c, s = scalars(caps, "cos_a"), scalars(caps, "sin_a")
     cc = c[:, None] * c[None, :]
     if crossing is None:
         ss = s[:, None] * s[None, :]
@@ -225,22 +221,27 @@ def pair_predicates(
     return nested, covering, crossing
 
 
-def _merge_coincident(caps: Caps, radius: float) -> tuple[Caps, np.ndarray]:
-    """Merged caps and the merged index of every input cap."""
-    vec = radius * np.column_stack([caps.axis, caps.cos_a, caps.sin_a])
+def _merge_coincident(caps: list[Cap], radius: float) -> list[Cap]:
+    vec = radius * np.column_stack(
+        [
+            vectors(caps, "axis"),
+            scalars(caps, "cos_a"),
+            scalars(caps, "sin_a"),
+        ]
+    )
     label = _cluster_dense(vec, TAU_C)
-    k = len(np.unique(label))
+    k = int(label.max()) + 1 if len(label) else 0
     if k == len(caps):
-        return caps, label
+        return caps
     mean = np.zeros((k, 5))
     np.add.at(mean, label, vec)
     axis = mean[:, :3] / np.linalg.norm(mean[:, :3], axis=1, keepdims=True)
     trig = mean[:, 3:] / np.linalg.norm(mean[:, 3:], axis=1, keepdims=True)
-    return Caps(axis, trig[:, 0], trig[:, 1]), label
+    return caps_from_arrays(axis, trig[:, 0], trig[:, 1])
 
 
 def crossing_points(
-    caps: Caps, crossing: np.ndarray
+    caps: list[Cap], crossing: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
     """Raw intersection points of all crossing cap-circle pairs.
 
@@ -259,9 +260,10 @@ def crossing_points(
     Returns ``(dirs (2e, 3), edges (e, 2))``: the two points of edge ``k``
     are rows ``k`` and ``e + k``.
     """
+    axis, cos_a = vectors(caps, "axis"), scalars(caps, "cos_a")
     jj, kk = np.nonzero(np.triu(crossing, 1))
-    n1, n2 = caps.axis[jj], caps.axis[kk]
-    c1, c2 = caps.cos_a[jj], caps.cos_a[kk]
+    n1, n2 = axis[jj], axis[kk]
+    c1, c2 = cos_a[jj], cos_a[kk]
     mid, dif = n1 + n2, n1 - n2
     base = ((c1 + c2) / np.einsum("ij,ij->i", mid, mid))[:, None] * mid + (
         (c1 - c2) / np.einsum("ij,ij->i", dif, dif)
@@ -283,14 +285,11 @@ def cap_components(crossing: np.ndarray) -> int:
     return int(components(m, edges).max()) + 1
 
 
-def covered_arrangement(caps: Caps) -> Arrangement:
-    z = np.empty(0, dtype=int)
-    return Arrangement(
-        caps, Arcs(z, z, z, np.empty(0), np.empty(0)), 0, 0, 0.0
-    )
+def covered_arrangement(caps: list[Cap]) -> Arrangement:
+    return Arrangement(caps, [], 0, 0, 0.0)
 
 
-def solve_caps(radius: float, caps: Caps) -> Arrangement:
+def solve_caps(radius: float, caps: list[Cap]) -> Arrangement:
     """Solve an arrangement, clustering vertices locally."""
     caps, covered, crossing = prepare_caps(caps, radius)
     if covered:
@@ -303,7 +302,7 @@ def solve_caps(radius: float, caps: Caps) -> Arrangement:
     reps /= np.linalg.norm(reps, axis=1, keepdims=True)
     excused = np.zeros((n_clusters, len(caps)), dtype=bool)
     excused[label[:, None], np.concatenate([edges, edges])] = True
-    inside = reps @ caps.axis.T > caps.cos_a
+    inside = reps @ vectors(caps, "axis").T > scalars(caps, "cos_a")
     accessible = ~(inside & ~excused).any(axis=1)
     return solve(
         radius,
@@ -318,7 +317,7 @@ def solve_caps(radius: float, caps: Caps) -> Arrangement:
 
 def solve(
     radius: float,
-    caps: Caps,
+    caps: list[Cap],
     edges: np.ndarray,
     reps: np.ndarray,
     excused: np.ndarray,
@@ -336,7 +335,7 @@ def solve(
     :func:`circle_frames`.
     """
     m = len(caps)
-    e1, e2 = circle_frames(caps.axis) if frames is None else frames
+    e1, e2 = circle_frames(vectors(caps, "axis")) if frames is None else frames
     crossing = np.zeros((m, m), dtype=bool)
     crossing[edges[:, 0], edges[:, 1]] = True
     crossing[edges[:, 1], edges[:, 0]] = True
@@ -352,7 +351,7 @@ def solve(
     return Arrangement(caps, arcs, n_loops, n_patches, float(area))
 
 
-def _build_arcs(caps, e1, e2, reps, vtx, cap, crossing) -> Arcs:
+def _build_arcs(caps, e1, e2, reps, vtx, cap, crossing) -> list[Arc]:
     """Accessible arcs of every cap circle.
 
     ``(vtx, cap)`` are the accessible vertex-cap incidences. Consecutive
@@ -364,6 +363,8 @@ def _build_arcs(caps, e1, e2, reps, vtx, cap, crossing) -> Arcs:
     exact tangency contradict the crossing decision.
     """
     m = len(caps)
+    axis, cos_a = vectors(caps, "axis"), scalars(caps, "cos_a")
+    sin_a = scalars(caps, "sin_a")
     dirs = reps[vtx]
     phi = np.arctan2(
         np.einsum("ij,ij->i", dirs, e2[cap]),
@@ -390,16 +391,16 @@ def _build_arcs(caps, e1, e2, reps, vtx, cap, crossing) -> Arcs:
     radial = (
         np.cos(mid)[:, None] * e1[cap_ix] + np.sin(mid)[:, None] * e2[cap_ix]
     )
-    mids = (
-        caps.cos_a[cap_ix, None] * caps.axis[cap_ix]
-        + caps.sin_a[cap_ix, None] * radial
-    )
-    inside = (mids @ caps.axis.T > caps.cos_a) & crossing[cap_ix]
-    ok = ~inside.any(axis=1)
-    return Arcs(cap_ix[ok], v_beg[ok], v_end[ok], phi_beg[ok], dphi[ok])
+    mids = cos_a[cap_ix, None] * axis[cap_ix] + sin_a[cap_ix, None] * radial
+    inside = (mids @ axis.T > cos_a) & crossing[cap_ix]
+    ok = np.flatnonzero(~inside.any(axis=1))
+    return [
+        Arc(int(cap_ix[i]), int(v_beg[i]), int(v_end[i]), phi_beg[i], dphi[i])
+        for i in ok
+    ]
 
 
-def _walk(caps, reps, arcs):
+def _walk(caps, reps, arcs: list[Arc]):
     """Trace boundary loops with the accessible region on the left.
 
     Arcs are stored with increasing ``phi`` (counter-clockwise around the
@@ -411,13 +412,26 @@ def _walk(caps, reps, arcs):
     loops, sum of turning angles, sum of geodesic curvature integrals)``.
     """
     n = len(arcs)
-    geo_sum = float(np.sum(arcs.dphi * caps.cos_a[arcs.cap]))
+    arc_cap = scalars(arcs, "cap", int)
+    arc_v_beg = scalars(arcs, "v_beg", int)
+    arc_v_end = scalars(arcs, "v_end", int)
+    arc_dphi = scalars(arcs, "dphi")
+    cos_a, sin_a = scalars(caps, "cos_a"), scalars(caps, "sin_a")
+    geo_sum = float(np.sum(arc_dphi * cos_a[arc_cap]))
     succ = np.arange(n)
     turn = np.zeros(n)
 
-    idx = np.flatnonzero(arcs.v_beg >= 0)
+    idx = np.flatnonzero(arc_v_beg >= 0)
     if len(idx):
-        vertex, angle, kind, arc = _sorted_darts(caps, reps, arcs, idx)
+        vertex, angle, kind, arc = _sorted_darts(
+            vectors(caps, "axis"),
+            cos_a / sin_a,
+            reps,
+            arc_cap,
+            arc_v_beg,
+            arc_v_end,
+            idx,
+        )
         first = np.ones(len(vertex), dtype=bool)
         first[1:] = vertex[1:] != vertex[:-1]
         prev = np.arange(len(vertex)) - 1
@@ -441,7 +455,7 @@ def _walk(caps, reps, arcs):
     return n_loops, float(turn.sum()), geo_sum
 
 
-def _sorted_darts(caps, reps, arcs, idx):
+def _sorted_darts(axis, cot_a, reps, arc_cap, arc_v_beg, arc_v_end, idx):
     """Darts of the arcs ``idx`` in cyclic order around their vertices.
 
     Angles are measured in a tangent frame at the vertex. Darts closer
@@ -450,14 +464,14 @@ def _sorted_darts(caps, reps, arcs, idx):
     the wedge between them is exactly zero; a group straddling the
     ``-pi``/``pi`` seam is merged the same way.
     """
-    vertex = np.concatenate([arcs.v_end[idx], arcs.v_beg[idx]])
+    vertex = np.concatenate([arc_v_end[idx], arc_v_beg[idx]])
     kind = np.repeat(np.array([0, 1]), len(idx))
     arc = np.concatenate([idx, idx])
-    cap = arcs.cap[arc]
+    cap = arc_cap[arc]
     u = reps[vertex]
     side = 2 * kind - 1
-    t = cross(caps.axis[cap], u) * side[:, None]
-    kappa = (caps.cos_a / caps.sin_a)[cap] * side
+    t = cross(axis[cap], u) * side[:, None]
+    kappa = cot_a[cap] * side
     ea = any_perpendicular(reps)[vertex]
     eb = cross(u, ea)
     angle = np.arctan2(
