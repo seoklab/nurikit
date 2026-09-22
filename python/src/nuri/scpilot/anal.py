@@ -23,6 +23,7 @@ from .aos import scalars, vectors
 from .arrangement import (
     TAU_C,
     Arrangement,
+    ArrangementProblem,
     Cap,
     DegenerateGeometryError,
     any_perpendicular,
@@ -411,15 +412,22 @@ class SasGeometry:
             ] = True
             tags = tags_of[i]
             circ, sign = tags >> 1, 1.0 - 2.0 * (tags & 1)
+            edges = sph_edges[rows]
+            crossing = np.zeros((len(caps), len(caps)), dtype=bool)
+            crossing[edges[:, 0], edges[:, 1]] = True
+            crossing[edges[:, 1], edges[:, 0]] = True
             arr = solve(
                 sas[i],
-                caps,
-                sph_edges[rows],
-                local_reps,
-                excused,
-                accessible[local],
-                int(n_components[i]),
-                (circles.e1[circ], sign[:, None] * circles.e2[circ]),
+                ArrangementProblem(
+                    caps,
+                    circles.e1[circ],
+                    sign[:, None] * circles.e2[circ],
+                    crossing,
+                    int(n_components[i]),
+                    local_reps,
+                    excused,
+                    accessible[local],
+                ),
             )
             arrangements[i] = arr
             arc_parts.append(_torus_arcs(arr, tags, probe_map[local]))

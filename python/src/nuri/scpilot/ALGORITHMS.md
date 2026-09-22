@@ -57,8 +57,15 @@ and a kernel that evaluates one expression over many records (containment
 of directions in all caps of a sphere, the Gram matrix of cap axes)
 gathers the field it needs into an array at the call site.
 
-The frame defaults to `e1 = any_perpendicular(n)`, `e2 = n × e1`; callers
-may supply frames (the SAS passes the circle frames, §3).
+The kernel (`solve`) takes an `ArrangementProblem`: the hygienic caps with
+their circle frames `(e1, e2)`, the crossing matrix and its number of
+components, and the clustered vertices (unit `reps`, the incident caps of
+each vertex as `excused`, and `accessible`). Two preparations build it:
+`local_problem` for a probe sphere, where steps 1–4 below run on the sphere
+alone with the default frame `e1 = any_perpendicular(n)`, `e2 = n × e1`;
+and the SAS build (§3), where the crossing decision, the vertices and the
+frames come from the circles shared between spheres. The kernel itself
+(steps 5–7) has no branch on the source.
 
 ### Step 1 — cap hygiene (`prepare_caps`)
 
@@ -135,14 +142,14 @@ Any positive slack breaks consistency: a vertex inside cap `l` by `δ` would be
 accepted while the arc it starts is rejected by the midpoint test of step 5,
 leaving a vertex with an odd number of darts.
 
-### Step 5 — arcs (`_build_arcs`)
+### Step 5 — arcs (`_cap_arcs`)
 
-The accessible (vertex, cap) incidences of the sphere are processed together.
-Each incidence gets the angle `φ = atan2(x · e2, x · e1)` of its vertex in the
-cap frame; sorting by `(cap, φ)` makes consecutive incidences of a cap the
-candidate arcs (wrapping around by `2π`; a cap with exactly one vertex yields
-one arc from the vertex around to itself with `dphi = 2π`). Caps with no
-vertices contribute one full-circle candidate with `-1` ends.
+Cap by cap: the accessible vertices incident to the cap get the angle
+`φ = atan2(x · e2, x · e1)` in the cap frame and are sorted by it;
+consecutive vertices bound the candidate arcs (wrapping around by `2π`; a
+cap with exactly one vertex yields one arc from the vertex around to itself
+with `dphi = 2π`). A cap with no vertices contributes one full-circle
+candidate with `-1` ends.
 
 A candidate is kept iff its midpoint is outside every cap **that crosses its
 circle** (exact comparison). A disjoint cap cannot contain any point of the
