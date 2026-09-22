@@ -35,11 +35,16 @@ class DegenerateGeometryError(RuntimeError):
 @dataclass
 class Cap:
     """Cap ``axis . x > cos_a`` on the unit sphere; ``sin_a`` is kept
-    alongside so no angle is ever recovered by inverse trig."""
+    alongside so no angle is ever recovered by inverse trig. On a SAS
+    sphere the cap also names the ``partner`` atom on the other side of
+    its ``circle`` and its ``side`` (0 on the circle's first sphere)."""
 
     axis: np.ndarray
     cos_a: float
     sin_a: float
+    partner: int = -1
+    circle: int = -1
+    side: int = 0
 
 
 @dataclass
