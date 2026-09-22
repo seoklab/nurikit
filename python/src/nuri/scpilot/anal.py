@@ -39,46 +39,43 @@ from .arrangement import (
 
 
 @dataclass
-class Circles:
-    """Probe-centre circles of overlapping sphere pairs (``i < j``)."""
+class Circle:
+    """Probe-centre circle of the overlapping spheres ``i < j``: centre
+    ``c_i + a axis`` on the unit axis from ``i`` to ``j``, radius ``rl``,
+    frame ``(e1, e2, axis)``, and the centre distance ``d``."""
 
-    pair: np.ndarray
+    i: int
+    j: int
     centre: np.ndarray
-    radius: np.ndarray
     axis: np.ndarray
     e1: np.ndarray
     e2: np.ndarray
-    a: np.ndarray
-    d: np.ndarray
-
-    def __len__(self) -> int:
-        return len(self.radius)
+    rl: float
+    a: float
+    d: float
 
 
 @dataclass
-class TorusArcs:
-    """Accessible arcs of the probe circles, in each circle's frame."""
+class TorusArc:
+    """Accessible arc of probe circle ``circle`` from probe ``v_beg`` over
+    ``dphi`` to probe ``v_end`` in the circle frame; ``-1`` ends mark a
+    full circle."""
 
-    circle: np.ndarray
-    phi_beg: np.ndarray
-    dphi: np.ndarray
-    v_beg: np.ndarray
-    v_end: np.ndarray
+    circle: int
+    v_beg: int
+    v_end: int
+    phi_beg: float
+    dphi: float
 
-    def __len__(self) -> int:
-        return len(self.circle)
 
-    @classmethod
-    def concat(cls, parts: list[TorusArcs]) -> TorusArcs:
-        z = np.empty(0, dtype=int)
-        empty = cls(z, np.empty(0), np.empty(0), z, z)
-        parts = [empty, *parts]
-        return cls(
-            *(
-                np.concatenate([getattr(x, f) for x in parts])
-                for f in ("circle", "phi_beg", "dphi", "v_beg", "v_end")
-            )
-        )
+@dataclass
+class Probe:
+    """Accessible SAS vertex: the probe centre ``pos`` resting on the
+    sorted ``atoms``, the smallest of which is the ``owner``."""
+
+    pos: np.ndarray
+    owner: int
+    atoms: np.ndarray
 
 
 def prepare(coords, radii, rp, active=None):
@@ -253,24 +250,17 @@ class SasGeometry:
     n_active: int
     n_solve: int
     n_enum: int
-    circles: Circles
+    circles: list[Circle]
     arrangements: list[Arrangement]
-    probes: np.ndarray
-    probe_offsets: np.ndarray
-    probe_atoms: np.ndarray
-    arcs: TorusArcs
+    probes: list[Probe]
+    arcs: list[TorusArc]
     n_active_circles: int
     n_active_probes: int
     n_active_arcs: int
 
     @property
     def sas_area(self) -> np.ndarray:
-        return np.array([arr.area for arr in self.arrangements])
-
-    def atoms_of(self, probe: int) -> np.ndarray:
-        return self.probe_atoms[
-            self.probe_offsets[probe] : self.probe_offsets[probe + 1]
-        ]
+        return scalars(self.arrangements, "area")
 
     @classmethod
     def from_atoms(
@@ -397,7 +387,8 @@ class SasGeometry:
         arrangements: list[Arrangement] = [
             covered_arrangement(caps) for caps in caps_of[:n_solve]
         ]
-        arc_parts = []
+        circ_e1, circ_e2 = vectors(circles, "e1"), vectors(circles, "e2")
+        arcs: list[TorusArc] = []
         n_active_arcs = 0
         for i in np.flatnonzero(~covered[:n_solve]):
             caps = caps_of[i]
@@ -420,8 +411,8 @@ class SasGeometry:
                 sas[i],
                 ArrangementProblem(
                     caps,
-                    circles.e1[circ],
-                    sign[:, None] * circles.e2[circ],
+                    circ_e1[circ],
+                    sign[:, None] * circ_e2[circ],
                     crossing,
                     int(n_components[i]),
                     local_reps,
@@ -430,9 +421,18 @@ class SasGeometry:
                 ),
             )
             arrangements[i] = arr
-            arc_parts.append(_torus_arcs(arr, tags, probe_map[local]))
-            n_active_arcs += len(arc_parts[-1]) * (i < n_active)
+            part = _torus_arcs(arr, tags, probe_map[local])
+            arcs.extend(part)
+            n_active_arcs += len(part) * (i < n_active)
 
+        probes = [
+            Probe(
+                reps[g],
+                owner[g],
+                probe_atoms[probe_offsets[k] : probe_offsets[k + 1]],
+            )
+            for k, g in enumerate(probe_ids)
+        ]
         return cls(
             coords,
             radii,
@@ -443,17 +443,15 @@ class SasGeometry:
             n_enum,
             circles,
             arrangements,
-            reps[probe_ids],
-            probe_offsets,
-            probe_atoms,
-            TorusArcs.concat(arc_parts),
-            int(np.searchsorted(circles.pair[:, 0], n_active)),
+            probes,
+            arcs,
+            int(np.searchsorted(scalars(circles, "i", int), n_active)),
             int(np.searchsorted(owner[probe_ids], n_active)),
             n_active_arcs,
         )
 
 
-def _cap_rows(circles: Circles, sas, n_enum: int, n_pairs: int):
+def _cap_rows(circles: list[Circle], sas, n_enum: int, n_pairs: int):
     """Caps of every sphere below ``n_enum``, gathered from the circle rows.
 
     Circle ``(i, j)`` cuts sphere ``i`` with axis ``u`` and sphere ``j``
@@ -464,18 +462,20 @@ def _cap_rows(circles: Circles, sas, n_enum: int, n_pairs: int):
     circle's first sphere; ``row_of[tag]`` is its row, ``-1`` where the
     sphere has no caps.
     """
-    pi, pj = circles.pair[:, 0], circles.pair[:, 1]
+    pi, pj = scalars(circles, "i", int), scalars(circles, "j", int)
+    c_a, c_d = scalars(circles, "a"), scalars(circles, "d")
+    c_axis = vectors(circles, "axis")
     circ = np.arange(len(circles))
     second = np.flatnonzero(pj < n_enum)
     atom = np.concatenate([pi, pj[second]])
     tag = np.concatenate([2 * circ, 2 * second + 1])
-    a = np.concatenate([circles.a, (circles.d - circles.a)[second]])
-    axis = np.concatenate([circles.axis, -circles.axis[second]])
+    a = np.concatenate([c_a, (c_d - c_a)[second]])
+    axis = np.concatenate([c_axis, -c_axis[second]])
     order = np.argsort(atom, kind="stable")
     atom, tag, a, axis = atom[order], tag[order], a[order], axis[order]
     offsets = np.searchsorted(atom, np.arange(n_enum + 1))
     r = sas[atom]
-    caps = caps_from_arrays(axis, a / r, circles.radius[tag >> 1] / r)
+    caps = caps_from_arrays(axis, a / r, scalars(circles, "rl")[tag >> 1] / r)
     row_of = np.full(2 * n_pairs, -1, dtype=int)
     row_of[tag] = np.arange(len(tag))
     return offsets, caps, tag, row_of
@@ -560,8 +560,8 @@ def _triple_candidates(coords, sas, circles, triples, pid):
     intersected once so that all three spheres see identical points.
     """
     circ, k = pid[:, 0], triples[:, 2]
-    t, rl = circles.centre[circ], circles.radius[circ]
-    e1, e2 = circles.e1[circ], circles.e2[circ]
+    t, rl = vectors(circles, "centre")[circ], scalars(circles, "rl")[circ]
+    e1, e2 = vectors(circles, "e1")[circ], vectors(circles, "e2")[circ]
     w = t - coords[k]
     g = (sas[k] ** 2 - np.einsum("ij,ij->i", w, w) - rl * rl) / (2.0 * rl)
     a = np.einsum("ij,ij->i", w, e1)
@@ -664,7 +664,7 @@ def _within(counts) -> np.ndarray:
     )
 
 
-def _circles(coords, sas, pairs, d) -> Circles:
+def _circles(coords, sas, pairs, d) -> list[Circle]:
     i, j = pairs[:, 0], pairs[:, 1]
     ri, rj = sas[i], sas[j]
     axis = (coords[j] - coords[i]) / d[:, None]
@@ -673,7 +673,20 @@ def _circles(coords, sas, pairs, d) -> Circles:
     centre = coords[i] + a[:, None] * axis
     e1 = any_perpendicular(axis)
     e2 = cross(axis, e1)
-    return Circles(pairs, centre, rl, axis, e1, e2, a, d)
+    return [
+        Circle(
+            int(i[k]),
+            int(j[k]),
+            centre[k],
+            axis[k],
+            e1[k],
+            e2[k],
+            float(rl[k]),
+            float(a[k]),
+            float(d[k]),
+        )
+        for k in range(len(pairs))
+    ]
 
 
 def _probe_atoms(n, keys, probe_ids) -> tuple[np.ndarray, np.ndarray]:
@@ -687,44 +700,46 @@ def _probe_atoms(n, keys, probe_ids) -> tuple[np.ndarray, np.ndarray]:
     return np.concatenate([[0], np.cumsum(count)]), flat
 
 
-def _torus_arcs(arr, tags, probe_of_local) -> TorusArcs:
+def _torus_arcs(arr, tags, probe_of_local) -> list[TorusArc]:
     """Arcs of a sphere on circles it is the smaller sphere of (``tags``
     per cap, side bit 0).
 
     Those caps share the circle frame, so ``phi`` carries over as is; the
-    larger sphere reports nothing. A ``-1`` appended to the probe map
-    lets full circles (``-1`` ends) read back ``-1``.
+    larger sphere reports nothing. Full circles keep their ``-1`` ends.
     """
-    arcs = arr.arcs
-    tag = tags[scalars(arcs, "cap", int)]
-    keep = (tag & 1) == 0
-    ext = np.append(probe_of_local, -1)
-    return TorusArcs(
-        tag[keep] >> 1,
-        scalars(arcs, "phi_beg")[keep],
-        scalars(arcs, "dphi")[keep],
-        ext[scalars(arcs, "v_beg", int)[keep]],
-        ext[scalars(arcs, "v_end", int)[keep]],
-    )
+
+    def probe(v: int) -> int:
+        return int(probe_of_local[v]) if v >= 0 else -1
+
+    return [
+        TorusArc(
+            int(tags[arc.cap] >> 1),
+            probe(arc.v_beg),
+            probe(arc.v_end),
+            arc.phi_beg,
+            arc.dphi,
+        )
+        for arc in arr.arcs
+        if (tags[arc.cap] & 1) == 0
+    ]
 
 
 @dataclass
-class Saddles:
-    """Valid generating-arc angle ranges per active circle, their area
-    integrals, and the area of every active arc.
+class Saddle:
+    """Valid generating-arc angle ranges of one active circle and their
+    area integrals.
 
     The generating arc is parametrised by ``beta``, the angle from the
     inward radial direction; ``beta < 0`` leans toward atom ``i``. Distance
     from the axis is ``rl - rp cos(beta)``, zero at the cusp of a spindle.
-    ``ranges`` is ``(n_circles, 2, 2)``: the parts below and above the cusp,
-    zero-width where absent; ``integral`` ``(n_circles, 2)`` is
+    ``ranges`` is ``(2, 2)``: the parts below and above the cusp,
+    zero-width where absent; ``integral`` ``(2,)`` is
     ``rl (hi - lo) - rp (sin hi - sin lo)`` per part, so that a saddle
     swept over ``dphi`` has area ``dphi rp sum(integral)``.
     """
 
     ranges: np.ndarray
     integral: np.ndarray
-    area: np.ndarray
 
 
 @dataclass
@@ -738,9 +753,13 @@ class ConcaveFace:
 
 @dataclass
 class SesGeometry:
+    """Per active atom ``convex_area``, one :class:`Saddle` per active
+    circle, ``saddle_area`` per active arc, one face per active probe."""
+
     sas: SasGeometry
     convex_area: np.ndarray
-    saddles: Saddles
+    saddles: list[Saddle]
+    saddle_area: np.ndarray
     concave: list[ConcaveFace] = field(default_factory=list)
 
     @property
@@ -751,12 +770,8 @@ class SesGeometry:
     def build(cls, sas: SasGeometry) -> SesGeometry:
         ratio = sas.radii[: sas.n_active] / sas.sas[: sas.n_active]
         convex = sas.sas_area[: sas.n_active] * ratio * ratio
-        return cls(
-            sas,
-            convex,
-            _saddles(sas),
-            _concave_faces(sas),
-        )
+        saddles, saddle_area = _saddles(sas)
+        return cls(sas, convex, saddles, saddle_area, _concave_faces(sas))
 
 
 def _pick(cond, x, sin_x, y, sin_y):
@@ -804,23 +819,24 @@ def saddle_ranges(rl, rp, a_i, a_j, sas_i, sas_j):
     return ranges, integral
 
 
-def _saddles(sas: SasGeometry) -> Saddles:
+def _saddles(sas: SasGeometry) -> tuple[list[Saddle], np.ndarray]:
     """Ranges and integrals of the active circles and areas of the active
     arcs, both prefixes."""
-    circles, arcs = sas.circles, sas.arcs
-    nc, na = sas.n_active_circles, sas.n_active_arcs
-    pair, a, d = circles.pair[:nc], circles.a[:nc], circles.d[:nc]
+    circles = sas.circles[: sas.n_active_circles]
+    arcs = sas.arcs[: sas.n_active_arcs]
+    a, d = scalars(circles, "a"), scalars(circles, "d")
     ranges, integral = saddle_ranges(
-        circles.radius[:nc],
+        scalars(circles, "rl"),
         sas.rp,
         a,
         d - a,
-        sas.sas[pair[:, 0]],
-        sas.sas[pair[:, 1]],
+        sas.sas[scalars(circles, "i", int)],
+        sas.sas[scalars(circles, "j", int)],
     )
-    c = arcs.circle[:na]
-    area = arcs.dphi[:na] * sas.rp * integral[c].sum(axis=-1)
-    return Saddles(ranges, integral, area)
+    saddles = [Saddle(ranges[k], integral[k]) for k in range(len(circles))]
+    c = scalars(arcs, "circle", int)
+    area = scalars(arcs, "dphi") * sas.rp * integral[c].sum(axis=-1)
+    return saddles, area
 
 
 def _departure_caps(sas: SasGeometry) -> tuple[np.ndarray, np.ndarray]:
@@ -837,11 +853,15 @@ def _departure_caps(sas: SasGeometry) -> tuple[np.ndarray, np.ndarray]:
     sliced.
     """
     arcs, circles = sas.arcs, sas.circles
-    probe = np.concatenate([arcs.v_beg, arcs.v_end])
-    circ = np.concatenate([arcs.circle, arcs.circle])
+    probe = np.concatenate(
+        [scalars(arcs, "v_beg", int), scalars(arcs, "v_end", int)]
+    )
+    circ = np.tile(scalars(arcs, "circle", int), 2)
     sign = np.repeat([1.0, -1.0], len(arcs))
-    radial = sas.probes[probe] - circles.centre[circ]
-    tangents = cross(circles.axis[circ], radial)
+    radial = (
+        vectors(sas.probes, "pos")[probe] - vectors(circles, "centre")[circ]
+    )
+    tangents = cross(vectors(circles, "axis")[circ], radial)
     tangents *= (sign / np.linalg.norm(tangents, axis=1))[:, None]
     order = np.argsort(probe, kind="stable")
     offsets = np.searchsorted(probe[order], np.arange(len(sas.probes) + 1))
@@ -851,9 +871,11 @@ def _departure_caps(sas: SasGeometry) -> tuple[np.ndarray, np.ndarray]:
 def _triples(sas: SasGeometry) -> tuple[np.ndarray, np.ndarray]:
     """Indices of the three-atom probes and their contact triangles
     ``(k, 3, 3)``."""
-    idx = np.flatnonzero(np.diff(sas.probe_offsets) == 3)
-    atoms = sas.probe_atoms[sas.probe_offsets[idx, None] + np.arange(3)]
-    return idx, sas.coords[atoms]
+    idx = np.array(
+        [k for k, p in enumerate(sas.probes) if len(p.atoms) == 3], dtype=int
+    )
+    atoms = np.array([sas.probes[k].atoms for k in idx], dtype=int)
+    return idx, sas.coords[atoms.reshape(-1, 3)]
 
 
 def _segment_distance(x, p, q) -> np.ndarray:
@@ -889,7 +911,7 @@ def _probe_heights(sas: SasGeometry) -> ProbeHeights:
     idx, tri = _triples(sas)
     if len(idx) == 0:
         return ProbeHeights(low, planar, normal, cos_b, sin_b)
-    x = sas.probes[idx]
+    x = vectors(sas.probes, "pos")[idx]
     a, b, c = tri[:, 0], tri[:, 1], tri[:, 2]
     nrm = cross(b - a, c - a)
     nrm /= np.linalg.norm(nrm, axis=1, keepdims=True)
@@ -1035,7 +1057,7 @@ def _probe_pair_caps(
 
 
 def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
-    probes = sas.probes
+    probes = vectors(sas.probes, "pos")
     if len(probes) == 0:
         return []
     n_active = sas.n_active_probes
@@ -1048,7 +1070,7 @@ def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
     nbr_off, nbr_caps = _probe_pair_caps(probes, sas.rp, hts, tri)
     faces = []
     for q in range(n_active):
-        atoms = sas.atoms_of(q)
+        atoms = sas.probes[q].atoms
         contacts = sas.coords[atoms] - probes[q]
         contacts /= np.linalg.norm(contacts, axis=1, keepdims=True)
         tangents = dep_t[dep_off[q] : dep_off[q + 1]]
@@ -1067,7 +1089,7 @@ def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
 def ses_area(ses: SesGeometry):
     """Per-atom convex, per-arc saddle, per-face concave areas."""
     concave = np.array([f.area for f in ses.concave])
-    return ses.convex_area, ses.saddles.area, concave
+    return ses.convex_area, ses.saddle_area, concave
 
 
 def two_sphere_ses_area(r1: float, r2: float, d: float, rp: float):
