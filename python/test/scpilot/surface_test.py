@@ -19,6 +19,7 @@ from nuri.scpilot.io import load_structure
 from nuri.scpilot.surface import (
     Patch,
     fibonacci_sphere,
+    sample_ses,
     ses_dots,
 )
 
@@ -74,6 +75,28 @@ def test_two_spheres_stamm_table1():
     assert dots.area(Patch.TOROIDAL) == pytest.approx(torus, rel=2e-3)
     assert dots.area(Patch.CONCAVE) == 0.0
     assert_valid_ses(dots, coords, radii, 1.2)
+
+
+def test_two_spheres_rings_merged_and_staggered():
+    coords = np.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0]])
+    rp, density = 1.2, 200
+    sas, _ = SasGeometry.from_atoms(coords, [1.2, 1.2], rp)
+    dots = sample_ses(SesGeometry.build(sas), density)
+    tor = dots.pts[dots.kinds == Patch.TOROIDAL]
+
+    rl = math.sqrt(2.4**2 - 1.0)
+    width = 2.0 * math.atan2(1.0, rl)
+    x, ring = np.unique(tor[:, 0].round(9), return_inverse=True)
+    assert len(x) == round(rp * width * math.sqrt(density))
+
+    circles, arcs = sas.circles, sas.arcs
+    assert len(arcs) == 1
+    e1, e2 = circles.e1[arcs.circle[0]], circles.e2[arcs.circle[0]]
+    for m in range(len(x)):
+        p = tor[ring == m]
+        phi = (np.arctan2(p @ e2, p @ e1) - arcs.phi_beg[0]) % (2 * math.pi)
+        frac = (np.sort(phi) * len(phi) / (2 * math.pi)) % 1.0
+        np.testing.assert_allclose(frac, 0.25 + 0.5 * (m % 2), atol=1e-9)
 
 
 def test_two_spheres_cusp():
