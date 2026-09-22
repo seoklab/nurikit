@@ -289,11 +289,30 @@ def covered_arrangement(caps: list[Cap]) -> Arrangement:
     return Arrangement(caps, [], 0, 0, 0.0)
 
 
-def solve_caps(radius: float, caps: list[Cap]) -> Arrangement:
-    """Solve an arrangement, clustering vertices locally."""
-    caps, covered, crossing = prepare_caps(caps, radius)
-    if covered:
-        return covered_arrangement(caps)
+@dataclass
+class ArrangementProblem:
+    """A prepared arrangement of one sphere: hygienic caps with their circle
+    frames ``(e1, e2)`` (m, 3), the crossing decision (m, m) and its number
+    of connected components, and the clustered vertices: unit ``reps``
+    (k, 3), ``excused`` (k, m: the caps whose crossing points merged into
+    the vertex, which are its incident caps) and ``accessible`` (k)."""
+
+    caps: list[Cap]
+    e1: np.ndarray
+    e2: np.ndarray
+    crossing: np.ndarray
+    n_components: int
+    reps: np.ndarray
+    excused: np.ndarray
+    accessible: np.ndarray
+
+
+def local_problem(
+    radius: float, caps: list[Cap], crossing: np.ndarray
+) -> ArrangementProblem:
+    """Prepare a sphere whose vertices are known to nobody else (a probe
+    sphere): cross the caps, cluster the points and decide accessibility
+    here."""
     dirs, edges = crossing_points(caps, crossing)
     label = _cluster_dense(dirs * radius, TAU_C)
     n_clusters = int(label.max()) + 1 if len(label) else 0
@@ -304,52 +323,38 @@ def solve_caps(radius: float, caps: list[Cap]) -> Arrangement:
     excused[label[:, None], np.concatenate([edges, edges])] = True
     inside = reps @ vectors(caps, "axis").T > scalars(caps, "cos_a")
     accessible = ~(inside & ~excused).any(axis=1)
-    return solve(
-        radius,
+    e1, e2 = circle_frames(vectors(caps, "axis"))
+    return ArrangementProblem(
         caps,
-        edges,
+        e1,
+        e2,
+        crossing,
+        cap_components(crossing),
         reps,
         excused,
         accessible,
-        cap_components(crossing),
     )
 
 
-def solve(
-    radius: float,
-    caps: list[Cap],
-    edges: np.ndarray,
-    reps: np.ndarray,
-    excused: np.ndarray,
-    accessible: np.ndarray,
-    n_components: int,
-    frames: tuple[np.ndarray, np.ndarray] | None = None,
-) -> Arrangement:
-    """Solve an arrangement of prepared ``caps``.
+def solve_caps(radius: float, caps: list[Cap]) -> Arrangement:
+    """Solve an arrangement, clustering vertices locally."""
+    caps, covered, crossing = prepare_caps(caps, radius)
+    if covered:
+        return covered_arrangement(caps)
+    return solve(radius, local_problem(radius, caps, crossing))
 
-    ``edges`` are the crossing cap pairs and ``n_components`` the number
-    of connected components of that graph. Per cluster: ``reps`` (unit
-    directions), ``excused`` (clusters x caps: the caps whose crossing
-    points merged into the cluster, which are its incident caps) and
-    ``accessible``. ``frames`` ``(e1, e2)`` per cap default to
-    :func:`circle_frames`.
-    """
-    m = len(caps)
-    e1, e2 = circle_frames(vectors(caps, "axis")) if frames is None else frames
-    crossing = np.zeros((m, m), dtype=bool)
-    crossing[edges[:, 0], edges[:, 1]] = True
-    crossing[edges[:, 1], edges[:, 0]] = True
 
-    arcs = _cap_arcs(caps, e1, e2, reps, excused, accessible, crossing)
-    n_loops, turn_sum, geo_sum = _walk(caps, reps, arcs)
+def solve(radius: float, problem: ArrangementProblem) -> Arrangement:
+    arcs = _cap_arcs(problem)
+    n_loops, turn_sum, geo_sum = _walk(problem, arcs)
 
-    n_patches = 1 + n_loops - n_components
+    n_patches = 1 + n_loops - problem.n_components
     chi = 2 * n_patches - n_loops
     area = radius * radius * (2.0 * math.pi * chi - turn_sum + geo_sum)
-    return Arrangement(caps, arcs, n_loops, n_patches, float(area))
+    return Arrangement(problem.caps, arcs, n_loops, n_patches, float(area))
 
 
-def _cap_arcs(caps, e1, e2, reps, excused, accessible, crossing) -> list[Arc]:
+def _cap_arcs(problem: ArrangementProblem) -> list[Arc]:
     """Accessible arcs of every cap circle, cap by cap.
 
     The accessible vertices incident to a cap (``excused`` column, masked
@@ -361,11 +366,12 @@ def _cap_arcs(caps, e1, e2, reps, excused, accessible, crossing) -> list[Arc]:
     disjoint caps cannot contain any of it, and testing them anyway would
     let rounding at an exact tangency contradict the crossing decision.
     """
+    caps, e1, e2, reps = problem.caps, problem.e1, problem.e2, problem.reps
     axis, cos_a = vectors(caps, "axis"), scalars(caps, "cos_a")
     sin_a = scalars(caps, "sin_a")
     arcs: list[Arc] = []
     for j in range(len(caps)):
-        vs = np.flatnonzero(excused[:, j] & accessible)
+        vs = np.flatnonzero(problem.excused[:, j] & problem.accessible)
         if len(vs) == 0:
             v_beg = v_end = np.array([-1])
             phi_beg, dphi = np.zeros(1), np.full(1, 2.0 * math.pi)
@@ -384,7 +390,7 @@ def _cap_arcs(caps, e1, e2, reps, excused, accessible, crossing) -> list[Arc]:
         mid = phi_beg + 0.5 * dphi
         radial = np.cos(mid)[:, None] * e1[j] + np.sin(mid)[:, None] * e2[j]
         mids = cos_a[j] * axis[j] + sin_a[j] * radial
-        inside = (mids @ axis.T > cos_a) & crossing[j]
+        inside = (mids @ axis.T > cos_a) & problem.crossing[j]
         for i in np.flatnonzero(~inside.any(axis=1)):
             arcs.append(
                 Arc(j, int(v_beg[i]), int(v_end[i]), phi_beg[i], dphi[i])
@@ -404,7 +410,7 @@ class Dart:
     is_in: bool
 
 
-def _walk(caps, reps, arcs: list[Arc]):
+def _walk(problem: ArrangementProblem, arcs: list[Arc]):
     """Trace boundary loops with the accessible region on the left.
 
     Arcs are stored with increasing ``phi`` (counter-clockwise around the
@@ -416,15 +422,15 @@ def _walk(caps, reps, arcs: list[Arc]):
     geodesic curvature integrals)``.
     """
     n = len(arcs)
-    cos_a = scalars(caps, "cos_a")
+    cos_a = scalars(problem.caps, "cos_a")
     geo_sum = float(
         np.sum(scalars(arcs, "dphi") * cos_a[scalars(arcs, "cap", int)])
     )
     succ = np.arange(n)
     turn = np.zeros(n)
 
-    darts: list[list[Dart]] = [[] for _ in reps]
-    for arc, angle_out, angle_in, cot in _dart_angles(caps, reps, arcs):
+    darts: list[list[Dart]] = [[] for _ in problem.reps]
+    for arc, angle_out, angle_in, cot in _dart_angles(problem, arcs):
         a = arcs[arc]
         darts[a.v_end].append(Dart(arc, angle_out, -cot, False))
         darts[a.v_beg].append(Dart(arc, angle_in, cot, True))
@@ -448,7 +454,7 @@ def _walk(caps, reps, arcs: list[Arc]):
     return _count_cycles(succ), float(turn.sum()), geo_sum
 
 
-def _dart_angles(caps, reps, arcs: list[Arc]):
+def _dart_angles(problem: ArrangementProblem, arcs: list[Arc]):
     """Per arc with vertices: ``(arc, angle of the out-dart at v_end, angle
     of the reversed in-dart at v_beg, cot alpha of its cap)``.
 
@@ -459,6 +465,7 @@ def _dart_angles(caps, reps, arcs: list[Arc]):
     idx = np.flatnonzero(scalars(arcs, "v_beg", int) >= 0)
     if len(idx) == 0:
         return []
+    caps, reps = problem.caps, problem.reps
     axis = vectors(caps, "axis")
     cot_a = scalars(caps, "cos_a") / scalars(caps, "sin_a")
     cap = scalars(arcs, "cap", int)[idx]
