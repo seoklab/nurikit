@@ -310,18 +310,20 @@ C++), not a case the kernels can survive.
    `rl = √(R_i² − a²)`, frame `(e1, e2, u)`, and `a`, `d` themselves. The
    half-angles `θ_i = atan2(a, rl)`, `θ_j = atan2(d − a, rl)` are derived only
    where the saddle formulas need them.
-2. **Caps from circle rows.** Circle `(i, j)` cuts sphere `i` with axis `u`,
-   `cos α = a/R_i`, `sin α = rl/R_i`, frame `(e1, e2)`, and, if `j < n_enum`,
-   sphere `j` with axis `−u`, `cos α = (d − a)/R_j`, `sin α = rl/R_j`, frame
-   `(e1, −e2)` (right-handed about `−u`). All rows are sorted by sphere once;
-   a sphere's caps are a slice, tagged `2·circle + side` (side 0 on the
-   circle's first sphere), so the circle, the axis sign and the other atom
-   are tag arithmetic wherever they are needed. No cap geometry is
-   recomputed, and the first sphere's arc `φ` *is* the circle's `φ`.
-3. **Triple vertices, computed once** (`_triple_candidates`). Candidates are
-   `(i < j < k)` with `(i, j)` a circle and `k` a later overlap partner of
-   `i` that also overlaps `j` (all vectorised over the sorted overlap lists;
-   near pairs without a circle take no part). The circle
+2. **Caps per sphere** (`_sphere_caps`). Each sphere `s < n_enum` holds its
+   overlap partners sorted by atom and one cap per partner in that order:
+   circle `(s, j)` cuts `s` with axis `u`, `cos α = a/R_s`, `sin α = rl/R_s`,
+   frame `(e1, e2)` (side 0); circle `(i, s)` cuts it with axis `−u`,
+   `cos α = (d − a)/R_s`, `sin α = rl/R_s`, frame `(e1, −e2)` (right-handed
+   about `−u`; side 1). A cap is named by the atom on the other side of its
+   circle: `Sphere.slot(atom)` is a binary search in the partner-sorted
+   caps, `−1` when there is no such cap, and a triple's atoms are that key
+   directly. No cap geometry is recomputed, and a side-0 arc's `φ` *is* the
+   circle's `φ`.
+3. **Triple vertices, computed once** (`_crossing_triples`). Candidates are
+   `(i < j < k)` with `(i, j)` a circle and `k` a partner of `i` after `j`
+   that is also a partner of `j` (circle by circle, a binary search in `j`'s
+   partner list; near pairs without a circle take no part). The circle
    `(i, j)` is intersected with sphere `k`: with `w = t − c_k`,
    `g = (R_k² − |w|² − rl²)/2rl`, `A = w·e1`, `B = w·e2`, `amp² = A² + B²`,
    the points exist iff `h² = amp² − g² > 0` and are
@@ -333,39 +335,45 @@ C++), not a case the kernels can survive.
 
    which is `φ_0 ± acos(g/amp)` with `φ_0 = atan2(B, A)` written without
    inverse trig. This is the **only** crossing decision on SAS spheres: a
-   candidate with `h² > 0` is a crossing pair on every sphere of the triple
-   below `n_enum`, and those pairs form the crossing graphs that step 1 of §2
-   takes as given. A triple one of whose caps is hidden on some sphere
-   has no vertex but keeps its crossing edges where both caps survive:
-   dropping the edge would let a cap whose remaining vertices are all
-   inaccessible pass as a full circle tested against too few caps. The points
-   are computed once per surviving triple and handed to all three spheres.
+   candidate with `h² > 0` records a `(triple, corner)` incidence on each of
+   its spheres below `n_enum`, and on that sphere the two caps of the triple
+   (found by slot) are a crossing pair; these pairs form the crossing graphs
+   that step 1 of §2 takes as given. Hiding then runs sphere by sphere
+   (`_hide_caps`): a triple whose cap is hidden on some sphere gets
+   `edge_on` false at that corner and has no vertex, but keeps its crossing
+   edges where both caps survive: dropping the edge would let a cap whose
+   remaining vertices are all inaccessible pass as a full circle tested
+   against too few caps. The points are computed once per triple with a
+   vertex and shared by all three spheres.
 4. **Global clustering.** All raw points are clustered at `TAU_C`. A cluster's
    atoms are the union of its triples; k-fold coincidences give probes with
    four or more atoms. Every member must lie within `TAU_C` of the cluster
    mean (a `DCHECK` in C++, `DegenerateGeometryError` in the pilot): the
    scatter of one geometric point is about `1e-12 Å`, and the near-pair
-   margin of the preparation stage relies on the bound. Clusters are
-   relabelled by their smallest atom, the owner.
+   margin of the preparation stage relies on the bound. Clusters are sorted
+   by their smallest atom, the owner, and every triple records the cluster
+   ids of its two points.
 5. **Accessibility on the owner sphere.** Each cluster is decided once, on the
    sphere of its smallest atom, with the test of §2 step 4 against that
-   sphere's caps, excusing the caps of the triples that generated it (the
-   same incidence the per-sphere solve uses for its arcs). Every ball that
-   can contain a point of the sphere is one of its caps or nested inside one,
-   so this equals the test against all SAS balls. Covered owner spheres are
-   included (two covering caps touching at one point host a legitimate
-   probe). Accessible clusters are the **probes**.
-6. **Per-sphere solve.** Each non-covered sphere receives its crossing edges,
-   the (cluster, cap) incidence of its kept triples, the projected
-   representatives, the accessibility flags and its frames, and runs steps
-   5–7 of §2; a covered sphere gets an empty arrangement. The cap components
-   of all spheres come from one label-propagation pass over a block-diagonal
-   graph.
-7. **Torus arcs.** The arcs of a sphere on circles it is the first sphere of
-   (tag side bit 0) are the torus arcs as they stand (same frame, same `φ`);
-   the second sphere reports nothing. Vertex ids are mapped to probe ids
-   through a map with a `-1` appended, so full-circle ends (`-1`) read back
-   `-1` without a branch.
+   sphere's caps, excusing the caps its member triples make there: the owner
+   is the first atom of every member triple that contains it, so those caps
+   are the slots of the triple's other two atoms (the per-sphere solve uses
+   the same incidence for its arcs). Every ball that can contain a point of
+   the sphere is one of its caps or nested inside one, so this equals the
+   test against all SAS balls. Covered owner spheres are included (two
+   covering caps touching at one point host a legitimate probe). Accessible
+   clusters are the **probes**.
+6. **Per-sphere solve.** Each non-covered sphere assembles its
+   `ArrangementProblem` from its incident triples (`_sphere_problem`):
+   crossing edges from the incidences whose caps both survived, the vertices
+   and their excused caps from those with a vertex, representatives
+   projected onto the sphere, frames from the circles of its caps, and the
+   cap components of its own crossing graph; then steps 5–7 of §2 run. A
+   covered sphere gets an empty arrangement.
+7. **Torus arcs.** The arcs of a sphere on its side-0 caps are the torus arcs
+   as they stand (same frame, same `φ`); the other sphere of each circle
+   reports nothing. Local vertex ids map to probe ids; full-circle ends stay
+   `-1`.
 
 ### SES (`SesGeometry.build`)
 

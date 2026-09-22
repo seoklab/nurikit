@@ -27,10 +27,10 @@ from .arrangement import (
     Cap,
     DegenerateGeometryError,
     any_perpendicular,
+    cap_components,
     caps_from_arrays,
     classify_caps,
     cluster_points,
-    components,
     covered_arrangement,
     cross,
     solve,
@@ -76,6 +76,71 @@ class Probe:
     pos: np.ndarray
     owner: int
     atoms: np.ndarray
+
+
+@dataclass
+class Partner:
+    """An overlap partner of a sphere and the id of their pair."""
+
+    atom: int
+    pair: int
+
+
+@dataclass
+class Sphere:
+    """One atom sphere below ``n_enum`` during the SAS build: its overlap
+    partners sorted by atom, one cap per partner in the same order (hidden
+    caps removed after classification), the ``(triple, corner)``
+    incidences of the crossing points on it, whether two of its caps cover
+    it, and, below ``n_solve``, its arrangement."""
+
+    partners: list[Partner] = field(default_factory=list)
+    caps: list[Cap] = field(default_factory=list)
+    incident: list[tuple[int, int]] = field(default_factory=list)
+    covered: bool = False
+    arrangement: Arrangement | None = None
+
+    def slot(self, atom: int) -> int:
+        """Index of the cap made with ``atom``, ``-1`` if there is none:
+        a binary search in the partner-sorted caps."""
+        lo, hi = 0, len(self.caps)
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if self.caps[mid].partner < atom:
+                lo = mid + 1
+            else:
+                hi = mid
+        if lo < len(self.caps) and self.caps[lo].partner == atom:
+            return lo
+        return -1
+
+
+_OTHERS = ((1, 2), (0, 2), (0, 1))
+
+
+@dataclass
+class Triple:
+    """Mutually overlapping spheres ``i < j < k`` whose circle ``(i, j)``
+    crosses sphere ``k`` in two points: the pair ids of ``(i, j)``,
+    ``(i, k)``, ``(j, k)`` and the intersection numbers ``g, a, b, h`` in
+    the circle frame. ``edge_on[m]`` says whether both caps of the triple
+    survive hiding on sphere ``atoms[m]`` (true above ``n_enum``); a
+    triple with every edge on has a vertex, and ``cluster`` then holds the
+    cluster ids of its two points."""
+
+    atoms: tuple[int, int, int]
+    pairs: tuple[int, int, int]
+    g: float
+    a: float
+    b: float
+    h: float
+    edge_on: list[bool] = field(default_factory=lambda: [True, True, True])
+    has_vertex: bool = False
+    cluster: list[int] = field(default_factory=lambda: [-1, -1])
+
+    def others(self, corner: int) -> tuple[int, int]:
+        m0, m1 = _OTHERS[corner]
+        return self.atoms[m0], self.atoms[m1]
 
 
 def prepare(coords, radii, rp, active=None):
@@ -203,10 +268,7 @@ def shared_circle_middles(coords, sas, pairs, d):
         return out
     o = np.lexsort((pairs[:, 1], pairs[:, 0]))
     pairs, d = pairs[o], d[o]
-    nbr_off, nbr_flat = _overlap_csr(n, pairs)
-    triples, pid = _overlapping_triples(
-        n, pairs, nbr_off, nbr_flat, len(pairs)
-    )
+    triples, pid = _triple_rows(_partner_lists(n, pairs), pairs, len(pairs))
     i, j, k = triples.T
     u_ij, t_ij = _circle_plane(coords, sas, i, j, d[pid[:, 0]])
     u_ik, t_ik = _circle_plane(coords, sas, i, k, d[pid[:, 1]])
@@ -251,12 +313,16 @@ class SasGeometry:
     n_solve: int
     n_enum: int
     circles: list[Circle]
-    arrangements: list[Arrangement]
+    spheres: list[Sphere]
     probes: list[Probe]
     arcs: list[TorusArc]
     n_active_circles: int
     n_active_probes: int
     n_active_arcs: int
+
+    @property
+    def arrangements(self) -> list[Arrangement]:
+        return [s.arrangement for s in self.spheres[: self.n_solve]]
 
     @property
     def sas_area(self) -> np.ndarray:
@@ -290,149 +356,38 @@ class SasGeometry:
         n_solve: int,
         n_enum: int,
     ) -> SasGeometry:
-        n = len(coords)
         sas = radii + rp
         n_circ = int(np.searchsorted(pairs[:, 0], n_enum))
         circles = _circles(coords, sas, pairs[:n_circ], d[:n_circ])
-        nbr_off, nbr_flat = _overlap_csr(n, pairs)
-        offsets, all_caps, all_tags, row_of = _cap_rows(
-            circles, sas, n_enum, len(pairs)
-        )
+        partners = _partner_lists(len(coords), pairs)
+        spheres = [Sphere(p) for p in partners[:n_enum]]
+        triples = _crossing_triples(coords, sas, circles, partners, pairs)
+        for t, triple in enumerate(triples):
+            for corner, atom in enumerate(triple.atoms):
+                if atom < n_enum:
+                    spheres[atom].incident.append((t, corner))
+        _sphere_caps(circles, sas, spheres)
+        _hide_caps(spheres, triples)
+        raw_pts, raw_tri = _vertex_points(triples, circles)
+        clusters = _clusters(coords, spheres, triples, raw_pts, raw_tri)
+        probes, probe_map = _probes(clusters)
 
-        slot_of_row = _within(np.diff(offsets))
-        caps_of = [
-            all_caps[offsets[i] : offsets[i + 1]] for i in range(n_enum)
-        ]
-        tags_of = [
-            all_tags[offsets[i] : offsets[i + 1]] for i in range(n_enum)
-        ]
-
-        tri = _triple_candidates(
-            coords,
-            sas,
-            circles,
-            *_overlapping_triples(n, pairs, nbr_off, nbr_flat, n_circ),
-        )
-        triples, circ = tri.triples, tri.circ
-        capped = triples < n_enum
-        slots = _triple_slots(circ, row_of, slot_of_row)
-
-        covered = np.zeros(n_enum, dtype=bool)
-        sph_off, _, sph_edges = _sphere_incidence(
-            triples, slots, capped, n_enum
-        )
-        for i, caps in enumerate(caps_of):
-            m = len(caps)
-            crossing = np.zeros((m, m), dtype=bool)
-            e = sph_edges[sph_off[i] : sph_off[i + 1]]
-            crossing[e[:, 0], e[:, 1]] = True
-            crossing[e[:, 1], e[:, 0]] = True
-            hidden, covered[i], _ = classify_caps(caps, crossing)
-            caps_of[i] = [caps[k] for k in np.flatnonzero(~hidden)]
-            tags_of[i] = tags_of[i][~hidden]
-            renumber = np.where(hidden, -1, np.cumsum(~hidden) - 1)
-            sl = slice(offsets[i], offsets[i + 1])
-            slot_of_row[sl] = renumber[slot_of_row[sl]]
-
-        slots = _triple_slots(circ, row_of, slot_of_row)
-        edge_on = capped & (slots >= 0).all(axis=2)
-        has_vertex = (~capped | edge_on).all(axis=1)
-        points = tri.points(has_vertex)
-
-        raw_pts = points.reshape(-1, 3)
-        raw_triple = np.repeat(np.flatnonzero(has_vertex), 2)
-        label, atoms_key, owner = _clusters_by_owner(
-            cluster_points(raw_pts, TAU_C), triples[raw_triple], n
-        )
-        n_clusters = len(owner)
-        reps = np.zeros((n_clusters, 3))
-        np.add.at(reps, label, raw_pts)
-        reps /= np.bincount(label, minlength=n_clusters)[:, None]
-        if np.any(np.linalg.norm(raw_pts - reps[label], axis=1) > TAU_C):
-            raise DegenerateGeometryError("vertex cluster wider than 2 TAU_C")
-        label_of = np.full((len(triples), 2), -1, dtype=int)
-        label_of[has_vertex] = label.reshape(-1, 2)
-
-        cap_off = np.cumsum([0, *(len(c) for c in caps_of)])
-        sph_off, sph_tri, sph_edges = _sphere_incidence(
-            triples, slots, edge_on, n_enum
-        )
-        sphere = np.repeat(np.arange(n_enum), np.diff(sph_off))
-        gcap = sph_edges + cap_off[sphere, None]
-        cluster = label_of[sph_tri]
-        with_vertex = cluster[:, 0] >= 0
-        incidence = np.unique(
-            (
-                cluster[with_vertex, :, None] * cap_off[-1]
-                + gcap[with_vertex, None, :]
-            ).ravel()
-        )
-        n_components = _components_per_sphere(cap_off, gcap)
-        flat_caps = [cap for caps in caps_of for cap in caps]
-        accessible = _accessible(
-            vectors(flat_caps, "axis"),
-            scalars(flat_caps, "cos_a"),
-            cap_off,
-            coords,
-            reps,
-            owner,
-            incidence,
-        )
-
-        probe_ids = np.flatnonzero(accessible)
-        probe_map = np.full(n_clusters, -1, dtype=int)
-        probe_map[probe_ids] = np.arange(len(probe_ids))
-        probe_offsets, probe_atoms = _probe_atoms(n, atoms_key, probe_ids)
-
-        arrangements: list[Arrangement] = [
-            covered_arrangement(caps) for caps in caps_of[:n_solve]
-        ]
-        circ_e1, circ_e2 = vectors(circles, "e1"), vectors(circles, "e2")
         arcs: list[TorusArc] = []
         n_active_arcs = 0
-        for i in np.flatnonzero(~covered[:n_solve]):
-            caps = caps_of[i]
-            rows = slice(sph_off[i], sph_off[i + 1])
-            vrows = np.flatnonzero(with_vertex[rows]) + sph_off[i]
-            local, inv = np.unique(cluster[vrows], return_inverse=True)
-            local_reps = reps[local] - coords[i]
-            local_reps /= np.linalg.norm(local_reps, axis=1, keepdims=True)
-            excused = np.zeros((len(local), len(caps)), dtype=bool)
-            excused[
-                inv.reshape(-1, 2)[:, :, None], sph_edges[vrows, None, :]
-            ] = True
-            tags = tags_of[i]
-            circ, sign = tags >> 1, 1.0 - 2.0 * (tags & 1)
-            edges = sph_edges[rows]
-            crossing = np.zeros((len(caps), len(caps)), dtype=bool)
-            crossing[edges[:, 0], edges[:, 1]] = True
-            crossing[edges[:, 1], edges[:, 0]] = True
-            arr = solve(
-                sas[i],
-                ArrangementProblem(
-                    caps,
-                    circ_e1[circ],
-                    sign[:, None] * circ_e2[circ],
-                    crossing,
-                    int(n_components[i]),
-                    local_reps,
-                    excused,
-                    accessible[local],
-                ),
+        for s in range(n_solve):
+            sphere = spheres[s]
+            if sphere.covered:
+                sphere.arrangement = covered_arrangement(sphere.caps)
+                continue
+            problem, local = _sphere_problem(
+                coords[s], circles, sphere, triples, clusters
             )
-            arrangements[i] = arr
-            part = _torus_arcs(arr, tags, probe_map[local])
+            sphere.arrangement = solve(sas[s], problem)
+            part = _torus_arcs(sphere, probe_map[local])
             arcs.extend(part)
-            n_active_arcs += len(part) * (i < n_active)
+            if s < n_active:
+                n_active_arcs += len(part)
 
-        probes = [
-            Probe(
-                reps[g],
-                owner[g],
-                probe_atoms[probe_offsets[k] : probe_offsets[k + 1]],
-            )
-            for k, g in enumerate(probe_ids)
-        ]
         return cls(
             coords,
             radii,
@@ -442,226 +397,13 @@ class SasGeometry:
             n_solve,
             n_enum,
             circles,
-            arrangements,
+            spheres,
             probes,
             arcs,
             int(np.searchsorted(scalars(circles, "i", int), n_active)),
-            int(np.searchsorted(owner[probe_ids], n_active)),
+            int(np.searchsorted(scalars(probes, "owner", int), n_active)),
             n_active_arcs,
         )
-
-
-def _cap_rows(circles: list[Circle], sas, n_enum: int, n_pairs: int):
-    """Caps of every sphere below ``n_enum``, gathered from the circle rows.
-
-    Circle ``(i, j)`` cuts sphere ``i`` with axis ``u`` and sphere ``j``
-    (when below ``n_enum``) with axis ``-u``; ``cos`` and ``sin`` are the
-    distances ``a`` / ``d - a`` and the circle radius over the sphere
-    radius. Rows are sorted by sphere; ``offsets`` delimits each sphere's
-    slice. A row's ``tag`` is ``2 * circle + side`` with side 0 on the
-    circle's first sphere; ``row_of[tag]`` is its row, ``-1`` where the
-    sphere has no caps.
-    """
-    pi, pj = scalars(circles, "i", int), scalars(circles, "j", int)
-    c_a, c_d = scalars(circles, "a"), scalars(circles, "d")
-    c_axis = vectors(circles, "axis")
-    circ = np.arange(len(circles))
-    second = np.flatnonzero(pj < n_enum)
-    atom = np.concatenate([pi, pj[second]])
-    tag = np.concatenate([2 * circ, 2 * second + 1])
-    a = np.concatenate([c_a, (c_d - c_a)[second]])
-    axis = np.concatenate([c_axis, -c_axis[second]])
-    order = np.argsort(atom, kind="stable")
-    atom, tag, a, axis = atom[order], tag[order], a[order], axis[order]
-    offsets = np.searchsorted(atom, np.arange(n_enum + 1))
-    r = sas[atom]
-    caps = caps_from_arrays(axis, a / r, scalars(circles, "rl")[tag >> 1] / r)
-    row_of = np.full(2 * n_pairs, -1, dtype=int)
-    row_of[tag] = np.arange(len(tag))
-    return offsets, caps, tag, row_of
-
-
-def _overlap_csr(n, pairs) -> tuple[np.ndarray, np.ndarray]:
-    """Sorted overlap partners of every atom as ``(offsets, flat)``."""
-    both = np.concatenate([pairs, pairs[:, ::-1]])
-    both = both[np.lexsort((both[:, 1], both[:, 0]))]
-    return np.searchsorted(both[:, 0], np.arange(n + 1)), both[:, 1]
-
-
-def _components_per_sphere(cap_off, edges) -> np.ndarray:
-    """Connected components of every sphere's crossing graph, from one
-    block-diagonal graph over all caps."""
-    n_nodes = int(cap_off[-1])
-    labels = components(n_nodes, edges)
-    sphere = np.repeat(np.arange(len(cap_off) - 1), np.diff(cap_off))
-    uniq = np.unique(sphere * n_nodes + labels)
-    return np.bincount(uniq // n_nodes, minlength=len(cap_off) - 1)
-
-
-@dataclass
-class _TripleCandidates:
-    """Sphere triples whose circle ``(i, j)`` meets sphere ``k`` in two
-    points, with the intersection geometry kept so that the points can be
-    computed for a subset later."""
-
-    triples: np.ndarray
-    circ: np.ndarray
-    centre: np.ndarray
-    radius: np.ndarray
-    e1: np.ndarray
-    e2: np.ndarray
-    g: np.ndarray
-    a: np.ndarray
-    b: np.ndarray
-    h: np.ndarray
-
-    def points(self, mask) -> np.ndarray:
-        """Both intersection points ``(t, 2, 3)`` of the selected triples,
-        ``phi_0 -/+ acos(g / amp)`` written without inverse trig."""
-        g, a, b, h = self.g[mask], self.a[mask], self.b[mask], self.h[mask]
-        amp2 = a * a + b * b
-        t, rl = self.centre[mask], self.radius[mask, None]
-        e1, e2 = self.e1[mask], self.e2[mask]
-        pts = []
-        for sign in (-1.0, 1.0):
-            cos_phi = (a * g + sign * b * h) / amp2
-            sin_phi = (b * g - sign * a * h) / amp2
-            pts.append(
-                t + rl * (cos_phi[:, None] * e1 + sin_phi[:, None] * e2)
-            )
-        return np.stack(pts, axis=1)
-
-
-def _overlapping_triples(n, pairs, nbr_off, nbr_flat, n_first):
-    """Triples ``(i, j, k)`` with ``i < j < k`` and all three pairs
-    overlapping, for ``(i, j)`` among the first ``n_first`` sorted pairs,
-    with the pair ids of ``(i, j)``, ``(i, k)`` and ``(j, k)``."""
-    keys = pairs[:, 0] * n + pairs[:, 1]
-    i, j = pairs[:n_first, 0], pairs[:n_first, 1]
-    nbr_key = np.repeat(np.arange(n), np.diff(nbr_off)) * n + nbr_flat
-    lo = np.searchsorted(nbr_key, i * n + j, "right")
-    count = nbr_off[i + 1] - lo
-    p = np.repeat(np.arange(n_first), count)
-    k = nbr_flat[np.repeat(lo, count) + _within(count)]
-    key = j[p] * n + k
-    pos = np.minimum(np.searchsorted(keys, key), len(keys) - 1)
-    is_pair = keys[pos] == key
-    p, k, pos_jk = p[is_pair], k[is_pair], pos[is_pair]
-    pos_ik = np.searchsorted(keys, i[p] * n + k)
-    return np.column_stack([i[p], j[p], k]), np.column_stack(
-        [p, pos_ik, pos_jk]
-    )
-
-
-def _triple_candidates(coords, sas, circles, triples, pid):
-    """Candidates among the overlapping ``triples`` (``(i, j)`` a circle,
-    ``pid`` the pair ids of ``(i, j)``, ``(i, k)``, ``(j, k)``), kept iff
-    circle ``(i, j)`` crosses sphere ``k`` (``h^2 > 0``). Each triple is
-    intersected once so that all three spheres see identical points.
-    """
-    circ, k = pid[:, 0], triples[:, 2]
-    t, rl = vectors(circles, "centre")[circ], scalars(circles, "rl")[circ]
-    e1, e2 = vectors(circles, "e1")[circ], vectors(circles, "e2")[circ]
-    w = t - coords[k]
-    g = (sas[k] ** 2 - np.einsum("ij,ij->i", w, w) - rl * rl) / (2.0 * rl)
-    a = np.einsum("ij,ij->i", w, e1)
-    b = np.einsum("ij,ij->i", w, e2)
-    hsq = a * a + b * b - g * g
-    ok = hsq > 0.0
-    return _TripleCandidates(
-        triples[ok],
-        pid[ok],
-        t[ok],
-        rl[ok],
-        e1[ok],
-        e2[ok],
-        g[ok],
-        a[ok],
-        b[ok],
-        np.sqrt(hsq[ok]),
-    )
-
-
-def _triple_slots(circ, row_of, slot_of_row) -> np.ndarray:
-    """Cap slots ``(t, 3, 2)`` of each triple's two caps on each of its
-    three spheres, ``-1`` where the sphere has no such cap."""
-    cij, cik, cjk = circ[:, 0], circ[:, 1], circ[:, 2]
-    rows = np.stack(
-        [
-            np.column_stack([row_of[2 * cij], row_of[2 * cik]]),
-            np.column_stack([row_of[2 * cij + 1], row_of[2 * cjk]]),
-            np.column_stack([row_of[2 * cik + 1], row_of[2 * cjk + 1]]),
-        ],
-        axis=1,
-    )
-    return np.append(slot_of_row, -1)[rows]
-
-
-def _sphere_incidence(triples, slots, mask, n_enum):
-    """Every (sphere, triple) incidence selected by ``mask`` (t, 3),
-    sorted by sphere: ``(offsets, triple, the triple's two cap slots
-    there)``."""
-    sphere = triples[mask]
-    order = np.argsort(sphere, kind="stable")
-    tri = np.repeat(np.arange(len(triples)), mask.sum(axis=1))
-    offsets = np.searchsorted(sphere[order], np.arange(n_enum + 1))
-    return offsets, tri[order], slots[mask][order]
-
-
-def _clusters_by_owner(label, atoms, n):
-    """Relabel clusters so that they are sorted by owner, the smallest atom
-    of the cluster, which is the sphere deciding its accessibility.
-
-    Returns ``(label, atoms_key, owner)`` with ``atoms_key`` the sorted
-    unique ``cluster * n + atom`` incidences (``atoms`` (k, 3) per raw
-    point).
-    """
-    keys = np.unique((label[:, None] * n + atoms).ravel())
-    cluster, atom = np.divmod(keys, n)
-    n_clusters = int(label.max()) + 1 if len(label) else 0
-    first = np.searchsorted(cluster, np.arange(n_clusters))
-    order = np.argsort(atom[first], kind="stable")
-    rank = np.empty(n_clusters, dtype=int)
-    rank[order] = np.arange(n_clusters)
-    keys = np.unique(rank[cluster] * n + atom)
-    return rank[label], keys, atom[first][order]
-
-
-def _accessible(
-    cap_axis, cap_cos_a, cap_off, coords, reps, owner, incidence
-) -> np.ndarray:
-    """Accessibility of every cluster, decided once on its owner sphere.
-
-    A cluster is accessible iff it lies outside every cap of that sphere
-    except those whose crossing points merged into it (``incidence``,
-    sorted ``cluster * n_caps + cap`` keys). Every ball that could contain
-    a point of the sphere overlaps it and therefore is a cap there (or
-    nested inside one), so this equals the test against all SAS balls.
-    """
-    n_caps = int(cap_off[-1])
-    dirs = reps - coords[owner]
-    dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
-    count = np.diff(cap_off)[owner]
-    start = np.cumsum(count) - count
-    cluster = np.repeat(np.arange(len(owner)), count)
-    cap = cap_off[owner[cluster]] + _within(count)
-    inside = (
-        np.einsum("ij,ij->i", dirs[cluster], cap_axis[cap]) > cap_cos_a[cap]
-    )
-
-    inc_cluster, inc_cap = np.divmod(incidence, n_caps)
-    sphere_of = np.repeat(np.arange(len(cap_off) - 1), np.diff(cap_off))
-    own = sphere_of[inc_cap] == owner[inc_cluster]
-    inc_cluster, inc_cap = inc_cluster[own], inc_cap[own]
-    inside[start[inc_cluster] + inc_cap - cap_off[owner[inc_cluster]]] = False
-    return np.bincount(cluster, inside, minlength=len(owner)) == 0
-
-
-def _within(counts) -> np.ndarray:
-    """Index of every element within its segment of ``counts``."""
-    return np.arange(int(counts.sum())) - np.repeat(
-        np.cumsum(counts) - counts, counts
-    )
 
 
 def _circles(coords, sas, pairs, d) -> list[Circle]:
@@ -689,38 +431,258 @@ def _circles(coords, sas, pairs, d) -> list[Circle]:
     ]
 
 
-def _probe_atoms(n, keys, probe_ids) -> tuple[np.ndarray, np.ndarray]:
-    """Sorted atoms of every probe as ``(offsets, flat)``; ``keys`` are
-    the sorted unique ``cluster * n + atom`` incidences."""
-    cluster, atom = np.divmod(keys, n)
-    lo = np.searchsorted(cluster, probe_ids)
-    hi = np.searchsorted(cluster, probe_ids + 1)
-    count = hi - lo
-    flat = atom[np.repeat(lo, count) + _within(count)]
-    return np.concatenate([[0], np.cumsum(count)]), flat
+def _partner_lists(n: int, pairs) -> list[list[Partner]]:
+    """Overlap partners of every atom with their pair ids; ``pairs`` sorted
+    by ``(i, j)`` makes every list sorted by atom."""
+    partners: list[list[Partner]] = [[] for _ in range(n)]
+    for q, (i, j) in enumerate(pairs.tolist()):
+        partners[i].append(Partner(j, q))
+        partners[j].append(Partner(i, q))
+    return partners
 
 
-def _torus_arcs(arr, tags, probe_of_local) -> list[TorusArc]:
-    """Arcs of a sphere on circles it is the smaller sphere of (``tags``
-    per cap, side bit 0).
+def _triple_rows(partners: list[list[Partner]], pairs, n_first: int):
+    """Triples ``(i, j, k)`` with ``i < j < k`` and all three pairs
+    overlapping, for ``(i, j)`` among the first ``n_first`` sorted pairs,
+    with the pair ids of ``(i, j)``, ``(i, k)`` and ``(j, k)``: circle by
+    circle, ``k`` runs over the partners of ``i`` after ``j`` that are also
+    partners of ``j`` (binary search in ``j``'s list)."""
+    atom_of = [scalars(p, "atom", int) for p in partners]
+    pair_of = [scalars(p, "pair", int) for p in partners]
+    rows = []
+    for q in range(n_first):
+        i, j = int(pairs[q, 0]), int(pairs[q, 1])
+        start = int(np.searchsorted(atom_of[i], j)) + 1
+        ks, q_ik = atom_of[i][start:], pair_of[i][start:]
+        pos = np.minimum(np.searchsorted(atom_of[j], ks), len(atom_of[j]) - 1)
+        found = atom_of[j][pos] == ks
+        for k, qik, qjk in zip(ks[found], q_ik[found], pair_of[j][pos[found]]):
+            rows.append((i, j, int(k), q, int(qik), int(qjk)))
+    arr = np.array(rows, dtype=int).reshape(-1, 6)
+    return arr[:, :3], arr[:, 3:]
 
-    Those caps share the circle frame, so ``phi`` carries over as is; the
-    larger sphere reports nothing. Full circles keep their ``-1`` ends.
+
+def _crossing_triples(coords, sas, circles, partners, pairs) -> list[Triple]:
+    """Triples whose circle ``(i, j)`` crosses sphere ``k`` (``h^2 > 0``),
+    intersected once so that all three spheres see identical points."""
+    atoms, pids = _triple_rows(partners, pairs, len(circles))
+    circ, k = pids[:, 0], atoms[:, 2]
+    t, rl = vectors(circles, "centre")[circ], scalars(circles, "rl")[circ]
+    e1, e2 = vectors(circles, "e1")[circ], vectors(circles, "e2")[circ]
+    w = t - coords[k]
+    g = (sas[k] ** 2 - np.einsum("ij,ij->i", w, w) - rl * rl) / (2.0 * rl)
+    a = np.einsum("ij,ij->i", w, e1)
+    b = np.einsum("ij,ij->i", w, e2)
+    hsq = a * a + b * b - g * g
+    ok = np.flatnonzero(hsq > 0.0)
+    h = np.sqrt(hsq[ok])
+    return [
+        Triple(
+            tuple(atoms[r].tolist()),
+            tuple(pids[r].tolist()),
+            float(g[r]),
+            float(a[r]),
+            float(b[r]),
+            float(h_r),
+        )
+        for r, h_r in zip(ok, h)
+    ]
+
+
+def _sphere_caps(circles: list[Circle], sas, spheres: list[Sphere]) -> None:
+    """One cap per partner, in partner order: the circle ``(s, j)`` cuts
+    sphere ``s`` with its axis (side 0), the circle ``(i, s)`` with the
+    opposite axis (side 1)."""
+    for s, sphere in enumerate(spheres):
+        for p in sphere.partners:
+            c = circles[p.pair]
+            if p.atom < s:
+                cap = Cap(-c.axis, (c.d - c.a) / sas[s], c.rl / sas[s])
+                cap.side = 1
+            else:
+                cap = Cap(c.axis, c.a / sas[s], c.rl / sas[s])
+            cap.partner, cap.circle = p.atom, p.pair
+            sphere.caps.append(cap)
+
+
+def _hide_caps(spheres: list[Sphere], triples: list[Triple]) -> None:
+    """Classify every sphere's caps against the crossing graph of its
+    incident triples, drop the hidden caps, and record on each triple
+    whether both of its caps survive on each of its spheres."""
+    for sphere in spheres:
+        m = len(sphere.caps)
+        crossing = np.zeros((m, m), dtype=bool)
+        slots = []
+        for t, corner in sphere.incident:
+            a, b = triples[t].others(corner)
+            sa, sb = sphere.slot(a), sphere.slot(b)
+            crossing[sa, sb] = crossing[sb, sa] = True
+            slots.append((sa, sb))
+        hidden, sphere.covered, _ = classify_caps(sphere.caps, crossing)
+        keep = ~hidden
+        for (t, corner), (sa, sb) in zip(sphere.incident, slots):
+            triples[t].edge_on[corner] = bool(keep[sa] and keep[sb])
+        sphere.caps = [c for c, k in zip(sphere.caps, keep) if k]
+    for triple in triples:
+        triple.has_vertex = all(triple.edge_on)
+
+
+def _vertex_points(triples: list[Triple], circles: list[Circle]):
+    """Both intersection points of every triple with a vertex, as
+    ``(raw_pts (2t, 3), raw_tri (2t,))`` with the two points of a triple
+    consecutive: ``phi_0 -/+ acos(g / amp)`` written without inverse
+    trig."""
+    idx = [t for t, triple in enumerate(triples) if triple.has_vertex]
+    if not idx:
+        return np.empty((0, 3)), np.empty(0, dtype=int)
+    sel = [triples[t] for t in idx]
+    on = [circles[triple.pairs[0]] for triple in sel]
+    t, rl = vectors(on, "centre"), scalars(on, "rl")[:, None]
+    e1, e2 = vectors(on, "e1"), vectors(on, "e2")
+    g, a, b, h = (scalars(sel, f) for f in ("g", "a", "b", "h"))
+    amp2 = a * a + b * b
+    pts = []
+    for sign in (-1.0, 1.0):
+        cos_phi = (a * g + sign * b * h) / amp2
+        sin_phi = (b * g - sign * a * h) / amp2
+        pts.append(t + rl * (cos_phi[:, None] * e1 + sin_phi[:, None] * e2))
+    return np.stack(pts, axis=1).reshape(-1, 3), np.repeat(idx, 2)
+
+
+@dataclass
+class _Cluster:
+    rep: np.ndarray
+    owner: int
+    atoms: np.ndarray
+    accessible: bool
+
+
+def _clusters(coords, spheres, triples, raw_pts, raw_tri) -> list[_Cluster]:
+    """Cluster the raw points at ``TAU_C``, decide every cluster on its
+    owner sphere, sort the clusters by owner and write their ids into the
+    triples."""
+    label = cluster_points(raw_pts, TAU_C)
+    n_clusters = int(label.max()) + 1 if len(label) else 0
+    members: list[list[int]] = [[] for _ in range(n_clusters)]
+    for r, g in enumerate(label.tolist()):
+        members[g].append(r)
+
+    clusters = []
+    for mem in members:
+        pts = raw_pts[mem]
+        rep = pts.mean(axis=0)
+        if np.any(np.linalg.norm(pts - rep, axis=1) > TAU_C):
+            raise DegenerateGeometryError("vertex cluster wider than 2 TAU_C")
+        tris = [triples[raw_tri[r]] for r in mem]
+        atoms = np.unique([a for triple in tris for a in triple.atoms])
+        owner = int(atoms[0])
+        accessible = _accessible(coords, spheres[owner], owner, rep, tris)
+        clusters.append(_Cluster(rep, owner, atoms, accessible))
+
+    order = np.argsort(scalars(clusters, "owner", int), kind="stable")
+    rank = np.empty(n_clusters, dtype=int)
+    rank[order] = np.arange(n_clusters)
+    for r, g in enumerate(label.tolist()):
+        triples[raw_tri[r]].cluster[r % 2] = int(rank[g])
+    return [clusters[g] for g in order]
+
+
+def _accessible(coords, sphere: Sphere, owner: int, rep, tris) -> bool:
+    """Whether the cluster at ``rep`` lies outside every cap of its owner
+    sphere except the caps its member triples make there.
+
+    The owner is the first atom of every member triple that contains it,
+    so those caps are the slots of the triple's other two atoms. Every
+    ball that could contain a point of the sphere overlaps it and therefore
+    is a cap there (or nested inside one), so this equals the test against
+    all SAS balls.
     """
+    direction = rep - coords[owner]
+    direction /= np.linalg.norm(direction)
+    inside = np.einsum(
+        "ij,j->i", vectors(sphere.caps, "axis"), direction
+    ) > scalars(sphere.caps, "cos_a")
+    for triple in tris:
+        if triple.atoms[0] == owner:
+            for atom in triple.atoms[1:]:
+                inside[sphere.slot(atom)] = False
+    return not inside.any()
+
+
+def _probes(clusters: list[_Cluster]) -> tuple[list[Probe], np.ndarray]:
+    """Accessible clusters in owner order, and the cluster -> probe map
+    (``-1`` for inaccessible clusters)."""
+    probes: list[Probe] = []
+    probe_map = np.full(len(clusters), -1, dtype=int)
+    for g, c in enumerate(clusters):
+        if c.accessible:
+            probe_map[g] = len(probes)
+            probes.append(Probe(c.rep, c.owner, c.atoms))
+    return probes, probe_map
+
+
+def _sphere_problem(centre, circles, sphere: Sphere, triples, clusters):
+    """The arrangement problem of one SAS sphere from its incident triples:
+    crossing edges from the incidences whose caps both survived, vertices
+    and their excused caps from those with a vertex, frames from the
+    circles of its caps. Returns it with the cluster id of every local
+    vertex."""
+    m = len(sphere.caps)
+    crossing = np.zeros((m, m), dtype=bool)
+    incidences = []
+    for t, corner in sphere.incident:
+        triple = triples[t]
+        if not triple.edge_on[corner]:
+            continue
+        a, b = triple.others(corner)
+        sa, sb = sphere.slot(a), sphere.slot(b)
+        crossing[sa, sb] = crossing[sb, sa] = True
+        if triple.has_vertex:
+            incidences.append((triple.cluster, (sa, sb)))
+
+    local = sorted({g for cl, _ in incidences for g in cl})
+    index = {g: k for k, g in enumerate(local)}
+    excused = np.zeros((len(local), m), dtype=bool)
+    for cl, (sa, sb) in incidences:
+        for g in cl:
+            excused[index[g], sa] = excused[index[g], sb] = True
+    reps = np.array([clusters[g].rep for g in local]).reshape(-1, 3) - centre
+    reps /= np.linalg.norm(reps, axis=1, keepdims=True)
+    accessible = np.array([clusters[g].accessible for g in local], dtype=bool)
+
+    on = [circles[cap.circle] for cap in sphere.caps]
+    sign = 1.0 - 2.0 * scalars(sphere.caps, "side")
+    problem = ArrangementProblem(
+        sphere.caps,
+        vectors(on, "e1"),
+        sign[:, None] * vectors(on, "e2"),
+        crossing,
+        cap_components(crossing),
+        reps,
+        excused,
+        accessible,
+    )
+    return problem, np.array(local, dtype=int)
+
+
+def _torus_arcs(sphere: Sphere, probe_of_local) -> list[TorusArc]:
+    """Arcs of a sphere on its side-0 caps, whose circle frame is the arc
+    frame; the other sphere of each circle reports nothing. Full circles
+    keep their ``-1`` ends."""
 
     def probe(v: int) -> int:
         return int(probe_of_local[v]) if v >= 0 else -1
 
     return [
         TorusArc(
-            int(tags[arc.cap] >> 1),
+            sphere.caps[arc.cap].circle,
             probe(arc.v_beg),
             probe(arc.v_end),
             arc.phi_beg,
             arc.dphi,
         )
-        for arc in arr.arcs
-        if (tags[arc.cap] & 1) == 0
+        for arc in sphere.arrangement.arcs
+        if sphere.caps[arc.cap].side == 0
     ]
 
 
