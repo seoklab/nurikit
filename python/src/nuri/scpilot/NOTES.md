@@ -51,8 +51,9 @@ come from a published table (below); no radii file is copied from any program.
 |---|---|
 | `io.py` | `nuri.fmt.pdb` loader → `Structure` (heavy atoms, no HETATM), chain selection |
 | `radii.py` | united-atom radii from residue templates (see below) |
-| `arrangement.py` | arrangement of spherical caps on one sphere: caps as `(axis, cos α, sin α)`, arcs, vertices, dart-array loop walk, Gauss–Bonnet area |
-| `anal.py` | `prepare` (overlaps, contained balls, need-first atom order); analytic SAS (`SasGeometry`) and SES (`SesGeometry`): circles, caps gathered from circle rows, probes, torus arcs, saddle ranges, concave faces, exact areas |
+| `arrangement.py` | arrangement of spherical caps on one sphere: `Cap(axis, cos α, sin α)` records, `ArrangementProblem` (caps, frames, crossing, vertices) solved by one kernel, arcs per cap, dart rings per vertex, Gauss–Bonnet area |
+| `anal.py` | `prepare` (overlaps, contained balls, need-first atom order); analytic SAS (`SasGeometry`) and SES (`SesGeometry`) as passes over records: `Circle`, `Sphere` (partners, caps, incident triples), `Triple`, clusters, `Probe` (atoms, tangents), `TorusArc`, `Saddle`, `ConcaveFace` |
+| `aos.py` | `vectors`/`scalars`: gather one field of many records into an array where a kernel is one Eigen-style expression |
 | `surface.py` | SES dot sampler driven by `SesGeometry`: convex / toroidal / concave dots, normals, weights |
 | `sc.py` | one `_Side` per molecule: active atoms, buried dots, peripheral trim, nearest pairing, medians |
 | `rosetta.py` | run + parse `sc.linuxgccrelease -sc:verbose` |
@@ -166,12 +167,18 @@ Sampler on 1ar1 H (active side toward L), density 15:
   consumers read the stored result and never re-derive it by another formula
   or default. Crossing on SAS spheres is the triple discriminant; edges
   survive hiding elsewhere, vertices do not.
-- Geometry core: cap arrangement per sphere (`Caps` as `(axis, cos α, sin α)`,
+- Geometry core: cap arrangement per sphere (`Cap(axis, cos α, sin α)`,
   crossing points in the `n₁ ± n₂` basis, global vertex clustering with
-  per-cluster excusal, arcs tested against crossing caps only, one sorted
-  dart array per sphere with curvature tie-break and snapped tie angles,
-  Gauss–Bonnet with patch count from cap components). The same solver serves
-  atom spheres and probe spheres.
+  per-cluster excusal, arcs tested against crossing caps only, a dart ring
+  per vertex with curvature tie-break and snapped tie angles, Gauss–Bonnet
+  with patch count from cap components). One kernel serves atom spheres and
+  probe spheres; only the preparation of its `ArrangementProblem` differs.
+- Layout for the port: records (dataclasses) are the unit of storage,
+  one-to-many relations are lists on the owner record, and numpy appears
+  only where the C++ holds an Eigen matrix or writes one Eigen expression
+  over a set of records (gathered at the call site). The pilot is not
+  optimised; a 10× slowdown against the numpy version was accepted for
+  readability.
 - Concave cutters: one height pass over all probes, closed-form high faces,
   one pair pass that applies the both-low, beyond-plane and triangle tests
   from both sides and keeps a pair for both faces or neither; every test is

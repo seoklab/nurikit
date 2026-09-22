@@ -810,13 +810,19 @@ probe positions used by the buried/trim tests in `sc.py`.
 
 ## 5. Complexity
 
-Pair enumeration uses one KD-tree; triple candidates come from sorted
-overlap lists and a `searchsorted` pair lookup. Each sphere's arrangement is
-`O(m²)` in its cap count `m` (10–40 for proteins) and independent of all other
-spheres. Global steps: one KD-tree clustering of the raw vertices, one
-label-propagation pass for all cap graphs, one vectorised accessibility test
-for all clusters, one height pass over all probes, one probe-pair query for
-all faces. Per sphere and per face there remain a KD-tree query for coincident
-caps and one for local vertex clustering (≤ 40 points, so a pairwise test
-suffices in C++). Connected components everywhere are minimum-label
-propagation with pointer jumping. Sampling is linear in the number of dots.
+Pair enumeration uses one KD-tree; triple candidates come circle by circle
+from the partner lists of the two spheres (binary search), and every cap
+lookup is a binary search in a sphere's partner-sorted caps. Each sphere's
+arrangement is `O(m²)` in its cap count `m` (10–40 for proteins) and
+independent of all other spheres; its cap components come from a union-find
+over its own crossing graph. Global steps: one KD-tree clustering of the raw
+vertices (union-find over the pairs), one height pass over all probes, one
+probe-pair query for all faces. Accessibility is decided cluster by cluster
+on the owner sphere. Per sphere and per face the local vertex clustering
+tests every pair (≤ 40 points). Sampling is linear in the number of dots.
+
+The pilot mirrors the C++ loop nest rather than numpy: one loop per entity
+kind (circles, spheres, triples, clusters, probes, faces, saddle rows) with
+records as the unit of storage, and numpy only where the port would write
+one Eigen expression over a set of records or holds a matrix anyway (atom
+coordinates, dot buffers, KD-tree inputs).
