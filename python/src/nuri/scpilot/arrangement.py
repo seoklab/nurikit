@@ -392,102 +392,125 @@ def _cap_arcs(caps, e1, e2, reps, excused, accessible, crossing) -> list[Arc]:
     return arcs
 
 
+@dataclass
+class Dart:
+    """One end of an arc at a vertex: the arc index, the direction of its
+    tangent as an angle in the vertex frame, its signed geodesic curvature
+    and whether it is the (reversed) in-dart of the arc."""
+
+    arc: int
+    angle: float
+    kappa: float
+    is_in: bool
+
+
 def _walk(caps, reps, arcs: list[Arc]):
     """Trace boundary loops with the accessible region on the left.
 
     Arcs are stored with increasing ``phi`` (counter-clockwise around the
     cap axis, cap on the left); traversal therefore runs from ``v_end`` to
     ``v_beg``. Every arc leaving a vertex is an out-dart there and every
-    arc arriving is a reversed in-dart; sorting all darts by (vertex,
-    angle, curvature) gives the cyclic order at every vertex at once. A
-    full circle has no darts and is its own loop. Returns ``(number of
-    loops, sum of turning angles, sum of geodesic curvature integrals)``.
+    arc arriving is a reversed in-dart; the darts of each vertex are put in
+    cyclic order by :func:`_dart_ring`. A full circle has no darts and is
+    its own loop. Returns ``(number of loops, sum of turning angles, sum of
+    geodesic curvature integrals)``.
     """
     n = len(arcs)
-    arc_cap = scalars(arcs, "cap", int)
-    arc_v_beg = scalars(arcs, "v_beg", int)
-    arc_v_end = scalars(arcs, "v_end", int)
-    arc_dphi = scalars(arcs, "dphi")
-    cos_a, sin_a = scalars(caps, "cos_a"), scalars(caps, "sin_a")
-    geo_sum = float(np.sum(arc_dphi * cos_a[arc_cap]))
+    cos_a = scalars(caps, "cos_a")
+    geo_sum = float(
+        np.sum(scalars(arcs, "dphi") * cos_a[scalars(arcs, "cap", int)])
+    )
     succ = np.arange(n)
     turn = np.zeros(n)
 
-    idx = np.flatnonzero(arc_v_beg >= 0)
-    if len(idx):
-        vertex, angle, kind, arc = _sorted_darts(
-            vectors(caps, "axis"),
-            cos_a / sin_a,
-            reps,
-            arc_cap,
-            arc_v_beg,
-            arc_v_end,
-            idx,
-        )
-        first = np.ones(len(vertex), dtype=bool)
-        first[1:] = vertex[1:] != vertex[:-1]
-        prev = np.arange(len(vertex)) - 1
-        prev[first] = np.flatnonzero(np.roll(first, -1))
-        bad = kind == kind[prev]
-        if bad.any():
-            raise DegenerateGeometryError(
-                f"vertex {vertex[bad][0]}: darts do not alternate"
-            )
-        ins = np.flatnonzero(kind == 1)
-        iota = angle[ins] - angle[prev[ins]]
-        iota += 2.0 * math.pi * (iota < 0.0)
-        succ[arc[ins]] = arc[prev[ins]]
-        turn[arc[ins]] = math.pi - iota
+    darts: list[list[Dart]] = [[] for _ in reps]
+    for arc, angle_out, angle_in, cot in _dart_angles(caps, reps, arcs):
+        a = arcs[arc]
+        darts[a.v_end].append(Dart(arc, angle_out, -cot, False))
+        darts[a.v_beg].append(Dart(arc, angle_in, cot, True))
 
-    n_loops = (
-        int(components(n, np.column_stack([np.arange(n), succ])).max()) + 1
-        if n
-        else 0
-    )
-    return n_loops, float(turn.sum()), geo_sum
+    for v, ring in enumerate(darts):
+        if not ring:
+            continue
+        ring = _dart_ring(ring)
+        for d, prev in zip(ring, [ring[-1], *ring[:-1]]):
+            if d.is_in == prev.is_in:
+                raise DegenerateGeometryError(
+                    f"vertex {v}: darts do not alternate"
+                )
+            if d.is_in:
+                iota = d.angle - prev.angle
+                if iota < 0.0:
+                    iota += 2.0 * math.pi
+                succ[d.arc] = prev.arc
+                turn[d.arc] = math.pi - iota
+
+    return _count_cycles(succ), float(turn.sum()), geo_sum
 
 
-def _sorted_darts(axis, cot_a, reps, arc_cap, arc_v_beg, arc_v_end, idx):
-    """Darts of the arcs ``idx`` in cyclic order around their vertices.
+def _dart_angles(caps, reps, arcs: list[Arc]):
+    """Per arc with vertices: ``(arc, angle of the out-dart at v_end, angle
+    of the reversed in-dart at v_beg, cot alpha of its cap)``.
 
-    Angles are measured in a tangent frame at the vertex. Darts closer
-    than ``_TAU_DIR`` (tangent circles, pinches) share one snapped angle
-    and are ordered by signed geodesic curvature, right-curving first, so
-    the wedge between them is exactly zero; a group straddling the
-    ``-pi``/``pi`` seam is merged the same way.
+    The out-dart tangent is ``-(n x u)``, the reversed in-dart tangent
+    ``+(n x u)`` for the cap axis ``n`` and the vertex ``u``, projected into
+    the tangent plane and measured in the frame ``(ea, eb)`` there.
     """
-    vertex = np.concatenate([arc_v_end[idx], arc_v_beg[idx]])
-    kind = np.repeat(np.array([0, 1]), len(idx))
-    arc = np.concatenate([idx, idx])
-    cap = arc_cap[arc]
-    u = reps[vertex]
-    side = 2 * kind - 1
-    t = cross(axis[cap], u) * side[:, None]
-    kappa = cot_a[cap] * side
-    ea = any_perpendicular(reps)[vertex]
-    eb = cross(u, ea)
-    angle = np.arctan2(
-        np.einsum("ij,ij->i", t, eb), np.einsum("ij,ij->i", t, ea)
-    )
+    idx = np.flatnonzero(scalars(arcs, "v_beg", int) >= 0)
+    if len(idx) == 0:
+        return []
+    axis = vectors(caps, "axis")
+    cot_a = scalars(caps, "cos_a") / scalars(caps, "sin_a")
+    cap = scalars(arcs, "cap", int)[idx]
+    ea_all = any_perpendicular(reps)
 
-    order = np.lexsort((angle, vertex))
-    vertex, angle, kappa, kind, arc = (
-        x[order] for x in (vertex, angle, kappa, kind, arc)
-    )
-    m = len(vertex)
-    first = np.ones(m, dtype=bool)
-    first[1:] = vertex[1:] != vertex[:-1]
-    block = np.cumsum(first) - 1
-    blk_first = np.flatnonzero(first)
-    blk_last = np.flatnonzero(np.roll(first, -1))
+    def angle_at(vertex, sign):
+        u = reps[vertex]
+        t = cross(axis[cap], u) * sign
+        ea = ea_all[vertex]
+        eb = cross(u, ea)
+        return np.arctan2(
+            np.einsum("ij,ij->i", t, eb), np.einsum("ij,ij->i", t, ea)
+        )
 
-    new = first.copy()
-    new[1:] |= angle[1:] - angle[:-1] >= _TAU_DIR
-    group = np.maximum.accumulate(np.where(new, np.arange(m), 0))
-    snapped = angle[group]
-    wrap = angle[blk_first] + 2.0 * math.pi - angle[blk_last] < _TAU_DIR
-    in_last = group == group[blk_last][block]
-    snapped = np.where(in_last & wrap[block], angle[blk_first][block], snapped)
+    angle_out = angle_at(scalars(arcs, "v_end", int)[idx], -1.0)
+    angle_in = angle_at(scalars(arcs, "v_beg", int)[idx], 1.0)
+    return zip(idx.tolist(), angle_out, angle_in, cot_a[cap])
 
-    order = np.lexsort((kappa, snapped, vertex))
-    return (x[order] for x in (vertex, snapped, kind, arc))
+
+def _dart_ring(ring: list[Dart]) -> list[Dart]:
+    """Darts of one vertex in cyclic order.
+
+    Darts closer than ``_TAU_DIR`` (tangent circles, pinches) share one
+    snapped angle and are ordered by signed geodesic curvature,
+    right-curving first, so the wedge between them is exactly zero; a group
+    straddling the ``-pi``/``pi`` seam is merged the same way.
+    """
+    ring = sorted(ring, key=lambda d: d.angle)
+    raw = [d.angle for d in ring]
+    wrap = raw[0] + 2.0 * math.pi - raw[-1] < _TAU_DIR
+    snapped = raw[0]
+    for i in range(1, len(ring)):
+        if raw[i] - raw[i - 1] >= _TAU_DIR:
+            snapped = raw[i]
+        ring[i].angle = snapped
+    if wrap:
+        for d in reversed(ring):
+            if d.angle != snapped:
+                break
+            d.angle = raw[0]
+    return sorted(ring, key=lambda d: (d.angle, d.kappa))
+
+
+def _count_cycles(succ: np.ndarray) -> int:
+    seen = np.zeros(len(succ), dtype=bool)
+    n_cycles = 0
+    for start in range(len(succ)):
+        if seen[start]:
+            continue
+        n_cycles += 1
+        i = start
+        while not seen[i]:
+            seen[i] = True
+            i = succ[i]
+    return n_cycles
