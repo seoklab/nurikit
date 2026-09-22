@@ -28,7 +28,6 @@ from .arrangement import (
     DegenerateGeometryError,
     any_perpendicular,
     cap_components,
-    caps_from_arrays,
     classify_caps,
     cluster_points,
     covered_arrangement,
@@ -71,11 +70,13 @@ class TorusArc:
 @dataclass
 class Probe:
     """Accessible SAS vertex: the probe centre ``pos`` resting on the
-    sorted ``atoms``, the smallest of which is the ``owner``."""
+    sorted ``atoms``, the smallest of which is the ``owner``, and the unit
+    ``tangents`` of the accessible arcs leaving it."""
 
     pos: np.ndarray
     owner: int
     atoms: np.ndarray
+    tangents: list[np.ndarray] = field(default_factory=list)
 
 
 @dataclass
@@ -387,6 +388,7 @@ class SasGeometry:
             arcs.extend(part)
             if s < n_active:
                 n_active_arcs += len(part)
+        _departure_tangents(circles, probes, arcs)
 
         return cls(
             coords,
@@ -801,33 +803,26 @@ def _saddles(sas: SasGeometry) -> tuple[list[Saddle], np.ndarray]:
     return saddles, area
 
 
-def _departure_caps(sas: SasGeometry) -> tuple[np.ndarray, np.ndarray]:
-    """Unit tangents of the accessible arcs leaving each probe, as
-    ``(offsets, tangents)`` sorted by probe.
+def _departure_tangents(circles, probes: list[Probe], arcs) -> None:
+    """Append to every probe the unit tangents of the accessible arcs
+    leaving it.
 
     The probe rolls away along each such arc, so the half of its sphere
     facing the tangent is swept and cannot be concave face. For an
     ordinary three-atom vertex these are the three side planes of the
     contact triangle; k-fold vertices and single-vertex circles fall out
     of the same rule. The tangent at a probe on circle ``c`` is
-    ``axis x radial``; leaving toward decreasing ``phi`` flips it. The
-    ``-1`` ends of full circles sort before every probe and are never
-    sliced.
+    ``axis x radial``; leaving toward decreasing ``phi`` (the ``v_end``
+    of an arc) flips it. Full circles have no ends and contribute nothing.
     """
-    arcs, circles = sas.arcs, sas.circles
-    probe = np.concatenate(
-        [scalars(arcs, "v_beg", int), scalars(arcs, "v_end", int)]
-    )
-    circ = np.tile(scalars(arcs, "circle", int), 2)
-    sign = np.repeat([1.0, -1.0], len(arcs))
-    radial = (
-        vectors(sas.probes, "pos")[probe] - vectors(circles, "centre")[circ]
-    )
-    tangents = cross(vectors(circles, "axis")[circ], radial)
-    tangents *= (sign / np.linalg.norm(tangents, axis=1))[:, None]
-    order = np.argsort(probe, kind="stable")
-    offsets = np.searchsorted(probe[order], np.arange(len(sas.probes) + 1))
-    return offsets, tangents[order]
+    for arc in arcs:
+        circle = circles[arc.circle]
+        for v, sign in ((arc.v_beg, 1.0), (arc.v_end, -1.0)):
+            if v < 0:
+                continue
+            probe = probes[v]
+            t = np.cross(circle.axis, probe.pos - circle.centre)
+            probe.tangents.append(t * (sign / np.linalg.norm(t)))
 
 
 def _triples(sas: SasGeometry) -> tuple[np.ndarray, np.ndarray]:
@@ -922,12 +917,13 @@ class FaceTriangles:
     corners: np.ndarray
 
 
-def _face_triangles(n: int, dep_off, dep_t) -> FaceTriangles:
-    triangular = np.diff(dep_off) == 3
+def _face_triangles(probes: list[Probe]) -> FaceTriangles:
+    n = len(probes)
+    triangular = np.array([len(p.tangents) == 3 for p in probes], dtype=bool)
     tangents = np.zeros((n, 3, 3))
     corners = np.zeros((n, 3, 3))
     idx = np.flatnonzero(triangular)
-    t = dep_t[dep_off[idx, None] + np.arange(3)]
+    t = np.array([probes[k].tangents for k in idx]).reshape(-1, 3, 3)
     independent = (
         np.einsum("ij,ij->i", t[:, 0], cross(t[:, 1], t[:, 2])) != 0.0
     )
@@ -981,14 +977,14 @@ def _meets_plane_cap(hts: ProbeHeights, probe, axis, cos_a, sin_a):
 
 def _probe_pair_caps(
     probes, rp: float, hts: ProbeHeights, tri: FaceTriangles
-) -> tuple[np.ndarray, list[Cap]]:
+) -> list[list[Cap]]:
     """Caps cut into every probe sphere by the other probes within
-    ``2 rp``, as ``(offsets, caps)`` sorted by probe; each pair is measured
-    once and read from both sides with opposite axes. Cutting is
-    symmetric, so a pair is dropped for both probes as soon as one side
-    cannot be cut: a pair is kept iff its ``cos`` is below 1, the same
-    value the cap carries, both probes are low, and each cap meets the
-    other probe's beyond-plane cap and spherical triangle."""
+    ``2 rp``, one list per probe; each pair is measured once and appended
+    to both probes with opposite axes. Cutting is symmetric, so a pair is
+    dropped for both probes as soon as one side cannot be cut: a pair is
+    kept iff its ``cos`` is below 1, the same value the cap carries, both
+    probes are low, and each cap meets the other probe's beyond-plane cap
+    and spherical triangle."""
     pairs = cKDTree(probes).query_pairs(2.0 * rp, output_type="ndarray")
     if len(pairs) == 0:
         pairs = np.empty((0, 2), dtype=int)
@@ -1010,12 +1006,13 @@ def _probe_pair_caps(
     keep[idx] = _meets_triangle(tri, pairs[idx, 0], axis[idx], cos_a[idx])
     idx = idx[keep[idx]]
     keep[idx] = _meets_triangle(tri, pairs[idx, 1], -axis[idx], cos_a[idx])
-    src = pairs[keep].T.ravel()
-    axis = np.concatenate([axis[keep], -axis[keep]])
-    cos_a, sin_a = np.tile(cos_a[keep], 2), np.tile(sin_a[keep], 2)
-    order = np.argsort(src, kind="stable")
-    offsets = np.searchsorted(src[order], np.arange(len(probes) + 1))
-    return offsets, caps_from_arrays(axis[order], cos_a[order], sin_a[order])
+    caps: list[list[Cap]] = [[] for _ in range(len(probes))]
+    for (p, q), n, c, s in zip(
+        pairs[keep].tolist(), axis[keep], cos_a[keep], sin_a[keep]
+    ):
+        caps[p].append(Cap(n, c, s))
+        caps[q].append(Cap(-n, c, s))
+    return caps
 
 
 def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
@@ -1024,25 +1021,23 @@ def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
         return []
     n_active = sas.n_active_probes
     hts = _probe_heights(sas)
-    dep_off, dep_t = _departure_caps(sas)
-    tri = _face_triangles(len(probes), dep_off, dep_t)
+    tri = _face_triangles(sas.probes)
     plain = ~hts.low[:n_active] & tri.triangular[:n_active]
     areas = np.zeros(n_active)
     areas[plain] = _triangle_areas(tri.tangents[:n_active][plain], sas.rp)
-    nbr_off, nbr_caps = _probe_pair_caps(probes, sas.rp, hts, tri)
+    nbr_caps = _probe_pair_caps(probes, sas.rp, hts, tri)
     faces = []
     for q in range(n_active):
         atoms = sas.probes[q].atoms
         contacts = sas.coords[atoms] - probes[q]
         contacts /= np.linalg.norm(contacts, axis=1, keepdims=True)
-        tangents = dep_t[dep_off[q] : dep_off[q + 1]]
-        hemispheres = [Cap(t, 0.0, 1.0) for t in tangents]
+        hemispheres = [Cap(t, 0.0, 1.0) for t in sas.probes[q].tangents]
         if plain[q]:
             faces.append(
                 ConcaveFace(q, atoms, contacts, hemispheres, areas[q])
             )
             continue
-        caps = hemispheres + nbr_caps[nbr_off[q] : nbr_off[q + 1]]
+        caps = hemispheres + nbr_caps[q]
         arr = solve_caps(sas.rp, caps)
         faces.append(ConcaveFace(q, atoms, contacts, arr.caps, arr.area))
     return faces

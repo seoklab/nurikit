@@ -424,9 +424,10 @@ C++), not a case the kernels can survive.
   2. one **hemisphere per accessible arc leaving `q`**, axis = the arc's
      departure tangent `±(u × radial)` at `q` (`+` when the arc leaves toward
      increasing `φ`). Rolling along that arc, the probe sweeps the half of its
-     sphere facing the tangent, so that half is not SES. All departure
-     tangents are computed in one pass from the cluster mean, normalised (the
-     mean is off the circle by up to `TAU_C`) and grouped by probe.
+     sphere facing the tangent, so that half is not SES. Departure tangents
+     are computed arc by arc from the cluster mean, normalised (the mean is
+     off the circle by up to `TAU_C`) and appended to both end probes
+     (`Probe.tangents`).
 
   For an ordinary three-atom vertex, rule 2 gives exactly the three side planes
   of the contact triangle (the departure tangent of circle `(a, b)` is normal
