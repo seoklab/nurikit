@@ -155,36 +155,37 @@ same decision. A sliver arc between the two crossing points of a near-tangent
 pair lies inside the other cap by about `h²/2R > 0` and is always rejected;
 once `2h < TAU_C` the two points merge into a pinch instead.
 
-### Step 6 — face walking with one dart array (`_walk`)
+### Step 6 — face walking with dart rings (`_walk`)
 
 Arcs are stored with increasing `φ`, which runs counter-clockwise around the
 cap axis with the cap on the left. The accessible region is therefore
 traversed from `v_end` to `v_beg`. Each arc is one *dart* leaving `v_end` and
 arriving at `v_beg`.
 
-Every arc with vertices contributes two rows to one dart array: an out-dart at
-`v_end` with departure tangent `t = −(n × u)/|n × u|` and a reversed in-dart at
-`v_beg` with tangent `+(n × u)/|n × u|`, projected into the tangent plane of
-the vertex `u` and measured as an angle in a frame there. Signed geodesic
-curvature is `−cot α` for out-darts and `+cot α` for reversed in-darts, with
-`cot α = cos α / sin α` from the stored values.
+Every arc with vertices contributes two darts, `Dart(arc, angle, κ, is_in)`,
+appended to the ring of their vertex: an out-dart at `v_end` with departure
+tangent `t = −(n × u)/|n × u|` and a reversed in-dart at `v_beg` with tangent
+`+(n × u)/|n × u|`, projected into the tangent plane of the vertex `u` and
+measured as an angle in a frame there. Signed geodesic curvature is `−cot α`
+for out-darts and `+cot α` for reversed in-darts, with `cot α = cos α / sin α`
+from the stored values.
 
-The array is sorted by `(vertex, angle)`. Within a vertex, darts whose angles
-differ by less than `_TAU_DIR = 1e-9 rad` form a group (tangent circles,
-pinches); a group straddling the `−π/π` seam is recognised by the wrap gap and
-merged the same way. Every group shares its first angle, and a second sort by
-`(vertex, snapped angle, curvature)` puts right-curving darts first, so the
-wedge between grouped darts is exactly zero. In the resulting cyclic order per
-vertex, reversed-in and out darts must strictly alternate; otherwise
+Each vertex ring is then ordered on its own (`_dart_ring`): sort by angle;
+darts whose raw angles differ from their predecessor by less than
+`_TAU_DIR = 1e-9 rad` form a group (tangent circles, pinches) and take the
+group's first angle; a group straddling the `−π/π` seam is recognised by the
+wrap gap between the raw first and last angle and takes the first angle too.
+A second sort by `(snapped angle, curvature)` puts right-curving darts first,
+so the wedge between grouped darts is exactly zero. In the resulting cyclic
+order, reversed-in and out darts must strictly alternate; otherwise
 `DegenerateGeometryError` is raised (nothing is merged or dropped silently).
 
 The successor of an in-dart is the previous dart in that order (the first
 out-dart clockwise from its reversed tangent). The interior angle of the
 region at that corner is `ι = angle(rev-in) − angle(out)` taken in `[0, 2π)`
 and the turning angle is `π − ι` (a pinch has `ι = 0`, turn `+π`). Successors
-default to the arc itself, so a full circle is its own loop; loops are counted
-as cycles of the successor permutation with the same label-propagation routine
-that clusters vertices.
+default to the arc itself, so a full circle is its own loop; loops are the
+cycles of the successor permutation, counted by one visited-flag walk.
 
 ### Step 7 — Gauss–Bonnet area
 
