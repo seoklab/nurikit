@@ -340,9 +340,7 @@ def solve(
     crossing[edges[:, 0], edges[:, 1]] = True
     crossing[edges[:, 1], edges[:, 0]] = True
 
-    vtx, cap = np.nonzero(excused & accessible[:, None])
-
-    arcs = _build_arcs(caps, e1, e2, reps, vtx, cap, crossing)
+    arcs = _cap_arcs(caps, e1, e2, reps, excused, accessible, crossing)
     n_loops, turn_sum, geo_sum = _walk(caps, reps, arcs)
 
     n_patches = 1 + n_loops - n_components
@@ -351,53 +349,47 @@ def solve(
     return Arrangement(caps, arcs, n_loops, n_patches, float(area))
 
 
-def _build_arcs(caps, e1, e2, reps, vtx, cap, crossing) -> list[Arc]:
-    """Accessible arcs of every cap circle.
+def _cap_arcs(caps, e1, e2, reps, excused, accessible, crossing) -> list[Arc]:
+    """Accessible arcs of every cap circle, cap by cap.
 
-    ``(vtx, cap)`` are the accessible vertex-cap incidences. Consecutive
-    vertices around a circle bound candidate arcs (a circle with one
-    vertex yields one full turn, a circle without vertices one full
-    circle with ``-1`` ends). A candidate is kept iff its midpoint lies
-    outside every cap that crosses its circle; disjoint caps cannot
-    contain any of it, and testing them anyway would let rounding at an
-    exact tangency contradict the crossing decision.
+    The accessible vertices incident to a cap (``excused`` column, masked
+    by ``accessible``), sorted by ``phi`` in the cap frame, bound the
+    candidate arcs: consecutive vertices with a wrap-around from the last
+    to the first (a circle with one vertex yields one full turn, a circle
+    without vertices one full circle with ``-1`` ends). A candidate is
+    kept iff its midpoint lies outside every cap that crosses its circle;
+    disjoint caps cannot contain any of it, and testing them anyway would
+    let rounding at an exact tangency contradict the crossing decision.
     """
-    m = len(caps)
     axis, cos_a = vectors(caps, "axis"), scalars(caps, "cos_a")
     sin_a = scalars(caps, "sin_a")
-    dirs = reps[vtx]
-    phi = np.arctan2(
-        np.einsum("ij,ij->i", dirs, e2[cap]),
-        np.einsum("ij,ij->i", dirs, e1[cap]),
-    )
-    order = np.lexsort((phi, cap))
-    vtx, cap, phi = vtx[order], cap[order], phi[order]
-    k = len(cap)
-    first = np.ones(k, dtype=bool)
-    first[1:] = cap[1:] != cap[:-1]
-    nxt = np.arange(k) + 1
-    nxt[np.flatnonzero(np.roll(first, -1))] = np.flatnonzero(first)
-    span = phi[nxt] - phi
-    span += 2.0 * math.pi * (span <= 0.0)
+    arcs: list[Arc] = []
+    for j in range(len(caps)):
+        vs = np.flatnonzero(excused[:, j] & accessible)
+        if len(vs) == 0:
+            v_beg = v_end = np.array([-1])
+            phi_beg, dphi = np.zeros(1), np.full(1, 2.0 * math.pi)
+        else:
+            dirs = reps[vs]
+            phi = np.arctan2(
+                np.einsum("ij,j->i", dirs, e2[j]),
+                np.einsum("ij,j->i", dirs, e1[j]),
+            )
+            order = np.argsort(phi, kind="stable")
+            v_beg, phi_beg = vs[order], phi[order]
+            v_end = np.roll(v_beg, -1)
+            dphi = np.roll(phi_beg, -1) - phi_beg
+            dphi += 2.0 * math.pi * (dphi <= 0.0)
 
-    empty = np.flatnonzero(np.bincount(cap, minlength=m) == 0)
-    cap_ix = np.concatenate([cap, empty])
-    v_beg = np.concatenate([vtx, np.full(len(empty), -1)])
-    v_end = np.concatenate([vtx[nxt], np.full(len(empty), -1)])
-    phi_beg = np.concatenate([phi, np.zeros(len(empty))])
-    dphi = np.concatenate([span, np.full(len(empty), 2.0 * math.pi)])
-
-    mid = phi_beg + 0.5 * dphi
-    radial = (
-        np.cos(mid)[:, None] * e1[cap_ix] + np.sin(mid)[:, None] * e2[cap_ix]
-    )
-    mids = cos_a[cap_ix, None] * axis[cap_ix] + sin_a[cap_ix, None] * radial
-    inside = (mids @ axis.T > cos_a) & crossing[cap_ix]
-    ok = np.flatnonzero(~inside.any(axis=1))
-    return [
-        Arc(int(cap_ix[i]), int(v_beg[i]), int(v_end[i]), phi_beg[i], dphi[i])
-        for i in ok
-    ]
+        mid = phi_beg + 0.5 * dphi
+        radial = np.cos(mid)[:, None] * e1[j] + np.sin(mid)[:, None] * e2[j]
+        mids = cos_a[j] * axis[j] + sin_a[j] * radial
+        inside = (mids @ axis.T > cos_a) & crossing[j]
+        for i in np.flatnonzero(~inside.any(axis=1)):
+            arcs.append(
+                Arc(j, int(v_beg[i]), int(v_end[i]), phi_beg[i], dphi[i])
+            )
+    return arcs
 
 
 def _walk(caps, reps, arcs: list[Arc]):
