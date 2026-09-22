@@ -13,7 +13,6 @@ from scipy.spatial.transform import Rotation
 from nuri.scpilot.anal import (
     SasGeometry,
     SesGeometry,
-    _departure_caps,
     _probe_heights,
     ses_area,
     two_sphere_ses_area,
@@ -217,7 +216,6 @@ def test_protein_fragment_vs_sampled(test_data, last_residue):
 def brute_force_face_areas(sas):
     """Every active face solved against every other probe within 2rp."""
     probes, rp = vectors(sas.probes, "pos"), sas.rp
-    dep_off, dep_t = _departure_caps(sas)
     tree = cKDTree(probes)
     areas = []
     for q in range(sas.n_active_probes):
@@ -226,7 +224,7 @@ def brute_force_face_areas(sas):
         dist = np.linalg.norm(diff, axis=1)
         close = (dist > 0.0) & (dist < 2.0 * rp)
         cos_a = dist[close] / (2.0 * rp)
-        tangents = dep_t[dep_off[q] : dep_off[q + 1]]
+        tangents = sas.probes[q].tangents
         caps = [Cap(t, 0.0, 1.0) for t in tangents] + caps_from_arrays(
             diff[close] / dist[close, None],
             cos_a,
