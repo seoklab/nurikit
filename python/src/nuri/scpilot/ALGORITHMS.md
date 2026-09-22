@@ -748,12 +748,18 @@ quantity.
   lattice per distinct count, reused); a direction is kept iff it is outside
   every cap of the atom's arrangement (`Arrangement.contains`). Dot =
   `c_i + r_i d`, normal `d`, weight `A_convex(i) / n_kept`, owner `i`.
-- **Toroidal**, for every (arc, range) row of the active arcs at once:
+- **Toroidal**, for every (arc, range) row of the active arcs at once. A
+  circle with `rl ≥ rp` has no cusp, so its two ranges are merged into one
+  row spanning `[lo_0, hi_1]` (the second row is left zero-width): rounding
+  the ring count on each half separately would double its error on narrow
+  saddles and leave a seam at `β = 0`.
   1. `k_β = max(round(rp (hi − lo) √density), 1)` rings of equal `β` width;
      ring `m` spans `[β_m, β_{m+1}]` and is sampled at its middle;
   2. exact ring area `a_m = rp · dphi · [rl Δβ − rp (sin β_{m+1} − sin β_m)]`;
   3. `k_φ,m = round(a_m · density)` dots on ring `m`, uniformly spaced in `φ`
-     inside `[phi_beg, phi_beg + dphi]`, weight `a_m / k_φ,m`. Ring areas are
+     inside `[phi_beg, phi_beg + dphi]` at `φ = phi_beg + (n + ¼ or ¾) ·
+     dphi / k_φ,m`, the quarter alternating with `m` so neighbouring rings
+     interleave; weight `a_m / k_φ,m`. Ring areas are
      rescaled so that the row's weights sum to its exact area; a row whose
      rings all round to zero is collapsed to one ring with
      `round(area · density)` dots, and only rows that still round to zero are

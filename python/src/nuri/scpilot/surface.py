@@ -144,22 +144,39 @@ def _segments(counts: np.ndarray):
     return seg, np.arange(len(seg)) - start[seg], start
 
 
-def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
-    """Rings of equal ``beta`` width along every active arc's valid ranges;
-    each ring gets ``round(area * density)`` dots spread uniformly in
-    ``phi``. A range whose rings all round to zero is sampled as one ring;
-    ranges that still round to zero are dropped."""
+def _saddle_rows(ses: SesGeometry):
+    """One ``(arc, range)`` row per active arc and cusp side: the ``beta``
+    range, its area integral, and the arc's circle. Where there is no cusp
+    both sides are one arc of ``beta`` and are merged into the first row,
+    leaving the second zero-width."""
     sas = ses.sas
-    rp = sas.rp
-    circles, arcs = sas.circles, sas.arcs
     n_arcs = sas.n_active_arcs
     arc = np.repeat(np.arange(n_arcs), 2)
     part = np.tile([0, 1], n_arcs)
-    c = arcs.circle[arc]
-    lo, hi = ses.saddles.ranges[c, part].T
+    c = sas.arcs.circle[arc]
+    lo, hi = ses.saddles.ranges[c, part].T.copy()
+    integral = ses.saddles.integral[c, part].copy()
+    whole = sas.circles.radius[c] >= sas.rp
+    first, second = whole & (part == 0), whole & (part == 1)
+    hi[first] = hi[second]
+    integral[first] += integral[second]
+    lo[second] = hi[second]
+    integral[second] = 0.0
+    return arc, c, lo, hi, integral
+
+
+def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
+    """Rings of equal ``beta`` width along every saddle row; each ring gets
+    ``round(area * density)`` dots spread uniformly in ``phi``, alternate
+    rings offset by half a step. A row whose rings all round to zero is
+    sampled as one ring; rows that still round to zero are dropped."""
+    sas = ses.sas
+    rp = sas.rp
+    circles, arcs = sas.circles, sas.arcs
+    arc, c, lo, hi, integral = _saddle_rows(ses)
     rl, dphi = circles.radius[c], arcs.dphi[arc]
     width = hi - lo
-    total = rp * dphi * ses.saddles.integral[c, part]
+    total = rp * dphi * integral
 
     k_beta = np.maximum(np.round(rp * width * math.sqrt(density)), 1).astype(
         int
@@ -187,7 +204,13 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
     out.dropped += float(
         total[np.bincount(row, keep, minlength=len(arc)) == 0].sum()
     )
-    row, beta, area, k_phi = row[keep], beta[keep], area[keep], k_phi[keep]
+    row, beta, area, k_phi, m = (
+        row[keep],
+        beta[keep],
+        area[keep],
+        k_phi[keep],
+        m[keep],
+    )
     covered = np.bincount(row, area, minlength=len(arc))
     area *= total[row] / covered[row]
 
@@ -214,7 +237,8 @@ def _toroidal(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
     ring, n_in_ring, _ = _segments(k_phi)
     r = row[ring]
     cc = c[r]
-    phi = arcs.phi_beg[arc[r]] + (n_in_ring + 0.5) * dphi[r] / k_phi[ring]
+    offset = (0.25 + 0.5 * (m[ring] % 2)) / k_phi[ring]
+    phi = arcs.phi_beg[arc[r]] + (n_in_ring / k_phi[ring] + offset) * dphi[r]
     radial = (
         np.cos(phi)[:, None] * circles.e1[cc]
         + np.sin(phi)[:, None] * (circles.e2[cc])
