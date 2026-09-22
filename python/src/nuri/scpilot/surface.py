@@ -21,6 +21,7 @@ from enum import IntEnum
 import numpy as np
 
 from .anal import SasGeometry, SesGeometry
+from .arrangement import contains
 
 
 class Patch(IntEnum):
@@ -261,7 +262,7 @@ def _concave(ses: SesGeometry, density: float, out: _DotBuffer) -> None:
         _lattice_count(4.0 * math.pi * rp * rp, density)
     )
     for face in (f for f in ses.concave if f.area > 0.0):
-        dirs = lattice[~face.caps.contains(lattice)]
+        dirs = lattice[~contains(face.caps, lattice)]
         out.dropped += face.area * (len(dirs) == 0)
         big, small = sas.sas[face.atoms], sas.radii[face.atoms]
         depth = (

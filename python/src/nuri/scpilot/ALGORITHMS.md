@@ -46,10 +46,16 @@ cut by neighbouring vertex probes and by the arcs it rolls off along.
 
 The solver takes a sphere radius `R` and a list of caps and returns
 
-- `arcs`: for each cap circle the accessible sub-arcs, as `(cap, v_beg, v_end,
-  phi_beg, dphi)` in the circle's own frame `(e1, e2, n)`; `v_* = -1` marks a
-  full circle;
+- `arcs`: for each cap circle the accessible sub-arcs, as records
+  `Arc(cap, v_beg, v_end, phi_beg, dphi)` in the circle's own frame
+  `(e1, e2, n)`; `v_* = -1` marks a full circle;
 - `n_loops`, `n_patches`, `area`.
+
+Caps are records `Cap(axis, cos α, sin α)`, arcs `Arc(...)`, and the same
+holds for every entity below: storage is one record per geometric object,
+and a kernel that evaluates one expression over many records (containment
+of directions in all caps of a sphere, the Gram matrix of cap axes)
+gathers the field it needs into an array at the call site.
 
 The frame defaults to `e1 = any_perpendicular(n)`, `e2 = n × e1`; callers
 may supply frames (the SAS passes the circle frames, §3).

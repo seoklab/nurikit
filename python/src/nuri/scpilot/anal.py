@@ -19,12 +19,14 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy.spatial import cKDTree
 
+from .aos import scalars, vectors
 from .arrangement import (
     TAU_C,
     Arrangement,
-    Caps,
+    Cap,
     DegenerateGeometryError,
     any_perpendicular,
+    caps_from_arrays,
     classify_caps,
     cluster_points,
     components,
@@ -308,8 +310,7 @@ class SasGeometry:
 
         slot_of_row = _within(np.diff(offsets))
         caps_of = [
-            all_caps.take(slice(offsets[i], offsets[i + 1]))
-            for i in range(n_enum)
+            all_caps[offsets[i] : offsets[i + 1]] for i in range(n_enum)
         ]
         tags_of = [
             all_tags[offsets[i] : offsets[i + 1]] for i in range(n_enum)
@@ -336,7 +337,7 @@ class SasGeometry:
             crossing[e[:, 0], e[:, 1]] = True
             crossing[e[:, 1], e[:, 0]] = True
             hidden, covered[i], _ = classify_caps(caps, crossing)
-            caps_of[i] = caps.take(np.flatnonzero(~hidden))
+            caps_of[i] = [caps[k] for k in np.flatnonzero(~hidden)]
             tags_of[i] = tags_of[i][~hidden]
             renumber = np.where(hidden, -1, np.cumsum(~hidden) - 1)
             sl = slice(offsets[i], offsets[i + 1])
@@ -376,8 +377,15 @@ class SasGeometry:
             ).ravel()
         )
         n_components = _components_per_sphere(cap_off, gcap)
+        flat_caps = [cap for caps in caps_of for cap in caps]
         accessible = _accessible(
-            Caps.concat(caps_of), cap_off, coords, reps, owner, incidence
+            vectors(flat_caps, "axis"),
+            scalars(flat_caps, "cos_a"),
+            cap_off,
+            coords,
+            reps,
+            owner,
+            incidence,
         )
 
         probe_ids = np.flatnonzero(accessible)
@@ -459,7 +467,7 @@ def _cap_rows(circles: Circles, sas, n_enum: int, n_pairs: int):
     atom, tag, a, axis = atom[order], tag[order], a[order], axis[order]
     offsets = np.searchsorted(atom, np.arange(n_enum + 1))
     r = sas[atom]
-    caps = Caps(axis, a / r, circles.radius[tag >> 1] / r)
+    caps = caps_from_arrays(axis, a / r, circles.radius[tag >> 1] / r)
     row_of = np.full(2 * n_pairs, -1, dtype=int)
     row_of[tag] = np.arange(len(tag))
     return offsets, caps, tag, row_of
@@ -611,7 +619,9 @@ def _clusters_by_owner(label, atoms, n):
     return rank[label], keys, atom[first][order]
 
 
-def _accessible(caps, cap_off, coords, reps, owner, incidence) -> np.ndarray:
+def _accessible(
+    cap_axis, cap_cos_a, cap_off, coords, reps, owner, incidence
+) -> np.ndarray:
     """Accessibility of every cluster, decided once on its owner sphere.
 
     A cluster is accessible iff it lies outside every cap of that sphere
@@ -628,7 +638,7 @@ def _accessible(caps, cap_off, coords, reps, owner, incidence) -> np.ndarray:
     cluster = np.repeat(np.arange(len(owner)), count)
     cap = cap_off[owner[cluster]] + _within(count)
     inside = (
-        np.einsum("ij,ij->i", dirs[cluster], caps.axis[cap]) > caps.cos_a[cap]
+        np.einsum("ij,ij->i", dirs[cluster], cap_axis[cap]) > cap_cos_a[cap]
     )
 
     inc_cluster, inc_cap = np.divmod(incidence, n_caps)
@@ -678,15 +688,15 @@ def _torus_arcs(arr, tags, probe_of_local) -> TorusArcs:
     lets full circles (``-1`` ends) read back ``-1``.
     """
     arcs = arr.arcs
-    tag = tags[arcs.cap]
+    tag = tags[scalars(arcs, "cap", int)]
     keep = (tag & 1) == 0
     ext = np.append(probe_of_local, -1)
     return TorusArcs(
         tag[keep] >> 1,
-        arcs.phi_beg[keep],
-        arcs.dphi[keep],
-        ext[arcs.v_beg[keep]],
-        ext[arcs.v_end[keep]],
+        scalars(arcs, "phi_beg")[keep],
+        scalars(arcs, "dphi")[keep],
+        ext[scalars(arcs, "v_beg", int)[keep]],
+        ext[scalars(arcs, "v_end", int)[keep]],
     )
 
 
@@ -714,7 +724,7 @@ class ConcaveFace:
     probe: int
     atoms: np.ndarray
     contacts: np.ndarray
-    caps: Caps
+    caps: list[Cap]
     area: float
 
 
@@ -979,7 +989,7 @@ def _meets_plane_cap(hts: ProbeHeights, probe, axis, cos_a, sin_a):
 
 def _probe_pair_caps(
     probes, rp: float, hts: ProbeHeights, tri: FaceTriangles
-) -> tuple[np.ndarray, Caps]:
+) -> tuple[np.ndarray, list[Cap]]:
     """Caps cut into every probe sphere by the other probes within
     ``2 rp``, as ``(offsets, caps)`` sorted by probe; each pair is measured
     once and read from both sides with opposite axes. Cutting is
@@ -1013,7 +1023,7 @@ def _probe_pair_caps(
     cos_a, sin_a = np.tile(cos_a[keep], 2), np.tile(sin_a[keep], 2)
     order = np.argsort(src, kind="stable")
     offsets = np.searchsorted(src[order], np.arange(len(probes) + 1))
-    return offsets, Caps(axis[order], cos_a[order], sin_a[order])
+    return offsets, caps_from_arrays(axis[order], cos_a[order], sin_a[order])
 
 
 def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
@@ -1034,17 +1044,13 @@ def _concave_faces(sas: SasGeometry) -> list[ConcaveFace]:
         contacts = sas.coords[atoms] - probes[q]
         contacts /= np.linalg.norm(contacts, axis=1, keepdims=True)
         tangents = dep_t[dep_off[q] : dep_off[q + 1]]
-        hemispheres = Caps(
-            tangents, np.zeros(len(tangents)), np.ones(len(tangents))
-        )
+        hemispheres = [Cap(t, 0.0, 1.0) for t in tangents]
         if plain[q]:
             faces.append(
                 ConcaveFace(q, atoms, contacts, hemispheres, areas[q])
             )
             continue
-        caps = Caps.concat(
-            [hemispheres, nbr_caps.take(slice(nbr_off[q], nbr_off[q + 1]))]
-        )
+        caps = hemispheres + nbr_caps[nbr_off[q] : nbr_off[q + 1]]
         arr = solve_caps(sas.rp, caps)
         faces.append(ConcaveFace(q, atoms, contacts, arr.caps, arr.area))
     return faces
