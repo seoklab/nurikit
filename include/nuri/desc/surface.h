@@ -42,6 +42,11 @@ extern ArrayXd shrake_rupley_sasa(
 namespace internal {
   constexpr double kSurfaceLengthEps = 1e-6;
   constexpr double kSurfaceAngleEps = 1e-9;
+
+  struct SaPrep { };
+
+  extern std::optional<SaPrep> prepare(const Matrix3Xd &pts, const ArrayXd &sar,
+                                       double rp);
 }  // namespace internal
 }  // namespace nuri
 
