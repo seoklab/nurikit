@@ -20,15 +20,51 @@
 namespace nuri {
 namespace internal {
   namespace {
+    // NOLINTBEGIN(*-unneeded-member-function,*-unused-template)
+
     class CSR {
     public:
+      using const_iterator = ArrayXi::const_iterator;
+
       CSR(ArrayXi &&adj, ArrayXi &&off) noexcept
           : adj_(std::move(adj)), off_(std::move(off)) { }
+
+      const_iterator begin(int i) const { return adj_.begin() + off_[i]; }
+
+      const_iterator end(int i) const { return adj_.begin() + off_[i + 1]; }
+
+      int eid(const_iterator it) const {
+        return static_cast<int>(it - adj_.begin());
+      }
+
+      int m() const { return static_cast<int>(adj_.size()); }
+
+      int n() const { return static_cast<int>(off_.size()) - 1; }
+
+      template <class F>
+      void for_each_triangle(const F &f) const {
+        for (int i = 0; i < n(); ++i) {
+          const auto ei = end(i);
+          for (auto pij = begin(i); pij < ei; ++pij) {
+            const int j = *pij;
+            const auto ej = end(j);
+            for (auto pik = pij + 1, pjk = begin(j); pik < ei && pjk < ej;) {
+              const int ki = *pik, kj = *pjk;
+              if (ki == kj)
+                f(i, j, ki, eid(pij), eid(pik), eid(pjk));
+              pik += value_if(ki <= kj);
+              pjk += value_if(kj <= ki);
+            }
+          }
+        }
+      }
 
     private:
       ArrayXi adj_;
       ArrayXi off_;
     };
+
+    // NOLINTEND(*-unneeded-member-function,*-unused-template)
 
     template <class Offset, class Key, class Map>
     // NOLINTNEXTLINE(*-missing-std-forward)
