@@ -11,7 +11,6 @@
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/molecule.h"
-#include "nuri/utils.h"
 
 namespace nuri {
 namespace internal {
@@ -82,9 +81,12 @@ namespace internal {
   };
 
   /**
-   * Atoms with surface, compacted: `order` maps new to old indices, `g` is
-   * the forward overlap graph on new indices (`row(i)` = sorted `j > i`), and
-   * `d[q]` the centre distance of pair `q`.
+   * Atoms ordered `[active | need | shell | occluders]` with contained spheres
+   * dropped: `order` maps new to old indices, spheres `< n_active` own
+   * surface, `< n_solve` get arrangements, `< n_enum` get caps. `g` is the
+   * forward overlap graph on new indices (`row(i)` = sorted `j > i`) over all
+   * kept spheres; pair `q` carries a circle iff `i < n_enum`, and `d[q]` is
+   * its centre distance.
    */
   struct SaPrep {
     Matrix3Xd pts;
@@ -92,10 +94,13 @@ namespace internal {
     ArrayXi order;
     CSR g;
     ArrayXd d;
+    int n_active;
+    int n_solve;
+    int n_enum;
   };
 
   extern std::optional<SaPrep> prepare(const Matrix3Xd &pts, const ArrayXd &sar,
-                                       double rp);
+                                       const ArrayXb &active, double rp);
 }  // namespace internal
 }  // namespace nuri
 
