@@ -46,17 +46,35 @@ namespace internal {
                      [](int p) { return p; });
     }
 
-    struct OverlapGraph {
+    struct NearPairs {
+      /*  n_over */
       CSR g;
-      ArrayXd d;
+      ArrayXd dover;
+
+      /* n_near */
+      ArrayXi inear, jnear;
+
+      /* n */
       ArrayXi keep;
     };
 
-    OverlapGraph build_overlap_graph(const Matrix3Xd &pts, const ArrayXd &sar,
-                                     const double rmax) {
+    template <class I, class J>
+    std::pair<CSR, ArrayXi> compile_pairs(const I &i, const J &j, const int n) {
+      const int m = static_cast<int>(i.size());
+
+      ArrayXi order(m), adj(m), off(n + 1);
+      argsort_bucket(adj, off.head(n), j);
+      argsort_bucket(order, off, i, adj);
+      adj = j(order);
+
+      return { CSR(std::move(adj), std::move(off)), std::move(order) };
+    }
+
+    NearPairs find_near_pairs(const Matrix3Xd &pts, const ArrayXd &sar,
+                              const double rmax) {
       const int n = static_cast<int>(sar.size());
 
-      VoxelGrid grid(pts, 2 * rmax);
+      VoxelGrid grid(pts, 2 * (rmax + kSurfaceLengthEps));
       std::vector<int> left, right;
       grid.find_neighbors_self(left, right);
       int m = static_cast<int>(left.size());
@@ -64,35 +82,37 @@ namespace internal {
         std::tie(left[k], right[k]) = nuri::minmax(left[k], right[k]);
 
       ArrayXd d = (pts(E::all, right) - pts(E::all, left)).colwise().norm();
-      ArrayXi order(m), off(n + 1);
 
-      // Will be converted in-place to an index mask, hence integer
-      ArrayXi keep = ArrayXi::Ones(sar.size());
+      ArrayXi keep = ArrayXi::Ones(n);
       for (int k = 0; k < m; ++k) {
         int i = left[k], j = right[k];
         if (d[k] <= std::abs(sar[i] - sar[j]) + kSurfaceLengthEps)
           keep[sar[i] < sar[j] ? i : j] = 0;
       }
 
-      // 0 -> overlap, 1 -> dropped or non-overlapping
-      ArrayXi key = (keep(left) + keep(right) < 2
-                     || d > sar(left) + sar(right) - kSurfaceLengthEps)
-                        .cast<int>();
-      argsort_bucket(order, off.head<2>(), key);
+      ArrayXd touch = sar(left) + sar(right);
+      // 0 -> overlap, 1 -> near, 2 -> dropped or far
+      ArrayXi key =
+          (keep(left) + keep(right) < 2)
+              .select(2, (d > touch + 2 * kSurfaceLengthEps).cast<int>()
+                             + (d > touch - kSurfaceLengthEps).cast<int>());
+      ArrayXi order(m);
+      Array3i off;
+      argsort_bucket(order, off, key);
 
-      auto overlap = order.head(off[1]);
-      ArrayXi iover = eigen_map(left)(overlap),
-              jover = eigen_map(right)(overlap);
-      ArrayXd dover = d(overlap);
-      m = static_cast<int>(overlap.size());
+      auto near = order.head(off[2]);
+      ArrayXi inear = eigen_map(left)(near), jnear = eigen_map(right)(near);
 
-      ArrayXi adj(m);
-      argsort_bucket(adj, off.head(n), jover);
-      argsort_bucket(order, off, iover, adj);
-      adj = jover(order.head(m));
+      m = off[1];
+      auto [g, perm] = compile_pairs(inear.head(m), jnear.head(m), n);
 
-      return { CSR(std::move(adj), std::move(off)), dover(order.head(m)),
-               std::move(keep) };
+      return {
+        std::move(g),     d(order).head(m)(perm),
+
+        std::move(inear), std::move(jnear),
+
+        std::move(keep),
+      };
     }
 
     template <class F, class B>
@@ -157,42 +177,84 @@ namespace internal {
           });
     }
 
-    SaPrep compact(const Matrix3Xd &pts, const ArrayXd &sar, const CSR &g,
-                   const ArrayXd &d, ArrayXi &inv) {
-      mask_to_map(inv);
+    using Array5i = E::Array<int, 5, 1>;
 
-      const int n = static_cast<int>((inv >= 0).count());
-      ArrayXi order(n), off(n + 1), adj(g.m());
-      ArrayXd dn(g.m());
-      off[0] = 0;
-      int q = 0;
-      for (int i = 0; i < g.n(); ++i) {
-        const int ni = inv[i];
-        if (ni < 0)
+    /**
+     * Remap to ranking scheme:
+     * 0 -> active, 1 -> need, 2 -> shell, 3 -> occluders, 4 -> ignored
+     */
+    std::pair<ArrayXi, Array5i> rank_atoms(ArrayXi &keep, const ArrayXi &inear,
+                                           const ArrayXi &jnear,
+                                           const ArrayXb &active) {
+      // alias for clarity: &rank == &keep
+      ArrayXi &rank = keep;
+
+      // 0/3/4 split here
+      rank = (keep.cast<bool>() && active).select(0, 4 - keep);
+
+      for (int k = 0; k < inear.size(); ++k) {
+        int i = inear[k], j = jnear[k];
+        if (rank[i] == 4 || rank[j] == 4)
           continue;
 
-        order[ni] = i;
+        rank[j] = rank[i] == 0 ? nuri::min(rank[j], 1) : rank[j];
+        rank[i] = rank[j] == 0 ? nuri::min(rank[i], 1) : rank[i];
+      }
+      for (int k = 0; k < inear.size(); ++k) {
+        int i = inear[k], j = jnear[k];
+        if (rank[i] == 4 || rank[j] == 4)
+          continue;
+
+        rank[j] = rank[i] <= 1 ? nuri::min(rank[j], 2) : rank[j];
+        rank[i] = rank[j] <= 1 ? nuri::min(rank[i], 2) : rank[i];
+      }
+
+      ArrayXi order(rank.size());
+      Array5i off;
+      argsort_bucket(order, off, rank);
+      return { std::move(order), off };
+    }
+
+    SaPrep compact(const Matrix3Xd &pts, const ArrayXd &sar, const CSR &g,
+                   const ArrayXd &d, ArrayXi &&order, const Array5i &off,
+                   ArrayXi &inv) {
+      const int n = off[4];
+
+      inv.setConstant(-1);
+      for (int p = 0; p < n; ++p)
+        inv[order[p]] = p;
+
+      ArrayXi ni(g.m()), nj(g.m());
+      ArrayXd dn(g.m());
+      int q = 0;
+      for (int i = 0; i < g.n(); ++i) {
+        const int a = inv[i];
+        if (a < 0)
+          continue;
+
         for (auto it = g.begin(i), ei = g.end(i); it < ei; ++it) {
-          const int nj = inv[*it];
-          if (nj < 0)
+          const int b = inv[*it];
+          if (b < 0)
             continue;
 
-          adj[q] = nj;
+          std::tie(ni[q], nj[q]) = nuri::minmax(a, b);
           dn[q] = d[g.eid(it)];
           ++q;
         }
-        off[ni + 1] = q;
       }
-      adj.conservativeResize(q);
-      dn.conservativeResize(q);
 
-      return { pts(E::all, order), sar(order), std::move(order),
-               CSR(std::move(adj), std::move(off)), std::move(dn) };
+      auto [gn, perm] = compile_pairs(ni.head(q), nj.head(q), n);
+      order.conservativeResize(n);
+
+      return {
+        pts(E::all, order), sar(order), std::move(order), std::move(gn),
+        dn.head(q)(perm),   off[1],     off[2],           off[3],
+      };
     }
   }  // namespace
 
   std::optional<SaPrep> prepare(const Matrix3Xd &pts, const ArrayXd &sar,
-                                double rp) {
+                                const ArrayXb &active, double rp) {
     if (pts.cols() == 0)
       return SaPrep {};
 
@@ -208,9 +270,10 @@ namespace internal {
     }
 
     ArrayXd sar2 = sar.square();
-    auto [g, d, keep] = build_overlap_graph(pts, sar, rmax);
-    drop_shared_circle_middles(keep, g, d, pts, sar2);
-    return compact(pts, sar, g, d, keep);
+    auto [g, dover, inear, jnear, keep] = find_near_pairs(pts, sar, rmax);
+    drop_shared_circle_middles(keep, g, dover, pts, sar2);
+    auto [order, off] = rank_atoms(keep, inear, jnear, active);
+    return compact(pts, sar, g, dover, std::move(order), off, keep);
   }
 }  // namespace internal
 }  // namespace nuri
