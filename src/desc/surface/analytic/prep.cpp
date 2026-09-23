@@ -11,6 +11,7 @@
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/types/span.h>
+#include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/geometry.h"
@@ -20,8 +21,6 @@
 namespace nuri {
 namespace internal {
   namespace {
-    // NOLINTBEGIN(*-unneeded-member-function,*-unused-template)
-
     class CSR {
     public:
       using const_iterator = ArrayXi::const_iterator;
@@ -33,6 +32,16 @@ namespace internal {
 
       const_iterator end(int i) const { return adj_.begin() + off_[i + 1]; }
 
+      int offset(int i) const { return off_[i]; }
+
+      int degree(int i) const { return off_[i + 1] - off_[i]; }
+
+      int max_deg() const {
+        return (off_.tail(n()) - off_.head(n())).maxCoeff();
+      }
+
+      auto nbrs(int i) const { return adj_.segment(off_[i], degree(i)); }
+
       int eid(const_iterator it) const {
         return static_cast<int>(it - adj_.begin());
       }
@@ -41,9 +50,13 @@ namespace internal {
 
       int n() const { return static_cast<int>(off_.size()) - 1; }
 
-      template <class F>
-      void for_each_triangle(const F &f) const {
+      template <class F, class B>
+      void for_each_triangle(const F &f, const B &b) const {
         for (int i = 0; i < n(); ++i) {
+          if (degree(i) < 2)
+            continue;
+
+          b(i);
           const auto ei = end(i);
           for (auto pij = begin(i); pij < ei; ++pij) {
             const int j = *pij;
@@ -51,7 +64,7 @@ namespace internal {
             for (auto pik = pij + 1, pjk = begin(j); pik < ei && pjk < ej;) {
               const int ki = *pik, kj = *pjk;
               if (ki == kj)
-                f(i, j, ki, eid(pij), eid(pik), eid(pjk));
+                f(i, j, ki, pij, pik, pjk);
               pik += value_if(ki <= kj);
               pjk += value_if(kj <= ki);
             }
@@ -63,8 +76,6 @@ namespace internal {
       ArrayXi adj_;
       ArrayXi off_;
     };
-
-    // NOLINTEND(*-unneeded-member-function,*-unused-template)
 
     template <class Offset, class Key, class Map>
     // NOLINTNEXTLINE(*-missing-std-forward)
@@ -138,28 +149,67 @@ namespace internal {
                std::move(drop) };
     }
 
-    struct SaPrep { };
+    void drop_shared_circle_middles(ArrayXi &drop, const CSR &g,
+                                    const ArrayXd &d, const Matrix3Xd &pts,
+                                    const ArrayXd &sar2) {
+      constexpr double cutoff = kSurfaceLengthEps * kSurfaceLengthEps;
 
-    std::optional<SaPrep> prepare(const Matrix3Xd &pts, const ArrayXd &sar,
-                                  double rp) {
-      if (pts.cols() == 0)
-        return SaPrep {};
+      Matrix3Xd axis(3, g.max_deg()), cntr(3, g.max_deg());
 
-      if (rp <= 0) {
-        ABSL_LOG(ERROR) << "Probe radius must be positive";
-        return std::nullopt;
-      }
+      g.for_each_triangle(
+          [&](int i, int j, int k, auto pij, auto pik, auto) {
+            E::Index ij = pij - g.begin(i), ik = pik - g.begin(i);
+            Vector3d uij = axis.col(ij), uik = axis.col(ik);
+            if ((cntr.col(ij) - cntr.col(ik)).squaredNorm() >= cutoff
+                || sar2[i] * uij.cross(uik).squaredNorm() >= cutoff)
+              return;
 
-      const double rmin = sar.minCoeff(), rmax = sar.maxCoeff();
-      if (rmin * rmin < 2.0 * rp * rp + 2 * rmax * kSurfaceLengthEps) {
-        ABSL_LOG(ERROR) << "Atom radii must be at least (sqrt 2 - 1) rp";
-        return std::nullopt;
-      }
+            const double dot = uij.dot(uik);
+            const int mid = dot < 0 ? i
+                                    : (d[g.eid(pik)] > d[g.eid(pij)] ? j : k);
+            drop[mid] = 1;
+          },
+          [&](int i) {
+            const Vector3d ci = pts.col(i);
+            const double r2i = sar2[i];
 
-      OverlapGraph og = build_overlap_graph(pts, sar, rmax);
+            auto iax = axis.leftCols(g.degree(i)),
+                 icn = cntr.leftCols(g.degree(i));
+            auto dij = d.segment(g.offset(i), g.degree(i));
 
-      return SaPrep {};
+            iax = (pts(E::all, g.nbrs(i)).colwise() - ci).array().rowwise()
+                  / dij.transpose();
+            icn = (iax.array().rowwise()
+                   * ((dij.square() + r2i - sar2(g.nbrs(i))) / (2 * dij))
+                         .transpose())
+                      .matrix()
+                      .colwise()
+                  + ci;
+          });
     }
   }  // namespace
+
+  std::optional<SaPrep> prepare(const Matrix3Xd &pts, const ArrayXd &sar,
+                                double rp) {
+    if (pts.cols() == 0)
+      return SaPrep {};
+
+    if (rp <= 0) {
+      ABSL_LOG(ERROR) << "Probe radius must be positive";
+      return std::nullopt;
+    }
+
+    const double rmin = sar.minCoeff(), rmax = sar.maxCoeff();
+    if (rmin * rmin < 2.0 * rp * rp + 2 * rmax * kSurfaceLengthEps) {
+      ABSL_LOG(ERROR) << "Atom radii must be at least (sqrt 2 - 1) rp";
+      return std::nullopt;
+    }
+
+    ArrayXd sar2 = sar.square();
+    auto [g, d, drop] = build_overlap_graph(pts, sar, rmax);
+    drop_shared_circle_middles(drop, g, d, pts, sar2);
+
+    return SaPrep {};
+  }
 }  // namespace internal
 }  // namespace nuri
