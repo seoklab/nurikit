@@ -8,6 +8,8 @@
 //! @cond
 #include <cstdint>
 #include <type_traits>  // IWYU pragma: keep, required for is_class_v
+#include <utility>
+#include <vector>
 
 #include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
@@ -119,6 +121,21 @@ using MutVecBlock = E::VectorBlock<internal::remove_cvref_t<Raw>, Size>;
 template <class Raw, int Size = E::Dynamic>
 using ConstVecBlock =
     const E::VectorBlock<const internal::remove_cvref_t<Raw>, Size> &;
+
+template <class T>
+auto eigen_map(T &data) {
+  return E::Map<internal::const_if_t<
+      std::is_const_v<std::remove_pointer_t<decltype(data.data())>>,
+      E::ArrayX<typename std::decay_t<T>::value_type>>>(
+      data.data(), static_cast<E::Index>(data.size()));
+}
+
+template <class T>
+auto vector_cast(T &&data) {
+  std::vector<typename std::decay_t<T>::Scalar> result(data.size());
+  eigen_map(result) = std::forward<T>(data);
+  return result;
+}
 
 //! @publicsection
 
