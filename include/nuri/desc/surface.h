@@ -38,6 +38,11 @@ extern ArrayXd shrake_rupley_sasa(
     const Molecule &mol, const Matrix3Xd &conf, int nprobe = 92,
     double rprobe = 1.4,
     internal::SrSasaMethod method = internal::SrSasaMethod::kAuto);
+
+namespace internal {
+  constexpr double kSurfaceLengthEps = 1e-6;
+  constexpr double kSurfaceAngleEps = 1e-9;
+}  // namespace internal
 }  // namespace nuri
 
 #endif /* NURI_DESC_SURFACE_H_ */

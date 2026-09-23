@@ -236,8 +236,6 @@ def near_pairs(coords, sas):
         pairs = np.empty((0, 2), dtype=int)
     i, j = pairs[:, 0], pairs[:, 1]
     d = np.linalg.norm(coords[j] - coords[i], axis=1)
-    if np.any(d < 1e-3):
-        raise ValueError("coincident atoms")
     near = d <= sas[i] + sas[j] + 2.0 * TAU_C
     return pairs[near], d[near]
 
