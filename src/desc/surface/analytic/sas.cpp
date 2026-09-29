@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "nuri/eigen_config.h"
-#include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
 #include "nuri/utils.h"
 
@@ -285,12 +284,19 @@ namespace internal {
       const int nr = static_cast<int>(vtx.pts.cols());
       auto triple_of = [&](int r) -> Triple & { return tri[vtx.tri[r / 2]]; };
 
-      std::vector<int> left, right;
-      OCTree(vtx.pts).find_neighbors_self(kSurfaceLengthEps, left, right);
+      constexpr double eps = kSurfaceLengthEps, eps2 = eps * eps;
+      const auto xs = vtx.pts.row(0);
+      ArrayXi byx = argsort(xs);
 
       UnionFind uf(nr);
-      for (int p = 0; p < left.size(); ++p)
-        uf.merge(left[p], right[p]);
+      for (int a = 0; a < nr; ++a) {
+        const int ra = byx[a];
+        for (int b = a + 1; b < nr && xs[byx[b]] - xs[ra] <= eps; ++b) {
+          const int rb = byx[b];
+          if ((vtx.pts.col(rb) - vtx.pts.col(ra)).squaredNorm() <= eps2)
+            uf.merge(ra, rb);
+        }
+      }
       const int nc = uf.relabel();
       ArrayXi &label = uf.labels();
 
