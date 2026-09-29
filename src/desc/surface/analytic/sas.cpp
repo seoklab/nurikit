@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 #include <vector>
 
 #include "nuri/eigen_config.h"
@@ -337,7 +338,7 @@ namespace internal {
     }
 
     struct Sweep {
-      ArrayXb accessible;
+      ArrayXi accessible;
       std::vector<SasArc> arcs;
       int n_active_arcs;
       ArrayXd area;
@@ -350,7 +351,7 @@ namespace internal {
                 dmax = caps.h.max_deg(), vmax = 2 * inc.inc.max_deg(),
                 omax = cl.own_off.max_deg();
 
-      Sweep sw { ArrayXb(nc), {}, 0, ArrayXd(sa.n_solve) };
+      Sweep sw { ArrayXi::Zero(nc + 1), {}, 0, ArrayXd(sa.n_solve) };
 
       ArrayXX<bool> inside(dmax, omax);
 
@@ -387,7 +388,7 @@ namespace internal {
         }
 
         for (int r = 0; r < k; ++r)
-          sw.accessible[c0 + r] = !ins.col(r).any();
+          sw.accessible[c0 + r] = value_if(!ins.col(r).any());
       };
 
       auto solve = [&](int s) {
@@ -424,7 +425,7 @@ namespace internal {
             if (v < 0) {
               v = vloc[cc] = solver.add_vertex(
                   (cl.rep.col(cc) - sa.pts.col(s)).normalized(),
-                  sw.accessible[cc]);
+                  sw.accessible[cc] != 0);
               vlist[k++] = cc;
             }
             solver.add_incidence(la, v);
@@ -469,6 +470,68 @@ namespace internal {
 
       return sw;
     }
+
+    SasProbes probes(const std::vector<SasCircle> &circ, const Clusters &cl,
+                     Sweep &sw, const int n_active) {
+      const int nc = static_cast<int>(sw.accessible.size()) - 1;
+      const int np = sw.accessible.sum(),
+                np_active = sw.accessible.head(cl.own_off[n_active]).sum();
+
+      ArrayXi &pmap = sw.accessible;
+      mask_to_map(pmap);
+
+      SasProbes pr { CSR(ArrayXi(), OffsetTable(np)), Matrix3Xd(3, np),
+                     Matrix3Xd(), OffsetTable(np), np_active };
+
+      ArrayXi &aoff = pr.atoms.off();
+      aoff[0] = 0;
+      for (int c = 0; c < nc; ++c) {
+        const int p = pmap[c];
+        if (p < 0)
+          continue;
+
+        pr.pos.col(p) = cl.rep.col(c);
+        aoff[p + 1] = aoff[p] + cl.atoms.degree(c);
+      }
+      pr.atoms.adj().resize(aoff[np]);
+      for (int c = 0; c < nc; ++c) {
+        const int p = pmap[c];
+        if (p < 0)
+          continue;
+
+        pr.atoms.adj().segment(aoff[p], cl.atoms.degree(c)) = cl.atoms.nbrs(c);
+      }
+
+      ArrayXi &toff = pr.tan_off.off();
+      toff.setZero();
+      for (SasArc &arc: sw.arcs) {
+        arc.beg = pmap[arc.beg];
+        arc.end = pmap[arc.end];
+        if (arc.beg < 0)
+          continue;
+
+        ++toff[arc.beg + 1];
+        ++toff[arc.end + 1];
+      }
+      std::inclusive_scan(toff.begin(), toff.end(), toff.begin());
+
+      pr.tan.resize(3, toff[np]);
+      ArrayXi cur = toff.head(np);
+      for (const SasArc &arc: sw.arcs) {
+        if (arc.beg < 0)
+          continue;
+
+        const SasCircle &c = circ[arc.circ];
+        auto depart = [&](int p, double sign) {
+          const Vector3d t = c.axis.cross(pr.pos.col(p) - c.cntr);
+          pr.tan.col(cur[p]++) = sign * t.normalized();
+        };
+        depart(arc.beg, 1.0);
+        depart(arc.end, -1.0);
+      }
+
+      return pr;
+    }
   }  // namespace
 
   SasGeometry build_sas(const SaPrep &sa) {
@@ -482,8 +545,10 @@ namespace internal {
     Vertices vtx = vertex_points(sa, circ, inc.tri, vis.active);
     Clusters cl = cluster_vertices(vtx, inc.tri, sa.n_enum);
     Sweep sw = sweep_spheres(sa, caps, inc, vis, cl);
+    SasProbes pr = probes(circ, cl, sw, sa.n_active);
 
-    return SasGeometry {};
+    return { std::move(circ),    std::move(caps),  std::move(pr),
+             std::move(sw.arcs), sw.n_active_arcs, std::move(sw.area) };
   }
 }  // namespace internal
 }  // namespace nuri
