@@ -89,28 +89,6 @@ namespace internal {
       };
     }
 
-    template <class F, class B>
-    void for_each_triangle(const CSR &g, const F &f, const B &b) {
-      for (int i = 0; i < g.n(); ++i) {
-        if (g.degree(i) < 2)
-          continue;
-
-        b(i);
-        const auto ei = g.end(i);
-        for (auto pij = g.begin(i); pij < ei; ++pij) {
-          const int j = *pij;
-          const auto ej = g.end(j);
-          for (auto pik = pij + 1, pjk = g.begin(j); pik < ei && pjk < ej;) {
-            const int ki = *pik, kj = *pjk;
-            if (ki == kj)
-              f(i, j, ki, pij, pik, pjk);
-            pik += value_if(ki <= kj);
-            pjk += value_if(kj <= ki);
-          }
-        }
-      }
-    }
-
     void drop_shared_circle_middles(ArrayXi &keep, const CSR &g,
                                     const ArrayXd &d, const Matrix3Xd &pts,
                                     const ArrayXd &sar2) {
@@ -118,8 +96,8 @@ namespace internal {
 
       Matrix3Xd axis(3, g.max_deg()), cntr(3, g.max_deg());
 
-      for_each_triangle(
-          g,
+      g.for_each_triangle(
+          g.n(),
           [&](int i, int j, int k, auto pij, auto pik, auto) {
             E::Index ij = pij - g.begin(i), ik = pik - g.begin(i);
             Vector3d uij = axis.col(ij), uik = axis.col(ik);

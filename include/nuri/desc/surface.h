@@ -79,6 +79,29 @@ namespace internal {
 
     int n() const { return static_cast<int>(off_.size()) - 1; }
 
+    template <class F, class B>
+    void for_each_triangle(int n_rows, const F &on_match,
+                           const B &before_row) const {
+      for (int i = 0; i < n_rows; ++i) {
+        if (degree(i) < 2)
+          continue;
+
+        before_row(i);
+        const auto ei = end(i);
+        for (auto pij = begin(i); pij < ei; ++pij) {
+          const int j = *pij;
+          const auto ej = end(j);
+          for (auto pik = pij + 1, pjk = begin(j); pik < ei && pjk < ej;) {
+            const int ki = *pik, kj = *pjk;
+            if (ki == kj)
+              on_match(i, j, ki, pij, pik, pjk);
+            pik += value_if(ki <= kj);
+            pjk += value_if(kj <= ki);
+          }
+        }
+      }
+    }
+
   private:
     ArrayXi adj_;
     ArrayXi off_;
