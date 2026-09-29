@@ -3,11 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <algorithm>
 #include <cmath>
 #include <vector>
 
 #include "nuri/eigen_config.h"
+#include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 namespace internal {
@@ -265,6 +268,80 @@ namespace internal {
 
       return vtx;
     }
+
+    struct Clusters {
+      Matrix3Xd rep;
+      CSR atoms;
+      ArrayXi own_off;
+    };
+
+    Clusters cluster_vertices(const Vertices &vtx, std::vector<Triple> &tri,
+                              const int n_enum) {
+      const int nr = static_cast<int>(vtx.pts.cols());
+      auto triple_of = [&](int r) -> Triple & { return tri[vtx.tri[r / 2]]; };
+
+      std::vector<int> left, right;
+      OCTree(vtx.pts).find_neighbors_self(kSurfaceLengthEps, left, right);
+
+      ArrayXi label = ArrayXi::LinSpaced(nr, 0, nr - 1);
+      auto root = [&](int x) {
+        while (label[x] != x) {
+          label[x] = label[label[x]];
+          x = label[x];
+        }
+        return x;
+      };
+      for (int p = 0; p < left.size(); ++p) {
+        auto [lo, hi] = nuri::minmax(root(left[p]), root(right[p]));
+        label[hi] = lo;
+      }
+      for (int r = 0; r < nr; ++r)
+        label[r] = root(r);
+
+      int nc = 0;
+      for (int r = 0; r < nr; ++r)
+        label[r] = label[r] == r ? nc++ : label[label[r]];
+
+      ArrayXi kmin = ArrayXi::Constant(nc, n_enum);
+      for (int r = 0; r < nr; ++r)
+        kmin[label[r]] = nuri::min(kmin[label[r]], triple_of(r).ijk[0]);
+
+      ArrayXi order(nc), own_off(n_enum + 1);
+      argsort_bucket(order, own_off, kmin);
+
+      ArrayXi mem(nr), moff(nc + 1);
+      argsort_bucket(mem, moff, label);
+
+      Clusters cl { Matrix3Xd(3, nc), CSR(ArrayXi(3L * nr), ArrayXi(nc + 1)),
+                    std::move(own_off) };
+      ArrayXi &adj = cl.atoms.adj(), &aoff = cl.atoms.off();
+      int n = aoff[0] = 0;
+      for (int pos = 0; pos < nc; ++pos) {
+        const int c = order[pos];
+        auto ms = mem.segment(moff[c], moff[c + 1] - moff[c]);
+        auto ps = vtx.pts(E::all, ms);
+
+        cl.rep.col(pos) = ps.rowwise().mean();
+        ABSL_DCHECK_LE(
+            (ps.colwise() - cl.rep.col(pos)).colwise().squaredNorm().maxCoeff(),
+            kSurfaceLengthEps * kSurfaceLengthEps);
+
+        for (int r: ms) {
+          Triple &t = triple_of(r);
+          t.cluster[r % 2] = pos;
+          adj.segment(n, 3) = t.ijk;
+          n += 3;
+        }
+        std::sort(adj.begin() + aoff[pos], adj.begin() + n);
+        n = static_cast<int>(
+            std::unique(adj.begin() + aoff[pos], adj.begin() + n)
+            - adj.begin());
+        aoff[pos + 1] = n;
+      }
+      adj.conservativeResize(n);
+
+      return cl;
+    }
   }  // namespace
 
   SasGeometry build_sas(const SaPrep &sa) {
@@ -273,6 +350,7 @@ namespace internal {
     Incidences inc = incidences(sa, circ, slot_of);
     CapVisibility vis = hide_caps(sa, caps, inc);
     Vertices vtx = vertex_points(sa, circ, inc.tri, vis.active);
+    Clusters cl = cluster_vertices(vtx, inc.tri, sa.n_enum);
 
     return SasGeometry {};
   }
