@@ -36,8 +36,9 @@ namespace internal {
     std::pair<CSR, ArrayXi> compile_pairs(const I &i, const J &j, const int n) {
       const int m = static_cast<int>(i.size());
 
-      ArrayXi order(m), adj(m), off(n + 1);
-      argsort_bucket(adj, off.head(n), j);
+      ArrayXi order(m), adj(m);
+      OffsetTable off(n);
+      argsort_bucket(adj, off.off().head(n), j);
       argsort_bucket(order, off, i, adj);
       adj = j(order);
 
