@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <numeric>
 #include <vector>
 
@@ -129,7 +130,14 @@ namespace internal {
 
     Incidences incidences(const SaPrep &sa, const std::vector<SasCircle> &circ,
                           const ArrayXi &slot_of) {
+      // ~1M pushes on a protein; relocation was 5% of build_sas
       std::vector<Triple> tri;
+      size_t tri_bound = 0;
+      for (int i = 0; i < sa.n_enum; ++i) {
+        const size_t deg = sa.g.degree(i);
+        tri_bound += deg * (deg - 1) / 2;
+      }
+      tri.reserve(tri_bound);
 
       sa.g.for_each_triangle(
           sa.n_enum,
@@ -273,6 +281,11 @@ namespace internal {
       return vtx;
     }
 
+    struct XKey {
+      double x;
+      int r;
+    };
+
     struct Clusters {
       Matrix3Xd rep;
       CSR atoms;
@@ -285,14 +298,18 @@ namespace internal {
       auto triple_of = [&](int r) -> Triple & { return tri[vtx.tri[r / 2]]; };
 
       constexpr double eps = kSurfaceLengthEps, eps2 = eps * eps;
-      const auto xs = vtx.pts.row(0);
-      ArrayXi byx = argsort(xs);
+      // packed keys sort 2x faster than argsort over the strided row
+      std::vector<XKey> byx(nr);
+      for (int r = 0; r < nr; ++r)
+        byx[r] = { vtx.pts(0, r), r };
+      std::sort(byx.begin(), byx.end(),
+                [](const XKey &a, const XKey &b) { return a.x < b.x; });
 
       UnionFind uf(nr);
       for (int a = 0; a < nr; ++a) {
-        const int ra = byx[a];
-        for (int b = a + 1; b < nr && xs[byx[b]] - xs[ra] <= eps; ++b) {
-          const int rb = byx[b];
+        const auto [xa, ra] = byx[a];
+        for (int b = a + 1; b < nr && byx[b].x - xa <= eps; ++b) {
+          const int rb = byx[b].r;
           if ((vtx.pts.col(rb) - vtx.pts.col(ra)).squaredNorm() <= eps2)
             uf.merge(ra, rb);
         }
