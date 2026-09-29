@@ -109,12 +109,18 @@ namespace internal {
       { 1, 1 }
     };
 
-    double triple_h2(const Vector3d &wijk, const Vector3d &aij, double rij,
-                     double rk) {
-      const double wa = wijk.dot(aij), w2 = wijk.squaredNorm();
+    struct TripleCut {
+      Vector3d w;
+      double wa, amp2, g, h2;
+    };
+
+    TripleCut cut_triple(const SasCircle &cij, const Vector3d &pk,
+                         const double rk) {
+      const Vector3d w = cij.cntr - pk;
+      const double wa = w.dot(cij.axis), w2 = w.squaredNorm();
       const double amp2 = w2 - wa * wa;
-      const double gk = (rk * rk - w2 - rij * rij) / (2 * rij);
-      return amp2 - gk * gk;
+      const double g = (rk * rk - w2 - cij.rl * cij.rl) / (2 * cij.rl);
+      return { w, wa, amp2, g, amp2 - g * g };
     }
 
     Incidences incidences(const SaPrep &sa, const std::vector<SasCircle> &circ,
@@ -126,9 +132,8 @@ namespace internal {
           [&](int i, int j, int k, auto pij, auto pik, auto pjk) {
             const int qij = sa.g.eid(pij), qik = sa.g.eid(pik),
                       qjk = sa.g.eid(pjk);
-            const SasCircle &cij = circ[qij];
-            const double h2 = triple_h2(cij.cntr - sa.pts.col(k), cij.axis,
-                                        cij.rl, sa.sar[k]);
+            const double h2 =
+                cut_triple(circ[qij], sa.pts.col(k), sa.sar[k]).h2;
             if (h2 > 0) {
               tri.push_back({
                   {   i,   j,   k },
@@ -222,6 +227,44 @@ namespace internal {
 
       return vis;
     }
+
+    struct Vertices {
+      ArrayXi tri;
+      Matrix3Xd pts;
+    };
+
+    Vertices vertex_points(const SaPrep &sa, const std::vector<SasCircle> &circ,
+                           const std::vector<Triple> &tri,
+                           const ArrayXi &active) {
+      const int nv = active.sum();
+      Vertices vtx { ArrayXi(nv + 1), Matrix3Xd(3, 2L * nv) };
+
+      int v = 0;
+      for (int t = 0; t < active.size(); ++t) {
+        vtx.tri[v] = t;
+        v += active[t];
+      }
+
+      for (v = 0; v < nv; ++v) {
+        const Triple &tr = tri[vtx.tri[v]];
+        const SasCircle &cij = circ[tr.q[0]];
+        const int k = tr.ijk[2];
+
+        const TripleCut cut = cut_triple(cij, sa.pts.col(k), sa.sar[k]);
+        ABSL_DCHECK_GT(cut.h2, 0);
+
+        const Vector3d wperp = cut.w - cut.wa * cij.axis;
+        const double scale = cij.rl / cut.amp2;
+        const Vector3d radial = scale * cut.g * wperp,
+                       tangent =
+                           scale * std::sqrt(cut.h2) * cij.axis.cross(wperp);
+
+        vtx.pts.col(2L * v) = cij.cntr + radial + tangent;
+        vtx.pts.col(2L * v + 1) = cij.cntr + radial - tangent;
+      }
+
+      return vtx;
+    }
   }  // namespace
 
   SasGeometry build_sas(const SaPrep &sa) {
@@ -229,6 +272,7 @@ namespace internal {
     auto [caps, slot_of] = cap_rows(sa, circ);
     Incidences inc = incidences(sa, circ, slot_of);
     CapVisibility vis = hide_caps(sa, caps, inc);
+    Vertices vtx = vertex_points(sa, circ, inc.tri, vis.active);
 
     return SasGeometry {};
   }
