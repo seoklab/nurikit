@@ -71,7 +71,7 @@ namespace internal {
       ArrayXi key =
           (keep(left) + keep(right) < 2)
               .select(2, (d > touch + 2 * kSurfaceLengthEps).cast<int>()
-                             + (d > touch - kSurfaceLengthEps).cast<int>());
+                             + (d >= touch - kSurfaceLengthEps).cast<int>());
       ArrayXi order(m);
       Array3i off;
       argsort_bucket(order, off, key);
