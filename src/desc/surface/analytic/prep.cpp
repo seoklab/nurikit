@@ -50,8 +50,9 @@ namespace internal {
       const int n = static_cast<int>(sar.size());
 
       VoxelGrid grid(pts, 2 * (rmax + kSurfaceLengthEps));
-      std::vector<int> left, right;
-      grid.find_neighbors_self(left, right);
+      std::vector<int> lbuf, rbuf;
+      grid.find_neighbors_self(lbuf, rbuf);
+      auto left = eigen_map(lbuf), right = eigen_map(rbuf);
       int m = static_cast<int>(left.size());
       for (int k = 0; k < m; ++k)
         std::tie(left[k], right[k]) = nuri::minmax(left[k], right[k]);
@@ -76,7 +77,7 @@ namespace internal {
       argsort_bucket(order, off, key);
 
       auto near = order.head(off[2]);
-      ArrayXi inear = eigen_map(left)(near), jnear = eigen_map(right)(near);
+      ArrayXi inear = left(near), jnear = right(near);
 
       m = off[1];
       auto [g, perm] = compile_pairs(inear.head(m), jnear.head(m), n);
