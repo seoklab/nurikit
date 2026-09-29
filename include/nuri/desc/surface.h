@@ -50,26 +50,54 @@ namespace internal {
   constexpr double kSurfaceLengthEps = 1e-6;
   constexpr double kSurfaceAngleEps = 1e-9;
 
-  class CSR {
+  class OffsetTable {
   public:
-    using const_iterator = ArrayXi::const_iterator;
+    OffsetTable(): off_(ArrayXi::Zero(1)) { }
 
-    CSR(): off_(ArrayXi::Zero(1)) { }
+    explicit OffsetTable(int n): off_(n + 1) { }
 
-    CSR(ArrayXi &&adj, ArrayXi &&off) noexcept
-        : adj_(std::move(adj)), off_(std::move(off)) { }
+    explicit OffsetTable(ArrayXi &&off) noexcept: off_(std::move(off)) { }
 
-    const_iterator begin(int i) const { return adj_.begin() + off_[i]; }
-
-    const_iterator end(int i) const { return adj_.begin() + off_[i + 1]; }
+    int operator[](int i) const { return offset(i); }
 
     int offset(int i) const { return off_[i]; }
 
     int degree(int i) const { return off_[i + 1] - off_[i]; }
 
-    int max_deg() const { return (off_.tail(n()) - off_.head(n())).maxCoeff(); }
+    int max_deg() const {
+      return (off_.tail(size()) - off_.head(size())).maxCoeff();
+    }
 
-    auto nbrs(int i) const { return adj_.segment(off_[i], degree(i)); }
+    int size() const { return static_cast<int>(off_.size()) - 1; }
+
+    ArrayXi &off() { return off_; }
+
+    const ArrayXi &off() const { return off_; }
+
+  private:
+    ArrayXi off_;
+  };
+
+  class CSR {
+  public:
+    using const_iterator = ArrayXi::const_iterator;
+
+    CSR() = default;
+
+    CSR(ArrayXi &&adj, OffsetTable &&off) noexcept
+        : adj_(std::move(adj)), tbl_(std::move(off)) { }
+
+    const_iterator begin(int i) const { return adj_.begin() + tbl_[i]; }
+
+    const_iterator end(int i) const { return adj_.begin() + tbl_[i + 1]; }
+
+    int offset(int i) const { return tbl_[i]; }
+
+    int degree(int i) const { return tbl_.degree(i); }
+
+    int max_deg() const { return tbl_.max_deg(); }
+
+    auto nbrs(int i) const { return adj_.segment(tbl_[i], degree(i)); }
 
     int eid(const_iterator it) const {
       return static_cast<int>(it - adj_.begin());
@@ -77,7 +105,7 @@ namespace internal {
 
     int m() const { return static_cast<int>(adj_.size()); }
 
-    int n() const { return static_cast<int>(off_.size()) - 1; }
+    int n() const { return tbl_.size(); }
 
     template <class F, class B>
     void for_each_triangle(int n_rows, const F &on_match,
@@ -104,11 +132,15 @@ namespace internal {
 
     ArrayXi &adj() { return adj_; }
 
-    ArrayXi &off() { return off_; }
+    const ArrayXi &adj() const { return adj_; }
+
+    ArrayXi &off() { return tbl_.off(); }
+
+    const ArrayXi &off() const { return tbl_.off(); }
 
   private:
     ArrayXi adj_;
-    ArrayXi off_;
+    OffsetTable tbl_;
   };
 
   /**
@@ -170,7 +202,46 @@ namespace internal {
   };
 
   extern SasGeometry build_sas(const SaPrep &sa);
+
+  /**
+   * Caps on one sphere with the vertices where their circles cross: the
+   * first `m` caps and `k` vertices are live, the rest is capacity. Vertex
+   * `v` excuses the caps whose crossing points merged into it.
+   */
+  struct ArrangementProblem {
+    double radius;
+    int m, k;
+    Matrix3Xd axis;
+    ArrayXd cosa, sina;
+    ArrayXX<bool> crossing;
+    Matrix3Xd reps;
+    ArrayXX<bool> excused;
+    ArrayXb accessible;
+
+    void reserve(int mcap, int kcap) {
+      axis.resize(3, mcap);
+      cosa.resize(mcap);
+      sina.resize(mcap);
+      crossing.resize(mcap, mcap);
+      reps.resize(3, kcap);
+      excused.resize(kcap, mcap);
+      accessible.resize(kcap);
+    }
+  };
+
+  /**
+   * Appends the accessible arcs: `circ` is the cap, `beg` and `end` the
+   * vertices, both `k` on a full circle. Returns the accessible area.
+   */
+  extern double solve_arrangement(const ArrangementProblem &prob,
+                                  std::vector<SasArc> &arcs);
 }  // namespace internal
+
+template <class Key, class Map>
+void argsort_bucket(ArrayXi &idxs, internal::OffsetTable &off, const Key &key,
+                    const Map &map) {
+  return argsort_bucket(idxs, off.off(), key, map);
+}
 }  // namespace nuri
 
 #endif /* NURI_DESC_SURFACE_H_ */

@@ -60,8 +60,9 @@ namespace internal {
         key[2L * q + 1] = nuri::min(circ[q].j, n_enum);
       }
 
-      ArrayXi tags(2L * n_circ), off(n_enum + 1);
-      argsort_bucket(tags, off, key.head(2L * n_circ), [&](int p) {
+      ArrayXi tags(2L * n_circ);
+      OffsetTable off(n_enum);
+      argsort_bucket(tags, off.off(), key.head(2L * n_circ), [&](int p) {
         // side 1 first, then side 0
         return p < n_circ ? 2 * p + 1 : 2 * (p - n_circ);
       });
@@ -152,7 +153,8 @@ namespace internal {
       for (int t = 0; t < nt; ++t)
         key.segment(3L * t, 3) = tri[t].ijk.min(sa.n_enum);
 
-      ArrayXi adj(3L * nt), off(sa.n_enum + 1);
+      ArrayXi adj(3L * nt);
+      OffsetTable off(sa.n_enum);
       argsort_bucket(adj, off, key);
       const int m = off[sa.n_enum];
       adj.conservativeResize(m);
@@ -272,7 +274,7 @@ namespace internal {
     struct Clusters {
       Matrix3Xd rep;
       CSR atoms;
-      ArrayXi own_off;
+      OffsetTable own_off;
     };
 
     Clusters cluster_vertices(const Vertices &vtx, std::vector<Triple> &tri,
@@ -306,19 +308,21 @@ namespace internal {
       for (int r = 0; r < nr; ++r)
         kmin[label[r]] = nuri::min(kmin[label[r]], triple_of(r).ijk[0]);
 
-      ArrayXi order(nc), own_off(n_enum + 1);
+      ArrayXi order(nc);
+      OffsetTable own_off(n_enum);
       argsort_bucket(order, own_off, kmin);
 
-      ArrayXi mem(nr), moff(nc + 1);
+      ArrayXi mem(nr);
+      OffsetTable moff(nc);
       argsort_bucket(mem, moff, label);
 
-      Clusters cl { Matrix3Xd(3, nc), CSR(ArrayXi(3L * nr), ArrayXi(nc + 1)),
+      Clusters cl { Matrix3Xd(3, nc), CSR(ArrayXi(3L * nr), OffsetTable(nc)),
                     std::move(own_off) };
       ArrayXi &adj = cl.atoms.adj(), &aoff = cl.atoms.off();
       int n = aoff[0] = 0;
       for (int pos = 0; pos < nc; ++pos) {
         const int c = order[pos];
-        auto ms = mem.segment(moff[c], moff[c + 1] - moff[c]);
+        auto ms = mem.segment(moff[c], moff.degree(c));
         auto ps = vtx.pts(E::all, ms);
 
         cl.rep.col(pos) = ps.rowwise().mean();
@@ -332,25 +336,168 @@ namespace internal {
           adj.segment(n, 3) = t.ijk;
           n += 3;
         }
-        std::sort(adj.begin() + aoff[pos], adj.begin() + n);
-        n = static_cast<int>(
-            std::unique(adj.begin() + aoff[pos], adj.begin() + n)
-            - adj.begin());
+
+        auto beg = adj.begin() + aoff[pos], end = adj.begin() + n;
+        std::sort(beg, end);
+        n = static_cast<int>(std::unique(beg, end) - adj.begin());
         aoff[pos + 1] = n;
       }
       adj.conservativeResize(n);
 
       return cl;
     }
+
+    struct Sweep {
+      ArrayXb accessible;
+      std::vector<SasArc> arcs;
+      int n_active_arcs;
+      ArrayXd area;
+    };
+
+    Sweep sweep_spheres(const SaPrep &sa, const SasCaps &caps,
+                        const Incidences &inc, const CapVisibility &vis,
+                        const Clusters &cl) {
+      const int n_enum = sa.n_enum, nc = cl.own_off.offset(n_enum),
+                dmax = caps.h.max_deg(), vmax = 2 * inc.inc.max_deg(),
+                omax = cl.own_off.max_deg();
+
+      Sweep sw { ArrayXb(nc), {}, 0, ArrayXd(sa.n_solve) };
+
+      ArrayXX<bool> inside(omax, dmax);
+
+      ArrangementProblem prob;
+      prob.reserve(dmax, vmax);
+      ArrayXi local_of(dmax), plist(dmax), vlist(vmax + 1),
+          vloc = ArrayXi::Constant(nc, -1);
+
+      auto decide = [&](int s) {
+        const int off = caps.h.offset(s), m = caps.h.degree(s),
+                  c0 = cl.own_off.offset(s), k = cl.own_off.degree(s);
+        auto ax = caps.axis.middleCols(off, m);
+        auto c = caps.cosa.segment(off, m);
+        auto hid = vis.hidden.segment(off, m);
+        auto ins = inside.topLeftCorner(k, m);
+
+        for (int r = 0; r < k; ++r) {
+          const Vector3d dir =
+              (cl.rep.col(c0 + r) - sa.pts.col(s)).normalized();
+          ins.row(r) = ((ax.transpose() * dir).array() > c && !hid).transpose();
+        }
+
+        for (auto it = inc.inc.begin(s), ei = inc.inc.end(s); it < ei; ++it) {
+          const int e = inc.inc.eid(it), t = *it / 3, corner = *it % 3;
+          if (corner != 0 || vis.active[t] == 0)
+            continue;
+
+          for (int side = 0; side < 2; ++side) {
+            const int r = inc.tri[t].cluster[side] - c0;
+            if (static_cast<unsigned>(r) >= static_cast<unsigned>(k))
+              continue;
+
+            ins(r, inc.slot(0, e) - off) = ins(r, inc.slot(1, e) - off) = false;
+          }
+        }
+
+        for (int r = 0; r < k; ++r)
+          sw.accessible[c0 + r] = !ins.row(r).any();
+      };
+
+      auto solve = [&](int s) {
+        const int off = caps.h.offset(s), m = caps.h.degree(s);
+
+        int ml = 0;
+        for (int l = 0; l < m; ++l) {
+          const int p = off + l;
+          const bool keep = !vis.hidden[p];
+          local_of[l] = keep ? ml : -1;
+          plist[ml] = p;
+          prob.axis.col(ml) = caps.axis.col(p);
+          prob.cosa[ml] = caps.cosa[p];
+          prob.sina[ml] = caps.sina[p];
+          ml += static_cast<int>(keep);
+        }
+        prob.radius = sa.sar[s];
+        prob.m = ml;
+        prob.k = 0;
+        prob.crossing.topLeftCorner(ml, ml).setConstant(false);
+
+        for (auto it = inc.inc.begin(s), ei = inc.inc.end(s); it < ei; ++it) {
+          const int e = inc.inc.eid(it), t = *it / 3;
+          const int la = local_of[inc.slot(0, e) - off],
+                    lb = local_of[inc.slot(1, e) - off];
+          if (la < 0 || lb < 0)
+            continue;
+
+          prob.crossing(la, lb) = prob.crossing(lb, la) = true;
+          if (vis.active[t] == 0)
+            continue;
+
+          for (int side = 0; side < 2; ++side) {
+            const int cc = inc.tri[t].cluster[side];
+            int v = vloc[cc];
+            if (v < 0) {
+              v = vloc[cc] = prob.k;
+              vlist[prob.k++] = cc;
+              prob.excused.row(v).head(ml).setConstant(false);
+            }
+            prob.excused(v, la) = prob.excused(v, lb) = true;
+          }
+        }
+
+        for (int v = 0; v < prob.k; ++v) {
+          const int cc = vlist[v];
+          prob.reps.col(v) = (cl.rep.col(cc) - sa.pts.col(s)).normalized();
+          prob.accessible[v] = sw.accessible[cc];
+          vloc[cc] = -1;
+        }
+        vlist[prob.k] = nc;
+
+        const int n0 = static_cast<int>(sw.arcs.size());
+        const double area = solve_arrangement(prob, sw.arcs);
+
+        int w = n0;
+        for (int r = n0; r < static_cast<int>(sw.arcs.size()); ++r) {
+          SasArc &arc = sw.arcs[r];
+          const int tag = caps.h.adj()[plist[arc.circ]];
+          arc.circ = icirc(tag);
+          arc.beg = vlist[arc.beg];
+          arc.end = vlist[arc.end];
+          sw.arcs[w] = arc;
+          w += 1 - iside(tag);
+        }
+        sw.arcs.resize(w);
+
+        return area;
+      };
+
+      auto visit = [&](int s) {
+        decide(s);
+        sw.area[s] = vis.covered[s] ? 0.0 : solve(s);
+      };
+
+      for (int s = 0; s < sa.n_active; ++s)
+        visit(s);
+      sw.n_active_arcs = static_cast<int>(sw.arcs.size());
+      for (int s = sa.n_active; s < sa.n_solve; ++s)
+        visit(s);
+      for (int s = sa.n_solve; s < n_enum; ++s)
+        decide(s);
+
+      return sw;
+    }
   }  // namespace
 
   SasGeometry build_sas(const SaPrep &sa) {
+    if (sa.n_enum == 0)
+      return SasGeometry {};
+
     std::vector circ = circles(sa);
     auto [caps, slot_of] = cap_rows(sa, circ);
     Incidences inc = incidences(sa, circ, slot_of);
     CapVisibility vis = hide_caps(sa, caps, inc);
     Vertices vtx = vertex_points(sa, circ, inc.tri, vis.active);
     Clusters cl = cluster_vertices(vtx, inc.tri, sa.n_enum);
+    Sweep sw = sweep_spheres(sa, caps, inc, vis, cl);
 
     return SasGeometry {};
   }
