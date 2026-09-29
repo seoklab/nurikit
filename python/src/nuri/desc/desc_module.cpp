@@ -122,6 +122,7 @@ py::dict sas_geometry(py::handle py_pts, py::handle py_radii, double rp,
   d["probes"] = probes;
 
   py::dict arcs;
+  arcs["phi"] = collect(geo.arcs, [](const auto &a) { return a.phi; });
   arcs["dphi"] = collect(geo.arcs, [](const auto &a) { return a.dphi; });
   arcs["circ"] = collect(geo.arcs, [](const auto &a) { return a.circ; });
   arcs["beg"] = collect(geo.arcs, [](const auto &a) { return a.beg; });

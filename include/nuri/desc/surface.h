@@ -222,8 +222,12 @@ namespace internal {
     int i, j;
   };
 
+  /**
+   * `phi` is measured in the circle frame `e1 = any_perpendicular(axis)`,
+   * `e2 = axis x e1`.
+   */
   struct SasArc {
-    double dphi;
+    double phi, dphi;
     int circ, beg, end;
   };
 
@@ -280,7 +284,9 @@ namespace internal {
 
     /**
      * Appends the accessible arcs: `circ` is the cap, `beg` and `end` the
-     * vertices, both `k` on a full circle. Returns the accessible area.
+     * vertices, both `k` on a full circle, `phi` in the cap frame
+     * `e1 = any_perpendicular(axis)`, `e2 = axis x e1`. Returns the
+     * accessible area.
      */
     double solve(std::vector<SasArc> &arcs);
 
