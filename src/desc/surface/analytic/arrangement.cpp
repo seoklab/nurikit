@@ -135,7 +135,7 @@ namespace internal {
         if (inside)
           continue;
 
-        arcs.push_back({ dphi, j, beg.v, end.v });
+        arcs.push_back({ beg.phi, dphi, j, beg.v, end.v });
         geo_sum += dphi * cosa[j];
       }
     }
