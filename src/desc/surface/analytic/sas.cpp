@@ -188,8 +188,8 @@ namespace internal {
 
       CapVisibility vis { ArrayXb(caps.h.m()), ArrayXb(n_solve),
                           ArrayXi::Ones(n_t) };
-      MatrixXd cosg(dmax, dmax);
-      ArrayXX<bool> crossing(dmax, dmax);
+      MatrixXd cosg_buf(dmax, dmax);
+      ArrayXX<bool> crossing_buf(dmax, dmax);
 
       auto classify = [&](int s) {
         const int off = caps.h.offset(s), m = caps.h.degree(s);
@@ -197,8 +197,10 @@ namespace internal {
         auto c = caps.cosa.segment(off, m);
         auto hidden = vis.hidden.segment(off, m);
 
-        cosg.topLeftCorner(m, m).noalias() = ax.transpose() * ax;
-        crossing.topLeftCorner(m, m).setConstant(false);
+        auto cosg = take_buffer(cosg_buf, m, m);
+        auto crossing = take_buffer(crossing_buf, m, m);
+        cosg.noalias() = ax.transpose() * ax;
+        crossing.setConstant(false);
         for (auto it = inc.inc.begin(s), ei = inc.inc.end(s); it < ei; ++it) {
           const int e = inc.inc.eid(it), a = inc.slot(0, e) - off,
                     b = inc.slot(1, e) - off;
@@ -285,24 +287,11 @@ namespace internal {
       std::vector<int> left, right;
       OCTree(vtx.pts).find_neighbors_self(kSurfaceLengthEps, left, right);
 
-      ArrayXi label = ArrayXi::LinSpaced(nr, 0, nr - 1);
-      auto root = [&](int x) {
-        while (label[x] != x) {
-          label[x] = label[label[x]];
-          x = label[x];
-        }
-        return x;
-      };
-      for (int p = 0; p < left.size(); ++p) {
-        auto [lo, hi] = nuri::minmax(root(left[p]), root(right[p]));
-        label[hi] = lo;
-      }
-      for (int r = 0; r < nr; ++r)
-        label[r] = root(r);
-
-      int nc = 0;
-      for (int r = 0; r < nr; ++r)
-        label[r] = label[r] == r ? nc++ : label[label[r]];
+      UnionFind uf(nr);
+      for (int p = 0; p < left.size(); ++p)
+        uf.merge(left[p], right[p]);
+      const int nc = uf.relabel();
+      ArrayXi &label = uf.labels();
 
       ArrayXi kmin = ArrayXi::Constant(nc, n_enum);
       for (int r = 0; r < nr; ++r)
@@ -363,10 +352,9 @@ namespace internal {
 
       Sweep sw { ArrayXb(nc), {}, 0, ArrayXd(sa.n_solve) };
 
-      ArrayXX<bool> inside(omax, dmax);
+      ArrayXX<bool> inside(dmax, omax);
 
-      ArrangementProblem prob;
-      prob.reserve(dmax, vmax);
+      ArrangementSolver solver(dmax, vmax, inc.inc.max_deg());
       ArrayXi local_of(dmax), plist(dmax), vlist(vmax + 1),
           vloc = ArrayXi::Constant(nc, -1);
 
@@ -376,12 +364,12 @@ namespace internal {
         auto ax = caps.axis.middleCols(off, m);
         auto c = caps.cosa.segment(off, m);
         auto hid = vis.hidden.segment(off, m);
-        auto ins = inside.topLeftCorner(k, m);
+        auto ins = take_buffer(inside, m, k);
 
         for (int r = 0; r < k; ++r) {
           const Vector3d dir =
               (cl.rep.col(c0 + r) - sa.pts.col(s)).normalized();
-          ins.row(r) = ((ax.transpose() * dir).array() > c && !hid).transpose();
+          ins.col(r) = (ax.transpose() * dir).array() > c && !hid;
         }
 
         for (auto it = inc.inc.begin(s), ei = inc.inc.end(s); it < ei; ++it) {
@@ -394,33 +382,31 @@ namespace internal {
             if (static_cast<unsigned>(r) >= static_cast<unsigned>(k))
               continue;
 
-            ins(r, inc.slot(0, e) - off) = ins(r, inc.slot(1, e) - off) = false;
+            ins(inc.slot(0, e) - off, r) = ins(inc.slot(1, e) - off, r) = false;
           }
         }
 
         for (int r = 0; r < k; ++r)
-          sw.accessible[c0 + r] = !ins.row(r).any();
+          sw.accessible[c0 + r] = !ins.col(r).any();
       };
 
       auto solve = [&](int s) {
         const int off = caps.h.offset(s), m = caps.h.degree(s);
 
-        int ml = 0;
+        solver.begin(sa.sar[s]);
         for (int l = 0; l < m; ++l) {
           const int p = off + l;
-          const bool keep = !vis.hidden[p];
-          local_of[l] = keep ? ml : -1;
-          plist[ml] = p;
-          prob.axis.col(ml) = caps.axis.col(p);
-          prob.cosa[ml] = caps.cosa[p];
-          prob.sina[ml] = caps.sina[p];
-          ml += static_cast<int>(keep);
-        }
-        prob.radius = sa.sar[s];
-        prob.m = ml;
-        prob.k = 0;
-        prob.crossing.topLeftCorner(ml, ml).setConstant(false);
+          if (vis.hidden[p]) {
+            local_of[l] = -1;
+            continue;
+          }
 
+          local_of[l] =
+              solver.add_cap(caps.axis.col(p), caps.cosa[p], caps.sina[p]);
+          plist[local_of[l]] = p;
+        }
+
+        int k = 0;
         for (auto it = inc.inc.begin(s), ei = inc.inc.end(s); it < ei; ++it) {
           const int e = inc.inc.eid(it), t = *it / 3;
           const int la = local_of[inc.slot(0, e) - off],
@@ -428,7 +414,7 @@ namespace internal {
           if (la < 0 || lb < 0)
             continue;
 
-          prob.crossing(la, lb) = prob.crossing(lb, la) = true;
+          solver.add_crossing(la, lb);
           if (vis.active[t] == 0)
             continue;
 
@@ -436,24 +422,22 @@ namespace internal {
             const int cc = inc.tri[t].cluster[side];
             int v = vloc[cc];
             if (v < 0) {
-              v = vloc[cc] = prob.k;
-              vlist[prob.k++] = cc;
-              prob.excused.row(v).head(ml).setConstant(false);
+              v = vloc[cc] = solver.add_vertex(
+                  (cl.rep.col(cc) - sa.pts.col(s)).normalized(),
+                  sw.accessible[cc]);
+              vlist[k++] = cc;
             }
-            prob.excused(v, la) = prob.excused(v, lb) = true;
+            solver.add_incidence(la, v);
+            solver.add_incidence(lb, v);
           }
         }
 
-        for (int v = 0; v < prob.k; ++v) {
-          const int cc = vlist[v];
-          prob.reps.col(v) = (cl.rep.col(cc) - sa.pts.col(s)).normalized();
-          prob.accessible[v] = sw.accessible[cc];
-          vloc[cc] = -1;
-        }
-        vlist[prob.k] = nc;
+        for (int v = 0; v < k; ++v)
+          vloc[vlist[v]] = -1;
+        vlist[k] = nc;
 
         const int n0 = static_cast<int>(sw.arcs.size());
-        const double area = solve_arrangement(prob, sw.arcs);
+        const double area = solver.solve(sw.arcs);
 
         int w = n0;
         for (int r = n0; r < static_cast<int>(sw.arcs.size()); ++r) {
