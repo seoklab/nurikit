@@ -11,10 +11,12 @@
 #include <utility>
 
 #include <absl/log/absl_check.h>
+#include <absl/types/span.h>
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/molecule.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 namespace internal {
@@ -76,6 +78,55 @@ namespace internal {
 
   private:
     ArrayXi off_;
+  };
+
+  /**
+   * Union-find with path halving; the smaller root absorbs, so every root is
+   * the smallest member of its set.
+   */
+  class UnionFind {
+  public:
+    explicit UnionFind(int n): parent_(ArrayXi::LinSpaced(n, 0, n - 1)) { }
+
+    int find(int x) {
+      while (parent_[x] != x) {
+        parent_[x] = parent_[parent_[x]];
+        x = parent_[x];
+      }
+      return x;
+    }
+
+    void merge(int a, int b) {
+      auto [lo, hi] = nuri::minmax(find(a), find(b));
+      parent_[hi] = lo;
+    }
+
+    int n_sets() const {
+      int n = 0;
+      for (int x = 0; x < parent_.size(); ++x)
+        n += static_cast<int>(parent_[x] == x);
+      return n;
+    }
+
+    /**
+     * Relabel every element with its set id, numbered by smallest member;
+     * returns the number of sets.
+     */
+    int relabel() {
+      const int n = static_cast<int>(parent_.size());
+      for (int x = 0; x < n; ++x)
+        parent_[x] = find(x);
+
+      int k = 0;
+      for (int x = 0; x < n; ++x)
+        parent_[x] = parent_[x] == x ? k++ : parent_[parent_[x]];
+      return k;
+    }
+
+    ArrayXi &labels() { return parent_; }
+
+  private:
+    ArrayXi parent_;
   };
 
   class CSR {
@@ -204,37 +255,71 @@ namespace internal {
   extern SasGeometry build_sas(const SaPrep &sa);
 
   /**
-   * Caps on one sphere with the vertices where their circles cross: the
-   * first `m` caps and `k` vertices are live, the rest is capacity. Vertex
-   * `v` excuses the caps whose crossing points merged into it.
+   * Arrangement of caps on one sphere. Fill with `begin`, the `add_*` calls
+   * (ids are assigned in call order), then `solve`; buffers persist across
+   * problems.
    */
-  struct ArrangementProblem {
-    double radius;
-    int m, k;
-    Matrix3Xd axis;
-    ArrayXd cosa, sina;
-    ArrayXX<bool> crossing;
-    Matrix3Xd reps;
-    ArrayXX<bool> excused;
-    ArrayXb accessible;
+  class ArrangementSolver {
+  public:
+    /**
+     * Sizes every buffer once for at most `mcap` caps, `kcap` vertices and
+     * `ecap` crossing pairs per problem; a vertex may sit on both caps of a
+     * pair, so incidences are bounded by `4 ecap`.
+     */
+    ArrangementSolver(int mcap, int kcap, int ecap);
 
-    void reserve(int mcap, int kcap) {
-      axis.resize(3, mcap);
-      cosa.resize(mcap);
-      sina.resize(mcap);
-      crossing.resize(mcap, mcap);
-      reps.resize(3, kcap);
-      excused.resize(kcap, mcap);
-      accessible.resize(kcap);
-    }
+    void begin(double radius);
+
+    int add_cap(const Vector3d &axis, double cosa, double sina);
+
+    int add_vertex(const Vector3d &rep, bool accessible);
+
+    void add_crossing(int a, int b) { edges_.push_back({ a, b }); }
+
+    void add_incidence(int cap, int v) { incs_.push_back({ cap, v }); }
+
+    /**
+     * Appends the accessible arcs: `circ` is the cap, `beg` and `end` the
+     * vertices, both `k` on a full circle. Returns the accessible area.
+     */
+    double solve(std::vector<SasArc> &arcs);
+
+  private:
+    struct RingVertex {
+      double phi;
+      int v;
+    };
+
+    struct Dart {
+      double angle, kappa;
+      int arc;
+      bool is_in;
+    };
+
+    double cap_arcs(std::vector<SasArc> &arcs,
+                    const E::Map<ArrayXX<bool>> &crossing);
+    std::pair<int, double> walk(const std::vector<SasArc> &arcs, int a0);
+    static void snap_ring(absl::Span<Dart> ring);
+
+    double radius_ = 0;
+    int m_ = 0, k_ = 0;
+
+    Matrix3Xd axis_, e1_, e2_;
+    ArrayXd cosa_, sina_;
+
+    Matrix3Xd reps_, ea_, eb_;
+    ArrayXb accessible_;
+
+    std::vector<std::pair<int, int>> edges_, incs_;
+
+    ArrayXX<bool> crossing_;
+    OffsetTable off_;
+    ArrayXi order_, succ_;
+    ArrayXb seen_;
+    std::vector<int> keys_;
+    std::vector<RingVertex> ring_;
+    std::vector<Dart> darts_, dring_;
   };
-
-  /**
-   * Appends the accessible arcs: `circ` is the cap, `beg` and `end` the
-   * vertices, both `k` on a full circle. Returns the accessible area.
-   */
-  extern double solve_arrangement(const ArrangementProblem &prob,
-                                  std::vector<SasArc> &arcs);
 }  // namespace internal
 
 template <class Key, class Map>

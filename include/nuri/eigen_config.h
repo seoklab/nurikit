@@ -137,6 +137,13 @@ auto vector_cast(T &&data) {
   return result;
 }
 
+template <class ML>
+auto take_buffer(ML &buf, int rows, int cols) {
+  return E::Map<internal::const_if_t<
+      std::is_const_v<std::remove_pointer_t<decltype(buf.data())>>,
+      std::decay_t<ML>>>(buf.data(), rows, cols);
+}
+
 //! @publicsection
 
 /**
