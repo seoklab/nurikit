@@ -236,7 +236,7 @@ namespace internal {
   struct SasProbes {
     CSR atoms;
     Matrix3Xd pos, tan;
-    ArrayXi tan_off;
+    OffsetTable tan_off;
     int n_active;
   };
 
