@@ -93,41 +93,10 @@ namespace internal {
     };
 
     struct Incidences {
+      std::vector<Triple> tri;
       CSR inc;
       Array2Xi slot;
     };
-
-    double triple_h2(const Vector3d &wijk, const Vector3d &aij, double rij,
-                     double rk) {
-      const double wa = wijk.dot(aij), w2 = wijk.squaredNorm();
-      const double amp2 = w2 - wa * wa;
-      const double gk = (rk * rk - w2 - rij * rij) / (2 * rij);
-      return amp2 - gk * gk;
-    }
-
-    std::vector<Triple> triples(const SaPrep &sa,
-                                const std::vector<SasCircle> &circ) {
-      std::vector<Triple> result;
-
-      sa.g.for_each_triangle(
-          sa.n_enum,
-          [&](int i, int j, int k, auto pij, auto pik, auto pjk) {
-            const int qij = sa.g.eid(pij), qik = sa.g.eid(pik),
-                      qjk = sa.g.eid(pjk);
-            const SasCircle &cij = circ[qij];
-            const double h2 = triple_h2(cij.cntr - sa.pts.col(k), cij.axis,
-                                        cij.rl, sa.sar[k]);
-            if (h2 > 0) {
-              result.push_back({
-                  {   i,   j,   k },
-                  { qij, qik, qjk },
-              });
-            }
-          },
-          [](int /* i */) { });
-
-      return result;
-    }
 
     constexpr int kOtherPair[3][2] = {
       { 0, 1 },
@@ -140,17 +109,44 @@ namespace internal {
       { 1, 1 }
     };
 
-    Incidences incidences(const std::vector<Triple> &tri,
-                          const ArrayXi &slot_of, const int n_enum) {
+    double triple_h2(const Vector3d &wijk, const Vector3d &aij, double rij,
+                     double rk) {
+      const double wa = wijk.dot(aij), w2 = wijk.squaredNorm();
+      const double amp2 = w2 - wa * wa;
+      const double gk = (rk * rk - w2 - rij * rij) / (2 * rij);
+      return amp2 - gk * gk;
+    }
+
+    Incidences incidences(const SaPrep &sa, const std::vector<SasCircle> &circ,
+                          const ArrayXi &slot_of) {
+      std::vector<Triple> tri;
+
+      sa.g.for_each_triangle(
+          sa.n_enum,
+          [&](int i, int j, int k, auto pij, auto pik, auto pjk) {
+            const int qij = sa.g.eid(pij), qik = sa.g.eid(pik),
+                      qjk = sa.g.eid(pjk);
+            const SasCircle &cij = circ[qij];
+            const double h2 = triple_h2(cij.cntr - sa.pts.col(k), cij.axis,
+                                        cij.rl, sa.sar[k]);
+            if (h2 > 0) {
+              tri.push_back({
+                  {   i,   j,   k },
+                  { qij, qik, qjk },
+              });
+            }
+          },
+          [](int /* i */) { });
+
       const int nt = static_cast<int>(tri.size());
 
       ArrayXi key(3L * nt);
       for (int t = 0; t < nt; ++t)
-        key.segment(3L * t, 3) = tri[t].ijk.min(n_enum);
+        key.segment(3L * t, 3) = tri[t].ijk.min(sa.n_enum);
 
-      ArrayXi adj(3L * nt), off(n_enum + 1);
+      ArrayXi adj(3L * nt), off(sa.n_enum + 1);
       argsort_bucket(adj, off, key);
-      const int m = off[n_enum];
+      const int m = off[sa.n_enum];
       adj.conservativeResize(m);
 
       Array2Xi slot(2, m);
@@ -165,16 +161,74 @@ namespace internal {
         }
       }
 
-      return { CSR(std::move(adj), std::move(off)), std::move(slot) };
+      return { std::move(tri), CSR(std::move(adj), std::move(off)),
+               std::move(slot) };
+    }
+
+    struct CapVisibility {
+      ArrayXb hidden;
+      ArrayXb covered;
+      ArrayXi active;
+    };
+
+    CapVisibility hide_caps(const SaPrep &sa, const SasCaps &caps,
+                            const Incidences &inc) {
+      const int n_t = static_cast<int>(inc.tri.size()), n_enum = sa.n_enum,
+                n_solve = sa.n_solve, dmax = caps.h.max_deg();
+
+      CapVisibility vis { ArrayXb(caps.h.m()), ArrayXb(n_solve),
+                          ArrayXi::Ones(n_t) };
+      MatrixXd cosg(dmax, dmax);
+      ArrayXX<bool> crossing(dmax, dmax);
+
+      auto classify = [&](int s) {
+        const int off = caps.h.offset(s), m = caps.h.degree(s);
+        auto ax = caps.axis.middleCols(off, m);
+        auto c = caps.cosa.segment(off, m);
+        auto hidden = vis.hidden.segment(off, m);
+
+        cosg.topLeftCorner(m, m).noalias() = ax.transpose() * ax;
+        crossing.topLeftCorner(m, m).setConstant(false);
+        for (auto it = inc.inc.begin(s), ei = inc.inc.end(s); it < ei; ++it) {
+          const int e = inc.inc.eid(it), a = inc.slot(0, e) - off,
+                    b = inc.slot(1, e) - off;
+          crossing(a, b) = crossing(b, a) = true;
+        }
+
+        bool covered = false;
+        for (int j = 0; j < m; ++j) {
+          bool hid = false;
+          for (int k = 0; k < m; ++k) {
+            const bool nested = cosg(j, k) > c[j] * c[k] && !crossing(j, k);
+            hid |= nested && c[j] > c[k];
+            covered |= !nested && !crossing(j, k) && c[j] + c[k] < 0;
+          }
+          hidden[j] = hid;
+        }
+
+        for (auto it = inc.inc.begin(s), ei = inc.inc.end(s); it < ei; ++it) {
+          const int e = inc.inc.eid(it), t = *it / 3;
+          vis.active[t] &= static_cast<int>(!vis.hidden[inc.slot(0, e)]
+                                            && !vis.hidden[inc.slot(1, e)]);
+        }
+
+        return covered;
+      };
+
+      for (int s = 0; s < n_solve; ++s)
+        vis.covered[s] = classify(s);
+      for (int s = n_solve; s < n_enum; ++s)
+        classify(s);
+
+      return vis;
     }
   }  // namespace
 
   SasGeometry build_sas(const SaPrep &sa) {
     std::vector circ = circles(sa);
     auto [caps, slot_of] = cap_rows(sa, circ);
-
-    std::vector tri = triples(sa, circ);
-    Incidences inc = incidences(tri, slot_of, sa.n_enum);
+    Incidences inc = incidences(sa, circ, slot_of);
+    CapVisibility vis = hide_caps(sa, caps, inc);
 
     return SasGeometry {};
   }
