@@ -271,6 +271,30 @@ auto argpartition(const Container &container, int count, Comp op = {}) {
   return idxs;
 }
 
+template <class Offset, class Key, class Map>
+// NOLINTNEXTLINE(*-missing-std-forward)
+void argsort_bucket(ArrayXi &idxs, Offset &&off, const Key &key,
+                    const Map &map) {
+  ABSL_DCHECK_GE(idxs.size(), key.size());
+
+  const int m = static_cast<int>(key.size());
+
+  off.setZero();
+  for (int k = 0; k < m; ++k)
+    ++off[key[k]];
+  std::inclusive_scan(off.begin(), off.end(), off.begin());
+
+  for (int p = m - 1; p >= 0; --p) {
+    int k = map(p);
+    idxs[--off[key[k]]] = k;
+  }
+}
+
+template <class Offset, class Key>
+void argsort_bucket(ArrayXi &idxs, Offset &&off, const Key &key) {
+  argsort_bucket(idxs, std::forward<Offset>(off), key, [](int p) { return p; });
+}
+
 template <class Container>
 void mask_to_map(Container &mask) {
   typename Container::value_type idx = 0;
