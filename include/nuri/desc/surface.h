@@ -102,6 +102,10 @@ namespace internal {
       }
     }
 
+    ArrayXi &adj() { return adj_; }
+
+    ArrayXi &off() { return off_; }
+
   private:
     ArrayXi adj_;
     ArrayXi off_;
