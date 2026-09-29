@@ -85,11 +85,96 @@ namespace internal {
       }
       return { std::move(caps), std::move(key) };
     }
+
+    struct Triple {
+      Array3i ijk;
+      Array3i q;
+      E::Array2i cluster = E::Array2i::Constant(-1);
+    };
+
+    struct Incidences {
+      CSR inc;
+      Array2Xi slot;
+    };
+
+    double triple_h2(const Vector3d &wijk, const Vector3d &aij, double rij,
+                     double rk) {
+      const double wa = wijk.dot(aij), w2 = wijk.squaredNorm();
+      const double amp2 = w2 - wa * wa;
+      const double gk = (rk * rk - w2 - rij * rij) / (2 * rij);
+      return amp2 - gk * gk;
+    }
+
+    std::vector<Triple> triples(const SaPrep &sa,
+                                const std::vector<SasCircle> &circ) {
+      std::vector<Triple> result;
+
+      sa.g.for_each_triangle(
+          sa.n_enum,
+          [&](int i, int j, int k, auto pij, auto pik, auto pjk) {
+            const int qij = sa.g.eid(pij), qik = sa.g.eid(pik),
+                      qjk = sa.g.eid(pjk);
+            const SasCircle &cij = circ[qij];
+            const double h2 = triple_h2(cij.cntr - sa.pts.col(k), cij.axis,
+                                        cij.rl, sa.sar[k]);
+            if (h2 > 0) {
+              result.push_back({
+                  {   i,   j,   k },
+                  { qij, qik, qjk },
+              });
+            }
+          },
+          [](int /* i */) { });
+
+      return result;
+    }
+
+    constexpr int kOtherPair[3][2] = {
+      { 0, 1 },
+      { 0, 2 },
+      { 1, 2 }
+    };
+    constexpr int kOtherSide[3][2] = {
+      { 0, 0 },
+      { 1, 0 },
+      { 1, 1 }
+    };
+
+    Incidences incidences(const std::vector<Triple> &tri,
+                          const ArrayXi &slot_of, const int n_enum) {
+      const int nt = static_cast<int>(tri.size());
+
+      ArrayXi key(3L * nt);
+      for (int t = 0; t < nt; ++t)
+        key.segment(3L * t, 3) = tri[t].ijk.min(n_enum);
+
+      ArrayXi adj(3L * nt), off(n_enum + 1);
+      argsort_bucket(adj, off, key);
+      const int m = off[n_enum];
+      adj.conservativeResize(m);
+
+      Array2Xi slot(2, m);
+      for (int e = 0; e < m; ++e) {
+        const int t = adj[e] / 3, corner = adj[e] % 3;
+        const Array3i &q = tri[t].q;
+        for (int c = 0; c < 2; ++c) {
+          const int s =
+              slot_of[2L * q[kOtherPair[corner][c]] + kOtherSide[corner][c]];
+          ABSL_DCHECK_GE(s, 0);
+          slot(c, e) = s;
+        }
+      }
+
+      return { CSR(std::move(adj), std::move(off)), std::move(slot) };
+    }
   }  // namespace
 
   SasGeometry build_sas(const SaPrep &sa) {
-    std::vector<SasCircle> circ = circles(sa);
+    std::vector circ = circles(sa);
     auto [caps, slot_of] = cap_rows(sa, circ);
+
+    std::vector tri = triples(sa, circ);
+    Incidences inc = incidences(tri, slot_of, sa.n_enum);
 
     return SasGeometry {};
   }
