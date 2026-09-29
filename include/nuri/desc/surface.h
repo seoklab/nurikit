@@ -6,8 +6,12 @@
 #ifndef NURI_DESC_SURFACE_H_
 #define NURI_DESC_SURFACE_H_
 
+#include <cmath>
 #include <optional>
 #include <utility>
+
+#include <absl/log/absl_check.h>
+#include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/molecule.h"
@@ -101,6 +105,44 @@ namespace internal {
 
   extern std::optional<SaPrep> prepare(const Matrix3Xd &pts, const ArrayXd &sar,
                                        const ArrayXb &active, double rp);
+
+  struct SasCircle {
+    Vector3d axis, cntr;
+    double a, rl;
+    int i, j;
+  };
+
+  struct SasArc {
+    double dphi;
+    int circ, beg, end;
+  };
+
+  struct SasCaps {
+    CSR h;
+    Matrix3Xd axis;
+    ArrayXd cosa, sina;
+  };
+
+  struct SasProbes {
+    CSR atoms;
+    Matrix3Xd pos, tan;
+    ArrayXi tan_off;
+    int n_active;
+  };
+
+  struct SasGeometry {
+    std::vector<SasCircle> circles;
+
+    SasCaps caps;
+    SasProbes probes;
+
+    std::vector<SasArc> arcs;
+    int n_active_arcs;
+
+    ArrayXd area;
+  };
+
+  extern SasGeometry build_sas(const SaPrep &sa);
 }  // namespace internal
 }  // namespace nuri
 

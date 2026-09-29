@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include <numeric>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -21,31 +20,6 @@
 namespace nuri {
 namespace internal {
   namespace {
-    template <class Offset, class Key, class Map>
-    // NOLINTNEXTLINE(*-missing-std-forward)
-    void argsort_bucket(ArrayXi &idxs, Offset &&off, const Key &key,
-                        const Map &map) {
-      ABSL_DCHECK_GE(idxs.size(), key.size());
-
-      const int m = static_cast<int>(key.size());
-
-      off.setZero();
-      for (int k = 0; k < m; ++k)
-        ++off[key[k]];
-      std::inclusive_scan(off.begin(), off.end(), off.begin());
-
-      for (int p = m - 1; p >= 0; --p) {
-        int k = map(p);
-        idxs[--off[key[k]]] = k;
-      }
-    }
-
-    template <class Offset, class Key>
-    void argsort_bucket(ArrayXi &idxs, Offset &&off, const Key &key) {
-      argsort_bucket(idxs, std::forward<Offset>(off), key,
-                     [](int p) { return p; });
-    }
-
     struct NearPairs {
       /*  n_over */
       CSR g;
