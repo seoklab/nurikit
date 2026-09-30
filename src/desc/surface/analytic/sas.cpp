@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <numeric>
+#include <utility>
 #include <vector>
 
 #include "nuri/eigen_config.h"
@@ -42,6 +43,11 @@ namespace internal {
       return result;
     }
 
+    struct CapRows {
+      SasCaps caps;
+      ArrayXi slot_of;
+    };
+
     int icirc(int tag) {
       return tag >> 1;
     }
@@ -50,11 +56,10 @@ namespace internal {
       return tag & 1;
     }
 
-    std::pair<SasCaps, ArrayXi> cap_rows(const SaPrep &sa,
-                                         const std::vector<SasCircle> &circ) {
+    CapRows cap_rows(const SaPrep &sa, const std::vector<SasCircle> &circ) {
       const int n_enum = sa.n_enum, n_circ = static_cast<int>(circ.size());
 
-      ArrayXi key(2L * sa.g.m());
+      ArrayXi key(2L * n_circ);
       for (int q = 0; q < n_circ; ++q) {
         key[2L * q] = circ[q].i;
         // n_enum = drop bucket
@@ -183,19 +188,19 @@ namespace internal {
                std::move(slot) };
     }
 
-    struct CapVisibility {
-      ArrayXb hidden;
+    struct CapClasses {
+      ArrayXi kept;
       ArrayXb covered;
       ArrayXi active;
     };
 
-    CapVisibility hide_caps(const SaPrep &sa, const SasCaps &caps,
-                            const Incidences &inc) {
+    CapClasses classify_caps(const SaPrep &sa, const SasCaps &caps,
+                             const Incidences &inc) {
       const int n_t = static_cast<int>(inc.tri.size()), n_enum = sa.n_enum,
                 n_solve = sa.n_solve, dmax = caps.h.max_deg();
 
-      CapVisibility vis { ArrayXb(caps.h.m()), ArrayXb(n_solve),
-                          ArrayXi::Ones(n_t) };
+      CapClasses cls { ArrayXi(caps.h.m()), ArrayXb(n_solve),
+                       ArrayXi::Ones(n_t) };
       MatrixXd cosg_buf(dmax, dmax);
       ArrayXX<bool> crossing_buf(dmax, dmax);
 
@@ -203,7 +208,7 @@ namespace internal {
         const int off = caps.h.offset(s), m = caps.h.degree(s);
         auto ax = caps.axis.middleCols(off, m);
         auto c = caps.cosa.segment(off, m);
-        auto hidden = vis.hidden.segment(off, m);
+        auto kept = cls.kept.segment(off, m);
 
         auto cosg = take_buffer(cosg_buf, m, m);
         auto crossing = take_buffer(crossing_buf, m, m);
@@ -223,24 +228,96 @@ namespace internal {
             hid |= nested && c[j] > c[k];
             covered |= !nested && !crossing(j, k) && c[j] + c[k] < 0;
           }
-          hidden[j] = hid;
+          kept[j] = value_if(!hid);
         }
 
         for (auto it = inc.inc.begin(s), ei = inc.inc.end(s); it < ei; ++it) {
           const int e = inc.inc.eid(it), t = *it / 3;
-          vis.active[t] &= static_cast<int>(!vis.hidden[inc.slot(0, e)]
-                                            && !vis.hidden[inc.slot(1, e)]);
+          cls.active[t] &= cls.kept[inc.slot(0, e)] & cls.kept[inc.slot(1, e)];
         }
 
         return covered;
       };
 
       for (int s = 0; s < n_solve; ++s)
-        vis.covered[s] = classify(s);
+        cls.covered[s] = classify(s);
       for (int s = n_solve; s < n_enum; ++s)
         classify(s);
 
-      return vis;
+      return cls;
+    }
+
+    /**
+     * What an incidence still contributes on its sphere once hidden caps are
+     * gone; the classes nest, so every reader takes a `[kIncOwner, x]` range.
+     */
+    enum IncClass : int {
+      kIncOwner = 0,
+      kIncVertex = 1,
+      kIncEdge = 2,
+    };
+
+    constexpr IncClass kIncClassMap[2][2] = {
+      {  kIncEdge,   kIncEdge },
+      { kIncOwner, kIncVertex },
+    };
+
+    Incidences compact_caps(SasCaps &caps, Incidences &&inc, ArrayXi &&kept,
+                            const ArrayXi &active, const int n_enum) {
+      ArrayXi newpos = std::move(kept);
+
+      ArrayXi &off = caps.h.off(), &tags = caps.h.adj();
+      int w = 0;
+      for (int s = 0; s < n_enum; ++s) {
+        const int beg = off[s], end = off[s + 1];
+        off[s] = w;
+        for (int p = beg; p < end; ++p) {
+          const bool keep = newpos[p] != 0;
+          newpos[p] = keep ? w : -1;
+          if (!keep)
+            continue;
+
+          tags[w] = tags[p];
+          caps.axis.col(w) = caps.axis.col(p);
+          caps.cosa[w] = caps.cosa[p];
+          caps.sina[w] = caps.sina[p];
+          ++w;
+        }
+      }
+      off[n_enum] = w;
+      tags.conservativeResize(w);
+      caps.axis.conservativeResize(3, w);
+      caps.cosa.conservativeResize(w);
+      caps.sina.conservativeResize(w);
+
+      const int m = inc.inc.m(), drop = 3 * n_enum;
+      ArrayXi key(m);
+      for (int s = 0; s < n_enum; ++s) {
+        for (auto it = inc.inc.begin(s), ei = inc.inc.end(s); it < ei; ++it) {
+          const int e = inc.inc.eid(it), t = *it / 3, corner = *it % 3;
+          const bool keep = newpos[inc.slot(0, e)] >= 0
+                            && newpos[inc.slot(1, e)] >= 0;
+          const auto cls = kIncClassMap[active[t]][corner != 0];
+          key[e] = keep ? 3 * s + cls : drop;
+        }
+      }
+
+      ArrayXi order(m);
+      OffsetTable coff(drop);
+      argsort_bucket(order, coff, key);
+      const int mk = coff[drop];
+
+      ArrayXi adj(mk);
+      Array2Xi slot(2, mk);
+      for (int f = 0; f < mk; ++f) {
+        const int e = order[f];
+        adj[f] = inc.inc.adj()[e];
+        slot(0, f) = newpos[inc.slot(0, e)];
+        slot(1, f) = newpos[inc.slot(1, e)];
+      }
+
+      return { std::move(inc.tri), CSR(std::move(adj), std::move(coff)),
+               std::move(slot) };
     }
 
     struct Vertices {
@@ -368,39 +445,39 @@ namespace internal {
     };
 
     Sweep sweep_spheres(const SaPrep &sa, const SasCaps &caps,
-                        const Incidences &inc, const CapVisibility &vis,
+                        const Incidences &inc, const ArrayXb &covered,
                         const Clusters &cl) {
       const int n_enum = sa.n_enum, nc = cl.own_off.offset(n_enum),
-                dmax = caps.h.max_deg(), vmax = 2 * inc.inc.max_deg(),
-                omax = cl.own_off.max_deg();
+                dmax = caps.h.max_deg(),
+                imax = (inc.inc.off()(E::seqN(3, n_enum, 3))
+                        - inc.inc.off()(E::seqN(0, n_enum, 3)))
+                           .maxCoeff(),
+                vmax = 2 * imax, omax = cl.own_off.max_deg();
 
       Sweep sw { ArrayXi::Zero(nc + 1), {}, 0, ArrayXd(sa.n_solve) };
 
       ArrayXX<bool> inside(dmax, omax);
 
-      ArrangementSolver solver(dmax, vmax, inc.inc.max_deg());
-      ArrayXi local_of(dmax), plist(dmax), vlist(vmax + 1),
-          vloc = ArrayXi::Constant(nc, -1);
+      ArrangementSolver solver(dmax, vmax, imax);
+      ArrayXi vlist(vmax + 1), vloc = ArrayXi::Constant(nc, -1);
 
       auto decide = [&](int s) {
         const int off = caps.h.offset(s), m = caps.h.degree(s),
                   c0 = cl.own_off.offset(s), k = cl.own_off.degree(s);
         auto ax = caps.axis.middleCols(off, m);
         auto c = caps.cosa.segment(off, m);
-        auto hid = vis.hidden.segment(off, m);
         auto ins = take_buffer(inside, m, k);
 
         for (int r = 0; r < k; ++r) {
           const Vector3d dir =
               (cl.rep.col(c0 + r) - sa.pts.col(s)).normalized();
-          ins.col(r) = (ax.transpose() * dir).array() > c && !hid;
+          ins.col(r) = (ax.transpose() * dir).array() > c;
         }
 
-        for (auto it = inc.inc.begin(s), ei = inc.inc.end(s); it < ei; ++it) {
-          const int e = inc.inc.eid(it), t = *it / 3, corner = *it % 3;
-          if (corner != 0 || vis.active[t] == 0)
-            continue;
-
+        for (auto it = inc.inc.begin(3 * s + kIncOwner),
+                  ei = inc.inc.end(3 * s + kIncOwner);
+             it < ei; ++it) {
+          const int e = inc.inc.eid(it), t = *it / 3;
           for (int side = 0; side < 2; ++side) {
             const int r = inc.tri[t].cluster[side] - c0;
             if (static_cast<unsigned>(r) >= static_cast<unsigned>(k))
@@ -418,30 +495,22 @@ namespace internal {
         const int off = caps.h.offset(s), m = caps.h.degree(s);
 
         solver.begin(sa.sar[s]);
-        for (int l = 0; l < m; ++l) {
-          const int p = off + l;
-          if (vis.hidden[p]) {
-            local_of[l] = -1;
-            continue;
-          }
+        for (int p = off; p < off + m; ++p)
+          solver.add_cap(caps.axis.col(p), caps.cosa[p], caps.sina[p]);
 
-          local_of[l] =
-              solver.add_cap(caps.axis.col(p), caps.cosa[p], caps.sina[p]);
-          plist[local_of[l]] = p;
+        for (auto it = inc.inc.begin(3 * s + kIncOwner),
+                  ei = inc.inc.end(3 * s + kIncEdge);
+             it < ei; ++it) {
+          const int e = inc.inc.eid(it);
+          solver.add_crossing(inc.slot(0, e) - off, inc.slot(1, e) - off);
         }
 
         int k = 0;
-        for (auto it = inc.inc.begin(s), ei = inc.inc.end(s); it < ei; ++it) {
+        for (auto it = inc.inc.begin(3 * s + kIncOwner),
+                  ei = inc.inc.end(3 * s + kIncVertex);
+             it < ei; ++it) {
           const int e = inc.inc.eid(it), t = *it / 3;
-          const int la = local_of[inc.slot(0, e) - off],
-                    lb = local_of[inc.slot(1, e) - off];
-          if (la < 0 || lb < 0)
-            continue;
-
-          solver.add_crossing(la, lb);
-          if (vis.active[t] == 0)
-            continue;
-
+          const int la = inc.slot(0, e) - off, lb = inc.slot(1, e) - off;
           for (int side = 0; side < 2; ++side) {
             const int cc = inc.tri[t].cluster[side];
             int v = vloc[cc];
@@ -466,7 +535,7 @@ namespace internal {
         int w = n0;
         for (int r = n0; r < static_cast<int>(sw.arcs.size()); ++r) {
           SasArc &arc = sw.arcs[r];
-          const int tag = caps.h.adj()[plist[arc.circ]];
+          const int tag = caps.h.adj()[off + arc.circ];
           arc.circ = icirc(tag);
           arc.beg = vlist[arc.beg];
           arc.end = vlist[arc.end];
@@ -480,7 +549,7 @@ namespace internal {
 
       auto visit = [&](int s) {
         decide(s);
-        sw.area[s] = vis.covered[s] ? 0.0 : solve(s);
+        sw.area[s] = covered[s] ? 0.0 : solve(s);
       };
 
       for (int s = 0; s < sa.n_active; ++s)
@@ -559,19 +628,21 @@ namespace internal {
 
   SasGeometry build_sas(const SaPrep &sa) {
     if (sa.n_enum == 0)
-      return SasGeometry {};
+      return {};
 
     std::vector circ = circles(sa);
-    auto [caps, slot_of] = cap_rows(sa, circ);
-    Incidences inc = incidences(sa, circ, slot_of);
-    CapVisibility vis = hide_caps(sa, caps, inc);
-    Vertices vtx = vertex_points(sa, circ, inc.tri, vis.active);
+    CapRows rows = cap_rows(sa, circ);
+    Incidences raw = incidences(sa, circ, rows.slot_of);
+    CapClasses cls = classify_caps(sa, rows.caps, raw);
+    Incidences inc = compact_caps(rows.caps, std::move(raw),
+                                  std::move(cls.kept), cls.active, sa.n_enum);
+    Vertices vtx = vertex_points(sa, circ, inc.tri, cls.active);
     Clusters cl = cluster_vertices(vtx, inc.tri, sa.n_enum);
-    Sweep sw = sweep_spheres(sa, caps, inc, vis, cl);
+    Sweep sw = sweep_spheres(sa, rows.caps, inc, cls.covered, cl);
     SasProbes pr = probes(circ, cl, sw, sa.n_active);
 
-    return { std::move(circ),    std::move(caps),  std::move(pr),
-             std::move(sw.arcs), sw.n_active_arcs, std::move(sw.area) };
+    return { std::move(circ),    std::move(rows.caps), std::move(pr),
+             std::move(sw.arcs), sw.n_active_arcs,     std::move(sw.area) };
   }
 }  // namespace internal
 }  // namespace nuri
