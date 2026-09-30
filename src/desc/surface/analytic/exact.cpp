@@ -13,12 +13,13 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <cstdint>
 #include <utility>
 
 #include <absl/base/attributes.h>
 #include <absl/log/absl_check.h>
+#include <boost/multiprecision/cpp_int.hpp>
 #include <Eigen/Dense>
-#include <geogram/basic/numeric.h>
 #include <geogram/numerics/multi_precision.h>
 
 #include "nuri/eigen_config.h"
@@ -27,8 +28,6 @@
 namespace nuri {
 namespace internal {
   namespace {
-    using GEO::expansion;
-
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
     std::atomic<bool> g_force_exact { false };
 
@@ -65,6 +64,8 @@ namespace internal {
       return { -a.v, a.e };
     }
     int sgn(Fx a) {
+      if (a.e <= 0)
+        return static_cast<int>(a.v > 0) - static_cast<int>(a.v < 0);
       if (a.v > 2 * a.e)
         return 1;
       if (a.v < -2 * a.e)
@@ -73,65 +74,62 @@ namespace internal {
     }
 
     /**
-     * Owning wrapper of a heap expansion; every result is compressed so
-     * lengths grow with the algebraic degree, not exponentially.
+     * Exact dyadic number `m · 2^e`: every double is one, sums and products
+     * stay exact, and no exponent range limits them (expansion arithmetic
+     * underflows on degree-20 polynomials of rounded-zero coordinates).
      */
     class Xp {
     public:
-      Xp(): Xp(0.0) { }
-      explicit Xp(double d): e_(alloc(1)) { e_->assign(d); }
-      Xp(const Xp &o): e_(alloc(o.e_->length())) { e_->assign(*o.e_); }
-      Xp(Xp &&o) noexcept: e_(o.e_) { o.e_ = nullptr; }
-      Xp &operator=(const Xp &o) {
-        if (this != &o) {
-          Xp tmp(o);
-          std::swap(e_, tmp.e_);
-        }
-        return *this;
-      }
-      Xp &operator=(Xp &&o) noexcept {
-        std::swap(e_, o.e_);
-        return *this;
-      }
-      ~Xp() {
-        if (e_ != nullptr)
-          expansion::delete_expansion_on_heap(e_);
+      Xp(): m_(0), e_(0) { }
+
+      explicit Xp(double d) {
+        int exp = 0;
+        const double fr = std::frexp(d, &exp);
+        m_ = static_cast<std::int64_t>(std::ldexp(fr, 53));
+        e_ = exp - 53;
+        strip();
       }
 
       friend Xp operator+(const Xp &a, const Xp &b) {
-        Xp r(expansion::sum_capacity(*a.e_, *b.e_));
-        r.e_->assign_sum(*a.e_, *b.e_);
-        r.e_->optimize();
+        Xp r;
+        r.e_ = std::min(a.e_, b.e_);
+        r.m_ = (a.m_ << (a.e_ - r.e_)) + (b.m_ << (b.e_ - r.e_));
+        r.strip();
         return r;
       }
       friend Xp operator-(const Xp &a, const Xp &b) {
-        Xp r(expansion::diff_capacity(*a.e_, *b.e_));
-        r.e_->assign_diff(*a.e_, *b.e_);
-        r.e_->optimize();
+        Xp r;
+        r.e_ = std::min(a.e_, b.e_);
+        r.m_ = (a.m_ << (a.e_ - r.e_)) - (b.m_ << (b.e_ - r.e_));
+        r.strip();
         return r;
       }
       friend Xp operator*(const Xp &a, const Xp &b) {
-        Xp r(expansion::product_capacity(*a.e_, *b.e_));
-        r.e_->assign_product(*a.e_, *b.e_);
-        r.e_->optimize();
+        Xp r;
+        r.m_ = a.m_ * b.m_;
+        r.e_ = a.e_ + b.e_;
         return r;
       }
       friend Xp operator-(const Xp &a) {
         Xp r(a);
-        r.e_->negate();
+        r.m_ = -r.m_;
         return r;
       }
-      friend int sgn(const Xp &a) { return static_cast<int>(a.e_->sign()); }
+      friend int sgn(const Xp &a) { return a.m_.sign(); }
 
     private:
-      explicit Xp(GEO::index_t capa): e_(alloc(capa)) { }
-
-      static expansion *alloc(GEO::index_t capa) {
-        return expansion::new_expansion_on_heap(
-            std::max<GEO::index_t>(capa, 1));
+      void strip() {
+        if (m_.is_zero()) {
+          e_ = 0;
+          return;
+        }
+        const auto lsb = boost::multiprecision::lsb(abs(m_));
+        m_ >>= lsb;
+        e_ += static_cast<int>(lsb);
       }
 
-      expansion *e_;
+      boost::multiprecision::cpp_int m_;
+      int e_;
     };
 
     /**
@@ -479,6 +477,11 @@ namespace internal {
   }  // namespace
 
   namespace {
+    /**
+     * `T = ρ_a² + ρ_b² − d²`: overlap iff `T ≥ 0` or `4 ρ_a² ρ_b² − T² > 0`.
+     * A tangency is a tie that the perturbation resolves to an overlap: both
+     * radii grow.
+     */
     Sgn overlap_impl(const Data &d, const int a, const int b) {
       auto stage = [&](auto ctx) {
         using T = typename decltype(ctx)::Scalar;
@@ -578,6 +581,59 @@ namespace internal {
         kernel, { { a, b, c }, 3 });
   }
 
+  namespace {
+    /**
+     * Three signs from one face kernel relative to `s`: the discriminant of
+     * the triple and `π_l` on circle `(s, j)`, `π_j` on circle `(s, l)`.
+     */
+    template <class T>
+    std::array<Root<T>, 3> disc_roots(const Ctx<T> &ctx, int s, int j, int l) {
+      const Face<T> fc = face(ctx, { s, j, l });
+      const T zero = lit<T>(0.0);
+      const T mu2 = fc.gcc * fc.vb - fc.gbc * fc.vc;
+      return {
+        Root<T> { fc.disc, zero, zero },
+         Root<T> {   fc.mu, zero, zero },
+        Root<T> {     mu2, zero, zero }
+      };
+    }
+
+    /**
+     * Intersect iff cut, else iff one circle is inside the other's ball; a
+     * sign that stays unknown or ties is delegated to the exact predicates.
+     */
+    template <class T>
+    int disc_decision(const std::array<Root<T>, 3> &r) {
+      const int cut = sign_root(r[0]);
+      if (cut == kUnknown || cut == 0)
+        return kUnknown;
+      if (cut > 0)
+        return 1;
+
+      const int s1 = sign_root(r[1]), s2 = sign_root(r[2]);
+      if (s1 == -1 || s2 == -1)
+        return 1;
+      if (s1 == 1 && s2 == 1)
+        return -1;
+      return kUnknown;
+    }
+  }  // namespace
+
+  ABSL_ATTRIBUTE_NOINLINE bool
+  SasExact::discs_intersect(const int s, const int j, const int l) const {
+    const Data d { &c_, &h_, w_ };
+    if (!g_force_exact.load(std::memory_order_relaxed)) {
+      const int r = disc_decision(disc_roots(Ctx<Fx> { d, -1 }, s, j, l));
+      if (r != kUnknown)
+        return r > 0;
+    }
+    const int r = disc_decision(disc_roots(Ctx<Xp> { d, -1 }, s, j, l));
+    if (r != kUnknown)
+      return r > 0;
+    return cuts({ s, j, l }) == Sgn::kPos || side(s, j, l) == Sgn::kNeg
+           || side(s, l, j) == Sgn::kNeg;
+  }
+
   ABSL_ATTRIBUTE_NOINLINE Sgn SasExact::accept(const SasFace f, const bool plus,
                                                const int l) const {
     auto kernel = [&](auto ctx) {
@@ -597,6 +653,14 @@ namespace internal {
         kernel, { { f.a, f.b, f.c, l }, 4 });
   }
 
+  /**
+   * Two evaluations of the same points: along the radical line,
+   * `x = c_a + y_⊥ ± (√D/|u|²) u`, stable for a tangent pair (`rl → 0`) but
+   * not for a third centre near the circle axis (`|u| → 0`); and on the
+   * circle, `x = cntr + (rl/amp²)(g w_⊥ ± √(amp² − g²) n × w_⊥)`, stable the
+   * other way round. The pair with the smaller on-sphere residual is
+   * returned; the root along `+u` is the plus root either way.
+   */
   ABSL_ATTRIBUTE_NOINLINE std::pair<Vector3d, Vector3d>
   SasExact::roots(const SasFace f) const {
     const Face<double> fc = face(
@@ -605,12 +669,39 @@ namespace internal {
             -1
     },
         f);
+    const Vector3d ca = c_.col(f.a), cc = c_.col(f.c);
+    const Vector3d db(fc.db.x, fc.db.y, fc.db.z), u(fc.u.x, fc.u.y, fc.u.z);
+
     const V3<double> xr = rational_root(fc);
-    const double s = std::sqrt(std::max(fc.disc, 0.0));
-    Vector3d p(xr.x, xr.y, xr.z), u(fc.u.x, fc.u.y, fc.u.z);
-    p /= fc.u2;
-    u *= s / fc.u2;
-    return { p + u, p - u };
+    const double sq = std::sqrt(std::max(fc.disc, 0.0)) / fc.u2;
+    const Vector3d p = Vector3d(xr.x, xr.y, xr.z) / fc.u2;
+    std::pair<Vector3d, Vector3d> line { p + sq * u, p - sq * u };
+
+    const Vector3d n = db.normalized();
+    const Vector3d cntr = ca + (fc.vb / fc.gbb) * db;
+    const double rl = std::sqrt(std::max(fc.ra - fc.vb * fc.vb / fc.gbb, 0.0));
+    const Vector3d w = cntr - cc, wperp = w - w.dot(n) * n;
+    const double amp2 = wperp.squaredNorm();
+    const double g = (rho2(f.c) - w.squaredNorm() - rl * rl) / (2 * rl);
+    const double scale = rl / amp2;
+    const Vector3d radial = scale * g * wperp,
+                   tangent = scale * std::sqrt(std::max(amp2 - g * g, 0.0))
+                             * n.cross(wperp);
+    const Vector3d xa = cntr + radial + tangent, xb = cntr + radial - tangent;
+    std::pair<Vector3d, Vector3d> circle =
+        tangent.dot(u) >= 0 ? std::pair { xa, xb } : std::pair { xb, xa };
+
+    auto residual = [&](const std::pair<Vector3d, Vector3d> &pr) {
+      double r = 0;
+      for (const int i: { f.a, f.b, f.c }) {
+        const Vector3d ci = c_.col(i);
+        const double r2 = rho2(i);
+        r += std::abs((pr.first - ci).squaredNorm() - r2)
+             + std::abs((pr.second - ci).squaredNorm() - r2);
+      }
+      return r;
+    };
+    return residual(circle) < residual(line) ? circle : line;
   }
 
   ABSL_ATTRIBUTE_NOINLINE int SasExact::half_plane(const int a, const int b,

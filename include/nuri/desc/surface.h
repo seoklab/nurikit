@@ -6,13 +6,12 @@
 #ifndef NURI_DESC_SURFACE_H_
 #define NURI_DESC_SURFACE_H_
 
-#include <array>
 #include <cmath>
 #include <optional>
 #include <utility>
 #include <vector>
 
-#include <absl/types/span.h>
+#include <absl/functional/function_ref.h>
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
@@ -273,6 +272,11 @@ namespace internal {
      */
     Sgn side(int a, int b, int c) const;
     /**
+     * Whether the discs of caps `j`, `l` on sphere `s` intersect: their
+     * circles cross, or one circle lies inside the other's ball.
+     */
+    bool discs_intersect(int s, int j, int l) const;
+    /**
      * `π_l(x) ≥ 0` for root `x` of face `f`: the cut point is not inside ball
      * `l`. Requires `cuts(f)` positive.
      */
@@ -351,8 +355,9 @@ namespace internal {
   };
 
   /**
-   * `phi` is measured in the circle frame `e1 = any_perpendicular(axis)`,
-   * `e2 = axis x e1`.
+   * `phi` is measured in the circle frame `e1 = normalize(d × e_k)`,
+   * `d = c_j − c_i`, `k = SasExact::reference_axis(d)`, `e2 = axis × e1`.
+   * `beg`, `end` are probes, both -1 for a full circle.
    */
   struct SasArc {
     double phi, dphi;
@@ -387,80 +392,68 @@ namespace internal {
   extern SasGeometry build_sas(const SaPrep &sa, const SasDelaunay &del);
 
   /**
-   * Arrangement of caps on one sphere. Fill with `begin`, the `add_*` calls
-   * (ids are assigned in call order), then `solve`; buffers persist across
-   * problems.
+   * Gauss–Bonnet area of one sphere from its caps and the accessible arcs on
+   * their circles. Fill with `begin`, `add_cap`, `add_vertex` and `add_arc`
+   * (ids are assigned in call order; an arc runs from `beg` to `end`, both -1
+   * for a full circle), then `solve`
+   * with the exact test whether two caps' discs intersect; buffers persist
+   * across problems.
    */
   class ArrangementSolver {
   public:
     /**
      * Sizes every buffer once for at most `mcap` caps, `kcap` vertices and
-     * `ecap` crossing pairs per problem; a vertex may sit on both caps of a
-     * pair, so incidences are bounded by `4 ecap`.
+     * `acap` arcs per problem.
      */
-    ArrangementSolver(int mcap, int kcap, int ecap);
+    ArrangementSolver(int mcap, int kcap, int acap);
 
     void begin(double radius);
 
-    int add_cap(const Vector3d &axis, double cosa, double sina);
+    int add_cap(double cosa);
 
-    int add_vertex(const Vector3d &rep, bool accessible);
-
-    void add_crossing(int a, int b) { edges_.push_back({ a, b }); }
-
-    void add_incidence(int cap, int v) { incs_.push_back({ cap, v }); }
+    int add_vertex(const Vector3d &dir);
 
     /**
-     * Both cut points of caps `a`, `b` merged into vertex `v`: the caps
-     * touch there instead of crossing.
+     * `tbeg` is the departing tangent at `beg`, `tend` the arriving tangent
+     * at `end`, both unit and consistent with the arc's own angles so that
+     * corners and arcs describe one closed curve even where the probe
+     * positions cannot resolve the circle.
      */
-    void add_pinch(int a, int b, int v) { pinches_.push_back({ v, a, b }); }
+    void add_arc(int cap, int beg, int end, double dphi, const Vector3d &tbeg,
+                 const Vector3d &tend) {
+      arcs_.push_back({ cap, beg, end, dphi, tbeg, tend });
+    }
 
-    /**
-     * Appends the accessible arcs: `circ` is the cap, `beg` and `end` the
-     * vertices, both `k` on a full circle, `phi` in the cap frame
-     * `e1 = any_perpendicular(axis)`, `e2 = axis x e1`. Returns the
-     * accessible area.
-     */
-    double solve(std::vector<SasArc> &arcs);
+    double solve(absl::FunctionRef<bool(int, int)> intersects);
 
   private:
-    struct RingVertex {
-      double phi;
-      int v;
+    struct Arc {
+      int cap, beg, end;
+      double dphi;
+      Vector3d tbeg, tend;
     };
 
     struct Dart {
-      double angle, snapped, kappa;
+      double angle;
       int arc;
       bool is_in;
     };
 
-    double cap_arcs(std::vector<SasArc> &arcs,
-                    const E::Map<ArrayXX<bool>> &crossing);
-    std::pair<int, double> walk(const std::vector<SasArc> &arcs, int a0,
-                                const E::Map<ArrayXX<bool>> &crossing);
-    void order_ring(absl::Span<Dart> ring, const std::vector<SasArc> &arcs,
-                    int a0, int v, const E::Map<ArrayXX<bool>> &crossing) const;
+    std::pair<int, double> walk(UnionFind &uf);
 
     double radius_ = 0;
     int m_ = 0, k_ = 0;
 
-    Matrix3Xd axis_, e1_, e2_;
-    ArrayXd cosa_, sina_;
+    ArrayXd cosa_;
 
-    Matrix3Xd reps_, ea_, eb_;
-    ArrayXb accessible_;
+    Matrix3Xd dirs_, ea_, eb_;
 
-    std::vector<std::pair<int, int>> edges_, incs_;
-    std::vector<std::array<int, 3>> pinches_;
+    std::vector<Arc> arcs_;
 
-    ArrayXX<bool> crossing_;
     OffsetTable off_;
     ArrayXi order_, succ_;
     ArrayXb seen_;
     std::vector<int> keys_;
-    std::vector<RingVertex> ring_;
     std::vector<Dart> darts_, dring_;
   };
 }  // namespace internal

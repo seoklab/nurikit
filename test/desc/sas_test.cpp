@@ -43,6 +43,20 @@ double sr_total(const Matrix3Xd &pts, const ArrayXd &sar) {
   return sr_sasa_impl(pts, sar, 5000, SrSasaMethod::kDirect).sum();
 }
 
+/**
+ * Probes within `radius` of `x`; every probe has exactly three atoms, so a
+ * k-fold point shows up as several coincident probes.
+ */
+int probes_at(const SasGeometry &geo, const Vector3d &x,
+              const double radius = 1e-9) {
+  int n = 0;
+  for (int p = 0; p < geo.probes.pos.cols(); ++p) {
+    EXPECT_EQ(geo.probes.atoms.degree(p), 3);
+    n += static_cast<int>((geo.probes.pos.col(p) - x).norm() <= radius);
+  }
+  return n;
+}
+
 TEST(BuildSasTest, SingleSphere) {
   Matrix3Xd pts = Matrix3Xd::Zero(3, 1);
   ArrayXd sar = ArrayXd::Constant(1, 2.5);
@@ -135,16 +149,9 @@ TEST(BuildSasTest, FourSphereVertex) {
   ArrayXd sar = ArrayXd::Constant(4, reach);
 
   auto [sa, geo] = solve(pts, sar);
-
-  int at_origin = 0;
-  for (int p = 0; p < geo.probes.pos.cols(); ++p) {
-    if (geo.probes.pos.col(p).norm() > 1e-9)
-      continue;
-
-    ++at_origin;
-    EXPECT_EQ(geo.probes.atoms.degree(p), 4);
-  }
-  EXPECT_EQ(at_origin, 1);
+  // trapped point: the perturbation decides how many coincident probes are
+  // accessible there; the area does not depend on it
+  probes_at(geo, Vector3d::Zero());
   EXPECT_NEAR(geo.area.sum(), sr_total(pts, sar), 1e-2 * geo.area.sum());
 }
 
@@ -160,25 +167,12 @@ Matrix3Xd star(const int n_ring, const double polar_deg, const double reach) {
   return pts;
 }
 
-int probes_at(const SasGeometry &geo, const Vector3d &x, const int n_atoms,
-              const double radius = 1e-9) {
-  int n = 0;
-  for (int p = 0; p < geo.probes.pos.cols(); ++p) {
-    if ((geo.probes.pos.col(p) - x).norm() > radius)
-      continue;
-
-    ++n;
-    EXPECT_EQ(geo.probes.atoms.degree(p), n_atoms);
-  }
-  return n;
-}
-
 TEST(BuildSasTest, FiveSphereVertex) {
   const Matrix3Xd pts = star(4, 110, 2.0);
   const ArrayXd sar = ArrayXd::Constant(5, 2.0);
 
   auto [sa, geo] = solve(pts, sar);
-  EXPECT_EQ(probes_at(geo, Vector3d::Zero(), 5), 1);
+  probes_at(geo, Vector3d::Zero());
   EXPECT_NEAR(geo.area.sum(), sr_total(pts, sar), 1e-2 * geo.area.sum());
 }
 
@@ -190,9 +184,9 @@ TEST(BuildSasTest, CoplanarSquareVertex) {
   const ArrayXd sar = ArrayXd::Constant(4, 1.5);
 
   auto [sa, geo] = solve(pts, sar);
-  EXPECT_EQ(geo.probes.pos.cols(), 2);
-  EXPECT_EQ(probes_at(geo, Vector3d(0, 0, 0.5), 4), 1);
-  EXPECT_EQ(probes_at(geo, Vector3d(0, 0, -0.5), 4), 1);
+  EXPECT_EQ(geo.probes.pos.cols(), 4);
+  EXPECT_EQ(probes_at(geo, Vector3d(0, 0, 0.5)), 2);
+  EXPECT_EQ(probes_at(geo, Vector3d(0, 0, -0.5)), 2);
   EXPECT_NEAR(geo.area.sum(), sr_total(pts, sar), 1e-2 * geo.area.sum());
 }
 
@@ -219,8 +213,8 @@ TEST(BuildSasTest, ApexTangentAtVertex) {
   const TangentApex t = tangent_apex(0);
 
   auto [sa, geo] = solve(t.pts, t.sar);
-  EXPECT_EQ(geo.probes.pos.cols(), 3);
-  EXPECT_EQ(probes_at(geo, t.x, 4), 1);
+  EXPECT_EQ(geo.probes.pos.cols(), 4);
+  EXPECT_EQ(probes_at(geo, t.x), 2);
   EXPECT_NEAR(geo.area.sum(), sr_total(t.pts, t.sar), 1e-2 * geo.area.sum());
 }
 
@@ -262,8 +256,7 @@ TEST(BuildSasTest, GrazingApexWithinTolerance) {
     pts.col(3) = t.x - (t.sar[3] - depth) * m;
 
     auto [sa, geo] = solve(pts, t.sar);
-    EXPECT_EQ(probes_at(geo, t.x, 4, kSurfaceLengthEps), 1)
-        << "depth " << depth;
+    EXPECT_GE(probes_at(geo, t.x, kSurfaceLengthEps), 1) << "depth " << depth;
     const ArrayXd sr = sr_sasa_impl(pts, t.sar, 20000, SrSasaMethod::kDirect);
     for (int p = 0; p < 4; ++p)
       EXPECT_NEAR(geo.area[p], sr[sa.order[p]], 0.05)
@@ -325,10 +318,8 @@ TEST(BuildSasTest, JitteredBenzeneVertices) {
   const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
   for (int p = 0; p < 12; ++p)
     EXPECT_NEAR(geo.area[p], sr[sa->order[p]], 0.1) << "atom " << p;
-  int fourfold = 0;
   for (int p = 0; p < geo.probes.pos.cols(); ++p)
-    fourfold += static_cast<int>(geo.probes.atoms.degree(p) == 4);
-  EXPECT_EQ(fourfold, 12);
+    EXPECT_EQ(geo.probes.atoms.degree(p), 3);
 }
 
 /**

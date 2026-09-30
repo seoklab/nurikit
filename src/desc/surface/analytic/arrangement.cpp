@@ -5,12 +5,11 @@
 
 #include <algorithm>
 #include <cmath>
-#include <tuple>
 #include <utility>
 #include <vector>
 
+#include <absl/functional/function_ref.h>
 #include <absl/log/absl_check.h>
-#include <absl/types/span.h>
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
@@ -21,187 +20,58 @@
 namespace nuri {
 namespace internal {
   namespace {
+    using constants::kPi;
     using constants::kTwoPi;
   }  // namespace
 
   ArrangementSolver::ArrangementSolver(const int mcap, const int kcap,
-                                       const int ecap)
+                                       const int acap)
       : off_(nuri::max(mcap, kcap)) {
-    const int icap = 4 * ecap, acap = icap + mcap, dcap = 2 * acap;
-
-    axis_.resize(3, mcap);
-    e1_.resize(3, mcap);
-    e2_.resize(3, mcap);
     cosa_.resize(mcap);
-    sina_.resize(mcap);
 
-    reps_.resize(3, kcap);
+    dirs_.resize(3, kcap);
     ea_.resize(3, kcap);
     eb_.resize(3, kcap);
-    accessible_.resize(kcap);
 
-    edges_.reserve(ecap);
-    incs_.reserve(icap);
-
-    crossing_.resize(mcap, mcap);
-    order_.resize(nuri::max(icap, dcap));
+    arcs_.reserve(acap);
+    order_.resize(2L * acap);
     succ_.resize(acap);
     seen_.resize(acap);
-    keys_.reserve(nuri::max(icap, dcap));
-    ring_.reserve(icap + 1);
-    darts_.reserve(dcap);
-    dring_.reserve(dcap + 1);
+    keys_.reserve(2L * acap);
+    darts_.reserve(2L * acap);
+    dring_.reserve(2L * acap + 1);
   }
 
   void ArrangementSolver::begin(const double radius) {
     radius_ = radius;
     m_ = k_ = 0;
-    edges_.clear();
-    incs_.clear();
-    pinches_.clear();
+    arcs_.clear();
   }
 
-  int ArrangementSolver::add_cap(const Vector3d &axis, const double cosa,
-                                 const double sina) {
-    ABSL_DCHECK_LT(m_, axis_.cols());
+  int ArrangementSolver::add_cap(const double cosa) {
+    ABSL_DCHECK_LT(m_, cosa_.size());
 
-    axis_.col(m_) = axis;
     cosa_[m_] = cosa;
-    sina_[m_] = sina;
     return m_++;
   }
 
-  int ArrangementSolver::add_vertex(const Vector3d &rep,
-                                    const bool accessible) {
-    ABSL_DCHECK_LT(k_, reps_.cols());
+  int ArrangementSolver::add_vertex(const Vector3d &dir) {
+    ABSL_DCHECK_LT(k_, dirs_.cols());
 
-    reps_.col(k_) = rep;
-    accessible_[k_] = accessible;
+    dirs_.col(k_) = dir;
     return k_++;
   }
 
-  double ArrangementSolver::cap_arcs(std::vector<SasArc> &arcs,
-                                     const E::Map<ArrayXX<bool>> &crossing) {
-    const int m = m_, k = k_, ni = static_cast<int>(incs_.size());
-    auto axis = axis_.leftCols(m);
-    auto cosa = cosa_.head(m);
-
-    keys_.resize(ni);
-    for (int i = 0; i < ni; ++i)
-      keys_[i] = incs_[i].first;
-    argsort_bucket(order_, off_.off().head(m + 1), eigen_map(keys_));
-
-    double geo_sum = 0;
-    for (int j = 0; j < m; ++j) {
-      const Vector3d n = axis.col(j), e1 = e1_.col(j), e2 = e2_.col(j);
-
-      ring_.clear();
-      for (int i = off_[j]; i < off_[j + 1]; ++i) {
-        const int v = incs_[order_[i]].second;
-        if (accessible_[v])
-          ring_.push_back({ 0.0, v });
-      }
-      std::sort(ring_.begin(), ring_.end(),
-                [](const RingVertex &a, const RingVertex &b) {
-                  return a.v < b.v;
-                });
-      ring_.erase(std::unique(ring_.begin(), ring_.end(),
-                              [](const RingVertex &a, const RingVertex &b) {
-                                return a.v == b.v;
-                              }),
-                  ring_.end());
-      for (RingVertex &rv: ring_) {
-        const Vector3d u = reps_.col(rv.v);
-        rv.phi = std::atan2(u.dot(e2), u.dot(e1));
-      }
-      std::sort(ring_.begin(), ring_.end(),
-                [](const RingVertex &a, const RingVertex &b) {
-                  return a.phi < b.phi;
-                });
-      if (ring_.empty())
-        ring_.push_back({ 0.0, k });
-
-      const int nv = static_cast<int>(ring_.size());
-      ring_.push_back(ring_.front());
-      for (int i = 0; i < nv; ++i) {
-        const RingVertex &beg = ring_[i], &end = ring_[i + 1];
-        double dphi = end.phi - beg.phi;
-        dphi += kTwoPi * static_cast<double>(dphi <= 0);
-
-        const double mid = beg.phi + 0.5 * dphi;
-        const Vector3d radial = std::cos(mid) * e1 + std::sin(mid) * e2;
-        const Vector3d pt = cosa[j] * n + sina_[j] * radial;
-        const bool inside =
-            ((axis.transpose() * pt).array() > cosa && crossing.col(j)).any();
-        if (inside)
-          continue;
-
-        arcs.push_back({ beg.phi, dphi, j, beg.v, end.v });
-        geo_sum += dphi * cosa[j];
-      }
-    }
-
-    return geo_sum;
-  }
-
   /**
-   * Two caps meet at a vertex without crossing there iff they are not a
-   * crossing pair or both cut points of the pair merged into the vertex.
-   * The in-dart of one and the out-dart of the other then bound a cusp:
-   * their angles differ by the merged vertex's offset times the curvatures,
-   * in either order, so an in-dart whose angular neighbour is the out-dart
-   * of a touching cap is placed right after it. Everything else keeps the
-   * raw order.
+   * Two darts per arc end: the departing tangent at `beg` and the reversed
+   * arriving tangent at `end`, as supplied with the arc. At every vertex the
+   * darts alternate in/out around the vertex; the corner between an in-dart and
+   * the out-dart before it is the signed angle in `(−π/2, 3π/2]`, and the two
+   * arcs are linked into one loop. Every corner also joins its two caps'
+   * components.
    */
-  void ArrangementSolver::order_ring(
-      absl::Span<Dart> ring, const std::vector<SasArc> &arcs, const int a0,
-      const int v, const E::Map<ArrayXX<bool>> &crossing) const {
-    std::sort(ring.begin(), ring.end(),
-              [](const Dart &a, const Dart &b) { return a.angle < b.angle; });
-
-    auto cap_of = [&](const Dart &d) { return arcs[a0 + d.arc].circ; };
-    auto touch = [&](int a, int b) {
-      if (!crossing(a, b))
-        return true;
-      return std::any_of(pinches_.begin(), pinches_.end(), [&](const auto &p) {
-        return p[0] == v && nuri::minmax(p[1], p[2]) == nuri::minmax(a, b);
-      });
-    };
-
-    const int n = static_cast<int>(ring.size());
-    for (Dart &d: ring)
-      d.snapped = d.angle;
-    for (int i = 0; i < n; ++i) {
-      Dart &d = ring[i];
-      if (!d.is_in)
-        continue;
-
-      const int a = cap_of(d);
-      double best = kTwoPi;
-      for (const int j: { (i + n - 1) % n, (i + 1) % n }) {
-        const Dart &o = ring[j];
-        const int b = cap_of(o);
-        if (j == i || o.is_in || b == a || !touch(a, b))
-          continue;
-
-        const double gap = std::abs(std::remainder(d.angle - o.angle, kTwoPi));
-        if (gap < best) {
-          best = gap;
-          d.snapped = o.angle;
-        }
-      }
-    }
-
-    std::sort(ring.begin(), ring.end(), [](const Dart &a, const Dart &b) {
-      return std::make_tuple(a.snapped, a.is_in, a.kappa, a.arc)
-             < std::make_tuple(b.snapped, b.is_in, b.kappa, b.arc);
-    });
-  }
-
-  std::pair<int, double>
-  ArrangementSolver::walk(const std::vector<SasArc> &arcs, const int a0,
-                          const E::Map<ArrayXX<bool>> &crossing) {
-    const int k = k_, na = static_cast<int>(arcs.size()) - a0;
+  std::pair<int, double> ArrangementSolver::walk(UnionFind &uf) {
+    const int k = k_, na = static_cast<int>(arcs_.size());
 
     auto angle_at = [&](int v, const Vector3d &t) {
       return std::atan2(t.dot(eb_.col(v)), t.dot(ea_.col(v)));
@@ -210,24 +80,20 @@ namespace internal {
     darts_.clear();
     keys_.clear();
     for (int a = 0; a < na; ++a) {
-      const SasArc &arc = arcs[a0 + a];
-      if (arc.beg == k)
+      const Arc &arc = arcs_[a];
+      if (arc.beg < 0)
         continue;
 
-      const Vector3d n = axis_.col(arc.circ);
-      const double cot = cosa_[arc.circ] / sina_[arc.circ];
-      const Vector3d ub = reps_.col(arc.beg), ue = reps_.col(arc.end);
-      const double out = angle_at(arc.end, -n.cross(ue)),
-                   in = angle_at(arc.beg, n.cross(ub));
-      darts_.push_back({ out, out, -cot, a, false });
+      const double out = angle_at(arc.end, -arc.tend),
+                   in = angle_at(arc.beg, arc.tbeg);
+      darts_.push_back({ out, a, false });
       keys_.push_back(arc.end);
-      darts_.push_back({ in, in, cot, a, true });
+      darts_.push_back({ in, a, true });
       keys_.push_back(arc.beg);
     }
 
     argsort_bucket(order_, off_.off().head(k + 1), eigen_map(keys_));
 
-    ABSL_DCHECK_LE(na, succ_.size());
     auto succ = succ_.head(na);
     succ = ArrayXi::LinSpaced(na, 0, na - 1);
     double turn_sum = 0;
@@ -239,7 +105,11 @@ namespace internal {
       dring_.resize(nv + 1);
       for (int i = 0; i < nv; ++i)
         dring_[i + 1] = darts_[order_[off_[v] + i]];
-      order_ring(absl::MakeSpan(dring_).subspan(1, nv), arcs, a0, v, crossing);
+      std::sort(dring_.begin() + 1, dring_.end(),
+                [](const Dart &a, const Dart &b) {
+                  return std::make_pair(a.angle, a.is_in)
+                         < std::make_pair(b.angle, b.is_in);
+                });
       dring_[0] = dring_[nv];
 
       for (int i = 0; i < nv; ++i) {
@@ -249,12 +119,13 @@ namespace internal {
           continue;
 
         double iota = d.angle - prev.angle;
-        iota += kTwoPi * static_cast<double>(iota <= -constants::kPi / 2);
-        iota -= kTwoPi * static_cast<double>(iota > 3 * constants::kPi / 2);
-        ABSL_CHECK_LE(iota, constants::kPi + kSurfaceAngleEps)
+        iota += kTwoPi * static_cast<double>(iota <= -kPi / 2);
+        iota -= kTwoPi * static_cast<double>(iota > 3 * kPi / 2);
+        ABSL_CHECK_LE(iota, kPi + kSurfaceAngleEps)
             << "reflex corner at vertex " << v;
         succ[d.arc] = prev.arc;
-        turn_sum += constants::kPi - iota;
+        turn_sum += kPi - iota;
+        uf.merge(arcs_[d.arc].cap, arcs_[prev.arc].cap);
       }
     }
 
@@ -282,37 +153,44 @@ namespace internal {
         ys.col(j) = z.cross(x);
       }
     }
-
-    auto build_crossing(ArrayXX<bool> &buffer,
-                        const std::vector<std::pair<int, int>> &edges,
-                        const int m) {
-      auto crossing = take_buffer(buffer, m, m);
-      crossing.setConstant(false);
-      for (auto [a, b]: edges)
-        crossing(a, b) = crossing(b, a) = true;
-      return crossing;
-    }
   }  // namespace
 
-  double ArrangementSolver::solve(std::vector<SasArc> &arcs) {
-    const int a0 = static_cast<int>(arcs.size());
+  /**
+   * `n_patches = 1 + n_loops − n_components` (§2 step 7): the components of
+   * the union of all caps come from the corners plus the exact disc
+   * intersection test on the remaining pairs. Caps without any arc leave the
+   * accessible region without boundary, so it is empty.
+   */
+  double
+  ArrangementSolver::solve(absl::FunctionRef<bool(int, int)> intersects) {
+    const double r2 = radius_ * radius_;
+    if (m_ == 0)
+      return 2 * kTwoPi * r2;
+    if (arcs_.empty())
+      return 0;
 
-    build_frames(e1_, e2_, axis_, m_);
-    build_frames(ea_, eb_, reps_, k_);
-    auto crossing = build_crossing(crossing_, edges_, m_);
+    build_frames(ea_, eb_, dirs_, k_);
 
     UnionFind uf(m_);
-    for (auto [a, b]: edges_)
-      uf.merge(a, b);
-    const int n_components = uf.n_sets();
+    auto [n_loops, turn_sum] = walk(uf);
+    int n_sets = uf.n_sets();
+    for (int j = 0; j < m_ && n_sets > 1; ++j) {
+      for (int l = j + 1; l < m_ && n_sets > 1; ++l) {
+        if (uf.find(j) != uf.find(l) && intersects(j, l)) {
+          uf.merge(j, l);
+          --n_sets;
+        }
+      }
+    }
 
-    const double geo_sum = cap_arcs(arcs, crossing);
-    auto [n_loops, turn_sum] = walk(arcs, a0, crossing);
+    double geo_sum = 0;
+    for (const Arc &arc: arcs_)
+      geo_sum += arc.dphi * cosa_[arc.cap];
 
-    const int n_patches = 1 + n_loops - n_components;
+    const int n_patches = 1 + n_loops - n_sets;
     const int chi = 2 * n_patches - n_loops;
-    const double area = radius_ * radius_ * (kTwoPi * chi - turn_sum + geo_sum);
-    ABSL_DCHECK_GE(area, -kSurfaceLengthEps * radius_ * radius_);
+    const double area = r2 * (kTwoPi * chi - turn_sum + geo_sum);
+    ABSL_DCHECK_GE(area, -kSurfaceLengthEps * r2);
     return area;
   }
 }  // namespace internal
