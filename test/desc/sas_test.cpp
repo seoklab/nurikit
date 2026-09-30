@@ -195,22 +195,54 @@ TEST(BuildSasTest, CoplanarSquareVertex) {
   EXPECT_NEAR(geo.area.sum(), sr_total(pts, sar), 1e-2 * geo.area.sum());
 }
 
-TEST(BuildSasTest, ApexTangentAtVertex) {
+struct TangentApex {
+  Matrix3Xd pts;
+  ArrayXd sar;
+  Vector3d x;
+};
+
+TangentApex tangent_apex(const double gap) {
   const double reach = 2.0, circum = 1.5, rl = 1.8;
-  Matrix3Xd pts(3, 4);
+  TangentApex t { Matrix3Xd(3, 4), ArrayXd(4), Vector3d() };
   for (int k = 0; k < 3; ++k) {
     const double az = kTwoPi * k / 3;
-    pts.col(k) << circum * std::cos(az), circum * std::sin(az), 0;
+    t.pts.col(k) << circum * std::cos(az), circum * std::sin(az), 0;
   }
-  const Vector3d x(0, 0, std::sqrt(reach * reach - circum * circum));
-  pts.col(3) = x + rl * (x - pts.col(0)).normalized();
-  ArrayXd sar(4);
-  sar << reach, reach, reach, rl;
+  t.x << 0, 0, std::sqrt(reach * reach - circum * circum);
+  t.pts.col(3) = t.x + (rl + gap) * (t.x - t.pts.col(0)).normalized();
+  t.sar << reach, reach, reach, rl;
+  return t;
+}
+
+TEST(BuildSasTest, ApexTangentAtVertex) {
+  const TangentApex t = tangent_apex(0);
+
+  auto [sa, geo] = solve(t.pts, t.sar);
+  EXPECT_EQ(geo.probes.pos.cols(), 3);
+  EXPECT_EQ(probes_at(geo, t.x, 4), 1);
+  EXPECT_NEAR(geo.area.sum(), sr_total(t.pts, t.sar), 1e-2 * geo.area.sum());
+}
+
+TEST(BuildSasTest, NearBandPinch) {
+  for (const double gap: { 1e-7, 5e-7, 2e-6 }) {
+    const TangentApex t = tangent_apex(gap);
+    auto [sa, geo] = solve(t.pts, t.sar);
+    const ArrayXd sr = sr_sasa_impl(t.pts, t.sar, 20000, SrSasaMethod::kDirect);
+    for (int p = 0; p < 4; ++p)
+      EXPECT_NEAR(geo.area[p], sr[sa.order[p]], 0.05)
+          << "gap " << gap << " atom " << p;
+  }
+}
+
+TEST(BuildSasTest, SliverBetweenNearCrossings) {
+  const Matrix3Xd pts = star(4, 110, 2.0);
+  ArrayXd sar = ArrayXd::Constant(5, 2.0);
+  sar[2] -= 1e-5;
 
   auto [sa, geo] = solve(pts, sar);
-  EXPECT_EQ(geo.probes.pos.cols(), 3);
-  EXPECT_EQ(probes_at(geo, x, 4), 1);
-  EXPECT_NEAR(geo.area.sum(), sr_total(pts, sar), 1e-2 * geo.area.sum());
+  const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
+  for (int p = 0; p < 5; ++p)
+    EXPECT_NEAR(geo.area[p], sr[sa.order[p]], 0.05) << "atom " << p;
 }
 
 TEST(BuildSasTest, TriangulationSharedAcrossMasks) {
