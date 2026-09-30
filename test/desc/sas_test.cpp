@@ -317,8 +317,7 @@ TEST(BuildSasTest, JitteredBenzeneVertices) {
     pts.data()[i] += 1e-7 * std::sin(1000.0 * (i + 1));
 
   const double rp = 1.4;
-  std::optional<SaPrep> sa =
-      prepare(pts, sar, ArrayXb::Constant(12, true), rp);
+  std::optional<SaPrep> sa = prepare(pts, sar, ArrayXb::Constant(12, true), rp);
   ASSERT_TRUE(sa);
   const SasDelaunay del = triangulate(*sa);
   const SasGeometry geo = build_sas(*sa, del);
@@ -330,6 +329,42 @@ TEST(BuildSasTest, JitteredBenzeneVertices) {
   for (int p = 0; p < geo.probes.pos.cols(); ++p)
     fourfold += static_cast<int>(geo.probes.atoms.degree(p) == 4);
   EXPECT_EQ(fourfold, 12);
+}
+
+/**
+ * Spheres j and k are tangent (or a near pair) at a point T of the host
+ * sphere, and sphere l passes through the point of circle (host, j) at
+ * arc offset `delta` from T. The three raw points merge into one vertex
+ * whose two pinch darts are `delta (kappa_j + kappa_k)` apart, far more
+ * than any angle tolerance; the corner must be the signed dart angle.
+ */
+TEST(BuildSasTest, NearPairPinchWithThirdSphere) {
+  const double rs = 2.0, rj = 1.8, rk = 1.7, rl = 1.9, beta = kPi / 3;
+  const Vector3d top(0, 0, rs), nj(std::sin(beta), 0, std::cos(beta));
+  for (const double gap: { 0.0, 5e-7 }) {
+    for (const double delta: { 3e-5, 1e-4, 3e-4, 1e-3 }) {
+      Matrix3Xd pts(3, 4);
+      pts.col(0).setZero();
+      pts.col(1) = top + rj * nj;
+      pts.col(2) = top - (rk + gap) * nj;
+      const Vector3d uj = pts.col(1).normalized();
+      const double circ = top.cross(uj).norm();
+      const Vector3d p = AngleAxisd(delta / circ, uj) * top,
+                     ph = p.normalized(), tj = uj.cross(p).normalized(),
+                     w = ph.cross(tj),
+                     m = (0.6 * ph + 0.57 * tj + 0.57 * w).normalized();
+      pts.col(3) = p + rl * m;
+      ArrayXd sar(4);
+      sar << rs, rj, rk, rl;
+
+      auto [sa, geo] = solve(pts, sar);
+      const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
+      for (int a = 0; a < 4; ++a) {
+        EXPECT_NEAR(geo.area[a], sr[sa.order[a]], 0.05)
+            << "gap " << gap << " delta " << delta << " atom " << a;
+      }
+    }
+  }
 }
 
 TEST(BuildSasTest, TriangulationSharedAcrossMasks) {

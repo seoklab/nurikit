@@ -221,11 +221,10 @@ namespace internal {
           continue;
 
         double iota = d.angle - prev.angle;
-        iota += kTwoPi * static_cast<double>(iota < -kSurfaceAngleEps);
-        iota -= kTwoPi * static_cast<double>(iota > kTwoPi - kSurfaceAngleEps);
-        iota = nuri::max(iota, 0.0);
-        ABSL_DCHECK_LE(iota, constants::kPi + kSurfaceAngleEps)
-            << "reflex corner";
+        iota += kTwoPi * static_cast<double>(iota <= -constants::kPi / 2);
+        iota -= kTwoPi * static_cast<double>(iota > 3 * constants::kPi / 2);
+        ABSL_CHECK_LE(iota, constants::kPi + kSurfaceAngleEps)
+            << "reflex corner at vertex " << v;
         succ[d.arc] = prev.arc;
         turn_sum += constants::kPi - iota;
       }
