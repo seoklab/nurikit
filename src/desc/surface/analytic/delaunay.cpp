@@ -22,18 +22,17 @@ namespace internal {
     constexpr int kBounds = 4;
 
     /**
-     * Lift the spheres as `(x, y, z, sqrt(W - w))`, `w = sar^2`, `W = max w`,
+     * Lift the spheres as `(x, y, z, t)`, `t = sqrt(W - sar^2)` from `prepare`,
      * then append a weightless tetrahedron around them so the input is never
      * coplanar; it has zero power at every sphere point and hides nothing.
      */
     Matrix4Xd lift(const SaPrep &sa, const ArrayXi &perm) {
       const int n = static_cast<int>(perm.size());
+      const double wmax = sa.wmax;
 
       Matrix4Xd lifted(4, n + kBounds);
       lifted.topRows(3).leftCols(n) = sa.pts(E::all, perm);
-      ArrayXd w = sa.sar(perm).square();
-      const double wmax = w.maxCoeff();
-      lifted.row(3).head(n) = (wmax - w).sqrt().transpose();
+      lifted.row(3).head(n) = sa.t(perm).transpose();
 
       const Vector3d lo = sa.pts.rowwise().minCoeff(),
                      hi = sa.pts.rowwise().maxCoeff();

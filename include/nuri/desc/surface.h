@@ -204,12 +204,15 @@ namespace internal {
    * dropped: `order` maps new to old indices, spheres `< n_active` own
    * surface, `< n_solve` get arrangements, `< n_enum` get caps. `g` is the
    * forward overlap graph on new indices (`row(i)` = sorted `j > i`) over all
-   * kept spheres; pair `q` carries a circle iff `i < n_enum`, and `d[q]` is
-   * its centre distance.
+   * kept spheres, decided exactly for the lifted heights `t = √(wmax − sar²)`
+   * (the near band only ranks atoms); pair `q` carries a circle iff
+   * `i < n_enum`, and `d[q]` is its centre distance.
    */
   struct SaPrep {
     Matrix3Xd pts;
     ArrayXd sar;
+    ArrayXd t;
+    double wmax;
     ArrayXi order;
     CSR g;
     ArrayXd d;
