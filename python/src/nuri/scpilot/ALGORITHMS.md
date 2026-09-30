@@ -504,7 +504,9 @@ tolerance: two points are the same vertex only when they are the same
    Working on `R_i²` instead
    is inconsistent at the `1e-15` level, exactly where degenerate cells
    live (prototype driver: 32–135 entry/exit alternation violations per
-   fixture on `R²`, none on `h`).
+   fixture on `R²`, none on `h`; the port's tests pin the convention against
+   geogram's own conflict predicate on random sets, an exact 5-fold point, a
+   coplanar square and a lattice).
    Four **bounding points** of weight 0 at the corners of a regular
    tetrahedron of circumradius `4(D + R_max) + 1` around the bounding box
    (`D` = half diagonal) are appended so the input is never coplanar
@@ -566,14 +568,22 @@ tolerance: two points are the same vertex only when they are the same
    root each); two consecutive vertices in the same open half-plane are
    ordered by the sign of the oriented area `((x_i − cntr) × (x_j − cntr)) ·
    (c_b − c_a)`, an expression in two square roots reduced to one by
-   squaring, and an exact zero means the two probes coincide. The wrap goes
-   to the unique consecutive pair whose arc contains the ray; a coincident
-   pair gets `dphi = 0`, and rounding-level negative `dphi` on such arcs is
+   squaring, and an exact zero within one half-plane means the two probes
+   coincide (antipodal points fall into different classes). The numeric
+   angle of each vertex is then made consistent with its exact class
+   (`0` on the ray, `π` at `π`, `atan2` otherwise, folded into `[0, 2π]`), so
+   the angles are monotone in the exact order and the wrap goes to the
+   unique consecutive pair whose arc contains the ray; a coincident pair
+   gets `dphi = 0`, and rounding-level negative `dphi` on such arcs is
    clamped at zero. If every consecutive pair coincides (a single-point
    window), the circle away from the point is accessible iff its antipode
    `Q = 2 cntr − x` has `π_c(Q) ≥ 0` for every fan sphere `c` (exact, same
    form as `accept`), and the `2π` goes to an arc of that accessibility;
-   which one is immaterial (same `Σ dphi`, loops and corners).
+   which one is immaterial (same `Σ dphi`, loops and corners). Each arc
+   also carries its two end tangents, taken from the circle frame at the
+   arc's own angles rather than from the probe positions: darts and arcs
+   then describe one closed curve even on a circle too small for the
+   positions to resolve, which is what Gauss–Bonnet needs.
 5. **Arrangement per sphere.** On sphere `s` a probe lies on exactly two
    circles, so it has one in-dart and one out-dart; the corner is the signed
    angle between them at the probe's own position (§2 step 6 without any
@@ -700,19 +710,29 @@ merges probes joined by arcs shorter than its own tolerance, a post-pass that
 cannot change the SAS.
 
 **Floating point.** The predicates live in one translation unit compiled
-without fast-math (like the vendored geogram sources): the error-free
-transformations of expansion arithmetic are algebraically zero under
-reassociation, so a fast-math build turns an exact predicate into a floating
-one silently. Each predicate is evaluated first in double with a running
-error bound and falls back to expansion arithmetic only when the bound does
-not certify the sign. Positions are evaluated from `P`, `u`, `Δ` in double
-(the radical-line form divides by `|u|²`, never by a circle radius); φ, dart
-angles and areas inherit rounding-level error. The one floating comparison
-that remains is the `_TAU_DIR` allowance of the reflex-corner check, an
-invariant check, not a decision. A cap of floating-zero radius that does
-have vertices (a third sphere through a tangency point) gets its `φ` and
-dart tangents from noise; the telescoping above still holds, the corner and
-the reflex check are ill-conditioned there; rare, and guarded by the check.
+without fast-math (like the vendored geogram sources), because the
+floating-point filter's running error bound and the exact fallback both
+assume round-to-nearest without reassociation or contraction. Each predicate
+is evaluated first in double with a running error bound (`|v − exact| ≤ e`,
+certified iff `|v| > 2e`; a literal zero is certified exactly) and falls
+back to exact arithmetic only when the bound does not certify the sign. The
+exact type is a dyadic `m · 2^e` with an arbitrary-precision integer `m`:
+Shewchuk expansions cannot serve here, since a degree-20 polynomial of
+rounded-zero coordinates (`1e-16`) has terms below the double exponent range
+and underflow silently breaks their exactness. Perturbation ties are
+resolved by the same kernel evaluated on dual numbers, which yields the
+first-order coefficients automatically. Positions are evaluated in double by
+both the radical-line form (`x = c_a + y_⊥ ± (√D/|u|²) u`, stable for a
+tangent pair) and the circle form (`cntr + (rl/amp²)(g w_⊥ ± √(amp² − g²)
+n × w_⊥)`, stable for a third centre near the circle axis), keeping the pair
+with the smaller on-sphere residual; φ, dart angles and areas inherit
+rounding-level error. The one floating comparison that remains is the
+`_TAU_DIR` allowance of the reflex-corner check, an invariant check, not a
+decision. A circle below double resolution (a tangency, exact or by
+rounding) still has exact vertices and arcs; its probe positions and `φ`
+are noise, but its darts come from the arcs' own angles, so the area is
+unaffected (a tangent pair with a third sphere through the tangency point
+is exact to `2e-3` of Shrake–Rupley in the tests).
 
 **Consumers.** The SES stage builds probe–probe caps with axis
 `(y − x)/|y − x|`; at coincident probes that direction is noise and the cap
