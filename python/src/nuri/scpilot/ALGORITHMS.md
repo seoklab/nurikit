@@ -137,9 +137,10 @@ deterministic at k-fold points, where the sign of the residual for an incident
 cap is noise. No epsilon is needed, up to the conditioning of the crossing
 itself: a non-incident cap passing through the point within rounding noise
 `ε` deposits its own crossing points within `ε / sin θ` of it, `θ` the
-crossing angle, so clustering makes it incident as long as
-`sin θ > ε / TAU_C`, about `1e-6`; flatter crossings are the pinch regime
-that step 6 snaps.
+crossing angle, and §3 SAS step 4 links them by surface tolerance within a
+reach of `100 TAU_C`, so the cap becomes incident as long as
+`sin θ > ε / (100 TAU_C)`, about `1e-8`; flatter crossings are tangencies,
+handled as pinches by step 6.
 
 Any positive slack breaks consistency: a vertex inside cap `l` by `δ` would be
 accepted while the arc it starts is rejected by the midpoint test of step 5,
@@ -193,20 +194,25 @@ order, reversed-in and out darts must strictly alternate; otherwise
 
 The successor of an in-dart is the previous dart in that order (the first
 out-dart clockwise from its reversed tangent). The interior angle of the
-region at that corner is `ι = angle(rev-in) − angle(out)` from the raw
-angles, brought into `[−_TAU_DIR, 2π − _TAU_DIR)` and clamped at zero, and
-the turning angle is `π − ι` (a pinch has `ι = 0`, turn `+π`; a genuine
-crossing of angle below `_TAU_DIR` keeps its angle). Successors
-default to the arc itself, so a full circle is its own loop; loops are the
-cycles of the successor permutation, counted by one visited-flag walk. The
-interior angle of a corner of the complement of a union of discs is below
-`π`, and exactly `π` at a pinch vertex whose other circle carries no
-accessible arc (a straight point), so `ι > π` never occurs geometrically;
-before the clamp, a value near
-`2π` was a pinch pair that the grouping missed (the in-dart sorted before
-its out-dart and the wrap added `2π`), which turned the corner by `−π`
-instead of `+π` and added `2πR²` to the area. Both implementations assert
-`ι < π`.
+region at that corner is the signed angle `ι = angle(rev-in) − angle(out)`
+from the raw angles, brought into `(−π/2, 3π/2]`, and the turning angle is
+`π − ι`. Near any vertex the accessible region is an intersection of
+half-planes, a convex cone, so a genuine corner has `ι ∈ [0, π]`: `π` when a
+single cap bounds the region there (an internal tangency, or a vertex whose
+other caps carry no accessible arc), `0` at a cusp, and a vertex carries 0,
+2 or 4 darts, 4 only at the double cusp of an external tangency, where the
+`(angle, curvature)` order pairs each in-dart with the other cap's out-dart.
+A merged vertex (§3 SAS step 4) stands for two cusps joined by a short arc,
+and the tangent turns continuously across that stretch from the arrival to
+the departure direction, by `π − ι` with `ι` signed: negative when the
+accessible strip converges on the touching point, positive when it
+diverges, `|ι|` at most the dart gap of the Tolerances section. No
+tolerance enters, and clamping `ι` at zero would lose `|ι| R²` (or turn by
+`−π` once the gap passes the grouping tolerance). Successors default to the
+arc itself, so a full circle is its own loop; loops are the cycles of the
+successor permutation, counted by one visited-flag walk. `ι > π` is
+geometrically impossible, and both implementations check it in every build
+(`DegenerateGeometryError`, `ABSL_CHECK`).
 
 ### Step 7 — Gauss–Bonnet area
 
@@ -248,22 +254,39 @@ computed through different cap pairs (about `1e-12 × |coords|`) and stay below
 the smallest gap that must remain a gap; the test suite passes for any value in
 `[1e-8, 1e-4]`. All other comparisons are exact.
 
-`_TAU_DIR` is set by what the midpoint test of step 5 can resolve. Two
-circles crossing at angle `θ` at points `s` apart enclose a sliver of depth
-about `s θ / 4`, while the crossing points themselves carry an error of about
-`ε / θ` (the `1/sin θ` amplification above). The sliver's arcs are classified
-reliably only when `s θ / 4 > ε / θ`, i.e. `θ > √(4ε/s)`; with `ε ≈ 1e-15 R`
-and `s ≥ TAU_C` that is `θ ≳ 6e-5 rad`. Darts closer than `_TAU_DIR` are
-therefore exactly those whose arcs may be misclassified, and grouping them
-is the consistent treatment: a mis-ordered pinch gets `ι = 0`, and a sliver
-loop that was accepted anyway contributes `+2π` to the Euler term and `+2π`
-to the turning sum, cancelling. Grouping costs no area, because the corner
-keeps its raw angle: a genuine crossing of angle `θ < _TAU_DIR` still turns
-by `π − θ`, and a straight point (`ι = π` within noise) turns by nothing.
-At `1e-9` the port turned near
-pairs tangent within the near band (dart gap about `7e-9` for a `1e-7`
-separation) and crossings `1e-5` apart into `+2πR²` errors; the four protein
-oracles have no dart pair within `1e-4`.
+`_TAU_DIR` only orders the ring; no corner value depends on it. Three facts
+fix the design (`κ_j = cot α_j / R` is the geodesic curvature of circle `j`):
+
+- Chord and crossing angle of two caps are coupled: the crossing points of
+  caps `j`, `k` are `s = 2 R sin α_j sin α_k · sin θ / sin γ` apart, and
+  near an external tangency `θ = s (κ_j + κ_k) / 2`.
+- The midpoint test of step 5 resolves every lens whose two vertices stay
+  distinct. The midpoint of the lens arc of circle `j` lies inside cap `k`
+  by `h² sin γ / (2 sin α_j)` in the cosine (`h` the half-chord on the unit
+  sphere), and the crossing points' error along the chord cancels in it to
+  first order; so a lens is misclassified only when
+  `sin γ / sin α_j < (2 R √(2 C ε_m) / s_m)²`, `s_m` the merge threshold
+  (`100 TAU_C` in the SAS build) and `C ε_m` the rounding of the test,
+  which is `7e-6` at `R = 3`: near-complementary tangent caps on top of a
+  tangency. In angle that is `θ ≳ 5e-8 rad` for ordinary caps.
+- The dart gap at a *merged* vertex is not bounded by any angle tolerance.
+  When a third cap through the vertex supplies the raw points, the
+  representative sits at tangential offset `δ` from the touching point of
+  the tangent pair with `δ ≤ √(2 TAU_C / (sin β (κ_j + κ_k)))` (tangency is
+  second-order contact; `β` the dihedral angle at the third circle), and the
+  two pinch darts are `δ (κ_j + κ_k)` apart, about `1e-3 rad` for protein
+  caps and `0.03 rad` at the overlap threshold.
+
+Hence the corner is the signed dart angle of step 6, which is exact at merged
+vertices without any tolerance, and `_TAU_DIR` is left only to group the four
+darts of a double cusp, whose gap is `O(ε_m / sin α)`; any rounding-level
+value works, and `1e-4` is harmless because a lens narrower than it either
+stays distinct (resolved exactly) or, if its sliver arcs were misclassified,
+forms a loop that cancels exactly under the signed corner. With the clamp at
+zero that loop left `+2θR²`, and a mis-ordered pinch wider than the tolerance
+turned by `−π` (`+2πR²`), which a third sphere cutting the tangent circle
+between `1e-4 / (κ_j + κ_k)` and `√(2 TAU_C / (κ_j + κ_k))` from the touching
+point produces on real geometry.
 
 `TAU_C` also bounds the circle radius from below: at the overlap threshold
 `d = R_i + R_j − TAU_C` the circle has `rl ≈ √(TAU_C · 2 R_i R_j / d) ≈

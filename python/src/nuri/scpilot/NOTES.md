@@ -204,10 +204,10 @@ Sampler on 1ar1 H (active side toward L), density 15:
   element vdW × 1.07 as a name-free approximation.
 - Tolerances: `TAU_C = 1e-6 Å` (coincidence clustering of vertices and of
   caps; any value in `[1e-8, 1e-4]` passes the suite), direction tie
-  `_TAU_DIR = 1e-4 rad` (the angle below which the midpoint test cannot
-  classify the sliver between two near-tangent crossings; smaller values let
-  a pinch's in-dart sort before its out-dart and add `2πR²`, see
-  ALGORITHMS.md Tolerances; matches the C++ `kSurfaceAngleEps`). Every
+  `_TAU_DIR = 1e-4 rad` (orders the four darts of a double cusp only; the
+  corner is the signed raw dart angle, exact at merged pinch vertices whose
+  dart gap no angle tolerance bounds, see ALGORITHMS.md step 6 and
+  Tolerances; matches the C++ `kSurfaceAngleEps`). Every
   other comparison is exact. Any positive accessibility slack breaks
   consistency between vertex acceptance and arc tests; do not reintroduce
   one.
