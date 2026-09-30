@@ -153,6 +153,22 @@ def test_exact_coincidence_merges_probes():
     )
 
 
+def test_two_cut_points_of_one_triple_stay_distinct():
+    """Balls j, k overlap by 1e-4 in a circle of radius 0.014; the host
+    cuts that circle nearly tangentially, so the triple's two points are
+    1e-5 apart. Only a tangency within TAU_C merges them."""
+    r, d, h, zs = 2.0, 4.0 - 1e-4, 5e-6, 3.0
+    rc = math.sqrt(r * r - d * d / 4)
+    zc = math.sqrt(rc * rc - h * h)
+    coords = np.array([[0.0, 0.0, zs], [-d / 2, 0.0, 0.0], [d / 2, 0.0, 0.0]])
+    sas = np.array([math.hypot(h, zs - zc), r, r])
+    geo, _ = SasGeometry.from_atoms(coords, sas - RP, RP)
+    assert len(geo.probes) == 2
+    assert np.linalg.norm(
+        geo.probes[0].pos - geo.probes[1].pos
+    ) == pytest.approx(2 * h, abs=1e-9)
+
+
 def test_internally_tangent_caps_under_rotation():
     """Two caps of one sphere touching from inside: whether rounding calls
     the pair crossing (a pinch vertex) or nested (hidden), the area is that
