@@ -279,10 +279,10 @@ C++), not a case the kernels can survive.
    *near* pairs; those with `d < R_i + R_j − TAU_C` are the **overlaps**,
    decided once, and carry circles. A pair tangent to within `TAU_C` is near
    but not an overlap: it has no circle, but it still counts as a neighbour
-   below, because two hosts of one vertex cluster can be that far apart.
-   Their contact points are two members of the cluster, and the SAS build
-   checks that every member lies within `TAU_C` of the cluster mean, so they
-   differ by at most `2 TAU_C`. Coincident centres (`d < 1e-3 Å`) raise.
+   below, because two hosts of one vertex cluster can be that far apart:
+   the SAS build checks that the cluster's representative lies within
+   `TAU_C` of every host sphere, so `|c_a − c_d| ≤ R_a + R_d + 2 TAU_C`.
+   Coincident centres (`d < 1e-3 Å`) raise.
    `rp ≤ 0`, a non-positive radius, or SAS radii with
    `R_min² < 2rp² + 2 TAU_C R_max` (the hypothesis of Lemma 7 below; a vdW
    radius just above `(√2 − 1) rp`, 0.58 Å for water) raise.
@@ -376,14 +376,23 @@ C++), not a case the kernels can survive.
    remaining vertices are all inaccessible pass as a full circle tested
    against too few caps. The points are computed once per triple with a
    vertex and shared by all three spheres.
-4. **Global clustering.** All raw points are clustered at `TAU_C`. A cluster's
-   atoms are the union of its triples; k-fold coincidences give probes with
-   four or more atoms. Every member must lie within `TAU_C` of the cluster
-   mean (a `DCHECK` in C++, `DegenerateGeometryError` in the pilot): the
-   scatter of one geometric point is about `1e-12 Å`, and the near-pair
-   margin of the preparation stage relies on the bound. Clusters are sorted
-   by their smallest atom, the owner, and every triple records the cluster
-   ids of its two points.
+4. **Global clustering.** Two raw points are one vertex iff each lies within
+   `TAU_C` of every sphere of the other's triple, so that every sphere of the
+   union passes within `TAU_C` of both; a cluster's atoms are that union, and
+   k-fold coincidences give probes with four or more atoms. Point distance is
+   the wrong criterion: a raw point is exact on its own three spheres but
+   slides along its circle by `TAU_C / sin θ` when a fourth sphere is off by
+   the tolerance (`θ` the angle between the circle and that sphere), so the
+   members of one vertex scatter beyond `TAU_C` (ideal benzene jittered by
+   `1e-7 Å` gives `1.1e-6`) while staying within `TAU_C` of every surface.
+   The pair search therefore reaches `100 TAU_C` (`sin θ ≥ 0.01`; flatter
+   is the pinch regime of §2 step 6) and the link test is the surface
+   tolerance. The invariant checked (a `DCHECK` in C++,
+   `DegenerateGeometryError` in the pilot) is that the representative, the
+   member mean, lies within `TAU_C` (plus `spread²/R` for curvature) of every
+   atom sphere; that is what the near-pair margin of the preparation stage
+   uses. Clusters are sorted by their smallest atom, the owner, and every
+   triple records the cluster ids of its two points.
 5. **Accessibility on the owner sphere.** Each cluster is decided once, on the
    sphere of its smallest atom, with the test of §2 step 4 against that
    sphere's caps, excusing the caps its member triples make there: the owner
@@ -449,11 +458,11 @@ reads `π_m(x) ≥ 0 for all m`, i.e. `x ∈ V_i`.
    than `1e-4` from its boundary, and the exact `h² > 0` test of step 3 on
    the sorted triple decides inside the band. Hiding and the covered test of
    §2 step 1 run unchanged on these caps.
-4. **Global clustering and incidences.** Accepted points are clustered at
-   `TAU_C` exactly as in step 4 above; a cluster's atoms are the union of its
-   generating faces, every member must lie within `TAU_C` of the mean, and
-   the incidences a cluster has on sphere `s` are the two other atoms of each
-   generating face that contains `s`. The slack of step 2 is then removed:
+4. **Global clustering and incidences.** Accepted points are clustered by
+   the surface tolerance of step 4 above; a cluster's atoms are the union of
+   its generating faces, the representative must lie within `TAU_C` of every
+   atom sphere, and the incidences a cluster has on sphere `s` are the two
+   other atoms of each generating face that contains `s`. The slack of step 2 is then removed:
    a cluster is accessible iff every member has `π_l ≥ 0` exactly for each
    apex `l` of its generating face that is not one of the cluster's atoms.
    This is step 5 above restricted to apexes, which Theorem 1 justifies. An

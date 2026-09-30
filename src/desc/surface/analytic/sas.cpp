@@ -393,6 +393,21 @@ namespace internal {
     };
 
     /**
+     * Raw points of one vertex are exact on their own three spheres but slide
+     * along their circle by `kSurfaceLengthEps / sin t` when a fourth sphere
+     * is off by the tolerance, `t` the angle between the circle and that
+     * sphere; the search radius covers `sin t >= 0.01`.
+     */
+    constexpr double kClusterReach = 100 * kSurfaceLengthEps;
+
+    bool on_spheres(const SaPrep &sa, const Vector3d &x, const Array3i &atoms) {
+      return std::all_of(atoms.begin(), atoms.end(), [&](int l) {
+        return std::abs((x - sa.pts.col(l)).norm() - sa.sar[l])
+               <= kSurfaceLengthEps;
+      });
+    }
+
+    /**
      * Probes and, for each solved sphere, its incidences: `inc(s)` lists the
      * probe of every raw point on `s`, `other` the two atoms of that point's
      * face that cut the incident caps.
@@ -404,18 +419,20 @@ namespace internal {
     };
 
     /**
-     * Raw points within `kSurfaceLengthEps` are one vertex; its atoms are the
-     * union of the generating faces. A cluster is accessible iff every member
-     * has non-negative power against each apex that is not one of its atoms:
-     * an apex sphere through the point is an atom, and an apex that merely
-     * passes within tolerance is not excused.
+     * Two raw points are one vertex iff each lies within `kSurfaceLengthEps`
+     * of every sphere of the other's face, so every sphere of the union
+     * passes within tolerance of both; the atoms are that union. A cluster is
+     * accessible iff every member has non-negative power against each apex
+     * that is not one of its atoms: an apex sphere through the point is an
+     * atom, and an apex that merely passes within tolerance is not excused.
      */
     Vertices cluster_vertices(const SaPrep &sa,
                               const std::vector<RawVertex> &raw) {
       const int nr = static_cast<int>(raw.size()), n_enum = sa.n_enum,
                 n_solve = sa.n_solve;
 
-      constexpr double eps = kSurfaceLengthEps, eps2 = eps * eps;
+      constexpr double eps = kSurfaceLengthEps,
+                       reach2 = kClusterReach * kClusterReach;
       std::vector<XKey> byx(nr);
       for (int r = 0; r < nr; ++r)
         byx[r] = { raw[r].pos[0], r };
@@ -425,9 +442,11 @@ namespace internal {
       UnionFind uf(nr);
       for (int a = 0; a < nr; ++a) {
         const auto [xa, ra] = byx[a];
-        for (int b = a + 1; b < nr && byx[b].x - xa <= eps; ++b) {
+        for (int b = a + 1; b < nr && byx[b].x - xa <= kClusterReach; ++b) {
           const int rb = byx[b].r;
-          if ((raw[rb].pos - raw[ra].pos).squaredNorm() <= eps2)
+          if ((raw[rb].pos - raw[ra].pos).squaredNorm() <= reach2
+              && on_spheres(sa, raw[rb].pos, raw[ra].atoms)
+              && on_spheres(sa, raw[ra].pos, raw[rb].atoms))
             uf.merge(ra, rb);
         }
       }
@@ -490,10 +509,15 @@ namespace internal {
         for (int r: ms)
           rep += raw[r].pos;
         rep /= static_cast<double>(ms.size());
-        double spread = 0;
+        double spread2 = 0;
         for (int r: ms)
-          spread = nuri::max(spread, (raw[r].pos - rep).squaredNorm());
-        ABSL_DCHECK_LE(spread, eps2);
+          spread2 = nuri::max(spread2, (raw[r].pos - rep).squaredNorm());
+        for (int a = coff[c]; a < coff[c + 1]; ++a) {
+          const int l = catoms[a];
+          ABSL_DCHECK_LE(std::abs((rep - sa.pts.col(l)).norm() - sa.sar[l]),
+                         eps + spread2 / sa.sar[l])
+              << "vertex off its sphere " << l;
+        }
         vtx.probes.pos.col(p) = rep;
 
         const int d = coff.degree(c);

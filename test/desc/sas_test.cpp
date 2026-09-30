@@ -297,6 +297,41 @@ TEST(BuildSasTest, FlatCellApexDoesNotHideCover) {
     EXPECT_NEAR(geo.area[p], sr[sa.order[p]], 0.05) << "atom " << p;
 }
 
+/**
+ * Ideal benzene has 6-fold axis vertices and 4-fold C-C-H-H vertices; a
+ * 1e-7 jitter scatters the raw points of one vertex beyond
+ * kSurfaceLengthEps along their circles while every sphere still passes
+ * within the tolerance. Deterministic jitter, rp 1.4.
+ */
+TEST(BuildSasTest, JitteredBenzeneVertices) {
+  Matrix3Xd pts(3, 12);
+  ArrayXd sar(12);
+  for (int k = 0; k < 6; ++k) {
+    const double az = kPi / 3 * k;
+    pts.col(k) << 1.39 * std::cos(az), 1.39 * std::sin(az), 0;
+    pts.col(6 + k) << 2.47 * std::cos(az), 2.47 * std::sin(az), 0;
+    sar[k] = 1.7 + 1.4;
+    sar[6 + k] = 1.2 + 1.4;
+  }
+  for (int i = 0; i < pts.size(); ++i)
+    pts.data()[i] += 1e-7 * std::sin(1000.0 * (i + 1));
+
+  const double rp = 1.4;
+  std::optional<SaPrep> sa =
+      prepare(pts, sar, ArrayXb::Constant(12, true), rp);
+  ASSERT_TRUE(sa);
+  const SasDelaunay del = triangulate(*sa);
+  const SasGeometry geo = build_sas(*sa, del);
+
+  const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
+  for (int p = 0; p < 12; ++p)
+    EXPECT_NEAR(geo.area[p], sr[sa->order[p]], 0.1) << "atom " << p;
+  int fourfold = 0;
+  for (int p = 0; p < geo.probes.pos.cols(); ++p)
+    fourfold += static_cast<int>(geo.probes.atoms.degree(p) == 4);
+  EXPECT_EQ(fourfold, 12);
+}
+
 TEST(BuildSasTest, TriangulationSharedAcrossMasks) {
   const int n = 24;
   Matrix3Xd pts(3, n);
