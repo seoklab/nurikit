@@ -59,6 +59,41 @@ def test_single_cap(alpha):
     )
 
 
+def rotation(axis, angle):
+    axis = np.asarray(axis, dtype=float)
+    axis = axis / np.linalg.norm(axis)
+    k = np.array(
+        [
+            [0.0, -axis[2], axis[1]],
+            [axis[2], 0.0, -axis[0]],
+            [-axis[1], axis[0], 0.0],
+        ]
+    )
+    return np.eye(3) + math.sin(angle) * k + (1 - math.cos(angle)) * k @ k
+
+
+@pytest.mark.parametrize("gap", [0.0, 5e-7])
+@pytest.mark.parametrize("delta", [3e-5, 1e-4, 3e-4, 1e-3])
+def test_near_pair_pinch_with_third_cap(gap, delta):
+    """Caps j and k are externally tangent at +z (``gap`` apart, within
+    the merge tolerance); cap l passes through the point of circle j at
+    tangential offset ``delta``. The three crossing points merge into one
+    vertex whose pinch darts are ``delta (cot a_j + cot a_k)`` apart, far
+    beyond any angle tolerance: the corner is the signed dart angle, and
+    the area must not gain ``2 pi``."""
+    a_j, a_k, a_l = 0.6, 0.8, 0.5
+    nj = np.array([math.sin(a_j), 0.0, math.cos(a_j)])
+    nk = np.array([-math.sin(a_k + gap), 0.0, math.cos(a_k + gap)])
+    p = rotation(nj, delta / math.sin(a_j)) @ np.array([0.0, 0.0, 1.0])
+    t = np.cross(nj, p)
+    t /= np.linalg.norm(t)
+    dirn = (t + np.cross(p, t)) / math.sqrt(2)
+    nl = math.cos(a_l) * p + math.sin(a_l) * dirn
+
+    arr = solve_caps(1.0, caps_from([nj, nk, nl], [a_j, a_k, a_l]))
+    assert arr.area == pytest.approx(lattice_area(arr), abs=2e-3)
+
+
 def test_two_crossing_caps():
     arr = solve_caps(1.0, caps_from([[0, 0, 1], [1, 0, 1]], [0.6, 0.5]))
     assert arr.n_loops == 1

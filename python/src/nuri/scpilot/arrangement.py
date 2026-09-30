@@ -452,11 +452,10 @@ def _walk(problem: ArrangementProblem, arcs: list[Arc]):
                 )
             if d.is_in:
                 iota = d.angle - prev.angle
-                if iota < -_TAU_DIR:
+                if iota <= -0.5 * math.pi:
                     iota += 2.0 * math.pi
-                elif iota > 2.0 * math.pi - _TAU_DIR:
+                elif iota > 1.5 * math.pi:
                     iota -= 2.0 * math.pi
-                iota = max(iota, 0.0)
                 if iota > math.pi + _TAU_DIR:
                     raise DegenerateGeometryError(f"vertex {v}: reflex corner")
                 succ[d.arc] = prev.arc
