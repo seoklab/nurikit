@@ -5,12 +5,15 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <utility>
+#include <vector>
 
 #include <absl/log/absl_check.h>
 #include <Eigen/Dense>
 #include <geogram/basic/numeric.h>
 #include <geogram/delaunay/delaunay_3d.h>
+#include <geogram/numerics/predicates.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/desc/surface.h"
@@ -49,10 +52,15 @@ namespace internal {
       return lifted;
     }
 
-    CSR edges_of(const Array4Xi &tets, const int n) {
+    struct Edges {
+      CSR nbrs;
+      ArrayXi cell;
+    };
+
+    Edges edges_of(const Array4Xi &tets, const int n) {
       const int nf = static_cast<int>(tets.cols());
 
-      ArrayXi key(12L * nf), val(12L * nf);
+      ArrayXi key(12L * nf), val(12L * nf), cell(12L * nf);
       int m = 0;
       for (int c = 0; c < nf; ++c) {
         for (int a = 0; a < 4; ++a) {
@@ -65,6 +73,7 @@ namespace internal {
 
             key[m] = tets(a, c);
             val[m] = tets(b, c);
+            cell[m] = c;
             ++m;
           }
         }
@@ -74,20 +83,50 @@ namespace internal {
       OffsetTable off(n);
       argsort_bucket(order, off, key.head(m));
 
-      ArrayXi adj(m);
+      ArrayXi adj(m), ecell(m);
+      std::vector<std::pair<int, int>> row;
       int w = 0;
       for (int v = 0; v < n; ++v) {
         const int beg = off[v], end = off[v + 1];
         off.off()[v] = w;
-        auto first = adj.begin() + w;
+
+        row.clear();
         for (int e = beg; e < end; ++e)
-          adj[w++] = val[order[e]];
-        std::sort(first, adj.begin() + w);
-        w = static_cast<int>(std::unique(first, adj.begin() + w) - adj.begin());
+          row.emplace_back(val[order[e]], cell[order[e]]);
+        std::sort(row.begin(), row.end());
+        for (auto it = row.begin(); it != row.end(); ++it) {
+          if (it != row.begin() && it->first == std::prev(it)->first)
+            continue;
+          adj[w] = it->first;
+          ecell[w] = it->second;
+          ++w;
+        }
       }
       off.off()[n] = w;
       adj.conservativeResize(w);
-      return { std::move(adj), std::move(off) };
+      ecell.conservativeResize(w);
+      return { CSR(std::move(adj), std::move(off)), std::move(ecell) };
+    }
+
+    Array4Xi number_faces(const Array4Xi &adj, int &n_faces) {
+      const int nf = static_cast<int>(adj.cols());
+      Array4Xi face(4, nf);
+      n_faces = 0;
+      for (int c = 0; c < nf; ++c) {
+        for (int lf = 0; lf < 4; ++lf) {
+          const int c2 = adj(lf, c);
+          if (c2 < 0 || c < c2) {
+            face(lf, c) = n_faces++;
+            continue;
+          }
+
+          int lf2 = 0;
+          while (adj(lf2, c2) != c)
+            ++lf2;
+          face(lf, c) = face(lf2, c2);
+        }
+      }
+      return face;
     }
   }  // namespace
 
@@ -122,7 +161,20 @@ namespace internal {
       }
     }
 
-    del.nbrs = edges_of(del.tets, n);
+    for (int c = 0; c < nf; ++c) {
+      ABSL_DCHECK_EQ(GEO::PCK::orient_3d(lifted.col(del.tets(0, c)).data(),
+                                         lifted.col(del.tets(1, c)).data(),
+                                         lifted.col(del.tets(2, c)).data(),
+                                         lifted.col(del.tets(3, c)).data()),
+                     GEO::POSITIVE)
+          << "cell " << c << " is not positively oriented";
+    }
+
+    Edges edges = edges_of(del.tets, n);
+    del.nbrs = std::move(edges.nbrs);
+    del.edge_cell = std::move(edges.cell);
+    del.face = number_faces(del.adj, del.n_faces);
+    del.ex = SasExact::make(lifted, sa.wmax);
     return del;
   }
 }  // namespace internal

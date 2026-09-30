@@ -420,6 +420,50 @@ TEST(BuildSasTest, TriangulationSharedAcrossMasks) {
   for (int p = 0; p < sa_half->n_active; ++p)
     EXPECT_DOUBLE_EQ(geo_half.area[p], area_all[sa_half->order[p]]) << p;
 }
+
+TEST(BuildSasTest, TriangulationTables) {
+  const int n = 24;
+  Matrix3Xd pts(3, n);
+  for (int i = 0; i < n; ++i) {
+    const int ix = i % 4, iy = (i / 4) % 3, iz = i / 12;
+    pts.col(i) << 1.7 * ix, 1.6 * iy + 0.3 * (i % 2), 1.5 * iz + 0.2 * (i % 3);
+  }
+  const ArrayXd sar = ArrayXd::Constant(n, 1.5);
+  std::optional<SaPrep> sa = prepare(pts, sar, ArrayXb::Constant(n, true), kRp);
+  ASSERT_TRUE(sa);
+  const SasDelaunay del = triangulate(*sa);
+
+  const int nf = static_cast<int>(del.tets.cols());
+  ArrayXi seen = ArrayXi::Zero(del.n_faces);
+  for (int c = 0; c < nf; ++c) {
+    for (int lf = 0; lf < 4; ++lf) {
+      const int f = del.face(lf, c), c2 = del.adj(lf, c);
+      ASSERT_GE(f, 0);
+      ASSERT_LT(f, del.n_faces);
+      ++seen[f];
+      if (c2 >= 0) {
+        int lf2 = 0;
+        while (del.adj(lf2, c2) != c)
+          ++lf2;
+        EXPECT_EQ(del.face(lf2, c2), f);
+      }
+    }
+  }
+  EXPECT_TRUE((seen >= 1).all() && (seen <= 2).all());
+  EXPECT_EQ(seen.sum(), 4 * nf);
+
+  for (int v = 0; v < del.nbrs.n(); ++v) {
+    for (auto it = del.nbrs.begin(v), e = del.nbrs.end(v); it < e; ++it) {
+      const int c = del.edge_cell[del.nbrs.eid(it)];
+      const Array4i tv = del.tets.col(c);
+      EXPECT_TRUE((tv == v).any() && (tv == *it).any()) << v << " " << *it;
+    }
+  }
+
+  EXPECT_EQ(del.ex.n(), n + 4);
+  for (int v = 0; v < n; ++v)
+    EXPECT_NEAR(del.ex.rho2(v), 2.25, 1e-12);
+}
 }  // namespace
 }  // namespace internal
 }  // namespace nuri

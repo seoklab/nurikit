@@ -224,24 +224,6 @@ namespace internal {
   extern std::optional<SaPrep> prepare(const Matrix3Xd &pts, const ArrayXd &sar,
                                        const ArrayXb &active, double rp);
 
-  /**
-   * Regular (weighted Delaunay) triangulation of every kept sphere. Vertices
-   * are the kept spheres in original index order, then four far bounding
-   * points, so the result is shared across active masks: `vertex` maps an
-   * original atom index to its vertex (-1 if dropped), `tets` holds the finite
-   * cells, `adj(lf, c)` the cell across the face opposite local vertex `lf`
-   * (-1 past the hull), and `nbrs(v)` the edges of sphere vertex `v`. A sphere
-   * with no edges has an empty power cell, i.e. no accessible surface.
-   */
-  struct SasDelaunay {
-    Array4Xi tets;
-    Array4Xi adj;
-    CSR nbrs;
-    ArrayXi vertex;
-  };
-
-  extern SasDelaunay triangulate(const SaPrep &sa);
-
   enum class Sgn : int { kNeg = -1, kZero = 0, kPos = 1 };
 
   /**
@@ -336,6 +318,31 @@ namespace internal {
     ArrayXd h_;
     double w_ = 0;
   };
+
+  /**
+   * Regular (weighted Delaunay) triangulation of every kept sphere. Vertices
+   * are the kept spheres in original index order, then four far bounding
+   * points, so the result is shared across active masks: `vertex` maps an
+   * original atom index to its vertex (-1 if dropped), `tets` holds the finite
+   * cells, `adj(lf, c)` the cell across the face opposite local vertex `lf`
+   * (-1 past the hull), and `nbrs(v)` the edges of sphere vertex `v`. A sphere
+   * with no edges has an empty power cell, i.e. no accessible surface.
+   * `face(lf, c)` numbers the faces (shared ids across the two cells),
+   * `edge_cell` gives one cell containing each `nbrs` edge, and `ex` holds the
+   * exact predicates on the lifted vertices (spheres, then corners).
+   */
+  struct SasDelaunay {
+    Array4Xi tets;
+    Array4Xi adj;
+    Array4Xi face;
+    int n_faces = 0;
+    CSR nbrs;
+    ArrayXi edge_cell;
+    ArrayXi vertex;
+    SasExact ex;
+  };
+
+  extern SasDelaunay triangulate(const SaPrep &sa);
 
   struct SasCircle {
     Vector3d axis, cntr;
