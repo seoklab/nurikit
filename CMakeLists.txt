@@ -55,6 +55,8 @@ option(NURI_BUILD_PYTHON_DOCTEST "Build python doctest" OFF)
 option(NURI_INSTALL_RPATH "Install with RPATH when building full library" ON)
 
 set(NURI_OPTIMIZATION_LEVEL "O3" CACHE STRING "Optimization level")
+set(NURI_DEBUG_OPTIMIZATION_LEVEL "O0" CACHE STRING
+  "Optimization level for debug builds")
 option(NURI_ENABLE_IPO "Do interprocedural optimization" ON)
 
 option(NURI_TEST_COVERAGE "Enable coverage build" OFF)
@@ -121,7 +123,7 @@ endif()
 set(nuri_is_release "$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>")
 
 add_both_options(
-  "$<$<CONFIG:Debug>:-O0>"
+  "$<$<CONFIG:Debug>:-${NURI_DEBUG_OPTIMIZATION_LEVEL}>"
   "$<${nuri_is_release}:-${NURI_OPTIMIZATION_LEVEL}>"
 )
 

@@ -62,6 +62,15 @@
       }
     },
     {
+      "name": "optdebug",
+      "displayName": "OptDebug",
+      "description": "Debug checks (DCHECK, Eigen asserts) with -O3.",
+      "inherits": "debug",
+      "cacheVariables": {
+        "NURI_DEBUG_OPTIMIZATION_LEVEL": "O3"
+      }
+    },
+    {
       "name": "bench",
       "displayName": "Benchmark",
       "description": "Benchmarking build.",

@@ -57,6 +57,8 @@ Below, `<variant>` is a preset defined in `CMakePresets.json`; `<build>` is
 its build dir, `build/<variant>`. Use:
 
 - `coverage` for local development and debugging,
+- `optdebug` for oracle comparisons and scratch drivers (DCHECK and Eigen
+  asserts on, `-O3`, no fast-math),
 - `sanitizer` for memory and UB safety, and
 - `reldeb` for performance profiling.
 
