@@ -62,17 +62,17 @@ namespace internal {
     }
 
     struct TripleCut {
-      Vector3d w;
-      double wa, amp2, g, h2;
+      Vector3d wperp;
+      double amp2, g, h2;
     };
 
     TripleCut cut_triple(const SasCircle &cij, const Vector3d &pk,
                          const double rk) {
       const Vector3d w = cij.cntr - pk;
-      const double wa = w.dot(cij.axis), w2 = w.squaredNorm();
-      const double amp2 = w2 - wa * wa;
+      const Vector3d wperp = w - w.dot(cij.axis) * cij.axis;
+      const double amp2 = wperp.squaredNorm(), w2 = w.squaredNorm();
       const double g = (rk * rk - w2 - cij.rl * cij.rl) / (2 * cij.rl);
-      return { w, wa, amp2, g, amp2 - g * g };
+      return { wperp, amp2, g, amp2 - g * g };
     }
 
     /**
@@ -330,11 +330,10 @@ namespace internal {
     void accept_cuts(std::vector<RawVertex> &raw, const SaPrep &sa,
                      const Array3i &abc, const SasCircle &cij,
                      const TripleCut &cut, const E::Array2i &apex) {
-      const Vector3d wperp = cut.w - cut.wa * cij.axis;
       const double scale = cij.rl / cut.amp2;
-      const Vector3d radial = scale * cut.g * wperp,
+      const Vector3d radial = scale * cut.g * cut.wperp,
                      tangent =
-                         scale * std::sqrt(cut.h2) * cij.axis.cross(wperp);
+                         scale * std::sqrt(cut.h2) * cij.axis.cross(cut.wperp);
 
       const int first = static_cast<int>(raw.size());
       for (int side = 0; side < 2; ++side) {
