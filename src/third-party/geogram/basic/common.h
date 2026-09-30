@@ -58,17 +58,7 @@
  * \details This namespace contains all the Vorpaline classes and functions
  * organized in sub-namespaces.
  */
-namespace GEO {
-
-}
-
 /**
- * \def GEO_DEBUG
- * \brief This macro is set when compiling in debug mode
- *
- * \def GEO_PARANOID
- * \brief This macro is set when compiling in debug mode
- *
  * \def GEO_OS_LINUX
  * \brief This macro is set on Linux systems (Android included).
  *
@@ -142,14 +132,6 @@ namespace GEO {
  * \brief This macro is set if parallel STL and <execution> are available.
  *
  */
-
-#ifdef NDEBUG
-#undef GEO_DEBUG
-#undef GEO_PARANOID
-#else
-#define GEO_DEBUG
-#define GEO_PARANOID
-#endif
 
 // =============================== LINUX defines ===========================
 

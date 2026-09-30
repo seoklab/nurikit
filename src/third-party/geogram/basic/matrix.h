@@ -335,7 +335,7 @@ namespace GEO {
         matrix_type inverse() const {
             matrix_type result;
             bool invertible = compute_inverse(result);
-            geo_assert(invertible);
+            geo_debug_assert(invertible);
             return result;
         }
 
