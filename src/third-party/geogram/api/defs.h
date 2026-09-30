@@ -93,12 +93,6 @@
 #define NO_GEOGRAM_API
 
 /**
- * \brief Opaque identifier of a mesh.
- * \details Used by the C API.
- */
-typedef int GeoMesh;
-
-/**
  * \brief Represents dimension (e.g. 3 for 3d, 4 for 4d ...).
  * \details Used by the C API.
  */
@@ -139,26 +133,5 @@ typedef unsigned int geo_index_t;
 typedef int geo_signed_index_t;
 
 #endif
-
-/**
- * \brief Represents floating-point coordinates.
- * \details Used by the C API.
- */
-typedef double geo_coord_t;
-
-/**
- * \brief Represents truth values.
- * \details Used by the C API.
- */
-typedef int geo_boolean;
-
-/**
- * \brief Thruth values (geo_boolean).
- * \details Used by the C API.
- */
-enum {
-    GEO_FALSE = 0,
-    GEO_TRUE = 1
-};
 
 #endif

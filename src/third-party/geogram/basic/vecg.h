@@ -51,9 +51,7 @@
 #include <cfloat>
 #include <cmath>
 
-#ifndef GOMGEN
 #include <type_traits>
-#endif
 
 /**
  * \file geogram/basic/vecg.h
@@ -382,7 +380,6 @@ namespace GEO {
         return result;
     }
 
-#ifndef GOMGEN
     /**
      * \brief Multiplies a scalar by a vector
      * \details Builds a vector by multipying this vector coordinates by
@@ -431,7 +428,6 @@ namespace GEO {
         }
         return result;
     }
-#endif
 
     // Compatibility with GLSL
 
@@ -498,7 +494,7 @@ namespace GEO {
      * \return the normalized vector
      * \relates vecng
      */
-    template <index_t DIM, class T> GEO_NODISCARD
+    template <index_t DIM, class T> [[nodiscard]]
     inline vecng<DIM, T> normalize(
         const vecng<DIM, T>& v
     ) {
@@ -735,7 +731,6 @@ namespace GEO {
         return v1.x * v2.y - v1.y * v2.x;
     }
 
-#ifndef GOMGEN
     /**
      * \copydoc vecng::operator*(T2,const vecng<DIM,T>&)
      * \relates vecng
@@ -761,7 +756,6 @@ namespace GEO {
     ) {
         return vecng<2, T>(T(s) * v.x, T(s) * v.y);
     }
-#endif
 
     /************************************************************************/
 
@@ -1016,7 +1010,6 @@ namespace GEO {
         );
     }
 
-#ifndef GOMGEN
     /**
      * \copydoc vecng::operator*(T2, const vecng<DIM,T>&)
      * \relates vecng
@@ -1043,7 +1036,6 @@ namespace GEO {
         return vecng<3, T>(T(s) * v.x, T(s) * v.y, T(s) * v.z);
     }
 
-#endif
 
     /************************************************************************/
 
@@ -1354,7 +1346,6 @@ namespace GEO {
         return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z + v1.w * v2.w;
     }
 
-#ifndef GOMGEN
     /**
      * \copydoc vecng::operator*(T2, const vecng<DIM,T>&)
      * \relates vecng
@@ -1381,7 +1372,6 @@ namespace GEO {
         return vecng<4, T>(T(s) * v.x, T(s) * v.y, T(s) * v.z, T(s) * v.w);
     }
 
-#endif
 
     /**
      * \brief Writes a vector to a stream

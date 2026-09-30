@@ -60,250 +60,39 @@
  */
 /**
  * \def GEO_OS_LINUX
- * \brief This macro is set on Linux systems (Android included).
+ * \brief This macro is set on Linux systems.
  *
  * \def GEO_OS_UNIX
- * \brief This macro is set on Unix systems (Android included).
- *
- * \def GEO_OS_WINDOWS
- * \brief This macro is set on Windows systems.
+ * \brief This macro is set on Unix systems.
  *
  * \def GEO_OS_APPLE
  * \brief This macro is set on Apple systems.
  *
- * \def GEO_OS_ANDROID
- * \brief This macro is set on Android systems (in addition to GEO_OS_LINUX
- * and GEO_OS_UNIX).
- *
- * \def GEO_OS_X11
- * \brief This macro is set on X11 is supported on the current system.
- *
- * \def GEO_ARCH_32
- * \brief This macro is set if the current system is a 32 bits architecture.
- *
- * \def GEO_ARCH_64
- * \brief This macro is set if the current system is a 64 bits architecture.
- *
- * \def GEO_OPENMP
- * \brief This macro is set if OpenMP is supported on the current system.
- *
  * \def GEO_COMPILER_GCC
  * \brief This macro is set if the source code is compiled with GNU's gcc.
  *
- * \def GEO_COMPILER_INTEL
- * \brief This macro is set if the source code is compiled with Intel's icc.
- *
- * \def GEO_COMPILER_MSVC
- * \brief This macro is set if the source code is compiled with Microsoft's
- * Visual C++.
- *
- * \def GEO_NORETURN_DECL
- * \brief Should be inserted before the prototype of a function that does
- *  not return.
- * \details This helps the compiler determining where the execution flow
- *  goes. This is useful for helping the compiler generate some warnings.
- *   Example of a function prototype for a function that does not return
- *   (note the GEO_NORETURN_DECL keyword before and the GEO_NORETURN
- *    keyword after).
- *   \code
- *      GEO_NORETURN_DECL void GEOGRAM_API geo_abort() GEO_NORETURN;
- *   \endcode
- *
- * \def GEO_NORETURN
- * \brief Should be inserted after the prototype of a function that does
- *  not return.
- * \details This helps the compiler determining where the execution flow
- *  goes. This is useful for helping the compiler generate some warnings.
- *   Example of a function prototype for a function that does not return
- *   (note the GEO_NORETURN_DECL keyword before and the GEO_NORETURN
- *    keyword after).
- *   \code
- *      GEO_NORETURN_DECL void GEOGRAM_API geo_abort() GEO_NORETURN;
- *   \endcode
- *
- * \def GEO_NOEXCEPT
- * \brief Indicates that a function does not throw any exception.
- * \details Should be specified at the end of the function prototype.
- * \code
- *    void GEOGRAM_API foobar() GEO_NOEXCEPT;
- * \encode
- *
- * \def GEO_PARALLEL_STL
- * \brief This macro is set if parallel STL and <execution> are available.
- *
+ * \def GEO_COMPILER_CLANG
+ * \brief This macro is set if the source code is compiled with clang.
  */
 
-// =============================== LINUX defines ===========================
-
-#if defined(__ANDROID__)
-#define GEO_OS_ANDROID
-#endif
-
 #if defined(__linux__)
-
 #define GEO_OS_LINUX
 #define GEO_OS_UNIX
-
-#ifndef GEO_OS_ANDROID
-#define GEO_OS_X11
-#endif
-
-#if defined(_OPENMP)
-#  define GEO_OPENMP
-#endif
-
-#if defined(__INTEL_COMPILER)
-#  define GEO_COMPILER_INTEL
-#elif defined(__clang__)
-#  define GEO_COMPILER_CLANG
-#elif defined(__GNUC__)
-#  define GEO_COMPILER_GCC
-#else
-#  error "Unsupported compiler"
-#endif
-
-// The following works on GCC and ICC
-#if defined(__x86_64)
-#  define GEO_ARCH_64
-#  define GEO_PROCESSOR_X86
-#else
-#  define GEO_ARCH_32
-#endif
-
-// =============================== WINDOWS defines =========================
-
-#elif defined(_WIN32) || defined(_WIN64)
-
-#define GEO_OS_WINDOWS
-#define GEO_PROCESSOR_X86
-
-#if defined(_OPENMP)
-#  define GEO_OPENMP
-#endif
-
-#if defined(_MSC_VER)
-#  define GEO_COMPILER_MSVC
-#elif defined(__MINGW32__) || defined(__MINGW64__)
-#  define GEO_COMPILER_MINGW
-#endif
-
-#if defined(_WIN64)
-#  define GEO_ARCH_64
-#else
-#  define GEO_ARCH_32
-#endif
-
-// =============================== APPLE defines ===========================
-
 #elif defined(__APPLE__)
-
 #define GEO_OS_APPLE
 #define GEO_OS_UNIX
-
-#if defined(_OPENMP)
-#  define GEO_OPENMP
-#endif
-
-#if defined(__clang__)
-#  define GEO_COMPILER_CLANG
-#elif defined(__GNUC__)
-#  define GEO_COMPILER_GCC
-#else
-#  error "Unsupported compiler"
-#endif
-
-#if defined(__x86_64) || defined(__ppc64__) || defined(__arm64__) || defined(__aarch64__) || (defined(__riscv) && __riscv_xlen == 64) || defined(__loongarch_lp64)
-#  define GEO_ARCH_64
-#else
-#  define GEO_ARCH_32
-#endif
-
-// =============================== Emscripten defines  ======================
-
-#elif defined(__EMSCRIPTEN__)
-
-#include <emscripten.h>
-
-#define GEO_OS_UNIX
-#define GEO_OS_LINUX
-#define GEO_OS_EMSCRIPTEN
-#define GEO_ARCH_64
-#define GEO_COMPILER_EMSCRIPTEN
-#define GEO_COMPILER_CLANG
-
-// =============================== Unsupported =============================
 #else
 #error "Unsupported operating system"
 #endif
 
-#if defined(GEO_COMPILER_GCC)   ||              \
-    defined(GEO_COMPILER_CLANG) ||              \
-    defined(GEO_COMPILER_MINGW) ||              \
-    defined(GEO_COMPILER_EMSCRIPTEN)
+#if defined(__clang__)
+#define GEO_COMPILER_CLANG
+#elif defined(__GNUC__)
+#define GEO_COMPILER_GCC
+#else
+#error "Unsupported compiler"
+#endif
 #define GEO_COMPILER_GCC_FAMILY
-#endif
-
-#ifdef DOXYGEN_ONLY
-// Keep doxygen happy
-#define GEO_OS_WINDOWS
-#define GEO_OS_APPLE
-#define GEO_OS_ANDROID
-#define GEO_ARCH_32
-#define GEO_COMPILER_INTEL
-#define GEO_COMPILER_MSVC
-#endif
-
-/**
- * \def CPP_CONCAT_(A,B)
- * \brief Helper macro for CPP_CONCAT()
- */
-#define CPP_CONCAT_(A, B) A ## B
-
-/**
- * \def CPP_CONCAT(A,B)
- * \brief Creates a new symbol by concatenating its arguments
- */
-#define CPP_CONCAT(A, B) CPP_CONCAT_(A, B)
-
-#if defined(GOMGEN)
-#define GEO_NORETURN
-#elif defined(GEO_COMPILER_GCC_FAMILY) ||       \
-    defined(GEO_COMPILER_INTEL)
-#define GEO_NORETURN __attribute__((noreturn))
-#else
-#define GEO_NORETURN
-#endif
-
-#if defined(GOMGEN)
-#define GEO_NORETURN_DECL
-#elif defined(GEO_COMPILER_MSVC)
-#define GEO_NORETURN_DECL __declspec(noreturn)
-#else
-#define GEO_NORETURN_DECL
-#endif
-
-#if defined(GEO_COMPILER_CLANG) || defined(GEO_COMPILER_EMSCRIPTEN)
-#if __has_feature(cxx_noexcept)
-#define GEO_NOEXCEPT noexcept
-#endif
-#endif
-
-// For Graphite GOM generator (swig is confused by throw() specifier)
-#ifdef GOMGEN
-#define GEO_NOEXCEPT
-#endif
-
-#ifndef GEO_NOEXCEPT
-#define GEO_NOEXCEPT throw()
-#endif
-
-#if defined(GOMGEN)
-#define GEO_NODISCARD
-#else
-#define GEO_NODISCARD [[nodiscard]]
-#endif
-
-#define FOR(I,UPPERBND) for(index_t I = 0; I<index_t(UPPERBND); ++I)
 
 // Silence warnings for alloca()
 // We use it at different places to allocate objects on the stack

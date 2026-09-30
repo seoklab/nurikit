@@ -62,31 +62,6 @@ namespace GEO {
     namespace PCK {
 
         /**
-         * \brief Mode for symbolic perturbations.
-         */
-        enum SOSMode { SOS_ADDRESS, SOS_LEXICO };
-
-        /**
-         * \brief Sets the current mode for handling symbolic perturbations
-         *  (SOS for Simulation Of Simplicity).
-         * \param[in] m one of SOS_ADDRESS, SOS_LEXICO
-         * \details If SOS_ADDRESS mode is used, then points are supposed
-         *  to be allocated in a fixed array, and the same point always
-         *  designated by the same address. If SOS_LEXICO is used then points
-         *  are sorted in lexicographic order for computing the symbolic
-         *  perturbation. SOS_LEXICO works for points that are generated
-         *  dynamically (with no fixed address).
-         */
-        void GEOGRAM_API set_SOS_mode(SOSMode m);
-
-        /**
-         * \brief Gets the current mode for handling symbolic perturbations.
-         * \return one of SOS_ADDRESS, SOS_LEXICO
-         * \see set_SOS_mode()
-         */
-        SOSMode GEOGRAM_API get_SOS_mode();
-
-        /**
          * \brief Computes the side of a point (given directly)
          *  relative to a bisector.
          * \details Computes the side of \f$ q0 \f$ relative to

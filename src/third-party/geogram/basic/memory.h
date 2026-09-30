@@ -49,22 +49,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-#ifdef GEO_OS_WINDOWS
-
-#include <windows.h>
-#ifdef min
-#undef min
-#endif
-#ifdef max
-#undef max
-#endif
-
-#else
-
-#include <unistd.h>
-
-#endif
-
 // Stack size depending on OS:
 // Linux: 10 Mb
 // Windows: 1 Mb
@@ -92,23 +76,11 @@ namespace GEO {
         /** \brief Unsigned byte type */
         typedef unsigned char byte;
 
-        /** \brief Unsigned 8 bits integer */
-        typedef unsigned char word8;
-
-        /** \brief Unsigned 16 bits integer */
-        typedef unsigned short word16;
-
-        /** \brief Unsigned 32 bits integer */
-        typedef unsigned int word32;
-
         /** \brief Pointer to unsigned byte(s) */
         typedef byte* pointer;
 
         /** \brief Const pointer to unsigned byte(s) */
         typedef const byte* const_pointer;
-
-        /** \brief Generic function pointer */
-        typedef void (*function_pointer)();
 
         /**
          * \brief Clears a memory block
@@ -134,99 +106,6 @@ namespace GEO {
             ::memcpy(to, from, size);
         }
 
-        /**
-         * \brief Converts a function pointer to a generic pointer.
-         * \details In C++ it is not legal to convert between function pointers
-         *  and generic pointers using casts. Such conversion may be
-         *  required when retrieving symbols in dynamically linked libraries,
-         *  or when interfacing with scripting languages.
-	 * \tparam FPTR function pointer type
-         * \param[in] fptr the function pointer
-         * \return a generic pointer with the same address as \p fptr
-         */
-	template <class FPTR=function_pointer>
-	inline pointer function_pointer_to_generic_pointer(FPTR fptr) {
-            // I know this is ugly, but I did not find a simpler warning-free
-            // way that is portable between all compilers.
-            pointer result = nullptr;
-            ::memcpy(&result, &fptr, sizeof(pointer));
-            return result;
-        }
-
-        /**
-         * \brief Converts a generic pointer to a function pointer.
-         * \details In C++ it is not legal to convert between function pointers
-         *  and generic pointers using casts. Such conversion may be required
-         *  when retrieving symbols in dynamically linked libraries, or when
-         *  interfacing with scripting languages.
-	 * \tparam FPTR function pointer type
-         * \param[in] ptr the generic pointer
-         * \return a function pointer with the same address as \p ptr
-         */
-        template <class FPTR = function_pointer>
-	inline FPTR generic_pointer_to_function_pointer(pointer ptr) {
-            // I know this is ugly, but I did not find a simpler warning-free
-            // way that is portable between all compilers.
-            FPTR result = nullptr;
-            ::memcpy(&result, &ptr, sizeof(pointer));
-            return result;
-        }
-
-        /**
-         * \brief Converts a generic pointer to a function pointer.
-         * \details In C++ it is not legal to convert between function pointers
-         *  and generic pointers using casts. Such conversion may be
-         *  required when retrieving symbols in dynamically linked libraries,
-         *  or when interfacing with scripting languages.
-	 * \tparam FPTR function pointer type
-         * \param[in] ptr the generic pointer
-         * \return a function pointer with the same address as \p ptr
-         */
-        template <class FPTR = function_pointer>
-        inline FPTR generic_pointer_to_function_pointer(void* ptr) {
-            // I know this is ugly, but I did not find a simpler warning-free
-            // way that is portable between all compilers.
-            FPTR result = nullptr;
-            ::memcpy(&result, &ptr, sizeof(pointer));
-            return result;
-        }
-
-
-	/**
-	 * \brief Converts a pointer to a reference
-	 * \tparam T the type for the reference
-	 * \param[in] ptr the pointer
-	 * \return a reference of type T&
-	 */
-	template <class T> inline T& pointer_as_reference(void* ptr) {
-	    // This is the recommended way of converting between pointers
-	    // of different types. Casting the pointer directly is undefined
-	    // behavior. Note: the call to memcpy() is eliminated by the
-	    // compiler (that generates the same thing as when casting the
-	    // pointer).
-	    T* T_ptr;
-	    ::memcpy(&T_ptr, &ptr, sizeof(pointer));
-	    return *T_ptr;
-	}
-
-	/**
-	 * \brief Converts a const pointer to a reference
-	 * \tparam T the type for the reference
-	 * \param[in] ptr the pointer
-	 * \return a const reference of type const T&
-	 */
-	template <class T> inline const T& pointer_as_reference(
-	    const void* ptr
-	) {
-	    // This is the recommended way of converting between pointers
-	    // of different types. Casting the pointer directly is undefined
-	    // behavior. Note: the call to memcpy() is eliminated by the
-	    // compiler (that generates the same thing as when casting the
-	    // pointer).
-	    const T* T_ptr;
-	    ::memcpy(&T_ptr, &ptr, sizeof(pointer));
-	    return *T_ptr;
-	}
 
 
         /**
@@ -325,22 +204,9 @@ namespace GEO {
         inline void* aligned_malloc(
             size_t size, size_t alignment = GEO_MEMORY_ALIGNMENT
         ) {
-#if   defined(GEO_OS_ANDROID)
-            // Alignment not supported under Android.
-            geo_argused(alignment);
-            return malloc(size);
-#elif defined(GEO_COMPILER_INTEL)
-            return _mm_malloc(size, alignment);
-#elif defined(GEO_COMPILER_GCC) || defined(GEO_COMPILER_CLANG)
             void* result;
             return posix_memalign(&result, alignment, size) == 0
                 ? result : nullptr;
-#elif defined(GEO_COMPILER_MSVC)
-            return _aligned_malloc(size, alignment);
-#else
-            geo_argused(alignment);
-            return malloc(size);
-#endif
         }
 
         /**
@@ -351,44 +217,8 @@ namespace GEO {
          * \note Memory alignment is not supported under Android.
          */
         inline void aligned_free(void* p) {
-#if   defined(GEO_OS_ANDROID)
-            // Alignment not supported under Android.
             free(p);
-#elif defined(GEO_COMPILER_INTEL)
-            _mm_free(p);
-#elif defined(GEO_COMPILER_GCC_FAMILY)
-            free(p);
-#elif defined(GEO_COMPILER_MSVC)
-            _aligned_free(p);
-#else
-            free(p);
-#endif
         }
-
-        /**
-         * \def geo_decl_aligned(var)
-         * \brief Specifies that a given variable should be memory-aligned.
-         * \details
-         *  It helps the compiler vectorizing loops,
-         *  i.e. generating SSE/AVX/... code.
-         * \param[in] var a variable in the current scope
-         * \par Example
-         * \code
-         * geo_decl_aligned(double x);
-         * \endcode
-         * \note Memory alignment is not supported under Android.
-         */
-#if   defined(GEO_OS_ANDROID)
-#define geo_decl_aligned(var) var
-#elif defined(GEO_COMPILER_INTEL)
-#define geo_decl_aligned(var) __declspec(aligned(GEO_MEMORY_ALIGNMENT)) var
-#elif defined(GEO_COMPILER_GCC_FAMILY)
-#define geo_decl_aligned(var) var __attribute__((aligned(GEO_MEMORY_ALIGNMENT)))
-#elif defined(GEO_COMPILER_MSVC)
-#define geo_decl_aligned(var) __declspec(align(GEO_MEMORY_ALIGNMENT)) var
-#elif defined(GEO_COMPILER_EMSCRIPTEN)
-#define geo_decl_aligned(var) var
-#endif
 
         /**
          * \def geo_assume_aligned(var, alignment)
@@ -406,66 +236,7 @@ namespace GEO {
          * \note Memory alignment is not supported under Android.
 	 * \note C++20 has std::assume_aligned()
          */
-#if   defined(GEO_OS_ANDROID)
 #define geo_assume_aligned(var, alignment)
-#elif defined(GEO_COMPILER_INTEL)
-#define geo_assume_aligned(var, alignment)      \
-        __assume_aligned(var, alignment)
-#elif defined(GEO_COMPILER_CLANG)
-#define geo_assume_aligned(var, alignment)
-        // GCC __builtin_assume_aligned is not yet supported by clang-3.3
-#elif defined(GEO_COMPILER_GCC)
-#if __GNUC__ >= 4 && __GNUC_MINOR__ >= 7
-#define geo_assume_aligned(var, alignment)                              \
-        *(void**) (&var) = __builtin_assume_aligned(var, alignment)
-        // the GCC way of specifying that a pointer is aligned returns
-        // the aligned pointer (I can't figure out why). It needs to be
-        // affected otherwise it is not taken into account (verified by
-        // looking at the output of gcc -S)
-#else
-#define geo_assume_aligned(var, alignment)
-#endif
-#elif defined(GEO_COMPILER_MSVC)
-#define geo_assume_aligned(var, alignment)
-        // TODO: I do not know how to do that with MSVC
-#elif defined(GEO_COMPILER_EMSCRIPTEN)
-#define geo_assume_aligned(var, alignment)
-#elif defined(GEO_COMPILER_MINGW)
-#define geo_assume_aligned(var, alignment)
-#endif
-
-        /**
-         * \def geo_restrict
-         * \brief Informs the compiler that a given pointer has no aliasing
-         * \details
-         *  No aliasing means that no other pointer points to the same area of
-         *  memory.
-         * \code
-         * double* geo_restrict p = ...;
-         * \endcode
-         */
-#if   defined(GEO_COMPILER_INTEL)
-#define geo_restrict __restrict
-#elif defined(GEO_COMPILER_GCC_FAMILY)
-#define geo_restrict __restrict__
-#elif defined(GEO_COMPILER_MSVC)
-#define geo_restrict __restrict
-#elif defined(GEO_COMPILER_EMSCRIPTEN)
-#define geo_restrict
-#endif
-
-        /**
-         * \brief Checks whether a pointer is aligned.
-         * \param[in] p the pointer to check
-         * \param[in] alignment memory alignment (must be a power of 2)
-         * \retval true if \p is aligned on \p alignment bytes
-         * \retval false otherwise
-         */
-        inline bool is_aligned(
-            void* p, size_t alignment = GEO_MEMORY_ALIGNMENT
-        ) {
-            return (reinterpret_cast<size_t>(p) & (alignment - 1)) == 0;
-        }
 
         /**
          * \brief Returns the smallest aligned memory address from p.
@@ -542,24 +313,6 @@ namespace GEO {
 		const aligned_allocator<U, A2>&
 	    ) noexcept {
 	    }
-
-            /**
-             * \brief Gets the address of an object
-             * \param[in] x a reference to an object of type T
-             * \return a pointer to \p x
-             */
-            pointer address(reference x) {
-                return &x;
-            }
-
-            /**
-             * \brief Gets the address of a object
-             * \param[in] x a const reference to an object of type T
-             * \return a const_pointer to \p x
-             */
-            const_pointer address(const_reference x) {
-                return &x;
-            }
 
             /**
              * \brief Allocates a block of storage
@@ -871,15 +624,6 @@ namespace GEO {
         }
 
 
-	/**
-	 * \brief Resizes this vector to zero and deallocated
-	 *  all the memory.
-	 * \details clear() does not deallocate.
-	 */
-	void clear_and_deallocate() {
-	    vector<T> other;
-	    this->swap(other);
-	}
     };
 
     /**
