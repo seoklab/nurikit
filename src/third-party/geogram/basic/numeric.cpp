@@ -38,64 +38,17 @@
  */
 
 #include <geogram/basic/numeric.h>
-#include <geogram/basic/command_line.h>
-#include <stdlib.h>
 
-#include <random>
-
-#ifdef GEO_COMPILER_EMSCRIPTEN
-#pragma GCC diagnostic ignored "-Wc++11-long-long"
-#endif
+#include <cmath>
 
 namespace GEO {
-
     namespace Numeric {
-
-        static std::mt19937_64 random_engine;
-
         bool is_nan(float32 x) {
-#ifdef GEO_COMPILER_MSVC
-            return _isnan(x) || !_finite(x);
-#else
             return std::isnan(x) || !std::isfinite(x);
-#endif
         }
 
         bool is_nan(float64 x) {
-#ifdef GEO_COMPILER_MSVC
-            return _isnan(x) || !_finite(x);
-#else
             return std::isnan(x) || !std::isfinite(x);
-#endif
-        }
-
-        void random_reset() {
-	    random_reset(CmdLine::get_arg_int("algo:random_seed"));
-        }
-
-        void random_reset(int random_seed) {
-	    if(random_seed == -1) {
-		random_engine = std::mt19937_64();
-	    } else if(random_seed == -2) {
-		std::random_device rnd;
-		random_engine = std::mt19937_64(rnd());
-	    } else {
-		random_engine = std::mt19937_64(Numeric::uint64(random_seed));
-	    }
-	}
-
-        int32 random_int32() {
-            return std::uniform_int_distribution<int32>(
-		0, std::numeric_limits<int32>::max()
-	    )(random_engine);
-        }
-
-        float32 random_float32() {
-            return std::uniform_real_distribution<float32>(0, 1)(random_engine);
-        }
-
-        float64 random_float64() {
-            return std::uniform_real_distribution<float64>(0, 1)(random_engine);
         }
     }
 }

@@ -198,33 +198,6 @@ namespace GEO {
         bool GEOGRAM_API is_nan(float64 x);
 
         /**
-         * \brief Resets the random number generator.
-	 * \details Uses "algo:random_seed"
-         */
-        void GEOGRAM_API random_reset();
-
-        /**
-         * \brief Resets the random number generator.
-	 * \param[in] seed the random seed or -1 to use default
-         */
-        void GEOGRAM_API random_reset(int seed);
-
-        /**
-         * \brief Returns a 32 bits integer between 0 and RAND_MAX
-         */
-        int32 GEOGRAM_API random_int32();
-
-        /**
-         * \brief Returns a 32 bits float between 0 and 1
-         */
-        float32 GEOGRAM_API random_float32();
-
-        /**
-         * \brief Returns a 64 bits float between 0 and 1
-         */
-        float64 GEOGRAM_API random_float64();
-
-        /**
          * \brief Limits helper class that extends std::numeric_limits
          * \details LimitsHelper extends std::numeric_limits to provide
          * additional information about numeric types \p T.
@@ -422,32 +395,7 @@ namespace GEO {
 #elif defined(_MSC_VER)
 #  define GEO_FP_CONTRACT_OFF _Pragma("fp_contract(off)")
 #elif defined(__GNUC__)
-
-// GCC does not have any pragma to deactivate FMA generation,
-// so instead we check that they are deactivated (by the command-line
-// option -ffp-contract=off) and fire an assertion fail if it was not
-// the case.
-struct GeoAssertNoFpContract {
-    GeoAssertNoFpContract() {
-#ifdef GEOGRAM_PSM
-	if(fp_contraction_enabled()) {
-	    std::cerr << "Needs to be compiled with -ffp-contract-off"
-		      << std::endl;
-	    abort();
-	}
-#else
-	geo_assert(!fp_contraction_enabled());
-#endif
-    }
-    static bool fp_contraction_enabled() {
-	return (a2plusb(0x1.0000002p0, -0x1.0000004p0) != 0.0);
-    }
-    __attribute__((noipa)) static double a2plusb(double a, double b) {
-	return a * a + b;
-    }
-};
-#  define GEO_FP_CONTRACT_OFF \
-    static GeoAssertNoFpContract CPP_CONCAT(assert_no_fp_contract_,__LINE__);
+#  define GEO_FP_CONTRACT_OFF
 #else
 #  define GEO_FP_CONTRACT_OFF _Pragma("STDC FP_CONTRACT OFF")
 #endif

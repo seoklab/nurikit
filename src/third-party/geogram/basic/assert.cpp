@@ -38,127 +38,29 @@
  */
 
 #include <geogram/basic/assert.h>
-#include <geogram/basic/logger.h>
-#include <geogram/basic/process.h>
-#include <stdlib.h>
-#include <sstream>
-#include <stdexcept>
-#include <iostream>
 
-#ifdef GEO_OS_WINDOWS
-#include <intrin.h> // For __debugbreak()
-#else
-#include <sys/types.h>
-#include <unistd.h>
-#include <signal.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#endif
+#include <absl/log/absl_log.h>
 
 namespace GEO {
-
-    namespace {
-#ifdef GEO_DEBUG
-        AssertMode assert_mode_ = ASSERT_ABORT;
-#else
-        AssertMode assert_mode_ = ASSERT_THROW;
-#endif
-        bool aborting = false;
-    }
-
-    void set_assert_mode(AssertMode mode) {
-        assert_mode_ = mode;
-    }
-
-    AssertMode assert_mode() {
-        return assert_mode_;
-    }
-
-    void geo_abort() {
-#ifdef GEO_OS_WINDOWS
-	std::cerr << "Aborting, press any key to continue" << std::endl;
-	std::getchar();
-#endif
-        // Avoid assert in assert !!
-        if(aborting) {
-            Process::brute_force_kill();
-        }
-        aborting = true;
-        abort();
-    }
-
-    void geo_breakpoint() {
-#ifdef GEO_COMPILER_MSVC
-        __debugbreak();
-#else
-        geo_abort();
-#endif
-    }
-
     void geo_assertion_failed(
         const std::string& condition_string,
         const std::string& file, int line
     ) {
-        std::ostringstream os;
-        os << "Assertion failed: " << condition_string << ".\n";
-        os << "File: " << file << ",\n";
-        os << "Line: " << line;
-
-        if(Logger::instance()->is_quiet()) {
-            std::cerr << os.str() << std::endl;
-        } else {
-            Logger::err("Assert") << os.str() << std::endl;
-        }
-        Process::print_stack_trace();
-
-        if(assert_mode_ == ASSERT_THROW) {
-            throw std::runtime_error(os.str());
-        } else if(assert_mode_ == ASSERT_ABORT) {
-            geo_abort();
-        } else {
-            geo_breakpoint();
-        }
+        ABSL_LOG(FATAL) << "Assertion failed: " << condition_string
+                        << " (" << file << ":" << line << ")";
     }
 
     void geo_range_assertion_failed(
         double value, double min_value, double max_value,
         const std::string& file, int line
     ) {
-        std::ostringstream os;
-        os << "Range assertion failed: " << value
-           << " in [ " << min_value << " ... " << max_value << " ].\n";
-        os << "File: " << file << ",\n";
-        os << "Line: " << line;
-
-        if(assert_mode_ == ASSERT_THROW) {
-            if(Logger::instance()->is_quiet()) {
-                std::cerr << os.str()
-                          << std::endl;
-            }
-            throw std::runtime_error(os.str());
-        } else {
-            Logger::err("Assert") << os.str() << std::endl;
-            geo_abort();
-        }
+        ABSL_LOG(FATAL) << "Range assertion failed: " << value << " in [ "
+                        << min_value << " ... " << max_value << " ] ("
+                        << file << ":" << line << ")";
     }
 
-    void geo_should_not_have_reached(
-        const std::string& file, int line
-    ) {
-        std::ostringstream os;
-        os << "Control should not have reached this point.\n";
-        os << "File: " << file << ",\n";
-        os << "Line: " << line;
-
-        if(assert_mode_ == ASSERT_THROW) {
-            if(Logger::instance()->is_quiet()) {
-                std::cerr << os.str()
-                          << std::endl;
-            }
-            throw std::runtime_error(os.str());
-        } else {
-            Logger::err("Assert") << os.str() << std::endl;
-            geo_abort();
-        }
+    void geo_should_not_have_reached(const std::string& file, int line) {
+        ABSL_LOG(FATAL) << "Control should not have reached this point ("
+                        << file << ":" << line << ")";
     }
 }

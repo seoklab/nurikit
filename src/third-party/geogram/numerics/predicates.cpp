@@ -48,8 +48,6 @@ GEO_FP_CONTRACT_OFF
 #include <geogram/numerics/predicates.h>
 #include <geogram/numerics/multi_precision.h>
 #include <geogram/basic/assert.h>
-#include <geogram/basic/logger.h>
-#include <geogram/basic/command_line.h>
 #include <geogram/basic/matrix.h>
 #include <algorithm>
 
@@ -308,16 +306,6 @@ namespace {
 
     using namespace GEO;
 
-    PCK::PredicateStats stats_side1("side1");
-    PCK::PredicateStats stats_side2("side2");
-    PCK::PredicateStats stats_side3("side3");
-    PCK::PredicateStats stats_side3h("side3h");
-    PCK::PredicateStats stats_side4("side4/insphere");
-    PCK::PredicateStats stats_orient2d("orient2d");
-    PCK::PredicateStats stats_orient3d("orient3d");
-    PCK::PredicateStats stats_orient3dh("orient3dh");
-    PCK::PredicateStats stats_det3d("det3d");
-    PCK::PredicateStats stats_det4d("det4d");
 
     // ================= side1 =========================================
 
@@ -330,14 +318,12 @@ namespace {
         const double* q0,
         coord_index_t dim
     ) {
-        stats_side1.log_exact();
         expansion& l = expansion_sq_dist(p0, p1, dim);
         expansion& a = expansion_dot_at(p1, q0, p0, dim).scale_fast(2.0);
         expansion& r = expansion_diff(l, a);
         Sign r_sign = r.sign();
         // Symbolic perturbation, Simulation of Simplicity
         if(r_sign == ZERO) {
-            stats_side1.log_SOS();
             return (p0 < p1) ? POSITIVE : NEGATIVE;
         }
         return r_sign;
@@ -419,7 +405,6 @@ namespace {
         const double* q0, const double* q1,
         coord_index_t dim
     ) {
-        stats_side2.log_exact();
 
         const expansion& l1 = expansion_sq_dist(p1, p0, dim);
         const expansion& l2 = expansion_sq_dist(p2, p0, dim);
@@ -454,7 +439,6 @@ namespace {
 
         // Simulation of Simplicity (symbolic perturbation)
         if(r_sign == ZERO) {
-            stats_side2.log_SOS();
             const double* p_sort[3] = {p0, p1, p2};
             SOS_sort(p_sort, p_sort + 3, dim);
             for(index_t i = 0; i < 3; ++i) {
@@ -564,7 +548,6 @@ namespace {
         const double* q0, const double* q1, const double* q2,
         coord_index_t dim
     ) {
-        stats_side3.log_exact();
 
         const expansion& l1 = expansion_sq_dist(p1, p0, dim);
         const expansion& l2 = expansion_sq_dist(p2, p0, dim);
@@ -628,7 +611,6 @@ namespace {
 
         // Simulation of Simplicity (symbolic perturbation)
         if(r_sign == ZERO) {
-            stats_side3.log_SOS();
             const double* p_sort[4] = {p0, p1, p2, p3};
             SOS_sort(p_sort, p_sort + 4, dim);
             for(index_t i = 0; i < 4; ++i) {
@@ -681,7 +663,6 @@ namespace {
         double h0, double h1, double h2, double h3,
         const double* q0, const double* q1, const double* q2
     ) {
-        stats_side3h.log_exact();
 
         const expansion& l1 = expansion_diff(h1,h0);
         const expansion& l2 = expansion_diff(h2,h0);
@@ -745,7 +726,6 @@ namespace {
 
         // Simulation of Simplicity (symbolic perturbation)
         if(r_sign == ZERO) {
-            stats_side3h.log_SOS();
             const double* p_sort[4] = {p0, p1, p2, p3};
             SOS_sort(p_sort, p_sort + 4, 3);
             for(index_t i = 0; i < 4; ++i) {
@@ -872,7 +852,6 @@ namespace {
         const double* p0, const double* p1, const double* p2, const double* p3,
         const double* p4, bool sos = true
     ) {
-        stats_side4.log_exact();
 
         const expansion& a11 = expansion_diff(p1[0], p0[0]);
         const expansion& a12 = expansion_diff(p1[1], p0[1]);
@@ -962,7 +941,6 @@ namespace {
 
         // Simulation of Simplicity (symbolic perturbation)
         if(sos && r_sign == ZERO) {
-            stats_side4.log_SOS();
             const double* p_sort[5] = {p0, p1, p2, p3, p4};
             SOS_sort(p_sort, p_sort + 5, 3);
             for(index_t i = 0; i < 5; ++i) {
@@ -1007,7 +985,6 @@ namespace {
         const double* q0, const double* q1, const double* q2, const double* q3,
         coord_index_t dim
     ) {
-        stats_side4.log_exact();
 
         const expansion& l1 = expansion_sq_dist(p1, p0, dim);
         const expansion& l2 = expansion_sq_dist(p2, p0, dim);
@@ -1110,7 +1087,6 @@ namespace {
 
         // Simulation of Simplicity (symbolic perturbation)
         if(r_sign == ZERO) {
-            stats_side4.log_SOS();
             const double* p_sort[5] = {p0, p1, p2, p3, p4};
             SOS_sort(p_sort, p_sort + 5, dim);
             for(index_t i = 0; i < 5; ++i) {
@@ -1231,7 +1207,6 @@ namespace {
     // ============ orient2d ====================================================
 
     Sign orient_2d_exact(const double* p0, const double* p1, const double* p2) {
-        stats_orient2d.log_exact();
         const expansion& a11 = expansion_diff(p1[0], p0[0]);
         const expansion& a12 = expansion_diff(p1[1], p0[1]);
         const expansion& a21 = expansion_diff(p2[0], p0[0]);
@@ -1245,7 +1220,6 @@ namespace {
     Sign orient_3d_exact(
         const double* p0, const double* p1, const double* p2, const double* p3
     ) {
-	stats_orient3d.log_exact();
 
         const expansion& a11 = expansion_diff(p1[0], p0[0]);
         const expansion& a12 = expansion_diff(p1[1], p0[1]);
@@ -1272,7 +1246,6 @@ namespace {
         double h0, double h1, double h2, double h3, double h4,
         bool sos = true
     ) {
-        stats_orient3dh.log_exact();
 
         const expansion& a11 = expansion_diff(p1[0], p0[0]);
         const expansion& a12 = expansion_diff(p1[1], p0[1]);
@@ -1331,7 +1304,6 @@ namespace {
 
         // Simulation of Simplicity (symbolic perturbation)
         if(sos && r_sign == ZERO) {
-            stats_orient3dh.log_SOS();
             const double* p_sort[5] = {p0, p1, p2, p3, p4};
             SOS_sort(p_sort, p_sort + 5, 3);
             for(index_t i = 0; i < 5; ++i) {
@@ -1451,7 +1423,6 @@ namespace {
     Sign det_3d_exact(
         const double* p0, const double* p1, const double* p2
     ) {
-        stats_det3d.log_exact();
 
         const expansion& p0_0 = expansion_create(p0[0]);
         const expansion& p0_1 = expansion_create(p0[1]);
@@ -1577,7 +1548,6 @@ namespace GEO {
             const double* q0,
             coord_index_t DIM
         ) {
-            stats_side1.log_invoke();
             switch(DIM) {
             case 3:
                 return side1_3d_SOS(p0, p1, q0);
@@ -1598,7 +1568,6 @@ namespace GEO {
             const double* q0, const double* q1,
             coord_index_t DIM
         ) {
-            stats_side2.log_invoke();
             switch(DIM) {
             case 3:
                 return side2_3d_SOS(p0, p1, p2, q0, q1);
@@ -1620,7 +1589,6 @@ namespace GEO {
             const double* q0, const double* q1, const double* q2,
             coord_index_t DIM
         ) {
-            stats_side3.log_invoke();
             switch(DIM) {
             case 3:
                 return side3_3d_SOS(p0, p1, p2, p3, q0, q1, q2);
@@ -1673,16 +1641,12 @@ namespace GEO {
                 // incremented in side4_3d_SOS().
                 return side4_3d_SOS(p0, p1, p2, p3, p4);
             case 4:
-                stats_side4.log_invoke();
                 return side4_4d_SOS(p0, p1, p2, p3, p4, q0, q1, q2, q3);
             case 6:
-                stats_side4.log_invoke();
                 return side4_6d_SOS(p0, p1, p2, p3, p4, q0, q1, q2, q3);
             case 7:
-                stats_side4.log_invoke();
                 return side4_7d_SOS(p0, p1, p2, p3, p4, q0, q1, q2, q3);
             case 8:
-                stats_side4.log_invoke();
                 return side4_8d_SOS(p0, p1, p2, p3, p4, q0, q1, q2, q3);
             }
             geo_assert_not_reached;
@@ -1693,7 +1657,6 @@ namespace GEO {
             const double* p0, const double* p1, const double* p2,
             const double* p3, const double* p4
         ) {
-            stats_side4.log_invoke();
             Sign result = Sign(side4_3d_filter(p0, p1, p2, p3, p4));
             if(result == 0) {
                 // last argument is false: do not apply symbolic perturbation
@@ -1707,7 +1670,6 @@ namespace GEO {
             const double* p2, const double* p3,
             const double* p4
         ) {
-            stats_side4.log_invoke();
             Sign result = Sign(side4_3d_filter(p0, p1, p2, p3, p4));
             if(result == 0) {
                 result = side4_3d_exact_SOS(p0, p1, p2, p3, p4);
@@ -1734,7 +1696,6 @@ namespace GEO {
             // Therefore:
             // in_sphere_3d(p0,p1,p2,p3,p4) = -side4_3d(p0,p1,p2,p3,p4)
 
-            stats_side4.log_invoke();
 
             // This specialized filter supposes that orient_3d(p0,p1,p2,p3) > 0
 
@@ -1810,7 +1771,6 @@ namespace GEO {
         Sign orient_2d(
             const double* p0, const double* p1, const double* p2
         ) {
-            stats_orient2d.log_invoke();
             Sign result = Sign(orient_2d_filter(p0, p1, p2));
             if(result == 0) {
                 result = orient_2d_exact(p0, p1, p2);
@@ -1842,7 +1802,6 @@ namespace GEO {
             const double* p0, const double* p1,
             const double* p2, const double* p3
         ) {
-            stats_orient3d.log_invoke();
             Sign result = Sign(orient_3d_filter(p0, p1, p2, p3));
             if(result == 0) {
                 result = orient_3d_exact(p0, p1, p2, p3);
@@ -1892,7 +1851,6 @@ namespace GEO {
             const double* p2, const double* p3, const double* p4,
             double h0, double h1, double h2, double h3, double h4
         ) {
-            stats_orient3dh.log_invoke();
             Sign result = Sign(
                 side4h_3d_filter(
                     p0, p1, p2, p3, p4, h0, h1, h2, h3, h4
@@ -1914,7 +1872,6 @@ namespace GEO {
             const double* p2, const double* p3, const double* p4,
             double h0, double h1, double h2, double h3, double h4
         ) {
-            stats_orient3dh.log_invoke();
             Sign result = Sign(
                 side4h_3d_filter(
                     p0, p1, p2, p3, p4, h0, h1, h2, h3, h4
@@ -1933,7 +1890,6 @@ namespace GEO {
         Sign det_3d(
             const double* p0, const double* p1, const double* p2
         ) {
-            stats_det3d.log_invoke();
             Sign result = Sign(
                 det_3d_filter(p0, p1, p2)
             );
@@ -1948,13 +1904,11 @@ namespace GEO {
             const double* p0, const double* p1,
             const double* p2, const double* p3
         ) {
-            stats_det4d.log_invoke();
             Sign result = Sign(
                 det_4d_filter(p0, p1, p2, p3)
             );
 
             if(result == 0) {
-                stats_det4d.log_exact();
 
                 const expansion& p0_0 = expansion_create(p0[0]);
                 const expansion& p0_1 = expansion_create(p0[1]);
@@ -2103,17 +2057,5 @@ namespace GEO {
                 ;
         }
 
-        void initialize() {
-            expansion::initialize();
-        }
-
-        void terminate() {
-            // Nothing to do.
-        }
-
-        void show_stats() {
-            PredicateStats::show_all_stats();
-            expansion::show_all_stats();
-        }
     }
 }

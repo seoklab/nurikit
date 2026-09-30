@@ -64,6 +64,7 @@ Checks: >-
   -readability-trailing-comma,
   -*-magic-numbers
 FormatStyle: "file"
+ExcludeHeaderFilterRegex: ".*/third-party/.*"
 # If these flags are updated, .clangd should be updated as well
 ExtraArgsBefore:
   - -Weverything

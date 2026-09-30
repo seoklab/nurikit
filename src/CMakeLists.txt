@@ -26,7 +26,6 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY
 
 file(GLOB_RECURSE NURI_SRCS CONFIGURE_DEPENDS *.cpp)
 list(FILTER NURI_SRCS EXCLUDE REGEX "main\.cpp$")
-list(FILTER NURI_SRCS EXCLUDE REGEX "/third-party/")
 
 add_library(NuriLib SHARED "${NURI_SRCS}")
 add_library("${PROJECT_NAME}::NuriLib" ALIAS NuriLib)
@@ -72,6 +71,15 @@ if(NURI_LIBRARY_FLAGS)
   target_compile_options(NuriLib PRIVATE ${NURI_LIBRARY_FLAGS})
   target_link_options(NuriLib PRIVATE ${NURI_LIBRARY_FLAGS})
 endif()
+
+target_include_directories(NuriLib PRIVATE "${CMAKE_CURRENT_LIST_DIR}/third-party")
+
+file(GLOB_RECURSE NURI_VENDORED_SRCS CONFIGURE_DEPENDS third-party/*.cpp)
+set_source_files_properties(${NURI_VENDORED_SRCS}
+  PROPERTIES
+  COMPILE_OPTIONS
+  "-w;-frounding-math;-ffp-contract=off;-fno-associative-math;-fno-reciprocal-math;-fsigned-zeros;-ftrapping-math"
+)
 
 if(NURI_ENABLE_SANITIZERS)
   include(ProcessorCount)

@@ -38,151 +38,10 @@
  */
 
 #include <geogram/delaunay/delaunay.h>
-#include <geogram/delaunay/delaunay_nn.h>
-#include <geogram/delaunay/delaunay_3d.h>
-#include <geogram/delaunay/delaunay_2d.h>
-
-#ifdef GEOGRAM_WITH_PDEL
-#include <geogram/delaunay/parallel_delaunay_3d.h>
-#endif
-
-#ifdef GEOGRAM_WITH_TETGEN
-#include <geogram/delaunay/delaunay_tetgen.h>
-#endif
-
-#ifdef GEOGRAM_WITH_TRIANGLE
-#include <geogram/delaunay/delaunay_triangle.h>
-#endif
-
-#include <geogram/basic/logger.h>
-#include <geogram/basic/command_line.h>
-#include <geogram/basic/process.h>
 #include <geogram/basic/geometry_nd.h>
 #include <geogram/basic/algorithm.h>
 
-#include <fstream>
-#include <sstream>
-
-namespace {
-
-    using namespace GEO;
-
-    /**
-     * \brief Builds the invalid dimension error message
-     * \param[in] dimension the specified dimension
-     * \param[in] name the name of the Delaunay implementation
-     * \param[in] expected the expected dimension
-     * \return a string that contains the error message
-     */
-    std::string invalid_dimension_error(
-        coord_index_t dimension,
-        const char* name,
-        const char* expected
-    ) {
-        std::ostringstream out;
-        out << "Invalid dimension: dimension " << index_t(dimension)
-            << " is not supported by the " << name
-            << " algorithm. Supported dimension(s): " << expected;
-        return out.str();
-    }
-}
-
 namespace GEO {
-
-    Delaunay::InvalidDimension::InvalidDimension(
-        coord_index_t dimension,
-        const char* name,
-        const char* expected
-    ) :
-        std::logic_error(invalid_dimension_error(dimension, name, expected)) {
-    }
-
-    const char* Delaunay::InvalidDimension::what() const GEO_NOEXCEPT {
-        return std::logic_error::what();
-    }
-
-
-    Delaunay::InvalidInput::InvalidInput(int code) :
-        logic_error("Invalid input for Delaunay"),
-        error_code(code) {
-    }
-
-    Delaunay::InvalidInput::InvalidInput(
-        const InvalidInput& rhs
-    ) :
-        std::logic_error(rhs),
-        error_code(rhs.error_code),
-        invalid_facets(rhs.invalid_facets) {
-    }
-
-    Delaunay::InvalidInput::~InvalidInput() GEO_NOEXCEPT {
-    }
-
-    const char* Delaunay::InvalidInput::what() const GEO_NOEXCEPT {
-        return std::logic_error::what();
-    }
-
-    /************************************************************************/
-
-    void Delaunay::initialize() {
-
-#ifdef GEOGRAM_WITH_TETGEN
-        geo_register_Delaunay_creator(DelaunayTetgen, "tetgen");
-#endif
-
-#ifdef GEOGRAM_WITH_TRIANGLE
-        geo_register_Delaunay_creator(DelaunayTriangle, "triangle");
-#endif
-
-        geo_register_Delaunay_creator(Delaunay3d, "BDEL");
-
-#ifdef GEOGRAM_WITH_PDEL
-        geo_register_Delaunay_creator(ParallelDelaunay3d, "PDEL");
-#endif
-        geo_register_Delaunay_creator(RegularWeightedDelaunay3d, "BPOW");
-
-        geo_register_Delaunay_creator(Delaunay2d, "BDEL2d");
-        geo_register_Delaunay_creator(RegularWeightedDelaunay2d, "BPOW2d");
-
-#ifndef GEOGRAM_PSM
-        geo_register_Delaunay_creator(Delaunay_NearestNeighbors, "NN");
-#endif
-    }
-
-    Delaunay* Delaunay::create(coord_index_t dim, const std::string& name_in) {
-
-        std::string name = name_in;
-        if(name == "default") {
-            name = CmdLine::get_arg("algo:delaunay");
-        }
-
-        try {
-            Delaunay* d = DelaunayFactory::create_object(name, dim);
-            if(d != nullptr) {
-                return d;
-            }
-
-            Logger::warn("Delaunay")
-                << "Could not create Delaunay triangulation: " << name
-                << std::endl;
-        }
-        catch(InvalidDimension& ex) {
-            Logger::warn("Delaunay") << ex.what() << std::endl;
-        }
-
-#ifdef GEOGRAM_PSM
-        Logger::err("Delaunay")
-            << "Could not create Delaunay triangulation"
-            << std::endl;
-        return nullptr;
-#else
-        Logger::warn("Delaunay")
-            << "Falling back to NN mode"
-            << std::endl;
-
-        return new Delaunay_NearestNeighbors(dim);
-#endif
-    }
 
     Delaunay::Delaunay(coord_index_t dimension) {
         set_dimension(dimension);
@@ -192,29 +51,15 @@ namespace GEO {
         cell_to_v_ = nullptr;
         cell_to_cell_ = nullptr;
         is_locked_ = false;
-        store_neighbors_ = false;
-        default_nb_neighbors_ = 30;
-        constraints_ = nullptr;
         do_reorder_ = true;
-        refine_ = false;
-        quality_ = 2.0;
         store_cicl_ = false;
         keep_infinite_ = false;
         nb_finite_cells_ = 0;
-        keep_regions_ = false;
-    }
-
-    Delaunay::~Delaunay() {
     }
 
     void Delaunay::set_vertices(index_t nb_vertices, const double* vertices) {
         nb_vertices_ = nb_vertices;
         vertices_ = vertices;
-    }
-
-    void Delaunay::set_BRIO_levels(const vector<index_t>& levels) {
-        geo_argused(levels);
-        // Default implementation does nothing
     }
 
     void Delaunay::set_arrays(
@@ -230,14 +75,7 @@ namespace GEO {
                 update_v_to_cell();
                 update_cicl();
             }
-            if(store_neighbors_) {
-                update_neighbors();
-            }
         }
-    }
-
-    bool Delaunay::supports_constraints() const {
-        return false;
     }
 
     index_t Delaunay::nearest_vertex(const double* p) const {
@@ -256,36 +94,16 @@ namespace GEO {
         return result;
     }
 
-    void Delaunay::update_neighbors() {
-        if(nb_vertices() != neighbors_.nb_arrays()) {
-            neighbors_.init(
-                nb_vertices(),
-                default_nb_neighbors_
-            );
-            for(index_t i = 0; i < nb_vertices(); i++) {
-                neighbors_.resize_array(i, default_nb_neighbors_, false);
-            }
-        }
-        parallel_for(
-            0, nb_vertices(),
-            [this](index_t i) { store_neighbors_CB(i); },
-            1, true
-        );
-    }
-
     void Delaunay::get_neighbors_internal(
-	index_t v, vector<index_t>& neighbors
+        index_t v, vector<index_t>& neighbors
     ) const {
-        // Step 1: traverse the incident cells list, and insert
-        // all neighbors (may be duplicated)
         neighbors.resize(0);
+
         index_t vt = v_to_cell_[v];
         if(vt != NO_INDEX) { // Happens when there are duplicated vertices.
             index_t t = vt;
             do {
                 index_t lvit = index(t, v);
-                // In the current cell, test all edges incident
-                // to current vertex 'it'
                 for(index_t lv = 0; lv < cell_size(); lv++) {
                     if(lvit != lv) {
                         index_t neigh = cell_vertex(t, lv);
@@ -297,18 +115,8 @@ namespace GEO {
             } while(t != vt);
         }
 
-        // Step 2: Sort the neighbors and remove all duplicates
+        // Remove duplicates by sorting the neighbors
         sort_unique(neighbors);
-    }
-
-    void Delaunay::store_neighbors_CB(index_t i) {
-        // TODO: this one is not multithread-friendly
-        // since it does dynamic memory allocation
-        // (but not really a problem, since the one
-        // that is used is in Delaunay_ANN).
-        vector<index_t> neighbors;
-        get_neighbors_internal(i, neighbors);
-        neighbors_.set_array(i, neighbors);
     }
 
     void Delaunay::update_v_to_cell() {
@@ -316,8 +124,7 @@ namespace GEO {
         is_locked_ = true;
 
         // Note: if keeps_infinite is set, then infinite vertex
-        // tet chaining is at t2v_[nb_vertices].
-
+        // appears in the v_to_cell_ array.
         if(keeps_infinite()) {
             v_to_cell_.assign(nb_vertices()+1, NO_INDEX);
             for(index_t c = 0; c < nb_cells(); c++) {
@@ -397,20 +204,6 @@ namespace GEO {
         is_locked_ = false;
     }
 
-    void Delaunay::save_histogram(std::ostream& out) const {
-        vector<index_t> histogram;
-        for(index_t v = 0; v < nb_vertices(); v++) {
-            index_t N = neighbors_.array_size(v);
-            if(histogram.size() < N) {
-                histogram.resize(N + 1);
-            }
-            histogram[N]++;
-        }
-        for(index_t i = 0; i < histogram.size(); i++) {
-            out << i << " " << histogram[i] << std::endl;
-        }
-    }
-
     bool Delaunay::cell_is_infinite(index_t c) const {
         geo_debug_assert(c < nb_cells());
         for(index_t lv=0; lv < cell_size(); ++lv) {
@@ -419,11 +212,5 @@ namespace GEO {
             }
         }
         return false;
-    }
-
-    index_t Delaunay::region(index_t t) const {
-        geo_argused(t);
-        geo_debug_assert(t < nb_cells());
-        return NO_INDEX;
     }
 }

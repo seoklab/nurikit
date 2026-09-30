@@ -47,9 +47,6 @@ GEO_FP_CONTRACT_OFF
 
 #include <geogram/numerics/multi_precision.h>
 #include <geogram/numerics/PCK.h>
-#include <geogram/basic/process.h>
-#include <geogram/basic/logger.h>
-
 namespace {
 
     using namespace GEO;
@@ -543,38 +540,6 @@ namespace GEO {
 
 namespace GEO {
 
-    double expansion_splitter_;
-    double expansion_epsilon_;
-    bool expansion_initialized_ = false;
-
-    void expansion::initialize() {
-        // Taken from Jonathan Shewchuk's exactinit.
-        double half;
-        double check, lastcheck;
-        int every_other;
-
-        every_other = 1;
-        half = 0.5;
-        expansion_epsilon_ = 1.0;
-        expansion_splitter_ = 1.0;
-        check = 1.0;
-        // Repeatedly divide `epsilon' by two until it is too small to add to
-        // one without causing roundoff.  (Also check if the sum is equal to
-        // the previous sum, for machines that round up instead of using exact
-        // rounding.  Not that this library will work on such machines anyway.
-        do {
-            lastcheck = check;
-            expansion_epsilon_ *= half;
-            if(every_other) {
-                expansion_splitter_ *= 2.0;
-            }
-            every_other = !every_other;
-            check = 1.0 + expansion_epsilon_;
-        } while((check != 1.0) && (check != lastcheck));
-        expansion_splitter_ += 1.0;
-	expansion_initialized_ = true;
-    }
-
     // ====== Initialization from expansion and double ===============
 
     expansion& expansion::assign_sum(const expansion& a, double b) {
@@ -991,14 +956,6 @@ namespace GEO {
 
 
 /************************************************************************/
-
-    void expansion::show_all_stats() {
-#ifdef PCK_STATS
-	// Place holder: if we compute statistics for expansions,
-	// the code here will be called if sys:stats is specified
-	// on command line.
-#endif
-    }
 
     /************************************************************************/
 

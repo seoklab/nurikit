@@ -42,11 +42,8 @@
 
 #include <geogram/basic/common.h>
 #include <geogram/basic/numeric.h>
-#include <geogram/basic/logger.h>
 #include <functional>
 #include <algorithm>
-#include <atomic>
-
 /**
  * \file geogram/numerics/PCK.h
  * \brief Utilities to write geometric predicates (Predicate Construction Kit).
@@ -62,81 +59,6 @@
 namespace GEO {
 
     namespace PCK {
-
-        /**
-         * \brief Logs statistics for predicates. The statistics are
-         *  displayed on exit if the command line flag "sys:statistics"
-         *  is set. It is used as follows in a predicate:
-         * \code
-         *   void my_predicate(...) {
-         *      static PCK::PredicateStats stats("my_predicate");
-         *      my_predicate.log_invoke();
-         *      // Filter
-         *      {
-         *         Sign s = ...;
-         *         if(s != ZERO) {
-         *            return s;
-         *         }
-         *      }
-         *      // Exact
-         *      {
-         *         stats.log_exact();
-         *         Sign s = ...;
-         *         if(s != ZERO) {
-         *            return s;
-         *         }
-         *      }
-         *      // SOS
-         *      {
-         *         stats.log_SOS();
-         *         ...
-         *      }
-         *   }
-         * \endcode
-         */
-
-#ifdef PCK_STATS
-        class GEOGRAM_API PredicateStats {
-        public:
-        PredicateStats(const char* name);
-        void log_invoke() {
-            ++invoke_count_;
-        }
-        void log_exact() {
-            ++exact_count_;
-        }
-        void log_SOS() {
-            ++SOS_count_;
-        }
-        void show_stats();
-        static void show_all_stats();
-        private:
-        static PredicateStats* first_;
-        PredicateStats* next_;
-        const char* name_;
-        std::atomic<Numeric::int64> invoke_count_;
-        std::atomic<Numeric::int64> exact_count_;
-        std::atomic<Numeric::int64> SOS_count_;
-        };
-#else
-        class PredicateStats {
-        public:
-            PredicateStats(const char* name) {
-                geo_argused(name);
-            }
-            void log_invoke() {
-            }
-            void log_exact() {
-            }
-            void log_SOS() {
-            }
-            static void show_all_stats() {
-                Logger::out("Stats") << "Compiled without PCK_STAT (no stats)"
-                                     << std::endl;
-            }
-        };
-#endif
-
 
 /**
  * \brief Shorthand for writing lambdas for symbolic perturbations

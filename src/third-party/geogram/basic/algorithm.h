@@ -43,11 +43,8 @@
 #include <geogram/basic/common.h>
 #include <geogram/basic/numeric.h>
 #include <algorithm>
-#include <random>
 
-#ifdef GEO_PARALLEL_STL
-#include <execution>
-#endif
+#include "nuri/random.h"
 
 /**
  * \file geogram/basic/algorithm.h
@@ -55,19 +52,6 @@
  */
 
 namespace GEO {
-
-    /**
-     * \brief Checks whether parallel algorithms are used.
-     * \details Some algorithms such as sort() can be used
-     *  in parallel or sequential mode. Behavior is toggled
-     *  by the "algo:parallel" environment variable.
-     * \param[in] size optional size of structure to be processed.
-     *  If smaller than threshold, then sequential algorithms are
-     *  used.
-     * \retval true if parallel algorithms are used.
-     * \retval false if sequential algorithms are used.
-     */
-    bool GEOGRAM_API uses_parallel_algorithm(size_t size=0);
 
     /**
      * \brief Sorts elements in parallel
@@ -79,20 +63,12 @@ namespace GEO {
      * \param[in] begin first element to sort
      * \param[in] end one position past the last element to sort
      * \tparam ITERATOR the type of the iterator
-     * \see uses_parallel_algorithm()
      */
     template <typename ITERATOR>
     inline void sort(
         const ITERATOR& begin, const ITERATOR& end
     ) {
-#ifdef GEO_PARALLEL_STL
-        if(uses_parallel_algorithm(size_t(end - begin))) {
-            std::sort(std::execution::par, begin, end);
-        } else
-#endif
-	{
-            std::sort(begin, end);
-        }
+        std::sort(begin, end);
     }
 
     /**
@@ -112,20 +88,12 @@ namespace GEO {
      * \param[in] cmp comparison object.
      * \tparam ITERATOR the type of the iterator
      * \tparam CMP the type of the comparator
-     * \see uses_parallel_algorithm()
      */
     template <typename ITERATOR, typename CMP>
     inline void sort(
         const ITERATOR& begin, const ITERATOR& end, const CMP& cmp
     ) {
-#ifdef GEO_PARALLEL_STL
-        if(uses_parallel_algorithm(size_t(end - begin))) {
-            std::sort(std::execution::par, begin, end, cmp);
-        } else
-#endif
-	{
-            std::sort(begin, end, cmp);
-        }
+        std::sort(begin, end, cmp);
     }
 
 
@@ -195,9 +163,7 @@ namespace GEO {
      */
     template <typename ITERATOR>
     inline void random_shuffle(const ITERATOR& begin, const ITERATOR& end) {
-	Numeric::int32 seed = Numeric::random_int32();
-	std::mt19937 urng{Numeric::uint32(seed)};
-	std::shuffle(begin, end, urng);
+        std::shuffle(begin, end, nuri::internal::rng);
     }
 
 }

@@ -62,9 +62,8 @@
 
 namespace GEO {
 
-    extern bool expansion_initialized_;
-    extern double expansion_splitter_;
-    extern double expansion_epsilon_;
+    constexpr double expansion_splitter_ = 0x1p27 + 1.0;
+    constexpr double expansion_epsilon_ = 0x1p-53;
 
     /**
      * \brief Sums two doubles into a length 2 expansion.
@@ -142,7 +141,6 @@ namespace GEO {
      * \relates expansion
      */
     inline void split(double a, double& ahi, double& alo) {
-	geo_debug_assert(expansion_initialized_);
         double c = expansion_splitter_ * a;
         double abig = c - a;
         ahi = c - abig;
@@ -1038,14 +1036,6 @@ namespace GEO {
     // =============== some general purpose functions =========
 
     /**
-     * \brief Initializes the expansion class.
-     * \details This function needs to be called once in the program,
-     *  before using any expansion object and operation (it computes
-     *  some internally-used constants).
-     */
-    static void initialize();
-
-    /**
      * \brief Changes the sign of an expansion.
      * \return the new value of this expansion
      */
@@ -1177,11 +1167,6 @@ namespace GEO {
      * \details this function can reduce the length of an expansion
      */
     void optimize();
-
-    /**
-     * \brief Show global statistics
-     */
-    static void show_all_stats();
 
     protected:
     /**

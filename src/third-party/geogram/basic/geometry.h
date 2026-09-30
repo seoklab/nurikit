@@ -589,34 +589,6 @@ namespace GEO {
             );
         }
 
-        /**
-         * \brief Generates a random point in a 3d triangle.
-         * \details Uses Greg Turk's second method.
-         *  Reference: Greg Turk, Generating Random Points
-         *  in Triangles, Graphics Gems, p. 24-28, code: p. 649-650.
-         * \param[in] p1 first vertex of the triangle
-         * \param[in] p2 second vertex of the triangle
-         * \param[in] p3 third vertex of the triangle
-         * \return a random point in triangle ( \p p1, \p p2, \p p3 )
-         */
-        inline vec3 random_point_in_triangle(
-            const vec3& p1,
-            const vec3& p2,
-            const vec3& p3
-        ) {
-            double s = Numeric::random_float64();
-            double t = Numeric::random_float64();
-            if(s + t > 1) {
-                s = 1.0 - s;
-                t = 1.0 - t;
-            }
-            double u = 1.0 - s - t;
-            return vec3(
-                u * p1.x + s * p2.x + t * p3.x,
-                u * p1.y + s * p2.y + t * p3.y,
-                u * p1.z + s * p2.z + t * p3.z
-            );
-        }
     }
 
     /**
