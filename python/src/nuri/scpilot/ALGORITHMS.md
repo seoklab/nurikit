@@ -375,6 +375,122 @@ C++), not a case the kernels can survive.
    reports nothing. Local vertex ids map to probe ids; full-circle ends stay
    `-1`.
 
+### SAS on the regular triangulation (C++ port)
+
+The port keeps steps 1, 2, 6 and 7 above and replaces the triple enumeration
+of steps 3–5 by a construction on the **regular triangulation** `RT` of the
+weighted points `(c_i, R_i²)`: the dual of the power diagram of
+`π_i(x) = |x − c_i|² − R_i²`. A point is strictly inside ball `i` iff
+`π_i(x) < 0`, on `S_i` iff `π_i(x) = 0`, and its power cell is
+`V_i = {x : π_i(x) ≤ π_m(x) for all m}`. Accessibility of a point of `S_i`
+reads `π_m(x) ≥ 0 for all m`, i.e. `x ∈ V_i`.
+
+1. **Triangulation** (`triangulate`). The kept spheres, in original index
+   order so that the result is shared across active masks, are lifted to
+   `(c_i, √(W − R_i²))`, `W = max R²`, and handed to the vendored geogram
+   weighted Delaunay with symbolic perturbation (SOS), so the output is a
+   valid triangulation refining the regular subdivision even for
+   co-orthospherical centres. Four **bounding points** of weight 0 at the
+   corners of a regular tetrahedron of circumradius `4(D + R_max) + 1` around
+   the bounding box (`D` = half diagonal) are appended so the input is never
+   coplanar. A sphere whose power cell is empty appears in no cell and has no
+   edge; it has no accessible surface and gets area 0 without a solve.
+2. **Vertices from faces** (`extract_vertices`). Every face of a finite cell
+   is handled once, from the lower-index cell, skipped if it contains a
+   bounding point. Its atoms are sorted to `a < b < c`; the face is skipped
+   unless `a < n_enum` and all three pairs are overlaps (the condition of
+   step 3), and the two cut points of circle `(a, b)` with sphere `c` are
+   computed by the formulas of step 3. A cut point `x` is accepted iff
+   `π_l1(x) ≥ 0` and `π_l2(x) ≥ 0`, where `l1`, `l2` are the apexes of the
+   two cells sharing the face (a bounding apex always passes; a hull face has
+   no `l2`, but by Lemma 0 no sphere face is a hull face). A small slack
+   `−2 R_l TAU_C` on the sign keeps k-fold points whose apex residual is
+   noise; Theorem 1 shows the two tests are exact, and step 4 below removes
+   the slack again.
+3. **Caps from edges** (`gather_caps`, `classify_caps`). The caps of sphere
+   `s` are its `RT` neighbours that are overlap partners, with the geometry
+   of step 2. Crossing of two caps is decided per pair, not per face: a pair
+   that is not an overlap does not cross; otherwise the cosine band
+   `|cos γ − cos α_j cos α_k| < sin α_j sin α_k` decides when it is farther
+   than `1e-4` from its boundary, and the exact `h² > 0` test of step 3 on
+   the sorted triple decides inside the band. Hiding and the covered test of
+   §2 step 1 run unchanged on these caps.
+4. **Global clustering and incidences.** Accepted points are clustered at
+   `TAU_C` exactly as in step 4 above; a cluster's atoms are the union of its
+   generating faces, every member must lie within `TAU_C` of the mean, and
+   the incidences a cluster has on sphere `s` are the two other atoms of each
+   generating face that contains `s`. Every cluster is accessible, so step 5
+   above disappears; the clusters are the probes, owner-sorted as before.
+
+**Lemma 0 (the bounding points are inert).** Every sphere point and every
+point of `U` lies within `D + R_max` of the box centre, and a bounding point
+`b` lies at distance `4(D + R_max) + 1`, so `π_b(x) = |x − b|² > 0` there.
+Hence the power cells of the spheres are unchanged inside `U`, a bounding apex
+never rejects a cut point, and, because every centre is strictly inside the
+bounding tetrahedron (its inradius exceeds `D`), every hull face of the
+triangulation consists of bounding points only. A bounding point is never
+hidden, so this holds for the triangulation actually built.
+
+**Theorem 1 (vertex recipe).** Let `x` be a cut point of circle `(a, b)` with
+sphere `c`, and let `abc` be a face of `RT` with apexes `l1`, `l2`. Then `x`
+is accessible iff `π_l1(x) ≥ 0` and `π_l2(x) ≥ 0`; and every accessible cut
+point is produced by some face.
+
+*Proof.* `x` lies on the radical line `L = {π_a = π_b = π_c}`, along which
+`π_m − π_a` is affine for every `m`, so each constraint `π_m ≥ π_a` cuts `L`
+in a half-line. The orthocentres of the two cells lie on `L` and satisfy every
+constraint (in the limit of the perturbation), and the constraint of an apex
+is tight at its own orthocentre; therefore the apex constraints are the
+binding lower and upper bounds, and `{s : π_m(x(s)) ≥ π_a(x(s)) ∀m}` is the
+segment between the two orthocentres, the edge of the power diagram dual to
+the face. At `x`, `π_a = 0`, so membership is `π_l1 ≥ 0 ∧ π_l2 ≥ 0`. If both
+apexes bound the same side, the other bound is a bounding point (Lemma 0) and
+the argument holds with one test. Conversely an accessible cut point lies in
+`V_a ∩ V_b ∩ V_c ∩ U`, which is a dual edge of a face of the perturbed
+triangulation (of the same degenerate cell, if the face `abc` itself was
+split away by SOS), so some processed face produces it. ∎
+
+The point of the theorem is that global regularity of `RT` makes every ball
+other than the two apexes irrelevant: the two local tests are exact, not a
+heuristic. A degenerate cell (five or more spheres through one point) has a
+zero-length dual edge; the test still holds, but the same point is then
+produced by several faces, which is why step 4 clusters globally.
+
+**Theorem 2 (neighbour caps suffice).** For `x ∈ S_s`, `x` is accessible iff
+`x ∈ V_s`. `V_s` is a convex polyhedron whose facets are the `RT` edges of
+`s`, so a point of `S_s` inside some ball is inside the closed ball of an `RT`
+neighbour. Hence the union of the neighbour caps equals the union of all
+overlapping caps up to a null set of boundary points; the arc midpoint tests
+and the Gauss–Bonnet area are unchanged, and, after nested caps are hidden,
+the crossing-graph components are the components of that union, as before.
+Every accessible arc on circle `(s, t)` lies in the facet `V_s ∩ V_t`, so
+`(s, t)` is an edge and, by Theorem 1, its endpoints come from the faces
+around that edge. Near pairs are dropped on both sides, so the identity is
+exact up to caps of depth `TAU_C`, the tolerance class the enumeration
+already accepted. ∎
+
+**Equivalence with the enumeration.** In exact arithmetic, and provided no
+cut point lies within the sign slack of a fourth sphere and no midpoint lies
+on a cap boundary: the faces examined are a subset of the enumerated triples
+with identical cut formulas; the accepted points are the accessible ones on
+both sides (Theorem 1 against step 5; a point the enumeration dropped for a
+hidden cap lies strictly inside the hiding cap); the caps are the enumerated
+caps minus those inside the union of the others (Theorem 2), which changes
+no ring, no midpoint test and no component count; the crossing predicate is
+the same inequality; and each vertex carries the same incidences. So arcs,
+`φ`, endpoints, loops, `χ`, areas, probes and tangents coincide. Outside
+general position the clustering of step 4 does the same work it did for the
+enumeration: without it a 5-fold point, or a 4-fold point with coplanar
+centres (no cell has it as orthocentre), is emitted once per producing face
+with partial atom lists and the dart rings of §2 step 6 no longer alternate.
+
+Checked (old enumeration and port compiled into one driver, identical
+`prepare` input): four proteins × `rp` 1.4/1.7 × three masks, random dense
+sets of 60–600 spheres with full and half masks, and PDB-precision snapped
+coordinates all agree bitwise on probes, tangents and arcs and to `1e-13` in
+area; ideal benzene, a cubic lattice, a `0.5 Å` grid and exact 5- and 6-fold
+points agree only with the global clustering of step 4 in place.
+
 ### SES (`SesGeometry.build`)
 
 - **Convex area** of atom `i`: `A_sas(i) · (r_i/R_i)²` (radial scaling maps the
@@ -812,7 +928,11 @@ probe positions used by the buried/trim tests in `sc.py`.
 
 Pair enumeration uses one KD-tree; triple candidates come circle by circle
 from the partner lists of the two spheres (binary search), and every cap
-lookup is a binary search in a sphere's partner-sorted caps. Each sphere's
+lookup is a binary search in a sphere's partner-sorted caps. The port instead
+builds one regular triangulation (`O(n log n)` expected, about `7n` cells)
+and examines its `~14n` faces once each, against `O(n·m²)` triples for the
+enumeration (`m` overlaps per sphere), with caps limited to the `~16`
+neighbours of each vertex. Each sphere's
 arrangement is `O(m²)` in its cap count `m` (10–40 for proteins) and
 independent of all other spheres; its cap components come from a union-find
 over its own crossing graph. Global steps: one KD-tree clustering of the raw
