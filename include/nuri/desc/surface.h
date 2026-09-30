@@ -6,6 +6,7 @@
 #ifndef NURI_DESC_SURFACE_H_
 #define NURI_DESC_SURFACE_H_
 
+#include <array>
 #include <cmath>
 #include <optional>
 #include <utility>
@@ -51,14 +52,10 @@ extern ArrayXd shrake_rupley_sasa(
 namespace internal {
   constexpr double kSurfaceLengthEps = 1e-6;
   /**
-   * Darts closer than this are ordered as one pinch group; only the double
-   * cusp of an external tangency needs it, and its gap is rounding-level. No
-   * corner value depends on it: the corner is the signed raw dart angle,
-   * which is exact at merged vertices whose dart gap (`delta (kappa_j +
-   * kappa_k)`, up to `sqrt(2 kSurfaceLengthEps (kappa_j + kappa_k))`) no
-   * angle tolerance bounds.
+   * Rounding allowance on dart angles (atan2 of unit vectors) for the reflex
+   * check of `ArrangementSolver::walk`; no corner value depends on it.
    */
-  constexpr double kSurfaceAngleEps = 1e-4;
+  constexpr double kSurfaceAngleEps = 1e-9;
 
   class OffsetTable {
   public:
@@ -309,6 +306,12 @@ namespace internal {
     void add_incidence(int cap, int v) { incs_.push_back({ cap, v }); }
 
     /**
+     * Both cut points of caps `a`, `b` merged into vertex `v`: the caps
+     * touch there instead of crossing.
+     */
+    void add_pinch(int a, int b, int v) { pinches_.push_back({ v, a, b }); }
+
+    /**
      * Appends the accessible arcs: `circ` is the cap, `beg` and `end` the
      * vertices, both `k` on a full circle, `phi` in the cap frame
      * `e1 = any_perpendicular(axis)`, `e2 = axis x e1`. Returns the
@@ -330,8 +333,10 @@ namespace internal {
 
     double cap_arcs(std::vector<SasArc> &arcs,
                     const E::Map<ArrayXX<bool>> &crossing);
-    std::pair<int, double> walk(const std::vector<SasArc> &arcs, int a0);
-    static void snap_ring(absl::Span<Dart> ring);
+    std::pair<int, double> walk(const std::vector<SasArc> &arcs, int a0,
+                                const E::Map<ArrayXX<bool>> &crossing);
+    void order_ring(absl::Span<Dart> ring, const std::vector<SasArc> &arcs,
+                    int a0, int v, const E::Map<ArrayXX<bool>> &crossing) const;
 
     double radius_ = 0;
     int m_ = 0, k_ = 0;
@@ -343,6 +348,7 @@ namespace internal {
     ArrayXb accessible_;
 
     std::vector<std::pair<int, int>> edges_, incs_;
+    std::vector<std::array<int, 3>> pinches_;
 
     ArrayXX<bool> crossing_;
     OffsetTable off_;

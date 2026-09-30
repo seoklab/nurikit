@@ -58,6 +58,7 @@ namespace internal {
     m_ = k_ = 0;
     edges_.clear();
     incs_.clear();
+    pinches_.clear();
   }
 
   int ArrangementSolver::add_cap(const Vector3d &axis, const double cosa,
@@ -143,36 +144,63 @@ namespace internal {
     return geo_sum;
   }
 
-  void ArrangementSolver::snap_ring(absl::Span<Dart> ring) {
+  /**
+   * Two caps meet at a vertex without crossing there iff they are not a
+   * crossing pair or both cut points of the pair merged into the vertex.
+   * The in-dart of one and the out-dart of the other then bound a cusp:
+   * their angles differ by the merged vertex's offset times the curvatures,
+   * in either order, so an in-dart whose angular neighbour is the out-dart
+   * of a touching cap is placed right after it. Everything else keeps the
+   * raw order.
+   */
+  void ArrangementSolver::order_ring(
+      absl::Span<Dart> ring, const std::vector<SasArc> &arcs, const int a0,
+      const int v, const E::Map<ArrayXX<bool>> &crossing) const {
     std::sort(ring.begin(), ring.end(),
               [](const Dart &a, const Dart &b) { return a.angle < b.angle; });
 
+    auto cap_of = [&](const Dart &d) { return arcs[a0 + d.arc].circ; };
+    auto touch = [&](int a, int b) {
+      if (!crossing(a, b))
+        return true;
+      return std::any_of(pinches_.begin(), pinches_.end(), [&](const auto &p) {
+        return p[0] == v && nuri::minmax(p[1], p[2]) == nuri::minmax(a, b);
+      });
+    };
+
     const int n = static_cast<int>(ring.size());
-    const double raw0 = ring[0].angle, raw_last = ring[n - 1].angle;
-    double prev_raw = raw0, snapped = raw0;
-    int last_beg = 0;
-    for (int i = 1; i < n; ++i) {
-      const double raw = ring[i].angle;
-      if (raw - prev_raw >= kSurfaceAngleEps) {
-        snapped = raw;
-        last_beg = i;
+    for (Dart &d: ring)
+      d.snapped = d.angle;
+    for (int i = 0; i < n; ++i) {
+      Dart &d = ring[i];
+      if (!d.is_in)
+        continue;
+
+      const int a = cap_of(d);
+      double best = kTwoPi;
+      for (const int j: { (i + n - 1) % n, (i + 1) % n }) {
+        const Dart &o = ring[j];
+        const int b = cap_of(o);
+        if (j == i || o.is_in || b == a || !touch(a, b))
+          continue;
+
+        const double gap = std::abs(std::remainder(d.angle - o.angle, kTwoPi));
+        if (gap < best) {
+          best = gap;
+          d.snapped = o.angle;
+        }
       }
-      ring[i].snapped = snapped;
-      prev_raw = raw;
-    }
-    if (raw0 + kTwoPi - raw_last < kSurfaceAngleEps) {
-      for (int i = last_beg; i < n; ++i)
-        ring[i].snapped = raw0;
     }
 
     std::sort(ring.begin(), ring.end(), [](const Dart &a, const Dart &b) {
-      return std::make_tuple(a.snapped, a.kappa, 2 * a.arc + a.is_in)
-             < std::make_tuple(b.snapped, b.kappa, 2 * b.arc + b.is_in);
+      return std::make_tuple(a.snapped, a.is_in, a.kappa, a.arc)
+             < std::make_tuple(b.snapped, b.is_in, b.kappa, b.arc);
     });
   }
 
   std::pair<int, double>
-  ArrangementSolver::walk(const std::vector<SasArc> &arcs, const int a0) {
+  ArrangementSolver::walk(const std::vector<SasArc> &arcs, const int a0,
+                          const E::Map<ArrayXX<bool>> &crossing) {
     const int k = k_, na = static_cast<int>(arcs.size()) - a0;
 
     auto angle_at = [&](int v, const Vector3d &t) {
@@ -211,7 +239,7 @@ namespace internal {
       dring_.resize(nv + 1);
       for (int i = 0; i < nv; ++i)
         dring_[i + 1] = darts_[order_[off_[v] + i]];
-      snap_ring(absl::MakeSpan(dring_).subspan(1, nv));
+      order_ring(absl::MakeSpan(dring_).subspan(1, nv), arcs, a0, v, crossing);
       dring_[0] = dring_[nv];
 
       for (int i = 0; i < nv; ++i) {
@@ -279,7 +307,7 @@ namespace internal {
     const int n_components = uf.n_sets();
 
     const double geo_sum = cap_arcs(arcs, crossing);
-    auto [n_loops, turn_sum] = walk(arcs, a0);
+    auto [n_loops, turn_sum] = walk(arcs, a0, crossing);
 
     const int n_patches = 1 + n_loops - n_components;
     const int chi = 2 * n_patches - n_loops;
