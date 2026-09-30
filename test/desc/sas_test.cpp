@@ -367,6 +367,31 @@ TEST(BuildSasTest, NearPairPinchWithThirdSphere) {
   }
 }
 
+/**
+ * Spheres j, k overlap by 1e-4 in a circle of radius 0.014; the host cuts
+ * that circle nearly tangentially so the face's two cut points are 1e-5
+ * apart. They are distinct vertices: only a tangency within
+ * kSurfaceLengthEps merges the two cut points of one face.
+ */
+TEST(BuildSasTest, TwoCutPointsOfOneFaceStayDistinct) {
+  const double r = 2.0, d = 4.0 - 1e-4, h = 5e-6, zs = 3.0;
+  const double rc = std::sqrt(r * r - d * d / 4),
+               zc = std::sqrt(rc * rc - h * h);
+  Matrix3Xd pts(3, 3);
+  pts.col(0) << 0, 0, zs;
+  pts.col(1) << -d / 2, 0, 0;
+  pts.col(2) << d / 2, 0, 0;
+  ArrayXd sar(3);
+  sar << std::sqrt(h * h + (zs - zc) * (zs - zc)), r, r;
+
+  auto [sa, geo] = solve(pts, sar);
+  ASSERT_EQ(geo.probes.pos.cols(), 2);
+  EXPECT_NEAR((geo.probes.pos.col(0) - geo.probes.pos.col(1)).norm(), 2 * h,
+              1e-9);
+  for (int p = 0; p < 2; ++p)
+    EXPECT_EQ(geo.probes.atoms.degree(p), 3);
+}
+
 TEST(BuildSasTest, TriangulationSharedAcrossMasks) {
   const int n = 24;
   Matrix3Xd pts(3, n);

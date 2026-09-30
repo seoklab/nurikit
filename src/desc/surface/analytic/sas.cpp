@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
 #include <Eigen/Dense>
 
@@ -296,11 +297,15 @@ namespace internal {
       return cs;
     }
 
+    /**
+     * `sibling` is the other cut point of the same face, -1 if rejected.
+     */
     struct RawVertex {
       Array3i atoms;
       E::Array2i apex;
       E::Array2d power;
       Vector3d pos;
+      int sibling;
     };
 
     constexpr double kInf = std::numeric_limits<double>::infinity();
@@ -331,6 +336,7 @@ namespace internal {
                      tangent =
                          scale * std::sqrt(cut.h2) * cij.axis.cross(wperp);
 
+      const int first = static_cast<int>(raw.size());
       for (int side = 0; side < 2; ++side) {
         const Vector3d x = cij.cntr + radial + (1 - 2 * side) * tangent;
         double tol1, tol2;
@@ -341,8 +347,12 @@ namespace internal {
 
         raw.push_back({
             abc, apex, { p1, p2 },
-              x
+              x, -1
         });
+      }
+      if (static_cast<int>(raw.size()) == first + 2) {
+        raw[first].sibling = first + 1;
+        raw[first + 1].sibling = first;
       }
     }
 
@@ -387,69 +397,110 @@ namespace internal {
       return raw;
     }
 
-    struct XKey {
-      double x;
-      int r;
-    };
+    bool on_sphere(const SaPrep &sa, const Vector3d &x, const int l) {
+      return std::abs((x - sa.pts.col(l)).norm() - sa.sar[l])
+             <= kSurfaceLengthEps;
+    }
+
+    int third_atom(const Array3i &atoms, const int p, const int q) {
+      for (int a: atoms)
+        if (a != p && a != q)
+          return a;
+      ABSL_UNREACHABLE();
+    }
 
     /**
-     * Raw points of one vertex are exact on their own three spheres but slide
-     * along their circle by `kSurfaceLengthEps / sin t` when a fourth sphere
-     * is off by the tolerance, `t` the angle between the circle and that
-     * sphere; the search radius covers `sin t >= 0.01`.
+     * Raw points of one vertex come from the faces around it, which are
+     * edge-connected, so every member shares a circle with another member;
+     * candidates are the raw points on one circle. Two cut points of the same
+     * face are one vertex only when the circles are tangent within tolerance
+     * (a pinch); points of different faces are one vertex iff each lies
+     * within tolerance of the other's third sphere, however far the
+     * ill-conditioned cut slid them along the circle, and each is the nearer
+     * of its face's two cut points to the other (four spheres through a
+     * point can meet again at a second point).
      */
-    constexpr double kClusterReach = 100 * kSurfaceLengthEps;
+    UnionFind link_vertices(const SaPrep &sa,
+                            const std::vector<RawVertex> &raw) {
+      const int nr = static_cast<int>(raw.size());
+      constexpr double eps2 = kSurfaceLengthEps * kSurfaceLengthEps;
+      constexpr int k_edge[3][2] = {
+        { 0, 1 },
+        { 0, 2 },
+        { 1, 2 },
+      };
 
-    bool on_spheres(const SaPrep &sa, const Vector3d &x, const Array3i &atoms) {
-      return std::all_of(atoms.begin(), atoms.end(), [&](int l) {
-        return std::abs((x - sa.pts.col(l)).norm() - sa.sar[l])
-               <= kSurfaceLengthEps;
-      });
+      ArrayXi key(3L * nr);
+      for (int r = 0; r < nr; ++r) {
+        const Array3i &atoms = raw[r].atoms;
+        for (int e = 0; e < 3; ++e)
+          key[3L * r + e] =
+              pair_id(sa.g, atoms[k_edge[e][0]], atoms[k_edge[e][1]]);
+      }
+      ArrayXi order(3L * nr);
+      OffsetTable off(sa.g.m());
+      argsort_bucket(order, off, key);
+
+      auto nearer_than_sibling = [&](int r, int other) {
+        const int sib = raw[r].sibling;
+        return sib < 0
+               || (raw[r].pos - raw[other].pos).squaredNorm()
+                      <= (raw[sib].pos - raw[other].pos).squaredNorm();
+      };
+
+      UnionFind uf(nr);
+      for (int i = 0; i < sa.g.n(); ++i) {
+        for (auto it = sa.g.begin(i), ei = sa.g.end(i); it < ei; ++it) {
+          const int p = *it, q = sa.g.eid(it);
+          for (int a = off[q]; a < off[q + 1]; ++a) {
+            const int ra = order[a] / 3;
+            for (int b = a + 1; b < off[q + 1]; ++b) {
+              const int rb = order[b] / 3;
+              const bool same_face = (raw[ra].atoms == raw[rb].atoms).all();
+              const bool linked =
+                  same_face ? (raw[ra].pos - raw[rb].pos).squaredNorm() <= eps2
+                            : on_sphere(sa, raw[ra].pos,
+                                        third_atom(raw[rb].atoms, i, p))
+                                  && on_sphere(sa, raw[rb].pos,
+                                               third_atom(raw[ra].atoms, i, p))
+                                  && nearer_than_sibling(ra, rb)
+                                  && nearer_than_sibling(rb, ra);
+              if (linked)
+                uf.merge(ra, rb);
+            }
+          }
+        }
+      }
+      return uf;
     }
 
     /**
      * Probes and, for each solved sphere, its incidences: `inc(s)` lists the
      * probe of every raw point on `s`, `other` the two atoms of that point's
-     * face that cut the incident caps.
+     * face that cut the incident caps, and `pinched` whether the face's other
+     * cut point merged into the same probe (the two caps touch there).
      */
     struct Vertices {
       SasProbes probes;
       CSR inc;
       Array2Xi other;
+      ArrayXb pinched;
     };
 
     /**
-     * Two raw points are one vertex iff each lies within `kSurfaceLengthEps`
-     * of every sphere of the other's face, so every sphere of the union
-     * passes within tolerance of both; the atoms are that union. A cluster is
-     * accessible iff every member has non-negative power against each apex
-     * that is not one of its atoms: an apex sphere through the point is an
-     * atom, and an apex that merely passes within tolerance is not excused.
+     * A cluster's atoms are the union of its faces; every sphere of the union
+     * passes within tolerance of every member. A cluster is accessible iff
+     * every member has non-negative power against each apex that is not one
+     * of its atoms: an apex sphere through the point is an atom, and an apex
+     * that merely passes within tolerance is not excused.
      */
     Vertices cluster_vertices(const SaPrep &sa,
                               const std::vector<RawVertex> &raw) {
       const int nr = static_cast<int>(raw.size()), n_enum = sa.n_enum,
                 n_solve = sa.n_solve;
+      constexpr double eps = kSurfaceLengthEps;
 
-      constexpr double eps = kSurfaceLengthEps,
-                       reach2 = kClusterReach * kClusterReach;
-      std::vector<XKey> byx(nr);
-      for (int r = 0; r < nr; ++r)
-        byx[r] = { raw[r].pos[0], r };
-      std::sort(byx.begin(), byx.end(),
-                [](const XKey &a, const XKey &b) { return a.x < b.x; });
-
-      UnionFind uf(nr);
-      for (int a = 0; a < nr; ++a) {
-        const auto [xa, ra] = byx[a];
-        for (int b = a + 1; b < nr && byx[b].x - xa <= kClusterReach; ++b) {
-          const int rb = byx[b].r;
-          if ((raw[rb].pos - raw[ra].pos).squaredNorm() <= reach2
-              && on_spheres(sa, raw[rb].pos, raw[ra].atoms)
-              && on_spheres(sa, raw[ra].pos, raw[rb].atoms))
-            uf.merge(ra, rb);
-        }
-      }
+      UnionFind uf = link_vertices(sa, raw);
       const int nc = uf.relabel();
       const ArrayXi &label = uf.labels();
 
@@ -498,6 +549,7 @@ namespace internal {
                    Matrix3Xd(), OffsetTable(np), own_off[sa.n_active] },
         CSR(),
         Array2Xi(),
+        ArrayXb(),
       };
       ArrayXi &adj = vtx.probes.atoms.adj(), &aoff = vtx.probes.atoms.off();
       int w = aoff[0] = 0;
@@ -529,10 +581,16 @@ namespace internal {
 
       ArrayXi key(3L * nr), val(3L * nr);
       Array2Xi other(2, 3L * nr);
+      ArrayXb pinched(3L * nr);
       int m = 0;
       for (int r = 0; r < nr; ++r) {
         const int p = pid[label[r]];
         if (p < 0)
+          continue;
+
+        const int sib = raw[r].sibling;
+        const bool pinch = sib >= 0 && label[sib] == label[r];
+        if (pinch && sib < r)
           continue;
 
         const Array3i &atoms = raw[r].atoms;
@@ -543,6 +601,7 @@ namespace internal {
           key[m] = atoms[k];
           val[m] = p;
           other.col(m) = E::Array2i { atoms[(k + 1) % 3], atoms[(k + 2) % 3] };
+          pinched[m] = pinch;
           ++m;
         }
       }
@@ -552,6 +611,7 @@ namespace internal {
       argsort_bucket(perm, ioff, key.head(m));
       iadj = val(perm);
       vtx.other = other(E::all, perm.head(m));
+      vtx.pinched = pinched(perm.head(m));
       vtx.inc = CSR(std::move(iadj), std::move(ioff));
 
       return vtx;
@@ -602,6 +662,10 @@ namespace internal {
           for (int a: vtx.other.col(e)) {
             ABSL_DCHECK_GE(slot_of[a], 0);
             solver.add_incidence(slot_of[a], v);
+          }
+          if (vtx.pinched[e]) {
+            solver.add_pinch(slot_of[vtx.other(0, e)], slot_of[vtx.other(1, e)],
+                             v);
           }
         }
         for (int v = 0; v < k; ++v)
