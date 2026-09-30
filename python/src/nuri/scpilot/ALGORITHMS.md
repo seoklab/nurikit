@@ -138,9 +138,9 @@ cap is noise. No epsilon is needed, up to the conditioning of the crossing
 itself: a non-incident cap passing through the point within rounding noise
 `ε` deposits its own crossing points within `ε / sin θ` of it, `θ` the
 crossing angle, and §3 SAS step 4 links them by surface tolerance within a
-reach of `100 TAU_C`, so the cap becomes incident as long as
-`sin θ > ε / (100 TAU_C)`, about `1e-8`; flatter crossings are tangencies,
-handled as pinches by step 6.
+circle-sharing candidate search, so the cap becomes incident for any
+crossing angle; a sphere tangent to the circle within the tolerance is a
+pinch, handled by step 6.
 
 Any positive slack breaks consistency: a vertex inside cap `l` by `δ` would be
 accepted while the arc it starts is rejected by the midpoint test of step 5,
@@ -181,15 +181,17 @@ measured as an angle in a frame there. Signed geodesic curvature is `−cot α`
 for out-darts and `+cot α` for reversed in-darts, with `cot α = cos α / sin α`
 from the stored values.
 
-Each vertex ring is then ordered on its own (`_dart_ring`): sort by angle;
-darts whose raw angles differ from their predecessor by less than
-`_TAU_DIR = 1e-4 rad` form a group (tangent circles, pinches) and take the
-group's first angle; a group straddling the `−π/π` seam is recognised by the
-wrap gap between the raw first and last angle and takes the first angle too.
-A second sort by `(snapped angle, curvature)` puts right-curving darts first,
-so grouped darts are ordered consistently; the snapped angle serves the
-order only. In the resulting cyclic
-order, reversed-in and out darts must strictly alternate; otherwise
+Each vertex ring is then ordered on its own (`_dart_ring`): sort by angle.
+Two caps *touch* at the vertex, rather than cross there, iff they are not a
+crossing pair (§3 SAS step 3 said so) or both cut points of their pair merged
+into the vertex (`pinched`, recorded by the clustering). The in-dart of one
+touching cap and the out-dart of the other bound a cusp; at a merged vertex
+their angles differ by the vertex's offset from the touching point times the
+curvatures, in either order (Tolerances), so a reversed in-dart whose
+angular neighbour is the out-dart of a touching cap takes that out-dart's
+angle as its sort key and sorts right after it; every other dart keeps its
+raw angle. No angle tolerance is involved. In the resulting cyclic order,
+reversed-in and out darts must strictly alternate; otherwise
 `DegenerateGeometryError` is raised (nothing is merged or dropped silently).
 
 The successor of an in-dart is the previous dart in that order (the first
@@ -247,15 +249,16 @@ with no covering pair: no loops, one component, no patch, area 0.
 | symbol | value | role |
 |---|---|---|
 | `TAU_C` | 1e-6 Å | merge coincident vertices from different pairs; merge coincident caps |
-| `_TAU_DIR` | 1e-4 rad | dart tangents treated as parallel (pinch) |
+| `_TAU_DIR` | 1e-9 rad | rounding allowance of the reflex-corner check |
 
 `TAU_C` only has to exceed the floating-point scatter of one geometric point
 computed through different cap pairs (about `1e-12 × |coords|`) and stay below
 the smallest gap that must remain a gap; the test suite passes for any value in
 `[1e-8, 1e-4]`. All other comparisons are exact.
 
-`_TAU_DIR` only orders the ring; no corner value depends on it. Three facts
-fix the design (`κ_j = cot α_j / R` is the geodesic curvature of circle `j`):
+No angle tolerance orders the ring or enters a corner; `_TAU_DIR` is only the
+rounding allowance of the reflex check. Three facts fix the design
+(`κ_j = cot α_j / R` is the geodesic curvature of circle `j`):
 
 - Chord and crossing angle of two caps are coupled: the crossing points of
   caps `j`, `k` are `s = 2 R sin α_j sin α_k · sin θ / sin γ` apart, and
@@ -265,10 +268,9 @@ fix the design (`κ_j = cot α_j / R` is the geodesic curvature of circle `j`):
   by `h² sin γ / (2 sin α_j)` in the cosine (`h` the half-chord on the unit
   sphere), and the crossing points' error along the chord cancels in it to
   first order; so a lens is misclassified only when
-  `sin γ / sin α_j < (2 R √(2 C ε_m) / s_m)²`, `s_m` the merge threshold
-  (`100 TAU_C` in the SAS build) and `C ε_m` the rounding of the test,
-  which is `7e-6` at `R = 3`: near-complementary tangent caps on top of a
-  tangency. In angle that is `θ ≳ 5e-8 rad` for ordinary caps.
+  `sin γ / sin α_j < (2 R √(2 C ε_m) / TAU_C)²`, `C ε_m` the rounding of
+  the test, which is `7e-2` at `R = 3`: near-complementary tangent caps on
+  top of a tangency. In angle that is `θ ≳ 5e-8 rad` for ordinary caps.
 - The dart gap at a *merged* vertex is not bounded by any angle tolerance.
   When a third cap through the vertex supplies the raw points, the
   representative sits at tangential offset `δ` from the touching point of
@@ -277,16 +279,16 @@ fix the design (`κ_j = cot α_j / R` is the geodesic curvature of circle `j`):
   two pinch darts are `δ (κ_j + κ_k)` apart, about `1e-3 rad` for protein
   caps and `0.03 rad` at the overlap threshold.
 
-Hence the corner is the signed dart angle of step 6, which is exact at merged
-vertices without any tolerance, and `_TAU_DIR` is left only to group the four
-darts of a double cusp, whose gap is `O(ε_m / sin α)`; any rounding-level
-value works, and `1e-4` is harmless because a lens narrower than it either
-stays distinct (resolved exactly) or, if its sliver arcs were misclassified,
-forms a loop that cancels exactly under the signed corner. With the clamp at
-zero that loop left `+2θR²`, and a mis-ordered pinch wider than the tolerance
-turned by `−π` (`+2πR²`), which a third sphere cutting the tangent circle
-between `1e-4 / (κ_j + κ_k)` and `√(2 TAU_C / (κ_j + κ_k))` from the touching
-point produces on real geometry.
+Hence the corner is the signed dart angle of step 6, exact at merged vertices
+without any tolerance, and the ring order at a pinch comes from the
+structure (which caps touch there), not from an angle threshold: a threshold
+would have to exceed the gap above, which grows without bound as the circle
+radius shrinks. A merged lens whose sliver arcs were misclassified forms a
+loop that cancels exactly under the signed corner. With the earlier clamp at
+zero that loop left `+2θR²`, and a mis-ordered pinch wider than the earlier
+`1e-4` threshold turned by `−π` (`+2πR²`), which a third sphere cutting the
+tangent circle between `1e-4 / (κ_j + κ_k)` and `√(2 TAU_C / (κ_j + κ_k))`
+from the touching point produces on real geometry.
 
 `TAU_C` also bounds the circle radius from below: at the overlap threshold
 `d = R_i + R_j − TAU_C` the circle has `rl ≈ √(TAU_C · 2 R_i R_j / d) ≈
@@ -408,9 +410,15 @@ C++), not a case the kernels can survive.
    the tolerance (`θ` the angle between the circle and that sphere), so the
    members of one vertex scatter beyond `TAU_C` (ideal benzene jittered by
    `1e-7 Å` gives `1.1e-6`) while staying within `TAU_C` of every surface.
-   The pair search therefore reaches `100 TAU_C` (`sin θ ≥ 0.01`; flatter
-   is the pinch regime of §2 step 6) and the link test is the surface
-   tolerance. The invariant checked (a `DCHECK` in C++,
+   No search radius is needed: the faces around a vertex are edge-connected,
+   so every member shares a circle with another member, and the candidates
+   are the raw points on one circle. Two cut points of the same triple are
+   one vertex only when they are within `TAU_C` (the pinch of §2 step 3);
+   points of different triples are one vertex iff each lies within `TAU_C`
+   of the other's third sphere and each is the nearer of its triple's two
+   points to the other (four spheres through one point can meet again at a
+   second point, where the same test would also pass). The invariant checked
+   (a `DCHECK` in C++,
    `DegenerateGeometryError` in the pilot) is that the representative, the
    member mean, lies within `TAU_C` (plus `spread²/R` for curvature) of every
    atom sphere; that is what the near-pair margin of the preparation stage
