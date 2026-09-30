@@ -157,17 +157,17 @@ namespace internal {
         snapped = raw;
         last_beg = i;
       }
-      ring[i].angle = snapped;
+      ring[i].snapped = snapped;
       prev_raw = raw;
     }
     if (raw0 + kTwoPi - raw_last < kSurfaceAngleEps) {
       for (int i = last_beg; i < n; ++i)
-        ring[i].angle = raw0;
+        ring[i].snapped = raw0;
     }
 
     std::sort(ring.begin(), ring.end(), [](const Dart &a, const Dart &b) {
-      return std::make_tuple(a.angle, a.kappa, 2 * a.arc + a.is_in)
-             < std::make_tuple(b.angle, b.kappa, 2 * b.arc + b.is_in);
+      return std::make_tuple(a.snapped, a.kappa, 2 * a.arc + a.is_in)
+             < std::make_tuple(b.snapped, b.kappa, 2 * b.arc + b.is_in);
     });
   }
 
@@ -189,9 +189,11 @@ namespace internal {
       const Vector3d n = axis_.col(arc.circ);
       const double cot = cosa_[arc.circ] / sina_[arc.circ];
       const Vector3d ub = reps_.col(arc.beg), ue = reps_.col(arc.end);
-      darts_.push_back({ angle_at(arc.end, -n.cross(ue)), -cot, a, false });
+      const double out = angle_at(arc.end, -n.cross(ue)),
+                   in = angle_at(arc.beg, n.cross(ub));
+      darts_.push_back({ out, out, -cot, a, false });
       keys_.push_back(arc.end);
-      darts_.push_back({ angle_at(arc.beg, n.cross(ub)), cot, a, true });
+      darts_.push_back({ in, in, cot, a, true });
       keys_.push_back(arc.beg);
     }
 
@@ -219,9 +221,11 @@ namespace internal {
           continue;
 
         double iota = d.angle - prev.angle;
-        iota += kTwoPi * static_cast<double>(iota < 0);
-        ABSL_DCHECK_LT(iota, constants::kPi)
-            << "reflex corner: unsnapped pinch";
+        iota += kTwoPi * static_cast<double>(iota < -kSurfaceAngleEps);
+        iota -= kTwoPi * static_cast<double>(iota > kTwoPi - kSurfaceAngleEps);
+        iota = nuri::max(iota, 0.0);
+        ABSL_DCHECK_LE(iota, constants::kPi + kSurfaceAngleEps)
+            << "reflex corner";
         succ[d.arc] = prev.arc;
         turn_sum += constants::kPi - iota;
       }

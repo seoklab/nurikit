@@ -186,21 +186,27 @@ darts whose raw angles differ from their predecessor by less than
 group's first angle; a group straddling the `−π/π` seam is recognised by the
 wrap gap between the raw first and last angle and takes the first angle too.
 A second sort by `(snapped angle, curvature)` puts right-curving darts first,
-so the wedge between grouped darts is exactly zero. In the resulting cyclic
+so grouped darts are ordered consistently; the snapped angle serves the
+order only. In the resulting cyclic
 order, reversed-in and out darts must strictly alternate; otherwise
 `DegenerateGeometryError` is raised (nothing is merged or dropped silently).
 
 The successor of an in-dart is the previous dart in that order (the first
 out-dart clockwise from its reversed tangent). The interior angle of the
-region at that corner is `ι = angle(rev-in) − angle(out)` taken in `[0, 2π)`
-and the turning angle is `π − ι` (a pinch has `ι = 0`, turn `+π`). Successors
+region at that corner is `ι = angle(rev-in) − angle(out)` from the raw
+angles, brought into `[−_TAU_DIR, 2π − _TAU_DIR)` and clamped at zero, and
+the turning angle is `π − ι` (a pinch has `ι = 0`, turn `+π`; a genuine
+crossing of angle below `_TAU_DIR` keeps its angle). Successors
 default to the arc itself, so a full circle is its own loop; loops are the
 cycles of the successor permutation, counted by one visited-flag walk. The
 interior angle of a corner of the complement of a union of discs is below
-`π`, so `ι ≥ π` never occurs geometrically; a value near `2π` is a pinch pair
-that the grouping missed (the in-dart sorted before its out-dart and the
-wrap added `2π`), which turns the corner by `−π` instead of `+π` and adds
-`2πR²` to the area. The C++ port asserts `ι < π`.
+`π`, and exactly `π` at a pinch vertex whose other circle carries no
+accessible arc (a straight point), so `ι > π` never occurs geometrically;
+before the clamp, a value near
+`2π` was a pinch pair that the grouping missed (the in-dart sorted before
+its out-dart and the wrap added `2π`), which turned the corner by `−π`
+instead of `+π` and added `2πR²` to the area. Both implementations assert
+`ι < π`.
 
 ### Step 7 — Gauss–Bonnet area
 
@@ -249,10 +255,12 @@ about `s θ / 4`, while the crossing points themselves carry an error of about
 reliably only when `s θ / 4 > ε / θ`, i.e. `θ > √(4ε/s)`; with `ε ≈ 1e-15 R`
 and `s ≥ TAU_C` that is `θ ≳ 6e-5 rad`. Darts closer than `_TAU_DIR` are
 therefore exactly those whose arcs may be misclassified, and grouping them
-is the consistent treatment: the vertex becomes a pinch with `ι = 0`, and a
-sliver loop that was accepted anyway contributes `+2π` to the Euler term and
-`+2π` to the turning sum, cancelling. Grouping a genuine crossing of angle
-`θ < _TAU_DIR` costs at most `R² θ` of area. At `1e-9` the port turned near
+is the consistent treatment: a mis-ordered pinch gets `ι = 0`, and a sliver
+loop that was accepted anyway contributes `+2π` to the Euler term and `+2π`
+to the turning sum, cancelling. Grouping costs no area, because the corner
+keeps its raw angle: a genuine crossing of angle `θ < _TAU_DIR` still turns
+by `π − θ`, and a straight point (`ι = π` within noise) turns by nothing.
+At `1e-9` the port turned near
 pairs tangent within the near band (dart gap about `7e-9` for a `1e-7`
 separation) and crossings `1e-5` apart into `+2πR²` errors; the four protein
 oracles have no dart pair within `1e-4`.
