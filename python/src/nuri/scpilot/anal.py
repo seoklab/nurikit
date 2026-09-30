@@ -29,7 +29,7 @@ from .arrangement import (
     any_perpendicular,
     cap_components,
     classify_caps,
-    cluster_points,
+    components,
     covered_arrangement,
     cross,
     solve,
@@ -368,7 +368,7 @@ class SasGeometry:
         _sphere_caps(circles, sas, spheres)
         _hide_caps(spheres, triples)
         raw_pts, raw_tri = _vertex_points(triples, circles)
-        clusters = _clusters(coords, spheres, triples, raw_pts, raw_tri)
+        clusters = _clusters(coords, sas, spheres, triples, raw_pts, raw_tri)
         probes, probe_map = _probes(clusters)
 
         arcs: list[TorusArc] = []
@@ -557,11 +557,40 @@ class _Cluster:
     accessible: bool
 
 
-def _clusters(coords, spheres, triples, raw_pts, raw_tri) -> list[_Cluster]:
-    """Cluster the raw points at ``TAU_C``, decide every cluster on its
-    owner sphere, sort the clusters by owner and write their ids into the
-    triples."""
-    label = cluster_points(raw_pts, TAU_C)
+def _cluster_vertices(coords, sas, triples, raw_pts, raw_tri) -> np.ndarray:
+    """Labels of the raw points that are one vertex: each lies within
+    ``TAU_C`` of every sphere of the other's triple, so every sphere of the
+    union passes within tolerance of both.
+
+    Raw points of one vertex are exact on their own three spheres but slide
+    along their circle by ``TAU_C / sin(theta)`` when a fourth sphere is off
+    by the tolerance, ``theta`` the angle between the circle and that
+    sphere; the pair search covers ``sin(theta) >= 0.01``.
+    """
+    if len(raw_pts) < 2:
+        return np.arange(len(raw_pts))
+    pairs = cKDTree(raw_pts).query_pairs(100.0 * TAU_C, output_type="ndarray")
+    atoms = np.array([triples[t].atoms for t in raw_tri], dtype=int)
+
+    def on_spheres(x, tri):
+        return np.all(
+            np.abs(np.linalg.norm(x - coords[tri], axis=1) - sas[tri]) <= TAU_C
+        )
+
+    keep = [
+        on_spheres(raw_pts[b], atoms[a]) and on_spheres(raw_pts[a], atoms[b])
+        for a, b in pairs
+    ]
+    return components(len(raw_pts), pairs[np.array(keep, dtype=bool)])
+
+
+def _clusters(
+    coords, sas, spheres, triples, raw_pts, raw_tri
+) -> list[_Cluster]:
+    """Cluster the raw points that are one vertex, decide every cluster on
+    its owner sphere, sort the clusters by owner and write their ids into
+    the triples."""
+    label = _cluster_vertices(coords, sas, triples, raw_pts, raw_tri)
     n_clusters = int(label.max()) + 1 if len(label) else 0
     members: list[list[int]] = [[] for _ in range(n_clusters)]
     for r, g in enumerate(label.tolist()):
@@ -571,10 +600,12 @@ def _clusters(coords, spheres, triples, raw_pts, raw_tri) -> list[_Cluster]:
     for mem in members:
         pts = raw_pts[mem]
         rep = pts.mean(axis=0)
-        if np.any(np.linalg.norm(pts - rep, axis=1) > TAU_C):
-            raise DegenerateGeometryError("vertex cluster wider than 2 TAU_C")
         tris = [triples[raw_tri[r]] for r in mem]
         atoms = np.unique([a for triple in tris for a in triple.atoms])
+        spread2 = float(np.max(np.sum((pts - rep) ** 2, axis=1)))
+        off = np.abs(np.linalg.norm(rep - coords[atoms], axis=1) - sas[atoms])
+        if np.any(off > TAU_C + spread2 / sas[atoms]):
+            raise DegenerateGeometryError("vertex off one of its spheres")
         owner = int(atoms[0])
         accessible = _accessible(coords, spheres[owner], owner, rep, tris)
         clusters.append(_Cluster(rep, owner, atoms, accessible))
