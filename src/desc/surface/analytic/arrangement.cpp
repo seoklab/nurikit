@@ -220,6 +220,8 @@ namespace internal {
 
         double iota = d.angle - prev.angle;
         iota += kTwoPi * static_cast<double>(iota < 0);
+        ABSL_DCHECK_LT(iota, constants::kPi)
+            << "reflex corner: unsnapped pinch";
         succ[d.arc] = prev.arc;
         turn_sum += constants::kPi - iota;
       }

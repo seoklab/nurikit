@@ -50,7 +50,14 @@ extern ArrayXd shrake_rupley_sasa(
 
 namespace internal {
   constexpr double kSurfaceLengthEps = 1e-6;
-  constexpr double kSurfaceAngleEps = 1e-9;
+  /**
+   * Darts closer than this are one pinch. Two circles crossing at angle `t`
+   * at points `s` apart enclose a sliver of depth `s t / 4` while the crossing
+   * points carry an error of `eps / t`, so slivers below `t ~ sqrt(4 eps / s)`
+   * (6e-5 rad at `s = kSurfaceLengthEps`) cannot be classified by the arc
+   * midpoint test; snapping them costs at most `R^2 t` of area.
+   */
+  constexpr double kSurfaceAngleEps = 1e-4;
 
   class OffsetTable {
   public:
