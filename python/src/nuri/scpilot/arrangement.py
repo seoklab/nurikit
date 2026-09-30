@@ -25,7 +25,7 @@ from scipy.spatial import cKDTree
 from .aos import scalars, vectors
 
 TAU_C = 1e-6
-_TAU_DIR = 1e-9
+_TAU_DIR = 1e-4
 
 
 class DegenerateGeometryError(RuntimeError):
@@ -413,6 +413,7 @@ class Dart:
     angle: float
     kappa: float
     is_in: bool
+    snapped: float = 0.0
 
 
 def _walk(problem: ArrangementProblem, arcs: list[Arc]):
@@ -451,8 +452,13 @@ def _walk(problem: ArrangementProblem, arcs: list[Arc]):
                 )
             if d.is_in:
                 iota = d.angle - prev.angle
-                if iota < 0.0:
+                if iota < -_TAU_DIR:
                     iota += 2.0 * math.pi
+                elif iota > 2.0 * math.pi - _TAU_DIR:
+                    iota -= 2.0 * math.pi
+                iota = max(iota, 0.0)
+                if iota > math.pi + _TAU_DIR:
+                    raise DegenerateGeometryError(f"vertex {v}: reflex corner")
                 succ[d.arc] = prev.arc
                 turn[d.arc] = math.pi - iota
 
@@ -494,24 +500,25 @@ def _dart_ring(ring: list[Dart]) -> list[Dart]:
     """Darts of one vertex in cyclic order.
 
     Darts closer than ``_TAU_DIR`` (tangent circles, pinches) share one
-    snapped angle and are ordered by signed geodesic curvature,
-    right-curving first, so the wedge between them is exactly zero; a group
-    straddling the ``-pi``/``pi`` seam is merged the same way.
+    snapped angle for ordering and are ordered by signed geodesic
+    curvature, right-curving first; a group straddling the ``-pi``/``pi``
+    seam is merged the same way. The raw angle is kept for the corner.
     """
     ring = sorted(ring, key=lambda d: d.angle)
     raw = [d.angle for d in ring]
     wrap = raw[0] + 2.0 * math.pi - raw[-1] < _TAU_DIR
     snapped = raw[0]
+    ring[0].snapped = snapped
     for i in range(1, len(ring)):
         if raw[i] - raw[i - 1] >= _TAU_DIR:
             snapped = raw[i]
-        ring[i].angle = snapped
+        ring[i].snapped = snapped
     if wrap:
         for d in reversed(ring):
-            if d.angle != snapped:
+            if d.snapped != snapped:
                 break
-            d.angle = raw[0]
-    return sorted(ring, key=lambda d: (d.angle, d.kappa))
+            d.snapped = raw[0]
+    return sorted(ring, key=lambda d: (d.snapped, d.kappa))
 
 
 def _count_cycles(succ: np.ndarray) -> int:

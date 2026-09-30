@@ -204,9 +204,13 @@ Sampler on 1ar1 H (active side toward L), density 15:
   element vdW × 1.07 as a name-free approximation.
 - Tolerances: `TAU_C = 1e-6 Å` (coincidence clustering of vertices and of
   caps; any value in `[1e-8, 1e-4]` passes the suite), direction tie
-  `1e-9 rad`. Every other comparison is exact. Any positive accessibility
-  slack breaks consistency between vertex acceptance and arc tests; do not
-  reintroduce one.
+  `_TAU_DIR = 1e-4 rad` (the angle below which the midpoint test cannot
+  classify the sliver between two near-tangent crossings; smaller values let
+  a pinch's in-dart sort before its out-dart and add `2πR²`, see
+  ALGORITHMS.md Tolerances; matches the C++ `kSurfaceAngleEps`). Every
+  other comparison is exact. Any positive accessibility slack breaks
+  consistency between vertex acceptance and arc tests; do not reintroduce
+  one.
 - Square roots: the circle radius `√(R_i² − a²)` is clamped with `max(·, 0)`
   in the pilot only as a NaN guard; the overlap and containment margins make
   the negative case unreachable (`rl ≥ 1.8e-3 Å` at the margin), so in C++ it
