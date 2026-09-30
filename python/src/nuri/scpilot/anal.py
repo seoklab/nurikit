@@ -558,30 +558,58 @@ class _Cluster:
 
 
 def _cluster_vertices(coords, sas, triples, raw_pts, raw_tri) -> np.ndarray:
-    """Labels of the raw points that are one vertex: each lies within
-    ``TAU_C`` of every sphere of the other's triple, so every sphere of the
-    union passes within tolerance of both.
+    """Labels of the raw points that are one vertex.
 
-    Raw points of one vertex are exact on their own three spheres but slide
-    along their circle by ``TAU_C / sin(theta)`` when a fourth sphere is off
-    by the tolerance, ``theta`` the angle between the circle and that
-    sphere; the pair search covers ``sin(theta) >= 0.01``.
+    The faces around a vertex are edge-connected, so every member shares a
+    circle with another member: candidates are the raw points on one
+    circle. Two cut points of the same triple are one vertex only when the
+    circles are tangent within ``TAU_C`` (a pinch); points of different
+    triples are one vertex iff each lies within ``TAU_C`` of the other's
+    third sphere, however far the ill-conditioned cut slid them along the
+    circle (``TAU_C / sin(theta)`` for a fourth sphere off by the tolerance
+    at angle ``theta`` to the circle), and each is the nearer of its
+    triple's two points to the other (four spheres through a point can
+    meet again at a second point; the points of triple ``t`` are rows
+    ``2t`` and ``2t + 1``).
     """
-    if len(raw_pts) < 2:
-        return np.arange(len(raw_pts))
-    pairs = cKDTree(raw_pts).query_pairs(100.0 * TAU_C, output_type="ndarray")
-    atoms = np.array([triples[t].atoms for t in raw_tri], dtype=int)
+    on_circle: dict[tuple[int, int], list[int]] = {}
+    for r, t in enumerate(raw_tri):
+        a, b, c = (int(x) for x in triples[t].atoms)
+        for pair in ((a, b), (a, c), (b, c)):
+            on_circle.setdefault(pair, []).append(r)
 
-    def on_spheres(x, tri):
-        return np.all(
-            np.abs(np.linalg.norm(x - coords[tri], axis=1) - sas[tri]) <= TAU_C
+    def on_sphere(x, atom):
+        return (
+            abs(float(np.linalg.norm(x - coords[atom])) - sas[atom]) <= TAU_C
         )
 
-    keep = [
-        on_spheres(raw_pts[b], atoms[a]) and on_spheres(raw_pts[a], atoms[b])
-        for a, b in pairs
-    ]
-    return components(len(raw_pts), pairs[np.array(keep, dtype=bool)])
+    def nearer_than_sibling(r, other):
+        return np.linalg.norm(raw_pts[r] - raw_pts[other]) <= np.linalg.norm(
+            raw_pts[r ^ 1] - raw_pts[other]
+        )
+
+    edges = []
+    for (p, q), members in on_circle.items():
+        for i, ra in enumerate(members):
+            la = next(x for x in triples[raw_tri[ra]].atoms if x not in (p, q))
+            for rb in members[i + 1 :]:
+                if raw_tri[ra] == raw_tri[rb]:
+                    linked = np.linalg.norm(raw_pts[ra] - raw_pts[rb]) <= TAU_C
+                else:
+                    lb = next(
+                        x
+                        for x in triples[raw_tri[rb]].atoms
+                        if x not in (p, q)
+                    )
+                    linked = (
+                        on_sphere(raw_pts[ra], lb)
+                        and on_sphere(raw_pts[rb], la)
+                        and nearer_than_sibling(ra, rb)
+                        and nearer_than_sibling(rb, ra)
+                    )
+                if linked:
+                    edges.append((ra, rb))
+    return components(len(raw_pts), np.array(edges, dtype=int).reshape(-1, 2))
 
 
 def _clusters(
@@ -674,9 +702,12 @@ def _sphere_problem(centre, circles, sphere: Sphere, triples, clusters):
     local = sorted({g for cl, _ in incidences for g in cl})
     index = {g: k for k, g in enumerate(local)}
     excused = np.zeros((len(local), m), dtype=bool)
+    pinched = set()
     for cl, (sa, sb) in incidences:
         for g in cl:
             excused[index[g], sa] = excused[index[g], sb] = True
+        if cl[0] == cl[1]:
+            pinched.add((index[cl[0]], min(sa, sb), max(sa, sb)))
     reps = np.array([clusters[g].rep for g in local]).reshape(-1, 3) - centre
     reps /= np.linalg.norm(reps, axis=1, keepdims=True)
     accessible = np.array([clusters[g].accessible for g in local], dtype=bool)
@@ -692,6 +723,7 @@ def _sphere_problem(centre, circles, sphere: Sphere, triples, clusters):
         reps,
         excused,
         accessible,
+        pinched,
     )
     return problem, np.array(local, dtype=int)
 

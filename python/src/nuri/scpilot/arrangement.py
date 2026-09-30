@@ -17,7 +17,7 @@ labels in.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 from scipy.spatial import cKDTree
@@ -25,7 +25,7 @@ from scipy.spatial import cKDTree
 from .aos import scalars, vectors
 
 TAU_C = 1e-6
-_TAU_DIR = 1e-4
+_TAU_DIR = 1e-9
 
 
 class DegenerateGeometryError(RuntimeError):
@@ -310,6 +310,7 @@ class ArrangementProblem:
     reps: np.ndarray
     excused: np.ndarray
     accessible: np.ndarray
+    pinched: set[tuple[int, int, int]] = field(default_factory=set)
 
 
 def local_problem(
@@ -329,6 +330,12 @@ def local_problem(
     inside = reps @ vectors(caps, "axis").T > scalars(caps, "cos_a")
     accessible = ~(inside & ~excused).any(axis=1)
     e1, e2 = circle_frames(vectors(caps, "axis"))
+    n_edges = len(edges)
+    pinched = {
+        (int(label[k]), int(a), int(b))
+        for k, (a, b) in enumerate(edges.tolist())
+        if label[k] == label[n_edges + k]
+    }
     return ArrangementProblem(
         caps,
         e1,
@@ -338,6 +345,7 @@ def local_problem(
         reps,
         excused,
         accessible,
+        pinched,
     )
 
 
@@ -444,7 +452,7 @@ def _walk(problem: ArrangementProblem, arcs: list[Arc]):
     for v, ring in enumerate(darts):
         if not ring:
             continue
-        ring = _dart_ring(ring)
+        ring = _dart_ring(ring, arcs, problem.crossing, problem.pinched, v)
         for d, prev in zip(ring, [ring[-1], *ring[:-1]]):
             if d.is_in == prev.is_in:
                 raise DegenerateGeometryError(
@@ -495,29 +503,44 @@ def _dart_angles(problem: ArrangementProblem, arcs: list[Arc]):
     return zip(idx.tolist(), angle_out, angle_in, cot_a[cap])
 
 
-def _dart_ring(ring: list[Dart]) -> list[Dart]:
+def _dart_ring(
+    ring: list[Dart],
+    arcs: list[Arc],
+    crossing: np.ndarray,
+    pinched: set[tuple[int, int, int]],
+    v: int,
+) -> list[Dart]:
     """Darts of one vertex in cyclic order.
 
-    Darts closer than ``_TAU_DIR`` (tangent circles, pinches) share one
-    snapped angle for ordering and are ordered by signed geodesic
-    curvature, right-curving first; a group straddling the ``-pi``/``pi``
-    seam is merged the same way. The raw angle is kept for the corner.
+    Two caps meet at the vertex without crossing there iff they are not a
+    crossing pair or both cut points of the pair merged into the vertex
+    (``pinched``). The in-dart of one and the out-dart of the other then
+    bound a cusp: their angles differ by the merged vertex's offset times
+    the curvatures, in either order, so an in-dart whose angular neighbour
+    is the out-dart of a touching cap is placed right after it. Everything
+    else keeps the raw order, and the raw angle is kept for the corner.
     """
     ring = sorted(ring, key=lambda d: d.angle)
-    raw = [d.angle for d in ring]
-    wrap = raw[0] + 2.0 * math.pi - raw[-1] < _TAU_DIR
-    snapped = raw[0]
-    ring[0].snapped = snapped
-    for i in range(1, len(ring)):
-        if raw[i] - raw[i - 1] >= _TAU_DIR:
-            snapped = raw[i]
-        ring[i].snapped = snapped
-    if wrap:
-        for d in reversed(ring):
-            if d.snapped != snapped:
-                break
-            d.snapped = raw[0]
-    return sorted(ring, key=lambda d: (d.snapped, d.kappa))
+    n = len(ring)
+    cap_of = [arcs[d.arc].cap for d in ring]
+    for d in ring:
+        d.snapped = d.angle
+    for i, d in enumerate(ring):
+        if not d.is_in:
+            continue
+        a = cap_of[i]
+        best = 2.0 * math.pi
+        for j in ((i - 1) % n, (i + 1) % n):
+            o, b = ring[j], cap_of[j]
+            if j == i or o.is_in or b == a:
+                continue
+            if crossing[a, b] and (v, min(a, b), max(a, b)) not in pinched:
+                continue
+            gap = abs(math.remainder(d.angle - o.angle, 2.0 * math.pi))
+            if gap < best:
+                best = gap
+                d.snapped = o.angle
+    return sorted(ring, key=lambda d: (d.snapped, d.is_in, d.kappa, d.arc))
 
 
 def _count_cycles(succ: np.ndarray) -> int:
