@@ -74,11 +74,24 @@ endif()
 
 target_include_directories(NuriLib PRIVATE "${CMAKE_CURRENT_LIST_DIR}/third-party")
 
+set(NURI_STRICT_FP_FLAGS
+  -fno-fast-math
+  -frounding-math
+  -ffp-contract=off
+  -fno-associative-math
+  -fno-reciprocal-math
+  -fsigned-zeros
+  -ftrapping-math
+)
 file(GLOB_RECURSE NURI_VENDORED_SRCS CONFIGURE_DEPENDS third-party/*.cpp)
 set_source_files_properties(${NURI_VENDORED_SRCS}
   PROPERTIES
-  COMPILE_OPTIONS
-  "-w;-frounding-math;-ffp-contract=off;-fno-associative-math;-fno-reciprocal-math;-fsigned-zeros;-ftrapping-math"
+  COMPILE_OPTIONS "-w;${NURI_STRICT_FP_FLAGS}"
+)
+set_source_files_properties(desc/surface/analytic/exact.cpp
+  PROPERTIES
+  COMPILE_OPTIONS "${NURI_STRICT_FP_FLAGS}"
+  COMPILE_DEFINITIONS NURI_STRICT_FP=1
 )
 
 if(NURI_ENABLE_SANITIZERS)
