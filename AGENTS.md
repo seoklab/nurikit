@@ -58,6 +58,8 @@ its build dir, `build/<variant>`. Each build stages its own importable
 package at `<build>/python/src/nuri`. Use:
 
 - `coverage` for local development and debugging,
+- `optdebug` for oracle comparisons and scratch drivers (DCHECK and Eigen
+  asserts on, `-O3`, no fast-math),
 - `sanitizer` for memory and UB safety, and
 - `reldeb` for performance profiling.
 
