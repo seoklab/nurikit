@@ -739,7 +739,7 @@ namespace GEO {
                     std::swap(S1,S2);
                 }
 
-                geo_assert(S1 == this);
+                geo_debug_assert(S1 == this);
 
                 if(S_on_heap) {
                     delete_expansion_on_heap(S);

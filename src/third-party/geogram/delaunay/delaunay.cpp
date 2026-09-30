@@ -81,7 +81,7 @@ namespace GEO {
     index_t Delaunay::nearest_vertex(const double* p) const {
         // Unefficient implementation (but at least it works).
         // Derived classes are supposed to overload.
-        geo_assert(nb_vertices() > 0);
+        geo_debug_assert(nb_vertices() > 0);
         index_t result = 0;
         double d = Geom::distance2(vertex_ptr(0), p, dimension());
         for(index_t i = 1; i < nb_vertices(); i++) {
@@ -120,7 +120,7 @@ namespace GEO {
     }
 
     void Delaunay::update_v_to_cell() {
-        geo_assert(!is_locked_);  // Not thread-safe
+        geo_debug_assert(!is_locked_);  // Not thread-safe
         is_locked_ = true;
 
         // Note: if keeps_infinite is set, then infinite vertex
@@ -148,7 +148,7 @@ namespace GEO {
     }
 
     void Delaunay::update_cicl() {
-        geo_assert(!is_locked_);  // Not thread-safe
+        geo_debug_assert(!is_locked_);  // Not thread-safe
         is_locked_ = true;
         cicl_.resize(cell_size() * nb_cells());
 

@@ -80,7 +80,7 @@ namespace GEO {
         Delaunay(dimension)
     {
 
-        geo_assert(dimension == 3 || dimension == 4);
+        geo_debug_assert(dimension == 3 || dimension == 4);
         first_free_ = END_OF_LIST;
         weighted_ = (dimension == 4);
         // In weighted mode, vertices are 4d but combinatorics is 3d.
