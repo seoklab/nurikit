@@ -160,10 +160,11 @@ Matrix3Xd star(const int n_ring, const double polar_deg, const double reach) {
   return pts;
 }
 
-int probes_at(const SasGeometry &geo, const Vector3d &x, const int n_atoms) {
+int probes_at(const SasGeometry &geo, const Vector3d &x, const int n_atoms,
+              const double radius = 1e-9) {
   int n = 0;
   for (int p = 0; p < geo.probes.pos.cols(); ++p) {
-    if ((geo.probes.pos.col(p) - x).norm() > 1e-9)
+    if ((geo.probes.pos.col(p) - x).norm() > radius)
       continue;
 
     ++n;
@@ -240,6 +241,57 @@ TEST(BuildSasTest, SliverBetweenNearCrossings) {
   sar[2] -= 1e-5;
 
   auto [sa, geo] = solve(pts, sar);
+  const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
+  for (int p = 0; p < 5; ++p)
+    EXPECT_NEAR(geo.area[p], sr[sa.order[p]], 0.05) << "atom " << p;
+}
+
+/**
+ * A fourth sphere grazing the triple point within kSurfaceLengthEps, its
+ * surface nearly along circle (a, b) so that its own cuts on that circle land
+ * farther away: the cluster is a 4-fold vertex, decided against the apexes.
+ */
+TEST(BuildSasTest, GrazingApexWithinTolerance) {
+  for (const double depth: { 5e-7, -5e-7 }) {
+    const TangentApex t = tangent_apex(0);
+    const Vector3d na = (t.x - t.pts.col(0)).normalized(),
+                   nb = (t.x - t.pts.col(1)).normalized(),
+                   tan = na.cross(nb).normalized(),
+                   m = (na + 0.1 * tan).normalized();
+    Matrix3Xd pts = t.pts;
+    pts.col(3) = t.x - (t.sar[3] - depth) * m;
+
+    auto [sa, geo] = solve(pts, t.sar);
+    EXPECT_EQ(probes_at(geo, t.x, 4, kSurfaceLengthEps), 1)
+        << "depth " << depth;
+    const ArrayXd sr = sr_sasa_impl(pts, t.sar, 20000, SrSasaMethod::kDirect);
+    for (int p = 0; p < 4; ++p)
+      EXPECT_NEAR(geo.area[p], sr[sa.order[p]], 0.05)
+          << "depth " << depth << " atom " << p;
+  }
+}
+
+/**
+ * Flat cell: the apex sphere's centre lies 1e-3 above the plane of the face
+ * and grazes the triple point, while a steeper fifth sphere contains the
+ * point by 5e-5; the point must be rejected.
+ */
+TEST(BuildSasTest, FlatCellApexDoesNotHideCover) {
+  const TangentApex t = tangent_apex(0);
+  const double eta = 1e-3, depth = 3e-7, cover = 5e-5, rl = t.sar[3], rm = 1.7,
+               phi = 100 * kPi / 180;
+  const double rho =
+      std::sqrt((rl - depth) * (rl - depth) - (t.x[2] - eta) * (t.x[2] - eta));
+  Matrix3Xd pts(3, 5);
+  pts.leftCols(3) = t.pts.leftCols(3);
+  pts.col(3) << rho * std::cos(phi), rho * std::sin(phi), eta;
+  pts.col(4) = t.x + (rm - cover) * Vector3d(0.3, -0.2, 1.0).normalized();
+  ArrayXd sar(5);
+  sar << t.sar[0], t.sar[1], t.sar[2], rl, rm;
+
+  auto [sa, geo] = solve(pts, sar);
+  for (int p = 0; p < geo.probes.pos.cols(); ++p)
+    EXPECT_GT((geo.probes.pos.col(p) - t.x).norm(), 1e-5) << p;
   const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
   for (int p = 0; p < 5; ++p)
     EXPECT_NEAR(geo.area[p], sr[sa.order[p]], 0.05) << "atom " << p;
