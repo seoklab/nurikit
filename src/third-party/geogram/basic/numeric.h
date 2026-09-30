@@ -388,16 +388,10 @@ namespace GEO {
  *  rely on strict IEEE754 implementation of product and addition.
  */
 
-#if defined(GOMGEN)
-#  define GEO_FP_CONTRACT_OFF(x)
-#elif defined(__clang__)
+#if defined(__clang__)
 #  define GEO_FP_CONTRACT_OFF _Pragma("clang fp contract(off)")
-#elif defined(_MSC_VER)
-#  define GEO_FP_CONTRACT_OFF _Pragma("fp_contract(off)")
-#elif defined(__GNUC__)
-#  define GEO_FP_CONTRACT_OFF
 #else
-#  define GEO_FP_CONTRACT_OFF _Pragma("STDC FP_CONTRACT OFF")
+#  define GEO_FP_CONTRACT_OFF
 #endif
 
 #endif

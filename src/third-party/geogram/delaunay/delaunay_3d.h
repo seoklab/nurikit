@@ -811,35 +811,6 @@ namespace GEO {
             return result;
         }
 
-        /**
-         * \brief Sets the vertices and adjacent tetrahedra of
-         *  a tetrahedron.
-         * \param[in] t index of the tetrahedron
-         * \param[in] v0 index of the first vertex
-         * \param[in] v1 index of the second vertex
-         * \param[in] v2 index of the third vertex
-         * \param[in] v3 index of the fourth vertex
-         * \param[in] a0 index of the adjacent tetrahedron opposite to \p v0
-         * \param[in] a1 index of the adjacent tetrahedron opposite to \p v1
-         * \param[in] a2 index of the adjacent tetrahedron opposite to \p v2
-         * \param[in] a3 index of the adjacent tetrahedron opposite to \p v3
-         */
-        void set_tet(
-            index_t t,
-	    index_t v0, index_t v1, index_t v2, index_t v3,
-            index_t a0, index_t a1, index_t a2, index_t a3
-        ) {
-            geo_debug_assert(t < max_t());
-            cell_to_v_store_[4 * t] = v0;
-            cell_to_v_store_[4 * t + 1] = v1;
-            cell_to_v_store_[4 * t + 2] = v2;
-            cell_to_v_store_[4 * t + 3] = v3;
-            cell_to_cell_store_[4 * t] = a0;
-            cell_to_cell_store_[4 * t + 1] = a1;
-            cell_to_cell_store_[4 * t + 2] = a2;
-            cell_to_cell_store_[4 * t + 3] = a3;
-        }
-
         /****** Combinatorics - traversals ************************/
 
         /**
@@ -902,21 +873,6 @@ namespace GEO {
             f21 = index_t(halfedge_facet_[lv2][lv1]);
         }
 
-
-        /**
-         * \brief Gets the next tetrahedron around an oriented edge of
-         *  a tetrahedron.
-         * \param[in,out] t the tetrahedron
-         * \param[in] v1 global index of the first extremity of the edge
-         * \param[in] v2 global index of the second extremity of the edge
-         * \return the next tetrahedron from \p t around the oriented edge
-         *   (\p v1 \p v2).
-         */
-        index_t next_around_halfedge(index_t& t, index_t v1, index_t v2) const {
-            return (index_t)tet_adjacent(
-                t, get_facet_by_halfedge(t, v1, v2)
-            );
-        }
 
         /****** Predicates **********************************************/
 
@@ -1035,37 +991,6 @@ namespace GEO {
             geo_debug_assert(T[result] == v);
             return result;
         }
-
-        /**
-         * \brief For debugging purposes, displays a tetrahedron.
-         * \param[in] t index of the tetrahedron to display.
-         */
-        void show_tet(index_t t) const;
-
-        /**
-         * \brief For debugging purposes, displays a tetrahedron adjacency.
-         * \param[in] t index of the tetrahedron to display.
-         * \param[in] lf local index (0,1,2 or 3) of the tetrahedron
-         *  facet adjacenty to display.
-         */
-        void show_tet_adjacent(index_t t, index_t lf) const;
-
-        /**
-         * \brief For debugging purposes, displays a tetrahedron.
-         * \param[in] first index of the first tetrahedron in the list
-         * \param[in] list_name name of the list, will be displayed as well
-         */
-        void show_list(index_t first, const std::string& list_name) const;
-
-        /**
-         * \brief For debugging purposes, tests some combinatorial properties.
-         */
-        void check_combinatorics(bool verbose = false) const;
-
-        /**
-         * \brief For debugging purposes, test some geometrical properties.
-         */
-        void check_geometry(bool verbose = false) const;
 
     private:
         vector<index_t> cell_to_v_store_;

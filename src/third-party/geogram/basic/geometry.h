@@ -959,7 +959,6 @@ namespace GEO {
 
     /*******************************************************************/
 
-#ifndef GOMGEN
 
     /**
      * \brief Applies a 3d transform to a 3d vector.
@@ -1045,7 +1044,6 @@ namespace GEO {
 	return v*M;
     }
 
-#endif
 
     /******************************************************************/
 

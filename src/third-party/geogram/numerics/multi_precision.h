@@ -45,7 +45,6 @@
 #include <geogram/basic/memory.h>
 #include <geogram/basic/assert.h>
 #include <iostream>
-#include <sstream>
 #include <new>
 #include <math.h>
 
@@ -1149,16 +1148,6 @@ namespace GEO {
         }
         out << "]";
         return out;
-    }
-
-    /**
-     * \brief Gets a string representation of this expansion
-     * \return a string with the length and components
-     */
-    std::string to_string() const {
-        std::ostringstream out;
-        show(out);
-        return out.str();
     }
 
     /**

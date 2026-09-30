@@ -78,91 +78,6 @@ namespace {
 
     using namespace GEO;
 
-    GEO::PCK::SOSMode SOS_mode_ = GEO::PCK::SOS_ADDRESS;
-
-    /**
-     * \brief Comparator class for nD points using lexicographic order.
-     * \details Used by symbolic perturbations.
-     */
-    class LexicoCompare {
-    public:
-
-        /**
-         * \brief LexicoCompare constructor.
-         * \param[in] dim dimension of the points to compare.
-         */
-        LexicoCompare(index_t dim) : dim_(dim) {
-        }
-
-        /**
-         * \brief Compares two points with respect to the lexicographic
-         *  order.
-         * \param[in] x , y pointers to the coordinates of the two points.
-         * \retval true if x is strictly before y in the lexicographic order.
-         * \retval false otherwise.
-         */
-        bool operator()(const double* x, const double* y) const {
-            for(index_t i=0; i<dim_-1; ++i) {
-                if(x[i] < y[i]) {
-                    return true;
-                }
-                if(x[i] > y[i]) {
-                    return false;
-                }
-            }
-            return (x[dim_-1] < y[dim_-1]);
-        }
-    private:
-        index_t dim_;
-    };
-
-    /**
-     * \brief Compares two 3D points with respect to the lexicographic
-     *  order.
-     * \param[in] x , y pointers to the coordinates of the two 3D points.
-     * \retval true if x is strictly before y in the lexicographic order.
-     * \retval false otherwise.
-     */
-    bool lexico_compare_3d(const double* x, const double* y) {
-        if(x[0] < y[0]) {
-            return true;
-        }
-        if(x[0] > y[0]) {
-            return false;
-        }
-        if(x[1] < y[1]) {
-            return true;
-        }
-        if(x[1] > y[1]) {
-            return false;
-        }
-        return x[2] < y[2];
-    }
-
-    /**
-     * \brief Sorts an array of pointers to points.
-     * \details set_SOS_mode() alters the behavior of this function.
-     *  If set to PCK::SOS_ADDRESS, then just the addresses of the points
-     *  are sorted. If set to PCK::SOS_LEXICO, then the points are sorted
-     *  in function of the lexicographic order of their coordinates.
-     * \param[in] begin a pointer to the first point.
-     * \param[in] end one position past the pointer to the last point.
-     * \param[in] dim the dimension of the points.
-     */
-    void GEOGRAM_API SOS_sort(
-        const double** begin, const double** end, index_t dim
-    ) {
-        if(SOS_mode_ == PCK::SOS_ADDRESS) {
-            std::sort(begin, end);
-        } else {
-            if(dim == 3) {
-                std::sort(begin, end, lexico_compare_3d);
-            } else {
-                std::sort(begin, end, LexicoCompare(dim));
-            }
-        }
-    }
-
 
     /**
      * \brief Gets the maximum of 4 double precision numbers.
@@ -440,7 +355,7 @@ namespace {
         // Simulation of Simplicity (symbolic perturbation)
         if(r_sign == ZERO) {
             const double* p_sort[3] = {p0, p1, p2};
-            SOS_sort(p_sort, p_sort + 3, dim);
+            std::sort(p_sort, p_sort + 3);
             for(index_t i = 0; i < 3; ++i) {
                 if(p_sort[i] == p0) {
                     const expansion& z1 = expansion_diff(Delta, a21);
@@ -612,7 +527,7 @@ namespace {
         // Simulation of Simplicity (symbolic perturbation)
         if(r_sign == ZERO) {
             const double* p_sort[4] = {p0, p1, p2, p3};
-            SOS_sort(p_sort, p_sort + 4, dim);
+            std::sort(p_sort, p_sort + 4);
             for(index_t i = 0; i < 4; ++i) {
                 if(p_sort[i] == p0) {
                     const expansion& z1_0 = expansion_sum(b01, b02);
@@ -727,7 +642,7 @@ namespace {
         // Simulation of Simplicity (symbolic perturbation)
         if(r_sign == ZERO) {
             const double* p_sort[4] = {p0, p1, p2, p3};
-            SOS_sort(p_sort, p_sort + 4, 3);
+            std::sort(p_sort, p_sort + 4);
             for(index_t i = 0; i < 4; ++i) {
                 if(p_sort[i] == p0) {
                     const expansion& z1_0 = expansion_sum(b01, b02);
@@ -942,7 +857,7 @@ namespace {
         // Simulation of Simplicity (symbolic perturbation)
         if(sos && r_sign == ZERO) {
             const double* p_sort[5] = {p0, p1, p2, p3, p4};
-            SOS_sort(p_sort, p_sort + 5, 3);
+            std::sort(p_sort, p_sort + 5);
             for(index_t i = 0; i < 5; ++i) {
                 if(p_sort[i] == p0) {
                     const expansion& z1 = expansion_diff(Delta2, Delta1);
@@ -1088,7 +1003,7 @@ namespace {
         // Simulation of Simplicity (symbolic perturbation)
         if(r_sign == ZERO) {
             const double* p_sort[5] = {p0, p1, p2, p3, p4};
-            SOS_sort(p_sort, p_sort + 5, dim);
+            std::sort(p_sort, p_sort + 5);
             for(index_t i = 0; i < 5; ++i) {
                 if(p_sort[i] == p0) {
                     const expansion& z1_0 = expansion_sum3(b01, b02, b03);
@@ -1305,7 +1220,7 @@ namespace {
         // Simulation of Simplicity (symbolic perturbation)
         if(sos && r_sign == ZERO) {
             const double* p_sort[5] = {p0, p1, p2, p3, p4};
-            SOS_sort(p_sort, p_sort + 5, 3);
+            std::sort(p_sort, p_sort + 5);
             for(index_t i = 0; i < 5; ++i) {
                 if(p_sort[i] == p0) {
                     const expansion& z1 = expansion_diff(Delta2, Delta1);
@@ -1384,7 +1299,7 @@ namespace {
         // Simulation of Simplicity (symbolic perturbation)
         if(sos && r_sign == ZERO) {
             const double* p_sort[4] = {p0, p1, p2, p3};
-            SOS_sort(p_sort, p_sort + 4, 2);
+            std::sort(p_sort, p_sort + 4);
             for(index_t i = 0; i < 4; ++i) {
                 if(p_sort[i] == p0) {
                     const expansion& z1 = expansion_diff(Delta2, Delta1);
@@ -1533,14 +1448,6 @@ namespace {
 namespace GEO {
 
     namespace PCK {
-
-        void set_SOS_mode(SOSMode m) {
-            SOS_mode_ = m;
-        }
-
-        SOSMode get_SOS_mode() {
-            return SOS_mode_;
-        }
 
 
         Sign side1_SOS(
@@ -1818,7 +1725,7 @@ namespace GEO {
 		    const double* p0, const double* p1,
 		    const double* p2, const double* p3
 		) : p_orig{p0,p1,p2,p3}, p_sort{p0, p1, p2, p3} {
-		    SOS_sort(p_sort, p_sort+4, 3);
+		    std::sort(p_sort, p_sort + 4);
 		    parity = Permutation::permutation_is_odd(p_orig, p_sort, 4)
 			? NEGATIVE : POSITIVE;
 		}
