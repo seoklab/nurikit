@@ -36,8 +36,7 @@ namespace internal {
 
           Vector3d axis = (sa.pts.col(j) - pi) / d;
           double a = (d * d + ri * ri - rj * rj) / (2 * d);
-          ABSL_DCHECK_GE(ri * ri - a * a, 0);
-          double rl = std::sqrt(ri * ri - a * a);
+          double rl = std::sqrt(nuri::max(ri * ri - a * a, 0.0));
           Vector3d cntr = pi + a * axis;
 
           result[q] = { axis, cntr, a, rl, i, j };

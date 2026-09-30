@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <cmath>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -169,9 +170,41 @@ namespace internal {
       return { std::move(order), off };
     }
 
-    SaPrep compact(const Matrix3Xd &pts, const ArrayXd &sar, const CSR &g,
-                   const ArrayXd &d, ArrayXi &&order, const Array5i &off,
-                   ArrayXi &inv) {
+    /**
+     * Candidate pairs among kept spheres that overlap exactly for the
+     * heights the lift will hand to the triangulation; a tangency counts.
+     */
+    std::pair<CSR, ArrayXd> exact_overlaps(const Matrix3Xd &pts,
+                                           const ArrayXd &t, const double wmax,
+                                           const ArrayXi &keep,
+                                           const ArrayXi &inear,
+                                           const ArrayXi &jnear) {
+      const int m = static_cast<int>(inear.size());
+      ArrayXi li(m), lj(m);
+      int q = 0;
+      for (int k = 0; k < m; ++k) {
+        const int i = inear[k], j = jnear[k];
+        if (keep[i] == 0 || keep[j] == 0
+            || SasExact::overlap(pts.col(i), t[i], pts.col(j), t[j], wmax)
+                   != Sgn::kPos)
+          continue;
+
+        li[q] = i;
+        lj[q] = j;
+        ++q;
+      }
+
+      auto [g, perm] =
+          compile_pairs(li.head(q), lj.head(q), static_cast<int>(keep.size()));
+      ArrayXd d(q);
+      for (int k = 0; k < q; ++k)
+        d[k] = (pts.col(lj[perm[k]]) - pts.col(li[perm[k]])).norm();
+      return { std::move(g), std::move(d) };
+    }
+
+    SaPrep compact(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXd &t,
+                   const double wmax, const CSR &g, const ArrayXd &d,
+                   ArrayXi &&order, const Array5i &off, ArrayXi &inv) {
       const int n = off[4];
 
       inv.setConstant(-1);
@@ -201,8 +234,16 @@ namespace internal {
       order.conservativeResize(n);
 
       return {
-        pts(E::all, order), sar(order), std::move(order), std::move(gn),
-        dn.head(q)(perm),   off[1],     off[2],           off[3],
+        pts(E::all, order),
+        sar(order),
+        t(order),
+        wmax,
+        std::move(order),
+        std::move(gn),
+        dn.head(q)(perm),
+        off[1],
+        off[2],
+        off[3],
       };
     }
   }  // namespace
@@ -224,10 +265,17 @@ namespace internal {
     }
 
     ArrayXd sar2 = sar.square();
-    auto [g, dover, inear, jnear, keep] = find_near_pairs(pts, sar, rmax);
-    drop_shared_circle_middles(keep, g, dover, pts, sar2);
+    auto [g0, dover, inear, jnear, keep] = find_near_pairs(pts, sar, rmax);
+    drop_shared_circle_middles(keep, g0, dover, pts, sar2);
+
+    const double wmax = keep.cast<bool>().select(sar2, 0.0).maxCoeff();
+    ArrayXd t(sar.size());
+    for (int i = 0; i < t.size(); ++i)
+      t[i] = std::sqrt(nuri::max(wmax - sar2[i], 0.0));
+    auto [g, d] = exact_overlaps(pts, t, wmax, keep, inear, jnear);
+
     auto [order, off] = rank_atoms(keep, inear, jnear, active);
-    return compact(pts, sar, g, dover, std::move(order), off, keep);
+    return compact(pts, sar, t, wmax, g, d, std::move(order), off, keep);
   }
 }  // namespace internal
 }  // namespace nuri
