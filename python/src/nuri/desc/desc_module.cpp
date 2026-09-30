@@ -27,7 +27,7 @@ void sr_sasa_validate_common_args(int nprobe, double rprobe) {
 }
 
 template <class T, class F>
-auto collect(const std::vector<T> &recs, F &&field) {
+auto collect(const std::vector<T> &recs, const F &field) {
   using R = std::decay_t<decltype(field(recs[0]))>;
   using Arr =
       std::conditional_t<std::is_same_v<R, Vector3d>, Matrix3Xd, ArrayX<R>>;
@@ -81,8 +81,10 @@ py::dict sas_geometry(py::handle py_pts, py::handle py_radii, double rp,
     Matrix3Xd p = pts.eigen();
     ArrayXd sar = radii.eigen().array() + rp;
     sa = internal::prepare(p, sar, active, rp);
-    if (sa)
-      geo = internal::build_sas(*sa);
+    if (sa) {
+      internal::SasDelaunay del = internal::triangulate(*sa);
+      geo = internal::build_sas(*sa, del);
+    }
   }
   if (!sa)
     throw py::value_error("preparation failed; see log for details");
