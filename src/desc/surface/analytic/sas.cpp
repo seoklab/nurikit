@@ -190,12 +190,15 @@ namespace internal {
       cosg.noalias() = ax.transpose() * ax;
 
       auto crosses = [&](int j, int k) {
+        auto [lo, hi] = nuri::minmax(cs.sphere[j], cs.sphere[k]);
+        if (pair_id(sa.g, lo, hi) < 0)
+          return false;
+
         const double dev = std::abs(cosg(j, k) - cs.cosa[j] * cs.cosa[k]),
                      band = cs.sina[j] * cs.sina[k];
         if (std::abs(dev - band) > kCrossingSlack)
           return dev < band;
-        return cut_sorted(sa, circ, { s, cs.sphere[j], cs.sphere[k] },
-                          [](auto &&...) { });
+        return cut_sorted(sa, circ, { s, lo, hi }, [](auto &&...) { });
       };
       for (int j = 0; j < m; ++j) {
         crossing(j, j) = false;
@@ -294,26 +297,13 @@ namespace internal {
     }
 
     struct RawVertex {
-      Array4i atoms;
-      Vector3d sum;
-      int count;
+      Array3i atoms;
+      E::Array2i apex;
+      E::Array2d power;
+      Vector3d pos;
     };
 
     constexpr double kInf = std::numeric_limits<double>::infinity();
-
-    /**
-     * The two cells sharing a Delaunay face: `c2` and `l2` are -1 past the
-     * hull, `l1`/`l2` are the apex spheres in prepared indices (-1 for a
-     * bounding point).
-     */
-    struct FaceApex {
-      int c, c2, l1, l2;
-    };
-
-    struct VertexSink {
-      std::vector<RawVertex> raw;
-      ArrayXi tet_slot;
-    };
 
     double sphere_power(const SaPrep &sa, const Vector3d &x, const int l,
                         double &tol) {
@@ -325,34 +315,16 @@ namespace internal {
       return (x - sa.pts.col(l)).squaredNorm() - sa.sar[l] * sa.sar[l];
     }
 
-    void merge_orthocenter(VertexSink &sink, const SasDelaunay &del,
-                           const VertexMap &vm, const int tet,
-                           const Vector3d &x) {
-      int &slot = sink.tet_slot[tet];
-      if (slot >= 0) {
-        sink.raw[slot].sum += x;
-        ++sink.raw[slot].count;
-        return;
-      }
-
-      slot = static_cast<int>(sink.raw.size());
-      Array4i atoms = vm.new_of_v(del.tets.col(tet));
-      ABSL_DCHECK((atoms >= 0).all());
-      std::sort(atoms.begin(), atoms.end());
-      sink.raw.push_back({ atoms, x, 1 });
-    }
-
     /**
      * A cut point of circle `ab` with sphere `c` is accessible iff it lies on
      * the power-diagram edge dual to Delaunay face `abc`, i.e. it has
      * non-negative power against the apexes of the two cells sharing the
-     * face. A point within tolerance of an apex sphere is that cell's
-     * orthocenter; all four faces of the cell find it, so it is merged there.
+     * face (-1 for a bounding point). Points within tolerance of an apex
+     * sphere are kept: the cluster decides them once its atoms are known.
      */
-    void accept_cuts(VertexSink &sink, const SaPrep &sa, const SasDelaunay &del,
-                     const VertexMap &vm, const Array3i &abc,
-                     const SasCircle &cij, const TripleCut &cut,
-                     const FaceApex &apex) {
+    void accept_cuts(std::vector<RawVertex> &raw, const SaPrep &sa,
+                     const Array3i &abc, const SasCircle &cij,
+                     const TripleCut &cut, const E::Array2i &apex) {
       const Vector3d wperp = cut.w - cut.wa * cij.axis;
       const double scale = cij.rl / cut.amp2;
       const Vector3d radial = scale * cut.g * wperp,
@@ -362,22 +334,15 @@ namespace internal {
       for (int side = 0; side < 2; ++side) {
         const Vector3d x = cij.cntr + radial + (1 - 2 * side) * tangent;
         double tol1, tol2;
-        const double p1 = sphere_power(sa, x, apex.l1, tol1),
-                     p2 = sphere_power(sa, x, apex.l2, tol2);
+        const double p1 = sphere_power(sa, x, apex[0], tol1),
+                     p2 = sphere_power(sa, x, apex[1], tol2);
         if (p1 < -tol1 || p2 < -tol2)
           continue;
 
-        if (p1 <= tol1) {
-          merge_orthocenter(sink, del, vm, apex.c, x);
-        } else if (p2 <= tol2) {
-          merge_orthocenter(sink, del, vm, apex.c2, x);
-        } else {
-          sink.raw.push_back({
-              { abc[0], abc[1], abc[2], -1 },
-              x,
-              1,
-          });
-        }
+        raw.push_back({
+            abc, apex, { p1, p2 },
+              x
+        });
       }
     }
 
@@ -385,8 +350,9 @@ namespace internal {
     extract_vertices(const SaPrep &sa, const SasDelaunay &del,
                      const VertexMap &vm, const std::vector<SasCircle> &circ) {
       const int nf = static_cast<int>(del.tets.cols());
-      VertexSink sink { {}, ArrayXi::Constant(nf, -1) };
-      sink.raw.reserve(3L * sa.n_enum);
+
+      std::vector<RawVertex> raw;
+      raw.reserve(3L * sa.n_enum);
 
       for (int c = 0; c < nf; ++c) {
         const Array4i tv = del.tets.col(c);
@@ -403,76 +369,166 @@ namespace internal {
           if ((face < 0).any())
             continue;
 
-          FaceApex apex { c, c2, vm.new_of_v[tv[lf]], -1 };
+          E::Array2i apex { vm.new_of_v[tv[lf]], -1 };
           for (int lv = 0; c2 >= 0 && lv < 4; ++lv) {
             const int v = del.tets(lv, c2);
             if ((fv != v).all())
-              apex.l2 = vm.new_of_v[v];
+              apex[1] = vm.new_of_v[v];
           }
 
           cut_sorted(sa, circ, face,
                      [&](const Array3i &abc, const SasCircle &cij,
                          const TripleCut &cut) {
-                       accept_cuts(sink, sa, del, vm, abc, cij, cut, apex);
+                       accept_cuts(raw, sa, abc, cij, cut, apex);
                      });
         }
       }
 
-      return std::move(sink.raw);
+      return raw;
     }
 
-    struct Vertices {
-      SasProbes probes;
-      CSR by_sphere;
+    struct XKey {
+      double x;
+      int r;
     };
 
-    Vertices order_vertices(const SaPrep &sa,
-                            const std::vector<RawVertex> &raw) {
-      const int nv = static_cast<int>(raw.size()), n_enum = sa.n_enum,
+    /**
+     * Probes and, for each solved sphere, its incidences: `inc(s)` lists the
+     * probe of every raw point on `s`, `other` the two atoms of that point's
+     * face that cut the incident caps.
+     */
+    struct Vertices {
+      SasProbes probes;
+      CSR inc;
+      Array2Xi other;
+    };
+
+    /**
+     * Raw points within `kSurfaceLengthEps` are one vertex; its atoms are the
+     * union of the generating faces. A cluster is accessible iff every member
+     * has non-negative power against each apex that is not one of its atoms:
+     * an apex sphere through the point is an atom, and an apex that merely
+     * passes within tolerance is not excused.
+     */
+    Vertices cluster_vertices(const SaPrep &sa,
+                              const std::vector<RawVertex> &raw) {
+      const int nr = static_cast<int>(raw.size()), n_enum = sa.n_enum,
                 n_solve = sa.n_solve;
 
-      ArrayXi owner(nv);
-      for (int r = 0; r < nv; ++r)
-        owner[r] = raw[r].atoms[0];
+      constexpr double eps = kSurfaceLengthEps, eps2 = eps * eps;
+      std::vector<XKey> byx(nr);
+      for (int r = 0; r < nr; ++r)
+        byx[r] = { raw[r].pos[0], r };
+      std::sort(byx.begin(), byx.end(),
+                [](const XKey &a, const XKey &b) { return a.x < b.x; });
 
-      ArrayXi order(nv);
-      OffsetTable own_off(n_enum);
-      argsort_bucket(order, own_off, owner);
-
-      Vertices vtx {
-        SasProbes { CSR(ArrayXi(4L * nv), OffsetTable(nv)), Matrix3Xd(3, nv),
-                   Matrix3Xd(), OffsetTable(nv), own_off[sa.n_active] },
-        CSR()
-      };
-
-      ArrayXi &adj = vtx.probes.atoms.adj(), &aoff = vtx.probes.atoms.off();
-      ArrayXi key(4L * nv), val(4L * nv);
-      int w = 0, m = 0;
-      for (int p = 0; p < nv; ++p) {
-        const RawVertex &rv = raw[order[p]];
-        vtx.probes.pos.col(p) = rv.sum / rv.count;
-
-        aoff[p] = w;
-        for (int a: rv.atoms) {
-          if (a < 0)
-            continue;
-
-          adj[w++] = a;
-          if (a < n_solve) {
-            key[m] = a;
-            val[m] = p;
-            ++m;
-          }
+      UnionFind uf(nr);
+      for (int a = 0; a < nr; ++a) {
+        const auto [xa, ra] = byx[a];
+        for (int b = a + 1; b < nr && byx[b].x - xa <= eps; ++b) {
+          const int rb = byx[b].r;
+          if ((raw[rb].pos - raw[ra].pos).squaredNorm() <= eps2)
+            uf.merge(ra, rb);
         }
       }
-      aoff[nv] = w;
+      const int nc = uf.relabel();
+      const ArrayXi &label = uf.labels();
+
+      ArrayXi mem(nr);
+      OffsetTable moff(nc);
+      argsort_bucket(mem, moff, label);
+
+      ArrayXi catoms(3L * nr), owner(nc);
+      OffsetTable coff(nc);
+      int n = coff.off()[0] = 0;
+      for (int c = 0; c < nc; ++c) {
+        auto ms = mem.segment(moff[c], moff.degree(c));
+        const int beg = n;
+        for (int r: ms) {
+          catoms.segment(n, 3) = raw[r].atoms;
+          n += 3;
+        }
+        auto first = catoms.begin() + beg, last = catoms.begin() + n;
+        std::sort(first, last);
+        n = static_cast<int>(std::unique(first, last) - catoms.begin());
+        coff.off()[c + 1] = n;
+
+        bool accessible = true;
+        for (int r: ms) {
+          const RawVertex &rv = raw[r];
+          for (int k = 0; k < 2; ++k) {
+            accessible &=
+                rv.apex[k] < 0 || rv.power[k] >= 0
+                || std::binary_search(first, catoms.begin() + n, rv.apex[k]);
+          }
+        }
+        owner[c] = accessible ? catoms[beg] : n_enum;
+      }
+
+      ArrayXi order(nc);
+      OffsetTable own_off(n_enum + 1);
+      argsort_bucket(order, own_off, owner);
+      const int np = own_off[n_enum];
+
+      ArrayXi pid = ArrayXi::Constant(nc, -1);
+      for (int p = 0; p < np; ++p)
+        pid[order[p]] = p;
+
+      Vertices vtx {
+        SasProbes { CSR(ArrayXi(coff[nc]), OffsetTable(np)), Matrix3Xd(3, np),
+                   Matrix3Xd(), OffsetTable(np), own_off[sa.n_active] },
+        CSR(),
+        Array2Xi(),
+      };
+      ArrayXi &adj = vtx.probes.atoms.adj(), &aoff = vtx.probes.atoms.off();
+      int w = aoff[0] = 0;
+      for (int p = 0; p < np; ++p) {
+        const int c = order[p];
+        auto ms = mem.segment(moff[c], moff.degree(c));
+
+        Vector3d rep = Vector3d::Zero();
+        for (int r: ms)
+          rep += raw[r].pos;
+        rep /= static_cast<double>(ms.size());
+        double spread = 0;
+        for (int r: ms)
+          spread = nuri::max(spread, (raw[r].pos - rep).squaredNorm());
+        ABSL_DCHECK_LE(spread, eps2);
+        vtx.probes.pos.col(p) = rep;
+
+        const int d = coff.degree(c);
+        adj.segment(w, d) = catoms.segment(coff[c], d);
+        w += d;
+        aoff[p + 1] = w;
+      }
       adj.conservativeResize(w);
 
-      ArrayXi perm(m), sadj(m);
-      OffsetTable soff(n_solve);
-      argsort_bucket(perm, soff, key.head(m));
-      sadj = val(perm);
-      vtx.by_sphere = CSR(std::move(sadj), std::move(soff));
+      ArrayXi key(3L * nr), val(3L * nr);
+      Array2Xi other(2, 3L * nr);
+      int m = 0;
+      for (int r = 0; r < nr; ++r) {
+        const int p = pid[label[r]];
+        if (p < 0)
+          continue;
+
+        const Array3i &atoms = raw[r].atoms;
+        for (int k = 0; k < 3; ++k) {
+          if (atoms[k] >= n_solve)
+            continue;
+
+          key[m] = atoms[k];
+          val[m] = p;
+          other.col(m) = E::Array2i { atoms[(k + 1) % 3], atoms[(k + 2) % 3] };
+          ++m;
+        }
+      }
+
+      ArrayXi perm(m), iadj(m);
+      OffsetTable ioff(n_solve);
+      argsort_bucket(perm, ioff, key.head(m));
+      iadj = val(perm);
+      vtx.other = other(E::all, perm.head(m));
+      vtx.inc = CSR(std::move(iadj), std::move(ioff));
 
       return vtx;
     }
@@ -488,11 +544,14 @@ namespace internal {
                         const CapSet &cs, const Vertices &vtx) {
       const SasCaps &caps = cs.caps;
       const int n_solve = sa.n_solve, mcap = caps.h.max_deg(),
-                kcap = vtx.by_sphere.max_deg(), ecap = cs.xoff.max_deg();
+                kcap = vtx.inc.max_deg(),
+                ecap = nuri::max(cs.xoff.max_deg(), (kcap + 1) / 2),
+                np = static_cast<int>(vtx.probes.pos.cols());
 
       Sweep sw { {}, 0, ArrayXd(n_solve) };
       ArrangementSolver solver(mcap, kcap, ecap);
       ArrayXi slot_of = ArrayXi::Constant(sa.g.n(), -1);
+      ArrayXi vloc = ArrayXi::Constant(np, -1), vlist(kcap + 1);
 
       auto solve = [&](int s) {
         const int off = caps.h.offset(s), m = caps.h.degree(s);
@@ -507,19 +566,23 @@ namespace internal {
         for (int e = cs.xoff[s]; e < cs.xoff[s + 1]; ++e)
           solver.add_crossing(cs.xing(0, e), cs.xing(1, e));
 
-        auto vs = vtx.by_sphere.nbrs(s);
-        for (int k = 0; k < vs.size(); ++k) {
-          const int v = vs[k];
-          solver.add_vertex(
-              (vtx.probes.pos.col(v) - sa.pts.col(s)).normalized(), true);
-          for (int a: vtx.probes.atoms.nbrs(v)) {
-            if (a == s)
-              continue;
-
+        int k = 0;
+        for (auto it = vtx.inc.begin(s), ei = vtx.inc.end(s); it < ei; ++it) {
+          const int p = *it, e = vtx.inc.eid(it);
+          int v = vloc[p];
+          if (v < 0) {
+            v = vloc[p] = solver.add_vertex(
+                (vtx.probes.pos.col(p) - sa.pts.col(s)).normalized(), true);
+            vlist[k++] = p;
+          }
+          for (int a: vtx.other.col(e)) {
             ABSL_DCHECK_GE(slot_of[a], 0);
-            solver.add_incidence(slot_of[a], k);
+            solver.add_incidence(slot_of[a], v);
           }
         }
+        for (int v = 0; v < k; ++v)
+          vloc[vlist[v]] = -1;
+        vlist[k] = -1;
 
         const int n0 = static_cast<int>(sw.arcs.size());
         const double area = solver.solve(sw.arcs);
@@ -534,8 +597,8 @@ namespace internal {
           SasArc &arc = sw.arcs[r];
           const int tag = caps.h.adj()[off + arc.circ];
           arc.circ = icirc(tag);
-          arc.beg = arc.beg < vs.size() ? vs[arc.beg] : -1;
-          arc.end = arc.end < vs.size() ? vs[arc.end] : -1;
+          arc.beg = vlist[arc.beg];
+          arc.end = vlist[arc.end];
           sw.arcs[w] = arc;
           w += 1 - iside(tag);
         }
@@ -597,7 +660,7 @@ namespace internal {
     std::vector circ = circles(sa);
     VertexMap vm = map_vertices(sa, del);
     CapSet cs = neighbor_caps(sa, del, vm, circ);
-    Vertices vtx = order_vertices(sa, extract_vertices(sa, del, vm, circ));
+    Vertices vtx = cluster_vertices(sa, extract_vertices(sa, del, vm, circ));
     Sweep sw = sweep_spheres(sa, del, vm, circ, cs, vtx);
     tangents(circ, vtx.probes, sw.arcs);
 

@@ -63,7 +63,8 @@ TEST(BuildSasTest, TwoSpheresFullCircle) {
   auto [sa, geo] = solve(pts, sar);
   ASSERT_EQ(geo.area.size(), 2);
 
-  const double d = 2.0, a0 = (d * d + sar[0] * sar[0] - sar[1] * sar[1]) / (2 * d);
+  const double d = 2.0,
+               a0 = (d * d + sar[0] * sar[0] - sar[1] * sar[1]) / (2 * d);
   EXPECT_NEAR(geo.area[sa.order[0] == 0 ? 0 : 1],
               4 * kPi * sar[0] * sar[0] - kTwoPi * sar[0] * (sar[0] - a0),
               1e-12);
@@ -144,6 +145,71 @@ TEST(BuildSasTest, FourSphereVertex) {
     EXPECT_EQ(geo.probes.atoms.degree(p), 4);
   }
   EXPECT_EQ(at_origin, 1);
+  EXPECT_NEAR(geo.area.sum(), sr_total(pts, sar), 1e-2 * geo.area.sum());
+}
+
+Matrix3Xd star(const int n_ring, const double polar_deg, const double reach) {
+  const double polar = polar_deg * kPi / 180;
+  Matrix3Xd pts(3, n_ring + 1);
+  pts.col(0) << 0, 0, reach;
+  for (int k = 0; k < n_ring; ++k) {
+    const double az = kTwoPi * k / n_ring;
+    pts.col(k + 1) << reach * std::sin(polar) * std::cos(az),
+        reach * std::sin(polar) * std::sin(az), reach * std::cos(polar);
+  }
+  return pts;
+}
+
+int probes_at(const SasGeometry &geo, const Vector3d &x, const int n_atoms) {
+  int n = 0;
+  for (int p = 0; p < geo.probes.pos.cols(); ++p) {
+    if ((geo.probes.pos.col(p) - x).norm() > 1e-9)
+      continue;
+
+    ++n;
+    EXPECT_EQ(geo.probes.atoms.degree(p), n_atoms);
+  }
+  return n;
+}
+
+TEST(BuildSasTest, FiveSphereVertex) {
+  const Matrix3Xd pts = star(4, 110, 2.0);
+  const ArrayXd sar = ArrayXd::Constant(5, 2.0);
+
+  auto [sa, geo] = solve(pts, sar);
+  EXPECT_EQ(probes_at(geo, Vector3d::Zero(), 5), 1);
+  EXPECT_NEAR(geo.area.sum(), sr_total(pts, sar), 1e-2 * geo.area.sum());
+}
+
+TEST(BuildSasTest, CoplanarSquareVertex) {
+  Matrix3Xd pts(3, 4);
+  pts << 1, 1, -1, -1,  //
+      1, -1, 1, -1,     //
+      0, 0, 0, 0;
+  const ArrayXd sar = ArrayXd::Constant(4, 1.5);
+
+  auto [sa, geo] = solve(pts, sar);
+  EXPECT_EQ(geo.probes.pos.cols(), 2);
+  EXPECT_EQ(probes_at(geo, Vector3d(0, 0, 0.5), 4), 1);
+  EXPECT_EQ(probes_at(geo, Vector3d(0, 0, -0.5), 4), 1);
+  EXPECT_NEAR(geo.area.sum(), sr_total(pts, sar), 1e-2 * geo.area.sum());
+}
+
+TEST(BuildSasTest, ApexTangentAtVertex) {
+  const double reach = 2.0, circum = 1.5, rl = 1.8;
+  Matrix3Xd pts(3, 4);
+  for (int k = 0; k < 3; ++k) {
+    const double az = kTwoPi * k / 3;
+    pts.col(k) << circum * std::cos(az), circum * std::sin(az), 0;
+  }
+  const Vector3d x(0, 0, std::sqrt(reach * reach - circum * circum));
+  pts.col(3) = x + rl * (x - pts.col(0)).normalized();
+  ArrayXd sar(4);
+  sar << reach, reach, reach, rl;
+
+  auto [sa, geo] = solve(pts, sar);
+  EXPECT_EQ(geo.probes.pos.cols(), 3);
+  EXPECT_EQ(probes_at(geo, x, 4), 1);
   EXPECT_NEAR(geo.area.sum(), sr_total(pts, sar), 1e-2 * geo.area.sum());
 }
 
