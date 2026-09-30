@@ -26,6 +26,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY
 
 file(GLOB_RECURSE NURI_SRCS CONFIGURE_DEPENDS *.cpp)
 list(FILTER NURI_SRCS EXCLUDE REGEX "main\.cpp$")
+list(FILTER NURI_SRCS EXCLUDE REGEX "/third-party/")
 
 add_library(NuriLib SHARED "${NURI_SRCS}")
 add_library("${PROJECT_NAME}::NuriLib" ALIAS NuriLib)
