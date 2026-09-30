@@ -51,12 +51,12 @@ extern ArrayXd shrake_rupley_sasa(
 namespace internal {
   constexpr double kSurfaceLengthEps = 1e-6;
   /**
-   * Darts closer than this are ordered as one pinch group. Two circles
-   * crossing at angle `t` at points `s` apart enclose a sliver of depth
-   * `s t / 4` while the crossing points carry an error of `eps / t`, so
-   * slivers below `t ~ sqrt(4 eps / s)` (6e-5 rad at `s = kSurfaceLengthEps`)
-   * cannot be classified by the arc midpoint test. The corner angle keeps the
-   * raw difference, clamped at zero, so grouping costs no area.
+   * Darts closer than this are ordered as one pinch group; only the double
+   * cusp of an external tangency needs it, and its gap is rounding-level. No
+   * corner value depends on it: the corner is the signed raw dart angle,
+   * which is exact at merged vertices whose dart gap (`delta (kappa_j +
+   * kappa_k)`, up to `sqrt(2 kSurfaceLengthEps (kappa_j + kappa_k))`) no
+   * angle tolerance bounds.
    */
   constexpr double kSurfaceAngleEps = 1e-4;
 
