@@ -239,6 +239,101 @@ namespace internal {
 
   extern SasDelaunay triangulate(const SaPrep &sa);
 
+  enum class Sgn : int { kNeg = -1, kZero = 0, kPos = 1 };
+
+  /**
+   * Three triangulation vertices; root labels refer to this order:
+   * `x± = c_a + y_⊥ ± (√D / |u|²) u` with `u = (c_b − c_a) × (c_c − c_a)`.
+   */
+  struct SasFace {
+    int a, b, c;
+  };
+
+  /**
+   * Exact predicates on the lifted spheres geogram triangulated: centre `c_i`,
+   * height `h_i = ((t_i² + x_i²) + y_i²) + z_i²` as geogram evaluates it, and
+   * squared radius `ρ_i² = W + |c_i|² − h_i`. Every exact tie is resolved by
+   * geogram's perturbation: every squared radius grows, lower index first.
+   * Compiled without fast-math (`NURI_STRICT_FP_SRCS` in src/CMakeLists.txt);
+   * the header carries no arithmetic.
+   */
+  class SasExact {
+  public:
+    SasExact() = default;
+
+    static SasExact make(const Matrix4Xd &lifted, double wmax);
+
+    /**
+     * Whether balls `a`, `b` given as lifted `(c, t)` overlap; a tangency is
+     * an overlap. For `prepare`, before any triangulation exists.
+     */
+    static Sgn overlap(const Vector3d &ca, double ta, const Vector3d &cb,
+                       double tb, double wmax);
+
+    int n() const { return static_cast<int>(h_.size()); }
+    const Matrix3Xd &centers() const { return c_; }
+    const ArrayXd &h() const { return h_; }
+    double wmax() const { return w_; }
+    double rho2(int i) const;
+
+    Sgn overlap(int a, int b) const;
+    /**
+     * Whether sphere `c` cuts circle `(a, b)` in two points (symmetric in the
+     * triple; a tangency is perturbed to a cut or a miss).
+     */
+    Sgn cuts(SasFace f) const;
+    /**
+     * Sign of `π_c` on circle `(a, b)`, valid when `c` does not cut it:
+     * positive outside ball `c`, negative inside.
+     */
+    Sgn side(int a, int b, int c) const;
+    /**
+     * `π_l(x) ≥ 0` for root `x` of face `f`: the cut point is not inside ball
+     * `l`. Requires `cuts(f)` positive.
+     */
+    Sgn accept(SasFace f, bool plus, int l) const;
+    /**
+     * Both roots of `f` in double, `first` the `plus` root; requires
+     * `cuts(f)` positive.
+     */
+    std::pair<Vector3d, Vector3d> roots(SasFace f) const;
+
+    /**
+     * Position of root `x` of `f` on circle `(a, b)` relative to the
+     * reference ray `r = (c_b − c_a) × e_k`, `k = reference_axis(c_b − c_a)`:
+     * 0 on the ray, 1 in `(0, π)`, 2 at `π`, 3 in `(π, 2π)`, counter-clockwise
+     * about `c_b − c_a`.
+     */
+    int half_plane(int a, int b, SasFace f, bool plus) const;
+    /**
+     * Sign of the oriented angle from root `x_i` to root `x_j` about
+     * `c_b − c_a` on circle `(a, b)`; zero iff the points coincide or are
+     * antipodal (no perturbation: the caller separates the two cases by
+     * `half_plane`).
+     */
+    Sgn ccw(int a, int b, SasFace fi, bool plus_i, SasFace fj,
+            bool plus_j) const;
+    /**
+     * `π_c(Q) ≥ 0` for the antipode `Q = 2 cntr − x` of root `x` of `f` on
+     * circle `(a, b)`.
+     */
+    Sgn antipode(int a, int b, SasFace f, bool plus, int c) const;
+
+    static int reference_axis(const Vector3d &d) {
+      int k;
+      d.cwiseAbs().minCoeff(&k);
+      return k;
+    }
+
+    static void force_exact(bool on);
+    static bool selftest();
+
+  private:
+    Matrix3Xd c_;
+    ArrayXd h_;
+    double w_ = 0;
+  };
+
   struct SasCircle {
     Vector3d axis, cntr;
     double a, rl;
