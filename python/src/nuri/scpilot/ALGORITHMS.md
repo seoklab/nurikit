@@ -134,9 +134,12 @@ A cluster is accessible iff it lies outside every cap **except those whose own
 crossing points merged into it**: `n_c · x ≤ cos α_c` for all non-incident
 `c`, compared exactly. Excusing exactly the generating caps makes the decision
 deterministic at k-fold points, where the sign of the residual for an incident
-cap is noise. No epsilon is needed: a non-incident cap passing through the
-point within noise would have deposited its own crossing points within noise
-of it, so clustering would already have made it incident.
+cap is noise. No epsilon is needed, up to the conditioning of the crossing
+itself: a non-incident cap passing through the point within rounding noise
+`ε` deposits its own crossing points within `ε / sin θ` of it, `θ` the
+crossing angle, so clustering makes it incident as long as
+`sin θ > ε / TAU_C`, about `1e-6`; flatter crossings are the pinch regime
+that step 6 snaps.
 
 Any positive slack breaks consistency: a vertex inside cap `l` by `δ` would be
 accepted while the arc it starts is rejected by the midpoint test of step 5,
@@ -179,7 +182,7 @@ from the stored values.
 
 Each vertex ring is then ordered on its own (`_dart_ring`): sort by angle;
 darts whose raw angles differ from their predecessor by less than
-`_TAU_DIR = 1e-9 rad` form a group (tangent circles, pinches) and take the
+`_TAU_DIR = 1e-4 rad` form a group (tangent circles, pinches) and take the
 group's first angle; a group straddling the `−π/π` seam is recognised by the
 wrap gap between the raw first and last angle and takes the first angle too.
 A second sort by `(snapped angle, curvature)` puts right-curving darts first,
@@ -192,7 +195,12 @@ out-dart clockwise from its reversed tangent). The interior angle of the
 region at that corner is `ι = angle(rev-in) − angle(out)` taken in `[0, 2π)`
 and the turning angle is `π − ι` (a pinch has `ι = 0`, turn `+π`). Successors
 default to the arc itself, so a full circle is its own loop; loops are the
-cycles of the successor permutation, counted by one visited-flag walk.
+cycles of the successor permutation, counted by one visited-flag walk. The
+interior angle of a corner of the complement of a union of discs is below
+`π`, so `ι ≥ π` never occurs geometrically; a value near `2π` is a pinch pair
+that the grouping missed (the in-dart sorted before its out-dart and the
+wrap added `2π`), which turns the corner by `−π` instead of `+π` and adds
+`2πR²` to the area. The C++ port asserts `ι < π`.
 
 ### Step 7 — Gauss–Bonnet area
 
@@ -227,12 +235,27 @@ with no covering pair: no loops, one component, no patch, area 0.
 | symbol | value | role |
 |---|---|---|
 | `TAU_C` | 1e-6 Å | merge coincident vertices from different pairs; merge coincident caps |
-| `_TAU_DIR` | 1e-9 rad | dart tangents treated as parallel |
+| `_TAU_DIR` | 1e-4 rad | dart tangents treated as parallel (pinch) |
 
 `TAU_C` only has to exceed the floating-point scatter of one geometric point
 computed through different cap pairs (about `1e-12 × |coords|`) and stay below
 the smallest gap that must remain a gap; the test suite passes for any value in
 `[1e-8, 1e-4]`. All other comparisons are exact.
+
+`_TAU_DIR` is set by what the midpoint test of step 5 can resolve. Two
+circles crossing at angle `θ` at points `s` apart enclose a sliver of depth
+about `s θ / 4`, while the crossing points themselves carry an error of about
+`ε / θ` (the `1/sin θ` amplification above). The sliver's arcs are classified
+reliably only when `s θ / 4 > ε / θ`, i.e. `θ > √(4ε/s)`; with `ε ≈ 1e-15 R`
+and `s ≥ TAU_C` that is `θ ≳ 6e-5 rad`. Darts closer than `_TAU_DIR` are
+therefore exactly those whose arcs may be misclassified, and grouping them
+is the consistent treatment: the vertex becomes a pinch with `ι = 0`, and a
+sliver loop that was accepted anyway contributes `+2π` to the Euler term and
+`+2π` to the turning sum, cancelling. Grouping a genuine crossing of angle
+`θ < _TAU_DIR` costs at most `R² θ` of area. At `1e-9` the port turned near
+pairs tangent within the near band (dart gap about `7e-9` for a `1e-7`
+separation) and crossings `1e-5` apart into `+2πR²` errors; the four protein
+oracles have no dart pair within `1e-4`.
 
 `TAU_C` also bounds the circle radius from below: at the overlap threshold
 `d = R_i + R_j − TAU_C` the circle has `rl ≈ √(TAU_C · 2 R_i R_j / d) ≈
@@ -254,7 +277,7 @@ C++), not a case the kernels can survive.
    differ by at most `2 TAU_C`. Coincident centres (`d < 1e-3 Å`) raise.
    `rp ≤ 0`, a non-positive radius, or SAS radii with
    `R_min² < 2rp² + 2 TAU_C R_max` (the hypothesis of Lemma 7 below; a vdW
-   radius just above `(√2 − 1) rp`, about 0.7 Å for water) raise.
+   radius just above `(√2 − 1) rp`, 0.58 Å for water) raise.
 2. **Contained balls.** If `d ≤ |R_i − R_j| + TAU_C` the smaller ball is
    contained: it has no surface and generates no caps. These atoms are
    dropped from everything that follows.
@@ -403,10 +426,13 @@ reads `π_m(x) ≥ 0 for all m`, i.e. `x ∈ V_i`.
    computed by the formulas of step 3. A cut point `x` is accepted iff
    `π_l1(x) ≥ 0` and `π_l2(x) ≥ 0`, where `l1`, `l2` are the apexes of the
    two cells sharing the face (a bounding apex always passes; a hull face has
-   no `l2`, but by Lemma 0 no sphere face is a hull face). A small slack
-   `−2 R_l TAU_C` on the sign keeps k-fold points whose apex residual is
-   noise; Theorem 1 shows the two tests are exact, and step 4 below removes
-   the slack again.
+   no `l2`, but by Lemma 0 no sphere face is a hull face). The test is run
+   with a slack of `−2 R_l TAU_C` on the sign, so that k-fold points whose
+   apex residual is noise survive to step 4, which decides them exactly.
+   Theorem 1 shows the two tests are exact for the rounded lift: geogram's
+   predicates act on `fl(√(W − R²))`, i.e. on weights within an ulp of `W`
+   of `R²`, while the cut points and powers use `R²` itself; the difference
+   is noise-level and clustering absorbs it.
 3. **Caps from edges** (`gather_caps`, `classify_caps`). The caps of sphere
    `s` are its `RT` neighbours that are overlap partners, with the geometry
    of step 2. Crossing of two caps is decided per pair, not per face: a pair
@@ -419,8 +445,17 @@ reads `π_m(x) ≥ 0 for all m`, i.e. `x ∈ V_i`.
    `TAU_C` exactly as in step 4 above; a cluster's atoms are the union of its
    generating faces, every member must lie within `TAU_C` of the mean, and
    the incidences a cluster has on sphere `s` are the two other atoms of each
-   generating face that contains `s`. Every cluster is accessible, so step 5
-   above disappears; the clusters are the probes, owner-sorted as before.
+   generating face that contains `s`. The slack of step 2 is then removed:
+   a cluster is accessible iff every member has `π_l ≥ 0` exactly for each
+   apex `l` of its generating face that is not one of the cluster's atoms.
+   This is step 5 above restricted to apexes, which Theorem 1 justifies. An
+   apex sphere through the point deposits its own cut points within `TAU_C`
+   and is an atom; an apex that only passes within the slack does not (its
+   cut points land `δ / sin θ` away, and on a flat cell, apex distance `η`
+   from the face plane, the slack lets a point sit `R TAU_C / η` beyond the
+   dual edge, violating a steeper ball by far more than `TAU_C`), so the
+   cluster is rejected as the enumeration rejected it. Accessible clusters
+   are the probes, owner-sorted as before.
 
 **Lemma 0 (the bounding points are inert).** Every sphere point and every
 point of `U` lies within `D + R_max` of the box centre, and a bounding point
@@ -443,12 +478,15 @@ constraint (in the limit of the perturbation), and the constraint of an apex
 is tight at its own orthocentre; therefore the apex constraints are the
 binding lower and upper bounds, and `{s : π_m(x(s)) ≥ π_a(x(s)) ∀m}` is the
 segment between the two orthocentres, the edge of the power diagram dual to
-the face. At `x`, `π_a = 0`, so membership is `π_l1 ≥ 0 ∧ π_l2 ≥ 0`. If both
-apexes bound the same side, the other bound is a bounding point (Lemma 0) and
-the argument holds with one test. Conversely an accessible cut point lies in
-`V_a ∩ V_b ∩ V_c ∩ U`, which is a dual edge of a face of the perturbed
-triangulation (of the same degenerate cell, if the face `abc` itself was
-split away by SOS), so some processed face produces it. ∎
+the face. The two apexes lie on opposite sides of the face plane, as any two
+cells sharing a face do, so their half-lines point opposite ways and the
+bounds are a lower and an upper one even when the orthocentres coincide. At
+`x`, `π_a = 0`, so membership is `π_l1 ≥ 0 ∧ π_l2 ≥ 0`. Conversely let `x` be
+an accessible cut point and `A` the set of spheres through `x`; `x` lies in
+the cells of exactly the atoms of `A`, so the triangulation of the perturbed
+weights has a cell whose vertices are in `A` with `x` as (limit) orthocentre,
+some face of that cell has its three atoms in `A`, and `x` is one of that
+face's cut points; that face is processed and accepts `x`. ∎
 
 The point of the theorem is that global regularity of `RT` makes every ball
 other than the two apexes irrelevant: the two local tests are exact, not a
@@ -458,11 +496,12 @@ produced by several faces, which is why step 4 clusters globally.
 
 **Theorem 2 (neighbour caps suffice).** For `x ∈ S_s`, `x` is accessible iff
 `x ∈ V_s`. `V_s` is a convex polyhedron whose facets are the `RT` edges of
-`s`, so a point of `S_s` inside some ball is inside the closed ball of an `RT`
-neighbour. Hence the union of the neighbour caps equals the union of all
-overlapping caps up to a null set of boundary points; the arc midpoint tests
-and the Gauss–Bonnet area are unchanged, and, after nested caps are hidden,
-the crossing-graph components are the components of that union, as before.
+`s`; if `x ∉ V_s` some facet neighbour `n` has `π_n(x) < π_s(x) = 0`
+strictly, so a point of `S_s` inside some open ball is inside the open ball
+of an `RT` neighbour. Hence the union of the open neighbour caps equals the
+union of all open overlapping caps exactly; the arc midpoint tests and the
+Gauss–Bonnet area are unchanged, and, after nested caps are hidden, the
+crossing-graph components are the components of that union, as before.
 Every accessible arc on circle `(s, t)` lies in the facet `V_s ∩ V_t`, so
 `(s, t)` is an edge and, by Theorem 1, its endpoints come from the faces
 around that edge. Near pairs are dropped on both sides, so the identity is
@@ -470,15 +509,22 @@ exact up to caps of depth `TAU_C`, the tolerance class the enumeration
 already accepted. ∎
 
 **Equivalence with the enumeration.** In exact arithmetic, and provided no
-cut point lies within the sign slack of a fourth sphere and no midpoint lies
-on a cap boundary: the faces examined are a subset of the enumerated triples
-with identical cut formulas; the accepted points are the accessible ones on
-both sides (Theorem 1 against step 5; a point the enumeration dropped for a
-hidden cap lies strictly inside the hiding cap); the caps are the enumerated
-caps minus those inside the union of the others (Theorem 2), which changes
-no ring, no midpoint test and no component count; the crossing predicate is
-the same inequality; and each vertex carries the same incidences. So arcs,
-`φ`, endpoints, loops, `χ`, areas, probes and tangents coincide. Outside
+cut point lies within the sign slack of a fourth sphere: the faces examined
+are a subset of the enumerated triples with identical cut formulas; the
+accepted points are the accessible ones on both sides (Theorem 1 against
+step 5; a point the enumeration dropped for a hidden cap lies strictly
+inside the hiding cap); the caps are the enumerated caps minus those inside
+the union of the others (Theorem 2), which changes no ring, no midpoint test
+and no component count, except where part of an overlap cap is covered only
+by a dropped near-pair cap, a `TAU_C`-deep sliver on both sides; the
+crossing predicate is the same inequality; and each vertex carries the same
+incidences on every circle that has an accessible arc through it. At a point
+of five or more spheres the perturbed triangulation holds only some of the
+triples (five points split into two cells give 7 of the 10 triangles), so
+incidences on circles with no accessible arc through the point may be
+missing, while the atom set is complete because every vertex of the
+degenerate cell lies in one of its faces. So arcs, `φ`, endpoints, loops,
+`χ`, areas, probes and tangents coincide. Outside
 general position the clustering of step 4 does the same work it did for the
 enumeration: without it a 5-fold point, or a 4-fold point with coplanar
 centres (no cell has it as orthocentre), is emitted once per producing face
@@ -518,7 +564,8 @@ points agree only with the global clustering of step 4 in place.
 
   cover every case: they tile the arc for an ordinary torus, cut out the
   spindle, and collapse to zero width where a part is absent (which also
-  happens when `a < 0` or `d − a < 0`, since `θ_i > β0` iff `a > 0`). They
+  happens when `a < 0` or `d − a < 0`, since `θ_i > β0` iff `a > 0` given
+  `R_i > rp`). They
   are stored per active circle as one `(n_circles, 2, 2)` array, and the
   area is
 
@@ -731,6 +778,17 @@ only if `q − x` and `q − y` point the same way, which with equal lengths mea
 `x = y`. Finally Lemma 1(a) at `y`, with the SAS point `x`, gives
 `t_y(e) < rp`. ∎
 
+**Remark (first-touch cutter).** The proof uses only that `s₁` is the first
+vertex the inflating ball touches, never that `y` is the unique cutter of
+`k`. So for almost every cut face point `k` (outside the null set of Lemma
+3), its first-touch vertex `s₁` satisfies the conclusion of Lemma 4 and
+passes both filters below. This is what lets the filters drop every failing
+cap at once: a cap that only covers what another dropped cap also covers is
+never `s₁` for any point, so every cut point keeps its first-touch cutter and
+the face computed from the survivors is the same. Lemma 4 as stated, with
+"removes area from the face computed without `y`", would only justify
+dropping caps one at a time.
+
 **Corollary (both ends low, symmetric drop).** If `y` cuts `x`, then `x`
 reaches `y`'s face beyond its plane: `y` is low (Lemma 1(c)), and the cap of
 `x` on `y`'s sphere meets both `y`'s beyond-plane cap and `y`'s spherical
@@ -768,8 +826,8 @@ great circle `t_m · d = 0` between the corners `p_{m+1}` and `p_{m+2}`,
 `p_m = ±(t_{m+1} × t_{m+2})/|·|` signed so that `t_m · p_m ≤ 0`; the corners
 are perpendicular to `t_m`. The foot of `u` on that great circle is
 `f = u − (u·t_m) t_m`, the squared cosine of the angle from `u` to `f` is
-`|f|² = 1 − (u·t_m)²`, and `f` lies on the arc iff it is on the arc's side of
-the plane through the origin and the corners' bisector `p + q`. Because
+`|f|² = 1 − (u·t_m)²`, and `f` lies on the arc iff the angle from `f` to the
+corners' bisector `p + q` is at most half the arc. Because
 `p, q ⊥ t_m`, `f · (p + q) = u · (p + q)`, and the test is
 
 ```
@@ -799,8 +857,9 @@ and, for a face with no other caps, sufficient.
 
 **Lemma 7 (host overlap).** Whenever one probe trims another's face, some
 atom under the first touches some atom under the second, provided no atom is
-smaller than about 0.41 probe radii. Precisely: let `y` be an effective
-cutter of `x` (Lemma 4), `R_x` and `R_y` the smallest SAS radii among the
+smaller than about 0.41 probe radii. Precisely: let `y` be a first-touch
+cutter of `x` (Lemma 4 and its remark), `R_x` and `R_y` the smallest SAS
+radii among the
 hosts of `x` and `y`, `R_max` the largest SAS radius of the structure, and
 call two atoms overlapping as the preparation does, `|c_a − c_d| < R_a + R_d
 − TAU_C`. If no host of `y` overlaps any host of `x`, then
@@ -846,7 +905,7 @@ the tolerance term is at most `4 TAU_C R_max Λ'M'`; hence
 share a point, and two hosts from different triples of a merged cluster have
 contact points within the cluster's diameter, at most `2 TAU_C` (§3, SAS
 step 4), so `|c_a − c_d| ≤ R_a + R_d + 2 TAU_C`. An
-overlap is a near pair, so a host of an effective cutter of `x` is within
+overlap is a near pair, so a host of a first-touch cutter of `x` is within
 two near hops of every host of `x`, and enumerating the vertices that have a
 host in `active ∪ N(active) ∪ N²(active)`, with `N` the near neighbourhood,
 captures every cutter of every face on an active atom (§3, preparation
@@ -859,8 +918,9 @@ cutter exists none of whose hosts overlaps any host of the cut face.
 → drop pairs with a high end (both ends low) → drop pairs failing Lemma 5 on
 either side → drop pairs failing Lemma 6 on either side, tested on the
 survivors only → `solve_caps` on the low active faces with the surviving
-caps. Dropped caps remove no area, so the arrangement's accessible
-region, its area and the dots are unchanged. The filters are necessary
+caps. Dropped caps remove no area (every cut point keeps its first-touch
+cutter, Lemma 4 remark), so the arrangement's accessible region, its area
+and the dots are unchanged. The filters are necessary
 conditions evaluated in floating point: a rounding flip can only drop a cap
 that reaches the face by a rounding-scale sliver, an area effect far below
 the `1e-9` that the brute-force test (`anal_test.py`, every face solved
@@ -929,16 +989,18 @@ probe positions used by the buried/trim tests in `sc.py`.
 Pair enumeration uses one KD-tree; triple candidates come circle by circle
 from the partner lists of the two spheres (binary search), and every cap
 lookup is a binary search in a sphere's partner-sorted caps. The port instead
-builds one regular triangulation (`O(n log n)` expected, about `7n` cells)
-and examines its `~14n` faces once each, against `O(n·m²)` triples for the
-enumeration (`m` overlaps per sphere), with caps limited to the `~16`
-neighbours of each vertex. Each sphere's
-arrangement is `O(m²)` in its cap count `m` (10–40 for proteins) and
-independent of all other spheres; its cap components come from a union-find
-over its own crossing graph. Global steps: one KD-tree clustering of the raw
-vertices (union-find over the pairs), one height pass over all probes, one
-probe-pair query for all faces. Accessibility is decided cluster by cluster
-on the owner sphere. Per sphere and per face the local vertex clustering
+builds one regular triangulation (`O(n log n)` expected, about `6n` cells)
+and examines its `~12n` faces once each, against `O(n·m²)` triples for the
+enumeration (`m` overlaps per sphere), with caps limited to the `~15`
+neighbours of each vertex (measured on dense random sets: `6.1n` cells,
+`12.4n` faces, mean degree `14.5`). Each sphere's arrangement is `O(m²)` in
+its cap count `m` (10–40 overlaps for proteins in the pilot, the neighbour
+count in the port) and independent of all other spheres; its cap components
+come from a union-find over its own crossing graph. Global steps: one
+KD-tree clustering of the raw vertices (union-find over the pairs), one
+height pass over all probes, one probe-pair query for all faces.
+Accessibility is decided cluster by cluster, on the owner sphere in the
+pilot and against the generating apexes in the port. Per sphere and per face the local vertex clustering
 tests every pair (≤ 40 points). Sampling is linear in the number of dots.
 
 The pilot mirrors the C++ loop nest rather than numpy: one loop per entity
