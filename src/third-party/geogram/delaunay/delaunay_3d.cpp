@@ -38,17 +38,15 @@
  */
 
 #include <geogram/delaunay/delaunay_3d.h>
-#include <geogram/basic/logger.h>
 #include <geogram/basic/geometry_nd.h>
-#include <geogram/basic/process.h>
-#include <geogram/basic/command_line.h>
-#include <geogram/basic/stopwatch.h>
 #include <geogram/basic/matrix.h>
-#include <geogram/basic/permutation.h>
 #include <geogram/basic/algorithm.h>
 #include <geogram/mesh/mesh_reorder.h>
-#include <geogram/bibliography/bibliography.h>
 #include <stack>
+
+#include <absl/log/absl_log.h>
+
+#include "nuri/random.h"
 
 // TODO: optimizations:
 // - convex hull traversal for nearest_vertex()
@@ -81,45 +79,8 @@ namespace GEO {
     Delaunay3d::Delaunay3d(coord_index_t dimension) :
         Delaunay(dimension)
     {
-        geo_cite_with_info(
-            "DBLP:journals/cj/Bowyer81",
-            "One of the two initial references to the algorithm, "
-            "discovered independently and simultaneously by Bowyer and Watson."
-        );
-        geo_cite_with_info(
-            "journals/cj/Watson81",
-            "One of the two initial references to the algorithm, "
-            "discovered independently and simultaneously by Bowyer and Watson."
-        );
-        geo_cite_with_info(
-            "DBLP:conf/compgeom/AmentaCR03",
-            "Using spatial sorting has a dramatic impact on the performances."
-        );
-        geo_cite_with_info(
-            "DBLP:journals/comgeo/FunkeMN05",
-            "Initializing \\verb|locate()| with a non-exact version "
-            " (structural filtering) gains (a bit of) performance."
-        );
-        geo_cite_with_info(
-            "DBLP:journals/comgeo/BoissonnatDPTY02",
-            "The idea of traversing the cavity from inside "
-            " used in GEOGRAM is inspired by the implementation of "
-            " \\verb|Delaunay_triangulation_3| in CGAL."
-        );
-        geo_cite_with_info(
-            "DBLP:conf/imr/Si06",
-            "The triangulation data structure used in GEOGRAM is inspired "
-            "by Tetgen."
-        );
-        geo_cite_with_info(
-            "DBLP:journals/ijfcs/DevillersPT02",
-            "Analysis of the different versions of the line walk algorithm "
-            " used by \\verb|locate()|."
-        );
 
-        if(dimension != 3 && dimension != 4) {
-            throw InvalidDimension(dimension, "Delaunay3d", "3 or 4");
-        }
+        geo_assert(dimension == 3 || dimension == 4);
         first_free_ = END_OF_LIST;
         weighted_ = (dimension == 4);
         // In weighted mode, vertices are 4d but combinatorics is 3d.
@@ -129,20 +90,9 @@ namespace GEO {
             cell_neigh_stride_ = 4;
         }
         cur_stamp_ = 0;
-        debug_mode_ = CmdLine::get_arg_bool("dbg:delaunay");
-        verbose_debug_mode_ = CmdLine::get_arg_bool("dbg:delaunay_verbose");
-        debug_mode_ = (debug_mode_ || verbose_debug_mode_);
-        benchmark_mode_ = CmdLine::get_arg_bool("dbg:delaunay_benchmark");
-    }
-
-    Delaunay3d::~Delaunay3d() {
     }
 
     void Delaunay3d::set_vertices(index_t nb_vertices, const double* vertices) {
-        Stopwatch* W = nullptr;
-        if(benchmark_mode_) {
-            W = new Stopwatch("DelInternal");
-        }
         cur_stamp_ = 0;
         if(weighted_) {
             heights_.resize(nb_vertices);
@@ -188,19 +138,10 @@ namespace GEO {
             }
         }
 
-        double sorting_time = 0;
-        if(benchmark_mode_) {
-            sorting_time = W->elapsed_time();
-            Logger::out("DelInternal1") << "BRIO sorting:"
-                                        << sorting_time
-                                        << std::endl;
-        }
-
         // The indices of the vertices of the first tetrahedron.
         index_t v0, v1, v2, v3;
         if(!create_first_tetrahedron(v0, v1, v2, v3)) {
-            Logger::warn("Delaunay3d") << "All the points are coplanar"
-                                       << std::endl;
+            ABSL_LOG(WARNING) << "All the points are coplanar";
             return;
         }
 
@@ -215,18 +156,6 @@ namespace GEO {
                     hint = new_hint;
                 }
             }
-        }
-
-        if(benchmark_mode_) {
-            Logger::out("DelInternal2") << "Core insertion algo:"
-                                        << W->elapsed_time() - sorting_time
-                                        << std::endl;
-        }
-        delete W;
-
-        if(debug_mode_) {
-            check_combinatorics(verbose_debug_mode_);
-            check_geometry(verbose_debug_mode_);
         }
 
         //   Compress cell_to_v_store_ and cell_to_cell_store_
@@ -331,18 +260,6 @@ namespace GEO {
             }
         }
 
-        if(benchmark_mode_) {
-            if(keep_infinite_) {
-                Logger::out("DelCompress")
-                    << "Removed " << nb_tets_to_delete
-                    << " tets (free list)" << std::endl;
-            } else {
-                Logger::out("DelCompress")
-                    << "Removed " << nb_tets_to_delete
-                    << " tets (free list and infinite)" << std::endl;
-            }
-        }
-
         set_arrays(
             nb_tets,
             cell_to_v_store_.data(), cell_to_cell_store_.data()
@@ -358,7 +275,7 @@ namespace GEO {
         }
 
         // Find a tetrahedron (real or virtual) that contains p
-        index_t t = locate(p, NO_TETRAHEDRON, thread_safe());
+        index_t t = locate(p, NO_TETRAHEDRON);
 
         //   If p is outside the convex hull of the inserted points,
         // a special traversal is required (not implemented yet).
@@ -397,7 +314,7 @@ namespace GEO {
 
         // If no hint specified, find a tetrahedron randomly
         while(hint == NO_TETRAHEDRON) {
-            hint = index_t(Numeric::random_int32()) % max_t();
+            hint = nuri::internal::draw_uid<index_t>(max_t());
             if(tet_is_free(hint)) {
                 hint = NO_TETRAHEDRON;
             }
@@ -492,7 +409,7 @@ namespace GEO {
 
 
     index_t Delaunay3d::locate(
-        const double* p, index_t hint, bool thread_safe,
+        const double* p, index_t hint,
         Sign* orient
     ) const {
 
@@ -507,19 +424,9 @@ namespace GEO {
         // locate_inexact() loops forever !
         hint = locate_inexact(p, hint, 2500);
 
-        static Process::spinlock locate_lock = GEOGRAM_SPINLOCK_INIT;
-
-        // We need to have this spinlock because
-        // of random() that is not thread-safe
-        // (TODO: implement a random() function with
-        //  thread local storage)
-        if(thread_safe) {
-            Process::acquire_spinlock(locate_lock);
-        }
-
         // If no hint specified, find a tetrahedron randomly
         while(hint == NO_TETRAHEDRON) {
-            hint = index_t(Numeric::random_int32()) % max_t();
+            hint = nuri::internal::draw_uid<index_t>(max_t());
             if(tet_is_free(hint)) {
                 hint = NO_TETRAHEDRON;
             }
@@ -555,7 +462,7 @@ namespace GEO {
             pv[3] = vertex_ptr(finite_tet_vertex(t,3));
 
             // Start from a random facet
-            index_t f0 = index_t(Numeric::random_int32()) % 4;
+            index_t f0 = nuri::internal::draw_uid<index_t>(4);
             for(index_t df = 0; df < 4; ++df) {
                 index_t f = (f0 + df) % 4;
 
@@ -566,9 +473,6 @@ namespace GEO {
                 // nearest_vertex) within a tetrahedralization
                 // from which the infinite tets were removed.
                 if(t_next == NO_INDEX) {
-                    if(thread_safe) {
-                        Process::release_spinlock(locate_lock);
-                    }
                     return NO_TETRAHEDRON;
                 }
 
@@ -605,9 +509,6 @@ namespace GEO {
                 // thus t_next is a tet in conflict and we are
                 // done.
                 if(tet_is_virtual(t_next)) {
-                    if(thread_safe) {
-                        Process::release_spinlock(locate_lock);
-                    }
                     for(index_t lf = 0; lf < 4; ++lf) {
                         orient[lf] = POSITIVE;
                     }
@@ -627,9 +528,6 @@ namespace GEO {
         // thus we reached the tet for which p has all positive
         // face orientations (i.e. the tet that contains p).
 
-        if(thread_safe) {
-            Process::release_spinlock(locate_lock);
-        }
         return t;
     }
 
@@ -910,7 +808,7 @@ namespace GEO {
         const double* p = vertex_ptr(v);
 
         Sign orient[4];
-        index_t t = locate(p, hint, false, orient);
+        index_t t = locate(p, hint, orient);
         find_conflict_zone(
             v,t,orient,t_bndry,f_bndry,first_conflict,last_conflict
         );
@@ -1189,20 +1087,5 @@ namespace GEO {
         }
         geo_assert(ok);
         std::cerr << std::endl << "Delaunay Geo OK" << std::endl;
-    }
-
-    /************************************************************************/
-
-    RegularWeightedDelaunay3d::RegularWeightedDelaunay3d(
-        coord_index_t dimension
-    ) :
-        Delaunay3d(4)
-    {
-        if(dimension != 4) {
-            throw InvalidDimension(dimension, "RegularWeightedDelaunay3d", "4");
-        }
-    }
-
-    RegularWeightedDelaunay3d::~RegularWeightedDelaunay3d() {
     }
 }

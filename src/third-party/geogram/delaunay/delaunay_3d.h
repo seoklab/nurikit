@@ -104,7 +104,7 @@ namespace GEO {
      *    a paradigm for efficient and exact geometric programs",
      *    Comput. Geom., 1999
      */
-    class GEOGRAM_API Delaunay3d : public Delaunay {
+    class GEOGRAM_API Delaunay3d final : public Delaunay {
     public:
         /**
          * \brief Constructs a new Delaunay3d.
@@ -124,12 +124,12 @@ namespace GEO {
         /**
          * \copydoc Delaunay::set_vertices()
          */
-        void set_vertices(index_t nb_vertices, const double* vertices) override;
+        void set_vertices(index_t nb_vertices, const double* vertices);
 
         /**
          * \copydoc Delaunay::nearest_vertex()
          */
-        index_t nearest_vertex(const double* p) const override;
+        index_t nearest_vertex(const double* p) const;
 
     protected:
 
@@ -163,9 +163,6 @@ namespace GEO {
          *  the function returns one of the tetrahedra incident
          *  to that face, edge or vertex.
          * \param[in] p a pointer to the coordinates of the point
-         * \param[in] thread_safe if true, a global spinlock is
-         *  used to protect the calls to random(), this is necessary
-         *  if multiple threads use locate() simultaneously
          * \param[out] orient a pointer to an array of four Sign%s
          *  or nullptr. If non-nullptr, returns the orientation with respect
          *  to the four facets of the tetrahedron that contains \p p.
@@ -178,7 +175,6 @@ namespace GEO {
          */
         index_t locate(
             const double* p, index_t hint = NO_TETRAHEDRON,
-            bool thread_safe = false,
             Sign* orient = nullptr
         ) const;
 
@@ -1041,11 +1037,6 @@ namespace GEO {
         }
 
         /**
-         * \brief Delaunay3d destructor
-         */
-        ~Delaunay3d() override;
-
-        /**
          * \brief For debugging purposes, displays a tetrahedron.
          * \param[in] t index of the tetrahedron to display.
          */
@@ -1085,21 +1076,6 @@ namespace GEO {
         index_t first_free_;
         bool weighted_;
         vector<double> heights_; // only used in weighted mode
-
-        /**
-         * Performs additional checks (costly !)
-         */
-        bool debug_mode_;
-
-        /**
-         * Displays the result of the additional checks.
-         */
-        bool verbose_debug_mode_;
-
-        /**
-         * Displays the timing of the core algorithm.
-         */
-        bool benchmark_mode_;
 
         /**
          * \brief Gives the indexing of tetrahedron facet
@@ -1263,38 +1239,6 @@ namespace GEO {
         Cavity cavity_;
     };
 
-    /************************************************************************/
-
-    /**
-     * \brief Regular Delaunay triangulation of weighted points
-     * \details
-     * - the input points are 4d points, were the fourth coordinate
-     *  of point \f$ i \f$ is \f$ \sqrt{W - w_i} \f$ where \f$ W \f$ is
-     *  the maximum of the  weights of all the points and \d$ w_i \$ is
-     *  the weight associated with vertex \f$ i \f$.
-     * - the constructed combinatorics is a tetrahedralized volume (3d and
-     *  not 4d although dimension() returns 4). This tetrahedralized volume
-     *  corresponds to the regular triangulation of the weighted points.
-     */
-    class GEOGRAM_API RegularWeightedDelaunay3d : public Delaunay3d {
-    public:
-        /**
-         * \brief Constructs a new Regular Delaunay3d triangulation.
-         * \details RegularWeightedDelaunay3d triangulations are only
-         * supported for dimension 3. If a different dimension is specified in
-         * the constructor, a InvalidDimension exception is thrown.
-         * \param[in] dimension dimension of the triangulation
-         * \throw InvalidDimension This exception is thrown if dimension is
-         * different than 3.
-         */
-        RegularWeightedDelaunay3d(coord_index_t dimension = 4);
-
-    protected:
-        /**
-         * \brief RegularWeightedDelaunay3d destructor
-         */
-        ~RegularWeightedDelaunay3d() override;
-    };
 }
 
 #endif

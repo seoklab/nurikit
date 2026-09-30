@@ -49,86 +49,16 @@
  */
 
 namespace GEO {
-
-    /**
-     * \brief Assert termination mode
-     * \details Defines how assertion failures should terminate the program.
-     * By default, Assertion failures throw an exception.
-     */
-    enum AssertMode {
-        /** Assertion failures throw an exception */
-        ASSERT_THROW,
-        /** Assertion failures call abort() */
-        ASSERT_ABORT,
-        /** Assertion failures generate a breakpoint in the debugger */
-        ASSERT_BREAKPOINT
-    };
-
-    /**
-     * \brief Sets assertion mode.
-     * \param[in] mode assert termination mode
-     * \see AssertMode
-     */
-    void GEOGRAM_API set_assert_mode(AssertMode mode);
-
-    /**
-     * \brief Returns the current assert termination mode
-     */
-    AssertMode GEOGRAM_API assert_mode();
-
-    /**
-     * \brief Aborts the program
-     * \details On Linux, this calls the system function abort(). On Windows,
-     * abort() is more difficult to see under debugger, so this creates a
-     * segmentation fault by deferencing a null pointer.
-     */
-    GEO_NORETURN_DECL void GEOGRAM_API geo_abort() GEO_NORETURN;
-
-    /**
-     * \brief Generates a debugger breakpoint programmatically.
-     * \details On Windows, generates a breakpoint using __debugbreak(),
-     *  on other systems, calls geo_abort().
-     */
-    GEO_NORETURN_DECL void GEOGRAM_API geo_breakpoint() GEO_NORETURN;
-
-    /**
-     * \brief Prints an assertion failure
-     * \details This function is called when a boolean condition is not met.
-     * It prints an error message and terminates the program according to
-     * the current assert termination mode.
-     * \param[in] condition_string string representation of the condition
-     * \param[in] file file where the assertion failed
-     * \param[in] line line where the assertion failed
-     */
     GEO_NORETURN_DECL void GEOGRAM_API geo_assertion_failed(
         const std::string& condition_string,
         const std::string& file, int line
     ) GEO_NORETURN;
 
-    /**
-     * \brief Prints a range assertion failure
-     * \details This function is called when a value is out of a legal range.
-     * It prints an error message and terminates the program according to
-     * the current assert termination mode.
-     * \param[in] value the illegal value
-     * \param[in] min_value minimum allowed value
-     * \param[in] max_value maximum allowed value
-     * \param[in] file file where the assertion failed
-     * \param[in] line line where the assertion failed
-     */
     GEO_NORETURN_DECL void GEOGRAM_API geo_range_assertion_failed(
         double value, double min_value, double max_value,
         const std::string& file, int line
     ) GEO_NORETURN;
 
-    /**
-     * \brief Prints an unreachable location failure
-     * \details This function is called when execution reaches a point that it
-     * should not reach. It prints an error message and terminates the
-     * program according to the current assert termination mode.
-     * \param[in] file file containing the unreachable location
-     * \param[in] line line of the unreachable location
-     */
     GEO_NORETURN_DECL void GEOGRAM_API geo_should_not_have_reached(
         const std::string& file, int line
     ) GEO_NORETURN;

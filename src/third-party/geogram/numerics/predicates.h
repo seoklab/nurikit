@@ -403,7 +403,6 @@ namespace GEO {
         );
 
 
-#ifndef GEOGRAM_PSM
         /**
          * \brief Computes the orientation predicate in 2d.
          * \details Computes the sign of the signed area of
@@ -418,7 +417,6 @@ namespace GEO {
         ) {
             return orient_2d(p0.data(),p1.data(),p2.data());
         }
-#endif
 
         /**
          * \brief Computes the 3d orientation test with lifted points.
@@ -475,7 +473,6 @@ namespace GEO {
             const double* p2, const double* p3
         );
 
-#ifndef GEOGRAM_PSM
         /**
          * \brief Computes the orientation predicate in 3d.
          * \details Computes the sign of the signed volume of
@@ -510,7 +507,6 @@ namespace GEO {
             return orient_3d_SOS(p0.data(),p1.data(),p2.data(),p3.data());
 	}
 
-#endif
 
         /**
          * \brief Computes the 4d orientation test.
@@ -572,7 +568,6 @@ namespace GEO {
             const double* p0, const double* p1, const double* p2
         );
 
-#ifndef GEOGRAM_PSM
         /**
          * \brief Computes the sign of the determinant of a 3x3
          *  matrix formed by three 3d points.
@@ -584,7 +579,6 @@ namespace GEO {
         ) {
 	    return det_3d(p0.data(), p1.data(), p2.data());
 	}
-#endif
 
         /**
          * \brief Computes the sign of the determinant of a 4x4
@@ -597,7 +591,6 @@ namespace GEO {
             const double* p2, const double* p3
         );
 
-#ifndef GEOGRAM_PSM
         /**
          * \brief Computes the sign of the determinant of a 4x4
          *  matrix formed by four 4d points.
@@ -610,7 +603,6 @@ namespace GEO {
         ) {
 	    return det_4d(p0.data(), p1.data(), p2.data(), p3.data());
 	}
-#endif
 
         /**
          * \brief Computes the sign of the determinant of a
@@ -649,7 +641,6 @@ namespace GEO {
             const double* p0, const double* p1, const double* p2
         );
 
-#ifndef GEOGRAM_PSM
 
         /**
          * \brief Tests whether three points are aligned.
@@ -677,7 +668,6 @@ namespace GEO {
         ) {
             return dot_3d(p0.data(), p1.data(), p2.data());
         }
-#endif
 
         /**
          * \brief Compares two dot products.
@@ -765,22 +755,6 @@ namespace GEO {
             return geo_sgn(Delta);
         }
 
-        /**
-         * \brief Displays some statistics about predicates,
-         *  including the number of calls, the number of exact arithmetics
-         *  calls, and the number of Simulation of Simplicity calls.
-         */
-        void GEOGRAM_API show_stats();
-
-        /**
-         * \brief Needs to be called before using any predicate.
-         */
-        void GEOGRAM_API initialize();
-
-        /**
-         * \brief Needs to be called at the end of the program.
-         */
-        void GEOGRAM_API terminate();
     }
 }
 

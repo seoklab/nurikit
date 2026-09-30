@@ -50,7 +50,7 @@ InlayHints:
   DeducedTypes: Yes
 ---
 If:
-  PathMatch: "(third-party|build/.*_deps)/.*"
+  PathMatch: "(.*/third-party|build/.*_deps)/.*"
 Diagnostics:
   Suppress: "*"
   UnusedIncludes: None

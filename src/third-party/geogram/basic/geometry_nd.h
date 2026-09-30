@@ -324,67 +324,6 @@ namespace GEO {
         }
 
         /**
-         * \brief Generates a random point in a nd triangle.
-         * \details Uses Greg Turk's second method
-         *  (see article in Graphic Gems).
-         * \param[in] p1 first vertex of the triangle
-         * \param[in] p2 second vertex of the triangle
-         * \param[in] p3 third vertex of the triangle
-         * \return a random point in triangle ( \p p1, \p p2, \p p3 )
-         * \tparam VEC the class used to represent the vertices
-         *  of the triangle
-         */
-        template <class VEC>
-        inline VEC random_point_in_triangle(
-            const VEC& p1, const VEC& p2, const VEC& p3
-        ) {
-            double l1 = Numeric::random_float64();
-            double l2 = Numeric::random_float64();
-            if(l1 + l2 > 1.0) {
-                l1 = 1.0 - l1;
-                l2 = 1.0 - l2;
-            }
-            double l3 = 1.0 - l1 - l2;
-            return l1 * p1 + l2 * p2 + l3 * p3;
-        }
-
-        /**
-         * \brief Generates a random point in a nd tetrahedron.
-         * \details Uses Greg Turk's second method
-         *  (see article in Graphic Gems).
-         * \param[in] p1 first vertex of the triangle
-         * \param[in] p2 second vertex of the triangle
-         * \param[in] p3 third vertex of the triangle
-         * \param[in] p4 fourth vertex of the triangle
-         * \return a random point in tetrahedron ( \p p1, \p p2, \p p3, \p p4)
-         * \tparam VEC the class used to represent the vertices
-         *  of the triangle
-         */
-        template <class VEC>
-        inline VEC random_point_in_tetra(
-            const VEC& p1, const VEC& p2, const VEC& p3, const VEC& p4
-        ) {
-            double s = Numeric::random_float64();
-            double t = Numeric::random_float64();
-            double u = Numeric::random_float64();
-            if(s + t > 1.0) {
-                s = 1.0 - s;
-                t = 1.0 - t;
-            }
-            if(t + u > 1.0) {
-                double tmp = u;
-                u = 1.0 - s - t;
-                t = 1.0 - tmp;
-            } else if(s + t + u > 1.0) {
-                double tmp = u;
-                u = s + t + u - 1.0;
-                s = 1.0 - t - tmp;
-            }
-            double a = 1.0 - s - t - u;
-            return a * p1 + s * p2 + t * p3 + u * p4;
-        }
-
-        /**
          * \brief Computes the point closest to a given point in a nd segment
          * \param[in] point the query point
          * \param[in] V0 first extremity of the segment

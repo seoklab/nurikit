@@ -1,0 +1,2 @@
+# clang-tidy rejects an empty check set; this check cannot fire.
+Checks: "-*,portability-restrict-system-includes"

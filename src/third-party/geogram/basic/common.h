@@ -60,58 +60,6 @@
  */
 namespace GEO {
 
-    /**
-     * \brief Symbolic constants for GEO::initialize()
-     */
-    enum {
-        /// Do not install error handlers
-        GEOGRAM_INSTALL_NONE = 0,
-        /// Install Geogram's signal handlers
-        GEOGRAM_INSTALL_HANDLERS = 1,
-        /// Sets the locale to POSIX
-        GEOGRAM_INSTALL_LOCALE = 2,
-        /// Reset errno to 0
-        GEOGRAM_INSTALL_ERRNO = 4,
-        /// Enable or disable FPE during initialization
-        GEOGRAM_INSTALL_FPE = 8,
-        /// Enable global citation database
-        GEOGRAM_INSTALL_BIBLIO = 16,
-        /// Install everything
-        GEOGRAM_INSTALL_ALL = GEOGRAM_INSTALL_HANDLERS
-        | GEOGRAM_INSTALL_LOCALE
-        | GEOGRAM_INSTALL_ERRNO
-        | GEOGRAM_INSTALL_FPE
-        | GEOGRAM_INSTALL_BIBLIO
-    };
-
-    /**
-     * \brief Initialize Geogram
-     * \param[in] flags an or combination of
-     *  - GEOGRAM_INSTALL_HANDLERS to install geogram error handlers. This avoid
-     *  opening dialog boxes under Windows. This is useful for the automatic
-     *  test suite. Else continuous integration tests hang because of the dialog
-     *  box. Normal users may want to keep the default Windows behavior, since
-     *  geogram error handlers may make debugging more difficult under Windows.
-     * - GEOGRAM_INSTALL_LOCALE to set the locale to POSIX.
-     * - GEOGRAM_INSTALL_ERRNO to clear the last system error.
-     * - GEOGRAM_INSTALL_FPE to enable/disable floating point exceptions.
-     * - GEOGRAM_INSTALL_BIBLIO to enable global citation database.
-     * \details This function must be called once at the very beginning of a
-     * program to initialize the Vorpaline library. It also installs a exit()
-     * handler that calls function terminate() when the program exists
-     * normally. If it is called multiple times, then the supplemental calls
-     * have no effect.
-     */
-    void GEOGRAM_API initialize(int flags = GEOGRAM_INSTALL_NONE);
-
-    /**
-     * \brief Cleans up Geogram
-     * \details This function is called automatically when the program exists
-     * normally.
-     * \warning This function should \b not be called directly.
-     * \see initialize()
-     */
-    void GEOGRAM_API terminate();
 }
 
 /**
@@ -195,7 +143,7 @@ namespace GEO {
  *
  */
 
-#if (defined(NDEBUG) || defined(GEOGRAM_PSM)) && !defined(GEOGRAM_PSM_DEBUG)
+#ifdef NDEBUG
 #undef GEO_DEBUG
 #undef GEO_PARANOID
 #else
@@ -387,31 +335,6 @@ namespace GEO {
 // For now, deactivate parallel STL if in a Pluggable Softare Module
 // (because if compiling with gcc, this forces linking tbb which may
 //  be not suitable)
-
-#ifdef GEOGRAM_PSM
-#   define GEO_NO_PARALLEL_STL
-#endif
-
-// gcc versions older than gcc 10 are shipped with an old libTBB
-// that conflicts with modern libOneTBB, so we deactivate parallel
-// STL if gcc version is lower than 10.
-
-#ifndef GEO_NO_PARALLEL_STL
-#  if defined(_GLIBCXX_RELEASE) && _GLIBCXX_RELEASE < 10
-#    define GEO_NO_PARALLEL_STL
-#  endif
-#endif
-
-// The test should be:
-// defined(__cpp_lib_execution) && defined(__cpp_lib_parallel_algorithm)
-// but it does not seem to be implemented by all compilers, so using
-// hardcoded compiler test instead.
-
-#if !defined(GEO_COMPILER_CLANG) &&		\
-    !defined(GEO_OS_EMSCRIPTEN) && \
-    !defined(GEO_NO_PARALLEL_STL)
-#define GEO_PARALLEL_STL
-#endif
 
 
 #endif
