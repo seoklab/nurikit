@@ -1066,6 +1066,50 @@ TEST(BuildSasTest, ApexTangentAtVertexIndexOrders) {
 }
 
 /**
+ * Two circles on sphere a exactly tangent (face discriminant zero on the
+ * stored heights, radii all 5 so the lift is exact): internally at
+ * (1,0,7), externally at (7,0,-1) and (1,0,-1), with and without a fourth
+ * sphere through the tangency point. The corner at an internal tangency is
+ * exactly pi, the arcs between coincident probes have zero length, and the
+ * result must not depend on the index order or a rigid motion.
+ */
+TEST(BuildSasTest, ExactCircleTangencies) {
+  const std::vector<std::vector<Vector3d>> cases {
+    { { 0, 0, 0 }, { 0, 0, 6 }, { 1, 0, 7 } },
+    { { 0, 0, 0 }, { 0, 0, 6 }, { 7, 0, -1 } },
+    { { 0, 0, 0 }, { 0, 0, 6 }, { 1, 0, -1 } },
+    { { 0, 0, 0 }, { 0, 0, 6 }, { 1, 0, 7 }, { 4, 5, 3 } },
+    { { 0, 0, 0 }, { 0, 0, 6 }, { 1, 0, 7 }, { 4, -5, 3 } },
+  };
+  for (const auto &centres: cases) {
+    const int n = static_cast<int>(centres.size());
+    Matrix3Xd pts(3, n);
+    for (int i = 0; i < n; ++i)
+      pts.col(i) = centres[i];
+    const ArrayXd sar = ArrayXd::Constant(n, 5.0);
+    const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
+    const ArrayXd ref = solve(pts, sar).geo.area;
+
+    for_each_index_order(pts, sar,
+                         [&](const Matrix3Xd &p, const ArrayXd &r,
+                             const std::vector<int> &order) {
+                           const Sas sas = solve(p, r);
+                           ArrayXd sr_p(n);
+                           for (int i = 0; i < n; ++i) {
+                             sr_p[i] = sr[order[i]];
+                             EXPECT_NEAR(sas.geo.area[i], ref[order[i]], 1e-12);
+                           }
+                           expect_areas(sas, sr_p, r, 20000);
+                         });
+
+    for (int seed = 0; seed < 16; ++seed) {
+      const Matrix3Xd q = rigid(pts, seed);
+      expect_sr(solve(q, sar), q, sar);
+    }
+  }
+}
+
+/**
  * Rigid motions of the two tangent fixtures: rounding turns the exact
  * tangency into a circle of radius ~1e-8 with two real cut points whose
  * floating positions do not resolve the circle.
