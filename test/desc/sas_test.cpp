@@ -1230,7 +1230,9 @@ TEST(BuildSasTest, TouchingCapsWithoutLensVertex) {
 
 /**
  * The tangent pair of radius 7 with four spheres through the touching
- * point whose centres are coplanar with it: a 6-fold touch.
+ * point whose centres are coplanar with it: a 6-fold touch with three
+ * tangent pairs, whose deleted circles leave the roots of `{0, 2, 4}` and
+ * `{0, 3, 5}` at the origin on no common circle.
  */
 TEST(BuildSasTest, TouchingCapsSixFold) {
   Matrix3Xd pts(3, 6);
@@ -1241,6 +1243,19 @@ TEST(BuildSasTest, TouchingCapsSixFold) {
 
   ArrayXd ref;
   expect_order_invariant_areas(pts, sar, ref);
+
+  int k = 0;
+  for_each_index_order(
+      pts, sar,
+      [&](const Matrix3Xd &p, const ArrayXd &r, const std::vector<int> &order) {
+        if (k++ % 37 != 0)
+          return;
+        const Sas sas = solve(p, r);
+        expect_no_unmerged_pairs(sas.geo, merge_tol(sas));
+        const int c = probe_at(sas.geo, Vector3d::Zero());
+        ASSERT_GE(c, 0) << "order " << order[0] << order[1] << order[2]
+                        << order[3] << order[4] << order[5];
+      });
 }
 
 /**
