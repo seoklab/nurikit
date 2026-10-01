@@ -937,14 +937,18 @@ slivers from dropped near pairs.
   cuts it too (Lemma 3). The face arrangement is solved with `solve_caps` for
   the faces and caps that survive the filters below.
 
-**Input from the port.** The SES stage builds probe–probe caps with axis
-`(y − x)/|y − x|`; at coincident probes (§3 port, "Semantics at exact
-coincidences") that direction is noise and the cap a random hemisphere.
-Before SES is built on the port's output it needs either a merge pass
-(probes joined by arcs shorter than its tolerance, plus the `k`-fold atom
-and tangent rules; note that coincident probes on different loops, as at an
-hourglass point, are not joined by an arc) or cap axes taken from the
-connecting arc's tangent. Such a post-pass cannot change the SAS.
+**Merged probes.** `build_sas` merges probes within `τ = 4 · kOffsetRelTol ·
+R_max` of each other by union-find over consecutive ring vertices (every
+circle whose smaller atom is `< n_enum` is ringed, so a shell-owned probe at
+a `k`-fold point reaches the merge too): exactly coincident or within `τ`
+consecutive pairs are joined, no spatial search. A cluster's atoms are the
+union of its members', its position that of the first member, and its
+tangents come from the arcs with one end in the cluster plus its full loops
+(`dphi ≥ π`, the grazing vertex gets `±t`); an internal short arc, a
+diagonal of the `k`-fold point, contributes nothing. The merge error is
+`O(τ · rp)` in area and never topological, since the face arrangement is
+exact on the caps it receives; the SAS arcs, caps and areas are computed
+before the merge and unchanged by it.
 
 ### Which probes can cut a face
 
