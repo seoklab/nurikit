@@ -20,9 +20,15 @@
 namespace nuri {
 namespace internal {
   namespace {
+    /**
+     * Candidate pairs within the near band over every atom, with the exactly
+     * contained ones flagged (identical twins included), and the atoms that
+     * survive the contained-ball filter.
+     */
     struct NearPairs {
       /* n_near */
       ArrayXi inear, jnear;
+      ArrayXb contained;
 
       /* n */
       ArrayXi keep;
@@ -57,32 +63,34 @@ namespace internal {
       ArrayXd d = (pts(E::all, right) - pts(E::all, left)).colwise().norm();
 
       ArrayXi keep = ArrayXi::Ones(n);
+      ArrayXb contained = ArrayXb::Constant(m, false);
       for (int k = 0; k < m; ++k) {
         const int i = left[k], j = right[k];
         if (d[k] > std::abs(sar[i] - sar[j]) + kSurfaceLengthEps)
           continue;
 
         const int in = ex.contained(i, j);
-        if (in >= 0)
-          keep[in == 0 ? i : j] = 0;
+        if (in < 0)
+          continue;
+        keep[in == 0 ? i : j] = 0;
+        contained[k] = true;
       }
 
       ArrayXd touch = sar(left) + sar(right);
-      ArrayXi key =
-          (keep(left) + keep(right) < 2 || d > touch + 2 * kSurfaceLengthEps)
-              .cast<int>();
+      ArrayXi key = (d > touch + 2 * kSurfaceLengthEps).cast<int>();
       ArrayXi order(m);
       E::Array2i off;
       argsort_bucket(order, off, key);
 
       auto near = order.head(off[1]);
-      return { left(near), right(near), std::move(keep) };
+      return { left(near), right(near), contained(near), std::move(keep) };
     }
 
     /**
      * Drop the middle sphere of every triple sharing one circle: on each
      * side of the circle plane the outer sphere bulges more, so it has no
-     * surface. The band on floating circle centres and axes only selects
+     * surface, whether or not an outer sphere is itself contained in a
+     * larger one. The band on floating circle centres and axes only selects
      * candidates; `shared_circle` decides.
      */
     void drop_shared_circle_middles(ArrayXi &keep, const CSR &g,
@@ -164,20 +172,20 @@ namespace internal {
     }
 
     /**
-     * Candidate pairs among kept spheres that overlap exactly for the
-     * heights the lift will hand to the triangulation; a tangency counts.
+     * Candidate pairs over every atom, minus the exactly contained ones, that
+     * overlap exactly for the heights the lift will hand to the
+     * triangulation; an exact tangency does not. Edges of dropped atoms are
+     * removed by `compact`.
      */
     std::pair<CSR, ArrayXd> exact_overlaps(const SasExact &ex,
-                                           const ArrayXi &keep,
-                                           const ArrayXi &inear,
-                                           const ArrayXi &jnear) {
+                                           const NearPairs &np) {
       const Matrix3Xd &pts = ex.centers();
-      const int m = static_cast<int>(inear.size());
+      const int m = static_cast<int>(np.inear.size());
       ArrayXi li(m), lj(m);
       int q = 0;
       for (int k = 0; k < m; ++k) {
-        const int i = inear[k], j = jnear[k];
-        if (keep[i] == 0 || keep[j] == 0 || ex.overlap(i, j) != Sgn::kPos)
+        const int i = np.inear[k], j = np.jnear[k];
+        if (np.contained[k] || ex.overlap(i, j) != Sgn::kPos)
           continue;
 
         li[q] = i;
@@ -185,8 +193,7 @@ namespace internal {
         ++q;
       }
 
-      auto [g, perm] =
-          compile_pairs(li.head(q), lj.head(q), static_cast<int>(keep.size()));
+      auto [g, perm] = compile_pairs(li.head(q), lj.head(q), ex.n());
       ArrayXd d(q);
       for (int k = 0; k < q; ++k)
         d[k] = (pts.col(lj[perm[k]]) - pts.col(li[perm[k]])).norm();
@@ -263,12 +270,12 @@ namespace internal {
     lifted.row(3) = t.transpose();
     const SasExact ex = SasExact::make(lifted, wmax);
 
-    auto [inear, jnear, keep] = find_near_pairs(ex, sar, rmax);
-    auto [g, d] = exact_overlaps(ex, keep, inear, jnear);
-    drop_shared_circle_middles(keep, g, d, sar2, ex);
+    NearPairs np = find_near_pairs(ex, sar, rmax);
+    auto [g, d] = exact_overlaps(ex, np);
+    drop_shared_circle_middles(np.keep, g, d, sar2, ex);
 
-    auto [order, off] = rank_atoms(keep, inear, jnear, active);
-    return compact(pts, sar, t, wmax, g, d, std::move(order), off, keep);
+    auto [order, off] = rank_atoms(np.keep, np.inear, np.jnear, active);
+    return compact(pts, sar, t, wmax, g, d, std::move(order), off, np.keep);
   }
 }  // namespace internal
 }  // namespace nuri

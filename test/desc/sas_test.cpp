@@ -812,6 +812,28 @@ TEST(BuildSasTest, SharedCircleMiddleDropped) {
   }
 }
 
+/**
+ * A fourth sphere containing one outer sphere of the shared circle: the
+ * middle still has no surface and is dropped although its outer partner is.
+ */
+TEST(BuildSasTest, SharedCircleMiddleUnderContainedOuter) {
+  for (int mid = 0; mid < 3; ++mid) {
+    ArrayXd sar3;
+    const Matrix3Xd pts3 = shared_circle_pts(mid, sar3);
+    Matrix3Xd pts(3, 4);
+    pts.leftCols(3) = pts3;
+    pts.col(3) << 0, 0, 1.140625;
+    ArrayXd sar(4);
+    sar << sar3, 3.5;
+
+    const Sas sas = solve(pts, sar);
+    ASSERT_EQ(sas.sa.order.size(), 2);
+    EXPECT_TRUE((sas.sa.order != mid).all());
+    EXPECT_EQ(sas.geo.probes.pos.cols(), 0);
+    expect_sr(sas, pts, sar);
+  }
+}
+
 TEST(BuildSasTest, NearSharedCircleKept) {
   for (const double shift: { 1e-9, -1e-9 }) {
     ArrayXd sar;
