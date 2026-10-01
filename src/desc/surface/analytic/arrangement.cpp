@@ -15,7 +15,6 @@
 #include "nuri/eigen_config.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
-#include "nuri/utils.h"
 
 namespace nuri {
 namespace internal {
@@ -25,8 +24,7 @@ namespace internal {
   }  // namespace
 
   ArrangementSolver::ArrangementSolver(const int mcap, const int kcap,
-                                       const int acap)
-      : off_(nuri::max(mcap, kcap)) {
+                                       const int acap) {
     cosa_.resize(mcap);
 
     dirs_.resize(3, kcap);
@@ -34,12 +32,9 @@ namespace internal {
     eb_.resize(3, kcap);
 
     arcs_.reserve(acap);
-    order_.resize(2L * acap);
     succ_.resize(acap);
     seen_.resize(acap);
-    keys_.reserve(2L * acap);
-    darts_.reserve(2L * acap);
-    dring_.reserve(2L * acap + 1);
+    darts_.resize(kcap);
   }
 
   void ArrangementSolver::begin(const double radius) {
@@ -64,11 +59,11 @@ namespace internal {
 
   /**
    * Two darts per arc end: the departing tangent at `beg` and the reversed
-   * arriving tangent at `end`, as supplied with the arc. At every vertex the
-   * darts alternate in/out around the vertex; the corner between an in-dart and
-   * the out-dart before it is the signed angle in `(−π/2, 3π/2]`, and the two
-   * arcs are linked into one loop. Every corner also joins its two caps'
-   * components.
+   * arriving tangent at `end`. A vertex ends exactly one arc on each of its
+   * two circles, so it carries one in-dart and one out-dart; the corner from
+   * the out-dart to the in-dart is the signed angle in `(−π/2, 3π/2]`, and
+   * the two arcs are linked into one loop. Every corner also joins its two
+   * caps' components.
    */
   std::pair<int, double> ArrangementSolver::walk(UnionFind &uf) {
     const int k = k_, na = static_cast<int>(arcs_.size());
@@ -77,56 +72,37 @@ namespace internal {
       return std::atan2(t.dot(eb_.col(v)), t.dot(ea_.col(v)));
     };
 
-    darts_.clear();
-    keys_.clear();
+    std::fill(darts_.begin(), darts_.begin() + k, Darts {});
     for (int a = 0; a < na; ++a) {
       const Arc &arc = arcs_[a];
       if (arc.beg < 0)
         continue;
 
-      const double out = angle_at(arc.end, -arc.tend),
-                   in = angle_at(arc.beg, arc.tbeg);
-      darts_.push_back({ out, a, false });
-      keys_.push_back(arc.end);
-      darts_.push_back({ in, a, true });
-      keys_.push_back(arc.beg);
+      Darts &out = darts_[arc.end], &in = darts_[arc.beg];
+      ABSL_DCHECK_LT(out.out, 0) << "two out-darts at vertex " << arc.end;
+      ABSL_DCHECK_LT(in.in, 0) << "two in-darts at vertex " << arc.beg;
+      out.out = a;
+      out.aout = angle_at(arc.end, -arc.tend);
+      in.in = a;
+      in.ain = angle_at(arc.beg, arc.tbeg);
     }
-
-    argsort_bucket(order_, off_.off().head(k + 1), eigen_map(keys_));
 
     auto succ = succ_.head(na);
     succ = ArrayXi::LinSpaced(na, 0, na - 1);
     double turn_sum = 0;
     for (int v = 0; v < k; ++v) {
-      const int nv = off_.degree(v);
-      if (nv == 0)
-        continue;
+      const Darts &d = darts_[v];
+      ABSL_DCHECK_GE(d.in, 0) << "no in-dart at vertex " << v;
+      ABSL_DCHECK_GE(d.out, 0) << "no out-dart at vertex " << v;
 
-      dring_.resize(nv + 1);
-      for (int i = 0; i < nv; ++i)
-        dring_[i + 1] = darts_[order_[off_[v] + i]];
-      std::sort(dring_.begin() + 1, dring_.end(),
-                [](const Dart &a, const Dart &b) {
-                  return std::make_pair(a.angle, a.is_in)
-                         < std::make_pair(b.angle, b.is_in);
-                });
-      dring_[0] = dring_[nv];
-
-      for (int i = 0; i < nv; ++i) {
-        const Dart &d = dring_[i + 1], &prev = dring_[i];
-        ABSL_DCHECK_NE(d.is_in, prev.is_in) << "darts do not alternate";
-        if (!d.is_in)
-          continue;
-
-        double iota = d.angle - prev.angle;
-        iota += kTwoPi * static_cast<double>(iota <= -kPi / 2);
-        iota -= kTwoPi * static_cast<double>(iota > 3 * kPi / 2);
-        ABSL_CHECK_LE(iota, kPi + kSurfaceAngleEps)
-            << "reflex corner at vertex " << v;
-        succ[d.arc] = prev.arc;
-        turn_sum += kPi - iota;
-        uf.merge(arcs_[d.arc].cap, arcs_[prev.arc].cap);
-      }
+      double iota = d.ain - d.aout;
+      iota += kTwoPi * static_cast<double>(iota <= -kPi / 2);
+      iota -= kTwoPi * static_cast<double>(iota > 3 * kPi / 2);
+      ABSL_DCHECK_LE(iota, kPi + kSurfaceAngleEps)
+          << "reflex corner at vertex " << v;
+      succ[d.in] = d.out;
+      turn_sum += kPi - iota;
+      uf.merge(arcs_[d.in].cap, arcs_[d.out].cap);
     }
 
     auto seen = seen_.head(na);

@@ -168,7 +168,7 @@ namespace internal {
     }
 
     /**
-     * Height of vertex `i`; `h_i = W + |c_i|² − R_i`, so the perturbed
+     * Height of vertex `i`; `h_i = W + |c_i|² − ρ_i²`, so the perturbed
      * vertex has derivative −1 along its own squared radius.
      */
     template <class T>
@@ -268,7 +268,7 @@ namespace internal {
      * Face `(a, b, c)` relative to `a`. The radical line is
      * `y = y_⊥ + s u`, `u = d_b × d_c`, `|u|² y_⊥ = λ d_b + μ d_c`, and the
      * cut points of circle `(a, b)` by `c` are `s = ±√D / |u|²` with
-     * `D = |u|² (R_a − |y_⊥|²)` written as a polynomial.
+     * `D = |u|² (ρ_a² − |y_⊥|²)` written as a polynomial.
      */
     template <class T>
     struct Face {
@@ -465,8 +465,6 @@ namespace internal {
                (root_sign<T>(plus) * ab.g) * fc.u, fc.disc, fc.u2,
                ab.g * fc.u2 };
     }
-
-    constexpr double kOffsetRelTol = 0x1p-26;
 
     /**
      * `(P + √D Q) / den` in double when the running bound certifies the

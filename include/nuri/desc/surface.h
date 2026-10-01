@@ -56,10 +56,16 @@ namespace internal {
    */
   constexpr double kSurfaceMaxCoord = 1e4;
   /**
-   * Rounding allowance on dart angles (atan2 of unit vectors) for the reflex
-   * check of `ArrangementSolver::walk`; no corner value depends on it.
+   * A vertex offset from its circle centre is taken from the floating filter
+   * when certified to this fraction of its length (`SasExact::offset`).
    */
-  constexpr double kSurfaceAngleEps = 1e-9;
+  constexpr double kOffsetRelTol = 0x1p-26;
+  /**
+   * Error bound on a corner of `ArrangementSolver::walk`: one offset
+   * certificate per dart (the vertex normal enters only quadratically) plus
+   * the roundoff of frames, `atan2`, `sin`/`cos` and the wrap.
+   */
+  constexpr double kSurfaceAngleEps = 2 * kOffsetRelTol + 0x1p-40;
 
   class OffsetTable {
   public:
@@ -458,10 +464,9 @@ namespace internal {
       Vector3d tbeg, tend;
     };
 
-    struct Dart {
-      double angle;
-      int arc;
-      bool is_in;
+    struct Darts {
+      int in = -1, out = -1;
+      double ain = 0, aout = 0;
     };
 
     std::pair<int, double> walk(UnionFind &uf);
@@ -475,11 +480,9 @@ namespace internal {
 
     std::vector<Arc> arcs_;
 
-    OffsetTable off_;
-    ArrayXi order_, succ_;
+    ArrayXi succ_;
     ArrayXb seen_;
-    std::vector<int> keys_;
-    std::vector<Dart> darts_, dring_;
+    std::vector<Darts> darts_;
   };
 }  // namespace internal
 
