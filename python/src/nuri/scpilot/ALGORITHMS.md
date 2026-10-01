@@ -515,12 +515,21 @@ tolerance: two points are the same vertex only when they are the same
    and the sign of a tied predicate is the sign of its first non-zero
    first-order coefficient in index order. Geogram's predicate is linear in
    the heights, so first order is all it needs; the port's predicates are
-   not (discriminants, `A ± B√Δ`, squared overlap), but for each of them the
-   first-order coefficients sum to a non-zero quantity, so one of them is
-   always non-zero and the first-order rule is complete (one explicit `√ε`
-   rule at a double root that is also a cell orthocentre). The port's
-   predicates work on `(c_i, h_i)` and apply this perturbation to every tie,
-   so they describe the same perturbed configuration as the triangulation.
+   not (discriminants, `A ± B√Δ`, squared overlap), but each has a
+   participant whose first-order coefficient is a non-zero quantity, so the
+   first-order rule is complete: `overlap` at an external tangency (the
+   coefficient of either height is `−4ρ² − 2T`, `T < 0`), `cuts` (the
+   coefficients sum to `|u|²`, non-zero for a face), `side` (the
+   coefficient of `h_c` is `−|d_b|²/2`), `accept` (the coefficient of the
+   apex height is `|u|²/2` and the apex is never a face vertex), and
+   `antipode` for a fan sphere outside the face (the coefficient of its
+   height is `|d|²|u|²/2`); a double root that is also a cell orthocentre
+   gets one explicit `√ε` rule. For `antipode` tested against the vertex's
+   own cutter (the cutter's roots antipodal on the circle) no first-order
+   proof is recorded; the exact kernel aborts rather than guess if every
+   coefficient vanishes there. The port's predicates work on `(c_i, h_i)`
+   and apply this perturbation to every tie, so they describe the same
+   perturbed configuration as the triangulation.
    Working on `R_i²` instead
    is inconsistent at the `1e-15` level, exactly where degenerate cells
    live (prototype driver: 32–135 entry/exit alternation violations per
@@ -748,9 +757,13 @@ both the radical-line form (`x = c_a + y_⊥ ± (√D/|u|²) u`, stable for a
 tangent pair) and the circle form (`cntr + (rl/amp²)(g w_⊥ ± √(amp² − g²)
 n × w_⊥)`, stable for a third centre near the circle axis), keeping the pair
 with the smaller on-sphere residual; φ, dart angles and areas inherit
-rounding-level error. The one floating comparison that remains is the
-`_TAU_DIR` allowance of the reflex-corner check, an invariant check, not a
-decision. A circle below double resolution (a tangency, exact or by
+rounding-level error. The floating comparisons that remain are output-only:
+the fold of each vertex's `atan2` into its exact half-plane class (the class
+carries the side of the ray, `atan2` only the magnitude, so a vertex at
+`π ∓ δ` folds to `π`, never to `0` or `2π`), the normalisation of the dart
+angle `ι`, the choice between the two position forms in `roots()` and the
+`max(·, 0)` clamps; the `_TAU_DIR` allowance of the reflex-corner check is
+an invariant check, not a decision. A circle below double resolution (a tangency, exact or by
 rounding) still has exact vertices and arcs; its probe positions and `φ`
 are noise, but its darts come from the arcs' own angles, so the area is
 unaffected (a tangent pair with a third sphere through the tangency point
