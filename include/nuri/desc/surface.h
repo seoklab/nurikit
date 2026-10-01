@@ -443,6 +443,31 @@ namespace internal {
   extern SasGeometry build_sas(const SaPrep &sa, const SasDelaunay &del);
 
   /**
+   * SES patches of the active atoms. `convex_area` is per active atom
+   * `i < sa.n_active`; `saddle_beta` (`lo0, hi0, lo1, hi1`, the valid ranges
+   * of the generating arc) and `saddle_integral` (one integral per range)
+   * are per active circle `q < sa.g.offset(sa.n_active)`; `saddle_area` is
+   * per active arc (prefix `n_active_arcs` of `geo.arcs`). `face_area` and
+   * the caps `face_off`, `face_axis`, `face_cosa`, `face_sina` (hemispheres
+   * of the departure tangents first, then the neighbour probes that may
+   * cut) are per active probe `p < probes.n_active`; the area of a low face
+   * is NaN until the face solver fills it.
+   */
+  struct SesGeometry {
+    ArrayXd convex_area;
+    Matrix4Xd saddle_beta;
+    Matrix2Xd saddle_integral;
+    ArrayXd saddle_area;
+    ArrayXd face_area;
+    OffsetTable face_off;
+    Matrix3Xd face_axis;
+    ArrayXd face_cosa, face_sina;
+  };
+
+  extern SesGeometry build_ses(const SaPrep &sa, const SasGeometry &geo,
+                               double rp);
+
+  /**
    * Gauss–Bonnet area of one sphere from its caps and the accessible arcs on
    * their circles. Fill with `begin`, `add_cap`, `add_vertex` and `add_arc`
    * (ids are assigned in call order; an arc runs from `beg` to `end`, both -1
