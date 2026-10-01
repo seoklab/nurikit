@@ -940,10 +940,14 @@ slivers from dropped near pairs.
   the faces and caps that survive the filters below.
 
 **Merged probes.** `build_sas` merges probes within `τ = 4 · kOffsetRelTol ·
-R_max` of each other by union-find over consecutive ring vertices (every
-circle whose smaller atom is `< n_enum` is ringed, so a shell-owned probe at
-a `k`-fold point reaches the merge too): exactly coincident or within `τ`
-consecutive pairs are joined, no spatial search. A cluster's atoms are the
+R_max` of each other by union-find over every pair within `τ`, found by one
+pass over the probes bucketed on a lattice of pitch `τ` and sorted by cell
+(a pair within `τ` shares a cell or sits in adjacent cells, and a constant
+cell shift preserves the sorted order, so each of the 13 forward neighbour
+shifts is one merge join); roots that share no circle, as at a point where
+tangent pairs have deleted the linking circles, are merged like any other,
+and exact coincidence needs no separate test since two certified positions
+of one point differ by less than `τ`. A cluster's atoms are the
 union of its members', its position that of the first member, and its
 tangents come from the arcs with one end in the cluster plus its full loops
 (`dphi ≥ π`, the grazing vertex gets `±t`); an internal short arc, a

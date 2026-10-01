@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <numeric>
 #include <utility>
 #include <vector>
@@ -145,15 +146,12 @@ namespace internal {
     /**
      * Per triangulation face: its sorted vertices (-1 if it holds a corner or
      * a non-overlapping pair), whether its third sphere cuts the circle, and
-     * the probe of each root (0 = plus, 1 = minus; -1 if rejected). Per
-     * overlap-graph pair of two non-enumerated spheres, whether a face
-     * spanning it has a probe (`occluder_pair`).
+     * the probe of each root (0 = plus, 1 = minus; -1 if rejected).
      */
     struct Faces {
       Array3Xi verts;
       ArrayXb cut;
       Array2Xi root;
-      ArrayXb occluder_pair;
     };
 
     struct RawProbe {
@@ -223,8 +221,7 @@ namespace internal {
 
       Faces fs { Array3Xi::Constant(3, del.n_faces, -1),
                  ArrayXb::Constant(del.n_faces, false),
-                 Array2Xi::Constant(2, del.n_faces, -1),
-                 ArrayXb::Constant(sa.g.m(), false) };
+                 Array2Xi::Constant(2, del.n_faces, -1) };
       raw.reserve(3L * sa.n_enum);
 
       for (int c = 0; c < nf; ++c) {
@@ -255,8 +252,6 @@ namespace internal {
             fs.root(plus ? 0 : 1, f) = static_cast<int>(raw.size());
             raw.push_back({ abc, ex.root(face, plus) });
           }
-          if (abc[1] >= sa.n_enum && (fs.root.col(f) >= 0).any())
-            fs.occluder_pair[pair_id(sa.g, abc[1], abc[2])] = true;
         }
       }
 
@@ -446,53 +441,6 @@ namespace internal {
     }
 
     /**
-     * Probes `p`, `r` are one probe when they coincide exactly or lie
-     * within `probe_merge_tol` (`tau2` its square).
-     */
-    bool coincident(const SasProbes &probes, const double tau2, const int p,
-                    const int r, const bool exact) {
-      return exact
-             || (probes.pos.col(p) - probes.pos.col(r)).squaredNorm() <= tau2;
-    }
-
-    /**
-     * Circle `(i, j)` of two non-enumerated spheres carries no arcs, but
-     * consecutive probes of the enumerated faces around its edge, in circle
-     * order (Lemma F), that are `coincident` are one probe.
-     */
-    void merge_coincident_roots(std::vector<RingVertex> &verts,
-                                const SasDelaunay &del, const VertexMap &vm,
-                                const Faces &fs, const ArrayXi &pid,
-                                const SasProbes &probes, const double tau2,
-                                const int i, const int j, UnionFind &uf) {
-      const int va = vm.v_of_new[i], vb = vm.v_of_new[j];
-      verts.clear();
-      FanWalker walk(del, va, vb);
-      do {
-        const int f = walk.face();
-        if (fs.verts(0, f) >= 0 && fs.cut[f])
-          push_face_roots(verts, fs, pid, f, va, vb);
-      } while (walk.advance());
-
-      const int n = static_cast<int>(verts.size());
-      if (n < 2)
-        return;
-
-      const BallExact &ex = del.ex;
-      for (RingVertex &v: verts)
-        v.cls = ex.half_plane(va, vb, face_of(fs, v.face), v.plus);
-      for (int k = 0; k < n; ++k) {
-        const RingVertex &p = verts[k], &r = verts[(k + 1) % n];
-        const bool exact = p.cls == r.cls
-                           && ex.ccw(va, vb, face_of(fs, p.face), p.plus,
-                                     face_of(fs, r.face), r.plus)
-                                  == Sgn::kZero;
-        if (coincident(probes, tau2, p.vertex, r.vertex, exact))
-          uf.merge(p.vertex, r.vertex);
-      }
-    }
-
-    /**
      * Exact queries of `ring.h` on circle `(va, vb)` of the triangulation;
      * the antipode is accessible iff it is outside every fan sphere.
      */
@@ -532,15 +480,10 @@ namespace internal {
 
     /**
      * Accessible arcs of every circle with caps, grouped by circle.
-     * Consecutive ring vertices that are `coincident` are joined in `uf`,
-     * as are consecutive probes around the edges of two non-enumerated
-     * spheres.
      */
     Arcs fan_rings(const SaPrep &sa, const SasDelaunay &del,
                    const VertexMap &vm, const std::vector<SasCircle> &circ,
-                   const Faces &fs, const ArrayXi &pid, const SasProbes &probes,
-                   UnionFind &uf) {
-      const double tau = probe_merge_tol(sa.sar.maxCoeff()), tau2 = tau * tau;
+                   const Faces &fs, const ArrayXi &pid) {
       Arcs out;
       out.off = OffsetTable(sa.g.m());
       Ring ring;
@@ -564,28 +507,99 @@ namespace internal {
             ring_frame(ring, sa.pts.col(j) - sa.pts.col(i), circ[q].axis);
             ring_angles(ring, ops);
             decide_wrap(ring, ops);
-
-            for (int k = 0; k < n; ++k) {
-              const RingVertex &p = ring.verts[k], &r = ring.verts[(k + 1) % n];
-              if (coincident(probes, tau2, p.vertex, r.vertex, ring.coinc[k]))
-                uf.merge(p.vertex, r.vertex);
-            }
           }
           emit_arcs(ring, q, out.arcs, out.tangents);
-        }
-      }
-
-      for (int i = sa.n_enum; i < sa.g.n(); ++i) {
-        for (auto it = sa.g.begin(i), ei = sa.g.end(i); it < ei; ++it) {
-          if (fs.occluder_pair[sa.g.eid(it)])
-            merge_coincident_roots(ring.verts, del, vm, fs, pid, probes, tau2,
-                                   i, *it, uf);
         }
       }
 
       for (int q = sa.g.offset(sa.n_enum); q <= sa.g.m(); ++q)
         out.off.off()[q] = static_cast<int>(out.arcs.size());
       return out;
+    }
+
+    using Cell = std::array<std::int64_t, 3>;
+
+    Cell operator+(const Cell &a, const Cell &b) {
+      return { a[0] + b[0], a[1] + b[1], a[2] + b[2] };
+    }
+
+    /**
+     * Every pair of probes within `probe_merge_tol` joined in `uf`. Probes
+     * are bucketed on a lattice of pitch `tau` and sorted by cell, so a
+     * pair within `tau` shares a cell or sits in cells adjacent along each
+     * axis; a constant cell shift preserves the sorted order, so the 13
+     * forward neighbour shifts are 13 merge joins of the order with itself.
+     * The result is the set of pairs within `tau`, whatever the probe order.
+     */
+    void merge_near_probes(const SaPrep &sa, const SasProbes &probes,
+                           UnionFind &uf) {
+      const int np = static_cast<int>(probes.pos.cols());
+      if (np < 2)
+        return;
+
+      const double tau = probe_merge_tol(sa.sar.maxCoeff()), tau2 = tau * tau;
+      const Vector3d lo = probes.pos.rowwise().minCoeff();
+      ABSL_DCHECK_LT((probes.pos.rowwise().maxCoeff() - lo).maxCoeff() / tau,
+                     0x1p62);
+      std::vector<Cell> cells(np);
+      for (int p = 0; p < np; ++p) {
+        for (int k = 0; k < 3; ++k) {
+          cells[p][k] = static_cast<std::int64_t>(
+              std::floor((probes.pos(k, p) - lo[k]) / tau));
+        }
+      }
+
+      ArrayXi order = ArrayXi::LinSpaced(np, 0, np - 1);
+      std::sort(order.begin(), order.end(),
+                [&](int p, int r) { return cells[p] < cells[r]; });
+
+      auto run_end = [&](const int i) {
+        int j = i + 1;
+        while (j < np && cells[order[j]] == cells[order[i]])
+          ++j;
+        return j;
+      };
+      auto join = [&](const int bi, const int ei, const int bj, const int ej) {
+        for (int a = bi; a < ei; ++a) {
+          const int p = order[a];
+          for (int b = bj; b < ej; ++b) {
+            const int r = order[b];
+            if ((probes.pos.col(p) - probes.pos.col(r)).squaredNorm() <= tau2)
+              uf.merge(p, r);
+          }
+        }
+      };
+
+      for (int i = 0; i < np;) {
+        const int e = run_end(i);
+        for (int a = i; a < e; ++a)
+          join(a, a + 1, a + 1, e);
+        i = e;
+      }
+
+      for (std::int64_t dx = -1; dx <= 1; ++dx) {
+        for (std::int64_t dy = -1; dy <= 1; ++dy) {
+          for (std::int64_t dz = -1; dz <= 1; ++dz) {
+            const Cell shift { dx, dy, dz };
+            if (!(Cell { 0, 0, 0 } < shift))
+              continue;
+
+            for (int i = 0, j = 0; i < np && j < np;) {
+              const Cell ci = cells[order[i]] + shift, cj = cells[order[j]];
+              if (ci < cj) {
+                i = run_end(i);
+              } else if (cj < ci) {
+                j = run_end(j);
+              } else {
+                const int ei = run_end(i), ej = run_end(j);
+                join(i, ei, j, ej);
+                i = ei;
+                j = ej;
+              }
+            }
+          }
+        }
+      }
     }
 
     ArrayXd sweep_spheres(const SaPrep &sa, const SasDelaunay &del,
@@ -772,9 +786,11 @@ namespace internal {
     ArrayXi pid;
     SasProbes probes = make_probes(sa, raw, pid);
 
-    UnionFind uf(static_cast<int>(probes.pos.cols()));
-    Arcs arcs = fan_rings(sa, del, vm, circ, fs, pid, probes, uf);
+    Arcs arcs = fan_rings(sa, del, vm, circ, fs, pid);
     ArrayXd area = sweep_spheres(sa, del, vm, circ, caps, arcs, probes);
+
+    UnionFind uf(static_cast<int>(probes.pos.cols()));
+    merge_near_probes(sa, probes, uf);
     SasProbes merged = merge_probes(sa, probes, uf, arcs);
     tangents(merged, arcs);
 
