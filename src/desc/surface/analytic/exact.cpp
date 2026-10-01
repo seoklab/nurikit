@@ -113,6 +113,10 @@ namespace internal {
       }
       friend int sgn(const Xp &a) { return a.m_.sign(); }
 
+      double to_double() const {
+        return std::ldexp(m_.convert_to<double>(), e_);
+      }
+
     private:
       void strip() {
         if (m_.is_zero()) {
@@ -150,10 +154,6 @@ namespace internal {
 
     template <class T>
     T lit(double d);
-    template <>
-    double lit<double>(double d) {
-      return d;
-    }
     template <>
     Fx lit<Fx>(double d) {
       return { d, 0.0 };
@@ -301,14 +301,6 @@ namespace internal {
       return r;
     }
 
-    /**
-     * `|u|² x_± = X ± √D u` with rational `X = |u|² c_a + λ d_b + μ d_c`.
-     */
-    template <class T>
-    V3<T> rational_root(const Face<T> &f) {
-      return f.u2 * f.sa.c + f.lam * f.db + f.mu * f.dc;
-    }
-
     template <class T>
     T root_sign(bool plus) {
       return lit<T>(plus ? 1.0 : -1.0);
@@ -453,22 +445,63 @@ namespace internal {
 
     /**
      * `G |u|² (x − cntr)` for root `x` of `f` on circle `(a, b)`:
-     * `P + σ √D Q` with rational `P`, `Q`.
+     * `P + σ √D Q` with rational `P = G (|u|² (c_f − c_a) + λ d_b + μ d_c) −
+     * |u|² v d_b` (`c_f` the face's first centre) and `Q = G u`, written in
+     * centre differences so the filter's error bound scales with the radii,
+     * not the coordinates. `P ⊥ Q`.
      */
     template <class T>
     struct Offset {
       V3<T> p, q;
-      T disc, u2;
+      T disc, u2, den;
     };
 
     template <class T>
-    Offset<T> offset(const Ctx<T> &ctx, const Pair<T> &ab, const Sphere<T> &sa,
-                     SasFace f, bool plus) {
+    Offset<T> root_offset(const Ctx<T> &ctx, const Pair<T> &ab,
+                          const Sphere<T> &sa, SasFace f, bool plus) {
       const Face<T> fc = face(ctx, f);
-      const V3<T> xr = rational_root(fc);
-      const V3<T> cntr_g = ab.g * sa.c + ab.v * ab.d;
-      return { ab.g * xr - fc.u2 * cntr_g, (root_sign<T>(plus) * ab.g) * fc.u,
-               fc.disc, fc.u2 };
+      const V3<T> y = fc.u2 * (fc.sa.c - sa.c) + fc.lam * fc.db + fc.mu * fc.dc;
+      return { ab.g * y - (fc.u2 * ab.v) * ab.d,
+               (root_sign<T>(plus) * ab.g) * fc.u, fc.disc, fc.u2,
+               ab.g * fc.u2 };
+    }
+
+    constexpr double kOffsetRelTol = 0x1p-26;
+
+    /**
+     * `(P + √D Q) / den` in double when the running bound certifies the
+     * vector to `kOffsetRelTol` of its length; `P ⊥ Q`, so the terms never
+     * cancel and the bound is the sum of their errors.
+     */
+    bool certified_offset(const Offset<Fx> &o, Vector3d &out) {
+      if (o.disc.e > 0 && o.disc.v <= 2 * o.disc.e)
+        return false;
+      const double s = std::sqrt(o.disc.v), es = s > 0 ? o.disc.e / s : 0;
+      const Fx vs[3] = {
+        o.p.x + Fx { s, es }
+           * o.q.x, o.p.y + Fx { s, es }
+           * o.q.y,
+        o.p.z + Fx { s, es }
+           * o.q.z
+      };
+      double err = 0, norm2 = 0;
+      for (int i = 0; i < 3; ++i) {
+        out[i] = vs[i].v;
+        err += vs[i].e;
+        norm2 += vs[i].v * vs[i].v;
+      }
+      if (err > kOffsetRelTol * std::sqrt(norm2))
+        return false;
+      out /= o.den.v;
+      return true;
+    }
+
+    Vector3d exact_offset(const Offset<Xp> &o) {
+      ABSL_DCHECK_GE(sgn(o.disc), 0);
+      const double s = std::sqrt(o.disc.to_double());
+      const Vector3d p(o.p.x.to_double(), o.p.y.to_double(), o.p.z.to_double()),
+          q(o.q.x.to_double(), o.q.y.to_double(), o.q.z.to_double());
+      return (p + s * q) / o.den.to_double();
     }
   }  // namespace
 
@@ -705,55 +738,42 @@ namespace internal {
   }
 
   /**
-   * Two evaluations of the same points: along the radical line,
-   * `x = c_a + y_⊥ ± (√D/|u|²) u`, stable for a tangent pair (`rl → 0`) but
-   * not for a third centre near the circle axis (`|u| → 0`); and on the
-   * circle, `x = cntr + (rl/amp²)(g w_⊥ ± √(amp² − g²) n × w_⊥)`, stable the
-   * other way round. The pair with the smaller on-sphere residual is
-   * returned; the root along `+u` is the plus root either way.
+   * Root as `cntr + offset`: the centre of circle `(a, b)` in double
+   * and the radical-line offset certified by the running bound or taken
+   * exact, so the direction from the centre is right to rounding on a
+   * circle of any radius and for a third centre anywhere.
    */
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE Vector3d
+  SasExactImpl<kForceExact>::root(const SasFace f, const bool plus) const {
+    const Vector3d ca = c_.col(f.a), db = c_.col(f.b) - ca;
+    const double vb = (h_[f.b] - h_[f.a]) / 2 - ca.dot(db);
+    const Vector3d cntr = ca + (vb / db.squaredNorm()) * db;
+    return cntr + offset(f.a, f.b, f, plus);
+  }
+
   template <bool kForceExact>
   ABSL_ATTRIBUTE_NOINLINE std::pair<Vector3d, Vector3d>
   SasExactImpl<kForceExact>::roots(const SasFace f) const {
-    const Face<double> fc = face(
-        Ctx<double> {
-            { &c_, &h_, w_ },
-            -1
-    },
-        f);
-    const Vector3d ca = c_.col(f.a), cc = c_.col(f.c);
-    const Vector3d db(fc.db.x, fc.db.y, fc.db.z), u(fc.u.x, fc.u.y, fc.u.z);
+    return { root(f, true), root(f, false) };
+  }
 
-    const V3<double> xr = rational_root(fc);
-    const double sq = std::sqrt(std::max(fc.disc, 0.0)) / fc.u2;
-    const Vector3d p = Vector3d(xr.x, xr.y, xr.z) / fc.u2;
-    std::pair<Vector3d, Vector3d> line { p + sq * u, p - sq * u };
-
-    const Vector3d n = db.normalized();
-    const Vector3d cntr = ca + (fc.vb / fc.gbb) * db;
-    const double rl = std::sqrt(std::max(fc.ra - fc.vb * fc.vb / fc.gbb, 0.0));
-    const Vector3d w = cntr - cc, wperp = w - w.dot(n) * n;
-    const double amp2 = wperp.squaredNorm();
-    const double g = (rho2(f.c) - w.squaredNorm() - rl * rl) / (2 * rl);
-    const double scale = rl / amp2;
-    const Vector3d radial = scale * g * wperp,
-                   tangent = scale * std::sqrt(std::max(amp2 - g * g, 0.0))
-                             * n.cross(wperp);
-    const Vector3d xa = cntr + radial + tangent, xb = cntr + radial - tangent;
-    std::pair<Vector3d, Vector3d> circle =
-        tangent.dot(u) >= 0 ? std::pair { xa, xb } : std::pair { xb, xa };
-
-    auto residual = [&](const std::pair<Vector3d, Vector3d> &pr) {
-      double r = 0;
-      for (const int i: { f.a, f.b, f.c }) {
-        const Vector3d ci = c_.col(i);
-        const double r2 = rho2(i);
-        r += std::abs((pr.first - ci).squaredNorm() - r2)
-             + std::abs((pr.second - ci).squaredNorm() - r2);
-      }
-      return r;
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE Vector3d SasExactImpl<kForceExact>::offset(
+      const int a, const int b, const SasFace f, const bool plus) const {
+    const Data d { &c_, &h_, w_ };
+    auto kernel = [&](auto ctx) {
+      using T = typename decltype(ctx)::Scalar;
+      const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b);
+      return root_offset(ctx, pair(sa, sb), sa, f, plus);
     };
-    return residual(circle) < residual(line) ? circle : line;
+
+    Vector3d out;
+    if constexpr (!kForceExact) {
+      if (certified_offset(kernel(Ctx<Fx> { d, -1 }), out))
+        return out;
+    }
+    return exact_offset(kernel(Ctx<Xp> { d, -1 }));
   }
 
   template <bool kForceExact>
@@ -767,7 +787,7 @@ namespace internal {
         using T = typename decltype(ctx)::Scalar;
         const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b);
         const Pair<T> ab = pair(sa, sb);
-        const Offset<T> o = offset(ctx, ab, sa, f, plus);
+        const Offset<T> o = root_offset(ctx, ab, sa, f, plus);
         const V3<T> rr = lift<T>(r), qv = sine ? cross(ab.d, rr) : rr;
         return Root<T> { dot(qv, o.p), dot(qv, o.q), o.disc };
       };
@@ -795,8 +815,8 @@ namespace internal {
       using T = typename decltype(ctx)::Scalar;
       const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b);
       const Pair<T> ab = pair(sa, sb);
-      const Offset<T> oi = offset(ctx, ab, sa, fi, plus_i),
-                      oj = offset(ctx, ab, sa, fj, plus_j);
+      const Offset<T> oi = root_offset(ctx, ab, sa, fi, plus_i),
+                      oj = root_offset(ctx, ab, sa, fj, plus_j);
       return Root2<T> {
         dot(cross(oi.p, oj.p), ab.d), dot(cross(oi.q, oj.p), ab.d), oi.disc,
         dot(cross(oi.p, oj.q), ab.d), dot(cross(oi.q, oj.q), ab.d), oj.disc
@@ -813,7 +833,7 @@ namespace internal {
       using T = typename decltype(ctx)::Scalar;
       const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b), sc = sph(ctx, c);
       const Pair<T> ab = pair(sa, sb), ac = pair(sa, sc);
-      const Offset<T> o = offset(ctx, ab, sa, f, plus);
+      const Offset<T> o = root_offset(ctx, ab, sa, f, plus);
       const T lin =
           ab.g * o.u2 * ac.v - o.u2 * ab.v * dot(ab.d, ac.d) + dot(o.p, ac.d);
       return Root<T> { lin, dot(o.q, ac.d), o.disc };
