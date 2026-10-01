@@ -540,7 +540,7 @@ TEST(SasExactTest, OffsetOnRoundingTinyCircle) {
   EXPECT_GT(n_tiny, 5);
 }
 
-TEST(SasExactTest, TangentPairOverlaps) {
+TEST(SasExactTest, TangentPairCarriesNoCircle) {
   Matrix3Xd pts(3, 3);
   pts.col(0) << 0, 0, 0;
   pts.col(1) << 3, 0, 0;

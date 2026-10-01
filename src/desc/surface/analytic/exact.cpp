@@ -446,9 +446,10 @@ namespace internal {
     /**
      * `G |u|² (x − cntr)` for root `x` of `f` on circle `(a, b)`:
      * `P + σ √D Q` with rational `P = G (|u|² (c_f − c_a) + λ d_b + μ d_c) −
-     * |u|² v d_b` (`c_f` the face's first centre) and `Q = G u`, written in
-     * centre differences so the filter's error bound scales with the radii,
-     * not the coordinates. `P ⊥ Q`.
+     * |u|² v d` (`λ, μ, d_b, d_c` of the face relative to its first centre
+     * `c_f`; `v, d, G` of the circle) and `Q = G u`, written in centre
+     * differences so the filter's error bound is relative to the offset's
+     * own length. `P ⊥ Q`.
      */
     template <class T>
     struct Offset {

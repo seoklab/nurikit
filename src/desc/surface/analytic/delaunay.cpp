@@ -27,7 +27,7 @@ namespace internal {
     /**
      * Lift the spheres as `(x, y, z, t)`, `t = sqrt(W - sar^2)` from `prepare`,
      * then append a weightless tetrahedron around them so the input is never
-     * coplanar; it has zero power at every sphere point and hides nothing.
+     * coplanar; it has positive power at every sphere point and hides nothing.
      */
     Matrix4Xd lift(const SaPrep &sa, const ArrayXi &perm) {
       const int n = static_cast<int>(perm.size());
