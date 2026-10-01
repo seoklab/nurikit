@@ -334,8 +334,10 @@ namespace internal {
       for (int p = 0; p < na; ++p)
         off[p + 1] = probes.tan_off.degree(p);
       for (int k = 0; k < m; ++k) {
-        off[pc.left[k] + 1] += value_if(pc.left[k] < na);
-        off[pc.right[k] + 1] += value_if(pc.right[k] < na);
+        for (const int p: { pc.left[k], pc.right[k] }) {
+          if (p < na)
+            ++off[p + 1];
+        }
       }
       std::inclusive_scan(off.begin(), off.end(), off.begin());
 
