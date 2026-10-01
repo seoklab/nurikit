@@ -541,11 +541,13 @@ number of cap components.
    returns the sign of `∂r/∂h_m` for `h_m → h_m − ε_m` with `ε_i ≫ ε_j` for
    `i < j` (`predicates.cpp`, `side4h_3d_exact_SOS`): every ball grows,
    lower index first. Formally `ρ_i²(ε) = ρ_i² + ε η^i` with `0 < ε ≪ η ≪ 1`
-   and `ε ≪ η^(n+4)` for `n` spheres and the four bounding points, so that
-   at first order the term of the lowest index dominates every later one
-   and every second-order term is negligible against every first-order
-   one; the sign of a tied predicate is the sign of its first non-zero
-   first-order coefficient in index order. Geogram's predicate is linear in
+   and `ε` below every power of `η`, so that at first order the term of the
+   lowest index dominates every later one, every second-order term is
+   negligible against every first-order one, and a `√ε η^k` term of a
+   vanished discriminant dominates every first-order `ε η^m` term (the one
+   grading behind `cuts`, `accept`, `antipode` and `ccw_perturbed`); the
+   sign of a tied predicate is the sign of its first non-zero first-order
+   coefficient in index order. Geogram's predicate is linear in
    the heights, so first order is all it needs; the port's predicates are
    `C¹` in the heights away from `D = 0` (discriminants, `A ± B√D`), so the
    first-order rule applies to them as long as one participant has a
