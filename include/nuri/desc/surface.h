@@ -61,6 +61,15 @@ namespace internal {
    */
   constexpr double kOffsetRelTol = 0x1p-26;
   /**
+   * Two probes at one point differ by two offsets, each certified to
+   * `kOffsetRelTol` of a length `≤ rmax`, taken twice for margin; the centre
+   * rounding (`≤ 2^-52 · kSurfaceMaxCoord`) is far below. `build_sas` merges
+   * probes within this distance.
+   */
+  constexpr double probe_merge_tol(double rmax) {
+    return 4 * kOffsetRelTol * rmax;
+  }
+  /**
    * Error bound on a corner of `ArrangementSolver::walk`: one offset
    * certificate per dart (the vertex normal enters only quadratically) plus
    * the roundoff of frames, `atan2`, `sin`/`cos` and the wrap.

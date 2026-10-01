@@ -48,17 +48,52 @@ double sr_total(const Matrix3Xd &pts, const ArrayXd &sar) {
   return sr_sasa_impl(pts, sar, 5000, SrSasaMethod::kDirect).sum();
 }
 
-/**
- * Probes within `radius` of `x`; every probe has exactly three atoms, so a
- * k-fold point shows up as several coincident probes.
- */
 int probes_at(const SasGeometry &geo, const Vector3d &x,
               const double radius = 1e-9) {
   int n = 0;
-  for (int p = 0; p < geo.probes.pos.cols(); ++p) {
-    EXPECT_EQ(geo.probes.atoms.degree(p), 3);
+  for (int p = 0; p < geo.probes.pos.cols(); ++p)
     n += static_cast<int>((geo.probes.pos.col(p) - x).norm() <= radius);
+  return n;
+}
+
+/**
+ * The one probe within `radius` of `x`, -1 if none or several.
+ */
+int probe_at(const SasGeometry &geo, const Vector3d &x,
+             const double radius = 1e-9) {
+  int found = -1;
+  for (int p = 0; p < geo.probes.pos.cols(); ++p) {
+    if ((geo.probes.pos.col(p) - x).norm() > radius)
+      continue;
+    if (found >= 0)
+      return -1;
+    found = p;
   }
+  return found;
+}
+
+double merge_tol(const Sas &sas) {
+  return probe_merge_tol(sas.sa.sar.maxCoeff());
+}
+
+void expect_no_unmerged_pairs(const SasGeometry &geo, const double tau) {
+  const int np = static_cast<int>(geo.probes.pos.cols());
+  for (int p = 0; p < np; ++p) {
+    for (int q = p + 1; q < np; ++q) {
+      EXPECT_GT((geo.probes.pos.col(p) - geo.probes.pos.col(q)).norm(), tau)
+          << "probes " << p << ", " << q;
+    }
+  }
+}
+
+/**
+ * Arcs with exactly one end at probe `p`.
+ */
+int arc_ends_at(const SasGeometry &geo, const int p) {
+  int n = 0;
+  for (const SasArc &arc: geo.arcs)
+    n += static_cast<int>(arc.beg >= 0 && arc.beg != arc.end
+                          && (arc.beg == p || arc.end == p));
   return n;
 }
 
@@ -172,11 +207,13 @@ TEST(BuildSasTest, FourSphereVertex) {
   pts *= reach / std::sqrt(3.0);
   ArrayXd sar = ArrayXd::Constant(4, reach);
 
-  auto [sa, geo] = solve(pts, sar);
-  // trapped point: the perturbation decides how many coincident probes are
+  const Sas sas = solve(pts, sar);
+  // trapped point: the perturbation decides whether any coincident probe is
   // accessible there; the area does not depend on it
-  probes_at(geo, Vector3d::Zero());
-  EXPECT_NEAR(geo.area.sum(), sr_total(pts, sar), 1e-2 * geo.area.sum());
+  EXPECT_LE(probes_at(sas.geo, Vector3d::Zero()), 1);
+  expect_no_unmerged_pairs(sas.geo, merge_tol(sas));
+  EXPECT_NEAR(sas.geo.area.sum(), sr_total(pts, sar),
+              1e-2 * sas.geo.area.sum());
 }
 
 Matrix3Xd star(const int n_ring, const double polar_deg, const double reach) {
@@ -195,9 +232,11 @@ TEST(BuildSasTest, FiveSphereVertex) {
   const Matrix3Xd pts = star(4, 110, 2.0);
   const ArrayXd sar = ArrayXd::Constant(5, 2.0);
 
-  auto [sa, geo] = solve(pts, sar);
-  probes_at(geo, Vector3d::Zero());
-  EXPECT_NEAR(geo.area.sum(), sr_total(pts, sar), 1e-2 * geo.area.sum());
+  const Sas sas = solve(pts, sar);
+  EXPECT_LE(probes_at(sas.geo, Vector3d::Zero()), 1);
+  expect_no_unmerged_pairs(sas.geo, merge_tol(sas));
+  EXPECT_NEAR(sas.geo.area.sum(), sr_total(pts, sar),
+              1e-2 * sas.geo.area.sum());
 }
 
 TEST(BuildSasTest, CoplanarSquareVertex) {
@@ -207,11 +246,17 @@ TEST(BuildSasTest, CoplanarSquareVertex) {
       0, 0, 0, 0;
   const ArrayXd sar = ArrayXd::Constant(4, 1.5);
 
-  auto [sa, geo] = solve(pts, sar);
-  EXPECT_EQ(geo.probes.pos.cols(), 4);
-  EXPECT_EQ(probes_at(geo, Vector3d(0, 0, 0.5)), 2);
-  EXPECT_EQ(probes_at(geo, Vector3d(0, 0, -0.5)), 2);
-  EXPECT_NEAR(geo.area.sum(), sr_total(pts, sar), 1e-2 * geo.area.sum());
+  const Sas sas = solve(pts, sar);
+  EXPECT_EQ(sas.geo.probes.pos.cols(), 2);
+  for (const double z: { 0.5, -0.5 }) {
+    const int p = probe_at(sas.geo, Vector3d(0, 0, z));
+    ASSERT_GE(p, 0) << "z " << z;
+    EXPECT_EQ(sas.geo.probes.atoms.degree(p), 4);
+    EXPECT_EQ(sas.geo.probes.tan_off.degree(p), 4);
+  }
+  expect_no_unmerged_pairs(sas.geo, merge_tol(sas));
+  EXPECT_NEAR(sas.geo.area.sum(), sr_total(pts, sar),
+              1e-2 * sas.geo.area.sum());
 }
 
 struct TangentApex {
@@ -236,10 +281,14 @@ TangentApex tangent_apex(const double gap) {
 TEST(BuildSasTest, ApexTangentAtVertex) {
   const TangentApex t = tangent_apex(0);
 
-  auto [sa, geo] = solve(t.pts, t.sar);
-  EXPECT_EQ(geo.probes.pos.cols(), 4);
-  EXPECT_EQ(probes_at(geo, t.x), 2);
-  EXPECT_NEAR(geo.area.sum(), sr_total(t.pts, t.sar), 1e-2 * geo.area.sum());
+  const Sas sas = solve(t.pts, t.sar);
+  EXPECT_EQ(sas.geo.probes.pos.cols(), 3);
+  const int p = probe_at(sas.geo, t.x);
+  ASSERT_GE(p, 0);
+  EXPECT_EQ(sas.geo.probes.atoms.degree(p), 4);
+  expect_no_unmerged_pairs(sas.geo, merge_tol(sas));
+  EXPECT_NEAR(sas.geo.area.sum(), sr_total(t.pts, t.sar),
+              1e-2 * sas.geo.area.sum());
 }
 
 TEST(BuildSasTest, NearBandPinch) {
@@ -343,7 +392,7 @@ TEST(BuildSasTest, JitteredBenzeneVertices) {
   for (int p = 0; p < 12; ++p)
     EXPECT_NEAR(geo.area[p], sr[sa->order[p]], 0.1) << "atom " << p;
   for (int p = 0; p < geo.probes.pos.cols(); ++p)
-    EXPECT_EQ(geo.probes.atoms.degree(p), 3);
+    EXPECT_GE(geo.probes.atoms.degree(p), 3);
 }
 
 /**
@@ -495,7 +544,7 @@ void expect_areas(const Sas &sas, const ArrayXd &sr, const ArrayXd &sar,
     EXPECT_NEAR(sas.geo.area[p], sr[o], sr_tol(sar[o], n)) << "atom " << o;
   }
   for (int p = 0; p < sas.geo.probes.pos.cols(); ++p)
-    EXPECT_EQ(sas.geo.probes.atoms.degree(p), 3);
+    EXPECT_GE(sas.geo.probes.atoms.degree(p), 3);
 }
 
 void expect_sr(const Sas &sas, const Matrix3Xd &pts, const ArrayXd &sar,
@@ -512,13 +561,23 @@ Sas solve_rp(const Matrix3Xd &pts, const ArrayXd &sar, const double rp) {
   return { std::move(*sa), std::move(geo) };
 }
 
-Matrix3Xd rigid(const Matrix3Xd &pts, const int seed) {
+struct RigidMotion {
+  Matrix3d rot;
+  Vector3d t;
+};
+
+RigidMotion rigid_motion(const int seed) {
   std::mt19937 rng(seed);
   std::normal_distribution<double> nd;
   const Vector3d ax(nd(rng), nd(rng), nd(rng));
   const Matrix3d rot = AngleAxisd(nd(rng), ax.normalized()).toRotationMatrix();
   const Vector3d t(nd(rng), nd(rng), nd(rng));
-  return (rot * pts).colwise() + 3.0 * t;
+  return { rot, 3.0 * t };
+}
+
+Matrix3Xd rigid(const Matrix3Xd &pts, const int seed) {
+  const auto [rot, t] = rigid_motion(seed);
+  return (rot * pts).colwise() + t;
 }
 
 /**
@@ -1040,7 +1099,9 @@ TEST(BuildSasTest, TangentPairFourFoldPoint) {
                            const std::vector<int> &order) {
                          const Sas sas = solve_rp(p, r, 0.5);
                          ASSERT_EQ(sas.sa.order.size(), 4);
-                         EXPECT_EQ(probes_at(sas.geo, x), 2);
+                         const int c = probe_at(sas.geo, x);
+                         ASSERT_GE(c, 0);
+                         EXPECT_EQ(sas.geo.probes.atoms.degree(c), 4);
                          ArrayXd sr_p(4);
                          for (int i = 0; i < 4; ++i)
                            sr_p[i] = sr[order[i]];
@@ -1056,8 +1117,10 @@ TEST(BuildSasTest, ApexTangentAtVertexIndexOrders) {
                        [&](const Matrix3Xd &p, const ArrayXd &r,
                            const std::vector<int> &order) {
                          const Sas sas = solve(p, r);
-                         EXPECT_EQ(sas.geo.probes.pos.cols(), 4);
-                         EXPECT_EQ(probes_at(sas.geo, t.x), 2);
+                         EXPECT_EQ(sas.geo.probes.pos.cols(), 3);
+                         const int c = probe_at(sas.geo, t.x);
+                         ASSERT_GE(c, 0);
+                         EXPECT_EQ(sas.geo.probes.atoms.degree(c), 4);
                          ArrayXd sr_p(4);
                          for (int i = 0; i < 4; ++i)
                            sr_p[i] = sr[order[i]];
@@ -1137,6 +1200,111 @@ TEST(BuildSasTest, TangentApexUnderRigidMotion) {
       expect_sr(sas, pts, t.sar);
     }
   }
+}
+
+/**
+ * Genuine k-fold points: `k` equal spheres with centres on a cone through
+ * the origin. Under rigid motions the coincident probes round apart but
+ * merge into one probe on all `k` atoms with one tangent per leaving arc.
+ */
+TEST(BuildSasTest, MergedKFoldUnderRigidMotion) {
+  for (const int k: { 4, 5 }) {
+    const Matrix3Xd base = star(k, 110, 2.0).rightCols(k);
+    const ArrayXd sar = ArrayXd::Constant(k, 2.0);
+    const Sas ref = solve(base, sar);
+    expect_sr(ref, base, sar);
+    ArrayXd ref_area(k);
+    for (int p = 0; p < k; ++p)
+      ref_area[ref.sa.order[p]] = ref.geo.area[p];
+
+    for (int seed = 0; seed < 16; ++seed) {
+      const auto [rot, t] = rigid_motion(seed);
+      const Matrix3Xd pts = (rot * base).colwise() + t;
+      const Sas sas = solve(pts, sar);
+      const int c = probe_at(sas.geo, t);
+      ASSERT_GE(c, 0) << "k " << k << " seed " << seed;
+      EXPECT_EQ(sas.geo.probes.atoms.degree(c), k) << "seed " << seed;
+      EXPECT_EQ(sas.geo.probes.tan_off.degree(c), k) << "seed " << seed;
+      EXPECT_EQ(arc_ends_at(sas.geo, c), k) << "seed " << seed;
+      expect_no_unmerged_pairs(sas.geo, merge_tol(sas));
+      for (int p = 0; p < k; ++p) {
+        EXPECT_NEAR(sas.geo.area[p], ref_area[sas.sa.order[p]], 1e-9)
+            << "k " << k << " seed " << seed << " atom " << p;
+      }
+    }
+  }
+}
+
+/**
+ * Sphere c through exactly one point P of circle (a, b), the tangency
+ * perturbed to a cut with both roots at P. The three circles through P
+ * share the tangent `y`; (a, b) and (b, c) are accessible full loops back
+ * to P (an hourglass on b), (a, c) is buried. One probe, whose tangents are
+ * the loops' `±y`.
+ */
+TEST(BuildSasTest, GrazingVertexTangentsAreOpposite) {
+  Matrix3Xd pts(3, 3);
+  pts.col(0) << 0, 0, 0;
+  pts.col(1) << 0, 0, 6;
+  pts.col(2) << 7, 0, 7;
+  const ArrayXd sar = ArrayXd::Constant(3, 5.0);
+  const Vector3d x(4, 0, 3);
+
+  const Sas sas = solve(pts, sar);
+  ASSERT_EQ(sas.geo.probes.pos.cols(), 1);
+  const int c = probe_at(sas.geo, x);
+  ASSERT_EQ(c, 0);
+
+  int n_loops = 0;
+  for (const SasArc &arc: sas.geo.arcs) {
+    ASSERT_EQ(arc.beg, c);
+    ASSERT_EQ(arc.end, c);
+    const SasCircle &circ = sas.geo.circles[arc.circ];
+    if (circ.i == 0 && circ.j == 2) {
+      EXPECT_NEAR(arc.dphi, 0, 1e-9);
+      continue;
+    }
+    EXPECT_NEAR(arc.dphi, kTwoPi, 1e-9);
+    ++n_loops;
+  }
+  EXPECT_EQ(n_loops, 2);
+
+  ASSERT_EQ(sas.geo.probes.tan_off.degree(c), 2 * n_loops);
+  const Matrix3Xd &tan = sas.geo.probes.tan;
+  for (int i = 0; i < tan.cols(); ++i)
+    EXPECT_NEAR(std::abs(tan(1, i)), 1, 1e-12) << i;
+  EXPECT_NEAR(tan.rowwise().sum().norm(), 0, 1e-12);
+}
+
+/**
+ * Active `a` overlaps only `b`; `b, c, d, e` pass through one point off `a`
+ * and `c, d, e` overlap nothing active, so probe `(c, d, e)` is owned by a
+ * shell sphere. Its circles are ringed all the same and the point is one
+ * probe on `{b, c, d, e}`.
+ */
+TEST(BuildSasTest, CutterOnlyClusterMerged) {
+  const Matrix3Xd ring = star(4, 110, 2.0).rightCols(4);
+  Matrix3Xd pts(3, 5);
+  pts.leftCols(4) = ring;
+  pts.col(4) = ring.col(3) + Vector3d(0, -3.0, 0);
+  ArrayXd sar(5);
+  sar << 2.0, 2.0, 2.0, 2.0, 1.5;
+  ArrayXb active = ArrayXb::Constant(5, false);
+  active[4] = true;
+
+  const Sas sas = solve(pts, sar, active);
+  ASSERT_EQ(sas.sa.n_active, 1);
+  ASSERT_EQ(sas.sa.n_solve, 2);
+  ASSERT_EQ(sas.sa.n_enum, 5);
+
+  const int c = probe_at(sas.geo, Vector3d::Zero());
+  ASSERT_GE(c, 0);
+  std::vector<int> atoms;
+  for (const int p: sas.geo.probes.atoms.nbrs(c))
+    atoms.push_back(sas.sa.order[p]);
+  std::sort(atoms.begin(), atoms.end());
+  EXPECT_EQ(atoms, (std::vector<int> { 0, 1, 2, 3 }));
+  expect_no_unmerged_pairs(sas.geo, merge_tol(sas));
 }
 
 /**
