@@ -559,6 +559,18 @@ namespace internal {
   }
 
   template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE BallExactImpl<kForceExact>
+  BallExactImpl<kForceExact>::make(const Matrix3Xd &centers,
+                                   const ArrayXd &heights, const double wmax) {
+    ABSL_DCHECK_EQ(centers.cols(), heights.size());
+    BallExactImpl ex;
+    ex.c_ = centers;
+    ex.h_ = heights;
+    ex.w_ = wmax;
+    return ex;
+  }
+
+  template <bool kForceExact>
   ABSL_ATTRIBUTE_NOINLINE double
   BallExactImpl<kForceExact>::rho2(const int i) const {
     const double cc =
