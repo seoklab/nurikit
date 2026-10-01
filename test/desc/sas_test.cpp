@@ -804,6 +804,35 @@ TEST(BuildSasTest, InternallyTangentBallDropped) {
 }
 
 /**
+ * Identical twins carry one surface: the active twin keeps it when exactly
+ * one is active, else the lower index does.
+ */
+TEST(BuildSasTest, IdenticalTwinsKeepActive) {
+  Matrix3Xd pts(3, 3);
+  pts.col(0) << 0, 0, 0;
+  pts.col(1) << 0, 0, 0;
+  pts.col(2) << 4, 0, 0;
+  const ArrayXd sar = ArrayXd::Constant(3, 3.0);
+  const Sas lone = solve(pts.rightCols(2), sar.head(2));
+
+  for (const int alive: { 0, 1 }) {
+    ArrayXb active = ArrayXb::Constant(3, true);
+    active[1 - alive] = false;
+    auto [sa, geo] = solve(pts, sar, active);
+    ASSERT_EQ(sa.n_active, 2);
+    EXPECT_EQ(sa.order[0], alive);
+    EXPECT_EQ(geo.area[0], lone.geo.area[0]);
+  }
+
+  for (const ArrayXb &active:
+       { ArrayXb::Constant(3, true), ArrayXb::Constant(3, false) }) {
+    auto [sa, geo] = solve(pts, sar, active);
+    ASSERT_EQ(sa.order.size(), 2);
+    EXPECT_TRUE((sa.order != 1).all());
+  }
+}
+
+/**
  * Three spheres on the z axis through one circle; the one in the middle has
  * no surface and is dropped in preparation whatever its index.
  */

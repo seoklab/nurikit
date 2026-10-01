@@ -603,9 +603,12 @@ namespace internal {
       }
       return check(Ctx<Xp> { d, -1 }, x, y) == 1;
     };
-    if (inside(a, b))
+    const bool ab = inside(a, b), ba = inside(b, a);
+    if (ab && ba)
+      return 2;
+    if (ab)
       return 1;
-    if (inside(b, a))
+    if (ba)
       return 0;
     return -1;
   }

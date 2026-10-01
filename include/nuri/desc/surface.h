@@ -266,8 +266,8 @@ namespace internal {
      */
     Sgn overlap(int a, int b) const;
     /**
-     * Which of balls `a`, `b` (0 or 1) lies inside the other, -1 if neither;
-     * internal tangency counts, identical balls give 1.
+     * Which of balls `a`, `b` (0 or 1) lies inside the other, -1 if neither,
+     * 2 if they are identical; internal tangency counts.
      */
     int contained(int a, int b) const;
     /**

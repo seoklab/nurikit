@@ -48,7 +48,7 @@ namespace internal {
     }
 
     NearPairs find_near_pairs(const SasExact &ex, const ArrayXd &sar,
-                              const double rmax) {
+                              const ArrayXb &active, const double rmax) {
       const Matrix3Xd &pts = ex.centers();
       const int n = static_cast<int>(sar.size());
 
@@ -72,7 +72,8 @@ namespace internal {
         const int in = ex.contained(i, j);
         if (in < 0)
           continue;
-        keep[in == 0 ? i : j] = 0;
+        const bool drop_i = in == 0 || (in == 2 && !active[i] && active[j]);
+        keep[drop_i ? i : j] = 0;
         contained[k] = true;
       }
 
@@ -279,7 +280,7 @@ namespace internal {
     lifted.row(3) = t.transpose();
     const SasExact ex = SasExact::make(lifted, wmax);
 
-    NearPairs np = find_near_pairs(ex, sar, rmax);
+    NearPairs np = find_near_pairs(ex, sar, active, rmax);
     auto [g, d] = exact_overlaps(ex, np);
     drop_shared_circle_middles(np.keep, g, d, sar2, ex);
 
