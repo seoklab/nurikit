@@ -239,13 +239,15 @@ namespace internal {
    * squared radius `ρ_i² = W + |c_i|² − h_i`. Every exact tie is resolved by
    * geogram's perturbation: every squared radius grows, lower index first.
    * Compiled without fast-math (`NURI_STRICT_FP_SRCS` in src/CMakeLists.txt);
-   * the header carries no arithmetic.
+   * the header carries no arithmetic. `kForceExact` skips the floating
+   * filter (tests only).
    */
-  class SasExact {
+  template <bool kForceExact>
+  class SasExactImpl {
   public:
-    SasExact() = default;
+    SasExactImpl() = default;
 
-    static SasExact make(const Matrix4Xd &lifted, double wmax);
+    static SasExactImpl make(const Matrix4Xd &lifted, double wmax);
 
     /**
      * Whether balls `a`, `b` given as lifted `(c, t)` overlap; a tangency is
@@ -314,7 +316,6 @@ namespace internal {
       return k;
     }
 
-    static void force_exact(bool on);
     static bool selftest();
 
   private:
@@ -322,6 +323,11 @@ namespace internal {
     ArrayXd h_;
     double w_ = 0;
   };
+
+  extern template class SasExactImpl<false>;
+  extern template class SasExactImpl<true>;
+
+  using SasExact = SasExactImpl<false>;
 
   /**
    * Regular (weighted Delaunay) triangulation of every kept sphere. Vertices
