@@ -454,13 +454,13 @@ namespace internal {
           rv.phi = 0;
           break;
         case 1:
-          rv.phi = nuri::max(phi, 0.0);
+          rv.phi = std::abs(phi);
           break;
         case 2:
           rv.phi = constants::kPi;
           break;
         default:
-          rv.phi = phi < 0 ? phi + kTwoPi : kTwoPi;
+          rv.phi = kTwoPi - std::abs(phi);
           break;
         }
       }
