@@ -307,7 +307,8 @@ namespace internal {
     Sgn side(int a, int b, int c) const;
     /**
      * Whether the discs of caps `j`, `l` on sphere `s` intersect: their
-     * circles cross, or one circle lies inside the other's ball.
+     * circles cross, or one circle lies inside the other's ball; two
+     * circles touching from outside are not joined.
      */
     bool discs_intersect(int s, int j, int l) const;
     /**

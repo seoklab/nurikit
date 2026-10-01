@@ -10,6 +10,7 @@
 #include <numeric>
 #include <optional>
 #include <random>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -1170,6 +1171,76 @@ TEST(BuildSasTest, ExactCircleTangencies) {
       expect_sr(solve(q, sar), q, sar);
     }
   }
+}
+
+/**
+ * Per-atom areas of every index order agree with the first order to 1e-9
+ * and with Shrake–Rupley; `ref` receives the first order's areas by atom.
+ */
+void expect_order_invariant_areas(const Matrix3Xd &pts, const ArrayXd &sar,
+                                  ArrayXd &ref) {
+  const int n = static_cast<int>(sar.size());
+  const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
+  const Sas first = solve(pts, sar);
+  ref.resize(n);
+  for (int p = 0; p < n; ++p)
+    ref[first.sa.order[p]] = first.geo.area[p];
+
+  for_each_index_order(pts, sar,
+                       [&](const Matrix3Xd &p, const ArrayXd &r,
+                           const std::vector<int> &order) {
+                         const Sas sas = solve(p, r);
+                         ArrayXd sr_p(n);
+                         std::string tag;
+                         for (int i = 0; i < n; ++i) {
+                           sr_p[i] = sr[order[i]];
+                           tag += std::to_string(order[i]);
+                         }
+                         expect_areas(sas, sr_p, r, 20000);
+                         for (int i = 0; i < n; ++i) {
+                           const int o = order[sas.sa.order[i]];
+                           EXPECT_NEAR(sas.geo.area[i], ref[o], 1e-9)
+                               << "atom " << o << " order " << tag;
+                         }
+                       });
+}
+
+/**
+ * A tangent pair `p`, `q` and two spheres `b`, `c` through their touching
+ * point, all of radius 3: on every sphere the two caps of the others touch
+ * at the origin, their centres coplanar with it. Only some orders resolve
+ * the touch into a 4-atom probe; the others see two caps that merely
+ * touch, which are not joined (ALGORITHMS.md §2 step 5), so every order
+ * gives the same areas.
+ */
+TEST(BuildSasTest, TouchingCapsWithoutLensVertex) {
+  Matrix3Xd pts(3, 4);
+  pts << 0, 0, 2, -2,  //
+      0, 0, 1, -1,     //
+      -3, 3, 2, 2;
+  const ArrayXd sar = ArrayXd::Constant(4, 3.0);
+
+  ArrayXd ref;
+  expect_order_invariant_areas(pts, sar, ref);
+  EXPECT_NEAR(ref[0], 103.243270, 1e-5);
+  EXPECT_NEAR(ref[1], 46.171794, 1e-5);
+  EXPECT_NEAR(ref[2], 74.707532, 1e-5);
+  EXPECT_NEAR(ref[3], 74.707532, 1e-5);
+}
+
+/**
+ * The tangent pair of radius 7 with four spheres through the touching
+ * point whose centres are coplanar with it: a 6-fold touch.
+ */
+TEST(BuildSasTest, TouchingCapsSixFold) {
+  Matrix3Xd pts(3, 6);
+  pts << 0, 0, 6, -6, 6, -6,  //
+      0, 0, 3, -3, 3, -3,     //
+      -7, 7, 2, 2, -2, -2;
+  const ArrayXd sar = ArrayXd::Constant(6, 7.0);
+
+  ArrayXd ref;
+  expect_order_invariant_areas(pts, sar, ref);
 }
 
 /**
