@@ -265,6 +265,11 @@ namespace internal {
      */
     int contained(int a, int b) const;
     /**
+     * Which sphere of `f` (0, 1, 2) lies between the other two on their
+     * common axis when the three share one circle, -1 otherwise.
+     */
+    int shared_circle(SasFace f) const;
+    /**
      * Whether sphere `c` cuts circle `(a, b)` in two points (symmetric in the
      * triple; a tangency is perturbed to a cut or a miss).
      */

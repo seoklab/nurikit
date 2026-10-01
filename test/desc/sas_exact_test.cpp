@@ -135,6 +135,17 @@ struct Ref {
       return 0;
     return -1;
   }
+
+  // zero iff circles (a, b) and (a, c) coincide: |u|^2 + |D| as a polynomial
+  Q coincidence(SasFace f) const {
+    const QVec db = cen(f.b) - cen(f.a), dc = cen(f.c) - cen(f.a),
+               u = cross(db, dc);
+    const Q gbb = dot(db, db), gbc = dot(db, dc), gcc = dot(dc, dc),
+            vb = v(f.a, f.b), vc = v(f.a, f.c);
+    const Q disc = rho2[f.a] * dot(u, u)
+                   - (gcc * vb * vb - 2 * gbc * vb * vc + gbb * vc * vc);
+    return dot(u, u) + (disc < 0 ? -disc : disc);
+  }
 };
 
 template <bool kForceExact = false>
@@ -428,6 +439,47 @@ TEST(SasExactTest, ContainedBall) {
   EXPECT_EQ(s.ex.contained(3, 0), 1);
   EXPECT_EQ(s.ex.contained(0, 4), -1);
   EXPECT_EQ(s.ex.contained(4, 0), -1);
+}
+
+/**
+ * Three spheres on the z axis through one circle, with radii and offsets
+ * whose rounded heights are exactly consistent (searched offline).
+ */
+Matrix3Xd shared_circle_pts(const int mid, ArrayXd &sar) {
+  constexpr std::array<double, 3> r { 3.5, 3.25, 3.375 },
+      z { -1.421875, 0.578125, 1.078125 };
+  Matrix3Xd pts(3, 3);
+  sar.resize(3);
+  for (int q = 0; q < 3; ++q) {
+    const int src = (q + 1 - mid + 3) % 3;
+    pts.col(q) << 0, 0, z[src];
+    sar[q] = r[src];
+  }
+  return pts;
+}
+
+TEST(SasExactTest, SharedCircle) {
+  for (int mid = 0; mid < 3; ++mid) {
+    ArrayXd sar;
+    const Matrix3Xd pts = shared_circle_pts(mid, sar);
+    const Fixture<> s = setup(pts, sar);
+    const SasFace f { 0, 1, 2 };
+    ASSERT_EQ(q_sgn(s.ref.coincidence(f), kQTol), 0);
+    EXPECT_EQ(s.ex.shared_circle(f), mid);
+    EXPECT_EQ(s.ex.shared_circle({ 1, 2, 0 }), (mid + 2) % 3);
+    EXPECT_EQ(s.ex.shared_circle({ 2, 0, 1 }), (mid + 1) % 3);
+  }
+
+  ArrayXd sar;
+  Matrix3Xd pts = shared_circle_pts(1, sar);
+  pts(2, 1) += 1e-9;
+  const Fixture<> s = setup(pts, sar);
+  ASSERT_NE(q_sgn(s.ref.coincidence({ 0, 1, 2 }), kQTol), 0);
+  EXPECT_EQ(s.ex.shared_circle({ 0, 1, 2 }), -1);
+
+  pts = shared_circle_pts(1, sar);
+  sar[1] = std::nextafter(sar[1], 4.0);
+  EXPECT_EQ(setup(pts, sar).ex.shared_circle({ 0, 1, 2 }), -1);
 }
 
 TEST(SasExactTest, TangentPairOverlaps) {

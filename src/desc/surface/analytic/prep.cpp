@@ -21,10 +21,6 @@ namespace nuri {
 namespace internal {
   namespace {
     struct NearPairs {
-      /*  n_over */
-      CSR g;
-      ArrayXd dover;
-
       /* n_near */
       ArrayXi inear, jnear;
 
@@ -72,35 +68,29 @@ namespace internal {
       }
 
       ArrayXd touch = sar(left) + sar(right);
-      // 0 -> overlap, 1 -> near, 2 -> dropped or far
       ArrayXi key =
-          (keep(left) + keep(right) < 2)
-              .select(2, (d > touch + 2 * kSurfaceLengthEps).cast<int>()
-                             + (d >= touch - kSurfaceLengthEps).cast<int>());
+          (keep(left) + keep(right) < 2 || d > touch + 2 * kSurfaceLengthEps)
+              .cast<int>();
       ArrayXi order(m);
-      Array3i off;
+      E::Array2i off;
       argsort_bucket(order, off, key);
 
-      auto near = order.head(off[2]);
-      ArrayXi inear = left(near), jnear = right(near);
-
-      m = off[1];
-      auto [g, perm] = compile_pairs(inear.head(m), jnear.head(m), n);
-
-      return {
-        std::move(g),     d(order).head(m)(perm),
-
-        std::move(inear), std::move(jnear),
-
-        std::move(keep),
-      };
+      auto near = order.head(off[1]);
+      return { left(near), right(near), std::move(keep) };
     }
 
+    /**
+     * Drop the middle sphere of every triple sharing one circle: on each
+     * side of the circle plane the outer sphere bulges more, so it has no
+     * surface. The band on floating circle centres and axes only selects
+     * candidates; `shared_circle` decides.
+     */
     void drop_shared_circle_middles(ArrayXi &keep, const CSR &g,
-                                    const ArrayXd &d, const Matrix3Xd &pts,
-                                    const ArrayXd &sar2) {
+                                    const ArrayXd &d, const ArrayXd &sar2,
+                                    const SasExact &ex) {
       constexpr double cutoff = kSurfaceLengthEps * kSurfaceLengthEps;
 
+      const Matrix3Xd &pts = ex.centers();
       Matrix3Xd axis(3, g.max_deg()), cntr(3, g.max_deg());
 
       g.for_each_triangle(
@@ -112,10 +102,9 @@ namespace internal {
                 || sar2[i] * uij.cross(uik).squaredNorm() >= cutoff)
               return;
 
-            const double dot = uij.dot(uik);
-            const int mid = dot < 0 ? i
-                                    : (d[g.eid(pik)] > d[g.eid(pij)] ? j : k);
-            keep[mid] = 0;
+            const int mid = ex.shared_circle({ i, j, k });
+            if (mid >= 0)
+              keep[mid == 0 ? i : mid == 1 ? j : k] = 0;
           },
           [&](int i) {
             const Vector3d ci = pts.col(i);
@@ -274,9 +263,9 @@ namespace internal {
     lifted.row(3) = t.transpose();
     const SasExact ex = SasExact::make(lifted, wmax);
 
-    auto [g0, dover, inear, jnear, keep] = find_near_pairs(ex, sar, rmax);
-    drop_shared_circle_middles(keep, g0, dover, pts, sar2);
+    auto [inear, jnear, keep] = find_near_pairs(ex, sar, rmax);
     auto [g, d] = exact_overlaps(ex, keep, inear, jnear);
+    drop_shared_circle_middles(keep, g, d, sar2, ex);
 
     auto [order, off] = rank_atoms(keep, inear, jnear, active);
     return compact(pts, sar, t, wmax, g, d, std::move(order), off, keep);
