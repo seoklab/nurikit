@@ -538,9 +538,10 @@ namespace internal {
    * tangent `t`, `(w, |w|²)` for the probe at `w`; `cosa_k` is the cosine
    * of its angular radius. Ties are resolved by `BallExact`'s perturbation
    * in the order probe, then caps as given. On return `live` marks the caps
-   * that took part: of two identical caps the higher index is dropped; two
-   * complementary caps make the face empty with every cap live. This is the
-   * face solver of `build_ses` for one face (tests only).
+   * that took part: a cap whose ball does not overlap the probe sphere (an
+   * exact tangency included) is dropped, and of two identical caps the
+   * higher index; two complementary caps make the face empty with every cap
+   * live. This is the face solver of `build_ses` for one face (tests only).
    */
   extern double solve_ses_face(const Matrix3Xd &n, const ArrayXd &h,
                                const ArrayXd &cosa, double rp, ArrayXb &live);
