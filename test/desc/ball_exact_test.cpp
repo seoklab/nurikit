@@ -770,11 +770,11 @@ int check_coincident_order(const Fixture<> &s) {
 }
 
 /**
- * Zero-length arcs of `build_sas` join consecutive coincident ring vertices
- * in fan order (Lemma F); the perturbed order must agree. Returns the number
- * of such arcs.
+ * Zero-length arcs of `build_sas` close on one merged probe where at least
+ * two roots of the circle coincide; the perturbed order must resolve every
+ * such pair. Returns the number of pairs.
  */
-int check_fan_order(const Matrix3Xd &pts, const ArrayXd &sar, const double rp) {
+int check_zero_arcs(const Matrix3Xd &pts, const ArrayXd &sar, const double rp) {
   const std::optional<SaPrep> sa =
       prepare(pts, sar, ArrayXb::Constant(sar.size(), true), rp);
   EXPECT_TRUE(sa);
@@ -785,34 +785,37 @@ int check_fan_order(const Matrix3Xd &pts, const ArrayXd &sar, const double rp) {
   const BallExact &ex = del.ex;
 
   auto vertex = [&](int p) { return del.vertex[sa->order[p]]; };
-  auto probe_root = [&](int p) {
-    std::array<int, 3> v;
-    int m = 0;
-    for (const int at: geo.probes.atoms.nbrs(p))
-      v[m++] = vertex(at);
-    std::sort(v.begin(), v.end());
-    const BallTriple f { v[0], v[1], v[2] };
-    const auto [xp, xm] = ex.roots(f);
-    const Vector3d x = geo.probes.pos.col(p);
-    const bool plus = (xp - x).norm() <= (xm - x).norm();
-    EXPECT_LT(((plus ? xp : xm) - x).norm(), 1e-12);
-    return CircleRoot { f, plus };
-  };
 
-  int n_coinc = 0;
+  int n_pairs = 0;
   for (const SasArc &arc: geo.arcs) {
     if (arc.beg < 0 || arc.dphi != 0)
       continue;
+    EXPECT_EQ(arc.beg, arc.end);
     const SasCircle &c = geo.circles[arc.circ];
     const int va = vertex(c.i), vb = vertex(c.j);
-    const CircleRoot p = probe_root(arc.beg), r = probe_root(arc.end);
-    if (ex.ccw(va, vb, p.f, p.plus, r.f, r.plus) != Sgn::kZero)
-      continue;
-    EXPECT_EQ(ex.ccw_perturbed(va, vb, p.f, p.plus, r.f, r.plus), Sgn::kPos)
-        << "circle " << c.i << c.j << " probes " << arc.beg << " " << arc.end;
-    ++n_coinc;
+    const Vector3d x = geo.probes.pos.col(arc.beg);
+
+    std::vector<CircleRoot> at_x;
+    for (const CircleRoot &r: circle_roots(ex, va, vb)) {
+      if ((ex.root(r.f, r.plus) - x).norm() < 1e-12)
+        at_x.push_back(r);
+    }
+    EXPECT_GE(at_x.size(), 2) << "circle " << c.i << c.j;
+
+    for (std::size_t i = 0; i < at_x.size(); ++i) {
+      for (std::size_t j = i + 1; j < at_x.size(); ++j) {
+        const CircleRoot &p = at_x[i], &r = at_x[j];
+        EXPECT_EQ(ex.ccw(va, vb, p.f, p.plus, r.f, r.plus), Sgn::kZero);
+        const Sgn s = ex.ccw_perturbed(va, vb, p.f, p.plus, r.f, r.plus);
+        EXPECT_NE(s, Sgn::kZero) << "circle " << c.i << c.j;
+        EXPECT_EQ(static_cast<int>(
+                      ex.ccw_perturbed(va, vb, r.f, r.plus, p.f, p.plus)),
+                  -static_cast<int>(s));
+        ++n_pairs;
+      }
+    }
   }
-  return n_coinc;
+  return n_pairs;
 }
 
 TEST(BallExactTest, CcwPerturbedResolvesCoincidentRoots) {
@@ -831,7 +834,7 @@ TEST(BallExactTest, CcwPerturbedResolvesCoincidentRoots) {
   EXPECT_GT(
       check_coincident_order(setup(octahedron(), ArrayXd::Constant(6, 1.0))),
       0);
-  EXPECT_GT(check_fan_order(square_apex(), ArrayXd::Constant(5, 1.5), 1.0), 0);
+  EXPECT_GT(check_zero_arcs(square_apex(), ArrayXd::Constant(5, 1.5), 1.0), 0);
 }
 
 TEST(BallExactTest, CcwPerturbedMatchesForcedExact) {

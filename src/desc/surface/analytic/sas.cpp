@@ -530,11 +530,15 @@ namespace internal {
     /**
      * Accessible arcs of every circle with caps, grouped by circle: from each
      * leaving vertex to the next vertex; an empty ring is an accessible full
-     * circle iff no fan face cuts or contains the circle.
+     * circle iff no fan face cuts or contains the circle. Consecutive ring
+     * vertices that coincide exactly or within `probe_merge_tol` are joined
+     * in `uf`.
      */
     Arcs fan_rings(const SaPrep &sa, const SasDelaunay &del,
                    const VertexMap &vm, const std::vector<SasCircle> &circ,
-                   const Faces &fs, const ArrayXi &pid) {
+                   const Faces &fs, const ArrayXi &pid, const SasProbes &probes,
+                   UnionFind &uf) {
+      const double tau = probe_merge_tol(sa.sar.maxCoeff()), tau2 = tau * tau;
       Arcs out;
       out.off = OffsetTable(sa.g.m());
       Ring ring;
@@ -563,6 +567,12 @@ namespace internal {
 
           for (int k = 0; k < n; ++k) {
             const RingVertex &p = ring.verts[k], &r = ring.verts[(k + 1) % n];
+            if (ring.coinc[k]
+                || (probes.pos.col(p.probe) - probes.pos.col(r.probe))
+                           .squaredNorm()
+                       <= tau2) {
+              uf.merge(p.probe, r.probe);
+            }
             if (!p.leave)
               continue;
 
@@ -659,13 +669,81 @@ namespace internal {
       return area;
     }
 
+    /**
+     * Probes linked in `uf` become one probe on the sorted union of their
+     * atoms at the position of their lowest member, owner-sorted like
+     * `make_probes`; arc ends are relabelled to the merged ids.
+     */
+    SasProbes merge_probes(const SaPrep &sa, const SasProbes &probes,
+                           UnionFind &uf, Arcs &arcs) {
+      const int np = static_cast<int>(probes.pos.cols()), nc = uf.relabel();
+      const ArrayXi &label = uf.labels();
+
+      ArrayXi mem(np);
+      OffsetTable moff(nc);
+      argsort_bucket(mem, moff, label);
+
+      ArrayXi catoms(probes.atoms.m()), owner(nc);
+      OffsetTable coff(nc);
+      int n = coff.off()[0] = 0;
+      for (int c = 0; c < nc; ++c) {
+        const int beg = n;
+        for (const int p: mem.segment(moff[c], moff.degree(c))) {
+          const int d = probes.atoms.degree(p);
+          catoms.segment(n, d) = probes.atoms.nbrs(p);
+          n += d;
+        }
+        const auto first = catoms.begin() + beg, last = catoms.begin() + n;
+        std::sort(first, last);
+        n = static_cast<int>(std::unique(first, last) - catoms.begin());
+        coff.off()[c + 1] = n;
+        owner[c] = catoms[beg];
+      }
+
+      ArrayXi order(nc);
+      OffsetTable own_off(sa.n_enum);
+      argsort_bucket(order, own_off, owner);
+
+      SasProbes merged { CSR(ArrayXi(n), OffsetTable(nc)), Matrix3Xd(3, nc),
+                         Matrix3Xd(), OffsetTable(nc), own_off[sa.n_active] };
+      ArrayXi &adj = merged.atoms.adj(), &aoff = merged.atoms.off();
+      ArrayXi cid(nc);
+      int w = aoff[0] = 0;
+      for (int q = 0; q < nc; ++q) {
+        const int c = order[q], d = coff.degree(c);
+        cid[c] = q;
+        adj.segment(w, d) = catoms.segment(coff[c], d);
+        w += d;
+        aoff[q + 1] = w;
+        merged.pos.col(q) = probes.pos.col(mem[moff[c]]);
+      }
+
+      for (SasArc &arc: arcs.arcs) {
+        if (arc.beg < 0)
+          continue;
+
+        arc.beg = cid[label[arc.beg]];
+        arc.end = cid[label[arc.end]];
+      }
+      return merged;
+    }
+
+    /**
+     * An arc with both ends in one merged probe is a diagonal of a k-fold
+     * point and contributes no tangent, unless it is the full loop grazing
+     * the vertex (`dphi ≥ π`), which contributes both.
+     */
+    bool has_tangents(const SasArc &arc) {
+      return arc.beg >= 0 && (arc.beg != arc.end || arc.dphi >= constants::kPi);
+    }
+
     void tangents(SasProbes &pr, const Arcs &arcs) {
       const int np = static_cast<int>(pr.pos.cols());
 
       ArrayXi &toff = pr.tan_off.off();
       toff.setZero();
       for (const SasArc &arc: arcs.arcs) {
-        if (arc.beg < 0)
+        if (!has_tangents(arc))
           continue;
 
         ++toff[arc.beg + 1];
@@ -677,7 +755,7 @@ namespace internal {
       ArrayXi cur = toff.head(np);
       for (int r = 0; r < static_cast<int>(arcs.arcs.size()); ++r) {
         const SasArc &arc = arcs.arcs[r];
-        if (arc.beg < 0)
+        if (!has_tangents(arc))
           continue;
 
         const auto &[tb, te] = arcs.tangents[r];
@@ -700,12 +778,14 @@ namespace internal {
     ArrayXi pid;
     SasProbes probes = make_probes(sa, raw, pid);
 
-    Arcs arcs = fan_rings(sa, del, vm, circ, fs, pid);
+    UnionFind uf(static_cast<int>(probes.pos.cols()));
+    Arcs arcs = fan_rings(sa, del, vm, circ, fs, pid, probes, uf);
     ArrayXd area = sweep_spheres(sa, del, vm, circ, caps, arcs, probes);
-    tangents(probes, arcs);
+    SasProbes merged = merge_probes(sa, probes, uf, arcs);
+    tangents(merged, arcs);
 
     const int n_active_arcs = arcs.off[sa.g.offset(sa.n_active)];
-    return { std::move(circ),      std::move(caps), std::move(probes),
+    return { std::move(circ),      std::move(caps), std::move(merged),
              std::move(arcs.arcs), n_active_arcs,   std::move(area) };
   }
 }  // namespace internal
