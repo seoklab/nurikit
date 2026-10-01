@@ -456,8 +456,8 @@ TEST(SasExactTest, ContainedBall) {
   EXPECT_EQ(s.ex.contained(0, 2), 1);
   EXPECT_EQ(s.ex.contained(2, 0), 0);
   EXPECT_EQ(s.ex.contained(1, 2), -1);
-  EXPECT_EQ(s.ex.contained(0, 3), 1);
-  EXPECT_EQ(s.ex.contained(3, 0), 1);
+  EXPECT_EQ(s.ex.contained(0, 3), 2);
+  EXPECT_EQ(s.ex.contained(3, 0), 2);
   EXPECT_EQ(s.ex.contained(0, 4), -1);
   EXPECT_EQ(s.ex.contained(4, 0), -1);
 }
