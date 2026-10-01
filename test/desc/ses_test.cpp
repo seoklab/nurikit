@@ -3,8 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <algorithm>
 #include <cmath>
 #include <optional>
+#include <random>
 #include <utility>
 
 #include <gtest/gtest.h>
@@ -194,6 +196,175 @@ TEST(BuildSesTest, TwoSpheresNoActiveNoSaddle) {
   EXPECT_LT(t.geo.probes.n_active, t.geo.probes.pos.cols());
   EXPECT_EQ(t.ses.face_area.size(), t.geo.probes.n_active);
   EXPECT_EQ(t.ses.face_off.size(), t.geo.probes.n_active);
+}
+
+/**
+ * `rp² (2π − Σ angles)` over the planes through the probe and each pair of
+ * its atom centres, oriented away from the third atom.
+ */
+double excess_from_planes(const Ses &s, const int p) {
+  const Vector3d x = s.geo.probes.pos.col(p);
+  const Matrix3d tri = s.sa.pts(E::all, s.geo.probes.atoms.nbrs(p));
+  Matrix3d normals;
+  for (int m = 0; m < 3; ++m) {
+    const Vector3d u = tri.col(m) - x, v = tri.col((m + 1) % 3) - x,
+                   w = tri.col((m + 2) % 3) - x;
+    Vector3d n = u.cross(v).normalized();
+    if (n.dot(w) > 0)
+      n = -n;
+    normals.col(m) = n;
+  }
+  double total = 0;
+  for (int m = 0; m < 3; ++m) {
+    const Vector3d n1 = normals.col(m), n2 = normals.col((m + 1) % 3);
+    total += std::atan2(n1.cross(n2).norm(), n1.dot(n2));
+  }
+  return kRp * kRp * (kTwoPi - total);
+}
+
+double excess_from_tangents(const Ses &s, const int p) {
+  const auto t = s.geo.probes.tan.middleCols<3>(s.geo.probes.tan_off[p]);
+  double total = 0;
+  for (int m = 0; m < 3; ++m) {
+    const Vector3d t1 = t.col(m), t2 = t.col((m + 1) % 3);
+    total += std::atan2(t1.cross(t2).norm(), t1.dot(t2));
+  }
+  return kRp * kRp * (kTwoPi - total);
+}
+
+TEST(BuildSesTest, HighFaceSphericalExcess) {
+  const double side = 3.0;
+  Matrix3Xd pts(3, 3);
+  pts << 0, side, side / 2,             //
+      0, 0, side * std::sqrt(3.0) / 2,  //
+      0, 0, 0;
+  ArrayXd sar = ArrayXd::Constant(3, 3.0);
+
+  const Ses s = solve(pts, sar);
+  ASSERT_EQ(s.geo.probes.pos.cols(), 2);
+  ASSERT_EQ(s.geo.probes.n_active, 2);
+  ASSERT_EQ(s.ses.face_area.size(), 2);
+  ASSERT_EQ(s.ses.face_off.size(), 2);
+
+  for (int p = 0; p < 2; ++p) {
+    ASSERT_GE(std::abs(s.geo.probes.pos(2, p)), kRp);
+    ASSERT_EQ(s.geo.probes.tan_off.degree(p), 3);
+
+    const double area = s.ses.face_area[p];
+    EXPECT_GT(area, 0);
+    EXPECT_LT(area, kTwoPi * kRp * kRp);
+    EXPECT_NEAR(area, excess_from_tangents(s, p), 1e-12);
+    EXPECT_NEAR(area, excess_from_planes(s, p), 1e-10);
+
+    ASSERT_EQ(s.ses.face_off.degree(p), 3);
+    for (int k = s.ses.face_off[p]; k < s.ses.face_off[p + 1]; ++k) {
+      EXPECT_EQ(s.ses.face_cosa[k], 0);
+      EXPECT_EQ(s.ses.face_sina[k], 1);
+      EXPECT_NEAR(s.ses.face_axis.col(k).norm(), 1, 1e-12);
+    }
+  }
+}
+
+struct Cutter {
+  int probe;
+  Vector3d axis;
+  double cosa;
+  bool kept;
+};
+
+/**
+ * Every other probe strictly within `2 rp` of active probe `p`, flagged
+ * whether its cap is in the stored cap list of `p`.
+ */
+std::vector<Cutter> cutters(const Ses &s, const int p) {
+  const SasProbes &probes = s.geo.probes;
+  const Vector3d x = probes.pos.col(p);
+  const int nt = probes.tan_off.degree(p), beg = s.ses.face_off[p] + nt,
+            end = s.ses.face_off[p + 1];
+
+  std::vector<Cutter> out;
+  for (int y = 0; y < probes.pos.cols(); ++y) {
+    if (y == p)
+      continue;
+    const Vector3d w = probes.pos.col(y) - x;
+    const double dist = w.norm();
+    if (dist >= 2 * kRp)
+      continue;
+
+    Cutter c { y, w / dist, dist / (2 * kRp), false };
+    for (int k = beg; k < end; ++k) {
+      c.kept |= (s.ses.face_axis.col(k) - c.axis).norm() < 1e-9
+                && std::abs(s.ses.face_cosa[k] - c.cosa) < 1e-12;
+    }
+    out.push_back(c);
+  }
+  EXPECT_EQ(
+      static_cast<int>(std::count_if(out.begin(), out.end(),
+                                     [](const Cutter &c) { return c.kept; })),
+      end - beg)
+      << "probe " << p;
+  return out;
+}
+
+/**
+ * Random clusters: a cutter whose cap removes a sampled face direction
+ * that no other cutter removes is kept, and every sampled face direction a
+ * dropped cutter removes is removed by a kept one too.
+ */
+TEST(BuildSesTest, FiltersAreNecessary) {
+  const Matrix3Xd dirs = canonical_fibonacci_lattice(2000);
+  int n_kept = 0, n_dropped = 0, n_low = 0;
+
+  for (const int seed: { 1, 2, 3, 4, 5, 6, 7, 8 }) {
+    std::mt19937 rng(seed);
+    std::uniform_real_distribution<double> u(0, 6.0), ur(1.0, 1.4);
+    const int n = 8;
+    Matrix3Xd pts(3, n);
+    ArrayXd sar(n);
+    for (int i = 0; i < n; ++i) {
+      pts.col(i) << u(rng), u(rng), u(rng);
+      sar[i] = ur(rng) + kRp;
+    }
+
+    const Ses s = solve(pts, sar);
+    const SasProbes &probes = s.geo.probes;
+    for (int p = 0; p < probes.n_active; ++p) {
+      const int nt = probes.tan_off.degree(p);
+      const auto t = probes.tan.middleCols(probes.tan_off[p], nt);
+      const std::vector<Cutter> cs = cutters(s, p);
+      n_low += std::isnan(s.ses.face_area[p]);
+      for (const Cutter &c: cs) {
+        n_kept += c.kept;
+        n_dropped += !c.kept;
+      }
+
+      ArrayXb inside(cs.size());
+      for (int k = 0; k < dirs.cols(); ++k) {
+        const Vector3d d = dirs.col(k);
+        if ((t.transpose() * d).maxCoeff() > 0)
+          continue;
+
+        for (int y = 0; y < cs.size(); ++y)
+          inside[y] = d.dot(cs[y].axis) > cs[y].cosa;
+        const int n_inside = inside.count();
+        bool kept_inside = false;
+        for (int y = 0; y < cs.size(); ++y)
+          kept_inside |= inside[y] && cs[y].kept;
+
+        for (int y = 0; y < cs.size(); ++y) {
+          if (!inside[y] || cs[y].kept)
+            continue;
+          EXPECT_TRUE(kept_inside)
+              << "seed " << seed << " probe " << p << " dropped cutter "
+              << cs[y].probe << " removes direction " << k << " alone";
+          EXPECT_GT(n_inside, 1);
+        }
+      }
+    }
+  }
+  EXPECT_GT(n_low, 0);
+  EXPECT_GT(n_kept, 0);
+  EXPECT_GT(n_dropped, 0);
 }
 }  // namespace
 }  // namespace internal
