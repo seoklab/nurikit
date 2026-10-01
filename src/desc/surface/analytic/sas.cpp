@@ -528,7 +528,7 @@ namespace internal {
     }
 
     /**
-     * Accessible arcs of every solved circle, grouped by circle: from each
+     * Accessible arcs of every circle with caps, grouped by circle: from each
      * leaving vertex to the next vertex; an empty ring is an accessible full
      * circle iff no fan face cuts or contains the circle.
      */
@@ -539,7 +539,7 @@ namespace internal {
       out.off = OffsetTable(sa.g.m());
       Ring ring;
 
-      for (int i = 0; i < sa.n_solve; ++i) {
+      for (int i = 0; i < sa.n_enum; ++i) {
         for (auto it = sa.g.begin(i), ei = sa.g.end(i); it < ei; ++it) {
           const int j = *it, q = sa.g.eid(it);
           out.off.off()[q] = static_cast<int>(out.arcs.size());
@@ -579,7 +579,7 @@ namespace internal {
         }
       }
 
-      for (int q = sa.g.offset(sa.n_solve); q <= sa.g.m(); ++q)
+      for (int q = sa.g.offset(sa.n_enum); q <= sa.g.m(); ++q)
         out.off.off()[q] = static_cast<int>(out.arcs.size());
       return out;
     }
