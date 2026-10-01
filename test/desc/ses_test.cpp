@@ -4,10 +4,12 @@
 //
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <optional>
 #include <random>
 #include <utility>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -61,6 +63,173 @@ double simpson(const F &f, const double lo, const double hi, const int n) {
   for (int k = 2; k < 2 * n; k += 2)
     even += f(lo + k * h);
   return h / 3 * (f(lo) + 4 * odd + 2 * even + f(hi));
+}
+
+Matrix3Xd star(const int n_ring, const double polar_deg, const double reach) {
+  const double polar = polar_deg * kPi / 180;
+  Matrix3Xd pts(3, n_ring + 1);
+  pts.col(0) << 0, 0, reach;
+  for (int k = 0; k < n_ring; ++k) {
+    const double az = kTwoPi * k / n_ring;
+    pts.col(k + 1) << reach * std::sin(polar) * std::cos(az),
+        reach * std::sin(polar) * std::sin(az), reach * std::cos(polar);
+  }
+  return pts;
+}
+
+struct RigidMotion {
+  Matrix3d rot;
+  Vector3d t;
+};
+
+RigidMotion rigid_motion(const int seed) {
+  std::mt19937 rng(seed);
+  std::normal_distribution<double> nd;
+  const Vector3d ax(nd(rng), nd(rng), nd(rng));
+  const Matrix3d rot = AngleAxisd(nd(rng), ax.normalized()).toRotationMatrix();
+  const Vector3d t(nd(rng), nd(rng), nd(rng));
+  return { rot, 3.0 * t };
+}
+
+/**
+ * Circle of the original atoms `a`, `b`, -1 if none.
+ */
+int circle_of(const Ses &s, const int a, const int b) {
+  const auto [lo, hi] = nuri::minmax(a, b);
+  for (int q = 0; q < static_cast<int>(s.geo.circles.size()); ++q) {
+    const SasCircle &c = s.geo.circles[q];
+    const auto [ci, cj] = nuri::minmax(s.sa.order[c.i], s.sa.order[c.j]);
+    if (ci == lo && cj == hi)
+      return q;
+  }
+  return -1;
+}
+
+/**
+ * The one probe within `radius` of `x`, -1 if none or several.
+ */
+int probe_at(const SasGeometry &geo, const Vector3d &x,
+             const double radius = 1e-9) {
+  int found = -1;
+  for (int p = 0; p < geo.probes.pos.cols(); ++p) {
+    if ((geo.probes.pos.col(p) - x).norm() > radius)
+      continue;
+    if (found >= 0)
+      return -1;
+    found = p;
+  }
+  return found;
+}
+
+struct RandomCluster {
+  Matrix3Xd pts;
+  ArrayXd sar;
+};
+
+RandomCluster random_cluster(const int seed, const int n) {
+  std::mt19937 rng(seed);
+  std::uniform_real_distribution<double> u(0, 6.0), ur(1.0, 1.4);
+  RandomCluster c { Matrix3Xd(3, n), ArrayXd(n) };
+  for (int i = 0; i < n; ++i) {
+    c.pts.col(i) << u(rng), u(rng), u(rng);
+    c.sar[i] = ur(rng) + kRp;
+  }
+  return c;
+}
+
+constexpr int kLattice = 1000000;
+
+const Matrix3Xd &lattice() {
+  static const Matrix3Xd dirs = canonical_fibonacci_lattice(kLattice);
+  return dirs;
+}
+
+/**
+ * Lattice estimate of face `p`: directions outside every departure
+ * hemisphere whose point on the probe sphere is outside every other probe
+ * ball, brute force over all probes.
+ */
+double face_from_dots(const Ses &s, const int p, const double rp) {
+  const SasProbes &probes = s.geo.probes;
+  const Matrix3Xd &dirs = lattice();
+  const Vector3d x = probes.pos.col(p);
+  const int nt = probes.tan_off.degree(p);
+  const auto t = probes.tan.middleCols(probes.tan_off[p], nt);
+
+  std::vector<Vector3d> near;
+  for (int y = 0; y < probes.pos.cols(); ++y) {
+    const Vector3d w = probes.pos.col(y) - x;
+    if (y != p && w.norm() < 2 * rp)
+      near.push_back(w);
+  }
+
+  int count = 0;
+  for (int k = 0; k < dirs.cols(); ++k) {
+    const Vector3d d = dirs.col(k);
+    if (nt > 0 && (t.transpose() * d).maxCoeff() > 0)
+      continue;
+    bool outside = true;
+    for (const Vector3d &w: near)
+      outside &= (rp * d - w).squaredNorm() >= rp * rp;
+    count += outside;
+  }
+  return 2 * kTwoPi * rp * rp * count / dirs.cols();
+}
+
+double convex_from_dots(const Ses &s, const int i, const double rp) {
+  const Matrix3Xd &dirs = lattice();
+  const Vector3d c = s.sa.pts.col(i);
+  const double sas = s.sa.sar[i], r = sas - rp;
+
+  int count = 0;
+  for (int k = 0; k < dirs.cols(); ++k) {
+    const Vector3d y = c + sas * dirs.col(k);
+    bool outside = true;
+    for (int j = 0; j < s.sa.pts.cols(); ++j) {
+      outside &= j == i
+                 || (y - s.sa.pts.col(j)).squaredNorm()
+                        >= s.sa.sar[j] * s.sa.sar[j];
+    }
+    count += outside;
+  }
+  return 2 * kTwoPi * r * r * count / dirs.cols();
+}
+
+/**
+ * Torus patches by quadrature of `rp (rl − rp cos β)` over each arc's full
+ * generating range; spindles excluded (`rl ≥ rp` asserted).
+ */
+double saddle_from_quadrature(const Ses &s, const double rp) {
+  double total = 0;
+  for (int r = 0; r < s.geo.n_active_arcs; ++r) {
+    const SasArc &arc = s.geo.arcs[r];
+    const SasCircle &c = s.geo.circles[arc.circ];
+    EXPECT_GE(c.rl, rp);
+    const double lo = -std::atan2(c.a, c.rl),
+                 hi = std::atan2(s.sa.d[arc.circ] - c.a, c.rl);
+    total += arc.dphi * rp
+             * simpson([&](double b) { return c.rl - rp * std::cos(b); }, lo,
+                       hi, 2000);
+  }
+  return total;
+}
+
+/**
+ * Every active face against the lattice to `1e-3` relative, floored at
+ * `1e-4` of the probe sphere (four times the worst lattice error seen on
+ * faces below 0.1 Å²).
+ */
+void expect_faces_match_dots(const Ses &s, const double rp,
+                             const char *tag = "") {
+  const double sphere = 2 * kTwoPi * rp * rp;
+  for (int p = 0; p < s.geo.probes.n_active; ++p) {
+    const double area = s.ses.face_area[p];
+    ASSERT_TRUE(std::isfinite(area)) << tag << " probe " << p;
+    EXPECT_GE(area, -1e-9) << tag << " probe " << p;
+    const double dots = face_from_dots(s, p, rp);
+    EXPECT_NEAR(area, dots, nuri::max(1e-3 * dots, 1e-4 * sphere))
+        << tag << " probe " << p;
+  }
 }
 
 /**
@@ -313,7 +482,7 @@ std::vector<Cutter> cutters(const Ses &s, const int p) {
  */
 TEST(BuildSesTest, FiltersAreNecessary) {
   const Matrix3Xd dirs = canonical_fibonacci_lattice(2000);
-  int n_kept = 0, n_dropped = 0, n_low = 0;
+  int n_kept = 0, n_dropped = 0, n_cut = 0;
 
   for (const int seed: { 1, 2, 3, 4, 5, 6, 7, 8 }) {
     std::mt19937 rng(seed);
@@ -332,7 +501,7 @@ TEST(BuildSesTest, FiltersAreNecessary) {
       const int nt = probes.tan_off.degree(p);
       const auto t = probes.tan.middleCols(probes.tan_off[p], nt);
       const std::vector<Cutter> cs = cutters(s, p);
-      n_low += std::isnan(s.ses.face_area[p]);
+      n_cut += s.ses.face_off.degree(p) > nt;
       for (const Cutter &c: cs) {
         n_kept += c.kept;
         n_dropped += !c.kept;
@@ -362,9 +531,143 @@ TEST(BuildSesTest, FiltersAreNecessary) {
       }
     }
   }
-  EXPECT_GT(n_low, 0);
+  EXPECT_GT(n_cut, 0);
   EXPECT_GT(n_kept, 0);
   EXPECT_GT(n_dropped, 0);
+}
+TEST(BuildSesTest, ThreeSpheresVsDots) {
+  Matrix3Xd pts(3, 3);
+  pts << 0, 4.8, 2.6,  //
+      0, 0.2, 4.16,    //
+      0, 0.3, -0.4;
+  ArrayXd sar(3);
+  sar << 1.5 + kRp, 1.9 + kRp, 1.7 + kRp;
+
+  const Ses s = solve(pts, sar);
+  ASSERT_GT(s.geo.probes.n_active, 0);
+  for (int p = 0; p < s.geo.probes.n_active; ++p)
+    ASSERT_GT(s.ses.face_off.degree(p), 3) << "probe " << p << " is high";
+  expect_faces_match_dots(s, kRp);
+
+  double convex = 0;
+  for (int i = 0; i < s.sa.n_active; ++i)
+    convex += convex_from_dots(s, i, kRp);
+  double faces = 0;
+  for (int p = 0; p < s.geo.probes.n_active; ++p)
+    faces += face_from_dots(s, p, kRp);
+  const double total = convex + saddle_from_quadrature(s, kRp) + faces,
+               analytic = s.ses.convex_area.sum() + s.ses.saddle_area.sum()
+                          + s.ses.face_area.sum();
+  EXPECT_NEAR(analytic, total, 1e-3 * total);
+}
+
+TEST(BuildSesTest, RandomClustersVsDots) {
+  for (const int seed: { 1, 2, 3, 4, 5, 6 }) {
+    const RandomCluster c = random_cluster(seed, 8 + seed % 5);
+    const Ses s = solve(c.pts, c.sar);
+    expect_faces_match_dots(s, kRp, "seed");
+  }
+}
+
+/**
+ * Sphere c grazes circle (a, b): the one merged probe has two full loops
+ * with tangents `±y`, two exactly complementary hemispheres, no face.
+ */
+TEST(BuildSesTest, GrazingVertexFaceIsZero) {
+  Matrix3Xd pts(3, 3);
+  pts.col(0) << 0, 0, 0;
+  pts.col(1) << 0, 0, 6;
+  pts.col(2) << 7, 0, 7;
+  const ArrayXd sar = ArrayXd::Constant(3, 5.0);
+
+  const Ses s = solve(pts, sar, 1.0);
+  ASSERT_EQ(s.geo.probes.pos.cols(), 1);
+  ASSERT_EQ(s.ses.face_area.size(), 1);
+  EXPECT_EQ(s.ses.face_area[0], 0);
+  EXPECT_EQ(s.ses.face_off.degree(0), s.geo.probes.tan_off.degree(0));
+}
+
+TEST(BuildSesTest, KFoldFaceUnderRigidMotion) {
+  for (const int k: { 4, 5 }) {
+    const Matrix3Xd base = star(k, 110, 2.0).rightCols(k);
+    const ArrayXd sar = ArrayXd::Constant(k, 2.0);
+    const Ses ref = solve(base, sar, 1.0);
+    const int c0 = probe_at(ref.geo, Vector3d::Zero());
+    ASSERT_GE(c0, 0) << "k " << k;
+    ASSERT_EQ(ref.geo.probes.atoms.degree(c0), k);
+    const double ref_face = ref.ses.face_area[c0],
+                 ref_total = ref.ses.face_area.sum();
+    EXPECT_GT(ref_face, 0);
+    expect_faces_match_dots(ref, 1.0, "k-fold");
+
+    for (int seed = 0; seed < 16; ++seed) {
+      const auto [rot, t] = rigid_motion(seed);
+      const Matrix3Xd pts = (rot * base).colwise() + t;
+      const Ses s = solve(pts, sar, 1.0);
+      const int c = probe_at(s.geo, t);
+      ASSERT_GE(c, 0) << "k " << k << " seed " << seed;
+      EXPECT_NEAR(s.ses.face_area[c], ref_face, 1e-9)
+          << "k " << k << " seed " << seed;
+      EXPECT_NEAR(s.ses.face_area.sum(), ref_total, 1e-9)
+          << "k " << k << " seed " << seed;
+    }
+  }
+}
+
+/**
+ * Spindle circle (a, b) of radius 3 under `rp = 3.25` with four probes at
+ * dyadic points; the two axis points `(0, 0, ±1.25)` lie on every probe
+ * sphere, so on each face the hemisphere of the `(a, b)` arc and the caps
+ * of the other three probes pass through the same two points exactly.
+ */
+TEST(BuildSesTest, SpindleAxisCoincidentRoots) {
+  const double rp = 3.25;
+  Matrix3Xd pts(3, 4);
+  pts.col(0) << 0, 0, -4;
+  pts.col(1) << 0, 0, 4;
+  pts.col(2) << 3, 3, 4;
+  pts.col(3) << -3, -3, 4;
+  const ArrayXd sar = ArrayXd::Constant(4, 5.0);
+
+  const Ses s = solve(pts, sar, rp);
+  const int q = circle_of(s, 0, 1);
+  ASSERT_GE(q, 0);
+  EXPECT_LT(s.geo.circles[q].rl, rp);
+
+  const std::array<Vector3d, 4> on_circle {
+    Vector3d(0, 3, 0), Vector3d(3, 0, 0), Vector3d(0, -3, 0), Vector3d(-3, 0, 0)
+  };
+  for (const Vector3d &x: on_circle) {
+    const int p = probe_at(s.geo, x);
+    ASSERT_GE(p, 0) << x.transpose();
+    EXPECT_EQ(s.geo.probes.pos.col(p), x);
+    EXPECT_GE(s.ses.face_off.degree(p) - s.geo.probes.tan_off.degree(p), 2);
+  }
+  expect_faces_match_dots(s, rp);
+}
+
+/**
+ * Active faces of a masked run equal the same faces of the all-active run:
+ * the shells supply every neighbour probe within `2 rp`.
+ */
+TEST(BuildSesTest, MaskedFacesMatchFull) {
+  const RandomCluster c = random_cluster(11, 12);
+  ArrayXb active(12);
+  for (int i = 0; i < 12; ++i)
+    active[i] = i % 2 == 0;
+
+  const Ses full = solve(c.pts, c.sar);
+  const Ses part = solve(c.pts, c.sar, active);
+  ASSERT_GT(part.geo.probes.n_active, 0);
+  ASSERT_LT(part.geo.probes.n_active, full.geo.probes.n_active);
+
+  for (int p = 0; p < part.geo.probes.n_active; ++p) {
+    const int q = probe_at(full.geo, part.geo.probes.pos.col(p));
+    ASSERT_GE(q, 0) << "probe " << p;
+    ASSERT_LT(q, full.geo.probes.n_active);
+    EXPECT_NEAR(part.ses.face_area[p], full.ses.face_area[q], 1e-12)
+        << "probe " << p;
+  }
 }
 }  // namespace
 }  // namespace internal
