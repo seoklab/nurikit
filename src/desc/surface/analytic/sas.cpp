@@ -158,7 +158,7 @@ namespace internal {
       Vector3d pos;
     };
 
-    SasFace sorted_face(Array3i fv) {
+    BallTriple sorted_face(Array3i fv) {
       std::sort(fv.begin(), fv.end());
       return { fv[0], fv[1], fv[2] };
     }
@@ -216,7 +216,7 @@ namespace internal {
     Faces accept_faces(const SaPrep &sa, const SasDelaunay &del,
                        const VertexMap &vm, std::vector<RawProbe> &raw) {
       const int nf = static_cast<int>(del.tets.cols());
-      const SasExact &ex = del.ex;
+      const BallExact &ex = del.ex;
 
       Faces fs { Array3Xi::Constant(3, del.n_faces, -1),
                  ArrayXb::Constant(del.n_faces, false),
@@ -233,7 +233,7 @@ namespace internal {
           if (!sphere_face(sa, del, vm, c, lf, fv, abc))
             continue;
 
-          const SasFace face = sorted_face(fv);
+          const BallTriple face = sorted_face(fv);
           const int f = del.face(lf, c);
           fs.verts.col(f) << face.a, face.b, face.c;
           if (ex.cuts(face) != Sgn::kPos)
@@ -397,7 +397,7 @@ namespace internal {
       return -std::sin(psi) * ring.e1 + std::cos(psi) * ring.e2;
     }
 
-    SasFace face_of(const Faces &fs, const int f) {
+    BallTriple face_of(const Faces &fs, const int f) {
       const Array3i fv = fs.verts.col(f);
       return { fv[0], fv[1], fv[2] };
     }
@@ -450,15 +450,15 @@ namespace internal {
      * the exact half-plane class overriding the rounding of `atan2` at the
      * ray and at `π`, so the numeric angles are monotone in the exact order.
      */
-    void ring_angles(Ring &ring, const SaPrep &sa, const SasExact &ex,
+    void ring_angles(Ring &ring, const SaPrep &sa, const BallExact &ex,
                      const VertexMap &vm, const SasCircle &c, const Faces &fs) {
       const int va = vm.v_of_new[c.i], vb = vm.v_of_new[c.j];
       const Vector3d d = sa.pts.col(c.j) - sa.pts.col(c.i);
       ring.e1 =
-          d.cross(Vector3d::Unit(SasExact::reference_axis(d))).normalized();
+          d.cross(Vector3d::Unit(BallExact::reference_axis(d))).normalized();
       ring.e2 = c.axis.cross(ring.e1);
       for (RingVertex &rv: ring.verts) {
-        const SasFace f = face_of(fs, rv.face);
+        const BallTriple f = face_of(fs, rv.face);
         const Vector3d u = ex.offset(va, vb, f, rv.plus);
         const double phi = std::atan2(u.dot(ring.e2), u.dot(ring.e1));
         rv.cls = ex.half_plane(va, vb, f, rv.plus);
@@ -485,7 +485,7 @@ namespace internal {
      * a single-point window: the `2π` goes to an arc of the accessibility of
      * the antipode.
      */
-    void decide_wrap(Ring &ring, const SasExact &ex, const VertexMap &vm,
+    void decide_wrap(Ring &ring, const BallExact &ex, const VertexMap &vm,
                      const SasCircle &c, const Faces &fs) {
       const int va = vm.v_of_new[c.i], vb = vm.v_of_new[c.j],
                 n = static_cast<int>(ring.verts.size());
@@ -591,7 +591,7 @@ namespace internal {
                           const SasProbes &probes) {
       const int n_solve = sa.n_solve, mcap = caps.h.max_deg(),
                 np = static_cast<int>(probes.pos.cols());
-      const SasExact &ex = del.ex;
+      const BallExact &ex = del.ex;
 
       int acap = 0;
       for (int s = 0; s < n_solve; ++s) {

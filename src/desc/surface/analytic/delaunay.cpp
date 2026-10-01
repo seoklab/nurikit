@@ -174,7 +174,7 @@ namespace internal {
     del.nbrs = std::move(edges.nbrs);
     del.edge_cell = std::move(edges.cell);
     del.face = number_faces(del.adj, del.n_faces);
-    del.ex = SasExact::make(lifted, sa.wmax);
+    del.ex = BallExact::make(lifted, sa.wmax);
     return del;
   }
 }  // namespace internal

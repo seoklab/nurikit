@@ -913,7 +913,7 @@ TEST(BuildSasTest, VertexAtFrameAnglePi) {
   const double ra = 1.5, rb = 1.5;
   const Vector3d d = cb - ca;
   const Vector3d e1 =
-      d.cross(Vector3d::Unit(SasExact::reference_axis(d))).normalized();
+      d.cross(Vector3d::Unit(BallExact::reference_axis(d))).normalized();
   const double a = (d.squaredNorm() + ra * ra - rb * rb) / (2 * d.norm()),
                rl = std::sqrt(ra * ra - a * a);
   const Vector3d p = ca + a * d.normalized() - rl * e1;
