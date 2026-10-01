@@ -72,6 +72,7 @@ using ArrayXXc = ArrayXX<std::int8_t>;
 using E::Matrix;
 using E::Matrix3;
 using E::Matrix3d;
+using E::Matrix2Xd;
 using E::Matrix3Xd;
 using E::Matrix4d;
 using E::Matrix4Xd;
