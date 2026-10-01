@@ -121,22 +121,24 @@ struct Ref {
   }
 };
 
+template <bool kForceExact = false>
 struct Fixture {
   Matrix4Xd lifted;
   double wmax;
-  SasExact ex;
+  SasExactImpl<kForceExact> ex;
   Ref ref;
 };
 
-Fixture setup(const Matrix3Xd &pts, const ArrayXd &sar) {
-  Fixture s;
+template <bool kForceExact = false>
+Fixture<kForceExact> setup(const Matrix3Xd &pts, const ArrayXd &sar) {
+  Fixture<kForceExact> s;
   const int n = static_cast<int>(sar.size());
   s.wmax = sar.square().maxCoeff();
   s.lifted.resize(4, n);
   s.lifted.topRows(3) = pts;
   for (int i = 0; i < n; ++i)
     s.lifted(3, i) = std::sqrt(s.wmax - sar[i] * sar[i]);
-  s.ex = SasExact::make(s.lifted, s.wmax);
+  s.ex = SasExactImpl<kForceExact>::make(s.lifted, s.wmax);
   s.ref.c = pts;
   s.ref.rho2.resize(n);
   for (int i = 0; i < n; ++i) {
@@ -199,7 +201,7 @@ TEST(SasExactTest, Selftest) {
   EXPECT_TRUE(SasExact::selftest());
 }
 
-void expect_geogram_agrees(const Fixture &s) {
+void expect_geogram_agrees(const Fixture<> &s) {
   const int n = static_cast<int>(s.lifted.cols());
   GEO::Delaunay3d del(4);
   del.set_keeps_infinite(true);
@@ -252,16 +254,16 @@ int expect_root_sign(const Ref &ref, const SasFace f, const bool plus,
   return q_sgn(ref.power(l, ref.root(f, plus)), kQTol);
 }
 
-void check_random_agreement(const bool force) {
-  SasExact::force_exact(force);
-  std::mt19937 rng(force ? 11 : 13);
+template <bool kForceExact>
+void check_random_agreement() {
+  std::mt19937 rng(kForceExact ? 11 : 13);
   int n_accept = 0, n_cuts = 0, n_side = 0, n_hp = 0, n_ccw = 0, n_anti = 0;
 
   for (int trial = 0; trial < 40; ++trial) {
     const int n = 8;
     const Matrix3Xd pts = random_pts(rng, n, 1.6);
     const ArrayXd sar = random_radii(rng, n, 1.5, 2.5);
-    const Fixture s = setup(pts, sar);
+    const Fixture<kForceExact> s = setup<kForceExact>(pts, sar);
     const Ref &ref = s.ref;
 
     for (int a = 0; a < n; ++a) {
@@ -269,9 +271,9 @@ void check_random_agreement(const bool force) {
         const int ov = q_sgn(ref.overlap(a, b), kQTol);
         if (ov != 0) {
           EXPECT_EQ(static_cast<int>(s.ex.overlap(a, b)), ov);
-          EXPECT_EQ(static_cast<int>(
-                        SasExact::overlap(pts.col(a), s.lifted(3, a),
-                                          pts.col(b), s.lifted(3, b), s.wmax)),
+          EXPECT_EQ(static_cast<int>(SasExactImpl<kForceExact>::overlap(
+                        pts.col(a), s.lifted(3, a), pts.col(b), s.lifted(3, b),
+                        s.wmax)),
                     ov);
         }
         for (int c = b + 1; c < n; ++c) {
@@ -352,8 +354,6 @@ void check_random_agreement(const bool force) {
       }
     }
   }
-  SasExact::force_exact(false);
-
   EXPECT_GT(n_accept, 1000);
   EXPECT_GT(n_cuts, 300);
   EXPECT_GT(n_side, 30);
@@ -363,11 +363,11 @@ void check_random_agreement(const bool force) {
 }
 
 TEST(SasExactTest, FilteredMatchesQuad) {
-  check_random_agreement(false);
+  check_random_agreement<false>();
 }
 
 TEST(SasExactTest, ExactMatchesQuad) {
-  check_random_agreement(true);
+  check_random_agreement<true>();
 }
 
 /**
@@ -395,7 +395,7 @@ TEST(SasExactTest, TangentPairOverlaps) {
   pts.col(1) << 3, 0, 0;
   pts.col(2) << 1.5, 1.5, 0;
   const ArrayXd sar = ArrayXd::Constant(3, 1.5);
-  const Fixture s = setup(pts, sar);
+  const Fixture<> s = setup(pts, sar);
 
   EXPECT_EQ(s.ex.overlap(0, 1), Sgn::kPos);
   EXPECT_EQ(SasExact::overlap(pts.col(0), s.lifted(3, 0), pts.col(1),
@@ -411,7 +411,7 @@ TEST(SasExactTest, TangentPairOverlaps) {
 
 void check_tie_fixture(const Matrix3Xd &pts, const ArrayXd &sar,
                        const Vector3d &point) {
-  const Fixture s = setup(pts, sar);
+  const Fixture<> s = setup(pts, sar);
   const int n = static_cast<int>(sar.size());
   int n_ties = 0;
 
@@ -468,7 +468,7 @@ TEST(SasExactTest, CoplanarSquareWithApex) {
 
 TEST(SasExactTest, CoincidentRootsTie) {
   // two 4-fold points from two faces of the square: coincident roots
-  const Fixture s = setup(square_apex(), ArrayXd::Constant(5, 1.5));
+  const Fixture<> s = setup(square_apex(), ArrayXd::Constant(5, 1.5));
   const SasFace f1 { 0, 1, 2 }, f2 { 0, 1, 3 };
   ASSERT_EQ(s.ex.cuts(f1), Sgn::kPos);
   ASSERT_EQ(s.ex.cuts(f2), Sgn::kPos);

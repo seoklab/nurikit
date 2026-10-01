@@ -11,7 +11,6 @@
 
 #include <algorithm>
 #include <array>
-#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <utility>
@@ -28,9 +27,6 @@
 namespace nuri {
 namespace internal {
   namespace {
-    // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-    std::atomic<bool> g_force_exact { false };
-
     constexpr int kUnknown = 2;
 
     /**
@@ -373,9 +369,9 @@ namespace internal {
      * Filter, then exact, then the perturbation over the participating
      * vertices in index order. `kernel(ctx)` returns `Root<T>`.
      */
-    template <class K>
+    template <bool kForceExact, class K>
     Sgn decide(const Data &d, const K &kernel, Participants parts) {
-      if (!g_force_exact.load(std::memory_order_relaxed)) {
+      if constexpr (!kForceExact) {
         const int s = sign_root(kernel(Ctx<Fx> { d, -1 }));
         if (s != kUnknown)
           return static_cast<Sgn>(s);
@@ -427,9 +423,9 @@ namespace internal {
       return t == kUnknown ? kUnknown : sx * t;
     }
 
-    template <class K>
+    template <bool kForceExact, class K>
     Sgn decide2(const Data &d, const K &kernel) {
-      if (!g_force_exact.load(std::memory_order_relaxed)) {
+      if constexpr (!kForceExact) {
         const int s = sign_root2(kernel(Ctx<Fx> { d, -1 }));
         if (s != kUnknown)
           return static_cast<Sgn>(s);
@@ -482,6 +478,7 @@ namespace internal {
      * A tangency is a tie that the perturbation resolves to an overlap: both
      * radii grow.
      */
+    template <bool kForceExact>
     Sgn overlap_impl(const Data &d, const int a, const int b) {
       auto stage = [&](auto ctx) {
         using T = typename decltype(ctx)::Scalar;
@@ -497,7 +494,7 @@ namespace internal {
         return Root<T> { lit<T>(4.0) * rr - t * t, lit<T>(0.0), lit<T>(0.0) };
       };
 
-      if (!g_force_exact.load(std::memory_order_relaxed)) {
+      if constexpr (!kForceExact) {
         const int s = sgn(stage(Ctx<Fx> { d, -1 }).first);
         if (s == 1 || s == 0)
           return Sgn::kPos;
@@ -510,17 +507,18 @@ namespace internal {
 
       if (sgn(stage(Ctx<Xp> { d, -1 }).first) >= 0)
         return Sgn::kPos;
-      return decide(d, kernel,
-                    {
-                        { a, b },
-                        2
+      return decide<kForceExact>(d, kernel,
+                                 {
+                                     { a, b },
+                                     2
       });
     }
   }  // namespace
 
-  ABSL_ATTRIBUTE_NOINLINE SasExact SasExact::make(const Matrix4Xd &lifted,
-                                                  const double wmax) {
-    SasExact ex;
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE SasExactImpl<kForceExact>
+  SasExactImpl<kForceExact>::make(const Matrix4Xd &lifted, const double wmax) {
+    SasExactImpl ex;
     const int n = static_cast<int>(lifted.cols());
     ex.c_ = lifted.topRows(3);
     ex.h_.resize(n);
@@ -531,50 +529,55 @@ namespace internal {
     return ex;
   }
 
-  ABSL_ATTRIBUTE_NOINLINE Sgn SasExact::overlap(const Vector3d &ca,
-                                                const double ta,
-                                                const Vector3d &cb,
-                                                const double tb,
-                                                const double wmax) {
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE Sgn SasExactImpl<kForceExact>::overlap(
+      const Vector3d &ca, const double ta, const Vector3d &cb, const double tb,
+      const double wmax) {
     Matrix3Xd c(3, 2);
     c.col(0) = ca;
     c.col(1) = cb;
     ArrayXd h(2);
     h[0] = geogram_height(ca[0], ca[1], ca[2], ta);
     h[1] = geogram_height(cb[0], cb[1], cb[2], tb);
-    return overlap_impl({ &c, &h, wmax }, 0, 1);
+    return overlap_impl<kForceExact>({ &c, &h, wmax }, 0, 1);
   }
 
-  ABSL_ATTRIBUTE_NOINLINE double SasExact::rho2(const int i) const {
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE double
+  SasExactImpl<kForceExact>::rho2(const int i) const {
     const double cc =
         c_(0, i) * c_(0, i) + c_(1, i) * c_(1, i) + c_(2, i) * c_(2, i);
     return w_ + cc - h_[i];
   }
 
-  ABSL_ATTRIBUTE_NOINLINE Sgn SasExact::overlap(const int a,
-                                                const int b) const {
-    return overlap_impl({ &c_, &h_, w_ }, a, b);
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE Sgn
+  SasExactImpl<kForceExact>::overlap(const int a, const int b) const {
+    return overlap_impl<kForceExact>({ &c_, &h_, w_ }, a, b);
   }
 
-  ABSL_ATTRIBUTE_NOINLINE Sgn SasExact::cuts(const SasFace f) const {
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE Sgn
+  SasExactImpl<kForceExact>::cuts(const SasFace f) const {
     auto kernel = [&](auto ctx) {
       using T = typename decltype(ctx)::Scalar;
       return Root<T> { face(ctx, f).disc, lit<T>(0.0), lit<T>(0.0) };
     };
-    return decide(
+    return decide<kForceExact>(
         {
             &c_, &h_, w_
     },
         kernel, { { f.a, f.b, f.c }, 3 });
   }
 
-  ABSL_ATTRIBUTE_NOINLINE Sgn SasExact::side(const int a, const int b,
-                                             const int c) const {
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE Sgn
+  SasExactImpl<kForceExact>::side(const int a, const int b, const int c) const {
     auto kernel = [&](auto ctx) {
       using T = typename decltype(ctx)::Scalar;
       return Root<T> { face(ctx, { a, b, c }).mu, lit<T>(0.0), lit<T>(0.0) };
     };
-    return decide(
+    return decide<kForceExact>(
         {
             &c_, &h_, w_
     },
@@ -619,10 +622,12 @@ namespace internal {
     }
   }  // namespace
 
+  template <bool kForceExact>
   ABSL_ATTRIBUTE_NOINLINE bool
-  SasExact::discs_intersect(const int s, const int j, const int l) const {
+  SasExactImpl<kForceExact>::discs_intersect(const int s, const int j,
+                                             const int l) const {
     const Data d { &c_, &h_, w_ };
-    if (!g_force_exact.load(std::memory_order_relaxed)) {
+    if constexpr (!kForceExact) {
       const int r = disc_decision(disc_roots(Ctx<Fx> { d, -1 }, s, j, l));
       if (r != kUnknown)
         return r > 0;
@@ -634,8 +639,9 @@ namespace internal {
            || side(s, l, j) == Sgn::kNeg;
   }
 
-  ABSL_ATTRIBUTE_NOINLINE Sgn SasExact::accept(const SasFace f, const bool plus,
-                                               const int l) const {
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE Sgn SasExactImpl<kForceExact>::accept(
+      const SasFace f, const bool plus, const int l) const {
     auto kernel = [&](auto ctx) {
       using T = typename decltype(ctx)::Scalar;
       const Face<T> fc = face(ctx, f);
@@ -646,7 +652,7 @@ namespace internal {
           fc.u2 * vl - fc.lam * dot(fc.db, dl) - fc.mu * dot(fc.dc, dl);
       return Root<T> { lin, -root_sign<T>(plus) * dot(fc.u, dl), fc.disc };
     };
-    return decide(
+    return decide<kForceExact>(
         {
             &c_, &h_, w_
     },
@@ -661,8 +667,9 @@ namespace internal {
    * other way round. The pair with the smaller on-sphere residual is
    * returned; the root along `+u` is the plus root either way.
    */
+  template <bool kForceExact>
   ABSL_ATTRIBUTE_NOINLINE std::pair<Vector3d, Vector3d>
-  SasExact::roots(const SasFace f) const {
+  SasExactImpl<kForceExact>::roots(const SasFace f) const {
     const Face<double> fc = face(
         Ctx<double> {
             { &c_, &h_, w_ },
@@ -704,9 +711,9 @@ namespace internal {
     return residual(circle) < residual(line) ? circle : line;
   }
 
-  ABSL_ATTRIBUTE_NOINLINE int SasExact::half_plane(const int a, const int b,
-                                                   const SasFace f,
-                                                   const bool plus) const {
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE int SasExactImpl<kForceExact>::half_plane(
+      const int a, const int b, const SasFace f, const bool plus) const {
     const V3<double> r = reference_ray(c_.col(b) - c_.col(a));
     const Data d { &c_, &h_, w_ };
 
@@ -719,7 +726,7 @@ namespace internal {
         const V3<T> rr = lift<T>(r), qv = sine ? cross(ab.d, rr) : rr;
         return Root<T> { dot(qv, o.p), dot(qv, o.q), o.disc };
       };
-      if (!g_force_exact.load(std::memory_order_relaxed)) {
+      if constexpr (!kForceExact) {
         const int s = sign_root(kernel(Ctx<Fx> { d, -1 }));
         if (s != kUnknown)
           return s;
@@ -735,10 +742,10 @@ namespace internal {
     return along(false) >= 0 ? 0 : 2;
   }
 
-  ABSL_ATTRIBUTE_NOINLINE Sgn SasExact::ccw(const int a, const int b,
-                                            const SasFace fi, const bool plus_i,
-                                            const SasFace fj,
-                                            const bool plus_j) const {
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE Sgn SasExactImpl<kForceExact>::ccw(
+      const int a, const int b, const SasFace fi, const bool plus_i,
+      const SasFace fj, const bool plus_j) const {
     auto kernel = [&](auto ctx) {
       using T = typename decltype(ctx)::Scalar;
       const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b);
@@ -750,13 +757,13 @@ namespace internal {
         dot(cross(oi.p, oj.q), ab.d), dot(cross(oi.q, oj.q), ab.d), oj.disc
       };
     };
-    return decide2({ &c_, &h_, w_ }, kernel);
+    return decide2<kForceExact>({ &c_, &h_, w_ }, kernel);
   }
 
-  ABSL_ATTRIBUTE_NOINLINE Sgn SasExact::antipode(const int a, const int b,
-                                                 const SasFace f,
-                                                 const bool plus,
-                                                 const int c) const {
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE Sgn
+  SasExactImpl<kForceExact>::antipode(const int a, const int b, const SasFace f,
+                                      const bool plus, const int c) const {
     auto kernel = [&](auto ctx) {
       using T = typename decltype(ctx)::Scalar;
       const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b), sc = sph(ctx, c);
@@ -766,18 +773,15 @@ namespace internal {
           ab.g * o.u2 * ac.v - o.u2 * ab.v * dot(ab.d, ac.d) + dot(o.p, ac.d);
       return Root<T> { lin, dot(o.q, ac.d), o.disc };
     };
-    return decide(
+    return decide<kForceExact>(
         {
             &c_, &h_, w_
     },
         kernel, { { a, b, f.a, f.b, f.c, c }, 6 });
   }
 
-  void SasExact::force_exact(const bool on) {
-    g_force_exact.store(on, std::memory_order_relaxed);
-  }
-
-  ABSL_ATTRIBUTE_NOINLINE bool SasExact::selftest() {
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE bool SasExactImpl<kForceExact>::selftest() {
     double x, y;
     GEO::two_sum(1.0, 0x1p-60, x, y);
     if (x != 1.0 || y != 0x1p-60)
@@ -793,5 +797,8 @@ namespace internal {
     const Fx f = (Fx { 1.0, 0.0 } + Fx { 0x1p-60, 0.0 }) - Fx { 1.0, 0.0 };
     return sgn(f) == kUnknown;
   }
+
+  template class SasExactImpl<false>;
+  template class SasExactImpl<true>;
 }  // namespace internal
 }  // namespace nuri
