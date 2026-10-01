@@ -276,6 +276,18 @@ TEST(SasExactTest, HeightsMatchGeogram) {
 
 constexpr Q kQTol = 1e-26;
 
+template <bool kForceExact>
+void expect_offset(const SasExactImpl<kForceExact> &ex, const Ref &ref,
+                   const int a, const int b, const SasFace f, const bool plus,
+                   const double rel) {
+  const QVec y = ref.root(f, plus) - ref.cntr(a, b);
+  const Vector3d want(static_cast<double>(y.x), static_cast<double>(y.y),
+                      static_cast<double>(y.z));
+  const Vector3d got = ex.offset(a, b, f, plus);
+  EXPECT_LT((got - want).norm(), rel * want.norm())
+      << a << b << " face " << f.a << f.b << f.c << " root " << plus;
+}
+
 int expect_root_sign(const Ref &ref, const SasFace f, const bool plus,
                      const int l) {
   return q_sgn(ref.power(l, ref.root(f, plus)), kQTol);
@@ -323,6 +335,14 @@ void check_random_agreement() {
           const QVec qp = ref.root(f, true), qm = ref.root(f, false);
           EXPECT_LT(std::abs(xp[0] - static_cast<double>(qp.x)), 1e-9);
           EXPECT_LT(std::abs(xm[1] - static_cast<double>(qm.y)), 1e-9);
+          for (const auto [ca, cb]: {
+                   std::pair { a, b },
+                    std::pair { b, c },
+                   std::pair { a, c }
+          }) {
+            for (const bool plus: { true, false })
+              expect_offset(s.ex, ref, ca, cb, f, plus, 1e-12);
+          }
 
           for (int l = 0; l < n; ++l) {
             if (l == a || l == b || l == c)
@@ -480,6 +500,41 @@ TEST(SasExactTest, SharedCircle) {
   pts = shared_circle_pts(1, sar);
   sar[1] = std::nextafter(sar[1], 4.0);
   EXPECT_EQ(setup(pts, sar).ex.shared_circle({ 0, 1, 2 }), -1);
+}
+
+/**
+ * A tangent pair under rigid motions: rounding leaves a circle of radius
+ * ~1e-8 whose floating discriminant is noise, yet the offset from the centre
+ * must keep its direction.
+ */
+TEST(SasExactTest, OffsetOnRoundingTinyCircle) {
+  Matrix3Xd base(3, 3);
+  base.col(0) << 0, 0, 0;
+  base.col(1) << 3, 0, 0;
+  base.col(2) << 1.5, 1.5, 0;
+  const ArrayXd sar = ArrayXd::Constant(3, 1.5);
+
+  std::mt19937 rng(5);
+  std::normal_distribution<double> nd;
+  int n_tiny = 0;
+  for (int seed = 0; seed < 64; ++seed) {
+    const Vector3d ax(nd(rng), nd(rng), nd(rng));
+    const Matrix3d rot =
+        AngleAxisd(nd(rng), ax.normalized()).toRotationMatrix();
+    const Vector3d t(nd(rng), nd(rng), nd(rng));
+    const Matrix3Xd pts = (rot * base).colwise() + 3.0 * t;
+    const Fixture<> s = setup(pts, sar);
+    const SasFace f { 0, 1, 2 };
+    if (s.ex.overlap(0, 1) != Sgn::kPos || s.ex.cuts(f) != Sgn::kPos)
+      continue;
+
+    ++n_tiny;
+    const QVec y = s.ref.root(f, true) - s.ref.cntr(0, 1);
+    ASSERT_LT(static_cast<double>(dot(y, y)), 1e-12);
+    for (const bool plus: { true, false })
+      expect_offset(s.ex, s.ref, 0, 1, f, plus, 1e-9);
+  }
+  EXPECT_GT(n_tiny, 5);
 }
 
 TEST(SasExactTest, TangentPairOverlaps) {

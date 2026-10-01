@@ -295,6 +295,13 @@ namespace internal {
      * `cuts(f)` positive.
      */
     std::pair<Vector3d, Vector3d> roots(SasFace f) const;
+    Vector3d root(SasFace f, bool plus) const;
+    /**
+     * `x − cntr` for root `x` of `f` on circle `(a, b)`, in double but to
+     * rounding of its own length: the direction is right on a circle of any
+     * radius. Requires `cuts(f)` non-negative.
+     */
+    Vector3d offset(int a, int b, SasFace f, bool plus) const;
 
     /**
      * Position of root `x` of `f` on circle `(a, b)` relative to the

@@ -243,14 +243,13 @@ namespace internal {
           const int l1 = del.tets(lf, c), l2 = opposite_vertex(del, c2, fv);
           const bool test1 = apex_may_reject(sa, vm, abc, l1),
                      test2 = apex_may_reject(sa, vm, abc, l2);
-          const auto [xp, xm] = ex.roots(face);
           for (const bool plus: { true, false }) {
             if ((test1 && ex.accept(face, plus, l1) != Sgn::kPos)
                 || (test2 && ex.accept(face, plus, l2) != Sgn::kPos))
               continue;
 
             fs.root(plus ? 0 : 1, f) = static_cast<int>(raw.size());
-            raw.push_back({ abc, plus ? xp : xm });
+            raw.push_back({ abc, ex.root(face, plus) });
           }
         }
       }
@@ -452,17 +451,17 @@ namespace internal {
      * ray and at `π`, so the numeric angles are monotone in the exact order.
      */
     void ring_angles(Ring &ring, const SaPrep &sa, const SasExact &ex,
-                     const VertexMap &vm, const SasCircle &c, const Faces &fs,
-                     const SasProbes &probes) {
+                     const VertexMap &vm, const SasCircle &c, const Faces &fs) {
       const int va = vm.v_of_new[c.i], vb = vm.v_of_new[c.j];
       const Vector3d d = sa.pts.col(c.j) - sa.pts.col(c.i);
       ring.e1 =
           d.cross(Vector3d::Unit(SasExact::reference_axis(d))).normalized();
       ring.e2 = c.axis.cross(ring.e1);
       for (RingVertex &rv: ring.verts) {
-        const Vector3d u = probes.pos.col(rv.probe) - c.cntr;
+        const SasFace f = face_of(fs, rv.face);
+        const Vector3d u = ex.offset(va, vb, f, rv.plus);
         const double phi = std::atan2(u.dot(ring.e2), u.dot(ring.e1));
-        rv.cls = ex.half_plane(va, vb, face_of(fs, rv.face), rv.plus);
+        rv.cls = ex.half_plane(va, vb, f, rv.plus);
         switch (rv.cls) {
         case 0:
           rv.phi = 0;
@@ -535,8 +534,7 @@ namespace internal {
      */
     Arcs fan_rings(const SaPrep &sa, const SasDelaunay &del,
                    const VertexMap &vm, const std::vector<SasCircle> &circ,
-                   const Faces &fs, const ArrayXi &pid,
-                   const SasProbes &probes) {
+                   const Faces &fs, const ArrayXi &pid) {
       Arcs out;
       out.off = OffsetTable(sa.g.m());
       Ring ring;
@@ -560,7 +558,7 @@ namespace internal {
           }
           ABSL_DCHECK_EQ(n % 2, 0) << "odd ring on circle " << q;
 
-          ring_angles(ring, sa, del.ex, vm, circ[q], fs, probes);
+          ring_angles(ring, sa, del.ex, vm, circ[q], fs);
           decide_wrap(ring, del.ex, vm, circ[q], fs);
 
           for (int k = 0; k < n; ++k) {
@@ -702,7 +700,7 @@ namespace internal {
     ArrayXi pid;
     SasProbes probes = make_probes(sa, raw, pid);
 
-    Arcs arcs = fan_rings(sa, del, vm, circ, fs, pid, probes);
+    Arcs arcs = fan_rings(sa, del, vm, circ, fs, pid);
     ArrayXd area = sweep_spheres(sa, del, vm, circ, caps, arcs, probes);
     tangents(probes, arcs);
 

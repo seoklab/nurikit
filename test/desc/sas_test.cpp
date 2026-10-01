@@ -994,6 +994,25 @@ TEST(BuildSasTest, ApexTangentAtVertexIndexOrders) {
                        });
 }
 
+/**
+ * Rigid motions of the two tangent fixtures: rounding turns the exact
+ * tangency into a circle of radius ~1e-8 with two real cut points whose
+ * floating positions do not resolve the circle.
+ */
+TEST(BuildSasTest, RoundingTinyCirclesUnderRigidMotion) {
+  ArrayXd sar3;
+  const Matrix3Xd base3 = tangent_through_pts(sar3);
+  const TangentApex t = tangent_apex(0);
+
+  for (int seed = 0; seed < 128; ++seed) {
+    const Matrix3Xd p3 = rigid(base3, seed);
+    expect_sr(solve_rp(p3, sar3, 0.5), p3, sar3);
+
+    const Matrix3Xd p4 = rigid(t.pts, seed);
+    expect_sr(solve(p4, t.sar), p4, t.sar);
+  }
+}
+
 TEST(BuildSasTest, TangentApexUnderRigidMotion) {
   for (const double d: { -5e-7, 0.0, 1e-7, 5e-7, 2e-6 }) {
     for (int seed = -1; seed < 3; ++seed) {
