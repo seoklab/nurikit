@@ -827,7 +827,7 @@ namespace internal {
 
     /**
      * Intersect iff cut, else iff one circle is inside the other's ball; a
-     * sign that stays unknown or ties is delegated to the exact predicates.
+     * sign that stays unknown or ties is delegated to the exact `side`.
      */
     template <class T>
     int disc_decision(const std::array<Root<T>, 3> &r) {
@@ -859,8 +859,7 @@ namespace internal {
     const int r = disc_decision(disc_roots(Ctx<Xp> { d, -1 }, s, j, l));
     if (r != kUnknown)
       return r > 0;
-    return cuts({ s, j, l }) == Sgn::kPos || side(s, j, l) == Sgn::kNeg
-           || side(s, l, j) == Sgn::kNeg;
+    return side(s, j, l) == Sgn::kNeg || side(s, l, j) == Sgn::kNeg;
   }
 
   template <bool kForceExact>
