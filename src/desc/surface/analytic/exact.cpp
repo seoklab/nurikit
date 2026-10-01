@@ -580,6 +580,30 @@ namespace internal {
     return -1;
   }
 
+  /**
+   * Circles `(a, b)` and `(a, c)` coincide iff `u = 0` (collinear centres)
+   * and then `D = −gbb (k vb − vc)² = 0` for `d_c = k d_b` (equal centres).
+   * The middle sphere is `a` iff `gbc < 0`, else the nearer of `b`, `c`.
+   */
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE int
+  SasExactImpl<kForceExact>::shared_circle(const SasFace f) const {
+    const Data d { &c_, &h_, w_ };
+    if constexpr (!kForceExact) {
+      const Face<Fx> fc = face(Ctx<Fx> { d, -1 }, f);
+      const int su = sgn(fc.u2), sd = sgn(fc.disc);
+      if (su == 1 || sd == 1 || sd == -1)
+        return -1;
+    }
+
+    const Face<Xp> fc = face(Ctx<Xp> { d, -1 }, f);
+    if (sgn(fc.u2) != 0 || sgn(fc.disc) != 0)
+      return -1;
+    if (sgn(fc.gbc) < 0)
+      return 0;
+    return sgn(fc.gcc - fc.gbb) > 0 ? 1 : 2;
+  }
+
   template <bool kForceExact>
   ABSL_ATTRIBUTE_NOINLINE Sgn
   SasExactImpl<kForceExact>::cuts(const SasFace f) const {

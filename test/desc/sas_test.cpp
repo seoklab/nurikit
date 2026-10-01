@@ -778,6 +778,55 @@ TEST(BuildSasTest, InternallyTangentBallDropped) {
   }
 }
 
+/**
+ * Three spheres on the z axis through one circle; the one in the middle has
+ * no surface and is dropped in preparation whatever its index.
+ */
+Matrix3Xd shared_circle_pts(const int mid, ArrayXd &sar) {
+  constexpr std::array<double, 3> r { 3.5, 3.25, 3.375 },
+      z { -1.421875, 0.578125, 1.078125 };
+  Matrix3Xd pts(3, 3);
+  sar.resize(3);
+  for (int q = 0; q < 3; ++q) {
+    const int src = (q + 1 - mid + 3) % 3;
+    pts.col(q) << 0, 0, z[src];
+    sar[q] = r[src];
+  }
+  return pts;
+}
+
+TEST(BuildSasTest, SharedCircleMiddleDropped) {
+  for (int mid = 0; mid < 3; ++mid) {
+    ArrayXd sar;
+    const Matrix3Xd pts = shared_circle_pts(mid, sar);
+    const Sas sas = solve(pts, sar);
+    ASSERT_EQ(sas.sa.order.size(), 2);
+    EXPECT_TRUE((sas.sa.order != mid).all());
+    EXPECT_EQ(sas.geo.probes.pos.cols(), 0);
+    expect_sr(sas, pts, sar);
+  }
+}
+
+TEST(BuildSasTest, NearSharedCircleKept) {
+  for (const double shift: { 1e-9, -1e-9 }) {
+    ArrayXd sar;
+    Matrix3Xd pts = shared_circle_pts(1, sar);
+    pts(2, 1) += shift;
+    const Sas sas = solve(pts, sar);
+    ASSERT_EQ(sas.sa.order.size(), 3);
+    expect_sr(sas, pts, sar);
+  }
+}
+
+TEST(BuildSasTest, SharedCircleUnderRigidMotion) {
+  for (int seed = 0; seed < 8; ++seed) {
+    ArrayXd sar;
+    const Matrix3Xd pts = rigid(shared_circle_pts(seed % 3, sar), seed);
+    const Sas sas = solve(pts, sar);
+    expect_sr(sas, pts, sar);
+  }
+}
+
 TEST(BuildSasTest, ExactlyTangentPair) {
   Matrix3Xd pts(3, 2);
   pts.col(0) << 0, 0, 0;
