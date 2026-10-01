@@ -695,21 +695,24 @@ TEST(BuildSesTest, SpindleAxisCoincidentRoots) {
  */
 TEST(BuildSesTest, MaskedFacesMatchFull) {
   const RandomCluster c = random_cluster(11, 12);
-  ArrayXb active(12);
-  for (int i = 0; i < 12; ++i)
-    active[i] = i % 2 == 0;
-
   const Ses full = solve(c.pts, c.sar);
-  const Ses part = solve(c.pts, c.sar, active);
-  ASSERT_GT(part.geo.probes.n_active, 0);
-  ASSERT_LT(part.geo.probes.n_active, full.geo.probes.n_active);
 
-  for (int p = 0; p < part.geo.probes.n_active; ++p) {
-    const int q = probe_at(full.geo, part.geo.probes.pos.col(p));
-    ASSERT_GE(q, 0) << "probe " << p;
-    ASSERT_LT(q, full.geo.probes.n_active);
-    EXPECT_NEAR(part.ses.face_area[p], full.ses.face_area[q], 1e-12)
-        << "probe " << p;
+  for (const int stride: { 2, 6 }) {
+    ArrayXb active(12);
+    for (int i = 0; i < 12; ++i)
+      active[i] = i % stride == 0;
+
+    const Ses part = solve(c.pts, c.sar, active);
+    ASSERT_GT(part.geo.probes.n_active, 0);
+    ASSERT_LT(part.geo.probes.n_active, full.geo.probes.n_active);
+
+    for (int p = 0; p < part.geo.probes.n_active; ++p) {
+      const int q = probe_at(full.geo, part.geo.probes.pos.col(p));
+      ASSERT_GE(q, 0) << "stride " << stride << " probe " << p;
+      ASSERT_LT(q, full.geo.probes.n_active);
+      EXPECT_NEAR(part.ses.face_area[p], full.ses.face_area[q], 1e-12)
+          << "stride " << stride << " probe " << p;
+    }
   }
 }
 }  // namespace
