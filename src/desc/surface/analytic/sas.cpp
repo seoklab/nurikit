@@ -15,6 +15,7 @@
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
+#include "ring.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
 #include "nuri/utils.h"
@@ -22,7 +23,6 @@
 namespace nuri {
 namespace internal {
   namespace {
-    using constants::kTwoPi;
     using Array3Xi = E::Array<int, 3, E::Dynamic>;
 
     std::vector<SasCircle> circles(const SaPrep &sa) {
@@ -293,14 +293,8 @@ namespace internal {
      */
     struct Arcs {
       std::vector<SasArc> arcs;
-      std::vector<std::pair<Vector3d, Vector3d>> tangents;
+      RingTangents tangents;
       OffsetTable off;
-    };
-
-    struct RingVertex {
-      int probe, face, cls;
-      bool plus, leave;
-      double phi;
     };
 
     int local_index(const Array4i &tv, const int v) {
@@ -385,18 +379,6 @@ namespace internal {
       int va_, vb_, t0_, t_, ld_, lc_, guard_;
     };
 
-    struct Ring {
-      std::vector<RingVertex> verts;
-      std::vector<int> fan;
-      std::vector<bool> dec, coinc;
-      bool cut_any, inside_any;
-      Vector3d e1, e2;
-    };
-
-    Vector3d ring_tangent(const Ring &ring, const double psi) {
-      return -std::sin(psi) * ring.e1 + std::cos(psi) * ring.e2;
-    }
-
     BallTriple face_of(const Faces &fs, const int f) {
       const Array3i fv = fs.verts.col(f);
       return { fv[0], fv[1], fv[2] };
@@ -405,16 +387,18 @@ namespace internal {
     /**
      * Walk the cell fan around edge `(a, b)` counter-clockwise (Lemma F);
      * each face `(a, b, c)` with a sphere `c` overlapping both contributes
-     * its accepted roots as (enter ball `c`, leave ball `c`).
+     * its accepted roots as (enter ball `c`, leave ball `c`). `fan` collects
+     * the spheres `c`.
      */
-    void collect_ring(Ring &ring, const SaPrep &sa, const SasDelaunay &del,
-                      const VertexMap &vm, const Faces &fs, const ArrayXi &pid,
-                      const int i, const int j) {
+    void collect_ring(Ring &ring, std::vector<int> &fan, const SaPrep &sa,
+                      const SasDelaunay &del, const VertexMap &vm,
+                      const Faces &fs, const ArrayXi &pid, const int i,
+                      const int j) {
       const int va = vm.v_of_new[i], vb = vm.v_of_new[j],
                 n_sphere_v = del.nbrs.n();
       ring.verts.clear();
-      ring.fan.clear();
       ring.cut_any = ring.inside_any = false;
+      fan.clear();
 
       FanWalker walk(del, va, vb);
       do {
@@ -428,7 +412,7 @@ namespace internal {
 
         const int f = walk.face();
         ABSL_DCHECK_GE(fs.verts(0, f), 0);
-        ring.fan.push_back(vc);
+        fan.push_back(vc);
         if (!fs.cut[f]) {
           ring.inside_any |= del.ex.side(va, vb, vc) == Sgn::kNeg;
           continue;
@@ -446,93 +430,47 @@ namespace internal {
     }
 
     /**
-     * Angle of every vertex in `[0, 2π]` from the frame's reference ray, with
-     * the exact half-plane class overriding the rounding of `atan2` at the
-     * ray and at `π`, so the numeric angles are monotone in the exact order.
+     * Exact queries of `ring.h` on circle `(va, vb)` of the triangulation;
+     * the antipode is accessible iff it is outside every fan sphere.
      */
-    void ring_angles(Ring &ring, const SaPrep &sa, const BallExact &ex,
-                     const VertexMap &vm, const SasCircle &c, const Faces &fs) {
-      const int va = vm.v_of_new[c.i], vb = vm.v_of_new[c.j];
-      const Vector3d d = sa.pts.col(c.j) - sa.pts.col(c.i);
-      ring.e1 =
-          d.cross(Vector3d::Unit(BallExact::reference_axis(d))).normalized();
-      ring.e2 = c.axis.cross(ring.e1);
-      for (RingVertex &rv: ring.verts) {
-        const BallTriple f = face_of(fs, rv.face);
-        const Vector3d u = ex.offset(va, vb, f, rv.plus);
-        const double phi = std::atan2(u.dot(ring.e2), u.dot(ring.e1));
-        rv.cls = ex.half_plane(va, vb, f, rv.plus);
-        switch (rv.cls) {
-        case 0:
-          rv.phi = 0;
-          break;
-        case 1:
-          rv.phi = std::abs(phi);
-          break;
-        case 2:
-          rv.phi = constants::kPi;
-          break;
-        default:
-          rv.phi = kTwoPi - std::abs(phi);
-          break;
-        }
+    class SasRingOps {
+    public:
+      SasRingOps(const BallExact &ex, const Faces &fs,
+                 const std::vector<int> &fan, int va, int vb)
+          : ex_(&ex), fs_(&fs), fan_(&fan), va_(va), vb_(vb) { }
+
+      Vector3d offset(const RingVertex &v) const {
+        return ex_->offset(va_, vb_, face_of(*fs_, v.face), v.plus);
       }
-    }
+
+      int half_plane(const RingVertex &v) const {
+        return ex_->half_plane(va_, vb_, face_of(*fs_, v.face), v.plus);
+      }
+
+      Sgn ccw(const RingVertex &p, const RingVertex &r) const {
+        return ex_->ccw(va_, vb_, face_of(*fs_, p.face), p.plus,
+                        face_of(*fs_, r.face), r.plus);
+      }
+
+      bool antipode_accessible(const RingVertex &v) const {
+        const BallTriple f = face_of(*fs_, v.face);
+        bool accessible = true;
+        for (const int vc: *fan_)
+          accessible &= ex_->antipode(va_, vb_, f, v.plus, vc) == Sgn::kPos;
+        return accessible;
+      }
+
+    private:
+      const BallExact *ex_;
+      const Faces *fs_;
+      const std::vector<int> *fan_;
+      int va_, vb_;
+    };
 
     /**
-     * Which consecutive pair's arc contains the reference ray (its `dphi`
-     * gets `+2π`) and which pairs coincide. A ring without any decrease is
-     * a single-point window: the `2π` goes to an arc of the accessibility of
-     * the antipode.
-     */
-    void decide_wrap(Ring &ring, const BallExact &ex, const VertexMap &vm,
-                     const SasCircle &c, const Faces &fs) {
-      const int va = vm.v_of_new[c.i], vb = vm.v_of_new[c.j],
-                n = static_cast<int>(ring.verts.size());
-      ring.dec.assign(n, false);
-      ring.coinc.assign(n, false);
-
-      int n_dec = 0;
-      for (int k = 0; k < n; ++k) {
-        const RingVertex &p = ring.verts[k], &r = ring.verts[(k + 1) % n];
-        ABSL_DCHECK_NE(p.leave, r.leave) << "ring does not alternate";
-        if (p.cls != r.cls) {
-          ring.dec[k] = r.cls < p.cls;
-        } else if (p.cls == 0 || p.cls == 2) {
-          ring.coinc[k] = true;
-        } else {
-          const Sgn s = ex.ccw(va, vb, face_of(fs, p.face), p.plus,
-                               face_of(fs, r.face), r.plus);
-          ring.coinc[k] = s == Sgn::kZero;
-          ring.dec[k] = s == Sgn::kNeg;
-        }
-        n_dec += static_cast<int>(ring.dec[k]);
-      }
-      if (n_dec == 1)
-        return;
-      ABSL_DCHECK_EQ(n_dec, 0) << "ring wraps twice";
-
-      const RingVertex &r0 = ring.verts[0];
-      bool accessible = true;
-      for (const int vc: ring.fan) {
-        accessible &= ex.antipode(va, vb, face_of(fs, r0.face), r0.plus, vc)
-                      == Sgn::kPos;
-      }
-      for (int k = 0; k < n; ++k) {
-        if (ring.verts[k].leave == accessible) {
-          ring.dec[k] = true;
-          ring.coinc[k] = false;
-          return;
-        }
-      }
-    }
-
-    /**
-     * Accessible arcs of every circle with caps, grouped by circle: from each
-     * leaving vertex to the next vertex; an empty ring is an accessible full
-     * circle iff no fan face cuts or contains the circle. Consecutive ring
-     * vertices that coincide exactly or within `probe_merge_tol` are joined
-     * in `uf`.
+     * Accessible arcs of every circle with caps, grouped by circle.
+     * Consecutive ring vertices that coincide exactly or within
+     * `probe_merge_tol` are joined in `uf`.
      */
     Arcs fan_rings(const SaPrep &sa, const SasDelaunay &del,
                    const VertexMap &vm, const std::vector<SasCircle> &circ,
@@ -542,50 +480,38 @@ namespace internal {
       Arcs out;
       out.off = OffsetTable(sa.g.m());
       Ring ring;
+      std::vector<int> fan;
 
       for (int i = 0; i < sa.n_enum; ++i) {
         for (auto it = sa.g.begin(i), ei = sa.g.end(i); it < ei; ++it) {
           const int j = *it, q = sa.g.eid(it);
           out.off.off()[q] = static_cast<int>(out.arcs.size());
 
-          if (!has_edge(del, vm.v_of_new[i], vm.v_of_new[j]))
+          const int va = vm.v_of_new[i], vb = vm.v_of_new[j];
+          if (!has_edge(del, va, vb))
             continue;
 
-          collect_ring(ring, sa, del, vm, fs, pid, i, j);
+          collect_ring(ring, fan, sa, del, vm, fs, pid, i, j);
           const int n = static_cast<int>(ring.verts.size());
-          if (n == 0) {
-            if (!ring.cut_any && !ring.inside_any) {
-              out.arcs.push_back({ 0.0, kTwoPi, q, -1, -1 });
-              out.tangents.emplace_back(Vector3d::Zero(), Vector3d::Zero());
+          if (n > 0) {
+            ABSL_DCHECK_EQ(n % 2, 0) << "odd ring on circle " << q;
+
+            const SasRingOps ops(del.ex, fs, fan, va, vb);
+            ring_frame(ring, sa.pts.col(j) - sa.pts.col(i), circ[q].axis);
+            ring_angles(ring, ops);
+            decide_wrap(ring, ops);
+
+            for (int k = 0; k < n; ++k) {
+              const RingVertex &p = ring.verts[k], &r = ring.verts[(k + 1) % n];
+              if (ring.coinc[k]
+                  || (probes.pos.col(p.vertex) - probes.pos.col(r.vertex))
+                             .squaredNorm()
+                         <= tau2) {
+                uf.merge(p.vertex, r.vertex);
+              }
             }
-            continue;
           }
-          ABSL_DCHECK_EQ(n % 2, 0) << "odd ring on circle " << q;
-
-          ring_angles(ring, sa, del.ex, vm, circ[q], fs);
-          decide_wrap(ring, del.ex, vm, circ[q], fs);
-
-          for (int k = 0; k < n; ++k) {
-            const RingVertex &p = ring.verts[k], &r = ring.verts[(k + 1) % n];
-            if (ring.coinc[k]
-                || (probes.pos.col(p.probe) - probes.pos.col(r.probe))
-                           .squaredNorm()
-                       <= tau2) {
-              uf.merge(p.probe, r.probe);
-            }
-            if (!p.leave)
-              continue;
-
-            double dphi = 0;
-            if (!ring.coinc[k]) {
-              dphi =
-                  nuri::max(r.phi - p.phi + (ring.dec[k] ? kTwoPi : 0.0), 0.0);
-            }
-            const double phi = p.phi > constants::kPi ? p.phi - kTwoPi : p.phi;
-            out.arcs.push_back({ phi, dphi, q, p.probe, r.probe });
-            out.tangents.emplace_back(ring_tangent(ring, p.phi),
-                                      ring_tangent(ring, r.phi));
-          }
+          emit_arcs(ring, q, out.arcs, out.tangents);
         }
       }
 
