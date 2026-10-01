@@ -173,19 +173,17 @@ namespace internal {
      * Candidate pairs among kept spheres that overlap exactly for the
      * heights the lift will hand to the triangulation; a tangency counts.
      */
-    std::pair<CSR, ArrayXd> exact_overlaps(const Matrix3Xd &pts,
-                                           const ArrayXd &t, const double wmax,
+    std::pair<CSR, ArrayXd> exact_overlaps(const SasExact &ex,
                                            const ArrayXi &keep,
                                            const ArrayXi &inear,
                                            const ArrayXi &jnear) {
+      const Matrix3Xd &pts = ex.centers();
       const int m = static_cast<int>(inear.size());
       ArrayXi li(m), lj(m);
       int q = 0;
       for (int k = 0; k < m; ++k) {
         const int i = inear[k], j = jnear[k];
-        if (keep[i] == 0 || keep[j] == 0
-            || SasExact::overlap(pts.col(i), t[i], pts.col(j), t[j], wmax)
-                   != Sgn::kPos)
+        if (keep[i] == 0 || keep[j] == 0 || ex.overlap(i, j) != Sgn::kPos)
           continue;
 
         li[q] = i;
@@ -263,15 +261,17 @@ namespace internal {
       return std::nullopt;
     }
 
-    ArrayXd sar2 = sar.square();
+    const ArrayXd sar2 = sar.square();
+    const double wmax = rmax * rmax;
+    const ArrayXd t = (wmax - sar2).max(0.0).sqrt();
+    Matrix4Xd lifted(4, sar.size());
+    lifted.topRows(3) = pts;
+    lifted.row(3) = t.transpose();
+    const SasExact ex = SasExact::make(lifted, wmax);
+
     auto [g0, dover, inear, jnear, keep] = find_near_pairs(pts, sar, rmax);
     drop_shared_circle_middles(keep, g0, dover, pts, sar2);
-
-    const double wmax = keep.cast<bool>().select(sar2, 0.0).maxCoeff();
-    ArrayXd t(sar.size());
-    for (int i = 0; i < t.size(); ++i)
-      t[i] = std::sqrt(nuri::max(wmax - sar2[i], 0.0));
-    auto [g, d] = exact_overlaps(pts, t, wmax, keep, inear, jnear);
+    auto [g, d] = exact_overlaps(ex, keep, inear, jnear);
 
     auto [order, off] = rank_atoms(keep, inear, jnear, active);
     return compact(pts, sar, t, wmax, g, d, std::move(order), off, keep);

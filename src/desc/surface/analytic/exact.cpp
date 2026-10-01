@@ -530,19 +530,6 @@ namespace internal {
   }
 
   template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE Sgn SasExactImpl<kForceExact>::overlap(
-      const Vector3d &ca, const double ta, const Vector3d &cb, const double tb,
-      const double wmax) {
-    Matrix3Xd c(3, 2);
-    c.col(0) = ca;
-    c.col(1) = cb;
-    ArrayXd h(2);
-    h[0] = geogram_height(ca[0], ca[1], ca[2], ta);
-    h[1] = geogram_height(cb[0], cb[1], cb[2], tb);
-    return overlap_impl<kForceExact>({ &c, &h, wmax }, 0, 1);
-  }
-
-  template <bool kForceExact>
   ABSL_ATTRIBUTE_NOINLINE double
   SasExactImpl<kForceExact>::rho2(const int i) const {
     const double cc =

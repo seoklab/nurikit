@@ -269,13 +269,8 @@ void check_random_agreement() {
     for (int a = 0; a < n; ++a) {
       for (int b = a + 1; b < n; ++b) {
         const int ov = q_sgn(ref.overlap(a, b), kQTol);
-        if (ov != 0) {
+        if (ov != 0)
           EXPECT_EQ(static_cast<int>(s.ex.overlap(a, b)), ov);
-          EXPECT_EQ(static_cast<int>(SasExactImpl<kForceExact>::overlap(
-                        pts.col(a), s.lifted(3, a), pts.col(b), s.lifted(3, b),
-                        s.wmax)),
-                    ov);
-        }
         for (int c = b + 1; c < n; ++c) {
           const SasFace f { a, b, c };
           const Ref::Face rf = ref.face(f);
@@ -398,9 +393,6 @@ TEST(SasExactTest, TangentPairOverlaps) {
   const Fixture<> s = setup(pts, sar);
 
   EXPECT_EQ(s.ex.overlap(0, 1), Sgn::kPos);
-  EXPECT_EQ(SasExact::overlap(pts.col(0), s.lifted(3, 0), pts.col(1),
-                              s.lifted(3, 1), s.wmax),
-            Sgn::kPos);
   // sphere 2 passes exactly through the tangency point (1.5, 0, 0)
   const SasFace f { 0, 1, 2 };
   const int want = perturbed_sign(s.ref, { 0, 1, 2 },
