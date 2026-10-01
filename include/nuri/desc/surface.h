@@ -51,6 +51,11 @@ extern ArrayXd shrake_rupley_sasa(
 namespace internal {
   constexpr double kSurfaceLengthEps = 1e-6;
   /**
+   * The near, contained and shared-circle bands are supersets of the exact
+   * sets only while `ulp(|c|^2)` stays far below `kSurfaceLengthEps`.
+   */
+  constexpr double kSurfaceMaxCoord = 1e4;
+  /**
    * Rounding allowance on dart angles (atan2 of unit vectors) for the reflex
    * check of `ArrangementSolver::walk`; no corner value depends on it.
    */

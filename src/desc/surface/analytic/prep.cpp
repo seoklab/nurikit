@@ -255,6 +255,15 @@ namespace internal {
       ABSL_LOG(ERROR) << "Probe radius must be positive";
       return std::nullopt;
     }
+    if (!pts.allFinite() || !sar.allFinite()) {
+      ABSL_LOG(ERROR) << "Coordinates and radii must be finite";
+      return std::nullopt;
+    }
+    if (pts.cwiseAbs().maxCoeff() > kSurfaceMaxCoord) {
+      ABSL_LOG(ERROR) << "Coordinates must lie within " << kSurfaceMaxCoord
+                      << " of the origin";
+      return std::nullopt;
+    }
 
     const double rmin = sar.minCoeff(), rmax = sar.maxCoeff();
     if (rmin * rmin < 2.0 * rp * rp + 2 * rmax * kSurfaceLengthEps) {
