@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <optional>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <absl/strings/str_cat.h>
@@ -51,8 +52,14 @@ py::dict csr_dict(const internal::CSR &csr) {
   return d;
 }
 
-py::dict sas_geometry(py::handle py_pts, py::handle py_radii, double rp,
-                      py::handle py_active) {
+struct SasResult {
+  internal::SaPrep sa;
+  internal::SasGeometry geo;
+};
+
+template <class F>
+SasResult compute_sas(py::handle py_pts, py::handle py_radii, double rp,
+                      py::handle py_active, const F &then) {
   auto pts = py_array_cast<3>(py_pts);
   auto radii = py_array_cast<E::Dynamic, 1>(py_radii);
   const int n = static_cast<int>(radii.eigen().size());
@@ -84,20 +91,26 @@ py::dict sas_geometry(py::handle py_pts, py::handle py_radii, double rp,
     if (sa) {
       internal::SasDelaunay del = internal::triangulate(*sa);
       geo = internal::build_sas(*sa, del);
+      then(*sa, geo);
     }
   }
   if (!sa)
     throw py::value_error("preparation failed; see log for details");
 
+  return { std::move(*sa), std::move(geo) };
+}
+
+py::dict sas_dict(const internal::SaPrep &sa,
+                  const internal::SasGeometry &geo) {
   py::dict d;
-  d["pts"] = eigen_as_numpy(sa->pts);
-  d["sar"] = eigen_as_numpy(sa->sar);
-  d["order"] = eigen_as_numpy(sa->order);
-  d["g"] = csr_dict(sa->g);
-  d["d"] = eigen_as_numpy(sa->d);
-  d["n_active"] = sa->n_active;
-  d["n_solve"] = sa->n_solve;
-  d["n_enum"] = sa->n_enum;
+  d["pts"] = eigen_as_numpy(sa.pts);
+  d["sar"] = eigen_as_numpy(sa.sar);
+  d["order"] = eigen_as_numpy(sa.order);
+  d["g"] = csr_dict(sa.g);
+  d["d"] = eigen_as_numpy(sa.d);
+  d["n_active"] = sa.n_active;
+  d["n_solve"] = sa.n_solve;
+  d["n_enum"] = sa.n_enum;
 
   py::dict circ;
   circ["i"] = collect(geo.circles, [](const auto &c) { return c.i; });
@@ -136,12 +149,51 @@ py::dict sas_geometry(py::handle py_pts, py::handle py_radii, double rp,
   return d;
 }
 
+py::dict ses_dict(const internal::SesGeometry &ses) {
+  py::dict d;
+  d["convex_area"] = eigen_as_numpy(ses.convex_area);
+  d["saddle_beta"] = eigen_as_numpy(ses.saddle_beta);
+  d["saddle_integral"] = eigen_as_numpy(ses.saddle_integral);
+  d["saddle_area"] = eigen_as_numpy(ses.saddle_area);
+  d["face_area"] = eigen_as_numpy(ses.face_area);
+  d["face_off"] = eigen_as_numpy(ses.face_off.off());
+  d["face_axis"] = eigen_as_numpy(ses.face_axis);
+  d["face_cosa"] = eigen_as_numpy(ses.face_cosa);
+  d["face_sina"] = eigen_as_numpy(ses.face_sina);
+  return d;
+}
+
+py::dict sas_geometry(py::handle py_pts, py::handle py_radii, double rp,
+                      py::handle py_active) {
+  SasResult res = compute_sas(py_pts, py_radii, rp, py_active,
+                              [](const auto &, const auto &) { });
+  return sas_dict(res.sa, res.geo);
+}
+
+py::dict ses_geometry(py::handle py_pts, py::handle py_radii, double rp,
+                      py::handle py_active) {
+  internal::SesGeometry ses;
+  SasResult res = compute_sas(py_pts, py_radii, rp, py_active,
+                              [&](const internal::SaPrep &sa,
+                                  const internal::SasGeometry &geo) {
+                                ses = internal::build_ses(sa, geo, rp);
+                              });
+  py::dict d = sas_dict(res.sa, res.geo);
+  d["ses"] = ses_dict(ses);
+  return d;
+}
+
 NURI_PYTHON_MODULE(m) {
   m.def("_sas_geometry", &sas_geometry, py::arg("pts"), py::arg("radii"),
         py::arg("rp"), py::arg("active") = py::none(), R"doc(
 Experimental: analytic SAS geometry of a set of spheres. Returns a dict of
 flat arrays mirroring the C++ internal structures; atoms are reordered by
 ``order`` (new to old).
+)doc");
+
+  m.def("_ses_geometry", &ses_geometry, py::arg("pts"), py::arg("radii"),
+        py::arg("rp"), py::arg("active") = py::none(), R"doc(
+Experimental: ``_sas_geometry`` plus the SES patch areas under ``"ses"``.
 )doc");
 
   m.def(
