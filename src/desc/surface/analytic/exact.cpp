@@ -475,8 +475,9 @@ namespace internal {
   namespace {
     /**
      * `T = ρ_a² + ρ_b² − d²`: overlap iff `T ≥ 0` or `4 ρ_a² ρ_b² − T² > 0`.
-     * A tangency is a tie that the perturbation resolves to an overlap: both
-     * radii grow.
+     * The second kernel is `4 G (ρ_a² − v_b² / G)`, the circle radius; an
+     * exact zero is a tangency, a circle of zero length, and is reported so
+     * the pair carries no cap.
      */
     template <bool kForceExact>
     Sgn overlap_impl(const Data &d, const int a, const int b) {
@@ -507,11 +508,7 @@ namespace internal {
 
       if (sgn(stage(Ctx<Xp> { d, -1 }).first) >= 0)
         return Sgn::kPos;
-      return decide<kForceExact>(d, kernel,
-                                 {
-                                     { a, b },
-                                     2
-      });
+      return static_cast<Sgn>(sign_root(kernel(Ctx<Xp> { d, -1 })));
     }
   }  // namespace
 

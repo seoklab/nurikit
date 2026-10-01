@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <numeric>
 #include <optional>
 #include <random>
 #include <utility>
@@ -467,15 +468,19 @@ double sr_tol(const double radius, const int n) {
   return 3 * 4 * kPi * radius * radius * 0.5 / std::sqrt(n);
 }
 
-void expect_sr(const Sas &sas, const Matrix3Xd &pts, const ArrayXd &sar,
-               const int n = 20000) {
-  const ArrayXd sr = sr_sasa_impl(pts, sar, n, SrSasaMethod::kDirect);
+void expect_areas(const Sas &sas, const ArrayXd &sr, const ArrayXd &sar,
+                  const int n) {
   for (int p = 0; p < sas.sa.n_solve; ++p) {
     const int o = sas.sa.order[p];
     EXPECT_NEAR(sas.geo.area[p], sr[o], sr_tol(sar[o], n)) << "atom " << o;
   }
   for (int p = 0; p < sas.geo.probes.pos.cols(); ++p)
     EXPECT_EQ(sas.geo.probes.atoms.degree(p), 3);
+}
+
+void expect_sr(const Sas &sas, const Matrix3Xd &pts, const ArrayXd &sar,
+               const int n = 20000) {
+  expect_areas(sas, sr_sasa_impl(pts, sar, n, SrSasaMethod::kDirect), sar, n);
 }
 
 Sas solve_rp(const Matrix3Xd &pts, const ArrayXd &sar, const double rp) {
@@ -869,6 +874,124 @@ TEST(BuildSasTest, ExactlyTangentPair) {
   EXPECT_EQ(geo.probes.pos.cols(), 0);
   for (int p = 0; p < 2; ++p)
     EXPECT_NEAR(geo.area[p], 4 * kPi * 1.5 * 1.5, 1e-9);
+}
+
+/**
+ * Every relabelling of the atoms: the result must not depend on the index
+ * order the perturbation uses.
+ */
+template <class F>
+void for_each_index_order(const Matrix3Xd &pts, const ArrayXd &sar,
+                          const F &f) {
+  const int n = static_cast<int>(sar.size());
+  std::vector<int> order(n);
+  std::iota(order.begin(), order.end(), 0);
+  do {
+    Matrix3Xd p(3, n);
+    ArrayXd r(n);
+    for (int i = 0; i < n; ++i) {
+      p.col(i) = pts.col(order[i]);
+      r[i] = sar[order[i]];
+    }
+    f(p, r, order);
+  } while (std::next_permutation(order.begin(), order.end()));
+}
+
+/**
+ * Two exactly tangent spheres and a third through the tangency point, the
+ * circle of zero length with two coincident cut points. Over every axis
+ * permutation, sign flip and index order: the tangent pair carries no cap,
+ * the third sphere sees two tangent discs, no probe sits at the point.
+ */
+Matrix3Xd tangent_through_pts(ArrayXd &sar) {
+  Matrix3Xd pts(3, 3);
+  pts.col(0) << 0, 0, 0;
+  pts.col(1) << 3, 0, 0;
+  pts.col(2) << 1.5, 1.5, 0;
+  sar = ArrayXd::Constant(3, 1.5);
+  return pts;
+}
+
+template <class F>
+void for_each_axis_variant(const Matrix3Xd &pts, const F &f) {
+  std::array<int, 3> perm { 0, 1, 2 };
+  do {
+    for (int signs = 0; signs < 8; ++signs) {
+      Matrix3Xd p(3, pts.cols());
+      for (int k = 0; k < 3; ++k)
+        p.row(k) = ((signs >> k & 1) != 0 ? -1.0 : 1.0) * pts.row(perm[k]);
+      f(p);
+    }
+  } while (std::next_permutation(perm.begin(), perm.end()));
+}
+
+TEST(BuildSasTest, TangentPairThirdSphereThroughPoint) {
+  ArrayXd sar;
+  const Matrix3Xd base = tangent_through_pts(sar);
+  const double rp = 0.5;
+  int n_variants = 0;
+
+  for_each_axis_variant(base, [&](const Matrix3Xd &pts) {
+    const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
+    for_each_index_order(pts, sar,
+                         [&](const Matrix3Xd &p, const ArrayXd &r,
+                             const std::vector<int> &order) {
+                           const Sas sas = solve_rp(p, r, rp);
+                           ASSERT_EQ(sas.sa.order.size(), 3);
+                           EXPECT_EQ(sas.geo.probes.pos.cols(), 0);
+                           ArrayXd sr_p(3);
+                           for (int i = 0; i < 3; ++i)
+                             sr_p[i] = sr[order[i]];
+                           expect_areas(sas, sr_p, r, 20000);
+                           ++n_variants;
+                         });
+  });
+  EXPECT_EQ(n_variants, 288);
+}
+
+/**
+ * The tangent pair plus two spheres through the tangency point: a 4-fold
+ * point where the perturbation would reject the cut points of the two real
+ * circles against the tangent apex, the limit accepts them.
+ */
+TEST(BuildSasTest, TangentPairFourFoldPoint) {
+  ArrayXd sar3;
+  const Matrix3Xd base3 = tangent_through_pts(sar3);
+  Matrix3Xd base(3, 4);
+  base.leftCols(3) = base3;
+  base.col(3) << 1.5, 0, 1.5;
+  const ArrayXd sar = ArrayXd::Constant(4, 1.5);
+  const Vector3d x(1.5, 0, 0);
+  const ArrayXd sr = sr_sasa_impl(base, sar, 20000, SrSasaMethod::kDirect);
+
+  for_each_index_order(base, sar,
+                       [&](const Matrix3Xd &p, const ArrayXd &r,
+                           const std::vector<int> &order) {
+                         const Sas sas = solve_rp(p, r, 0.5);
+                         ASSERT_EQ(sas.sa.order.size(), 4);
+                         EXPECT_EQ(probes_at(sas.geo, x), 2);
+                         ArrayXd sr_p(4);
+                         for (int i = 0; i < 4; ++i)
+                           sr_p[i] = sr[order[i]];
+                         expect_areas(sas, sr_p, r, 20000);
+                       });
+}
+
+TEST(BuildSasTest, ApexTangentAtVertexIndexOrders) {
+  const TangentApex t = tangent_apex(0);
+  const ArrayXd sr = sr_sasa_impl(t.pts, t.sar, 20000, SrSasaMethod::kDirect);
+
+  for_each_index_order(t.pts, t.sar,
+                       [&](const Matrix3Xd &p, const ArrayXd &r,
+                           const std::vector<int> &order) {
+                         const Sas sas = solve(p, r);
+                         EXPECT_EQ(sas.geo.probes.pos.cols(), 4);
+                         EXPECT_EQ(probes_at(sas.geo, t.x), 2);
+                         ArrayXd sr_p(4);
+                         for (int i = 0; i < 4; ++i)
+                           sr_p[i] = sr[order[i]];
+                         expect_areas(sas, sr_p, r, 20000);
+                       });
 }
 
 TEST(BuildSasTest, TangentApexUnderRigidMotion) {

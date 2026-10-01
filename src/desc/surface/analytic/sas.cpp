@@ -196,10 +196,22 @@ namespace internal {
     }
 
     /**
+     * An apex that overlaps none of the face spheres, or is a bounding point
+     * (Lemma 0), has non-negative power on their surfaces, zero only at a
+     * tangency point, and never rejects a root.
+     */
+    bool apex_may_reject(const SaPrep &sa, const VertexMap &vm,
+                         const Array3i &abc, const int lv) {
+      const int l = vm.new_of_v[lv];
+      return l >= 0 && std::all_of(abc.begin(), abc.end(), [&](int s) {
+               return pair_id_unordered(sa.g, s, l) >= 0;
+             });
+    }
+
+    /**
      * Every face of a finite cell once, from the lower cell. A cut point is a
      * probe iff its power against both apexes is non-negative, decided
-     * exactly for the perturbed weights (Theorem 1); a bounding apex never
-     * rejects (Lemma 0).
+     * exactly for the perturbed weights (Theorem 1).
      */
     Faces accept_faces(const SaPrep &sa, const SasDelaunay &del,
                        const VertexMap &vm, std::vector<RawProbe> &raw) {
@@ -229,10 +241,12 @@ namespace internal {
           fs.cut[f] = true;
 
           const int l1 = del.tets(lf, c), l2 = opposite_vertex(del, c2, fv);
+          const bool test1 = apex_may_reject(sa, vm, abc, l1),
+                     test2 = apex_may_reject(sa, vm, abc, l2);
           const auto [xp, xm] = ex.roots(face);
           for (const bool plus: { true, false }) {
-            if (ex.accept(face, plus, l1) != Sgn::kPos
-                || ex.accept(face, plus, l2) != Sgn::kPos)
+            if ((test1 && ex.accept(face, plus, l1) != Sgn::kPos)
+                || (test2 && ex.accept(face, plus, l2) != Sgn::kPos))
               continue;
 
             fs.root(plus ? 0 : 1, f) = static_cast<int>(raw.size());
@@ -635,8 +649,9 @@ namespace internal {
 
         const int vs = vm.v_of_new[s];
         area[s] = solver.solve([&](int j, int l) {
-          return ex.discs_intersect(vs, vm.v_of_new[partner[j]],
-                                    vm.v_of_new[partner[l]]);
+          return pair_id_unordered(sa.g, partner[j], partner[l]) >= 0
+                 && ex.discs_intersect(vs, vm.v_of_new[partner[j]],
+                                       vm.v_of_new[partner[l]]);
         });
 
         for (int v = 0; v < k; ++v)

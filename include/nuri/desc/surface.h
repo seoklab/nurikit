@@ -256,7 +256,8 @@ namespace internal {
     double rho2(int i) const;
 
     /**
-     * Whether balls `a`, `b` overlap; a tangency is an overlap.
+     * Whether balls `a`, `b` overlap; an exact tangency is zero, a circle of
+     * zero length that carries no cap.
      */
     Sgn overlap(int a, int b) const;
     /**

@@ -490,7 +490,8 @@ TEST(SasExactTest, TangentPairOverlaps) {
   const ArrayXd sar = ArrayXd::Constant(3, 1.5);
   const Fixture<> s = setup(pts, sar);
 
-  EXPECT_EQ(s.ex.overlap(0, 1), Sgn::kPos);
+  EXPECT_EQ(s.ex.overlap(0, 1), Sgn::kZero);
+  EXPECT_EQ(s.ex.overlap(0, 2), Sgn::kPos);
   // sphere 2 passes exactly through the tangency point (1.5, 0, 0)
   const SasFace f { 0, 1, 2 };
   const int want = perturbed_sign(s.ref, { 0, 1, 2 },
