@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <numeric>
 #include <optional>
 #include <random>
@@ -59,6 +60,25 @@ int probes_at(const SasGeometry &geo, const Vector3d &x,
     n += static_cast<int>((geo.probes.pos.col(p) - x).norm() <= radius);
   }
   return n;
+}
+
+TEST(BuildSasTest, RejectsNonFiniteOrFarCoordinates) {
+  Matrix3Xd pts = Matrix3Xd::Zero(3, 2);
+  pts.col(1) << 3, 0, 0;
+  ArrayXd sar = ArrayXd::Constant(2, 1.5);
+  const ArrayXb all = ArrayXb::Constant(2, true);
+  ASSERT_TRUE(prepare(pts, sar, all, kRp));
+
+  pts(0, 0) = std::numeric_limits<double>::quiet_NaN();
+  EXPECT_FALSE(prepare(pts, sar, all, kRp));
+  pts(0, 0) = 0;
+
+  sar[1] = std::numeric_limits<double>::infinity();
+  EXPECT_FALSE(prepare(pts, sar, all, kRp));
+  sar[1] = 1.5;
+
+  pts.col(1) << 2 * kSurfaceMaxCoord, 0, 0;
+  EXPECT_FALSE(prepare(pts, sar, all, kRp));
 }
 
 TEST(BuildSasTest, SingleSphere) {
