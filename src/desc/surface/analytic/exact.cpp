@@ -333,6 +333,15 @@ namespace internal {
     }
 
     /**
+     * `2√D d/dε (A + B√D) = (2 B' D + B D') + 2 A' √D` for `D > 0`.
+     */
+    Root<Xp> first_order(const Root<Dual> &r) {
+      const Xp two(2.0);
+      return { two * r.rad.d * r.disc.v + r.rad.v * r.disc.d, two * r.lin.d,
+               r.disc.v };
+    }
+
+    /**
      * Sign of `d/dε (A + B√D)` at an exact zero, with `D(ε) > 0`: for
      * `D > 0` it is `(2 A' √D + 2 B' D + B D') / (2√D)`; for `D = 0`
      * (a tangency perturbed to a cut) `√D(ε)` dominates every first-order
@@ -341,25 +350,39 @@ namespace internal {
     int tie_sign(const Root<Dual> &r) {
       const int sd = sgn(r.disc.v);
       ABSL_DCHECK_GE(sd, 0);
-      if (sd > 0) {
-        const Xp two(2.0);
-        return sign_root(
-            Root<Xp> { two * r.rad.d * r.disc.v + r.rad.v * r.disc.d,
-                       two * r.lin.d, r.disc.v });
-      }
+      if (sd > 0)
+        return sign_root(first_order(r));
 
       const int sb = sgn(r.rad.v);
       return sb != 0 ? sb : sgn(r.lin.d);
     }
 
     struct Participants {
-      std::array<int, 6> v;
+      std::array<int, 8> v;
       int n;
     };
 
     /**
-     * Filter, then exact, then the perturbation over the participating
-     * vertices in index order. `kernel(ctx)` returns `Root<T>`.
+     * The perturbation over the participating vertices in index order: the
+     * first non-zero coefficient decides.
+     */
+    template <class K, class Tie>
+    Sgn perturbed(const Data &d, const K &kernel, Participants parts, Tie tie) {
+      std::sort(parts.v.begin(), parts.v.begin() + parts.n);
+      const int *end = std::unique(parts.v.begin(), parts.v.begin() + parts.n);
+      for (const int *j = parts.v.begin(); j != end; ++j) {
+        const int t = tie(kernel(Ctx<Dual> { d, *j }));
+        if (t != 0)
+          return static_cast<Sgn>(t);
+      }
+      ABSL_CHECK(false)
+          << "every first-order perturbation coefficient vanishes";
+      return Sgn::kZero;
+    }
+
+    /**
+     * Filter, then exact, then the perturbation. `kernel(ctx)` returns
+     * `Root<T>`.
      */
     template <bool kForceExact, class K>
     Sgn decide(const Data &d, const K &kernel, Participants parts) {
@@ -372,17 +395,7 @@ namespace internal {
       const int s = sign_root(kernel(Ctx<Xp> { d, -1 }));
       if (s != 0)
         return static_cast<Sgn>(s);
-
-      std::sort(parts.v.begin(), parts.v.begin() + parts.n);
-      const int *end = std::unique(parts.v.begin(), parts.v.begin() + parts.n);
-      for (const int *j = parts.v.begin(); j != end; ++j) {
-        const int t = tie_sign(kernel(Ctx<Dual> { d, *j }));
-        if (t != 0)
-          return static_cast<Sgn>(t);
-      }
-      ABSL_CHECK(false)
-          << "every first-order perturbation coefficient vanishes";
-      return Sgn::kZero;
+      return perturbed(d, kernel, parts, tie_sign);
     }
 
     /**
@@ -415,14 +428,72 @@ namespace internal {
       return t == kUnknown ? kUnknown : sx * t;
     }
 
+    /**
+     * First-order sign of `F = X + Y √Dj`, `X = x0 + x1 √Di`,
+     * `Y = y0 + y1 √Di`, at an exact zero with both `D(ε) > 0`. For
+     * `Di, Dj > 0`, with `2√Di X' = A0 + A1 √Di` and
+     * `2√Di Y' = B0 + B1 √Di`, `2√Di√Dj F' = √Dj (A0 + A1 √Di)
+     * + Dj (B0 + B1 √Di) + Dj' (y0 √Di + y1 Di)`.
+     * A vanished discriminant grows like `√ε`, so its coefficient, if
+     * non-zero, dominates every first-order term; with both vanished the
+     * `√ε` terms `x1 √Di + y0 √Dj` decide at the first participant moving
+     * either discriminant (a term whose discriminant this participant leaves
+     * is pending), before `y1 √Di √Dj` and `x0'`.
+     */
+    int tie_sign2(const Root2<Dual> &r) {
+      const int si = sgn(r.di.v), sj = sgn(r.dj.v);
+      ABSL_DCHECK_GE(si, 0);
+      ABSL_DCHECK_GE(sj, 0);
+
+      if (si > 0 && sj > 0) {
+        const Root<Xp> a = first_order({ r.x0, r.x1, r.di }),
+                       b = first_order({ r.y0, r.y1, r.di });
+        return sign_root2(Root2<Xp> { r.dj.v * b.lin + r.dj.d * r.y1.v * r.di.v,
+                                      r.dj.v * b.rad + r.dj.d * r.y0.v, r.di.v,
+                                      a.lin, a.rad, r.dj.v });
+      }
+      if (si > 0) {
+        const int sy = sign_root(Root<Xp> { r.y0.v, r.y1.v, r.di.v });
+        return sy != 0 ? sy : tie_sign({ r.x0, r.x1, r.di });
+      }
+      if (sj > 0) {
+        const int sx = sign_root(Root<Xp> { r.x1.v, r.y1.v, r.dj.v });
+        return sx != 0 ? sx : tie_sign({ r.x0, r.y0, r.dj });
+      }
+
+      const Xp zero(0.0);
+      if (sgn(r.x1.v) != 0 || sgn(r.y0.v) != 0) {
+        const int s = sign_root2(
+            Root2<Xp> { zero, r.x1.v, r.di.d, r.y0.v, zero, r.dj.d });
+        ABSL_CHECK(s != 0 || sgn(r.di.d) == 0 || sgn(r.dj.d) == 0)
+            << "√ε terms cancel at first order";
+        return s;
+      }
+      const int sy = sgn(r.y1.v);
+      return sy != 0 ? sy : sgn(r.x0.d);
+    }
+
     template <bool kForceExact, class K>
-    Sgn decide2(const Data &d, const K &kernel) {
+    int sign2(const Data &d, const K &kernel) {
       if constexpr (!kForceExact) {
         const int s = sign_root2(kernel(Ctx<Fx> { d, -1 }));
         if (s != kUnknown)
-          return static_cast<Sgn>(s);
+          return s;
       }
-      return static_cast<Sgn>(sign_root2(kernel(Ctx<Xp> { d, -1 })));
+      return sign_root2(kernel(Ctx<Xp> { d, -1 }));
+    }
+
+    template <bool kForceExact, class K>
+    Sgn decide2(const Data &d, const K &kernel) {
+      return static_cast<Sgn>(sign2<kForceExact>(d, kernel));
+    }
+
+    template <bool kForceExact, class K>
+    Sgn decide2_perturbed(const Data &d, const K &kernel, Participants parts) {
+      const int s = sign2<kForceExact>(d, kernel);
+      if (s != 0)
+        return static_cast<Sgn>(s);
+      return perturbed(d, kernel, parts, tie_sign2);
     }
 
     double geogram_height(double x, double y, double z, double t) {
@@ -821,22 +892,47 @@ namespace internal {
     return along(false) >= 0 ? 0 : 2;
   }
 
+  namespace {
+    /**
+     * `(y_i × y_j) · d` for the offsets of roots `x_i`, `x_j` on circle
+     * `(a, b)`, each `P + σ √D Q`.
+     */
+    template <class T>
+    Root2<T> ccw_kernel(const Ctx<T> &ctx, int a, int b, BallTriple fi,
+                        bool plus_i, BallTriple fj, bool plus_j) {
+      const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b);
+      const Pair<T> ab = pair(sa, sb);
+      const Offset<T> oi = root_offset(ctx, ab, sa, fi, plus_i),
+                      oj = root_offset(ctx, ab, sa, fj, plus_j);
+      return {
+        dot(cross(oi.p, oj.p), ab.d), dot(cross(oi.q, oj.p), ab.d), oi.disc,
+        dot(cross(oi.p, oj.q), ab.d), dot(cross(oi.q, oj.q), ab.d), oj.disc
+      };
+    }
+  }  // namespace
+
   template <bool kForceExact>
   ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact>::ccw(
       const int a, const int b, const BallTriple fi, const bool plus_i,
       const BallTriple fj, const bool plus_j) const {
     auto kernel = [&](auto ctx) {
-      using T = typename decltype(ctx)::Scalar;
-      const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b);
-      const Pair<T> ab = pair(sa, sb);
-      const Offset<T> oi = root_offset(ctx, ab, sa, fi, plus_i),
-                      oj = root_offset(ctx, ab, sa, fj, plus_j);
-      return Root2<T> {
-        dot(cross(oi.p, oj.p), ab.d), dot(cross(oi.q, oj.p), ab.d), oi.disc,
-        dot(cross(oi.p, oj.q), ab.d), dot(cross(oi.q, oj.q), ab.d), oj.disc
-      };
+      return ccw_kernel(ctx, a, b, fi, plus_i, fj, plus_j);
     };
     return decide2<kForceExact>({ &c_, &h_, w_ }, kernel);
+  }
+
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact>::ccw_perturbed(
+      const int a, const int b, const BallTriple fi, const bool plus_i,
+      const BallTriple fj, const bool plus_j) const {
+    auto kernel = [&](auto ctx) {
+      return ccw_kernel(ctx, a, b, fi, plus_i, fj, plus_j);
+    };
+    return decide2_perturbed<kForceExact>(
+        {
+            &c_, &h_, w_
+    },
+        kernel, { { a, b, fi.a, fi.b, fi.c, fj.a, fj.b, fj.c }, 8 });
   }
 
   template <bool kForceExact>

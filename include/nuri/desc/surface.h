@@ -335,6 +335,12 @@ namespace internal {
     Sgn ccw(int a, int b, BallTriple fi, bool plus_i, BallTriple fj,
             bool plus_j) const;
     /**
+     * `ccw` with an exact zero (coincident or antipodal roots) resolved by
+     * the perturbation. Requires `cuts` positive for both faces.
+     */
+    Sgn ccw_perturbed(int a, int b, BallTriple fi, bool plus_i, BallTriple fj,
+                      bool plus_j) const;
+    /**
      * `π_c(Q) ≥ 0` for the antipode `Q = 2 cntr − x` of root `x` of `f` on
      * circle `(a, b)`.
      */
