@@ -57,7 +57,7 @@ namespace internal {
   constexpr double kSurfaceMaxCoord = 1e4;
   /**
    * A vertex offset from its circle centre is taken from the floating filter
-   * when certified to this fraction of its length (`SasExact::offset`).
+   * when certified to this fraction of its length (`BallExact::offset`).
    */
   constexpr double kOffsetRelTol = 0x1p-26;
   /**
@@ -240,12 +240,14 @@ namespace internal {
    * Three triangulation vertices; root labels refer to this order:
    * `x± = c_a + y_⊥ ± (√D / |u|²) u` with `u = (c_b − c_a) × (c_c − c_a)`.
    */
-  struct SasFace {
+  struct BallTriple {
     int a, b, c;
   };
 
   /**
-   * Exact predicates on the lifted spheres geogram triangulated: centre `c_i`,
+   * Exact predicates on a set of balls: the power arrangement of weighted
+   * points as geogram triangulates them. The balls are the SAS spheres, and
+   * later the caps of an SES face lifted to balls. Each ball has centre `c_i`,
    * height `h_i = ((t_i² + x_i²) + y_i²) + z_i²` as geogram evaluates it, and
    * squared radius `ρ_i² = W + |c_i|² − h_i`. Every exact tie is resolved by
    * geogram's perturbation: every squared radius grows, lower index first.
@@ -254,11 +256,11 @@ namespace internal {
    * filter (tests only).
    */
   template <bool kForceExact>
-  class SasExactImpl {
+  class BallExactImpl {
   public:
-    SasExactImpl() = default;
+    BallExactImpl() = default;
 
-    static SasExactImpl make(const Matrix4Xd &lifted, double wmax);
+    static BallExactImpl make(const Matrix4Xd &lifted, double wmax);
 
     int n() const { return static_cast<int>(h_.size()); }
     const Matrix3Xd &centers() const { return c_; }
@@ -280,12 +282,12 @@ namespace internal {
      * Which sphere of `f` (0, 1, 2) lies between the other two on their
      * common axis when the three share one circle, -1 otherwise.
      */
-    int shared_circle(SasFace f) const;
+    int shared_circle(BallTriple f) const;
     /**
      * Whether sphere `c` cuts circle `(a, b)` in two points (symmetric in the
      * triple; a tangency is perturbed to a cut or a miss).
      */
-    Sgn cuts(SasFace f) const;
+    Sgn cuts(BallTriple f) const;
     /**
      * Sign of `π_c` on circle `(a, b)`, valid when `c` does not cut it:
      * positive outside ball `c`, negative inside.
@@ -300,19 +302,19 @@ namespace internal {
      * `π_l(x) ≥ 0` for root `x` of face `f`: the cut point is not inside ball
      * `l`. Requires `cuts(f)` positive.
      */
-    Sgn accept(SasFace f, bool plus, int l) const;
+    Sgn accept(BallTriple f, bool plus, int l) const;
     /**
      * Both roots of `f` in double, `first` the `plus` root; requires
      * `cuts(f)` positive.
      */
-    std::pair<Vector3d, Vector3d> roots(SasFace f) const;
-    Vector3d root(SasFace f, bool plus) const;
+    std::pair<Vector3d, Vector3d> roots(BallTriple f) const;
+    Vector3d root(BallTriple f, bool plus) const;
     /**
      * `x − cntr` for root `x` of `f` on circle `(a, b)`, in double but to
      * rounding of its own length: the direction is right on a circle of any
      * radius. Requires `cuts(f)` non-negative.
      */
-    Vector3d offset(int a, int b, SasFace f, bool plus) const;
+    Vector3d offset(int a, int b, BallTriple f, bool plus) const;
 
     /**
      * Position of root `x` of `f` on circle `(a, b)` relative to the
@@ -320,20 +322,20 @@ namespace internal {
      * 0 on the ray, 1 in `(0, π)`, 2 at `π`, 3 in `(π, 2π)`, counter-clockwise
      * about `c_b − c_a`.
      */
-    int half_plane(int a, int b, SasFace f, bool plus) const;
+    int half_plane(int a, int b, BallTriple f, bool plus) const;
     /**
      * Sign of the oriented angle from root `x_i` to root `x_j` about
      * `c_b − c_a` on circle `(a, b)`; zero iff the points coincide or are
      * antipodal (no perturbation: the caller separates the two cases by
      * `half_plane`).
      */
-    Sgn ccw(int a, int b, SasFace fi, bool plus_i, SasFace fj,
+    Sgn ccw(int a, int b, BallTriple fi, bool plus_i, BallTriple fj,
             bool plus_j) const;
     /**
      * `π_c(Q) ≥ 0` for the antipode `Q = 2 cntr − x` of root `x` of `f` on
      * circle `(a, b)`.
      */
-    Sgn antipode(int a, int b, SasFace f, bool plus, int c) const;
+    Sgn antipode(int a, int b, BallTriple f, bool plus, int c) const;
 
     static int reference_axis(const Vector3d &d) {
       int k;
@@ -349,10 +351,10 @@ namespace internal {
     double w_ = 0;
   };
 
-  extern template class SasExactImpl<false>;
-  extern template class SasExactImpl<true>;
+  extern template class BallExactImpl<false>;
+  extern template class BallExactImpl<true>;
 
-  using SasExact = SasExactImpl<false>;
+  using BallExact = BallExactImpl<false>;
 
   /**
    * Regular (weighted Delaunay) triangulation of every kept sphere. Vertices
@@ -374,7 +376,7 @@ namespace internal {
     CSR nbrs;
     ArrayXi edge_cell;
     ArrayXi vertex;
-    SasExact ex;
+    BallExact ex;
   };
 
   extern SasDelaunay triangulate(const SaPrep &sa);
@@ -387,7 +389,7 @@ namespace internal {
 
   /**
    * `phi` is measured in the circle frame `e1 = normalize(d × e_k)`,
-   * `d = c_j − c_i`, `k = SasExact::reference_axis(d)`, `e2 = axis × e1`.
+   * `d = c_j − c_i`, `k = BallExact::reference_axis(d)`, `e2 = axis × e1`.
    * `beg`, `end` are probes, both -1 for a full circle.
    */
   struct SasArc {

@@ -84,7 +84,7 @@ struct Ref {
     Q u2, disc;
   };
 
-  Face face(SasFace f) const {
+  Face face(BallTriple f) const {
     Face r;
     r.db = cen(f.b) - cen(f.a);
     r.dc = cen(f.c) - cen(f.a);
@@ -98,7 +98,7 @@ struct Ref {
     return r;
   }
 
-  QVec root(SasFace f, bool plus) const {
+  QVec root(BallTriple f, bool plus) const {
     const Face fc = face(f);
     const Q s = q_sqrt(fc.disc > 0 ? fc.disc : 0) / fc.u2;
     return cen(f.a) + fc.yperp + ((plus ? s : -s) * fc.u);
@@ -137,7 +137,7 @@ struct Ref {
   }
 
   // zero iff circles (a, b) and (a, c) coincide: |u|^2 + |D| as a polynomial
-  Q coincidence(SasFace f) const {
+  Q coincidence(BallTriple f) const {
     const QVec db = cen(f.b) - cen(f.a), dc = cen(f.c) - cen(f.a),
                u = cross(db, dc);
     const Q gbb = dot(db, db), gbc = dot(db, dc), gcc = dot(dc, dc),
@@ -152,7 +152,7 @@ template <bool kForceExact = false>
 struct Fixture {
   Matrix4Xd lifted;
   double wmax;
-  SasExactImpl<kForceExact> ex;
+  BallExactImpl<kForceExact> ex;
   Ref ref;
 };
 
@@ -165,7 +165,7 @@ Fixture<kForceExact> setup(const Matrix3Xd &pts, const ArrayXd &sar) {
   s.lifted.topRows(3) = pts;
   for (int i = 0; i < n; ++i)
     s.lifted(3, i) = std::sqrt(s.wmax - sar[i] * sar[i]);
-  s.ex = SasExactImpl<kForceExact>::make(s.lifted, s.wmax);
+  s.ex = BallExactImpl<kForceExact>::make(s.lifted, s.wmax);
   s.ref.c = pts;
   s.ref.rho2.resize(n);
   for (int i = 0; i < n; ++i) {
@@ -224,8 +224,8 @@ ArrayXd random_radii(std::mt19937 &rng, const int n, const double lo,
   return r;
 }
 
-TEST(SasExactTest, Selftest) {
-  EXPECT_TRUE(SasExact::selftest());
+TEST(BallExactTest, Selftest) {
+  EXPECT_TRUE(BallExact::selftest());
 }
 
 void expect_geogram_agrees(const Fixture<> &s) {
@@ -254,7 +254,7 @@ void expect_geogram_agrees(const Fixture<> &s) {
   EXPECT_GE(checked + 4, n);
 }
 
-TEST(SasExactTest, HeightsMatchGeogram) {
+TEST(BallExactTest, HeightsMatchGeogram) {
   std::mt19937 rng(7);
   for (int trial = 0; trial < 5; ++trial) {
     const Matrix3Xd pts = random_pts(rng, 40, 5.0);
@@ -277,9 +277,9 @@ TEST(SasExactTest, HeightsMatchGeogram) {
 constexpr Q kQTol = 1e-26;
 
 template <bool kForceExact>
-void expect_offset(const SasExactImpl<kForceExact> &ex, const Ref &ref,
-                   const int a, const int b, const SasFace f, const bool plus,
-                   const double rel) {
+void expect_offset(const BallExactImpl<kForceExact> &ex, const Ref &ref,
+                   const int a, const int b, const BallTriple f,
+                   const bool plus, const double rel) {
   const QVec y = ref.root(f, plus) - ref.cntr(a, b);
   const Vector3d want(static_cast<double>(y.x), static_cast<double>(y.y),
                       static_cast<double>(y.z));
@@ -288,7 +288,7 @@ void expect_offset(const SasExactImpl<kForceExact> &ex, const Ref &ref,
       << a << b << " face " << f.a << f.b << f.c << " root " << plus;
 }
 
-int expect_root_sign(const Ref &ref, const SasFace f, const bool plus,
+int expect_root_sign(const Ref &ref, const BallTriple f, const bool plus,
                      const int l) {
   return q_sgn(ref.power(l, ref.root(f, plus)), kQTol);
 }
@@ -314,7 +314,7 @@ void check_random_agreement() {
             && q_sgn(ref.inside(b, a), kQTol) != 0)
           EXPECT_EQ(s.ex.contained(a, b), ref.contained(a, b));
         for (int c = b + 1; c < n; ++c) {
-          const SasFace f { a, b, c };
+          const BallTriple f { a, b, c };
           EXPECT_EQ(s.ex.shared_circle(f), -1);
           const Ref::Face rf = ref.face(f);
           const int cut = q_sgn(rf.disc, kQTol);
@@ -367,7 +367,7 @@ void check_random_agreement() {
           }
 
           const Vector3d dfl = pts.col(b) - pts.col(a);
-          const int k = SasExact::reference_axis(dfl);
+          const int k = BallExact::reference_axis(dfl);
           Vector3d ek = Vector3d::Zero();
           ek[k] = 1;
           const Vector3d rfl = dfl.cross(ek);
@@ -384,7 +384,7 @@ void check_random_agreement() {
           }
 
           for (int c2 = c + 1; c2 < n; ++c2) {
-            const SasFace f2 { a, b, c2 };
+            const BallTriple f2 { a, b, c2 };
             if (q_sgn(ref.face(f2).disc, kQTol) <= 0)
               continue;
             const QVec yi = ref.root(f, true) - ref.cntr(a, b),
@@ -408,11 +408,11 @@ void check_random_agreement() {
   EXPECT_GT(n_anti, 500);
 }
 
-TEST(SasExactTest, FilteredMatchesQuad) {
+TEST(BallExactTest, FilteredMatchesQuad) {
   check_random_agreement<false>();
 }
 
-TEST(SasExactTest, ExactMatchesQuad) {
+TEST(BallExactTest, ExactMatchesQuad) {
   check_random_agreement<true>();
 }
 
@@ -439,7 +439,7 @@ int perturbed_sign(Ref ref, const std::vector<int> &participants, F &&value) {
  * Radii 5 and 3 lift to t = 0 and 4 exactly, so the internal tangency at
  * d = 2 is an exact tie of the stored heights.
  */
-TEST(SasExactTest, ContainedBall) {
+TEST(BallExactTest, ContainedBall) {
   Matrix3Xd pts(3, 5);
   pts.col(0) << 0, 0, 0;
   pts.col(1) << 2, 0, 0;
@@ -479,12 +479,12 @@ Matrix3Xd shared_circle_pts(const int mid, ArrayXd &sar) {
   return pts;
 }
 
-TEST(SasExactTest, SharedCircle) {
+TEST(BallExactTest, SharedCircle) {
   for (int mid = 0; mid < 3; ++mid) {
     ArrayXd sar;
     const Matrix3Xd pts = shared_circle_pts(mid, sar);
     const Fixture<> s = setup(pts, sar);
-    const SasFace f { 0, 1, 2 };
+    const BallTriple f { 0, 1, 2 };
     ASSERT_EQ(q_sgn(s.ref.coincidence(f)), 0);
     EXPECT_EQ(s.ex.shared_circle(f), mid);
     EXPECT_EQ(s.ex.shared_circle({ 1, 2, 0 }), (mid + 2) % 3);
@@ -510,7 +510,7 @@ TEST(SasExactTest, SharedCircle) {
  * ~1e-8 whose floating discriminant is noise, yet the offset from the centre
  * must keep its direction.
  */
-TEST(SasExactTest, OffsetOnRoundingTinyCircle) {
+TEST(BallExactTest, OffsetOnRoundingTinyCircle) {
   Matrix3Xd base(3, 3);
   base.col(0) << 0, 0, 0;
   base.col(1) << 3, 0, 0;
@@ -527,7 +527,7 @@ TEST(SasExactTest, OffsetOnRoundingTinyCircle) {
     const Vector3d t(nd(rng), nd(rng), nd(rng));
     const Matrix3Xd pts = (rot * base).colwise() + 3.0 * t;
     const Fixture<> s = setup(pts, sar);
-    const SasFace f { 0, 1, 2 };
+    const BallTriple f { 0, 1, 2 };
     if (s.ex.overlap(0, 1) != Sgn::kPos || s.ex.cuts(f) != Sgn::kPos)
       continue;
 
@@ -540,7 +540,7 @@ TEST(SasExactTest, OffsetOnRoundingTinyCircle) {
   EXPECT_GT(n_tiny, 5);
 }
 
-TEST(SasExactTest, TangentPairCarriesNoCircle) {
+TEST(BallExactTest, TangentPairCarriesNoCircle) {
   Matrix3Xd pts(3, 3);
   pts.col(0) << 0, 0, 0;
   pts.col(1) << 3, 0, 0;
@@ -551,7 +551,7 @@ TEST(SasExactTest, TangentPairCarriesNoCircle) {
   EXPECT_EQ(s.ex.overlap(0, 1), Sgn::kZero);
   EXPECT_EQ(s.ex.overlap(0, 2), Sgn::kPos);
   // sphere 2 passes exactly through the tangency point (1.5, 0, 0)
-  const SasFace f { 0, 1, 2 };
+  const BallTriple f { 0, 1, 2 };
   const int want = perturbed_sign(s.ref, { 0, 1, 2 },
                                   [&](const Ref &r) { return r.face(f).disc; });
   ASSERT_NE(want, 0);
@@ -567,7 +567,7 @@ void check_tie_fixture(const Matrix3Xd &pts, const ArrayXd &sar,
   for (int a = 0; a < n; ++a) {
     for (int b = a + 1; b < n; ++b) {
       for (int c = b + 1; c < n; ++c) {
-        const SasFace f { a, b, c };
+        const BallTriple f { a, b, c };
         const int cut = static_cast<int>(s.ex.cuts(f));
         const int want_cut = perturbed_sign(
             s.ref, { a, b, c }, [&](const Ref &r) { return r.face(f).disc; });
@@ -600,25 +600,25 @@ void check_tie_fixture(const Matrix3Xd &pts, const ArrayXd &sar,
   EXPECT_GT(n_ties, 0);
 }
 
-TEST(SasExactTest, TetraThroughOrigin) {
+TEST(BallExactTest, TetraThroughOrigin) {
   check_tie_fixture(tetra_through_origin(), ArrayXd::Constant(4, 1.0),
                     Vector3d::Zero());
 }
 
-TEST(SasExactTest, FiveFoldStar) {
+TEST(BallExactTest, FiveFoldStar) {
   check_tie_fixture(star(4, 110, 2), ArrayXd::Constant(5, 2.0),
                     Vector3d::Zero());
 }
 
-TEST(SasExactTest, CoplanarSquareWithApex) {
+TEST(BallExactTest, CoplanarSquareWithApex) {
   check_tie_fixture(square_apex(), ArrayXd::Constant(5, 1.5),
                     Vector3d(0, 0, 0.5));
 }
 
-TEST(SasExactTest, CoincidentRootsTie) {
+TEST(BallExactTest, CoincidentRootsTie) {
   // two 4-fold points from two faces of the square: coincident roots
   const Fixture<> s = setup(square_apex(), ArrayXd::Constant(5, 1.5));
-  const SasFace f1 { 0, 1, 2 }, f2 { 0, 1, 3 };
+  const BallTriple f1 { 0, 1, 2 }, f2 { 0, 1, 3 };
   ASSERT_EQ(s.ex.cuts(f1), Sgn::kPos);
   ASSERT_EQ(s.ex.cuts(f2), Sgn::kPos);
   const auto [p1, m1] = s.ex.roots(f1);

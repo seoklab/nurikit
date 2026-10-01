@@ -278,7 +278,7 @@ namespace internal {
     };
 
     template <class T>
-    Face<T> face(const Ctx<T> &ctx, SasFace f) {
+    Face<T> face(const Ctx<T> &ctx, BallTriple f) {
       const Sphere<T> sa = sph(ctx, f.a), sb = sph(ctx, f.b),
                       sc = sph(ctx, f.c);
       Face<T> r;
@@ -432,7 +432,7 @@ namespace internal {
     }
 
     V3<double> reference_ray(const Vector3d &d) {
-      const int k = SasExact::reference_axis(d);
+      const int k = BallExact::reference_axis(d);
       V3<double> e { 0.0, 0.0, 0.0 };
       (k == 0 ? e.x : k == 1 ? e.y : e.z) = 1.0;
       return cross(V3<double> { d[0], d[1], d[2] }, e);
@@ -459,7 +459,7 @@ namespace internal {
 
     template <class T>
     Offset<T> root_offset(const Ctx<T> &ctx, const Pair<T> &ab,
-                          const Sphere<T> &sa, SasFace f, bool plus) {
+                          const Sphere<T> &sa, BallTriple f, bool plus) {
       const Face<T> fc = face(ctx, f);
       const V3<T> y = fc.u2 * (fc.sa.c - sa.c) + fc.lam * fc.db + fc.mu * fc.dc;
       return { ab.g * y - (fc.u2 * ab.v) * ab.d,
@@ -545,9 +545,9 @@ namespace internal {
   }  // namespace
 
   template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE SasExactImpl<kForceExact>
-  SasExactImpl<kForceExact>::make(const Matrix4Xd &lifted, const double wmax) {
-    SasExactImpl ex;
+  ABSL_ATTRIBUTE_NOINLINE BallExactImpl<kForceExact>
+  BallExactImpl<kForceExact>::make(const Matrix4Xd &lifted, const double wmax) {
+    BallExactImpl ex;
     const int n = static_cast<int>(lifted.cols());
     ex.c_ = lifted.topRows(3);
     ex.h_.resize(n);
@@ -560,7 +560,7 @@ namespace internal {
 
   template <bool kForceExact>
   ABSL_ATTRIBUTE_NOINLINE double
-  SasExactImpl<kForceExact>::rho2(const int i) const {
+  BallExactImpl<kForceExact>::rho2(const int i) const {
     const double cc =
         c_(0, i) * c_(0, i) + c_(1, i) * c_(1, i) + c_(2, i) * c_(2, i);
     return w_ + cc - h_[i];
@@ -568,7 +568,7 @@ namespace internal {
 
   template <bool kForceExact>
   ABSL_ATTRIBUTE_NOINLINE Sgn
-  SasExactImpl<kForceExact>::overlap(const int a, const int b) const {
+  BallExactImpl<kForceExact>::overlap(const int a, const int b) const {
     return overlap_impl<kForceExact>({ &c_, &h_, w_ }, a, b);
   }
 
@@ -578,7 +578,7 @@ namespace internal {
    */
   template <bool kForceExact>
   ABSL_ATTRIBUTE_NOINLINE int
-  SasExactImpl<kForceExact>::contained(const int a, const int b) const {
+  BallExactImpl<kForceExact>::contained(const int a, const int b) const {
     const Data d { &c_, &h_, w_ };
     auto check = [&](auto ctx, const int x, const int y) {
       using T = typename decltype(ctx)::Scalar;
@@ -619,7 +619,7 @@ namespace internal {
    */
   template <bool kForceExact>
   ABSL_ATTRIBUTE_NOINLINE int
-  SasExactImpl<kForceExact>::shared_circle(const SasFace f) const {
+  BallExactImpl<kForceExact>::shared_circle(const BallTriple f) const {
     const Data d { &c_, &h_, w_ };
     if constexpr (!kForceExact) {
       const Face<Fx> fc = face(Ctx<Fx> { d, -1 }, f);
@@ -638,7 +638,7 @@ namespace internal {
 
   template <bool kForceExact>
   ABSL_ATTRIBUTE_NOINLINE Sgn
-  SasExactImpl<kForceExact>::cuts(const SasFace f) const {
+  BallExactImpl<kForceExact>::cuts(const BallTriple f) const {
     auto kernel = [&](auto ctx) {
       using T = typename decltype(ctx)::Scalar;
       return Root<T> { face(ctx, f).disc, lit<T>(0.0), lit<T>(0.0) };
@@ -651,8 +651,8 @@ namespace internal {
   }
 
   template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE Sgn
-  SasExactImpl<kForceExact>::side(const int a, const int b, const int c) const {
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact>::side(
+      const int a, const int b, const int c) const {
     auto kernel = [&](auto ctx) {
       using T = typename decltype(ctx)::Scalar;
       return Root<T> { face(ctx, { a, b, c }).mu, lit<T>(0.0), lit<T>(0.0) };
@@ -704,8 +704,8 @@ namespace internal {
 
   template <bool kForceExact>
   ABSL_ATTRIBUTE_NOINLINE bool
-  SasExactImpl<kForceExact>::discs_intersect(const int s, const int j,
-                                             const int l) const {
+  BallExactImpl<kForceExact>::discs_intersect(const int s, const int j,
+                                              const int l) const {
     const Data d { &c_, &h_, w_ };
     if constexpr (!kForceExact) {
       const int r = disc_decision(disc_roots(Ctx<Fx> { d, -1 }, s, j, l));
@@ -720,8 +720,8 @@ namespace internal {
   }
 
   template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE Sgn SasExactImpl<kForceExact>::accept(
-      const SasFace f, const bool plus, const int l) const {
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact>::accept(
+      const BallTriple f, const bool plus, const int l) const {
     auto kernel = [&](auto ctx) {
       using T = typename decltype(ctx)::Scalar;
       const Face<T> fc = face(ctx, f);
@@ -747,7 +747,7 @@ namespace internal {
    */
   template <bool kForceExact>
   ABSL_ATTRIBUTE_NOINLINE Vector3d
-  SasExactImpl<kForceExact>::root(const SasFace f, const bool plus) const {
+  BallExactImpl<kForceExact>::root(const BallTriple f, const bool plus) const {
     const Vector3d ca = c_.col(f.a), db = c_.col(f.b) - ca;
     const double vb = (h_[f.b] - h_[f.a]) / 2 - ca.dot(db);
     const Vector3d cntr = ca + (vb / db.squaredNorm()) * db;
@@ -756,13 +756,13 @@ namespace internal {
 
   template <bool kForceExact>
   ABSL_ATTRIBUTE_NOINLINE std::pair<Vector3d, Vector3d>
-  SasExactImpl<kForceExact>::roots(const SasFace f) const {
+  BallExactImpl<kForceExact>::roots(const BallTriple f) const {
     return { root(f, true), root(f, false) };
   }
 
   template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE Vector3d SasExactImpl<kForceExact>::offset(
-      const int a, const int b, const SasFace f, const bool plus) const {
+  ABSL_ATTRIBUTE_NOINLINE Vector3d BallExactImpl<kForceExact>::offset(
+      const int a, const int b, const BallTriple f, const bool plus) const {
     const Data d { &c_, &h_, w_ };
     auto kernel = [&](auto ctx) {
       using T = typename decltype(ctx)::Scalar;
@@ -779,8 +779,8 @@ namespace internal {
   }
 
   template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE int SasExactImpl<kForceExact>::half_plane(
-      const int a, const int b, const SasFace f, const bool plus) const {
+  ABSL_ATTRIBUTE_NOINLINE int BallExactImpl<kForceExact>::half_plane(
+      const int a, const int b, const BallTriple f, const bool plus) const {
     const V3<double> r = reference_ray(c_.col(b) - c_.col(a));
     const Data d { &c_, &h_, w_ };
 
@@ -810,9 +810,9 @@ namespace internal {
   }
 
   template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE Sgn SasExactImpl<kForceExact>::ccw(
-      const int a, const int b, const SasFace fi, const bool plus_i,
-      const SasFace fj, const bool plus_j) const {
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact>::ccw(
+      const int a, const int b, const BallTriple fi, const bool plus_i,
+      const BallTriple fj, const bool plus_j) const {
     auto kernel = [&](auto ctx) {
       using T = typename decltype(ctx)::Scalar;
       const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b);
@@ -828,9 +828,9 @@ namespace internal {
   }
 
   template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE Sgn
-  SasExactImpl<kForceExact>::antipode(const int a, const int b, const SasFace f,
-                                      const bool plus, const int c) const {
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact>::antipode(
+      const int a, const int b, const BallTriple f, const bool plus,
+      const int c) const {
     auto kernel = [&](auto ctx) {
       using T = typename decltype(ctx)::Scalar;
       const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b), sc = sph(ctx, c);
@@ -848,7 +848,7 @@ namespace internal {
   }
 
   template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE bool SasExactImpl<kForceExact>::selftest() {
+  ABSL_ATTRIBUTE_NOINLINE bool BallExactImpl<kForceExact>::selftest() {
     double x, y;
     GEO::two_sum(1.0, 0x1p-60, x, y);
     if (x != 1.0 || y != 0x1p-60)
@@ -865,7 +865,7 @@ namespace internal {
     return sgn(f) == kUnknown;
   }
 
-  template class SasExactImpl<false>;
-  template class SasExactImpl<true>;
+  template class BallExactImpl<false>;
+  template class BallExactImpl<true>;
 }  // namespace internal
 }  // namespace nuri

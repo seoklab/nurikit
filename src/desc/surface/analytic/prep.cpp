@@ -47,7 +47,7 @@ namespace internal {
       return { CSR(std::move(adj), std::move(off)), std::move(order) };
     }
 
-    NearPairs find_near_pairs(const SasExact &ex, const ArrayXd &sar,
+    NearPairs find_near_pairs(const BallExact &ex, const ArrayXd &sar,
                               const ArrayXb &active, const double rmax) {
       const Matrix3Xd &pts = ex.centers();
       const int n = static_cast<int>(sar.size());
@@ -96,7 +96,7 @@ namespace internal {
      */
     void drop_shared_circle_middles(ArrayXi &keep, const CSR &g,
                                     const ArrayXd &d, const ArrayXd &sar2,
-                                    const SasExact &ex) {
+                                    const BallExact &ex) {
       constexpr double cutoff = kSurfaceLengthEps * kSurfaceLengthEps;
 
       const Matrix3Xd &pts = ex.centers();
@@ -178,7 +178,7 @@ namespace internal {
      * triangulation; an exact tangency does not. Edges of dropped atoms are
      * removed by `compact`.
      */
-    std::pair<CSR, ArrayXd> exact_overlaps(const SasExact &ex,
+    std::pair<CSR, ArrayXd> exact_overlaps(const BallExact &ex,
                                            const NearPairs &np) {
       const Matrix3Xd &pts = ex.centers();
       const int m = static_cast<int>(np.inear.size());
@@ -278,7 +278,7 @@ namespace internal {
     Matrix4Xd lifted(4, sar.size());
     lifted.topRows(3) = pts;
     lifted.row(3) = t.transpose();
-    const SasExact ex = SasExact::make(lifted, wmax);
+    const BallExact ex = BallExact::make(lifted, wmax);
 
     NearPairs np = find_near_pairs(ex, sar, active, rmax);
     auto [g, d] = exact_overlaps(ex, np);
