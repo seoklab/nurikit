@@ -430,20 +430,18 @@ namespace internal {
 
     /**
      * First-order sign of `F = X + Y √Dj`, `X = x0 + x1 √Di`,
-     * `Y = y0 + y1 √Di`, at an exact zero with both `D(ε) > 0`. For
-     * `Di, Dj > 0`, with `2√Di X' = A0 + A1 √Di` and
+     * `Y = y0 + y1 √Di`, at an exact zero with both `D(ε) > 0`, along one
+     * participant. For `Di, Dj > 0`, with `2√Di X' = A0 + A1 √Di` and
      * `2√Di Y' = B0 + B1 √Di`, `2√Di√Dj F' = √Dj (A0 + A1 √Di)
-     * + Dj (B0 + B1 √Di) + Dj' (y0 √Di + y1 Di)`.
-     * A vanished discriminant grows like `√ε`, so its coefficient, if
-     * non-zero, dominates every first-order term; with both vanished the
-     * `√ε` terms `x1 √Di + y0 √Dj` decide at the first participant moving
-     * either discriminant (a term whose discriminant this participant leaves
-     * is pending), before `y1 √Di √Dj` and `x0'`.
+     * + Dj (B0 + B1 √Di) + Dj' (y0 √Di + y1 Di)`. One vanished discriminant
+     * grows like `√ε`, so its coefficient, if non-zero, dominates every
+     * first-order term whichever participant moves it.
      */
-    int tie_sign2(const Root2<Dual> &r) {
+    int tie_sign2_one(const Root2<Dual> &r) {
       const int si = sgn(r.di.v), sj = sgn(r.dj.v);
       ABSL_DCHECK_GE(si, 0);
       ABSL_DCHECK_GE(sj, 0);
+      ABSL_DCHECK(si > 0 || sj > 0);
 
       if (si > 0 && sj > 0) {
         const Root<Xp> a = first_order({ r.x0, r.x1, r.di }),
@@ -456,21 +454,84 @@ namespace internal {
         const int sy = sign_root(Root<Xp> { r.y0.v, r.y1.v, r.di.v });
         return sy != 0 ? sy : tie_sign({ r.x0, r.x1, r.di });
       }
-      if (sj > 0) {
-        const int sx = sign_root(Root<Xp> { r.x1.v, r.y1.v, r.dj.v });
-        return sx != 0 ? sx : tie_sign({ r.x0, r.y0, r.dj });
+      const int sx = sign_root(Root<Xp> { r.x1.v, r.y1.v, r.dj.v });
+      return sx != 0 ? sx : tie_sign({ r.x0, r.y0, r.dj });
+    }
+
+    /**
+     * Both discriminants vanished; `rs[k]` carries the derivatives along the
+     * `k`-th participant in grading order (`ρ_k²(ε) = ρ_k² + ε η^k`, `ε`
+     * below every power of `η`), the values are shared. With
+     * `Di(ε) = ε Li`, `Li = Σ_k Di_k' η^k`, and `Lj` likewise,
+     * `F = √ε (x1 √Li + y0 √Lj) + ε Σ_k x0_k' η^k`: two roots tangent at an
+     * exact zero have `P_i ∥ P_j`, hence `Q_i ∥ Q_j`, `y1 = 0` and
+     * `x1, y0 ≠ 0`. The `√ε` term is decided by the discriminant that moves
+     * first, or, when both first move at `j`, by `c = x1 √Di_j' + y0 √Dj_j'`
+     * unless `c = 0`: then it is `c √η^j (√(1 + A) − √(1 + B))` for the
+     * tails `A = Σ_{k>j} (Di_k' / Di_j') η^(k−j)` and `B` likewise, of the
+     * sign of `c (A − B)`, so the first `k > j` with
+     * `Di_k' Dj_j' ≠ Dj_k' Di_j'` decides; if none does, the `ε` term.
+     */
+    int tie_sign2_vanished(const Root2<Dual> *rs, const int n) {
+      const Root2<Dual> &r0 = rs[0];
+      const int sx = sgn(r0.x1.v), sy = sgn(r0.y0.v);
+      ABSL_DCHECK(sx != 0 && sy != 0);
+      ABSL_DCHECK_EQ(sgn(r0.y1.v), 0);
+
+      for (int j = 0; j < n; ++j) {
+        const Xp &ai = rs[j].di.d, &bi = rs[j].dj.d;
+        const int sa = sgn(ai), sb = sgn(bi);
+        if (sa == 0 && sb == 0)
+          continue;
+        ABSL_DCHECK_GE(sa, 0);
+        ABSL_DCHECK_GE(sb, 0);
+        if (sb == 0)
+          return sx;
+        if (sa == 0)
+          return sy;
+
+        const Xp zero(0.0);
+        const int s =
+            sign_root2(Root2<Xp> { zero, r0.x1.v, ai, r0.y0.v, zero, bi });
+        if (s != 0)
+          return s;
+        for (int k = j + 1; k < n; ++k) {
+          const int t = sgn(rs[k].di.d * bi - rs[k].dj.d * ai);
+          if (t != 0)
+            return sx * t;
+        }
+        break;
       }
 
-      const Xp zero(0.0);
-      if (sgn(r.x1.v) != 0 || sgn(r.y0.v) != 0) {
-        const int s = sign_root2(
-            Root2<Xp> { zero, r.x1.v, r.di.d, r.y0.v, zero, r.dj.d });
-        ABSL_CHECK(s != 0 || sgn(r.di.d) == 0 || sgn(r.dj.d) == 0)
-            << "√ε terms cancel at first order";
-        return s;
+      for (int k = 0; k < n; ++k) {
+        const int s = sgn(rs[k].x0.d);
+        if (s != 0)
+          return s;
       }
-      const int sy = sgn(r.y1.v);
-      return sy != 0 ? sy : sgn(r.x0.d);
+      return 0;
+    }
+
+    template <class K>
+    Sgn perturbed2(const Data &d, const K &kernel, Participants parts) {
+      std::sort(parts.v.begin(), parts.v.begin() + parts.n);
+      const int n = static_cast<int>(
+          std::unique(parts.v.begin(), parts.v.begin() + parts.n)
+          - parts.v.begin());
+
+      std::array<Root2<Dual>, 8> rs;
+      for (int k = 0; k < n; ++k)
+        rs[k] = kernel(Ctx<Dual> { d, parts.v[k] });
+
+      int t = 0;
+      if (sgn(rs[0].di.v) == 0 && sgn(rs[0].dj.v) == 0) {
+        t = tie_sign2_vanished(rs.data(), n);
+      } else {
+        for (int k = 0; k < n && t == 0; ++k)
+          t = tie_sign2_one(rs[k]);
+      }
+      ABSL_CHECK(t != 0)
+          << "every first-order perturbation coefficient vanishes";
+      return static_cast<Sgn>(t);
     }
 
     template <bool kForceExact, class K>
@@ -493,7 +554,7 @@ namespace internal {
       const int s = sign2<kForceExact>(d, kernel);
       if (s != 0)
         return static_cast<Sgn>(s);
-      return perturbed(d, kernel, parts, tie_sign2);
+      return perturbed2(d, kernel, parts);
     }
 
     double geogram_height(double x, double y, double z, double t) {

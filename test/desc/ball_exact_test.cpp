@@ -871,6 +871,39 @@ TEST(BallExactTest, CcwPerturbedMatchesForcedExact) {
   EXPECT_GT(n_pairs, 500);
 }
 
+/**
+ * Spheres 2 and 3 are both tangent to circle `(0, 1)` at `(1, 0, 0)` and
+ * split from it at the same first-order rate, so the `√ε` terms of the two
+ * tangent roots cancel at the first participant and the second decides;
+ * the signs are those of a 700-digit graded oracle.
+ */
+TEST(BallExactTest, CcwPerturbedCancellingTangentRoots) {
+  Matrix3Xd c(3, 4);
+  c << 0, 0, 2, 3,  //
+      0, 0, 0, 0,   //
+      -1, 1, 1, 1;
+  ArrayXd h(4);
+  h << 7, 7, 11, 13;
+  const BallTriple f2 { 0, 1, 2 }, f3 { 0, 1, 3 };
+
+  auto check = [&](const auto &ex) {
+    ASSERT_EQ(ex.cuts(f2), Sgn::kPos);
+    ASSERT_EQ(ex.cuts(f3), Sgn::kPos);
+    for (const bool p2: { true, false }) {
+      for (const bool p3: { true, false }) {
+        ASSERT_EQ(ex.ccw(0, 1, f2, p2, f3, p3), Sgn::kZero);
+        const Sgn want = p3 ? Sgn::kPos : Sgn::kNeg;
+        EXPECT_EQ(ex.ccw_perturbed(0, 1, f2, p2, f3, p3), want) << p2 << p3;
+        EXPECT_EQ(static_cast<int>(ex.ccw_perturbed(0, 1, f3, p3, f2, p2)),
+                  -static_cast<int>(want))
+            << p2 << p3;
+      }
+    }
+  };
+  check(BallExactImpl<false>::make(c, h, 8.0));
+  check(BallExactImpl<true>::make(c, h, 8.0));
+}
+
 TEST(BallExactTest, HeightsConstructorMatchesLift) {
   std::mt19937 rng(23);
   for (const Fixture<> &s:
