@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
+#include <optional>
 #include <random>
 #include <utility>
 #include <vector>
@@ -394,6 +396,9 @@ void check_random_agreement() {
               continue;
             EXPECT_EQ(static_cast<int>(s.ex.ccw(a, b, f, true, f2, false)),
                       want);
+            EXPECT_EQ(
+                static_cast<int>(s.ex.ccw_perturbed(a, b, f, true, f2, false)),
+                want);
             ++n_ccw;
           }
         }
@@ -655,6 +660,212 @@ void expect_same_predicates(const BallExact &ex, const BallExact &want) {
       }
     }
   }
+}
+
+Matrix3Xd octahedron() {
+  Matrix3Xd pts(3, 6);
+  pts << 1, -1, 0, 0, 0, 0,  //
+      0, 0, 1, -1, 0, 0,     //
+      0, 0, 0, 0, 1, -1;
+  return pts;
+}
+
+struct CircleRoot {
+  BallTriple f;
+  bool plus;
+};
+
+std::vector<CircleRoot> circle_roots(const BallExact &ex, const int a,
+                                     const int b) {
+  std::vector<CircleRoot> out;
+  for (int c = 0; c < ex.n(); ++c) {
+    if (c == a || c == b)
+      continue;
+    const BallTriple f { a, b, c };
+    if (ex.cuts(f) != Sgn::kPos)
+      continue;
+    out.push_back({ f, true });
+    out.push_back({ f, false });
+  }
+  return out;
+}
+
+/**
+ * Groups of exactly coincident roots on every circle: the perturbed order
+ * must be a strict total order on each, and match the oracle away from
+ * tangencies (one radius at a time misses the `√ε` growth of a vanished
+ * discriminant that the graded perturbation lets dominate). Returns the
+ * number of groups.
+ */
+int check_coincident_order(const Fixture<> &s) {
+  const BallExact &ex = s.ex;
+  const Ref &ref = s.ref;
+  int n_groups = 0;
+  for (int a = 0; a < ex.n(); ++a) {
+    for (int b = a + 1; b < ex.n(); ++b) {
+      if (ex.overlap(a, b) != Sgn::kPos)
+        continue;
+
+      const std::vector<CircleRoot> roots = circle_roots(ex, a, b);
+      auto before = [&](const CircleRoot &p, const CircleRoot &q) {
+        const Sgn got = ex.ccw_perturbed(a, b, p.f, p.plus, q.f, q.plus);
+        if (q_sgn(ref.face(p.f).disc, kQTol) == 0
+            || q_sgn(ref.face(q.f).disc, kQTol) == 0)
+          return got;
+
+        const int want = perturbed_sign(
+            ref, { a, b, p.f.a, p.f.b, p.f.c, q.f.a, q.f.b, q.f.c },
+            [&](const Ref &r) {
+              const QVec cn = r.cntr(a, b);
+              return dot(cross(r.root(p.f, p.plus) - cn,
+                               r.root(q.f, q.plus) - cn),
+                         r.cen(b) - r.cen(a));
+            });
+        EXPECT_EQ(static_cast<int>(got), want) << a << b;
+        return got;
+      };
+      auto coincident = [&](const CircleRoot &p, const CircleRoot &q) {
+        return ex.ccw(a, b, p.f, p.plus, q.f, q.plus) == Sgn::kZero
+               && (ex.offset(a, b, p.f, p.plus) - ex.offset(a, b, q.f, q.plus))
+                          .norm()
+                      < 1e-9;
+      };
+
+      std::vector<bool> done(roots.size(), false);
+      for (std::size_t i = 0; i < roots.size(); ++i) {
+        if (done[i])
+          continue;
+        std::vector<CircleRoot> group { roots[i] };
+        for (std::size_t j = i + 1; j < roots.size(); ++j) {
+          if (!done[j] && coincident(roots[i], roots[j])) {
+            group.push_back(roots[j]);
+            done[j] = true;
+          }
+        }
+        if (group.size() < 2)
+          continue;
+        ++n_groups;
+
+        for (const CircleRoot &p: group) {
+          for (const CircleRoot &q: group) {
+            if (&p == &q)
+              continue;
+            const Sgn s = before(p, q);
+            EXPECT_NE(s, Sgn::kZero) << a << b;
+            EXPECT_EQ(static_cast<int>(before(q, p)), -static_cast<int>(s))
+                << a << b;
+            if (s != Sgn::kPos)
+              continue;
+            for (const CircleRoot &r: group) {
+              if (&r == &p || &r == &q || before(q, r) != Sgn::kPos)
+                continue;
+              EXPECT_EQ(before(p, r), Sgn::kPos) << a << b;
+            }
+          }
+        }
+      }
+    }
+  }
+  return n_groups;
+}
+
+/**
+ * Zero-length arcs of `build_sas` join consecutive coincident ring vertices
+ * in fan order (Lemma F); the perturbed order must agree. Returns the number
+ * of such arcs.
+ */
+int check_fan_order(const Matrix3Xd &pts, const ArrayXd &sar, const double rp) {
+  const std::optional<SaPrep> sa =
+      prepare(pts, sar, ArrayXb::Constant(sar.size(), true), rp);
+  EXPECT_TRUE(sa);
+  if (!sa)
+    return 0;
+  const SasDelaunay del = triangulate(*sa);
+  const SasGeometry geo = build_sas(*sa, del);
+  const BallExact &ex = del.ex;
+
+  auto vertex = [&](int p) { return del.vertex[sa->order[p]]; };
+  auto probe_root = [&](int p) {
+    std::array<int, 3> v;
+    int m = 0;
+    for (const int at: geo.probes.atoms.nbrs(p))
+      v[m++] = vertex(at);
+    std::sort(v.begin(), v.end());
+    const BallTriple f { v[0], v[1], v[2] };
+    const auto [xp, xm] = ex.roots(f);
+    const Vector3d x = geo.probes.pos.col(p);
+    const bool plus = (xp - x).norm() <= (xm - x).norm();
+    EXPECT_LT(((plus ? xp : xm) - x).norm(), 1e-12);
+    return CircleRoot { f, plus };
+  };
+
+  int n_coinc = 0;
+  for (const SasArc &arc: geo.arcs) {
+    if (arc.beg < 0 || arc.dphi != 0)
+      continue;
+    const SasCircle &c = geo.circles[arc.circ];
+    const int va = vertex(c.i), vb = vertex(c.j);
+    const CircleRoot p = probe_root(arc.beg), r = probe_root(arc.end);
+    if (ex.ccw(va, vb, p.f, p.plus, r.f, r.plus) != Sgn::kZero)
+      continue;
+    EXPECT_EQ(ex.ccw_perturbed(va, vb, p.f, p.plus, r.f, r.plus), Sgn::kPos)
+        << "circle " << c.i << c.j << " probes " << arc.beg << " " << arc.end;
+    ++n_coinc;
+  }
+  return n_coinc;
+}
+
+TEST(BallExactTest, CcwPerturbedResolvesCoincidentRoots) {
+  const Fixture<> sq = setup(square_apex(), ArrayXd::Constant(5, 1.5));
+  const BallTriple f1 { 0, 1, 2 }, f2 { 0, 1, 3 };
+  const auto [p1, m1] = sq.ex.roots(f1);
+  const auto [p2, m2] = sq.ex.roots(f2);
+  const bool same = (p1 - p2).norm() < 1e-12;
+  ASSERT_EQ(sq.ex.ccw(0, 1, f1, true, f2, same), Sgn::kZero);
+  const Sgn s = sq.ex.ccw_perturbed(0, 1, f1, true, f2, same);
+  EXPECT_NE(s, Sgn::kZero);
+  EXPECT_EQ(static_cast<int>(sq.ex.ccw_perturbed(0, 1, f2, same, f1, true)),
+            -static_cast<int>(s));
+
+  EXPECT_GT(check_coincident_order(sq), 0);
+  EXPECT_GT(
+      check_coincident_order(setup(octahedron(), ArrayXd::Constant(6, 1.0))),
+      0);
+  EXPECT_GT(check_fan_order(square_apex(), ArrayXd::Constant(5, 1.5), 1.0), 0);
+}
+
+TEST(BallExactTest, CcwPerturbedMatchesForcedExact) {
+  std::mt19937 rng(17);
+  int n_pairs = 0;
+  for (int trial = 0; trial < 20; ++trial) {
+    const int n = 8;
+    const Matrix3Xd pts = random_pts(rng, n, 1.6);
+    const ArrayXd sar = random_radii(rng, n, 1.5, 2.5);
+    const Fixture<false> sf = setup<false>(pts, sar);
+    const Fixture<true> se = setup<true>(pts, sar);
+
+    for (int a = 0; a < n; ++a) {
+      for (int b = a + 1; b < n; ++b) {
+        if (sf.ex.overlap(a, b) != Sgn::kPos)
+          continue;
+        const std::vector<CircleRoot> roots = circle_roots(sf.ex, a, b);
+        for (const CircleRoot &p: roots) {
+          for (const CircleRoot &q: roots) {
+            if (p.f.c == q.f.c)
+              continue;
+            const Sgn want =
+                se.ex.ccw_perturbed(a, b, p.f, p.plus, q.f, q.plus);
+            EXPECT_EQ(sf.ex.ccw_perturbed(a, b, p.f, p.plus, q.f, q.plus),
+                      want);
+            const Sgn exact = sf.ex.ccw(a, b, p.f, p.plus, q.f, q.plus);
+            EXPECT_TRUE(exact == Sgn::kZero || exact == want);
+            ++n_pairs;
+          }
+        }
+      }
+    }
+  }
+  EXPECT_GT(n_pairs, 500);
 }
 
 TEST(BallExactTest, HeightsConstructorMatchesLift) {
