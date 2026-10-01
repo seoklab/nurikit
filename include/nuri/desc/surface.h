@@ -450,8 +450,8 @@ namespace internal {
    * per active arc (prefix `n_active_arcs` of `geo.arcs`). `face_area` and
    * the caps `face_off`, `face_axis`, `face_cosa`, `face_sina` (hemispheres
    * of the departure tangents first, then the neighbour probes that may
-   * cut) are per active probe `p < probes.n_active`; the area of a low face
-   * is NaN until the face solver fills it.
+   * cut, less the caps dropped by the face solver's hygiene) are per active
+   * probe `p < probes.n_active`.
    */
   struct SesGeometry {
     ArrayXd convex_area;

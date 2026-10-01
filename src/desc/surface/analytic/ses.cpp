@@ -3,15 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
 #include <numeric>
 #include <vector>
 
+#include <absl/log/absl_check.h>
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
+#include "ring.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
 #include "nuri/utils.h"
@@ -314,10 +317,11 @@ namespace internal {
     /**
      * Caps of every active face, hemispheres of the departure tangents
      * first, then the surviving neighbour caps; high faces with a triangle
-     * get their closed-form area (Lemma 1(c)), every other face NaN.
+     * get their closed-form area (Lemma 1(c)), every other face NaN for the
+     * solver. Returns the neighbour probe of every cap, -1 for a hemisphere.
      */
-    void faces(SesGeometry &ses, const SaPrep &sa, const SasGeometry &geo,
-               const double rp) {
+    ArrayXi faces(SesGeometry &ses, const SaPrep &sa, const SasGeometry &geo,
+                  const double rp) {
       const SasProbes &probes = geo.probes;
       const int na = probes.n_active;
       const ProbeHeights hts = probe_heights(sa, probes, rp);
@@ -340,6 +344,7 @@ namespace internal {
       ses.face_cosa.resize(total);
       ses.face_sina.resize(total);
       ses.face_area.resize(na);
+      ArrayXi nbr(total);
 
       ArrayXi cur = off.head(na);
       for (int p = 0; p < na; ++p) {
@@ -348,6 +353,7 @@ namespace internal {
             probes.tan.middleCols(probes.tan_off[p], nt);
         ses.face_cosa.segment(cur[p], nt).setZero();
         ses.face_sina.segment(cur[p], nt).setOnes();
+        nbr.segment(cur[p], nt).setConstant(-1);
         cur[p] += nt;
 
         ses.face_area[p] = !hts.low[p] && tri.triangular[p]
@@ -365,9 +371,279 @@ namespace internal {
           ses.face_axis.col(cur[p]) = (1 - 2 * side) * pc.axis.col(k);
           ses.face_cosa[cur[p]] = pc.cosa[k];
           ses.face_sina[cur[p]] = pc.sina[k];
+          nbr[cur[p]] = ends[1 - side];
           ++cur[p];
         }
       }
+      return nbr;
+    }
+
+    struct FacePair {
+      int m, l;
+    };
+
+    struct FaceRoot {
+      int pair;
+      bool plus;
+    };
+
+    /**
+     * Exact queries of `ring.h` on circle `(0, m)` of a face's lifted balls;
+     * a vertex's `face` is its index into `pairs`. The antipode is
+     * accessible iff it is outside every other live cap.
+     */
+    class FaceRingOps {
+    public:
+      FaceRingOps(const BallExact &ex, const std::vector<FacePair> &pairs,
+                  const ArrayXb &live, int m)
+          : ex_(&ex), pairs_(&pairs), live_(&live), m_(m) { }
+
+      BallTriple face(const RingVertex &v) const {
+        const FacePair &pr = (*pairs_)[v.face];
+        return { 0, pr.m, pr.l };
+      }
+
+      Vector3d offset(const RingVertex &v) const {
+        return ex_->offset(0, m_, face(v), v.plus);
+      }
+
+      int half_plane(const RingVertex &v) const {
+        return ex_->half_plane(0, m_, face(v), v.plus);
+      }
+
+      Sgn ccw(const RingVertex &p, const RingVertex &r) const {
+        return ex_->ccw_perturbed(0, m_, face(p), p.plus, face(r), r.plus);
+      }
+
+      bool antipode_accessible(const RingVertex &v) const {
+        const BallTriple f = face(v);
+        bool accessible = true;
+        for (int k = 1; k < ex_->n(); ++k) {
+          if (k != m_ && (*live_)[k - 1])
+            accessible &= ex_->antipode(0, m_, f, v.plus, k) == Sgn::kPos;
+        }
+        return accessible;
+      }
+
+    private:
+      const BallExact *ex_;
+      const std::vector<FacePair> *pairs_;
+      const ArrayXb *live_;
+      int m_;
+    };
+
+    /**
+     * Face solver with its buffers; cap `k` of the input is ball `k + 1`,
+     * the probe ball 0. Faces are `(0, m, l)`, `m <
+     * l`, circles `(0, m)` oriented about the cap axis `n_m`, so the root
+     * `+` leaves ball `l` along circle `(0, m)` and enters it along `(0, l)`
+     * (`face_parity` of sas.cpp).
+     */
+    class FaceSolver {
+    public:
+      explicit FaceSolver(const int mcap)
+          : solver_(mcap, mcap * (mcap - 1), mcap * mcap), c_(3, mcap + 1),
+            h_(mcap + 1), slot_(mcap + 1), cap_of_slot_(mcap),
+            cut_any_(mcap + 1), inside_any_(mcap + 1) { }
+
+      double solve(const Matrix3Xd &n, const ArrayXd &h, const ArrayXd &cosa,
+                   const double rp, ArrayXb &live) {
+        const int m = static_cast<int>(h.size());
+        ABSL_DCHECK_LE(m + 1, c_.cols());
+        ABSL_DCHECK_GE(live.size(), m);
+        live.head(m).setConstant(true);
+
+        c_.col(0).setZero();
+        h_[0] = 0;
+        c_.middleCols(1, m) = n;
+        h_.segment(1, m) = h;
+        const BallExact ex =
+            BallExact::make(c_.leftCols(m + 1), h_.head(m + 1), rp * rp);
+
+        for (int b = 1; b <= m; ++b) {
+          for (int c = b + 1; c <= m; ++c) {
+            if (!live[b - 1] || !live[c - 1])
+              continue;
+            const int s = ex.shared_circle({ 0, b, c });
+            if (s == 0)
+              return 0;
+            if (s > 0)
+              live[c - 1] = false;
+          }
+        }
+
+        solver_.begin(rp);
+        for (int b = 1; b <= m; ++b) {
+          slot_[b] = live[b - 1] ? solver_.add_cap(cosa[b - 1]) : -1;
+          if (slot_[b] >= 0)
+            cap_of_slot_[slot_[b]] = b;
+        }
+
+        collect_roots(ex, m, live);
+        for (int b = 1; b <= m; ++b) {
+          if (live[b - 1])
+            ring_arcs(ex, b, live);
+        }
+
+        return solver_.solve([&](int j, int l) {
+          return ex.discs_intersect(0, cap_of_slot_[j], cap_of_slot_[l]);
+        });
+      }
+
+    private:
+      /**
+       * Roots of every cutting pair of live caps that lie outside every
+       * other live cap, in order, so that a root's index is its solver
+       * vertex; per circle whether any pair cuts it or buries it.
+       */
+      void collect_roots(const BallExact &ex, const int m,
+                         const ArrayXb &live) {
+        cut_any_.head(m + 1).setConstant(false);
+        inside_any_.head(m + 1).setConstant(false);
+        pairs_.clear();
+        roots_.clear();
+
+        for (int b = 1; b <= m; ++b) {
+          for (int c = b + 1; c <= m; ++c) {
+            if (!live[b - 1] || !live[c - 1])
+              continue;
+
+            const BallTriple f { 0, b, c };
+            if (ex.cuts(f) != Sgn::kPos) {
+              inside_any_[b] |= ex.side(0, b, c) == Sgn::kNeg;
+              inside_any_[c] |= ex.side(0, c, b) == Sgn::kNeg;
+              continue;
+            }
+            cut_any_[b] = cut_any_[c] = true;
+
+            const int pair = static_cast<int>(pairs_.size());
+            pairs_.push_back({ b, c });
+            for (const bool plus: { true, false }) {
+              bool accepted = true;
+              for (int k = 1; k <= m && accepted; ++k) {
+                accepted = k == b || k == c || !live[k - 1]
+                           || ex.accept(f, plus, k) == Sgn::kPos;
+              }
+              if (!accepted)
+                continue;
+
+              roots_.push_back({ pair, plus });
+              solver_.add_vertex(ex.root(f, plus).normalized());
+            }
+          }
+        }
+      }
+
+      /**
+       * Ring of circle `(0, b)` sorted by exact class, then by the perturbed
+       * orientation (coincident roots are generic here), and its arcs.
+       */
+      void ring_arcs(const BallExact &ex, const int b, const ArrayXb &live) {
+        ring_.verts.clear();
+        ring_.cut_any = cut_any_[b];
+        ring_.inside_any = inside_any_[b];
+        for (int r = 0; r < static_cast<int>(roots_.size()); ++r) {
+          const FaceRoot &rt = roots_[r];
+          const FacePair &pr = pairs_[rt.pair];
+          if (pr.m == b)
+            ring_.verts.push_back({ r, rt.pair, 0, rt.plus, rt.plus, 0.0 });
+          else if (pr.l == b)
+            ring_.verts.push_back({ r, rt.pair, 0, rt.plus, !rt.plus, 0.0 });
+        }
+
+        const int nv = static_cast<int>(ring_.verts.size());
+        if (nv > 0) {
+          ABSL_DCHECK_EQ(nv % 2, 0) << "odd ring on cap " << b;
+          const FaceRingOps ops(ex, pairs_, live, b);
+          const Vector3d axis = c_.col(b);
+          ring_frame(ring_, axis, axis.normalized());
+          ring_angles(ring_, ops);
+          std::sort(ring_.verts.begin(), ring_.verts.end(),
+                    [&](const RingVertex &p, const RingVertex &r) {
+                      return p.cls < r.cls
+                             || (p.cls == r.cls && p.vertex != r.vertex
+                                 && ops.ccw(p, r) == Sgn::kPos);
+                    });
+          decide_wrap(ring_, ops);
+        }
+
+        arcs_.clear();
+        tangents_.clear();
+        emit_arcs(ring_, b, arcs_, tangents_);
+        for (int a = 0; a < static_cast<int>(arcs_.size()); ++a) {
+          const SasArc &arc = arcs_[a];
+          const auto &[tb, te] = tangents_[a];
+          solver_.add_arc(slot_[b], arc.beg, arc.end, arc.dphi, tb, te);
+        }
+      }
+
+      ArrangementSolver solver_;
+      Matrix3Xd c_;
+      ArrayXd h_;
+      ArrayXi slot_, cap_of_slot_;
+      ArrayXb cut_any_, inside_any_;
+      std::vector<FacePair> pairs_;
+      std::vector<FaceRoot> roots_;
+      Ring ring_;
+      std::vector<SasArc> arcs_;
+      RingTangents tangents_;
+    };
+
+    /**
+     * Every face left NaN by `faces` solved exactly on its lifted caps
+     * (hemispheres `(t, 0)`, neighbours `(w, |w|²)` for `w = y − x`); the
+     * cap lists are compacted to the caps that survived hygiene.
+     */
+    void solve_faces(SesGeometry &ses, const SasProbes &probes,
+                     const ArrayXi &nbr, const double rp) {
+      const int na = probes.n_active;
+      if (na == 0)
+        return;
+
+      const int mcap = ses.face_off.max_deg();
+      FaceSolver solver(mcap);
+      Matrix3Xd n(3, mcap);
+      ArrayXd h(mcap), cosa(mcap);
+      ArrayXb live(mcap);
+
+      ArrayXi &off = ses.face_off.off();
+      const ArrayXi old = off;
+      int w = 0;
+      for (int p = 0; p < na; ++p) {
+        const int beg = old[p], m = old[p + 1] - beg;
+        off[p] = w;
+        live.head(m).setConstant(true);
+
+        if (std::isnan(ses.face_area[p])) {
+          const Vector3d x = probes.pos.col(p);
+          for (int k = 0; k < m; ++k) {
+            const int y = nbr[beg + k];
+            if (y < 0) {
+              n.col(k) = ses.face_axis.col(beg + k);
+              h[k] = 0;
+            } else {
+              n.col(k) = probes.pos.col(y) - x;
+              h[k] = n.col(k).squaredNorm();
+            }
+            cosa[k] = ses.face_cosa[beg + k];
+          }
+          ses.face_area[p] =
+              solver.solve(n.leftCols(m), h.head(m), cosa.head(m), rp, live);
+        }
+
+        for (int k = 0; k < m; ++k) {
+          if (!live[k])
+            continue;
+          ses.face_axis.col(w) = ses.face_axis.col(beg + k);
+          ses.face_cosa[w] = ses.face_cosa[beg + k];
+          ses.face_sina[w] = ses.face_sina[beg + k];
+          ++w;
+        }
+      }
+      off[na] = w;
+      ses.face_axis.conservativeResize(3, w);
+      ses.face_cosa.conservativeResize(w);
+      ses.face_sina.conservativeResize(w);
     }
   }  // namespace
 
@@ -376,7 +652,8 @@ namespace internal {
     SesGeometry ses;
     ses.convex_area = convex_areas(sa, geo, rp);
     saddles(ses, sa, geo, rp);
-    faces(ses, sa, geo, rp);
+    const ArrayXi nbr = faces(ses, sa, geo, rp);
+    solve_faces(ses, geo.probes, nbr, rp);
     return ses;
   }
 }  // namespace internal
