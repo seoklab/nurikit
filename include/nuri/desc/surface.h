@@ -540,8 +540,9 @@ namespace internal {
    * in the order probe, then caps as given. On return `live` marks the caps
    * that took part: a cap whose ball does not overlap the probe sphere (an
    * exact tangency included) is dropped, and of two identical caps the
-   * higher index; two complementary caps make the face empty with every cap
-   * live. This is the face solver of `build_ses` for one face (tests only).
+   * higher index; two complementary caps end the face empty with `live` as
+   * it stands at that pair. This is the face solver of `build_ses` for one
+   * face (tests only).
    */
   extern double solve_ses_face(const Matrix3Xd &n, const ArrayXd &h,
                                const ArrayXd &cosa, double rp, ArrayXb &live);
