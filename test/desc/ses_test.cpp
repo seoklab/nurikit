@@ -570,6 +570,49 @@ TEST(BuildSesTest, RandomClustersVsDots) {
 }
 
 /**
+ * Every face solved again on the unfiltered cap list (all probes strictly
+ * within `2 rp`) through the same solver.
+ */
+TEST(BuildSesTest, FiltersDoNotChangeArea) {
+  int n_extra = 0;
+  for (const int seed: { 1, 2, 3, 4, 5, 6 }) {
+    const RandomCluster c = random_cluster(seed, 8 + seed % 5);
+    const Ses s = solve(c.pts, c.sar);
+    const SasProbes &probes = s.geo.probes;
+
+    for (int p = 0; p < probes.n_active; ++p) {
+      const Vector3d x = probes.pos.col(p);
+      const int nt = probes.tan_off.degree(p);
+      std::vector<int> near;
+      for (int y = 0; y < probes.pos.cols(); ++y) {
+        if (y != p && (probes.pos.col(y) - x).norm() < 2 * kRp)
+          near.push_back(y);
+      }
+
+      const int m = nt + static_cast<int>(near.size());
+      n_extra += m > s.ses.face_off.degree(p);
+      Matrix3Xd n(3, m);
+      ArrayXd h(m), cosa(m);
+      n.leftCols(nt) = probes.tan.middleCols(probes.tan_off[p], nt);
+      h.head(nt).setZero();
+      cosa.head(nt).setZero();
+      for (int k = 0; k < static_cast<int>(near.size()); ++k) {
+        n.col(nt + k) = probes.pos.col(near[k]) - x;
+        h[nt + k] = n.col(nt + k).squaredNorm();
+        cosa[nt + k] = std::sqrt(h[nt + k]) / (2 * kRp);
+      }
+
+      ArrayXb live;
+      const double area = solve_ses_face(n, h, cosa, kRp, live);
+      EXPECT_TRUE(live.all()) << "seed " << seed << " probe " << p;
+      EXPECT_NEAR(area, s.ses.face_area[p], 1e-9)
+          << "seed " << seed << " probe " << p;
+    }
+  }
+  EXPECT_GT(n_extra, 0);
+}
+
+/**
  * Sphere c grazes circle (a, b): the one merged probe has two full loops
  * with tangents `±y`, two exactly complementary hemispheres, no face.
  */

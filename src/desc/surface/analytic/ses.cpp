@@ -647,6 +647,14 @@ namespace internal {
     }
   }  // namespace
 
+  double solve_ses_face(const Matrix3Xd &n, const ArrayXd &h,
+                        const ArrayXd &cosa, const double rp, ArrayXb &live) {
+    const int m = static_cast<int>(h.size());
+    FaceSolver solver(m);
+    live.resize(m);
+    return solver.solve(n, h, cosa, rp, live);
+  }
+
   SesGeometry build_ses(const SaPrep &sa, const SasGeometry &geo,
                         const double rp) {
     SesGeometry ses;
