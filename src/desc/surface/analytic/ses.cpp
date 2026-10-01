@@ -289,6 +289,7 @@ namespace internal {
 
         const Vector3d diff = probes.pos.col(r) - probes.pos.col(l);
         const double dist = diff.norm(), cos_a = dist / (2 * rp);
+        ABSL_DCHECK_GT(dist, 0);
         if (cos_a >= 1)
           continue;
 
