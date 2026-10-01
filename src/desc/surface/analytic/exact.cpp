@@ -543,6 +543,43 @@ namespace internal {
     return overlap_impl<kForceExact>({ &c_, &h_, w_ }, a, b);
   }
 
+  /**
+   * `U = ρ_x² − ρ_y² − d²`: `B_y ⊂ B_x` iff `U ≥ 0` and `U² ≥ 4 ρ_y² d²`,
+   * internal tangency included.
+   */
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE int
+  SasExactImpl<kForceExact>::contained(const int a, const int b) const {
+    const Data d { &c_, &h_, w_ };
+    auto check = [&](auto ctx, const int x, const int y) {
+      using T = typename decltype(ctx)::Scalar;
+      const Sphere<T> sx = sph(ctx, x), sy = sph(ctx, y);
+      const V3<T> dd = sy.c - sx.c;
+      const T rx = wval(ctx) + dot(sx.c, sx.c) - sx.h,
+              ry = wval(ctx) + dot(sy.c, sy.c) - sy.h, g = dot(dd, dd);
+      const T u = rx - ry - g;
+      const int su = sgn(u), sv = sgn(u * u - lit<T>(4.0) * ry * g);
+      if (su == -1 || sv == -1)
+        return 0;
+      if (su == kUnknown || sv == kUnknown)
+        return kUnknown;
+      return 1;
+    };
+    auto inside = [&](const int x, const int y) {
+      if constexpr (!kForceExact) {
+        const int r = check(Ctx<Fx> { d, -1 }, x, y);
+        if (r != kUnknown)
+          return r == 1;
+      }
+      return check(Ctx<Xp> { d, -1 }, x, y) == 1;
+    };
+    if (inside(a, b))
+      return 1;
+    if (inside(b, a))
+      return 0;
+    return -1;
+  }
+
   template <bool kForceExact>
   ABSL_ATTRIBUTE_NOINLINE Sgn
   SasExactImpl<kForceExact>::cuts(const SasFace f) const {

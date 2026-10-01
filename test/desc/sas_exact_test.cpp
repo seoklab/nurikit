@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <random>
@@ -118,6 +119,21 @@ struct Ref {
     const QVec d = cen(b) - cen(a);
     const Q t = rho2[a] + rho2[b] - dot(d, d);
     return t >= 0 ? Q(1) : 4 * rho2[a] * rho2[b] - t * t;
+  }
+
+  // B_y inside B_x: min of the two signed conditions
+  Q inside(int x, int y) const {
+    const QVec d = cen(y) - cen(x);
+    const Q g = dot(d, d), u = rho2[x] - rho2[y] - g;
+    return std::min(u, u * u - 4 * rho2[y] * g);
+  }
+
+  int contained(int a, int b) const {
+    if (inside(a, b) >= 0)
+      return 1;
+    if (inside(b, a) >= 0)
+      return 0;
+    return -1;
   }
 };
 
@@ -271,6 +287,9 @@ void check_random_agreement() {
         const int ov = q_sgn(ref.overlap(a, b), kQTol);
         if (ov != 0)
           EXPECT_EQ(static_cast<int>(s.ex.overlap(a, b)), ov);
+        if (q_sgn(ref.inside(a, b), kQTol) != 0
+            && q_sgn(ref.inside(b, a), kQTol) != 0)
+          EXPECT_EQ(s.ex.contained(a, b), ref.contained(a, b));
         for (int c = b + 1; c < n; ++c) {
           const SasFace f { a, b, c };
           const Ref::Face rf = ref.face(f);
@@ -382,6 +401,33 @@ int perturbed_sign(Ref ref, const std::vector<int> &participants, F &&value) {
       return s;
   }
   return 0;
+}
+
+/**
+ * Radii 5 and 3 lift to t = 0 and 4 exactly, so the internal tangency at
+ * d = 2 is an exact tie of the stored heights.
+ */
+TEST(SasExactTest, ContainedBall) {
+  Matrix3Xd pts(3, 5);
+  pts.col(0) << 0, 0, 0;
+  pts.col(1) << 2, 0, 0;
+  pts.col(2) << -0.5, 0, 0;
+  pts.col(3) << 0, 0, 0;
+  pts.col(4) << std::nextafter(2.0, 3.0), 0, 0;
+  ArrayXd sar(5);
+  sar << 5, 3, 1, 5, 3;
+  const Fixture<> s = setup(pts, sar);
+
+  EXPECT_EQ(q_sgn(s.ref.inside(0, 1), 0), 0);
+  EXPECT_EQ(s.ex.contained(0, 1), 1);
+  EXPECT_EQ(s.ex.contained(1, 0), 0);
+  EXPECT_EQ(s.ex.contained(0, 2), 1);
+  EXPECT_EQ(s.ex.contained(2, 0), 0);
+  EXPECT_EQ(s.ex.contained(1, 2), -1);
+  EXPECT_EQ(s.ex.contained(0, 3), 1);
+  EXPECT_EQ(s.ex.contained(3, 0), 1);
+  EXPECT_EQ(s.ex.contained(0, 4), -1);
+  EXPECT_EQ(s.ex.contained(4, 0), -1);
 }
 
 TEST(SasExactTest, TangentPairOverlaps) {
