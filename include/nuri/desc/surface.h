@@ -249,19 +249,15 @@ namespace internal {
 
     static SasExactImpl make(const Matrix4Xd &lifted, double wmax);
 
-    /**
-     * Whether balls `a`, `b` given as lifted `(c, t)` overlap; a tangency is
-     * an overlap. For `prepare`, before any triangulation exists.
-     */
-    static Sgn overlap(const Vector3d &ca, double ta, const Vector3d &cb,
-                       double tb, double wmax);
-
     int n() const { return static_cast<int>(h_.size()); }
     const Matrix3Xd &centers() const { return c_; }
     const ArrayXd &h() const { return h_; }
     double wmax() const { return w_; }
     double rho2(int i) const;
 
+    /**
+     * Whether balls `a`, `b` overlap; a tangency is an overlap.
+     */
     Sgn overlap(int a, int b) const;
     /**
      * Whether sphere `c` cuts circle `(a, b)` in two points (symmetric in the
