@@ -308,11 +308,11 @@ C++), not a case the kernels can survive.
    the SAS build checks that the cluster's representative lies within
    `TAU_C` of every host sphere, so `|c_a − c_d| ≤ R_a + R_d + 2 TAU_C`.
    Coincident centres (`d < 1e-3 Å`) raise.
-   *Port:* the near pairs are only **candidates**; whether a candidate is a
-   cap is decided exactly on the triangulated weights when caps are gathered
-   (§3 port step 2), so the floating band must be a superset of the exact
-   overlaps, which `d ≤ R_i + R_j + 2 TAU_C` is. The band still ranks atoms
-   into need/shell as below.
+   *Port:* the near pairs, taken over every atom, are only **candidates**;
+   `overlap` decides each exactly on the lifted `(c, h)` (§3 port step 2).
+   The band must be a superset of the exact overlaps, which
+   `d ≤ R_i + R_j + 2 TAU_C` is, and it ranks atoms into need/shell as
+   below.
    `rp ≤ 0`, a non-positive radius, or SAS radii with
    `R_min² < 2rp² + 2 TAU_C R_max` (the hypothesis of Lemma 7 below; a vdW
    radius just above `(√2 − 1) rp`, 0.58 Å for water) raise.
@@ -320,9 +320,10 @@ C++), not a case the kernels can survive.
    contained: it has no surface and generates no caps. These atoms are
    dropped from everything that follows.
    *Port:* the band only selects candidates; `contained` decides exactly on
-   the lifted `(c, h)`: with `U = ρ_i² − ρ_j² − d²`, `B_j ⊂ B_i` iff `U ≥ 0`
-   and `U² ≥ 4 ρ_j² d²`, internal tangency included (identical balls drop
-   the second).
+   the lifted `(c, h)`: with `K = ρ_i² − ρ_j² − d²`, `B_j ⊂ B_i` iff `K ≥ 0`
+   and `K² ≥ 4 ρ_j² d²`, internal tangency included (identical balls drop
+   the second). The exactly contained pairs are also removed from the
+   overlap graph, so no zero distance reaches step 3.
 3. **Shared circles.** If a third sphere passes through the circle where two
    others meet (collinear centres, radii matched to within `TAU_C`: the two
    circles it makes with either of them have the same centre and parallel
@@ -334,21 +335,29 @@ C++), not a case the kernels can survive.
    the same circle, and the middle sphere's two caps would be exact
    complements, a tie for the covered test. With it, every solved sphere's
    caps lie on distinct circles.
-   *Port:* the triangles of the exact overlap graph are the candidates (an
-   exactly shared circle makes all three pairs exact overlaps), the band on
-   floating circle centres and axes a prefilter, and `shared_circle`
-   decides: circles `(a, b)` and `(a, c)` coincide iff `u = d_b × d_c = 0`
-   and the discriminant `D` of §3 port step 3 is zero (for collinear
-   centres `D = −|d_b|² (k v_b − v_c)²`, `d_c = k d_b`), the middle being
-   `a` iff `d_b · d_c < 0`, else the nearer of `b`, `c`. Both port filters
-   follow one rule: **a sphere whose surface has zero area in the
-   unperturbed configuration is removed, decided exactly; an exact tie is
-   that answer**, i.e. the `ε → 0` limit of the perturbed arrangement, in
-   which such a sphere would carry `O(ε)` area. A sphere inside the band
-   but not exactly contained or coincident is kept and its sliver computed
-   like any other surface. The bands are supersets of the exact sets as
-   long as the rounding of `d`, circle centres and axes stays far below
-   `TAU_C`, i.e. for coordinates below about `1e9 Å`.
+   *Port:* the port needs the filter because `discs_intersect` (§3 port
+   step 5) calls `cuts` on triples that are not faces, and two caps on one
+   circle would tie there. The triangles of the exact overlap graph over
+   every non-contained pair are the candidates (an exactly shared circle
+   makes all three pairs exact overlaps, whether or not an outer sphere is
+   itself contained in a larger one), the band on floating circle centres
+   and axes a prefilter, and `shared_circle` decides: circles `(a, b)` and
+   `(a, c)` coincide iff `u = d_b × d_c = 0` and the discriminant `D` of §3
+   port step 3 is zero, the middle being `a` iff `d_b · d_c < 0`, else the
+   nearer of `b`, `c`.
+   The three filters follow one rule: **a sphere, or a circle, whose
+   surface or length is zero in the unperturbed configuration is removed,
+   decided exactly, and an exact tie is that answer**: a contained ball
+   (internal tangency included), a shared-circle middle, and an exactly
+   tangent pair (§3 port step 2) carry `O(ε)` area or `O(√ε)` length in the
+   perturbed arrangement and nothing in its `ε → 0` limit. A sphere inside
+   the band but not exactly contained or coincident is kept and its sliver
+   computed like any other surface. The bands are supersets of the exact
+   sets as long as the rounding of `d`, circle centres and axes stays far
+   below `TAU_C`; the lifted radius `ρ_i` drifts from `R_i` by about
+   `ulp(|c_i|² + W)`, so this holds for coordinates up to about `1e4 Å`,
+   and centring the coordinates before the lift becomes a requirement
+   beyond that.
 4. **Order.** `active` is the caller's mask minus dropped atoms; `need` is
    `active ∪ neighbours(active)` and `shell` is `neighbours(need)`, where
    neighbours are the near pairs of step 1. Atoms
@@ -476,23 +485,35 @@ C++), not a case the kernels can survive.
 
 The port keeps the cap parametrisation of §1, step 6 (dart rings, signed
 corner) and step 7 (Gauss–Bonnet) of §2 and replaces the triple enumeration
-and steps 1–5 (cap hygiene, crossings, clustering, accessibility, arcs) by a construction on the
-**regular triangulation** `RT` of the weighted points `(c_i, R_i²)`, the dual
-of the power diagram of `π_i(x) = |x − c_i|² − R_i²`. A point is strictly
-inside ball `i` iff `π_i(x) < 0`, on `S_i` iff `π_i(x) = 0`, and its power
-cell is `V_i = {x : π_i(x) ≤ π_m(x) for all m}`; a point of `S_i` is
-accessible iff `x ∈ V_i`.
+and steps 1–5 (cap hygiene, crossings, clustering, accessibility, arcs) by a
+construction on the **regular triangulation** `RT` of the weighted points
+`(c_i, R_i²)`, the dual of the power diagram of `π_i(x) = |x − c_i|² − R_i²`.
+A point is strictly inside ball `i` iff `π_i(x) < 0`, on `S_i` iff
+`π_i(x) = 0`, and its power cell is `V_i = {x : π_i(x) ≤ π_m(x) for all m}`;
+a point of `S_i` is accessible iff `x ∈ V_i`.
 
 The design rule is **one source of truth**: every yes/no decision (which
 pairs overlap, which faces cut, which cut points are accessible, in which
 order vertices sit on a circle, which caps form one component) is an exact
 predicate on the same numbers geogram triangulated, with the same
-tie-breaking. Preparation decides contained balls and shared circles with
-the same exact predicates (§3 preparation steps 2–3); only the near band,
-which ranks input, keeps `TAU_C`. Floating point is used only for outputs
-(positions, angles, areas), never for a decision. There is no clustering
-tolerance: two points are the same vertex only when they are the same
-`(face, root)`.
+tie-breaking. Preparation decides contained balls, shared circles and
+tangent pairs with the same exact predicates (§3 preparation steps 1–3);
+only the near band, which ranks input, keeps `TAU_C`. Floating point is used
+only for outputs (positions, angles, areas), never for a decision. There is
+no clustering tolerance: two points are the same vertex only when they are
+the same `(face, root)`.
+
+**Symbols.** `ρ_i² = W + |c_i|² − h_i` is the lifted squared radius (step 1).
+For a circle `(a, b)`: `d = c_b − c_a`, `G = |d|²`, `v = ½(h_b − h_a) − c_a·d
+= ½(ρ_a² − ρ_b² + G)`, centre `cntr = c_a + (v/G) d`, radius²
+`r² = ρ_a² − v²/G`; `π_b − π_a = 2(v − y·d)` for `y = x − c_a`. For a face
+`(a, b, c)` relative to `a`: `d_b, d_c`, `u = d_b × d_c`, `v_b, v_c` as
+above, `λ = |d_c|² v_b − (d_b·d_c) v_c`, `μ = |d_b|² v_c − (d_b·d_c) v_b`,
+the radical line `ℓ = {π_a = π_b = π_c} = {c_a + y_⊥ + s u}` with
+`y_⊥ = (λ d_b + μ d_c)/|u|²`, and the discriminant `D = |u|² (ρ_a² −
+|y_⊥|²)`, written as a polynomial in `(c, h)`. `k` is the number of spheres
+through a point, `L` the number of boundary loops on a sphere, `C` the
+number of cap components.
 
 1. **Weights and perturbation.** The kept spheres, in original index order
    so that the result is shared across active masks, are lifted to
@@ -502,74 +523,85 @@ tolerance: two points are the same vertex only when they are the same
    triangulates the weighted points with power `π_i(x) = |x|² − 2x·c_i +
    h_i`. Powers are compared only by differences, so the triangulation is
    the same for every common shift of the weights; the port fixes the shift
-   by the squared radius `ρ_i² = W + |c_i|² − h_i`, a rational number within
-   an ulp of `|c_i|² + W` of `R_i²` but not equal to it (the error grows
-   with the distance of the molecule from the origin; centring the
-   coordinates before the lift would shrink it, a possible refinement).
+   by `ρ_i² = W + |c_i|² − h_i`, a rational number within an ulp of
+   `|c_i|² + W` of `R_i²` but not equal to it.
    Exact ties are resolved by **Simulation of Simplicity**: geogram sorts the
    five points of its predicate by address, which for one contiguous vertex
    array (spheres, then bounding points) is index order, and its tie branch
-   returns the sign of `∂r/∂h_k` for `h_k → h_k − ε_k` with `ε_i ≫ ε_j` for
+   returns the sign of `∂r/∂h_m` for `h_m → h_m − ε_m` with `ε_i ≫ ε_j` for
    `i < j` (`predicates.cpp`, `side4h_3d_exact_SOS`): every ball grows,
-   lower index first. Formally `ρ_i²(ε) = ρ_i² + ε η^i` with `0 < ε ≪ η ≪ 1`,
-   and the sign of a tied predicate is the sign of its first non-zero
-   first-order coefficient in index order. Geogram's predicate is linear in
-   the heights, so first order is all it needs; the port's predicates are
-   not (discriminants, `A ± B√Δ`, squared overlap), but each has a
-   participant whose first-order coefficient is a non-zero quantity, so the
-   first-order rule is complete: `overlap` at an external tangency (the
-   coefficient of either height is `−4ρ² − 2T`, `T < 0`), `cuts` (the
-   coefficients sum to `|u|²`, non-zero for a face), `side` (the
-   coefficient of `h_c` is `−|d_b|²/2`), `accept` (the coefficient of the
-   apex height is `|u|²/2` and the apex is never a face vertex), and
-   `antipode` for a fan sphere outside the face (the coefficient of its
-   height is `|d|²|u|²/2`); a double root that is also a cell orthocentre
-   gets one explicit `√ε` rule. For `antipode` tested against the vertex's
-   own cutter (the cutter's roots antipodal on the circle) no first-order
-   proof is recorded; the exact kernel aborts rather than guess if every
-   coefficient vanishes there. The port's predicates work on `(c_i, h_i)`
-   and apply this perturbation to every tie, so they describe the same
-   perturbed configuration as the triangulation.
+   lower index first. Formally `ρ_i²(ε) = ρ_i² + ε η^i` with `0 < ε ≪ η ≪ 1`
+   and `ε ≪ η^n` for `n` spheres, so that the term of the lowest index
+   dominates every later one at every order, and the sign of a tied
+   predicate is the sign of its first non-zero first-order coefficient in
+   index order. Geogram's predicate is linear in the heights, so first
+   order is all it needs; the port's predicates are `C¹` in the heights
+   away from `D = 0` (discriminants, `A ± B√D`, squared overlap), so the
+   first-order rule applies to them as long as one participant has a
+   non-zero first-order coefficient: `cuts` (the coefficients sum to
+   `|u|²`, non-zero for a face), `side` (the coefficient of `h_c` is
+   `−|d_b|²/2`), `accept` (the coefficient of the apex height is `|u|²/2`
+   and the apex is never a face vertex), and `antipode` (for a fan sphere
+   outside the face the coefficient of its height is `|d|²|u|²/2`; against
+   the vertex's own cutter it is `−2`: with `X = x − cntr`,
+   `(X − c_c)·X' = ½` and the antipode's derivative is `Q' = −X'`). Where
+   `D(0) = 0` (a tangency perturbed to a cut) `√D(ε)` is of order `√ε` and
+   dominates every first-order term unless its coefficient `B` vanishes;
+   `accept` and `antipode` carry that one `√ε` rule. Not every tie is
+   perturbed: `overlap`, `contained` and `shared_circle` report the tie and
+   preparation takes the limit answer (step 2, §3 preparation), and `ccw`
+   and `half_plane` report zero for the caller to resolve structurally.
    Working on `R_i²` instead
    is inconsistent at the `1e-15` level, exactly where degenerate cells
-   live (prototype driver: 32–135 entry/exit alternation violations per
-   fixture on `R²`, none on `h`; the port's tests pin the convention against
-   geogram's own conflict predicate on random sets, an exact 5-fold point, a
-   coplanar square and a lattice).
+   live (the port's tests pin the convention against geogram's own conflict
+   predicate on random sets, an exact 5-fold point, a coplanar square and a
+   lattice).
    Four **bounding points** of weight 0 at the corners of a regular
-   tetrahedron of circumradius `4(D + R_max) + 1` around the bounding box
-   (`D` = half diagonal) are appended so the input is never coplanar
+   tetrahedron of circumradius `4(Δ + R_max) + 1` around the bounding box
+   (`Δ` = half diagonal) are appended so the input is never coplanar
    (Lemma 0). A sphere that appears in no cell has an empty power cell, no
    accessible surface, and gets area 0 without a solve.
 2. **Caps.** The caps of sphere `s` are its `RT` neighbours `t` whose ball
    overlaps `B_s`, decided exactly and rationally: with
    `T = ρ_s² + ρ_t² − |c_s − c_t|²` the balls overlap iff `T ≥ 0` or
-   `T² < 4 ρ_s² ρ_t²` (the cross term of `(ρ_s + ρ_t)²` is irrational);
-   a tie means tangency, which the perturbation turns into an overlap (both
-   radii grow). Preparation keeps every exactly overlapping pair in the
-   overlap graph; its near band (`|d − R_i − R_j| ≤ 2 TAU_C`) is used only
-   to rank atoms into need/shell (Lemma 7 needs it there and nowhere else).
-   A pair tangent to rounding gives a circle of radius `ρ_l² = ρ_s² − a²`
-   evaluated in floating point, possibly zero; such a cap has no vertices
-   unless a third sphere passes through the tangency point (a tie again, so
-   consistent), and its full circle contributes `2π cos α · R²` against a
-   loop that lowers `χ` by one: zero net area. No kernel divides by the
-   circle radius of a cap without vertices.
+   `T² < 4 ρ_s² ρ_t²` (the cross term of `(ρ_s + ρ_t)²` is irrational); the
+   second kernel is `4G r²`, four times the circle's squared radius times
+   `G`, so its exact zero is a tangency, a circle of zero length. The
+   perturbation would resolve it to an overlap (the coefficient of `t`'s
+   height is `4ρ_s² − 2T = 4ρ_s² + 4ρ_sρ_t > 0`), but the tie is reported
+   instead: by the zero-area rule the pair carries no circle. Three
+   structural rules make this the
+   `ε → 0` limit of the perturbed arrangement, in which the tangent pair
+   would carry a circle of radius `O(√ε)` cut by every sphere through the
+   tangency point: the pair is not an edge of the overlap graph, so no face
+   `(a, b, ·)` is examined and no fan contains it; two caps of one sphere
+   whose spheres do not overlap never intersect (step 5), so on a third
+   sphere through the point the two tangent discs stay two components; and
+   an apex that does not overlap some face sphere never rejects a root
+   (step 3), since its power is non-negative on that sphere and zero only
+   at the tangency point. On the tangent spheres themselves the boundary
+   passes smoothly through the point (the perturbed detour, two corners of
+   `π/2` around a half circle with `cos α → 1`, has net turning zero), and
+   on the third sphere the lens of the two discs closes to two cusps whose
+   corners sum to `2π`, the same area as two disjoint discs. Preparation
+   keeps every strictly overlapping pair in the overlap graph; its near
+   band (`|d − R_i − R_j| ≤ 2 TAU_C`) is used only to rank atoms into
+   need/shell (Lemma 7 needs it there and nowhere else).
 3. **Vertices from faces.** Every face `(a, b, c)` of a finite cell whose
    three spheres pairwise overlap is handled once. Sphere `c` cuts circle
-   `(a, b)` in two points, one, or none (`cuts`: the discriminant of
-   `π_a = 0` along the radical line `L = {π_a = π_b = π_c}`, rational in
+   `(a, b)` in two points, one, or none (`cuts`: the sign of `D`, rational in
    `(c, h)`); a double root is a tie and is perturbed to a cut or a miss.
-   Collinear centres never tie here: coincident circles are removed in
-   preparation, and otherwise `D = −|d_b|² (k v_b − v_c)² < 0` strictly.
-   The two roots `x_± = P ± u√Δ` (`P`, `u` rational) are the candidate
+   The two roots `x_± = c_a + y_⊥ ± (√D/|u|²) u` are the candidate
    vertices; `x_±` is accepted iff `π_l(x_±) ≥ 0` for both apexes `l` of the
-   two cells sharing the face (`accept`: `π_l − π_a` is affine along `L`, so
-   this is the sign of `A ± B√Δ`, decided exactly; a bounding apex always
-   passes by Lemma 0; a tie is perturbed like the triangulation). Each
-   accepted root is one **probe** with exactly the three atoms `a, b, c`,
-   its position evaluated in floating point from `P`, `u`, `Δ`. Theorem 1
-   states that this is exact, with no slack.
+   two cells sharing the face (`accept`: `π_l − π_a` is affine along `ℓ`, so
+   this is the sign of `A ± B√D`, decided exactly; a tie is perturbed like
+   the triangulation). An apex that is a bounding point (Lemma 0) or
+   overlaps none of the face spheres is not tested: its power on that
+   sphere is non-negative, zero only at a tangency point, and the limit
+   accepts there (step 2). Each accepted root is one **probe** with exactly
+   the three atoms `a, b, c`, its position evaluated in floating point as
+   `cntr + offset` (see Floating point). Theorem 1 states that this is
+   exact, with no slack.
 4. **Rings from cell fans.** For every `RT` edge `(a, b)` that is a cap
    pair, the cells around the edge are walked in cyclic order (across the two
    faces of each cell that contain the edge; the cycle closes within the
@@ -583,162 +615,188 @@ tolerance: two points are the same vertex only when they are the same
    alternate entry/exit (a structural `DCHECK`); the arc from an **entry to
    the next vertex is accessible**, from an exit it is not. An empty ring is
    a full circle, accessible iff **no fan face cuts the circle and none
-   contains it** (`inside`: sign of `π_c` on a circle it does not cut,
-   rational; a face that cuts the circle with both roots rejected means the
-   facet lies inside the disc, so the circle is covered). The arcs carry
-   `φ` and `dphi` in the circle frame for output and for the `Σ dphi cos α`
-   term. The `+2π` wrap is a decision, not a convention: Gauss–Bonnet sums
-   only the accessible arcs, so placing the wrap on an accessible instead of
-   an inaccessible arc changes the area by `2π cos α R²`, and at a ring whose
-   vertices are all probes of one `k`-fold point every floating `φ`
-   difference is rounding noise. It is decided exactly against a rational
-   reference direction `r` in the circle's plane (a cross product of
-   `c_b − c_a` with a coordinate axis; the output frame's `e1` is `r/|r|`):
-   each vertex is classified as on the ray, in `(0, π)`, at `π`, or in
-   `(π, 2π)` by the signs of two linear forms in `x = P ± u√Δ` (one square
-   root each); two consecutive vertices in the same open half-plane are
-   ordered by the sign of the oriented area `((x_i − cntr) × (x_j − cntr)) ·
-   (c_b − c_a)`, an expression in two square roots reduced to one by
-   squaring, and an exact zero within one half-plane means the two probes
-   coincide (antipodal points fall into different classes). The numeric
-   angle of each vertex is then made consistent with its exact class
-   (`0` on the ray, `π` at `π`, `atan2` otherwise, folded into `[0, 2π]`), so
-   the angles are monotone in the exact order and the wrap goes to the
-   unique consecutive pair whose arc contains the ray; a coincident pair
-   gets `dphi = 0`, and rounding-level negative `dphi` on such arcs is
-   clamped at zero. If every consecutive pair coincides (a single-point
-   window), the circle away from the point is accessible iff its antipode
-   `Q = 2 cntr − x` has `π_c(Q) ≥ 0` for every fan sphere `c` (exact, same
-   form as `accept`), and the `2π` goes to an arc of that accessibility;
-   which one is immaterial (same `Σ dphi`, loops and corners). Each arc
-   also carries its two end tangents, taken from the circle frame at the
-   arc's own angles rather than from the probe positions: darts and arcs
-   then describe one closed curve even on a circle too small for the
-   positions to resolve, which is what Gauss–Bonnet needs.
+   contains it** (`side`: the sign of `μ`, which is the sign of `π_c` on a
+   circle `c` does not cut, since `(π_c − π_a)(cntr) = 2μ/G` and `ℓ` misses
+   the disc; a face that cuts the circle with both roots rejected means
+   the circle is covered). The arcs carry `φ` and `dphi` in the circle
+   frame for output and for the `Σ dphi cos α` term. The `+2π` wrap is a
+   decision, not a convention: Gauss–Bonnet sums only the accessible arcs,
+   so placing the wrap on an accessible instead of an inaccessible arc
+   changes the area by `2π cos α R²`, and at a ring whose vertices are all
+   probes of one `k`-fold point every floating `φ` difference is rounding
+   noise. It is decided exactly against a rational reference direction `r`
+   in the circle's plane (`r = d × e_m` for the coordinate axis `e_m` with
+   `m = argmin |d_m|`; the output frame's `e1` is `r/|r|`): each vertex is
+   classified as on the ray, in `(0, π)`, at `π`, or in `(π, 2π)` by the
+   signs of two linear forms in `x − cntr` (`half_plane`, one square root
+   each); two consecutive vertices in the same open half-plane are ordered
+   by the sign of the oriented area `((x_i − cntr) × (x_j − cntr)) · d`
+   (`ccw`, an expression in two square roots reduced to one by squaring),
+   and an exact zero within one half-plane means the two probes coincide
+   (antipodal points fall into different classes). The numeric angle of
+   each vertex is then made consistent with its exact class (`0` on the
+   ray, `π` at `π`, `atan2` otherwise, folded into `[0, 2π]`), so the
+   angles are monotone in the exact order and the wrap goes to the unique
+   consecutive pair whose arc contains the ray; a coincident pair gets
+   `dphi = 0`, and rounding-level negative `dphi` on such arcs is clamped
+   at zero. If every consecutive pair coincides (the **single-point
+   window**: all vertices are one point `x` to the exact order), the circle
+   away from the point is accessible iff its antipode `Q = 2 cntr − x` has
+   `π_c(Q) ≥ 0` for every fan sphere `c` (`antipode`, exact, same form as
+   `accept`), and the `2π` goes to an arc of that accessibility; which one
+   is immaterial (same `Σ dphi`, loops and corners). The window is
+   justified because every perturbed vertex of the ring lies within `O(ε)`
+   of `x` on a circle of radius bounded away from zero (step 2 removed the
+   zero-length ones), so the rest of the circle is one arc, and `Q` lies on
+   it. Each arc also carries its two end tangents, taken from the circle
+   frame at the arc's own angles rather than from the probe positions:
+   darts and arcs then describe one closed curve even on a circle too small
+   for the positions to resolve, which is what Gauss–Bonnet needs.
 5. **Arrangement per sphere.** On sphere `s` a probe lies on exactly two
    circles, so it has one in-dart and one out-dart; the corner is the signed
    angle between them at the probe's own position (§2 step 6 without any
    ring re-ordering), `succ` follows the accessible arcs, loops are counted
-   as before. `n_cap_components` is the number of components of the union
-   of **all** caps of `s`, including caps with no accessible arc: the
-   components of a finite union of closed discs are the components of their
-   intersection graph, and two discs intersect iff their circles cross
-   (`cuts`) or one circle lies inside the other's ball (`inside`, either
-   way). Caps sharing a probe are joined for free; the remaining pairs need
-   the predicates, at most `m(m − 1)/2` per sphere. Counting only caps with
-   arcs is wrong: a band of two rows of caps has a north loop from the top
-   row and a south loop from the bottom row and no cap on both, so it would
-   count two components instead of one and be off by `4πR²`; buried caps
-   that only bridge two rows fail the same way. Then
-   `n_patches = 1 + n_loops − n_cap_components` (derivation: with at least
-   one arc the union `I` of the caps is not the whole sphere; the sphere
-   minus `L` disjoint simple loops has `L + 1` faces alternating
-   accessible/inaccessible; the faces of `I` are its `C` components, each a
-   sphere with `r` holes and `χ = 2 − r`; so `χ(A) = 2 − χ(I) = 2 − (2C − L)`
-   and `n_patches = 1 + L − C`), with the degenerate cases structural: no
-   caps → `4πR²`; caps but no accessible arc → the accessible region has no
-   boundary and is not the whole sphere, so it is empty → area 0. Nested
-   caps are no longer hidden: their roots are rejected by Theorem 1, they
-   carry no arc, and they join their container's component. A cap of
-   exactly zero radius without vertices may be skipped (it removes one loop
-   and one component and `2π · 1` from the curvature sum, net zero).
+   as before. `C` is the number of components of the union of **all** caps
+   of `s`, including caps with no accessible arc: the components of a
+   finite union of closed discs are the components of their intersection
+   graph, and two discs intersect iff their circles cross (`cuts`) or one
+   circle lies inside the other's ball (`side`, either way). Collinear
+   centres never tie in `cuts` here: coincident circles are removed in
+   preparation, and otherwise `D = −|d_b|² (κ v_b − v_c)² < 0` strictly for
+   `d_c = κ d_b`. Caps sharing a probe are joined for free, caps whose
+   spheres do not overlap are never joined (step 2), and the remaining
+   pairs need the predicates, at most `m(m − 1)/2` per sphere. Counting
+   only caps with arcs is wrong: a band of two rows of caps has a north loop
+   from the top row and a south loop from the bottom row and no cap on
+   both, so it would count two components instead of one and be off by
+   `4πR²`; buried caps that only bridge two rows fail the same way. Then
+   `n_patches = 1 + L − C`: with at least one arc the union `I` of the
+   caps is not the whole sphere; the sphere minus `L` disjoint simple loops
+   has `L + 1` faces alternating accessible/inaccessible, `P` of them
+   accessible and `C` inaccessible (each cap component is one face), so
+   `P + C = L + 1`. The degenerate cases are structural: no caps → `4πR²`;
+   caps but no accessible arc → the accessible region has no boundary and
+   is not the whole sphere, so it is empty → area 0. Nested caps carry no
+   arc (their roots are rejected by Theorem 1) and join their container's
+   component.
 
-**Lemma 0 (the bounding points are inert).** Every sphere point and every
-point of `U` lies within `D + R_max` of the box centre, and a bounding point
-`b` lies at distance `4(D + R_max) + 1`, so `π_b(x) = |x − b|² > 0` there.
-Hence the power cells of the spheres are unchanged inside `U`, a bounding apex
-never rejects a cut point, and, because every centre is strictly inside the
-bounding tetrahedron (its inradius exceeds `D`), every hull face of the
+**Lemma 0 (the bounding points are inert).** In plain words: the four far
+corners change nothing inside the molecule. Every sphere point and every
+point of `U` lies within `Δ + R_max` of the box centre, and a bounding point
+`b` lies at distance `4(Δ + R_max) + 1`, so `π_b(x) = |x − b|² > 0` there.
+Hence the power cells of the spheres are unchanged inside `U`, a bounding
+apex never rejects a cut point, and, because every centre is strictly inside
+the bounding tetrahedron (its inradius exceeds `Δ`), every hull face of the
 triangulation consists of bounding points only. A bounding point is never
 hidden, so this holds for the triangulation actually built.
 
-**Theorem 1 (vertex recipe).** Let `x` be a cut point of circle `(a, b)` with
-sphere `c`, and let `abc` be a face of `RT` with apexes `l1`, `l2`. Then `x`
-is accessible iff `π_l1(x) ≥ 0` and `π_l2(x) ≥ 0`; and every accessible cut
-point is produced by some face. All statements are for the perturbed weights
-`h_i − ε_i`, `ε → 0⁺` in index order, and hold exactly.
+**Theorem 1 (vertex recipe).** In plain words: a cut point of a face is on the
+surface iff it is outside the two balls on either side of that face, and every
+surface vertex is a cut point of some face. Fix one perturbed configuration
+`h_i − ε_i`, `ε → 0⁺` in index order, in which no two triangulation cells
+share an orthocentre; every statement is for that configuration and holds
+exactly. Let `x` be a cut point of circle `(a, b)` with sphere `c`, and let
+`abc` be a face of `RT` with apexes `l1`, `l2`. Then `x` is accessible iff
+`π_l1(x) ≥ 0` and `π_l2(x) ≥ 0`; and every accessible cut point is produced
+by some face.
 
-*Proof.* `x` lies on the radical line `L = {π_a = π_b = π_c}`, along which
-`π_m − π_a` is affine for every `m`, so each constraint `π_m ≥ π_a` cuts `L`
-in a half-line (or all or none of `L` when `c_m` lies in the face plane; that
-cell has zero volume and is never created, since geogram creates a cell only
-when its four centres are strictly non-coplanar). The orthocentres of the two
-cells lie on `L` and satisfy every constraint, and the constraint of an apex
-is tight at its own orthocentre; therefore the apex constraints are the
-binding lower and upper bounds, and `{s : π_m(x(s)) ≥ π_a(x(s)) ∀m}` is the
-segment between the two orthocentres, the edge of the power diagram dual to
-the face. The two apexes lie on opposite sides of the face plane, as any two
-cells sharing a face do, so their half-lines point opposite ways and the
-bounds are a lower and an upper one even when the orthocentres coincide (a
-degenerate cell; the perturbation separates them by `O(ε)` in the same
-direction the triangulation used). At `x`, `π_a = 0`, so membership is
-`π_l1 ≥ 0 ∧ π_l2 ≥ 0`. Conversely let `x` be an accessible cut point and `A`
-the set of spheres through `x`. `x` lies in the cells of exactly the atoms of
-`A`, so `∩_{i∈A} V_i` is non-empty and is a face of the power diagram whose
-dual is a face or cell of the regular subdivision with vertex set within `A`;
-the perturbed triangulation refines that dual, so some `RT` face has its three
-atoms in `A`, `x` is one of its cut points, and that face accepts `x`. ∎
+*Proof.* `x` lies on the radical line `ℓ`, along which `π_m − π_a` is affine
+for every `m`, so each constraint `π_m ≥ π_a` cuts `ℓ` in a half-line (a
+centre `c_m` in the face plane makes `π_m − π_a` constant along `ℓ`, so that
+constraint is all of `ℓ` or none; it holds at the orthocentres, hence it is
+all of `ℓ` and never binds). The
+orthocentres of the two cells lie on `ℓ` and satisfy every constraint, and
+the constraint of an apex is tight at its own orthocentre; therefore the apex
+constraints are the binding lower and upper bounds, and `{s : π_m(x(s)) ≥
+π_a(x(s)) ∀m}` is the segment between the two orthocentres, the edge of the
+power diagram dual to the face. The two apexes lie on opposite sides of the
+face plane, as any two cells sharing a face do, so their half-lines point
+opposite ways and the bounds are a lower and an upper one; the two
+orthocentres are distinct by the choice of configuration. At `x`, `π_a = 0`,
+so membership is `π_l1 ≥ 0 ∧ π_l2 ≥ 0`. Conversely let `x` be an accessible
+cut point and `Γ` the set of spheres through `x`. `x` lies in the cells of
+exactly the atoms of `Γ`, so `∩_{i∈Γ} V_i` is non-empty and is a face of the
+power diagram whose dual is a face or cell of the regular subdivision with
+vertex set within `Γ`; the perturbed triangulation refines that dual, so some
+`RT` face has its three atoms in `Γ`, `x` is one of its cut points, and that
+face accepts `x`. ∎
 
-The point of the theorem is that global regularity of `RT` makes every ball
-other than the two apexes irrelevant: the two local tests are exact, not a
-heuristic. Four spheres through one point form an ordinary cell whose
-orthocentre has zero power: the tie sits at the end of the dual edge, and
-`accept` resolves it. Five or more spheres on one orthosphere make a
-degenerate cell with a zero-length dual edge; after the perturbation it is a
-chain of cells with `O(ε)` edges, every face of the chain produces its own
-cut point at the same position to rounding, and each accepted one is a
-probe. Tests at chain faces are exact ties resolved by the perturbation;
-prototype evidence: on rotated exact 5- and 6-fold points and on ideal benzene
-the sign of the floating apex power at the shared point is random (about 65%
-of chain copies would be rejected by a floating `≥ 0`), while the exact test
-on `h` yields alternating rings in every one of ~11 500 rings.
+The converse direction is false at an unperturbed `k`-fold point: there two
+cells can share an orthocentre, the two apex half-lines then meet at one
+point instead of overlapping in a segment, and the opposite-sides argument
+gives no edge. The port never evaluates that configuration: ties in `accept`
+are resolved by the perturbation, which separates the orthocentres by
+`O(ε)` in the direction the triangulation used. Four spheres through one
+point form an ordinary cell whose orthocentre has zero power: the tie sits at
+the end of the dual edge, and `accept` resolves it. Five or more spheres on
+one orthosphere make a degenerate cell with a zero-length dual edge; after
+the perturbation it is a chain of cells with `O(ε)` edges, every face of the
+chain produces its own cut point at the same position to rounding, and each
+accepted one is a probe.
 
-**Lemma F (fan order is ring order).** The circle `(a, b)` and the power
-facet `V_a ∩ V_b` both lie in the radical plane `{π_a = π_b}`. The facet is a
-convex polygon whose edges are the dual segments of the fan faces `(a, b, c)`
-in their rotational order about the edge, each on the radical line of its
-face. A circle and the boundary of a convex polygon that meet transversally
-meet in the same cyclic order on both curves, and on one polygon edge the
-circle first leaves and then enters the half-plane of ball `c` (exit, then
-entry) when traversed in the direction that runs the polygon boundary
-counter-clockwise. Points not accepted by Theorem 1 lie outside the segment
-and are skipped without disturbing the order. A double root (tangency) is
-perturbed to a cut or a miss before this lemma applies. ∎
+**Lemma F (fan order is ring order).** In plain words: walking the cells
+around an edge visits the circle's vertices in their order along the circle.
+Hypotheses: no face of the fan is tangent to the circle (a double root is
+perturbed to a cut or a miss before this lemma applies) and no cell
+orthocentre lies on the circle (a tie that `accept` perturbs away). The
+circle `(a, b)` and the power facet `V_a ∩ V_b` both lie in the radical plane
+`{π_a = π_b}`. The facet is a convex polygon whose edges are the dual
+segments of the fan faces `(a, b, c)` in their rotational order about the
+edge, each on the radical line of its face, and the fan order is the
+rotational order of the planes through the edge, hence of the polygon edges
+about the circle's axis. The accessible arcs are the circle inside the
+polygon, and their endpoints are where the circle crosses the polygon's
+edges transversally. Project the circle radially from `cntr` onto the
+polygon boundary: on each edge the projection is monotone, the edges are
+met in their rotational order, and a crossing of an edge by the circle is a
+crossing of the same edge by its projection, so the crossings occur in the
+rotational order of the edges, and on one edge the circle first leaves and
+then enters the half-plane of ball `c` (exit, then entry) when traversed in
+the direction that runs the polygon boundary counter-clockwise. Points not
+accepted by Theorem 1 lie outside the segment and are skipped without
+disturbing the order. A face that cuts the circle with both roots rejected
+has its segment outside the disc: the circle misses the facet there. ∎
 
-**Theorem 2 (neighbour caps suffice).** For `x ∈ S_s`, `x` is accessible iff
+**Theorem 2 (neighbour caps suffice).** In plain words: only the spheres
+adjacent in the triangulation can cut a sphere's surface, and their caps
+alone give the right components. For `x ∈ S_s`, `x` is accessible iff
 `x ∈ V_s`. `V_s` is a convex polyhedron whose facets are the `RT` edges of
-`s`; if `x ∉ V_s` some facet neighbour `n` has `π_n(x) < π_s(x) = 0`
-strictly, so a point of `S_s` inside some open ball is inside the open ball
-of an `RT` neighbour. Hence the union of the open neighbour caps equals the
-union of all open overlapping caps exactly, the components of that union are
-the components of §2 step 7, and every accessible arc on circle `(s, t)` lies
+`s`; if `x ∉ V_s` some facet neighbour `n` has `π_n(x) < 0` strictly, so a
+point of `S_s` inside some open ball is inside the open ball of an `RT`
+neighbour. Hence the union of the open neighbour caps equals the union of
+all open overlapping caps exactly (a tangent neighbour has an empty open
+cap, consistent with step 2), the components of that union are the
+components of §2 step 7, and every accessible arc on circle `(s, t)` lies
 in the facet `V_s ∩ V_t`, so `(s, t)` is an edge and, by Theorem 1 and
 Lemma F, its endpoints are the ring of that edge. ∎
 
 **Corners at coincident probes.** Where the SAS is locally a disc around a
-`k`-fold point, the point produces `k − 2` probes within rounding of one
-position, joined by arcs of length `O(rounding)` (elsewhere the perturbation
-decides how many of the coincident roots are accessible, see below). The
-turning of the tangent along the boundary is additive, so the sum of their
-signed corners plus the geodesic curvature of the tiny arcs equals the corner
-a single merged vertex would have, exactly in exact arithmetic and to
-`(k − 2) · 1e-15 rad` in floating point; the tangent directions themselves
-are well conditioned (the circle tangent at a point known to rounding). The
-pinch of §2 step 6 is the special case of two probes on the tangent circles
-`2h` apart with an ordinary arc between them; no structural re-ordering is
-required because every probe has exactly two darts on each sphere.
+`k`-fold point `x` with all `k` spheres on faces through `x`, the point
+produces `k − 2` probes within rounding of one position, joined by arcs of
+length `O(rounding)` (elsewhere the perturbation decides how many of the
+coincident roots are accessible, see below). The turning of the tangent
+along the boundary is additive modulo `2π`, and the local convexity of the
+disc keeps every partial sum of corners within one turn, so the sum of their
+signed corners plus the geodesic curvature of the tiny arcs equals the
+corner a single merged vertex would have, exactly in exact arithmetic and to
+`(k − 2) · δ / r_circle` in floating point, `δ` the position rounding and
+`r_circle` the smallest circle radius involved; the tangent directions
+themselves come from the exact offsets below. The pinch of §2 step 6 is the
+special case of two probes on the tangent circles a small distance apart
+with an ordinary arc between them; no structural re-ordering is required
+because every probe has exactly two darts on each sphere.
 
 **Semantics at exact coincidences.** The output is the arrangement of the
-perturbed weights. At a point of `k ≥ 4` spheres the perturbation picks one
-resolution of the degeneracy (which triples form cells and which of the
-coincident probes are accessible), and rounding of the input under a rigid
-motion can pick another; areas differ only at rounding level, but the probe
-set at such a point is not a continuous function of the coordinates (a
-trapped 5-fold point yielded 0, 2 or 6 coincident probes across rotations in
-the prototype). The enumeration's `ε → 0⁺` merged vertex is not reproduced
-here; a consumer that wants merged `k`-fold probes (SES concave patches)
-merges probes joined by arcs shorter than its own tolerance, a post-pass that
-cannot change the SAS.
+perturbed kept spheres: preparation removes the zero-area spheres and the
+zero-length circles (contained balls, shared-circle middles, tangent pairs),
+and the perturbation decides everything else. At a point of `k ≥ 4` spheres
+it picks one resolution of the degeneracy (which triples form cells and
+which of the coincident probes are accessible), and rounding of the input
+under a rigid motion can pick another; areas differ only at rounding level,
+but the probe set at such a point is not a continuous function of the
+coordinates (a trapped 5-fold point yielded 0, 2 or 6 coincident probes
+across rotations in the prototype). The enumeration's `ε → 0⁺` merged vertex
+is not reproduced here.
 
 **Floating point.** The predicates live in one translation unit compiled
 without fast-math (like the vendored geogram sources), because the
@@ -752,30 +810,25 @@ Shewchuk expansions cannot serve here, since a degree-20 polynomial of
 rounded-zero coordinates (`1e-16`) has terms below the double exponent range
 and underflow silently breaks their exactness. Perturbation ties are
 resolved by the same kernel evaluated on dual numbers, which yields the
-first-order coefficients automatically. Positions are evaluated in double by
-both the radical-line form (`x = c_a + y_⊥ ± (√D/|u|²) u`, stable for a
-tangent pair) and the circle form (`cntr + (rl/amp²)(g w_⊥ ± √(amp² − g²)
-n × w_⊥)`, stable for a third centre near the circle axis), keeping the pair
-with the smaller on-sphere residual; φ, dart angles and areas inherit
-rounding-level error. The floating comparisons that remain are output-only:
-the fold of each vertex's `atan2` into its exact half-plane class (the class
-carries the side of the ray, `atan2` only the magnitude, so a vertex at
-`π ∓ δ` folds to `π`, never to `0` or `2π`), the normalisation of the dart
-angle `ι`, the choice between the two position forms in `roots()` and the
-`max(·, 0)` clamps; the `_TAU_DIR` allowance of the reflex-corner check is
-an invariant check, not a decision. A circle below double resolution (a tangency, exact or by
-rounding) still has exact vertices and arcs; its probe positions and `φ`
-are noise, but its darts come from the arcs' own angles, so the area is
-unaffected (a tangent pair with a third sphere through the tangency point
-is exact to `2e-3` of Shrake–Rupley in the tests).
-
-**Consumers.** The SES stage builds probe–probe caps with axis
-`(y − x)/|y − x|`; at coincident probes that direction is noise and the cap
-a random hemisphere. Before SES is built on this output it needs either a
-merge pass (probes joined by arcs shorter than its tolerance, plus the
-`k`-fold atom and tangent rules; note that coincident probes on different
-loops, as at an hourglass point, are not joined by an arc) or cap axes taken
-from the connecting arc's tangent.
+first-order coefficients automatically. Positions and vertex angles come
+from the **offset** `x − cntr = (P ± √D Q) / (G|u|²)` of a root from its
+circle's centre, with `P = G(|u|²(c_f − c_a) + λ d_b + μ d_c) − |u|² v d_b`
+(`c_f` the face's first centre) and `Q = G u` rational and `P ⊥ Q`: it is
+taken from the filtered double when the running bound certifies it to
+`2^-26` of its own length, and otherwise from the exact dyadic rounded once
+per term, so the direction from the centre is right to rounding on a circle
+of any radius. This matters for a circle tiny only by rounding (a tangent
+pair under a rigid motion has radius about `1e-8 Å`, and a non-tie can be
+far smaller): the floating discriminant and radius² of such a circle are
+smaller than their own rounding error, and the vertex angles of a position
+taken from them are noise. The probe position is `cntr + offset`; `φ`, dart
+angles and areas inherit rounding-level error. The floating comparisons
+that remain are output-only: the fold of each vertex's `atan2` into its
+exact half-plane class (the class carries the side of the ray, `atan2` only
+the magnitude, so a vertex at `π ∓ δ` folds to `π`, never to `0` or `2π`),
+the normalisation of the dart angle `ι` and the `max(·, 0)` clamps; the
+`_TAU_DIR` allowance of the reflex-corner check is an invariant check, not
+a decision.
 
 **Equivalence with the enumeration.** In exact arithmetic on the same weights
 and in general position (no cut point on a fourth sphere, no tangencies), the
@@ -788,8 +841,8 @@ component count, and each vertex carries the same two darts on every sphere.
 So arcs, `φ`, endpoints, loops, `χ`, areas, probes and tangents coincide.
 Where the enumeration merged (`k`-fold points, pinches within `TAU_C`, near
 pairs) the port instead reports the perturbed configuration: the same areas
-to rounding, several coincident probes instead of one, and no `TAU_C`-deep slivers from
-dropped near pairs.
+to rounding, several coincident probes instead of one, and no `TAU_C`-deep
+slivers from dropped near pairs.
 
 ### SES (`SesGeometry.build`)
 
@@ -855,6 +908,15 @@ dropped near pairs.
   needed: whatever SAS point cuts a face point, some vertex probe within `2rp`
   cuts it too (Lemma 3). The face arrangement is solved with `solve_caps` for
   the faces and caps that survive the filters below.
+
+**Input from the port.** The SES stage builds probe–probe caps with axis
+`(y − x)/|y − x|`; at coincident probes (§3 port, "Semantics at exact
+coincidences") that direction is noise and the cap a random hemisphere.
+Before SES is built on the port's output it needs either a merge pass
+(probes joined by arcs shorter than its tolerance, plus the `k`-fold atom
+and tangent rules; note that coincident probes on different loops, as at an
+hourglass point, are not joined by an arc) or cap axes taken from the
+connecting arc's tangent. Such a post-pass cannot change the SAS.
 
 ### Which probes can cut a face
 
