@@ -446,13 +446,24 @@ namespace internal {
     }
 
     /**
+     * Probes `p`, `r` are one probe when they coincide exactly or lie
+     * within `probe_merge_tol` (`tau2` its square).
+     */
+    bool coincident(const SasProbes &probes, const double tau2, const int p,
+                    const int r, const bool exact) {
+      return exact
+             || (probes.pos.col(p) - probes.pos.col(r)).squaredNorm() <= tau2;
+    }
+
+    /**
      * Circle `(i, j)` of two non-enumerated spheres carries no arcs, but
-     * the probes of the enumerated faces around its edge, in circle order
-     * (Lemma F), that coincide exactly are one probe.
+     * consecutive probes of the enumerated faces around its edge, in circle
+     * order (Lemma F), that are `coincident` are one probe.
      */
     void merge_coincident_roots(std::vector<RingVertex> &verts,
                                 const SasDelaunay &del, const VertexMap &vm,
                                 const Faces &fs, const ArrayXi &pid,
+                                const SasProbes &probes, const double tau2,
                                 const int i, const int j, UnionFind &uf) {
       const int va = vm.v_of_new[i], vb = vm.v_of_new[j];
       verts.clear();
@@ -472,12 +483,12 @@ namespace internal {
         v.cls = ex.half_plane(va, vb, face_of(fs, v.face), v.plus);
       for (int k = 0; k < n; ++k) {
         const RingVertex &p = verts[k], &r = verts[(k + 1) % n];
-        if (p.cls == r.cls
-            && ex.ccw(va, vb, face_of(fs, p.face), p.plus, face_of(fs, r.face),
-                      r.plus)
-                   == Sgn::kZero) {
+        const bool exact = p.cls == r.cls
+                           && ex.ccw(va, vb, face_of(fs, p.face), p.plus,
+                                     face_of(fs, r.face), r.plus)
+                                  == Sgn::kZero;
+        if (coincident(probes, tau2, p.vertex, r.vertex, exact))
           uf.merge(p.vertex, r.vertex);
-        }
       }
     }
 
@@ -521,9 +532,9 @@ namespace internal {
 
     /**
      * Accessible arcs of every circle with caps, grouped by circle.
-     * Consecutive ring vertices that coincide exactly or within
-     * `probe_merge_tol` are joined in `uf`, as are exactly coincident probes
-     * around the edges of two non-enumerated spheres.
+     * Consecutive ring vertices that are `coincident` are joined in `uf`,
+     * as are consecutive probes around the edges of two non-enumerated
+     * spheres.
      */
     Arcs fan_rings(const SaPrep &sa, const SasDelaunay &del,
                    const VertexMap &vm, const std::vector<SasCircle> &circ,
@@ -556,12 +567,8 @@ namespace internal {
 
             for (int k = 0; k < n; ++k) {
               const RingVertex &p = ring.verts[k], &r = ring.verts[(k + 1) % n];
-              if (ring.coinc[k]
-                  || (probes.pos.col(p.vertex) - probes.pos.col(r.vertex))
-                             .squaredNorm()
-                         <= tau2) {
+              if (coincident(probes, tau2, p.vertex, r.vertex, ring.coinc[k]))
                 uf.merge(p.vertex, r.vertex);
-              }
             }
           }
           emit_arcs(ring, q, out.arcs, out.tangents);
@@ -571,7 +578,8 @@ namespace internal {
       for (int i = sa.n_enum; i < sa.g.n(); ++i) {
         for (auto it = sa.g.begin(i), ei = sa.g.end(i); it < ei; ++it) {
           if (fs.occluder_pair[sa.g.eid(it)])
-            merge_coincident_roots(ring.verts, del, vm, fs, pid, i, *it, uf);
+            merge_coincident_roots(ring.verts, del, vm, fs, pid, probes, tau2,
+                                   i, *it, uf);
         }
       }
 
