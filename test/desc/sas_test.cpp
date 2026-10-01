@@ -827,6 +827,38 @@ TEST(BuildSasTest, SharedCircleUnderRigidMotion) {
   }
 }
 
+/**
+ * A third sphere through the point of circle (a, b) at frame angle π: the
+ * vertex's atan2 is ±π to rounding and must fold with its exact class, not
+ * towards the ray.
+ */
+TEST(BuildSasTest, VertexAtFrameAnglePi) {
+  const Vector3d ca(0, 0, 0), cb(2, 0, 0);
+  const double ra = 1.5, rb = 1.5;
+  const Vector3d d = cb - ca;
+  const Vector3d e1 =
+      d.cross(Vector3d::Unit(SasExact::reference_axis(d))).normalized();
+  const double a = (d.squaredNorm() + ra * ra - rb * rb) / (2 * d.norm()),
+               rl = std::sqrt(ra * ra - a * a);
+  const Vector3d p = ca + a * d.normalized() - rl * e1;
+
+  std::mt19937 rng(1);
+  std::normal_distribution<double> nd;
+  for (int seed = 0; seed < 40; ++seed) {
+    Matrix3Xd pts(3, 3);
+    pts.col(0) = ca;
+    pts.col(1) = cb;
+    pts.col(2) << 1 + 0.3 * nd(rng), 1 + 0.6 * nd(rng), -2 + 0.5 * nd(rng);
+    ArrayXd sar(3);
+    sar << ra, rb, (pts.col(2) - p).norm();
+    if (sar[2] < 1.0)
+      continue;
+
+    const Sas sas = solve_rp(pts, sar, 0.5);
+    expect_sr(sas, pts, sar);
+  }
+}
+
 TEST(BuildSasTest, ExactlyTangentPair) {
   Matrix3Xd pts(3, 2);
   pts.col(0) << 0, 0, 0;
