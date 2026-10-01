@@ -1308,6 +1308,45 @@ TEST(BuildSasTest, CutterOnlyClusterMerged) {
 }
 
 /**
+ * Four occluders through `(1.5, 0, 0)`; the roots of faces `{0, 2, 3}` and
+ * `{1, 2, 3}` there are linked only by the circle of the occluder pair
+ * `(2, 3)`, which carries no ring. The two shell probes are one probe of
+ * four atoms in every atom order; the all-active run is the control.
+ */
+TEST(BuildSasTest, CoincidentShellProbesAcrossOccluderCircle) {
+  Matrix3Xd base(3, 6);
+  base << 0, 3, 1.5, 1.5, 1.5, 1.5,  //
+      0, 0, 1.5, 0, -1.5, -3.5,      //
+      0, 0, 0, 1.5, -1.5, -3.5;
+  const ArrayXd sar = ArrayXd::Constant(6, 1.5);
+  const Vector3d x(1.5, 0, 0);
+
+  std::array<int, 6> perm { 0, 1, 2, 3, 4, 5 };
+  do {
+    Matrix3Xd pts(3, 6);
+    ArrayXb shell(6);
+    for (int i = 0; i < 6; ++i) {
+      pts.col(i) = base.col(perm[i]);
+      shell[i] = perm[i] == 5;
+    }
+    for (const bool all: { false, true }) {
+      const std::optional<SaPrep> sa =
+          prepare(pts, sar, all ? ArrayXb::Constant(6, true) : shell, 0.5);
+      ASSERT_TRUE(sa);
+      ASSERT_EQ(sa->n_enum, all ? 6 : 4);
+      const SasDelaunay del = triangulate(*sa);
+      const SasGeometry geo = build_sas(*sa, del);
+
+      const int c = probe_at(geo, x);
+      ASSERT_GE(c, 0) << "all " << all << " perm " << perm[0] << perm[1]
+                      << perm[2] << perm[3] << perm[4] << perm[5];
+      EXPECT_EQ(geo.probes.atoms.degree(c), 4);
+      expect_no_unmerged_pairs(geo, probe_merge_tol(sar.maxCoeff()));
+    }
+  } while (std::next_permutation(perm.begin(), perm.end()));
+}
+
+/**
  * Random dense sets: every probe has three tangents, a probe ends at most
  * one arc per circle, and the areas match Shrake–Rupley.
  */

@@ -145,12 +145,15 @@ namespace internal {
     /**
      * Per triangulation face: its sorted vertices (-1 if it holds a corner or
      * a non-overlapping pair), whether its third sphere cuts the circle, and
-     * the probe of each root (0 = plus, 1 = minus; -1 if rejected).
+     * the probe of each root (0 = plus, 1 = minus; -1 if rejected). Per
+     * overlap-graph pair of two non-enumerated spheres, whether a face
+     * spanning it has a probe (`occluder_pair`).
      */
     struct Faces {
       Array3Xi verts;
       ArrayXb cut;
       Array2Xi root;
+      ArrayXb occluder_pair;
     };
 
     struct RawProbe {
@@ -220,7 +223,8 @@ namespace internal {
 
       Faces fs { Array3Xi::Constant(3, del.n_faces, -1),
                  ArrayXb::Constant(del.n_faces, false),
-                 Array2Xi::Constant(2, del.n_faces, -1) };
+                 Array2Xi::Constant(2, del.n_faces, -1),
+                 ArrayXb::Constant(sa.g.m(), false) };
       raw.reserve(3L * sa.n_enum);
 
       for (int c = 0; c < nf; ++c) {
@@ -251,6 +255,8 @@ namespace internal {
             fs.root(plus ? 0 : 1, f) = static_cast<int>(raw.size());
             raw.push_back({ abc, ex.root(face, plus) });
           }
+          if (abc[1] >= sa.n_enum && (fs.root.col(f) >= 0).any())
+            fs.occluder_pair[pair_id(sa.g, abc[1], abc[2])] = true;
         }
       }
 
@@ -385,6 +391,22 @@ namespace internal {
     }
 
     /**
+     * The accepted roots of cut face `f` on circle `(va, vb)` as (enter
+     * ball `c`, leave ball `c`).
+     */
+    void push_face_roots(std::vector<RingVertex> &verts, const Faces &fs,
+                         const ArrayXi &pid, const int f, const int va,
+                         const int vb) {
+      const int eps = face_parity(fs.verts.col(f), va, vb);
+      for (const int sigma: { -eps, eps }) {
+        const bool plus = sigma > 0;
+        const int r = fs.root(plus ? 0 : 1, f);
+        if (r >= 0)
+          verts.push_back({ pid[r], f, 0, plus, sigma == eps, 0.0 });
+      }
+    }
+
+    /**
      * Walk the cell fan around edge `(a, b)` counter-clockwise (Lemma F);
      * each face `(a, b, c)` with a sphere `c` overlapping both contributes
      * its accepted roots as (enter ball `c`, leave ball `c`). `fan` collects
@@ -419,14 +441,44 @@ namespace internal {
         }
 
         ring.cut_any = true;
-        const int eps = face_parity(fs.verts.col(f), va, vb);
-        for (const int sigma: { -eps, eps }) {
-          const bool plus = sigma > 0;
-          const int r = fs.root(plus ? 0 : 1, f);
-          if (r >= 0)
-            ring.verts.push_back({ pid[r], f, 0, plus, sigma == eps, 0.0 });
-        }
+        push_face_roots(ring.verts, fs, pid, f, va, vb);
       } while (walk.advance());
+    }
+
+    /**
+     * Circle `(i, j)` of two non-enumerated spheres carries no arcs, but
+     * the probes of the enumerated faces around its edge, in circle order
+     * (Lemma F), that coincide exactly are one probe.
+     */
+    void merge_coincident_roots(std::vector<RingVertex> &verts,
+                                const SasDelaunay &del, const VertexMap &vm,
+                                const Faces &fs, const ArrayXi &pid,
+                                const int i, const int j, UnionFind &uf) {
+      const int va = vm.v_of_new[i], vb = vm.v_of_new[j];
+      verts.clear();
+      FanWalker walk(del, va, vb);
+      do {
+        const int f = walk.face();
+        if (fs.verts(0, f) >= 0 && fs.cut[f])
+          push_face_roots(verts, fs, pid, f, va, vb);
+      } while (walk.advance());
+
+      const int n = static_cast<int>(verts.size());
+      if (n < 2)
+        return;
+
+      const BallExact &ex = del.ex;
+      for (RingVertex &v: verts)
+        v.cls = ex.half_plane(va, vb, face_of(fs, v.face), v.plus);
+      for (int k = 0; k < n; ++k) {
+        const RingVertex &p = verts[k], &r = verts[(k + 1) % n];
+        if (p.cls == r.cls
+            && ex.ccw(va, vb, face_of(fs, p.face), p.plus, face_of(fs, r.face),
+                      r.plus)
+                   == Sgn::kZero) {
+          uf.merge(p.vertex, r.vertex);
+        }
+      }
     }
 
     /**
@@ -470,7 +522,8 @@ namespace internal {
     /**
      * Accessible arcs of every circle with caps, grouped by circle.
      * Consecutive ring vertices that coincide exactly or within
-     * `probe_merge_tol` are joined in `uf`.
+     * `probe_merge_tol` are joined in `uf`, as are exactly coincident probes
+     * around the edges of two non-enumerated spheres.
      */
     Arcs fan_rings(const SaPrep &sa, const SasDelaunay &del,
                    const VertexMap &vm, const std::vector<SasCircle> &circ,
@@ -512,6 +565,13 @@ namespace internal {
             }
           }
           emit_arcs(ring, q, out.arcs, out.tangents);
+        }
+      }
+
+      for (int i = sa.n_enum; i < sa.g.n(); ++i) {
+        for (auto it = sa.g.begin(i), ei = sa.g.end(i); it < ei; ++it) {
+          if (fs.occluder_pair[sa.g.eid(it)])
+            merge_coincident_roots(ring.verts, del, vm, fs, pid, i, *it, uf);
         }
       }
 
