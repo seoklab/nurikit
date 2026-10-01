@@ -45,8 +45,9 @@ namespace internal {
       return { CSR(std::move(adj), std::move(off)), std::move(order) };
     }
 
-    NearPairs find_near_pairs(const Matrix3Xd &pts, const ArrayXd &sar,
+    NearPairs find_near_pairs(const SasExact &ex, const ArrayXd &sar,
                               const double rmax) {
+      const Matrix3Xd &pts = ex.centers();
       const int n = static_cast<int>(sar.size());
 
       VoxelGrid grid(pts, 2 * (rmax + kSurfaceLengthEps));
@@ -61,9 +62,13 @@ namespace internal {
 
       ArrayXi keep = ArrayXi::Ones(n);
       for (int k = 0; k < m; ++k) {
-        int i = left[k], j = right[k];
-        if (d[k] <= std::abs(sar[i] - sar[j]) + kSurfaceLengthEps)
-          keep[sar[i] < sar[j] ? i : j] = 0;
+        const int i = left[k], j = right[k];
+        if (d[k] > std::abs(sar[i] - sar[j]) + kSurfaceLengthEps)
+          continue;
+
+        const int in = ex.contained(i, j);
+        if (in >= 0)
+          keep[in == 0 ? i : j] = 0;
       }
 
       ArrayXd touch = sar(left) + sar(right);
@@ -269,7 +274,7 @@ namespace internal {
     lifted.row(3) = t.transpose();
     const SasExact ex = SasExact::make(lifted, wmax);
 
-    auto [g0, dover, inear, jnear, keep] = find_near_pairs(pts, sar, rmax);
+    auto [g0, dover, inear, jnear, keep] = find_near_pairs(ex, sar, rmax);
     drop_shared_circle_middles(keep, g0, dover, pts, sar2);
     auto [g, d] = exact_overlaps(ex, keep, inear, jnear);
 

@@ -761,6 +761,23 @@ TEST(BuildSasTest, TinyCapSteepCrossing) {
   expect_sr(sas, pts, sar, 50000);
 }
 
+TEST(BuildSasTest, InternallyTangentBallDropped) {
+  for (const int inner: { 0, 1 }) {
+    Matrix3Xd pts(3, 2);
+    ArrayXd sar(2);
+    pts.col(inner) << 2, 0, 0;
+    sar[inner] = 3;
+    pts.col(1 - inner) << 0, 0, 0;
+    sar[1 - inner] = 5;
+
+    auto [sa, geo] = solve(pts, sar);
+    ASSERT_EQ(sa.order.size(), 1);
+    EXPECT_EQ(sa.order[0], 1 - inner);
+    EXPECT_EQ(geo.probes.pos.cols(), 0);
+    EXPECT_NEAR(geo.area[0], 4 * kPi * 25, 1e-9);
+  }
+}
+
 TEST(BuildSasTest, ExactlyTangentPair) {
   Matrix3Xd pts(3, 2);
   pts.col(0) << 0, 0, 0;
