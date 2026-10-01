@@ -196,8 +196,8 @@ namespace internal {
     }
 
     /**
-     * An apex that overlaps none of the face spheres, or is a bounding point
-     * (Lemma 0), has non-negative power on their surfaces, zero only at a
+     * An apex that misses one of the face spheres, or is a bounding point
+     * (Lemma 0), has non-negative power on that surface, zero only at a
      * tangency point, and never rejects a root.
      */
     bool apex_may_reject(const SaPrep &sa, const VertexMap &vm,
@@ -287,9 +287,9 @@ namespace internal {
 
     /**
      * Accessible arcs by circle with, per arc, the departing tangent at
-     * `beg` and the arriving tangent at `end` from the circle frame and the
-     * arc's own angles, so darts stay consistent with the arcs they bound
-     * even on a circle the probe positions cannot resolve.
+     * `beg` and the arriving tangent at `end` from the circle frame and each
+     * end's own exact-class angle, so a vertex's darts depend only on its own
+     * offset even on a circle the probe positions cannot resolve.
      */
     struct Arcs {
       std::vector<SasArc> arcs;
@@ -574,7 +574,7 @@ namespace internal {
             const double phi = p.phi > constants::kPi ? p.phi - kTwoPi : p.phi;
             out.arcs.push_back({ phi, dphi, q, p.probe, r.probe });
             out.tangents.emplace_back(ring_tangent(ring, p.phi),
-                                      ring_tangent(ring, p.phi + dphi));
+                                      ring_tangent(ring, r.phi));
           }
         }
       }
