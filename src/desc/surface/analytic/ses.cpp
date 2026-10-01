@@ -268,7 +268,9 @@ namespace internal {
     /**
      * Probe pairs strictly within `2 rp` whose caps may cut each other's
      * face: both low and each cap meets the other probe's beyond-plane cap
-     * and spherical triangle. `axis` points from `left` to `right`.
+     * and spherical triangle. `axis` points from `left` to `right`. The
+     * distance test is a prefilter; the face solver decides cap existence
+     * exactly.
      */
     PairCaps pair_caps(const SasProbes &probes, const double rp,
                        const ProbeHeights &hts, const FaceTriangles &tri) {
@@ -453,7 +455,6 @@ namespace internal {
         const int m = static_cast<int>(h.size());
         ABSL_DCHECK_LE(m + 1, c_.cols());
         ABSL_DCHECK_GE(live.size(), m);
-        live.head(m).setConstant(true);
 
         c_.col(0).setZero();
         h_[0] = 0;
@@ -462,6 +463,8 @@ namespace internal {
         const BallExact ex =
             BallExact::make(c_.leftCols(m + 1), h_.head(m + 1), rp * rp);
 
+        for (int k = 1; k <= m; ++k)
+          live[k - 1] = ex.overlap(0, k) == Sgn::kPos;
         for (int b = 1; b <= m; ++b) {
           for (int c = b + 1; c <= m; ++c) {
             if (!live[b - 1] || !live[c - 1])

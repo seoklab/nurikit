@@ -630,6 +630,40 @@ TEST(BuildSesTest, GrazingVertexFaceIsZero) {
   EXPECT_EQ(s.ses.face_off.degree(0), s.geo.probes.tan_off.degree(0));
 }
 
+/**
+ * A neighbour probe at exactly `2 rp` is tangent to the probe sphere and
+ * carries no cap; one an ulp closer carries a cap of angular radius
+ * `2^-26`, cut or buried exactly, of area below `1e-14`.
+ */
+TEST(BuildSesTest, TangentNeighbourCapIsDropped) {
+  const double rp = 1.0;
+  Matrix3Xd n(3, 4);
+  n.col(0) = Vector3d(1, 0, -1).normalized();
+  n.col(1) = Vector3d(-1, 1, -1).normalized();
+  n.col(2) = Vector3d(-1, -1, -1).normalized();
+  ArrayXd h = ArrayXd::Zero(4), cosa = ArrayXd::Zero(4);
+
+  ArrayXb live;
+  const double uncut =
+      solve_ses_face(n.leftCols(3), h.head(3), cosa.head(3), rp, live);
+  EXPECT_TRUE(live.all());
+  EXPECT_GT(uncut, 0);
+
+  for (const double scale: { 1.0, 1 - 0x1p-52 }) {
+    n.col(3) = Vector3d(0, 0, 2 * rp * scale);
+    h[3] = n.col(3).squaredNorm();
+    cosa[3] = std::sqrt(h[3]) / (2 * rp);
+    const double area = solve_ses_face(n, h, cosa, rp, live);
+    EXPECT_TRUE(live.head(3).all()) << scale;
+    if (scale == 1.0) {
+      EXPECT_FALSE(live[3]);
+      EXPECT_EQ(area, uncut);
+    } else {
+      EXPECT_NEAR(area, uncut, 1e-12);
+    }
+  }
+}
+
 TEST(BuildSesTest, KFoldFaceUnderRigidMotion) {
   for (const int k: { 4, 5 }) {
     const Matrix3Xd base = star(k, 110, 2.0).rightCols(k);
