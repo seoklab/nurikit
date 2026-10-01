@@ -319,16 +319,36 @@ C++), not a case the kernels can survive.
 2. **Contained balls.** If `d ≤ |R_i − R_j| + TAU_C` the smaller ball is
    contained: it has no surface and generates no caps. These atoms are
    dropped from everything that follows.
+   *Port:* the band only selects candidates; `contained` decides exactly on
+   the lifted `(c, h)`: with `U = ρ_i² − ρ_j² − d²`, `B_j ⊂ B_i` iff `U ≥ 0`
+   and `U² ≥ 4 ρ_j² d²`, internal tangency included (identical balls drop
+   the second).
 3. **Shared circles.** If a third sphere passes through the circle where two
    others meet (collinear centres, radii matched to within `TAU_C`: the two
    circles it makes with either of them have the same centre and parallel
    axes), the sphere whose centre lies between the other two on the axis
-   lies inside their union — each of its two caps sits inside the
-   neighbouring sphere's larger cap, and the disc of the circle is inside
-   both. It has no surface and is dropped like a contained ball. Without
-   this, one sphere would carry two caps on the same circle, and the middle
-   sphere's two caps would be exact complements, a tie for the covered test.
-   With it, every solved sphere's caps lie on distinct circles.
+   lies inside their union — on each side of the circle plane the outer
+   sphere bulges more, so each of the middle sphere's two caps sits inside
+   the neighbouring sphere's larger cap. It has no surface and is dropped
+   like a contained ball. Without this, one sphere would carry two caps on
+   the same circle, and the middle sphere's two caps would be exact
+   complements, a tie for the covered test. With it, every solved sphere's
+   caps lie on distinct circles.
+   *Port:* the triangles of the exact overlap graph are the candidates (an
+   exactly shared circle makes all three pairs exact overlaps), the band on
+   floating circle centres and axes a prefilter, and `shared_circle`
+   decides: circles `(a, b)` and `(a, c)` coincide iff `u = d_b × d_c = 0`
+   and the discriminant `D` of §3 port step 3 is zero (for collinear
+   centres `D = −|d_b|² (k v_b − v_c)²`, `d_c = k d_b`), the middle being
+   `a` iff `d_b · d_c < 0`, else the nearer of `b`, `c`. Both port filters
+   follow one rule: **a sphere whose surface has zero area in the
+   unperturbed configuration is removed, decided exactly; an exact tie is
+   that answer**, i.e. the `ε → 0` limit of the perturbed arrangement, in
+   which such a sphere would carry `O(ε)` area. A sphere inside the band
+   but not exactly contained or coincident is kept and its sliver computed
+   like any other surface. The bands are supersets of the exact sets as
+   long as the rounding of `d`, circle centres and axes stays far below
+   `TAU_C`, i.e. for coordinates below about `1e9 Å`.
 4. **Order.** `active` is the caller's mask minus dropped atoms; `need` is
    `active ∪ neighbours(active)` and `shell` is `neighbours(need)`, where
    neighbours are the near pairs of step 1. Atoms
@@ -467,9 +487,9 @@ The design rule is **one source of truth**: every yes/no decision (which
 pairs overlap, which faces cut, which cut points are accessible, in which
 order vertices sit on a circle, which caps form one component) is an exact
 predicate on the same numbers geogram triangulated, with the same
-tie-breaking. After preparation (whose input filters — contained balls,
-shared circles, the near band — still use `TAU_C`, harmlessly, because they
-only remove or rank input), floating point is used only for outputs
+tie-breaking. Preparation decides contained balls and shared circles with
+the same exact predicates (§3 preparation steps 2–3); only the near band,
+which ranks input, keeps `TAU_C`. Floating point is used only for outputs
 (positions, angles, areas), never for a decision. There is no clustering
 tolerance: two points are the same vertex only when they are the same
 `(face, root)`.
@@ -531,6 +551,8 @@ tolerance: two points are the same vertex only when they are the same
    `(a, b)` in two points, one, or none (`cuts`: the discriminant of
    `π_a = 0` along the radical line `L = {π_a = π_b = π_c}`, rational in
    `(c, h)`); a double root is a tie and is perturbed to a cut or a miss.
+   Collinear centres never tie here: coincident circles are removed in
+   preparation, and otherwise `D = −|d_b|² (k v_b − v_c)² < 0` strictly.
    The two roots `x_± = P ± u√Δ` (`P`, `u` rational) are the candidate
    vertices; `x_±` is accepted iff `π_l(x_±) ≥ 0` for both apexes `l` of the
    two cells sharing the face (`accept`: `π_l − π_a` is affine along `L`, so
