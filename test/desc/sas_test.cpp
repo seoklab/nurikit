@@ -1381,14 +1381,22 @@ TEST(BuildSasTest, CutterOnlyClusterMerged) {
 /**
  * Four occluders through `(1.5, 0, 0)`; the roots of faces `{0, 2, 3}` and
  * `{1, 2, 3}` there are linked only by the circle of the occluder pair
- * `(2, 3)`, which carries no ring. The two shell probes are one probe of
- * four atoms in every atom order; the all-active run is the control.
+ * `(2, 3)`, which carries no ring.
  */
-TEST(BuildSasTest, CoincidentShellProbesAcrossOccluderCircle) {
+Matrix3Xd occluder_shell_pts() {
   Matrix3Xd base(3, 6);
   base << 0, 3, 1.5, 1.5, 1.5, 1.5,  //
       0, 0, 1.5, 0, -1.5, -3.5,      //
       0, 0, 0, 1.5, -1.5, -3.5;
+  return base;
+}
+
+/**
+ * The two shell probes are one probe of four atoms in every atom order;
+ * the all-active run is the control.
+ */
+TEST(BuildSasTest, CoincidentShellProbesAcrossOccluderCircle) {
+  const Matrix3Xd base = occluder_shell_pts();
   const ArrayXd sar = ArrayXd::Constant(6, 1.5);
   const Vector3d x(1.5, 0, 0);
 
@@ -1415,6 +1423,40 @@ TEST(BuildSasTest, CoincidentShellProbesAcrossOccluderCircle) {
       expect_no_unmerged_pairs(geo, probe_merge_tol(sar.maxCoeff()));
     }
   } while (std::next_permutation(perm.begin(), perm.end()));
+}
+
+/**
+ * Under a rigid motion the two shell roots round apart by a few 1e-15 and
+ * are one probe within `probe_merge_tol`, as consecutive ring vertices are.
+ * The tangent pair `(0, 1)` rounds to a gap of either sign: apart or
+ * exactly tangent, the probe of four atoms sits within the ~1e-8 rounding
+ * of a tangency root; overlapping, its circle of radius ~1e-8 has two cut
+ * points farther apart than the tolerance, which stay distinct probes.
+ */
+TEST(BuildSasTest, CoincidentShellProbesUnderRigidMotion) {
+  const Matrix3Xd base = occluder_shell_pts();
+  const ArrayXd sar = ArrayXd::Constant(6, 1.5);
+  ArrayXb shell = ArrayXb::Constant(6, false);
+  shell[5] = true;
+
+  for (int seed = 0; seed < 32; ++seed) {
+    const auto [rot, t] = rigid_motion(seed);
+    const Matrix3Xd pts = (rot * base).colwise() + t;
+    const std::optional<SaPrep> sa = prepare(pts, sar, shell, 0.5);
+    ASSERT_TRUE(sa);
+    const SasDelaunay del = triangulate(*sa);
+    const SasGeometry geo = build_sas(*sa, del);
+
+    SCOPED_TRACE(seed);
+    expect_no_unmerged_pairs(geo, probe_merge_tol(sar.maxCoeff()));
+    if ((pts.col(0) - pts.col(1)).norm() < 3.0)
+      continue;
+
+    const int c = probe_at(geo, rot * Vector3d(1.5, 0, 0) + t, 1e-6);
+    EXPECT_GE(c, 0);
+    if (c >= 0)
+      EXPECT_EQ(geo.probes.atoms.degree(c), 4);
+  }
 }
 
 /**
