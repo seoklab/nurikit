@@ -627,6 +627,45 @@ TEST(BallExactTest, CoincidentRootsTie) {
   EXPECT_EQ(s.ex.ccw(0, 1, f1, true, f2, same), Sgn::kZero);
   EXPECT_EQ(s.ex.half_plane(0, 1, f1, true), s.ex.half_plane(0, 1, f2, same));
 }
+
+void expect_same_predicates(const BallExact &ex, const BallExact &want) {
+  const int n = want.n();
+  ASSERT_EQ(ex.n(), n);
+  for (int i = 0; i < n; ++i)
+    EXPECT_EQ(ex.rho2(i), want.rho2(i));
+
+  for (int a = 0; a < n; ++a) {
+    for (int b = a + 1; b < n; ++b) {
+      for (int c = b + 1; c < n; ++c) {
+        const BallTriple f { a, b, c };
+        const Sgn cut = want.cuts(f);
+        EXPECT_EQ(ex.cuts(f), cut);
+        if (cut != Sgn::kPos)
+          continue;
+
+        for (const bool plus: { true, false }) {
+          const Vector3d x = ex.root(f, plus), y = want.root(f, plus);
+          EXPECT_TRUE((x.array() == y.array()).all()) << x << "\n" << y;
+          for (int l = 0; l < n; ++l) {
+            if (l == a || l == b || l == c)
+              continue;
+            EXPECT_EQ(ex.accept(f, plus, l), want.accept(f, plus, l));
+          }
+        }
+      }
+    }
+  }
+}
+
+TEST(BallExactTest, HeightsConstructorMatchesLift) {
+  std::mt19937 rng(23);
+  for (const Fixture<> &s:
+       { setup(square_apex(), ArrayXd::Constant(5, 1.5)),
+         setup(random_pts(rng, 8, 1.6), random_radii(rng, 8, 1.5, 2.5)) }) {
+    expect_same_predicates(BallExact::make(s.ex.centers(), s.ex.h(), s.wmax),
+                           s.ex);
+  }
+}
 }  // namespace
 }  // namespace internal
 }  // namespace nuri

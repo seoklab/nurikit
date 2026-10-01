@@ -248,8 +248,9 @@ namespace internal {
    * Exact predicates on a set of balls: the power arrangement of weighted
    * points as geogram triangulates them. The balls are the SAS spheres, and
    * later the caps of an SES face lifted to balls. Each ball has centre `c_i`,
-   * height `h_i = ((t_i² + x_i²) + y_i²) + z_i²` as geogram evaluates it, and
-   * squared radius `ρ_i² = W + |c_i|² − h_i`. Every exact tie is resolved by
+   * height `h_i = ((t_i² + x_i²) + y_i²) + z_i²` as geogram evaluates it (or
+   * given directly), and squared radius `ρ_i² = W + |c_i|² − h_i`. Every
+   * exact tie is resolved by
    * geogram's perturbation: every squared radius grows, lower index first.
    * Compiled without fast-math (`NURI_STRICT_FP_SRCS` in src/CMakeLists.txt);
    * the header carries no arithmetic. `kForceExact` skips the floating
@@ -261,6 +262,8 @@ namespace internal {
     BallExactImpl() = default;
 
     static BallExactImpl make(const Matrix4Xd &lifted, double wmax);
+    static BallExactImpl make(const Matrix3Xd &centers, const ArrayXd &heights,
+                              double wmax);
 
     int n() const { return static_cast<int>(h_.size()); }
     const Matrix3Xd &centers() const { return c_; }
