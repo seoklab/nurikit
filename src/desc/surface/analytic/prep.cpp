@@ -264,7 +264,7 @@ namespace internal {
 
     const ArrayXd sar2 = sar.square();
     const double wmax = rmax * rmax;
-    const ArrayXd t = (wmax - sar2).max(0.0).sqrt();
+    const ArrayXd t = (wmax - sar2).sqrt();
     Matrix4Xd lifted(4, sar.size());
     lifted.topRows(3) = pts;
     lifted.row(3) = t.transpose();

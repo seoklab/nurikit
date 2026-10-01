@@ -315,6 +315,7 @@ void check_random_agreement() {
           EXPECT_EQ(s.ex.contained(a, b), ref.contained(a, b));
         for (int c = b + 1; c < n; ++c) {
           const SasFace f { a, b, c };
+          EXPECT_EQ(s.ex.shared_circle(f), -1);
           const Ref::Face rf = ref.face(f);
           const int cut = q_sgn(rf.disc, kQTol);
           if (cut == 0)
@@ -484,7 +485,7 @@ TEST(SasExactTest, SharedCircle) {
     const Matrix3Xd pts = shared_circle_pts(mid, sar);
     const Fixture<> s = setup(pts, sar);
     const SasFace f { 0, 1, 2 };
-    ASSERT_EQ(q_sgn(s.ref.coincidence(f), kQTol), 0);
+    ASSERT_EQ(q_sgn(s.ref.coincidence(f)), 0);
     EXPECT_EQ(s.ex.shared_circle(f), mid);
     EXPECT_EQ(s.ex.shared_circle({ 1, 2, 0 }), (mid + 2) % 3);
     EXPECT_EQ(s.ex.shared_circle({ 2, 0, 1 }), (mid + 1) % 3);
@@ -499,7 +500,9 @@ TEST(SasExactTest, SharedCircle) {
 
   pts = shared_circle_pts(1, sar);
   sar[1] = std::nextafter(sar[1], 4.0);
-  EXPECT_EQ(setup(pts, sar).ex.shared_circle({ 0, 1, 2 }), -1);
+  const Fixture<> sr = setup(pts, sar);
+  ASSERT_NE(q_sgn(sr.ref.coincidence({ 0, 1, 2 })), 0);
+  EXPECT_EQ(sr.ex.shared_circle({ 0, 1, 2 }), -1);
 }
 
 /**
