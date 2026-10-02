@@ -68,7 +68,7 @@ namespace internal {
 
       const ArrayXXd margin =
           (axes.transpose() * dirs).array().colwise() - cosa;
-      return !(margin > 0).colwise().any().transpose();
+      return !(margin.colwise().maxCoeff() > 0).transpose();
     }
 
     class Sampler {
