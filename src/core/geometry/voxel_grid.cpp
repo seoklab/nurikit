@@ -102,6 +102,9 @@ void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
 
   const double cutsq = cutoff_ * cutoff_;
   Array3i c = voxel_of(pt, origin_, cutoff_);
+  if ((c < -1).any() || (c > dims_).any())
+    return;
+
   Array3i imin = (c - 1).max(0);
   Array3i imax = (c + 1).min(dims_ - 1);
 

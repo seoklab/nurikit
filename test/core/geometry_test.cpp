@@ -660,6 +660,31 @@ TEST(VoxelGridTest, FindNeighborByDistance) {
   }
 }
 
+TEST(VoxelGridTest, FindNeighborByDistanceOutsideCloud) {
+  Matrix3Xd m = Matrix3Xd::Random(3, 200);
+  Matrix3Xd test = Matrix3Xd::Random(3, 50) * 3;
+  const double cutoff = 0.5;
+  const double cutsq = cutoff * cutoff;
+
+  VoxelGrid grid(m, cutoff);
+  std::vector<int> idxs;
+  std::vector<double> distsq;
+
+  for (int q = 0; q < test.cols(); ++q) {
+    const Vector3d qry = test.col(q);
+
+    std::vector<int> answer;
+    for (int i = 0; i < m.cols(); ++i) {
+      if ((m.col(i) - qry).squaredNorm() <= cutsq)
+        answer.push_back(i);
+    }
+
+    grid.find_neighbors_d(qry, idxs, distsq);
+    absl::c_sort(idxs);
+    EXPECT_EQ(idxs, answer) << "q = " << q;
+  }
+}
+
 TEST(VoxelGridTest, FindNeighborGrid) {
   Matrix3Xd x = Matrix3Xd::Random(3, 100);
   Matrix3Xd y = Matrix3Xd::Random(3, 100);
