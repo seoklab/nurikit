@@ -143,11 +143,15 @@ namespace internal {
     }
 
     /**
-     * Per triangulation face: its sorted vertices (-1 if it holds a corner or
-     * a non-overlapping pair), whether its third sphere cuts the circle, and
-     * the probe of each root (0 = plus, 1 = minus; -1 if rejected).
+     * Per triangulation face: the overlap-graph ids of its edges `(a, b)`,
+     * `(a, c)`, `(b, c)` in sorted sphere order (-1 where a vertex is a corner
+     * or a dropped sphere, or the pair does not overlap), its sorted vertices
+     * (-1 if it holds a corner or a non-overlapping pair), whether its third
+     * sphere cuts the circle, and the probe of each root (0 = plus,
+     * 1 = minus; -1 if rejected).
      */
     struct Faces {
+      Array3Xi q;
       Array3Xi verts;
       ArrayXb cut;
       Array2Xi root;
@@ -166,12 +170,11 @@ namespace internal {
     }
 
     /**
-     * The face opposite local vertex `lf` of cell `c`, sorted, if all three
-     * spheres are kept, pairwise overlapping and one of them gets caps.
+     * The face opposite local vertex `lf` of cell `c` if all three vertices
+     * are kept spheres: `fv` its vertices, `abc` their sorted indices.
      */
-    bool sphere_face(const SaPrep &sa, const SasDelaunay &del,
-                     const VertexMap &vm, const int c, const int lf,
-                     Array3i &fv, Array3i &abc) {
+    bool face_spheres(const SasDelaunay &del, const VertexMap &vm, const int c,
+                      const int lf, Array3i &fv, Array3i &abc) {
       const Array4i tv = del.tets.col(c);
       for (int lv = 0, m = 0; lv < 4; ++lv)
         if (lv != lf)
@@ -181,18 +184,56 @@ namespace internal {
         return false;
 
       std::sort(abc.begin(), abc.end());
-      return abc[0] < sa.n_enum && pair_id(sa.g, abc[0], abc[1]) >= 0
-             && pair_id(sa.g, abc[0], abc[2]) >= 0
-             && pair_id(sa.g, abc[1], abc[2]) >= 0;
+      return true;
     }
 
-    int opposite_vertex(const SasDelaunay &del, const int c2,
-                        const Array3i &fv) {
+    /**
+     * Every face of a finite cell once, from the lower cell, as
+     * `f(c, lf, c2)`.
+     */
+    template <class F>
+    void for_each_face(const SasDelaunay &del, const F &f) {
+      const int nf = static_cast<int>(del.tets.cols());
+      for (int c = 0; c < nf; ++c) {
+        for (int lf = 0; lf < 4; ++lf) {
+          const int c2 = del.adj(lf, c);
+          if (c2 < 0 || c2 > c)
+            f(c, lf, c2);
+        }
+      }
+    }
+
+    Array3Xi face_pairs(const SaPrep &sa, const SasDelaunay &del,
+                        const VertexMap &vm) {
+      Array3Xi q = Array3Xi::Constant(3, del.n_faces, -1);
+      for_each_face(del, [&](int c, int lf, int) {
+        Array3i fv, abc;
+        if (!face_spheres(del, vm, c, lf, fv, abc))
+          return;
+
+        q.col(del.face(lf, c)) << pair_id(sa.g, abc[0], abc[1]),
+            pair_id(sa.g, abc[0], abc[2]), pair_id(sa.g, abc[1], abc[2]);
+      });
+      return q;
+    }
+
+    /**
+     * The face opposite local vertex `lf` of cell `c`, sorted, if all three
+     * spheres are kept, pairwise overlapping and one of them gets caps.
+     */
+    bool sphere_face(const SaPrep &sa, const SasDelaunay &del,
+                     const VertexMap &vm, const Faces &fs, const int c,
+                     const int lf, Array3i &fv, Array3i &abc) {
+      return face_spheres(del, vm, c, lf, fv, abc) && abc[0] < sa.n_enum
+             && (fs.q.col(del.face(lf, c)) >= 0).all();
+    }
+
+    int opposite_local(const SasDelaunay &del, const int c2,
+                       const Array3i &fv) {
       ABSL_DCHECK_GE(c2, 0) << "sphere face on the hull";
       for (int lv = 0; lv < 4; ++lv) {
-        const int v = del.tets(lv, c2);
-        if ((fv != v).all())
-          return v;
+        if ((fv != del.tets(lv, c2)).all())
+          return lv;
       }
       ABSL_UNREACHABLE();
     }
@@ -200,61 +241,57 @@ namespace internal {
     /**
      * An apex that misses one of the face spheres, or is a bounding point
      * (Lemma 0), has non-negative power on that surface, zero only at a
-     * tangency point, and never rejects a root.
+     * tangency point, and never rejects a root. Apex `lv` of cell `c`
+     * overlaps all three iff the other faces of the cell carry every pair.
      */
-    bool apex_may_reject(const SaPrep &sa, const VertexMap &vm,
-                         const Array3i &abc, const int lv) {
-      const int l = vm.new_of_v[lv];
-      return l >= 0 && std::all_of(abc.begin(), abc.end(), [&](int s) {
-               return pair_id_unordered(sa.g, s, l) >= 0;
-             });
+    bool apex_may_reject(const Faces &fs, const SasDelaunay &del, const int c,
+                         const int lv) {
+      for (int lf = 0; lf < 4; ++lf) {
+        if (lf != lv && (fs.q.col(del.face(lf, c)) < 0).any())
+          return false;
+      }
+      return true;
     }
 
     /**
-     * Every face of a finite cell once, from the lower cell. A cut point is a
-     * probe iff its power against both apexes is non-negative, decided
-     * exactly for the perturbed weights (Theorem 1).
+     * A cut point is a probe iff its power against both apexes is
+     * non-negative, decided exactly for the perturbed weights (Theorem 1).
      */
     Faces accept_faces(const SaPrep &sa, const SasDelaunay &del,
                        const VertexMap &vm, std::vector<RawProbe> &raw) {
-      const int nf = static_cast<int>(del.tets.cols());
       const BallExact &ex = del.ex;
 
-      Faces fs { Array3Xi::Constant(3, del.n_faces, -1),
+      Faces fs { face_pairs(sa, del, vm),
+                 Array3Xi::Constant(3, del.n_faces, -1),
                  ArrayXb::Constant(del.n_faces, false),
                  Array2Xi::Constant(2, del.n_faces, -1) };
       raw.reserve(3L * sa.n_enum);
 
-      for (int c = 0; c < nf; ++c) {
-        for (int lf = 0; lf < 4; ++lf) {
-          const int c2 = del.adj(lf, c);
-          if (c2 >= 0 && c2 < c)
+      for_each_face(del, [&](int c, int lf, int c2) {
+        Array3i fv, abc;
+        if (!sphere_face(sa, del, vm, fs, c, lf, fv, abc))
+          return;
+
+        const BallTriple face = sorted_face(fv);
+        const int f = del.face(lf, c);
+        fs.verts.col(f) << face.a, face.b, face.c;
+        if (ex.cuts(face) != Sgn::kPos)
+          return;
+        fs.cut[f] = true;
+
+        const int lv2 = opposite_local(del, c2, fv);
+        const int l1 = del.tets(lf, c), l2 = del.tets(lv2, c2);
+        const bool test1 = apex_may_reject(fs, del, c, lf),
+                   test2 = apex_may_reject(fs, del, c2, lv2);
+        for (const bool plus: { true, false }) {
+          if ((test1 && ex.accept(face, plus, l1) != Sgn::kPos)
+              || (test2 && ex.accept(face, plus, l2) != Sgn::kPos))
             continue;
 
-          Array3i fv, abc;
-          if (!sphere_face(sa, del, vm, c, lf, fv, abc))
-            continue;
-
-          const BallTriple face = sorted_face(fv);
-          const int f = del.face(lf, c);
-          fs.verts.col(f) << face.a, face.b, face.c;
-          if (ex.cuts(face) != Sgn::kPos)
-            continue;
-          fs.cut[f] = true;
-
-          const int l1 = del.tets(lf, c), l2 = opposite_vertex(del, c2, fv);
-          const bool test1 = apex_may_reject(sa, vm, abc, l1),
-                     test2 = apex_may_reject(sa, vm, abc, l2);
-          for (const bool plus: { true, false }) {
-            if ((test1 && ex.accept(face, plus, l1) != Sgn::kPos)
-                || (test2 && ex.accept(face, plus, l2) != Sgn::kPos))
-              continue;
-
-            fs.root(plus ? 0 : 1, f) = static_cast<int>(raw.size());
-            raw.push_back({ abc, ex.root(face, plus), face, plus });
-          }
+          fs.root(plus ? 0 : 1, f) = static_cast<int>(raw.size());
+          raw.push_back({ abc, ex.root(face, plus), face, plus });
         }
-      }
+      });
 
       return fs;
     }
@@ -274,8 +311,12 @@ namespace internal {
 
       pid.resize(nr);
       SasProbes probes { CSR(ArrayXi(3L * nr), OffsetTable(nr)),
-                         Matrix3Xd(3, nr), Matrix3Xd(), OffsetTable(nr),
-                         Array3Xi(3, nr), ArrayXb(nr), own_off[sa.n_active] };
+                         Matrix3Xd(3, nr),
+                         Matrix3Xd(),
+                         OffsetTable(nr),
+                         Array3Xi(3, nr),
+                         ArrayXb(nr),
+                         own_off[sa.n_active] };
       for (int p = 0; p < nr; ++p) {
         const int r = order[p];
         pid[r] = p;
@@ -410,27 +451,21 @@ namespace internal {
      * its accepted roots as (enter ball `c`, leave ball `c`). `fan` collects
      * the spheres `c`.
      */
-    void collect_ring(Ring &ring, std::vector<int> &fan, const SaPrep &sa,
-                      const SasDelaunay &del, const VertexMap &vm,
-                      const Faces &fs, const ArrayXi &pid, const int i,
-                      const int j) {
-      const int va = vm.v_of_new[i], vb = vm.v_of_new[j],
-                n_sphere_v = del.nbrs.n();
+    void collect_ring(Ring &ring, std::vector<int> &fan, const SasDelaunay &del,
+                      const VertexMap &vm, const Faces &fs, const ArrayXi &pid,
+                      const int i, const int j) {
+      const int va = vm.v_of_new[i], vb = vm.v_of_new[j];
       ring.verts.clear();
       ring.cut_any = ring.inside_any = false;
       fan.clear();
 
       FanWalker walk(del, va, vb);
       do {
-        const int vc = walk.third();
-        if (vc >= n_sphere_v)
-          continue;
-        const int cn = vm.new_of_v[vc];
-        if (cn < 0 || pair_id_unordered(sa.g, i, cn) < 0
-            || pair_id_unordered(sa.g, j, cn) < 0)
+        const int f = walk.face();
+        if ((fs.q.col(f) < 0).any())
           continue;
 
-        const int f = walk.face();
+        const int vc = walk.third();
         ABSL_DCHECK_GE(fs.verts(0, f), 0);
         fan.push_back(vc);
         if (!fs.cut[f]) {
@@ -501,7 +536,7 @@ namespace internal {
           if (!has_edge(del, va, vb))
             continue;
 
-          collect_ring(ring, fan, sa, del, vm, fs, pid, i, j);
+          collect_ring(ring, fan, del, vm, fs, pid, i, j);
           const int n = static_cast<int>(ring.verts.size());
           if (n > 0) {
             ABSL_DCHECK_EQ(n % 2, 0) << "odd ring on circle " << q;
@@ -715,9 +750,13 @@ namespace internal {
       OffsetTable own_off(sa.n_enum);
       argsort_bucket(order, own_off, owner);
 
-      SasProbes merged { CSR(ArrayXi(n), OffsetTable(nc)), Matrix3Xd(3, nc),
-                         Matrix3Xd(), OffsetTable(nc), Array3Xi(3, nc),
-                         ArrayXb(nc), own_off[sa.n_active] };
+      SasProbes merged { CSR(ArrayXi(n), OffsetTable(nc)),
+                         Matrix3Xd(3, nc),
+                         Matrix3Xd(),
+                         OffsetTable(nc),
+                         Array3Xi(3, nc),
+                         ArrayXb(nc),
+                         own_off[sa.n_active] };
       ArrayXi &adj = merged.atoms.adj(), &aoff = merged.atoms.off();
       ArrayXi cid(nc);
       int w = aoff[0] = 0;
