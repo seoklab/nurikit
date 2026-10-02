@@ -17,7 +17,6 @@
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
-#include "nuri/core/container/container_ext.h"
 #include "nuri/core/geometry.h"
 #include "nuri/utils.h"
 
@@ -181,29 +180,7 @@ void OCTree::rebuild_impl(Points src) {
 namespace {
   using Array8d = Array<double, 8, 1>;
 
-  struct NodeEntry {
-    int idx;
-    Vector3d maxs;
-    Vector3d size;
-    double min_dsq;
-  };
-
-  bool node_cmp(const NodeEntry &a, const NodeEntry &b) {
-    return a.min_dsq > b.min_dsq;
-  }
-
-  using NodeHeap = internal::ClearablePQ<NodeEntry, decltype(&node_cmp)>;
-
-  struct CandEntry {
-    double dsq;
-    int idx;
-  };
-
-  bool cand_cmp(const CandEntry &a, const CandEntry &b) {
-    return a.dsq < b.dsq;
-  }
-
-  using CandHeap = internal::ClearablePQ<CandEntry, decltype(&cand_cmp)>;
+  using internal::OCTreeKdScratch;
 
   int octant_idx(const Vector3d &diff) {
     Array3i isneg = (diff.array() < 0.).cast<int>();
@@ -273,23 +250,23 @@ namespace {
 
   class HeapBest {
   public:
-    explicit HeapBest(int k): k_(k), heap_(cand_cmp) { }
+    HeapBest(int k, OCTreeKdScratch::CandHeap &heap): k_(k), heap_(&heap) { }
 
     double offer(double d, int i, double worst_dsq) {
-      heap_.push({ d, i });
-      if (static_cast<int>(heap_.size()) <= k_)
+      heap_->push({ d, i });
+      if (static_cast<int>(heap_->size()) <= k_)
         return worst_dsq;
 
-      heap_.pop();
-      return heap_.top().dsq;
+      heap_->pop();
+      return heap_->top().dsq;
     }
 
     void drain(std::vector<int> &idxs, std::vector<double> &distsq) {
-      const int n = static_cast<int>(heap_.size());
+      const int n = static_cast<int>(heap_->size());
       idxs.resize(n);
       distsq.resize(n);
       for (int i = n - 1; i >= 0; --i) {
-        auto e = heap_.pop_get();
+        auto e = heap_->pop_get();
         idxs[i] = e.idx;
         distsq[i] = e.dsq;
       }
@@ -297,16 +274,16 @@ namespace {
 
   private:
     int k_;
-    CandHeap heap_;
+    internal::Nonnull<OCTreeKdScratch::CandHeap *> heap_;
   };
 
   template <class Best>
   void find_kd_impl(const OCTree &tree, const Vector3d &pt, double worst_dsq,
-                    Best &best, std::vector<int> &idxs,
-                    std::vector<double> &distsq) {
-    ArrayXd dsqbuf(tree.max_nleaf());
+                    Best &best, OCTreeKdScratch &scratch,
+                    std::vector<int> &idxs, std::vector<double> &distsq) {
+    ArrayXd &dsqbuf = scratch.dsqbuf(tree.max_nleaf());
 
-    NodeHeap node_heap(node_cmp);
+    OCTreeKdScratch::NodeHeap &node_heap = scratch.nodes();
     node_heap.push({ tree.root(), tree.max(), tree.len(), 0 });
 
     while (!node_heap.empty()) {
@@ -357,8 +334,17 @@ void OCTree::find_neighbors_kd(const Vector3d &pt, const int k,
                                std::vector<int> &idxs,
                                std::vector<double> &distsq,
                                double cutoff) const {
+  KdScratch scratch;
+  find_neighbors_kd(pt, k, idxs, distsq, scratch, cutoff);
+}
+
+void OCTree::find_neighbors_kd(const Vector3d &pt, const int k,
+                               std::vector<int> &idxs,
+                               std::vector<double> &distsq, KdScratch &scratch,
+                               double cutoff) const {
   idxs.clear();
   distsq.clear();
+  scratch.clear();
   if (k <= 0) {
     ABSL_LOG(WARNING) << "k is not a positive number: " << k;
     return;
@@ -379,12 +365,12 @@ void OCTree::find_neighbors_kd(const Vector3d &pt, const int k,
 
   if (k == 1) {
     ScalarBest best;
-    find_kd_impl(*this, pt, worst_dsq, best, idxs, distsq);
+    find_kd_impl(*this, pt, worst_dsq, best, scratch, idxs, distsq);
     return;
   }
 
-  HeapBest best(k);
-  find_kd_impl(*this, pt, worst_dsq, best, idxs, distsq);
+  HeapBest best(k, scratch.cands());
+  find_kd_impl(*this, pt, worst_dsq, best, scratch, idxs, distsq);
 }
 
 namespace {

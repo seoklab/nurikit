@@ -210,6 +210,32 @@ namespace {
   }
   BENCHMARK(octree_knn_query)->Arg(1)->Arg(8)->Unit(benchmark::kMillisecond);
 
+  void octree_knn_query_scratch(benchmark::State &state) {
+    auto [pts, queries] = knn_cloud();
+    const OCTree tree(pts);
+    const int k = static_cast<int>(state.range(0));
+
+    std::vector<int> idxs;
+    std::vector<double> dsqs;
+    OCTree::KdScratch scratch;
+
+    for (int i = 0; i < kKnnPoints; ++i)
+      tree.find_neighbors_kd(queries.col(i), k, idxs, dsqs, scratch);
+
+    for (auto _: state) {
+      for (int i = 0; i < kKnnPoints; ++i) {
+        const Vector3d query_pt = queries.col(i);
+        tree.find_neighbors_kd(query_pt, k, idxs, dsqs, scratch);
+      }
+    }
+
+    state.SetItemsProcessed(state.iterations() * kKnnPoints);
+  }
+  BENCHMARK(octree_knn_query_scratch)
+      ->Arg(1)
+      ->Arg(8)
+      ->Unit(benchmark::kMillisecond);
+
   void octree_inter_query(benchmark::State &state) {
     Matrix3Xd pts = read_1ubq(state);
     if (state.skipped())

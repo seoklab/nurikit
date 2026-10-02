@@ -17,6 +17,7 @@
 //! @endcond
 
 #include "nuri/eigen_config.h"
+#include "nuri/core/container/container_ext.h"
 #include "nuri/meta.h"
 
 namespace nuri {
@@ -45,6 +46,56 @@ namespace internal {
     Array8i children_;
     int begin_;
     int nleaf_;
+  };
+
+  struct OCTreeNodeEntry {
+    int idx;
+    Vector3d maxs;
+    Vector3d size;
+    double min_dsq;
+  };
+
+  struct OCTreeNodeFarther {
+    bool operator()(const OCTreeNodeEntry &a, const OCTreeNodeEntry &b) const {
+      return a.min_dsq > b.min_dsq;
+    }
+  };
+
+  struct OCTreeCandEntry {
+    double dsq;
+    int idx;
+  };
+
+  struct OCTreeCandCloser {
+    bool operator()(const OCTreeCandEntry &a, const OCTreeCandEntry &b) const {
+      return a.dsq < b.dsq;
+    }
+  };
+
+  class OCTreeKdScratch {
+  public:
+    using NodeHeap = ClearablePQ<OCTreeNodeEntry, OCTreeNodeFarther>;
+    using CandHeap = ClearablePQ<OCTreeCandEntry, OCTreeCandCloser>;
+
+    void clear() {
+      nodes_.clear();
+      cands_.clear();
+    }
+
+    NodeHeap &nodes() { return nodes_; }
+
+    CandHeap &cands() { return cands_; }
+
+    ArrayXd &dsqbuf(int cap) {
+      if (dsqbuf_.size() < cap)
+        dsqbuf_.resize(cap);
+      return dsqbuf_;
+    }
+
+  private:
+    NodeHeap nodes_;
+    CandHeap cands_;
+    ArrayXd dsqbuf_;
   };
 }  // namespace internal
 
@@ -81,8 +132,18 @@ public:
     rebuild_impl(pts);
   }
 
+  using KdScratch = internal::OCTreeKdScratch;
+
   void find_neighbors_kd(const Vector3d &pt, int k, std::vector<int> &idxs,
                          std::vector<double> &distsq, double cutoff = -1) const;
+
+  /**
+   * @brief Same as find_neighbors_kd(), reusing @p scratch across calls so
+   *        that repeated queries do not allocate.
+   */
+  void find_neighbors_kd(const Vector3d &pt, int k, std::vector<int> &idxs,
+                         std::vector<double> &distsq, KdScratch &scratch,
+                         double cutoff = -1) const;
 
   void find_neighbors_d(const Vector3d &pt, double cutoff,
                         std::vector<int> &idxs,
