@@ -78,7 +78,7 @@ struct ScParams {
  * sampled dots, `n_buried` of them buried and `n_trimmed` kept after the
  * peripheral trim, covering `trimmed_area` square angstroms. `d_median` and
  * `s_median` are the medians of the nearest-dot distance and of the score
- * over the kept dots.
+ * over the kept dots; equal-distance ties take the smallest dot index.
  */
 struct ScSide {
   int n_atoms, n_active, n_dots, n_buried, n_trimmed;

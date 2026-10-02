@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include <absl/log/absl_check.h>
@@ -21,6 +22,8 @@ namespace nuri {
 namespace {
   using internal::SesDots;
 
+  constexpr double kNearestCell = 0.75;
+
   class Neighbors {
   public:
     template <class Pred>
@@ -33,17 +36,13 @@ namespace {
       return false;
     }
 
-    int nearest(const OCTree &tree, const Vector3d &pt, double &distsq) {
-      tree.find_neighbors_kd(pt, 1, idxs_, distsq_, scratch_);
-      ABSL_DCHECK_EQ(idxs_.size(), 1);
-      distsq = distsq_[0];
-      return idxs_[0];
+    std::pair<int, double> nearest(const VoxelGrid &grid, const Vector3d &pt) {
+      return grid.nearest(pt, grid_scratch_);
     }
 
   private:
     std::vector<int> idxs_;
     std::vector<double> distsq_;
-    OCTree::KdScratch scratch_;
     VoxelGrid::Scratch grid_scratch_;
   };
 
@@ -150,13 +149,13 @@ namespace {
   ScSide side_stats(const Side &mine, const Side &theirs,
                     const ScParams &params) {
     const SesDots &a = mine.trimmed, &b = theirs.trimmed;
-    const OCTree tree(b.pts);
+    const VoxelGrid grid(b.pts, kNearestCell);
     Neighbors nbrs;
 
     std::vector<double> d(a.n()), s(a.n());
     for (int k = 0; k < a.n(); ++k) {
-      double dsq;
-      const int j = nbrs.nearest(tree, a.pts.col(k), dsq);
+      const auto [j, dsq] = nbrs.nearest(grid, a.pts.col(k));
+      ABSL_DCHECK_GE(j, 0);
       const double dot = a.nrm.col(k).dot(b.nrm.col(j));
       d[k] = std::sqrt(dsq);
       s[k] = nuri::clamp(-dot * std::exp(-params.weight * dsq), -params.clamp,
