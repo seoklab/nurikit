@@ -997,6 +997,75 @@ TEST(BuildSasTest, SharedCircleUnderRigidMotion) {
 }
 
 /**
+ * Append `n` spheres of radius 3 off the z axis, overlapping every sphere
+ * within 2 of the origin without containment.
+ */
+void append_off_axis(Matrix3Xd &pts, ArrayXd &sar, const int n,
+                     const int seed) {
+  std::mt19937 rng(seed);
+  std::uniform_real_distribution<double> rho(1.5, 3.0), phi(0, kTwoPi),
+      zd(-2.0, 2.0);
+  const int m = static_cast<int>(pts.cols());
+  pts.conservativeResize(E::NoChange, m + n);
+  sar.conservativeResize(m + n);
+  for (int q = m; q < m + n; ++q) {
+    const double r = rho(rng), ang = phi(rng);
+    pts.col(q) << r * std::cos(ang), r * std::sin(ang), zd(rng);
+    sar[q] = 3.0;
+  }
+}
+
+/**
+ * The shared-circle triple among enough off-axis neighbours that its row
+ * holds several unrelated circles on either side of the matching keys.
+ */
+TEST(BuildSasTest, SharedCircleMiddleAmongNeighbours) {
+  for (int mid = 0; mid < 3; ++mid) {
+    ArrayXd sar;
+    Matrix3Xd pts = shared_circle_pts(mid, sar);
+    append_off_axis(pts, sar, 6, mid);
+
+    const Sas sas = solve(pts, sar);
+    ASSERT_EQ(sas.sa.order.size(), 8);
+    EXPECT_EQ(sas.sa.n_active, 8);
+    EXPECT_TRUE((sas.sa.order != mid).all());
+    expect_sr(sas, pts, sar);
+  }
+}
+
+/**
+ * Identical twins through one circle of a third, collinear sphere: the
+ * contained filter already settles which twin stays, the shared-circle pass
+ * must not drop the other.
+ */
+TEST(BuildSasTest, SharedCircleSparesTwin) {
+  for (const int alive: { 1, 2 }) {
+    Matrix3Xd pts(3, 3);
+    pts.col(0) << 0, 0, 0;
+    pts.col(1) << 0, 0, 2;
+    pts.col(2) << 0, 0, 2;
+    ArrayXd sar(3);
+    sar << 3.5, 3, 3;
+    append_off_axis(pts, sar, 5, alive);
+    ArrayXb active = ArrayXb::Constant(8, true);
+    active[3 - alive] = false;
+
+    const Sas sas = solve(pts, sar, active);
+    ASSERT_EQ(sas.sa.order.size(), 7);
+    EXPECT_EQ(sas.sa.n_active, 7);
+    EXPECT_TRUE((sas.sa.order != 3 - alive).all());
+    EXPECT_TRUE((sas.sa.order == alive).any());
+
+    ArrayXi rest(7);
+    for (int q = 0, p = 0; q < 8; ++q)
+      if (q != 3 - alive)
+        rest[p++] = q;
+    const Sas ref = solve(pts(E::all, rest), sar(rest));
+    EXPECT_NEAR(sas.geo.area.sum(), ref.geo.area.sum(), 1e-9);
+  }
+}
+
+/**
  * A third sphere through the point of circle (a, b) at frame angle π: the
  * vertex's atan2 is ±π to rounding and must fold with its exact class, not
  * towards the ray.

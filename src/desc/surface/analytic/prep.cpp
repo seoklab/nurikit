@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <algorithm>
 #include <cmath>
+#include <numeric>
 #include <optional>
 #include <tuple>
 #include <utility>
@@ -87,35 +89,73 @@ namespace internal {
       return { left(near), right(near), contained(near), std::move(keep) };
     }
 
+    bool has_edge(const CSR &g, const int j, const int k) {
+      const auto end = g.end(j), it = std::lower_bound(g.begin(j), end, k);
+      return it != end && *it == k;
+    }
+
     /**
      * Drop the middle sphere of every triple sharing one circle: on each
      * side of the circle plane the outer sphere bulges more, so it has no
      * surface, whether or not an outer sphere is itself contained in a
-     * larger one. Three spheres share a circle only if their centres are
-     * collinear; the band on the floating cross product only selects
-     * candidates, `shared_circle` decides.
+     * larger one. Two circles of sphere `i` coincide only if their unsigned
+     * plane offsets `|a|` agree within the row band and their centres are
+     * collinear with `c_i`, so each row sorted by `|a|` is scanned by a
+     * sliding window; `shared_circle` decides.
      */
     void drop_shared_circle_middles(ArrayXi &keep, const CSR &g,
                                     const ArrayXd &d, const ArrayXd &sar2,
-                                    const BallExact &ex) {
-      constexpr double cutoff = 2 * kSurfaceLengthEps * kSurfaceLengthEps;
+                                    const BallExact &ex, const double rmax,
+                                    const double wmax) {
+      constexpr double cutoff = 2 * kSurfaceLengthEps * kSurfaceLengthEps,
+                       u = 0x1p-53,
+                       c2 = 3 * kSurfaceMaxCoord * kSurfaceMaxCoord;
+      const double knum =
+                       1.1 * u * (4.2 * c2 + 8.3 * wmax) + 16 * u * rmax * rmax,
+                   tail = 50 * u * rmax;
 
       const Matrix3Xd &pts = ex.centers();
-      g.for_each_triangle(
-          g.n(),
-          [&](int i, int j, int k, auto pij, auto pik, auto) {
-            const Vector3d ci = pts.col(i), dij = pts.col(j) - ci,
-                           dik = pts.col(k) - ci;
-            const double gij = d[g.eid(pij)], gik = d[g.eid(pik)];
+      const ArrayXi &adj = g.adj();
+      ArrayXd key(g.max_deg());
+      std::vector<int> idx;
+      for (int i = 0; i < g.n(); ++i) {
+        const int deg = g.degree(i);
+        if (deg < 2)
+          continue;
+
+        const int off = g.offset(i);
+        const auto de = d.segment(off, deg);
+        key.head(deg) =
+            ((de.square() + sar2[i] - sar2(g.nbrs(i))) / (2 * de)).abs();
+        const double band = 2 * (knum / de.minCoeff() + tail);
+
+        idx.resize(deg);
+        std::iota(idx.begin(), idx.end(), 0);
+        std::sort(idx.begin(), idx.end(),
+                  [&](int p, int q) { return key[p] < key[q]; });
+
+        const Vector3d ci = pts.col(i);
+        for (int p = 0; p < deg; ++p) {
+          for (int q = p + 1; q < deg && key[idx[q]] - key[idx[p]] <= band;
+               ++q) {
+            auto [ej, ek] =
+                nuri::minmax(off + idx[p], off + idx[q],
+                             [&](int a, int b) { return adj[a] < adj[b]; });
+            const int j = adj[ej], k = adj[ek];
+            const Vector3d dij = pts.col(j) - ci, dik = pts.col(k) - ci;
+            const double gij = d[ej], gik = d[ek];
             if (sar2[i] * dij.cross(dik).squaredNorm()
                 >= cutoff * (gij * gij) * (gik * gik))
-              return;
+              continue;
+            if (!has_edge(g, j, k))
+              continue;
 
             const int mid = ex.shared_circle({ i, j, k });
             if (mid >= 0)
               keep[mid == 0 ? i : mid == 1 ? j : k] = 0;
-          },
-          [](int) { });
+          }
+        }
+      }
     }
 
     using Array5i = E::Array<int, 5, 1>;
@@ -266,7 +306,7 @@ namespace internal {
 
     NearPairs np = find_near_pairs(ex, sar, active, rmax);
     auto [g, d] = exact_overlaps(ex, np);
-    drop_shared_circle_middles(np.keep, g, d, sar2, ex);
+    drop_shared_circle_middles(np.keep, g, d, sar2, ex, rmax, wmax);
 
     auto [order, off] = rank_atoms(np.keep, np.inear, np.jnear, active);
     return compact(pts, sar, t, wmax, g, d, std::move(order), off, np.keep);
