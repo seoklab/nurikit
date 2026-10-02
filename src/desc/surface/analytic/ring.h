@@ -55,10 +55,16 @@ namespace internal {
   /**
    * Frame of a circle about unit `axis` with reference ray `d × e_k`.
    */
-  inline void ring_frame(Ring &ring, const Vector3d &d, const Vector3d &axis) {
-    ring.e1 =
+  inline std::pair<Vector3d, Vector3d> circle_frame(const Vector3d &d,
+                                                    const Vector3d &axis) {
+    const Vector3d e1 =
         d.cross(Vector3d::Unit(BallExact::reference_axis(d))).normalized();
-    ring.e2 = axis.cross(ring.e1);
+    return { e1, axis.cross(e1) };
+  }
+
+  inline void ring_frame(Ring &ring, const Vector3d &e1, const Vector3d &e2) {
+    ring.e1 = e1;
+    ring.e2 = e2;
   }
 
   /**

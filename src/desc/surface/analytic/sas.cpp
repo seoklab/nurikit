@@ -38,11 +38,12 @@ namespace internal {
           const double d = sa.d[q];
 
           Vector3d axis = (sa.pts.col(j) - pi) / d;
+          const auto [e1, e2] = circle_frame(sa.pts.col(j) - pi, axis);
           double a = (d * d + ri * ri - rj * rj) / (2 * d);
           double rl = std::sqrt(nuri::max(ri * ri - a * a, 0.0));
           Vector3d cntr = pi + a * axis;
 
-          result[q] = { axis, cntr, a, rl, i, j };
+          result[q] = { axis, cntr, e1, e2, a, rl, i, j };
         }
       }
 
@@ -506,7 +507,7 @@ namespace internal {
             ABSL_DCHECK_EQ(n % 2, 0) << "odd ring on circle " << q;
 
             const SasRingOps ops(del.ex, fs, fan, va, vb);
-            ring_frame(ring, sa.pts.col(j) - sa.pts.col(i), circ[q].axis);
+            ring_frame(ring, circ[q].e1, circ[q].e2);
             ring_angles(ring, ops);
             decide_wrap(ring, ops);
           }
