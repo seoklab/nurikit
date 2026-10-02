@@ -669,15 +669,4 @@ void OCTree::find_neighbors_self(double cutoff, std::vector<int> &left,
   find_neighbors_tree_impl<true>(left, right, dsqbuf, jbuf, root, root,
                                  cutoffsq);
 }
-
-void OCTree::notify_transform(const Vector3d &new_max,
-                              const Vector3d &new_len) {
-  Vector3d scale =
-      (len_.array() > 0).select(new_len.array() / len_.array(), 1.0);
-  Vector3d trs = new_max - max_.cwiseProduct(scale);
-
-  max_ = new_max;
-  len_ = new_len;
-  pts_ = (pts_.array().colwise() * scale.array()).matrix().colwise() + trs;
-}
 }  // namespace nuri

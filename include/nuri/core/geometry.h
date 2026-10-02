@@ -107,13 +107,6 @@ namespace internal {
  *
  * This implementation is designed for static point clouds. To update the point
  * set, one must rebuild(const MatrixLike &) the octree.
- *
- * One notable exception is that if the points are only scaled uniformly in each
- * axis and/or translated in any order, the octree can still be used without
- * rebuilding, due to the axis-aligned nature of the octree. Note that,
- * however, it is the user's responsibility to ensure that the points are
- * "correctly" transformed separately from the octree; otherwise, the behavior
- * is undefined.
  */
 class OCTree {
 public:
@@ -164,19 +157,6 @@ public:
   const Vector3d &max() const { return max_; }
 
   const Vector3d &len() const { return len_; }
-
-  /**
-   * @brief Notify the octree that the point set has been transformed by
-   *        scaling and/or translation.
-   *
-   * @param new_max The new maximum corner of the bounding box.
-   * @param new_len The new length of the bounding box in each axis.
-   *
-   * @warning It is the user's responsibility to ensure that the points are
-   *          "correctly" transformed separately from the octree; otherwise, the
-   *          behavior is undefined.
-   */
-  void notify_transform(const Vector3d &new_max, const Vector3d &new_len);
 
   const std::vector<internal::OCTreeNode> &nodes() const { return nodes_; }
 

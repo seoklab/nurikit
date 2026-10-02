@@ -386,47 +386,6 @@ TEST(OCTreeTest, FindNeighborSelf) {
   }
 }
 
-TEST(OCTreeTest, NotifyTransformTest) {
-  Matrix3Xd m = Matrix3Xd::Random(3, 500);
-  OCTree tree(m);
-
-  Vector3d scale(2.0, 0.5, 1.5);
-  Vector3d trs(1.0, -1.0, 0.5);
-  E::Affine3d x = E::Translation3d(trs) * E::Scaling(scale);
-  m = x * m;
-
-  Vector3d new_max = m.rowwise().maxCoeff(), new_min = m.rowwise().minCoeff(),
-           new_len = new_max - new_min;
-  tree.notify_transform(new_max, new_len);
-
-  for (int i = 0; i < tree.pts().cols(); ++i) {
-    NURI_EXPECT_EIGEN_EQ_TOL(tree.pts().col(i), m.col(tree.idxs()[i]), 1e-6)
-        << "i = " << i;
-  }
-}
-
-TEST(OCTreeTest, NotifyTransformDegenerate) {
-  // Zero extent on one axis: the per-axis scale would divide by zero
-  Matrix3Xd m = Matrix3Xd::Random(3, 50);
-  m.row(2).setConstant(5.0);
-  OCTree tree(m);
-
-  Vector3d scale(2.0, 0.5, 3.0);
-  Vector3d trs(1.0, -1.0, 3.0);
-  E::Affine3d x = E::Translation3d(trs) * E::Scaling(scale);
-  m = x * m;
-
-  Vector3d new_max = m.rowwise().maxCoeff(),
-           new_len = new_max - m.rowwise().minCoeff();
-  tree.notify_transform(new_max, new_len);
-
-  for (int i = 0; i < tree.pts().cols(); ++i) {
-    ASSERT_TRUE(tree.pts().col(i).allFinite()) << "i = " << i;
-    NURI_EXPECT_EIGEN_EQ_TOL(tree.pts().col(i), m.col(tree.idxs()[i]), 1e-6)
-        << "i = " << i;
-  }
-}
-
 TEST(OCTreeTest, CoincidentPoints) {
   // Over-full coincident cluster: octant splitting can never separate them
   const int n = 100;
