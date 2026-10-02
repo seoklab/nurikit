@@ -817,6 +817,21 @@ coordinates (a trapped 5-fold point yielded 0, 2 or 6 coincident probes
 across rotations in the prototype). The enumeration's `ε → 0⁺` merged vertex
 is not reproduced here.
 
+**Hybrid semantics.** The kernel sweeps the SoS-perturbed arrangement
+(every `ρ²` grows, lower index first, `ε` below every power of `η`) of the
+kept spheres restricted to the unperturbed overlap graph `g`. Objects of
+measure zero at `ε = 0` — contained balls (internal tangency included),
+shared-circle middles, tangent-pair circles and their cut points — are
+deleted before the sweep, whose vertices are the accessible cut points of
+`g`-faces (Theorem 1); two caps are joined iff a vertex links them or their
+open discs meet (`discs_intersect`; a touch is no join). Correct iff every
+pinch point counts loops and components one way: vertex present ⇒ joined
+(cusp pair, net area 0), absent ⇒ not joined (two loops, two components).
+Argued for 4-fold points (coplanar: the SoS diagonal decides both
+consistently; non-coplanar: the tangent partner is the zero-power apex and
+never rejects); open for `≥ 5` spheres through a point with a tangent pair
+and a non-coplanar fifth.
+
 **Floating point.** The predicates live in one translation unit compiled
 without fast-math (like the vendored geogram sources), because the
 floating-point filter's running error bound and the exact fallback both
