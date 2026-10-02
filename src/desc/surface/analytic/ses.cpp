@@ -674,6 +674,7 @@ namespace internal {
   SesGeometry build_ses(const SaPrep &sa, const SasDelaunay &del,
                         const SasGeometry &geo, const double rp) {
     SesGeometry ses;
+    ses.rp = rp;
     ses.convex_area = convex_areas(sa, geo, rp);
     saddles(ses, sa, geo, rp);
     const LiftedCaps lifted = faces(ses, sa, del, geo, rp);
