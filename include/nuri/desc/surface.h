@@ -329,6 +329,23 @@ namespace internal {
      * radius. Requires `cuts(f)` non-negative.
      */
     Vector3d offset(int a, int b, BallTriple f, bool plus) const;
+    /**
+     * `x − x'` for root `x` of `f` and root `x'` of `f2`, in double but to
+     * rounding of its own length: the direction between two roots is right
+     * however close they are. The filter evaluates `(P + √D Q + √D' Q') /
+     * (|u|² |u'|²)` with rational `P = |u|² |u'|² (c_a − c_a') + |u'|² (λ
+     * d_b + μ d_c) − |u|² (λ' d_b' + μ' d_c')`, `Q = ±|u'|² u`, `Q' =
+     * ∓|u|² u'` (each face relative to its first centre) and is accepted
+     * when its running bound certifies the vector to `kOffsetRelTol` of
+     * its own length; otherwise the exact dyadics are combined with `√D`,
+     * `√D'` taken to `k` extra bits, `k` doubled from 64 until the sum's
+     * error bound is below `2^-52` of its length, so the result is within
+     * a few ulp of `|x − x'|` (the roundings of the conversion and the
+     * division). Requires `cuts` non-negative for both faces and distinct
+     * roots.
+     */
+    Vector3d difference(BallTriple f, bool plus, BallTriple f2,
+                        bool plus2) const;
 
     /**
      * Position of root `x` of `f` on circle `(a, b)` relative to the
@@ -423,10 +440,17 @@ namespace internal {
     ArrayXd cosa, sina;
   };
 
+  /**
+   * `face` (triangulation vertices as `SasDelaunay::ex` indexes them,
+   * sorted) and `plus` name the root at `pos`: of a merged probe, its first
+   * member's, whose position is the probe's.
+   */
   struct SasProbes {
     CSR atoms;
     Matrix3Xd pos, tan;
     OffsetTable tan_off;
+    Array3Xi face;
+    ArrayXb plus;
     int n_active;
   };
 
@@ -466,8 +490,8 @@ namespace internal {
     ArrayXd face_cosa, face_sina;
   };
 
-  extern SesGeometry build_ses(const SaPrep &sa, const SasGeometry &geo,
-                               double rp);
+  extern SesGeometry build_ses(const SaPrep &sa, const SasDelaunay &del,
+                               const SasGeometry &geo, double rp);
 
   /**
    * Gauss–Bonnet area of one sphere from its caps and the accessible arcs on

@@ -904,6 +904,101 @@ TEST(BallExactTest, CcwPerturbedCancellingTangentRoots) {
   check(BallExactImpl<true>::make(c, h, 8.0));
 }
 
+/**
+ * `difference` against the quad reference and against the subtraction of
+ * two `root`s on random fixtures, where every pair of roots is far apart.
+ */
+TEST(BallExactTest, DifferenceMatchesRoots) {
+  std::mt19937 rng(29);
+  int n_pairs = 0;
+  for (int trial = 0; trial < 20; ++trial) {
+    const int n = 6;
+    const Fixture<> s =
+        setup(random_pts(rng, n, 1.6), random_radii(rng, n, 1.5, 2.5));
+
+    std::vector<CircleRoot> roots;
+    for (int a = 0; a < n; ++a) {
+      for (int b = a + 1; b < n; ++b) {
+        for (int c = b + 1; c < n; ++c) {
+          const BallTriple f { a, b, c };
+          if (s.ex.cuts(f) != Sgn::kPos)
+            continue;
+          roots.push_back({ f, true });
+          roots.push_back({ f, false });
+        }
+      }
+    }
+
+    for (const CircleRoot &ri: roots) {
+      for (const CircleRoot &rj: roots) {
+        if (&ri == &rj)
+          continue;
+
+        const QVec w = s.ref.root(ri.f, ri.plus) - s.ref.root(rj.f, rj.plus);
+        const Vector3d want(static_cast<double>(w.x), static_cast<double>(w.y),
+                            static_cast<double>(w.z)),
+            got = s.ex.difference(ri.f, ri.plus, rj.f, rj.plus),
+            naive = s.ex.root(ri.f, ri.plus) - s.ex.root(rj.f, rj.plus);
+        EXPECT_LT((got - want).norm(), 1e-12) << "trial " << trial;
+        EXPECT_LT((got - naive).norm(), 1e-12) << "trial " << trial;
+        ++n_pairs;
+      }
+    }
+  }
+  EXPECT_GT(n_pairs, 1000);
+}
+
+/**
+ * The occluder-shell fixture of sas_test under rigid motions: where the
+ * tangent pair `(0, 1)` rounds into an overlap, its circle of radius
+ * ~1e-8 is cut by the three spheres through the touching point at roots
+ * 1e-8 to 1e-7 apart. The filtered `difference` must point as the forced
+ * exact one to `2^-25`, which the subtraction of the two certified
+ * positions does not guarantee.
+ */
+TEST(BallExactTest, DifferenceOnRoundedTangentPair) {
+  Matrix3Xd base(3, 6);
+  base << 0, 3, 1.5, 1.5, 1.5, 1.5,  //
+      0, 0, 1.5, 0, -1.5, -3.5,      //
+      0, 0, 0, 1.5, -1.5, -3.5;
+  const ArrayXd sar = ArrayXd::Constant(6, 1.5);
+
+  int n_overlap = 0, n_pairs = 0;
+  for (int seed = 0; seed < 32; ++seed) {
+    std::mt19937 rng(seed);
+    std::normal_distribution<double> nd;
+    const Vector3d ax(nd(rng), nd(rng), nd(rng));
+    const Matrix3d rot =
+        AngleAxisd(nd(rng), ax.normalized()).toRotationMatrix();
+    const Vector3d t(nd(rng), nd(rng), nd(rng));
+    const Matrix3Xd pts = (rot * base).colwise() + 3.0 * t;
+
+    const Fixture<> s = setup(pts, sar);
+    const Fixture<true> e = setup<true>(pts, sar);
+    if (s.ex.overlap(0, 1) != Sgn::kPos)
+      continue;
+    ++n_overlap;
+
+    const std::vector<CircleRoot> roots = circle_roots(s.ex, 0, 1);
+    for (const CircleRoot &ri: roots) {
+      for (const CircleRoot &rj: roots) {
+        if (&ri == &rj)
+          continue;
+
+        const Vector3d want = e.ex.difference(ri.f, ri.plus, rj.f, rj.plus),
+                       got = s.ex.difference(ri.f, ri.plus, rj.f, rj.plus);
+        ASSERT_GT(want.norm(), 0) << "seed " << seed;
+        EXPECT_LT(want.norm(), 2e-7) << "seed " << seed;
+        EXPECT_LT((got.normalized() - want.normalized()).norm(), 0x1p-25)
+            << "seed " << seed;
+        ++n_pairs;
+      }
+    }
+  }
+  EXPECT_GT(n_overlap, 4);
+  EXPECT_GT(n_pairs, 40);
+}
+
 TEST(BallExactTest, HeightsConstructorMatchesLift) {
   std::mt19937 rng(23);
   for (const Fixture<> &s:

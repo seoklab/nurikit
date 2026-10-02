@@ -37,7 +37,7 @@ Ses solve(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXb &active,
   EXPECT_TRUE(sa);
   SasDelaunay del = triangulate(*sa);
   SasGeometry geo = build_sas(*sa, del);
-  SesGeometry ses = build_ses(*sa, geo, rp);
+  SesGeometry ses = build_ses(*sa, del, geo, rp);
   return { std::move(*sa), std::move(geo), std::move(ses) };
 }
 
@@ -688,6 +688,45 @@ TEST(BuildSesTest, KFoldFaceUnderRigidMotion) {
       EXPECT_NEAR(s.ses.face_area.sum(), ref_total, 1e-9)
           << "k " << k << " seed " << seed;
     }
+  }
+}
+
+/**
+ * The occluder-shell fixture of sas_test, all active, under rigid motions:
+ * where the tangent pair `(0, 1)` rounds into an overlap, the roots on its
+ * circle of radius ~1e-8 are neighbour probes 1e-8 to 1e-7 apart whose
+ * cap axes their positions cannot resolve. The faces at the point sum to
+ * the quarter sphere of the exact 4-fold point and match the lattice.
+ */
+TEST(BuildSesTest, RoundedTangentPairFaces) {
+  Matrix3Xd base(3, 6);
+  base << 0, 3, 1.5, 1.5, 1.5, 1.5,  //
+      0, 0, 1.5, 0, -1.5, -3.5,      //
+      0, 0, 0, 1.5, -1.5, -3.5;
+  const ArrayXd sar = ArrayXd::Constant(6, 1.5);
+  const double rp = 0.5, quarter = kPi * rp * rp;
+  const Vector3d x0(1.5, 0, 0);
+
+  const Ses ref = solve(base, sar, rp);
+  const int c0 = probe_at(ref.geo, x0);
+  ASSERT_GE(c0, 0);
+  EXPECT_NEAR(ref.ses.face_area[c0], quarter, 1e-12);
+
+  for (int seed = 0; seed < 32; ++seed) {
+    SCOPED_TRACE(seed);
+    const auto [rot, t] = rigid_motion(seed);
+    const Matrix3Xd pts = (rot * base).colwise() + t;
+    const Ses s = solve(pts, sar, rp);
+
+    const Vector3d x = rot * x0 + t;
+    double at_point = 0;
+    for (int p = 0; p < s.geo.probes.n_active; ++p) {
+      if ((s.geo.probes.pos.col(p) - x).norm() < 1e-6)
+        at_point += s.ses.face_area[p];
+    }
+    EXPECT_NEAR(at_point, quarter, 1e-6);
+    EXPECT_NEAR(s.ses.face_area.sum(), ref.ses.face_area.sum(), 1e-6);
+    expect_faces_match_dots(s, rp);
   }
 }
 
