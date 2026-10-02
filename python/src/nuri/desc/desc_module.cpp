@@ -119,6 +119,8 @@ py::dict sas_dict(const internal::SaPrep &sa,
   circ["rl"] = collect(geo.circles, [](const auto &c) { return c.rl; });
   circ["axis"] = collect(geo.circles, [](const auto &c) { return c.axis; });
   circ["cntr"] = collect(geo.circles, [](const auto &c) { return c.cntr; });
+  circ["e1"] = collect(geo.circles, [](const auto &c) { return c.e1; });
+  circ["e2"] = collect(geo.circles, [](const auto &c) { return c.e2; });
   d["circles"] = circ;
 
   py::dict caps;

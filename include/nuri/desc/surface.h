@@ -418,16 +418,20 @@ namespace internal {
 
   extern SasDelaunay triangulate(const SaPrep &sa);
 
+  /**
+   * Circle of spheres `i`, `j` with its frame `e1 = normalize(d × e_k)`,
+   * `d = c_j − c_i`, `k = BallExact::reference_axis(d)`, `e2 = axis × e1`.
+   */
   struct SasCircle {
     Vector3d axis, cntr;
+    Vector3d e1, e2;
     double a, rl;
     int i, j;
   };
 
   /**
-   * `phi` is measured in the circle frame `e1 = normalize(d × e_k)`,
-   * `d = c_j − c_i`, `k = BallExact::reference_axis(d)`, `e2 = axis × e1`.
-   * `beg`, `end` are probes, both -1 for a full circle.
+   * `phi` is measured in the frame `e1`, `e2` of `SasCircle`. `beg`, `end`
+   * are probes, both -1 for a full circle.
    */
   struct SasArc {
     double phi, dphi;

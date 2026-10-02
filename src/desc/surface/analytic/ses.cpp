@@ -585,7 +585,8 @@ namespace internal {
           ABSL_DCHECK_EQ(nv % 2, 0) << "odd ring on cap " << b;
           const FaceRingOps ops(ex, pairs_, live, b);
           const Vector3d axis = c_.col(b);
-          ring_frame(ring_, axis, axis.normalized());
+          const auto [e1, e2] = circle_frame(axis, axis.normalized());
+          ring_frame(ring_, e1, e2);
           ring_angles(ring_, ops);
           std::sort(ring_.verts.begin(), ring_.verts.end(),
                     [&](const RingVertex &p, const RingVertex &r) {
