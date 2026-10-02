@@ -331,10 +331,12 @@ namespace internal {
    * geogram's perturbation: every squared radius grows, lower index first.
    * Compiled without fast-math (`NURI_STRICT_FP_SRCS` in src/CMakeLists.txt);
    * the header carries no arithmetic. `kForceExact` skips the floating
-   * filter (tests only).
+   * filter, `kFilterOnly` aborts on reaching the exact stage (tests only).
    */
-  template <bool kForceExact>
+  template <bool kForceExact, bool kFilterOnly = false>
   class BallExactImpl {
+    static_assert(!(kForceExact && kFilterOnly), "no stage left to run");
+
   public:
     BallExactImpl() = default;
 
@@ -457,6 +459,7 @@ namespace internal {
 
   extern template class BallExactImpl<false>;
   extern template class BallExactImpl<true>;
+  extern template class BallExactImpl<false, true>;
 
   using BallExact = BallExactImpl<false>;
 

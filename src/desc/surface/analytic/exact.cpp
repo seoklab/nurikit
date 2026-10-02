@@ -17,6 +17,7 @@
 
 #include <absl/base/attributes.h>
 #include <absl/log/absl_check.h>
+#include <absl/log/absl_log.h>
 #include <boost/multiprecision/cpp_int.hpp>
 #include <Eigen/Dense>
 #include <geogram/numerics/multi_precision.h>
@@ -29,6 +30,12 @@ namespace nuri {
 namespace internal {
   namespace {
     constexpr int kUnknown = 2;
+
+    template <bool kFilterOnly>
+    void exact_stage() {
+      if constexpr (kFilterOnly)
+        ABSL_LOG(FATAL) << "exact stage entered under kFilterOnly";
+    }
 
     /**
      * Running error bound of a double computation: `|v − exact| ≤ e`. Each
@@ -44,16 +51,30 @@ namespace internal {
     constexpr double kUlp = 0x1p-52;
     constexpr double kTiny = 0x1p-1074;
 
+    bool is_zero(Fx a) {
+      return a.e <= 0 && std::fpclassify(a.v) == FP_ZERO;
+    }
+
+    /**
+     * Exact operands that cancel are equal (IEEE), so their zero is exact; an
+     * exact zero times any finite value is an exact zero.
+     */
     Fx operator+(Fx a, Fx b) {
       const double v = a.v + b.v;
+      if (is_zero({ v, a.e + b.e }))
+        return { v, 0.0 };
       return { v, a.e + b.e + kUlp * std::fabs(v) + kTiny };
     }
     Fx operator-(Fx a, Fx b) {
       const double v = a.v - b.v;
+      if (is_zero({ v, a.e + b.e }))
+        return { v, 0.0 };
       return { v, a.e + b.e + kUlp * std::fabs(v) + kTiny };
     }
     Fx operator*(Fx a, Fx b) {
       const double v = a.v * b.v;
+      if (is_zero(a) || is_zero(b))
+        return { v, 0.0 };
       return { v, std::fabs(a.v) * b.e + std::fabs(b.v) * a.e + a.e * b.e
                       + kUlp * std::fabs(v) + kTiny };
     }
@@ -418,7 +439,7 @@ namespace internal {
      * Filter, then exact, then the perturbation. `kernel(ctx)` returns
      * `Root<T>`.
      */
-    template <bool kForceExact, class K>
+    template <bool kForceExact, bool kFilterOnly, class K>
     Sgn decide(const Data &d, const K &kernel, Participants parts) {
       if constexpr (!kForceExact) {
         const int s = sign_root(kernel(Ctx<Fx> { d, -1 }));
@@ -426,6 +447,7 @@ namespace internal {
           return static_cast<Sgn>(s);
       }
 
+      exact_stage<kFilterOnly>();
       const int s = sign_root(kernel(Ctx<Xp> { d, -1 }));
       if (s != 0)
         return static_cast<Sgn>(s);
@@ -568,24 +590,25 @@ namespace internal {
       return static_cast<Sgn>(t);
     }
 
-    template <bool kForceExact, class K>
+    template <bool kForceExact, bool kFilterOnly, class K>
     int sign2(const Data &d, const K &kernel) {
       if constexpr (!kForceExact) {
         const int s = sign_root2(kernel(Ctx<Fx> { d, -1 }));
         if (s != kUnknown)
           return s;
       }
+      exact_stage<kFilterOnly>();
       return sign_root2(kernel(Ctx<Xp> { d, -1 }));
     }
 
-    template <bool kForceExact, class K>
+    template <bool kForceExact, bool kFilterOnly, class K>
     Sgn decide2(const Data &d, const K &kernel) {
-      return static_cast<Sgn>(sign2<kForceExact>(d, kernel));
+      return static_cast<Sgn>(sign2<kForceExact, kFilterOnly>(d, kernel));
     }
 
-    template <bool kForceExact, class K>
+    template <bool kForceExact, bool kFilterOnly, class K>
     Sgn decide2_perturbed(const Data &d, const K &kernel, Participants parts) {
-      const int s = sign2<kForceExact>(d, kernel);
+      const int s = sign2<kForceExact, kFilterOnly>(d, kernel);
       if (s != 0)
         return static_cast<Sgn>(s);
       return perturbed2(d, kernel, parts);
@@ -754,7 +777,7 @@ namespace internal {
      * exact zero is a tangency, a circle of zero length, and is reported so
      * the pair carries no cap.
      */
-    template <bool kForceExact>
+    template <bool kForceExact, bool kFilterOnly>
     Sgn overlap_impl(const Data &d, const int a, const int b) {
       auto stage = [&](auto ctx) {
         using T = typename decltype(ctx)::Scalar;
@@ -781,15 +804,17 @@ namespace internal {
         }
       }
 
+      exact_stage<kFilterOnly>();
       if (sgn(stage(Ctx<Xp> { d, -1 }).first) >= 0)
         return Sgn::kPos;
       return static_cast<Sgn>(sign_root(kernel(Ctx<Xp> { d, -1 })));
     }
   }  // namespace
 
-  template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE BallExactImpl<kForceExact>
-  BallExactImpl<kForceExact>::make(const Matrix4Xd &lifted, const double wmax) {
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE BallExactImpl<kForceExact, kFilterOnly>
+  BallExactImpl<kForceExact, kFilterOnly>::make(const Matrix4Xd &lifted,
+                                                const double wmax) {
     BallExactImpl ex;
     const int n = static_cast<int>(lifted.cols());
     ex.c_ = lifted.topRows(3);
@@ -801,10 +826,11 @@ namespace internal {
     return ex;
   }
 
-  template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE BallExactImpl<kForceExact>
-  BallExactImpl<kForceExact>::make(const Matrix3Xd &centers,
-                                   const ArrayXd &heights, const double wmax) {
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE BallExactImpl<kForceExact, kFilterOnly>
+  BallExactImpl<kForceExact, kFilterOnly>::make(const Matrix3Xd &centers,
+                                                const ArrayXd &heights,
+                                                const double wmax) {
     ABSL_DCHECK_EQ(centers.cols(), heights.size());
     BallExactImpl ex;
     ex.c_ = centers;
@@ -813,27 +839,28 @@ namespace internal {
     return ex;
   }
 
-  template <bool kForceExact>
+  template <bool kForceExact, bool kFilterOnly>
   ABSL_ATTRIBUTE_NOINLINE double
-  BallExactImpl<kForceExact>::rho2(const int i) const {
+  BallExactImpl<kForceExact, kFilterOnly>::rho2(const int i) const {
     const double cc =
         c_(0, i) * c_(0, i) + c_(1, i) * c_(1, i) + c_(2, i) * c_(2, i);
     return w_ + cc - h_[i];
   }
 
-  template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE Sgn
-  BallExactImpl<kForceExact>::overlap(const int a, const int b) const {
-    return overlap_impl<kForceExact>({ &c_, &h_, w_ }, a, b);
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact, kFilterOnly>::overlap(
+      const int a, const int b) const {
+    return overlap_impl<kForceExact, kFilterOnly>({ &c_, &h_, w_ }, a, b);
   }
 
   /**
    * `U = ρ_x² − ρ_y² − d²`: `B_y ⊂ B_x` iff `U ≥ 0` and `U² ≥ 4 ρ_y² d²`,
    * internal tangency included.
    */
-  template <bool kForceExact>
+  template <bool kForceExact, bool kFilterOnly>
   ABSL_ATTRIBUTE_NOINLINE int
-  BallExactImpl<kForceExact>::contained(const int a, const int b) const {
+  BallExactImpl<kForceExact, kFilterOnly>::contained(const int a,
+                                                     const int b) const {
     const Data d { &c_, &h_, w_ };
     auto check = [&](auto ctx, const int x, const int y) {
       using T = typename decltype(ctx)::Scalar;
@@ -855,6 +882,7 @@ namespace internal {
         if (r != kUnknown)
           return r == 1;
       }
+      exact_stage<kFilterOnly>();
       return check(Ctx<Xp> { d, -1 }, x, y) == 1;
     };
     const bool ab = inside(a, b), ba = inside(b, a);
@@ -872,9 +900,10 @@ namespace internal {
    * and then `D = −gbb (k vb − vc)² = 0` for `d_c = k d_b` (equal centres).
    * The middle sphere is `a` iff `gbc < 0`, else the nearer of `b`, `c`.
    */
-  template <bool kForceExact>
+  template <bool kForceExact, bool kFilterOnly>
   ABSL_ATTRIBUTE_NOINLINE int
-  BallExactImpl<kForceExact>::shared_circle(const BallTriple f) const {
+  BallExactImpl<kForceExact, kFilterOnly>::shared_circle(
+      const BallTriple f) const {
     const Data d { &c_, &h_, w_ };
     if constexpr (!kForceExact) {
       const Face<Fx> fc = face(Ctx<Fx> { d, -1 }, f);
@@ -883,6 +912,7 @@ namespace internal {
         return -1;
     }
 
+    exact_stage<kFilterOnly>();
     const Face<Xp> fc = face(Ctx<Xp> { d, -1 }, f);
     if (sgn(fc.u2) != 0 || sgn(fc.disc) != 0)
       return -1;
@@ -891,28 +921,28 @@ namespace internal {
     return sgn(fc.gcc - fc.gbb) > 0 ? 1 : 2;
   }
 
-  template <bool kForceExact>
+  template <bool kForceExact, bool kFilterOnly>
   ABSL_ATTRIBUTE_NOINLINE Sgn
-  BallExactImpl<kForceExact>::cuts(const BallTriple f) const {
+  BallExactImpl<kForceExact, kFilterOnly>::cuts(const BallTriple f) const {
     auto kernel = [&](auto ctx) {
       using T = typename decltype(ctx)::Scalar;
       return Root<T> { face(ctx, f).disc, lit<T>(0.0), lit<T>(0.0) };
     };
-    return decide<kForceExact>(
+    return decide<kForceExact, kFilterOnly>(
         {
             &c_, &h_, w_
     },
         kernel, { { f.a, f.b, f.c }, 3 });
   }
 
-  template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact>::side(
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact, kFilterOnly>::side(
       const int a, const int b, const int c) const {
     auto kernel = [&](auto ctx) {
       using T = typename decltype(ctx)::Scalar;
       return Root<T> { face(ctx, { a, b, c }).mu, lit<T>(0.0), lit<T>(0.0) };
     };
-    return decide<kForceExact>(
+    return decide<kForceExact, kFilterOnly>(
         {
             &c_, &h_, w_
     },
@@ -957,24 +987,26 @@ namespace internal {
     }
   }  // namespace
 
-  template <bool kForceExact>
+  template <bool kForceExact, bool kFilterOnly>
   ABSL_ATTRIBUTE_NOINLINE bool
-  BallExactImpl<kForceExact>::discs_intersect(const int s, const int j,
-                                              const int l) const {
+  BallExactImpl<kForceExact, kFilterOnly>::discs_intersect(const int s,
+                                                           const int j,
+                                                           const int l) const {
     const Data d { &c_, &h_, w_ };
     if constexpr (!kForceExact) {
       const int r = disc_decision(disc_roots(Ctx<Fx> { d, -1 }, s, j, l));
       if (r != kUnknown)
         return r > 0;
     }
+    exact_stage<kFilterOnly>();
     const int r = disc_decision(disc_roots(Ctx<Xp> { d, -1 }, s, j, l));
     if (r != kUnknown)
       return r > 0;
     return side(s, j, l) == Sgn::kNeg || side(s, l, j) == Sgn::kNeg;
   }
 
-  template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact>::accept(
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact, kFilterOnly>::accept(
       const BallTriple f, const bool plus, const int l) const {
     auto kernel = [&](auto ctx) {
       using T = typename decltype(ctx)::Scalar;
@@ -986,7 +1018,7 @@ namespace internal {
           fc.u2 * vl - fc.lam * dot(fc.db, dl) - fc.mu * dot(fc.dc, dl);
       return Root<T> { lin, -root_sign<T>(plus) * dot(fc.u, dl), fc.disc };
     };
-    return decide<kForceExact>(
+    return decide<kForceExact, kFilterOnly>(
         {
             &c_, &h_, w_
     },
@@ -999,24 +1031,27 @@ namespace internal {
    * exact, so the direction from the centre is right to rounding on a
    * circle of any radius and for a third centre anywhere.
    */
-  template <bool kForceExact>
+  template <bool kForceExact, bool kFilterOnly>
   ABSL_ATTRIBUTE_NOINLINE Vector3d
-  BallExactImpl<kForceExact>::root(const BallTriple f, const bool plus) const {
+  BallExactImpl<kForceExact, kFilterOnly>::root(const BallTriple f,
+                                                const bool plus) const {
     const Vector3d ca = c_.col(f.a), db = c_.col(f.b) - ca;
     const double vb = (h_[f.b] - h_[f.a]) / 2 - ca.dot(db);
     const Vector3d cntr = ca + (vb / db.squaredNorm()) * db;
     return cntr + offset(f.a, f.b, f, plus);
   }
 
-  template <bool kForceExact>
+  template <bool kForceExact, bool kFilterOnly>
   ABSL_ATTRIBUTE_NOINLINE std::pair<Vector3d, Vector3d>
-  BallExactImpl<kForceExact>::roots(const BallTriple f) const {
+  BallExactImpl<kForceExact, kFilterOnly>::roots(const BallTriple f) const {
     return { root(f, true), root(f, false) };
   }
 
-  template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE Vector3d BallExactImpl<kForceExact>::offset(
-      const int a, const int b, const BallTriple f, const bool plus) const {
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Vector3d
+  BallExactImpl<kForceExact, kFilterOnly>::offset(const int a, const int b,
+                                                  const BallTriple f,
+                                                  const bool plus) const {
     const Data d { &c_, &h_, w_ };
     auto kernel = [&](auto ctx) {
       using T = typename decltype(ctx)::Scalar;
@@ -1029,13 +1064,16 @@ namespace internal {
       if (certified_offset(kernel(Ctx<Fx> { d, -1 }), out))
         return out;
     }
+    exact_stage<kFilterOnly>();
     return exact_offset(kernel(Ctx<Xp> { d, -1 }));
   }
 
-  template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE Vector3d BallExactImpl<kForceExact>::difference(
-      const BallTriple f, const bool plus, const BallTriple f2,
-      const bool plus2) const {
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Vector3d
+  BallExactImpl<kForceExact, kFilterOnly>::difference(const BallTriple f,
+                                                      const bool plus,
+                                                      const BallTriple f2,
+                                                      const bool plus2) const {
     const Data d { &c_, &h_, w_ };
     auto kernel = [&](auto ctx) {
       return root_difference(ctx, f, plus, f2, plus2);
@@ -1046,12 +1084,15 @@ namespace internal {
       if (certified_difference(kernel(Ctx<Fx> { d, -1 }), out))
         return out;
     }
+    exact_stage<kFilterOnly>();
     return exact_difference(kernel(Ctx<Xp> { d, -1 }));
   }
 
-  template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE int BallExactImpl<kForceExact>::half_plane(
-      const int a, const int b, const BallTriple f, const bool plus) const {
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE int
+  BallExactImpl<kForceExact, kFilterOnly>::half_plane(const int a, const int b,
+                                                      const BallTriple f,
+                                                      const bool plus) const {
     const V3<double> r = reference_ray(c_.col(b) - c_.col(a));
     const Data d { &c_, &h_, w_ };
 
@@ -1069,6 +1110,7 @@ namespace internal {
         if (s != kUnknown)
           return s;
       }
+      exact_stage<kFilterOnly>();
       return sign_root(kernel(Ctx<Xp> { d, -1 }));
     };
 
@@ -1099,32 +1141,33 @@ namespace internal {
     }
   }  // namespace
 
-  template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact>::ccw(
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact, kFilterOnly>::ccw(
       const int a, const int b, const BallTriple fi, const bool plus_i,
       const BallTriple fj, const bool plus_j) const {
     auto kernel = [&](auto ctx) {
       return ccw_kernel(ctx, a, b, fi, plus_i, fj, plus_j);
     };
-    return decide2<kForceExact>({ &c_, &h_, w_ }, kernel);
+    return decide2<kForceExact, kFilterOnly>({ &c_, &h_, w_ }, kernel);
   }
 
-  template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact>::ccw_perturbed(
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn
+  BallExactImpl<kForceExact, kFilterOnly>::ccw_perturbed(
       const int a, const int b, const BallTriple fi, const bool plus_i,
       const BallTriple fj, const bool plus_j) const {
     auto kernel = [&](auto ctx) {
       return ccw_kernel(ctx, a, b, fi, plus_i, fj, plus_j);
     };
-    return decide2_perturbed<kForceExact>(
+    return decide2_perturbed<kForceExact, kFilterOnly>(
         {
             &c_, &h_, w_
     },
         kernel, { { a, b, fi.a, fi.b, fi.c, fj.a, fj.b, fj.c }, 8 });
   }
 
-  template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact>::antipode(
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact, kFilterOnly>::antipode(
       const int a, const int b, const BallTriple f, const bool plus,
       const int c) const {
     auto kernel = [&](auto ctx) {
@@ -1136,15 +1179,16 @@ namespace internal {
           ab.g * o.u2 * ac.v - o.u2 * ab.v * dot(ab.d, ac.d) + dot(o.p, ac.d);
       return Root<T> { lin, dot(o.q, ac.d), o.disc };
     };
-    return decide<kForceExact>(
+    return decide<kForceExact, kFilterOnly>(
         {
             &c_, &h_, w_
     },
         kernel, { { a, b, f.a, f.b, f.c, c }, 6 });
   }
 
-  template <bool kForceExact>
-  ABSL_ATTRIBUTE_NOINLINE bool BallExactImpl<kForceExact>::selftest() {
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE bool
+  BallExactImpl<kForceExact, kFilterOnly>::selftest() {
     double x, y;
     GEO::two_sum(1.0, 0x1p-60, x, y);
     if (x != 1.0 || y != 0x1p-60)
@@ -1163,5 +1207,6 @@ namespace internal {
 
   template class BallExactImpl<false>;
   template class BallExactImpl<true>;
+  template class BallExactImpl<false, true>;
 }  // namespace internal
 }  // namespace nuri

@@ -1064,6 +1064,61 @@ TEST(BallExactTest, HeightsConstructorMatchesLift) {
                            s.ex);
   }
 }
+
+/**
+ * The lift of the face solver (`solve_ses_face`): probe at the origin,
+ * hemisphere caps `(t, 0)`, `W = rp²`. Every rational part of the ring
+ * predicates is then an exact zero built from exact zeros, which the filter
+ * certifies: the exact stage is never entered (`kFilterOnly` aborts there).
+ */
+TEST(BallExactTest, FilterCertifiesHemisphereLift) {
+  const double rp = 1.7;
+  Matrix3Xd c(3, 5);
+  c << 0, 0.6, -0.48, 0, 0.36,     //
+      0, 0.8, 0.64, -0.28, -0.48,  //
+      0, 0, 0.6, 0.96, -0.8;
+  const ArrayXd h = ArrayXd::Zero(5);
+  const BallExactImpl<false, true> ex =
+      BallExactImpl<false, true>::make(c, h, rp * rp);
+  const BallExactImpl<true> want = BallExactImpl<true>::make(c, h, rp * rp);
+
+  int n_pairs = 0;
+  for (int m = 1; m < 5; ++m) {
+    ASSERT_EQ(ex.overlap(0, m), Sgn::kPos);
+
+    std::vector<CircleRoot> roots;
+    for (int l = 1; l < 5; ++l) {
+      if (l == m)
+        continue;
+      const auto [b, cc] = nuri::minmax(m, l);
+      const BallTriple f { 0, b, cc };
+      ASSERT_EQ(ex.cuts(f), Sgn::kPos);
+      for (const bool plus: { true, false }) {
+        for (int k = 1; k < 5; ++k) {
+          if (k != m && k != l) {
+            EXPECT_EQ(ex.accept(f, plus, k), want.accept(f, plus, k));
+          }
+        }
+        EXPECT_LT((ex.root(f, plus) - want.root(f, plus)).norm(), 1e-12);
+        roots.push_back({ f, plus });
+      }
+    }
+
+    for (const CircleRoot &p: roots) {
+      const int cls = ex.half_plane(0, m, p.f, p.plus);
+      EXPECT_EQ(cls, want.half_plane(0, m, p.f, p.plus));
+      for (const CircleRoot &r: roots) {
+        if (r.f.c == p.f.c || ex.half_plane(0, m, r.f, r.plus) != cls)
+          continue;
+        const Sgn s = ex.ccw_perturbed(0, m, p.f, p.plus, r.f, r.plus);
+        EXPECT_NE(s, Sgn::kZero);
+        EXPECT_EQ(s, want.ccw_perturbed(0, m, p.f, p.plus, r.f, r.plus));
+        ++n_pairs;
+      }
+    }
+  }
+  EXPECT_GT(n_pairs, 0);
+}
 }  // namespace
 }  // namespace internal
 }  // namespace nuri
