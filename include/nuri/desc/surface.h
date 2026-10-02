@@ -471,8 +471,10 @@ namespace internal {
    * (-1 past the hull), and `nbrs(v)` the edges of sphere vertex `v`. A sphere
    * with no edges has an empty power cell, i.e. no accessible surface.
    * `face(lf, c)` numbers the faces (shared ids across the two cells),
-   * `edge_cell` gives one cell containing each `nbrs` edge, and `ex` holds the
-   * exact predicates on the lifted vertices (spheres, then corners).
+   * `edge_cell` gives one cell containing each `nbrs` edge, `cell_edge(s, c)`
+   * the `nbrs` edge from the lower to the higher vertex of local pair `s`
+   * (`kCellPairSlot`) of cell `c` (-1 between two corners), and `ex` holds
+   * the exact predicates on the lifted vertices (spheres, then corners).
    */
   struct SasDelaunay {
     Array4Xi tets;
@@ -481,11 +483,32 @@ namespace internal {
     int n_faces = 0;
     CSR nbrs;
     ArrayXi edge_cell;
+    Array6Xi cell_edge;
     ArrayXi vertex;
     BallExact ex;
   };
 
+  constexpr std::array<std::array<int, 4>, 4> kCellPairSlot {
+    std::array { -1,  0,  1,  2 },
+    std::array {  0, -1,  3,  4 },
+    std::array {  1,  3, -1,  5 },
+    std::array {  2,  4,  5, -1 },
+  };
+
   extern SasDelaunay triangulate(const SaPrep &sa);
+
+  /**
+   * Per edge of `del.nbrs` the pair of `sa.g` it joins (-1 at a corner or
+   * between non-overlapping spheres), and per pair `(i, j)` of `sa.g` the
+   * edge of `del.nbrs` from the vertex of `i` to that of `j` (-1 if not
+   * adjacent).
+   */
+  struct SasEdgeTables {
+    ArrayXi pair_of_edge;
+    ArrayXi edge_of_pair;
+  };
+
+  extern SasEdgeTables edge_tables(const SaPrep &sa, const SasDelaunay &del);
 
   /**
    * Circle of spheres `i`, `j` with its frame `e1 = normalize(d × e_k)`,

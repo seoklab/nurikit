@@ -56,12 +56,6 @@ namespace internal {
       return it != end && *it == j ? g.eid(it) : -1;
     }
 
-    bool has_edge(const SasDelaunay &del, const int va, const int vb) {
-      const auto end = del.nbrs.end(va),
-                 it = std::lower_bound(del.nbrs.begin(va), end, vb);
-      return it != end && *it == vb;
-    }
-
     int pair_id_unordered(const CSR &g, const int i, const int j) {
       auto [a, b] = nuri::minmax(i, j);
       return pair_id(g, a, b);
@@ -95,12 +89,61 @@ namespace internal {
     }
 
     /**
+     * Edges bucketed by their lower sphere meet that sphere's row of `sa.g`
+     * through a dense mark over sphere indices, then the pair row of each
+     * sphere meets its `nbrs` row the same way; index 0 absorbs the corners.
+     */
+    SasEdgeTables edge_tables(const SaPrep &sa, const SasDelaunay &del,
+                              const VertexMap &vm) {
+      const int n = sa.g.n(), m = del.nbrs.m();
+
+      ArrayXi lo(m), hi(m);
+      for (int v = 0; v < n; ++v) {
+        const int s = vm.new_of_v[v];
+        for (auto it = del.nbrs.begin(v), e = del.nbrs.end(v); it < e; ++it) {
+          const int k = del.nbrs.eid(it);
+          const auto [a, b] = nuri::minmax(s, vm.new_of_v[*it]);
+          lo[k] = a + 1;
+          hi[k] = b + 1;
+        }
+      }
+
+      ArrayXi order(m);
+      OffsetTable off(n + 1);
+      argsort_bucket(order, off, lo);
+
+      SasEdgeTables tbl { ArrayXi::Constant(m, -1),
+                          ArrayXi::Constant(sa.g.m(), -1) };
+      ArrayXi mark = ArrayXi::Constant(n + 1, -1);
+      for (int a = 0; a < n; ++a) {
+        for (auto it = sa.g.begin(a), e = sa.g.end(a); it < e; ++it)
+          mark[*it + 1] = sa.g.eid(it);
+        for (const int k: order.segment(off[a + 1], off.degree(a + 1)))
+          tbl.pair_of_edge[k] = mark[hi[k]];
+        for (auto it = sa.g.begin(a), e = sa.g.end(a); it < e; ++it)
+          mark[*it + 1] = -1;
+      }
+
+      for (int s = 0; s < n; ++s) {
+        const int v = vm.v_of_new[s];
+        for (auto it = del.nbrs.begin(v), e = del.nbrs.end(v); it < e; ++it)
+          mark[vm.new_of_v[*it] + 1] = del.nbrs.eid(it);
+        for (auto it = sa.g.begin(s), e = sa.g.end(s); it < e; ++it)
+          tbl.edge_of_pair[sa.g.eid(it)] = mark[*it + 1];
+        for (auto it = del.nbrs.begin(v), e = del.nbrs.end(v); it < e; ++it)
+          mark[vm.new_of_v[*it] + 1] = -1;
+      }
+
+      return tbl;
+    }
+
+    /**
      * Caps of sphere `s` are its overlapping Delaunay neighbours: every other
      * overlapping sphere cuts a cap inside their union (Theorem 2), so the
      * accessible region and its component structure are unchanged.
      */
     SasCaps neighbor_caps(const SaPrep &sa, const SasDelaunay &del,
-                          const VertexMap &vm,
+                          const VertexMap &vm, const ArrayXi &pair_of_edge,
                           const std::vector<SasCircle> &circ) {
       const int n_enum = sa.n_enum, bound = del.nbrs.m();
 
@@ -112,19 +155,15 @@ namespace internal {
       for (int s = 0; s < n_enum; ++s) {
         off[s] = w;
         const double rs = sa.sar[s];
+        const int v = vm.v_of_new[s];
 
-        for (int v: del.nbrs.nbrs(vm.v_of_new[s])) {
-          const int t = vm.new_of_v[v];
-          if (t < 0)
-            continue;
-
-          auto [a, b] = nuri::minmax(s, t);
-          const int q = pair_id(sa.g, a, b);
+        for (auto it = del.nbrs.begin(v), e = del.nbrs.end(v); it < e; ++it) {
+          const int q = pair_of_edge[del.nbrs.eid(it)];
           if (q < 0)
             continue;
 
           const SasCircle &c = circ[q];
-          const int side = value_if(s != a);
+          const int side = value_if(c.i != s);
           const double d = sa.d[q];
           tags[w] = 2 * q + side;
           caps.axis.col(w) = (1 - 2 * side) * c.axis;
@@ -143,12 +182,12 @@ namespace internal {
     }
 
     /**
-     * Per triangulation face: the overlap-graph ids of its edges `(a, b)`,
-     * `(a, c)`, `(b, c)` in sorted sphere order (-1 where a vertex is a corner
-     * or a dropped sphere, or the pair does not overlap), its sorted vertices
-     * (-1 if it holds a corner or a non-overlapping pair), whether its third
-     * sphere cuts the circle, and the probe of each root (0 = plus,
-     * 1 = minus; -1 if rejected).
+     * Per triangulation face: the overlap-graph ids of its three edges in
+     * local vertex order (-1 where a vertex is a corner or a dropped sphere,
+     * or the pair does not overlap), its sorted vertices (-1 if it holds a
+     * corner or a non-overlapping pair), whether its third sphere cuts the
+     * circle, and the probe of each root (0 = plus, 1 = minus; -1 if
+     * rejected).
      */
     struct Faces {
       Array3Xi q;
@@ -169,16 +208,22 @@ namespace internal {
       return { fv[0], fv[1], fv[2] };
     }
 
+    Array3i face_vertices(const SasDelaunay &del, const int c, const int lf) {
+      const Array4i tv = del.tets.col(c);
+      Array3i fv;
+      for (int lv = 0, m = 0; lv < 4; ++lv)
+        if (lv != lf)
+          fv[m++] = tv[lv];
+      return fv;
+    }
+
     /**
      * The face opposite local vertex `lf` of cell `c` if all three vertices
      * are kept spheres: `fv` its vertices, `abc` their sorted indices.
      */
     bool face_spheres(const SasDelaunay &del, const VertexMap &vm, const int c,
                       const int lf, Array3i &fv, Array3i &abc) {
-      const Array4i tv = del.tets.col(c);
-      for (int lv = 0, m = 0; lv < 4; ++lv)
-        if (lv != lf)
-          fv[m++] = tv[lv];
+      fv = face_vertices(del, c, lf);
       abc = vm.new_of_v(fv);
       if ((abc < 0).any())
         return false;
@@ -186,6 +231,19 @@ namespace internal {
       std::sort(abc.begin(), abc.end());
       return true;
     }
+
+    constexpr std::array<int, 3> face_slots(const int lf) {
+      std::array<int, 3> lv {};
+      for (int l = 0, m = 0; l < 4; ++l)
+        if (l != lf)
+          lv[m++] = l;
+      return { kCellPairSlot[lv[0]][lv[1]], kCellPairSlot[lv[0]][lv[2]],
+               kCellPairSlot[lv[1]][lv[2]] };
+    }
+
+    constexpr std::array<std::array<int, 3>, 4> kFaceSlots {
+      face_slots(0), face_slots(1), face_slots(2), face_slots(3)
+    };
 
     /**
      * Every face of a finite cell once, from the lower cell, as
@@ -203,16 +261,17 @@ namespace internal {
       }
     }
 
-    Array3Xi face_pairs(const SaPrep &sa, const SasDelaunay &del,
-                        const VertexMap &vm) {
+    Array3Xi face_pairs(const SasDelaunay &del, const VertexMap &vm,
+                        const ArrayXi &pair_of_edge) {
       Array3Xi q = Array3Xi::Constant(3, del.n_faces, -1);
       for_each_face(del, [&](int c, int lf, int) {
-        Array3i fv, abc;
-        if (!face_spheres(del, vm, c, lf, fv, abc))
+        if ((vm.new_of_v(face_vertices(del, c, lf)) < 0).any())
           return;
 
-        q.col(del.face(lf, c)) << pair_id(sa.g, abc[0], abc[1]),
-            pair_id(sa.g, abc[0], abc[2]), pair_id(sa.g, abc[1], abc[2]);
+        const auto &[s0, s1, s2] = kFaceSlots[lf];
+        q.col(del.face(lf, c)) << pair_of_edge[del.cell_edge(s0, c)],
+            pair_of_edge[del.cell_edge(s1, c)],
+            pair_of_edge[del.cell_edge(s2, c)];
       });
       return q;
     }
@@ -258,11 +317,12 @@ namespace internal {
      * non-negative, decided exactly for the perturbed weights (Theorem 1).
      */
     Faces accept_faces(const SaPrep &sa, const SasDelaunay &del,
-                       const VertexMap &vm, std::vector<RawProbe> &raw) {
+                       const VertexMap &vm, const ArrayXi &pair_of_edge,
+                       std::vector<RawProbe> &raw) {
       const BallExact &ex = del.ex;
       FaceKernelPtr k = face_kernel();
 
-      Faces fs { face_pairs(sa, del, vm),
+      Faces fs { face_pairs(del, vm, pair_of_edge),
                  Array3Xi::Constant(3, del.n_faces, -1),
                  ArrayXb::Constant(del.n_faces, false),
                  Array2Xi::Constant(2, del.n_faces, -1) };
@@ -384,12 +444,12 @@ namespace internal {
      */
     class FanWalker {
     public:
-      FanWalker(const SasDelaunay &del, int va, int vb)
+      FanWalker(const SasDelaunay &del, int va, int vb, int edge)
           : del_(&del), va_(va), vb_(vb) {
-        const auto row_beg = del.nbrs.begin(va), row_end = del.nbrs.end(va);
-        const auto it = std::lower_bound(row_beg, row_end, vb);
-        ABSL_DCHECK(it != row_end && *it == vb);
-        t0_ = t_ = del.edge_cell[del.nbrs.eid(it)];
+        ABSL_DCHECK_GE(edge, del.nbrs.offset(va));
+        ABSL_DCHECK_LT(edge, del.nbrs.offset(va + 1));
+        ABSL_DCHECK_EQ(del.nbrs.adj()[edge], vb);
+        t0_ = t_ = del.edge_cell[edge];
 
         const Array4i tv = del.tets.col(t_);
         const int la = local_index(tv, va), lb = local_index(tv, vb);
@@ -454,14 +514,13 @@ namespace internal {
      * the spheres `c`.
      */
     void collect_ring(Ring &ring, std::vector<int> &fan, const SasDelaunay &del,
-                      const VertexMap &vm, const Faces &fs, const ArrayXi &pid,
-                      const int i, const int j) {
-      const int va = vm.v_of_new[i], vb = vm.v_of_new[j];
+                      const Faces &fs, const ArrayXi &pid, const int va,
+                      const int vb, const int edge) {
       ring.verts.clear();
       ring.cut_any = ring.inside_any = false;
       fan.clear();
 
-      FanWalker walk(del, va, vb);
+      FanWalker walk(del, va, vb, edge);
       do {
         const int f = walk.face();
         if ((fs.q.col(f) < 0).any())
@@ -522,8 +581,9 @@ namespace internal {
      * Accessible arcs of every circle with caps, grouped by circle.
      */
     Arcs fan_rings(const SaPrep &sa, const SasDelaunay &del,
-                   const VertexMap &vm, const std::vector<SasCircle> &circ,
-                   const Faces &fs, const ArrayXi &pid) {
+                   const VertexMap &vm, const ArrayXi &edge_of_pair,
+                   const std::vector<SasCircle> &circ, const Faces &fs,
+                   const ArrayXi &pid) {
       Arcs out;
       out.off = OffsetTable(sa.g.m());
       Ring ring;
@@ -534,11 +594,12 @@ namespace internal {
           const int j = *it, q = sa.g.eid(it);
           out.off.off()[q] = static_cast<int>(out.arcs.size());
 
-          const int va = vm.v_of_new[i], vb = vm.v_of_new[j];
-          if (!has_edge(del, va, vb))
+          const int edge = edge_of_pair[q];
+          if (edge < 0)
             continue;
 
-          collect_ring(ring, fan, del, vm, fs, pid, i, j);
+          const int va = vm.v_of_new[i], vb = vm.v_of_new[j];
+          collect_ring(ring, fan, del, fs, pid, va, vb, edge);
           const int n = static_cast<int>(ring.verts.size());
           if (n > 0) {
             ABSL_DCHECK_EQ(n % 2, 0) << "odd ring on circle " << q;
@@ -821,20 +882,25 @@ namespace internal {
     }
   }  // namespace
 
+  SasEdgeTables edge_tables(const SaPrep &sa, const SasDelaunay &del) {
+    return edge_tables(sa, del, map_vertices(sa, del));
+  }
+
   SasGeometry build_sas(const SaPrep &sa, const SasDelaunay &del) {
     if (sa.n_enum == 0)
       return {};
 
     std::vector circ = circles(sa);
     VertexMap vm = map_vertices(sa, del);
-    SasCaps caps = neighbor_caps(sa, del, vm, circ);
+    SasEdgeTables tbl = edge_tables(sa, del, vm);
+    SasCaps caps = neighbor_caps(sa, del, vm, tbl.pair_of_edge, circ);
 
     std::vector<RawProbe> raw;
-    Faces fs = accept_faces(sa, del, vm, raw);
+    Faces fs = accept_faces(sa, del, vm, tbl.pair_of_edge, raw);
     ArrayXi pid;
     SasProbes probes = make_probes(sa, raw, pid);
 
-    Arcs arcs = fan_rings(sa, del, vm, circ, fs, pid);
+    Arcs arcs = fan_rings(sa, del, vm, tbl.edge_of_pair, circ, fs, pid);
     ArrayXd area = sweep_spheres(sa, del, vm, circ, caps, arcs, probes);
 
     UnionFind uf(static_cast<int>(probes.pos.cols()));

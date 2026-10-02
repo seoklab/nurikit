@@ -563,6 +563,99 @@ TEST(BuildSasTest, EdgeTableSortedWithSmallestCell) {
   EXPECT_GT(n_edges, 6 * n);
 }
 
+TEST(BuildSasTest, EdgeTablesMatchBruteForce) {
+  const int n = 80;
+  std::mt19937 rng(11);
+  std::uniform_real_distribution<double> ud(0.0, 10.0), ur(1.5, 2.5);
+  Matrix3Xd pts(3, n);
+  ArrayXd sar(n);
+  ArrayXb active(n);
+  for (int i = 0; i < n; ++i) {
+    pts.col(i) << ud(rng), ud(rng), ud(rng);
+    sar[i] = ur(rng);
+    active[i] = i % 3 == 0;
+  }
+  std::optional<SaPrep> sa = prepare(pts, sar, active, kRp);
+  ASSERT_TRUE(sa);
+  const SasDelaunay del = triangulate(*sa);
+  const SasEdgeTables tbl = edge_tables(*sa, del);
+
+  const int nk = sa->g.n();
+  ArrayXi v_of_new(nk), new_of_v = ArrayXi::Constant(del.ex.n(), -1);
+  for (int p = 0; p < nk; ++p) {
+    v_of_new[p] = del.vertex[sa->order[p]];
+    new_of_v[v_of_new[p]] = p;
+  }
+  EXPECT_TRUE((v_of_new != ArrayXi::LinSpaced(nk, 0, nk - 1)).any());
+
+  ASSERT_EQ(tbl.pair_of_edge.size(), del.nbrs.m());
+  int n_corner = 0, n_apart = 0, n_overlap = 0;
+  for (int v = 0; v < nk; ++v) {
+    for (auto it = del.nbrs.begin(v), e = del.nbrs.end(v); it < e; ++it) {
+      const int s = new_of_v[v], t = new_of_v[*it];
+      const auto [a, b] = nuri::minmax(s, t);
+      int expected = -1;
+      if (t >= 0) {
+        const auto gb = sa->g.begin(a), ge = sa->g.end(a),
+                   found = std::find(gb, ge, b);
+        expected = found != ge ? sa->g.eid(found) : -1;
+      }
+      EXPECT_EQ(tbl.pair_of_edge[del.nbrs.eid(it)], expected)
+          << v << " " << *it;
+      n_corner += t < 0;
+      n_apart += t >= 0 && expected < 0;
+      n_overlap += expected >= 0;
+    }
+  }
+  EXPECT_GT(n_corner, 0);
+  EXPECT_GT(n_apart, 0);
+  EXPECT_GT(n_overlap, 0);
+
+  ASSERT_EQ(tbl.edge_of_pair.size(), sa->g.m());
+  int n_adjacent = 0, n_far = 0;
+  for (int i = 0; i < nk; ++i) {
+    for (auto it = sa->g.begin(i), e = sa->g.end(i); it < e; ++it) {
+      const int va = v_of_new[i], vb = v_of_new[*it];
+      const auto rb = del.nbrs.begin(va), re = del.nbrs.end(va),
+                 found = std::find(rb, re, vb);
+      const int expected = found != re ? del.nbrs.eid(found) : -1;
+      EXPECT_EQ(tbl.edge_of_pair[sa->g.eid(it)], expected) << i << " " << *it;
+      n_adjacent += expected >= 0;
+      n_far += expected < 0;
+    }
+  }
+  EXPECT_GT(n_adjacent, 0);
+  EXPECT_GT(n_far, 0);
+
+  int slots = 0;
+  for (int a = 0; a < 4; ++a) {
+    for (int b = a + 1; b < 4; ++b) {
+      EXPECT_EQ(kCellPairSlot[a][b], kCellPairSlot[b][a]);
+      slots |= 1 << kCellPairSlot[a][b];
+    }
+  }
+  EXPECT_EQ(slots, 0b111111);
+
+  int n_both_corners = 0;
+  for (int c = 0; c < del.tets.cols(); ++c) {
+    for (int a = 0; a < 4; ++a) {
+      for (int b = a + 1; b < 4; ++b) {
+        const auto [lo, hi] = nuri::minmax(del.tets(a, c), del.tets(b, c));
+        const int k = del.cell_edge(kCellPairSlot[a][b], c);
+        if (lo >= nk) {
+          EXPECT_EQ(k, -1) << c;
+          ++n_both_corners;
+          continue;
+        }
+        ASSERT_GE(k, del.nbrs.offset(lo)) << c;
+        ASSERT_LT(k, del.nbrs.offset(lo + 1)) << c;
+        EXPECT_EQ(del.nbrs.adj()[k], hi) << c;
+      }
+    }
+  }
+  EXPECT_GT(n_both_corners, 0);
+}
+
 /**
  * Three standard deviations of a Shrake–Rupley estimate with `n` points at
  * the worst-case accessible fraction 1/2.

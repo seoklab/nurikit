@@ -57,6 +57,7 @@ using E::Array2Xd;
 using E::Array2Xi;
 using E::Array3Xi;
 using E::Array4Xi;
+using Array6Xi = Array<int, 6, E::Dynamic>;
 using E::Array33d;
 using E::Array3Xd;
 using E::Array4Xd;
@@ -71,9 +72,9 @@ using E::ArrayXXi;
 using ArrayXXc = ArrayXX<std::int8_t>;
 
 using E::Matrix;
+using E::Matrix2Xd;
 using E::Matrix3;
 using E::Matrix3d;
-using E::Matrix2Xd;
 using E::Matrix3Xd;
 using E::Matrix4d;
 using E::Matrix4Xd;

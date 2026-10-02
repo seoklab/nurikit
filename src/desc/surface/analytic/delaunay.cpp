@@ -52,12 +52,13 @@ namespace internal {
     struct Edges {
       CSR nbrs;
       ArrayXi cell;
+      Array6Xi cell_edge;
     };
 
     Edges edges_of(const Array4Xi &tets, const int n) {
       const int nf = static_cast<int>(tets.cols());
 
-      ArrayXi key(12L * nf), val(12L * nf), cell(12L * nf);
+      ArrayXi key(12L * nf), val(12L * nf), cell(12L * nf), slot(12L * nf);
       int m = 0;
       for (int c = 0; c < nf; ++c) {
         for (int a = 0; a < 4; ++a) {
@@ -71,6 +72,7 @@ namespace internal {
             key[m] = tets(a, c);
             val[m] = tets(b, c);
             cell[m] = c;
+            slot[m] = kCellPairSlot[a][b];
             ++m;
           }
         }
@@ -82,6 +84,7 @@ namespace internal {
       argsort_bucket(order, off, key.head(m), byval);
 
       ArrayXi adj(m), ecell(m);
+      Array6Xi cell_edge = Array6Xi::Constant(6, nf, -1);
       int w = 0;
       for (int v = 0; v < n; ++v) {
         const int beg = off[v], end = off[v + 1];
@@ -89,9 +92,10 @@ namespace internal {
 
         int prev = -1;
         for (int e = beg; e < end; ++e) {
-          const int q = order[e], u = val[q];
+          const int q = order[e], u = val[q], c = cell[q], s = slot[q];
           adj[w] = u;
-          ecell[w] = cell[q];
+          ecell[w] = c;
+          cell_edge(s, c) = v < u ? w - value_if(u == prev) : cell_edge(s, c);
           w += value_if(u != prev);
           prev = u;
         }
@@ -99,7 +103,8 @@ namespace internal {
       off.off()[n] = w;
       adj.conservativeResize(w);
       ecell.conservativeResize(w);
-      return { CSR(std::move(adj), std::move(off)), std::move(ecell) };
+      return { CSR(std::move(adj), std::move(off)), std::move(ecell),
+               std::move(cell_edge) };
     }
 
     Array4Xi number_faces(const Array4Xi &adj, int &n_faces) {
@@ -167,6 +172,7 @@ namespace internal {
     Edges edges = edges_of(del.tets, n);
     del.nbrs = std::move(edges.nbrs);
     del.edge_cell = std::move(edges.cell);
+    del.cell_edge = std::move(edges.cell_edge);
     del.face = number_faces(del.adj, del.n_faces);
     del.ex = BallExact::make(lifted, sa.wmax);
     return del;
