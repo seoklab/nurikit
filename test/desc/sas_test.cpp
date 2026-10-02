@@ -486,6 +486,40 @@ TEST(BuildSasTest, TriangulationSharedAcrossMasks) {
     EXPECT_DOUBLE_EQ(geo_half.area[p], area_all[sa_half->order[p]]) << p;
 }
 
+/**
+ * A chain active, need, shell, occluder, occluder: the last overlaps only
+ * the first occluder and is dropped; the run without it is the control.
+ */
+TEST(BuildSasTest, OccluderBeyondShellBandDropped) {
+  Matrix3Xd pts(3, 6);
+  pts.col(0) << 0, 0, 0;
+  pts.col(1) << 0, 2.5, 0;
+  for (int i = 2; i < 6; ++i)
+    pts.col(i) << 2.5 * (i - 1), 0, 0;
+  const ArrayXd sar = ArrayXd::Constant(6, 1.5);
+  ArrayXb active = ArrayXb::Constant(6, false);
+  active.head(2).setConstant(true);
+
+  const Sas full = solve(pts, sar, active),
+            part = solve(pts.leftCols(5), sar.head(5), active.head(5));
+  ASSERT_EQ(full.sa.order.size(), 5);
+  EXPECT_TRUE((full.sa.order != 5).all());
+  EXPECT_TRUE((full.sa.order == 4).any());
+  EXPECT_EQ(full.sa.n_active, 2);
+  EXPECT_EQ(full.sa.n_solve, 3);
+  EXPECT_EQ(full.sa.n_enum, 4);
+  EXPECT_EQ(part.sa.n_active, full.sa.n_active);
+  EXPECT_EQ(part.sa.n_solve, full.sa.n_solve);
+  EXPECT_EQ(part.sa.n_enum, full.sa.n_enum);
+
+  ASSERT_EQ(full.geo.area.size(), full.sa.n_solve);
+  ASSERT_EQ(part.geo.area.size(), full.sa.n_solve);
+  for (int p = 0; p < full.sa.n_solve; ++p) {
+    ASSERT_EQ(full.sa.order[p], part.sa.order[p]) << p;
+    EXPECT_NEAR(full.geo.area[p], part.geo.area[p], 1e-12) << p;
+  }
+}
+
 TEST(BuildSasTest, TriangulationTables) {
   const int n = 24;
   Matrix3Xd pts(3, n);
@@ -991,7 +1025,8 @@ TEST(BuildSasTest, InternallyTangentBallDropped) {
 
 /**
  * Identical twins carry one surface: the active twin keeps it when exactly
- * one is active, else the lower index does.
+ * one is active, else the lower index does; with no active atom nothing is
+ * kept.
  */
 TEST(BuildSasTest, IdenticalTwinsKeepActive) {
   Matrix3Xd pts(3, 3);
@@ -1010,11 +1045,14 @@ TEST(BuildSasTest, IdenticalTwinsKeepActive) {
     EXPECT_EQ(geo.area[0], lone.geo.area[0]);
   }
 
-  for (const ArrayXb &active:
-       { ArrayXb::Constant(3, true), ArrayXb::Constant(3, false) }) {
-    auto [sa, geo] = solve(pts, sar, active);
+  {
+    auto [sa, geo] = solve(pts, sar, ArrayXb::Constant(3, true));
     ASSERT_EQ(sa.order.size(), 2);
     EXPECT_TRUE((sa.order != 1).all());
+  }
+  {
+    auto [sa, geo] = solve(pts, sar, ArrayXb::Constant(3, false));
+    EXPECT_EQ(sa.order.size(), 0);
   }
 }
 

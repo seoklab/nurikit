@@ -265,8 +265,10 @@ namespace internal {
   };
 
   /**
-   * Atoms ordered `[active | need | shell | occluders]` with contained spheres
-   * dropped: `order` maps new to old indices, spheres `< n_active` own
+   * Atoms ordered `[active | need | shell | occluders]`, the occluders being
+   * the kept atoms near a sphere with caps, with contained spheres and the
+   * other occluders dropped: `order` maps new to old indices, spheres
+   * `< n_active` own
    * surface, `< n_solve` get arrangements, `< n_enum` get caps. `g` is the
    * forward overlap graph on new indices (`row(i)` = sorted `j > i`) over all
    * kept spheres, decided exactly for the lifted heights `t = √(wmax − sar²)`

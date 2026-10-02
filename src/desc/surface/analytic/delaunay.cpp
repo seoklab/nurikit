@@ -131,7 +131,8 @@ namespace internal {
 
   SasDelaunay triangulate(const SaPrep &sa) {
     const int n = sa.g.n();
-    ABSL_DCHECK_GT(n, 0);
+    if (n == 0)
+      return {};
 
     ArrayXi perm(n);
     OffsetTable orig(sa.order.maxCoeff() + 1);

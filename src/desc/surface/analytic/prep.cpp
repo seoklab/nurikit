@@ -161,8 +161,10 @@ namespace internal {
     using Array5i = E::Array<int, 5, 1>;
 
     /**
-     * Remap to ranking scheme:
-     * 0 -> active, 1 -> need, 2 -> shell, 3 -> occluders, 4 -> ignored
+     * Remap to ranking scheme: 0 -> active, 1 -> need, 2 -> shell, 3 ->
+     * occluders near a sphere with caps, 4 -> ignored (contained, or an
+     * occluder near no sphere with caps; Lemma (occluder crop) in
+     * ALGORITHMS.md).
      */
     std::pair<ArrayXi, Array5i> rank_atoms(ArrayXi &keep, const ArrayXi &inear,
                                            const ArrayXi &jnear,
@@ -189,6 +191,14 @@ namespace internal {
         rank[j] = rank[i] <= 1 ? nuri::min(rank[j], 2) : rank[j];
         rank[i] = rank[j] <= 1 ? nuri::min(rank[i], 2) : rank[i];
       }
+
+      ArrayXb near_caps = ArrayXb::Constant(rank.size(), false);
+      for (int k = 0; k < inear.size(); ++k) {
+        int i = inear[k], j = jnear[k];
+        near_caps[j] = near_caps[j] || rank[i] <= 2;
+        near_caps[i] = near_caps[i] || rank[j] <= 2;
+      }
+      rank = (rank == 3 && !near_caps).select(4, rank);
 
       ArrayXi order(rank.size());
       Array5i off;

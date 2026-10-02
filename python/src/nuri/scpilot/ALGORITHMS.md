@@ -366,7 +366,9 @@ port, Floating point).
    beyond that.
 4. **Order.** `active` is the caller's mask minus dropped atoms; `need` is
    `active ∪ neighbours(active)` and `shell` is `neighbours(need)`, where
-   neighbours are the near pairs of step 1. Atoms
+   neighbours are the near pairs of step 1. Occluders that are not near any
+   `shell`, `need` or `active` atom are dropped (Lemma (occluder crop)
+   below). Atoms
    are permuted to `[active | need | shell | occluders]` and the overlapping
    pairs among kept atoms are remapped and sorted by `(i, j)`. From here on
    state is read from index ranges: a sphere owns dots iff its index is
@@ -1292,6 +1294,226 @@ captures every cutter of every face on an active atom (§3, preparation
 step 5). One hop does not suffice, and the
 radius threshold is not vacuous: with vdW radii of 0.03 Å at `rp ≈ 1` a
 cutter exists none of whose hosts overlaps any host of the cut face.
+
+**Lemma (occluder crop).** In plain words: an occluder that is near no atom
+with caps can be deleted before the triangulation without changing any
+surface the port reports. Let `S` be the kept spheres after preparation with
+their ranks and `O ⊆ {o ∈ S : rank(o) = 3, no near pair (o, a) with
+rank(a) ≤ 2}`. Let `S' = S \ O` with the same `wmax` and heights `t`, the
+survivors in their relative index order, `g`, `d` and `order` restricted to
+`S'`, and `n_active`, `n_solve`, `n_enum` unchanged — a restriction of the
+prepared `SaPrep`, not a second `prepare`, whose `wmax` and contained-ball
+drops depend on the dropped atoms. Running `triangulate`, `build_sas`,
+`build_ses` and `sample_ses` on `S'` instead of `S` leaves unchanged, as
+sets: (a) the accepted roots, each named by its sorted sphere triple and
+`plus`, with their positions, hence the probes, their atom lists and the
+clusters `merge_near_probes` joins; (b) on every sphere `< n_enum` the ring
+of every circle, the arcs with their `φ`, `dphi`, ends and tangents, the
+union of its caps and its component count, and its area to rounding; (c)
+the SES patches and the dots `(position, normal, area, atom, kind)`. The
+cap list `SasCaps.h` of a sphere is *not* invariant (first remark below);
+its union is.
+
+*Setting.* `π_m`, `ρ_m` are the lifted balls (Symbols), `B_m` the closed
+ball, `rank(a) ≤ 2` iff `a < n_enum`. Every decision of the port is the sign
+of an exact predicate on the lifted data of at most five vertices (bounding
+points included), a tie resolved by the index-ordered perturbation (§3 port
+step 1). For a point `y ∈ S_a` let `X(y) = {m ≠ a : π_m(y) ≤ 0}` be the
+balls holding `y`, split into `X⁰(y)` (`π_m(y) = 0`) and `X⁻(y)`
+(`π_m(y) < 0`); every other sphere has `π_m(y) > 0` strictly, which no
+perturbation changes.
+
+*Proof.*
+
+1. *Separation.* For `o ∈ O` and `rank(a) ≤ 2`, `|c_o − c_a| > ρ_o + ρ_a`:
+   the pair is not near, so its floating distance exceeds `R_o + R_a +
+   2 TAU_C` (the bucket key of `find_near_pairs`), and the near band is a
+   superset of the exact overlaps and exact tangencies on `ρ` (§3
+   preparation steps 1 and 3: `|ρ − R|` and the rounding of `d` stay far
+   below `TAU_C` within `kSurfaceMaxCoord`). Hence (i) `(o, a) ∉ g`; (ii)
+   no enumerated face contains `o`, since `sphere_face` needs pairwise
+   `g`-edges and a vertex `< n_enum`; (iii) `π_o > 0` on `B_a`, so for every
+   `y ∈ S_a`, `X(y) ⊆ S'`: a ball holding `y` meets `B_a`, and `(m, a)` is
+   near.
+2. *Tie signs are order-local.* A predicate whose participants lie in `S'`
+   plus bounding points has the same sign in both runs. Untied, it is the
+   same number. Tied, its sign is that of the first non-zero first-order
+   coefficient in index order among its participants (step 1; the `√ε`
+   rule of a vanished discriminant takes the sign of `D(ε)` by the same
+   rule). `triangulate` lifts the kept spheres in original index order and
+   appends the bounding points, so the relative order of any `S'` subset is
+   the same in both lifts and the same coefficient is picked. Geogram's tie
+   branch sorts its five points by address, the same order, so each run's
+   triangulation is the regular triangulation of its own perturbed weights
+   `ρ_m² + ε η^{pos(m)}`, and the two runs differ in exponents, not in
+   which term dominates.
+3. *Root verdicts are local.* Let `f = (a, b, c)` be a `g`-face with
+   `min f < n_enum` and `x` a root of it (`cuts(f)` positive, a predicate on
+   `f`). Claim: the port's verdict on `(f, x)` is a function of `g` on `f ∪
+   X(x)` and of signs of predicates on `f ∪ X(x)`. With 1(iii) (`x` lies on
+   the sphere of `f` with rank `≤ 2`) and 2 this gives (a); positions are
+   bitwise equal, since `root` reads only the face's columns and `wmax`.
+   Take the radical line `ℓ` of `f`; for every vertex `m ∉ f` the constraint
+   `π_m ≥ π_a` cuts `ℓ` in a half-line `H_m` with tight point `t_m`, or is
+   all of `ℓ` or none when `c_m` lies in the face plane (Theorem 1). The
+   dual edge `F = ∩ H_m` is the segment between the two orthocentres when
+   `f` is a face of the triangulation and empty otherwise, and each endpoint
+   is the tight point of its apex, the binding constraint on that side. The
+   port accepts `x` iff `f` is a face and every tested apex (`g`-adjacent
+   to all of `f`, `apex_may_reject`) has `x ∈ H_apex`, the sign `accept`.
+   - *Far constraints.* For `m ∉ X(x)`, `x` is inside `H_m` at a margin from
+     `t_m` for every small `ε`: such an `m` never rejects, tested or not, and
+     its tight point is never within `O(ε)` of `x`. Bounding points are far
+     by Lemma 0, every `o ∈ O` by 1(iii).
+   - *Strict containment rejects.* If `m ∈ X⁻(x)`, `x` is outside `H_m` at a
+     margin, and `F ⊆ H_m`; the apex on that side has its tight point at the
+     margin from `x`, so it is not in `X⁰(x)` (tight within `O(ε)` of `x`)
+     and not a bounding point (never rejects): an untested apex is one of
+     those two. So the apex is tested and rejects, or `f` is no face; `x`
+     is rejected in both runs.
+   - *Otherwise.* With `X⁻(x) = ∅`, on each side of `x` along `ℓ` the binder
+     is the `X⁰(x)` member whose half-line excludes that side and whose
+     perturbed tight point comes first, if such a member exists, else a far
+     vertex. Which side a member excludes is unperturbed (the side of the
+     face plane its centre is on); which comes first, whether the two
+     binders leave `F` non-empty (`f` a face), whether a binding member is
+     tested (`g` on `f ∪ {m}`) and whether it accepts (`accept(f, x, m)`) are
+     signs of predicates on `f ∪ X⁰(x)` — the first two are geogram's own
+     power tests on `f ∪ {m, m'}`, and by 2 geogram makes the same choice in
+     both runs. A far binder is untested or accepts.
+4. *Rings, arcs, antipode.* Fix a circle `(i, j)`, `i < n_enum`, `(i, j) ∈
+   g`, and the facet `P = V_i ∩ V_j` of the perturbed diagram (Lemma F). The
+   port emits nothing if `(i, j)` is no edge; else the arcs of its ring;
+   else, for an empty ring, a full circle iff no fan face cuts or contains
+   the circle.
+   - *Ring set.* Every accepted root of a face `(i, j, c)` is in the fan of
+     the edge, and the fan contributes exactly its accepted roots
+     (`collect_ring`); a skipped fan face, whose third vertex is not
+     `g`-adjacent to both, neither cuts nor contains the circle (either puts
+     points of `S_i` strictly inside it). By 3 the ring set is the same in
+     both runs, as are each vertex's `leave` (`face_parity`), class, angle
+     and the `ccw` of each pair — predicates on the face and `(i, j)` from
+     the same columns.
+   - *Ring order.* The fan order is the cyclic order of the edges of `P`,
+     the order of the vertices along the circle (Lemma F). Distinct vertices
+     are ordered by position. Coincident vertices at a `k`-fold point `x`
+     are roots of faces `(i, j, c)` with `c ∈ X⁰(x)`; near `x` the edges of
+     `P` are the lines `{π_c = π_i}`, `c ∈ X⁰(x)`, shifted by `O(ε)`, every
+     other line at a margin, so their order around `P` is a sign of
+     predicates on `{i, j} ∪ X⁰(x)`, the same in both runs by 2. Hence the
+     ring is the same cyclic sequence, `decide_wrap` marks the same pairs,
+     and `emit_arcs` yields the same `(φ, dphi, beg, end)` with the same
+     tangents (each from its own end's angle).
+   - *Empty ring.* A full circle is emitted iff the circle lies in `P`: with
+     an edge, a cut fan face is an edge line of `P` crossing the circle and a
+     containing one an edge line with the circle on its outer side, while a
+     circle inside `P` meets no edge line, so no fan face cuts or contains
+     it (skipped and bounding faces never do). The circle lies in `P` iff
+     every point of it has `π_m ≥ 0` for every `m` in the perturbed
+     configuration; spheres with `π_m > 0` on the whole circle are
+     irrelevant by compactness, and every other `m` holds a circle point
+     `y ∈ S_i`, so `m ∈ X(y) ⊆ S'` and its verdict is `cuts` and `side` on
+     `(i, j, m)`, a tangency perturbed by `cuts`. So both runs emit the full
+     circle or neither; a circle without an edge in one run and with a
+     buried empty ring in the other emits nothing in both.
+   - *Antipode.* In the single-point window the port asks whether `Q =
+     2 cntr − x ∈ S_i` is outside every fan sphere. `Q ∉ P` iff an edge
+     constraint of `P` fails at `Q`, and that edge's sphere holds `Q`
+     strictly, so it is `g`-adjacent to both and in the fan (a bounding
+     point cannot, Lemma 0). The answer is therefore `[Q ∈ P] = [π_m(Q) ≥ 0
+     for all m]`, settled by far spheres strictly and by `X⁰(Q) ⊆ S'`
+     through `antipode` on `(i, j, f, m)`: the same in both runs.
+5. *Caps, components, areas.* `neighbor_caps` lists for `s < n_enum` the
+   triangulation neighbours `t` with `(s, t) ∈ g`; the two runs may list
+   different `t` (remark). What the solver uses is invariant.
+   - *Union.* By Theorem 2 in each run, the union of the listed open caps is
+     the union of all `g`-caps of `s`, one set `U_s` for both runs (1(i)).
+   - *Components.* `solve` joins two caps when a vertex links them or
+     `discs_intersect` holds (crossing or nested circles, a touch no join),
+     i.e. when their open discs meet in the arrangement the sweep reports
+     (Hybrid semantics); `discs_intersect(s, j, l)` is untied and reads
+     three spheres. The components of a finite union of open connected sets
+     are those of their intersection graph (the union of a chain-closed
+     subfamily is open and closed in the union), so the count is the number
+     of components of `U_s`. A cap listed in one run only has an open disc
+     inside `U_s`, connected and non-empty (overlaps are strict), so it
+     meets caps of one component and changes no count; it links no vertex,
+     since an accepted root on circle `(s, t)` makes `(s, t, c)` a face of
+     both triangulations by 3.
+   - *Loops and corners.* `n_loops` follows `succ` over the arc set (4);
+     each corner is the angle between a vertex's in- and out-dart, from the
+     same two arcs' tangents and the same direction, bitwise. `turn_sum` and
+     `Σ dphi cos α` are summed in list order, which may differ, so the area
+     agrees to rounding. A sphere with no edge gets 0 without a solve: its
+     power cell is empty, so every point of `S_s` is held, in the perturbed
+     sense, by a ball of `S'` (1(iii)), the same in both runs (2); in the
+     other run no root on `s` is accepted (3), no circle of `s` is full (4),
+     and the solve with caps and no arc returns 0. A sphere without
+     `g`-neighbours has caps in neither run and gets `4πR²` in both.
+6. *Probes, SES, dots.* `make_probes` sorts by owner, and `n_active` counts
+   the same set. `merge_near_probes` joins exactly the pairs within `τ` (a
+   set over the same positions); `merge_probes` takes the sorted atom union;
+   a cluster's position, `face` and `plus` are its first member's (below);
+   `tangents` collects from the arcs with an end in the cluster. In
+   `build_ses`, `convex_area` scales the SAS area; `saddle_beta`,
+   `saddle_integral` are per circle from `circles` (bitwise from `pts`,
+   `sar`, `d`) and `saddle_area` per arc from its `dphi`; `probe_heights`
+   and `face_triangles` are per probe from its atoms, position and tangent
+   set (the corner construction is symmetric in the three tangents);
+   `pair_caps` takes every probe pair within `2rp` (a `VoxelGrid` query, a
+   set) and filters each by `difference` on its two roots and by Lemma 5, 6
+   on the pair's own data, so the surviving pairs are one set. The face
+   solver receives the same caps; `live` drops the non-overlapping and
+   duplicate ones by untied predicates; the area it reports is that of the
+   hybrid arrangement of those caps, one value to rounding for every cap
+   order (Hybrid semantics, "for every index order"). `sample_ses` keeps the
+   lattice directions outside every listed cap, i.e. outside `U_s` (convex)
+   or outside the live face caps (concave), the same sets; toroidal rows
+   are per arc from bitwise data; owners are per dot from the same sorted
+   atom lists. So (c). ∎
+
+*What may change.* Everything the triangulation numbers: `tets`, `adj`,
+`face`, `nbrs`, `edge_cell`, `vertex`, and with them the cap list
+`SasCaps.h` of a sphere (a cap whose disc lies inside the union of the
+others and carries no arc may appear or disappear), raw root ids, probe ids
+within one owner, the start of each ring (the order of arcs within a
+circle), solver vertex and cap slots, the column order of a probe's
+tangents, the pair order of `pair_caps` and the cap order handed to the
+face solver, hence the index order of its perturbation: an exact tie inside
+one face (two neighbour caps tangent, a root on a third cap) may resolve
+differently, with the same area to rounding and the same live caps. The
+first member of a merged cluster, hence its `pos` within `τ`, its `face`
+and `plus`, and whatever reads that position (its height, its pair
+distances, its face solver input): the `O(τ rp)` merge error, never
+topological. Floating sums in a data-dependent order: each sphere's
+`turn_sum` and `Σ dphi cos α`, `triangle_area`, the face solver's sums,
+`area.sum()` and `dropped_area`, so areas agree to about `1e-14` relative,
+not bitwise; a patch's dot count `lround(area · density)` flips only when
+`area · density` is within that rounding of a half-integer, which also
+moves the per-dot weight `area / n_kept`. Nothing else: no decision reads
+the triangulation except through 3–5.
+
+*Remark (the cap list is not invariant).* `s = (0, 0, 0)`, `t = (1.2, 0,
+0)`, `u = (0.6, 0, 0.5)`, `o = (0.6, 0, −1.92)` with `R = 1, 1, 1.4, 1`;
+`s` active, `t` and `u` need, `o` rank 3 and near nothing (`|c_o − c_s| =
+2.01`, `|c_o − c_u| = 2.42`). The circle `(s, t)` (plane `x = 0.6`, radius
+`0.8`) lies inside `B_u`, so it has no arc, and the cap of `t` on `s` lies
+inside the cap of `u`. On the radical plane `x = 0.6`, `π_s ≤ π_u` iff `z ≤
+−1.07` and `π_s ≤ π_o` iff `z ≥ −0.87`: with `o` the facet `V_s ∩ V_t` is
+empty and `t` is no neighbour of `s`; without `o` it is the half-plane `z ≤
+−1.07` and `t` is one. Both runs give `s` the cap union `cap(u)`, one
+component, the same arcs and area.
+
+*Remark (sharpness).* The criterion is the near band of rank `≤ 2`, not
+less. A rank-3 atom `o` near a rank-2 atom `a` hosts faces `(a, o, o')`:
+`min < n_enum`, enumerated, and their accepted roots are the probes with a
+host in `shell` that Lemma 7 and the corollary above identify as the
+first-touch cutters of faces on active atoms; dropping `o` deletes a cutter
+and its cap. Replacing the band by `g` is not safe either: a sphere exactly
+tangent to `a` is in `X⁰(x)` at its tangency point `x`, and if `x` is a
+root there it takes part in the verdict of 3 (as a binder, untested); the
+near band is the floating superset of overlap and tangency that keeps
+`X(y) ⊆ S'` for every `y` on a sphere with caps.
 
 **Order and exactness.** Per structure: heights of all probes (Lemma 1(c))
 → closed-form areas of the high active faces → probe pairs within `2rp`
