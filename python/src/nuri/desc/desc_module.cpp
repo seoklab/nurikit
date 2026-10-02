@@ -187,6 +187,30 @@ py::dict ses_geometry(py::handle py_pts, py::handle py_radii, double rp,
   return d;
 }
 
+py::dict ses_dots(py::handle py_pts, py::handle py_radii, double rp,
+                  double density, py::handle py_active) {
+  check_positive(density, "density");
+
+  internal::SesDots dots;
+  compute_sas(py_pts, py_radii, rp, py_active,
+              [&](const internal::SaPrep &sa, const internal::SasDelaunay &del,
+                  const internal::SasGeometry &geo) {
+                const internal::SesGeometry ses =
+                    internal::build_ses(sa, del, geo, rp);
+                dots = internal::sample_ses(sa, geo, ses, density);
+              });
+
+  py::dict d;
+  d["pts"] = eigen_as_numpy(dots.pts);
+  d["nrm"] = eigen_as_numpy(dots.nrm);
+  d["area"] = eigen_as_numpy(dots.area);
+  d["atom"] = eigen_as_numpy(dots.atom);
+  d["kind_off"] = eigen_as_numpy(dots.kind.off());
+  d["rp"] = dots.rp;
+  d["dropped_area"] = dots.dropped_area;
+  return d;
+}
+
 NURI_PYTHON_MODULE(m) {
   m.def("_sas_geometry", &sas_geometry, py::arg("pts"), py::arg("radii"),
         py::arg("rp"), py::arg("active") = py::none(), R"doc(
@@ -198,6 +222,16 @@ flat arrays mirroring the C++ internal structures; atoms are reordered by
   m.def("_ses_geometry", &ses_geometry, py::arg("pts"), py::arg("radii"),
         py::arg("rp"), py::arg("active") = py::none(), R"doc(
 Experimental: ``_sas_geometry`` plus the SES patch areas under ``"ses"``.
+)doc");
+
+  m.def("_ses_dots", &ses_dots, py::arg("pts"), py::arg("radii"), py::arg("rp"),
+        py::arg("density"), py::arg("active") = py::none(),
+        R"doc(
+Experimental: dots sampled on the SES at roughly ``density`` dots per square
+angstrom, as a dict of flat arrays: ``pts`` and ``nrm`` (outward unit
+normals), ``area`` (weights summing to each patch's analytic area), ``atom``
+(original index of the owning atom), ``kind_off`` (offsets of the convex,
+toroidal and concave blocks), ``rp`` and ``dropped_area``.
 )doc");
 
   m.def(
