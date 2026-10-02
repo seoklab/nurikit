@@ -633,32 +633,48 @@ namespace internal {
                ab.g * fc.u2 };
     }
 
+    bool certified_nonneg(const Fx &a) {
+      return a.e <= 0 || a.v > 2 * a.e;
+    }
+
     /**
-     * `(P + √D Q) / den` in double when the running bound certifies the
-     * vector to `kOffsetRelTol` of its length; `P ⊥ Q`, so the terms never
-     * cancel and the bound is the sum of their errors.
+     * `√a` for certified non-negative `a`: `|√(v + δ) − √v| ≤ |δ| / √v`
+     * plus the rounding of the square root.
      */
-    bool certified_offset(const Offset<Fx> &o, Vector3d &out) {
-      if (o.disc.e > 0 && o.disc.v <= 2 * o.disc.e)
+    Fx sqrt_fx(const Fx &a) {
+      const double s = std::sqrt(a.v);
+      return { s, (s > 0 ? a.e / s : 0) + kUlp * s + kTiny };
+    }
+
+    /**
+     * `v / den` in double when the running bound, including the relative
+     * error of `den`, certifies the vector to `kOffsetRelTol` of its length.
+     */
+    bool certified_quotient(const V3<Fx> &v, const Fx &den, Vector3d &out) {
+      if (!certified_nonneg(den) || den.v <= 0)
         return false;
-      const double s = std::sqrt(o.disc.v), es = s > 0 ? o.disc.e / s : 0;
-      const Fx vs[3] = {
-        o.p.x + Fx { s, es }
-           * o.q.x, o.p.y + Fx { s, es }
-           * o.q.y,
-        o.p.z + Fx { s, es }
-           * o.q.z
-      };
+
       double err = 0, norm2 = 0;
+      const std::array<Fx, 3> vs { v.x, v.y, v.z };
       for (int i = 0; i < 3; ++i) {
         out[i] = vs[i].v;
         err += vs[i].e;
         norm2 += vs[i].v * vs[i].v;
       }
-      if (err > kOffsetRelTol * std::sqrt(norm2))
+      const double norm = std::sqrt(norm2);
+      if (err + norm * (den.e / den.v) > kOffsetRelTol * norm)
         return false;
-      out /= o.den.v;
+      out /= den.v;
       return true;
+    }
+
+    /**
+     * `(P + √D Q) / den`; `P ⊥ Q`, so the terms never cancel and the bound
+     * is the sum of their errors.
+     */
+    bool certified_offset(const Offset<Fx> &o, Vector3d &out) {
+      return certified_nonneg(o.disc)
+             && certified_quotient(o.p + sqrt_fx(o.disc) * o.q, o.den, out);
     }
 
     Vector3d exact_offset(const Offset<Xp> &o) {
@@ -694,43 +710,14 @@ namespace internal {
                den };
     }
 
-    bool certified_nonneg(const Fx &a) {
-      return a.e <= 0 || a.v > 2 * a.e;
-    }
-
     /**
-     * `√a` for certified non-negative `a`: `|√(v + δ) − √v| ≤ |δ| / √v`
-     * plus the rounding of the square root.
-     */
-    Fx sqrt_fx(const Fx &a) {
-      const double s = std::sqrt(a.v);
-      return { s, (s > 0 ? a.e / s : 0) + kUlp * s + kTiny };
-    }
-
-    /**
-     * `(P + √D Q + √D' Q') / den` in double when the running bound,
-     * including the relative error of `den`, certifies the vector to
-     * `kOffsetRelTol` of its length.
+     * `(P + √D Q + √D' Q') / den`.
      */
     bool certified_difference(const Diff<Fx> &o, Vector3d &out) {
-      if (!certified_nonneg(o.disc) || !certified_nonneg(o.disc2)
-          || !certified_nonneg(o.den) || o.den.v <= 0)
-        return false;
-
-      const Fx s = sqrt_fx(o.disc), s2 = sqrt_fx(o.disc2);
-      const V3<Fx> v = o.p + s * o.q + s2 * o.q2;
-      double err = 0, norm2 = 0;
-      const std::array<Fx, 3> vs { v.x, v.y, v.z };
-      for (int i = 0; i < 3; ++i) {
-        out[i] = vs[i].v;
-        err += vs[i].e;
-        norm2 += vs[i].v * vs[i].v;
-      }
-      const double norm = std::sqrt(norm2);
-      if (err + norm * (o.den.e / o.den.v) > kOffsetRelTol * norm)
-        return false;
-      out /= o.den.v;
-      return true;
+      return certified_nonneg(o.disc) && certified_nonneg(o.disc2)
+             && certified_quotient(o.p + sqrt_fx(o.disc) * o.q
+                                       + sqrt_fx(o.disc2) * o.q2,
+                                   o.den, out);
     }
 
     constexpr int kMaxSqrtBits = 4096;
