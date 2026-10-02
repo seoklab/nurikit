@@ -52,6 +52,26 @@ py::dict csr_dict(const internal::CSR &csr) {
   return d;
 }
 
+struct Spheres {
+  Matrix3Xd pts;
+  ArrayXd radii;
+};
+
+Spheres cast_spheres(py::handle py_pts, py::handle py_radii) {
+  auto pts = py_array_cast<3>(py_pts);
+  auto radii = py_array_cast<E::Dynamic, 1>(py_radii);
+
+  if (pts.eigen().cols() != radii.eigen().size()) {
+    throw py::value_error(absl::StrCat("number of points (", pts.eigen().cols(),
+                                       ") does not match number of radii (",
+                                       radii.eigen().size(), ")"));
+  }
+  if (!(radii.eigen().array() > 0).all())
+    throw py::value_error("all radii must be positive values");
+
+  return { pts.eigen(), radii.eigen().array() };
+}
+
 struct SasResult {
   internal::SaPrep sa;
   internal::SasGeometry geo;
@@ -60,17 +80,8 @@ struct SasResult {
 template <class F>
 SasResult compute_sas(py::handle py_pts, py::handle py_radii, double rp,
                       py::handle py_active, const F &then) {
-  auto pts = py_array_cast<3>(py_pts);
-  auto radii = py_array_cast<E::Dynamic, 1>(py_radii);
-  const int n = static_cast<int>(radii.eigen().size());
-
-  if (pts.eigen().cols() != n) {
-    throw py::value_error(absl::StrCat("number of points (", pts.eigen().cols(),
-                                       ") does not match number of radii (", n,
-                                       ")"));
-  }
-  if (!(radii.eigen().array() > 0).all())
-    throw py::value_error("all radii must be positive values");
+  Spheres spheres = cast_spheres(py_pts, py_radii);
+  const int n = static_cast<int>(spheres.radii.size());
   check_positive(rp, "rp");
 
   ArrayXb active = ArrayXb::Constant(n, true);
@@ -85,9 +96,8 @@ SasResult compute_sas(py::handle py_pts, py::handle py_radii, double rp,
   internal::SasGeometry geo;
   {
     py::gil_scoped_release rel;
-    Matrix3Xd p = pts.eigen();
-    ArrayXd sar = radii.eigen().array() + rp;
-    sa = internal::prepare(p, sar, active, rp);
+    ArrayXd sar = spheres.radii + rp;
+    sa = internal::prepare(spheres.pts, sar, active, rp);
     if (sa) {
       internal::SasDelaunay del = internal::triangulate(*sa);
       geo = internal::build_sas(*sa, del);
@@ -211,6 +221,59 @@ py::dict ses_dots(py::handle py_pts, py::handle py_radii, double rp,
   return d;
 }
 
+py::dict sc_side_dict(const ScSide &s) {
+  py::dict d;
+  d["n_atoms"] = s.n_atoms;
+  d["n_active"] = s.n_active;
+  d["n_dots"] = s.n_dots;
+  d["n_buried"] = s.n_buried;
+  d["n_trimmed"] = s.n_trimmed;
+  d["trimmed_area"] = s.trimmed_area;
+  d["d_median"] = s.d_median;
+  d["s_median"] = s.s_median;
+  return d;
+}
+
+py::dict shape_complementarity_py(py::handle pts_a, py::handle radii_a,
+                                  py::handle pts_b, py::handle radii_b,
+                                  double rp, double density, double weight,
+                                  double band, double sep, double clamp) {
+  Spheres a = cast_spheres(pts_a, radii_a), b = cast_spheres(pts_b, radii_b);
+  if (a.radii.size() == 0 || b.radii.size() == 0)
+    throw py::value_error("each side must have at least one atom");
+
+  const ScParams params {
+    check_positive(rp, "rp"),
+    check_positive(density, "density"),
+    check_positive(weight, "weight"),
+    check_positive(band, "band"),
+    check_positive(sep, "sep"),
+    check_interval(clamp, "clamp", Bounds::kLeftOpen, 0.0, 1.0),
+  };
+
+  std::optional<ScResult> res;
+  {
+    py::gil_scoped_release rel;
+    res = shape_complementarity(a.pts, a.radii, b.pts, b.radii, params);
+  }
+  if (!res) {
+    throw py::value_error(
+        "no interface dots survive trimming, or surface "
+        "preparation failed; see log for details");
+  }
+
+  py::list sides;
+  for (const ScSide &s: res->sides)
+    sides.append(sc_side_dict(s));
+
+  py::dict d;
+  d["sc"] = res->sc;
+  d["distance"] = res->distance;
+  d["area"] = res->area;
+  d["sides"] = std::move(sides);
+  return d;
+}
+
 NURI_PYTHON_MODULE(m) {
   m.def("_sas_geometry", &sas_geometry, py::arg("pts"), py::arg("radii"),
         py::arg("rp"), py::arg("active") = py::none(), R"doc(
@@ -232,6 +295,17 @@ angstrom, as a dict of flat arrays: ``pts`` and ``nrm`` (outward unit
 normals), ``area`` (weights summing to each patch's analytic area), ``atom``
 (original index of the owning atom), ``kind_off`` (offsets of the convex,
 toroidal and concave blocks), ``rp`` and ``dropped_area``.
+)doc");
+
+  m.def("_shape_complementarity", &shape_complementarity_py, py::arg("pts_a"),
+        py::arg("radii_a"), py::arg("pts_b"), py::arg("radii_b"),
+        py::arg("rp") = 1.7, py::arg("density") = 15.0, py::arg("weight") = 0.5,
+        py::arg("band") = 1.5, py::arg("sep") = 8.0, py::arg("clamp") = 0.999,
+        R"doc(
+Experimental: shape complementarity statistic of Lawrence and Colman (1993)
+between two sets of spheres, as a dict with ``sc``, ``distance``, ``area`` and
+``sides`` (two dicts of per-side counts, ``trimmed_area``, ``d_median`` and
+``s_median``). Raises ``ValueError`` when no interface dot survives trimming.
 )doc");
 
   m.def(
