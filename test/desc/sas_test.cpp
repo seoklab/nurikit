@@ -530,6 +530,39 @@ TEST(BuildSasTest, TriangulationTables) {
     EXPECT_NEAR(del.ex.rho2(v), 2.25, 1e-12);
 }
 
+TEST(BuildSasTest, EdgeTableSortedWithSmallestCell) {
+  const int n = 60;
+  std::mt19937 rng(7);
+  std::uniform_real_distribution<double> ud(0.0, 8.0);
+  Matrix3Xd pts(3, n);
+  for (int i = 0; i < n; ++i)
+    for (int k = 0; k < 3; ++k)
+      pts(k, i) = ud(rng);
+  const ArrayXd sar = ArrayXd::Constant(n, 1.5);
+  std::optional<SaPrep> sa = prepare(pts, sar, ArrayXb::Constant(n, true), kRp);
+  ASSERT_TRUE(sa);
+  const SasDelaunay del = triangulate(*sa);
+
+  const int nf = static_cast<int>(del.tets.cols());
+  int n_edges = 0;
+  for (int v = 0; v < del.nbrs.n(); ++v) {
+    for (auto it = del.nbrs.begin(v), e = del.nbrs.end(v); it < e; ++it) {
+      if (it + 1 < e)
+        EXPECT_LT(*it, *(it + 1)) << v;
+
+      int first = -1;
+      for (int c = 0; c < nf && first < 0; ++c) {
+        const Array4i tv = del.tets.col(c);
+        if ((tv == v).any() && (tv == *it).any())
+          first = c;
+      }
+      EXPECT_EQ(del.edge_cell[del.nbrs.eid(it)], first) << v << " " << *it;
+      ++n_edges;
+    }
+  }
+  EXPECT_GT(n_edges, 6 * n);
+}
+
 /**
  * Three standard deviations of a Shrake–Rupley estimate with `n` points at
  * the worst-case accessible fraction 1/2.

@@ -3,11 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include <algorithm>
 #include <cmath>
-#include <iterator>
 #include <utility>
-#include <vector>
 
 #include <absl/log/absl_check.h>
 #include <Eigen/Dense>
@@ -79,27 +76,24 @@ namespace internal {
         }
       }
 
-      ArrayXi order(m);
-      OffsetTable off(n);
-      argsort_bucket(order, off, key.head(m));
+      ArrayXi byval(m), order(m);
+      OffsetTable valoff(n + kBounds), off(n);
+      argsort_bucket(byval, valoff, val.head(m));
+      argsort_bucket(order, off, key.head(m), byval);
 
       ArrayXi adj(m), ecell(m);
-      std::vector<std::pair<int, int>> row;
       int w = 0;
       for (int v = 0; v < n; ++v) {
         const int beg = off[v], end = off[v + 1];
         off.off()[v] = w;
 
-        row.clear();
-        for (int e = beg; e < end; ++e)
-          row.emplace_back(val[order[e]], cell[order[e]]);
-        std::sort(row.begin(), row.end());
-        for (auto it = row.begin(); it != row.end(); ++it) {
-          if (it != row.begin() && it->first == std::prev(it)->first)
-            continue;
-          adj[w] = it->first;
-          ecell[w] = it->second;
-          ++w;
+        int prev = -1;
+        for (int e = beg; e < end; ++e) {
+          const int q = order[e], u = val[q];
+          adj[w] = u;
+          ecell[w] = cell[q];
+          w += value_if(u != prev);
+          prev = u;
         }
       }
       off.off()[n] = w;
