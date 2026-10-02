@@ -91,7 +91,7 @@ SasResult compute_sas(py::handle py_pts, py::handle py_radii, double rp,
     if (sa) {
       internal::SasDelaunay del = internal::triangulate(*sa);
       geo = internal::build_sas(*sa, del);
-      then(*sa, geo);
+      then(*sa, del, geo);
     }
   }
   if (!sa)
@@ -166,7 +166,7 @@ py::dict ses_dict(const internal::SesGeometry &ses) {
 py::dict sas_geometry(py::handle py_pts, py::handle py_radii, double rp,
                       py::handle py_active) {
   SasResult res = compute_sas(py_pts, py_radii, rp, py_active,
-                              [](const auto &, const auto &) { });
+                              [](const auto &, const auto &, const auto &) { });
   return sas_dict(res.sa, res.geo);
 }
 
@@ -175,8 +175,9 @@ py::dict ses_geometry(py::handle py_pts, py::handle py_radii, double rp,
   internal::SesGeometry ses;
   SasResult res = compute_sas(py_pts, py_radii, rp, py_active,
                               [&](const internal::SaPrep &sa,
+                                  const internal::SasDelaunay &del,
                                   const internal::SasGeometry &geo) {
-                                ses = internal::build_ses(sa, geo, rp);
+                                ses = internal::build_ses(sa, del, geo, rp);
                               });
   py::dict d = sas_dict(res.sa, res.geo);
   d["ses"] = ses_dict(ses);

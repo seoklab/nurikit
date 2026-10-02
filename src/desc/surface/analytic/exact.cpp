@@ -23,6 +23,7 @@
 
 #include "nuri/eigen_config.h"
 #include "nuri/desc/surface.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 namespace internal {
@@ -111,10 +112,43 @@ namespace internal {
         r.m_ = -r.m_;
         return r;
       }
+      friend Xp abs(const Xp &a) {
+        Xp r(a);
+        r.m_ = abs(r.m_);
+        return r;
+      }
       friend int sgn(const Xp &a) { return a.m_.sign(); }
 
       double to_double() const {
         return std::ldexp(m_.convert_to<double>(), e_);
+      }
+
+      /**
+       * `lo ≤ √x < lo + unit` with `unit < 2^-bits lo`; both zero for
+       * `x = 0`.
+       */
+      std::pair<Xp, Xp> sqrt_floor(const int bits) const {
+        ABSL_DCHECK_GE(m_.sign(), 0);
+        if (m_.is_zero())
+          return { Xp(), Xp() };
+
+        boost::multiprecision::cpp_int m = m_;
+        int e = e_;
+        if ((e & 1) != 0) {
+          m <<= 1;
+          --e;
+        }
+        const int len = static_cast<int>(boost::multiprecision::msb(m)) + 1,
+                  s = nuri::max((2 * bits + 3 - len) / 2, 0);
+        m <<= 2 * s;
+
+        Xp lo, unit;
+        lo.m_ = boost::multiprecision::sqrt(m);
+        lo.e_ = e / 2 - s;
+        lo.strip();
+        unit.m_ = 1;
+        unit.e_ = e / 2 - s;
+        return { lo, unit };
       }
 
     private:
@@ -634,6 +668,96 @@ namespace internal {
           q(o.q.x.to_double(), o.q.y.to_double(), o.q.z.to_double());
       return (p + s * q) / o.den.to_double();
     }
+
+    /**
+     * `|u|² |u'|² (x − x')` for root `x` of `f` and `x'` of `f2`:
+     * `P + √D Q + √D' Q'` (`BallExact::difference`).
+     */
+    template <class T>
+    struct Diff {
+      V3<T> p, q, q2;
+      T disc, disc2, den;
+    };
+
+    template <class T>
+    Diff<T> root_difference(const Ctx<T> &ctx, BallTriple f, bool plus,
+                            BallTriple f2, bool plus2) {
+      const Face<T> fa = face(ctx, f), fb = face(ctx, f2);
+      const T den = fa.u2 * fb.u2;
+      const V3<T> ya = fa.lam * fa.db + fa.mu * fa.dc,
+                  yb = fb.lam * fb.db + fb.mu * fb.dc;
+      return { den * (fa.sa.c - fb.sa.c) + fb.u2 * ya - fa.u2 * yb,
+               (root_sign<T>(plus) * fb.u2) * fa.u,
+               (-root_sign<T>(plus2) * fa.u2) * fb.u,
+               fa.disc,
+               fb.disc,
+               den };
+    }
+
+    bool certified_nonneg(const Fx &a) {
+      return a.e <= 0 || a.v > 2 * a.e;
+    }
+
+    /**
+     * `√a` for certified non-negative `a`: `|√(v + δ) − √v| ≤ |δ| / √v`
+     * plus the rounding of the square root.
+     */
+    Fx sqrt_fx(const Fx &a) {
+      const double s = std::sqrt(a.v);
+      return { s, (s > 0 ? a.e / s : 0) + kUlp * s + kTiny };
+    }
+
+    /**
+     * `(P + √D Q + √D' Q') / den` in double when the running bound,
+     * including the relative error of `den`, certifies the vector to
+     * `kOffsetRelTol` of its length.
+     */
+    bool certified_difference(const Diff<Fx> &o, Vector3d &out) {
+      if (!certified_nonneg(o.disc) || !certified_nonneg(o.disc2)
+          || !certified_nonneg(o.den) || o.den.v <= 0)
+        return false;
+
+      const Fx s = sqrt_fx(o.disc), s2 = sqrt_fx(o.disc2);
+      const V3<Fx> v = o.p + s * o.q + s2 * o.q2;
+      double err = 0, norm2 = 0;
+      const std::array<Fx, 3> vs { v.x, v.y, v.z };
+      for (int i = 0; i < 3; ++i) {
+        out[i] = vs[i].v;
+        err += vs[i].e;
+        norm2 += vs[i].v * vs[i].v;
+      }
+      const double norm = std::sqrt(norm2);
+      if (err + norm * (o.den.e / o.den.v) > kOffsetRelTol * norm)
+        return false;
+      out /= o.den.v;
+      return true;
+    }
+
+    constexpr int kMaxSqrtBits = 4096;
+
+    /**
+     * The exact dyadics combined with `√D`, `√D'` to `bits` extra bits,
+     * doubled until the sum's error bound is below `kUlp` of its length.
+     */
+    Vector3d exact_difference(const Diff<Xp> &o) {
+      ABSL_DCHECK_GE(sgn(o.disc), 0);
+      ABSL_DCHECK_GE(sgn(o.disc2), 0);
+
+      const V3<Xp> aq { abs(o.q.x), abs(o.q.y), abs(o.q.z) },
+          aq2 { abs(o.q2.x), abs(o.q2.y), abs(o.q2.z) };
+      Vector3d out;
+      bool certified = false;
+      for (int bits = 64; !certified && bits <= kMaxSqrtBits; bits *= 2) {
+        const auto [s, u] = o.disc.sqrt_floor(bits);
+        const auto [s2, u2] = o.disc2.sqrt_floor(bits);
+        const V3<Xp> v = o.p + s * o.q + s2 * o.q2, e = u * aq + u2 * aq2;
+        out << v.x.to_double(), v.y.to_double(), v.z.to_double();
+        const Vector3d err(e.x.to_double(), e.y.to_double(), e.z.to_double());
+        certified = err.norm() <= kUlp * out.norm();
+      }
+      ABSL_DCHECK(certified) << "coincident roots";
+      return out / o.den.to_double();
+    }
   }  // namespace
 
   namespace {
@@ -919,6 +1043,23 @@ namespace internal {
         return out;
     }
     return exact_offset(kernel(Ctx<Xp> { d, -1 }));
+  }
+
+  template <bool kForceExact>
+  ABSL_ATTRIBUTE_NOINLINE Vector3d BallExactImpl<kForceExact>::difference(
+      const BallTriple f, const bool plus, const BallTriple f2,
+      const bool plus2) const {
+    const Data d { &c_, &h_, w_ };
+    auto kernel = [&](auto ctx) {
+      return root_difference(ctx, f, plus, f2, plus2);
+    };
+
+    Vector3d out;
+    if constexpr (!kForceExact) {
+      if (certified_difference(kernel(Ctx<Fx> { d, -1 }), out))
+        return out;
+    }
+    return exact_difference(kernel(Ctx<Xp> { d, -1 }));
   }
 
   template <bool kForceExact>

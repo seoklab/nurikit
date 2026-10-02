@@ -24,8 +24,6 @@
 namespace nuri {
 namespace internal {
   namespace {
-    using Array3Xi = E::Array<int, 3, E::Dynamic>;
-
     std::vector<SasCircle> circles(const SaPrep &sa) {
       const int n_circ = sa.g.offset(sa.n_enum);
       std::vector<SasCircle> result(n_circ);
@@ -157,6 +155,8 @@ namespace internal {
     struct RawProbe {
       Array3i atoms;
       Vector3d pos;
+      BallTriple face;
+      bool plus;
     };
 
     BallTriple sorted_face(Array3i fv) {
@@ -250,7 +250,7 @@ namespace internal {
               continue;
 
             fs.root(plus ? 0 : 1, f) = static_cast<int>(raw.size());
-            raw.push_back({ abc, ex.root(face, plus) });
+            raw.push_back({ abc, ex.root(face, plus), face, plus });
           }
         }
       }
@@ -274,13 +274,15 @@ namespace internal {
       pid.resize(nr);
       SasProbes probes { CSR(ArrayXi(3L * nr), OffsetTable(nr)),
                          Matrix3Xd(3, nr), Matrix3Xd(), OffsetTable(nr),
-                         own_off[sa.n_active] };
+                         Array3Xi(3, nr), ArrayXb(nr), own_off[sa.n_active] };
       for (int p = 0; p < nr; ++p) {
         const int r = order[p];
         pid[r] = p;
         probes.atoms.off()[p] = 3 * p;
         probes.atoms.adj().segment(3L * p, 3) = raw[r].atoms;
         probes.pos.col(p) = raw[r].pos;
+        probes.face.col(p) << raw[r].face.a, raw[r].face.b, raw[r].face.c;
+        probes.plus[p] = raw[r].plus;
       }
       probes.atoms.off()[nr] = 3 * nr;
       return probes;
@@ -679,8 +681,8 @@ namespace internal {
 
     /**
      * Probes linked in `uf` become one probe on the sorted union of their
-     * atoms at the position of their lowest member, owner-sorted like
-     * `make_probes`; arc ends are relabelled to the merged ids.
+     * atoms at the position and root of their lowest member, owner-sorted
+     * like `make_probes`; arc ends are relabelled to the merged ids.
      */
     SasProbes merge_probes(const SaPrep &sa, const SasProbes &probes,
                            UnionFind &uf, Arcs &arcs) {
@@ -713,7 +715,8 @@ namespace internal {
       argsort_bucket(order, own_off, owner);
 
       SasProbes merged { CSR(ArrayXi(n), OffsetTable(nc)), Matrix3Xd(3, nc),
-                         Matrix3Xd(), OffsetTable(nc), own_off[sa.n_active] };
+                         Matrix3Xd(), OffsetTable(nc), Array3Xi(3, nc),
+                         ArrayXb(nc), own_off[sa.n_active] };
       ArrayXi &adj = merged.atoms.adj(), &aoff = merged.atoms.off();
       ArrayXi cid(nc);
       int w = aoff[0] = 0;
@@ -723,7 +726,10 @@ namespace internal {
         adj.segment(w, d) = catoms.segment(coff[c], d);
         w += d;
         aoff[q + 1] = w;
-        merged.pos.col(q) = probes.pos.col(mem[moff[c]]);
+        const int first = mem[moff[c]];
+        merged.pos.col(q) = probes.pos.col(first);
+        merged.face.col(q) = probes.face.col(first);
+        merged.plus[q] = probes.plus[first];
       }
 
       for (SasArc &arc: arcs.arcs) {

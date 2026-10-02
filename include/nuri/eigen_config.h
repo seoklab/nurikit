@@ -55,6 +55,7 @@ using ArrayXb = E::ArrayX<bool>;
 using ArrayXc = ArrayX<std::int8_t>;
 using E::Array2Xd;
 using E::Array2Xi;
+using E::Array3Xi;
 using E::Array4Xi;
 using E::Array33d;
 using E::Array3Xd;

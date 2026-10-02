@@ -261,33 +261,42 @@ namespace internal {
 
     struct PairCaps {
       ArrayXi left, right;
-      Matrix3Xd axis;
+      Matrix3Xd diff, axis;
       ArrayXd cosa, sina;
     };
+
+    BallTriple probe_face(const SasProbes &probes, const int p) {
+      return { probes.face(0, p), probes.face(1, p), probes.face(2, p) };
+    }
 
     /**
      * Probe pairs strictly within `2 rp` whose caps may cut each other's
      * face: both low and each cap meets the other probe's beyond-plane cap
-     * and spherical triangle. `axis` points from `left` to `right`. The
-     * distance test is a prefilter; the face solver decides cap existence
-     * exactly.
+     * and spherical triangle. `diff` runs from `left` to `right`, taken
+     * from the exact kernel on the probes' roots so its direction is right
+     * however close the probes are; `axis` is its direction. The distance
+     * test on the positions is a prefilter; the face solver decides cap
+     * existence exactly.
      */
-    PairCaps pair_caps(const SasProbes &probes, const double rp,
-                       const ProbeHeights &hts, const FaceTriangles &tri) {
+    PairCaps pair_caps(const BallExact &ex, const SasProbes &probes,
+                       const double rp, const ProbeHeights &hts,
+                       const FaceTriangles &tri) {
       VoxelGrid grid(probes.pos, 2 * rp);
       std::vector<int> lbuf, rbuf;
       grid.find_neighbors_self(lbuf, rbuf);
       const int m = static_cast<int>(lbuf.size());
 
-      PairCaps pc { ArrayXi(m), ArrayXi(m), Matrix3Xd(3, m), ArrayXd(m),
-                    ArrayXd(m) };
+      PairCaps pc { ArrayXi(m),  ArrayXi(m), Matrix3Xd(3, m), Matrix3Xd(3, m),
+                    ArrayXd(m), ArrayXd(m) };
       int w = 0;
       for (int k = 0; k < m; ++k) {
         const int l = lbuf[k], r = rbuf[k];
         if (!hts.low[l] || !hts.low[r])
           continue;
 
-        const Vector3d diff = probes.pos.col(r) - probes.pos.col(l);
+        const Vector3d diff =
+            ex.difference(probe_face(probes, r), probes.plus[r],
+                          probe_face(probes, l), probes.plus[l]);
         const double dist = diff.norm(), cos_a = dist / (2 * rp);
         ABSL_DCHECK_GT(dist, 0);
         if (cos_a >= 1)
@@ -303,6 +312,7 @@ namespace internal {
 
         pc.left[w] = l;
         pc.right[w] = r;
+        pc.diff.col(w) = diff;
         pc.axis.col(w) = axis;
         pc.cosa[w] = cos_a;
         pc.sina[w] = sin_a;
@@ -311,6 +321,7 @@ namespace internal {
 
       pc.left.conservativeResize(w);
       pc.right.conservativeResize(w);
+      pc.diff.conservativeResize(3, w);
       pc.axis.conservativeResize(3, w);
       pc.cosa.conservativeResize(w);
       pc.sina.conservativeResize(w);
@@ -318,18 +329,28 @@ namespace internal {
     }
 
     /**
+     * Every cap of the active faces lifted to a ball relative to its probe
+     * (`solve_ses_face`): `(t, 0)` for a hemisphere, `(w, |w|²)` for a
+     * neighbour at `w`.
+     */
+    struct LiftedCaps {
+      Matrix3Xd n;
+      ArrayXd h;
+    };
+
+    /**
      * Caps of every active face, hemispheres of the departure tangents
      * first, then the surviving neighbour caps; high faces with a triangle
      * get their closed-form area (Lemma 1(c)), every other face NaN for the
-     * solver. Returns the neighbour probe of every cap, -1 for a hemisphere.
+     * solver.
      */
-    ArrayXi faces(SesGeometry &ses, const SaPrep &sa, const SasGeometry &geo,
-                  const double rp) {
+    LiftedCaps faces(SesGeometry &ses, const SaPrep &sa, const SasDelaunay &del,
+                     const SasGeometry &geo, const double rp) {
       const SasProbes &probes = geo.probes;
       const int na = probes.n_active;
       const ProbeHeights hts = probe_heights(sa, probes, rp);
       const FaceTriangles tri = face_triangles(probes);
-      const PairCaps pc = pair_caps(probes, rp, hts, tri);
+      const PairCaps pc = pair_caps(del.ex, probes, rp, hts, tri);
       const int m = static_cast<int>(pc.left.size());
 
       ArrayXi &off = ses.face_off.off();
@@ -349,7 +370,7 @@ namespace internal {
       ses.face_cosa.resize(total);
       ses.face_sina.resize(total);
       ses.face_area.resize(na);
-      ArrayXi nbr(total);
+      LiftedCaps lifted { Matrix3Xd(3, total), ArrayXd(total) };
 
       ArrayXi cur = off.head(na);
       for (int p = 0; p < na; ++p) {
@@ -358,7 +379,8 @@ namespace internal {
             probes.tan.middleCols(probes.tan_off[p], nt);
         ses.face_cosa.segment(cur[p], nt).setZero();
         ses.face_sina.segment(cur[p], nt).setOnes();
-        nbr.segment(cur[p], nt).setConstant(-1);
+        lifted.n.middleCols(cur[p], nt) = ses.face_axis.middleCols(cur[p], nt);
+        lifted.h.segment(cur[p], nt).setZero();
         cur[p] += nt;
 
         ses.face_area[p] = !hts.low[p] && tri.triangular[p]
@@ -376,11 +398,12 @@ namespace internal {
           ses.face_axis.col(cur[p]) = (1 - 2 * side) * pc.axis.col(k);
           ses.face_cosa[cur[p]] = pc.cosa[k];
           ses.face_sina[cur[p]] = pc.sina[k];
-          nbr[cur[p]] = ends[1 - side];
+          lifted.n.col(cur[p]) = (1 - 2 * side) * pc.diff.col(k);
+          lifted.h[cur[p]] = pc.diff.col(k).squaredNorm();
           ++cur[p];
         }
       }
-      return nbr;
+      return lifted;
     }
 
     struct FacePair {
@@ -596,20 +619,17 @@ namespace internal {
     };
 
     /**
-     * Every face left NaN by `faces` solved exactly on its lifted caps
-     * (hemispheres `(t, 0)`, neighbours `(w, |w|²)` for `w = y − x`); the
+     * Every face left NaN by `faces` solved exactly on its lifted caps; the
      * cap lists are compacted to the caps that survived hygiene.
      */
     void solve_faces(SesGeometry &ses, const SasProbes &probes,
-                     const ArrayXi &nbr, const double rp) {
+                     const LiftedCaps &lifted, const double rp) {
       const int na = probes.n_active;
       if (na == 0)
         return;
 
       const int mcap = ses.face_off.max_deg();
       FaceSolver solver(mcap);
-      Matrix3Xd n(3, mcap);
-      ArrayXd h(mcap), cosa(mcap);
       ArrayXb live(mcap);
 
       ArrayXi &off = ses.face_off.off();
@@ -621,20 +641,9 @@ namespace internal {
         live.head(m).setConstant(true);
 
         if (std::isnan(ses.face_area[p])) {
-          const Vector3d x = probes.pos.col(p);
-          for (int k = 0; k < m; ++k) {
-            const int y = nbr[beg + k];
-            if (y < 0) {
-              n.col(k) = ses.face_axis.col(beg + k);
-              h[k] = 0;
-            } else {
-              n.col(k) = probes.pos.col(y) - x;
-              h[k] = n.col(k).squaredNorm();
-            }
-            cosa[k] = ses.face_cosa[beg + k];
-          }
           ses.face_area[p] =
-              solver.solve(n.leftCols(m), h.head(m), cosa.head(m), rp, live);
+              solver.solve(lifted.n.middleCols(beg, m), lifted.h.segment(beg, m),
+                           ses.face_cosa.segment(beg, m), rp, live);
         }
 
         for (int k = 0; k < m; ++k) {
@@ -661,13 +670,13 @@ namespace internal {
     return solver.solve(n, h, cosa, rp, live);
   }
 
-  SesGeometry build_ses(const SaPrep &sa, const SasGeometry &geo,
-                        const double rp) {
+  SesGeometry build_ses(const SaPrep &sa, const SasDelaunay &del,
+                        const SasGeometry &geo, const double rp) {
     SesGeometry ses;
     ses.convex_area = convex_areas(sa, geo, rp);
     saddles(ses, sa, geo, rp);
-    const ArrayXi nbr = faces(ses, sa, geo, rp);
-    solve_faces(ses, geo.probes, nbr, rp);
+    const LiftedCaps lifted = faces(ses, sa, del, geo, rp);
+    solve_faces(ses, geo.probes, lifted, rp);
     return ses;
   }
 }  // namespace internal
