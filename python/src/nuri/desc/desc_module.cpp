@@ -153,6 +153,7 @@ py::dict sas_dict(const internal::SaPrep &sa,
 
 py::dict ses_dict(const internal::SesGeometry &ses) {
   py::dict d;
+  d["rp"] = ses.rp;
   d["convex_area"] = eigen_as_numpy(ses.convex_area);
   d["saddle_beta"] = eigen_as_numpy(ses.saddle_beta);
   d["saddle_integral"] = eigen_as_numpy(ses.saddle_integral);

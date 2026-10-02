@@ -481,9 +481,11 @@ namespace internal {
    * the caps `face_off`, `face_axis`, `face_cosa`, `face_sina` (hemispheres
    * of the departure tangents first, then the neighbour probes that may
    * cut, less the caps dropped by the face solver's hygiene) are per active
-   * probe `p < probes.n_active`.
+   * probe `p < probes.n_active`. `rp` is the probe radius the patches were
+   * built with.
    */
   struct SesGeometry {
+    double rp = 0;
     ArrayXd convex_area;
     Matrix4Xd saddle_beta;
     Matrix2Xd saddle_integral;
