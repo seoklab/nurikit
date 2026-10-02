@@ -501,9 +501,9 @@ namespace internal {
      * exact zero have `P_i ∥ P_j`, hence `Q_i ∥ Q_j`, `y1 = 0` and
      * `x1, y0 ≠ 0`. The `√ε` term is decided by the discriminant that moves
      * first, or, when both first move at `j`, by `c = x1 √Di_j' + y0 √Dj_j'`
-     * unless `c = 0`: then it is `c √η^j (√(1 + A) − √(1 + B))` for the
-     * tails `A = Σ_{k>j} (Di_k' / Di_j') η^(k−j)` and `B` likewise, of the
-     * sign of `c (A − B)`, so the first `k > j` with
+     * unless `c = 0`: then it is `x1 √Di_j' √η^j (√(1 + A) − √(1 + B))`
+     * for the tails `A = Σ_{k>j} (Di_k' / Di_j') η^(k−j)` and `B` likewise,
+     * of the sign of `x1 (A − B)`, so the first `k > j` with
      * `Di_k' Dj_j' ≠ Dj_k' Di_j'` decides; if none does, the `ε` term.
      */
     int tie_sign2_vanished(const Root2<Dual> *rs, const int n) {
