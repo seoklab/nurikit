@@ -241,6 +241,118 @@ namespace {
   }
 }  // namespace
 
+namespace {
+  class ScalarBest {
+  public:
+    double offer(double d, int i, double worst_dsq) {
+      if (idx_ < 0) {
+        dsq_ = d;
+        idx_ = i;
+        return worst_dsq;
+      }
+
+      if (d <= dsq_) {
+        dsq_ = d;
+        idx_ = i;
+      }
+      return dsq_;
+    }
+
+    void drain(std::vector<int> &idxs, std::vector<double> &distsq) const {
+      if (idx_ < 0)
+        return;
+
+      idxs.push_back(idx_);
+      distsq.push_back(dsq_);
+    }
+
+  private:
+    double dsq_ = 0;
+    int idx_ = -1;
+  };
+
+  class HeapBest {
+  public:
+    explicit HeapBest(int k): k_(k), heap_(cand_cmp) { }
+
+    double offer(double d, int i, double worst_dsq) {
+      heap_.push({ d, i });
+      if (static_cast<int>(heap_.size()) <= k_)
+        return worst_dsq;
+
+      heap_.pop();
+      return heap_.top().dsq;
+    }
+
+    void drain(std::vector<int> &idxs, std::vector<double> &distsq) {
+      const int n = static_cast<int>(heap_.size());
+      idxs.resize(n);
+      distsq.resize(n);
+      for (int i = n - 1; i >= 0; --i) {
+        auto e = heap_.pop_get();
+        idxs[i] = e.idx;
+        distsq[i] = e.dsq;
+      }
+    }
+
+  private:
+    int k_;
+    CandHeap heap_;
+  };
+
+  template <class Best>
+  void find_kd_impl(const OCTree &tree, const Vector3d &pt, double worst_dsq,
+                    Best &best, std::vector<int> &idxs,
+                    std::vector<double> &distsq) {
+    ArrayXd dsqbuf(tree.max_nleaf());
+
+    NodeHeap node_heap(node_cmp);
+    node_heap.push({ tree.root(), tree.max(), tree.len(), 0 });
+
+    while (!node_heap.empty()) {
+      auto [idx, maxs, size, min_dsq] = node_heap.pop_get();
+      // Nodes are popped in order of increasing min_dsq, so once min_dsq
+      // exceeds worst_dsq we cannot improve the answer anymore.
+      if (min_dsq > worst_dsq)
+        break;
+
+      const OCTreeNode &node = tree[idx];
+      if (node.leaf()) {
+        const int cnt = node.nleaf();
+        dsqbuf.head(cnt) =
+            (tree.pts().middleCols(node.begin(), cnt).colwise() - pt)
+                .colwise()
+                .squaredNorm();
+
+        for (int i = 0; i < cnt; ++i) {
+          double d = dsqbuf[i];
+          if (d > worst_dsq)
+            continue;
+
+          worst_dsq = best.offer(d, tree.idxs()[i + node.begin()], worst_dsq);
+        }
+        continue;
+      }
+
+      Vector3d half = size * 0.5;
+      Vector3d cntr_diff = pt - maxs + half;
+      int octant = octant_idx(cntr_diff);
+      Array8d octant_distsq =
+          octant_min_distsq(octant, cntr_diff.cwiseAbs2(), min_dsq);
+
+      for (int i = 0; i < 8; ++i) {
+        int cid = node[i];
+        if (cid < 0 || octant_distsq[i] > worst_dsq)
+          continue;
+
+        node_heap.push({ cid, max_of(i, maxs, half), half, octant_distsq[i] });
+      }
+    }
+
+    best.drain(idxs, distsq);
+  }
+}  // namespace
+
 void OCTree::find_neighbors_kd(const Vector3d &pt, const int k,
                                std::vector<int> &idxs,
                                std::vector<double> &distsq,
@@ -265,63 +377,14 @@ void OCTree::find_neighbors_kd(const Vector3d &pt, const int k,
     worst_dsq = maxsq_box_point(max_, len_, pt);
   }
 
-  ArrayXd dsqbuf(max_nleaf());
-
-  NodeHeap node_heap(node_cmp);
-  CandHeap best_heap(cand_cmp);
-  node_heap.push({ root(), max(), len(), 0 });
-
-  while (!node_heap.empty()) {
-    auto [idx, maxs, size, min_dsq] = node_heap.pop_get();
-    // Nodes are popped in order of increasing min_dsq, so once min_dsq
-    // exceeds worst_dsq we cannot improve the answer anymore.
-    if (min_dsq > worst_dsq)
-      break;
-
-    const OCTreeNode &node = nodes()[idx];
-    if (node.leaf()) {
-      const int cnt = node.nleaf();
-      dsqbuf.head(cnt) = (pts().middleCols(node.begin(), cnt).colwise() - pt)
-                             .colwise()
-                             .squaredNorm();
-
-      for (int i = 0; i < cnt; ++i) {
-        double d = dsqbuf[i];
-        if (d > worst_dsq)
-          continue;
-
-        best_heap.push({ d, idxs_[i + node.begin()] });
-        if (static_cast<int>(best_heap.size()) > k) {
-          best_heap.pop();
-          worst_dsq = best_heap.top().dsq;
-        }
-      }
-      continue;
-    }
-
-    Vector3d half = size * 0.5;
-    Vector3d cntr_diff = pt - maxs + half;
-    int octant = octant_idx(cntr_diff);
-    Array8d octant_distsq =
-        octant_min_distsq(octant, cntr_diff.cwiseAbs2(), min_dsq);
-
-    for (int i = 0; i < 8; ++i) {
-      int cid = node[i];
-      if (cid < 0 || octant_distsq[i] > worst_dsq)
-        continue;
-
-      node_heap.push({ cid, max_of(i, maxs, half), half, octant_distsq[i] });
-    }
+  if (k == 1) {
+    ScalarBest best;
+    find_kd_impl(*this, pt, worst_dsq, best, idxs, distsq);
+    return;
   }
 
-  const int n = static_cast<int>(best_heap.size());
-  idxs.resize(n);
-  distsq.resize(n);
-  for (int i = n - 1; i >= 0; --i) {
-    auto e = best_heap.pop_get();
-    idxs[i] = e.idx;
-    distsq[i] = e.dsq;
-  }
+  HeapBest best(k);
+  find_kd_impl(*this, pt, worst_dsq, best, idxs, distsq);
 }
 
 namespace {
