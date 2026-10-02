@@ -63,12 +63,19 @@ namespace internal {
     template <class Axes, class Cosa>
     ArrayXb outside_caps(const Matrix3Xd &dirs, const Axes &axes,
                          const Cosa &cosa) {
+      const int n = static_cast<int>(dirs.cols());
       if (axes.cols() == 0)
-        return ArrayXb::Constant(dirs.cols(), true);
+        return ArrayXb::Constant(n, true);
 
-      const ArrayXXd margin =
-          (axes.transpose() * dirs).array().colwise() - cosa;
-      return !(margin.colwise().maxCoeff() > 0).transpose();
+      const MatrixX3d axt = axes.transpose();
+      const auto ax = axt.col(0).array(), ay = axt.col(1).array(),
+                 az = axt.col(2).array();
+      ArrayXb outside(n);
+      for (int k = 0; k < n; ++k) {
+        const double dx = dirs(0, k), dy = dirs(1, k), dz = dirs(2, k);
+        outside[k] = !((ax * dx + ay * dy + az * dz - cosa).maxCoeff() > 0);
+      }
+      return outside;
     }
 
     class Sampler {
