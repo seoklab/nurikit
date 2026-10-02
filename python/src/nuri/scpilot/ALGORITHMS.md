@@ -1366,6 +1366,28 @@ Normals point from the SES into the solvent; for toroidal and concave dots that
 is toward the probe centre, so `Dots.probes = pts + rp · normals` recovers the
 probe positions used by the buried/trim tests in `sc.py`.
 
+### C++ port (`sample.cpp`, `sc.cpp`)
+
+`sample_ses` follows the three stages above on the port's `SesGeometry`
+(the circle frame `e1`, `e2` and `rp` are stored with the geometry so the
+sampler never recomputes them). Differences from the pilot, none of which
+changes a count or an area beyond rounding:
+
+- The lattice is `canonical_fibonacci_lattice` (the SASA lattice), not
+  `fibonacci_sphere`; dot positions differ, counts and weights do not.
+- Counts round with `lround` (half away from zero) where numpy rounds half
+  to even; only exact `.5` ties differ.
+- Dots are one SoA block per patch kind (`kind` offsets: convex, toroidal,
+  concave) and `atom` carries the original index (`SaPrep::order` applied).
+
+`shape_complementarity` mirrors `sc.py` stage for stage: active atoms,
+burial and the peripheral trim are fixed-cutoff `VoxelGrid` queries with the
+pilot's comparisons (`< sep`, `< R + rp`, `≤ band`) applied to the returned
+squared distances; the nearest dot of the other side is an `OCTree` query;
+medians average the two middle values. On 1BRS A/D and 1AR1 H/L every count
+(active atoms, dots, buried, trimmed) equals the pilot's and the medians agree
+to 1e-12.
+
 ## 5. Complexity
 
 Pair enumeration uses one KD-tree; triple candidates come circle by circle
