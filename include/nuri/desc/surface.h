@@ -500,6 +500,30 @@ namespace internal {
                                const SasGeometry &geo, double rp);
 
   /**
+   * Dots on the SES with their outward normals (into the solvent); for every
+   * dot `pts + rp·nrm` is the centre of the probe touching the surface there.
+   * `atom` is the ORIGINAL atom index owning the dot, `kind` splits the dots
+   * into three blocks: convex, toroidal, concave. Weights are equal within a
+   * patch and sum to its analytic area; patches that received no dot add
+   * their area to `dropped_area`.
+   */
+  // NOLINTBEGIN(*-non-private-member-variables-in-classes)
+  struct SesDots {
+    Matrix3Xd pts, nrm;
+    ArrayXd area;
+    ArrayXi atom;
+    OffsetTable kind;
+    double rp = 0, dropped_area = 0;
+
+    int n() const { return static_cast<int>(area.size()); }
+    SesDots subset(const ArrayXb &keep) const;
+  };
+  // NOLINTEND(*-non-private-member-variables-in-classes)
+
+  extern SesDots sample_ses(const SaPrep &sa, const SasGeometry &geo,
+                            const SesGeometry &ses, double density);
+
+  /**
    * Gauss–Bonnet area of one sphere from its caps and the accessible arcs on
    * their circles. Fill with `begin`, `add_cap`, `add_vertex` and `add_arc`
    * (ids are assigned in call order; an arc runs from `beg` to `end`, both -1
