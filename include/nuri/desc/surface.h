@@ -8,6 +8,7 @@
 
 #include <array>
 #include <cmath>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -321,6 +322,19 @@ namespace internal {
     int a, b, c;
   };
 
+  class FaceKernel;
+
+  struct FaceKernelDelete {
+    void operator()(FaceKernel *k) const;
+  };
+
+  using FaceKernelPtr = std::unique_ptr<FaceKernel, FaceKernelDelete>;
+
+  /**
+   * A reusable kernel for `BallExactImpl::load`.
+   */
+  extern FaceKernelPtr face_kernel();
+
   /**
    * Exact predicates on a set of balls: the power arrangement of weighted
    * points as geogram triangulates them. The balls are the SAS spheres, and
@@ -392,6 +406,14 @@ namespace internal {
      */
     std::pair<Vector3d, Vector3d> roots(BallTriple f) const;
     Vector3d root(BallTriple f, bool plus) const;
+    /**
+     * `cuts`, `accept` and `root` of the face loaded into `k`, sharing its
+     * filtered and exact kernels across the queries.
+     */
+    void load(FaceKernel &k, BallTriple f) const;
+    Sgn cuts(FaceKernel &k) const;
+    Sgn accept(FaceKernel &k, bool plus, int l) const;
+    Vector3d root(FaceKernel &k, bool plus) const;
     /**
      * `x − cntr` for root `x` of `f` on circle `(a, b)`, in double but to
      * rounding of its own length: the direction is right on a circle of any

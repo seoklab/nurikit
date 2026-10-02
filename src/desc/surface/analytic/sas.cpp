@@ -260,6 +260,7 @@ namespace internal {
     Faces accept_faces(const SaPrep &sa, const SasDelaunay &del,
                        const VertexMap &vm, std::vector<RawProbe> &raw) {
       const BallExact &ex = del.ex;
+      FaceKernelPtr k = face_kernel();
 
       Faces fs { face_pairs(sa, del, vm),
                  Array3Xi::Constant(3, del.n_faces, -1),
@@ -275,7 +276,8 @@ namespace internal {
         const BallTriple face = sorted_face(fv);
         const int f = del.face(lf, c);
         fs.verts.col(f) << face.a, face.b, face.c;
-        if (ex.cuts(face) != Sgn::kPos)
+        ex.load(*k, face);
+        if (ex.cuts(*k) != Sgn::kPos)
           return;
         fs.cut[f] = true;
 
@@ -284,12 +286,12 @@ namespace internal {
         const bool test1 = apex_may_reject(fs, del, c, lf),
                    test2 = apex_may_reject(fs, del, c2, lv2);
         for (const bool plus: { true, false }) {
-          if ((test1 && ex.accept(face, plus, l1) != Sgn::kPos)
-              || (test2 && ex.accept(face, plus, l2) != Sgn::kPos))
+          if ((test1 && ex.accept(*k, plus, l1) != Sgn::kPos)
+              || (test2 && ex.accept(*k, plus, l2) != Sgn::kPos))
             continue;
 
           fs.root(plus ? 0 : 1, f) = static_cast<int>(raw.size());
-          raw.push_back({ abc, ex.root(face, plus), face, plus });
+          raw.push_back({ abc, ex.root(*k, plus), face, plus });
         }
       });
 

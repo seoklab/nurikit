@@ -13,6 +13,8 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <memory>
+#include <optional>
 #include <utility>
 
 #include <absl/base/attributes.h>
@@ -370,6 +372,25 @@ namespace internal {
     };
 
     template <class T>
+    Root<T> cut_root(const Face<T> &fc) {
+      return { fc.disc, lit<T>(0.0), lit<T>(0.0) };
+    }
+
+    /**
+     * `π_l` at the root `σ` of `fc`.
+     */
+    template <class T>
+    Root<T> accept_root(const Ctx<T> &ctx, const Face<T> &fc, bool plus,
+                        int l) {
+      const Sphere<T> sl = sph(ctx, l);
+      const V3<T> dl = sl.c - fc.sa.c;
+      const T vl = half(sl.h - fc.sa.h) - dot(fc.sa.c, dl);
+      const T lin =
+          fc.u2 * vl - fc.lam * dot(fc.db, dl) - fc.mu * dot(fc.dc, dl);
+      return { lin, -root_sign<T>(plus) * dot(fc.u, dl), fc.disc };
+    }
+
+    template <class T>
     int sign_root(const Root<T> &r) {
       const int sa = sgn(r.lin), sb = sgn(r.rad), sd = sgn(r.disc);
       if (sa == kUnknown || sb == kUnknown || sd == kUnknown)
@@ -647,9 +668,8 @@ namespace internal {
     };
 
     template <class T>
-    Offset<T> root_offset(const Ctx<T> &ctx, const Pair<T> &ab,
-                          const Sphere<T> &sa, BallTriple f, bool plus) {
-      const Face<T> fc = face(ctx, f);
+    Offset<T> root_offset(const Pair<T> &ab, const Sphere<T> &sa,
+                          const Face<T> &fc, bool plus) {
       const V3<T> y = fc.u2 * (fc.sa.c - sa.c) + fc.lam * fc.db + fc.mu * fc.dc;
       return { ab.g * y - (fc.u2 * ab.v) * ab.d,
                (root_sign<T>(plus) * ab.g) * fc.u, fc.disc, fc.u2,
@@ -768,7 +788,66 @@ namespace internal {
       ABSL_DCHECK(certified) << "coincident roots";
       return out / o.den.to_double();
     }
+
+    Vector3d circle_centre(const Matrix3Xd &c, const ArrayXd &h, const int a,
+                           const int b) {
+      const Vector3d ca = c.col(a), db = c.col(b) - ca;
+      const double vb = (h[b] - h[a]) / 2 - ca.dot(db);
+      return ca + (vb / db.squaredNorm()) * db;
+    }
+
+    template <bool kForceExact, bool kFilterOnly, class K>
+    Vector3d offset_decide(const Data &d, const K &kernel) {
+      Vector3d out;
+      if constexpr (!kForceExact) {
+        if (certified_offset(kernel(Ctx<Fx> { d, -1 }), out))
+          return out;
+      }
+      exact_stage<kFilterOnly>();
+      return exact_offset(kernel(Ctx<Xp> { d, -1 }));
+    }
   }  // namespace
+
+  /**
+   * One face's `Face<T>` per stage: the filtered face at `load`, the exact
+   * face on first need, the perturbed face per participant.
+   */
+  class FaceKernel {
+  public:
+    void load(const Data &d, const BallTriple f) {
+      f_ = f;
+      fx_ = face(Ctx<Fx> { d, -1 }, f);
+      xp_.reset();
+    }
+
+    BallTriple triple() const { return f_; }
+
+    const Face<Fx> &at(const Ctx<Fx> &ctx) const {
+      (void)ctx;
+      return fx_;
+    }
+
+    const Face<Xp> &at(const Ctx<Xp> &ctx) {
+      if (!xp_)
+        xp_ = face(ctx, f_);
+      return *xp_;
+    }
+
+    Face<Dual> at(const Ctx<Dual> &ctx) const { return face(ctx, f_); }
+
+  private:
+    BallTriple f_;
+    Face<Fx> fx_;
+    std::optional<Face<Xp>> xp_;
+  };
+
+  void FaceKernelDelete::operator()(FaceKernel *k) const {
+    std::default_delete<FaceKernel>()(k);
+  }
+
+  FaceKernelPtr face_kernel() {
+    return FaceKernelPtr(new FaceKernel);
+  }
 
   namespace {
     /**
@@ -924,10 +1003,7 @@ namespace internal {
   template <bool kForceExact, bool kFilterOnly>
   ABSL_ATTRIBUTE_NOINLINE Sgn
   BallExactImpl<kForceExact, kFilterOnly>::cuts(const BallTriple f) const {
-    auto kernel = [&](auto ctx) {
-      using T = typename decltype(ctx)::Scalar;
-      return Root<T> { face(ctx, f).disc, lit<T>(0.0), lit<T>(0.0) };
-    };
+    auto kernel = [&](auto ctx) { return cut_root(face(ctx, f)); };
     return decide<kForceExact, kFilterOnly>(
         {
             &c_, &h_, w_
@@ -1009,14 +1085,7 @@ namespace internal {
   ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact, kFilterOnly>::accept(
       const BallTriple f, const bool plus, const int l) const {
     auto kernel = [&](auto ctx) {
-      using T = typename decltype(ctx)::Scalar;
-      const Face<T> fc = face(ctx, f);
-      const Sphere<T> sl = sph(ctx, l);
-      const V3<T> dl = sl.c - fc.sa.c;
-      const T vl = half(sl.h - fc.sa.h) - dot(fc.sa.c, dl);
-      const T lin =
-          fc.u2 * vl - fc.lam * dot(fc.db, dl) - fc.mu * dot(fc.dc, dl);
-      return Root<T> { lin, -root_sign<T>(plus) * dot(fc.u, dl), fc.disc };
+      return accept_root(ctx, face(ctx, f), plus, l);
     };
     return decide<kForceExact, kFilterOnly>(
         {
@@ -1035,16 +1104,61 @@ namespace internal {
   ABSL_ATTRIBUTE_NOINLINE Vector3d
   BallExactImpl<kForceExact, kFilterOnly>::root(const BallTriple f,
                                                 const bool plus) const {
-    const Vector3d ca = c_.col(f.a), db = c_.col(f.b) - ca;
-    const double vb = (h_[f.b] - h_[f.a]) / 2 - ca.dot(db);
-    const Vector3d cntr = ca + (vb / db.squaredNorm()) * db;
-    return cntr + offset(f.a, f.b, f, plus);
+    return circle_centre(c_, h_, f.a, f.b) + offset(f.a, f.b, f, plus);
   }
 
   template <bool kForceExact, bool kFilterOnly>
   ABSL_ATTRIBUTE_NOINLINE std::pair<Vector3d, Vector3d>
   BallExactImpl<kForceExact, kFilterOnly>::roots(const BallTriple f) const {
     return { root(f, true), root(f, false) };
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE void
+  BallExactImpl<kForceExact, kFilterOnly>::load(FaceKernel &k,
+                                                const BallTriple f) const {
+    k.load({ &c_, &h_, w_ }, f);
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn
+  BallExactImpl<kForceExact, kFilterOnly>::cuts(FaceKernel &k) const {
+    const BallTriple f = k.triple();
+    auto kernel = [&](auto ctx) { return cut_root(k.at(ctx)); };
+    return decide<kForceExact, kFilterOnly>(
+        {
+            &c_, &h_, w_
+    },
+        kernel, { { f.a, f.b, f.c }, 3 });
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact, kFilterOnly>::accept(
+      FaceKernel &k, const bool plus, const int l) const {
+    const BallTriple f = k.triple();
+    auto kernel = [&](auto ctx) {
+      return accept_root(ctx, k.at(ctx), plus, l);
+    };
+    return decide<kForceExact, kFilterOnly>(
+        {
+            &c_, &h_, w_
+    },
+        kernel, { { f.a, f.b, f.c, l }, 4 });
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Vector3d
+  BallExactImpl<kForceExact, kFilterOnly>::root(FaceKernel &k,
+                                                const bool plus) const {
+    const BallTriple f = k.triple();
+    const Data d { &c_, &h_, w_ };
+    auto kernel = [&](auto ctx) {
+      using T = typename decltype(ctx)::Scalar;
+      const Sphere<T> sa = sph(ctx, f.a), sb = sph(ctx, f.b);
+      return root_offset(pair(sa, sb), sa, k.at(ctx), plus);
+    };
+    return circle_centre(c_, h_, f.a, f.b)
+           + offset_decide<kForceExact, kFilterOnly>(d, kernel);
   }
 
   template <bool kForceExact, bool kFilterOnly>
@@ -1056,16 +1170,9 @@ namespace internal {
     auto kernel = [&](auto ctx) {
       using T = typename decltype(ctx)::Scalar;
       const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b);
-      return root_offset(ctx, pair(sa, sb), sa, f, plus);
+      return root_offset(pair(sa, sb), sa, face(ctx, f), plus);
     };
-
-    Vector3d out;
-    if constexpr (!kForceExact) {
-      if (certified_offset(kernel(Ctx<Fx> { d, -1 }), out))
-        return out;
-    }
-    exact_stage<kFilterOnly>();
-    return exact_offset(kernel(Ctx<Xp> { d, -1 }));
+    return offset_decide<kForceExact, kFilterOnly>(d, kernel);
   }
 
   template <bool kForceExact, bool kFilterOnly>
@@ -1101,7 +1208,7 @@ namespace internal {
         using T = typename decltype(ctx)::Scalar;
         const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b);
         const Pair<T> ab = pair(sa, sb);
-        const Offset<T> o = root_offset(ctx, ab, sa, f, plus);
+        const Offset<T> o = root_offset(ab, sa, face(ctx, f), plus);
         const V3<T> rr = lift<T>(r), qv = sine ? cross(ab.d, rr) : rr;
         return Root<T> { dot(qv, o.p), dot(qv, o.q), o.disc };
       };
@@ -1132,8 +1239,8 @@ namespace internal {
                         bool plus_i, BallTriple fj, bool plus_j) {
       const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b);
       const Pair<T> ab = pair(sa, sb);
-      const Offset<T> oi = root_offset(ctx, ab, sa, fi, plus_i),
-                      oj = root_offset(ctx, ab, sa, fj, plus_j);
+      const Offset<T> oi = root_offset(ab, sa, face(ctx, fi), plus_i),
+                      oj = root_offset(ab, sa, face(ctx, fj), plus_j);
       return {
         dot(cross(oi.p, oj.p), ab.d), dot(cross(oi.q, oj.p), ab.d), oi.disc,
         dot(cross(oi.p, oj.q), ab.d), dot(cross(oi.q, oj.q), ab.d), oj.disc
@@ -1174,7 +1281,7 @@ namespace internal {
       using T = typename decltype(ctx)::Scalar;
       const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b), sc = sph(ctx, c);
       const Pair<T> ab = pair(sa, sb), ac = pair(sa, sc);
-      const Offset<T> o = root_offset(ctx, ab, sa, f, plus);
+      const Offset<T> o = root_offset(ab, sa, face(ctx, f), plus);
       const T lin =
           ab.g * o.u2 * ac.v - o.u2 * ab.v * dot(ab.d, ac.d) + dot(o.p, ac.d);
       return Root<T> { lin, dot(o.q, ac.d), o.disc };
