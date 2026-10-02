@@ -23,6 +23,15 @@ namespace {
   Array3i voxel_of(const Vector3d &p, const Vector3d &origin, double cutoff) {
     return ((p - origin).array() / cutoff).floor().cast<int>();
   }
+
+  // Per-column form: the colwise().squaredNorm() expression shared by both
+  // queries stopped being inlined under LTO (one out-of-line call per run).
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline void
+  run_distsq(const Matrix3Xd &pts, const int beg, const int cnt,
+             const Vector3d &pt, VectorXd &dsqbuf) {
+    for (int k = 0; k < cnt; ++k)
+      dsqbuf[k] = (pts.col(beg + k) - pt).squaredNorm();
+  }
 }  // namespace
 
 void VoxelGrid::rebuild_impl(Points src) {
@@ -133,8 +142,7 @@ void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
       if (cnt == 0)
         continue;
 
-      dsqbuf.head(cnt) =
-          (pts_.middleCols(beg, cnt).colwise() - pt).colwise().squaredNorm();
+      run_distsq(pts_, beg, cnt, pt, dsqbuf);
 
       int n = 0;
       for (int k = 0; k < cnt; ++k) {
@@ -166,9 +174,7 @@ namespace {
         if (cnt == 0)
           continue;
 
-        dsqbuf.head(cnt) = (grid.pts().middleCols(beg, cnt).colwise() - pt)
-                               .colwise()
-                               .squaredNorm();
+        run_distsq(grid.pts(), beg, cnt, pt, dsqbuf);
 
         for (int k = 0; k < cnt; ++k) {
           const double dsq = dsqbuf[k];
