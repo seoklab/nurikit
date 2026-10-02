@@ -91,47 +91,31 @@ namespace internal {
      * Drop the middle sphere of every triple sharing one circle: on each
      * side of the circle plane the outer sphere bulges more, so it has no
      * surface, whether or not an outer sphere is itself contained in a
-     * larger one. The band on floating circle centres and axes only selects
-     * candidates; `shared_circle` decides.
+     * larger one. Three spheres share a circle only if their centres are
+     * collinear; the band on the floating cross product only selects
+     * candidates, `shared_circle` decides.
      */
     void drop_shared_circle_middles(ArrayXi &keep, const CSR &g,
                                     const ArrayXd &d, const ArrayXd &sar2,
                                     const BallExact &ex) {
-      constexpr double cutoff = kSurfaceLengthEps * kSurfaceLengthEps;
+      constexpr double cutoff = 2 * kSurfaceLengthEps * kSurfaceLengthEps;
 
       const Matrix3Xd &pts = ex.centers();
-      Matrix3Xd axis(3, g.max_deg()), cntr(3, g.max_deg());
-
       g.for_each_triangle(
           g.n(),
           [&](int i, int j, int k, auto pij, auto pik, auto) {
-            E::Index ij = pij - g.begin(i), ik = pik - g.begin(i);
-            Vector3d uij = axis.col(ij), uik = axis.col(ik);
-            if ((cntr.col(ij) - cntr.col(ik)).squaredNorm() >= cutoff
-                || sar2[i] * uij.cross(uik).squaredNorm() >= cutoff)
+            const Vector3d ci = pts.col(i), dij = pts.col(j) - ci,
+                           dik = pts.col(k) - ci;
+            const double gij = d[g.eid(pij)], gik = d[g.eid(pik)];
+            if (sar2[i] * dij.cross(dik).squaredNorm()
+                >= cutoff * (gij * gij) * (gik * gik))
               return;
 
             const int mid = ex.shared_circle({ i, j, k });
             if (mid >= 0)
               keep[mid == 0 ? i : mid == 1 ? j : k] = 0;
           },
-          [&](int i) {
-            const Vector3d ci = pts.col(i);
-            const double r2i = sar2[i];
-
-            auto iax = axis.leftCols(g.degree(i)),
-                 icn = cntr.leftCols(g.degree(i));
-            auto dij = d.segment(g.offset(i), g.degree(i));
-
-            iax = (pts(E::all, g.nbrs(i)).colwise() - ci).array().rowwise()
-                  / dij.transpose();
-            icn = (iax.array().rowwise()
-                   * ((dij.square() + r2i - sar2(g.nbrs(i))) / (2 * dij))
-                         .transpose())
-                      .matrix()
-                      .colwise()
-                  + ci;
-          });
+          [](int) { });
     }
 
     using Array5i = E::Array<int, 5, 1>;
