@@ -158,3 +158,5 @@ before-all = ["ln -sfT /host/home/linuxbrew /home/linuxbrew"]
 
 [tool.pytest.ini_options]
 testpaths = ["python/test"]
+pythonpath = ["python/test"]
+addopts = ["--import-mode=importlib"]
