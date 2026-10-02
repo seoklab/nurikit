@@ -545,6 +545,62 @@ TEST(BallExactTest, OffsetOnRoundingTinyCircle) {
   EXPECT_GT(n_tiny, 5);
 }
 
+/**
+ * Centres nearly collinear (`|u| ~ ε |d_b| |d_c|`) with both circles through
+ * `a` nearly great circles of `a`, so the root is `c_a ± ρ_a u / |u|` up to
+ * `ε`: the normal `u` and the divisor `G |u|²` both carry a relative rounding
+ * of order `2^-52 / ε`, and the filter's certificate must cover the divisor
+ * as well as the numerator. Sphere `a` sits at the origin so that no
+ * coordinate-scale rounding enters `v`.
+ */
+TEST(BallExactTest, OffsetNearCollinearGreatCircle) {
+  std::mt19937 rng(31);
+  std::normal_distribution<double> nd;
+  std::uniform_real_distribution<double> ud(-1, 1);
+  const BallTriple f { 0, 1, 2 };
+
+  for (const double eps: { 1e-3, 1e-4, 1e-5, 1e-6, 3e-7, 1e-7 }) {
+    for (int trial = 0; trial < 200; ++trial) {
+      const Vector3d db = (1 + std::abs(ud(rng)))
+                          * Vector3d(nd(rng), nd(rng), nd(rng)).normalized();
+      Vector3d w(nd(rng), nd(rng), nd(rng));
+      w -= w.dot(db) / db.squaredNorm() * db;
+      w *= eps * db.norm() / w.norm();
+      const double t = ud(rng) < 0 ? -1 - std::abs(ud(rng))
+                                   : 2 + std::abs(ud(rng));
+      const Vector3d dc = t * db + w;
+
+      Matrix3Xd pts(3, 3);
+      pts.col(0).setZero();
+      pts.col(1) = db;
+      pts.col(2) = dc;
+      ArrayXd sar(3);
+      sar[0] = 1.5 + std::abs(ud(rng));
+      sar[1] = std::sqrt(sar[0] * sar[0]
+                         + (1 + eps * eps * ud(rng)) * db.squaredNorm());
+      sar[2] = std::sqrt(sar[0] * sar[0]
+                         + (1 + eps * eps * ud(rng)) * dc.squaredNorm());
+
+      const Fixture<> s = setup(pts, sar);
+      const Fixture<true> e = setup<true>(pts, sar);
+      ASSERT_EQ(s.ex.overlap(0, 1), Sgn::kPos);
+      ASSERT_EQ(s.ex.overlap(0, 2), Sgn::kPos);
+      ASSERT_EQ(s.ex.cuts(f), Sgn::kPos);
+
+      for (const int b: { 1, 2 }) {
+        for (const bool plus: { true, false }) {
+          expect_offset(e.ex, e.ref, 0, b, f, plus, 1e-12);
+          const Vector3d want = e.ex.offset(0, b, f, plus),
+                         got = s.ex.offset(0, b, f, plus);
+          EXPECT_LE((got - want).norm(), kOffsetRelTol * want.norm())
+              << "eps " << eps << " trial " << trial << " pair 0" << b
+              << " root " << plus;
+        }
+      }
+    }
+  }
+}
+
 TEST(BallExactTest, TangentPairCarriesNoCircle) {
   Matrix3Xd pts(3, 3);
   pts.col(0) << 0, 0, 0;
