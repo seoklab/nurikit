@@ -43,6 +43,8 @@ Vector3d max_of(int octant, const Vector3d &max, const Vector3d &size) {
 void verify_oct_range(int idx, const Matrix3Xd &pts, const OCTree &oct,
                       const Vector3d &max, const Vector3d &size) {
   const auto &node = oct[idx];
+  NURI_EXPECT_EIGEN_EQ(node.maxs(), max) << "node = " << idx;
+  NURI_EXPECT_EIGEN_EQ(node.half(), size / 2) << "node = " << idx;
   if (node.leaf()) {
     const int *ptr = oct.idxs().data() + node.begin();
     for (int i = 0; i < node.nleaf(); ++i) {

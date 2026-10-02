@@ -95,10 +95,12 @@ namespace {
                    const Vector3d &max, const Vector3d &size, ArrayXi &idxs,
                    const int begin, const int nleaf, const int bucket_size,
                    int &max_nleaf) {
+    Vector3d half = size * 0.5;
+
     Array8i children;
     auto epilog = [&] {
       int id = static_cast<int>(data.size());
-      data.emplace_back(std::move(children), begin, nleaf);
+      data.emplace_back(std::move(children), begin, nleaf, max, half);
       return id;
     };
 
@@ -112,7 +114,6 @@ namespace {
       return epilog();
     }
 
-    Vector3d half = size * 0.5;
     Vector3d cntr = max - half;
 
     // Bounds the recursion at floating-point precision
@@ -284,10 +285,10 @@ namespace {
     ArrayXd &dsqbuf = scratch.dsqbuf(tree.max_nleaf());
 
     OCTreeKdScratch::NodeHeap &node_heap = scratch.nodes();
-    node_heap.push({ tree.root(), tree.max(), tree.len(), 0 });
+    node_heap.push({ tree.root(), 0 });
 
     while (!node_heap.empty()) {
-      auto [idx, maxs, size, min_dsq] = node_heap.pop_get();
+      auto [idx, min_dsq] = node_heap.pop_get();
       // Nodes are popped in order of increasing min_dsq, so once min_dsq
       // exceeds worst_dsq we cannot improve the answer anymore.
       if (min_dsq > worst_dsq)
@@ -311,8 +312,7 @@ namespace {
         continue;
       }
 
-      Vector3d half = size * 0.5;
-      Vector3d cntr_diff = pt - maxs + half;
+      Vector3d cntr_diff = pt - node.maxs() + node.half();
       int octant = octant_idx(cntr_diff);
       Array8d octant_distsq =
           octant_min_distsq(octant, cntr_diff.cwiseAbs2(), min_dsq);
@@ -322,7 +322,7 @@ namespace {
         if (cid < 0 || octant_distsq[i] > worst_dsq)
           continue;
 
-        node_heap.push({ cid, max_of(i, maxs, half), half, octant_distsq[i] });
+        node_heap.push({ cid, octant_distsq[i] });
       }
     }
 
@@ -377,7 +377,6 @@ namespace {
   void find_candidates_d(const OCTree &oct, const Vector3d &pt,
                          const double cutoffsq, std::vector<int> &idxs,
                          std::vector<double> &distsq, const OCTreeNode &node,
-                         const Vector3d &maxs, const Vector3d &size,
                          ArrayXd &dsqbuf) {
     if (node.leaf()) {
       const int cnt = node.nleaf();
@@ -392,8 +391,7 @@ namespace {
       return;
     }
 
-    Vector3d half = size * 0.5;
-    Vector3d cntr_diff = pt - maxs + half;
+    Vector3d cntr_diff = pt - node.maxs() + node.half();
     int octant = octant_idx(cntr_diff);
     Array8d octant_distsq = octant_min_distsq(octant, cntr_diff.cwiseAbs2());
 
@@ -402,8 +400,7 @@ namespace {
       if (octant_distsq[i] > cutoffsq || cid < 0)
         continue;
 
-      find_candidates_d(oct, pt, cutoffsq, idxs, distsq, oct[cid],
-                        max_of(i, maxs, half), half, dsqbuf);
+      find_candidates_d(oct, pt, cutoffsq, idxs, distsq, oct[cid], dsqbuf);
     }
   }
 }  // namespace
@@ -419,8 +416,7 @@ void OCTree::find_neighbors_d(const Vector3d &pt, const double cutoff,
     return;
 
   ArrayXd dsqbuf(max_nleaf());
-  find_candidates_d(*this, pt, cutoffsq, idxs, distsq, node(root()), max_, len_,
-                    dsqbuf);
+  find_candidates_d(*this, pt, cutoffsq, idxs, distsq, node(root()), dsqbuf);
 
   int n = 0;
   for (int i = 0; i < idxs.size(); ++i) {

@@ -26,8 +26,10 @@ namespace internal {
 
   class OCTreeNode {
   public:
-    OCTreeNode(Array8i &&children, int begin, int nleaf)
-        : children_(std::move(children)), begin_(begin), nleaf_(nleaf) { }
+    OCTreeNode(Array8i &&children, int begin, int nleaf, const Vector3d &maxs,
+               const Vector3d &half)
+        : children_(std::move(children)), begin_(begin), nleaf_(nleaf),
+          maxs_(maxs), half_(half) { }
 
     const Array8i &children() const { return children_; }
 
@@ -42,16 +44,20 @@ namespace internal {
 
     int nleaf() const { return nleaf_; }
 
+    const Vector3d &maxs() const { return maxs_; }
+
+    const Vector3d &half() const { return half_; }
+
   private:
     Array8i children_;
     int begin_;
     int nleaf_;
+    Vector3d maxs_;
+    Vector3d half_;
   };
 
   struct OCTreeNodeEntry {
     int idx;
-    Vector3d maxs;
-    Vector3d size;
     double min_dsq;
   };
 
