@@ -20,12 +20,11 @@ ChimeraX::
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, TextIO
+from typing import TextIO
 
 import numpy as np
 
-if TYPE_CHECKING:
-    from .surface import Dots
+from .surface import Dots
 
 PATCH_NAMES = ("CVX", "TOR", "CCV")
 
