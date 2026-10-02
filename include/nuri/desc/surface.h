@@ -315,6 +315,13 @@ namespace internal {
   extern FaceKernelPtr face_kernel();
 
   /**
+   * Test hook: whether the filter's exact-input operands and its generic
+   * operands on `{a, 0}`, `{b, 0}` give the same value and bound, bit for
+   * bit, in `−`, `×` and the mixed sums and products with a bounded operand.
+   */
+  extern bool filter_inputs_agree(double a, double b);
+
+  /**
    * Exact predicates on a set of balls: the power arrangement of weighted
    * points as geogram triangulates them. The balls are the SAS spheres, and
    * later the caps of an SES face lifted to balls. Each ball has centre `c_i`,

@@ -230,6 +230,20 @@ TEST(BallExactTest, Selftest) {
   EXPECT_TRUE(BallExact::selftest());
 }
 
+TEST(BallExactTest, FilterInputsAgree) {
+  std::vector<double> xs { 0.0,       -0.0, 0x1p-1074, -0x1p-1074, 0x1p-1060,
+                           0x1p-1022, 1.0,  -1.0,      0x1p-60,    -0x1p60 };
+  std::mt19937 rng(7);
+  std::uniform_real_distribution<double> mant(-2.0, 2.0);
+  std::uniform_int_distribution<int> exp(-1074, 500);
+  for (int i = 0; i < 300; ++i)
+    xs.push_back(std::ldexp(mant(rng), exp(rng)));
+
+  for (const double a: xs)
+    for (const double b: xs)
+      ASSERT_TRUE(filter_inputs_agree(a, b)) << a << ' ' << b;
+}
+
 void expect_geogram_agrees(const Fixture<> &s) {
   const int n = static_cast<int>(s.lifted.cols());
   GEO::Delaunay3d del(4);

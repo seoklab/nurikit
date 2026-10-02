@@ -13,6 +13,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -83,9 +84,6 @@ namespace internal {
       return { v, std::fabs(a.v) * b.e + std::fabs(b.v) * a.e + a.e * b.e
                       + kUlp * std::fabs(v) + kTiny };
     }
-    Fx operator-(Fx a) {
-      return { -a.v, a.e };
-    }
     int sgn(Fx a) {
       if (a.e <= 0)
         return static_cast<int>(a.v > 0) - static_cast<int>(a.v < 0);
@@ -94,6 +92,60 @@ namespace internal {
       if (a.v < -2 * a.e)
         return -1;
       return kUnknown;
+    }
+
+    /**
+     * An input of the filter, a double taken exact. Its operations drop the
+     * error terms that are zero by construction and add the survivors in the
+     * order of the `Fx` ones, so the bound is the same double.
+     */
+    struct Ex {
+      double v;
+    };
+
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool is_zero(Ex a) {
+      return std::fabs(a.v) <= 0.0;
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx rounded(double v) {
+      return { v, kUlp * std::fabs(v) + kTiny };
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx rounded(double v, double e) {
+      return { v, e + kUlp * std::fabs(v) + kTiny };
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx bounded(double v, double e) {
+      if (is_zero({ v, e }))
+        return { v, 0.0 };
+      return rounded(v, e);
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator-(Ex a, Ex b) {
+      const double v = a.v - b.v;
+      if (is_zero(Ex { v }))
+        return { v, 0.0 };
+      return rounded(v);
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator+(Ex a, Fx b) {
+      return bounded(a.v + b.v, b.e);
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator-(Fx a, Ex b) {
+      return bounded(a.v - b.v, a.e);
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator*(Ex a, Ex b) {
+      const double v = a.v * b.v;
+      if (is_zero(a) || is_zero(b))
+        return { v, 0.0 };
+      return rounded(v);
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator*(Ex a, Fx b) {
+      const double v = a.v * b.v;
+      if (is_zero(a) || is_zero(b))
+        return { v, 0.0 };
+      return rounded(v, std::fabs(a.v) * b.e);
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator*(Fx a, Ex b) {
+      return b * a;
+    }
+    Ex operator-(Ex a) {
+      return { -a.v };
     }
 
     /**
@@ -226,15 +278,35 @@ namespace internal {
     Dual lit<Dual>(double d) {
       return { Xp(d), Xp(0.0) };
     }
+    template <>
+    Ex lit<Ex>(double d) {
+      return { d };
+    }
+
+    template <class T>
+    struct InputOf {
+      using type = T;
+    };
+    template <>
+    struct InputOf<Fx> {
+      using type = Ex;
+    };
+    template <class T>
+    using input_t = typename InputOf<T>::type;
+
+    template <class T>
+    input_t<T> input(double d) {
+      return lit<input_t<T>>(d);
+    }
 
     /**
      * Height of vertex `i`; `h_i = W + |c_i|² − ρ_i²`, so the perturbed
      * vertex has derivative −1 along its own squared radius.
      */
     template <class T>
-    T height(double h, bool perturbed) {
+    input_t<T> height(double h, bool perturbed) {
       (void)perturbed;
-      return lit<T>(h);
+      return input<T>(h);
     }
     template <>
     Dual height<Dual>(double h, bool perturbed) {
@@ -250,16 +322,17 @@ namespace internal {
     V3<T> operator+(const V3<T> &a, const V3<T> &b) {
       return { a.x + b.x, a.y + b.y, a.z + b.z };
     }
-    template <class T>
-    V3<T> operator-(const V3<T> &a, const V3<T> &b) {
+    template <class A, class B>
+    auto operator-(const V3<A> &a, const V3<B> &b) -> V3<decltype(a.x - b.x)> {
       return { a.x - b.x, a.y - b.y, a.z - b.z };
     }
     template <class T>
     V3<T> operator*(const T &s, const V3<T> &a) {
       return { s * a.x, s * a.y, s * a.z };
     }
-    template <class T>
-    T dot(const V3<T> &a, const V3<T> &b) {
+    template <class A, class B>
+    auto dot(const V3<A> &a, const V3<B> &b)
+        -> decltype(a.x * b.x + a.y * b.y + a.z * b.z) {
       return a.x * b.x + a.y * b.y + a.z * b.z;
     }
     template <class T>
@@ -270,8 +343,8 @@ namespace internal {
 
     template <class T>
     struct Sphere {
-      V3<T> c;
-      T h;
+      V3<input_t<T>> c;
+      input_t<T> h;
     };
 
     struct Data {
@@ -292,19 +365,19 @@ namespace internal {
     Sphere<T> sph(const Ctx<T> &ctx, int i) {
       const Matrix3Xd &c = *ctx.d.c;
       return {
-        { lit<T>(c(0, i)), lit<T>(c(1, i)), lit<T>(c(2, i)) },
+        { input<T>(c(0, i)), input<T>(c(1, i)), input<T>(c(2, i)) },
         height<T>((*ctx.d.h)[i], i == ctx.pert)
       };
     }
 
     template <class T>
-    T wval(const Ctx<T> &ctx) {
-      return lit<T>(ctx.d.w);
+    input_t<T> wval(const Ctx<T> &ctx) {
+      return input<T>(ctx.d.w);
     }
 
     template <class T>
     T half(const T &a) {
-      return lit<T>(0.5) * a;
+      return input<T>(0.5) * a;
     }
 
     /**
@@ -356,14 +429,14 @@ namespace internal {
       r.mu = r.gbb * r.vc - r.gbc * r.vb;
       r.ra = wval(ctx) + dot(sa.c, sa.c) - sa.h;
       r.disc = r.ra * r.u2
-               - (r.gcc * r.vb * r.vb - lit<T>(2.0) * r.gbc * r.vb * r.vc
+               - (r.gcc * r.vb * r.vb - input<T>(2.0) * r.gbc * r.vb * r.vc
                   + r.gbb * r.vc * r.vc);
       return r;
     }
 
     template <class T>
-    T root_sign(bool plus) {
-      return lit<T>(plus ? 1.0 : -1.0);
+    input_t<T> root_sign(bool plus) {
+      return input<T>(plus ? 1.0 : -1.0);
     }
 
     /**
@@ -503,7 +576,7 @@ namespace internal {
 
       const T p = r.x0 * r.x0 + r.x1 * r.x1 * r.di
                   - (r.y0 * r.y0 + r.y1 * r.y1 * r.di) * r.dj,
-              q = lit<T>(2.0) * (r.x0 * r.x1 - r.y0 * r.y1 * r.dj);
+              q = input<T>(2.0) * (r.x0 * r.x1 - r.y0 * r.y1 * r.dj);
       const int t = sign_root(Root<T> { p, q, r.di });
       return t == kUnknown ? kUnknown : sx * t;
     }
@@ -872,7 +945,7 @@ namespace internal {
       auto kernel = [&](auto ctx) {
         using T = typename decltype(ctx)::Scalar;
         auto [t, rr] = stage(ctx);
-        return Root<T> { lit<T>(4.0) * rr - t * t, lit<T>(0.0), lit<T>(0.0) };
+        return Root<T> { input<T>(4.0) * rr - t * t, lit<T>(0.0), lit<T>(0.0) };
       };
 
       if constexpr (!kForceExact) {
@@ -951,7 +1024,7 @@ namespace internal {
       const T rx = wval(ctx) + dot(sx.c, sx.c) - sx.h,
               ry = wval(ctx) + dot(sy.c, sy.c) - sy.h, g = dot(dd, dd);
       const T u = rx - ry - g;
-      const int su = sgn(u), sv = sgn(u * u - lit<T>(4.0) * ry * g);
+      const int su = sgn(u), sv = sgn(u * u - input<T>(4.0) * ry * g);
       if (su == -1 || sv == -1)
         return 0;
       if (su == kUnknown || sv == kUnknown)
@@ -1313,6 +1386,30 @@ namespace internal {
 
     const Fx f = (Fx { 1.0, 0.0 } + Fx { 0x1p-60, 0.0 }) - Fx { 1.0, 0.0 };
     return sgn(f) == kUnknown;
+  }
+
+  bool filter_inputs_agree(const double a, const double b) {
+    const Ex xa { a }, xb { b };
+    const Fx fa { a, 0.0 }, fb { b, 0.0 }, fc = fa * fb + fa;
+    const std::array<std::pair<Fx, Fx>, 6> cases {
+      {
+       { xa - xb, fa - fb },
+       { xa * xb, fa * fb },
+       { xa * fc, fa * fc },
+       { fc * xb, fc * fb },
+       { xa + fc, fa + fc },
+       { fc - xb, fc - fb },
+       }
+    };
+    auto bits = [](const double d) {
+      std::uint64_t u;
+      std::memcpy(&u, &d, sizeof(u));
+      return u;
+    };
+    return std::all_of(cases.begin(), cases.end(), [&](const auto &p) {
+      return bits(p.first.v) == bits(p.second.v)
+             && bits(p.first.e) == bits(p.second.e);
+    });
   }
 
   template class BallExactImpl<false>;
