@@ -279,6 +279,30 @@ public:
                         std::vector<double> &distsq, Scratch &scratch) const;
 
   /**
+   * @brief Find the point nearest to a query point.
+   * @param pt The query point; may lie anywhere, inside or outside the grid.
+   * @return The index of the nearest point in the original input (a
+   *         `cell_pts()` value) and its squared distance, or `{-1, -1}` if the
+   *         grid is empty.
+   *
+   * The result is exact for every query position: cells are visited in shells
+   * of increasing Chebyshev index distance around the query's cell, and the
+   * search stops after shell `r` once the best squared distance is at most
+   * `(r * cutoff())^2`, because any unvisited point lies in a cell at index
+   * distance `r + 1` or more and hence at least `r * cutoff()` away. Ties in
+   * squared distance are broken by the smallest index. The cost grows with the
+   * number of empty shells scanned, so the cell size should match the expected
+   * nearest distance.
+   */
+  std::pair<int, double> nearest(const Vector3d &pt) const;
+
+  /**
+   * @brief Same as nearest(), reusing @p scratch across calls so that repeated
+   *        queries do not allocate.
+   */
+  std::pair<int, double> nearest(const Vector3d &pt, Scratch &scratch) const;
+
+  /**
    * @brief Find all pairs (i, j) where i is in *this and j is in @p grid and
    *        the distance between the points is within the build-time cutoff of
    *        *this.

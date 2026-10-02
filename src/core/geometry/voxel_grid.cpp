@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <cstdint>
 #include <limits>
+#include <utility>
 #include <vector>
 
 #include <absl/base/attributes.h>
@@ -144,6 +146,84 @@ void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
       distsq.insert(distsq.end(), dsqbuf.data(), dsqbuf.data() + n);
     }
   }
+}
+
+namespace {
+  void scan_cells(const VoxelGrid &grid, const Vector3d &pt, const Array3i &lo,
+                  const Array3i &hi, VectorXd &dsqbuf,
+                  std::pair<int, double> &best) {
+    if ((lo > hi).any())
+      return;
+
+    const Array3i &dims = grid.dims();
+    const ArrayXi &cell_offset = grid.cell_offset(),
+                  &cell_pts = grid.cell_pts();
+    for (int z = lo.z(); z <= hi.z(); ++z) {
+      for (int y = lo.y(); y <= hi.y(); ++y) {
+        const int basex = dims.x() * (y + dims.y() * z);
+        const int beg = cell_offset[lo.x() + basex];
+        const int cnt = cell_offset[hi.x() + 1 + basex] - beg;
+        if (cnt == 0)
+          continue;
+
+        dsqbuf.head(cnt) = (grid.pts().middleCols(beg, cnt).colwise() - pt)
+                               .colwise()
+                               .squaredNorm();
+
+        for (int k = 0; k < cnt; ++k) {
+          const double dsq = dsqbuf[k];
+          const int j = cell_pts[beg + k];
+          if (dsq < best.second || (dsq <= best.second && j < best.first))
+            best = { j, dsq };
+        }
+      }
+    }
+  }
+}  // namespace
+
+std::pair<int, double> VoxelGrid::nearest(const Vector3d &pt) const {
+  Scratch scratch;
+  return nearest(pt, scratch);
+}
+
+std::pair<int, double> VoxelGrid::nearest(const Vector3d &pt,
+                                          Scratch &scratch) const {
+  const int n = static_cast<int>(pts_.cols());
+  if (n == 0)
+    return { -1, -1.0 };
+
+  const Array3i c = voxel_of(pt, origin_, cutoff_);
+  const Array3i upper = dims_ - 1;
+  const int rmax = c.max(upper - c).maxCoeff();
+
+  scratch.reserve(static_cast<int>(
+      nuri::min<int64_t>(n, int64_t { max_occ_ } * dims_.x())));
+  std::pair<int, double> best { -1, std::numeric_limits<double>::infinity() };
+
+  for (int r = 0;; ++r) {
+    const Array3i lo = c - r, hi = c + r;
+    const Array3i ilo = (lo + 1).max(0), ihi = (hi - 1).min(upper);
+    Array3i blo = lo.max(0), bhi = hi.min(upper);
+    const int face_step = nuri::max(2 * r, 1);
+
+    for (int axis = 2; axis >= 0; --axis) {
+      for (int f = lo[axis]; f <= hi[axis]; f += face_step) {
+        if (f < 0 || f > upper[axis])
+          continue;
+
+        blo[axis] = bhi[axis] = f;
+        scan_cells(*this, pt, blo, bhi, scratch.dsqbuf(), best);
+      }
+      blo[axis] = ilo[axis];
+      bhi[axis] = ihi[axis];
+    }
+
+    const double reach = r * cutoff_;
+    if (best.second <= reach * reach || r >= rmax)
+      break;
+  }
+
+  return best;
 }
 
 namespace {

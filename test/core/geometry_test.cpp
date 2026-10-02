@@ -6,6 +6,9 @@
 #include "nuri/core/geometry.h"
 
 #include <algorithm>
+#include <limits>
+#include <random>
+#include <utility>
 #include <vector>
 
 #include <absl/algorithm/container.h>
@@ -676,6 +679,194 @@ TEST(VoxelGridTest, FindNeighborByDistanceScratch) {
   EXPECT_TRUE(idxs.empty());
   fine.find_neighbors_d(test.col(1), idxs, distsq, scratch);
   EXPECT_TRUE(idxs.empty());
+}
+
+std::pair<int, double> brute_nearest(const Matrix3Xd &pts,
+                                     const Vector3d &qry) {
+  int best = -1;
+  double best_dsq = std::numeric_limits<double>::infinity();
+  for (int i = 0; i < pts.cols(); ++i) {
+    const double dsq = (pts.col(i) - qry).squaredNorm();
+    if (dsq < best_dsq) {
+      best_dsq = dsq;
+      best = i;
+    }
+  }
+  return { best, best_dsq };
+}
+
+Matrix3Xd nearest_queries(const Matrix3Xd &pts, double cutoff,
+                          std::mt19937 &rng) {
+  const Vector3d lo = pts.rowwise().minCoeff(), hi = pts.rowwise().maxCoeff();
+  const Vector3d ext = hi - lo;
+
+  std::uniform_real_distribution<double> unit(0.0, 1.0);
+  std::uniform_int_distribution<int> axis(0, 2), side(0, 1), cells(1, 3);
+  auto inside = [&]() -> Vector3d {
+    return lo + ext.cwiseProduct(Vector3d(unit(rng), unit(rng), unit(rng)));
+  };
+
+  Matrix3Xd qry(3, 200);
+  for (int q = 0; q < 50; ++q) {
+    qry.col(q) = inside();
+
+    Vector3d face = inside();
+    const int a = axis(rng);
+    face[a] = side(rng) == 0 ? lo[a] : hi[a];
+    qry.col(50 + q) = face;
+
+    Vector3d out = inside();
+    const int b = axis(rng);
+    const double shift = cells(rng) * cutoff;
+    out[b] = side(rng) == 0 ? lo[b] - shift : hi[b] + shift;
+    qry.col(100 + q) = out;
+
+    qry.col(150 + q) =
+        inside()
+        + 10
+              * ext.cwiseProduct(
+                  Vector3d(unit(rng) - 0.5, unit(rng) - 0.5, unit(rng) - 0.5));
+  }
+  return qry;
+}
+
+void verify_nearest(const Matrix3Xd &pts, std::mt19937 &rng) {
+  const double box =
+      (pts.rowwise().maxCoeff() - pts.rowwise().minCoeff()).maxCoeff();
+
+  for (double cutoff: { 0.1, 0.5, 2.0, 10 * box }) {
+    const VoxelGrid grid(pts, cutoff);
+    const Matrix3Xd qry = nearest_queries(pts, cutoff, rng);
+
+    for (int q = 0; q < qry.cols(); ++q) {
+      const Vector3d p = qry.col(q);
+      auto [ref_idx, ref_dsq] = brute_nearest(pts, p);
+
+      auto [idx, dsq] = grid.nearest(p);
+      EXPECT_EQ(idx, ref_idx) << "cutoff = " << cutoff << ", q = " << q;
+      EXPECT_DOUBLE_EQ(dsq, ref_dsq) << "cutoff = " << cutoff << ", q = " << q;
+    }
+  }
+}
+
+TEST(VoxelGridTest, NearestUniform) {
+  std::mt19937 rng(20261003);
+  Matrix3Xd pts = Matrix3Xd::Random(3, 500);
+  verify_nearest(pts, rng);
+}
+
+TEST(VoxelGridTest, NearestClustered) {
+  std::mt19937 rng(20261004);
+  std::normal_distribution<double> gauss(0.0, 0.15);
+
+  const Vector3d centers[3] = {
+    { -1.5, -1.0,  0.0 },
+    {  0.0,  1.2,  0.5 },
+    {  2.0, -0.3, -1.0 },
+  };
+
+  Matrix3Xd pts(3, 450);
+  for (int i = 0; i < pts.cols(); ++i)
+    pts.col(i) = centers[i % 3] + Vector3d(gauss(rng), gauss(rng), gauss(rng));
+
+  verify_nearest(pts, rng);
+}
+
+TEST(VoxelGridTest, NearestTies) {
+  Matrix3Xd pts(3, 8);
+  pts.col(0) = Vector3d(1, 0, 0);
+  pts.col(1) = Vector3d(-1, 0, 0);
+  pts.col(2) = Vector3d(0, 0, 1);
+  pts.col(3) = Vector3d(0, 1, 0);
+  pts.col(4) = Vector3d(0, 0, -1);
+  pts.col(5) = Vector3d(0, -1, 0);
+  pts.col(6) = Vector3d(2, 2, 2);
+  pts.col(7) = Vector3d(2, 2, 2);
+
+  using Hit = std::pair<int, double>;
+
+  for (double cutoff: { 0.3, 0.5, 1.0, 2.0, 5.0 }) {
+    const VoxelGrid grid(pts, cutoff);
+
+    EXPECT_EQ(grid.nearest(Vector3d::Zero()), Hit(0, 1.0))
+        << "cutoff = " << cutoff;
+    EXPECT_EQ(grid.nearest(Vector3d(0, 0.5, 0.5)), Hit(2, 0.5))
+        << "cutoff = " << cutoff;
+    EXPECT_EQ(grid.nearest(Vector3d(2, 2, 2)), Hit(6, 0.0))
+        << "cutoff = " << cutoff;
+    EXPECT_EQ(grid.nearest(Vector3d(2, 2, 5)), Hit(6, 9.0))
+        << "cutoff = " << cutoff;
+  }
+
+  Matrix3Xd rev = pts.rowwise().reverse();
+  for (double cutoff: { 0.3, 0.5, 1.0, 2.0, 5.0 }) {
+    const VoxelGrid grid(rev, cutoff);
+
+    EXPECT_EQ(grid.nearest(Vector3d::Zero()), Hit(2, 1.0))
+        << "cutoff = " << cutoff;
+    EXPECT_EQ(grid.nearest(Vector3d(2, 2, 2)), Hit(0, 0.0))
+        << "cutoff = " << cutoff;
+  }
+}
+
+TEST(VoxelGridTest, NearestSinglePoint) {
+  Matrix3Xd pts(3, 1);
+  pts.col(0) = Vector3d(0.3, -0.7, 1.9);
+
+  for (double cutoff: { 0.1, 1.0, 100.0 }) {
+    const VoxelGrid grid(pts, cutoff);
+    for (const Vector3d &q:
+         { Vector3d(0.3, -0.7, 1.9), Vector3d::Zero().eval(),
+           Vector3d(50, -50, 0.5), Vector3d(-1e3, 1e3, 1e3) }) {
+      auto [idx, dsq] = grid.nearest(q);
+      EXPECT_EQ(idx, 0) << "cutoff = " << cutoff;
+      EXPECT_DOUBLE_EQ(dsq, (pts.col(0) - q).squaredNorm())
+          << "cutoff = " << cutoff;
+    }
+  }
+}
+
+TEST(VoxelGridTest, NearestEmpty) {
+  Matrix3Xd empty(3, 0);
+  VoxelGrid grid(empty, 1.0);
+
+  const std::pair<int, double> none(-1, -1.0);
+  EXPECT_EQ(grid.nearest(Vector3d::Zero()), none);
+
+  VoxelGrid::Scratch scratch;
+  EXPECT_EQ(grid.nearest(Vector3d::Ones(), scratch), none);
+
+  grid.rebuild(Matrix3Xd::Random(3, 20));
+  auto [idx, dsq] = grid.nearest(Vector3d::Zero());
+  EXPECT_GE(idx, 0);
+  EXPECT_GE(dsq, 0);
+
+  grid.rebuild(empty);
+  EXPECT_EQ(grid.nearest(Vector3d::Zero()), none);
+}
+
+TEST(VoxelGridTest, NearestScratch) {
+  std::mt19937 rng(20261005);
+  Matrix3Xd pts = Matrix3Xd::Random(3, 300);
+
+  const VoxelGrid fine(pts, 0.1), coarse(pts, 20.0);
+  auto max_occ = [](const VoxelGrid &grid) {
+    const ArrayXi &off = grid.cell_offset();
+    const int n = static_cast<int>(off.size()) - 1;
+    return (off.tail(n) - off.head(n)).maxCoeff();
+  };
+  ASSERT_LT(max_occ(fine), max_occ(coarse));
+  const Matrix3Xd qry = nearest_queries(pts, 0.1, rng);
+
+  VoxelGrid::Scratch scratch;
+  for (int rep = 0; rep < 2; ++rep) {
+    for (const VoxelGrid *grid: { &fine, &coarse, &fine }) {
+      for (int q = 0; q < qry.cols(); ++q) {
+        const Vector3d p = qry.col(q);
+        EXPECT_EQ(grid->nearest(p, scratch), grid->nearest(p)) << "q = " << q;
+      }
+    }
+  }
 }
 
 TEST(VoxelGridTest, FindNeighborGrid) {
