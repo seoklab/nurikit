@@ -54,7 +54,10 @@ namespace internal {
     constexpr double kTiny = 0x1p-1074;
 
     ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool is_zero(Fx a) {
-      return a.e <= 0 && std::fpclassify(a.v) == FP_ZERO;
+      // GCC lowers v == 0.0 to ucomisd/setnp/cmovne and hoists it before
+      // the e <= 0 test; |v| <= 0 is one ordered compare and leaves the
+      // bound test, false for every computed operand, first.
+      return a.e <= 0 && std::fabs(a.v) <= 0.0;
     }
 
     /**
