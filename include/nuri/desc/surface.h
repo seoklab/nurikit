@@ -6,6 +6,7 @@
 #ifndef NURI_DESC_SURFACE_H_
 #define NURI_DESC_SURFACE_H_
 
+#include <array>
 #include <cmath>
 #include <optional>
 #include <utility>
@@ -47,6 +48,72 @@ extern ArrayXd shrake_rupley_sasa(
     const Molecule &mol, const Matrix3Xd &conf, int nprobe = 92,
     double rprobe = 1.4,
     internal::SrSasaMethod method = internal::SrSasaMethod::kAuto);
+
+/**
+ * @brief Parameters of the shape complementarity statistic.
+ *
+ * `rp` is the probe radius (angstroms) the solvent-excluded surfaces are
+ * built with, `density` the number of surface dots per square angstrom. An
+ * atom takes part in the interface when its centre lies within `sep` of an
+ * atom of the other side; a dot is buried when its probe centre lies inside a
+ * solvent-accessible sphere of the other side, and a buried dot within `band`
+ * of an exposed dot of its own side is trimmed as peripheral. Each remaining
+ * dot scores `-(n · n') exp(-weight d²)` against the nearest remaining dot of
+ * the other side, clamped to `[-clamp, clamp]`.
+ */
+struct ScParams {
+  double rp = 1.7;
+  double density = 15;
+  double weight = 0.5;
+  double band = 1.5;
+  double sep = 8;
+  double clamp = 0.999;
+};
+
+/**
+ * @brief Per-side summary of a shape complementarity calculation.
+ *
+ * `n_atoms` atoms, of which `n_active` take part in the interface; `n_dots`
+ * sampled dots, `n_buried` of them buried and `n_trimmed` kept after the
+ * peripheral trim, covering `trimmed_area` square angstroms. `d_median` and
+ * `s_median` are the medians of the nearest-dot distance and of the score
+ * over the kept dots.
+ */
+struct ScSide {
+  int n_atoms, n_active, n_dots, n_buried, n_trimmed;
+  double trimmed_area, d_median, s_median;
+};
+
+/**
+ * @brief Shape complementarity of an interface.
+ *
+ * `sc` is the statistic of Lawrence and Colman (1993): the mean of the two
+ * sides' median scores. `distance` is the mean of their median nearest-dot
+ * distances, `area` the total surface area of the kept dots.
+ */
+struct ScResult {
+  double sc, distance, area;
+  std::array<ScSide, 2> sides;
+};
+
+/**
+ * @brief Shape complementarity statistic of Lawrence and Colman (1993)
+ *        between two sets of spheres.
+ *
+ * @param pts_a Atom centres of the first side.
+ * @param radii_a Van der Waals radii of the first side; the probe radius is
+ *        added internally.
+ * @param pts_b Atom centres of the second side.
+ * @param radii_b Van der Waals radii of the second side.
+ * @param params Probe radius, dot density and the statistic's parameters.
+ * @return The statistic with its per-side summaries, or nullopt when the
+ *         surface of either side could not be prepared or no interface dot of
+ *         either side survives trimming.
+ */
+extern std::optional<ScResult>
+shape_complementarity(const Matrix3Xd &pts_a, const ArrayXd &radii_a,
+                      const Matrix3Xd &pts_b, const ArrayXd &radii_b,
+                      const ScParams &params = {});
 
 namespace internal {
   constexpr double kSurfaceLengthEps = 1e-6;
