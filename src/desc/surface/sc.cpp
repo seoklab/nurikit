@@ -25,7 +25,7 @@ namespace {
   public:
     template <class Pred>
     bool any(const VoxelGrid &grid, const Vector3d &pt, const Pred &pred) {
-      grid.find_neighbors_d(pt, idxs_, distsq_);
+      grid.find_neighbors_d(pt, idxs_, distsq_, grid_scratch_);
       for (size_t m = 0; m < idxs_.size(); ++m) {
         if (pred(idxs_[m], distsq_[m]))
           return true;
@@ -44,6 +44,7 @@ namespace {
     std::vector<int> idxs_;
     std::vector<double> distsq_;
     OCTree::KdScratch scratch_;
+    VoxelGrid::Scratch grid_scratch_;
   };
 
   ArrayXb active_atoms(const Matrix3Xd &pts, const Matrix3Xd &other,

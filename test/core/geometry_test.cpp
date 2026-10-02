@@ -646,6 +646,38 @@ TEST(VoxelGridTest, FindNeighborByDistanceOutsideCloud) {
   }
 }
 
+TEST(VoxelGridTest, FindNeighborByDistanceScratch) {
+  Matrix3Xd m = Matrix3Xd::Random(3, 300);
+  for (int i = 0; i < m.cols(); ++i)
+    m.col(i) = m.col(i).normalized() * 0.9;
+
+  Matrix3Xd test = Matrix3Xd::Random(3, 50);
+  test.col(0).setZero();
+  test.col(1).setConstant(3.0);
+
+  const VoxelGrid fine(m, 0.4), coarse(m, 1.0);
+  VoxelGrid::Scratch scratch;
+  std::vector<int> idxs, expected;
+  std::vector<double> distsq, expected_dsq;
+
+  for (int rep = 0; rep < 2; ++rep) {
+    for (const VoxelGrid *grid: { &fine, &coarse, &fine }) {
+      for (int q = 0; q < test.cols(); ++q) {
+        const Vector3d qry = test.col(q);
+        grid->find_neighbors_d(qry, expected, expected_dsq);
+        grid->find_neighbors_d(qry, idxs, distsq, scratch);
+        EXPECT_EQ(idxs, expected) << "q = " << q;
+        EXPECT_EQ(distsq, expected_dsq) << "q = " << q;
+      }
+    }
+  }
+
+  fine.find_neighbors_d(test.col(0), idxs, distsq, scratch);
+  EXPECT_TRUE(idxs.empty());
+  fine.find_neighbors_d(test.col(1), idxs, distsq, scratch);
+  EXPECT_TRUE(idxs.empty());
+}
+
 TEST(VoxelGridTest, FindNeighborGrid) {
   Matrix3Xd x = Matrix3Xd::Random(3, 100);
   Matrix3Xd y = Matrix3Xd::Random(3, 100);

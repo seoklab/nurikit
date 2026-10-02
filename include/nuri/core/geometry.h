@@ -193,6 +193,27 @@ private:
   int max_nleaf_ = 0;
 };
 
+namespace internal {
+  class VoxelGridScratch {
+  public:
+    void reserve(int cap) {
+      if (dsqbuf_.size() >= cap)
+        return;
+
+      dsqbuf_.resize(cap);
+      jbuf_.resize(cap);
+    }
+
+    VectorXd &dsqbuf() { return dsqbuf_; }
+
+    ArrayXi &jbuf() { return jbuf_; }
+
+  private:
+    VectorXd dsqbuf_;
+    ArrayXi jbuf_;
+  };
+}  // namespace internal
+
 /**
  * @brief A uniform voxel-grid (cell list) index for 3D point clouds with a
  *        fixed neighbor cutoff.
@@ -237,6 +258,8 @@ public:
     rebuild_impl(pts);
   }
 
+  using Scratch = internal::VoxelGridScratch;
+
   /**
    * @brief Find indices of all points within the build-time cutoff of a query
    *        point.
@@ -247,6 +270,13 @@ public:
    */
   void find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
                         std::vector<double> &distsq) const;
+
+  /**
+   * @brief Same as find_neighbors_d(), reusing @p scratch across calls so
+   *        that repeated queries do not allocate.
+   */
+  void find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
+                        std::vector<double> &distsq, Scratch &scratch) const;
 
   /**
    * @brief Find all pairs (i, j) where i is in *this and j is in @p grid and

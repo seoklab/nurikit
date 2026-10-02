@@ -94,6 +94,13 @@ void VoxelGrid::rebuild_impl(Points src) {
 
 void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
                                  std::vector<double> &distsq) const {
+  Scratch scratch;
+  find_neighbors_d(pt, idxs, distsq, scratch);
+}
+
+void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
+                                 std::vector<double> &distsq,
+                                 Scratch &scratch) const {
   idxs.clear();
   distsq.clear();
 
@@ -108,8 +115,9 @@ void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
   Array3i imin = (c - 1).max(0);
   Array3i imax = (c + 1).min(dims_ - 1);
 
-  VectorXd dsqbuf(3 * max_occ_);
-  ArrayXi jbuf(dsqbuf.size());
+  scratch.reserve(3 * max_occ_);
+  VectorXd &dsqbuf = scratch.dsqbuf();
+  ArrayXi &jbuf = scratch.jbuf();
 
   const int nx = dims_.x();
   const int ny = dims_.y();
