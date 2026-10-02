@@ -53,7 +53,7 @@ namespace internal {
     constexpr double kUlp = 0x1p-52;
     constexpr double kTiny = 0x1p-1074;
 
-    bool is_zero(Fx a) {
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool is_zero(Fx a) {
       return a.e <= 0 && std::fpclassify(a.v) == FP_ZERO;
     }
 
@@ -61,19 +61,19 @@ namespace internal {
      * Exact operands that cancel are equal (IEEE), so their zero is exact; an
      * exact zero times any finite value is an exact zero.
      */
-    Fx operator+(Fx a, Fx b) {
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator+(Fx a, Fx b) {
       const double v = a.v + b.v;
       if (is_zero({ v, a.e + b.e }))
         return { v, 0.0 };
       return { v, a.e + b.e + kUlp * std::fabs(v) + kTiny };
     }
-    Fx operator-(Fx a, Fx b) {
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator-(Fx a, Fx b) {
       const double v = a.v - b.v;
       if (is_zero({ v, a.e + b.e }))
         return { v, 0.0 };
       return { v, a.e + b.e + kUlp * std::fabs(v) + kTiny };
     }
-    Fx operator*(Fx a, Fx b) {
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator*(Fx a, Fx b) {
       const double v = a.v * b.v;
       if (is_zero(a) || is_zero(b))
         return { v, 0.0 };
