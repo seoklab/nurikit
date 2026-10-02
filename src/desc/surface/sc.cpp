@@ -34,7 +34,7 @@ namespace {
     }
 
     int nearest(const OCTree &tree, const Vector3d &pt, double &distsq) {
-      tree.find_neighbors_kd(pt, 1, idxs_, distsq_);
+      tree.find_neighbors_kd(pt, 1, idxs_, distsq_, scratch_);
       ABSL_DCHECK_EQ(idxs_.size(), 1);
       distsq = distsq_[0];
       return idxs_[0];
@@ -43,6 +43,7 @@ namespace {
   private:
     std::vector<int> idxs_;
     std::vector<double> distsq_;
+    OCTree::KdScratch scratch_;
   };
 
   ArrayXb active_atoms(const Matrix3Xd &pts, const Matrix3Xd &other,
