@@ -203,9 +203,16 @@ namespace internal {
       bool plus;
     };
 
-    BallTriple sorted_face(Array3i fv) {
-      std::sort(fv.begin(), fv.end());
-      return { fv[0], fv[1], fv[2] };
+    Array3i sort3(const Array3i &v) {
+      const auto [lo01, hi01] = nuri::minmax(v[0], v[1]);
+      const auto [mid, hi] = nuri::minmax(hi01, v[2]);
+      const auto [lo, md] = nuri::minmax(lo01, mid);
+      return { lo, md, hi };
+    }
+
+    BallTriple sorted_face(const Array3i &fv) {
+      const Array3i s = sort3(fv);
+      return { s[0], s[1], s[2] };
     }
 
     Array3i face_vertices(const SasDelaunay &del, const int c, const int lf) {
@@ -228,7 +235,7 @@ namespace internal {
       if ((abc < 0).any())
         return false;
 
-      std::sort(abc.begin(), abc.end());
+      abc = sort3(abc);
       return true;
     }
 
@@ -405,10 +412,9 @@ namespace internal {
     };
 
     int local_index(const Array4i &tv, const int v) {
-      for (int lv = 0; lv < 4; ++lv)
-        if (tv[lv] == v)
-          return lv;
-      ABSL_UNREACHABLE();
+      ABSL_DCHECK_EQ((tv == v).count(), 1);
+      return value_if(tv[1] == v) + 2 * value_if(tv[2] == v)
+             + 3 * value_if(tv[3] == v);
     }
 
     bool even_permutation(std::array<int, 4> p) {
@@ -428,12 +434,11 @@ namespace internal {
      * the root `+ε` leaves it.
      */
     int face_parity(const Array3i &sorted, const int a, const int b) {
-      int ia = 0, ib = 0;
-      for (int k = 0; k < 3; ++k) {
-        ia = sorted[k] == a ? k : ia;
-        ib = sorted[k] == b ? k : ib;
-      }
-      return (ib - ia + 3) % 3 == 1 ? 1 : -1;
+      const int ia = value_if(sorted[1] == a) + 2 * value_if(sorted[2] == a),
+                ib = value_if(sorted[1] == b) + 2 * value_if(sorted[2] == b),
+                turn = (ib - ia + 3) % 3;
+      ABSL_DCHECK_NE(turn, 0);
+      return 3 - 2 * turn;
     }
 
     /**
