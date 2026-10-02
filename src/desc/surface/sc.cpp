@@ -22,7 +22,7 @@ namespace nuri {
 namespace {
   using internal::SesDots;
 
-  constexpr double kNearestCell = 0.75;
+  constexpr double kNearestCellSpacings = 3;
 
   class Neighbors {
   public:
@@ -149,7 +149,8 @@ namespace {
   ScSide side_stats(const Side &mine, const Side &theirs,
                     const ScParams &params) {
     const SesDots &a = mine.trimmed, &b = theirs.trimmed;
-    const VoxelGrid grid(b.pts, kNearestCell);
+    const VoxelGrid grid(b.pts,
+                         kNearestCellSpacings / std::sqrt(params.density));
     Neighbors nbrs;
 
     std::vector<double> d(a.n()), s(a.n());
