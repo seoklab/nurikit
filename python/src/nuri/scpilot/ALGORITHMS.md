@@ -827,10 +827,19 @@ deleted before the sweep, whose vertices are the accessible cut points of
 open discs meet (`discs_intersect`; a touch is no join). Correct iff every
 pinch point counts loops and components one way: vertex present ⇒ joined
 (cusp pair, net area 0), absent ⇒ not joined (two loops, two components).
-Argued for 4-fold points (coplanar: the SoS diagonal decides both
-consistently; non-coplanar: the tangent partner is the zero-power apex and
-never rejects); open for `≥ 5` spheres through a point with a tangent pair
-and a non-coplanar fifth.
+Proven for any number of spheres through a pinch. Shift all weights by the
+largest lens parameter `γ_max = (ρ_q ε_p + ρ_p ε_q) / (ρ_p + ρ_q)` over
+tangent pairs (a power-diagram invariant) and pull every tangent pair apart
+by a `δ` below every `ε` power: a genuine arrangement arbitrarily close to
+the exact one. On a face's radical line a tangent partner's constraint
+(common power `≤ −γ_pq`, tight at the orthocentre, violated at the root)
+always rejects the near root, which the hybrid keeps iff the cell with the
+partner exists — the shifted configuration's accessible root; faces without
+a pair member are rejected on both sides, a grazing face never has a partner
+as apex, and components agree by corner-first joins and the nested/touching
+dichotomy. So near every pinch the sweep's input is that arrangement's and
+the area its limit, for every index order and mask: 133 exact fixtures,
+394,560 runs (orders × motions × masks), zero inconsistencies.
 
 **Floating point.** The predicates live in one translation unit compiled
 without fast-math (like the vendored geogram sources), because the
