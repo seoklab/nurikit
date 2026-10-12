@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <Eigen/Dense>
 
@@ -29,15 +30,17 @@ namespace internal {
      * Candidate pairs within the near band over every atom, the pairs left
      * for `overlap` to decide (both ends within `kBandHops` near hops of an
      * active atom, minus the exactly contained ones, identical twins
-     * included), and the atoms that survive the contained-ball filter.
-     * Every kept atom lies within three hops, its containing partners and
-     * shared-circle triangles within four, so the band changes nothing the
-     * ranking keeps.
+     * included), of which the ones below `touch − 2ε` overlap without the
+     * predicate (the lifted radius drifts from `sar` by far less, the
+     * superset bound of `kSurfaceMaxCoord`), and the atoms that survive the
+     * contained-ball filter. Every kept atom lies within three hops, its
+     * containing partners and shared-circle triangles within four, so the
+     * band changes nothing the ranking keeps.
      */
     struct NearPairs {
       /* n_near */
       ArrayXi inear, jnear;
-      ArrayXb band;
+      ArrayXb band, sure;
 
       /* n */
       ArrayXi keep;
@@ -107,6 +110,7 @@ namespace internal {
       np.keep = ArrayXi::Ones(n);
 
       const ArrayXd d = dist(near);
+      np.sure = d < touch(near) - 2 * kSurfaceLengthEps;
       const ArrayXb banded = active_band(np.inear, np.jnear, active);
       np.band = banded(np.inear) && banded(np.jnear);
       for (int k = 0; k < np.inear.size(); ++k) {
@@ -258,8 +262,9 @@ namespace internal {
       int q = 0;
       for (int k = 0; k < m; ++k) {
         const int i = np.inear[k], j = np.jnear[k];
-        if (!np.band[k] || ex.overlap(i, j) != Sgn::kPos)
+        if (!np.band[k] || (!np.sure[k] && ex.overlap(i, j) != Sgn::kPos))
           continue;
+        ABSL_DCHECK(ex.overlap(i, j) == Sgn::kPos);
 
         li[q] = i;
         lj[q] = j;

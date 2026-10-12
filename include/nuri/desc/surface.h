@@ -120,7 +120,8 @@ namespace internal {
   constexpr double kSurfaceLengthEps = 1e-6;
   /**
    * The near, contained and shared-circle bands are supersets of the exact
-   * sets only while `ulp(|c|^2)` stays far below `kSurfaceLengthEps`.
+   * sets, and the overlap-certain band a subset, only while `ulp(|c|^2)`
+   * stays far below `kSurfaceLengthEps`.
    */
   constexpr double kSurfaceMaxCoord = 1e4;
   /**

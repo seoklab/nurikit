@@ -304,6 +304,38 @@ TEST(BuildSasTest, NearBandPinch) {
   }
 }
 
+/**
+ * Pairs below `touch − 2ε` are overlaps without the predicate, the tangency
+ * band is decided exactly, and a pair beyond `touch` is near but no overlap.
+ */
+TEST(BuildSasTest, OverlapBandsAroundTouch) {
+  constexpr double eps = kSurfaceLengthEps, touch = 3.0;
+  const std::array<double, 4> gaps { -3 * eps, -eps, eps, 3 * eps };
+  Matrix3Xd pts(3, 8);
+  for (int k = 0; k < 4; ++k) {
+    pts.col(2 * k) << 0, 0, 20.0 * k;
+    pts.col(2 * k + 1) << touch + gaps[k], 0, 20.0 * k;
+  }
+  const ArrayXd sar = ArrayXd::Constant(8, touch / 2);
+
+  const std::optional<SaPrep> sa =
+      prepare(pts, sar, ArrayXb::Constant(8, true), kRp);
+  ASSERT_TRUE(sa);
+  ASSERT_EQ(sa->order.size(), 8);
+
+  std::vector<std::pair<int, int>> edges;
+  for (int i = 0; i < sa->g.n(); ++i) {
+    for (auto it = sa->g.begin(i), e = sa->g.end(i); it < e; ++it)
+      edges.push_back(nuri::minmax(sa->order[i], sa->order[*it]));
+  }
+  std::sort(edges.begin(), edges.end());
+  const std::vector<std::pair<int, int>> expected {
+    { 0, 1 },
+    { 2, 3 }
+  };
+  EXPECT_EQ(edges, expected);
+}
+
 TEST(BuildSasTest, SliverBetweenNearCrossings) {
   const Matrix3Xd pts = star(4, 110, 2.0);
   ArrayXd sar = ArrayXd::Constant(5, 2.0);

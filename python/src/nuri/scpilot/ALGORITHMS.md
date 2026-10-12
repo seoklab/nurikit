@@ -313,7 +313,8 @@ port, Floating point).
    Coincident centres (`d < 1e-3 Å`) raise in the pilot; the port treats
    them as contained pairs (step 2).
    *Port:* the near pairs, taken over every atom, are only **candidates**;
-   `overlap` decides each exactly on the lifted `(c, h)` (§3 port step 2).
+   pairs below `R_i + R_j − 2 TAU_C` are overlaps outright, and `overlap`
+   decides the tangency band exactly on the lifted `(c, h)` (§3 port step 2).
    The band must be a superset of the exact overlaps, which
    `d ≤ R_i + R_j + 2 TAU_C` is, and it ranks atoms into need/shell as
    below. The port also rejects non-finite input and coordinates beyond
