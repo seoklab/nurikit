@@ -25,7 +25,7 @@ using constants::kTwoPi;
 constexpr double kRp = 1.4;
 
 struct Sampled {
-  SaPrep sa;
+  SurfaceSpheres ss;
   SasGeometry geo;
   SesGeometry ses;
   SesDots dots;
@@ -33,13 +33,13 @@ struct Sampled {
 
 Sampled solve(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXb &active,
               const double rp, const double density) {
-  std::optional<SaPrep> sa = prepare(pts, sar, active, rp);
-  EXPECT_TRUE(sa);
-  SasDelaunay del = triangulate(*sa);
-  SasGeometry geo = build_sas(*sa, del);
-  SesGeometry ses = build_ses(*sa, del, geo);
-  SesDots dots = sample_ses(*sa, geo, ses, density);
-  return { std::move(*sa), std::move(geo), std::move(ses), std::move(dots) };
+  std::optional<SurfaceSpheres> ss = prepare(pts, sar - rp, active, rp);
+  EXPECT_TRUE(ss);
+  SasDelaunay del = triangulate(*ss);
+  SasGeometry geo = build_sas(*ss, del);
+  SesGeometry ses = build_ses(*ss, del, geo);
+  SesDots dots = sample_ses(*ss, geo, ses, density);
+  return { std::move(*ss), std::move(geo), std::move(ses), std::move(dots) };
 }
 
 Sampled solve(const Matrix3Xd &pts, const ArrayXd &sar, const double rp,

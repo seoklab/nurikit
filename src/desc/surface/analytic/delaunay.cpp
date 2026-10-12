@@ -26,18 +26,18 @@ namespace internal {
      * then append a weightless tetrahedron around them so the input is never
      * coplanar; it has positive power at every sphere point and hides nothing.
      */
-    Matrix4Xd lift(const SaPrep &sa, const ArrayXi &perm) {
+    Matrix4Xd lift(const SurfaceSpheres &ss, const ArrayXi &perm) {
       const int n = static_cast<int>(perm.size());
-      const double wmax = sa.wmax;
+      const double wmax = ss.wmax;
 
       Matrix4Xd lifted(4, n + kBounds);
-      lifted.topRows(3).leftCols(n) = sa.pts(E::all, perm);
-      lifted.row(3).head(n) = sa.t(perm).transpose();
+      lifted.topRows(3).leftCols(n) = ss.pts(E::all, perm);
+      lifted.row(3).head(n) = ss.t(perm).transpose();
 
-      const Vector3d lo = sa.pts.rowwise().minCoeff(),
-                     hi = sa.pts.rowwise().maxCoeff();
+      const Vector3d lo = ss.pts.rowwise().minCoeff(),
+                     hi = ss.pts.rowwise().maxCoeff();
       const Vector3d center = 0.5 * (lo + hi);
-      const double reach = 4 * (0.5 * (hi - lo).norm() + sa.rmax) + 1;
+      const double reach = 4 * (0.5 * (hi - lo).norm() + ss.rmax) + 1;
       const Matrix<double, 3, kBounds> corners {
         { 1,  1, -1, -1 },
         { 1, -1,  1, -1 },
@@ -131,21 +131,21 @@ namespace internal {
     }
   }  // namespace
 
-  SasDelaunay triangulate(const SaPrep &sa) {
-    const int n = sa.g.n();
+  SasDelaunay triangulate(const SurfaceSpheres &ss) {
+    const int n = ss.g.n();
     if (n == 0)
       return {};
 
     ArrayXi perm(n);
-    OffsetTable orig(sa.order.maxCoeff() + 1);
-    argsort_bucket(perm, orig, sa.order);
+    OffsetTable orig(ss.order.maxCoeff() + 1);
+    argsort_bucket(perm, orig, ss.order);
 
     SasDelaunay del;
     del.vertex = ArrayXi::Constant(orig.size(), -1);
     for (int t = 0; t < n; ++t)
-      del.vertex[sa.order[perm[t]]] = t;
+      del.vertex[ss.order[perm[t]]] = t;
 
-    const Matrix4Xd lifted = lift(sa, perm);
+    const Matrix4Xd lifted = lift(ss, perm);
     GEO::Delaunay3d tri(4);
     tri.set_keeps_infinite(true);
     tri.set_vertices(n + kBounds, lifted.data());
@@ -177,7 +177,7 @@ namespace internal {
     del.edge_cell = std::move(edges.cell);
     del.cell_edge = std::move(edges.cell_edge);
     del.face = number_faces(del.adj, del.n_faces);
-    del.ex = BallExact::make(lifted, sa.wmax);
+    del.ex = BallExact::make(lifted, ss.wmax);
     return del;
   }
 }  // namespace internal

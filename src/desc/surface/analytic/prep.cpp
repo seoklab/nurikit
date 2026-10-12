@@ -332,9 +332,10 @@ namespace internal {
       return { std::move(g), std::move(d) };
     }
 
-    SaPrep compact(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXd &t,
-                   const double wmax, const double rp, const CSR &g,
-                   const ArrayXd &d, AtomRanking &&ranking) {
+    SurfaceSpheres compact(const Matrix3Xd &pts, const ArrayXd &r,
+                           const ArrayXd &sar, const ArrayXd &t,
+                           const double wmax, const double rp, const CSR &g,
+                           const ArrayXd &d, AtomRanking &&ranking) {
       const auto &off = ranking.off;
       ArrayXi &order = ranking.order, &inv = ranking.ibuf;
 
@@ -370,6 +371,7 @@ namespace internal {
 
       return {
         pts(E::all, order),
+        r(order),
         std::move(csar),
         t(order),
         wmax,
@@ -385,15 +387,16 @@ namespace internal {
     }
   }  // namespace
 
-  std::optional<SaPrep> prepare(const Matrix3Xd &pts, const ArrayXd &sar,
-                                const ArrayXb &active, double rp) {
+  std::optional<SurfaceSpheres> prepare(const Matrix3Xd &pts, const ArrayXd &r,
+                                        const ArrayXb &active, double rp) {
     if (pts.cols() == 0)
-      return SaPrep {};
+      return SurfaceSpheres {};
 
     if (rp <= 0) {
       ABSL_LOG(ERROR) << "Probe radius must be positive";
       return std::nullopt;
     }
+    const ArrayXd sar = r + rp;
     if (!pts.allFinite() || !sar.allFinite()) {
       ABSL_LOG(ERROR) << "Coordinates and radii must be finite";
       return std::nullopt;
@@ -418,7 +421,7 @@ namespace internal {
         near[w++] = i;
     }
     const Matrix3Xd npts = pts(E::all, near);
-    const ArrayXd nsar = sar(near);
+    const ArrayXd nr = r(near), nsar = sar(near);
     const ArrayXb nactive = active(near);
 
     const ArrayXd sar2 = nsar.square();
@@ -434,9 +437,10 @@ namespace internal {
     drop_shared_circle_middles(np.keep, g, d, sar2, ex, rmax, wmax);
 
     AtomRanking ar = rank_atoms(std::move(np), nactive);
-    SaPrep sa = compact(npts, nsar, t, wmax, rp, g, d, std::move(ar));
-    sa.order = near(sa.order);
-    return sa;
+    SurfaceSpheres ss =
+        compact(npts, nr, nsar, t, wmax, rp, g, d, std::move(ar));
+    ss.order = near(ss.order);
+    return ss;
   }
 }  // namespace internal
 }  // namespace nuri

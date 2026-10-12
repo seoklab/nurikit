@@ -73,7 +73,7 @@ Spheres cast_spheres(py::handle py_pts, py::handle py_radii) {
 }
 
 struct SasResult {
-  internal::SaPrep sa;
+  internal::SurfaceSpheres ss;
   internal::SasGeometry geo;
 };
 
@@ -92,35 +92,35 @@ SasResult compute_sas(py::handle py_pts, py::handle py_radii, double rp,
     active = mask.eigen();
   }
 
-  std::optional<internal::SaPrep> sa;
+  std::optional<internal::SurfaceSpheres> ss;
   internal::SasGeometry geo;
   {
     py::gil_scoped_release rel;
-    ArrayXd sar = spheres.radii + rp;
-    sa = internal::prepare(spheres.pts, sar, active, rp);
-    if (sa) {
-      internal::SasDelaunay del = internal::triangulate(*sa);
-      geo = internal::build_sas(*sa, del);
-      then(*sa, del, geo);
+    ss = internal::prepare(spheres.pts, spheres.radii, active, rp);
+    if (ss) {
+      internal::SasDelaunay del = internal::triangulate(*ss);
+      geo = internal::build_sas(*ss, del);
+      then(*ss, del, geo);
     }
   }
-  if (!sa)
+  if (!ss)
     throw py::value_error("preparation failed; see log for details");
 
-  return { std::move(*sa), std::move(geo) };
+  return { std::move(*ss), std::move(geo) };
 }
 
-py::dict sas_dict(const internal::SaPrep &sa,
+py::dict sas_dict(const internal::SurfaceSpheres &ss,
                   const internal::SasGeometry &geo) {
   py::dict d;
-  d["pts"] = eigen_as_numpy(sa.pts);
-  d["sar"] = eigen_as_numpy(sa.sar);
-  d["order"] = eigen_as_numpy(sa.order);
-  d["g"] = csr_dict(sa.g);
-  d["d"] = eigen_as_numpy(sa.d);
-  d["n_active"] = sa.n_active;
-  d["n_solve"] = sa.n_solve;
-  d["n_enum"] = sa.n_enum;
+  d["pts"] = eigen_as_numpy(ss.pts);
+  d["r"] = eigen_as_numpy(ss.r);
+  d["sar"] = eigen_as_numpy(ss.sar);
+  d["order"] = eigen_as_numpy(ss.order);
+  d["g"] = csr_dict(ss.g);
+  d["d"] = eigen_as_numpy(ss.d);
+  d["n_active"] = ss.n_active;
+  d["n_solve"] = ss.n_solve;
+  d["n_enum"] = ss.n_enum;
 
   py::dict circ;
   circ["i"] = collect(geo.circles, [](const auto &c) { return c.i; });
@@ -160,10 +160,10 @@ py::dict sas_dict(const internal::SaPrep &sa,
   return d;
 }
 
-py::dict ses_dict(const internal::SaPrep &sa,
+py::dict ses_dict(const internal::SurfaceSpheres &ss,
                   const internal::SesGeometry &ses) {
   py::dict d;
-  d["rp"] = sa.rp;
+  d["rp"] = ss.rp;
   d["convex_area"] = eigen_as_numpy(ses.convex_area);
   d["saddle_beta"] = eigen_as_numpy(ses.saddle_beta);
   d["saddle_integral"] = eigen_as_numpy(ses.saddle_integral);
@@ -179,20 +179,20 @@ py::dict sas_geometry(py::handle py_pts, py::handle py_radii, double rp,
                       py::handle py_active) {
   SasResult res = compute_sas(py_pts, py_radii, rp, py_active,
                               [](const auto &, const auto &, const auto &) { });
-  return sas_dict(res.sa, res.geo);
+  return sas_dict(res.ss, res.geo);
 }
 
 py::dict ses_geometry(py::handle py_pts, py::handle py_radii, double rp,
                       py::handle py_active) {
   internal::SesGeometry ses;
   SasResult res = compute_sas(py_pts, py_radii, rp, py_active,
-                              [&](const internal::SaPrep &sa,
+                              [&](const internal::SurfaceSpheres &ss,
                                   const internal::SasDelaunay &del,
                                   const internal::SasGeometry &geo) {
-                                ses = internal::build_ses(sa, del, geo);
+                                ses = internal::build_ses(ss, del, geo);
                               });
-  py::dict d = sas_dict(res.sa, res.geo);
-  d["ses"] = ses_dict(res.sa, ses);
+  py::dict d = sas_dict(res.ss, res.geo);
+  d["ses"] = ses_dict(res.ss, ses);
   return d;
 }
 
@@ -201,13 +201,13 @@ py::dict ses_dots(py::handle py_pts, py::handle py_radii, double rp,
   check_positive(density, "density");
 
   internal::SesDots dots;
-  compute_sas(py_pts, py_radii, rp, py_active,
-              [&](const internal::SaPrep &sa, const internal::SasDelaunay &del,
-                  const internal::SasGeometry &geo) {
-                const internal::SesGeometry ses =
-                    internal::build_ses(sa, del, geo);
-                dots = internal::sample_ses(sa, geo, ses, density);
-              });
+  compute_sas(
+      py_pts, py_radii, rp, py_active,
+      [&](const internal::SurfaceSpheres &ss, const internal::SasDelaunay &del,
+          const internal::SasGeometry &geo) {
+        const internal::SesGeometry ses = internal::build_ses(ss, del, geo);
+        dots = internal::sample_ses(ss, geo, ses, density);
+      });
 
   py::dict d;
   d["pts"] = eigen_as_numpy(dots.pts);

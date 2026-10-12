@@ -58,9 +58,9 @@ namespace internal {
 
     class Sampler {
     public:
-      Sampler(const SaPrep &sa, const SasGeometry &geo, const SesGeometry &ses,
-              const double density)
-          : sa_(&sa), geo_(&geo), ses_(&ses), rp_(sa.rp), density_(density) { }
+      Sampler(const SurfaceSpheres &ss, const SasGeometry &geo,
+              const SesGeometry &ses, const double density)
+          : ss_(&ss), geo_(&geo), ses_(&ses), rp_(ss.rp), density_(density) { }
 
       SesDots run() {
         SesDots out;
@@ -77,7 +77,7 @@ namespace internal {
         off[3] = buf_.size();
 
         buf_.finish(out);
-        out.atom = sa_->order(out.atom);
+        out.atom = ss_->order(out.atom);
         out.dropped_area = dropped_;
         return out;
       }
@@ -119,12 +119,12 @@ namespace internal {
 
       void convex() {
         const SasCaps &caps = geo_->caps;
-        for (int i = 0; i < sa_->n_active; ++i) {
+        for (int i = 0; i < ss_->n_active; ++i) {
           const double area = ses_->convex_area[i];
           if (area <= 0)
             continue;
 
-          const double r = ses_->r[i];
+          const double r = ss_->r[i];
           const Matrix3Xd &dirs =
               lattice(lattice_count(2 * kTwoPi * r * r, density_));
           const int beg = caps.h.offset(i), m = caps.h.degree(i);
@@ -136,7 +136,7 @@ namespace internal {
             continue;
           }
 
-          const Vector3d c = sa_->pts.col(i);
+          const Vector3d c = ss_->pts.col(i);
           const double w = area / n_kept;
           for (int k = 0; k < dirs.cols(); ++k) {
             if (keep[k])
@@ -212,8 +212,8 @@ namespace internal {
         const double scale = total / kept_area;
 
         const int i = c.i, j = c.j;
-        const double a_i = c.a, a_j = sa_->d[arc.circ] - c.a,
-                     sas_i = sa_->sar[i], sas_j = sa_->sar[j],
+        const double a_i = c.a, a_j = ss_->d[arc.circ] - c.a,
+                     sas_i = ss_->sar[i], sas_j = ss_->sar[j],
                      r_i = sas_i - rp_, r_j = sas_j - rp_;
 
         for (int m = 0; m < k_phi.size(); ++m) {
@@ -273,9 +273,9 @@ namespace internal {
           Matrix3Xd contacts(3, na);
           ArrayXd big(na), small(na);
           for (int a = 0; a < na; ++a) {
-            contacts.col(a) = (sa_->pts.col(atoms[a]) - pos).normalized();
-            big[a] = sa_->sar[atoms[a]];
-            small[a] = ses_->r[atoms[a]];
+            contacts.col(a) = (ss_->pts.col(atoms[a]) - pos).normalized();
+            big[a] = ss_->sar[atoms[a]];
+            small[a] = ss_->r[atoms[a]];
           }
 
           const double w = area / n_kept;
@@ -296,7 +296,7 @@ namespace internal {
         }
       }
 
-      const SaPrep *sa_;
+      const SurfaceSpheres *ss_;
       const SasGeometry *geo_;
       const SesGeometry *ses_;
       double rp_, density_;
@@ -340,10 +340,10 @@ namespace internal {
     return out;
   }
 
-  SesDots sample_ses(const SaPrep &sa, const SasGeometry &geo,
+  SesDots sample_ses(const SurfaceSpheres &ss, const SasGeometry &geo,
                      const SesGeometry &ses, const double density) {
     ABSL_DCHECK_GT(density, 0);
-    return Sampler(sa, geo, ses, density).run();
+    return Sampler(ss, geo, ses, density).run();
   }
 }  // namespace internal
 }  // namespace nuri

@@ -845,16 +845,16 @@ int check_coincident_order(const Fixture<> &s) {
  * such pair. Returns the number of pairs.
  */
 int check_zero_arcs(const Matrix3Xd &pts, const ArrayXd &sar, const double rp) {
-  const std::optional<SaPrep> sa =
-      prepare(pts, sar, ArrayXb::Constant(sar.size(), true), rp);
-  EXPECT_TRUE(sa);
-  if (!sa)
+  const std::optional<SurfaceSpheres> ss =
+      prepare(pts, sar - rp, ArrayXb::Constant(sar.size(), true), rp);
+  EXPECT_TRUE(ss);
+  if (!ss)
     return 0;
-  const SasDelaunay del = triangulate(*sa);
-  const SasGeometry geo = build_sas(*sa, del);
+  const SasDelaunay del = triangulate(*ss);
+  const SasGeometry geo = build_sas(*ss, del);
   const BallExact &ex = del.ex;
 
-  auto vertex = [&](int p) { return del.vertex[sa->order[p]]; };
+  auto vertex = [&](int p) { return del.vertex[ss->order[p]]; };
 
   int n_pairs = 0;
   for (const SasArc &arc: geo.arcs) {

@@ -112,17 +112,15 @@ namespace {
                                  const ArrayXd &other_radii,
                                  const ScParams &params) {
     const ArrayXb active = active_atoms(pts, other, params.sep);
-    const ArrayXd sar = radii + params.rp;
-
-    const std::optional<internal::SaPrep> sa =
-        internal::prepare(pts, sar, active, params.rp);
-    if (!sa)
+    const std::optional<internal::SurfaceSpheres> ss =
+        internal::prepare(pts, radii, active, params.rp);
+    if (!ss)
       return std::nullopt;
 
-    const internal::SasDelaunay del = internal::triangulate(*sa);
-    const internal::SasGeometry geo = internal::build_sas(*sa, del);
-    const internal::SesGeometry ses = internal::build_ses(*sa, del, geo);
-    const SesDots dots = internal::sample_ses(*sa, geo, ses, params.density);
+    const internal::SasDelaunay del = internal::triangulate(*ss);
+    const internal::SasGeometry geo = internal::build_sas(*ss, del);
+    const internal::SesGeometry ses = internal::build_ses(*ss, del, geo);
+    const SesDots dots = internal::sample_ses(*ss, geo, ses, params.density);
 
     const ArrayXb buried = buried_mask(dots, other, other_radii + params.rp);
     const ArrayXb keep = trim_peripheral(dots, buried, params.band);

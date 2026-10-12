@@ -313,11 +313,13 @@ namespace internal {
    * forward overlap graph on new indices (`row(i)` = sorted `j > i`) over all
    * kept spheres, decided exactly for the lifted heights `t = √(wmax − sar²)`
    * (the near band only ranks atoms); pair `q` carries a circle iff
-   * `i < n_enum`, and `d[q]` is its centre distance. `rp` is the probe radius
-   * the spheres were inflated by, `rmax` the largest `sar` of the kept atoms.
+   * `i < n_enum`, and `d[q]` is its centre distance. `r` are the atom radii
+   * as given, `sar = r + rp` the accessible ones for the probe radius `rp`,
+   * `rmax` the largest `sar` of the kept atoms.
    */
-  struct SaPrep {
+  struct SurfaceSpheres {
     Matrix3Xd pts;
+    ArrayXd r;
     ArrayXd sar;
     ArrayXd t;
     double wmax;
@@ -331,8 +333,10 @@ namespace internal {
     int n_enum;
   };
 
-  extern std::optional<SaPrep> prepare(const Matrix3Xd &pts, const ArrayXd &sar,
-                                       const ArrayXb &active, double rp);
+  extern std::optional<SurfaceSpheres> prepare(const Matrix3Xd &pts,
+                                               const ArrayXd &r,
+                                               const ArrayXb &active,
+                                               double rp);
 
   enum class Sgn : int { kNeg = -1, kZero = 0, kPos = 1 };
 
@@ -560,11 +564,11 @@ namespace internal {
     std::array {  2,  4,  5, -1 },
   };
 
-  extern SasDelaunay triangulate(const SaPrep &sa);
+  extern SasDelaunay triangulate(const SurfaceSpheres &ss);
 
   /**
-   * Per edge of `del.nbrs` the pair of `sa.g` it joins (-1 at a corner or
-   * between non-overlapping spheres), and per pair `(i, j)` of `sa.g` the
+   * Per edge of `del.nbrs` the pair of `ss.g` it joins (-1 at a corner or
+   * between non-overlapping spheres), and per pair `(i, j)` of `ss.g` the
    * edge of `del.nbrs` from the vertex of `i` to that of `j` (-1 if not
    * adjacent).
    */
@@ -573,7 +577,8 @@ namespace internal {
     ArrayXi edge_of_pair;
   };
 
-  extern SasEdgeTables edge_tables(const SaPrep &sa, const SasDelaunay &del);
+  extern SasEdgeTables edge_tables(const SurfaceSpheres &ss,
+                                   const SasDelaunay &del);
 
   /**
    * Circle of spheres `i`, `j` with its frame `e1 = normalize(d × e_k)`,
@@ -627,22 +632,21 @@ namespace internal {
     ArrayXd area;
   };
 
-  extern SasGeometry build_sas(const SaPrep &sa, const SasDelaunay &del);
+  extern SasGeometry build_sas(const SurfaceSpheres &ss,
+                               const SasDelaunay &del);
 
   /**
    * SES patches of the active atoms. `convex_area` is per active atom
-   * `i < sa.n_active`; `saddle_beta` (`lo0, hi0, lo1, hi1`, the valid ranges
+   * `i < ss.n_active`; `saddle_beta` (`lo0, hi0, lo1, hi1`, the valid ranges
    * of the generating arc) and `saddle_integral` (one integral per range)
-   * are per active circle `q < sa.g.offset(sa.n_active)`; `saddle_area` is
+   * are per active circle `q < ss.g.offset(ss.n_active)`; `saddle_area` is
    * per active arc (prefix `n_active_arcs` of `geo.arcs`). `face_area` and
    * the caps `face_off`, `face_axis`, `face_cosa` (hemispheres of the
    * departure tangents first, then the neighbour probes that may cut, less
    * the caps dropped by the face solver's hygiene) are per active probe
-   * `p < probes.n_active`. `r` is the small radius `sar − rp` of every kept
-   * atom.
+   * `p < probes.n_active`.
    */
   struct SesGeometry {
-    ArrayXd r;
     ArrayXd convex_area;
     Matrix4Xd saddle_beta;
     Matrix2Xd saddle_integral;
@@ -653,7 +657,7 @@ namespace internal {
     ArrayXd face_cosa;
   };
 
-  extern SesGeometry build_ses(const SaPrep &sa, const SasDelaunay &del,
+  extern SesGeometry build_ses(const SurfaceSpheres &ss, const SasDelaunay &del,
                                const SasGeometry &geo);
 
   /**
@@ -677,7 +681,7 @@ namespace internal {
   };
   // NOLINTEND(*-non-private-member-variables-in-classes)
 
-  extern SesDots sample_ses(const SaPrep &sa, const SasGeometry &geo,
+  extern SesDots sample_ses(const SurfaceSpheres &ss, const SasGeometry &geo,
                             const SesGeometry &ses, double density);
 
   /**

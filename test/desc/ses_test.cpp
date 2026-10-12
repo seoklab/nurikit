@@ -26,19 +26,19 @@ using constants::kTwoPi;
 constexpr double kRp = 1.4;
 
 struct Ses {
-  SaPrep sa;
+  SurfaceSpheres ss;
   SasGeometry geo;
   SesGeometry ses;
 };
 
 Ses solve(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXb &active,
           const double rp = kRp) {
-  std::optional<SaPrep> sa = prepare(pts, sar, active, rp);
-  EXPECT_TRUE(sa);
-  SasDelaunay del = triangulate(*sa);
-  SasGeometry geo = build_sas(*sa, del);
-  SesGeometry ses = build_ses(*sa, del, geo);
-  return { std::move(*sa), std::move(geo), std::move(ses) };
+  std::optional<SurfaceSpheres> ss = prepare(pts, sar - rp, active, rp);
+  EXPECT_TRUE(ss);
+  SasDelaunay del = triangulate(*ss);
+  SasGeometry geo = build_sas(*ss, del);
+  SesGeometry ses = build_ses(*ss, del, geo);
+  return { std::move(*ss), std::move(geo), std::move(ses) };
 }
 
 Ses solve(const Matrix3Xd &pts, const ArrayXd &sar, const double rp = kRp) {
@@ -98,7 +98,7 @@ int circle_of(const Ses &s, const int a, const int b) {
   const auto [lo, hi] = nuri::minmax(a, b);
   for (int q = 0; q < static_cast<int>(s.geo.circles.size()); ++q) {
     const SasCircle &c = s.geo.circles[q];
-    const auto [ci, cj] = nuri::minmax(s.sa.order[c.i], s.sa.order[c.j]);
+    const auto [ci, cj] = nuri::minmax(s.ss.order[c.i], s.ss.order[c.j]);
     if (ci == lo && cj == hi)
       return q;
   }
@@ -178,17 +178,17 @@ double face_from_dots(const Ses &s, const int p, const double rp) {
 
 double convex_from_dots(const Ses &s, const int i, const double rp) {
   const Matrix3Xd &dirs = lattice();
-  const Vector3d c = s.sa.pts.col(i);
-  const double sas = s.sa.sar[i], r = sas - rp;
+  const Vector3d c = s.ss.pts.col(i);
+  const double sas = s.ss.sar[i], r = sas - rp;
 
   int count = 0;
   for (int k = 0; k < dirs.cols(); ++k) {
     const Vector3d y = c + sas * dirs.col(k);
     bool outside = true;
-    for (int j = 0; j < s.sa.pts.cols(); ++j) {
+    for (int j = 0; j < s.ss.pts.cols(); ++j) {
       outside &= j == i
-                 || (y - s.sa.pts.col(j)).squaredNorm()
-                        >= s.sa.sar[j] * s.sa.sar[j];
+                 || (y - s.ss.pts.col(j)).squaredNorm()
+                        >= s.ss.sar[j] * s.ss.sar[j];
     }
     count += outside;
   }
@@ -206,7 +206,7 @@ double saddle_from_quadrature(const Ses &s, const double rp) {
     const SasCircle &c = s.geo.circles[arc.circ];
     EXPECT_GE(c.rl, rp);
     const double lo = -std::atan2(c.a, c.rl),
-                 hi = std::atan2(s.sa.d[arc.circ] - c.a, c.rl);
+                 hi = std::atan2(s.ss.d[arc.circ] - c.a, c.rl);
     total += arc.dphi * rp
              * simpson([&](double b) { return c.rl - rp * std::cos(b); }, lo,
                        hi, 2000);
@@ -248,7 +248,7 @@ void expect_two_sphere_closed_form(const double r1, const double r2,
   const Ses s = solve(pts, sar);
   ASSERT_EQ(s.ses.convex_area.size(), 2);
   for (int k = 0; k < 2; ++k) {
-    const bool first = s.sa.order[k] == 0;
+    const bool first = s.ss.order[k] == 0;
     const double r = first ? r1 : r2, a = first ? a1 : a2;
     EXPECT_NEAR(s.ses.convex_area[k], kTwoPi * r * r * (1 + a / (r + kRp)),
                 1e-10);
@@ -290,7 +290,7 @@ void expect_two_sphere_cusp(const double r1, const double r2, const double d,
   ASSERT_EQ(s.ses.saddle_beta.cols(), 1);
   ASSERT_EQ(s.ses.saddle_area.size(), 1);
   const SasCircle &c = s.geo.circles[0];
-  const double rl = c.rl, a_i = c.a, a_j = s.sa.d[0] - c.a;
+  const double rl = c.rl, a_i = c.a, a_j = s.ss.d[0] - c.a;
   ASSERT_LT(rl, kRp);
   const double b0 = std::acos(rl / kRp), lo = -std::atan2(a_i, rl),
                hi = std::atan2(a_j, rl);
@@ -332,8 +332,8 @@ TEST(BuildSesTest, TwoSpheresNoActiveNoSaddle) {
   active << false, true;
 
   const Ses s = solve(pts, sar, active);
-  ASSERT_EQ(s.sa.n_active, 1);
-  EXPECT_EQ(s.sa.order[0], 1);
+  ASSERT_EQ(s.ss.n_active, 1);
+  EXPECT_EQ(s.ss.order[0], 1);
   ASSERT_EQ(s.ses.convex_area.size(), 1);
   const auto [a1, a2, rl] = two_spheres(sar[0], sar[1], 2.5);
   EXPECT_NEAR(s.ses.convex_area[0], kTwoPi * 1.9 * 1.9 * (1 + a2 / sar[1]),
@@ -352,11 +352,11 @@ TEST(BuildSesTest, TwoSpheresNoActiveNoSaddle) {
   one[0] = true;
 
   const Ses t = solve(tet, sar4, one);
-  ASSERT_EQ(t.sa.n_active, 1);
+  ASSERT_EQ(t.ss.n_active, 1);
   EXPECT_EQ(t.ses.convex_area.size(), 1);
-  const int n_circ = t.sa.g.offset(1);
+  const int n_circ = t.ss.g.offset(1);
   EXPECT_EQ(n_circ, 3);
-  EXPECT_LT(n_circ, t.sa.g.m());
+  EXPECT_LT(n_circ, t.ss.g.m());
   EXPECT_EQ(t.ses.saddle_beta.cols(), n_circ);
   EXPECT_EQ(t.ses.saddle_integral.cols(), n_circ);
   EXPECT_EQ(t.ses.saddle_area.size(), t.geo.n_active_arcs);
@@ -373,7 +373,7 @@ TEST(BuildSesTest, TwoSpheresNoActiveNoSaddle) {
  */
 double excess_from_planes(const Ses &s, const int p) {
   const Vector3d x = s.geo.probes.pos.col(p);
-  const Matrix3d tri = s.sa.pts(E::all, s.geo.probes.atoms.nbrs(p));
+  const Matrix3d tri = s.ss.pts(E::all, s.geo.probes.atoms.nbrs(p));
   Matrix3d normals;
   for (int m = 0; m < 3; ++m) {
     const Vector3d u = tri.col(m) - x, v = tri.col((m + 1) % 3) - x,
@@ -549,7 +549,7 @@ TEST(BuildSesTest, ThreeSpheresVsDots) {
   expect_faces_match_dots(s, kRp);
 
   double convex = 0;
-  for (int i = 0; i < s.sa.n_active; ++i)
+  for (int i = 0; i < s.ss.n_active; ++i)
     convex += convex_from_dots(s, i, kRp);
   double faces = 0;
   for (int p = 0; p < s.geo.probes.n_active; ++p)

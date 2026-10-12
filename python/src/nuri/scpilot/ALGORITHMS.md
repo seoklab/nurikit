@@ -1321,7 +1321,7 @@ their ranks and `O ⊆ {o ∈ S : rank(o) = 3, no near pair (o, a) with
 rank(a) ≤ 2}`. Let `S' = S \ O` with the same `wmax` and heights `t`, the
 survivors in their relative index order, `g`, `d` and `order` restricted to
 `S'`, and `n_active`, `n_solve`, `n_enum` unchanged — a restriction of the
-prepared `SaPrep`, not a second `prepare`, whose `wmax` and contained-ball
+prepared `SurfaceSpheres`, not a second `prepare`, whose `wmax` and contained-ball
 drops depend on the dropped atoms. Running `triangulate`, `build_sas`,
 `build_ses` and `sample_ses` on `S'` instead of `S` leaves unchanged, as
 sets: (a) the accepted roots, each named by its sorted sphere triple and
@@ -1619,7 +1619,7 @@ changes a count or an area beyond rounding:
 - Counts round with `lround` (half away from zero) where numpy rounds half
   to even; only exact `.5` ties differ.
 - Dots are one SoA block per patch kind (`kind` offsets: convex, toroidal,
-  concave) and `atom` carries the original index (`SaPrep::order` applied).
+  concave) and `atom` carries the original index (`SurfaceSpheres::order` applied).
 
 `shape_complementarity` mirrors `sc.py` stage for stage: active atoms,
 burial and the peripheral trim are fixed-cutoff `VoxelGrid` queries with the

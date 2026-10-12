@@ -24,21 +24,21 @@
 namespace nuri {
 namespace internal {
   namespace {
-    std::vector<SasCircle> circles(const SaPrep &sa) {
-      const int n_circ = sa.g.offset(sa.n_enum);
+    std::vector<SasCircle> circles(const SurfaceSpheres &ss) {
+      const int n_circ = ss.g.offset(ss.n_enum);
       std::vector<SasCircle> result(n_circ);
 
-      for (int i = 0; i < sa.n_enum; ++i) {
-        double ri = sa.sar[i];
-        Vector3d pi = sa.pts.col(i);
+      for (int i = 0; i < ss.n_enum; ++i) {
+        double ri = ss.sar[i];
+        Vector3d pi = ss.pts.col(i);
 
-        for (auto it = sa.g.begin(i), ei = sa.g.end(i); it < ei; ++it) {
-          const int j = *it, q = sa.g.eid(it);
-          const double rj = sa.sar[j];
-          const double d = sa.d[q];
+        for (auto it = ss.g.begin(i), ei = ss.g.end(i); it < ei; ++it) {
+          const int j = *it, q = ss.g.eid(it);
+          const double rj = ss.sar[j];
+          const double d = ss.d[q];
 
-          Vector3d axis = (sa.pts.col(j) - pi) / d;
-          const auto [e1, e2] = circle_frame(sa.pts.col(j) - pi, axis);
+          Vector3d axis = (ss.pts.col(j) - pi) / d;
+          const auto [e1, e2] = circle_frame(ss.pts.col(j) - pi, axis);
           double a = (d * d + ri * ri - rj * rj) / (2 * d);
           double rl = std::sqrt(nuri::max(ri * ri - a * a, 0.0));
           Vector3d cntr = pi + a * axis;
@@ -67,14 +67,14 @@ namespace internal {
       ArrayXi v_of_new, new_of_v;
     };
 
-    VertexMap map_vertices(const SaPrep &sa, const SasDelaunay &del) {
-      const int n = sa.g.n();
+    VertexMap map_vertices(const SurfaceSpheres &ss, const SasDelaunay &del) {
+      const int n = ss.g.n();
       ABSL_DCHECK_EQ(n, del.nbrs.n());
 
       VertexMap vm { ArrayXi(n), ArrayXi::Constant(del.ex.n(), -1) };
       for (int p = 0; p < n; ++p) {
-        ABSL_DCHECK_LT(sa.order[p], del.vertex.size());
-        const int v = del.vertex[sa.order[p]];
+        ABSL_DCHECK_LT(ss.order[p], del.vertex.size());
+        const int v = del.vertex[ss.order[p]];
         ABSL_DCHECK_GE(v, 0);
         vm.v_of_new[p] = v;
         vm.new_of_v[v] = p;
@@ -83,13 +83,13 @@ namespace internal {
     }
 
     /**
-     * Edges bucketed by their lower sphere meet that sphere's row of `sa.g`
+     * Edges bucketed by their lower sphere meet that sphere's row of `ss.g`
      * through a dense mark over sphere indices, then the pair row of each
      * sphere meets its `nbrs` row the same way; index 0 absorbs the corners.
      */
-    SasEdgeTables edge_tables(const SaPrep &sa, const SasDelaunay &del,
+    SasEdgeTables edge_tables(const SurfaceSpheres &ss, const SasDelaunay &del,
                               const VertexMap &vm) {
-      const int n = sa.g.n(), m = del.nbrs.m();
+      const int n = ss.g.n(), m = del.nbrs.m();
 
       ArrayXi lo(m), hi(m);
       for (int v = 0; v < n; ++v) {
@@ -107,14 +107,14 @@ namespace internal {
       argsort_bucket(order, off, lo);
 
       SasEdgeTables tbl { ArrayXi::Constant(m, -1),
-                          ArrayXi::Constant(sa.g.m(), -1) };
+                          ArrayXi::Constant(ss.g.m(), -1) };
       ArrayXi mark = ArrayXi::Constant(n + 1, -1);
       for (int a = 0; a < n; ++a) {
-        for (auto it = sa.g.begin(a), e = sa.g.end(a); it < e; ++it)
-          mark[*it + 1] = sa.g.eid(it);
+        for (auto it = ss.g.begin(a), e = ss.g.end(a); it < e; ++it)
+          mark[*it + 1] = ss.g.eid(it);
         for (const int k: order.segment(off[a + 1], off.degree(a + 1)))
           tbl.pair_of_edge[k] = mark[hi[k]];
-        for (auto it = sa.g.begin(a), e = sa.g.end(a); it < e; ++it)
+        for (auto it = ss.g.begin(a), e = ss.g.end(a); it < e; ++it)
           mark[*it + 1] = -1;
       }
 
@@ -122,8 +122,8 @@ namespace internal {
         const int v = vm.v_of_new[s];
         for (auto it = del.nbrs.begin(v), e = del.nbrs.end(v); it < e; ++it)
           mark[vm.new_of_v[*it] + 1] = del.nbrs.eid(it);
-        for (auto it = sa.g.begin(s), e = sa.g.end(s); it < e; ++it)
-          tbl.edge_of_pair[sa.g.eid(it)] = mark[*it + 1];
+        for (auto it = ss.g.begin(s), e = ss.g.end(s); it < e; ++it)
+          tbl.edge_of_pair[ss.g.eid(it)] = mark[*it + 1];
         for (auto it = del.nbrs.begin(v), e = del.nbrs.end(v); it < e; ++it)
           mark[vm.new_of_v[*it] + 1] = -1;
       }
@@ -136,10 +136,10 @@ namespace internal {
      * overlapping sphere cuts a cap inside their union (Theorem 2), so the
      * accessible region and its component structure are unchanged.
      */
-    SasCaps neighbor_caps(const SaPrep &sa, const SasDelaunay &del,
+    SasCaps neighbor_caps(const SurfaceSpheres &ss, const SasDelaunay &del,
                           const VertexMap &vm, const ArrayXi &pair_of_edge,
                           const std::vector<SasCircle> &circ) {
-      const int n_enum = sa.n_enum, bound = del.nbrs.m();
+      const int n_enum = ss.n_enum, bound = del.nbrs.m();
 
       SasCaps caps { CSR(ArrayXi(bound), OffsetTable(n_enum)),
                      Matrix3Xd(3, bound), ArrayXd(bound) };
@@ -148,7 +148,7 @@ namespace internal {
       int w = 0;
       for (int s = 0; s < n_enum; ++s) {
         off[s] = w;
-        const double rs = sa.sar[s];
+        const double rs = ss.sar[s];
         const int v = vm.v_of_new[s];
 
         for (auto it = del.nbrs.begin(v), e = del.nbrs.end(v); it < e; ++it) {
@@ -158,7 +158,7 @@ namespace internal {
 
           const SasCircle &c = circ[q];
           const int side = value_if(c.i != s);
-          const double d = sa.d[q];
+          const double d = ss.d[q];
           tags[w] = 2 * q + side;
           caps.axis.col(w) = side == 0 ? c.axis : Vector3d(-c.axis);
           caps.cosa[w] = (c.a + (d - 2 * c.a) * side) / rs;
@@ -266,10 +266,10 @@ namespace internal {
      * The face opposite local vertex `lf` of cell `c`, sorted, if all three
      * spheres are kept, pairwise overlapping and one of them gets caps.
      */
-    bool sphere_face(const SaPrep &sa, const SasDelaunay &del,
+    bool sphere_face(const SurfaceSpheres &ss, const SasDelaunay &del,
                      const VertexMap &vm, const Faces &fs, const int c,
                      const int lf, Array3i &fv, Array3i &abc) {
-      return face_spheres(del, vm, c, lf, fv, abc) && abc[0] < sa.n_enum
+      return face_spheres(del, vm, c, lf, fv, abc) && abc[0] < ss.n_enum
              && fs.full[del.face(lf, c)];
     }
 
@@ -301,7 +301,7 @@ namespace internal {
      * A cut point is a probe iff its power against both apexes is
      * non-negative, decided exactly for the perturbed weights (Theorem 1).
      */
-    Faces accept_faces(const SaPrep &sa, const SasDelaunay &del,
+    Faces accept_faces(const SurfaceSpheres &ss, const SasDelaunay &del,
                        const VertexMap &vm, const ArrayXi &pair_of_edge,
                        std::vector<RawProbe> &raw) {
       const BallExact &ex = del.ex;
@@ -311,11 +311,11 @@ namespace internal {
                  Array3Xi::Constant(3, del.n_faces, -1),
                  ArrayXb::Constant(del.n_faces, false),
                  Array2Xi::Constant(2, del.n_faces, -1) };
-      raw.reserve(3L * sa.n_enum);
+      raw.reserve(3L * ss.n_enum);
 
       for_each_face(del, [&](int c, int lf, int c2) {
         Array3i fv, abc;
-        if (!sphere_face(sa, del, vm, fs, c, lf, fv, abc))
+        if (!sphere_face(ss, del, vm, fs, c, lf, fv, abc))
           return;
 
         const Array3i verts = sort3(fv);
@@ -347,14 +347,14 @@ namespace internal {
     /**
      * Probes owner-sorted (owner = smallest atom); `pid` maps raw ids.
      */
-    SasProbes make_probes(const SaPrep &sa, const std::vector<RawProbe> &raw,
-                          ArrayXi &pid) {
+    SasProbes make_probes(const SurfaceSpheres &ss,
+                          const std::vector<RawProbe> &raw, ArrayXi &pid) {
       const int nr = static_cast<int>(raw.size());
 
       ArrayXi owner(nr), order(nr);
       for (int r = 0; r < nr; ++r)
         owner[r] = raw[r].atoms[0];
-      OffsetTable own_off(sa.n_enum);
+      OffsetTable own_off(ss.n_enum);
       argsort_bucket(order, own_off, owner);
 
       pid.resize(nr);
@@ -364,7 +364,7 @@ namespace internal {
                          OffsetTable(nr),
                          Array3Xi(3, nr),
                          ArrayXb(nr),
-                         own_off[sa.n_active] };
+                         own_off[ss.n_active] };
       for (int p = 0; p < nr; ++p) {
         const int r = order[p];
         pid[r] = p;
@@ -562,18 +562,18 @@ namespace internal {
     /**
      * Accessible arcs of every circle with caps, grouped by circle.
      */
-    Arcs fan_rings(const SaPrep &sa, const SasDelaunay &del,
+    Arcs fan_rings(const SurfaceSpheres &ss, const SasDelaunay &del,
                    const VertexMap &vm, const ArrayXi &edge_of_pair,
                    const std::vector<SasCircle> &circ, const Faces &fs,
                    const ArrayXi &pid) {
       Arcs out;
-      out.off = OffsetTable(sa.g.m());
+      out.off = OffsetTable(ss.g.m());
       Ring ring;
       std::vector<int> fan;
 
-      for (int i = 0; i < sa.n_enum; ++i) {
-        for (auto it = sa.g.begin(i), ei = sa.g.end(i); it < ei; ++it) {
-          const int j = *it, q = sa.g.eid(it);
+      for (int i = 0; i < ss.n_enum; ++i) {
+        for (auto it = ss.g.begin(i), ei = ss.g.end(i); it < ei; ++it) {
+          const int j = *it, q = ss.g.eid(it);
           out.off.off()[q] = static_cast<int>(out.arcs.size());
 
           const int edge = edge_of_pair[q];
@@ -596,7 +596,7 @@ namespace internal {
         }
       }
 
-      for (int q = sa.g.offset(sa.n_enum); q <= sa.g.m(); ++q)
+      for (int q = ss.g.offset(ss.n_enum); q <= ss.g.m(); ++q)
         out.off.off()[q] = static_cast<int>(out.arcs.size());
       return out;
     }
@@ -615,13 +615,13 @@ namespace internal {
      * forward neighbour shifts are 13 merge joins of the order with itself.
      * The result is the set of pairs within `tau`, whatever the probe order.
      */
-    void merge_near_probes(const SaPrep &sa, const SasProbes &probes,
+    void merge_near_probes(const SurfaceSpheres &ss, const SasProbes &probes,
                            UnionFind &uf) {
       const int np = static_cast<int>(probes.pos.cols());
       if (np < 2)
         return;
 
-      const double tau = probe_merge_tol(sa.rmax), tau2 = tau * tau;
+      const double tau = probe_merge_tol(ss.rmax), tau2 = tau * tau;
       const Vector3d lo = probes.pos.rowwise().minCoeff();
       ABSL_DCHECK_LT((probes.pos.rowwise().maxCoeff() - lo).maxCoeff() / tau,
                      0x1p62);
@@ -686,12 +686,12 @@ namespace internal {
       }
     }
 
-    ArrayXd sweep_spheres(const SaPrep &sa, const SasDelaunay &del,
+    ArrayXd sweep_spheres(const SurfaceSpheres &ss, const SasDelaunay &del,
                           const VertexMap &vm,
                           const std::vector<SasCircle> &circ,
                           const SasCaps &caps, const Arcs &arcs,
                           const SasProbes &probes) {
-      const int n_solve = sa.n_solve, mcap = caps.h.max_deg(),
+      const int n_solve = ss.n_solve, mcap = caps.h.max_deg(),
                 np = static_cast<int>(probes.pos.cols());
       const BallExact &ex = del.ex;
 
@@ -714,12 +714,12 @@ namespace internal {
           continue;
         }
 
-        solver.begin(sa.sar[s]);
+        solver.begin(ss.sar[s]);
         int k = 0;
         auto local = [&](int p) {
           if (vloc[p] < 0) {
             vloc[p] = solver.add_vertex(
-                (probes.pos.col(p) - sa.pts.col(s)).normalized());
+                (probes.pos.col(p) - ss.pts.col(s)).normalized());
             vlist[k++] = p;
           }
           return vloc[p];
@@ -749,7 +749,7 @@ namespace internal {
 
         const int vs = vm.v_of_new[s];
         area[s] = solver.solve([&](int j, int l) {
-          return pair_id_unordered(sa.g, partner[j], partner[l]) >= 0
+          return pair_id_unordered(ss.g, partner[j], partner[l]) >= 0
                  && ex.discs_intersect(vs, vm.v_of_new[partner[j]],
                                        vm.v_of_new[partner[l]]);
         });
@@ -766,7 +766,7 @@ namespace internal {
      * atoms at the position and root of their lowest member, owner-sorted
      * like `make_probes`; arc ends are relabelled to the merged ids.
      */
-    SasProbes merge_probes(const SaPrep &sa, const SasProbes &probes,
+    SasProbes merge_probes(const SurfaceSpheres &ss, const SasProbes &probes,
                            UnionFind &uf, Arcs &arcs) {
       const int np = static_cast<int>(probes.pos.cols()), nc = uf.relabel();
       const ArrayXi &label = uf.labels();
@@ -793,7 +793,7 @@ namespace internal {
       }
 
       ArrayXi order(nc);
-      OffsetTable own_off(sa.n_enum);
+      OffsetTable own_off(ss.n_enum);
       argsort_bucket(order, own_off, owner);
 
       SasProbes merged { CSR(ArrayXi(n), OffsetTable(nc)),
@@ -802,7 +802,7 @@ namespace internal {
                          OffsetTable(nc),
                          Array3Xi(3, nc),
                          ArrayXb(nc),
-                         own_off[sa.n_active] };
+                         own_off[ss.n_active] };
       ArrayXi &adj = merged.atoms.adj(), &aoff = merged.atoms.off();
       ArrayXi cid(nc);
       int w = aoff[0] = 0;
@@ -865,33 +865,33 @@ namespace internal {
     }
   }  // namespace
 
-  SasEdgeTables edge_tables(const SaPrep &sa, const SasDelaunay &del) {
-    return edge_tables(sa, del, map_vertices(sa, del));
+  SasEdgeTables edge_tables(const SurfaceSpheres &ss, const SasDelaunay &del) {
+    return edge_tables(ss, del, map_vertices(ss, del));
   }
 
-  SasGeometry build_sas(const SaPrep &sa, const SasDelaunay &del) {
-    if (sa.n_enum == 0)
+  SasGeometry build_sas(const SurfaceSpheres &ss, const SasDelaunay &del) {
+    if (ss.n_enum == 0)
       return {};
 
-    std::vector circ = circles(sa);
-    VertexMap vm = map_vertices(sa, del);
-    SasEdgeTables tbl = edge_tables(sa, del, vm);
-    SasCaps caps = neighbor_caps(sa, del, vm, tbl.pair_of_edge, circ);
+    std::vector circ = circles(ss);
+    VertexMap vm = map_vertices(ss, del);
+    SasEdgeTables tbl = edge_tables(ss, del, vm);
+    SasCaps caps = neighbor_caps(ss, del, vm, tbl.pair_of_edge, circ);
 
     std::vector<RawProbe> raw;
-    Faces fs = accept_faces(sa, del, vm, tbl.pair_of_edge, raw);
+    Faces fs = accept_faces(ss, del, vm, tbl.pair_of_edge, raw);
     ArrayXi pid;
-    SasProbes probes = make_probes(sa, raw, pid);
+    SasProbes probes = make_probes(ss, raw, pid);
 
-    Arcs arcs = fan_rings(sa, del, vm, tbl.edge_of_pair, circ, fs, pid);
-    ArrayXd area = sweep_spheres(sa, del, vm, circ, caps, arcs, probes);
+    Arcs arcs = fan_rings(ss, del, vm, tbl.edge_of_pair, circ, fs, pid);
+    ArrayXd area = sweep_spheres(ss, del, vm, circ, caps, arcs, probes);
 
     UnionFind uf(static_cast<int>(probes.pos.cols()));
-    merge_near_probes(sa, probes, uf);
-    SasProbes merged = merge_probes(sa, probes, uf, arcs);
+    merge_near_probes(ss, probes, uf);
+    SasProbes merged = merge_probes(ss, probes, uf, arcs);
     tangents(merged, arcs);
 
-    const int n_active_arcs = arcs.off[sa.g.offset(sa.n_active)];
+    const int n_active_arcs = arcs.off[ss.g.offset(ss.n_active)];
     return { std::move(circ),      std::move(caps), std::move(merged),
              std::move(arcs.arcs), n_active_arcs,   std::move(area) };
   }

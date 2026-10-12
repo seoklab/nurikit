@@ -30,16 +30,16 @@ using constants::kTwoPi;
 constexpr double kRp = 1.0;
 
 struct Sas {
-  SaPrep sa;
+  SurfaceSpheres ss;
   SasGeometry geo;
 };
 
 Sas solve(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXb &active) {
-  std::optional<SaPrep> sa = prepare(pts, sar, active, kRp);
-  EXPECT_TRUE(sa);
-  SasDelaunay del = triangulate(*sa);
-  SasGeometry geo = build_sas(*sa, del);
-  return { std::move(*sa), std::move(geo) };
+  std::optional<SurfaceSpheres> ss = prepare(pts, sar - kRp, active, kRp);
+  EXPECT_TRUE(ss);
+  SasDelaunay del = triangulate(*ss);
+  SasGeometry geo = build_sas(*ss, del);
+  return { std::move(*ss), std::move(geo) };
 }
 
 Sas solve(const Matrix3Xd &pts, const ArrayXd &sar) {
@@ -75,7 +75,7 @@ int probe_at(const SasGeometry &geo, const Vector3d &x,
 }
 
 double merge_tol(const Sas &sas) {
-  return probe_merge_tol(sas.sa.sar.maxCoeff());
+  return probe_merge_tol(sas.ss.sar.maxCoeff());
 }
 
 void expect_no_unmerged_pairs(const SasGeometry &geo, const double tau) {
@@ -104,25 +104,25 @@ TEST(BuildSasTest, RejectsNonFiniteOrFarCoordinates) {
   pts.col(1) << 3, 0, 0;
   ArrayXd sar = ArrayXd::Constant(2, 1.5);
   const ArrayXb all = ArrayXb::Constant(2, true);
-  ASSERT_TRUE(prepare(pts, sar, all, kRp));
+  ASSERT_TRUE(prepare(pts, sar - kRp, all, kRp));
 
   pts(0, 0) = std::numeric_limits<double>::quiet_NaN();
-  EXPECT_FALSE(prepare(pts, sar, all, kRp));
+  EXPECT_FALSE(prepare(pts, sar - kRp, all, kRp));
   pts(0, 0) = 0;
 
   sar[1] = std::numeric_limits<double>::infinity();
-  EXPECT_FALSE(prepare(pts, sar, all, kRp));
+  EXPECT_FALSE(prepare(pts, sar - kRp, all, kRp));
   sar[1] = 1.5;
 
   pts.col(1) << 2 * kSurfaceMaxCoord, 0, 0;
-  EXPECT_FALSE(prepare(pts, sar, all, kRp));
+  EXPECT_FALSE(prepare(pts, sar - kRp, all, kRp));
 }
 
 TEST(BuildSasTest, SingleSphere) {
   Matrix3Xd pts = Matrix3Xd::Zero(3, 1);
   ArrayXd sar = ArrayXd::Constant(1, 2.5);
 
-  auto [sa, geo] = solve(pts, sar);
+  auto [ss, geo] = solve(pts, sar);
   ASSERT_EQ(geo.area.size(), 1);
   EXPECT_DOUBLE_EQ(geo.area[0], 4 * kPi * 2.5 * 2.5);
   EXPECT_EQ(geo.probes.pos.cols(), 0);
@@ -135,15 +135,15 @@ TEST(BuildSasTest, TwoSpheresFullCircle) {
   ArrayXd sar(2);
   sar << 1.8, 1.5;
 
-  auto [sa, geo] = solve(pts, sar);
+  auto [ss, geo] = solve(pts, sar);
   ASSERT_EQ(geo.area.size(), 2);
 
   const double d = 2.0,
                a0 = (d * d + sar[0] * sar[0] - sar[1] * sar[1]) / (2 * d);
-  EXPECT_NEAR(geo.area[sa.order[0] == 0 ? 0 : 1],
+  EXPECT_NEAR(geo.area[ss.order[0] == 0 ? 0 : 1],
               4 * kPi * sar[0] * sar[0] - kTwoPi * sar[0] * (sar[0] - a0),
               1e-12);
-  EXPECT_NEAR(geo.area[sa.order[0] == 1 ? 0 : 1],
+  EXPECT_NEAR(geo.area[ss.order[0] == 1 ? 0 : 1],
               4 * kPi * sar[1] * sar[1] - kTwoPi * sar[1] * (sar[1] - (d - a0)),
               1e-12);
 
@@ -159,7 +159,7 @@ TEST(BuildSasTest, CoplanarTriangle) {
   pts << 0, 2.4, 1.2, 0, 0, 2.1, 0, 0, 0;
   ArrayXd sar = ArrayXd::Constant(3, 1.9);
 
-  auto [sa, geo] = solve(pts, sar);
+  auto [ss, geo] = solve(pts, sar);
   ASSERT_EQ(geo.area.size(), 3);
   EXPECT_NEAR(geo.area.sum(), sr_total(pts, sar), 1e-2 * geo.area.sum());
 
@@ -191,11 +191,11 @@ TEST(BuildSasTest, CoveredSphere) {
   ArrayXd sar = ArrayXd::Constant(7, 2.1);
   sar[0] = 1.5;
 
-  auto [sa, geo] = solve(pts, sar);
+  auto [ss, geo] = solve(pts, sar);
   ASSERT_EQ(geo.area.size(), 7);
   const int center = static_cast<int>(
-      std::find(sa.order.begin(), sa.order.end(), 0) - sa.order.begin());
-  ASSERT_LT(center, sa.n_solve);
+      std::find(ss.order.begin(), ss.order.end(), 0) - ss.order.begin());
+  ASSERT_LT(center, ss.n_solve);
   EXPECT_NEAR(geo.area[center], 0, 1e-12);
   EXPECT_NEAR(geo.area.sum(), sr_total(pts, sar), 1e-2 * geo.area.sum());
 }
@@ -296,10 +296,10 @@ TEST(BuildSasTest, ApexTangentAtVertex) {
 TEST(BuildSasTest, NearBandPinch) {
   for (const double gap: { 1e-7, 5e-7, 2e-6 }) {
     const TangentApex t = tangent_apex(gap);
-    auto [sa, geo] = solve(t.pts, t.sar);
+    auto [ss, geo] = solve(t.pts, t.sar);
     const ArrayXd sr = sr_sasa_impl(t.pts, t.sar, 20000, SrSasaMethod::kDirect);
     for (int p = 0; p < 4; ++p)
-      EXPECT_NEAR(geo.area[p], sr[sa.order[p]], 0.05)
+      EXPECT_NEAR(geo.area[p], sr[ss.order[p]], 0.05)
           << "gap " << gap << " atom " << p;
   }
 }
@@ -318,15 +318,15 @@ TEST(BuildSasTest, OverlapBandsAroundTouch) {
   }
   const ArrayXd sar = ArrayXd::Constant(8, touch / 2);
 
-  const std::optional<SaPrep> sa =
-      prepare(pts, sar, ArrayXb::Constant(8, true), kRp);
-  ASSERT_TRUE(sa);
-  ASSERT_EQ(sa->order.size(), 8);
+  const std::optional<SurfaceSpheres> ss =
+      prepare(pts, sar - kRp, ArrayXb::Constant(8, true), kRp);
+  ASSERT_TRUE(ss);
+  ASSERT_EQ(ss->order.size(), 8);
 
   std::vector<std::pair<int, int>> edges;
-  for (int i = 0; i < sa->g.n(); ++i) {
-    for (auto it = sa->g.begin(i), e = sa->g.end(i); it < e; ++it)
-      edges.push_back(nuri::minmax(sa->order[i], sa->order[*it]));
+  for (int i = 0; i < ss->g.n(); ++i) {
+    for (auto it = ss->g.begin(i), e = ss->g.end(i); it < e; ++it)
+      edges.push_back(nuri::minmax(ss->order[i], ss->order[*it]));
   }
   std::sort(edges.begin(), edges.end());
   const std::vector<std::pair<int, int>> expected {
@@ -341,10 +341,10 @@ TEST(BuildSasTest, SliverBetweenNearCrossings) {
   ArrayXd sar = ArrayXd::Constant(5, 2.0);
   sar[2] -= 1e-5;
 
-  auto [sa, geo] = solve(pts, sar);
+  auto [ss, geo] = solve(pts, sar);
   const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
   for (int p = 0; p < 5; ++p)
-    EXPECT_NEAR(geo.area[p], sr[sa.order[p]], 0.05) << "atom " << p;
+    EXPECT_NEAR(geo.area[p], sr[ss.order[p]], 0.05) << "atom " << p;
 }
 
 /**
@@ -362,11 +362,11 @@ TEST(BuildSasTest, GrazingApexWithinTolerance) {
     Matrix3Xd pts = t.pts;
     pts.col(3) = t.x - (t.sar[3] - depth) * m;
 
-    auto [sa, geo] = solve(pts, t.sar);
+    auto [ss, geo] = solve(pts, t.sar);
     EXPECT_GE(probes_at(geo, t.x, kSurfaceLengthEps), 1) << "depth " << depth;
     const ArrayXd sr = sr_sasa_impl(pts, t.sar, 20000, SrSasaMethod::kDirect);
     for (int p = 0; p < 4; ++p)
-      EXPECT_NEAR(geo.area[p], sr[sa.order[p]], 0.05)
+      EXPECT_NEAR(geo.area[p], sr[ss.order[p]], 0.05)
           << "depth " << depth << " atom " << p;
   }
 }
@@ -389,12 +389,12 @@ TEST(BuildSasTest, FlatCellApexDoesNotHideCover) {
   ArrayXd sar(5);
   sar << t.sar[0], t.sar[1], t.sar[2], rl, rm;
 
-  auto [sa, geo] = solve(pts, sar);
+  auto [ss, geo] = solve(pts, sar);
   for (int p = 0; p < geo.probes.pos.cols(); ++p)
     EXPECT_GT((geo.probes.pos.col(p) - t.x).norm(), 1e-5) << p;
   const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
   for (int p = 0; p < 5; ++p)
-    EXPECT_NEAR(geo.area[p], sr[sa.order[p]], 0.05) << "atom " << p;
+    EXPECT_NEAR(geo.area[p], sr[ss.order[p]], 0.05) << "atom " << p;
 }
 
 /**
@@ -417,14 +417,15 @@ TEST(BuildSasTest, JitteredBenzeneVertices) {
     pts.data()[i] += 1e-7 * std::sin(1000.0 * (i + 1));
 
   const double rp = 1.4;
-  std::optional<SaPrep> sa = prepare(pts, sar, ArrayXb::Constant(12, true), rp);
-  ASSERT_TRUE(sa);
-  const SasDelaunay del = triangulate(*sa);
-  const SasGeometry geo = build_sas(*sa, del);
+  std::optional<SurfaceSpheres> ss =
+      prepare(pts, sar - rp, ArrayXb::Constant(12, true), rp);
+  ASSERT_TRUE(ss);
+  const SasDelaunay del = triangulate(*ss);
+  const SasGeometry geo = build_sas(*ss, del);
 
   const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
   for (int p = 0; p < 12; ++p)
-    EXPECT_NEAR(geo.area[p], sr[sa->order[p]], 0.1) << "atom " << p;
+    EXPECT_NEAR(geo.area[p], sr[ss->order[p]], 0.1) << "atom " << p;
   for (int p = 0; p < geo.probes.pos.cols(); ++p)
     EXPECT_GE(geo.probes.atoms.degree(p), 3);
 }
@@ -455,10 +456,10 @@ TEST(BuildSasTest, NearPairPinchWithThirdSphere) {
       ArrayXd sar(4);
       sar << rs, rj, rk, rl;
 
-      auto [sa, geo] = solve(pts, sar);
+      auto [ss, geo] = solve(pts, sar);
       const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
       for (int a = 0; a < 4; ++a) {
-        EXPECT_NEAR(geo.area[a], sr[sa.order[a]], 0.05)
+        EXPECT_NEAR(geo.area[a], sr[ss.order[a]], 0.05)
             << "gap " << gap << " delta " << delta << " atom " << a;
       }
     }
@@ -482,7 +483,7 @@ TEST(BuildSasTest, TwoCutPointsOfOneFaceStayDistinct) {
   ArrayXd sar(3);
   sar << std::sqrt(h * h + (zs - zc) * (zs - zc)), r, r;
 
-  auto [sa, geo] = solve(pts, sar);
+  auto [ss, geo] = solve(pts, sar);
   ASSERT_EQ(geo.probes.pos.cols(), 2);
   EXPECT_NEAR((geo.probes.pos.col(0) - geo.probes.pos.col(1)).norm(), 2 * h,
               1e-9);
@@ -502,8 +503,8 @@ TEST(BuildSasTest, TriangulationSharedAcrossMasks) {
   ArrayXb all = ArrayXb::Constant(n, true), half = all;
   half.tail(n / 2).setConstant(false);
 
-  std::optional<SaPrep> sa_all = prepare(pts, sar, all, kRp),
-                        sa_half = prepare(pts, sar, half, kRp);
+  std::optional<SurfaceSpheres> sa_all = prepare(pts, sar - kRp, all, kRp),
+                                sa_half = prepare(pts, sar - kRp, half, kRp);
   ASSERT_TRUE(sa_all && sa_half);
 
   const SasDelaunay del = triangulate(*sa_all);
@@ -535,20 +536,20 @@ TEST(BuildSasTest, OccluderBeyondShellBandDropped) {
 
   const Sas full = solve(pts, sar, active),
             part = solve(pts.leftCols(5), sar.head(5), active.head(5));
-  ASSERT_EQ(full.sa.order.size(), 5);
-  EXPECT_TRUE((full.sa.order != 5).all());
-  EXPECT_TRUE((full.sa.order == 4).any());
-  EXPECT_EQ(full.sa.n_active, 2);
-  EXPECT_EQ(full.sa.n_solve, 3);
-  EXPECT_EQ(full.sa.n_enum, 4);
-  EXPECT_EQ(part.sa.n_active, full.sa.n_active);
-  EXPECT_EQ(part.sa.n_solve, full.sa.n_solve);
-  EXPECT_EQ(part.sa.n_enum, full.sa.n_enum);
+  ASSERT_EQ(full.ss.order.size(), 5);
+  EXPECT_TRUE((full.ss.order != 5).all());
+  EXPECT_TRUE((full.ss.order == 4).any());
+  EXPECT_EQ(full.ss.n_active, 2);
+  EXPECT_EQ(full.ss.n_solve, 3);
+  EXPECT_EQ(full.ss.n_enum, 4);
+  EXPECT_EQ(part.ss.n_active, full.ss.n_active);
+  EXPECT_EQ(part.ss.n_solve, full.ss.n_solve);
+  EXPECT_EQ(part.ss.n_enum, full.ss.n_enum);
 
-  ASSERT_EQ(full.geo.area.size(), full.sa.n_solve);
-  ASSERT_EQ(part.geo.area.size(), full.sa.n_solve);
-  for (int p = 0; p < full.sa.n_solve; ++p) {
-    ASSERT_EQ(full.sa.order[p], part.sa.order[p]) << p;
+  ASSERT_EQ(full.geo.area.size(), full.ss.n_solve);
+  ASSERT_EQ(part.geo.area.size(), full.ss.n_solve);
+  for (int p = 0; p < full.ss.n_solve; ++p) {
+    ASSERT_EQ(full.ss.order[p], part.ss.order[p]) << p;
     EXPECT_NEAR(full.geo.area[p], part.geo.area[p], 1e-12) << p;
   }
 }
@@ -589,17 +590,17 @@ Sas solve_only(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXb &active,
  * atoms kept in the same order with the same ranks and areas.
  */
 void expect_same_prep(const Sas &sas, const Sas &ref, const ArrayXi &rest) {
-  ASSERT_EQ(sas.sa.order.size(), ref.sa.order.size());
-  EXPECT_EQ(sas.sa.n_active, ref.sa.n_active);
-  EXPECT_EQ(sas.sa.n_solve, ref.sa.n_solve);
-  EXPECT_EQ(sas.sa.n_enum, ref.sa.n_enum);
-  for (int p = 0; p < sas.sa.order.size(); ++p)
-    EXPECT_EQ(sas.sa.order[p], rest[ref.sa.order[p]]) << p;
-  EXPECT_TRUE((sas.sa.g.off() == ref.sa.g.off()).all());
-  EXPECT_TRUE((sas.sa.g.adj() == ref.sa.g.adj()).all());
-  EXPECT_TRUE((sas.sa.d == ref.sa.d).all());
-  EXPECT_EQ(sas.sa.pts, ref.sa.pts);
-  EXPECT_TRUE((sas.sa.sar == ref.sa.sar).all());
+  ASSERT_EQ(sas.ss.order.size(), ref.ss.order.size());
+  EXPECT_EQ(sas.ss.n_active, ref.ss.n_active);
+  EXPECT_EQ(sas.ss.n_solve, ref.ss.n_solve);
+  EXPECT_EQ(sas.ss.n_enum, ref.ss.n_enum);
+  for (int p = 0; p < sas.ss.order.size(); ++p)
+    EXPECT_EQ(sas.ss.order[p], rest[ref.ss.order[p]]) << p;
+  EXPECT_TRUE((sas.ss.g.off() == ref.ss.g.off()).all());
+  EXPECT_TRUE((sas.ss.g.adj() == ref.ss.g.adj()).all());
+  EXPECT_TRUE((sas.ss.d == ref.ss.d).all());
+  EXPECT_EQ(sas.ss.pts, ref.ss.pts);
+  EXPECT_TRUE((sas.ss.sar == ref.ss.sar).all());
 
   ASSERT_EQ(sas.geo.area.size(), ref.geo.area.size());
   for (int p = 0; p < sas.geo.area.size(); ++p)
@@ -637,8 +638,8 @@ TEST(BuildSasTest, PrepareIgnoresAtomsBeyondReach) {
 
   const Sas full = solve(pts, sar, active),
             part = solve_only(pts, sar, active, rest);
-  EXPECT_GT(full.sa.order.size(), 2);
-  for (const int i: full.sa.order)
+  EXPECT_GT(full.ss.order.size(), 2);
+  for (const int i: full.ss.order)
     EXPECT_NE(i % 6, 5);
   expect_same_prep(full, part, rest);
 }
@@ -651,16 +652,16 @@ TEST(BuildSasTest, PrepareWithoutActiveAtoms) {
   pts << 0, 2.5, 5, 0, 0, 0, 0, 0, 0;
   const ArrayXd sar = ArrayXd::Constant(3, 1.5);
 
-  const std::optional<SaPrep> sa =
-      prepare(pts, sar, ArrayXb::Constant(3, false), kRp);
-  ASSERT_TRUE(sa);
-  EXPECT_EQ(sa->order.size(), 0);
-  EXPECT_EQ(sa->g.n(), 0);
-  EXPECT_EQ(sa->g.m(), 0);
-  EXPECT_EQ(sa->n_active, 0);
-  EXPECT_EQ(sa->n_solve, 0);
-  EXPECT_EQ(sa->n_enum, 0);
-  EXPECT_EQ(sa->wmax, 2.25);
+  const std::optional<SurfaceSpheres> ss =
+      prepare(pts, sar - kRp, ArrayXb::Constant(3, false), kRp);
+  ASSERT_TRUE(ss);
+  EXPECT_EQ(ss->order.size(), 0);
+  EXPECT_EQ(ss->g.n(), 0);
+  EXPECT_EQ(ss->g.m(), 0);
+  EXPECT_EQ(ss->n_active, 0);
+  EXPECT_EQ(ss->n_solve, 0);
+  EXPECT_EQ(ss->n_enum, 0);
+  EXPECT_EQ(ss->wmax, 2.25);
 }
 
 TEST(BuildSasTest, BandContainedPartnerAtHopFour) {
@@ -676,9 +677,9 @@ TEST(BuildSasTest, BandContainedPartnerAtHopFour) {
   active[0] = true;
 
   const Sas sas = solve(pts, sar, active);
-  EXPECT_EQ(sas.sa.n_active, 1);
-  EXPECT_EQ(sas.sa.n_solve, 2);
-  EXPECT_EQ(sas.sa.n_enum, 3);
+  EXPECT_EQ(sas.ss.n_active, 1);
+  EXPECT_EQ(sas.ss.n_solve, 2);
+  EXPECT_EQ(sas.ss.n_enum, 3);
   const ArrayXi rest = all_but(6, { 4, 5 });
   expect_same_prep(sas, solve_only(pts, sar, active, rest), rest);
 }
@@ -699,7 +700,7 @@ TEST(BuildSasTest, BandTwinAtHopFour) {
   active[0] = true;
   const ArrayXi rest = all_but(6, { 4, 5 });
   const Sas ref = solve_only(pts, sar, active, rest);
-  ASSERT_EQ(ref.sa.order.size(), 4);
+  ASSERT_EQ(ref.ss.order.size(), 4);
 
   for (const double x: { 10.0, 10.8 }) {
     for (const double r: { 1.5, 2.0, 1.45 }) {
@@ -707,7 +708,7 @@ TEST(BuildSasTest, BandTwinAtHopFour) {
       pts.col(5) << x, 0, 0;
       sar[5] = r;
       const Sas sas = solve(pts, sar, active);
-      EXPECT_TRUE((sas.sa.d > 0).all()) << x << " " << r;
+      EXPECT_TRUE((sas.ss.d > 0).all()) << x << " " << r;
       expect_same_prep(sas, ref, rest);
     }
   }
@@ -800,12 +801,12 @@ FullRank full_rank(const Matrix3Xd &pts, const ArrayXd &sar,
   return ref;
 }
 
-ArrayXi prepared_rank(const SaPrep &sa, const int n) {
+ArrayXi prepared_rank(const SurfaceSpheres &ss, const int n) {
   ArrayXi got = ArrayXi::Constant(n, 4);
-  for (int p = 0; p < sa.order.size(); ++p) {
-    got[sa.order[p]] = p < sa.n_active  ? 0
-                       : p < sa.n_solve ? 1
-                       : p < sa.n_enum  ? 2
+  for (int p = 0; p < ss.order.size(); ++p) {
+    got[ss.order[p]] = p < ss.n_active  ? 0
+                       : p < ss.n_solve ? 1
+                       : p < ss.n_enum  ? 2
                                         : 3;
   }
   return got;
@@ -835,9 +836,10 @@ TEST(BuildSasTest, BandPrepareMatchesFullRank) {
       const FullRank ref = full_rank(pts, sar, active);
       ASSERT_TRUE((ref.hop > 4).any()) << n << " " << seed;
 
-      const std::optional<SaPrep> sa = prepare(pts, sar, active, kRp);
-      ASSERT_TRUE(sa);
-      EXPECT_TRUE((prepared_rank(*sa, n) == ref.rank).all())
+      const std::optional<SurfaceSpheres> ss =
+          prepare(pts, sar - kRp, active, kRp);
+      ASSERT_TRUE(ss);
+      EXPECT_TRUE((prepared_rank(*ss, n) == ref.rank).all())
           << n << " " << seed;
     }
   }
@@ -851,9 +853,10 @@ TEST(BuildSasTest, TriangulationTables) {
     pts.col(i) << 1.7 * ix, 1.6 * iy + 0.3 * (i % 2), 1.5 * iz + 0.2 * (i % 3);
   }
   const ArrayXd sar = ArrayXd::Constant(n, 1.5);
-  std::optional<SaPrep> sa = prepare(pts, sar, ArrayXb::Constant(n, true), kRp);
-  ASSERT_TRUE(sa);
-  const SasDelaunay del = triangulate(*sa);
+  std::optional<SurfaceSpheres> ss =
+      prepare(pts, sar - kRp, ArrayXb::Constant(n, true), kRp);
+  ASSERT_TRUE(ss);
+  const SasDelaunay del = triangulate(*ss);
 
   const int nf = static_cast<int>(del.tets.cols());
   ArrayXi seen = ArrayXi::Zero(del.n_faces);
@@ -896,9 +899,10 @@ TEST(BuildSasTest, EdgeTableSortedWithSmallestCell) {
     for (int k = 0; k < 3; ++k)
       pts(k, i) = ud(rng);
   const ArrayXd sar = ArrayXd::Constant(n, 1.5);
-  std::optional<SaPrep> sa = prepare(pts, sar, ArrayXb::Constant(n, true), kRp);
-  ASSERT_TRUE(sa);
-  const SasDelaunay del = triangulate(*sa);
+  std::optional<SurfaceSpheres> ss =
+      prepare(pts, sar - kRp, ArrayXb::Constant(n, true), kRp);
+  ASSERT_TRUE(ss);
+  const SasDelaunay del = triangulate(*ss);
 
   const int nf = static_cast<int>(del.tets.cols());
   int n_edges = 0;
@@ -932,15 +936,15 @@ TEST(BuildSasTest, EdgeTablesMatchBruteForce) {
     sar[i] = ur(rng);
     active[i] = i % 3 == 0;
   }
-  std::optional<SaPrep> sa = prepare(pts, sar, active, kRp);
-  ASSERT_TRUE(sa);
-  const SasDelaunay del = triangulate(*sa);
-  const SasEdgeTables tbl = edge_tables(*sa, del);
+  std::optional<SurfaceSpheres> ss = prepare(pts, sar - kRp, active, kRp);
+  ASSERT_TRUE(ss);
+  const SasDelaunay del = triangulate(*ss);
+  const SasEdgeTables tbl = edge_tables(*ss, del);
 
-  const int nk = sa->g.n();
+  const int nk = ss->g.n();
   ArrayXi v_of_new(nk), new_of_v = ArrayXi::Constant(del.ex.n(), -1);
   for (int p = 0; p < nk; ++p) {
-    v_of_new[p] = del.vertex[sa->order[p]];
+    v_of_new[p] = del.vertex[ss->order[p]];
     new_of_v[v_of_new[p]] = p;
   }
   EXPECT_TRUE((v_of_new != ArrayXi::LinSpaced(nk, 0, nk - 1)).any());
@@ -953,9 +957,9 @@ TEST(BuildSasTest, EdgeTablesMatchBruteForce) {
       const auto [a, b] = nuri::minmax(s, t);
       int expected = -1;
       if (t >= 0) {
-        const auto gb = sa->g.begin(a), ge = sa->g.end(a),
+        const auto gb = ss->g.begin(a), ge = ss->g.end(a),
                    found = std::find(gb, ge, b);
-        expected = found != ge ? sa->g.eid(found) : -1;
+        expected = found != ge ? ss->g.eid(found) : -1;
       }
       EXPECT_EQ(tbl.pair_of_edge[del.nbrs.eid(it)], expected)
           << v << " " << *it;
@@ -968,15 +972,15 @@ TEST(BuildSasTest, EdgeTablesMatchBruteForce) {
   EXPECT_GT(n_apart, 0);
   EXPECT_GT(n_overlap, 0);
 
-  ASSERT_EQ(tbl.edge_of_pair.size(), sa->g.m());
+  ASSERT_EQ(tbl.edge_of_pair.size(), ss->g.m());
   int n_adjacent = 0, n_far = 0;
   for (int i = 0; i < nk; ++i) {
-    for (auto it = sa->g.begin(i), e = sa->g.end(i); it < e; ++it) {
+    for (auto it = ss->g.begin(i), e = ss->g.end(i); it < e; ++it) {
       const int va = v_of_new[i], vb = v_of_new[*it];
       const auto rb = del.nbrs.begin(va), re = del.nbrs.end(va),
                  found = std::find(rb, re, vb);
       const int expected = found != re ? del.nbrs.eid(found) : -1;
-      EXPECT_EQ(tbl.edge_of_pair[sa->g.eid(it)], expected) << i << " " << *it;
+      EXPECT_EQ(tbl.edge_of_pair[ss->g.eid(it)], expected) << i << " " << *it;
       n_adjacent += expected >= 0;
       n_far += expected < 0;
     }
@@ -1023,8 +1027,8 @@ double sr_tol(const double radius, const int n) {
 
 void expect_areas(const Sas &sas, const ArrayXd &sr, const ArrayXd &sar,
                   const int n) {
-  for (int p = 0; p < sas.sa.n_solve; ++p) {
-    const int o = sas.sa.order[p];
+  for (int p = 0; p < sas.ss.n_solve; ++p) {
+    const int o = sas.ss.order[p];
     EXPECT_NEAR(sas.geo.area[p], sr[o], sr_tol(sar[o], n)) << "atom " << o;
   }
   for (int p = 0; p < sas.geo.probes.pos.cols(); ++p)
@@ -1037,12 +1041,12 @@ void expect_sr(const Sas &sas, const Matrix3Xd &pts, const ArrayXd &sar,
 }
 
 Sas solve_rp(const Matrix3Xd &pts, const ArrayXd &sar, const double rp) {
-  std::optional<SaPrep> sa =
-      prepare(pts, sar, ArrayXb::Constant(sar.size(), true), rp);
-  EXPECT_TRUE(sa);
-  SasDelaunay del = triangulate(*sa);
-  SasGeometry geo = build_sas(*sa, del);
-  return { std::move(*sa), std::move(geo) };
+  std::optional<SurfaceSpheres> ss =
+      prepare(pts, sar - rp, ArrayXb::Constant(sar.size(), true), rp);
+  EXPECT_TRUE(ss);
+  SasDelaunay del = triangulate(*ss);
+  SasGeometry geo = build_sas(*ss, del);
+  return { std::move(*ss), std::move(geo) };
 }
 
 struct RigidMotion {
@@ -1074,7 +1078,7 @@ int spurious_probes(const Sas &sas, const Matrix3Xd &pts, const ArrayXd &sar) {
     for (int m = 0; m < sar.size(); ++m) {
       bool atom = false;
       for (const int a: sas.geo.probes.atoms.nbrs(p))
-        atom |= sas.sa.order[a] == m;
+        atom |= sas.ss.order[a] == m;
       n += !atom && sar[m] - (x - pts.col(m)).norm() > kSurfaceLengthEps;
     }
   }
@@ -1110,12 +1114,12 @@ TEST(BuildSasTest, FlatSquareApexNoSpuriousProbe) {
   int with_flat = 0;
   for (int seed = 0; seed < 40; ++seed) {
     const Matrix3Xd pts = rigid(base, seed);
-    std::optional<SaPrep> sa =
-        prepare(pts, sar, ArrayXb::Constant(5, true), kRp);
-    ASSERT_TRUE(sa);
-    const SasDelaunay del = triangulate(*sa);
+    std::optional<SurfaceSpheres> ss =
+        prepare(pts, sar - kRp, ArrayXb::Constant(5, true), kRp);
+    ASSERT_TRUE(ss);
+    const SasDelaunay del = triangulate(*ss);
     with_flat += flat_cells(del, 4) > 0;
-    const Sas sas { *sa, build_sas(*sa, del) };
+    const Sas sas { *ss, build_sas(*ss, del) };
     EXPECT_EQ(spurious_probes(sas, pts, sar), 0) << "seed " << seed;
     expect_sr(sas, pts, sar, 5000);
   }
@@ -1172,7 +1176,7 @@ TEST(BuildSasTest, CoaxialCutPointsStayOnTheirSpheres) {
     ASSERT_EQ(sas.geo.probes.pos.cols(), 2);
     for (int p = 0; p < 2; ++p) {
       for (const int a: sas.geo.probes.atoms.nbrs(p)) {
-        const int o = sas.sa.order[a];
+        const int o = sas.ss.order[a];
         EXPECT_NEAR((sas.geo.probes.pos.col(p) - pts.col(o)).norm(), sar[o],
                     1e-9)
             << "seed " << seed;
@@ -1338,9 +1342,9 @@ TEST(BuildSasTest, InternallyTangentBallDropped) {
     pts.col(1 - inner) << 0, 0, 0;
     sar[1 - inner] = 5;
 
-    auto [sa, geo] = solve(pts, sar);
-    ASSERT_EQ(sa.order.size(), 1);
-    EXPECT_EQ(sa.order[0], 1 - inner);
+    auto [ss, geo] = solve(pts, sar);
+    ASSERT_EQ(ss.order.size(), 1);
+    EXPECT_EQ(ss.order[0], 1 - inner);
     EXPECT_EQ(geo.probes.pos.cols(), 0);
     EXPECT_NEAR(geo.area[0], 4 * kPi * 25, 1e-9);
   }
@@ -1378,20 +1382,20 @@ TEST(BuildSasTest, IdenticalTwinsKeepActive) {
   for (const int alive: { 0, 1 }) {
     ArrayXb active = ArrayXb::Constant(3, true);
     active[1 - alive] = false;
-    auto [sa, geo] = solve(pts, sar, active);
-    ASSERT_EQ(sa.n_active, 2);
-    EXPECT_EQ(sa.order[0], alive);
+    auto [ss, geo] = solve(pts, sar, active);
+    ASSERT_EQ(ss.n_active, 2);
+    EXPECT_EQ(ss.order[0], alive);
     EXPECT_EQ(geo.area[0], lone.geo.area[0]);
   }
 
   {
-    auto [sa, geo] = solve(pts, sar, ArrayXb::Constant(3, true));
-    ASSERT_EQ(sa.order.size(), 2);
-    EXPECT_TRUE((sa.order != 1).all());
+    auto [ss, geo] = solve(pts, sar, ArrayXb::Constant(3, true));
+    ASSERT_EQ(ss.order.size(), 2);
+    EXPECT_TRUE((ss.order != 1).all());
   }
   {
-    auto [sa, geo] = solve(pts, sar, ArrayXb::Constant(3, false));
-    EXPECT_EQ(sa.order.size(), 0);
+    auto [ss, geo] = solve(pts, sar, ArrayXb::Constant(3, false));
+    EXPECT_EQ(ss.order.size(), 0);
   }
 }
 
@@ -1417,8 +1421,8 @@ TEST(BuildSasTest, SharedCircleMiddleDropped) {
     ArrayXd sar;
     const Matrix3Xd pts = shared_circle_pts(mid, sar);
     const Sas sas = solve(pts, sar);
-    ASSERT_EQ(sas.sa.order.size(), 2);
-    EXPECT_TRUE((sas.sa.order != mid).all());
+    ASSERT_EQ(sas.ss.order.size(), 2);
+    EXPECT_TRUE((sas.ss.order != mid).all());
     EXPECT_EQ(sas.geo.probes.pos.cols(), 0);
     expect_sr(sas, pts, sar);
   }
@@ -1439,8 +1443,8 @@ TEST(BuildSasTest, SharedCircleMiddleUnderContainedOuter) {
     sar << sar3, 3.5;
 
     const Sas sas = solve(pts, sar);
-    ASSERT_EQ(sas.sa.order.size(), 2);
-    EXPECT_TRUE((sas.sa.order != mid).all());
+    ASSERT_EQ(sas.ss.order.size(), 2);
+    EXPECT_TRUE((sas.ss.order != mid).all());
     EXPECT_EQ(sas.geo.probes.pos.cols(), 0);
     expect_sr(sas, pts, sar);
   }
@@ -1452,7 +1456,7 @@ TEST(BuildSasTest, NearSharedCircleKept) {
     Matrix3Xd pts = shared_circle_pts(1, sar);
     pts(2, 1) += shift;
     const Sas sas = solve(pts, sar);
-    ASSERT_EQ(sas.sa.order.size(), 3);
+    ASSERT_EQ(sas.ss.order.size(), 3);
     expect_sr(sas, pts, sar);
   }
 }
@@ -1496,9 +1500,9 @@ TEST(BuildSasTest, SharedCircleMiddleAmongNeighbours) {
     append_off_axis(pts, sar, 6, mid);
 
     const Sas sas = solve(pts, sar);
-    ASSERT_EQ(sas.sa.order.size(), 8);
-    EXPECT_EQ(sas.sa.n_active, 8);
-    EXPECT_TRUE((sas.sa.order != mid).all());
+    ASSERT_EQ(sas.ss.order.size(), 8);
+    EXPECT_EQ(sas.ss.n_active, 8);
+    EXPECT_TRUE((sas.ss.order != mid).all());
     expect_sr(sas, pts, sar);
   }
 }
@@ -1552,10 +1556,10 @@ TEST(BuildSasTest, SharedCircleSparesTwin) {
     active[3 - alive] = false;
 
     const Sas sas = solve(pts, sar, active);
-    ASSERT_EQ(sas.sa.order.size(), 7);
-    EXPECT_EQ(sas.sa.n_active, 7);
-    EXPECT_TRUE((sas.sa.order != 3 - alive).all());
-    EXPECT_TRUE((sas.sa.order == alive).any());
+    ASSERT_EQ(sas.ss.order.size(), 7);
+    EXPECT_EQ(sas.ss.n_active, 7);
+    EXPECT_TRUE((sas.ss.order != 3 - alive).all());
+    EXPECT_TRUE((sas.ss.order == alive).any());
 
     ArrayXi rest(7);
     for (int q = 0, p = 0; q < 8; ++q)
@@ -1604,7 +1608,7 @@ TEST(BuildSasTest, ExactlyTangentPair) {
   pts.col(1) << 3, 0, 0;
   const ArrayXd sar = ArrayXd::Constant(2, 1.5);
 
-  auto [sa, geo] = solve(pts, sar);
+  auto [ss, geo] = solve(pts, sar);
   EXPECT_EQ(geo.probes.pos.cols(), 0);
   for (int p = 0; p < 2; ++p)
     EXPECT_NEAR(geo.area[p], 4 * kPi * 1.5 * 1.5, 1e-9);
@@ -1671,7 +1675,7 @@ TEST(BuildSasTest, TangentPairThirdSphereThroughPoint) {
                          [&](const Matrix3Xd &p, const ArrayXd &r,
                              const std::vector<int> &order) {
                            const Sas sas = solve_rp(p, r, rp);
-                           ASSERT_EQ(sas.sa.order.size(), 3);
+                           ASSERT_EQ(sas.ss.order.size(), 3);
                            EXPECT_EQ(sas.geo.probes.pos.cols(), 0);
                            ArrayXd sr_p(3);
                            for (int i = 0; i < 3; ++i)
@@ -1702,7 +1706,7 @@ TEST(BuildSasTest, TangentPairFourFoldPoint) {
                        [&](const Matrix3Xd &p, const ArrayXd &r,
                            const std::vector<int> &order) {
                          const Sas sas = solve_rp(p, r, 0.5);
-                         ASSERT_EQ(sas.sa.order.size(), 4);
+                         ASSERT_EQ(sas.ss.order.size(), 4);
                          const int c = probe_at(sas.geo, x);
                          ASSERT_GE(c, 0);
                          EXPECT_EQ(sas.geo.probes.atoms.degree(c), 4);
@@ -1787,7 +1791,7 @@ void expect_order_invariant_areas(const Matrix3Xd &pts, const ArrayXd &sar,
   const Sas first = solve(pts, sar);
   ref.resize(n);
   for (int p = 0; p < n; ++p)
-    ref[first.sa.order[p]] = first.geo.area[p];
+    ref[first.ss.order[p]] = first.geo.area[p];
 
   for_each_index_order(pts, sar,
                        [&](const Matrix3Xd &p, const ArrayXd &r,
@@ -1801,7 +1805,7 @@ void expect_order_invariant_areas(const Matrix3Xd &pts, const ArrayXd &sar,
                          }
                          expect_areas(sas, sr_p, r, 20000);
                          for (int i = 0; i < n; ++i) {
-                           const int o = order[sas.sa.order[i]];
+                           const int o = order[sas.ss.order[i]];
                            EXPECT_NEAR(sas.geo.area[i], ref[o], 1e-9)
                                << "atom " << o << " order " << tag;
                          }
@@ -1904,7 +1908,7 @@ TEST(BuildSasTest, MergedKFoldUnderRigidMotion) {
     expect_sr(ref, base, sar);
     ArrayXd ref_area(k);
     for (int p = 0; p < k; ++p)
-      ref_area[ref.sa.order[p]] = ref.geo.area[p];
+      ref_area[ref.ss.order[p]] = ref.geo.area[p];
 
     for (int seed = 0; seed < 16; ++seed) {
       const auto [rot, t] = rigid_motion(seed);
@@ -1917,7 +1921,7 @@ TEST(BuildSasTest, MergedKFoldUnderRigidMotion) {
       EXPECT_EQ(arc_ends_at(sas.geo, c), k) << "seed " << seed;
       expect_no_unmerged_pairs(sas.geo, merge_tol(sas));
       for (int p = 0; p < k; ++p) {
-        EXPECT_NEAR(sas.geo.area[p], ref_area[sas.sa.order[p]], 1e-9)
+        EXPECT_NEAR(sas.geo.area[p], ref_area[sas.ss.order[p]], 1e-9)
             << "k " << k << " seed " << seed << " atom " << p;
       }
     }
@@ -1982,15 +1986,15 @@ TEST(BuildSasTest, CutterOnlyClusterMerged) {
   active[4] = true;
 
   const Sas sas = solve(pts, sar, active);
-  ASSERT_EQ(sas.sa.n_active, 1);
-  ASSERT_EQ(sas.sa.n_solve, 2);
-  ASSERT_EQ(sas.sa.n_enum, 5);
+  ASSERT_EQ(sas.ss.n_active, 1);
+  ASSERT_EQ(sas.ss.n_solve, 2);
+  ASSERT_EQ(sas.ss.n_enum, 5);
 
   const int c = probe_at(sas.geo, Vector3d::Zero());
   ASSERT_GE(c, 0);
   std::vector<int> atoms;
   for (const int p: sas.geo.probes.atoms.nbrs(c))
-    atoms.push_back(sas.sa.order[p]);
+    atoms.push_back(sas.ss.order[p]);
   std::sort(atoms.begin(), atoms.end());
   EXPECT_EQ(atoms, (std::vector<int> { 0, 1, 2, 3 }));
   expect_no_unmerged_pairs(sas.geo, merge_tol(sas));
@@ -2027,12 +2031,12 @@ TEST(BuildSasTest, CoincidentShellProbesAcrossOccluderCircle) {
       shell[i] = perm[i] == 5;
     }
     for (const bool all: { false, true }) {
-      const std::optional<SaPrep> sa =
-          prepare(pts, sar, all ? ArrayXb::Constant(6, true) : shell, 0.5);
-      ASSERT_TRUE(sa);
-      ASSERT_EQ(sa->n_enum, all ? 6 : 4);
-      const SasDelaunay del = triangulate(*sa);
-      const SasGeometry geo = build_sas(*sa, del);
+      const std::optional<SurfaceSpheres> ss = prepare(
+          pts, sar - 0.5, all ? ArrayXb::Constant(6, true) : shell, 0.5);
+      ASSERT_TRUE(ss);
+      ASSERT_EQ(ss->n_enum, all ? 6 : 4);
+      const SasDelaunay del = triangulate(*ss);
+      const SasGeometry geo = build_sas(*ss, del);
 
       const int c = probe_at(geo, x);
       ASSERT_GE(c, 0) << "all " << all << " perm " << perm[0] << perm[1]
@@ -2060,10 +2064,11 @@ TEST(BuildSasTest, CoincidentShellProbesUnderRigidMotion) {
   for (int seed = 0; seed < 32; ++seed) {
     const auto [rot, t] = rigid_motion(seed);
     const Matrix3Xd pts = (rot * base).colwise() + t;
-    const std::optional<SaPrep> sa = prepare(pts, sar, shell, 0.5);
-    ASSERT_TRUE(sa);
-    const SasDelaunay del = triangulate(*sa);
-    const SasGeometry geo = build_sas(*sa, del);
+    const std::optional<SurfaceSpheres> ss =
+        prepare(pts, sar - 0.5, shell, 0.5);
+    ASSERT_TRUE(ss);
+    const SasDelaunay del = triangulate(*ss);
+    const SasGeometry geo = build_sas(*ss, del);
 
     SCOPED_TRACE(seed);
     expect_no_unmerged_pairs(geo, probe_merge_tol(sar.maxCoeff()));

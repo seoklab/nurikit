@@ -23,10 +23,9 @@ namespace internal {
   namespace {
     using constants::kTwoPi;
 
-    ArrayXd convex_areas(const SaPrep &sa, const SasGeometry &geo,
-                         const ArrayXd &r) {
-      const int n = sa.n_active;
-      return geo.area.head(n) * (r.head(n) / sa.sar.head(n)).square();
+    ArrayXd convex_areas(const SurfaceSpheres &ss, const SasGeometry &geo) {
+      const int n = ss.n_active;
+      return geo.area.head(n) * (ss.r.head(n) / ss.sar.head(n)).square();
     }
 
     struct Beta {
@@ -73,15 +72,15 @@ namespace internal {
       return out;
     }
 
-    void saddles(SesGeometry &ses, const SaPrep &sa, const SasGeometry &geo,
-                 const double rp) {
-      const int n_circ = sa.g.offset(sa.n_active);
+    void saddles(SesGeometry &ses, const SurfaceSpheres &ss,
+                 const SasGeometry &geo, const double rp) {
+      const int n_circ = ss.g.offset(ss.n_active);
       ses.saddle_beta.resize(4, n_circ);
       ses.saddle_integral.resize(2, n_circ);
       for (int q = 0; q < n_circ; ++q) {
         const SasCircle &c = geo.circles[q];
-        const SaddleRanges sr = saddle_ranges(c.rl, rp, c.a, sa.d[q] - c.a,
-                                              sa.sar[c.i], sa.sar[c.j]);
+        const SaddleRanges sr = saddle_ranges(c.rl, rp, c.a, ss.d[q] - c.a,
+                                              ss.sar[c.i], ss.sar[c.j]);
         ses.saddle_beta.col(q) = sr.beta;
         ses.saddle_integral.col(q) = sr.integral;
       }
@@ -118,8 +117,8 @@ namespace internal {
       ArrayXd cos_b, sin_b;
     };
 
-    ProbeHeights probe_heights(const SaPrep &sa, const SasProbes &probes,
-                               const double rp) {
+    ProbeHeights probe_heights(const SurfaceSpheres &ss,
+                               const SasProbes &probes, const double rp) {
       const int np = static_cast<int>(probes.pos.cols());
       ProbeHeights hts { ArrayXb::Constant(np, true),
                          ArrayXb::Constant(np, false), Matrix3Xd::Zero(3, np),
@@ -129,7 +128,7 @@ namespace internal {
         if (probes.atoms.degree(p) != 3)
           continue;
 
-        const Matrix3d tri = sa.pts(E::all, probes.atoms.nbrs(p));
+        const Matrix3d tri = ss.pts(E::all, probes.atoms.nbrs(p));
         const Vector3d x = probes.pos.col(p),
                        nrm = (tri.col(1) - tri.col(0))
                                  .cross(tri.col(2) - tri.col(0))
@@ -673,16 +672,15 @@ namespace internal {
     return solver.solve(n, h, cosa, rp, live);
   }
 
-  SesGeometry build_ses(const SaPrep &sa, const SasDelaunay &del,
+  SesGeometry build_ses(const SurfaceSpheres &ss, const SasDelaunay &del,
                         const SasGeometry &geo) {
-    const double rp = sa.rp;
+    const double rp = ss.rp;
     SesGeometry ses;
-    ses.r = sa.sar - rp;
-    ses.convex_area = convex_areas(sa, geo, ses.r);
-    saddles(ses, sa, geo, rp);
+    ses.convex_area = convex_areas(ss, geo);
+    saddles(ses, ss, geo, rp);
 
     const SasProbes &probes = geo.probes;
-    const ProbeHeights hts = probe_heights(sa, probes, rp);
+    const ProbeHeights hts = probe_heights(ss, probes, rp);
     const FaceTriangles tri = face_triangles(probes);
     const PairCaps pc = pair_caps(del.ex, probes, rp, hts, tri);
     const LiftedCaps lifted = faces(ses, probes, pc);
