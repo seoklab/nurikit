@@ -156,11 +156,11 @@ namespace internal {
           const Array4d beta = ses_->saddle_beta.col(arc.circ);
           const E::Array2d integral = ses_->saddle_integral.col(arc.circ);
 
-          if (c.rl >= rp_) {
-            saddle_row(arc, c, { beta[0], beta[3], integral.sum() });
-          } else {
+          if (beta[1] < beta[2]) {
             saddle_row(arc, c, { beta[0], beta[1], integral[0] });
             saddle_row(arc, c, { beta[2], beta[3], integral[1] });
+          } else {
+            saddle_row(arc, c, { beta[0], beta[3], integral.sum() });
           }
         }
       }
