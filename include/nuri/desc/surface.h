@@ -636,9 +636,11 @@ namespace internal {
    * the caps `face_off`, `face_axis`, `face_cosa` (hemispheres of the
    * departure tangents first, then the neighbour probes that may cut, less
    * the caps dropped by the face solver's hygiene) are per active probe
-   * `p < probes.n_active`.
+   * `p < probes.n_active`. `r` is the small radius `sar − rp` of every kept
+   * atom.
    */
   struct SesGeometry {
+    ArrayXd r;
     ArrayXd convex_area;
     Matrix4Xd saddle_beta;
     Matrix2Xd saddle_integral;

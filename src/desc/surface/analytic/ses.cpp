@@ -24,9 +24,9 @@ namespace internal {
     using constants::kTwoPi;
 
     ArrayXd convex_areas(const SaPrep &sa, const SasGeometry &geo,
-                         const double rp) {
-      const auto sar = sa.sar.head(sa.n_active);
-      return geo.area.head(sa.n_active) * ((sar - rp) / sar).square();
+                         const ArrayXd &r) {
+      const int n = sa.n_active;
+      return geo.area.head(n) * (r.head(n) / sa.sar.head(n)).square();
     }
 
     struct Beta {
@@ -675,7 +675,8 @@ namespace internal {
                         const SasGeometry &geo) {
     const double rp = sa.rp;
     SesGeometry ses;
-    ses.convex_area = convex_areas(sa, geo, rp);
+    ses.r = sa.sar - rp;
+    ses.convex_area = convex_areas(sa, geo, ses.r);
     saddles(ses, sa, geo, rp);
 
     const SasProbes &probes = geo.probes;

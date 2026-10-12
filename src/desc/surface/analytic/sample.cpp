@@ -124,7 +124,7 @@ namespace internal {
           if (area <= 0)
             continue;
 
-          const double r = sa_->sar[i] - rp_;
+          const double r = ses_->r[i];
           const Matrix3Xd &dirs =
               lattice(lattice_count(2 * kTwoPi * r * r, density_));
           const int beg = caps.h.offset(i), m = caps.h.degree(i);
@@ -275,7 +275,7 @@ namespace internal {
           for (int a = 0; a < na; ++a) {
             contacts.col(a) = (sa_->pts.col(atoms[a]) - pos).normalized();
             big[a] = sa_->sar[atoms[a]];
-            small[a] = big[a] - rp_;
+            small[a] = ses_->r[atoms[a]];
           }
 
           const double w = area / n_kept;
