@@ -169,7 +169,8 @@ namespace internal {
     int degree(int i) const { return off_[i + 1] - off_[i]; }
 
     int max_deg() const {
-      return (off_.tail(size()) - off_.head(size())).maxCoeff();
+      return size() == 0 ? 0
+                         : (off_.tail(size()) - off_.head(size())).maxCoeff();
     }
 
     int size() const { return static_cast<int>(off_.size()) - 1; }

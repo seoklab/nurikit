@@ -312,7 +312,9 @@ port, Floating point).
    `TAU_C` of every host sphere, so `|c_a − c_d| ≤ R_a + R_d + 2 TAU_C`.
    Coincident centres (`d < 1e-3 Å`) raise in the pilot; the port treats
    them as contained pairs (step 2).
-   *Port:* the near pairs, taken over every atom, are only **candidates**;
+   *Port:* the near pairs, taken over the atoms within `kBandHops + 1`
+   near-pair lengths of an active atom (a superset of the band of step 4),
+   are only **candidates**;
    pairs below `R_i + R_j − 2 TAU_C` are overlaps outright, and `overlap`
    decides the tangency band exactly on the lifted `(c, h)` (§3 port step 2).
    The band must be a superset of the exact overlaps, which

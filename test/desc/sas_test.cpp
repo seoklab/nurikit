@@ -595,6 +595,11 @@ void expect_same_prep(const Sas &sas, const Sas &ref, const ArrayXi &rest) {
   EXPECT_EQ(sas.sa.n_enum, ref.sa.n_enum);
   for (int p = 0; p < sas.sa.order.size(); ++p)
     EXPECT_EQ(sas.sa.order[p], rest[ref.sa.order[p]]) << p;
+  EXPECT_TRUE((sas.sa.g.off() == ref.sa.g.off()).all());
+  EXPECT_TRUE((sas.sa.g.adj() == ref.sa.g.adj()).all());
+  EXPECT_TRUE((sas.sa.d == ref.sa.d).all());
+  EXPECT_EQ(sas.sa.pts, ref.sa.pts);
+  EXPECT_TRUE((sas.sa.sar == ref.sa.sar).all());
 
   ASSERT_EQ(sas.geo.area.size(), ref.geo.area.size());
   for (int p = 0; p < sas.geo.area.size(); ++p)
@@ -608,6 +613,56 @@ void expect_same_prep(const Sas &sas, const Sas &ref, const ArrayXi &rest) {
  * hop-3 atom is within three hops itself and the band sees both pairs; the
  * run without the contained spheres is the control.
  */
+/**
+ * Atoms beyond the reach of every active atom change nothing: a cloud
+ * with two active atoms and, at every sixth index, an atom 300 A away.
+ */
+TEST(BuildSasTest, PrepareIgnoresAtomsBeyondReach) {
+  constexpr int n = 240;
+  std::mt19937 rng(7);
+  std::uniform_real_distribution<double> u(0, 6), ur(1.5, 2.5);
+  Matrix3Xd pts(3, n);
+  ArrayXd sar(n);
+  ArrayXi rest(n - n / 6);
+  for (int i = 0, w = 0; i < n; ++i) {
+    pts.col(i) << u(rng), u(rng), u(rng);
+    if (i % 6 == 5)
+      pts(2, i) += 300;
+    else
+      rest[w++] = i;
+    sar[i] = ur(rng);
+  }
+  ArrayXb active = ArrayXb::Constant(n, false);
+  active[0] = active[7] = true;
+
+  const Sas full = solve(pts, sar, active),
+            part = solve_only(pts, sar, active, rest);
+  EXPECT_GT(full.sa.order.size(), 2);
+  for (const int i: full.sa.order)
+    EXPECT_NE(i % 6, 5);
+  expect_same_prep(full, part, rest);
+}
+
+/**
+ * Without an active atom nothing is kept.
+ */
+TEST(BuildSasTest, PrepareWithoutActiveAtoms) {
+  Matrix3Xd pts(3, 3);
+  pts << 0, 2.5, 5, 0, 0, 0, 0, 0, 0;
+  const ArrayXd sar = ArrayXd::Constant(3, 1.5);
+
+  const std::optional<SaPrep> sa =
+      prepare(pts, sar, ArrayXb::Constant(3, false), kRp);
+  ASSERT_TRUE(sa);
+  EXPECT_EQ(sa->order.size(), 0);
+  EXPECT_EQ(sa->g.n(), 0);
+  EXPECT_EQ(sa->g.m(), 0);
+  EXPECT_EQ(sa->n_active, 0);
+  EXPECT_EQ(sa->n_solve, 0);
+  EXPECT_EQ(sa->n_enum, 0);
+  EXPECT_EQ(sa->wmax, 2.25);
+}
+
 TEST(BuildSasTest, BandContainedPartnerAtHopFour) {
   Matrix3Xd pts(3, 6);
   for (int i = 0; i < 3; ++i)

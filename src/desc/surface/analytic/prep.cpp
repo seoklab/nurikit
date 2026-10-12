@@ -82,6 +82,46 @@ namespace internal {
       return { CSR(std::move(adj), std::move(off)), std::move(order) };
     }
 
+    /**
+     * Atoms whose block of coarse cells holds an active atom, a superset of
+     * the atoms within `radius` of one by the grid's binning.
+     */
+    ArrayXb within_reach(const Matrix3Xd &pts, const ArrayXb &active,
+                         const double radius) {
+      const VoxelGrid grid(pts, radius);
+      const Array3i &dims = grid.dims();
+      const ArrayXi &off = grid.cell_offset(), &members = grid.cell_pts();
+      const int nc = grid.num_cells();
+
+      ArrayXb marked(nc);
+      for (int v = 0; v < nc; ++v)
+        marked[v] = active(members.segment(off[v], off[v + 1] - off[v])).any();
+
+      ArrayXb reach = ArrayXb::Constant(pts.cols(), false);
+      for (int z = 0, v = 0; z < dims.z(); ++z) {
+        for (int y = 0; y < dims.y(); ++y) {
+          for (int x = 0; x < dims.x(); ++x, ++v) {
+            if (off[v] == off[v + 1])
+              continue;
+
+            bool near = false;
+            for (int bz = nuri::max(z - 1, 0);
+                 bz <= nuri::min(z + 1, dims.z() - 1); ++bz) {
+              for (int by = nuri::max(y - 1, 0);
+                   by <= nuri::min(y + 1, dims.y() - 1); ++by) {
+                for (int bx = nuri::max(x - 1, 0);
+                     bx <= nuri::min(x + 1, dims.x() - 1); ++bx)
+                  near |= marked[bx + dims.x() * (by + dims.y() * bz)];
+              }
+            }
+            if (near)
+              reach(members.segment(off[v], off[v + 1] - off[v])) = true;
+          }
+        }
+      }
+      return reach;
+    }
+
     NearPairs find_near_pairs(const BallExact &ex, const ArrayXd &sar,
                               const ArrayXb &active, const double rmax) {
       const Matrix3Xd &pts = ex.centers();
@@ -349,20 +389,34 @@ namespace internal {
       return std::nullopt;
     }
 
-    const ArrayXd sar2 = sar.square();
+    const ArrayXb reach = within_reach(
+        pts, active, (kBandHops + 1) * 2 * (rmax + kSurfaceLengthEps));
+    ArrayXi near(reach.count());
+    for (int i = 0, w = 0; i < reach.size(); ++i) {
+      if (reach[i])
+        near[w++] = i;
+    }
+    const Matrix3Xd npts = pts(E::all, near);
+    const ArrayXd nsar = sar(near);
+    const ArrayXb nactive = active(near);
+
+    const ArrayXd sar2 = nsar.square();
     const double wmax = rmax * rmax;
     const ArrayXd t = (wmax - sar2).sqrt();
-    Matrix4Xd lifted(4, sar.size());
-    lifted.topRows(3) = pts;
+    Matrix4Xd lifted(4, nsar.size());
+    lifted.topRows(3) = npts;
     lifted.row(3) = t.transpose();
     const BallExact ex = BallExact::make(lifted, wmax);
 
-    NearPairs np = find_near_pairs(ex, sar, active, rmax);
+    NearPairs np = find_near_pairs(ex, nsar, nactive, rmax);
     auto [g, d] = exact_overlaps(ex, np);
     drop_shared_circle_middles(np.keep, g, d, sar2, ex, rmax, wmax);
 
-    auto [order, off] = rank_atoms(np.keep, np.inear, np.jnear, active);
-    return compact(pts, sar, t, wmax, g, d, std::move(order), off, np.keep);
+    auto [order, off] = rank_atoms(np.keep, np.inear, np.jnear, nactive);
+    SaPrep sa =
+        compact(npts, nsar, t, wmax, g, d, std::move(order), off, np.keep);
+    sa.order = near(sa.order);
+    return sa;
   }
 }  // namespace internal
 }  // namespace nuri
