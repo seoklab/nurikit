@@ -252,52 +252,60 @@ namespace internal {
       }
     }
 
-    using Array5i = E::Array<int, 5, 1>;
+    enum Rank : int { kActive = 0, kNeed, kShell, kOccluder, kIgnored, kRanks };
+
+    using RankOffsets = E::Array<int, kRanks, 1>;
+
+    struct AtomRanking {
+      ArrayXi order;
+      RankOffsets off;
+      ArrayXi ibuf;
+    };
 
     /**
-     * Remap to ranking scheme: 0 -> active, 1 -> need, 2 -> shell, 3 ->
-     * occluders near a sphere with caps, 4 -> ignored (contained, or an
-     * occluder near no sphere with caps; Lemma (occluder crop) in
-     * ALGORITHMS.md).
+     * Rank every atom: active, need, shell, occluder near a sphere with
+     * caps, or ignored (contained, or an occluder near no sphere with caps;
+     * Lemma (occluder crop) in ALGORITHMS.md).
      */
-    std::pair<ArrayXi, Array5i> rank_atoms(ArrayXi &keep, const ArrayXi &inear,
-                                           const ArrayXi &jnear,
-                                           const ArrayXb &active) {
-      // alias for clarity: &rank == &keep
-      ArrayXi &rank = keep;
+    AtomRanking rank_atoms(NearPairs &&np, const ArrayXb &active) {
+      // inplace rebuild of rank from keep
+      ArrayXi &keep = np.keep, &rank = np.keep;
+      const ArrayXi &inear = np.inear, &jnear = np.jnear;
+      const int n = static_cast<int>(rank.size());
 
       // 0/3/4 split here
-      rank = (keep.cast<bool>() && active).select(0, 4 - keep);
+      rank = (keep.cast<bool>() && active)
+                 .select(kActive, static_cast<int>(kIgnored) - keep);
 
       for (int k = 0; k < inear.size(); ++k) {
-        int i = inear[k], j = jnear[k];
-        if (rank[i] == 4 || rank[j] == 4)
+        const int i = inear[k], j = jnear[k];
+        if (rank[i] == kIgnored || rank[j] == kIgnored)
           continue;
 
-        rank[j] = rank[i] == 0 ? nuri::min(rank[j], 1) : rank[j];
-        rank[i] = rank[j] == 0 ? nuri::min(rank[i], 1) : rank[i];
+        rank[j] = rank[i] == kActive ? nuri::min<int>(rank[j], kNeed) : rank[j];
+        rank[i] = rank[j] == kActive ? nuri::min<int>(rank[i], kNeed) : rank[i];
       }
       for (int k = 0; k < inear.size(); ++k) {
-        int i = inear[k], j = jnear[k];
-        if (rank[i] == 4 || rank[j] == 4)
+        const int i = inear[k], j = jnear[k];
+        if (rank[i] == kIgnored || rank[j] == kIgnored)
           continue;
 
-        rank[j] = rank[i] <= 1 ? nuri::min(rank[j], 2) : rank[j];
-        rank[i] = rank[j] <= 1 ? nuri::min(rank[i], 2) : rank[i];
+        rank[j] = rank[i] <= kNeed ? nuri::min<int>(rank[j], kShell) : rank[j];
+        rank[i] = rank[j] <= kNeed ? nuri::min<int>(rank[i], kShell) : rank[i];
       }
 
-      ArrayXb near_caps = ArrayXb::Constant(rank.size(), false);
+      ArrayXb near_caps = ArrayXb::Constant(n, false);
       for (int k = 0; k < inear.size(); ++k) {
-        int i = inear[k], j = jnear[k];
-        near_caps[j] = near_caps[j] || rank[i] <= 2;
-        near_caps[i] = near_caps[i] || rank[j] <= 2;
+        const int i = inear[k], j = jnear[k];
+        near_caps[j] = near_caps[j] || rank[i] <= kShell;
+        near_caps[i] = near_caps[i] || rank[j] <= kShell;
       }
-      rank = (rank == 3 && !near_caps).select(4, rank);
+      rank = (rank == kOccluder && !near_caps).select(kIgnored, rank);
 
-      ArrayXi order(rank.size());
-      Array5i off;
+      ArrayXi order(n);
+      RankOffsets off;
       argsort_bucket(order, off, rank);
-      return { std::move(order), off };
+      return { std::move(order), off, std::move(rank) };
     }
 
     /**
@@ -332,8 +340,11 @@ namespace internal {
 
     SaPrep compact(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXd &t,
                    const double wmax, const CSR &g, const ArrayXd &d,
-                   ArrayXi &&order, const Array5i &off, ArrayXi &inv) {
-      const int n = off[4];
+                   AtomRanking &&ranking) {
+      const auto &off = ranking.off;
+      ArrayXi &order = ranking.order, &inv = ranking.ibuf;
+
+      const int n = off[kIgnored];
 
       inv.setConstant(-1);
       for (int p = 0; p < n; ++p)
@@ -362,16 +373,9 @@ namespace internal {
       order.conservativeResize(n);
 
       return {
-        pts(E::all, order),
-        sar(order),
-        t(order),
-        wmax,
-        std::move(order),
-        std::move(gn),
-        dn.head(q)(perm),
-        off[1],
-        off[2],
-        off[3],
+        pts(E::all, order), sar(order),     t(order),         wmax,
+        std::move(order),   std::move(gn),  dn.head(q)(perm), off[kNeed],
+        off[kShell],        off[kOccluder],
       };
     }
   }  // namespace
@@ -424,9 +428,8 @@ namespace internal {
     auto [g, d] = exact_overlaps(ex, np);
     drop_shared_circle_middles(np.keep, g, d, sar2, ex, rmax, wmax);
 
-    auto [order, off] = rank_atoms(np.keep, np.inear, np.jnear, nactive);
-    SaPrep sa =
-        compact(npts, nsar, t, wmax, g, d, std::move(order), off, np.keep);
+    AtomRanking ar = rank_atoms(std::move(np), nactive);
+    SaPrep sa = compact(npts, nsar, t, wmax, g, d, std::move(ar));
     sa.order = near(sa.order);
     return sa;
   }
