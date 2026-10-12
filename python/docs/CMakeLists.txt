@@ -21,7 +21,7 @@ configure_file(conf.py.in "${CMAKE_CURRENT_LIST_DIR}/conf.py" @ONLY)
 if(NURI_BUILD_PYTHON_DOCS)
   add_custom_target(NuriPythonDocs
     ALL
-    COMMAND ${CMAKE_COMMAND} -E env ${SANITIZER_ENVS}
+    COMMAND ${CMAKE_COMMAND} -E env ${NURI_PYTHON_ENV} ${SANITIZER_ENVS}
     ${SPHINX_EXECUTABLE}
     -E
     -b html
@@ -43,7 +43,7 @@ endif()
 
 if(NURI_BUILD_PYTHON_DOCTEST)
   add_custom_target(NuriPythonDoctest
-    COMMAND ${CMAKE_COMMAND} -E env ${SANITIZER_ENVS}
+    COMMAND ${CMAKE_COMMAND} -E env ${NURI_PYTHON_ENV} ${SANITIZER_ENVS}
     ${SPHINX_EXECUTABLE}
     -E
     -b doctest

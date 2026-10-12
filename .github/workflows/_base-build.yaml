@@ -70,6 +70,7 @@ jobs:
             -DNURI_OPTIMIZATION_LEVEL=O0 \
             -S . -B build -G Ninja
           cmake --build build --target NuriPythonStubs -j
+          cmake --install build --component NuriPythonStubs --prefix python/src/nuri
 
           # Reconfigure for downstream build
           cmake -DCMAKE_BUILD_TYPE=Release \

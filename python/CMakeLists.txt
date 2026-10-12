@@ -26,6 +26,13 @@ if(NURI_BUILD_PYTHON)
     find_package("${PROJECT_NAME}" "${PROJECT_VERSION}" REQUIRED)
   endif()
 
+  set(NURI_PYTHON_STAGE_DIR "${CMAKE_CURRENT_BINARY_DIR}/src")
+  set(NURI_PYTHON_ENV "PYTHONPATH=${NURI_PYTHON_STAGE_DIR}")
+
+  if(DEFINED ENV{PYTHONPATH})
+    string(APPEND NURI_PYTHON_ENV ":$ENV{PYTHONPATH}")
+  endif()
+
   add_subdirectory(libsrc)
   add_subdirectory(src)
 endif()
