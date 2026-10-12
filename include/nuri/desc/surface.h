@@ -493,6 +493,14 @@ namespace internal {
   using BallExact = BallExactImpl<false>;
 
   /**
+   * Reference ray `d × e_k`, `k = BallExact::reference_axis(d)`, of the
+   * circle frames.
+   */
+  inline Vector3d reference_ray(const Vector3d &d) {
+    return d.cross(Vector3d::Unit(BallExact::reference_axis(d)));
+  }
+
+  /**
    * Regular (weighted Delaunay) triangulation of every kept sphere. Vertices
    * are the kept spheres in original index order, then four far bounding
    * points, so the result is shared across active masks: `vertex` maps an

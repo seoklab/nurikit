@@ -720,16 +720,9 @@ namespace internal {
       return s2 + zz;
     }
 
-    V3<double> reference_ray(const Vector3d &d) {
-      const int k = BallExact::reference_axis(d);
-      V3<double> e { 0.0, 0.0, 0.0 };
-      (k == 0 ? e.x : k == 1 ? e.y : e.z) = 1.0;
-      return cross(V3<double> { d[0], d[1], d[2] }, e);
-    }
-
     template <class T>
-    V3<T> lift(const V3<double> &v) {
-      return { lit<T>(v.x), lit<T>(v.y), lit<T>(v.z) };
+    V3<T> lift(const Vector3d &v) {
+      return { lit<T>(v[0]), lit<T>(v[1]), lit<T>(v[2]) };
     }
 
     /**
@@ -1280,7 +1273,7 @@ namespace internal {
   BallExactImpl<kForceExact, kFilterOnly>::half_plane(const int a, const int b,
                                                       const BallTriple f,
                                                       const bool plus) const {
-    const V3<double> r = reference_ray(c_.col(b) - c_.col(a));
+    const Vector3d r = reference_ray(c_.col(b) - c_.col(a));
     const Data d { &c_, &h_, w_ };
 
     auto along = [&](const bool sine) {

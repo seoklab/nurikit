@@ -59,8 +59,7 @@ namespace internal {
    */
   inline std::pair<Vector3d, Vector3d> circle_frame(const Vector3d &d,
                                                     const Vector3d &axis) {
-    const Vector3d e1 =
-        d.cross(Vector3d::Unit(BallExact::reference_axis(d))).normalized();
+    const Vector3d e1 = reference_ray(d).normalized();
     return { e1, axis.cross(e1) };
   }
 
