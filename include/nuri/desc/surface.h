@@ -6,6 +6,7 @@
 #ifndef NURI_DESC_SURFACE_H_
 #define NURI_DESC_SURFACE_H_
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
@@ -267,6 +268,14 @@ namespace internal {
 
     int eid(const_iterator it) const {
       return static_cast<int>(it - adj_.begin());
+    }
+
+    /**
+     * Edge id of `j` in row `i`, -1 if absent.
+     */
+    int find(int i, int j) const {
+      const auto e = end(i), it = std::lower_bound(begin(i), e, j);
+      return it != e && *it == j ? eid(it) : -1;
     }
 
     int m() const { return static_cast<int>(adj_.size()); }

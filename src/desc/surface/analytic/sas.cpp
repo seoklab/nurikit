@@ -50,15 +50,9 @@ namespace internal {
       return result;
     }
 
-    int pair_id(const CSR &g, const int i, const int j) {
-      const auto beg = g.begin(i), end = g.end(i);
-      const auto it = std::lower_bound(beg, end, j);
-      return it != end && *it == j ? g.eid(it) : -1;
-    }
-
     int pair_id_unordered(const CSR &g, const int i, const int j) {
       auto [a, b] = nuri::minmax(i, j);
-      return pair_id(g, a, b);
+      return g.find(a, b);
     }
 
     int icirc(int tag) {

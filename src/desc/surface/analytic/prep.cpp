@@ -180,11 +180,6 @@ namespace internal {
       return np;
     }
 
-    bool has_edge(const CSR &g, const int j, const int k) {
-      const auto end = g.end(j), it = std::lower_bound(g.begin(j), end, k);
-      return it != end && *it == k;
-    }
-
     /**
      * Drop the middle sphere of every triple sharing one circle: on each
      * side of the circle plane the outer sphere bulges more, so it has no
@@ -241,7 +236,7 @@ namespace internal {
             if (sar2[i] * dij.cross(dik).squaredNorm()
                 >= cutoff * (gij * gij) * (gik * gik))
               continue;
-            if (!has_edge(g, j, k))
+            if (g.find(j, k) < 0)
               continue;
 
             const int mid = ex.shared_circle({ i, j, k });
