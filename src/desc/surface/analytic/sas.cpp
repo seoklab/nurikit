@@ -769,7 +769,7 @@ namespace internal {
     SasProbes merge_probes(const SurfaceSpheres &ss, const SasProbes &probes,
                            UnionFind &uf, Arcs &arcs) {
       const int np = static_cast<int>(probes.pos.cols()), nc = uf.relabel();
-      const ArrayXi &label = uf.labels();
+      const auto label = uf.labels();
 
       ArrayXi mem(np);
       OffsetTable moff(nc);

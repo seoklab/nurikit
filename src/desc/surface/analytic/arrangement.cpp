@@ -24,7 +24,8 @@ namespace internal {
   }  // namespace
 
   ArrangementSolver::ArrangementSolver(const int mcap, const int kcap,
-                                       const int acap) {
+                                       const int acap)
+      : uf_(mcap) {
     cosa_.resize(mcap);
 
     dirs_.resize(3, kcap);
@@ -65,7 +66,7 @@ namespace internal {
    * the two arcs are linked into one loop. Every corner also joins its two
    * caps' components.
    */
-  std::pair<int, double> ArrangementSolver::walk(UnionFind &uf) {
+  std::pair<int, double> ArrangementSolver::walk() {
     const int k = k_, na = static_cast<int>(arcs_.size());
 
     auto angle_at = [&](int v, const Vector3d &t) {
@@ -102,7 +103,7 @@ namespace internal {
           << "reflex corner at vertex " << v;
       succ[d.in] = d.out;
       turn_sum += kPi - iota;
-      uf.merge(arcs_[d.in].cap, arcs_[d.out].cap);
+      uf_.merge(arcs_[d.in].cap, arcs_[d.out].cap);
     }
 
     auto seen = seen_.head(na);
@@ -147,13 +148,13 @@ namespace internal {
 
     build_frames(ea_, eb_, dirs_, k_);
 
-    UnionFind uf(m_);
-    auto [n_loops, turn_sum] = walk(uf);
-    int n_sets = uf.n_sets();
+    uf_.reset(m_);
+    auto [n_loops, turn_sum] = walk();
+    int n_sets = uf_.n_sets();
     for (int j = 0; j < m_ && n_sets > 1; ++j) {
       for (int l = j + 1; l < m_ && n_sets > 1; ++l) {
-        if (uf.find(j) != uf.find(l) && intersects(j, l)) {
-          uf.merge(j, l);
+        if (uf_.find(j) != uf_.find(l) && intersects(j, l)) {
+          uf_.merge(j, l);
           --n_sets;
         }
       }

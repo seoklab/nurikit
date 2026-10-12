@@ -211,7 +211,18 @@ namespace internal {
    */
   class UnionFind {
   public:
-    explicit UnionFind(int n): parent_(ArrayXi::LinSpaced(n, 0, n - 1)) { }
+    explicit UnionFind(int n)
+        : parent_(ArrayXi::LinSpaced(n, 0, n - 1)), n_(n) { }
+
+    /**
+     * Start over with `n` singletons; storage only grows.
+     */
+    void reset(int n) {
+      if (parent_.size() < n)
+        parent_.resize(n);
+      parent_.head(n) = ArrayXi::LinSpaced(n, 0, n - 1);
+      n_ = n;
+    }
 
     int find(int x) {
       while (parent_[x] != x) {
@@ -228,7 +239,7 @@ namespace internal {
 
     int n_sets() const {
       int n = 0;
-      for (int x = 0; x < parent_.size(); ++x)
+      for (int x = 0; x < n_; ++x)
         n += static_cast<int>(parent_[x] == x);
       return n;
     }
@@ -238,20 +249,20 @@ namespace internal {
      * returns the number of sets.
      */
     int relabel() {
-      const int n = static_cast<int>(parent_.size());
-      for (int x = 0; x < n; ++x)
+      for (int x = 0; x < n_; ++x)
         parent_[x] = find(x);
 
       int k = 0;
-      for (int x = 0; x < n; ++x)
+      for (int x = 0; x < n_; ++x)
         parent_[x] = parent_[x] == x ? k++ : parent_[parent_[x]];
       return k;
     }
 
-    ArrayXi &labels() { return parent_; }
+    auto labels() const { return parent_.head(n_); }
 
   private:
     ArrayXi parent_;
+    int n_;
   };
 
   class CSR {
@@ -731,10 +742,12 @@ namespace internal {
       double ain = 0, aout = 0;
     };
 
-    std::pair<int, double> walk(UnionFind &uf);
+    std::pair<int, double> walk();
 
     double radius_ = 0;
     int m_ = 0, k_ = 0;
+
+    UnionFind uf_;
 
     ArrayXd cosa_;
 
