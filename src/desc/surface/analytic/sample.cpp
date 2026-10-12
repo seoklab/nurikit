@@ -56,28 +56,6 @@ namespace internal {
       std::vector<int> atom_;
     };
 
-    /**
-     * Lattice directions outside every cap `(axis_k, cosa_k)`: `axis_k · d
-     * > cosa_k` for no `k`.
-     */
-    template <class Axes, class Cosa>
-    ArrayXb outside_caps(const Matrix3Xd &dirs, const Axes &axes,
-                         const Cosa &cosa) {
-      const int n = static_cast<int>(dirs.cols());
-      if (axes.cols() == 0)
-        return ArrayXb::Constant(n, true);
-
-      const MatrixX3d axt = axes.transpose();
-      const auto ax = axt.col(0).array(), ay = axt.col(1).array(),
-                 az = axt.col(2).array();
-      ArrayXb outside(n);
-      for (int k = 0; k < n; ++k) {
-        const double dx = dirs(0, k), dy = dirs(1, k), dz = dirs(2, k);
-        outside[k] = !((ax * dx + ay * dy + az * dz - cosa).maxCoeff() > 0);
-      }
-      return outside;
-    }
-
     class Sampler {
     public:
       Sampler(const SaPrep &sa, const SasGeometry &geo, const SesGeometry &ses,
@@ -112,6 +90,33 @@ namespace internal {
         return it->second;
       }
 
+      /**
+       * Lattice directions outside every cap `(axis_c, cosa_c)`: `axis_c · d
+       * > cosa_c` for no `c`.
+       */
+      const ArrayXb &outside_caps(const Matrix3Xd &dirs,
+                                  ConstRef<Matrix3Xd> axes,
+                                  ConstRef<ArrayXd> cosa) {
+        const int n = static_cast<int>(dirs.cols()),
+                  m = static_cast<int>(axes.cols());
+        outside_.resize(n);
+        if (m == 0) {
+          outside_.setConstant(true);
+          return outside_;
+        }
+
+        axt_ = axes.transpose();
+        const auto ax = axt_.col(0), ay = axt_.col(1), az = axt_.col(2);
+        for (int k = 0; k < n; ++k) {
+          const double dx = dirs(0, k), dy = dirs(1, k), dz = dirs(2, k);
+          bool covered = false;
+          for (int c = 0; c < m && !covered; ++c)
+            covered = ax[c] * dx + ay[c] * dy + az[c] * dz - cosa[c] > 0;
+          outside_[k] = !covered;
+        }
+        return outside_;
+      }
+
       void convex() {
         const SasCaps &caps = geo_->caps;
         for (int i = 0; i < sa_->n_active; ++i) {
@@ -123,8 +128,8 @@ namespace internal {
           const Matrix3Xd &dirs =
               lattice(lattice_count(2 * kTwoPi * r * r, density_));
           const int beg = caps.h.offset(i), m = caps.h.degree(i);
-          const ArrayXb keep = outside_caps(dirs, caps.axis.middleCols(beg, m),
-                                            caps.cosa.segment(beg, m));
+          const ArrayXb &keep = outside_caps(dirs, caps.axis.middleCols(beg, m),
+                                             caps.cosa.segment(beg, m));
           const int n_kept = static_cast<int>(keep.count());
           if (n_kept == 0) {
             dropped_ += area;
@@ -253,9 +258,9 @@ namespace internal {
             continue;
 
           const int beg = ses_->face_off[p], m = ses_->face_off.degree(p);
-          const ArrayXb keep = outside_caps(dirs,
-                                            ses_->face_axis.middleCols(beg, m),
-                                            ses_->face_cosa.segment(beg, m));
+          const ArrayXb &keep = outside_caps(dirs,
+                                             ses_->face_axis.middleCols(beg, m),
+                                             ses_->face_cosa.segment(beg, m));
           const int n_kept = static_cast<int>(keep.count());
           if (n_kept == 0) {
             dropped_ += area;
@@ -297,6 +302,8 @@ namespace internal {
       double rp_, density_;
 
       absl::flat_hash_map<int, Matrix3Xd> lattices_;
+      MatrixX3d axt_;
+      ArrayXb outside_;
       DotBuffer buf_;
       double dropped_ = 0;
     };
