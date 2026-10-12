@@ -131,10 +131,17 @@ namespace internal {
     SasCaps neighbor_caps(const SurfaceSpheres &ss, const SasDelaunay &del,
                           const VertexMap &vm, const ArrayXi &pair_of_edge,
                           const std::vector<SasCircle> &circ) {
-      const int n_enum = ss.n_enum, bound = del.nbrs.m();
+      const int n_enum = ss.n_enum;
 
-      SasCaps caps { CSR(ArrayXi(bound), OffsetTable(n_enum)), ArrayXi(bound),
-                     Matrix3Xd(3, bound), ArrayXd(bound) };
+      int n_caps = 0;
+      for (int s = 0; s < n_enum; ++s) {
+        const int v = vm.v_of_new[s];
+        for (auto it = del.nbrs.begin(v), e = del.nbrs.end(v); it < e; ++it)
+          n_caps += value_if(pair_of_edge[del.nbrs.eid(it)] >= 0);
+      }
+
+      SasCaps caps { CSR(ArrayXi(n_caps), OffsetTable(n_enum)), ArrayXi(n_caps),
+                     Matrix3Xd(3, n_caps), ArrayXd(n_caps) };
       ArrayXi &circ_of = caps.h.adj(), &off = caps.h.off();
 
       int w = 0;
@@ -159,11 +166,7 @@ namespace internal {
         }
       }
       off[n_enum] = w;
-
-      circ_of.conservativeResize(w);
-      caps.partner.conservativeResize(w);
-      caps.axis.conservativeResize(3, w);
-      caps.cosa.conservativeResize(w);
+      ABSL_DCHECK_EQ(w, n_caps);
       return caps;
     }
 

@@ -255,16 +255,17 @@ namespace internal {
       ArrayXi left, right;
       Matrix3Xd diff, axis;
       ArrayXd cosa;
+      int n;
     };
 
     /**
-     * Probe pairs strictly within `2 rp` whose caps may cut each other's
-     * face: both low and each cap meets the other probe's beyond-plane cap
-     * and spherical triangle. `diff` runs from `left` to `right`, taken
-     * from the exact kernel on the probes' roots so its direction is right
-     * however close the probes are; `axis` is its direction. The distance
-     * test on the positions is a prefilter; the face solver decides cap
-     * existence exactly.
+     * The first `n` entries are the probe pairs strictly within `2 rp`
+     * whose caps may cut each other's face: both low and each cap meets the
+     * other probe's beyond-plane cap and spherical triangle. `diff` runs
+     * from `left` to `right`, taken from the exact kernel on the probes'
+     * roots so its direction is right however close the probes are; `axis`
+     * is its direction. The distance test on the positions is a prefilter;
+     * the face solver decides cap existence exactly.
      */
     PairCaps pair_caps(const BallExact &ex, const SasProbes &probes,
                        const double rp, const ProbeHeights &hts,
@@ -282,9 +283,9 @@ namespace internal {
       argsort_bucket(by_right, off.off().head(np), right);
       argsort_bucket(order, off, left, by_right);
 
-      PairCaps pc { ArrayXi(m), ArrayXi(m), Matrix3Xd(3, m), Matrix3Xd(3, m),
-                    ArrayXd(m) };
-      int w = 0;
+      PairCaps pc { ArrayXi(m),      ArrayXi(m), Matrix3Xd(3, m),
+                    Matrix3Xd(3, m), ArrayXd(m), 0 };
+      int &w = pc.n;
       for (const int k: order) {
         const int l = left[k], r = right[k];
         if (!hts.low[l] || !hts.low[r])
@@ -313,12 +314,6 @@ namespace internal {
         pc.cosa[w] = cos_a;
         ++w;
       }
-
-      pc.left.conservativeResize(w);
-      pc.right.conservativeResize(w);
-      pc.diff.conservativeResize(3, w);
-      pc.axis.conservativeResize(3, w);
-      pc.cosa.conservativeResize(w);
       return pc;
     }
 
@@ -338,8 +333,7 @@ namespace internal {
      */
     LiftedCaps faces(SesGeometry &ses, const SasProbes &probes,
                      const PairCaps &pc) {
-      const int na = probes.n_active;
-      const int m = static_cast<int>(pc.left.size());
+      const int na = probes.n_active, m = pc.n;
 
       ArrayXi &off = ses.face_off.off();
       off = ArrayXi::Zero(na + 1);
