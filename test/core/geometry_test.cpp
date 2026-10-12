@@ -6,8 +6,10 @@
 #include "nuri/core/geometry.h"
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <random>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -519,7 +521,8 @@ TEST(VoxelGridTest, Create) {
     const int cy = (v / nx) % ny;
     const int cx = v % nx;
     for (int p = grid.cell_offset()[v]; p < grid.cell_offset()[v + 1]; ++p) {
-      Array3i c = ((grid.pts().col(p) - grid.origin()).array() / cutoff)
+      Array3i c = ((grid.pts().col(p) - grid.origin()).array()
+                   / (cutoff / (1 - 0x1p-19)))
                       .floor()
                       .cast<int>()
                       .min(upper)
@@ -809,6 +812,101 @@ TEST(VoxelGridTest, NearestTies) {
   }
 }
 
+void expect_nearest_exact(const Matrix3Xd &pts, const Vector3d &q,
+                          const VoxelGrid &grid, const std::string &ctx) {
+  auto [ref_idx, ref_dsq] = brute_nearest(pts, q);
+  auto [idx, dsq] = grid.nearest(q);
+  EXPECT_EQ(idx, ref_idx) << ctx;
+  EXPECT_DOUBLE_EQ(dsq, ref_dsq) << ctx;
+}
+
+Matrix3Xd stack_pts(const std::vector<Vector3d> &pts) {
+  Matrix3Xd mat(3, pts.size());
+  for (int i = 0; i < mat.cols(); ++i)
+    mat.col(i) = pts[i];
+  return mat;
+}
+
+TEST(VoxelGridTest, NearestOnCellBoundaries) {
+  constexpr double kInf = std::numeric_limits<double>::infinity();
+
+  for (double origin: { 0.0, 0.1 }) {
+    for (double cutoff: { 0.3, 1.0, 2.5 }) {
+      std::vector<Vector3d> pts, qry;
+      qry.emplace_back(Vector3d::Constant(origin));
+
+      for (int axis = 0; axis < 3; ++axis) {
+        for (int k = 1; k <= 4; ++k) {
+          const double x = origin + k * cutoff;
+          Vector3d p = Vector3d::Constant(origin);
+          for (double xx:
+               { x, std::nextafter(x, -kInf), std::nextafter(x, kInf) }) {
+            p[axis] = xx;
+            pts.push_back(p);
+            qry.push_back(p);
+          }
+          p[axis] = origin + (k - 0.5) * cutoff;
+          qry.push_back(p);
+        }
+      }
+
+      const Matrix3Xd mat = stack_pts(pts);
+      const VoxelGrid grid(mat, cutoff);
+      ASSERT_EQ(grid.origin(), Vector3d::Constant(origin));
+
+      for (int q = 0; q < static_cast<int>(qry.size()); ++q) {
+        expect_nearest_exact(mat, qry[q], grid,
+                             absl::StrCat("origin = ", origin,
+                                          ", cutoff = ", cutoff, ", q = ", q));
+      }
+    }
+  }
+}
+
+// Query and point one ulp below cell faces r + 1 cells apart can bin that far
+// apart while lying closer than r * cutoff; the decoy sits at r * cutoff.
+TEST(VoxelGridTest, NearestShellStopMargin) {
+  constexpr double kInf = std::numeric_limits<double>::infinity();
+
+  for (double origin: { 0.0, 0.1 }) {
+    for (double cutoff: { 0.3, 0.7, 1.0, 1.3, 2.5, 3.7 }) {
+      for (int r = 1; r <= 4; ++r) {
+        for (int a = 0; a < 3; ++a) {
+          const int b = (a + 1) % 3;
+          const double far = origin + (r + 3) * cutoff;
+
+          Vector3d q = Vector3d::Constant(origin);
+          q[a] = std::nextafter(origin + cutoff, -kInf);
+
+          std::vector<Vector3d> pts;
+          Vector3d p = Vector3d::Constant(origin);
+          p[a] = std::nextafter(origin + (r + 1) * cutoff, -kInf);
+          pts.push_back(p);
+          p[a] = far;
+          pts.push_back(p);
+          p[a] = origin;
+          p[b] = far;
+          pts.push_back(p);
+          p = q;
+          p[b] = origin + r * cutoff;
+          for (int k = 0; k < 3; ++k) {
+            pts.push_back(p);
+            p[b] = std::nextafter(p[b], kInf);
+          }
+
+          const Matrix3Xd mat = stack_pts(pts);
+          const VoxelGrid grid(mat, cutoff);
+          ASSERT_EQ(grid.origin(), Vector3d::Constant(origin));
+          expect_nearest_exact(mat, q, grid,
+                               absl::StrCat("origin = ", origin,
+                                            ", cutoff = ", cutoff, ", r = ", r,
+                                            ", axis = ", a));
+        }
+      }
+    }
+  }
+}
+
 TEST(VoxelGridTest, NearestSinglePoint) {
   Matrix3Xd pts(3, 1);
   pts.col(0) = Vector3d(0.3, -0.7, 1.9);
@@ -1017,6 +1115,78 @@ TEST(VoxelGridTest, FindNeighborGridFull) {
     for (int j = 0; j < y.cols(); ++j)
       EXPECT_EQ(nbrs[j], j) << "i = " << i << ", j = " << j;
   }
+}
+
+constexpr double kGridRangeMagnitude = 0x1p30;
+
+double grid_range_magnitude(const VoxelGrid &lgrid, const VoxelGrid &rgrid,
+                            const int axis) {
+  const double cell = lgrid.cutoff() / (1 - 0x1p-19);
+  return std::abs(lgrid.origin()[axis] - rgrid.origin()[axis]) / cell
+         + lgrid.dims()[axis] + 1;
+}
+
+int expect_grid_pairs_exact(const Matrix3Xd &x, const VoxelGrid &lgrid,
+                            const Matrix3Xd &y, const VoxelGrid &rgrid,
+                            const std::string &ctx) {
+  std::vector<int> is, js;
+  lgrid.find_neighbors_grid(rgrid, is, js);
+  std::vector<std::pair<int, int>> got(is.size());
+  for (int k = 0; k < static_cast<int>(is.size()); ++k)
+    got[k] = { is[k], js[k] };
+  absl::c_sort(got);
+
+  std::vector<std::pair<int, int>> ref;
+  const double cutsq = lgrid.cutoff() * lgrid.cutoff();
+  for (int i = 0; i < x.cols(); ++i) {
+    for (int j = 0; j < y.cols(); ++j) {
+      if ((y.col(j) - x.col(i)).squaredNorm() <= cutsq)
+        ref.emplace_back(i, j);
+    }
+  }
+  EXPECT_EQ(got, ref) << ctx;
+  return static_cast<int>(ref.size());
+}
+
+// The other grid's origin lies 10^10 cells of this grid away, past the
+// magnitude the exact window arithmetic covers, so every x window is widened.
+TEST(VoxelGridTest, FindNeighborGridFarOrigin) {
+  std::mt19937 rng(7);
+  std::uniform_real_distribution<double> ux(0, 5e-4), uyz(0, 2e-6);
+  const Vector3d base(1e4, 0, 0);
+  Matrix3Xd x(3, 200), y(3, 301);
+  for (int i = 0; i < x.cols(); ++i)
+    x.col(i) = base + Vector3d(ux(rng), uyz(rng), uyz(rng));
+  y.col(0).setZero();
+  for (int j = 1; j < y.cols(); ++j)
+    y.col(j) = base + Vector3d(ux(rng), uyz(rng), uyz(rng));
+
+  const VoxelGrid lgrid(x, 1e-6), rgrid(y, 1.0);
+  ASSERT_EQ(lgrid.cutoff(), 1e-6);
+  ASSERT_GT(grid_range_magnitude(lgrid, rgrid, 0), kGridRangeMagnitude);
+  ASSERT_LT(grid_range_magnitude(rgrid, lgrid, 0), kGridRangeMagnitude);
+  EXPECT_GT(expect_grid_pairs_exact(x, lgrid, y, rgrid, "fine to coarse"), 0);
+  expect_grid_pairs_exact(y, rgrid, x, lgrid, "coarse to fine");
+}
+
+// Cell sizes 10^9 apart: this grid's windows reach past 2^30 of its own
+// cells (widened) and the other grid's windows past the int range (clamped).
+TEST(VoxelGridTest, FindNeighborGridHugeCellRatio) {
+  std::mt19937 rng(11);
+  std::uniform_real_distribution<double> ux(0, 5e-4), uyz(0, 2e-6);
+  Matrix3Xd x(3, 200), y(3, 301);
+  for (int i = 0; i < x.cols(); ++i)
+    x.col(i) << ux(rng), uyz(rng), uyz(rng);
+  y.col(0) << -2e3, 0, 0;
+  for (int j = 1; j < y.cols(); ++j)
+    y.col(j) << ux(rng), uyz(rng), uyz(rng);
+
+  const VoxelGrid lgrid(x, 1e-6), rgrid(y, 1e3);
+  ASSERT_EQ(rgrid.cutoff(), 1e3);
+  ASSERT_GT(grid_range_magnitude(lgrid, rgrid, 0), kGridRangeMagnitude);
+  ASSERT_LT(grid_range_magnitude(rgrid, lgrid, 0), kGridRangeMagnitude);
+  EXPECT_GT(expect_grid_pairs_exact(x, lgrid, y, rgrid, "fine to coarse"), 0);
+  expect_grid_pairs_exact(y, rgrid, x, lgrid, "coarse to fine");
 }
 
 TEST(VoxelGridTest, FindNeighborSelf) {
