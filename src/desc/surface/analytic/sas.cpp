@@ -174,17 +174,16 @@ namespace internal {
     }
 
     /**
-     * Per triangulation face: whether its three vertices are kept spheres
-     * carrying all three overlapping pairs, its sorted vertices (-1 if it
-     * holds a corner or a non-overlapping pair), whether its third sphere
-     * cuts the circle, and the probe of each root (0 = plus, 1 = minus; -1
-     * if rejected).
+     * One triangulation face: its sorted vertices (-1 if it holds a corner
+     * or a non-overlapping pair), the probe of each root (0 = plus, 1 =
+     * minus; -1 if rejected), whether its three vertices are kept spheres
+     * carrying all three overlapping pairs, and whether its third sphere
+     * cuts the circle.
      */
-    struct Faces {
-      ArrayXb full;
-      Array3Xi verts;
-      ArrayXb cut;
-      Array2Xi root;
+    struct FaceRec {
+      Array3i verts = Array3i::Constant(-1);
+      E::Array2i root = E::Array2i::Constant(-1);
+      bool full = false, cut = false;
     };
 
     /**
@@ -249,19 +248,18 @@ namespace internal {
       }
     }
 
-    ArrayXb full_faces(const SasDelaunay &del, const VertexMap &vm,
-                       const ArrayXi &pair_of_edge) {
-      ArrayXb full = ArrayXb::Constant(del.n_faces, false);
+    void mark_full_faces(const SasDelaunay &del, const VertexMap &vm,
+                         const ArrayXi &pair_of_edge,
+                         std::vector<FaceRec> &fs) {
       for_each_face(del, [&](int c, int lf, int) {
         if ((vm.new_of_v(face_vertices(del, c, lf)) < 0).any())
           return;
 
         const auto &[s0, s1, s2] = kFaceSlots[lf];
-        full[del.face(lf, c)] = pair_of_edge[del.cell_edge(s0, c)] >= 0
-                                && pair_of_edge[del.cell_edge(s1, c)] >= 0
-                                && pair_of_edge[del.cell_edge(s2, c)] >= 0;
+        fs[del.face(lf, c)].full = pair_of_edge[del.cell_edge(s0, c)] >= 0
+                                   && pair_of_edge[del.cell_edge(s1, c)] >= 0
+                                   && pair_of_edge[del.cell_edge(s2, c)] >= 0;
       });
-      return full;
     }
 
     /**
@@ -269,10 +267,10 @@ namespace internal {
      * spheres are kept, pairwise overlapping and one of them gets caps.
      */
     bool sphere_face(const SurfaceSpheres &ss, const SasDelaunay &del,
-                     const VertexMap &vm, const Faces &fs, const int c,
-                     const int lf, Array3i &fv, Array3i &abc) {
+                     const VertexMap &vm, const std::vector<FaceRec> &fs,
+                     const int c, const int lf, Array3i &fv, Array3i &abc) {
       return face_spheres(del, vm, c, lf, fv, abc) && abc[0] < ss.n_enum
-             && fs.full[del.face(lf, c)];
+             && fs[del.face(lf, c)].full;
     }
 
     int opposite_local(const SasDelaunay &del, const int c2,
@@ -291,11 +289,11 @@ namespace internal {
      * tangency point, and never rejects a root. Apex `lv` of cell `c`
      * overlaps all three iff the other faces of the cell carry every pair.
      */
-    bool apex_may_reject(const Faces &fs, const SasDelaunay &del, const int c,
-                         const int lv) {
+    bool apex_may_reject(const std::vector<FaceRec> &fs, const SasDelaunay &del,
+                         const int c, const int lv) {
       bool full = true;
       for (int lf = 0; lf < kCellVerts; ++lf)
-        full &= lf == lv || fs.full[del.face(lf, c)];
+        full &= lf == lv || fs[del.face(lf, c)].full;
       return full;
     }
 
@@ -303,16 +301,16 @@ namespace internal {
      * A cut point is a probe iff its power against both apexes is
      * non-negative, decided exactly for the perturbed weights (Theorem 1).
      */
-    Faces accept_faces(const SurfaceSpheres &ss, const SasDelaunay &del,
-                       const VertexMap &vm, const ArrayXi &pair_of_edge,
-                       std::vector<RawProbe> &raw) {
+    std::vector<FaceRec> accept_faces(const SurfaceSpheres &ss,
+                                      const SasDelaunay &del,
+                                      const VertexMap &vm,
+                                      const ArrayXi &pair_of_edge,
+                                      std::vector<RawProbe> &raw) {
       const BallExact &ex = del.ex;
       FaceKernelPtr k = face_kernel();
 
-      Faces fs { full_faces(del, vm, pair_of_edge),
-                 Array3Xi::Constant(3, del.n_faces, -1),
-                 ArrayXb::Constant(del.n_faces, false),
-                 Array2Xi::Constant(2, del.n_faces, -1) };
+      std::vector<FaceRec> fs(del.n_faces);
+      mark_full_faces(del, vm, pair_of_edge, fs);
       raw.reserve(3L * ss.n_enum);
 
       for_each_face(del, [&](int c, int lf, int c2) {
@@ -320,14 +318,12 @@ namespace internal {
         if (!sphere_face(ss, del, vm, fs, c, lf, fv, abc))
           return;
 
-        const Array3i verts = sort3(fv);
-        const BallTriple face = ball_triple(verts);
-        const int f = del.face(lf, c);
-        fs.verts.col(f) = verts;
-        ex.load(*k, face);
+        FaceRec &rec = fs[del.face(lf, c)];
+        rec.verts = sort3(fv);
+        ex.load(*k, ball_triple(rec.verts));
         if (ex.cuts(*k) != Sgn::kPos)
           return;
-        fs.cut[f] = true;
+        rec.cut = true;
 
         const int lv2 = opposite_local(del, c2, fv);
         const int l1 = del.tets(lf, c), l2 = del.tets(lv2, c2);
@@ -338,8 +334,8 @@ namespace internal {
               || (test2 && ex.accept(*k, plus, l2) != Sgn::kPos))
             continue;
 
-          fs.root(plus ? 0 : 1, f) = static_cast<int>(raw.size());
-          raw.push_back({ ex.root(*k, plus), fs.verts.col(f), plus });
+          rec.root[plus ? 0 : 1] = static_cast<int>(raw.size());
+          raw.push_back({ ex.root(*k, plus), rec.verts, plus });
         }
       });
 
@@ -466,13 +462,13 @@ namespace internal {
      * The accepted roots of cut face `f` on circle `(va, vb)` as (enter
      * ball `c`, leave ball `c`).
      */
-    void push_face_roots(std::vector<RingVertex> &verts, const Faces &fs,
+    void push_face_roots(std::vector<RingVertex> &verts, const FaceRec &rec,
                          const ArrayXi &pid, const int f, const int va,
                          const int vb) {
-      const int eps = face_parity(fs.verts.col(f), va, vb);
+      const int eps = face_parity(rec.verts, va, vb);
       for (const int sigma: { -eps, eps }) {
         const bool plus = sigma > 0;
-        const int r = fs.root(plus ? 0 : 1, f);
+        const int r = rec.root[plus ? 0 : 1];
         if (r >= 0)
           verts.push_back({ pid[r], f, plus, sigma == eps });
       }
@@ -485,8 +481,8 @@ namespace internal {
      * the spheres `c`.
      */
     void collect_ring(Ring &ring, std::vector<int> &fan, const SasDelaunay &del,
-                      const Faces &fs, const ArrayXi &pid, const int va,
-                      const int vb, const int edge) {
+                      const std::vector<FaceRec> &fs, const ArrayXi &pid,
+                      const int va, const int vb, const int edge) {
       ring.verts.clear();
       ring.covered = false;
       fan.clear();
@@ -494,19 +490,20 @@ namespace internal {
       FanWalker walk(del, va, vb, edge);
       do {
         const int f = walk.face();
-        if (!fs.full[f])
+        const FaceRec &rec = fs[f];
+        if (!rec.full)
           continue;
 
         const int vc = walk.third();
-        ABSL_DCHECK_GE(fs.verts(0, f), 0);
+        ABSL_DCHECK_GE(rec.verts[0], 0);
         fan.push_back(vc);
-        if (!fs.cut[f]) {
+        if (!rec.cut) {
           ring.covered |= del.ex.side(va, vb, vc) == Sgn::kNeg;
           continue;
         }
 
         ring.covered = true;
-        push_face_roots(ring.verts, fs, pid, f, va, vb);
+        push_face_roots(ring.verts, rec, pid, f, va, vb);
       } while (walk.advance());
     }
 
@@ -516,12 +513,12 @@ namespace internal {
      */
     class SasRingOps {
     public:
-      SasRingOps(const BallExact &ex, const Faces &fs,
+      SasRingOps(const BallExact &ex, const std::vector<FaceRec> &fs,
                  const std::vector<int> &fan, int va, int vb)
           : ex_(&ex), fs_(&fs), fan_(&fan), va_(va), vb_(vb) { }
 
       BallTriple face(const RingVertex &v) const {
-        return ball_triple(fs_->verts.col(v.face));
+        return ball_triple((*fs_)[v.face].verts);
       }
 
       Vector3d offset(const RingVertex &v) const {
@@ -546,7 +543,7 @@ namespace internal {
 
     private:
       const BallExact *ex_;
-      const Faces *fs_;
+      const std::vector<FaceRec> *fs_;
       const std::vector<int> *fan_;
       int va_, vb_;
     };
@@ -556,8 +553,8 @@ namespace internal {
      */
     Arcs fan_rings(const SurfaceSpheres &ss, const SasDelaunay &del,
                    const VertexMap &vm, const ArrayXi &edge_of_pair,
-                   const std::vector<SasCircle> &circ, const Faces &fs,
-                   const ArrayXi &pid) {
+                   const std::vector<SasCircle> &circ,
+                   const std::vector<FaceRec> &fs, const ArrayXi &pid) {
       Arcs out;
       out.off = OffsetTable(ss.g.m());
       Ring ring;
@@ -880,7 +877,8 @@ namespace internal {
     SasCaps caps = neighbor_caps(ss, del, vm, tbl.pair_of_edge, circ);
 
     std::vector<RawProbe> raw;
-    Faces fs = accept_faces(ss, del, vm, tbl.pair_of_edge, raw);
+    const std::vector<FaceRec> fs =
+        accept_faces(ss, del, vm, tbl.pair_of_edge, raw);
     const ProbeOrder po = make_probes(ss, vm, raw);
 
     Arcs arcs = fan_rings(ss, del, vm, tbl.edge_of_pair, circ, fs, po.pid);
