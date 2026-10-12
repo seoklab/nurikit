@@ -109,25 +109,6 @@ if(SKBUILD)
 endif()
 
 if(NURI_BUILD_PYTHON_STUBS)
-  nuri_python_generate_stubs(
-    nuri._version
-    nuri/_version.pyi
-    "${NURI_PYTHON_STAGE_DIR}/nuri/_version.py"
-  )
-
-  foreach(pyfile IN LISTS NURI_PYTHON_FILES)
-    string(REGEX REPLACE "\\.py$" "" module "${pyfile}")
-    string(REGEX REPLACE "/+" "." module "${module}")
-
-    string(REGEX REPLACE "\\.py$" ".pyi" stubfile "${pyfile}")
-
-    nuri_python_generate_stubs(
-      "${module}"
-      "${stubfile}"
-      "${CMAKE_CURRENT_LIST_DIR}/${pyfile}"
-    )
-  endforeach()
-
   add_custom_target(NuriPythonStubs
     ALL
     DEPENDS NuriPython ${NURI_STUB_FILES}
