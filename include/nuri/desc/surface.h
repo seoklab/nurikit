@@ -551,7 +551,9 @@ namespace internal {
     BallExact ex;
   };
 
-  constexpr std::array<std::array<int, 4>, 4> kCellPairSlot {
+  constexpr int kCellVerts = 4, kCellEdges = 6;
+
+  constexpr std::array<std::array<int, kCellVerts>, kCellVerts> kCellPairSlot {
     std::array { -1,  0,  1,  2 },
     std::array {  0, -1,  3,  4 },
     std::array {  1,  3, -1,  5 },

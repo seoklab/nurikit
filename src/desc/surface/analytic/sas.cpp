@@ -197,7 +197,7 @@ namespace internal {
     Array3i face_vertices(const SasDelaunay &del, const int c, const int lf) {
       const Array4i tv = del.tets.col(c);
       Array3i fv;
-      for (int lv = 0, m = 0; lv < 4; ++lv)
+      for (int lv = 0, m = 0; lv < kCellVerts; ++lv)
         if (lv != lf)
           fv[m++] = tv[lv];
       return fv;
@@ -220,7 +220,7 @@ namespace internal {
 
     constexpr std::array<int, 3> face_slots(const int lf) {
       std::array<int, 3> lv {};
-      for (int l = 0, m = 0; l < 4; ++l)
+      for (int l = 0, m = 0; l < kCellVerts; ++l)
         if (l != lf)
           lv[m++] = l;
       return { kCellPairSlot[lv[0]][lv[1]], kCellPairSlot[lv[0]][lv[2]],
@@ -239,7 +239,7 @@ namespace internal {
     void for_each_face(const SasDelaunay &del, const F &f) {
       const int nf = static_cast<int>(del.tets.cols());
       for (int c = 0; c < nf; ++c) {
-        for (int lf = 0; lf < 4; ++lf) {
+        for (int lf = 0; lf < kCellVerts; ++lf) {
           const int c2 = del.adj(lf, c);
           if (c2 < 0 || c2 > c)
             f(c, lf, c2);
@@ -276,7 +276,7 @@ namespace internal {
     int opposite_local(const SasDelaunay &del, const int c2,
                        const Array3i &fv) {
       ABSL_DCHECK_GE(c2, 0) << "sphere face on the hull";
-      for (int lv = 0; lv < 4; ++lv) {
+      for (int lv = 0; lv < kCellVerts; ++lv) {
         if ((fv != del.tets(lv, c2)).all())
           return lv;
       }
@@ -292,7 +292,7 @@ namespace internal {
     bool apex_may_reject(const Faces &fs, const SasDelaunay &del, const int c,
                          const int lv) {
       bool full = true;
-      for (int lf = 0; lf < 4; ++lf)
+      for (int lf = 0; lf < kCellVerts; ++lf)
         full &= lf == lv || fs.full[del.face(lf, c)];
       return full;
     }
@@ -438,7 +438,7 @@ namespace internal {
         const Array4i tv = del.tets.col(t_);
         const int la = local_index(tv, va), lb = local_index(tv, vb);
         std::array<int, 2> others;
-        for (int lv = 0, m = 0; lv < 4; ++lv)
+        for (int lv = 0, m = 0; lv < kCellVerts; ++lv)
           if (lv != la && lv != lb)
             others[m++] = lv;
         ld_ = others[0];

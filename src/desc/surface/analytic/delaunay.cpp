@@ -58,14 +58,16 @@ namespace internal {
     Edges edges_of(const Array4Xi &tets, const int n) {
       const int nf = static_cast<int>(tets.cols());
 
-      ArrayXi key(12L * nf), val(12L * nf), cell(12L * nf), slot(12L * nf);
+      const E::Index m_max =
+          static_cast<E::Index>(kCellVerts * (kCellVerts - 1)) * nf;
+      ArrayXi key(m_max), val(m_max), cell(m_max), slot(m_max);
       int m = 0;
       for (int c = 0; c < nf; ++c) {
-        for (int a = 0; a < 4; ++a) {
+        for (int a = 0; a < kCellVerts; ++a) {
           if (tets(a, c) >= n)
             continue;
 
-          for (int b = 0; b < 4; ++b) {
+          for (int b = 0; b < kCellVerts; ++b) {
             if (a == b)
               continue;
 
@@ -84,7 +86,7 @@ namespace internal {
       argsort_bucket(order, off, key.head(m), byval);
 
       ArrayXi adj(m), ecell(m);
-      Array6Xi cell_edge = Array6Xi::Constant(6, nf, -1);
+      Array6Xi cell_edge = Array6Xi::Constant(kCellEdges, nf, -1);
       int w = 0;
       for (int v = 0; v < n; ++v) {
         const int beg = off[v], end = off[v + 1];
@@ -109,10 +111,10 @@ namespace internal {
 
     Array4Xi number_faces(const Array4Xi &adj, int &n_faces) {
       const int nf = static_cast<int>(adj.cols());
-      Array4Xi face(4, nf);
+      Array4Xi face(kCellVerts, nf);
       n_faces = 0;
       for (int c = 0; c < nf; ++c) {
-        for (int lf = 0; lf < 4; ++lf) {
+        for (int lf = 0; lf < kCellVerts; ++lf) {
           const int c2 = adj(lf, c);
           if (c2 < 0 || c < c2) {
             face(lf, c) = n_faces++;
@@ -149,10 +151,10 @@ namespace internal {
     tri.set_vertices(n + kBounds, lifted.data());
 
     const int nf = static_cast<int>(tri.nb_finite_cells());
-    del.tets.resize(4, nf);
-    del.adj.resize(4, nf);
+    del.tets.resize(kCellVerts, nf);
+    del.adj.resize(kCellVerts, nf);
     for (int c = 0; c < nf; ++c) {
-      for (int lv = 0; lv < 4; ++lv) {
+      for (int lv = 0; lv < kCellVerts; ++lv) {
         const GEO::index_t v = tri.cell_vertex(c, lv),
                            c2 = tri.cell_adjacent(c, lv);
         ABSL_DCHECK_NE(v, GEO::NO_INDEX);
