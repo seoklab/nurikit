@@ -135,6 +135,7 @@ py::dict sas_dict(const internal::SurfaceSpheres &ss,
 
   py::dict caps;
   caps["h"] = csr_dict(geo.caps.h);
+  caps["partner"] = eigen_as_numpy(geo.caps.partner);
   caps["axis"] = eigen_as_numpy(geo.caps.axis);
   caps["cosa"] = eigen_as_numpy(geo.caps.cosa);
   d["caps"] = caps;

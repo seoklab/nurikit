@@ -55,14 +55,6 @@ namespace internal {
       return g.find(a, b);
     }
 
-    int icirc(int tag) {
-      return tag >> 1;
-    }
-
-    int iside(int tag) {
-      return tag & 1;
-    }
-
     struct VertexMap {
       ArrayXi v_of_new, new_of_v;
     };
@@ -141,9 +133,9 @@ namespace internal {
                           const std::vector<SasCircle> &circ) {
       const int n_enum = ss.n_enum, bound = del.nbrs.m();
 
-      SasCaps caps { CSR(ArrayXi(bound), OffsetTable(n_enum)),
+      SasCaps caps { CSR(ArrayXi(bound), OffsetTable(n_enum)), ArrayXi(bound),
                      Matrix3Xd(3, bound), ArrayXd(bound) };
-      ArrayXi &tags = caps.h.adj(), &off = caps.h.off();
+      ArrayXi &circ_of = caps.h.adj(), &off = caps.h.off();
 
       int w = 0;
       for (int s = 0; s < n_enum; ++s) {
@@ -157,17 +149,19 @@ namespace internal {
             continue;
 
           const SasCircle &c = circ[q];
-          const int side = value_if(c.i != s);
+          const bool first = c.i == s;
           const double d = ss.d[q];
-          tags[w] = 2 * q + side;
-          caps.axis.col(w) = side == 0 ? c.axis : Vector3d(-c.axis);
-          caps.cosa[w] = (c.a + (d - 2 * c.a) * side) / rs;
+          circ_of[w] = q;
+          caps.partner[w] = first ? c.j : c.i;
+          caps.axis.col(w) = first ? c.axis : Vector3d(-c.axis);
+          caps.cosa[w] = (c.a + (d - 2 * c.a) * value_if(!first)) / rs;
           ++w;
         }
       }
       off[n_enum] = w;
 
-      tags.conservativeResize(w);
+      circ_of.conservativeResize(w);
+      caps.partner.conservativeResize(w);
       caps.axis.conservativeResize(3, w);
       caps.cosa.conservativeResize(w);
       return caps;
@@ -683,10 +677,8 @@ namespace internal {
     }
 
     ArrayXd sweep_spheres(const SurfaceSpheres &ss, const SasDelaunay &del,
-                          const VertexMap &vm,
-                          const std::vector<SasCircle> &circ,
-                          const SasCaps &caps, const Arcs &arcs,
-                          const std::vector<RawProbe> &raw,
+                          const VertexMap &vm, const SasCaps &caps,
+                          const Arcs &arcs, const std::vector<RawProbe> &raw,
                           const ArrayXi &order) {
       const int n_solve = ss.n_solve, mcap = caps.h.max_deg(),
                 np = static_cast<int>(order.size());
@@ -696,14 +688,13 @@ namespace internal {
       for (int s = 0; s < n_solve; ++s) {
         int n_arcs = 0;
         for (auto it = caps.h.begin(s), e = caps.h.end(s); it < e; ++it)
-          n_arcs += arcs.off.degree(icirc(*it));
+          n_arcs += arcs.off.degree(*it);
         acap = nuri::max(acap, n_arcs);
       }
 
       ArrayXd area(n_solve);
       ArrangementSolver solver(mcap, 2 * acap, acap);
-      ArrayXi vloc = ArrayXi::Constant(np, -1), vlist(2 * acap + 1),
-              partner(mcap);
+      ArrayXi vloc = ArrayXi::Constant(np, -1), vlist(2 * acap + 1);
 
       for (int s = 0; s < n_solve; ++s) {
         if (del.nbrs.degree(vm.v_of_new[s]) == 0) {
@@ -723,11 +714,9 @@ namespace internal {
         };
 
         for (auto it = caps.h.begin(s), e = caps.h.end(s); it < e; ++it) {
-          const int p = caps.h.eid(it), tag = *it, q = icirc(tag),
-                    side = iside(tag);
+          const int p = caps.h.eid(it), q = *it;
           const int slot = solver.add_cap(caps.cosa[p]);
-          const SasCircle &c = circ[q];
-          partner[slot] = c.i == s ? c.j : c.i;
+          const bool first = s < caps.partner[p];
 
           for (int r = arcs.off[q]; r < arcs.off[q + 1]; ++r) {
             const SasArc &arc = arcs.arcs[r];
@@ -737,18 +726,18 @@ namespace internal {
               continue;
             }
             const int vb = local(arc.beg), ve = local(arc.end);
-            if (side == 0)
+            if (first)
               solver.add_arc(slot, vb, ve, arc.dphi, tb, te);
             else
               solver.add_arc(slot, ve, vb, arc.dphi, -te, -tb);
           }
         }
 
-        const int vs = vm.v_of_new[s];
+        const int vs = vm.v_of_new[s], beg = caps.h.offset(s);
         area[s] = solver.solve([&](int j, int l) {
-          return pair_id_unordered(ss.g, partner[j], partner[l]) >= 0
-                 && ex.discs_intersect(vs, vm.v_of_new[partner[j]],
-                                       vm.v_of_new[partner[l]]);
+          const int pj = caps.partner[beg + j], pl = caps.partner[beg + l];
+          return pair_id_unordered(ss.g, pj, pl) >= 0
+                 && ex.discs_intersect(vs, vm.v_of_new[pj], vm.v_of_new[pl]);
         });
 
         for (int v = 0; v < k; ++v)
@@ -882,7 +871,7 @@ namespace internal {
     const ProbeOrder po = make_probes(ss, vm, raw);
 
     Arcs arcs = fan_rings(ss, del, vm, tbl.edge_of_pair, circ, fs, po.pid);
-    ArrayXd area = sweep_spheres(ss, del, vm, circ, caps, arcs, raw, po.order);
+    ArrayXd area = sweep_spheres(ss, del, vm, caps, arcs, raw, po.order);
 
     UnionFind uf(static_cast<int>(raw.size()));
     merge_near_probes(ss, raw, po.order, uf);

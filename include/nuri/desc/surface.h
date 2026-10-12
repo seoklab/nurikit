@@ -601,7 +601,7 @@ namespace internal {
                                    const SasDelaunay &del);
 
   /**
-   * Circle of spheres `i`, `j` with its frame `e1 = normalize(d × e_k)`,
+   * Circle of spheres `i < j` with its frame `e1 = normalize(d × e_k)`,
    * `d = c_j − c_i`, `k = BallExact::reference_axis(d)`, `e2 = axis × e1`.
    */
   struct SasCircle {
@@ -620,8 +620,14 @@ namespace internal {
     int circ, beg, end;
   };
 
+  /**
+   * Caps of every sphere `s < n_enum`: `h` lists the circle of each cap by
+   * sphere and `partner` the other sphere of that circle; `axis` points
+   * from `s` to the partner and `cosa` is the cosine of the angular radius.
+   */
   struct SasCaps {
     CSR h;
+    ArrayXi partner;
     Matrix3Xd axis;
     ArrayXd cosa;
   };
