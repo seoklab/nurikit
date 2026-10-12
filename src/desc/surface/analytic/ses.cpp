@@ -200,17 +200,6 @@ namespace internal {
       return tri;
     }
 
-    double triangle_area(const SasProbes &probes, const int p,
-                         const double rp) {
-      const auto t = probe_tangents(probes, p);
-      double total = 0;
-      for (int m = 0; m < 3; ++m) {
-        const Vector3d t1 = t.col(m), t2 = t.col((m + 1) % 3);
-        total += std::atan2(t1.cross(t2).norm(), t1.dot(t2));
-      }
-      return rp * rp * (kTwoPi - total);
-    }
-
     /**
      * Whether the cap `(axis, cos a)` on the sphere of `p` overlaps the cap
      * beyond the contact plane, `d · normal > cos b`: the angle between the
@@ -348,17 +337,11 @@ namespace internal {
 
     /**
      * Caps of every active face, hemispheres of the departure tangents
-     * first, then the surviving neighbour caps; high faces with a triangle
-     * get their closed-form area (Lemma 1(c)), every other face NaN for the
-     * solver.
+     * first, then the surviving neighbour caps.
      */
-    LiftedCaps faces(SesGeometry &ses, const SaPrep &sa, const SasDelaunay &del,
-                     const SasGeometry &geo, const double rp) {
-      const SasProbes &probes = geo.probes;
+    LiftedCaps faces(SesGeometry &ses, const SasProbes &probes,
+                     const PairCaps &pc) {
       const int na = probes.n_active;
-      const ProbeHeights hts = probe_heights(sa, probes, rp);
-      const FaceTriangles tri = face_triangles(probes);
-      const PairCaps pc = pair_caps(del.ex, probes, rp, hts, tri);
       const int m = static_cast<int>(pc.left.size());
 
       ArrayXi &off = ses.face_off.off();
@@ -376,7 +359,6 @@ namespace internal {
       const int total = off[na];
       ses.face_axis.resize(3, total);
       ses.face_cosa.resize(total);
-      ses.face_area.resize(na);
       LiftedCaps lifted { Matrix3Xd(3, total), ArrayXd(total) };
 
       ArrayXi cur = off.head(na);
@@ -388,10 +370,6 @@ namespace internal {
         lifted.n.middleCols(cur[p], nt) = ses.face_axis.middleCols(cur[p], nt);
         lifted.h.segment(cur[p], nt).setZero();
         cur[p] += nt;
-
-        ses.face_area[p] = !hts.low[p] && tri.triangular[p]
-                               ? triangle_area(probes, p, rp)
-                               : std::numeric_limits<double>::quiet_NaN();
       }
 
       for (int k = 0; k < m; ++k) {
@@ -624,12 +602,39 @@ namespace internal {
     };
 
     /**
-     * Every face left NaN by `faces` solved exactly on its lifted caps; the
-     * cap lists are compacted to the caps that survived hygiene.
+     * Area of face `p` with caps `beg .. beg + m - 1`: high faces with a
+     * triangle get their closed form (Lemma 1(c)), every other face is
+     * solved exactly on its lifted caps.
+     */
+    double face_area(FaceSolver &solver, const SasProbes &probes,
+                     const LiftedCaps &lifted, const ProbeHeights &hts,
+                     const FaceTriangles &tri, const ArrayXd &face_cosa,
+                     const double rp, const int p, const int beg, const int m,
+                     ArrayXb &live) {
+      if (hts.low[p] || !tri.triangular[p]) {
+        return solver.solve(lifted.n.middleCols(beg, m),
+                            lifted.h.segment(beg, m), face_cosa.segment(beg, m),
+                            rp, live);
+      }
+
+      const auto t = probe_tangents(probes, p);
+      double total = 0;
+      for (int k = 0; k < 3; ++k) {
+        const Vector3d t1 = t.col(k), t2 = t.col((k + 1) % 3);
+        total += std::atan2(t1.cross(t2).norm(), t1.dot(t2));
+      }
+      return rp * rp * (kTwoPi - total);
+    }
+
+    /**
+     * Area of every active face; the cap lists are compacted to the caps
+     * that survived hygiene.
      */
     void solve_faces(SesGeometry &ses, const SasProbes &probes,
-                     const LiftedCaps &lifted, const double rp) {
+                     const LiftedCaps &lifted, const ProbeHeights &hts,
+                     const FaceTriangles &tri, const double rp) {
       const int na = probes.n_active;
+      ses.face_area.resize(na);
       if (na == 0)
         return;
 
@@ -644,12 +649,8 @@ namespace internal {
         off[p] = w;
         live.head(m).setConstant(true);
 
-        if (std::isnan(ses.face_area[p])) {
-          ses.face_area[p] = solver.solve(lifted.n.middleCols(beg, m),
-                                          lifted.h.segment(beg, m),
-                                          ses.face_cosa.segment(beg, m), rp,
-                                          live);
-        }
+        ses.face_area[p] = face_area(solver, probes, lifted, hts, tri,
+                                     ses.face_cosa, rp, p, beg, m, live);
 
         for (int k = 0; k < m; ++k) {
           if (!live[k])
@@ -679,8 +680,13 @@ namespace internal {
     ses.rp = rp;
     ses.convex_area = convex_areas(sa, geo, rp);
     saddles(ses, sa, geo, rp);
-    const LiftedCaps lifted = faces(ses, sa, del, geo, rp);
-    solve_faces(ses, geo.probes, lifted, rp);
+
+    const SasProbes &probes = geo.probes;
+    const ProbeHeights hts = probe_heights(sa, probes, rp);
+    const FaceTriangles tri = face_triangles(probes);
+    const PairCaps pc = pair_caps(del.ex, probes, rp, hts, tri);
+    const LiftedCaps lifted = faces(ses, probes, pc);
+    solve_faces(ses, probes, lifted, hts, tri, rp);
     return ses;
   }
 }  // namespace internal
