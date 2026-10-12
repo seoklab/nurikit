@@ -121,6 +121,16 @@ namespace internal {
   constexpr double kUnitRoundoff = std::numeric_limits<double>::epsilon() / 2;
   constexpr double kSurfaceLengthEps = 1e-6;
   /**
+   * Band on a pair's centre distance: two length tolerances.
+   */
+  constexpr double kPairLengthEps = 2 * kSurfaceLengthEps;
+  /**
+   * The largest touching distance of two kept spheres plus the band.
+   */
+  constexpr double near_cutoff(double rmax) {
+    return 2 * (rmax + kSurfaceLengthEps);
+  }
+  /**
    * The near, contained and shared-circle bands are supersets of the exact
    * sets, and the overlap-certain band a subset, only while `ulp(|c|^2)`
    * stays far below `kSurfaceLengthEps`.

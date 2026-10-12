@@ -127,7 +127,7 @@ namespace internal {
       const Matrix3Xd &pts = ex.centers();
       const int n = static_cast<int>(sar.size());
 
-      VoxelGrid grid(pts, 2 * (rmax + kSurfaceLengthEps));
+      VoxelGrid grid(pts, near_cutoff(rmax));
       std::vector<int> lbuf, rbuf;
       grid.find_neighbors_self(lbuf, rbuf);
       auto left = eigen_map(lbuf), right = eigen_map(rbuf);
@@ -138,7 +138,7 @@ namespace internal {
       const ArrayXd dist =
           (pts(E::all, right) - pts(E::all, left)).colwise().norm();
       const ArrayXd touch = sar(left) + sar(right);
-      const ArrayXi key = (dist > touch + 2 * kSurfaceLengthEps).cast<int>();
+      const ArrayXi key = (dist > touch + kPairLengthEps).cast<int>();
       ArrayXi order(m);
       E::Array2i off;
       argsort_bucket(order, off, key);
@@ -150,7 +150,7 @@ namespace internal {
       np.keep = ArrayXi::Ones(n);
 
       const ArrayXd d = dist(near);
-      np.sure = d < touch(near) - 2 * kSurfaceLengthEps;
+      np.sure = d < touch(near) - kPairLengthEps;
       const ArrayXb banded = active_band(np.inear, np.jnear, active);
       np.band = banded(np.inear) && banded(np.jnear);
       for (int k = 0; k < np.inear.size(); ++k) {
@@ -388,8 +388,8 @@ namespace internal {
       return std::nullopt;
     }
 
-    const ArrayXb reach = within_reach(
-        pts, active, (kBandHops + 1) * 2 * (rmax + kSurfaceLengthEps));
+    const ArrayXb reach =
+        within_reach(pts, active, (kBandHops + 1) * near_cutoff(rmax));
     ArrayXi near(reach.count());
     for (int i = 0, w = 0; i < reach.size(); ++i) {
       if (reach[i])

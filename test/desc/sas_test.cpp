@@ -735,7 +735,7 @@ FullRank full_rank(const Matrix3Xd &pts, const ArrayXd &sar,
   for (int i = 0; i < n; ++i) {
     for (int j = i + 1; j < n; ++j) {
       const double d = (pts.col(j) - pts.col(i)).norm();
-      if (d <= sar[i] + sar[j] + 2 * kSurfaceLengthEps) {
+      if (d <= sar[i] + sar[j] + kPairLengthEps) {
         near[i].push_back(j);
         near[j].push_back(i);
       }
