@@ -24,49 +24,42 @@ namespace internal {
       return static_cast<int>(nuri::max(std::lround(area * density), 1L));
     }
 
-    class DotBuffer {
-    public:
-      void reserve(const int n) {
-        pts_.reserve(n);
-        nrm_.reserve(n);
-        area_.reserve(n);
-        atom_.reserve(n);
-      }
+    void resize_dots(SesDots &out, const int n) {
+      out.pts.conservativeResize(3, n);
+      out.nrm.conservativeResize(3, n);
+      out.area.conservativeResize(n);
+      out.atom.conservativeResize(n);
+    }
 
-      void add(const Vector3d &pt, const Vector3d &nrm, const double area,
-               const int atom) {
-        pts_.push_back(pt);
-        nrm_.push_back(nrm);
-        area_.push_back(area);
-        atom_.push_back(atom);
-      }
+    /**
+     * Room for `need` dots past the first `n`; the capacity doubles when the
+     * lattice subsets overshoot the area estimate.
+     */
+    void room(SesDots &out, const int n, const int need) {
+      const int cap = out.n();
+      if (n + need > cap)
+        resize_dots(out, nuri::max(2 * cap, n + need));
+    }
 
-      int size() const { return static_cast<int>(area_.size()); }
-
-      void finish(SesDots &out) const {
-        const int n = size();
-        out.pts.resize(3, n);
-        out.nrm.resize(3, n);
-        out.area.resize(n);
-        out.atom.resize(n);
-        for (int k = 0; k < n; ++k) {
-          out.pts.col(k) = pts_[k];
-          out.nrm.col(k) = nrm_[k];
-          out.area[k] = area_[k];
-          out.atom[k] = atom_[k];
-        }
-      }
-
-    private:
-      std::vector<Vector3d> pts_, nrm_;
-      std::vector<double> area_;
-      std::vector<int> atom_;
-    };
+    /**
+     * The expected dot count plus one per patch row, the margin of a patch
+     * that rounds up.
+     */
+    int dot_capacity(const SasGeometry &geo, const SesGeometry &ses,
+                     const double density) {
+      const double total_area =
+          ses.convex_area.sum() + ses.saddle_area.sum() + ses.face_area.sum();
+      const int rows = static_cast<int>(ses.convex_area.size())
+                       + 2 * geo.n_active_arcs + geo.probes.n_active;
+      return static_cast<int>(nuri::max(std::lround(total_area * density), 0L))
+             + rows;
+    }
 
     /**
      * Buffers of one `sample_ses` call, sized once for the largest lattice,
      * cap list, probe contact list and saddle row; `lattices` caches the
-     * Fibonacci lattice per dot count.
+     * Fibonacci lattice per dot count and `n_dots` is the write cursor into
+     * the output.
      */
     struct SampleScratch {
       absl::flat_hash_map<int, Matrix3Xd> lattices;
@@ -77,7 +70,7 @@ namespace internal {
       MatrixXd depth;
       ArrayXd sin_edge, beta, area;
       ArrayXi k_phi;
-      DotBuffer dots;
+      int n_dots = 0;
       double dropped = 0;
     };
 
@@ -94,8 +87,6 @@ namespace internal {
                 ncontact = geo.probes.atoms.max_deg(),
                 k_beta = static_cast<int>(nuri::max(
                     std::lround(rp * constants::kPi * std::sqrt(density)), 1L));
-      const double total_area =
-          ses.convex_area.sum() + ses.saddle_area.sum() + ses.face_area.sum();
 
       SampleScratch scratch;
       scratch.outside.resize(ndir);
@@ -109,8 +100,6 @@ namespace internal {
       scratch.beta.resize(k_beta);
       scratch.area.resize(k_beta);
       scratch.k_phi.resize(k_beta);
-      scratch.dots.reserve(
-          static_cast<int>(nuri::max(std::lround(total_area * density), 0L)));
       return scratch;
     }
 
@@ -154,7 +143,7 @@ namespace internal {
 
     void sample_convex(const SurfaceSpheres &ss, const SasGeometry &geo,
                        const SesGeometry &ses, const double density,
-                       SampleScratch &scratch) {
+                       SampleScratch &scratch, SesDots &out) {
       const SasCaps &caps = geo.caps;
       for (int i = 0; i < ss.n_active; ++i) {
         const double area = ses.convex_area[i];
@@ -174,12 +163,17 @@ namespace internal {
           continue;
         }
 
-        const Vector3d c = ss.pts.col(i);
-        const double w = area / n_kept;
-        for (int k = 0; k < dirs.cols(); ++k) {
+        room(out, scratch.n_dots, n_kept);
+        const int b = scratch.n_dots;
+        auto nrm = out.nrm.middleCols(b, n_kept);
+        for (int k = 0, w = 0; k < dirs.cols(); ++k) {
           if (keep[k])
-            scratch.dots.add(c + r * dirs.col(k), dirs.col(k), w, i);
+            nrm.col(w++) = dirs.col(k);
         }
+        out.pts.middleCols(b, n_kept) = (r * nrm).colwise() + ss.pts.col(i);
+        out.area.segment(b, n_kept).setConstant(area / n_kept);
+        out.atom.segment(b, n_kept).setConstant(i);
+        scratch.n_dots += n_kept;
       }
     }
 
@@ -194,7 +188,8 @@ namespace internal {
      */
     void saddle_row(const SurfaceSpheres &ss, const SasArc &arc,
                     const SasCircle &c, const SaddleRow &row,
-                    const double density, SampleScratch &scratch) {
+                    const double density, SampleScratch &scratch,
+                    SesDots &out) {
       const double rp = ss.rp;
       const double width = row.hi - row.lo,
                    total = rp * arc.dphi * row.integral;
@@ -252,22 +247,27 @@ namespace internal {
             - r_j;
         const int owner = depth_i <= depth_j ? i : j;
 
-        const double w = area[m] * scale / k,
-                     offset = (0.25 + 0.5 * (m % 2)) / k;
+        room(out, scratch.n_dots, k);
+        const int b = scratch.n_dots;
+        out.area.segment(b, k).setConstant(area[m] * scale / k);
+        out.atom.segment(b, k).setConstant(owner);
+        const double offset = (0.25 + 0.5 * (m % 2)) / k;
         for (int n = 0; n < k; ++n) {
           const double phi =
               arc.phi + (static_cast<double>(n) / k + offset) * arc.dphi;
           const Vector3d radial = std::cos(phi) * c.e1 + std::sin(phi) * c.e2,
                          q = c.cntr + c.rl * radial,
                          inward = -cos_b * radial + sin_b * c.axis;
-          scratch.dots.add(q + rp * inward, -inward, w, owner);
+          out.pts.col(b + n) = q + rp * inward;
+          out.nrm.col(b + n) = -inward;
         }
+        scratch.n_dots += k;
       }
     }
 
     void sample_toroidal(const SurfaceSpheres &ss, const SasGeometry &geo,
                          const SesGeometry &ses, const double density,
-                         SampleScratch &scratch) {
+                         SampleScratch &scratch, SesDots &out) {
       for (int r = 0; r < geo.n_active_arcs; ++r) {
         const SasArc &arc = geo.arcs[r];
         const SasCircle &c = geo.circles[arc.circ];
@@ -276,19 +276,19 @@ namespace internal {
 
         if (beta[1] < beta[2]) {
           saddle_row(ss, arc, c, { beta[0], beta[1], integral[0] }, density,
-                     scratch);
+                     scratch, out);
           saddle_row(ss, arc, c, { beta[2], beta[3], integral[1] }, density,
-                     scratch);
+                     scratch, out);
         } else {
           saddle_row(ss, arc, c, { beta[0], beta[3], integral.sum() }, density,
-                     scratch);
+                     scratch, out);
         }
       }
     }
 
     void sample_concave(const SurfaceSpheres &ss, const SasGeometry &geo,
                         const SesGeometry &ses, const double density,
-                        SampleScratch &scratch) {
+                        SampleScratch &scratch, SesDots &out) {
       const SasProbes &probes = geo.probes;
       if (probes.n_active == 0)
         return;
@@ -337,13 +337,17 @@ namespace internal {
                 .colwise()
             - small;
 
-        const double w = area / n_kept;
+        room(out, scratch.n_dots, n_kept);
+        const int b = scratch.n_dots;
+        out.pts.middleCols(b, n_kept) = (rp * kept).colwise() + pos;
+        out.nrm.middleCols(b, n_kept) = -kept;
+        out.area.segment(b, n_kept).setConstant(area / n_kept);
         for (int k = 0; k < n_kept; ++k) {
           int best;
           depth.col(k).minCoeff(&best);
-          scratch.dots.add(pos + rp * kept.col(k), -kept.col(k), w,
-                           atoms[best]);
+          out.atom[b + k] = atoms[best];
         }
+        scratch.n_dots += n_kept;
       }
     }
   }  // namespace
@@ -366,10 +370,7 @@ namespace internal {
       kind.off()[b + 1] = w;
       beg = end;
     }
-    pts.conservativeResize(3, w);
-    nrm.conservativeResize(3, w);
-    area.conservativeResize(w);
-    atom.conservativeResize(w);
+    resize_dots(*this, w);
   }
 
   SesDots SesDots::subset(const ArrayXb &mask) const {
@@ -412,17 +413,18 @@ namespace internal {
     SesDots out;
     out.rp = ss.rp;
     out.kind = OffsetTable(3);
+    resize_dots(out, dot_capacity(geo, ses, density));
     ArrayXi &off = out.kind.off();
 
     off[0] = 0;
-    sample_convex(ss, geo, ses, density, scratch);
-    off[1] = scratch.dots.size();
-    sample_toroidal(ss, geo, ses, density, scratch);
-    off[2] = scratch.dots.size();
-    sample_concave(ss, geo, ses, density, scratch);
-    off[3] = scratch.dots.size();
+    sample_convex(ss, geo, ses, density, scratch, out);
+    off[1] = scratch.n_dots;
+    sample_toroidal(ss, geo, ses, density, scratch, out);
+    off[2] = scratch.n_dots;
+    sample_concave(ss, geo, ses, density, scratch, out);
+    off[3] = scratch.n_dots;
 
-    scratch.dots.finish(out);
+    resize_dots(out, scratch.n_dots);
     out.atom = ss.order(out.atom);
     out.dropped_area = scratch.dropped;
     return out;
