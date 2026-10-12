@@ -187,10 +187,12 @@ namespace internal {
       Array2Xi root;
     };
 
+    /**
+     * A probe at `pos`, the root `plus` of the sorted face `face`.
+     */
     struct RawProbe {
-      Array3i atoms;
       Vector3d pos;
-      BallTriple face;
+      Array3i face;
       bool plus;
     };
 
@@ -337,7 +339,7 @@ namespace internal {
             continue;
 
           fs.root(plus ? 0 : 1, f) = static_cast<int>(raw.size());
-          raw.push_back({ abc, ex.root(*k, plus), face, plus });
+          raw.push_back({ ex.root(*k, plus), fs.verts.col(f), plus });
         }
       });
 
@@ -345,37 +347,27 @@ namespace internal {
     }
 
     /**
-     * Probes owner-sorted (owner = smallest atom); `pid` maps raw ids.
+     * Raw probes owner-sorted (owner = smallest atom): `order` maps a probe
+     * to its raw id, `pid` a raw id to its probe.
      */
-    SasProbes make_probes(const SurfaceSpheres &ss,
-                          const std::vector<RawProbe> &raw, ArrayXi &pid) {
+    struct ProbeOrder {
+      ArrayXi order, pid;
+    };
+
+    ProbeOrder make_probes(const SurfaceSpheres &ss, const VertexMap &vm,
+                           const std::vector<RawProbe> &raw) {
       const int nr = static_cast<int>(raw.size());
 
-      ArrayXi owner(nr), order(nr);
+      ArrayXi owner(nr);
       for (int r = 0; r < nr; ++r)
-        owner[r] = raw[r].atoms[0];
-      OffsetTable own_off(ss.n_enum);
-      argsort_bucket(order, own_off, owner);
+        owner[r] = vm.new_of_v(raw[r].face).minCoeff();
 
-      pid.resize(nr);
-      SasProbes probes { CSR(ArrayXi(3L * nr), OffsetTable(nr)),
-                         Matrix3Xd(3, nr),
-                         Matrix3Xd(),
-                         OffsetTable(nr),
-                         Array3Xi(3, nr),
-                         ArrayXb(nr),
-                         own_off[ss.n_active] };
-      for (int p = 0; p < nr; ++p) {
-        const int r = order[p];
-        pid[r] = p;
-        probes.atoms.off()[p] = 3 * p;
-        probes.atoms.adj().segment(3L * p, 3) = raw[r].atoms;
-        probes.pos.col(p) = raw[r].pos;
-        probes.face.col(p) << raw[r].face.a, raw[r].face.b, raw[r].face.c;
-        probes.plus[p] = raw[r].plus;
-      }
-      probes.atoms.off()[nr] = 3 * nr;
-      return probes;
+      ProbeOrder po { ArrayXi(nr), ArrayXi(nr) };
+      OffsetTable own_off(ss.n_enum);
+      argsort_bucket(po.order, own_off, owner);
+      for (int p = 0; p < nr; ++p)
+        po.pid[po.order[p]] = p;
+      return po;
     }
 
     /**
@@ -615,40 +607,47 @@ namespace internal {
      * forward neighbour shifts are 13 merge joins of the order with itself.
      * The result is the set of pairs within `tau`, whatever the probe order.
      */
-    void merge_near_probes(const SurfaceSpheres &ss, const SasProbes &probes,
-                           UnionFind &uf) {
-      const int np = static_cast<int>(probes.pos.cols());
+    void merge_near_probes(const SurfaceSpheres &ss,
+                           const std::vector<RawProbe> &raw,
+                           const ArrayXi &order, UnionFind &uf) {
+      const int np = static_cast<int>(order.size());
       if (np < 2)
         return;
 
       const double tau = probe_merge_tol(ss.rmax), tau2 = tau * tau;
-      const Vector3d lo = probes.pos.rowwise().minCoeff();
-      ABSL_DCHECK_LT((probes.pos.rowwise().maxCoeff() - lo).maxCoeff() / tau,
-                     0x1p62);
+      Vector3d lo = raw[0].pos, hi = raw[0].pos;
+      for (const RawProbe &r: raw) {
+        lo = lo.cwiseMin(r.pos);
+        hi = hi.cwiseMax(r.pos);
+      }
+      ABSL_DCHECK_LT((hi - lo).maxCoeff() / tau, 0x1p62);
+      auto pos = [&](const int p) -> const Vector3d & {
+        return raw[order[p]].pos;
+      };
       std::vector<Cell> cells(np);
       for (int p = 0; p < np; ++p) {
         for (int k = 0; k < 3; ++k) {
-          cells[p][k] = static_cast<std::int64_t>(
-              std::floor((probes.pos(k, p) - lo[k]) / tau));
+          cells[p][k] =
+              static_cast<std::int64_t>(std::floor((pos(p)[k] - lo[k]) / tau));
         }
       }
 
-      ArrayXi order = ArrayXi::LinSpaced(np, 0, np - 1);
-      std::sort(order.begin(), order.end(),
+      ArrayXi by_cell = ArrayXi::LinSpaced(np, 0, np - 1);
+      std::sort(by_cell.begin(), by_cell.end(),
                 [&](int p, int r) { return cells[p] < cells[r]; });
 
       auto run_end = [&](const int i) {
         int j = i + 1;
-        while (j < np && cells[order[j]] == cells[order[i]])
+        while (j < np && cells[by_cell[j]] == cells[by_cell[i]])
           ++j;
         return j;
       };
       auto join = [&](const int bi, const int ei, const int bj, const int ej) {
         for (int a = bi; a < ei; ++a) {
-          const int p = order[a];
+          const int p = by_cell[a];
           for (int b = bj; b < ej; ++b) {
-            const int r = order[b];
-            if ((probes.pos.col(p) - probes.pos.col(r)).squaredNorm() <= tau2)
+            const int r = by_cell[b];
+            if ((pos(p) - pos(r)).squaredNorm() <= tau2)
               uf.merge(p, r);
           }
         }
@@ -669,7 +668,7 @@ namespace internal {
               continue;
 
             for (int i = 0, j = 0; i < np && j < np;) {
-              const Cell ci = cells[order[i]] + shift, cj = cells[order[j]];
+              const Cell ci = cells[by_cell[i]] + shift, cj = cells[by_cell[j]];
               if (ci < cj) {
                 i = run_end(i);
               } else if (cj < ci) {
@@ -690,9 +689,10 @@ namespace internal {
                           const VertexMap &vm,
                           const std::vector<SasCircle> &circ,
                           const SasCaps &caps, const Arcs &arcs,
-                          const SasProbes &probes) {
+                          const std::vector<RawProbe> &raw,
+                          const ArrayXi &order) {
       const int n_solve = ss.n_solve, mcap = caps.h.max_deg(),
-                np = static_cast<int>(probes.pos.cols());
+                np = static_cast<int>(order.size());
       const BallExact &ex = del.ex;
 
       int acap = 0;
@@ -719,7 +719,7 @@ namespace internal {
         auto local = [&](int p) {
           if (vloc[p] < 0) {
             vloc[p] = solver.add_vertex(
-                (probes.pos.col(p) - ss.pts.col(s)).normalized());
+                (raw[order[p]].pos - ss.pts.col(s)).normalized());
             vlist[k++] = p;
           }
           return vloc[p];
@@ -766,24 +766,25 @@ namespace internal {
      * atoms at the position and root of their lowest member, owner-sorted
      * like `make_probes`; arc ends are relabelled to the merged ids.
      */
-    SasProbes merge_probes(const SurfaceSpheres &ss, const SasProbes &probes,
+    SasProbes merge_probes(const SurfaceSpheres &ss,
+                           const std::vector<RawProbe> &raw,
+                           const ArrayXi &order, const VertexMap &vm,
                            UnionFind &uf, Arcs &arcs) {
-      const int np = static_cast<int>(probes.pos.cols()), nc = uf.relabel();
+      const int np = static_cast<int>(order.size()), nc = uf.relabel();
       const auto label = uf.labels();
 
       ArrayXi mem(np);
       OffsetTable moff(nc);
       argsort_bucket(mem, moff, label);
 
-      ArrayXi catoms(probes.atoms.m()), owner(nc);
+      ArrayXi catoms(3L * np), owner(nc);
       OffsetTable coff(nc);
       int n = coff.off()[0] = 0;
       for (int c = 0; c < nc; ++c) {
         const int beg = n;
         for (const int p: mem.segment(moff[c], moff.degree(c))) {
-          const int d = probes.atoms.degree(p);
-          catoms.segment(n, d) = probes.atoms.nbrs(p);
-          n += d;
+          catoms.segment(n, 3) = sort3(vm.new_of_v(raw[order[p]].face));
+          n += 3;
         }
         const auto first = catoms.begin() + beg, last = catoms.begin() + n;
         std::sort(first, last);
@@ -792,9 +793,9 @@ namespace internal {
         owner[c] = catoms[beg];
       }
 
-      ArrayXi order(nc);
+      ArrayXi by_owner(nc);
       OffsetTable own_off(ss.n_enum);
-      argsort_bucket(order, own_off, owner);
+      argsort_bucket(by_owner, own_off, owner);
 
       SasProbes merged { CSR(ArrayXi(n), OffsetTable(nc)),
                          Matrix3Xd(3, nc),
@@ -807,15 +808,15 @@ namespace internal {
       ArrayXi cid(nc);
       int w = aoff[0] = 0;
       for (int q = 0; q < nc; ++q) {
-        const int c = order[q], d = coff.degree(c);
+        const int c = by_owner[q], d = coff.degree(c);
         cid[c] = q;
         adj.segment(w, d) = catoms.segment(coff[c], d);
         w += d;
         aoff[q + 1] = w;
-        const int first = mem[moff[c]];
-        merged.pos.col(q) = probes.pos.col(first);
-        merged.face.col(q) = probes.face.col(first);
-        merged.plus[q] = probes.plus[first];
+        const RawProbe &first = raw[order[mem[moff[c]]]];
+        merged.pos.col(q) = first.pos;
+        merged.face.col(q) = first.face;
+        merged.plus[q] = first.plus;
       }
 
       for (SasArc &arc: arcs.arcs) {
@@ -880,15 +881,14 @@ namespace internal {
 
     std::vector<RawProbe> raw;
     Faces fs = accept_faces(ss, del, vm, tbl.pair_of_edge, raw);
-    ArrayXi pid;
-    SasProbes probes = make_probes(ss, raw, pid);
+    const ProbeOrder po = make_probes(ss, vm, raw);
 
-    Arcs arcs = fan_rings(ss, del, vm, tbl.edge_of_pair, circ, fs, pid);
-    ArrayXd area = sweep_spheres(ss, del, vm, circ, caps, arcs, probes);
+    Arcs arcs = fan_rings(ss, del, vm, tbl.edge_of_pair, circ, fs, po.pid);
+    ArrayXd area = sweep_spheres(ss, del, vm, circ, caps, arcs, raw, po.order);
 
-    UnionFind uf(static_cast<int>(probes.pos.cols()));
-    merge_near_probes(ss, probes, uf);
-    SasProbes merged = merge_probes(ss, probes, uf, arcs);
+    UnionFind uf(static_cast<int>(raw.size()));
+    merge_near_probes(ss, raw, po.order, uf);
+    SasProbes merged = merge_probes(ss, raw, po.order, vm, uf, arcs);
     tangents(merged, arcs);
 
     const int n_active_arcs = arcs.off[ss.g.offset(ss.n_active)];
