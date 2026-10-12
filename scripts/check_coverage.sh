@@ -98,6 +98,7 @@ if [[ $cpp_test = true ]]; then
 fi
 
 if [[ $py_test = true ]]; then
+	export PYTHONPATH="$build_dir/python/src${PYTHONPATH:+:$PYTHONPATH}"
 	pytest -v -n"$jobs" python/test
 	cmake --build "$build_dir" --target NuriPythonDoctest -j"$jobs"
 fi
