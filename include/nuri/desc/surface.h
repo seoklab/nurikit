@@ -144,6 +144,14 @@ namespace internal {
    * the roundoff of frames, `atan2`, `sin`/`cos` and the wrap.
    */
   constexpr double kSurfaceAngleEps = 2 * kOffsetRelTol + 0x1p-40;
+  /**
+   * Two ring vertices of one circle whose numeric angles differ by more than
+   * this are in the exact `ccw` order: one offset certificate per vertex,
+   * a shared frame (an orientation-preserving linear map, so it only
+   * reparametrises), and the dots, `atan2`, the class fold and the subtraction
+   * add at most `46 * 2^-53`.
+   */
+  constexpr double kRingSortEps = kSurfaceAngleEps;
 
   class OffsetTable {
   public:

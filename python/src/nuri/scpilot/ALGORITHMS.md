@@ -971,6 +971,16 @@ slivers from dropped near pairs.
   cuts it too (Lemma 3). The face arrangement is solved with `solve_caps` for
   the faces and caps that survive the filters below.
 
+  The C++ face solver orders each circle's ring of roots as the SAS port
+  orders its rings (§3 port step 4): by exact class, then by the numeric
+  angle, with the perturbed `ccw` deciding only the pairs whose angles lie
+  within `kRingSortEps`. This is sound because each vertex's offset is
+  certified to `kOffsetRelTol` of its length, the frame shared by the ring
+  is an orientation-preserving linear map and so only reparametrises the
+  angles monotonically, and the dots, `atan2`, the class fold and the
+  subtraction add roundoff only; a pair further apart than the sum is in
+  the exact order, and an exact tie is always within it.
+
 **Merged probes.** `build_sas` merges probes within `τ = 4 · kOffsetRelTol ·
 R_max` of each other by union-find over every pair within `τ`, found by one
 pass over the probes bucketed on a lattice of pitch `τ` and sorted by cell

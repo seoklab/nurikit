@@ -7,6 +7,7 @@
 #define NURI_DESC_SURFACE_ANALYTIC_RING_H_
 
 #include <cmath>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -96,13 +97,37 @@ namespace internal {
   }
 
   /**
+   * Exact order within every run of consecutive vertices of one class whose
+   * numeric angles are chained within `eps` (`kRingSortEps`; all of a class
+   * `0` or `2` run); `verts` is sorted by `(cls, phi)` on entry.
+   */
+  template <class Ops>
+  void sort_near_ties(std::vector<RingVertex> &verts, const Ops &ops,
+                      const double eps) {
+    const int n = static_cast<int>(verts.size());
+    for (int beg = 0, end; beg < n; beg = end) {
+      for (end = beg + 1; end < n && verts[end].cls == verts[beg].cls
+                          && verts[end].phi - verts[end - 1].phi <= eps;
+           ++end) { }
+
+      for (int i = beg + 1; i < end; ++i) {
+        for (int j = i; j > beg && ops.ccw(verts[j], verts[j - 1]) == Sgn::kPos;
+             --j)
+          std::swap(verts[j], verts[j - 1]);
+      }
+    }
+  }
+
+  /**
    * Which consecutive pair's arc contains the reference ray (its `dphi`
-   * gets `+2π`) and which pairs coincide. A ring without any decrease is
-   * a single-point window: the `2π` goes to an arc of the accessibility of
+   * gets `+2π`) and which pairs coincide. A same-class pair of class `1` or
+   * `3` is decided by its numeric angles when they differ by more than
+   * `eps`, by the exact `ccw` otherwise. A ring without any decrease is a
+   * single-point window: the `2π` goes to an arc of the accessibility of
    * the antipode.
    */
   template <class Ops>
-  void decide_wrap(Ring &ring, const Ops &ops) {
+  void decide_wrap(Ring &ring, const Ops &ops, const double eps) {
     const int n = static_cast<int>(ring.verts.size());
     ring.dec.assign(n, false);
     ring.coinc.assign(n, false);
@@ -115,6 +140,8 @@ namespace internal {
         ring.dec[k] = r.cls < p.cls;
       } else if (p.cls == 0 || p.cls == 2) {
         ring.coinc[k] = true;
+      } else if (const double gap = r.phi - p.phi; std::abs(gap) > eps) {
+        ring.dec[k] = gap < 0;
       } else {
         const Sgn s = ops.ccw(p, r);
         ring.coinc[k] = s == Sgn::kZero;
@@ -134,6 +161,14 @@ namespace internal {
         return;
       }
     }
+  }
+
+  /**
+   * `decide_wrap` with every same-class pair decided by the exact `ccw`.
+   */
+  template <class Ops>
+  void decide_wrap(Ring &ring, const Ops &ops) {
+    decide_wrap(ring, ops, std::numeric_limits<double>::infinity());
   }
 
   /**

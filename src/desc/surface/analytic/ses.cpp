@@ -564,8 +564,9 @@ namespace internal {
       }
 
       /**
-       * Ring of circle `(0, b)` sorted by exact class, then by the perturbed
-       * orientation (coincident roots are generic here), and its arcs.
+       * Ring of circle `(0, b)` sorted by exact class, then by the numeric
+       * angle with the perturbed orientation deciding the near-ties within
+       * `kRingSortEps` (coincident roots are generic here), and its arcs.
        */
       void ring_arcs(const BallExact &ex, const int b, const ArrayXb &live) {
         ring_.verts.clear();
@@ -589,12 +590,12 @@ namespace internal {
           ring_frame(ring_, e1, e2);
           ring_angles(ring_, ops);
           std::sort(ring_.verts.begin(), ring_.verts.end(),
-                    [&](const RingVertex &p, const RingVertex &r) {
+                    [](const RingVertex &p, const RingVertex &r) {
                       return p.cls < r.cls
-                             || (p.cls == r.cls && p.vertex != r.vertex
-                                 && ops.ccw(p, r) == Sgn::kPos);
+                             || (p.cls == r.cls && p.phi < r.phi);
                     });
-          decide_wrap(ring_, ops);
+          sort_near_ties(ring_.verts, ops, kRingSortEps);
+          decide_wrap(ring_, ops, kRingSortEps);
         }
 
         arcs_.clear();
