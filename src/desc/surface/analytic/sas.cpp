@@ -184,13 +184,14 @@ namespace internal {
     /**
      * Per triangulation face: the overlap-graph ids of its three edges in
      * local vertex order (-1 where a vertex is a corner or a dropped sphere,
-     * or the pair does not overlap), its sorted vertices (-1 if it holds a
-     * corner or a non-overlapping pair), whether its third sphere cuts the
-     * circle, and the probe of each root (0 = plus, 1 = minus; -1 if
-     * rejected).
+     * or the pair does not overlap), whether it carries all three pairs, its
+     * sorted vertices (-1 if it holds a corner or a non-overlapping pair),
+     * whether its third sphere cuts the circle, and the probe of each root
+     * (0 = plus, 1 = minus; -1 if rejected).
      */
     struct Faces {
       Array3Xi q;
+      ArrayXb full;
       Array3Xi verts;
       ArrayXb cut;
       Array2Xi root;
@@ -291,7 +292,7 @@ namespace internal {
                      const VertexMap &vm, const Faces &fs, const int c,
                      const int lf, Array3i &fv, Array3i &abc) {
       return face_spheres(del, vm, c, lf, fv, abc) && abc[0] < sa.n_enum
-             && (fs.q.col(del.face(lf, c)) >= 0).all();
+             && fs.full[del.face(lf, c)];
     }
 
     int opposite_local(const SasDelaunay &del, const int c2,
@@ -312,11 +313,10 @@ namespace internal {
      */
     bool apex_may_reject(const Faces &fs, const SasDelaunay &del, const int c,
                          const int lv) {
-      for (int lf = 0; lf < 4; ++lf) {
-        if (lf != lv && (fs.q.col(del.face(lf, c)) < 0).any())
-          return false;
-      }
-      return true;
+      bool full = true;
+      for (int lf = 0; lf < 4; ++lf)
+        full &= lf == lv || fs.full[del.face(lf, c)];
+      return full;
     }
 
     /**
@@ -330,9 +330,11 @@ namespace internal {
       FaceKernelPtr k = face_kernel();
 
       Faces fs { face_pairs(del, vm, pair_of_edge),
+                 ArrayXb(del.n_faces),
                  Array3Xi::Constant(3, del.n_faces, -1),
                  ArrayXb::Constant(del.n_faces, false),
                  Array2Xi::Constant(2, del.n_faces, -1) };
+      fs.full = (fs.q >= 0).colwise().all().transpose();
       raw.reserve(3L * sa.n_enum);
 
       for_each_face(del, [&](int c, int lf, int c2) {
@@ -528,7 +530,7 @@ namespace internal {
       FanWalker walk(del, va, vb, edge);
       do {
         const int f = walk.face();
-        if ((fs.q.col(f) < 0).any())
+        if (!fs.full[f])
           continue;
 
         const int vc = walk.third();
