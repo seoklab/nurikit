@@ -25,11 +25,13 @@ namespace internal {
    * One cut point of a circle: `vertex` is the caller's id of the point
    * (probe or root), `face` the caller's handle of the face whose root it
    * is, resolved by the `Ops` object; `leave` whether the circle leaves the
-   * cutting ball here.
+   * cutting ball here. `decide_wrap` sets `dec` when the arc to the next
+   * vertex contains the reference ray and `coinc` when the two coincide.
    */
   struct RingVertex {
     int vertex, face;
     bool plus, leave;
+    bool dec = false, coinc = false;
     int cls = 0;
     double phi = 0;
   };
@@ -44,7 +46,6 @@ namespace internal {
    */
   struct Ring {
     std::vector<RingVertex> verts;
-    std::vector<bool> dec, coinc;
     bool covered;
     Vector3d e1, e2;
   };
@@ -125,35 +126,35 @@ namespace internal {
   template <class Ops>
   void decide_wrap(Ring &ring, const Ops &ops, const double eps) {
     const int n = static_cast<int>(ring.verts.size());
-    ring.dec.assign(n, false);
-    ring.coinc.assign(n, false);
 
     int n_dec = 0;
     for (int k = 0; k < n; ++k) {
-      const RingVertex &p = ring.verts[k], &r = ring.verts[(k + 1) % n];
+      RingVertex &p = ring.verts[k];
+      const RingVertex &r = ring.verts[(k + 1) % n];
       ABSL_DCHECK_NE(p.leave, r.leave) << "ring does not alternate";
+      p.dec = p.coinc = false;
       if (p.cls != r.cls) {
-        ring.dec[k] = r.cls < p.cls;
+        p.dec = r.cls < p.cls;
       } else if (p.cls == 0 || p.cls == 2) {
-        ring.coinc[k] = true;
+        p.coinc = true;
       } else if (const double gap = r.phi - p.phi; std::abs(gap) > eps) {
-        ring.dec[k] = gap < 0;
+        p.dec = gap < 0;
       } else {
         const Sgn s = ops.ccw(p, r);
-        ring.coinc[k] = s == Sgn::kZero;
-        ring.dec[k] = s == Sgn::kNeg;
+        p.coinc = s == Sgn::kZero;
+        p.dec = s == Sgn::kNeg;
       }
-      n_dec += static_cast<int>(ring.dec[k]);
+      n_dec += static_cast<int>(p.dec);
     }
     if (n_dec == 1)
       return;
     ABSL_DCHECK_EQ(n_dec, 0) << "ring wraps twice";
 
     const bool accessible = ops.antipode_accessible(ring.verts[0]);
-    for (int k = 0; k < n; ++k) {
-      if (ring.verts[k].leave == accessible) {
-        ring.dec[k] = true;
-        ring.coinc[k] = false;
+    for (RingVertex &p: ring.verts) {
+      if (p.leave == accessible) {
+        p.dec = true;
+        p.coinc = false;
         return;
       }
     }
@@ -191,9 +192,9 @@ namespace internal {
         continue;
 
       double dphi = 0;
-      if (!ring.coinc[k]) {
-        dphi = nuri::max(
-            r.phi - p.phi + (ring.dec[k] ? constants::kTwoPi : 0.0), 0.0);
+      if (!p.coinc) {
+        dphi =
+            nuri::max(r.phi - p.phi + (p.dec ? constants::kTwoPi : 0.0), 0.0);
       }
       const double phi = p.phi > constants::kPi ? p.phi - constants::kTwoPi
                                                 : p.phi;
