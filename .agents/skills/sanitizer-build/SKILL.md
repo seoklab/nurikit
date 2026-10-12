@@ -50,11 +50,11 @@ C++ (`NURI_BUILD_TESTING` is ON by default):
 ctest --test-dir build/sanitizer -j"$(nproc)" --output-on-failure
 ```
 
-Python (`NURI_BUILD_PYTHON` is ON by default; the dev build stages the
-extensions into `python/src/nuri/`):
+Python (`NURI_BUILD_PYTHON` is ON by default; the build stages the package
+into `build/sanitizer/python/src/nuri/`):
 
 ```bash
-PYTHONPATH="$PWD/python/src" python -m pytest -v python/test
+PYTHONPATH="$PWD/build/sanitizer/python/src" python -m pytest -v python/test
 ```
 
 `detect_leaks=0` is required — the Python interpreter itself leaks and would
