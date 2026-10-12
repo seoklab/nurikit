@@ -923,6 +923,11 @@ namespace internal {
   }
 
   namespace {
+    template <class T>
+    Root<T> overlap_root(const T &t, const T &rr) {
+      return { input<T>(4.0) * rr - t * t, lit<T>(0.0), lit<T>(0.0) };
+    }
+
     /**
      * `T = ρ_a² + ρ_b² − d²`: overlap iff `T ≥ 0` or `4 ρ_a² ρ_b² − T² > 0`.
      * The second kernel is `4 G (ρ_a² − v_b² / G)`, the circle radius; an
@@ -939,27 +944,24 @@ namespace internal {
                 rb = wval(ctx) + dot(sb.c, sb.c) - sb.h;
         return std::pair<T, T> { ra + rb - dot(dd, dd), ra * rb };
       };
-      auto kernel = [&](auto ctx) {
-        using T = typename decltype(ctx)::Scalar;
-        auto [t, rr] = stage(ctx);
-        return Root<T> { input<T>(4.0) * rr - t * t, lit<T>(0.0), lit<T>(0.0) };
-      };
 
       if constexpr (!kForceExact) {
-        const int s = sgn(stage(Ctx<Fx> { d, -1 }).first);
+        const auto [t, rr] = stage(Ctx<Fx> { d, -1 });
+        const int s = sgn(t);
         if (s == 1 || s == 0)
           return Sgn::kPos;
         if (s == -1) {
-          const int s2 = sign_root(kernel(Ctx<Fx> { d, -1 }));
+          const int s2 = sign_root(overlap_root(t, rr));
           if (s2 != kUnknown && s2 != 0)
             return static_cast<Sgn>(s2);
         }
       }
 
       exact_stage<kFilterOnly>();
-      if (sgn(stage(Ctx<Xp> { d, -1 }).first) >= 0)
+      const auto [t, rr] = stage(Ctx<Xp> { d, -1 });
+      if (sgn(t) >= 0)
         return Sgn::kPos;
-      return static_cast<Sgn>(sign_root(kernel(Ctx<Xp> { d, -1 })));
+      return static_cast<Sgn>(sign_root(overlap_root(t, rr)));
     }
   }  // namespace
 
@@ -1002,7 +1004,8 @@ namespace internal {
   template <bool kForceExact, bool kFilterOnly>
   ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact, kFilterOnly>::overlap(
       const int a, const int b) const {
-    return overlap_impl<kForceExact, kFilterOnly>({ &c_, &h_, w_ }, a, b);
+    const Data d { &c_, &h_, w_ };
+    return overlap_impl<kForceExact, kFilterOnly>(d, a, b);
   }
 
   /**
@@ -1077,11 +1080,12 @@ namespace internal {
   ABSL_ATTRIBUTE_NOINLINE Sgn
   BallExactImpl<kForceExact, kFilterOnly>::cuts(const BallTriple f) const {
     auto kernel = [&](auto ctx) { return cut_root(face(ctx, f)); };
-    return decide<kForceExact, kFilterOnly>(
-        {
-            &c_, &h_, w_
-    },
-        kernel, { { f.a, f.b, f.c }, 3 });
+    const Data d { &c_, &h_, w_ };
+    const Participants parts {
+      { f.a, f.b, f.c },
+      3
+    };
+    return decide<kForceExact, kFilterOnly>(d, kernel, parts);
   }
 
   template <bool kForceExact, bool kFilterOnly>
@@ -1091,11 +1095,12 @@ namespace internal {
       using T = typename decltype(ctx)::Scalar;
       return Root<T> { face(ctx, { a, b, c }).mu, lit<T>(0.0), lit<T>(0.0) };
     };
-    return decide<kForceExact, kFilterOnly>(
-        {
-            &c_, &h_, w_
-    },
-        kernel, { { a, b, c }, 3 });
+    const Data d { &c_, &h_, w_ };
+    const Participants parts {
+      { a, b, c },
+      3
+    };
+    return decide<kForceExact, kFilterOnly>(d, kernel, parts);
   }
 
   namespace {
@@ -1107,11 +1112,10 @@ namespace internal {
     std::array<Root<T>, 3> disc_roots(const Ctx<T> &ctx, int s, int j, int l) {
       const Face<T> fc = face(ctx, { s, j, l });
       const T zero = lit<T>(0.0);
-      const T mu2 = fc.gcc * fc.vb - fc.gbc * fc.vc;
       return {
         Root<T> { fc.disc, zero, zero },
          Root<T> {   fc.mu, zero, zero },
-        Root<T> {     mu2, zero, zero }
+        Root<T> {  fc.lam, zero, zero }
       };
     }
 
@@ -1160,11 +1164,12 @@ namespace internal {
     auto kernel = [&](auto ctx) {
       return accept_root(ctx, face(ctx, f), plus, l);
     };
-    return decide<kForceExact, kFilterOnly>(
-        {
-            &c_, &h_, w_
-    },
-        kernel, { { f.a, f.b, f.c, l }, 4 });
+    const Data d { &c_, &h_, w_ };
+    const Participants parts {
+      { f.a, f.b, f.c, l },
+      4
+    };
+    return decide<kForceExact, kFilterOnly>(d, kernel, parts);
   }
 
   /**
@@ -1190,7 +1195,8 @@ namespace internal {
   ABSL_ATTRIBUTE_NOINLINE void
   BallExactImpl<kForceExact, kFilterOnly>::load(FaceKernel &k,
                                                 const BallTriple f) const {
-    k.load({ &c_, &h_, w_ }, f);
+    const Data d { &c_, &h_, w_ };
+    k.load(d, f);
   }
 
   template <bool kForceExact, bool kFilterOnly>
@@ -1198,11 +1204,12 @@ namespace internal {
   BallExactImpl<kForceExact, kFilterOnly>::cuts(FaceKernel &k) const {
     const BallTriple f = k.triple();
     auto kernel = [&](auto ctx) { return cut_root(k.at(ctx)); };
-    return decide<kForceExact, kFilterOnly>(
-        {
-            &c_, &h_, w_
-    },
-        kernel, { { f.a, f.b, f.c }, 3 });
+    const Data d { &c_, &h_, w_ };
+    const Participants parts {
+      { f.a, f.b, f.c },
+      3
+    };
+    return decide<kForceExact, kFilterOnly>(d, kernel, parts);
   }
 
   template <bool kForceExact, bool kFilterOnly>
@@ -1212,11 +1219,12 @@ namespace internal {
     auto kernel = [&](auto ctx) {
       return accept_root(ctx, k.at(ctx), plus, l);
     };
-    return decide<kForceExact, kFilterOnly>(
-        {
-            &c_, &h_, w_
-    },
-        kernel, { { f.a, f.b, f.c, l }, 4 });
+    const Data d { &c_, &h_, w_ };
+    const Participants parts {
+      { f.a, f.b, f.c, l },
+      4
+    };
+    return decide<kForceExact, kFilterOnly>(d, kernel, parts);
   }
 
   template <bool kForceExact, bool kFilterOnly>
@@ -1328,7 +1336,8 @@ namespace internal {
     auto kernel = [&](auto ctx) {
       return ccw_kernel(ctx, a, b, fi, plus_i, fj, plus_j);
     };
-    return decide2<kForceExact, kFilterOnly>({ &c_, &h_, w_ }, kernel);
+    const Data d { &c_, &h_, w_ };
+    return decide2<kForceExact, kFilterOnly>(d, kernel);
   }
 
   template <bool kForceExact, bool kFilterOnly>
@@ -1341,11 +1350,12 @@ namespace internal {
     auto kernel = [&](auto ctx) {
       return ccw_kernel(ctx, a, b, fi, plus_i, fj, plus_j);
     };
-    return decide2_perturbed<kForceExact, kFilterOnly>(
-        {
-            &c_, &h_, w_
-    },
-        kernel, { { a, b, fi.a, fi.b, fi.c, fj.a, fj.b, fj.c }, n_parts });
+    const Data d { &c_, &h_, w_ };
+    const Participants parts {
+      { a, b, fi.a, fi.b, fi.c, fj.a, fj.b, fj.c },
+      n_parts
+    };
+    return decide2_perturbed<kForceExact, kFilterOnly>(d, kernel, parts);
   }
 
   template <bool kForceExact, bool kFilterOnly>
@@ -1361,11 +1371,12 @@ namespace internal {
           ab.g * o.u2 * ac.v - o.u2 * ab.v * dot(ab.d, ac.d) + dot(o.p, ac.d);
       return Root<T> { lin, dot(o.q, ac.d), o.disc };
     };
-    return decide<kForceExact, kFilterOnly>(
-        {
-            &c_, &h_, w_
-    },
-        kernel, { { a, b, f.a, f.b, f.c, c }, 6 });
+    const Data d { &c_, &h_, w_ };
+    const Participants parts {
+      { a, b, f.a, f.b, f.c, c },
+      6
+    };
+    return decide<kForceExact, kFilterOnly>(d, kernel, parts);
   }
 
   template <bool kForceExact, bool kFilterOnly>
