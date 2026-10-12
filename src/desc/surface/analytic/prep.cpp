@@ -190,11 +190,10 @@ namespace internal {
                                     const BallExact &ex, const double rmax,
                                     const double wmax) {
       constexpr double cutoff = 2 * kSurfaceLengthEps * kSurfaceLengthEps,
-                       u = 0x1p-53,
                        c2 = 3 * kSurfaceMaxCoord * kSurfaceMaxCoord;
-      const double knum =
-                       1.1 * u * (4.2 * c2 + 8.3 * wmax) + 16 * u * rmax * rmax,
-                   tail = 50 * u * rmax;
+      const double knum = 1.1 * kUnitRoundoff * (4.2 * c2 + 8.3 * wmax)
+                          + 16 * kUnitRoundoff * rmax * rmax,
+                   tail = 50 * kUnitRoundoff * rmax;
 
       const Matrix3Xd &pts = ex.centers();
       const ArrayXi &adj = g.adj();

@@ -8,6 +8,7 @@
 
 #include <array>
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -117,6 +118,7 @@ shape_complementarity(const Matrix3Xd &pts_a, const ArrayXd &radii_a,
                       const ScParams &params = {});
 
 namespace internal {
+  constexpr double kUnitRoundoff = std::numeric_limits<double>::epsilon() / 2;
   constexpr double kSurfaceLengthEps = 1e-6;
   /**
    * The near, contained and shared-circle bands are supersets of the exact

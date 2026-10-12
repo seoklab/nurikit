@@ -14,6 +14,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -51,8 +52,8 @@ namespace internal {
       double v, e;
     };
 
-    constexpr double kUlp = 0x1p-52;
-    constexpr double kTiny = 0x1p-1074;
+    constexpr double kUlp = 2 * kUnitRoundoff;
+    constexpr double kTiny = std::numeric_limits<double>::denorm_min();
 
     ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool is_zero(Fx a) {
       // GCC lowers v == 0.0 to ucomisd/setnp/cmovne and hoists it before
@@ -509,8 +510,10 @@ namespace internal {
       return sb != 0 ? sb : sgn(r.lin.d);
     }
 
+    constexpr int kMaxParticipants = 8;
+
     struct Participants {
-      std::array<int, 8> v;
+      std::array<int, kMaxParticipants> v;
       int n;
     };
 
@@ -671,7 +674,7 @@ namespace internal {
           std::unique(parts.v.begin(), parts.v.begin() + parts.n)
           - parts.v.begin());
 
-      std::array<Root2<Dual>, 8> rs;
+      std::array<Root2<Dual>, kMaxParticipants> rs;
       for (int k = 0; k < n; ++k)
         rs[k] = kernel(Ctx<Dual> { d, parts.v[k] });
 
@@ -839,7 +842,7 @@ namespace internal {
                                    o.den, out);
     }
 
-    constexpr int kMaxSqrtBits = 4096;
+    constexpr int kMinSqrtBits = 64, kMaxSqrtBits = 4096;
 
     /**
      * The exact dyadics combined with `√D`, `√D'` to `bits` extra bits,
@@ -853,7 +856,8 @@ namespace internal {
           aq2 { abs(o.q2.x), abs(o.q2.y), abs(o.q2.z) };
       Vector3d out;
       bool certified = false;
-      for (int bits = 64; !certified && bits <= kMaxSqrtBits; bits *= 2) {
+      for (int bits = kMinSqrtBits; !certified && bits <= kMaxSqrtBits;
+           bits *= 2) {
         const auto [s, u] = o.disc.sqrt_floor(bits);
         const auto [s2, u2] = o.disc2.sqrt_floor(bits);
         const V3<Xp> v = o.p + s * o.q + s2 * o.q2, e = u * aq + u2 * aq2;
@@ -1339,6 +1343,8 @@ namespace internal {
   BallExactImpl<kForceExact, kFilterOnly>::ccw_perturbed(
       const int a, const int b, const BallTriple fi, const bool plus_i,
       const BallTriple fj, const bool plus_j) const {
+    constexpr int n_parts = 8;
+    static_assert(n_parts <= kMaxParticipants);
     auto kernel = [&](auto ctx) {
       return ccw_kernel(ctx, a, b, fi, plus_i, fj, plus_j);
     };
@@ -1346,7 +1352,7 @@ namespace internal {
         {
             &c_, &h_, w_
     },
-        kernel, { { a, b, fi.a, fi.b, fi.c, fj.a, fj.b, fj.c }, 8 });
+        kernel, { { a, b, fi.a, fi.b, fi.c, fj.a, fj.b, fj.c }, n_parts });
   }
 
   template <bool kForceExact, bool kFilterOnly>
