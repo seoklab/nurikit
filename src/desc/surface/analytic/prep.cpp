@@ -139,10 +139,9 @@ namespace internal {
       VoxelGrid grid(pts, near_cutoff(rmax));
       std::vector<int> lbuf, rbuf;
       grid.find_neighbors_self(lbuf, rbuf);
+      canonical_pairs(lbuf, rbuf);
       auto left = eigen_map(lbuf), right = eigen_map(rbuf);
       const int m = static_cast<int>(left.size());
-      for (int k = 0; k < m; ++k)
-        std::tie(left[k], right[k]) = nuri::minmax(left[k], right[k]);
 
       const ArrayXd dist =
           (pts(E::all, right) - pts(E::all, left)).colwise().norm();

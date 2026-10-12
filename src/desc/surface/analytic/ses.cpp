@@ -7,7 +7,6 @@
 #include <array>
 #include <cmath>
 #include <numeric>
-#include <tuple>
 #include <vector>
 
 #include <absl/log/absl_check.h>
@@ -273,10 +272,9 @@ namespace internal {
       VoxelGrid grid(probes.pos, 2 * rp);
       std::vector<int> lbuf, rbuf;
       grid.find_neighbors_self(lbuf, rbuf);
+      canonical_pairs(lbuf, rbuf);
       const int m = static_cast<int>(lbuf.size());
       auto left = eigen_map(lbuf), right = eigen_map(rbuf);
-      for (int k = 0; k < m; ++k)
-        std::tie(left[k], right[k]) = nuri::minmax(left[k], right[k]);
 
       const int np = static_cast<int>(probes.pos.cols());
       ArrayXi order(m), by_right(m);

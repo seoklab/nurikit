@@ -12,6 +12,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -166,6 +167,14 @@ namespace internal {
    * add at most `46 * 2^-53`.
    */
   constexpr double kRingSortEps = kSurfaceAngleEps;
+
+  /**
+   * Orient every pair of `VoxelGrid::find_neighbors_self` as `left < right`.
+   */
+  inline void canonical_pairs(std::vector<int> &left, std::vector<int> &right) {
+    for (int k = 0; k < static_cast<int>(left.size()); ++k)
+      std::tie(left[k], right[k]) = nuri::minmax(left[k], right[k]);
+  }
 
   class OffsetTable {
   public:
