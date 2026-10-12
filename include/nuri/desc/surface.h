@@ -703,7 +703,11 @@ namespace internal {
     double rp = 0, dropped_area = 0;
 
     int n() const { return static_cast<int>(area.size()); }
-    SesDots subset(const ArrayXb &keep) const;
+    /**
+     * Drop every dot not in `mask`, in place.
+     */
+    void keep(const ArrayXb &mask);
+    SesDots subset(const ArrayXb &mask) const;
   };
   // NOLINTEND(*-non-private-member-variables-in-classes)
 

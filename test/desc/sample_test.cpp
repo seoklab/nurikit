@@ -225,6 +225,17 @@ TEST(SampleSesTest, MaskedRunAndSubset) {
     }
     EXPECT_EQ(sub.kind.degree(b), kept) << "block " << b;
   }
+
+  SesDots inplace = d;
+  inplace.keep(keep);
+  ASSERT_EQ(inplace.n(), sub.n());
+  EXPECT_EQ(inplace.pts, sub.pts);
+  EXPECT_EQ(inplace.nrm, sub.nrm);
+  EXPECT_TRUE((inplace.area == sub.area).all());
+  EXPECT_TRUE((inplace.atom == sub.atom).all());
+  EXPECT_TRUE((inplace.kind.off() == sub.kind.off()).all());
+  EXPECT_EQ(inplace.rp, sub.rp);
+  EXPECT_EQ(inplace.dropped_area, sub.dropped_area);
 }
 
 struct Protein {

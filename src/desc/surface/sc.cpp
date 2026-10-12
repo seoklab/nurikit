@@ -120,16 +120,18 @@ namespace {
     const internal::SasDelaunay del = internal::triangulate(*ss);
     const internal::SasGeometry geo = internal::build_sas(*ss, del);
     const internal::SesGeometry ses = internal::build_ses(*ss, del, geo);
-    const SesDots dots = internal::sample_ses(*ss, geo, ses, params.density);
+    SesDots dots = internal::sample_ses(*ss, geo, ses, params.density);
 
     const ArrayXb buried = buried_mask(dots, other, other_radii + params.rp);
-    const ArrayXb keep = trim_peripheral(dots, buried, params.band);
+    const ArrayXb kept = trim_peripheral(dots, buried, params.band);
+    const int n_dots = dots.n();
+    dots.keep(kept);
     return Side {
       static_cast<int>(pts.cols()),
       static_cast<int>(active.count()),
-      dots.n(),
+      n_dots,
       static_cast<int>(buried.count()),
-      dots.subset(keep),
+      std::move(dots),
     };
   }
 

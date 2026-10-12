@@ -339,14 +339,38 @@ namespace internal {
     }
   }  // namespace
 
-  SesDots SesDots::subset(const ArrayXb &keep) const {
-    ABSL_DCHECK_EQ(keep.size(), n());
+  void SesDots::keep(const ArrayXb &mask) {
+    ABSL_DCHECK_EQ(mask.size(), n());
+
+    int w = 0;
+    for (int b = 0, beg = 0; b < kind.size(); ++b) {
+      const int end = kind[b + 1];
+      for (int i = beg; i < end; ++i) {
+        if (!mask[i])
+          continue;
+        pts.col(w) = pts.col(i);
+        nrm.col(w) = nrm.col(i);
+        area[w] = area[i];
+        atom[w] = atom[i];
+        ++w;
+      }
+      kind.off()[b + 1] = w;
+      beg = end;
+    }
+    pts.conservativeResize(3, w);
+    nrm.conservativeResize(3, w);
+    area.conservativeResize(w);
+    atom.conservativeResize(w);
+  }
+
+  SesDots SesDots::subset(const ArrayXb &mask) const {
+    ABSL_DCHECK_EQ(mask.size(), n());
 
     SesDots out;
     out.rp = rp;
     out.dropped_area = dropped_area;
 
-    const int m = static_cast<int>(keep.count());
+    const int m = static_cast<int>(mask.count());
     out.pts.resize(3, m);
     out.nrm.resize(3, m);
     out.area.resize(m);
@@ -357,7 +381,7 @@ namespace internal {
     out.kind.off()[0] = 0;
     for (int b = 0; b < kind.size(); ++b) {
       for (int i = kind[b]; i < kind[b + 1]; ++i) {
-        if (!keep[i])
+        if (!mask[i])
           continue;
         out.pts.col(w) = pts.col(i);
         out.nrm.col(w) = nrm.col(i);
