@@ -27,6 +27,15 @@ namespace internal {
     constexpr int kBandHops = 4;
 
     /**
+     * Rounding bound of the shared-circle key
+     * (nurikit-data/scscore/bench/proofs/shared_circle_key.md).
+     */
+    constexpr double kSharedCircleSafety = 1.1, kSharedCircleCoordTerm = 4.2,
+                     kSharedCircleWeightTerm = 8.3,
+                     kSharedCircleRadiusTerm = 16, kSharedCircleTail = 50,
+                     kSharedCircleCoordBound = 3;
+
+    /**
      * Candidate pairs within the near band over every atom, the pairs left
      * for `overlap` to decide (both ends within `kBandHops` near hops of an
      * active atom, minus the exactly contained ones, identical twins
@@ -190,10 +199,14 @@ namespace internal {
                                     const BallExact &ex, const double rmax,
                                     const double wmax) {
       constexpr double cutoff = 2 * kSurfaceLengthEps * kSurfaceLengthEps,
-                       c2 = 3 * kSurfaceMaxCoord * kSurfaceMaxCoord;
-      const double knum = 1.1 * kUnitRoundoff * (4.2 * c2 + 8.3 * wmax)
-                          + 16 * kUnitRoundoff * rmax * rmax,
-                   tail = 50 * kUnitRoundoff * rmax;
+                       c2 = kSharedCircleCoordBound * kSurfaceMaxCoord
+                            * kSurfaceMaxCoord;
+      const double knum =
+                       kSharedCircleSafety * kUnitRoundoff
+                           * (kSharedCircleCoordTerm * c2
+                              + kSharedCircleWeightTerm * wmax)
+                       + kSharedCircleRadiusTerm * kUnitRoundoff * rmax * rmax,
+                   tail = kSharedCircleTail * kUnitRoundoff * rmax;
 
       const Matrix3Xd &pts = ex.centers();
       const ArrayXi &adj = g.adj();
