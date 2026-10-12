@@ -24,6 +24,36 @@ endif()
 
 include(NuriKitPythonUtils)
 
+file(
+  GLOB_RECURSE NURI_PYTHON_FILES
+  RELATIVE "${CMAKE_CURRENT_LIST_DIR}/"
+  CONFIGURE_DEPENDS
+  "nuri/*.py"
+)
+list(FILTER NURI_PYTHON_FILES EXCLUDE REGEX "^nuri/_version\\.py$")
+
+file(GLOB_RECURSE staged_pyfiles "${NURI_PYTHON_STAGE_DIR}/nuri/*.py")
+
+if(staged_pyfiles)
+  file(REMOVE ${staged_pyfiles})
+endif()
+
+foreach(pyfile IN LISTS NURI_PYTHON_FILES)
+  get_filename_component(pydir "${pyfile}" DIRECTORY)
+  file(MAKE_DIRECTORY "${NURI_PYTHON_STAGE_DIR}/${pydir}")
+  file(CREATE_LINK
+    "${CMAKE_CURRENT_LIST_DIR}/${pyfile}"
+    "${NURI_PYTHON_STAGE_DIR}/${pyfile}"
+    SYMBOLIC
+  )
+endforeach()
+
+configure_file(
+  "${CMAKE_CURRENT_LIST_DIR}/nuri/_version.py.in"
+  "${NURI_PYTHON_STAGE_DIR}/nuri/_version.py"
+  @ONLY
+)
+
 nuri_python_add_module(log_interface OUTPUT_DIRECTORY "_support"
   nuri/_support/log_interface_module.cpp
 )
@@ -71,25 +101,18 @@ nuri_python_add_module(chimera OUTPUT_DIRECTORY "tools"
   nuri/tools/chimera_module.cpp
 )
 
-configure_file(
-  "${CMAKE_CURRENT_LIST_DIR}/nuri/_version.py.in"
-  "${CMAKE_CURRENT_LIST_DIR}/nuri/_version.py"
-  @ONLY
-)
-
 if(SKBUILD)
   install(
-    FILES "${CMAKE_CURRENT_LIST_DIR}/nuri/_version.py"
+    FILES "${NURI_PYTHON_STAGE_DIR}/nuri/_version.py"
     DESTINATION "."
   )
 endif()
 
 if(NURI_BUILD_PYTHON_STUBS)
-  file(
-    GLOB_RECURSE NURI_PYTHON_FILES
-    RELATIVE "${CMAKE_CURRENT_LIST_DIR}/"
-    CONFIGURE_DEPENDS
-    "nuri/*.py"
+  nuri_python_generate_stubs(
+    nuri._version
+    nuri/_version.pyi
+    "${NURI_PYTHON_STAGE_DIR}/nuri/_version.py"
   )
 
   foreach(pyfile IN LISTS NURI_PYTHON_FILES)

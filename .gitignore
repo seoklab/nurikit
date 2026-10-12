@@ -6,7 +6,6 @@
 # Coverage report file
 /coverage.info
 /pyproject.toml
-/python/src/nuri/_version.py
 /python/docs/conf.py
 *.pyi
 

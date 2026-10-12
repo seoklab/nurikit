@@ -8,17 +8,11 @@ function(nuri_python_generate_stubs module output dependency)
     return()
   endif()
 
-  set(pypath_orig "$ENV{PYTHONPATH}")
-
-  if(pypath_orig)
-    set(pypath_orig "${pypath_orig}:")
-  endif()
-
   list(TRANSFORM output PREPEND "${CMAKE_CURRENT_LIST_DIR}/")
   add_custom_command(
     OUTPUT ${output}
     COMMAND ${CMAKE_COMMAND}
-    -E env "PYTHONPATH=${pypath_orig}${CMAKE_CURRENT_LIST_DIR}" ${SANITIZER_ENVS}
+    -E env "${NURI_PYTHON_ENV}" ${SANITIZER_ENVS}
     "${PYBIND11_STUBGEN}"
     -o "${CMAKE_CURRENT_LIST_DIR}"
     --exit-code
@@ -26,8 +20,8 @@ function(nuri_python_generate_stubs module output dependency)
     --numpy-array-remove-parameters
     ${ARGN}
     "${module}"
-    DEPENDS "${dependency}"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+    DEPENDS "${dependency}" NuriPython
+    WORKING_DIRECTORY "${NURI_PYTHON_STAGE_DIR}"
     COMMENT "Generating Python stubs for ${module}"
     VERBATIM
   )
@@ -74,6 +68,7 @@ function(nuri_python_add_module name)
     "${target_name}"
     PROPERTIES
     OUTPUT_NAME "${name}"
+    LIBRARY_OUTPUT_DIRECTORY "${NURI_PYTHON_STAGE_DIR}/nuri/${subdir}"
   )
 
   if(NURI_INSTALL_RPATH)
@@ -90,12 +85,6 @@ function(nuri_python_add_module name)
   endif()
 
   if(NURI_BUILD_PYTHON_STUBS)
-    set_target_properties(
-      "${target_name}"
-      PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/nuri/${subdir}"
-    )
-
     if(NOT ARG_OUTPUT_STUBS)
       set(ARG_OUTPUT_STUBS "nuri/${subdir}${name}.pyi")
     endif()
