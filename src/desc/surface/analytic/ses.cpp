@@ -8,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <numeric>
+#include <tuple>
 #include <vector>
 
 #include <absl/log/absl_check.h>
@@ -285,12 +286,21 @@ namespace internal {
       std::vector<int> lbuf, rbuf;
       grid.find_neighbors_self(lbuf, rbuf);
       const int m = static_cast<int>(lbuf.size());
+      auto left = eigen_map(lbuf), right = eigen_map(rbuf);
+      for (int k = 0; k < m; ++k)
+        std::tie(left[k], right[k]) = nuri::minmax(left[k], right[k]);
 
-      PairCaps pc { ArrayXi(m),  ArrayXi(m), Matrix3Xd(3, m), Matrix3Xd(3, m),
-                    ArrayXd(m), ArrayXd(m) };
+      const int np = static_cast<int>(probes.pos.cols());
+      ArrayXi order(m), by_right(m);
+      OffsetTable off(np);
+      argsort_bucket(by_right, off.off().head(np), right);
+      argsort_bucket(order, off, left, by_right);
+
+      PairCaps pc { ArrayXi(m),      ArrayXi(m), Matrix3Xd(3, m),
+                    Matrix3Xd(3, m), ArrayXd(m), ArrayXd(m) };
       int w = 0;
-      for (int k = 0; k < m; ++k) {
-        const int l = lbuf[k], r = rbuf[k];
+      for (const int k: order) {
+        const int l = left[k], r = right[k];
         if (!hts.low[l] || !hts.low[r])
           continue;
 
@@ -591,8 +601,7 @@ namespace internal {
           ring_angles(ring_, ops);
           std::sort(ring_.verts.begin(), ring_.verts.end(),
                     [](const RingVertex &p, const RingVertex &r) {
-                      return p.cls < r.cls
-                             || (p.cls == r.cls && p.phi < r.phi);
+                      return p.cls < r.cls || (p.cls == r.cls && p.phi < r.phi);
                     });
           sort_near_ties(ring_.verts, ops, kRingSortEps);
           decide_wrap(ring_, ops, kRingSortEps);
@@ -643,9 +652,10 @@ namespace internal {
         live.head(m).setConstant(true);
 
         if (std::isnan(ses.face_area[p])) {
-          ses.face_area[p] =
-              solver.solve(lifted.n.middleCols(beg, m), lifted.h.segment(beg, m),
-                           ses.face_cosa.segment(beg, m), rp, live);
+          ses.face_area[p] = solver.solve(lifted.n.middleCols(beg, m),
+                                          lifted.h.segment(beg, m),
+                                          ses.face_cosa.segment(beg, m), rp,
+                                          live);
         }
 
         for (int k = 0; k < m; ++k) {
