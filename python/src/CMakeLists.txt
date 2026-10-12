@@ -28,7 +28,7 @@ file(
   GLOB_RECURSE NURI_PYTHON_FILES
   RELATIVE "${CMAKE_CURRENT_LIST_DIR}/"
   CONFIGURE_DEPENDS
-  "nuri/*.py"
+  "nuri/*.py" "nuri/py.typed"
 )
 list(FILTER NURI_PYTHON_FILES EXCLUDE REGEX "^nuri/_version\\.py$")
 

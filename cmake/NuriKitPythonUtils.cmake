@@ -8,13 +8,32 @@ function(nuri_python_generate_stubs module output dependency)
     return()
   endif()
 
-  list(TRANSFORM output PREPEND "${CMAKE_CURRENT_LIST_DIR}/")
+  if(SKBUILD)
+    set(stub_install_args)
+  else()
+    set(stub_install_args EXCLUDE_FROM_ALL)
+  endif()
+
+  foreach(stub IN LISTS output)
+    file(RELATIVE_PATH stubdir
+      "${NURI_PYTHON_STAGE_DIR}/nuri"
+      "${NURI_PYTHON_STAGE_DIR}/${stub}/.."
+    )
+    install(
+      FILES "${NURI_PYTHON_STAGE_DIR}/${stub}"
+      DESTINATION "./${stubdir}"
+      COMPONENT NuriPythonStubs
+      ${stub_install_args}
+    )
+  endforeach()
+
+  list(TRANSFORM output PREPEND "${NURI_PYTHON_STAGE_DIR}/")
   add_custom_command(
     OUTPUT ${output}
     COMMAND ${CMAKE_COMMAND}
     -E env "${NURI_PYTHON_ENV}" ${SANITIZER_ENVS}
     "${PYBIND11_STUBGEN}"
-    -o "${CMAKE_CURRENT_LIST_DIR}"
+    -o "${NURI_PYTHON_STAGE_DIR}"
     --exit-code
     --enum-class-locations .*:nuri.core
     --numpy-array-remove-parameters
