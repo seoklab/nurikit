@@ -376,9 +376,10 @@ namespace internal {
           if (p >= na)
             continue;
 
-          ses.face_axis.col(cur[p]) = (1 - 2 * side) * pc.axis.col(k);
+          const Vector3d axis = pc.axis.col(k), diff = pc.diff.col(k);
+          ses.face_axis.col(cur[p]) = side == 0 ? axis : Vector3d(-axis);
           ses.face_cosa[cur[p]] = pc.cosa[k];
-          lifted.n.col(cur[p]) = (1 - 2 * side) * pc.diff.col(k);
+          lifted.n.col(cur[p]) = side == 0 ? diff : Vector3d(-diff);
           lifted.h[cur[p]] = pc.diff.col(k).squaredNorm();
           ++cur[p];
         }
@@ -555,9 +556,9 @@ namespace internal {
           const FaceRoot &rt = roots_[r];
           const FacePair &pr = pairs_[rt.pair];
           if (pr.m == b)
-            ring_.verts.push_back({ r, rt.pair, 0, rt.plus, rt.plus, 0.0 });
+            ring_.verts.push_back({ r, rt.pair, rt.plus, rt.plus });
           else if (pr.l == b)
-            ring_.verts.push_back({ r, rt.pair, 0, rt.plus, !rt.plus, 0.0 });
+            ring_.verts.push_back({ r, rt.pair, rt.plus, !rt.plus });
         }
 
         const int nv = static_cast<int>(ring_.verts.size());
@@ -566,7 +567,8 @@ namespace internal {
           const FaceRingOps ops(ex, pairs_, live, b);
           const Vector3d axis = c_.col(b);
           const auto [e1, e2] = circle_frame(axis, axis.normalized());
-          ring_frame(ring_, e1, e2);
+          ring_.e1 = e1;
+          ring_.e2 = e2;
           ring_angles(ring_, ops);
           std::sort(ring_.verts.begin(), ring_.verts.end(),
                     [](const RingVertex &p, const RingVertex &r) {

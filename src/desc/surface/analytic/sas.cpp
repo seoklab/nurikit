@@ -160,7 +160,7 @@ namespace internal {
           const int side = value_if(c.i != s);
           const double d = sa.d[q];
           tags[w] = 2 * q + side;
-          caps.axis.col(w) = (1 - 2 * side) * c.axis;
+          caps.axis.col(w) = side == 0 ? c.axis : Vector3d(-c.axis);
           caps.cosa[w] = (c.a + (d - 2 * c.a) * side) / rs;
           ++w;
         }
@@ -482,7 +482,7 @@ namespace internal {
         const bool plus = sigma > 0;
         const int r = fs.root(plus ? 0 : 1, f);
         if (r >= 0)
-          verts.push_back({ pid[r], f, 0, plus, sigma == eps, 0.0 });
+          verts.push_back({ pid[r], f, plus, sigma == eps });
       }
     }
 
@@ -587,7 +587,8 @@ namespace internal {
             ABSL_DCHECK_EQ(n % 2, 0) << "odd ring on circle " << q;
 
             const SasRingOps ops(del.ex, fs, fan, va, vb);
-            ring_frame(ring, circ[q].e1, circ[q].e2);
+            ring.e1 = circ[q].e1;
+            ring.e2 = circ[q].e2;
             ring_angles(ring, ops);
             decide_wrap(ring, ops);
           }

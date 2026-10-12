@@ -28,9 +28,10 @@ namespace internal {
    * cutting ball here.
    */
   struct RingVertex {
-    int vertex, face, cls;
+    int vertex, face;
     bool plus, leave;
-    double phi;
+    int cls = 0;
+    double phi = 0;
   };
 
   /**
@@ -61,11 +62,6 @@ namespace internal {
                                                     const Vector3d &axis) {
     const Vector3d e1 = reference_ray(d).normalized();
     return { e1, axis.cross(e1) };
-  }
-
-  inline void ring_frame(Ring &ring, const Vector3d &e1, const Vector3d &e2) {
-    ring.e1 = e1;
-    ring.e2 = e2;
   }
 
   /**
