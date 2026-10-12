@@ -37,7 +37,7 @@ namespace internal {
       const Vector3d lo = sa.pts.rowwise().minCoeff(),
                      hi = sa.pts.rowwise().maxCoeff();
       const Vector3d center = 0.5 * (lo + hi);
-      const double reach = 4 * (0.5 * (hi - lo).norm() + sa.sar.maxCoeff()) + 1;
+      const double reach = 4 * (0.5 * (hi - lo).norm() + sa.rmax) + 1;
       const Matrix<double, 3, kBounds> corners {
         { 1,  1, -1, -1 },
         { 1, -1,  1, -1 },

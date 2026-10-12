@@ -160,9 +160,10 @@ py::dict sas_dict(const internal::SaPrep &sa,
   return d;
 }
 
-py::dict ses_dict(const internal::SesGeometry &ses) {
+py::dict ses_dict(const internal::SaPrep &sa,
+                  const internal::SesGeometry &ses) {
   py::dict d;
-  d["rp"] = ses.rp;
+  d["rp"] = sa.rp;
   d["convex_area"] = eigen_as_numpy(ses.convex_area);
   d["saddle_beta"] = eigen_as_numpy(ses.saddle_beta);
   d["saddle_integral"] = eigen_as_numpy(ses.saddle_integral);
@@ -188,10 +189,10 @@ py::dict ses_geometry(py::handle py_pts, py::handle py_radii, double rp,
                               [&](const internal::SaPrep &sa,
                                   const internal::SasDelaunay &del,
                                   const internal::SasGeometry &geo) {
-                                ses = internal::build_ses(sa, del, geo, rp);
+                                ses = internal::build_ses(sa, del, geo);
                               });
   py::dict d = sas_dict(res.sa, res.geo);
-  d["ses"] = ses_dict(ses);
+  d["ses"] = ses_dict(res.sa, ses);
   return d;
 }
 
@@ -204,7 +205,7 @@ py::dict ses_dots(py::handle py_pts, py::handle py_radii, double rp,
               [&](const internal::SaPrep &sa, const internal::SasDelaunay &del,
                   const internal::SasGeometry &geo) {
                 const internal::SesGeometry ses =
-                    internal::build_ses(sa, del, geo, rp);
+                    internal::build_ses(sa, del, geo);
                 dots = internal::sample_ses(sa, geo, ses, density);
               });
 

@@ -620,7 +620,7 @@ namespace internal {
       if (np < 2)
         return;
 
-      const double tau = probe_merge_tol(sa.sar.maxCoeff()), tau2 = tau * tau;
+      const double tau = probe_merge_tol(sa.rmax), tau2 = tau * tau;
       const Vector3d lo = probes.pos.rowwise().minCoeff();
       ABSL_DCHECK_LT((probes.pos.rowwise().maxCoeff() - lo).maxCoeff() / tau,
                      0x1p62);

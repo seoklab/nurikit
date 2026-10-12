@@ -333,8 +333,8 @@ namespace internal {
     }
 
     SaPrep compact(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXd &t,
-                   const double wmax, const CSR &g, const ArrayXd &d,
-                   AtomRanking &&ranking) {
+                   const double wmax, const double rp, const CSR &g,
+                   const ArrayXd &d, AtomRanking &&ranking) {
       const auto &off = ranking.off;
       ArrayXi &order = ranking.order, &inv = ranking.ibuf;
 
@@ -365,11 +365,22 @@ namespace internal {
 
       auto [gn, perm] = compile_pairs(ni.head(q), nj.head(q), n);
       order.conservativeResize(n);
+      ArrayXd csar = sar(order);
+      const double rmax = n == 0 ? 0 : csar.maxCoeff();
 
       return {
-        pts(E::all, order), sar(order),     t(order),         wmax,
-        std::move(order),   std::move(gn),  dn.head(q)(perm), off[kNeed],
-        off[kShell],        off[kOccluder],
+        pts(E::all, order),
+        std::move(csar),
+        t(order),
+        wmax,
+        rp,
+        rmax,
+        std::move(order),
+        std::move(gn),
+        dn.head(q)(perm),
+        off[kNeed],
+        off[kShell],
+        off[kOccluder],
       };
     }
   }  // namespace
@@ -423,7 +434,7 @@ namespace internal {
     drop_shared_circle_middles(np.keep, g, d, sar2, ex, rmax, wmax);
 
     AtomRanking ar = rank_atoms(std::move(np), nactive);
-    SaPrep sa = compact(npts, nsar, t, wmax, g, d, std::move(ar));
+    SaPrep sa = compact(npts, nsar, t, wmax, rp, g, d, std::move(ar));
     sa.order = near(sa.order);
     return sa;
   }

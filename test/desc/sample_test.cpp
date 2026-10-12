@@ -37,7 +37,7 @@ Sampled solve(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXb &active,
   EXPECT_TRUE(sa);
   SasDelaunay del = triangulate(*sa);
   SasGeometry geo = build_sas(*sa, del);
-  SesGeometry ses = build_ses(*sa, del, geo, rp);
+  SesGeometry ses = build_ses(*sa, del, geo);
   SesDots dots = sample_ses(*sa, geo, ses, density);
   return { std::move(*sa), std::move(geo), std::move(ses), std::move(dots) };
 }

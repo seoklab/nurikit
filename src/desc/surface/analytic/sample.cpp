@@ -60,7 +60,7 @@ namespace internal {
     public:
       Sampler(const SaPrep &sa, const SasGeometry &geo, const SesGeometry &ses,
               const double density)
-          : sa_(&sa), geo_(&geo), ses_(&ses), rp_(ses.rp), density_(density) { }
+          : sa_(&sa), geo_(&geo), ses_(&ses), rp_(sa.rp), density_(density) { }
 
       SesDots run() {
         SesDots out;

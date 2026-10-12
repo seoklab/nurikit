@@ -313,13 +313,16 @@ namespace internal {
    * forward overlap graph on new indices (`row(i)` = sorted `j > i`) over all
    * kept spheres, decided exactly for the lifted heights `t = √(wmax − sar²)`
    * (the near band only ranks atoms); pair `q` carries a circle iff
-   * `i < n_enum`, and `d[q]` is its centre distance.
+   * `i < n_enum`, and `d[q]` is its centre distance. `rp` is the probe radius
+   * the spheres were inflated by, `rmax` the largest `sar` of the kept atoms.
    */
   struct SaPrep {
     Matrix3Xd pts;
     ArrayXd sar;
     ArrayXd t;
     double wmax;
+    double rp;
+    double rmax;
     ArrayXi order;
     CSR g;
     ArrayXd d;
@@ -633,11 +636,9 @@ namespace internal {
    * the caps `face_off`, `face_axis`, `face_cosa` (hemispheres of the
    * departure tangents first, then the neighbour probes that may cut, less
    * the caps dropped by the face solver's hygiene) are per active probe
-   * `p < probes.n_active`. `rp` is the probe radius the patches were built
-   * with.
+   * `p < probes.n_active`.
    */
   struct SesGeometry {
-    double rp = 0;
     ArrayXd convex_area;
     Matrix4Xd saddle_beta;
     Matrix2Xd saddle_integral;
@@ -649,7 +650,7 @@ namespace internal {
   };
 
   extern SesGeometry build_ses(const SaPrep &sa, const SasDelaunay &del,
-                               const SasGeometry &geo, double rp);
+                               const SasGeometry &geo);
 
   /**
    * Dots on the SES with their outward normals (into the solvent); for every

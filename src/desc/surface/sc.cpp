@@ -121,8 +121,7 @@ namespace {
 
     const internal::SasDelaunay del = internal::triangulate(*sa);
     const internal::SasGeometry geo = internal::build_sas(*sa, del);
-    const internal::SesGeometry ses =
-        internal::build_ses(*sa, del, geo, params.rp);
+    const internal::SesGeometry ses = internal::build_ses(*sa, del, geo);
     const SesDots dots = internal::sample_ses(*sa, geo, ses, params.density);
 
     const ArrayXb buried = buried_mask(dots, other, other_radii + params.rp);
