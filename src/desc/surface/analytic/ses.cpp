@@ -258,10 +258,6 @@ namespace internal {
       ArrayXd cosa;
     };
 
-    BallTriple probe_face(const SasProbes &probes, const int p) {
-      return { probes.face(0, p), probes.face(1, p), probes.face(2, p) };
-    }
-
     /**
      * Probe pairs strictly within `2 rp` whose caps may cut each other's
      * face: both low and each cap meets the other probe's beyond-plane cap
@@ -297,8 +293,8 @@ namespace internal {
           continue;
 
         const Vector3d diff =
-            ex.difference(probe_face(probes, r), probes.plus[r],
-                          probe_face(probes, l), probes.plus[l]);
+            ex.difference(ball_triple(probes.face.col(r)), probes.plus[r],
+                          ball_triple(probes.face.col(l)), probes.plus[l]);
         const double dist = diff.norm(), cos_a = dist / (2 * rp);
         ABSL_DCHECK_GT(dist, 0);
         if (cos_a >= 1)

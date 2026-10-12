@@ -323,6 +323,10 @@ namespace internal {
     int a, b, c;
   };
 
+  inline BallTriple ball_triple(const Array3i &v) {
+    return { v[0], v[1], v[2] };
+  }
+
   class FaceKernel;
 
   struct FaceKernelDelete {

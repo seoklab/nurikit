@@ -200,18 +200,6 @@ namespace internal {
       bool plus;
     };
 
-    Array3i sort3(const Array3i &v) {
-      const auto [lo01, hi01] = nuri::minmax(v[0], v[1]);
-      const auto [mid, hi] = nuri::minmax(hi01, v[2]);
-      const auto [lo, md] = nuri::minmax(lo01, mid);
-      return { lo, md, hi };
-    }
-
-    BallTriple sorted_face(const Array3i &fv) {
-      const Array3i s = sort3(fv);
-      return { s[0], s[1], s[2] };
-    }
-
     Array3i face_vertices(const SasDelaunay &del, const int c, const int lf) {
       const Array4i tv = del.tets.col(c);
       Array3i fv;
@@ -336,9 +324,10 @@ namespace internal {
         if (!sphere_face(sa, del, vm, fs, c, lf, fv, abc))
           return;
 
-        const BallTriple face = sorted_face(fv);
+        const Array3i verts = sort3(fv);
+        const BallTriple face = ball_triple(verts);
         const int f = del.face(lf, c);
-        fs.verts.col(f) << face.a, face.b, face.c;
+        fs.verts.col(f) = verts;
         ex.load(*k, face);
         if (ex.cuts(*k) != Sgn::kPos)
           return;
@@ -487,11 +476,6 @@ namespace internal {
       int va_, vb_, t0_, t_, ld_, lc_, guard_;
     };
 
-    BallTriple face_of(const Faces &fs, const int f) {
-      const Array3i fv = fs.verts.col(f);
-      return { fv[0], fv[1], fv[2] };
-    }
-
     /**
      * The accepted roots of cut face `f` on circle `(va, vb)` as (enter
      * ball `c`, leave ball `c`).
@@ -550,21 +534,24 @@ namespace internal {
                  const std::vector<int> &fan, int va, int vb)
           : ex_(&ex), fs_(&fs), fan_(&fan), va_(va), vb_(vb) { }
 
+      BallTriple face(const RingVertex &v) const {
+        return ball_triple(fs_->verts.col(v.face));
+      }
+
       Vector3d offset(const RingVertex &v) const {
-        return ex_->offset(va_, vb_, face_of(*fs_, v.face), v.plus);
+        return ex_->offset(va_, vb_, face(v), v.plus);
       }
 
       int half_plane(const RingVertex &v) const {
-        return ex_->half_plane(va_, vb_, face_of(*fs_, v.face), v.plus);
+        return ex_->half_plane(va_, vb_, face(v), v.plus);
       }
 
       Sgn ccw(const RingVertex &p, const RingVertex &r) const {
-        return ex_->ccw(va_, vb_, face_of(*fs_, p.face), p.plus,
-                        face_of(*fs_, r.face), r.plus);
+        return ex_->ccw(va_, vb_, face(p), p.plus, face(r), r.plus);
       }
 
       bool antipode_accessible(const RingVertex &v) const {
-        const BallTriple f = face_of(*fs_, v.face);
+        const BallTriple f = face(v);
         bool accessible = true;
         for (const int vc: *fan_)
           accessible &= ex_->antipode(va_, vb_, f, v.plus, vc) == Sgn::kPos;
