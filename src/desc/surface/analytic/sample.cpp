@@ -72,8 +72,9 @@ namespace internal {
       absl::flat_hash_map<int, Matrix3Xd> lattices;
       ArrayXb outside;
       MatrixX3d axt;
-      Matrix3Xd contacts;
-      ArrayXd big, r, depth;
+      Matrix3Xd kept, contacts;
+      ArrayXd big, r;
+      MatrixXd depth;
       ArrayXd sin_edge, beta, area;
       ArrayXi k_phi;
       DotBuffer dots;
@@ -99,10 +100,11 @@ namespace internal {
       SampleScratch scratch;
       scratch.outside.resize(ndir);
       scratch.axt.resize(mcap, 3);
+      scratch.kept.resize(3, ndir);
       scratch.contacts.resize(3, ncontact);
       scratch.big.resize(ncontact);
       scratch.r.resize(ncontact);
-      scratch.depth.resize(ncontact);
+      scratch.depth.resize(ncontact, ndir);
       scratch.sin_edge.resize(k_beta + 1);
       scratch.beta.resize(k_beta);
       scratch.area.resize(k_beta);
@@ -309,31 +311,38 @@ namespace internal {
           continue;
         }
 
+        auto kept = take_buffer(scratch.kept, 3, n_kept);
+        for (int k = 0, w = 0; k < dirs.cols(); ++k) {
+          if (keep[k])
+            kept.col(w++) = dirs.col(k);
+        }
+
         const Vector3d pos = probes.pos.col(p);
         const auto atoms = probes.atoms.nbrs(p);
         const int na = static_cast<int>(atoms.size());
         auto contacts = scratch.contacts.leftCols(na);
-        auto big = scratch.big.head(na), small = scratch.r.head(na),
-             depth = scratch.depth.head(na);
+        auto big = scratch.big.head(na), small = scratch.r.head(na);
         for (int a = 0; a < na; ++a) {
           contacts.col(a) = (ss.pts.col(atoms[a]) - pos).normalized();
           big[a] = ss.sar[atoms[a]];
           small[a] = ss.r[atoms[a]];
         }
 
-        const double w = area / n_kept;
-        for (int k = 0; k < dirs.cols(); ++k) {
-          if (!keep[k])
-            continue;
+        auto depth = take_buffer(scratch.depth, na, n_kept);
+        depth.noalias() = contacts.transpose() * kept;
+        depth.array() =
+            (((1 - depth.array()).colwise() * (2 * rp * big)).colwise()
+             + small.square())
+                .sqrt()
+                .colwise()
+            - small;
 
-          const Vector3d d = dirs.col(k);
-          depth = (small.square()
-                   + 2 * rp * big * (1 - (contacts.transpose() * d).array()))
-                      .sqrt()
-                  - small;
+        const double w = area / n_kept;
+        for (int k = 0; k < n_kept; ++k) {
           int best;
-          depth.minCoeff(&best);
-          scratch.dots.add(pos + rp * d, -d, w, atoms[best]);
+          depth.col(k).minCoeff(&best);
+          scratch.dots.add(pos + rp * kept.col(k), -kept.col(k), w,
+                           atoms[best]);
         }
       }
     }
