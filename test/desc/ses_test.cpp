@@ -428,7 +428,6 @@ TEST(BuildSesTest, HighFaceSphericalExcess) {
     ASSERT_EQ(s.ses.face_off.degree(p), 3);
     for (int k = s.ses.face_off[p]; k < s.ses.face_off[p + 1]; ++k) {
       EXPECT_EQ(s.ses.face_cosa[k], 0);
-      EXPECT_EQ(s.ses.face_sina[k], 1);
       EXPECT_NEAR(s.ses.face_axis.col(k).norm(), 1, 1e-12);
     }
   }

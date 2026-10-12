@@ -137,7 +137,6 @@ py::dict sas_dict(const internal::SaPrep &sa,
   caps["h"] = csr_dict(geo.caps.h);
   caps["axis"] = eigen_as_numpy(geo.caps.axis);
   caps["cosa"] = eigen_as_numpy(geo.caps.cosa);
-  caps["sina"] = eigen_as_numpy(geo.caps.sina);
   d["caps"] = caps;
 
   py::dict probes;
@@ -172,7 +171,6 @@ py::dict ses_dict(const internal::SesGeometry &ses) {
   d["face_off"] = eigen_as_numpy(ses.face_off.off());
   d["face_axis"] = eigen_as_numpy(ses.face_axis);
   d["face_cosa"] = eigen_as_numpy(ses.face_cosa);
-  d["face_sina"] = eigen_as_numpy(ses.face_sina);
   return d;
 }
 

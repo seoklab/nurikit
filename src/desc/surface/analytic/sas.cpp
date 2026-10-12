@@ -148,7 +148,7 @@ namespace internal {
       const int n_enum = sa.n_enum, bound = del.nbrs.m();
 
       SasCaps caps { CSR(ArrayXi(bound), OffsetTable(n_enum)),
-                     Matrix3Xd(3, bound), ArrayXd(bound), ArrayXd(bound) };
+                     Matrix3Xd(3, bound), ArrayXd(bound) };
       ArrayXi &tags = caps.h.adj(), &off = caps.h.off();
 
       int w = 0;
@@ -168,7 +168,6 @@ namespace internal {
           tags[w] = 2 * q + side;
           caps.axis.col(w) = (1 - 2 * side) * c.axis;
           caps.cosa[w] = (c.a + (d - 2 * c.a) * side) / rs;
-          caps.sina[w] = c.rl / rs;
           ++w;
         }
       }
@@ -177,20 +176,17 @@ namespace internal {
       tags.conservativeResize(w);
       caps.axis.conservativeResize(3, w);
       caps.cosa.conservativeResize(w);
-      caps.sina.conservativeResize(w);
       return caps;
     }
 
     /**
-     * Per triangulation face: the overlap-graph ids of its three edges in
-     * local vertex order (-1 where a vertex is a corner or a dropped sphere,
-     * or the pair does not overlap), whether it carries all three pairs, its
-     * sorted vertices (-1 if it holds a corner or a non-overlapping pair),
-     * whether its third sphere cuts the circle, and the probe of each root
-     * (0 = plus, 1 = minus; -1 if rejected).
+     * Per triangulation face: whether its three vertices are kept spheres
+     * carrying all three overlapping pairs, its sorted vertices (-1 if it
+     * holds a corner or a non-overlapping pair), whether its third sphere
+     * cuts the circle, and the probe of each root (0 = plus, 1 = minus; -1
+     * if rejected).
      */
     struct Faces {
-      Array3Xi q;
       ArrayXb full;
       Array3Xi verts;
       ArrayXb cut;
@@ -269,19 +265,19 @@ namespace internal {
       }
     }
 
-    Array3Xi face_pairs(const SasDelaunay &del, const VertexMap &vm,
-                        const ArrayXi &pair_of_edge) {
-      Array3Xi q = Array3Xi::Constant(3, del.n_faces, -1);
+    ArrayXb full_faces(const SasDelaunay &del, const VertexMap &vm,
+                       const ArrayXi &pair_of_edge) {
+      ArrayXb full = ArrayXb::Constant(del.n_faces, false);
       for_each_face(del, [&](int c, int lf, int) {
         if ((vm.new_of_v(face_vertices(del, c, lf)) < 0).any())
           return;
 
         const auto &[s0, s1, s2] = kFaceSlots[lf];
-        q.col(del.face(lf, c)) << pair_of_edge[del.cell_edge(s0, c)],
-            pair_of_edge[del.cell_edge(s1, c)],
-            pair_of_edge[del.cell_edge(s2, c)];
+        full[del.face(lf, c)] = pair_of_edge[del.cell_edge(s0, c)] >= 0
+                                && pair_of_edge[del.cell_edge(s1, c)] >= 0
+                                && pair_of_edge[del.cell_edge(s2, c)] >= 0;
       });
-      return q;
+      return full;
     }
 
     /**
@@ -329,12 +325,10 @@ namespace internal {
       const BallExact &ex = del.ex;
       FaceKernelPtr k = face_kernel();
 
-      Faces fs { face_pairs(del, vm, pair_of_edge),
-                 ArrayXb(del.n_faces),
+      Faces fs { full_faces(del, vm, pair_of_edge),
                  Array3Xi::Constant(3, del.n_faces, -1),
                  ArrayXb::Constant(del.n_faces, false),
                  Array2Xi::Constant(2, del.n_faces, -1) };
-      fs.full = (fs.q >= 0).colwise().all().transpose();
       raw.reserve(3L * sa.n_enum);
 
       for_each_face(del, [&](int c, int lf, int c2) {
@@ -524,7 +518,7 @@ namespace internal {
                       const Faces &fs, const ArrayXi &pid, const int va,
                       const int vb, const int edge) {
       ring.verts.clear();
-      ring.cut_any = ring.inside_any = false;
+      ring.covered = false;
       fan.clear();
 
       FanWalker walk(del, va, vb, edge);
@@ -537,11 +531,11 @@ namespace internal {
         ABSL_DCHECK_GE(fs.verts(0, f), 0);
         fan.push_back(vc);
         if (!fs.cut[f]) {
-          ring.inside_any |= del.ex.side(va, vb, vc) == Sgn::kNeg;
+          ring.covered |= del.ex.side(va, vb, vc) == Sgn::kNeg;
           continue;
         }
 
-        ring.cut_any = true;
+        ring.covered = true;
         push_face_roots(ring.verts, fs, pid, f, va, vb);
       } while (walk.advance());
     }

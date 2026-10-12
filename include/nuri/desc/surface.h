@@ -357,7 +357,6 @@ namespace internal {
     int n() const { return static_cast<int>(h_.size()); }
     const Matrix3Xd &centers() const { return c_; }
     const ArrayXd &h() const { return h_; }
-    double wmax() const { return w_; }
     double rho2(int i) const;
 
     /**
@@ -552,7 +551,7 @@ namespace internal {
   struct SasCaps {
     CSR h;
     Matrix3Xd axis;
-    ArrayXd cosa, sina;
+    ArrayXd cosa;
   };
 
   /**
@@ -589,11 +588,11 @@ namespace internal {
    * of the generating arc) and `saddle_integral` (one integral per range)
    * are per active circle `q < sa.g.offset(sa.n_active)`; `saddle_area` is
    * per active arc (prefix `n_active_arcs` of `geo.arcs`). `face_area` and
-   * the caps `face_off`, `face_axis`, `face_cosa`, `face_sina` (hemispheres
-   * of the departure tangents first, then the neighbour probes that may
-   * cut, less the caps dropped by the face solver's hygiene) are per active
-   * probe `p < probes.n_active`. `rp` is the probe radius the patches were
-   * built with.
+   * the caps `face_off`, `face_axis`, `face_cosa` (hemispheres of the
+   * departure tangents first, then the neighbour probes that may cut, less
+   * the caps dropped by the face solver's hygiene) are per active probe
+   * `p < probes.n_active`. `rp` is the probe radius the patches were built
+   * with.
    */
   struct SesGeometry {
     double rp = 0;
@@ -604,7 +603,7 @@ namespace internal {
     ArrayXd face_area;
     OffsetTable face_off;
     Matrix3Xd face_axis;
-    ArrayXd face_cosa, face_sina;
+    ArrayXd face_cosa;
   };
 
   extern SesGeometry build_ses(const SaPrep &sa, const SasDelaunay &del,

@@ -263,7 +263,7 @@ namespace internal {
     struct PairCaps {
       ArrayXi left, right;
       Matrix3Xd diff, axis;
-      ArrayXd cosa, sina;
+      ArrayXd cosa;
     };
 
     BallTriple probe_face(const SasProbes &probes, const int p) {
@@ -296,8 +296,8 @@ namespace internal {
       argsort_bucket(by_right, off.off().head(np), right);
       argsort_bucket(order, off, left, by_right);
 
-      PairCaps pc { ArrayXi(m),      ArrayXi(m), Matrix3Xd(3, m),
-                    Matrix3Xd(3, m), ArrayXd(m), ArrayXd(m) };
+      PairCaps pc { ArrayXi(m), ArrayXi(m), Matrix3Xd(3, m), Matrix3Xd(3, m),
+                    ArrayXd(m) };
       int w = 0;
       for (const int k: order) {
         const int l = left[k], r = right[k];
@@ -325,7 +325,6 @@ namespace internal {
         pc.diff.col(w) = diff;
         pc.axis.col(w) = axis;
         pc.cosa[w] = cos_a;
-        pc.sina[w] = sin_a;
         ++w;
       }
 
@@ -334,7 +333,6 @@ namespace internal {
       pc.diff.conservativeResize(3, w);
       pc.axis.conservativeResize(3, w);
       pc.cosa.conservativeResize(w);
-      pc.sina.conservativeResize(w);
       return pc;
     }
 
@@ -378,7 +376,6 @@ namespace internal {
       const int total = off[na];
       ses.face_axis.resize(3, total);
       ses.face_cosa.resize(total);
-      ses.face_sina.resize(total);
       ses.face_area.resize(na);
       LiftedCaps lifted { Matrix3Xd(3, total), ArrayXd(total) };
 
@@ -388,7 +385,6 @@ namespace internal {
         ses.face_axis.middleCols(cur[p], nt) =
             probes.tan.middleCols(probes.tan_off[p], nt);
         ses.face_cosa.segment(cur[p], nt).setZero();
-        ses.face_sina.segment(cur[p], nt).setOnes();
         lifted.n.middleCols(cur[p], nt) = ses.face_axis.middleCols(cur[p], nt);
         lifted.h.segment(cur[p], nt).setZero();
         cur[p] += nt;
@@ -407,7 +403,6 @@ namespace internal {
 
           ses.face_axis.col(cur[p]) = (1 - 2 * side) * pc.axis.col(k);
           ses.face_cosa[cur[p]] = pc.cosa[k];
-          ses.face_sina[cur[p]] = pc.sina[k];
           lifted.n.col(cur[p]) = (1 - 2 * side) * pc.diff.col(k);
           lifted.h[cur[p]] = pc.diff.col(k).squaredNorm();
           ++cur[p];
@@ -482,7 +477,7 @@ namespace internal {
       explicit FaceSolver(const int mcap)
           : solver_(mcap, mcap * (mcap - 1), mcap * mcap), c_(3, mcap + 1),
             h_(mcap + 1), slot_(mcap + 1), cap_of_slot_(mcap),
-            cut_any_(mcap + 1), inside_any_(mcap + 1) { }
+            covered_(mcap + 1) { }
 
       double solve(const Matrix3Xd &n, const ArrayXd &h, const ArrayXd &cosa,
                    const double rp, ArrayXb &live) {
@@ -513,9 +508,10 @@ namespace internal {
 
         solver_.begin(rp);
         for (int b = 1; b <= m; ++b) {
-          slot_[b] = live[b - 1] ? solver_.add_cap(cosa[b - 1]) : -1;
-          if (slot_[b] >= 0)
-            cap_of_slot_[slot_[b]] = b;
+          if (!live[b - 1])
+            continue;
+          slot_[b] = solver_.add_cap(cosa[b - 1]);
+          cap_of_slot_[slot_[b]] = b;
         }
 
         collect_roots(ex, m, live);
@@ -537,8 +533,7 @@ namespace internal {
        */
       void collect_roots(const BallExact &ex, const int m,
                          const ArrayXb &live) {
-        cut_any_.head(m + 1).setConstant(false);
-        inside_any_.head(m + 1).setConstant(false);
+        covered_.head(m + 1).setConstant(false);
         pairs_.clear();
         roots_.clear();
 
@@ -549,11 +544,11 @@ namespace internal {
 
             const BallTriple f { 0, b, c };
             if (ex.cuts(f) != Sgn::kPos) {
-              inside_any_[b] |= ex.side(0, b, c) == Sgn::kNeg;
-              inside_any_[c] |= ex.side(0, c, b) == Sgn::kNeg;
+              covered_[b] |= ex.side(0, b, c) == Sgn::kNeg;
+              covered_[c] |= ex.side(0, c, b) == Sgn::kNeg;
               continue;
             }
-            cut_any_[b] = cut_any_[c] = true;
+            covered_[b] = covered_[c] = true;
 
             const int pair = static_cast<int>(pairs_.size());
             pairs_.push_back({ b, c });
@@ -580,8 +575,7 @@ namespace internal {
        */
       void ring_arcs(const BallExact &ex, const int b, const ArrayXb &live) {
         ring_.verts.clear();
-        ring_.cut_any = cut_any_[b];
-        ring_.inside_any = inside_any_[b];
+        ring_.covered = covered_[b];
         for (int r = 0; r < static_cast<int>(roots_.size()); ++r) {
           const FaceRoot &rt = roots_[r];
           const FacePair &pr = pairs_[rt.pair];
@@ -621,7 +615,7 @@ namespace internal {
       Matrix3Xd c_;
       ArrayXd h_;
       ArrayXi slot_, cap_of_slot_;
-      ArrayXb cut_any_, inside_any_;
+      ArrayXb covered_;
       std::vector<FacePair> pairs_;
       std::vector<FaceRoot> roots_;
       Ring ring_;
@@ -644,10 +638,9 @@ namespace internal {
       ArrayXb live(mcap);
 
       ArrayXi &off = ses.face_off.off();
-      const ArrayXi old = off;
       int w = 0;
       for (int p = 0; p < na; ++p) {
-        const int beg = old[p], m = old[p + 1] - beg;
+        const int beg = off[p], m = off[p + 1] - beg;
         off[p] = w;
         live.head(m).setConstant(true);
 
@@ -663,14 +656,12 @@ namespace internal {
             continue;
           ses.face_axis.col(w) = ses.face_axis.col(beg + k);
           ses.face_cosa[w] = ses.face_cosa[beg + k];
-          ses.face_sina[w] = ses.face_sina[beg + k];
           ++w;
         }
       }
       off[na] = w;
       ses.face_axis.conservativeResize(3, w);
       ses.face_cosa.conservativeResize(w);
-      ses.face_sina.conservativeResize(w);
     }
   }  // namespace
 

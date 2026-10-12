@@ -39,11 +39,12 @@ namespace internal {
    * queries on a vertex: `Vector3d offset(const RingVertex &)`, `int
    * half_plane(const RingVertex &)`, `Sgn ccw(const RingVertex &, const
    * RingVertex &)` and `bool antipode_accessible(const RingVertex &)`.
+   * `covered` is whether any other ball cuts or contains the circle.
    */
   struct Ring {
     std::vector<RingVertex> verts;
     std::vector<bool> dec, coinc;
-    bool cut_any, inside_any;
+    bool covered;
     Vector3d e1, e2;
   };
 
@@ -182,7 +183,7 @@ namespace internal {
                         std::vector<SasArc> &arcs, RingTangents &tangents) {
     const int n = static_cast<int>(ring.verts.size());
     if (n == 0) {
-      if (!ring.cut_any && !ring.inside_any) {
+      if (!ring.covered) {
         arcs.push_back({ 0.0, constants::kTwoPi, circ, -1, -1 });
         tangents.emplace_back(Vector3d::Zero(), Vector3d::Zero());
       }
