@@ -7,6 +7,7 @@
 #include <array>
 #include <cmath>
 #include <numeric>
+#include <utility>
 #include <vector>
 
 #include <absl/log/absl_check.h>
@@ -452,9 +453,12 @@ namespace internal {
       explicit FaceSolver(const int mcap)
           : solver_(mcap, mcap * (mcap - 1), mcap * mcap), c_(3, mcap + 1),
             h_(mcap + 1), slot_(mcap + 1), cap_of_slot_(mcap),
-            covered_(mcap + 1) { }
+            covered_(mcap + 1) {
+        ex_.reserve(mcap + 1);
+      }
 
-      double solve(const Matrix3Xd &n, const ArrayXd &h, const ArrayXd &cosa,
+      double solve(ConstBlock<Matrix3Xd, 3, E::Dynamic, true> n,
+                   ConstVecBlock<ArrayXd> h, ConstVecBlock<ArrayXd> cosa,
                    const double rp, ArrayXb &live) {
         const int m = static_cast<int>(h.size());
         ABSL_DCHECK_LE(m + 1, c_.cols());
@@ -464,16 +468,16 @@ namespace internal {
         h_[0] = 0;
         c_.middleCols(1, m) = n;
         h_.segment(1, m) = h;
-        const BallExact ex =
-            BallExact::make(c_.leftCols(m + 1), h_.head(m + 1), rp * rp);
+        ex_.load(std::as_const(c_).leftCols(m + 1),
+                 std::as_const(h_).head(m + 1), rp * rp);
 
         for (int k = 1; k <= m; ++k)
-          live[k - 1] = ex.overlap(0, k) == Sgn::kPos;
+          live[k - 1] = ex_.overlap(0, k) == Sgn::kPos;
         for (int b = 1; b <= m; ++b) {
           for (int c = b + 1; c <= m; ++c) {
             if (!live[b - 1] || !live[c - 1])
               continue;
-            const int s = ex.shared_circle({ 0, b, c });
+            const int s = ex_.shared_circle({ 0, b, c });
             if (s == 0)
               return 0;
             if (s > 0)
@@ -489,14 +493,14 @@ namespace internal {
           cap_of_slot_[slot_[b]] = b;
         }
 
-        collect_roots(ex, m, live);
+        collect_roots(m, live);
         for (int b = 1; b <= m; ++b) {
           if (live[b - 1])
-            ring_arcs(ex, b, live);
+            ring_arcs(b, live);
         }
 
         return solver_.solve([&](int j, int l) {
-          return ex.discs_intersect(0, cap_of_slot_[j], cap_of_slot_[l]);
+          return ex_.discs_intersect(0, cap_of_slot_[j], cap_of_slot_[l]);
         });
       }
 
@@ -506,8 +510,7 @@ namespace internal {
        * other live cap, in order, so that a root's index is its solver
        * vertex; per circle whether any pair cuts it or buries it.
        */
-      void collect_roots(const BallExact &ex, const int m,
-                         const ArrayXb &live) {
+      void collect_roots(const int m, const ArrayXb &live) {
         covered_.head(m + 1).setConstant(false);
         pairs_.clear();
         roots_.clear();
@@ -518,9 +521,9 @@ namespace internal {
               continue;
 
             const BallTriple f { 0, b, c };
-            if (ex.cuts(f) != Sgn::kPos) {
-              covered_[b] |= ex.side(0, b, c) == Sgn::kNeg;
-              covered_[c] |= ex.side(0, c, b) == Sgn::kNeg;
+            if (ex_.cuts(f) != Sgn::kPos) {
+              covered_[b] |= ex_.side(0, b, c) == Sgn::kNeg;
+              covered_[c] |= ex_.side(0, c, b) == Sgn::kNeg;
               continue;
             }
             covered_[b] = covered_[c] = true;
@@ -531,13 +534,13 @@ namespace internal {
               bool accepted = true;
               for (int k = 1; k <= m && accepted; ++k) {
                 accepted = k == b || k == c || !live[k - 1]
-                           || ex.accept(f, plus, k) == Sgn::kPos;
+                           || ex_.accept(f, plus, k) == Sgn::kPos;
               }
               if (!accepted)
                 continue;
 
               roots_.push_back({ pair, plus });
-              solver_.add_vertex(ex.root(f, plus).normalized());
+              solver_.add_vertex(ex_.root(f, plus).normalized());
             }
           }
         }
@@ -548,7 +551,7 @@ namespace internal {
        * angle with the perturbed orientation deciding the near-ties within
        * `kRingSortEps` (coincident roots are generic here), and its arcs.
        */
-      void ring_arcs(const BallExact &ex, const int b, const ArrayXb &live) {
+      void ring_arcs(const int b, const ArrayXb &live) {
         ring_.verts.clear();
         ring_.covered = covered_[b];
         for (int r = 0; r < static_cast<int>(roots_.size()); ++r) {
@@ -563,7 +566,7 @@ namespace internal {
         const int nv = static_cast<int>(ring_.verts.size());
         if (nv > 0) {
           ABSL_DCHECK_EQ(nv % 2, 0) << "odd ring on cap " << b;
-          const FaceRingOps ops(ex, pairs_, live, b);
+          const FaceRingOps ops(ex_, pairs_, live, b);
           const Vector3d axis = c_.col(b);
           const auto [e1, e2] = circle_frame(axis, axis.normalized());
           ring_.e1 = e1;
@@ -588,6 +591,7 @@ namespace internal {
       }
 
       ArrangementSolver solver_;
+      BallExact ex_;
       Matrix3Xd c_;
       ArrayXd h_;
       ArrayXi slot_, cap_of_slot_;
@@ -669,7 +673,7 @@ namespace internal {
     const int m = static_cast<int>(h.size());
     FaceSolver solver(m);
     live.resize(m);
-    return solver.solve(n, h, cosa, rp, live);
+    return solver.solve(n.leftCols(m), h.head(m), cosa.head(m), rp, live);
   }
 
   SesGeometry build_ses(const SurfaceSpheres &ss, const SasDelaunay &del,

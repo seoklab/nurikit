@@ -406,9 +406,17 @@ namespace internal {
     static BallExactImpl make(const Matrix3Xd &centers, const ArrayXd &heights,
                               double wmax);
 
-    int n() const { return static_cast<int>(h_.size()); }
-    const Matrix3Xd &centers() const { return c_; }
-    const ArrayXd &h() const { return h_; }
+    /**
+     * Room for `cap` balls, so that `load` of at most `cap` balls copies
+     * without allocating.
+     */
+    void reserve(int cap);
+    void load(ConstBlock<Matrix3Xd, 3, E::Dynamic, true> centers,
+              ConstVecBlock<ArrayXd> heights, double wmax);
+
+    int n() const { return n_; }
+    auto centers() const { return c_.leftCols(n_); }
+    auto h() const { return h_.head(n_); }
     double rho2(int i) const;
 
     /**
@@ -524,6 +532,7 @@ namespace internal {
     Matrix3Xd c_;
     ArrayXd h_;
     double w_ = 0;
+    int n_ = 0;
   };
 
   extern template class BallExactImpl<false>;

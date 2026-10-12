@@ -133,7 +133,7 @@ namespace internal {
 
     NearPairs find_near_pairs(const BallExact &ex, const ArrayXd &sar,
                               const ArrayXb &active, const double rmax) {
-      const Matrix3Xd &pts = ex.centers();
+      const auto pts = ex.centers();
       const int n = static_cast<int>(sar.size());
 
       VoxelGrid grid(pts, near_cutoff(rmax));
@@ -202,7 +202,7 @@ namespace internal {
                        + kSharedCircleRadiusTerm * kUnitRoundoff * rmax * rmax,
                    tail = kSharedCircleTail * kUnitRoundoff * rmax;
 
-      const Matrix3Xd &pts = ex.centers();
+      const auto pts = ex.centers();
       const ArrayXi &adj = g.adj();
       ArrayXd key(g.max_deg());
       std::vector<int> idx;
@@ -310,7 +310,7 @@ namespace internal {
      */
     std::pair<CSR, ArrayXd> exact_overlaps(const BallExact &ex,
                                            const NearPairs &np) {
-      const Matrix3Xd &pts = ex.centers();
+      const auto pts = ex.centers();
       const int m = static_cast<int>(np.inear.size());
       ArrayXi li(m), lj(m);
       int q = 0;

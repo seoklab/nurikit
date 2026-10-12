@@ -977,6 +977,7 @@ namespace internal {
       ex.h_[i] = geogram_height(lifted(0, i), lifted(1, i), lifted(2, i),
                                 lifted(3, i));
     ex.w_ = wmax;
+    ex.n_ = n;
     return ex;
   }
 
@@ -990,7 +991,29 @@ namespace internal {
     ex.c_ = centers;
     ex.h_ = heights;
     ex.w_ = wmax;
+    ex.n_ = static_cast<int>(heights.size());
     return ex;
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  void BallExactImpl<kForceExact, kFilterOnly>::reserve(const int cap) {
+    if (c_.cols() < cap) {
+      c_.resize(3, cap);
+      h_.resize(cap);
+    }
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  void BallExactImpl<kForceExact, kFilterOnly>::load(
+      ConstBlock<Matrix3Xd, 3, E::Dynamic, true> centers,
+      ConstVecBlock<ArrayXd> heights, const double wmax) {
+    const int n = static_cast<int>(heights.size());
+    ABSL_DCHECK_EQ(centers.cols(), n);
+    ABSL_DCHECK_LE(n, c_.cols());
+    c_.leftCols(n) = centers;
+    h_.head(n) = heights;
+    w_ = wmax;
+    n_ = n;
   }
 
   template <bool kForceExact, bool kFilterOnly>
