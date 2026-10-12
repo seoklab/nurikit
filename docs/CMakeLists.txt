@@ -16,28 +16,15 @@ else()
   return()
 endif()
 
-set(nuri_public_include_dirs "${NURI_INCLUDE_DIRECTORIES}")
-
-get_target_property(nuri_lib_deps NuriLib INTERFACE_LINK_LIBRARIES)
-
-foreach(nuri_dep IN LISTS nuri_lib_deps)
-  get_target_property(
-    nuri_dep_include_dirs
-    "${nuri_dep}"
-    INTERFACE_INCLUDE_DIRECTORIES
-  )
-
-  if(NOT nuri_dep_include_dirs)
-    list(APPEND nuri_public_include_dirs ${nuri_dep_include_dirs})
-  endif()
-endforeach()
-
-list(REMOVE_DUPLICATES nuri_public_include_dirs)
-list(JOIN nuri_public_include_dirs " " NURI_INCLUDE_PATHS)
+set(
+  NURI_INCLUDE_PATHS
+  "$<JOIN:$<REMOVE_DUPLICATES:$<TARGET_PROPERTY:NuriLib,INCLUDE_DIRECTORIES>>, >"
+)
 
 set(DOXYGEN_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 set(DOXYGEN_OUTPUT_DIR "${DOXYGEN_OUTPUT_DIR}" PARENT_SCOPE)
-configure_file(Doxyfile.in Doxyfile @ONLY)
+configure_file(Doxyfile.in Doxyfile.in2 @ONLY)
+file(GENERATE OUTPUT Doxyfile INPUT "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile.in2")
 
 file(
   GLOB_RECURSE nuri_public_headers
