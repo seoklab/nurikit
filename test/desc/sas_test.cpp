@@ -626,6 +626,104 @@ TEST(BuildSasTest, BandTwinAtHopFour) {
   }
 }
 
+struct FullRank {
+  ArrayXi rank, hop;
+};
+
+/**
+ * Ranks (0 active, 1 need, 2 shell, 3 occluder, 4 dropped) and near hops
+ * from the active set, decided by the exact predicates over every pair.
+ */
+FullRank full_rank(const Matrix3Xd &pts, const ArrayXd &sar,
+                   const ArrayXb &active) {
+  const int n = static_cast<int>(sar.size());
+  const double rmax = sar.maxCoeff(), wmax = rmax * rmax;
+  Matrix4Xd lifted(4, n);
+  lifted.topRows(3) = pts;
+  lifted.row(3) = (wmax - sar.square()).sqrt().transpose();
+  const BallExact ex = BallExact::make(lifted, wmax);
+
+  ArrayXi keep = ArrayXi::Ones(n);
+  std::vector<std::vector<int>> near(n), over(n);
+  for (int i = 0; i < n; ++i) {
+    for (int j = i + 1; j < n; ++j) {
+      const double d = (pts.col(j) - pts.col(i)).norm();
+      if (d <= sar[i] + sar[j] + 2 * kSurfaceLengthEps) {
+        near[i].push_back(j);
+        near[j].push_back(i);
+      }
+
+      const int in = ex.contained(i, j);
+      if (in >= 0) {
+        keep[in == 0 || (in == 2 && !active[i] && active[j]) ? i : j] = 0;
+        continue;
+      }
+      if (ex.overlap(i, j) == Sgn::kPos)
+        over[i].push_back(j);
+    }
+  }
+  for (int i = 0; i < n; ++i) {
+    for (const int j: over[i]) {
+      for (const int k: over[i]) {
+        if (k <= j || !std::binary_search(over[j].begin(), over[j].end(), k))
+          continue;
+        const int mid = ex.shared_circle({ i, j, k });
+        if (mid >= 0)
+          keep[mid == 0 ? i : mid == 1 ? j : k] = 0;
+      }
+    }
+  }
+
+  FullRank ref { ArrayXi::Constant(n, 4), ArrayXi::Constant(n, n) };
+  std::vector<int> frontier, reach;
+  for (int i = 0; i < n; ++i) {
+    if (!active[i])
+      continue;
+    ref.hop[i] = 0;
+    reach.push_back(i);
+    if (keep[i] != 0) {
+      ref.rank[i] = 0;
+      frontier.push_back(i);
+    }
+  }
+  for (int h = 1; h <= 3; ++h) {
+    std::vector<int> next;
+    for (const int i: frontier) {
+      for (const int j: near[i]) {
+        if (keep[j] == 0 || ref.rank[j] < 4)
+          continue;
+        ref.rank[j] = h;
+        next.push_back(j);
+      }
+    }
+    frontier = std::move(next);
+  }
+  for (int h = 1; !reach.empty(); ++h) {
+    std::vector<int> next;
+    for (const int i: reach) {
+      for (const int j: near[i]) {
+        if (ref.hop[j] <= h)
+          continue;
+        ref.hop[j] = h;
+        next.push_back(j);
+      }
+    }
+    reach = std::move(next);
+  }
+  return ref;
+}
+
+ArrayXi prepared_rank(const SaPrep &sa, const int n) {
+  ArrayXi got = ArrayXi::Constant(n, 4);
+  for (int p = 0; p < sa.order.size(); ++p) {
+    got[sa.order[p]] = p < sa.n_active  ? 0
+                       : p < sa.n_solve ? 1
+                       : p < sa.n_enum  ? 2
+                                        : 3;
+  }
+  return got;
+}
+
 /**
  * Keep flags and ranks of a sparse mask over an elongated random set,
  * decided by the exact predicates over every pair, against `prepare`.
@@ -647,91 +745,13 @@ TEST(BuildSasTest, BandPrepareMatchesFullRank) {
       active[ui(rng)] = true;
       active[ui(rng)] = true;
 
-      const double rmax = sar.maxCoeff(), wmax = rmax * rmax;
-      Matrix4Xd lifted(4, n);
-      lifted.topRows(3) = pts;
-      lifted.row(3) = (wmax - sar.square()).sqrt().transpose();
-      const BallExact ex = BallExact::make(lifted, wmax);
-
-      ArrayXi keep = ArrayXi::Ones(n);
-      std::vector<std::vector<int>> near(n), over(n);
-      for (int i = 0; i < n; ++i) {
-        for (int j = i + 1; j < n; ++j) {
-          const double d = (pts.col(j) - pts.col(i)).norm();
-          if (d <= sar[i] + sar[j] + 2 * kSurfaceLengthEps) {
-            near[i].push_back(j);
-            near[j].push_back(i);
-          }
-
-          const int in = ex.contained(i, j);
-          if (in >= 0) {
-            keep[in == 0 || (in == 2 && !active[i] && active[j]) ? i : j] = 0;
-            continue;
-          }
-          if (ex.overlap(i, j) == Sgn::kPos)
-            over[i].push_back(j);
-        }
-      }
-      for (int i = 0; i < n; ++i) {
-        for (const int j: over[i]) {
-          for (const int k: over[i]) {
-            if (k <= j || !std::binary_search(over[j].begin(), over[j].end(), k))
-              continue;
-            const int mid = ex.shared_circle({ i, j, k });
-            if (mid >= 0)
-              keep[mid == 0 ? i : mid == 1 ? j : k] = 0;
-          }
-        }
-      }
-
-      ArrayXi rank = ArrayXi::Constant(n, 4), hop = ArrayXi::Constant(n, n);
-      std::vector<int> frontier, reach;
-      for (int i = 0; i < n; ++i) {
-        if (!active[i])
-          continue;
-        hop[i] = 0;
-        reach.push_back(i);
-        if (keep[i] != 0) {
-          rank[i] = 0;
-          frontier.push_back(i);
-        }
-      }
-      for (int h = 1; h <= 3; ++h) {
-        std::vector<int> next;
-        for (const int i: frontier) {
-          for (const int j: near[i]) {
-            if (keep[j] == 0 || rank[j] < 4)
-              continue;
-            rank[j] = h;
-            next.push_back(j);
-          }
-        }
-        frontier = std::move(next);
-      }
-      for (int h = 1; !reach.empty(); ++h) {
-        std::vector<int> next;
-        for (const int i: reach) {
-          for (const int j: near[i]) {
-            if (hop[j] <= h)
-              continue;
-            hop[j] = h;
-            next.push_back(j);
-          }
-        }
-        reach = std::move(next);
-      }
-      ASSERT_TRUE((hop > 4).any()) << n << " " << seed;
+      const FullRank ref = full_rank(pts, sar, active);
+      ASSERT_TRUE((ref.hop > 4).any()) << n << " " << seed;
 
       const std::optional<SaPrep> sa = prepare(pts, sar, active, kRp);
       ASSERT_TRUE(sa);
-      ArrayXi got = ArrayXi::Constant(n, 4);
-      for (int p = 0; p < sa->order.size(); ++p) {
-        got[sa->order[p]] = p < sa->n_active ? 0
-                            : p < sa->n_solve ? 1
-                            : p < sa->n_enum  ? 2
-                                              : 3;
-      }
-      EXPECT_TRUE((got == rank).all()) << n << " " << seed;
+      EXPECT_TRUE((prepared_rank(*sa, n) == ref.rank).all())
+          << n << " " << seed;
     }
   }
 }

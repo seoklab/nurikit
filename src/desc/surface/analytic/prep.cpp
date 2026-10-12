@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <numeric>
 #include <optional>
 #include <tuple>
@@ -42,17 +43,25 @@ namespace internal {
       ArrayXi keep;
     };
 
+    bool sweep_hops(ArrayXi &hop, const ArrayXi &inear, const ArrayXi &jnear) {
+      const int64_t before = hop.cast<int64_t>().sum();
+      for (int k = 0; k < inear.size(); ++k) {
+        const int i = inear[k], j = jnear[k];
+        const int h = nuri::min(hop[i], hop[j]) + 1;
+        hop[i] = nuri::min(hop[i], h);
+        hop[j] = nuri::min(hop[j], h);
+      }
+      return hop.cast<int64_t>().sum() < before;
+    }
+
     ArrayXb active_band(const ArrayXi &inear, const ArrayXi &jnear,
                         const ArrayXb &active) {
       const int n = static_cast<int>(active.size());
       ArrayXi hop = active.select(0, ArrayXi::Constant(n, kBandHops + 1));
-      for (int sweep = 0; sweep < kBandHops; ++sweep) {
-        for (int k = 0; k < inear.size(); ++k) {
-          const int i = inear[k], j = jnear[k];
-          const int h = nuri::min(hop[i], hop[j]) + 1;
-          hop[i] = nuri::min(hop[i], h);
-          hop[j] = nuri::min(hop[j], h);
-        }
+      for (int sweep = 0; sweep < kBandHops && !(hop <= kBandHops).all();
+           ++sweep) {
+        if (!sweep_hops(hop, inear, jnear))
+          break;
       }
       return hop <= kBandHops;
     }
