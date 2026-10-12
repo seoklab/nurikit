@@ -520,8 +520,8 @@ namespace internal {
             if (!live[b - 1] || !live[c - 1])
               continue;
 
-            const BallTriple f { 0, b, c };
-            if (ex_.cuts(f) != Sgn::kPos) {
+            ex_.load(*k_, { 0, b, c });
+            if (ex_.cuts(*k_) != Sgn::kPos) {
               covered_[b] |= ex_.side(0, b, c) == Sgn::kNeg;
               covered_[c] |= ex_.side(0, c, b) == Sgn::kNeg;
               continue;
@@ -534,13 +534,13 @@ namespace internal {
               bool accepted = true;
               for (int k = 1; k <= m && accepted; ++k) {
                 accepted = k == b || k == c || !live[k - 1]
-                           || ex_.accept(f, plus, k) == Sgn::kPos;
+                           || ex_.accept(*k_, plus, k) == Sgn::kPos;
               }
               if (!accepted)
                 continue;
 
               roots_.push_back({ pair, plus });
-              solver_.add_vertex(ex_.root(f, plus).normalized());
+              solver_.add_vertex(ex_.root(*k_, plus).normalized());
             }
           }
         }
@@ -592,6 +592,7 @@ namespace internal {
 
       ArrangementSolver solver_;
       BallExact ex_;
+      FaceKernelPtr k_ = face_kernel();
       Matrix3Xd c_;
       ArrayXd h_;
       ArrayXi slot_, cap_of_slot_;
