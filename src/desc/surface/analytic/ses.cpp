@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <limits>
 #include <numeric>
 #include <tuple>
 #include <vector>
@@ -140,11 +139,15 @@ namespace internal {
                      h = std::abs(signed_h);
 
         bool inside = true;
-        double edge = std::numeric_limits<double>::infinity();
         for (int m = 0; m < 3; ++m) {
           const Vector3d pm = tri.col(m), qm = tri.col((m + 1) % 3);
           inside &= (qm - pm).cross(x - pm).dot(nrm) >= 0;
-          edge = nuri::min(edge, segment_distance(x, pm, qm));
+        }
+
+        double edge = segment_distance(x, tri.col(0), tri.col(1));
+        for (int m = 1; m < 3; ++m) {
+          edge = nuri::min(edge, segment_distance(x, tri.col(m),
+                                                  tri.col((m + 1) % 3)));
         }
 
         const double dist = inside ? h : edge;
