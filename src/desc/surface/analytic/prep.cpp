@@ -22,19 +22,40 @@
 namespace nuri {
 namespace internal {
   namespace {
+    constexpr int kBandHops = 4;
+
     /**
-     * Candidate pairs within the near band over every atom, with the exactly
-     * contained ones flagged (identical twins included), and the atoms that
-     * survive the contained-ball filter.
+     * Candidate pairs within the near band over every atom, the pairs left
+     * for `overlap` to decide (both ends within `kBandHops` near hops of an
+     * active atom, minus the exactly contained ones, identical twins
+     * included), and the atoms that survive the contained-ball filter.
+     * Every kept atom lies within three hops, its containing partners and
+     * shared-circle triangles within four, so the band changes nothing the
+     * ranking keeps.
      */
     struct NearPairs {
       /* n_near */
       ArrayXi inear, jnear;
-      ArrayXb contained;
+      ArrayXb band;
 
       /* n */
       ArrayXi keep;
     };
+
+    ArrayXb active_band(const ArrayXi &inear, const ArrayXi &jnear,
+                        const ArrayXb &active) {
+      const int n = static_cast<int>(active.size());
+      ArrayXi hop = active.select(0, ArrayXi::Constant(n, kBandHops + 1));
+      for (int sweep = 0; sweep < kBandHops; ++sweep) {
+        for (int k = 0; k < inear.size(); ++k) {
+          const int i = inear[k], j = jnear[k];
+          const int h = nuri::min(hop[i], hop[j]) + 1;
+          hop[i] = nuri::min(hop[i], h);
+          hop[j] = nuri::min(hop[j], h);
+        }
+      }
+      return hop <= kBandHops;
+    }
 
     template <class I, class J>
     std::pair<CSR, ArrayXi> compile_pairs(const I &i, const J &j, const int n) {
@@ -58,16 +79,32 @@ namespace internal {
       std::vector<int> lbuf, rbuf;
       grid.find_neighbors_self(lbuf, rbuf);
       auto left = eigen_map(lbuf), right = eigen_map(rbuf);
-      int m = static_cast<int>(left.size());
+      const int m = static_cast<int>(left.size());
       for (int k = 0; k < m; ++k)
         std::tie(left[k], right[k]) = nuri::minmax(left[k], right[k]);
 
-      ArrayXd d = (pts(E::all, right) - pts(E::all, left)).colwise().norm();
+      const ArrayXd dist =
+          (pts(E::all, right) - pts(E::all, left)).colwise().norm();
+      const ArrayXd touch = sar(left) + sar(right);
+      const ArrayXi key = (dist > touch + 2 * kSurfaceLengthEps).cast<int>();
+      ArrayXi order(m);
+      E::Array2i off;
+      argsort_bucket(order, off, key);
+      const auto near = order.head(off[1]);
 
-      ArrayXi keep = ArrayXi::Ones(n);
-      ArrayXb contained = ArrayXb::Constant(m, false);
-      for (int k = 0; k < m; ++k) {
-        const int i = left[k], j = right[k];
+      NearPairs np;
+      np.inear = left(near);
+      np.jnear = right(near);
+      np.keep = ArrayXi::Ones(n);
+
+      const ArrayXd d = dist(near);
+      const ArrayXb banded = active_band(np.inear, np.jnear, active);
+      np.band = banded(np.inear) && banded(np.jnear);
+      for (int k = 0; k < np.inear.size(); ++k) {
+        if (!np.band[k])
+          continue;
+
+        const int i = np.inear[k], j = np.jnear[k];
         if (d[k] > std::abs(sar[i] - sar[j]) + kSurfaceLengthEps)
           continue;
 
@@ -75,18 +112,10 @@ namespace internal {
         if (in < 0)
           continue;
         const bool drop_i = in == 0 || (in == 2 && !active[i] && active[j]);
-        keep[drop_i ? i : j] = 0;
-        contained[k] = true;
+        np.keep[drop_i ? i : j] = 0;
+        np.band[k] = false;
       }
-
-      ArrayXd touch = sar(left) + sar(right);
-      ArrayXi key = (d > touch + 2 * kSurfaceLengthEps).cast<int>();
-      ArrayXi order(m);
-      E::Array2i off;
-      argsort_bucket(order, off, key);
-
-      auto near = order.head(off[1]);
-      return { left(near), right(near), contained(near), std::move(keep) };
+      return np;
     }
 
     bool has_edge(const CSR &g, const int j, const int k) {
@@ -207,10 +236,10 @@ namespace internal {
     }
 
     /**
-     * Candidate pairs over every atom, minus the exactly contained ones, that
+     * Candidate pairs within the band, minus the exactly contained ones, that
      * overlap exactly for the heights the lift will hand to the
-     * triangulation; an exact tangency does not. Edges of dropped atoms are
-     * removed by `compact`.
+     * triangulation; an exact tangency does not. Rows outside the band stay
+     * empty; edges of dropped atoms are removed by `compact`.
      */
     std::pair<CSR, ArrayXd> exact_overlaps(const BallExact &ex,
                                            const NearPairs &np) {
@@ -220,7 +249,7 @@ namespace internal {
       int q = 0;
       for (int k = 0; k < m; ++k) {
         const int i = np.inear[k], j = np.jnear[k];
-        if (np.contained[k] || ex.overlap(i, j) != Sgn::kPos)
+        if (!np.band[k] || ex.overlap(i, j) != Sgn::kPos)
           continue;
 
         li[q] = i;

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <initializer_list>
 #include <limits>
 #include <numeric>
 #include <optional>
@@ -520,6 +521,221 @@ TEST(BuildSasTest, OccluderBeyondShellBandDropped) {
   }
 }
 
+/**
+ * Three spheres of radius 1.5 stacked 2.5 apart above `foot`, the top one
+ * the only active atom, so the atoms near `foot` sit at hop 3.
+ */
+ArrayXb append_chain(Matrix3Xd &pts, ArrayXd &sar, const Vector3d &foot) {
+  const int m = static_cast<int>(pts.cols());
+  pts.conservativeResize(E::NoChange, m + 3);
+  sar.conservativeResize(m + 3);
+  for (int q = 0; q < 3; ++q) {
+    pts.col(m + q) = foot + Vector3d(0, 0, 2.5 * q);
+    sar[m + q] = 1.5;
+  }
+  ArrayXb active = ArrayXb::Constant(m + 3, false);
+  active[m + 2] = true;
+  return active;
+}
+
+ArrayXi all_but(const int n, std::initializer_list<int> drop) {
+  ArrayXi rest(n - static_cast<int>(drop.size()));
+  for (int q = 0, p = 0; q < n; ++q) {
+    if (std::find(drop.begin(), drop.end(), q) == drop.end())
+      rest[p++] = q;
+  }
+  return rest;
+}
+
+Sas solve_only(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXb &active,
+               const ArrayXi &rest) {
+  return solve(pts(E::all, rest), sar(rest), active(rest));
+}
+
+/**
+ * `sas` over every atom equals `ref` over the atoms `rest` only: the same
+ * atoms kept in the same order with the same ranks and areas.
+ */
+void expect_same_prep(const Sas &sas, const Sas &ref, const ArrayXi &rest) {
+  ASSERT_EQ(sas.sa.order.size(), ref.sa.order.size());
+  EXPECT_EQ(sas.sa.n_active, ref.sa.n_active);
+  EXPECT_EQ(sas.sa.n_solve, ref.sa.n_solve);
+  EXPECT_EQ(sas.sa.n_enum, ref.sa.n_enum);
+  for (int p = 0; p < sas.sa.order.size(); ++p)
+    EXPECT_EQ(sas.sa.order[p], rest[ref.sa.order[p]]) << p;
+
+  ASSERT_EQ(sas.geo.area.size(), ref.geo.area.size());
+  for (int p = 0; p < sas.geo.area.size(); ++p)
+    EXPECT_NEAR(sas.geo.area[p], ref.geo.area[p], 1e-12) << p;
+}
+
+/**
+ * A chain active, need, shell, then the hop-3 sphere 3 contains the hop-3
+ * sphere 4 and the hop-4 sphere 5, which is near nothing else. A container
+ * is near every neighbour of the ball it contains, so the container of a
+ * hop-3 atom is within three hops itself and the band sees both pairs; the
+ * run without the contained spheres is the control.
+ */
+TEST(BuildSasTest, BandContainedPartnerAtHopFour) {
+  Matrix3Xd pts(3, 6);
+  for (int i = 0; i < 3; ++i)
+    pts.col(i) << 2.5 * i, 0, 0;
+  pts.col(3) << 8, 0, 0;
+  pts.col(4) << 7.5, 0, 0;
+  pts.col(5) << 8.9, 0, 0;
+  ArrayXd sar = ArrayXd::Constant(6, 1.5);
+  sar[3] = 2.5;
+  ArrayXb active = ArrayXb::Constant(6, false);
+  active[0] = true;
+
+  const Sas sas = solve(pts, sar, active);
+  EXPECT_EQ(sas.sa.n_active, 1);
+  EXPECT_EQ(sas.sa.n_solve, 2);
+  EXPECT_EQ(sas.sa.n_enum, 3);
+  const ArrayXi rest = all_but(6, { 4, 5 });
+  expect_same_prep(sas, solve_only(pts, sar, active, rest), rest);
+}
+
+/**
+ * The hop-4 sphere of a chain with a partner on its centre: an identical
+ * twin, a larger ball around it, a smaller ball inside it, each at hop 4,
+ * and the same three moved out of reach of the hop-3 sphere, where only a
+ * larger partner stays at hop 4. No zero distance reaches the overlap
+ * graph and the chain without the pair is the control.
+ */
+TEST(BuildSasTest, BandTwinAtHopFour) {
+  Matrix3Xd pts(3, 6);
+  for (int i = 0; i < 4; ++i)
+    pts.col(i) << 2.5 * i, 0, 0;
+  ArrayXd sar = ArrayXd::Constant(6, 1.5);
+  ArrayXb active = ArrayXb::Constant(6, false);
+  active[0] = true;
+  const ArrayXi rest = all_but(6, { 4, 5 });
+  const Sas ref = solve_only(pts, sar, active, rest);
+  ASSERT_EQ(ref.sa.order.size(), 4);
+
+  for (const double x: { 10.0, 10.8 }) {
+    for (const double r: { 1.5, 2.0, 1.45 }) {
+      pts.col(4) << x, 0, 0;
+      pts.col(5) << x, 0, 0;
+      sar[5] = r;
+      const Sas sas = solve(pts, sar, active);
+      EXPECT_TRUE((sas.sa.d > 0).all()) << x << " " << r;
+      expect_same_prep(sas, ref, rest);
+    }
+  }
+}
+
+/**
+ * Keep flags and ranks of a sparse mask over an elongated random set,
+ * decided by the exact predicates over every pair, against `prepare`.
+ */
+TEST(BuildSasTest, BandPrepareMatchesFullRank) {
+  for (const int n: { 60, 200 }) {
+    for (int seed = 0; seed < 3; ++seed) {
+      std::mt19937 rng(seed);
+      std::uniform_real_distribution<double> uxy(0, 6), uz(0, 100),
+          ur(1.5, 2.5);
+      std::uniform_int_distribution<int> ui(0, n - 1);
+      Matrix3Xd pts(3, n);
+      ArrayXd sar(n);
+      for (int i = 0; i < n; ++i) {
+        pts.col(i) << uxy(rng), uxy(rng), uz(rng);
+        sar[i] = ur(rng);
+      }
+      ArrayXb active = ArrayXb::Constant(n, false);
+      active[ui(rng)] = true;
+      active[ui(rng)] = true;
+
+      const double rmax = sar.maxCoeff(), wmax = rmax * rmax;
+      Matrix4Xd lifted(4, n);
+      lifted.topRows(3) = pts;
+      lifted.row(3) = (wmax - sar.square()).sqrt().transpose();
+      const BallExact ex = BallExact::make(lifted, wmax);
+
+      ArrayXi keep = ArrayXi::Ones(n);
+      std::vector<std::vector<int>> near(n), over(n);
+      for (int i = 0; i < n; ++i) {
+        for (int j = i + 1; j < n; ++j) {
+          const double d = (pts.col(j) - pts.col(i)).norm();
+          if (d <= sar[i] + sar[j] + 2 * kSurfaceLengthEps) {
+            near[i].push_back(j);
+            near[j].push_back(i);
+          }
+
+          const int in = ex.contained(i, j);
+          if (in >= 0) {
+            keep[in == 0 || (in == 2 && !active[i] && active[j]) ? i : j] = 0;
+            continue;
+          }
+          if (ex.overlap(i, j) == Sgn::kPos)
+            over[i].push_back(j);
+        }
+      }
+      for (int i = 0; i < n; ++i) {
+        for (const int j: over[i]) {
+          for (const int k: over[i]) {
+            if (k <= j || !std::binary_search(over[j].begin(), over[j].end(), k))
+              continue;
+            const int mid = ex.shared_circle({ i, j, k });
+            if (mid >= 0)
+              keep[mid == 0 ? i : mid == 1 ? j : k] = 0;
+          }
+        }
+      }
+
+      ArrayXi rank = ArrayXi::Constant(n, 4), hop = ArrayXi::Constant(n, n);
+      std::vector<int> frontier, reach;
+      for (int i = 0; i < n; ++i) {
+        if (!active[i])
+          continue;
+        hop[i] = 0;
+        reach.push_back(i);
+        if (keep[i] != 0) {
+          rank[i] = 0;
+          frontier.push_back(i);
+        }
+      }
+      for (int h = 1; h <= 3; ++h) {
+        std::vector<int> next;
+        for (const int i: frontier) {
+          for (const int j: near[i]) {
+            if (keep[j] == 0 || rank[j] < 4)
+              continue;
+            rank[j] = h;
+            next.push_back(j);
+          }
+        }
+        frontier = std::move(next);
+      }
+      for (int h = 1; !reach.empty(); ++h) {
+        std::vector<int> next;
+        for (const int i: reach) {
+          for (const int j: near[i]) {
+            if (hop[j] <= h)
+              continue;
+            hop[j] = h;
+            next.push_back(j);
+          }
+        }
+        reach = std::move(next);
+      }
+      ASSERT_TRUE((hop > 4).any()) << n << " " << seed;
+
+      const std::optional<SaPrep> sa = prepare(pts, sar, active, kRp);
+      ASSERT_TRUE(sa);
+      ArrayXi got = ArrayXi::Constant(n, 4);
+      for (int p = 0; p < sa->order.size(); ++p) {
+        got[sa->order[p]] = p < sa->n_active ? 0
+                            : p < sa->n_solve ? 1
+                            : p < sa->n_enum  ? 2
+                                              : 3;
+      }
+      EXPECT_TRUE((got == rank).all()) << n << " " << seed;
+    }
+  }
+}
+
 TEST(BuildSasTest, TriangulationTables) {
   const int n = 24;
   Matrix3Xd pts(3, n);
@@ -1023,6 +1239,22 @@ TEST(BuildSasTest, InternallyTangentBallDropped) {
   }
 }
 
+TEST(BuildSasTest, BandInternallyTangentBallDropped) {
+  for (const int inner: { 0, 1 }) {
+    Matrix3Xd pts(3, 2);
+    ArrayXd sar(2);
+    pts.col(inner) << 2, 0, 0;
+    sar[inner] = 3;
+    pts.col(1 - inner) << 0, 0, 0;
+    sar[1 - inner] = 5;
+    const ArrayXb active = append_chain(pts, sar, { 2, 0, 4.4 });
+
+    const Sas sas = solve(pts, sar, active);
+    const ArrayXi rest = all_but(5, { inner });
+    expect_same_prep(sas, solve_only(pts, sar, active, rest), rest);
+  }
+}
+
 /**
  * Identical twins carry one surface: the active twin keeps it when exactly
  * one is active, else the lower index does; with no active atom nothing is
@@ -1161,6 +1393,37 @@ TEST(BuildSasTest, SharedCircleMiddleAmongNeighbours) {
     EXPECT_EQ(sas.sa.n_active, 8);
     EXPECT_TRUE((sas.sa.order != mid).all());
     expect_sr(sas, pts, sar);
+  }
+}
+
+/**
+ * The shared-circle triple below a chain whose foot is near the middle and
+ * the upper outer sphere, hop 3, but not the lower outer sphere, hop 4,
+ * which for `mid == 1` holds the smallest index of the triple, so the
+ * middles pass reads its row from outside the three-hop set.
+ */
+TEST(BuildSasTest, BandSharedCircleRowAtHopFour) {
+  for (int mid = 0; mid < 3; ++mid) {
+    ArrayXd sar;
+    Matrix3Xd pts = shared_circle_pts(mid, sar);
+    const ArrayXb active = append_chain(pts, sar, { 0, 0, 5.078125 });
+
+    const Sas sas = solve(pts, sar, active);
+    const ArrayXi rest = all_but(6, { mid });
+    expect_same_prep(sas, solve_only(pts, sar, active, rest), rest);
+  }
+}
+
+TEST(BuildSasTest, BandSharedCircleMiddleAmongNeighbours) {
+  for (int mid = 0; mid < 3; ++mid) {
+    ArrayXd sar;
+    Matrix3Xd pts = shared_circle_pts(mid, sar);
+    append_off_axis(pts, sar, 6, mid);
+    const ArrayXb active = append_chain(pts, sar, { 0, 0, 5.078125 });
+
+    const Sas sas = solve(pts, sar, active);
+    const ArrayXi rest = all_but(12, { mid });
+    expect_same_prep(sas, solve_only(pts, sar, active, rest), rest);
   }
 }
 

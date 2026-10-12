@@ -382,6 +382,12 @@ port, Floating point).
    everywhere else, and the active circles are the pairs below
    `g.offset(n_active)`. Dot owners are mapped back through the permutation
    at the very end.
+   *Port:* the port evaluates `contained`, `overlap` and the shared-circle
+   pass only on pairs whose two atoms lie within four near-pair hops of an
+   active atom. Every kept atom is within three hops, its containing
+   partners and shared-circle triangles within four, and ranks only
+   propagate from rank `≤ 2` sources, so the prepared set, its order, `g`
+   and `d` are identical to the all-pairs computation.
 5. **What the mask makes exact.** Every atom occludes, so the caps of any
    sphere below `n_enum` are complete and the convex patches of active atoms
    are exact. An active circle's first sphere is its active atom (active
