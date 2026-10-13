@@ -331,7 +331,7 @@ namespace internal {
   struct SurfaceSpheres {
     Matrix3Xd pts;
     ArrayXd r;
-    ArrayXd sar;
+    ArrayXd sar, sar2;
     ArrayXd t;
     double wmax;
     double rp;

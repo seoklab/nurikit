@@ -29,18 +29,18 @@ namespace internal {
       std::vector<SasCircle> result(n_circ);
 
       for (int i = 0; i < ss.n_enum; ++i) {
-        double ri = ss.sar[i];
+        double ri2 = ss.sar2[i];
         Vector3d pi = ss.pts.col(i);
 
         for (auto it = ss.g.begin(i), ei = ss.g.end(i); it < ei; ++it) {
           const int j = *it, q = ss.g.eid(it);
-          const double rj = ss.sar[j];
+          const double rj2 = ss.sar2[j];
           const double d = ss.d[q];
 
           Vector3d axis = (ss.pts.col(j) - pi) / d;
           const auto [e1, e2] = circle_frame(ss.pts.col(j) - pi, axis);
-          double a = (d * d + ri * ri - rj * rj) / (2 * d);
-          double rl = std::sqrt(nuri::max(ri * ri - a * a, 0.0));
+          double a = (d * d + ri2 - rj2) / (2 * d);
+          double rl = std::sqrt(nuri::max(ri2 - a * a, 0.0));
           Vector3d cntr = pi + a * axis;
 
           result[q] = { axis, cntr, e1, e2, a, rl, i, j };

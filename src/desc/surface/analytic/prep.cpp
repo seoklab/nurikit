@@ -331,9 +331,10 @@ namespace internal {
     }
 
     SurfaceSpheres compact(const Matrix3Xd &pts, const ArrayXd &r,
-                           const ArrayXd &sar, const ArrayXd &t,
-                           const double wmax, const double rp, const CSR &g,
-                           const ArrayXd &d, AtomRanking &&ranking) {
+                           const ArrayXd &sar, const ArrayXd &sar2,
+                           const ArrayXd &t, const double wmax, const double rp,
+                           const CSR &g, const ArrayXd &d,
+                           AtomRanking &&ranking) {
       const auto &off = ranking.off;
       ArrayXi &order = ranking.order, &inv = ranking.ibuf;
 
@@ -371,6 +372,7 @@ namespace internal {
         pts(E::all, order),
         r(order),
         std::move(csar),
+        sar2(order),
         t(order),
         wmax,
         rp,
@@ -436,7 +438,7 @@ namespace internal {
 
     AtomRanking ar = rank_atoms(std::move(np), nactive);
     SurfaceSpheres ss =
-        compact(npts, nr, nsar, t, wmax, rp, g, d, std::move(ar));
+        compact(npts, nr, nsar, sar2, t, wmax, rp, g, d, std::move(ar));
     ss.order = near(ss.order);
     return ss;
   }
