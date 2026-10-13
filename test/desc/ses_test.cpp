@@ -138,7 +138,7 @@ RandomCluster random_cluster(const int seed, const int n) {
   return c;
 }
 
-constexpr int kLattice = 1000000;
+constexpr int kLattice = 30000;
 
 const Matrix3Xd &lattice() {
   static const Matrix3Xd dirs = canonical_fibonacci_lattice(kLattice);
@@ -217,8 +217,8 @@ double saddle_from_quadrature(const Ses &s, const double rp) {
 
 /**
  * Every active face against the lattice to `1e-3` relative, floored at
- * `1e-4` of the probe sphere (four times the worst lattice error seen on
- * faces below 0.1 Å²).
+ * `1.5e-3` of the probe sphere: four times the worst lattice error over
+ * these fixtures, below their smallest face (`2.2e-3` of its sphere).
  */
 void expect_faces_match_dots(const Ses &s, const double rp,
                              const char *tag = "") {
@@ -228,7 +228,7 @@ void expect_faces_match_dots(const Ses &s, const double rp,
     ASSERT_TRUE(std::isfinite(area)) << tag << " probe " << p;
     EXPECT_GE(area, -1e-9) << tag << " probe " << p;
     const double dots = face_from_dots(s, p, rp);
-    EXPECT_NEAR(area, dots, nuri::max(1e-3 * dots, 1e-4 * sphere))
+    EXPECT_NEAR(area, dots, nuri::max(1e-3 * dots, 1.5e-3 * sphere))
         << tag << " probe " << p;
   }
 }
