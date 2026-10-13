@@ -27,7 +27,7 @@
 #include <geogram/numerics/multi_precision.h>
 
 #include "nuri/eigen_config.h"
-#include "nuri/desc/surface.h"
+#include "stages.h"
 #include "nuri/utils.h"
 
 namespace nuri {

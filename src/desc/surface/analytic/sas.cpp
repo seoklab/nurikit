@@ -17,6 +17,7 @@
 
 #include "nuri/eigen_config.h"
 #include "ring.h"
+#include "stages.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
 #include "nuri/utils.h"
@@ -43,7 +44,7 @@ namespace internal {
           double rl = std::sqrt(nuri::max(ri2 - a * a, 0.0));
           Vector3d cntr = pi + a * axis;
 
-          result[q] = { axis, cntr, e1, e2, a, rl, i, j };
+          result[q] = { axis, cntr, e1, e2, a, rl, d, i, j };
         }
       }
 
@@ -508,6 +509,7 @@ namespace internal {
      * Exact queries of `ring.h` on circle `(va, vb)` of the triangulation;
      * the antipode is accessible iff it is outside every fan sphere.
      */
+    // NOLINTBEGIN(*-unused-member-function)
     class SasRingOps {
     public:
       SasRingOps(const BallExact &ex, const std::vector<FaceRec> &fs,
@@ -544,6 +546,7 @@ namespace internal {
       const std::vector<int> *fan_;
       int va_, vb_;
     };
+    // NOLINTEND(*-unused-member-function)
 
     /**
      * Accessible arcs of every circle with caps, grouped by circle.

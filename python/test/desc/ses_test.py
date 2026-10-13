@@ -3,12 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from collections import Counter
-
 import numpy as np
 import pytest
 
-from nuri.desc import _ses_geometry
+from nuri.desc import _sas_geometry, _ses_geometry
 from nuri.scpilot.anal import SasGeometry, SesGeometry
 from nuri.scpilot.io import load_structure
 
@@ -26,59 +24,47 @@ def protein_fragment(test_data, last_residue):
     return st.coords, st.vdw_radii
 
 
+def by_atom(order, areas):
+    return {int(order[k]): float(areas[k]) for k in range(len(areas))}
+
+
 def port_areas(coords, radii, rp, active):
-    """Port areas keyed by original atom indices: per-atom convex, per
-    circle saddle, per 3-atom-probe concave (as a list, duplicates kept),
-    and the total active concave area."""
-    d = _ses_geometry(coords, radii, rp, active)
-    order, ses = d["order"], d["ses"]
-    convex = {
-        int(order[k]): float(ses["convex_area"][k])
-        for k in range(d["n_active"])
-    }
-    arcs, circles = d["arcs"], d["circles"]
-    saddle = Counter()
-    for a in range(arcs["n_active"]):
-        q = arcs["circ"][a]
-        key = tuple(
-            sorted((int(order[circles["i"][q]]), int(order[circles["j"][q]])))
-        )
-        saddle[key] += float(ses["saddle_area"][a])
-    adj, off = d["probes"]["atoms"]["adj"], d["probes"]["atoms"]["off"]
-    n_probes = d["probes"]["n_active"]
-    faces = []
-    for p in range(n_probes):
-        atoms = adj[off[p] : off[p + 1]]
-        if len(atoms) == 3:
-            key = tuple(sorted(int(order[i]) for i in atoms))
-            faces.append((key, float(ses["face_area"][p])))
-    total = float(ses["face_area"][:n_probes].sum())
-    return convex, dict(saddle), faces, total
+    """Port areas keyed by original atom indices: per-atom SAS, per-atom
+    convex SES, and the total saddle and concave SES areas."""
+    sas = _sas_geometry(coords, radii, rp, active)
+    ses = _ses_geometry(coords, radii, rp, active)
+    assert sas["kind"] == "sas"
+    assert ses["kind"] == "ses"
+    assert sas["rp"] == rp
+    assert ses["rp"] == rp
+    assert len(sas["area_toroidal"]) == 0
+    assert len(sas["area_concave"]) == 0
+    assert sas["total_area"] == pytest.approx(sas["area_convex"].sum())
+    assert ses["total_area"] == pytest.approx(
+        ses["area_convex"].sum()
+        + ses["area_toroidal"].sum()
+        + ses["area_concave"].sum()
+    )
+    np.testing.assert_array_equal(sas["order"], ses["order"])
+    assert len(set(ses["order"].tolist())) == ses["n_atoms"]
+    assert len(ses["area_convex"]) <= ses["n_atoms"]
+    return (
+        by_atom(sas["order"], sas["area_convex"]),
+        by_atom(ses["order"], ses["area_convex"]),
+        float(ses["area_toroidal"].sum()),
+        float(ses["area_concave"].sum()),
+    )
 
 
 def pilot_areas(coords, radii, rp, active):
     sas, order = SasGeometry.from_atoms(coords, radii, rp, active)
     ses = SesGeometry.build(sas)
-    convex = {
-        int(order[k]): float(ses.convex_area[k]) for k in range(sas.n_active)
-    }
-    saddle = Counter()
-    for a in range(sas.n_active_arcs):
-        c = sas.circles[sas.arcs[a].circle]
-        key = tuple(sorted((int(order[c.i]), int(order[c.j]))))
-        saddle[key] += float(ses.saddle_area[a])
-    faces = []
-    for f in ses.concave:
-        if len(f.atoms) == 3:
-            key = tuple(sorted(int(order[i]) for i in f.atoms))
-            faces.append((key, float(f.area)))
-    total = float(sum(f.area for f in ses.concave))
-    return convex, dict(saddle), faces, total
-
-
-def unique_faces(faces):
-    counts = Counter(key for key, _ in faces)
-    return {key: area for key, area in faces if counts[key] == 1}
+    return (
+        by_atom(order, sas.sas_area[: sas.n_active]),
+        by_atom(order, ses.convex_area[: sas.n_active]),
+        float(sum(ses.saddle_area[: sas.n_active_arcs])),
+        float(sum(f.area for f in ses.concave)),
+    )
 
 
 def assert_dicts_close(ours, ref, atol, what):
@@ -95,25 +81,20 @@ def assert_dicts_close(ours, ref, atol, what):
 
 
 def assert_matches_pilot(coords, radii, rp, active=None):
-    convex, saddle, faces, total = port_areas(coords, radii, rp, active)
-    p_convex, p_saddle, p_faces, p_total = pilot_areas(
+    sas, convex, saddle, concave = port_areas(coords, radii, rp, active)
+    p_sas, p_convex, p_saddle, p_concave = pilot_areas(
         coords, radii, rp, active
     )
 
+    n_sas = assert_dicts_close(sas, p_sas, 1e-9, "sas")
     n_convex = assert_dicts_close(convex, p_convex, 1e-10, "convex")
-    n_saddle = assert_dicts_close(saddle, p_saddle, 1e-9, "saddle")
-    assert total == pytest.approx(p_total, rel=1e-8)
+    assert saddle == pytest.approx(p_saddle, rel=1e-8)
+    assert concave == pytest.approx(p_concave, rel=1e-8)
 
-    ours, ref = unique_faces(faces), unique_faces(p_faces)
-    common = {k: ours[k] for k in ours.keys() & ref.keys()}
-    n_faces = assert_dicts_close(
-        common, {k: ref[k] for k in common}, 1e-9, "concave"
-    )
-
-    assert n_convex > 0
-    assert n_saddle > 0
-    assert n_faces > 0
-    return n_convex, n_saddle, n_faces
+    assert n_sas == n_convex > 0
+    assert saddle > 0
+    assert concave > 0
+    return n_convex
 
 
 @pytest.mark.parametrize("seed", range(5))
@@ -132,5 +113,5 @@ def test_masked_cluster_matches_pilot():
     coords, radii = random_cluster(7)
     active = np.zeros(len(radii), dtype=bool)
     active[: len(radii) // 2] = True
-    n_convex, _, _ = assert_matches_pilot(coords, radii, 1.4, active)
+    n_convex = assert_matches_pilot(coords, radii, 1.4, active)
     assert n_convex == int(active.sum())

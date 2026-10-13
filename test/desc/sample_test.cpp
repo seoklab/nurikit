@@ -24,22 +24,24 @@ using constants::kTwoPi;
 
 constexpr double kRp = 1.4;
 
+constexpr SurfacePatch kPatch[] = { SurfacePatch::kConvex,
+                                    SurfacePatch::kToroidal,
+                                    SurfacePatch::kConcave };
+
 struct Sampled {
-  SurfaceSpheres ss;
-  SasGeometry geo;
-  SesGeometry ses;
-  SesDots dots;
+  internal::SurfaceGeometry geo;
+  SurfaceDots dots;
 };
 
 Sampled solve(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXb &active,
               const double rp, const double density) {
-  std::optional<SurfaceSpheres> ss = prepare(pts, sar - rp, active, rp);
-  EXPECT_TRUE(ss);
-  SasDelaunay del = triangulate(*ss);
-  SasGeometry geo = build_sas(*ss, del);
-  SesGeometry ses = build_ses(*ss, del, geo);
-  SesDots dots = sample_ses(*ss, geo, ses, density);
-  return { std::move(*ss), std::move(geo), std::move(ses), std::move(dots) };
+  const ArrayXd r = sar - rp;
+  AnalyticSurface surf(pts, r);
+  EXPECT_TRUE(surf.initialize(rp, active));
+  internal::SurfaceGeometry geo = surf.build_ses();
+  SurfaceSampler sampler(density);
+  SurfaceDots dots = sampler.sample(geo);
+  return { std::move(geo), std::move(dots) };
 }
 
 Sampled solve(const Matrix3Xd &pts, const ArrayXd &sar, const double rp,
@@ -47,13 +49,15 @@ Sampled solve(const Matrix3Xd &pts, const ArrayXd &sar, const double rp,
   return solve(pts, sar, ArrayXb::Constant(sar.size(), true), rp, density);
 }
 
-double block_area(const SesDots &dots, const int kind) {
-  return dots.area.segment(dots.kind[kind], dots.kind.degree(kind)).sum();
+double block_area(const SurfaceDots &dots, const int kind) {
+  const SurfacePatch p = kPatch[kind];
+  return dots.area().segment(dots.offset(p), dots.count(p)).sum();
 }
 
 Array3d analytic_areas(const Sampled &s) {
-  return { s.ses.convex_area.sum(), s.ses.saddle_area.sum(),
-           s.ses.face_area.head(s.geo.probes.n_active).sum() };
+  return { s.geo.total_area(SurfacePatch::kConvex),
+           s.geo.total_area(SurfacePatch::kToroidal),
+           s.geo.total_area(SurfacePatch::kConcave) };
 }
 
 /**
@@ -61,9 +65,7 @@ Array3d analytic_areas(const Sampled &s) {
  */
 void expect_block_sums(const Sampled &s) {
   const Array3d ref = analytic_areas(s);
-  EXPECT_EQ(s.dots.kind.size(), 3);
-  EXPECT_EQ(s.dots.kind[3], s.dots.n());
-  EXPECT_EQ(s.dots.dropped_area, 0);
+  EXPECT_EQ(s.dots.dropped_area(), 0);
   for (int b = 0; b < 3; ++b)
     EXPECT_NEAR(block_area(s.dots, b), ref[b], 1e-9) << "block " << b;
 }
@@ -74,15 +76,13 @@ void expect_block_sums(const Sampled &s) {
  */
 void expect_block_sums_with_drops(const Sampled &s) {
   const Array3d ref = analytic_areas(s);
-  EXPECT_EQ(s.dots.kind.size(), 3);
-  EXPECT_EQ(s.dots.kind[3], s.dots.n());
-  EXPECT_GE(s.dots.dropped_area, 0);
+  EXPECT_GE(s.dots.dropped_area(), 0);
   double sampled = 0;
   for (int b = 0; b < 3; ++b) {
     sampled += block_area(s.dots, b);
     EXPECT_LE(block_area(s.dots, b), ref[b] + 1e-9) << "block " << b;
   }
-  EXPECT_NEAR(sampled + s.dots.dropped_area, ref.sum(), 1e-9 * ref.sum());
+  EXPECT_NEAR(sampled + s.dots.dropped_area(), ref.sum(), 1e-9 * ref.sum());
 }
 
 /**
@@ -91,10 +91,10 @@ void expect_block_sums_with_drops(const Sampled &s) {
  */
 void expect_on_ses(const Sampled &s, const Matrix3Xd &pts, const ArrayXd &sar,
                    const double rp) {
-  const SesDots &d = s.dots;
+  const SurfaceDots &d = s.dots;
   for (int k = 0; k < d.n(); ++k) {
-    EXPECT_NEAR(d.nrm.col(k).norm(), 1, 1e-12) << "dot " << k;
-    const Vector3d probe = d.pts.col(k) + rp * d.nrm.col(k);
+    EXPECT_NEAR(d.nrm().col(k).norm(), 1, 1e-12) << "dot " << k;
+    const Vector3d probe = d.pts().col(k) + rp * d.nrm().col(k);
     for (int a = 0; a < pts.cols(); ++a) {
       EXPECT_GE((probe - pts.col(a)).norm(), sar[a] - 1e-9)
           << "dot " << k << " atom " << a;
@@ -108,19 +108,19 @@ TEST(SampleSesTest, SingleSphere) {
   const ArrayXd sar = ArrayXd::Constant(1, r + rp);
 
   const Sampled s = solve(pts, sar, rp, density);
-  const SesDots &d = s.dots;
+  const SurfaceDots &d = s.dots;
   const double sphere = 2 * kTwoPi * r * r;
-  EXPECT_NEAR(d.area.sum(), sphere, 1e-9);
+  EXPECT_NEAR(d.area().sum(), sphere, 1e-9);
   EXPECT_EQ(d.n(), static_cast<int>(std::lround(sphere * density)));
-  EXPECT_EQ(d.kind.degree(0), d.n());
-  EXPECT_EQ(d.kind.degree(1), 0);
-  EXPECT_EQ(d.kind.degree(2), 0);
-  EXPECT_EQ(d.rp, rp);
+  EXPECT_EQ(d.count(kPatch[0]), d.n());
+  EXPECT_EQ(d.count(kPatch[1]), 0);
+  EXPECT_EQ(d.count(kPatch[2]), 0);
+  EXPECT_EQ(d.rp(), rp);
 
   for (int k = 0; k < d.n(); ++k) {
-    EXPECT_NEAR(d.pts.col(k).norm(), r, 1e-12);
-    EXPECT_NEAR((d.nrm.col(k) - d.pts.col(k) / r).norm(), 0, 1e-12);
-    EXPECT_EQ(d.atom[k], 0);
+    EXPECT_NEAR(d.pts().col(k).norm(), r, 1e-12);
+    EXPECT_NEAR((d.nrm().col(k) - d.pts().col(k) / r).norm(), 0, 1e-12);
+    EXPECT_EQ(d.atom()[k], 0);
   }
 }
 
@@ -132,7 +132,7 @@ TEST(SampleSesTest, TwoSpheresStammTable1) {
 
   const Sampled s = solve(pts, sar, rp, 200);
   expect_block_sums(s);
-  EXPECT_EQ(s.dots.kind.degree(2), 0);
+  EXPECT_EQ(s.dots.count(kPatch[2]), 0);
   EXPECT_NEAR(block_area(s.dots, 0) + block_area(s.dots, 1), 32.23514, 1e-4);
 }
 
@@ -143,9 +143,9 @@ TEST(SampleSesTest, TwoSpheresCusp) {
   const ArrayXd sar = ArrayXd::Constant(2, 1.2 + rp);
 
   const Sampled s = solve(pts, sar, rp, 200);
-  ASSERT_LT(s.geo.circles[0].rl, rp);
+  ASSERT_LT(std::sqrt(sar[0] * sar[0] - 2.2 * 2.2), rp);
   expect_block_sums(s);
-  EXPECT_GT(s.dots.kind.degree(1), 0);
+  EXPECT_GT(s.dots.count(kPatch[1]), 0);
   expect_on_ses(s, pts, sar, rp);
 }
 
@@ -158,20 +158,20 @@ TEST(SampleSesTest, ThreeSpheresConcave) {
   sar << 1.5 + kRp, 1.9 + kRp, 1.7 + kRp;
 
   const Sampled s = solve(pts, sar, kRp, 15);
-  ASSERT_GT(s.geo.probes.n_active, 0);
-  ASSERT_GT(s.dots.kind.degree(2), 0);
+  ASSERT_GT(s.geo.area(SurfacePatch::kConcave).size(), 0);
+  ASSERT_GT(s.dots.count(kPatch[2]), 0);
   expect_block_sums(s);
   expect_on_ses(s, pts, sar, kRp);
 
-  const SesDots &d = s.dots;
+  const SurfaceDots &d = s.dots;
   for (int k = 0; k < d.n(); ++k) {
-    EXPECT_GE(d.atom[k], 0);
-    EXPECT_LT(d.atom[k], 3);
+    EXPECT_GE(d.atom()[k], 0);
+    EXPECT_LT(d.atom()[k], 3);
   }
-  for (int k = d.kind[2]; k < d.kind[3]; ++k) {
-    const Vector3d probe = d.pts.col(k) + kRp * d.nrm.col(k);
-    EXPECT_NEAR((probe - pts.col(d.atom[k])).norm(), sar[d.atom[k]], 1e-9)
-        << "concave dot " << k << " owner " << d.atom[k] << " is no contact";
+  for (int k = d.offset(SurfacePatch::kConcave); k < d.n(); ++k) {
+    const Vector3d probe = d.pts().col(k) + kRp * d.nrm().col(k);
+    EXPECT_NEAR((probe - pts.col(d.atom()[k])).norm(), sar[d.atom()[k]], 1e-9)
+        << "concave dot " << k << " owner " << d.atom()[k] << " is no contact";
   }
 }
 
@@ -189,53 +189,55 @@ TEST(SampleSesTest, MaskedRunAndSubset) {
   active.head(n / 2).setConstant(true);
 
   const Sampled s = solve(pts, sar, active, kRp, 15);
-  const SesDots &d = s.dots;
+  const SurfaceDots &d = s.dots;
   expect_block_sums_with_drops(s);
-  ASSERT_GT(d.kind.degree(0), 0);
-  for (int k = 0; k < d.kind[1]; ++k)
-    EXPECT_TRUE(active[d.atom[k]]) << "convex dot " << k;
+  ASSERT_GT(d.count(kPatch[0]), 0);
+  for (int k = 0; k < d.count(SurfacePatch::kConvex); ++k)
+    EXPECT_TRUE(active[d.atom()[k]]) << "convex dot " << k;
   for (int k = 0; k < d.n(); ++k) {
-    EXPECT_GE(d.atom[k], 0);
-    EXPECT_LT(d.atom[k], n);
+    EXPECT_GE(d.atom()[k], 0);
+    EXPECT_LT(d.atom()[k], n);
   }
 
   ArrayXb keep(d.n());
   for (int k = 0; k < d.n(); ++k)
     keep[k] = k % 2 == 0;
-  const SesDots sub = d.subset(keep);
+  const SurfaceDots sub = d.subset(keep);
   ASSERT_EQ(sub.n(), keep.count());
-  EXPECT_EQ(sub.rp, d.rp);
-  EXPECT_EQ(sub.dropped_area, d.dropped_area);
-  ASSERT_EQ(sub.kind.size(), 3);
-  EXPECT_EQ(sub.kind[0], 0);
-  EXPECT_EQ(sub.kind[3], sub.n());
+  EXPECT_EQ(sub.rp(), d.rp());
+  EXPECT_EQ(sub.dropped_area(), d.dropped_area());
+  EXPECT_EQ(sub.offset(SurfacePatch::kConvex), 0);
 
   int w = 0;
   for (int b = 0; b < 3; ++b) {
     int kept = 0;
-    for (int k = d.kind[b]; k < d.kind[b + 1]; ++k) {
+    const int beg = d.offset(kPatch[b]), end = beg + d.count(kPatch[b]);
+    for (int k = beg; k < end; ++k) {
       if (!keep[k])
         continue;
       ++kept;
-      EXPECT_EQ(sub.pts.col(w), d.pts.col(k));
-      EXPECT_EQ(sub.nrm.col(w), d.nrm.col(k));
-      EXPECT_EQ(sub.area[w], d.area[k]);
-      EXPECT_EQ(sub.atom[w], d.atom[k]);
+      EXPECT_EQ(sub.pts().col(w), d.pts().col(k));
+      EXPECT_EQ(sub.nrm().col(w), d.nrm().col(k));
+      EXPECT_EQ(sub.area()[w], d.area()[k]);
+      EXPECT_EQ(sub.atom()[w], d.atom()[k]);
       ++w;
     }
-    EXPECT_EQ(sub.kind.degree(b), kept) << "block " << b;
+    EXPECT_EQ(sub.count(kPatch[b]), kept) << "block " << b;
   }
 
-  SesDots inplace = d;
+  SurfaceDots inplace = d;
   inplace.keep(keep);
   ASSERT_EQ(inplace.n(), sub.n());
-  EXPECT_EQ(inplace.pts, sub.pts);
-  EXPECT_EQ(inplace.nrm, sub.nrm);
-  EXPECT_TRUE((inplace.area == sub.area).all());
-  EXPECT_TRUE((inplace.atom == sub.atom).all());
-  EXPECT_TRUE((inplace.kind.off() == sub.kind.off()).all());
-  EXPECT_EQ(inplace.rp, sub.rp);
-  EXPECT_EQ(inplace.dropped_area, sub.dropped_area);
+  EXPECT_EQ(inplace.pts(), sub.pts());
+  EXPECT_EQ(inplace.nrm(), sub.nrm());
+  EXPECT_TRUE((inplace.area() == sub.area()).all());
+  EXPECT_TRUE((inplace.atom() == sub.atom()).all());
+  for (int b = 0; b < 3; ++b) {
+    EXPECT_EQ(inplace.offset(kPatch[b]), sub.offset(kPatch[b]));
+    EXPECT_EQ(inplace.count(kPatch[b]), sub.count(kPatch[b]));
+  }
+  EXPECT_EQ(inplace.rp(), sub.rp());
+  EXPECT_EQ(inplace.dropped_area(), sub.dropped_area());
 }
 
 struct Protein {
@@ -277,11 +279,11 @@ TEST(SampleSesTest, ProteinDensity) {
 
   const Sampled s = solve(prot.pts, sar, rp, density);
   expect_block_sums_with_drops(s);
-  EXPECT_LT(s.dots.dropped_area, 1e-3 * analytic_areas(s).sum());
+  EXPECT_LT(s.dots.dropped_area(), 1e-3 * analytic_areas(s).sum());
   for (int b = 0; b < 3; ++b) {
     const double area = block_area(s.dots, b);
     ASSERT_GT(area, 0) << "block " << b;
-    EXPECT_NEAR(s.dots.kind.degree(b) / area, density, 0.03 * density)
+    EXPECT_NEAR(s.dots.count(kPatch[b]) / area, density, 0.03 * density)
         << "block " << b;
   }
 }

@@ -1,0 +1,542 @@
+//
+// Project NuriKit - Copyright 2025 SNU Compbio Lab.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+#ifndef NURI_DESC_SURFACE_ANALYTIC_STAGES_H_
+#define NURI_DESC_SURFACE_ANALYTIC_STAGES_H_
+
+#include <array>
+#include <limits>
+#include <memory>
+#include <tuple>
+#include <utility>
+#include <vector>
+
+#include <absl/functional/function_ref.h>
+#include <Eigen/Dense>
+
+#include "nuri/eigen_config.h"
+#include "nuri/desc/surface.h"
+#include "nuri/utils.h"
+
+namespace nuri {
+namespace internal {
+  constexpr double kUnitRoundoff = std::numeric_limits<double>::epsilon() / 2;
+  constexpr double kSurfaceLengthEps = 1e-6;
+  /**
+   * Band on a pair's centre distance: two length tolerances.
+   */
+  constexpr double kPairLengthEps = 2 * kSurfaceLengthEps;
+  /**
+   * The largest touching distance of two kept spheres plus the band.
+   */
+  constexpr double near_cutoff(double rmax) {
+    return 2 * (rmax + kSurfaceLengthEps);
+  }
+  /**
+   * The near, contained and shared-circle bands are supersets of the exact
+   * sets, and the overlap-certain band a subset, only while `ulp(|c|^2)`
+   * stays far below `kSurfaceLengthEps`.
+   */
+  constexpr double kSurfaceMaxCoord = 1e4;
+  /**
+   * A vertex offset from its circle centre is taken from the floating filter
+   * when certified to this fraction of its length (`BallExact::offset`).
+   */
+  constexpr double kOffsetRelTol = 0x1p-26;
+  /**
+   * Two probes at one point differ by two offsets, each certified to
+   * `kOffsetRelTol` of a length `≤ rmax`, taken twice for margin; the centre
+   * rounding (`≤ 2^-52 · kSurfaceMaxCoord`) is far below. `build_sas` merges
+   * every pair of probes within this distance, so no two of its probes are
+   * closer.
+   */
+  constexpr double probe_merge_tol(double rmax) {
+    return 4 * kOffsetRelTol * rmax;
+  }
+  /**
+   * Error bound on a corner of `ArrangementSolver::walk`: one offset
+   * certificate per dart (the vertex normal enters only quadratically) plus
+   * the roundoff of frames, `atan2`, `sin`/`cos` and the wrap.
+   */
+  constexpr double kSurfaceAngleEps = 2 * kOffsetRelTol + 0x1p-40;
+  /**
+   * Two ring vertices of one circle whose numeric angles differ by more than
+   * this are in the exact `ccw` order: one offset certificate per vertex,
+   * a shared frame (an orientation-preserving linear map, so it only
+   * reparametrises), and the dots, `atan2`, the class fold and the subtraction
+   * add at most `46 * 2^-53`.
+   */
+  constexpr double kRingSortEps = kSurfaceAngleEps;
+
+  /**
+   * Orient every pair of `VoxelGrid::find_neighbors_self` as `left < right`.
+   */
+  inline void canonical_pairs(std::vector<int> &left, std::vector<int> &right) {
+    for (int k = 0; k < static_cast<int>(left.size()); ++k)
+      std::tie(left[k], right[k]) = nuri::minmax(left[k], right[k]);
+  }
+
+  /**
+   * Union-find with path halving; the smaller root absorbs, so every root is
+   * the smallest member of its set.
+   */
+  class UnionFind {
+  public:
+    explicit UnionFind(int n)
+        : parent_(ArrayXi::LinSpaced(n, 0, n - 1)), n_(n) { }
+
+    /**
+     * Start over with `n` singletons; storage only grows.
+     */
+    void reset(int n) {
+      if (parent_.size() < n)
+        parent_.resize(n);
+      parent_.head(n) = ArrayXi::LinSpaced(n, 0, n - 1);
+      n_ = n;
+    }
+
+    int find(int x) {
+      while (parent_[x] != x) {
+        parent_[x] = parent_[parent_[x]];
+        x = parent_[x];
+      }
+      return x;
+    }
+
+    void merge(int a, int b) {
+      auto [lo, hi] = nuri::minmax(find(a), find(b));
+      parent_[hi] = lo;
+    }
+
+    int n_sets() const {
+      int n = 0;
+      for (int x = 0; x < n_; ++x)
+        n += static_cast<int>(parent_[x] == x);
+      return n;
+    }
+
+    /**
+     * Relabel every element with its set id, numbered by smallest member;
+     * returns the number of sets.
+     */
+    int relabel() {
+      for (int x = 0; x < n_; ++x)
+        parent_[x] = find(x);
+
+      int k = 0;
+      for (int x = 0; x < n_; ++x)
+        parent_[x] = parent_[x] == x ? k++ : parent_[parent_[x]];
+      return k;
+    }
+
+    auto labels() const { return parent_.head(n_); }
+
+  private:
+    ArrayXi parent_;
+    int n_;
+  };
+
+  enum class Sgn : int { kNeg = -1, kZero = 0, kPos = 1 };
+
+  /**
+   * Three triangulation vertices; root labels refer to this order:
+   * `x± = c_a + y_⊥ ± (√D / |u|²) u` with `u = (c_b − c_a) × (c_c − c_a)`.
+   */
+  struct BallTriple {
+    int a, b, c;
+  };
+
+  inline BallTriple ball_triple(const Array3i &v) {
+    return { v[0], v[1], v[2] };
+  }
+
+  class FaceKernel;
+
+  struct FaceKernelDelete {
+    void operator()(FaceKernel *k) const;
+  };
+
+  using FaceKernelPtr = std::unique_ptr<FaceKernel, FaceKernelDelete>;
+
+  /**
+   * A reusable kernel for `BallExactImpl::load`.
+   */
+  extern FaceKernelPtr face_kernel();
+
+  /**
+   * Test hook: whether the filter's exact-input operands and its generic
+   * operands on `{a, 0}`, `{b, 0}` give the same value and bound, bit for
+   * bit, in `−`, `×` and the mixed sums and products with a bounded operand.
+   */
+  extern bool filter_inputs_agree(double a, double b);
+
+  /**
+   * Exact predicates on a set of balls: the power arrangement of weighted
+   * points as geogram triangulates them. The balls are the SAS spheres, and
+   * later the caps of an SES face lifted to balls. Each ball has centre `c_i`,
+   * height `h_i = ((t_i² + x_i²) + y_i²) + z_i²` as geogram evaluates it (or
+   * given directly), and squared radius `ρ_i² = W + |c_i|² − h_i`. Every
+   * exact tie is resolved by
+   * geogram's perturbation: every squared radius grows, lower index first.
+   * Compiled without fast-math (`NURI_STRICT_FP_SRCS` in src/CMakeLists.txt);
+   * the header carries no arithmetic. `kForceExact` skips the floating
+   * filter, `kFilterOnly` aborts on reaching the exact stage (tests only).
+   */
+  template <bool kForceExact, bool kFilterOnly = false>
+  class BallExactImpl {
+    static_assert(!(kForceExact && kFilterOnly), "no stage left to run");
+
+  public:
+    BallExactImpl() = default;
+
+    static BallExactImpl make(const Matrix4Xd &lifted, double wmax);
+    static BallExactImpl make(const Matrix3Xd &centers, const ArrayXd &heights,
+                              double wmax);
+
+    /**
+     * Room for `cap` balls, so that `load` of at most `cap` balls copies
+     * without allocating.
+     */
+    void reserve(int cap);
+    void load(ConstBlock<Matrix3Xd, 3, E::Dynamic, true> centers,
+              ConstVecBlock<ArrayXd> heights, double wmax);
+
+    int n() const { return n_; }
+    auto centers() const { return c_.leftCols(n_); }
+    auto h() const { return h_.head(n_); }
+    double rho2(int i) const;
+
+    /**
+     * Whether balls `a`, `b` overlap; an exact tangency is zero, a circle of
+     * zero length that carries no cap.
+     */
+    Sgn overlap(int a, int b) const;
+    /**
+     * Which of balls `a`, `b` (0 or 1) lies inside the other, -1 if neither,
+     * 2 if they are identical; internal tangency counts.
+     */
+    int contained(int a, int b) const;
+    /**
+     * Which sphere of `f` (0, 1, 2) lies between the other two on their
+     * common axis when the three share one circle, -1 otherwise.
+     */
+    int shared_circle(BallTriple f) const;
+    /**
+     * Whether sphere `c` cuts circle `(a, b)` in two points (symmetric in the
+     * triple; a tangency is perturbed to a cut or a miss).
+     */
+    Sgn cuts(BallTriple f) const;
+    /**
+     * Sign of `π_c` on circle `(a, b)`, valid when `c` does not cut it:
+     * positive outside ball `c`, negative inside.
+     */
+    Sgn side(int a, int b, int c) const;
+    /**
+     * Whether the discs of caps `j`, `l` on sphere `s` intersect: their
+     * circles cross, or one circle lies inside the other's ball; two
+     * circles touching from outside are not joined.
+     */
+    bool discs_intersect(int s, int j, int l) const;
+    /**
+     * `π_l(x) ≥ 0` for root `x` of face `f`: the cut point is not inside ball
+     * `l`. Requires `cuts(f)` positive.
+     */
+    Sgn accept(BallTriple f, bool plus, int l) const;
+    /**
+     * Both roots of `f` in double, `first` the `plus` root; requires
+     * `cuts(f)` positive.
+     */
+    std::pair<Vector3d, Vector3d> roots(BallTriple f) const;
+    Vector3d root(BallTriple f, bool plus) const;
+    /**
+     * `cuts`, `accept` and `root` of the face loaded into `k`, sharing its
+     * filtered and exact kernels across the queries.
+     */
+    void load(FaceKernel &k, BallTriple f) const;
+    Sgn cuts(FaceKernel &k) const;
+    Sgn accept(FaceKernel &k, bool plus, int l) const;
+    Vector3d root(FaceKernel &k, bool plus) const;
+    /**
+     * `x − cntr` for root `x` of `f` on circle `(a, b)`, in double but to
+     * rounding of its own length: the direction is right on a circle of any
+     * radius. Requires `cuts(f)` non-negative.
+     */
+    Vector3d offset(int a, int b, BallTriple f, bool plus) const;
+    /**
+     * `x − x'` for root `x` of `f` and root `x'` of `f2`, in double but to
+     * rounding of its own length: the direction between two roots is right
+     * however close they are. The filter evaluates `(P + √D Q + √D' Q') /
+     * (|u|² |u'|²)` with rational `P = |u|² |u'|² (c_a − c_a') + |u'|² (λ
+     * d_b + μ d_c) − |u|² (λ' d_b' + μ' d_c')`, `Q = ±|u'|² u`, `Q' =
+     * ∓|u|² u'` (each face relative to its first centre) and is accepted
+     * when its running bound certifies the vector to `kOffsetRelTol` of
+     * its own length; otherwise the exact dyadics are combined with `√D`,
+     * `√D'` taken to `k` extra bits, `k` doubled from 64 until the sum's
+     * error bound is below `2^-52` of its length, so the result is within
+     * a few ulp of `|x − x'|` (the roundings of the conversion and the
+     * division). Requires `cuts` non-negative for both faces and distinct
+     * roots.
+     */
+    Vector3d difference(BallTriple f, bool plus, BallTriple f2,
+                        bool plus2) const;
+
+    /**
+     * Position of root `x` of `f` on circle `(a, b)` relative to the
+     * reference ray `r = (c_b − c_a) × e_k`, `k = reference_axis(c_b − c_a)`:
+     * 0 on the ray, 1 in `(0, π)`, 2 at `π`, 3 in `(π, 2π)`, counter-clockwise
+     * about `c_b − c_a`.
+     */
+    int half_plane(int a, int b, BallTriple f, bool plus) const;
+    /**
+     * Sign of the oriented angle from root `x_i` to root `x_j` about
+     * `c_b − c_a` on circle `(a, b)`; zero iff the points coincide or are
+     * antipodal (no perturbation: the caller separates the two cases by
+     * `half_plane`).
+     */
+    Sgn ccw(int a, int b, BallTriple fi, bool plus_i, BallTriple fj,
+            bool plus_j) const;
+    /**
+     * `ccw` with an exact zero (coincident or antipodal roots) resolved by
+     * the perturbation. Requires `cuts` positive for both faces.
+     */
+    Sgn ccw_perturbed(int a, int b, BallTriple fi, bool plus_i, BallTriple fj,
+                      bool plus_j) const;
+    /**
+     * `π_c(Q) ≥ 0` for the antipode `Q = 2 cntr − x` of root `x` of `f` on
+     * circle `(a, b)`.
+     */
+    Sgn antipode(int a, int b, BallTriple f, bool plus, int c) const;
+
+    static int reference_axis(const Vector3d &d) {
+      int k;
+      d.cwiseAbs().minCoeff(&k);
+      return k;
+    }
+
+    static bool selftest();
+
+  private:
+    Matrix3Xd c_;
+    ArrayXd h_;
+    double w_ = 0;
+    int n_ = 0;
+  };
+
+  extern template class BallExactImpl<false>;
+  extern template class BallExactImpl<true>;
+  extern template class BallExactImpl<false, true>;
+
+  using BallExact = BallExactImpl<false>;
+
+  /**
+   * Reference ray `d × e_k`, `k = BallExact::reference_axis(d)`, of the
+   * circle frames.
+   */
+  inline Vector3d reference_ray(const Vector3d &d) {
+    return d.cross(Vector3d::Unit(BallExact::reference_axis(d)));
+  }
+
+  /**
+   * Regular (weighted Delaunay) triangulation of every kept sphere. Vertices
+   * are the kept spheres in original index order, then four far bounding
+   * points, so the result is shared across active masks: `vertex` maps an
+   * original atom index to its vertex (-1 if dropped), `tets` holds the finite
+   * cells, `adj(lf, c)` the cell across the face opposite local vertex `lf`
+   * (-1 past the hull), and `nbrs(v)` the edges of sphere vertex `v`. A sphere
+   * with no edges has an empty power cell, i.e. no accessible surface.
+   * `face(lf, c)` numbers the faces (shared ids across the two cells),
+   * `edge_cell` gives one cell containing each `nbrs` edge, `cell_edge(s, c)`
+   * the `nbrs` edge from the lower to the higher vertex of local pair `s`
+   * (`kCellPairSlot`) of cell `c` (-1 between two corners), and `ex` holds
+   * the exact predicates on the lifted vertices (spheres, then corners).
+   */
+  struct SasDelaunay {
+    Array4Xi tets;
+    Array4Xi adj;
+    Array4Xi face;
+    int n_faces = 0;
+    CSR nbrs;
+    ArrayXi edge_cell;
+    Array6Xi cell_edge;
+    ArrayXi vertex;
+    BallExact ex;
+  };
+
+  constexpr int kCellVerts = 4, kCellEdges = 6;
+
+  constexpr std::array<std::array<int, kCellVerts>, kCellVerts> kCellPairSlot {
+    std::array { -1,  0,  1,  2 },
+    std::array {  0, -1,  3,  4 },
+    std::array {  1,  3, -1,  5 },
+    std::array {  2,  4,  5, -1 },
+  };
+
+  extern SasDelaunay triangulate(const SurfaceSpheres &ss);
+
+  /**
+   * Per edge of `del.nbrs` the pair of `ss.g` it joins (-1 at a corner or
+   * between non-overlapping spheres), and per pair `(i, j)` of `ss.g` the
+   * edge of `del.nbrs` from the vertex of `i` to that of `j` (-1 if not
+   * adjacent).
+   */
+  struct SasEdgeTables {
+    ArrayXi pair_of_edge;
+    ArrayXi edge_of_pair;
+  };
+
+  extern SasEdgeTables edge_tables(const SurfaceSpheres &ss,
+                                   const SasDelaunay &del);
+
+  /**
+   * Caps of every sphere `s < n_enum`: `h` lists the circle of each cap by
+   * sphere and `partner` the other sphere of that circle; `axis` points
+   * from `s` to the partner and `cosa` is the cosine of the angular radius.
+   */
+  struct SasCaps {
+    CSR h;
+    ArrayXi partner;
+    Matrix3Xd axis;
+    ArrayXd cosa;
+  };
+
+  /**
+   * `face` (triangulation vertices as `SasDelaunay::ex` indexes them,
+   * sorted) and `plus` name the root at `pos`: of a merged probe, its first
+   * member's, whose position is the probe's.
+   */
+  struct SasProbes {
+    CSR atoms;
+    Matrix3Xd pos, tan;
+    OffsetTable tan_off;
+    Array3Xi face;
+    ArrayXb plus;
+    int n_active;
+  };
+
+  struct SasGeometry {
+    std::vector<SasCircle> circles;
+
+    SasCaps caps;
+    SasProbes probes;
+
+    std::vector<SasArc> arcs;
+    int n_active_arcs;
+
+    ArrayXd area;
+  };
+
+  extern SasGeometry build_sas(const SurfaceSpheres &ss,
+                               const SasDelaunay &del);
+
+  /**
+   * SES patches of the active atoms. `convex_area` is per active atom
+   * `i < ss.n_active`; `saddle_beta` (`lo0, hi0, lo1, hi1`, the valid ranges
+   * of the generating arc) and `saddle_integral` (one integral per range)
+   * are per active circle `q < ss.g.offset(ss.n_active)`; `saddle_area` is
+   * per active arc (prefix `n_active_arcs` of `geo.arcs`). `face_area` and
+   * the caps `face_off`, `face_axis`, `face_cosa` (hemispheres of the
+   * departure tangents first, then the neighbour probes that may cut, less
+   * the caps dropped by the face solver's hygiene) are per active probe
+   * `p < probes.n_active`.
+   */
+  struct SesGeometry {
+    ArrayXd convex_area;
+    Matrix4Xd saddle_beta;
+    Matrix2Xd saddle_integral;
+    ArrayXd saddle_area;
+    ArrayXd face_area;
+    OffsetTable face_off;
+    Matrix3Xd face_axis;
+    ArrayXd face_cosa;
+  };
+
+  extern SesGeometry build_ses(const SurfaceSpheres &ss, const SasDelaunay &del,
+                               const SasGeometry &geo);
+
+  /**
+   * Gauss–Bonnet area of one sphere from its caps and the accessible arcs on
+   * their circles. Fill with `begin`, `add_cap`, `add_vertex` and `add_arc`
+   * (ids are assigned in call order; an arc runs from `beg` to `end`, both -1
+   * for a full circle), then `solve`
+   * with the exact test whether two caps' discs intersect; buffers persist
+   * across problems.
+   */
+  class ArrangementSolver {
+  public:
+    /**
+     * Sizes every buffer once for at most `mcap` caps, `kcap` vertices and
+     * `acap` arcs per problem.
+     */
+    ArrangementSolver(int mcap, int kcap, int acap);
+
+    void begin(double radius);
+
+    int add_cap(double cosa);
+
+    int add_vertex(const Vector3d &dir);
+
+    /**
+     * `tbeg` is the departing tangent at `beg`, `tend` the arriving tangent
+     * at `end`, both unit and consistent with the arc's own angles so that
+     * corners and arcs describe one closed curve even where the probe
+     * positions cannot resolve the circle.
+     */
+    void add_arc(int cap, int beg, int end, double dphi, const Vector3d &tbeg,
+                 const Vector3d &tend) {
+      arcs_.push_back({ cap, beg, end, dphi, tbeg, tend });
+    }
+
+    double solve(absl::FunctionRef<bool(int, int)> intersects);
+
+  private:
+    struct Arc {
+      int cap, beg, end;
+      double dphi;
+      Vector3d tbeg, tend;
+    };
+
+    struct Darts {
+      int in = -1, out = -1;
+      double ain = 0, aout = 0;
+    };
+
+    std::pair<int, double> walk();
+
+    double radius_ = 0;
+    int m_ = 0, k_ = 0;
+
+    UnionFind uf_;
+
+    ArrayXd cosa_;
+
+    Matrix3Xd dirs_, ea_, eb_;
+
+    std::vector<Arc> arcs_;
+
+    ArrayXi succ_;
+    ArrayXb seen_;
+    std::vector<Darts> darts_;
+  };
+
+  /**
+   * Exact Gauss–Bonnet area of one SES concave face: the probe sphere of
+   * radius `rp` at the origin outside every cap, cap `k` lifted to the ball
+   * `(n_k, h_k)` with `π_k(y) = |y − n_k|² − (rp² + |n_k|² − h_k)`, so that
+   * on the sphere `π_k < 0` is the cap: `(t, 0)` for the hemisphere of
+   * tangent `t`, `(w, |w|²)` for the probe at `w`; `cosa_k` is the cosine
+   * of its angular radius. Ties are resolved by `BallExact`'s perturbation
+   * in the order probe, then caps as given. On return `live` marks the caps
+   * that took part: a cap whose ball does not overlap the probe sphere (an
+   * exact tangency included) is dropped, and of two identical caps the
+   * higher index; two complementary caps end the face empty with `live` as
+   * it stands at that pair. This is the face solver of `build_ses` for one
+   * face (tests only).
+   */
+  extern double solve_ses_face(const Matrix3Xd &n, const ArrayXd &h,
+                               const ArrayXd &cosa, double rp, ArrayXb &live);
+}  // namespace internal
+}  // namespace nuri
+
+#endif /* NURI_DESC_SURFACE_ANALYTIC_STAGES_H_ */

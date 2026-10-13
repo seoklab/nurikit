@@ -17,6 +17,7 @@
 #include "nuri/eigen_config.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
+#include "stages.h"
 #include "nuri/utils.h"
 
 namespace nuri {

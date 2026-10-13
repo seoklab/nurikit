@@ -17,6 +17,7 @@
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
+#include "stages.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
 #include "nuri/utils.h"
@@ -94,7 +95,7 @@ namespace internal {
      * Atoms whose block of coarse cells holds an active atom, a superset of
      * the atoms within `radius` of one by the grid's binning.
      */
-    ArrayXb within_reach(const Matrix3Xd &pts, const ArrayXb &active,
+    ArrayXb within_reach(ConstRef<Matrix3Xd> pts, ConstRef<ArrayXb> active,
                          const double radius) {
       const VoxelGrid grid(pts, radius);
       const Array3i &dims = grid.dims();
@@ -387,14 +388,17 @@ namespace internal {
     }
   }  // namespace
 
-  std::optional<SurfaceSpheres> prepare(const Matrix3Xd &pts, const ArrayXd &r,
-                                        const ArrayXb &active, double rp) {
-    if (pts.cols() == 0)
-      return SurfaceSpheres {};
-
+  std::optional<SurfaceSpheres> prepare(ConstRef<Matrix3Xd> pts,
+                                        ConstRef<ArrayXd> r,
+                                        ConstRef<ArrayXb> active, double rp) {
     if (rp <= 0) {
       ABSL_LOG(ERROR) << "Probe radius must be positive";
       return std::nullopt;
+    }
+    if (pts.cols() == 0) {
+      SurfaceSpheres ss {};
+      ss.rp = rp;
+      return ss;
     }
     const ArrayXd sar = r + rp;
     if (!pts.allFinite() || !sar.allFinite()) {

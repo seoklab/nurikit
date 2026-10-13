@@ -3,9 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include <cstddef>
 #include <optional>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -25,31 +23,6 @@ namespace {
 void sr_sasa_validate_common_args(int nprobe, double rprobe) {
   check_positive(nprobe, "nprobe");
   check_positive(rprobe, "rprobe");
-}
-
-template <class T, class F>
-auto collect(const std::vector<T> &recs, const F &field) {
-  using R = std::decay_t<decltype(field(recs[0]))>;
-  using Arr =
-      std::conditional_t<std::is_same_v<R, Vector3d>, Matrix3Xd, ArrayX<R>>;
-  Arr out;
-  if constexpr (std::is_same_v<R, Vector3d>) {
-    out.resize(3, recs.size());
-    for (size_t i = 0; i < recs.size(); ++i)
-      out.col(i) = field(recs[i]);
-  } else {
-    out.resize(recs.size());
-    for (size_t i = 0; i < recs.size(); ++i)
-      out[i] = field(recs[i]);
-  }
-  return eigen_as_numpy(out);
-}
-
-py::dict csr_dict(const internal::CSR &csr) {
-  py::dict d;
-  d["adj"] = eigen_as_numpy(csr.adj());
-  d["off"] = eigen_as_numpy(csr.off());
-  return d;
 }
 
 struct Spheres {
@@ -72,153 +45,104 @@ Spheres cast_spheres(py::handle py_pts, py::handle py_radii) {
   return { pts.eigen(), radii.eigen().array() };
 }
 
-struct SasResult {
-  internal::SurfaceSpheres ss;
-  internal::SasGeometry geo;
-};
+ArrayXb cast_active(py::handle py_active, const int n) {
+  if (py_active.is_none())
+    return ArrayXb::Constant(n, true);
 
-template <class F>
-SasResult compute_sas(py::handle py_pts, py::handle py_radii, double rp,
-                      py::handle py_active, const F &then) {
-  Spheres spheres = cast_spheres(py_pts, py_radii);
-  const int n = static_cast<int>(spheres.radii.size());
-  check_positive(rp, "rp");
-
-  ArrayXb active = ArrayXb::Constant(n, true);
-  if (!py_active.is_none()) {
-    auto mask = py_array_cast<E::Dynamic, 1, bool>(py_active);
-    if (mask.eigen().size() != n)
-      throw py::value_error("active mask size does not match number of atoms");
-    active = mask.eigen();
-  }
-
-  std::optional<internal::SurfaceSpheres> ss;
-  internal::SasGeometry geo;
-  {
-    py::gil_scoped_release rel;
-    ss = internal::prepare(spheres.pts, spheres.radii, active, rp);
-    if (ss) {
-      internal::SasDelaunay del = internal::triangulate(*ss);
-      geo = internal::build_sas(*ss, del);
-      then(*ss, del, geo);
-    }
-  }
-  if (!ss)
-    throw py::value_error("preparation failed; see log for details");
-
-  return { std::move(*ss), std::move(geo) };
+  auto mask = py_array_cast<E::Dynamic, 1, bool>(py_active);
+  if (mask.eigen().size() != n)
+    throw py::value_error("active mask size does not match number of atoms");
+  return mask.eigen();
 }
 
-py::dict sas_dict(const internal::SurfaceSpheres &ss,
-                  const internal::SasGeometry &geo) {
+/**
+ * Runs `then(surface)` without the GIL on the initialized surface of the
+ * given spheres.
+ */
+template <class F>
+auto with_surface(py::handle py_pts, py::handle py_radii, double rp,
+                  py::handle py_active, const F &then) {
+  const Spheres spheres = cast_spheres(py_pts, py_radii);
+  const int n = static_cast<int>(spheres.radii.size());
+  check_positive(rp, "rp");
+  const ArrayXb active = cast_active(py_active, n);
+
+  std::optional<decltype(then(std::declval<const AnalyticSurface &>()))> res;
+  {
+    py::gil_scoped_release rel;
+    AnalyticSurface surf(spheres.pts, spheres.radii);
+    if (surf.initialize(rp, active))
+      res = then(surf);
+  }
+  if (!res)
+    throw py::value_error("preparation failed; see log for details");
+  return std::move(*res);
+}
+
+py::dict geometry_dict(const internal::SurfaceGeometry &geo) {
   py::dict d;
-  d["pts"] = eigen_as_numpy(ss.pts);
-  d["r"] = eigen_as_numpy(ss.r);
-  d["sar"] = eigen_as_numpy(ss.sar);
-  d["order"] = eigen_as_numpy(ss.order);
-  d["g"] = csr_dict(ss.g);
-  d["d"] = eigen_as_numpy(ss.d);
-  d["n_active"] = ss.n_active;
-  d["n_solve"] = ss.n_solve;
-  d["n_enum"] = ss.n_enum;
-
-  py::dict circ;
-  circ["i"] = collect(geo.circles, [](const auto &c) { return c.i; });
-  circ["j"] = collect(geo.circles, [](const auto &c) { return c.j; });
-  circ["a"] = collect(geo.circles, [](const auto &c) { return c.a; });
-  circ["rl"] = collect(geo.circles, [](const auto &c) { return c.rl; });
-  circ["axis"] = collect(geo.circles, [](const auto &c) { return c.axis; });
-  circ["cntr"] = collect(geo.circles, [](const auto &c) { return c.cntr; });
-  circ["e1"] = collect(geo.circles, [](const auto &c) { return c.e1; });
-  circ["e2"] = collect(geo.circles, [](const auto &c) { return c.e2; });
-  d["circles"] = circ;
-
-  py::dict caps;
-  caps["h"] = csr_dict(geo.caps.h);
-  caps["partner"] = eigen_as_numpy(geo.caps.partner);
-  caps["axis"] = eigen_as_numpy(geo.caps.axis);
-  caps["cosa"] = eigen_as_numpy(geo.caps.cosa);
-  d["caps"] = caps;
-
-  py::dict probes;
-  probes["atoms"] = csr_dict(geo.probes.atoms);
-  probes["pos"] = eigen_as_numpy(geo.probes.pos);
-  probes["tan"] = eigen_as_numpy(geo.probes.tan);
-  probes["tan_off"] = eigen_as_numpy(geo.probes.tan_off.off());
-  probes["n_active"] = geo.probes.n_active;
-  d["probes"] = probes;
-
-  py::dict arcs;
-  arcs["phi"] = collect(geo.arcs, [](const auto &a) { return a.phi; });
-  arcs["dphi"] = collect(geo.arcs, [](const auto &a) { return a.dphi; });
-  arcs["circ"] = collect(geo.arcs, [](const auto &a) { return a.circ; });
-  arcs["beg"] = collect(geo.arcs, [](const auto &a) { return a.beg; });
-  arcs["end"] = collect(geo.arcs, [](const auto &a) { return a.end; });
-  arcs["n_active"] = geo.n_active_arcs;
-  d["arcs"] = arcs;
-
-  d["area"] = eigen_as_numpy(geo.area);
+  d["kind"] = geo.kind() == SurfaceKind::kSas ? "sas" : "ses";
+  d["rp"] = geo.rp();
+  d["n_atoms"] = geo.n_atoms();
+  d["order"] = eigen_as_numpy(geo.order());
+  d["area_convex"] = eigen_as_numpy(geo.area(SurfacePatch::kConvex));
+  d["area_toroidal"] = eigen_as_numpy(geo.area(SurfacePatch::kToroidal));
+  d["area_concave"] = eigen_as_numpy(geo.area(SurfacePatch::kConcave));
+  d["total_area"] = geo.total_area();
   return d;
 }
 
-py::dict ses_dict(const internal::SurfaceSpheres &ss,
-                  const internal::SesGeometry &ses) {
+py::dict dots_dict(const SurfaceDots &dots) {
+  Array4i kind_off;
+  kind_off << dots.offset(SurfacePatch::kConvex),
+      dots.offset(SurfacePatch::kToroidal), dots.offset(SurfacePatch::kConcave),
+      dots.n();
+
   py::dict d;
-  d["rp"] = ss.rp;
-  d["convex_area"] = eigen_as_numpy(ses.convex_area);
-  d["saddle_beta"] = eigen_as_numpy(ses.saddle_beta);
-  d["saddle_integral"] = eigen_as_numpy(ses.saddle_integral);
-  d["saddle_area"] = eigen_as_numpy(ses.saddle_area);
-  d["face_area"] = eigen_as_numpy(ses.face_area);
-  d["face_off"] = eigen_as_numpy(ses.face_off.off());
-  d["face_axis"] = eigen_as_numpy(ses.face_axis);
-  d["face_cosa"] = eigen_as_numpy(ses.face_cosa);
+  d["pts"] = eigen_as_numpy(dots.pts());
+  d["nrm"] = eigen_as_numpy(dots.nrm());
+  d["area"] = eigen_as_numpy(dots.area());
+  d["atom"] = eigen_as_numpy(dots.atom());
+  d["kind_off"] = eigen_as_numpy(kind_off);
+  d["rp"] = dots.rp();
+  d["dropped_area"] = dots.dropped_area();
   return d;
 }
 
 py::dict sas_geometry(py::handle py_pts, py::handle py_radii, double rp,
                       py::handle py_active) {
-  SasResult res = compute_sas(py_pts, py_radii, rp, py_active,
-                              [](const auto &, const auto &, const auto &) { });
-  return sas_dict(res.ss, res.geo);
+  return geometry_dict(with_surface(py_pts, py_radii, rp, py_active,
+                                    [](const AnalyticSurface &surf) {
+                                      return surf.build_sas();
+                                    }));
 }
 
 py::dict ses_geometry(py::handle py_pts, py::handle py_radii, double rp,
                       py::handle py_active) {
-  internal::SesGeometry ses;
-  SasResult res = compute_sas(py_pts, py_radii, rp, py_active,
-                              [&](const internal::SurfaceSpheres &ss,
-                                  const internal::SasDelaunay &del,
-                                  const internal::SasGeometry &geo) {
-                                ses = internal::build_ses(ss, del, geo);
-                              });
-  py::dict d = sas_dict(res.ss, res.geo);
-  d["ses"] = ses_dict(res.ss, ses);
-  return d;
+  return geometry_dict(with_surface(py_pts, py_radii, rp, py_active,
+                                    [](const AnalyticSurface &surf) {
+                                      return surf.build_ses();
+                                    }));
+}
+
+py::dict sas_dots(py::handle py_pts, py::handle py_radii, double rp,
+                  double density, py::handle py_active) {
+  check_positive(density, "density");
+  return dots_dict(with_surface(py_pts, py_radii, rp, py_active,
+                                [&](const AnalyticSurface &surf) {
+                                  SurfaceSampler sampler(density);
+                                  return sampler.sample(surf.build_sas());
+                                }));
 }
 
 py::dict ses_dots(py::handle py_pts, py::handle py_radii, double rp,
                   double density, py::handle py_active) {
   check_positive(density, "density");
-
-  internal::SesDots dots;
-  compute_sas(
-      py_pts, py_radii, rp, py_active,
-      [&](const internal::SurfaceSpheres &ss, const internal::SasDelaunay &del,
-          const internal::SasGeometry &geo) {
-        const internal::SesGeometry ses = internal::build_ses(ss, del, geo);
-        dots = internal::sample_ses(ss, geo, ses, density);
-      });
-
-  py::dict d;
-  d["pts"] = eigen_as_numpy(dots.pts);
-  d["nrm"] = eigen_as_numpy(dots.nrm);
-  d["area"] = eigen_as_numpy(dots.area);
-  d["atom"] = eigen_as_numpy(dots.atom);
-  d["kind_off"] = eigen_as_numpy(dots.kind.off());
-  d["rp"] = dots.rp;
-  d["dropped_area"] = dots.dropped_area;
-  return d;
+  return dots_dict(with_surface(py_pts, py_radii, rp, py_active,
+                                [&](const AnalyticSurface &surf) {
+                                  SurfaceSampler sampler(density);
+                                  return sampler.sample(surf.build_ses());
+                                }));
 }
 
 py::dict sc_side_dict(const ScSide &s) {
@@ -275,6 +199,24 @@ py::dict shape_complementarity_py(py::handle pts_a, py::handle radii_a,
 }
 
 NURI_PYTHON_MODULE(m) {
+  m.def("_sas_geometry", &sas_geometry, py::arg("pts"), py::arg("radii"),
+        py::arg("rp"), py::arg("active") = py::none(), R"doc(
+Experimental: analytic SAS of a set of spheres, as a dict of the public
+view: ``kind``, ``rp``, ``n_atoms`` (kept spheres), ``order`` (kept sphere
+to original atom), ``area_convex`` (per active sphere), ``area_toroidal``,
+``area_concave`` and ``total_area``.
+)doc");
+  m.def("_ses_geometry", &ses_geometry, py::arg("pts"), py::arg("radii"),
+        py::arg("rp"), py::arg("active") = py::none(), R"doc(
+Experimental: ``_sas_geometry`` for the SES; ``area_toroidal`` is per active
+arc and ``area_concave`` per active probe.
+)doc");
+  m.def("_sas_dots", &sas_dots, py::arg("pts"), py::arg("radii"), py::arg("rp"),
+        py::arg("density"), py::arg("active") = py::none(),
+        R"doc(
+Experimental: ``_ses_dots`` on the SAS; the dots are the probe centres, so only
+the convex block is populated.
+)doc");
   m.def("_sas_geometry", &sas_geometry, py::arg("pts"), py::arg("radii"),
         py::arg("rp"), py::arg("active") = py::none(), R"doc(
 Experimental: analytic SAS geometry of a set of spheres. Returns a dict of

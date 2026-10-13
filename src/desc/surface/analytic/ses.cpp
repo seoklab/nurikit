@@ -15,6 +15,7 @@
 
 #include "nuri/eigen_config.h"
 #include "ring.h"
+#include "stages.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
 #include "nuri/utils.h"
@@ -396,6 +397,7 @@ namespace internal {
      * a vertex's `face` is its index into `pairs`. The antipode is
      * accessible iff it is outside every other live cap.
      */
+    // NOLINTBEGIN(*-unused-member-function)
     class FaceRingOps {
     public:
       FaceRingOps(const BallExact &ex, const std::vector<FacePair> &pairs,
@@ -435,6 +437,7 @@ namespace internal {
       const ArrayXb *live_;
       int m_;
     };
+    // NOLINTEND(*-unused-member-function)
 
     /**
      * Face solver with its buffers; cap `k` of the input is ball `k + 1`,

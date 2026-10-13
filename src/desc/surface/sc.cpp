@@ -7,7 +7,6 @@
 #include <cmath>
 #include <cstddef>
 #include <optional>
-#include <utility>
 #include <vector>
 
 #include <absl/log/absl_check.h>
@@ -20,63 +19,51 @@
 
 namespace nuri {
 namespace {
-  using internal::SesDots;
+  using internal::ScScratch;
 
   constexpr double kNearestCellSpacings = 3;
 
-  class Neighbors {
-  public:
-    template <class Pred>
-    bool any(const VoxelGrid &grid, const Vector3d &pt, const Pred &pred) {
-      grid.find_neighbors_d(pt, idxs_, distsq_, grid_scratch_);
-      for (size_t m = 0; m < idxs_.size(); ++m) {
-        if (pred(idxs_[m], distsq_[m]))
-          return true;
-      }
-      return false;
+  template <class Pred>
+  bool any_neighbor(const VoxelGrid &grid, const Vector3d &pt,
+                    ScScratch &scratch, const Pred &pred) {
+    grid.find_neighbors_d(pt, scratch.idxs, scratch.distsq, scratch.grid);
+    for (size_t m = 0; m < scratch.idxs.size(); ++m) {
+      if (pred(scratch.idxs[m], scratch.distsq[m]))
+        return true;
     }
+    return false;
+  }
 
-    std::pair<int, double> nearest(const VoxelGrid &grid, const Vector3d &pt) {
-      return grid.nearest(pt, grid_scratch_);
-    }
-
-  private:
-    std::vector<int> idxs_;
-    std::vector<double> distsq_;
-    VoxelGrid::Scratch grid_scratch_;
-  };
-
-  ArrayXb active_atoms(const Matrix3Xd &pts, const Matrix3Xd &other,
-                       const double sep) {
+  ArrayXb active_atoms(ConstRef<Matrix3Xd> pts, ConstRef<Matrix3Xd> other,
+                       const double sep, ScScratch &scratch) {
     const VoxelGrid grid(other, sep);
     const double sepsq = sep * sep;
-    Neighbors nbrs;
 
     ArrayXb active(pts.cols());
     for (int i = 0; i < pts.cols(); ++i) {
-      active[i] = nbrs.any(grid, pts.col(i),
-                           [&](int, double dsq) { return dsq < sepsq; });
+      active[i] = any_neighbor(grid, pts.col(i), scratch,
+                               [&](int, double dsq) { return dsq < sepsq; });
     }
     return active;
   }
 
-  ArrayXb buried_mask(const SesDots &dots, const Matrix3Xd &other,
-                      const ArrayXd &sar_other) {
+  ArrayXb buried_mask(const SurfaceDots &dots, ConstRef<Matrix3Xd> other,
+                      const ArrayXd &sar_other, ScScratch &scratch) {
     const VoxelGrid grid(other, sar_other.maxCoeff());
     const ArrayXd sarsq = sar_other.square();
-    Neighbors nbrs;
 
     ArrayXb buried(dots.n());
     for (int k = 0; k < dots.n(); ++k) {
-      const Vector3d probe = dots.pts.col(k) + dots.rp * dots.nrm.col(k);
-      buried[k] = nbrs.any(grid, probe,
-                           [&](int j, double dsq) { return dsq < sarsq[j]; });
+      const Vector3d probe = dots.pts().col(k) + dots.rp() * dots.nrm().col(k);
+      buried[k] = any_neighbor(grid, probe, scratch, [&](int j, double dsq) {
+        return dsq < sarsq[j];
+      });
     }
     return buried;
   }
 
-  ArrayXb trim_peripheral(const SesDots &dots, const ArrayXb &buried,
-                          const double band) {
+  ArrayXb trim_peripheral(const SurfaceDots &dots, const ArrayXb &buried,
+                          const double band, ScScratch &scratch) {
     const int n_buried = static_cast<int>(buried.count()),
               n_exposed = dots.n() - n_buried;
     if (n_buried == 0 || n_exposed == 0)
@@ -85,54 +72,49 @@ namespace {
     Matrix3Xd exposed(3, n_exposed);
     for (int k = 0, w = 0; k < dots.n(); ++k) {
       if (!buried[k])
-        exposed.col(w++) = dots.pts.col(k);
+        exposed.col(w++) = dots.pts().col(k);
     }
 
     const VoxelGrid grid(exposed, band);
     const double bandsq = band * band;
-    Neighbors nbrs;
 
     ArrayXb keep = buried;
     for (int k = 0; k < dots.n(); ++k) {
       if (!buried[k])
         continue;
-      keep[k] = !nbrs.any(grid, dots.pts.col(k),
-                          [&](int, double dsq) { return dsq <= bandsq; });
+      keep[k] = !any_neighbor(grid, dots.pts().col(k), scratch,
+                              [&](int, double dsq) { return dsq <= bandsq; });
     }
     return keep;
   }
 
-  struct Side {
-    int n_atoms, n_active, n_dots, n_buried;
-    SesDots trimmed;
-  };
+  /**
+   * The trimmed SES dots of one side, with the side's counts; false when the
+   * surface cannot be prepared or no dot survives.
+   */
+  bool build_side(const ScParams &params, SurfaceSampler &sampler,
+                  ScScratch &scratch, ConstRef<Matrix3Xd> pts,
+                  ConstRef<ArrayXd> radii, ConstRef<Matrix3Xd> other,
+                  ConstRef<ArrayXd> other_radii, ScSide &side) {
+    const ArrayXb active = active_atoms(pts, other, params.sep, scratch);
+    AnalyticSurface surf(pts, radii);
+    if (!surf.initialize(params.rp, active))
+      return false;
 
-  std::optional<Side> build_side(const Matrix3Xd &pts, const ArrayXd &radii,
-                                 const Matrix3Xd &other,
-                                 const ArrayXd &other_radii,
-                                 const ScParams &params) {
-    const ArrayXb active = active_atoms(pts, other, params.sep);
-    const std::optional<internal::SurfaceSpheres> ss =
-        internal::prepare(pts, radii, active, params.rp);
-    if (!ss)
-      return std::nullopt;
+    SurfaceDots &dots = side.dots;
+    dots = sampler.sample(surf.build_ses());
 
-    const internal::SasDelaunay del = internal::triangulate(*ss);
-    const internal::SasGeometry geo = internal::build_sas(*ss, del);
-    const internal::SesGeometry ses = internal::build_ses(*ss, del, geo);
-    SesDots dots = internal::sample_ses(*ss, geo, ses, params.density);
-
-    const ArrayXb buried = buried_mask(dots, other, other_radii + params.rp);
-    const ArrayXb kept = trim_peripheral(dots, buried, params.band);
-    const int n_dots = dots.n();
+    const ArrayXb buried =
+        buried_mask(dots, other, other_radii.array() + params.rp, scratch);
+    const ArrayXb kept = trim_peripheral(dots, buried, params.band, scratch);
+    side.n_atoms = static_cast<int>(pts.cols());
+    side.n_active = static_cast<int>(active.count());
+    side.n_dots = dots.n();
+    side.n_buried = static_cast<int>(buried.count());
     dots.keep(kept);
-    return Side {
-      static_cast<int>(pts.cols()),
-      static_cast<int>(active.count()),
-      n_dots,
-      static_cast<int>(buried.count()),
-      std::move(dots),
-    };
+    side.n_trimmed = dots.n();
+    side.trimmed_area = dots.area().sum();
+    return dots.n() > 0;
   }
 
   double median(std::vector<double> &v) {
@@ -145,65 +127,78 @@ namespace {
     return 0.5 * (*std::max_element(v.begin(), mid) + *mid);
   }
 
-  ScSide side_stats(const Side &mine, const Side &theirs,
-                    const ScParams &params) {
-    const SesDots &a = mine.trimmed, &b = theirs.trimmed;
-    const VoxelGrid grid(b.pts,
+  /**
+   * Nearest-dot distance and score of every dot of `a` against `b`, and
+   * their medians.
+   */
+  void side_stats(const ScParams &params, ScScratch &scratch,
+                  const SurfaceDots &theirs, ScSide &side) {
+    const SurfaceDots &a = side.dots, &b = theirs;
+    const VoxelGrid grid(b.pts(),
                          kNearestCellSpacings / std::sqrt(params.density));
-    Neighbors nbrs;
 
-    std::vector<double> d(a.n()), s(a.n());
+    ArrayXd &d = side.distance, &s = side.score;
+    d.resize(a.n());
+    s.resize(a.n());
     for (int k = 0; k < a.n(); ++k) {
-      const auto [j, dsq] = nbrs.nearest(grid, a.pts.col(k));
+      const auto [j, dsq] = grid.nearest(a.pts().col(k), scratch.grid);
       ABSL_DCHECK_GE(j, 0);
-      const double dot = a.nrm.col(k).dot(b.nrm.col(j));
+      const double dot = a.nrm().col(k).dot(b.nrm().col(j));
       d[k] = std::sqrt(dsq);
       s[k] = nuri::clamp(-dot * std::exp(-params.weight * dsq), -params.clamp,
                          params.clamp);
     }
 
-    return {
-      mine.n_atoms, mine.n_active, mine.n_dots, mine.n_buried,
-      a.n(),        a.area.sum(),  median(d),   median(s),
-    };
+    scratch.d.assign(d.begin(), d.end());
+    scratch.s.assign(s.begin(), s.end());
+    side.d_median = median(scratch.d);
+    side.s_median = median(scratch.s);
   }
 
-  void check_side(const Matrix3Xd &pts, const ArrayXd &radii) {
+  void check_side(ConstRef<Matrix3Xd> pts, ConstRef<ArrayXd> radii) {
     ABSL_DCHECK_GT(pts.cols(), 0);
     ABSL_DCHECK_EQ(pts.cols(), radii.size());
-    ABSL_DCHECK((radii > 0).all());
+    ABSL_DCHECK((radii.array() > 0).all());
   }
 }  // namespace
 
-std::optional<ScResult> shape_complementarity(const Matrix3Xd &pts_a,
-                                              const ArrayXd &radii_a,
-                                              const Matrix3Xd &pts_b,
-                                              const ArrayXd &radii_b,
-                                              const ScParams &params) {
-  check_side(pts_a, radii_a);
-  check_side(pts_b, radii_b);
+ShapeComplementarity::ShapeComplementarity(ScParams params)
+    : params_(params), sampler_(params.density) {
   ABSL_DCHECK_GT(params.rp, 0);
   ABSL_DCHECK_GT(params.density, 0);
   ABSL_DCHECK_GT(params.weight, 0);
   ABSL_DCHECK_GT(params.band, 0);
   ABSL_DCHECK_GT(params.sep, 0);
   ABSL_DCHECK(params.clamp > 0 && params.clamp <= 1);
+}
 
-  const std::optional<Side> a =
-      build_side(pts_a, radii_a, pts_b, radii_b, params);
-  if (!a || a->trimmed.n() == 0)
-    return std::nullopt;
-
-  const std::optional<Side> b =
-      build_side(pts_b, radii_b, pts_a, radii_a, params);
-  if (!b || b->trimmed.n() == 0)
-    return std::nullopt;
+std::optional<ScResult> ShapeComplementarity::compute(
+    ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
+    ConstRef<Matrix3Xd> pts_b, ConstRef<ArrayXd> radii_b) {
+  check_side(pts_a, radii_a);
+  check_side(pts_b, radii_b);
 
   ScResult res;
-  res.sides = { side_stats(*a, *b, params), side_stats(*b, *a, params) };
+  if (!build_side(params_, sampler_, scratch_, pts_a, radii_a, pts_b, radii_b,
+                  res.sides[0]))
+    return std::nullopt;
+  if (!build_side(params_, sampler_, scratch_, pts_b, radii_b, pts_a, radii_a,
+                  res.sides[1]))
+    return std::nullopt;
+
+  side_stats(params_, scratch_, res.sides[1].dots, res.sides[0]);
+  side_stats(params_, scratch_, res.sides[0].dots, res.sides[1]);
   res.sc = 0.5 * (res.sides[0].s_median + res.sides[1].s_median);
   res.distance = 0.5 * (res.sides[0].d_median + res.sides[1].d_median);
   res.area = res.sides[0].trimmed_area + res.sides[1].trimmed_area;
   return res;
+}
+
+std::optional<ScResult> shape_complementarity(ConstRef<Matrix3Xd> pts_a,
+                                              ConstRef<ArrayXd> radii_a,
+                                              ConstRef<Matrix3Xd> pts_b,
+                                              ConstRef<ArrayXd> radii_b,
+                                              const ScParams &params) {
+  return ShapeComplementarity(params).compute(pts_a, radii_a, pts_b, radii_b);
 }
 }  // namespace nuri

@@ -20,6 +20,7 @@
 #include "nuri/eigen_config.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
+#include "desc/surface/analytic/stages.h"
 
 namespace nuri {
 namespace internal {
