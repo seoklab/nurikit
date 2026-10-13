@@ -4,13 +4,16 @@
 //
 
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include <absl/strings/str_cat.h>
 #include <Eigen/Dense>
 #include <pybind11/gil.h>
+#include <pybind11/native_enum.h>
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/desc/surface.h"
@@ -77,6 +80,74 @@ auto with_surface(py::handle py_pts, py::handle py_radii, double rp,
   if (!res)
     throw py::value_error("preparation failed; see log for details");
   return std::move(*res);
+}
+
+std::string_view kind_str(SurfaceKind kind) {
+  return kind == SurfaceKind::kSas ? "sas" : "ses";
+}
+
+void bind_surface_patch(py::module &m) {
+  py::native_enum<SurfacePatch>(m, "SurfacePatch", "enum.IntEnum", R"doc(
+Kind of an analytic surface patch: :attr:`Convex` patches lie on the atom
+spheres, :attr:`Toroidal` patches on the probe rolling over two atoms and
+:attr:`Concave` patches on the probe resting on three or more atoms.
+)doc")
+      .value("Convex", SurfacePatch::kConvex)
+      .value("Toroidal", SurfacePatch::kToroidal)
+      .value("Concave", SurfacePatch::kConcave)
+      .finalize();
+}
+
+void bind_surface_geometry(py::module &m) {
+  py::class_<internal::SurfaceGeometry> sg(m, "SurfaceGeometry", R"doc(
+Analytic patch areas of a solvent-accessible or solvent-excluded surface, as
+returned by :func:`analytic_surface`.
+)doc");
+  sg.def_property_readonly(
+        "kind",
+        [](const internal::SurfaceGeometry &geo) {
+          return kind_str(geo.kind());
+        },
+        R"doc(
+The kind of the surface, ``"sas"`` or ``"ses"``.
+)doc")
+      .def(
+          "area",
+          [](py::handle self, SurfacePatch patch) {
+            const auto &geo = self.cast<const internal::SurfaceGeometry &>();
+            return eigen_as_numpy_view(geo.area(patch), self);
+          },
+          kReturnsSubobject, py::arg("patch"), R"doc(
+Areas of the patches of one kind, in angstroms squared.
+
+:param patch: The kind of patches.
+:returns: One area per patch. Convex areas are parallel to :attr:`order`;
+  toroidal and concave areas are empty for a SAS.
+)doc")
+      .def(
+          "total_area",
+          [](const internal::SurfaceGeometry &geo,
+             std::optional<SurfacePatch> patch) {
+            return patch ? geo.total_area(*patch) : geo.total_area();
+          },
+          py::arg("patch") = py::none(), R"doc(
+Total area of the surface, in angstroms squared.
+
+:param patch: If given, sum only the patches of this kind.
+:returns: The total area.
+)doc");
+  def_property_readonly_subobject(
+      sg, "order",
+      [](py::handle self) {
+        const auto &geo = self.cast<const internal::SurfaceGeometry &>();
+        auto h = geo.order().head(geo.convex().area.size());
+        return eigen_as_numpy_view(h, self);
+      },
+      R"doc(
+The original atom index of each convex patch, parallel to
+``area(SurfacePatch.Convex)``. Atoms that own no surface (inactive ones) are
+absent.
+)doc");
 }
 
 py::dict geometry_dict(const internal::SurfaceGeometry &geo) {
@@ -199,6 +270,49 @@ py::dict shape_complementarity_py(py::handle pts_a, py::handle radii_a,
 }
 
 NURI_PYTHON_MODULE(m) {
+  bind_surface_patch(m);
+  bind_surface_geometry(m);
+
+  m.def(
+      "analytic_surface",
+      [](py::handle py_pts, py::handle py_radii, double rp,
+         std::string_view kind, py::handle py_active) {
+        SurfaceKind sk;
+        if (kind == "sas") {
+          sk = SurfaceKind::kSas;
+        } else if (kind == "ses") {
+          sk = SurfaceKind::kSes;
+        } else {
+          throw py::value_error(absl::StrCat(
+              "kind must be \"sas\" or \"ses\", got \"", kind, "\""));
+        }
+
+        return with_surface(py_pts, py_radii, rp, py_active,
+                            [sk](const AnalyticSurface &surf) {
+                              return sk == SurfaceKind::kSas ? surf.build_sas()
+                                                             : surf.build_ses();
+                            });
+      },
+      py::arg("pts"), py::arg("radii"), py::arg("rp"), py::arg("kind") = "ses",
+      py::arg("active") = py::none(), R"doc(
+Build the analytic solvent-accessible (SAS) or solvent-excluded (SES) surface
+of a set of spheres.
+
+:param pts: The sphere centres, as a 2D array of shape ``(N, 3)``.
+:param radii: The sphere radii, as a 1D array of shape ``(N,)``.
+:param rp: The probe radius, in angstroms.
+:param kind: ``"sas"`` or ``"ses"``. A SAS has convex patches only.
+:param active: Optional boolean mask of shape ``(N,)``. Active spheres own
+  surface patches; the others only occlude. All spheres are active by default.
+:returns: The patch areas of the surface.
+:raises ValueError: If any of the shapes mismatch, any of the `radii` values or
+  `rp` are not positive, `kind` is unknown, or the inputs are rejected.
+
+.. note::
+  Coordinates must stay within :math:`10^4` angstroms in absolute value, so
+  subtract one common shift from far-away structures first.
+)doc");
+
   m.def("_sas_geometry", &sas_geometry, py::arg("pts"), py::arg("radii"),
         py::arg("rp"), py::arg("active") = py::none(), R"doc(
 Experimental: analytic SAS of a set of spheres, as a dict of the public
