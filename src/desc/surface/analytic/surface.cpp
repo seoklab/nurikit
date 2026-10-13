@@ -22,10 +22,9 @@ namespace internal {
                                    ArrayXi &&order, ConvexPatches &&convex,
                                    ToroidalPatches &&toroidal,
                                    ConcavePatches &&concave)
-      : kind_(kind), rp_(rp), pts_(std::move(pts)),
-        radii_ { std::move(sar), std::move(r) }, order_(std::move(order)),
-        convex_(std::move(convex)), toroidal_(std::move(toroidal)),
-        concave_(std::move(concave)) { }
+      : kind_(kind), rp_(rp), pts_(std::move(pts)), sar_(std::move(sar)),
+        r_(std::move(r)), order_(std::move(order)), convex_(std::move(convex)),
+        toroidal_(std::move(toroidal)), concave_(std::move(concave)) { }
 
   const ArrayXd &SurfaceGeometry::area(const SurfacePatch patch) const {
     switch (patch) {

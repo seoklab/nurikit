@@ -236,7 +236,7 @@ double convex_from_dots(const SurfaceGeometry &s, const int i,
                         const double rp) {
   const Matrix3Xd &dirs = lattice();
   const Matrix3Xd &pts = s.pts();
-  const ArrayXd &sar = s.radii(SurfaceKind::kSas);
+  const ArrayXd &sar = s.sar();
   const Vector3d c = pts.col(i);
   const double sas = sar[i], r = sas - rp;
 

@@ -99,7 +99,7 @@ double merge_tol(const Sas &sas) {
 }
 
 double merge_tol(const Surface &s) {
-  return probe_merge_tol(s.sas.radii(SurfaceKind::kSas).maxCoeff());
+  return probe_merge_tol(s.sas.sar().maxCoeff());
 }
 
 void expect_no_unmerged_pairs(const Matrix3Xd &pos, const double tau) {
@@ -235,12 +235,12 @@ void expect_sas_only(const Surface &s, const ArrayXd &sar) {
   const SurfaceGeometry &sas = s.sas;
   EXPECT_EQ(sas.kind(), SurfaceKind::kSas);
   EXPECT_EQ(sas.rp(), kRp);
-  ASSERT_EQ(sas.radii(SurfaceKind::kSas).size(), sas.n_atoms());
-  ASSERT_EQ(sas.radii(SurfaceKind::kSes).size(), sas.n_atoms());
+  ASSERT_EQ(sas.sar().size(), sas.n_atoms());
+  ASSERT_EQ(sas.r().size(), sas.n_atoms());
   for (int p = 0; p < sas.n_atoms(); ++p) {
     const int o = sas.order()[p];
-    EXPECT_EQ(sas.radii(SurfaceKind::kSas)[p], sar[o]) << p;
-    EXPECT_EQ(sas.radii(SurfaceKind::kSes)[p], sar[o] - kRp) << p;
+    EXPECT_EQ(sas.sar()[p], sar[o]) << p;
+    EXPECT_EQ(sas.r()[p], sar[o] - kRp) << p;
   }
   EXPECT_TRUE(sas.toroidal().arcs.empty());
   EXPECT_EQ(sas.concave().pos.cols(), 0);
@@ -2422,8 +2422,8 @@ void expect_same_geometry(const SurfaceGeometry &a, const SurfaceGeometry &b) {
   ASSERT_EQ(a.n_atoms(), b.n_atoms());
   expect_same_array(a.order(), b.order());
   expect_same_matrix(a.pts(), b.pts());
-  for (const SurfaceKind kind: { SurfaceKind::kSas, SurfaceKind::kSes })
-    expect_same_array(a.radii(kind), b.radii(kind));
+  expect_same_array(a.sar(), b.sar());
+  expect_same_array(a.r(), b.r());
 
   expect_same_array(a.convex().area, b.convex().area);
   expect_same_caps(a.convex().caps, b.convex().caps);
@@ -2505,8 +2505,8 @@ TEST(BuildSasTest, PublicGeometryMatchesStages) {
       EXPECT_EQ(g->rp(), kRp);
       expect_same_array(g->order(), ss->order);
       expect_same_matrix(g->pts(), ss->pts);
-      expect_same_array(g->radii(SurfaceKind::kSas), ss->sar);
-      expect_same_array(g->radii(SurfaceKind::kSes), ss->r);
+      expect_same_array(g->sar(), ss->sar);
+      expect_same_array(g->r(), ss->r);
       expect_same_array(g->convex().caps.off.off(),
                         sas.caps.h.off().head(na + 1));
       expect_same_matrix(g->convex().caps.axis, sas.caps.axis.leftCols(nc));

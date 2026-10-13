@@ -225,9 +225,13 @@ namespace internal {
 
     const Matrix3Xd &pts() const { return pts_; }
 
-    const ArrayXd &radii(SurfaceKind kind) const {
-      return radii_[static_cast<int>(kind)];
+    const ArrayXd &radii() const {
+      return kind_ == SurfaceKind::kSas ? sar_ : r_;
     }
+
+    const ArrayXd &sar() const { return sar_; }
+
+    const ArrayXd &r() const { return r_; }
 
     const ConvexPatches &convex() const { return convex_; }
 
@@ -246,7 +250,7 @@ namespace internal {
     double rp_;
 
     Matrix3Xd pts_;
-    ArrayXd radii_[2];
+    ArrayXd sar_, r_;
     ArrayXi order_;
 
     ConvexPatches convex_;

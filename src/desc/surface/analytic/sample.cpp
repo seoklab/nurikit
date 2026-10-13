@@ -154,9 +154,8 @@ namespace {
                     const double density) {
     const int n_active = static_cast<int>(geo.convex().area.size());
     const double rp = geo.rp(),
-                 rmax = n_active == 0
-                            ? 0
-                            : geo.radii(geo.kind()).head(n_active).maxCoeff();
+                 rmax = n_active == 0 ? 0
+                                      : geo.radii().head(n_active).maxCoeff();
     const int ndir = nuri::max(lattice_count(2 * kTwoPi * rmax * rmax, density),
                                lattice_count(2 * kTwoPi * rp * rp, density)),
               mcap = nuri::max(geo.convex().caps.off.max_deg(),
@@ -221,13 +220,13 @@ namespace {
                      double &dropped) {
     const internal::ConvexPatches &convex = geo.convex();
     const internal::CapTable &caps = convex.caps;
-    const ArrayXd &radius = geo.radii(geo.kind());
+    const ArrayXd &radii = geo.radii();
     for (int i = 0; i < convex.area.size(); ++i) {
       const double area = convex.area[i];
       if (area <= 0)
         continue;
 
-      const double r = radius[i];
+      const double r = radii[i];
       const Matrix3Xd &dirs =
           lattice(scratch, lattice_count(2 * kTwoPi * r * r, density));
       const int beg = caps.off[i], m = caps.off.degree(i);
@@ -306,7 +305,7 @@ namespace {
     const double scale = total / kept_area;
 
     const int i = c.i, j = c.j;
-    const ArrayXd &sar = geo.radii(SurfaceKind::kSas);
+    const ArrayXd &sar = geo.sar();
     const double a_i = c.aij[0], a_j = c.aij[1], sas_i = sar[i], sas_j = sar[j],
                  r_i = sas_i - rp, r_j = sas_j - rp;
 
@@ -372,8 +371,7 @@ namespace {
       return;
 
     const double rp = geo.rp();
-    const ArrayXd &sar = geo.radii(SurfaceKind::kSas),
-                  &r = geo.radii(SurfaceKind::kSes);
+    const ArrayXd &sar = geo.sar(), &r = geo.r();
     const Matrix3Xd &dirs =
         lattice(scratch, lattice_count(2 * kTwoPi * rp * rp, density));
     for (int p = 0; p < n_probes; ++p) {
