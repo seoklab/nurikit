@@ -307,7 +307,7 @@ namespace {
 
     const int i = c.i, j = c.j;
     const ArrayXd &sar = geo.radii(SurfaceKind::kSas);
-    const double a_i = c.a, a_j = c.d - c.a, sas_i = sar[i], sas_j = sar[j],
+    const double a_i = c.aij[0], a_j = c.aij[1], sas_i = sar[i], sas_j = sar[j],
                  r_i = sas_i - rp, r_j = sas_j - rp;
 
     for (int m = 0; m < rows; ++m) {

@@ -161,14 +161,14 @@ namespace internal {
   };
 
   /**
-   * Circle of spheres `i < j` at centre distance `d`, with its frame
-   * `e1 = normalize(d × e_k)`, `d = c_j − c_i`, `k = reference_axis(d)`,
-   * `e2 = axis × e1`.
+   * Circle of spheres `i < j`, with its frame `e1 = normalize(d × e_k)`,
+   * `d = c_j − c_i`, `k = reference_axis(d)`, `e2 = axis × e1`. `aij` is
+   * the plane's offset along `axis` from `c_i` and from `c_j`.
    */
   struct SasCircle {
     Vector3d axis, cntr;
     Vector3d e1, e2;
-    double a, rl, d;
+    double aij[2], rl;
     int i, j;
   };
 

@@ -44,7 +44,10 @@ namespace internal {
           double rl = std::sqrt(nuri::max(ri2 - a * a, 0.0));
           Vector3d cntr = pi + a * axis;
 
-          result[q] = { axis, cntr, e1, e2, a, rl, d, i, j };
+          result[q] = {
+            axis, cntr, e1, e2, { a, d - a },
+                rl, i, j
+          };
         }
       }
 
@@ -158,11 +161,10 @@ namespace internal {
 
           const SasCircle &c = circ[q];
           const bool first = c.i == s;
-          const double d = ss.d[q];
           circ_of[w] = q;
           caps.partner[w] = first ? c.j : c.i;
           caps.axis.col(w) = first ? c.axis : Vector3d(-c.axis);
-          caps.cosa[w] = (c.a + (d - 2 * c.a) * value_if(!first)) / rs;
+          caps.cosa[w] = c.aij[value_if(!first)] / rs;
           ++w;
         }
       }

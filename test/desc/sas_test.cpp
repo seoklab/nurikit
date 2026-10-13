@@ -2401,9 +2401,9 @@ void expect_same_circle(const SasCircle &a, const SasCircle &b) {
   EXPECT_EQ(a.cntr, b.cntr);
   EXPECT_EQ(a.e1, b.e1);
   EXPECT_EQ(a.e2, b.e2);
-  EXPECT_EQ(a.a, b.a);
+  EXPECT_EQ(a.aij[0], b.aij[0]);
+  EXPECT_EQ(a.aij[1], b.aij[1]);
   EXPECT_EQ(a.rl, b.rl);
-  EXPECT_EQ(a.d, b.d);
   EXPECT_EQ(a.i, b.i);
   EXPECT_EQ(a.j, b.j);
 }

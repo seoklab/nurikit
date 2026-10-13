@@ -262,7 +262,8 @@ double saddle_from_quadrature(const SurfaceGeometry &s, const double rp) {
   for (const RingArc &arc: tor.arcs) {
     const SasCircle &c = tor.circles[arc.circ];
     EXPECT_GE(c.rl, rp);
-    const double lo = -std::atan2(c.a, c.rl), hi = std::atan2(c.d - c.a, c.rl);
+    const double lo = -std::atan2(c.aij[0], c.rl),
+                 hi = std::atan2(c.aij[1], c.rl);
     total += arc.dphi * rp
              * simpson([&](double b) { return c.rl - rp * std::cos(b); }, lo,
                        hi, 2000);
@@ -348,7 +349,7 @@ void expect_two_sphere_cusp(const double r1, const double r2, const double d,
   ASSERT_EQ(tor.beta.cols(), 1);
   ASSERT_EQ(tor.area.size(), 1);
   const SasCircle &c = tor.circles[0];
-  const double rl = c.rl, a_i = c.a, a_j = c.d - c.a;
+  const double rl = c.rl, a_i = c.aij[0], a_j = c.aij[1];
   ASSERT_LT(rl, kRp);
   const double b0 = std::acos(rl / kRp), lo = -std::atan2(a_i, rl),
                hi = std::atan2(a_j, rl);

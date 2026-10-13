@@ -81,7 +81,7 @@ namespace internal {
       ses.saddle_integral.resize(2, n_circ);
       for (int q = 0; q < n_circ; ++q) {
         const SasCircle &c = geo.circles[q];
-        const SaddleRanges sr = saddle_ranges(c.rl, rp, c.a, ss.d[q] - c.a,
+        const SaddleRanges sr = saddle_ranges(c.rl, rp, c.aij[0], c.aij[1],
                                               ss.sar[c.i], ss.sar[c.j]);
         ses.saddle_beta.col(q) = sr.beta;
         ses.saddle_integral.col(q) = sr.integral;
