@@ -643,24 +643,6 @@ TEST(BuildSesTest, FiltersDoNotChangeArea) {
 }
 
 /**
- * Sphere c grazes circle (a, b): the one merged probe has two full loops
- * with tangents `±y`, two exactly complementary hemispheres, no face.
- */
-TEST(BuildSesTest, GrazingVertexFaceIsZero) {
-  Matrix3Xd pts(3, 3);
-  pts.col(0) << 0, 0, 0;
-  pts.col(1) << 0, 0, 6;
-  pts.col(2) << 7, 0, 7;
-  const ArrayXd sar = ArrayXd::Constant(3, 5.0);
-
-  const SurfaceGeometry s = solve(pts, sar, 1.0);
-  ASSERT_EQ(s.concave().pos.cols(), 1);
-  ASSERT_EQ(s.concave().area.size(), 1);
-  EXPECT_EQ(s.concave().area[0], 0);
-  EXPECT_EQ(s.concave().caps.off.degree(0), hemispheres(s, 0).cols());
-}
-
-/**
  * A neighbour probe at exactly `2 rp` is tangent to the probe sphere and
  * carries no cap; one an ulp closer carries a cap of angular radius
  * `2^-26`, cut or buried exactly, of area below `1e-14`.
