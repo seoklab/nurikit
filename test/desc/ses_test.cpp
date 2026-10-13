@@ -816,6 +816,69 @@ TEST(BuildSesTest, PlanarProbe) {
   }
 }
 
+/**
+ * Probes `P = (i, j, k, k')` at the origin and `P' = (i, j, l, l')` at
+ * `(3, 0, 9)` lie on the circle `(i, j)` of radius exactly `rp`, a cusp at
+ * `(0, 0, 5)`. On `P` the cap of `P'` touches the hemisphere of the `(i, j)`
+ * arc at the cusp point from inside, so its ring is two coincident roots
+ * there and the loop is decided by the antipode `(3, 0, 4)`, which the
+ * hemisphere covers: the face is the spherical quadrilateral `i, j, k', k`.
+ * Four atoms per probe keep both off the planar and triangular prefilters.
+ */
+TEST(BuildSesTest, SinglePointWindow) {
+  const double rp = 5.0;
+  Matrix3Xd base(3, 6);
+  base.col(0) << 0, -12, 5;
+  base.col(1) << 0, 12, 5;
+  base.col(2) << -12, 0, -5;
+  base.col(3) << -9, 0, 14;
+  base.col(4) << -4, 12, -3;
+  base.col(5) << -1, 12, 12;
+  const ArrayXd sar = ArrayXd::Constant(6, 13.0);
+  const Vector3d x0(0, 0, 0), w(3, 0, 9);
+  const double quad = 50 * (kPi / 2 + std::atan2(19.0, 91.0));
+
+  const SurfaceGeometry ref = solve(base, sar, rp);
+  ASSERT_EQ(ref.concave().pos.cols(), 6);
+  const int p = probe_at(ref.concave().pos, x0),
+            q = probe_at(ref.concave().pos, w);
+  ASSERT_GE(p, 0);
+  ASSERT_GE(q, 0);
+  EXPECT_EQ(ref.concave().pos.col(p), x0);
+  EXPECT_EQ(ref.concave().pos.col(q), w);
+  EXPECT_EQ(ref.concave().atoms.degree(p), 4);
+  EXPECT_EQ(ref.concave().atoms.degree(q), 4);
+
+  const auto tan = hemispheres(ref, p);
+  ASSERT_EQ(tan.cols(), 4);
+  int n_exact = 0;
+  for (int i = 0; i < tan.cols(); ++i)
+    n_exact += static_cast<int>(tan.col(i) == Vector3d(1, 0, 0));
+  EXPECT_EQ(n_exact, 1);
+
+  const CapTable &caps = ref.concave().caps;
+  ASSERT_EQ(caps.off.degree(p), 5);
+  const int kcap = caps.off[p] + 4;
+  EXPECT_EQ(caps.cosa[kcap], w.norm() / (2 * rp));
+  EXPECT_EQ(caps.axis.col(kcap), Vector3d(w / w.norm()));
+
+  EXPECT_NEAR(ref.concave().area[p], quad, 1e-12);
+  expect_faces_match_dots(ref, rp);
+
+  const double ref_total = ref.concave().area.sum();
+  for (int seed = 0; seed < 8; ++seed) {
+    SCOPED_TRACE(seed);
+    const auto [rot, t] = rigid_motion(seed);
+    const Matrix3Xd pts = (rot * base).colwise() + t;
+    const SurfaceGeometry s = solve(pts, sar, rp);
+    const int c = probe_at(s.concave().pos, rot * x0 + t, 1e-6);
+    ASSERT_GE(c, 0);
+    EXPECT_EQ(s.concave().caps.off.degree(c), 5);
+    EXPECT_NEAR(s.concave().area[c], quad, 1e-9);
+    EXPECT_NEAR(s.concave().area.sum(), ref_total, 1e-9);
+  }
+}
+
 struct KFold {
   Matrix3Xd pts;
   ArrayXd sar;
