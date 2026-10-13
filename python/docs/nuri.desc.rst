@@ -6,3 +6,5 @@ nuri.desc
 =========
 
 .. automodule:: nuri.desc
+
+.. footbibliography::

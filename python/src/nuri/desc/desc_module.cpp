@@ -13,7 +13,9 @@
 #include <pybind11/gil.h>
 #include <pybind11/native_enum.h>
 #include <pybind11/pybind11.h>
+#include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
+#include <pybind11/typing.h>
 
 #include "nuri/eigen_config.h"
 #include "nuri/desc/surface.h"
@@ -150,6 +152,153 @@ absent.
 )doc");
 }
 
+void bind_surface_dots(py::module &m) {
+  py::class_<SurfaceDots> sd(m, "SurfaceDots", R"doc(
+Dots sampled on a solvent-accessible or solvent-excluded surface, grouped by
+patch kind in the order of :class:`SurfacePatch`.
+)doc");
+  sd.def_property_readonly(
+        "kind", [](const SurfaceDots &dots) { return kind_str(dots.kind()); },
+        R"doc(
+The kind of the surface, ``"sas"`` or ``"ses"``.
+)doc")
+      .def_property_readonly("dropped_area", &SurfaceDots::dropped_area,
+                             R"doc(
+Area of the patches too small to receive a dot, in angstroms squared.
+)doc")
+      .def("__len__", &SurfaceDots::n)
+      .def("offset", &SurfaceDots::offset, py::arg("patch"), R"doc(
+Index of the first dot of the patches of one kind.
+
+:param patch: The kind of patches.
+:returns: The offset of the block; the blocks follow the order of
+  :class:`SurfacePatch`.
+)doc")
+      .def("count", &SurfaceDots::count, py::arg("patch"), R"doc(
+Number of dots on the patches of one kind.
+
+:param patch: The kind of patches.
+:returns: The size of the block.
+)doc");
+  def_property_readonly_subobject(
+      sd, "pts",
+      [](py::handle self) {
+        const auto &dots = self.cast<const SurfaceDots &>();
+        return eigen_as_numpy_view(dots.pts(), self);
+      },
+      R"doc(
+The dot positions, as a 2D array of shape ``(N, 3)``.
+)doc");
+  def_property_readonly_subobject(
+      sd, "normals",
+      [](py::handle self) {
+        const auto &dots = self.cast<const SurfaceDots &>();
+        return eigen_as_numpy_view(dots.nrm(), self);
+      },
+      R"doc(
+The outward unit normals of the dots, as a 2D array of shape ``(N, 3)``.
+)doc");
+  def_property_readonly_subobject(
+      sd, "areas",
+      [](py::handle self) {
+        const auto &dots = self.cast<const SurfaceDots &>();
+        return eigen_as_numpy_view(dots.area(), self);
+      },
+      R"doc(
+The area each dot stands for, in angstroms squared; the dots of a patch sum to
+its analytic area.
+)doc");
+  def_property_readonly_subobject(
+      sd, "atoms",
+      [](py::handle self) {
+        const auto &dots = self.cast<const SurfaceDots &>();
+        return eigen_as_numpy_view(dots.atom(), self);
+      },
+      R"doc(
+The index of the input atom owning each dot, as a 1D integer array.
+)doc");
+}
+
+void bind_sc_side(py::module &m) {
+  py::class_<ScSide> side(m, "ScSide", R"doc(
+One side of a shape complementarity calculation; see
+:func:`shape_complementarity`.
+)doc");
+  side.def_readonly("n_atoms", &ScSide::n_atoms, R"doc(
+The number of atoms of this side.
+)doc")
+      .def_readonly("n_active", &ScSide::n_active, R"doc(
+The number of atoms taking part in the interface.
+)doc")
+      .def_readonly("n_dots", &ScSide::n_dots, R"doc(
+The number of dots sampled on the surface of the interface atoms.
+)doc")
+      .def_readonly("n_buried", &ScSide::n_buried, R"doc(
+The number of dots buried by the other side.
+)doc")
+      .def_readonly("n_trimmed", &ScSide::n_trimmed, R"doc(
+The number of buried dots kept after the peripheral trim.
+)doc")
+      .def_readonly("trimmed_area", &ScSide::trimmed_area, R"doc(
+The area of the kept dots, in angstroms squared.
+)doc")
+      .def_readonly("d_median", &ScSide::d_median, R"doc(
+The median nearest-dot distance of the kept dots, in angstroms.
+)doc")
+      .def_readonly("s_median", &ScSide::s_median, R"doc(
+The median score of the kept dots.
+)doc")
+      .def_readonly("dots", &ScSide::dots, R"doc(
+The kept dots of this side.
+)doc");
+  def_property_readonly_subobject(
+      side, "distance",
+      [](py::handle self) {
+        const auto &s = self.cast<const ScSide &>();
+        return eigen_as_numpy_view(s.distance, self);
+      },
+      R"doc(
+Distance of each kept dot to the nearest kept dot of the other side, parallel
+to :attr:`dots`.
+)doc");
+  def_property_readonly_subobject(
+      side, "score",
+      [](py::handle self) {
+        const auto &s = self.cast<const ScSide &>();
+        return eigen_as_numpy_view(s.score, self);
+      },
+      R"doc(
+Score of each kept dot against the nearest kept dot of the other side,
+parallel to :attr:`dots`.
+)doc");
+}
+
+void bind_sc_result(py::module &m) {
+  py::class_<ScResult> res(m, "ScResult", R"doc(
+Shape complementarity of an interface; see :func:`shape_complementarity`.
+)doc");
+  res.def_readonly("sc", &ScResult::sc, R"doc(
+The shape complementarity statistic: the mean of the two sides' median scores.
+)doc")
+      .def_readonly("distance", &ScResult::distance, R"doc(
+The mean of the two sides' median nearest-dot distances, in angstroms.
+)doc")
+      .def_readonly("area", &ScResult::area, R"doc(
+The total area of the kept dots of both sides, in angstroms squared.
+)doc")
+      .def_property_readonly(
+          "sides",
+          [](py::handle self) -> pyt::Tuple<ScSide, ScSide> {
+            const auto &r = self.cast<const ScResult &>();
+            return py::make_tuple(
+                py::cast(r.sides[0], rvp::reference_internal, self),
+                py::cast(r.sides[1], rvp::reference_internal, self));
+          },
+          R"doc(
+The per-side summaries, in the order of the arguments.
+)doc");
+}
+
 py::dict geometry_dict(const internal::SurfaceGeometry &geo) {
   py::dict d;
   d["kind"] = geo.kind() == SurfaceKind::kSas ? "sas" : "ses";
@@ -272,6 +421,9 @@ py::dict shape_complementarity_py(py::handle pts_a, py::handle radii_a,
 NURI_PYTHON_MODULE(m) {
   bind_surface_patch(m);
   bind_surface_geometry(m);
+  bind_surface_dots(m);
+  bind_sc_side(m);
+  bind_sc_result(m);
 
   m.def(
       "analytic_surface",
@@ -311,6 +463,79 @@ of a set of spheres.
 .. note::
   Coordinates must stay within :math:`10^4` angstroms in absolute value, so
   subtract one common shift from far-away structures first.
+)doc");
+
+  m.def(
+      "shape_complementarity",
+      [](py::handle pts_a, py::handle radii_a, py::handle pts_b,
+         py::handle radii_b, double rp, double density, double weight,
+         double band, double sep, double clamp) {
+        Spheres a = cast_spheres(pts_a, radii_a),
+                b = cast_spheres(pts_b, radii_b);
+        if (a.radii.size() == 0 || b.radii.size() == 0)
+          throw py::value_error("each side must have at least one atom");
+
+        const ScParams params {
+          check_positive(rp, "rp"),
+          check_positive(density, "density"),
+          check_positive(weight, "weight"),
+          check_positive(band, "band"),
+          check_positive(sep, "sep"),
+          check_interval(clamp, "clamp", Bounds::kLeftOpen, 0.0, 1.0),
+        };
+
+        std::optional<ScResult> res;
+        {
+          py::gil_scoped_release rel;
+          res = shape_complementarity(a.pts, a.radii, b.pts, b.radii, params);
+        }
+        if (!res) {
+          throw py::value_error(
+              "no interface dot survives trimming, or the surface inputs were "
+              "rejected; see log for details");
+        }
+        return std::move(*res);
+      },
+      py::arg("pts_a"), py::arg("radii_a"), py::arg("pts_b"),
+      py::arg("radii_b"), py::kw_only(), py::arg("rp") = 1.7,
+      py::arg("density") = 15.0, py::arg("weight") = 0.5, py::arg("band") = 1.5,
+      py::arg("sep") = 8.0, py::arg("clamp") = 0.999,
+      R"doc(
+Shape complementarity statistic of Lawrence and
+Colman\ :footcite:`desc:sc:lawrence-colman-1993` between two sets of spheres.
+
+Each side's solvent-excluded surface is built with probe radius `rp` and
+sampled at `density` dots per square angstrom. An atom takes part in the
+interface when its centre lies within `sep` of an atom of the other side; a
+dot is buried when its probe centre lies inside a solvent-accessible sphere of
+the other side, and a buried dot within `band` of an exposed dot of its own
+side is trimmed as peripheral. Each remaining dot scores
+:math:`-(n \cdot n') \exp(-\text{weight} \, d^2)` against the nearest
+remaining dot of the other side, clamped to ``[-clamp, clamp]``; the statistic
+is the mean of the two sides' median scores.
+
+:param pts_a: The atom centres of the first side, as a 2D array of shape
+  ``(N, 3)``.
+:param radii_a: The van der Waals radii of the first side, as a 1D array of
+  shape ``(N,)``.
+:param pts_b: The atom centres of the second side, as a 2D array of shape
+  ``(M, 3)``.
+:param radii_b: The van der Waals radii of the second side, as a 1D array of
+  shape ``(M,)``.
+:param rp: The probe radius, in angstroms.
+:param density: The number of surface dots per square angstrom.
+:param weight: The weight of the squared distance in the score.
+:param band: The peripheral trim band, in angstroms.
+:param sep: The interface atom cutoff, in angstroms.
+:param clamp: The magnitude the scores are clamped to, in ``(0, 1]``.
+:returns: The statistic with its per-side summaries.
+:raises ValueError: If any of the shapes mismatch, a side is empty, any radii
+  or `rp`, `density`, `weight`, `band` or `sep` are not positive, `clamp` is
+  outside ``(0, 1]``, the surface inputs are rejected, or no interface dot of
+  either side survives trimming.
+
+.. note::
+  The default parameters are those of Rosetta's ``sc`` application.
 )doc");
 
   m.def("_sas_geometry", &sas_geometry, py::arg("pts"), py::arg("radii"),
