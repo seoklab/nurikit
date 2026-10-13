@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <numeric>
 #include <optional>
 #include <random>
 #include <utility>
@@ -37,6 +38,14 @@ SurfaceGeometry solve(const Matrix3Xd &pts, const ArrayXd &sar,
 SurfaceGeometry solve(const Matrix3Xd &pts, const ArrayXd &sar,
                       const double rp = kRp) {
   return solve(pts, sar, ArrayXb::Constant(sar.size(), true), rp);
+}
+
+std::pair<SurfaceGeometry, SurfaceGeometry>
+solve_both(const Matrix3Xd &pts, const ArrayXd &sar, const double rp) {
+  const ArrayXd r = sar - rp;
+  AnalyticSurface surf(pts, r);
+  EXPECT_TRUE(surf.initialize(rp));
+  return surf.build_both();
 }
 
 struct Ses {
@@ -116,6 +125,27 @@ RigidMotion rigid_motion(const int seed) {
 }
 
 /**
+ * Every relabelling of the atoms: the result must not depend on the index
+ * order the perturbation uses.
+ */
+template <class F>
+void for_each_index_order(const Matrix3Xd &pts, const ArrayXd &sar,
+                          const F &f) {
+  const int n = static_cast<int>(sar.size());
+  std::vector<int> order(n);
+  std::iota(order.begin(), order.end(), 0);
+  do {
+    Matrix3Xd p(3, n);
+    ArrayXd r(n);
+    for (int i = 0; i < n; ++i) {
+      p.col(i) = pts.col(order[i]);
+      r[i] = sar[order[i]];
+    }
+    f(p, r, order);
+  } while (std::next_permutation(order.begin(), order.end()));
+}
+
+/**
  * Circle of the original atoms `a`, `b`, -1 if none.
  */
 int circle_of(const SurfaceGeometry &s, const int a, const int b) {
@@ -151,9 +181,10 @@ struct RandomCluster {
   ArrayXd sar;
 };
 
-RandomCluster random_cluster(const int seed, const int n) {
+RandomCluster random_cluster(const int seed, const int n,
+                             const double box = 6.0) {
   std::mt19937 rng(seed);
-  std::uniform_real_distribution<double> u(0, 6.0), ur(1.0, 1.4);
+  std::uniform_real_distribution<double> u(0, box), ur(1.0, 1.4);
   RandomCluster c { Matrix3Xd(3, n), ArrayXd(n) };
   for (int i = 0; i < n; ++i) {
     c.pts.col(i) << u(rng), u(rng), u(rng);
@@ -597,6 +628,11 @@ TEST(BuildSesTest, RandomClustersVsDots) {
     const SurfaceGeometry s = solve(c.pts, c.sar);
     expect_faces_match_dots(s, kRp, "seed");
   }
+
+  const RandomCluster dense = random_cluster(1, 32, 8.0);
+  const SurfaceGeometry s = solve(dense.pts, dense.sar);
+  EXPECT_GE(s.concave().caps.off.max_deg(), 8);
+  expect_faces_match_dots(s, kRp, "dense");
 }
 
 /**
@@ -676,14 +712,145 @@ TEST(BuildSesTest, TangentNeighbourCapIsDropped) {
   }
 }
 
-TEST(BuildSesTest, KFoldFaceUnderRigidMotion) {
+/**
+ * Dyadic triangle with circumcentre `(4, 0, 0)` and circumradius exactly 4.
+ */
+Matrix3Xd circumradius_four_triangle() {
+  Matrix3Xd pts(3, 3);
+  pts << 0, 8, 4,  //
+      0, 0, 4,     //
+      0, 0, 0;
+  return pts;
+}
+
+/**
+ * Circumcentre `(4, 0, 0)`, circumradius 4, `sar` 5, `rp` 3: the probes at
+ * `(4, 0, ±3)` are exactly `2 rp` apart, so neither caps the other; a rigid
+ * motion rounds the pair to either side of tangency.
+ */
+TEST(BuildSesTest, TangentNeighbourProbe) {
+  const double rp = 3.0;
+  const Matrix3Xd base = circumradius_four_triangle();
+  const ArrayXd sar = ArrayXd::Constant(3, 5.0);
+
+  const SurfaceGeometry ref = solve(base, sar, rp);
+  const ConcavePatches &con = ref.concave();
+  ASSERT_EQ(con.pos.cols(), 2);
+  for (const double z: { 3.0, -3.0 }) {
+    const int p = probe_at(con.pos, Vector3d(4, 0, z), 1e-12);
+    ASSERT_GE(p, 0) << "z " << z;
+    EXPECT_EQ(hemispheres(ref, p).cols(), 3) << "z " << z;
+    EXPECT_EQ(con.caps.off.degree(p), 3) << "z " << z;
+  }
+  EXPECT_NEAR(con.area[0], con.area[1], 1e-12);
+  expect_faces_match_dots(ref, rp, "tangent");
+
+  for (int seed = 0; seed < 16; ++seed) {
+    SCOPED_TRACE(seed);
+    const auto [rot, t] = rigid_motion(seed);
+    const Matrix3Xd pts = (rot * base).colwise() + t;
+    const SurfaceGeometry s = solve(pts, sar, rp);
+    ASSERT_EQ(s.concave().pos.cols(), 2);
+    for (int p = 0; p < 2; ++p) {
+      EXPECT_NEAR(s.concave().area[p], con.area[0], 1e-9) << "probe " << p;
+      const int m = s.concave().caps.off.degree(p);
+      EXPECT_TRUE(m == 3 || m == 4) << "probe " << p << " caps " << m;
+    }
+    expect_faces_match_dots(s, rp, "tangent");
+  }
+}
+
+/**
+ * Acute dyadic triangle inscribed in the circle of radius 5 about the origin
+ * with `sar` 5: probe height exactly 0, the two probes coincide at the
+ * circumcentre. Shrake–Rupley to 0.05 of NearBandPinch times `(sar / 2)²`.
+ */
+TEST(BuildSesTest, PlanarProbe) {
+  const double rp = 2.0, sr_tol = 0.05 * 2.5 * 2.5;
+  Matrix3Xd base(3, 3);
+  base << 5, -3, -3,  //
+      0, 4, -4,       //
+      0, 0, 0;
+  const ArrayXd sar = ArrayXd::Constant(3, 5.0);
+
+  const auto [ref_sas, ref_ses] = solve_both(base, sar, rp);
+  ASSERT_EQ(ref_sas.n_atoms(), 3);
+  ArrayXd ref_area(3);
+  for (int i = 0; i < 3; ++i)
+    ref_area[ref_sas.order()[i]] = ref_sas.convex().area[i];
+  const double ref_total = ref_ses.total_area();
+
+  auto expect_sr = [&](const SurfaceGeometry &sas, const Matrix3Xd &pts) {
+    const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
+    ASSERT_EQ(sas.n_atoms(), 3);
+    for (int i = 0; i < 3; ++i) {
+      const int o = sas.order()[i];
+      EXPECT_NEAR(sas.convex().area[i], sr[o], sr_tol) << "atom " << o;
+    }
+  };
+
+  for_each_index_order(base, sar,
+                       [&](const Matrix3Xd &pts, const ArrayXd &r,
+                           const std::vector<int> &order) {
+                         SCOPED_TRACE(testing::Message()
+                                      << "order " << order[0] << order[1]
+                                      << order[2]);
+                         const auto [sas, ses] = solve_both(pts, r, rp);
+                         expect_sr(sas, pts);
+                         for (int i = 0; i < sas.n_atoms(); ++i) {
+                           const int o = order[sas.order()[i]];
+                           EXPECT_NEAR(sas.convex().area[i], ref_area[o], 1e-9)
+                               << "atom " << o;
+                         }
+                         EXPECT_NEAR(ses.total_area(), ref_total, 1e-9);
+                         expect_faces_match_dots(ses, rp, "planar");
+                       });
+
+  for (int seed = 0; seed < 8; ++seed) {
+    SCOPED_TRACE(seed);
+    const auto [rot, t] = rigid_motion(seed);
+    const Matrix3Xd pts = (rot * base).colwise() + t;
+    const auto [sas, ses] = solve_both(pts, sar, rp);
+    expect_sr(sas, pts);
+    expect_faces_match_dots(ses, rp, "planar");
+  }
+}
+
+struct KFold {
+  Matrix3Xd pts;
+  ArrayXd sar;
+  int k;
+  bool cut;
+};
+
+/**
+ * The ring of the k-star alone, and the 4-ring with a fifth sphere whose
+ * probe with two ring atoms lies within `2 rp` of the 4-fold probe and cuts
+ * its face.
+ */
+std::vector<KFold> k_fold_fixtures() {
+  std::vector<KFold> fixtures;
   for (const int k: { 4, 5 }) {
-    const Matrix3Xd base = star(k, 110, 2.0).rightCols(k);
-    const ArrayXd sar = ArrayXd::Constant(k, 2.0);
-    const SurfaceGeometry ref = solve(base, sar, 1.0);
+    fixtures.push_back({ Matrix3Xd(star(k, 110, 2.0).rightCols(k)),
+                         ArrayXd::Constant(k, 2.0), k, false });
+  }
+  Matrix3Xd cut(3, 5);
+  cut.leftCols(4) = star(4, 110, 2.0).rightCols(4);
+  cut.col(4) << 1.5, 1.5, 2.5;
+  fixtures.push_back({ cut, ArrayXd::Constant(5, 2.0), 4, true });
+  return fixtures;
+}
+
+TEST(BuildSesTest, KFoldFaceUnderRigidMotion) {
+  for (const KFold &f: k_fold_fixtures()) {
+    SCOPED_TRACE(testing::Message() << "k " << f.k << " cut " << f.cut);
+    const SurfaceGeometry ref = solve(f.pts, f.sar, 1.0);
     const int c0 = probe_at(ref.concave().pos, Vector3d::Zero());
-    ASSERT_GE(c0, 0) << "k " << k;
-    ASSERT_EQ(ref.concave().atoms.degree(c0), k);
+    ASSERT_GE(c0, 0);
+    ASSERT_EQ(ref.concave().atoms.degree(c0), f.k);
+    if (f.cut) {
+      EXPECT_GT(ref.concave().caps.off.degree(c0), hemispheres(ref, c0).cols());
+    }
     const double ref_face = ref.concave().area[c0],
                  ref_total = ref.concave().area.sum();
     EXPECT_GT(ref_face, 0);
@@ -691,14 +858,12 @@ TEST(BuildSesTest, KFoldFaceUnderRigidMotion) {
 
     for (int seed = 0; seed < 16; ++seed) {
       const auto [rot, t] = rigid_motion(seed);
-      const Matrix3Xd pts = (rot * base).colwise() + t;
-      const SurfaceGeometry s = solve(pts, sar, 1.0);
+      const Matrix3Xd pts = (rot * f.pts).colwise() + t;
+      const SurfaceGeometry s = solve(pts, f.sar, 1.0);
       const int c = probe_at(s.concave().pos, t);
-      ASSERT_GE(c, 0) << "k " << k << " seed " << seed;
-      EXPECT_NEAR(s.concave().area[c], ref_face, 1e-9)
-          << "k " << k << " seed " << seed;
-      EXPECT_NEAR(s.concave().area.sum(), ref_total, 1e-9)
-          << "k " << k << " seed " << seed;
+      ASSERT_GE(c, 0) << "seed " << seed;
+      EXPECT_NEAR(s.concave().area[c], ref_face, 1e-9) << "seed " << seed;
+      EXPECT_NEAR(s.concave().area.sum(), ref_total, 1e-9) << "seed " << seed;
     }
   }
 }

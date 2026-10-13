@@ -170,6 +170,63 @@ TEST(BuildSasTest, RejectsNonFiniteOrFarCoordinates) {
   EXPECT_FALSE(prepare(pts, sar - kRp, all, kRp));
 }
 
+TEST(BuildSasTest, RejectsBadRadii) {
+  Matrix3Xd pts = Matrix3Xd::Zero(3, 2);
+  pts.col(1) << 3, 0, 0;
+  const ArrayXd sar = ArrayXd::Constant(2, 1.5);
+  ArrayXd r = sar - kRp;
+
+  AnalyticSurface surf(pts, r);
+  EXPECT_FALSE(surf.initialize(0));
+  EXPECT_FALSE(surf.initialized());
+  EXPECT_FALSE(surf.initialize(-1));
+  EXPECT_FALSE(surf.initialized());
+
+  r.setConstant(0.1);
+  EXPECT_FALSE(surf.initialize(1.0));
+  EXPECT_FALSE(surf.initialized());
+
+  r = sar - kRp;
+  EXPECT_TRUE(surf.initialize(kRp));
+  EXPECT_TRUE(surf.initialized());
+}
+
+/**
+ * Three standard deviations of a Shrake–Rupley estimate with `n` points at
+ * the worst-case accessible fraction 1/2.
+ */
+double sr_tol(const double radius, const int n) {
+  return 3 * 4 * kPi * radius * radius * 0.5 / std::sqrt(n);
+}
+
+void expect_areas(const Sas &sas, const ArrayXd &sr, const ArrayXd &sar,
+                  const int n) {
+  for (int p = 0; p < sas.ss.n_solve; ++p) {
+    const int o = sas.ss.order[p];
+    EXPECT_NEAR(sas.geo.area[p], sr[o], sr_tol(sar[o], n)) << "atom " << o;
+  }
+  for (int p = 0; p < sas.geo.probes.pos.cols(); ++p)
+    EXPECT_GE(sas.geo.probes.atoms.degree(p), 3);
+}
+
+void expect_sr(const Sas &sas, const Matrix3Xd &pts, const ArrayXd &sar,
+               const int n = 20000) {
+  expect_areas(sas, sr_sasa_impl(pts, sar, n, SrSasaMethod::kDirect), sar, n);
+}
+
+void expect_sr(const Surface &s, const Matrix3Xd &pts, const ArrayXd &sar,
+               const int n = 20000) {
+  const ArrayXd sr = sr_sasa_impl(pts, sar, n, SrSasaMethod::kDirect);
+  const ArrayXd &area = s.sas.convex().area;
+  for (int p = 0; p < area.size(); ++p) {
+    const int o = s.sas.order()[p];
+    EXPECT_NEAR(area[p], sr[o], sr_tol(sar[o], n)) << "atom " << o;
+  }
+  const ConcavePatches &con = s.ses.concave();
+  for (int p = 0; p < con.pos.cols(); ++p)
+    EXPECT_GE(con.atoms.degree(p), 3);
+}
+
 /**
  * The SAS geometry of `s` over the spheres `sar`: the convex patches of the
  * kept atoms and nothing else, and no probe on its SES.
@@ -192,8 +249,9 @@ void expect_sas_only(const Surface &s, const ArrayXd &sar) {
 }
 
 /**
- * One sphere, two overlapping spheres, an exactly tangent pair and a ball
- * inside another: closed-form areas, one full circle for the overlap only.
+ * One sphere, two overlapping spheres, an exactly tangent pair, a ball
+ * inside another and one poking out of it by 1e-9: closed-form areas, one
+ * full circle for the overlap only.
  */
 TEST(BuildSasTest, SpherePairs) {
   {
@@ -260,6 +318,20 @@ TEST(BuildSasTest, SpherePairs) {
     EXPECT_EQ(s.sas.order()[0], 1 - inner);
     EXPECT_NEAR(s.sas.convex().area[0], 4 * kPi * 25, 1e-9);
     EXPECT_TRUE(s.ses.toroidal().arcs.empty());
+  }
+  for (const int inner: { 0, 1 }) {
+    Matrix3Xd pts(3, 2);
+    ArrayXd sar(2);
+    pts.col(inner) << 2 + 1e-9, 0, 0;
+    sar[inner] = 3;
+    pts.col(1 - inner) << 0, 0, 0;
+    sar[1 - inner] = 5;
+
+    const Surface s = surface(pts, sar);
+    expect_sas_only(s, sar);
+    ASSERT_EQ(s.sas.n_atoms(), 2);
+    EXPECT_TRUE((s.sas.convex().area > 0).all());
+    expect_sr(s, pts, sar);
   }
 }
 
@@ -590,8 +662,8 @@ TEST(BuildSasTest, TwoCutPointsOfOneFaceStayDistinct) {
 
 /**
  * One object initialized again: the same mask gives the same surface, a
- * half mask the same areas on its active atoms, a rejected input empties
- * the object and the restored input brings the surface back.
+ * half mask the same areas on its active atoms, a rejected probe radius
+ * empties the object and the next good call brings the surface back.
  */
 TEST(BuildSasTest, Reinitialize) {
   const int n = 24;
@@ -631,14 +703,11 @@ TEST(BuildSasTest, Reinitialize) {
   for (int p = 0; p < surf.n_active(); ++p)
     EXPECT_DOUBLE_EQ(part.convex().area[p], area_all[part.order()[p]]) << p;
 
-  const double x0 = pts(0, 0);
-  pts(0, 0) = std::numeric_limits<double>::quiet_NaN();
-  EXPECT_FALSE(surf.initialize(kRp));
+  EXPECT_FALSE(surf.initialize(-kRp));
   EXPECT_FALSE(surf.initialized());
   EXPECT_EQ(surf.n_atoms(), 0);
   EXPECT_EQ(surf.n_active(), 0);
 
-  pts(0, 0) = x0;
   ASSERT_TRUE(surf.initialize(kRp));
   EXPECT_TRUE((surf.order() == order).all());
   seed_thread(0);
@@ -1037,42 +1106,6 @@ TEST(BuildSasTest, EdgeTablesMatchBruteForce) {
     }
   }
   EXPECT_GT(n_both_corners, 0);
-}
-
-/**
- * Three standard deviations of a Shrake–Rupley estimate with `n` points at
- * the worst-case accessible fraction 1/2.
- */
-double sr_tol(const double radius, const int n) {
-  return 3 * 4 * kPi * radius * radius * 0.5 / std::sqrt(n);
-}
-
-void expect_areas(const Sas &sas, const ArrayXd &sr, const ArrayXd &sar,
-                  const int n) {
-  for (int p = 0; p < sas.ss.n_solve; ++p) {
-    const int o = sas.ss.order[p];
-    EXPECT_NEAR(sas.geo.area[p], sr[o], sr_tol(sar[o], n)) << "atom " << o;
-  }
-  for (int p = 0; p < sas.geo.probes.pos.cols(); ++p)
-    EXPECT_GE(sas.geo.probes.atoms.degree(p), 3);
-}
-
-void expect_sr(const Sas &sas, const Matrix3Xd &pts, const ArrayXd &sar,
-               const int n = 20000) {
-  expect_areas(sas, sr_sasa_impl(pts, sar, n, SrSasaMethod::kDirect), sar, n);
-}
-
-void expect_sr(const Surface &s, const Matrix3Xd &pts, const ArrayXd &sar,
-               const int n = 20000) {
-  const ArrayXd sr = sr_sasa_impl(pts, sar, n, SrSasaMethod::kDirect);
-  const ArrayXd &area = s.sas.convex().area;
-  for (int p = 0; p < area.size(); ++p) {
-    const int o = s.sas.order()[p];
-    EXPECT_NEAR(area[p], sr[o], sr_tol(sar[o], n)) << "atom " << o;
-  }
-  const ConcavePatches &con = s.ses.concave();
-  for (int p = 0; p < con.pos.cols(); ++p)
-    EXPECT_GE(con.atoms.degree(p), 3);
 }
 
 Sas solve_rp(const Matrix3Xd &pts, const ArrayXd &sar, const double rp) {
