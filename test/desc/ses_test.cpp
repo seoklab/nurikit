@@ -14,9 +14,9 @@
 #include <gtest/gtest.h>
 
 #include "nuri/eigen_config.h"
+#include "desc/surface/analytic/stages.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
-#include "desc/surface/analytic/stages.h"
 
 namespace nuri {
 namespace internal {
@@ -26,15 +26,29 @@ using constants::kTwoPi;
 
 constexpr double kRp = 1.4;
 
+SurfaceGeometry solve(const Matrix3Xd &pts, const ArrayXd &sar,
+                      const ArrayXb &active, const double rp = kRp) {
+  const ArrayXd r = sar - rp;
+  AnalyticSurface surf(pts, r);
+  EXPECT_TRUE(surf.initialize(rp, active));
+  return surf.build_ses();
+}
+
+SurfaceGeometry solve(const Matrix3Xd &pts, const ArrayXd &sar,
+                      const double rp = kRp) {
+  return solve(pts, sar, ArrayXb::Constant(sar.size(), true), rp);
+}
+
 struct Ses {
   SurfaceSpheres ss;
   SasGeometry geo;
   SesGeometry ses;
 };
 
-Ses solve(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXb &active,
-          const double rp = kRp) {
-  std::optional<SurfaceSpheres> ss = prepare(pts, sar - rp, active, rp);
+Ses solve_stages(const Matrix3Xd &pts, const ArrayXd &sar,
+                 const double rp = kRp) {
+  std::optional<SurfaceSpheres> ss =
+      prepare(pts, sar - rp, ArrayXb::Constant(sar.size(), true), rp);
   EXPECT_TRUE(ss);
   SasDelaunay del = triangulate(*ss);
   SasGeometry geo = build_sas(*ss, del);
@@ -42,8 +56,17 @@ Ses solve(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXb &active,
   return { std::move(*ss), std::move(geo), std::move(ses) };
 }
 
-Ses solve(const Matrix3Xd &pts, const ArrayXd &sar, const double rp = kRp) {
-  return solve(pts, sar, ArrayXb::Constant(sar.size(), true), rp);
+/**
+ * The departure-tangent hemispheres of face `p`: the leading caps of its row
+ * with `cosa == 0`, whose axes are the tangents.
+ */
+auto hemispheres(const SurfaceGeometry &s, const int p) {
+  const CapTable &caps = s.concave().caps;
+  const int beg = caps.off[p];
+  int n = 0;
+  while (n < caps.off.degree(p) && caps.cosa[beg + n] == 0)
+    ++n;
+  return caps.axis.middleCols(beg, n);
 }
 
 struct TwoSpheres {
@@ -95,11 +118,12 @@ RigidMotion rigid_motion(const int seed) {
 /**
  * Circle of the original atoms `a`, `b`, -1 if none.
  */
-int circle_of(const Ses &s, const int a, const int b) {
+int circle_of(const SurfaceGeometry &s, const int a, const int b) {
   const auto [lo, hi] = nuri::minmax(a, b);
-  for (int q = 0; q < static_cast<int>(s.geo.circles.size()); ++q) {
-    const SasCircle &c = s.geo.circles[q];
-    const auto [ci, cj] = nuri::minmax(s.ss.order[c.i], s.ss.order[c.j]);
+  const std::vector<SasCircle> &circles = s.toroidal().circles;
+  for (int q = 0; q < static_cast<int>(circles.size()); ++q) {
+    const SasCircle &c = circles[q];
+    const auto [ci, cj] = nuri::minmax(s.order()[c.i], s.order()[c.j]);
     if (ci == lo && cj == hi)
       return q;
   }
@@ -109,11 +133,11 @@ int circle_of(const Ses &s, const int a, const int b) {
 /**
  * The one probe within `radius` of `x`, -1 if none or several.
  */
-int probe_at(const SasGeometry &geo, const Vector3d &x,
+int probe_at(const Matrix3Xd &pos, const Vector3d &x,
              const double radius = 1e-9) {
   int found = -1;
-  for (int p = 0; p < geo.probes.pos.cols(); ++p) {
-    if ((geo.probes.pos.col(p) - x).norm() > radius)
+  for (int p = 0; p < pos.cols(); ++p) {
+    if ((pos.col(p) - x).norm() > radius)
       continue;
     if (found >= 0)
       return -1;
@@ -148,18 +172,18 @@ const Matrix3Xd &lattice() {
 /**
  * Lattice estimate of face `p`: directions outside every departure
  * hemisphere whose point on the probe sphere is outside every other probe
- * ball, brute force over all probes.
+ * ball, brute force over the active probes; complete for all-active runs.
  */
-double face_from_dots(const Ses &s, const int p, const double rp) {
-  const SasProbes &probes = s.geo.probes;
+double face_from_dots(const SurfaceGeometry &s, const int p, const double rp) {
+  const Matrix3Xd &pos = s.concave().pos;
   const Matrix3Xd &dirs = lattice();
-  const Vector3d x = probes.pos.col(p);
-  const int nt = probes.tan_off.degree(p);
-  const auto t = probes.tan.middleCols(probes.tan_off[p], nt);
+  const Vector3d x = pos.col(p);
+  const auto t = hemispheres(s, p);
+  const int nt = static_cast<int>(t.cols());
 
   std::vector<Vector3d> near;
-  for (int y = 0; y < probes.pos.cols(); ++y) {
-    const Vector3d w = probes.pos.col(y) - x;
+  for (int y = 0; y < pos.cols(); ++y) {
+    const Vector3d w = pos.col(y) - x;
     if (y != p && w.norm() < 2 * rp)
       near.push_back(w);
   }
@@ -177,19 +201,20 @@ double face_from_dots(const Ses &s, const int p, const double rp) {
   return 2 * kTwoPi * rp * rp * count / dirs.cols();
 }
 
-double convex_from_dots(const Ses &s, const int i, const double rp) {
+double convex_from_dots(const SurfaceGeometry &s, const int i,
+                        const double rp) {
   const Matrix3Xd &dirs = lattice();
-  const Vector3d c = s.ss.pts.col(i);
-  const double sas = s.ss.sar[i], r = sas - rp;
+  const Matrix3Xd &pts = s.pts();
+  const ArrayXd &sar = s.radii(SurfaceKind::kSas);
+  const Vector3d c = pts.col(i);
+  const double sas = sar[i], r = sas - rp;
 
   int count = 0;
   for (int k = 0; k < dirs.cols(); ++k) {
     const Vector3d y = c + sas * dirs.col(k);
     bool outside = true;
-    for (int j = 0; j < s.ss.pts.cols(); ++j) {
-      outside &= j == i
-                 || (y - s.ss.pts.col(j)).squaredNorm()
-                        >= s.ss.sar[j] * s.ss.sar[j];
+    for (int j = 0; j < pts.cols(); ++j) {
+      outside &= j == i || (y - pts.col(j)).squaredNorm() >= sar[j] * sar[j];
     }
     count += outside;
   }
@@ -200,14 +225,13 @@ double convex_from_dots(const Ses &s, const int i, const double rp) {
  * Torus patches by quadrature of `rp (rl − rp cos β)` over each arc's full
  * generating range; spindles excluded (`rl ≥ rp` asserted).
  */
-double saddle_from_quadrature(const Ses &s, const double rp) {
+double saddle_from_quadrature(const SurfaceGeometry &s, const double rp) {
+  const ToroidalPatches &tor = s.toroidal();
   double total = 0;
-  for (int r = 0; r < s.geo.n_active_arcs; ++r) {
-    const SasArc &arc = s.geo.arcs[r];
-    const SasCircle &c = s.geo.circles[arc.circ];
+  for (const SasArc &arc: tor.arcs) {
+    const SasCircle &c = tor.circles[arc.circ];
     EXPECT_GE(c.rl, rp);
-    const double lo = -std::atan2(c.a, c.rl),
-                 hi = std::atan2(s.ss.d[arc.circ] - c.a, c.rl);
+    const double lo = -std::atan2(c.a, c.rl), hi = std::atan2(c.d - c.a, c.rl);
     total += arc.dphi * rp
              * simpson([&](double b) { return c.rl - rp * std::cos(b); }, lo,
                        hi, 2000);
@@ -220,11 +244,12 @@ double saddle_from_quadrature(const Ses &s, const double rp) {
  * `1.5e-3` of the probe sphere: four times the worst lattice error over
  * these fixtures, below their smallest face (`2.2e-3` of its sphere).
  */
-void expect_faces_match_dots(const Ses &s, const double rp,
+void expect_faces_match_dots(const SurfaceGeometry &s, const double rp,
                              const char *tag = "") {
   const double sphere = 2 * kTwoPi * rp * rp;
-  for (int p = 0; p < s.geo.probes.n_active; ++p) {
-    const double area = s.ses.face_area[p];
+  const ArrayXd &face_area = s.concave().area;
+  for (int p = 0; p < face_area.size(); ++p) {
+    const double area = face_area[p];
     ASSERT_TRUE(std::isfinite(area)) << tag << " probe " << p;
     EXPECT_GE(area, -1e-9) << tag << " probe " << p;
     const double dots = face_from_dots(s, p, rp);
@@ -246,30 +271,30 @@ void expect_two_sphere_closed_form(const double r1, const double r2,
   const auto [a1, a2, rl] = two_spheres(sar[0], sar[1], d);
   ASSERT_GE(rl, kRp);
 
-  const Ses s = solve(pts, sar);
-  ASSERT_EQ(s.ses.convex_area.size(), 2);
+  const SurfaceGeometry s = solve(pts, sar);
+  ASSERT_EQ(s.convex().area.size(), 2);
   for (int k = 0; k < 2; ++k) {
-    const bool first = s.ss.order[k] == 0;
+    const bool first = s.order()[k] == 0;
     const double r = first ? r1 : r2, a = first ? a1 : a2;
-    EXPECT_NEAR(s.ses.convex_area[k], kTwoPi * r * r * (1 + a / (r + kRp)),
+    EXPECT_NEAR(s.convex().area[k], kTwoPi * r * r * (1 + a / (r + kRp)),
                 1e-10);
   }
 
-  ASSERT_EQ(s.geo.arcs.size(), 1);
-  ASSERT_EQ(s.geo.n_active_arcs, 1);
-  ASSERT_EQ(s.ses.saddle_beta.cols(), 1);
-  ASSERT_EQ(s.ses.saddle_area.size(), 1);
-  EXPECT_DOUBLE_EQ(s.ses.saddle_beta(1, 0), 0);
-  EXPECT_DOUBLE_EQ(s.ses.saddle_beta(2, 0), 0);
+  const ToroidalPatches &tor = s.toroidal();
+  ASSERT_EQ(tor.arcs.size(), 1);
+  ASSERT_EQ(tor.beta.cols(), 1);
+  ASSERT_EQ(tor.area.size(), 1);
+  EXPECT_DOUBLE_EQ(tor.beta(1, 0), 0);
+  EXPECT_DOUBLE_EQ(tor.beta(2, 0), 0);
 
   const double torus = kTwoPi * kRp
                        * (rl * (std::atan2(a1, rl) + std::atan2(a2, rl))
                           - kRp * (a1 / sar[0] + a2 / sar[1]));
-  EXPECT_NEAR(s.ses.saddle_area[0], torus, 1e-10);
+  EXPECT_NEAR(tor.area[0], torus, 1e-10);
 
-  EXPECT_EQ(s.geo.probes.pos.cols(), 0);
-  EXPECT_EQ(s.ses.face_area.size(), 0);
-  EXPECT_EQ(s.ses.face_off.size(), 0);
+  EXPECT_EQ(s.concave().pos.cols(), 0);
+  EXPECT_EQ(s.concave().area.size(), 0);
+  EXPECT_EQ(s.concave().caps.off.size(), 0);
 }
 
 TEST(BuildSesTest, TwoSpheresClosedForm) {
@@ -287,16 +312,17 @@ void expect_two_sphere_cusp(const double r1, const double r2, const double d,
   ArrayXd sar(2);
   sar << r1 + kRp, r2 + kRp;
 
-  const Ses s = solve(pts, sar);
-  ASSERT_EQ(s.ses.saddle_beta.cols(), 1);
-  ASSERT_EQ(s.ses.saddle_area.size(), 1);
-  const SasCircle &c = s.geo.circles[0];
-  const double rl = c.rl, a_i = c.a, a_j = s.ss.d[0] - c.a;
+  const SurfaceGeometry s = solve(pts, sar);
+  const ToroidalPatches &tor = s.toroidal();
+  ASSERT_EQ(tor.beta.cols(), 1);
+  ASSERT_EQ(tor.area.size(), 1);
+  const SasCircle &c = tor.circles[0];
+  const double rl = c.rl, a_i = c.a, a_j = c.d - c.a;
   ASSERT_LT(rl, kRp);
   const double b0 = std::acos(rl / kRp), lo = -std::atan2(a_i, rl),
                hi = std::atan2(a_j, rl);
 
-  const Array4d beta = s.ses.saddle_beta.col(0);
+  const Array4d beta = tor.beta.col(0);
   EXPECT_NEAR(beta[0], lo, 1e-12);
   EXPECT_NEAR(beta[3], hi, 1e-12);
   EXPECT_EQ(beta[1] > beta[0], lower_part);
@@ -307,8 +333,8 @@ void expect_two_sphere_cusp(const double r1, const double r2, const double d,
   if (upper_part) {
     EXPECT_NEAR(beta[2], nuri::max(lo, b0), 1e-12);
   }
-  EXPECT_GE(s.ses.saddle_integral(0, 0), 0);
-  EXPECT_GE(s.ses.saddle_integral(1, 0), 0);
+  EXPECT_GE(tor.integral(0, 0), 0);
+  EXPECT_GE(tor.integral(1, 0), 0);
 
   auto rho = [&](double b) { return kRp * (rl - kRp * std::cos(b)); };
   double integral = 0;
@@ -316,7 +342,7 @@ void expect_two_sphere_cusp(const double r1, const double r2, const double d,
     integral += simpson(rho, lo, nuri::min(hi, -b0), 2000);
   if (hi > b0)
     integral += simpson(rho, nuri::max(lo, b0), hi, 2000);
-  EXPECT_NEAR(s.ses.saddle_area[0], kTwoPi * integral, 1e-8);
+  EXPECT_NEAR(tor.area[0], kTwoPi * integral, 1e-8);
 }
 
 TEST(BuildSesTest, TwoSpheresCusp) {
@@ -332,17 +358,16 @@ TEST(BuildSesTest, TwoSpheresNoActiveNoSaddle) {
   ArrayXb active(2);
   active << false, true;
 
-  const Ses s = solve(pts, sar, active);
-  ASSERT_EQ(s.ss.n_active, 1);
-  EXPECT_EQ(s.ss.order[0], 1);
-  ASSERT_EQ(s.ses.convex_area.size(), 1);
+  const SurfaceGeometry s = solve(pts, sar, active);
+  ASSERT_EQ(s.convex().area.size(), 1);
+  EXPECT_EQ(s.order()[0], 1);
   const auto [a1, a2, rl] = two_spheres(sar[0], sar[1], 2.5);
-  EXPECT_NEAR(s.ses.convex_area[0], kTwoPi * 1.9 * 1.9 * (1 + a2 / sar[1]),
+  EXPECT_NEAR(s.convex().area[0], kTwoPi * 1.9 * 1.9 * (1 + a2 / sar[1]),
               1e-10);
-  EXPECT_EQ(s.ses.saddle_beta.cols(), 1);
-  EXPECT_EQ(s.ses.saddle_integral.cols(), 1);
-  EXPECT_EQ(s.ses.saddle_area.size(), 1);
-  EXPECT_EQ(s.ses.face_area.size(), 0);
+  EXPECT_EQ(s.toroidal().beta.cols(), 1);
+  EXPECT_EQ(s.toroidal().integral.cols(), 1);
+  EXPECT_EQ(s.toroidal().area.size(), 1);
+  EXPECT_EQ(s.concave().area.size(), 0);
 
   Matrix3Xd tet(3, 4);
   tet << 0, 2.4, 1.2, 1.2,  //
@@ -352,29 +377,31 @@ TEST(BuildSesTest, TwoSpheresNoActiveNoSaddle) {
   ArrayXb one = ArrayXb::Constant(4, false);
   one[0] = true;
 
-  const Ses t = solve(tet, sar4, one);
-  ASSERT_EQ(t.ss.n_active, 1);
-  EXPECT_EQ(t.ses.convex_area.size(), 1);
-  const int n_circ = t.ss.g.offset(1);
+  const SurfaceGeometry full = solve(tet, sar4);
+  const SurfaceGeometry part = solve(tet, sar4, one);
+  ASSERT_EQ(part.convex().area.size(), 1);
+  const ToroidalPatches &tor = part.toroidal();
+  const int n_circ = static_cast<int>(tor.circles.size());
   EXPECT_EQ(n_circ, 3);
-  EXPECT_LT(n_circ, t.ss.g.m());
-  EXPECT_EQ(t.ses.saddle_beta.cols(), n_circ);
-  EXPECT_EQ(t.ses.saddle_integral.cols(), n_circ);
-  EXPECT_EQ(t.ses.saddle_area.size(), t.geo.n_active_arcs);
-  EXPECT_LT(t.geo.n_active_arcs, static_cast<int>(t.geo.arcs.size()));
-  EXPECT_GT(t.geo.probes.n_active, 0);
-  EXPECT_LT(t.geo.probes.n_active, t.geo.probes.pos.cols());
-  EXPECT_EQ(t.ses.face_area.size(), t.geo.probes.n_active);
-  EXPECT_EQ(t.ses.face_off.size(), t.geo.probes.n_active);
+  EXPECT_LT(n_circ, static_cast<int>(full.toroidal().circles.size()));
+  EXPECT_EQ(tor.beta.cols(), n_circ);
+  EXPECT_EQ(tor.integral.cols(), n_circ);
+  EXPECT_EQ(tor.area.size(), tor.arcs.size());
+  EXPECT_LT(tor.arcs.size(), full.toroidal().arcs.size());
+  const int n_probes = static_cast<int>(part.concave().pos.cols());
+  EXPECT_GT(n_probes, 0);
+  EXPECT_LT(n_probes, full.concave().pos.cols());
+  EXPECT_EQ(part.concave().area.size(), n_probes);
+  EXPECT_EQ(part.concave().caps.off.size(), n_probes);
 }
 
 /**
  * `rp² (2π − Σ angles)` over the planes through the probe and each pair of
  * its atom centres, oriented away from the third atom.
  */
-double excess_from_planes(const Ses &s, const int p) {
-  const Vector3d x = s.geo.probes.pos.col(p);
-  const Matrix3d tri = s.ss.pts(E::all, s.geo.probes.atoms.nbrs(p));
+double excess_from_planes(const SurfaceGeometry &s, const int p) {
+  const Vector3d x = s.concave().pos.col(p);
+  const Matrix3d tri = s.pts()(E::all, s.concave().atoms.nbrs(p));
   Matrix3d normals;
   for (int m = 0; m < 3; ++m) {
     const Vector3d u = tri.col(m) - x, v = tri.col((m + 1) % 3) - x,
@@ -392,8 +419,8 @@ double excess_from_planes(const Ses &s, const int p) {
   return kRp * kRp * (kTwoPi - total);
 }
 
-double excess_from_tangents(const Ses &s, const int p) {
-  const auto t = s.geo.probes.tan.middleCols<3>(s.geo.probes.tan_off[p]);
+double excess_from_tangents(const SurfaceGeometry &s, const int p) {
+  const auto t = hemispheres(s, p);
   double total = 0;
   for (int m = 0; m < 3; ++m) {
     const Vector3d t1 = t.col(m), t2 = t.col((m + 1) % 3);
@@ -410,26 +437,26 @@ TEST(BuildSesTest, HighFaceSphericalExcess) {
       0, 0, 0;
   ArrayXd sar = ArrayXd::Constant(3, 3.0);
 
-  const Ses s = solve(pts, sar);
-  ASSERT_EQ(s.geo.probes.pos.cols(), 2);
-  ASSERT_EQ(s.geo.probes.n_active, 2);
-  ASSERT_EQ(s.ses.face_area.size(), 2);
-  ASSERT_EQ(s.ses.face_off.size(), 2);
+  const SurfaceGeometry s = solve(pts, sar);
+  const ConcavePatches &con = s.concave();
+  ASSERT_EQ(con.pos.cols(), 2);
+  ASSERT_EQ(con.area.size(), 2);
+  ASSERT_EQ(con.caps.off.size(), 2);
 
   for (int p = 0; p < 2; ++p) {
-    ASSERT_GE(std::abs(s.geo.probes.pos(2, p)), kRp);
-    ASSERT_EQ(s.geo.probes.tan_off.degree(p), 3);
+    ASSERT_GE(std::abs(con.pos(2, p)), kRp);
+    ASSERT_EQ(hemispheres(s, p).cols(), 3);
 
-    const double area = s.ses.face_area[p];
+    const double area = con.area[p];
     EXPECT_GT(area, 0);
     EXPECT_LT(area, kTwoPi * kRp * kRp);
     EXPECT_NEAR(area, excess_from_tangents(s, p), 1e-12);
     EXPECT_NEAR(area, excess_from_planes(s, p), 1e-10);
 
-    ASSERT_EQ(s.ses.face_off.degree(p), 3);
-    for (int k = s.ses.face_off[p]; k < s.ses.face_off[p + 1]; ++k) {
-      EXPECT_EQ(s.ses.face_cosa[k], 0);
-      EXPECT_NEAR(s.ses.face_axis.col(k).norm(), 1, 1e-12);
+    ASSERT_EQ(con.caps.off.degree(p), 3);
+    for (int k = con.caps.off[p]; k < con.caps.off[p + 1]; ++k) {
+      EXPECT_EQ(con.caps.cosa[k], 0);
+      EXPECT_NEAR(con.caps.axis.col(k).norm(), 1, 1e-12);
     }
   }
 }
@@ -445,25 +472,26 @@ struct Cutter {
  * Every other probe strictly within `2 rp` of active probe `p`, flagged
  * whether its cap is in the stored cap list of `p`.
  */
-std::vector<Cutter> cutters(const Ses &s, const int p) {
-  const SasProbes &probes = s.geo.probes;
-  const Vector3d x = probes.pos.col(p);
-  const int nt = probes.tan_off.degree(p), beg = s.ses.face_off[p] + nt,
-            end = s.ses.face_off[p + 1];
+std::vector<Cutter> cutters(const SurfaceGeometry &s, const int p) {
+  const Matrix3Xd &pos = s.concave().pos;
+  const CapTable &caps = s.concave().caps;
+  const Vector3d x = pos.col(p);
+  const int nt = static_cast<int>(hemispheres(s, p).cols()),
+            beg = caps.off[p] + nt, end = caps.off[p + 1];
 
   std::vector<Cutter> out;
-  for (int y = 0; y < probes.pos.cols(); ++y) {
+  for (int y = 0; y < pos.cols(); ++y) {
     if (y == p)
       continue;
-    const Vector3d w = probes.pos.col(y) - x;
+    const Vector3d w = pos.col(y) - x;
     const double dist = w.norm();
     if (dist >= 2 * kRp)
       continue;
 
     Cutter c { y, w / dist, dist / (2 * kRp), false };
     for (int k = beg; k < end; ++k) {
-      c.kept |= (s.ses.face_axis.col(k) - c.axis).norm() < 1e-9
-                && std::abs(s.ses.face_cosa[k] - c.cosa) < 1e-12;
+      c.kept |= (caps.axis.col(k) - c.axis).norm() < 1e-9
+                && std::abs(caps.cosa[k] - c.cosa) < 1e-12;
     }
     out.push_back(c);
   }
@@ -495,13 +523,13 @@ TEST(BuildSesTest, FiltersAreNecessary) {
       sar[i] = ur(rng) + kRp;
     }
 
-    const Ses s = solve(pts, sar);
-    const SasProbes &probes = s.geo.probes;
-    for (int p = 0; p < probes.n_active; ++p) {
-      const int nt = probes.tan_off.degree(p);
-      const auto t = probes.tan.middleCols(probes.tan_off[p], nt);
+    const SurfaceGeometry s = solve(pts, sar);
+    const ConcavePatches &con = s.concave();
+    for (int p = 0; p < con.pos.cols(); ++p) {
+      const auto t = hemispheres(s, p);
+      const int nt = static_cast<int>(t.cols());
       const std::vector<Cutter> cs = cutters(s, p);
-      n_cut += s.ses.face_off.degree(p) > nt;
+      n_cut += con.caps.off.degree(p) > nt;
       for (const Cutter &c: cs) {
         n_kept += c.kept;
         n_dropped += !c.kept;
@@ -535,6 +563,7 @@ TEST(BuildSesTest, FiltersAreNecessary) {
   EXPECT_GT(n_kept, 0);
   EXPECT_GT(n_dropped, 0);
 }
+
 TEST(BuildSesTest, ThreeSpheresVsDots) {
   Matrix3Xd pts(3, 3);
   pts << 0, 4.8, 2.6,  //
@@ -543,28 +572,29 @@ TEST(BuildSesTest, ThreeSpheresVsDots) {
   ArrayXd sar(3);
   sar << 1.5 + kRp, 1.9 + kRp, 1.7 + kRp;
 
-  const Ses s = solve(pts, sar);
-  ASSERT_GT(s.geo.probes.n_active, 0);
-  for (int p = 0; p < s.geo.probes.n_active; ++p)
-    ASSERT_GT(s.ses.face_off.degree(p), 3) << "probe " << p << " is high";
+  const SurfaceGeometry s = solve(pts, sar);
+  const int n_probes = static_cast<int>(s.concave().pos.cols());
+  ASSERT_GT(n_probes, 0);
+  for (int p = 0; p < n_probes; ++p)
+    ASSERT_GT(s.concave().caps.off.degree(p), 3) << "probe " << p << " is high";
   expect_faces_match_dots(s, kRp);
 
   double convex = 0;
-  for (int i = 0; i < s.ss.n_active; ++i)
+  for (int i = 0; i < s.convex().area.size(); ++i)
     convex += convex_from_dots(s, i, kRp);
   double faces = 0;
-  for (int p = 0; p < s.geo.probes.n_active; ++p)
+  for (int p = 0; p < n_probes; ++p)
     faces += face_from_dots(s, p, kRp);
   const double total = convex + saddle_from_quadrature(s, kRp) + faces,
-               analytic = s.ses.convex_area.sum() + s.ses.saddle_area.sum()
-                          + s.ses.face_area.sum();
+               analytic = s.convex().area.sum() + s.toroidal().area.sum()
+                          + s.concave().area.sum();
   EXPECT_NEAR(analytic, total, 1e-3 * total);
 }
 
 TEST(BuildSesTest, RandomClustersVsDots) {
   for (const int seed: { 1, 2, 3, 4, 5, 6 }) {
     const RandomCluster c = random_cluster(seed, 8 + seed % 5);
-    const Ses s = solve(c.pts, c.sar);
+    const SurfaceGeometry s = solve(c.pts, c.sar);
     expect_faces_match_dots(s, kRp, "seed");
   }
 }
@@ -577,7 +607,7 @@ TEST(BuildSesTest, FiltersDoNotChangeArea) {
   int n_extra = 0;
   for (const int seed: { 1, 2, 3, 4, 5, 6 }) {
     const RandomCluster c = random_cluster(seed, 8 + seed % 5);
-    const Ses s = solve(c.pts, c.sar);
+    const Ses s = solve_stages(c.pts, c.sar);
     const SasProbes &probes = s.geo.probes;
 
     for (int p = 0; p < probes.n_active; ++p) {
@@ -623,11 +653,11 @@ TEST(BuildSesTest, GrazingVertexFaceIsZero) {
   pts.col(2) << 7, 0, 7;
   const ArrayXd sar = ArrayXd::Constant(3, 5.0);
 
-  const Ses s = solve(pts, sar, 1.0);
-  ASSERT_EQ(s.geo.probes.pos.cols(), 1);
-  ASSERT_EQ(s.ses.face_area.size(), 1);
-  EXPECT_EQ(s.ses.face_area[0], 0);
-  EXPECT_EQ(s.ses.face_off.degree(0), s.geo.probes.tan_off.degree(0));
+  const SurfaceGeometry s = solve(pts, sar, 1.0);
+  ASSERT_EQ(s.concave().pos.cols(), 1);
+  ASSERT_EQ(s.concave().area.size(), 1);
+  EXPECT_EQ(s.concave().area[0], 0);
+  EXPECT_EQ(s.concave().caps.off.degree(0), hemispheres(s, 0).cols());
 }
 
 /**
@@ -668,24 +698,24 @@ TEST(BuildSesTest, KFoldFaceUnderRigidMotion) {
   for (const int k: { 4, 5 }) {
     const Matrix3Xd base = star(k, 110, 2.0).rightCols(k);
     const ArrayXd sar = ArrayXd::Constant(k, 2.0);
-    const Ses ref = solve(base, sar, 1.0);
-    const int c0 = probe_at(ref.geo, Vector3d::Zero());
+    const SurfaceGeometry ref = solve(base, sar, 1.0);
+    const int c0 = probe_at(ref.concave().pos, Vector3d::Zero());
     ASSERT_GE(c0, 0) << "k " << k;
-    ASSERT_EQ(ref.geo.probes.atoms.degree(c0), k);
-    const double ref_face = ref.ses.face_area[c0],
-                 ref_total = ref.ses.face_area.sum();
+    ASSERT_EQ(ref.concave().atoms.degree(c0), k);
+    const double ref_face = ref.concave().area[c0],
+                 ref_total = ref.concave().area.sum();
     EXPECT_GT(ref_face, 0);
     expect_faces_match_dots(ref, 1.0, "k-fold");
 
     for (int seed = 0; seed < 16; ++seed) {
       const auto [rot, t] = rigid_motion(seed);
       const Matrix3Xd pts = (rot * base).colwise() + t;
-      const Ses s = solve(pts, sar, 1.0);
-      const int c = probe_at(s.geo, t);
+      const SurfaceGeometry s = solve(pts, sar, 1.0);
+      const int c = probe_at(s.concave().pos, t);
       ASSERT_GE(c, 0) << "k " << k << " seed " << seed;
-      EXPECT_NEAR(s.ses.face_area[c], ref_face, 1e-9)
+      EXPECT_NEAR(s.concave().area[c], ref_face, 1e-9)
           << "k " << k << " seed " << seed;
-      EXPECT_NEAR(s.ses.face_area.sum(), ref_total, 1e-9)
+      EXPECT_NEAR(s.concave().area.sum(), ref_total, 1e-9)
           << "k " << k << " seed " << seed;
     }
   }
@@ -707,25 +737,25 @@ TEST(BuildSesTest, RoundedTangentPairFaces) {
   const double rp = 0.5, quarter = kPi * rp * rp;
   const Vector3d x0(1.5, 0, 0);
 
-  const Ses ref = solve(base, sar, rp);
-  const int c0 = probe_at(ref.geo, x0);
+  const SurfaceGeometry ref = solve(base, sar, rp);
+  const int c0 = probe_at(ref.concave().pos, x0);
   ASSERT_GE(c0, 0);
-  EXPECT_NEAR(ref.ses.face_area[c0], quarter, 1e-12);
+  EXPECT_NEAR(ref.concave().area[c0], quarter, 1e-12);
 
   for (int seed = 0; seed < 32; ++seed) {
     SCOPED_TRACE(seed);
     const auto [rot, t] = rigid_motion(seed);
     const Matrix3Xd pts = (rot * base).colwise() + t;
-    const Ses s = solve(pts, sar, rp);
+    const SurfaceGeometry s = solve(pts, sar, rp);
 
     const Vector3d x = rot * x0 + t;
     double at_point = 0;
-    for (int p = 0; p < s.geo.probes.n_active; ++p) {
-      if ((s.geo.probes.pos.col(p) - x).norm() < 1e-6)
-        at_point += s.ses.face_area[p];
+    for (int p = 0; p < s.concave().pos.cols(); ++p) {
+      if ((s.concave().pos.col(p) - x).norm() < 1e-6)
+        at_point += s.concave().area[p];
     }
     EXPECT_NEAR(at_point, quarter, 1e-6);
-    EXPECT_NEAR(s.ses.face_area.sum(), ref.ses.face_area.sum(), 1e-6);
+    EXPECT_NEAR(s.concave().area.sum(), ref.concave().area.sum(), 1e-6);
     expect_faces_match_dots(s, rp);
   }
 }
@@ -745,19 +775,19 @@ TEST(BuildSesTest, SpindleAxisCoincidentRoots) {
   pts.col(3) << -3, -3, 4;
   const ArrayXd sar = ArrayXd::Constant(4, 5.0);
 
-  const Ses s = solve(pts, sar, rp);
+  const SurfaceGeometry s = solve(pts, sar, rp);
   const int q = circle_of(s, 0, 1);
   ASSERT_GE(q, 0);
-  EXPECT_LT(s.geo.circles[q].rl, rp);
+  EXPECT_LT(s.toroidal().circles[q].rl, rp);
 
   const std::array<Vector3d, 4> on_circle {
     Vector3d(0, 3, 0), Vector3d(3, 0, 0), Vector3d(0, -3, 0), Vector3d(-3, 0, 0)
   };
   for (const Vector3d &x: on_circle) {
-    const int p = probe_at(s.geo, x);
+    const int p = probe_at(s.concave().pos, x);
     ASSERT_GE(p, 0) << x.transpose();
-    EXPECT_EQ(s.geo.probes.pos.col(p), x);
-    EXPECT_GE(s.ses.face_off.degree(p) - s.geo.probes.tan_off.degree(p), 2);
+    EXPECT_EQ(s.concave().pos.col(p), x);
+    EXPECT_GE(s.concave().caps.off.degree(p) - hemispheres(s, p).cols(), 2);
   }
   expect_faces_match_dots(s, rp);
 }
@@ -768,22 +798,22 @@ TEST(BuildSesTest, SpindleAxisCoincidentRoots) {
  */
 TEST(BuildSesTest, MaskedFacesMatchFull) {
   const RandomCluster c = random_cluster(11, 12);
-  const Ses full = solve(c.pts, c.sar);
+  const SurfaceGeometry full = solve(c.pts, c.sar);
 
   for (const int stride: { 2, 6 }) {
     ArrayXb active(12);
     for (int i = 0; i < 12; ++i)
       active[i] = i % stride == 0;
 
-    const Ses part = solve(c.pts, c.sar, active);
-    ASSERT_GT(part.geo.probes.n_active, 0);
-    ASSERT_LT(part.geo.probes.n_active, full.geo.probes.n_active);
+    const SurfaceGeometry part = solve(c.pts, c.sar, active);
+    const int n_probes = static_cast<int>(part.concave().pos.cols());
+    ASSERT_GT(n_probes, 0);
+    ASSERT_LT(n_probes, full.concave().pos.cols());
 
-    for (int p = 0; p < part.geo.probes.n_active; ++p) {
-      const int q = probe_at(full.geo, part.geo.probes.pos.col(p));
+    for (int p = 0; p < n_probes; ++p) {
+      const int q = probe_at(full.concave().pos, part.concave().pos.col(p));
       ASSERT_GE(q, 0) << "stride " << stride << " probe " << p;
-      ASSERT_LT(q, full.geo.probes.n_active);
-      EXPECT_NEAR(part.ses.face_area[p], full.ses.face_area[q], 1e-12)
+      EXPECT_NEAR(part.concave().area[p], full.concave().area[q], 1e-12)
           << "stride " << stride << " probe " << p;
     }
   }
