@@ -421,7 +421,7 @@ namespace internal {
     SasCaps caps;
     SasProbes probes;
 
-    std::vector<SasArc> arcs;
+    std::vector<RingArc> arcs;
     int n_active_arcs;
 
     ArrayXd area;

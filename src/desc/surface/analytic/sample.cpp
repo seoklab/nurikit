@@ -88,8 +88,8 @@ SurfaceDots SurfaceDots::subset(const ArrayXb &mask) const {
 
 namespace {
   using constants::kTwoPi;
+  using internal::RingArc;
   using internal::SampleScratch;
-  using internal::SasArc;
   using internal::SasCircle;
   using internal::SurfaceGeometry;
 
@@ -263,7 +263,7 @@ namespace {
    * rings all round to zero is sampled as one ring, and a row that still
    * rounds to zero is dropped.
    */
-  void saddle_row(const SurfaceGeometry &geo, const SasArc &arc,
+  void saddle_row(const SurfaceGeometry &geo, const RingArc &arc,
                   const SasCircle &c, const SaddleRow &row,
                   const double density, SampleScratch &scratch, DotArrays &out,
                   int &n_dots, double &dropped) {
@@ -346,7 +346,7 @@ namespace {
                        SampleScratch &scratch, DotArrays &out, int &n_dots,
                        double &dropped) {
     const internal::ToroidalPatches &tor = geo.toroidal();
-    for (const SasArc &arc: tor.arcs) {
+    for (const RingArc &arc: tor.arcs) {
       const SasCircle &c = tor.circles[arc.circ];
       const Array4d beta = tor.beta.col(arc.circ);
       const E::Array2d integral = tor.integral.col(arc.circ);

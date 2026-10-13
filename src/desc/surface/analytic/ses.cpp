@@ -89,7 +89,7 @@ namespace internal {
 
       ses.saddle_area.resize(geo.n_active_arcs);
       for (int r = 0; r < geo.n_active_arcs; ++r) {
-        const SasArc &arc = geo.arcs[r];
+        const RingArc &arc = geo.arcs[r];
         ses.saddle_area[r] =
             arc.dphi * rp * ses.saddle_integral.col(arc.circ).sum();
       }
@@ -582,7 +582,7 @@ namespace internal {
         tangents_.clear();
         emit_arcs(ring_, b, arcs_, tangents_);
         for (int a = 0; a < static_cast<int>(arcs_.size()); ++a) {
-          const SasArc &arc = arcs_[a];
+          const RingArc &arc = arcs_[a];
           const auto &[tb, te] = tangents_[a];
           solver_.add_arc(slot_[b], arc.beg, arc.end, arc.dphi, tb, te);
         }
@@ -598,7 +598,7 @@ namespace internal {
       std::vector<FacePair> pairs_;
       std::vector<FaceRoot> roots_;
       Ring ring_;
-      std::vector<SasArc> arcs_;
+      std::vector<RingArc> arcs_;
       RingTangents tangents_;
     };
 

@@ -15,9 +15,9 @@
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
+#include "stages.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
-#include "stages.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -39,7 +39,7 @@ namespace internal {
 
   /**
    * The cut points of one circle in cyclic order with the frame `e1`, `e2`
-   * of `SasArc`. The `Ops` object of the templates below answers the exact
+   * of `RingArc`. The `Ops` object of the templates below answers the exact
    * queries on a vertex: `Vector3d offset(const RingVertex &)`, `int
    * half_plane(const RingVertex &)`, `Sgn ccw(const RingVertex &, const
    * RingVertex &)` and `bool antipode_accessible(const RingVertex &)`.
@@ -177,7 +177,7 @@ namespace internal {
    * the circle.
    */
   inline void emit_arcs(const Ring &ring, const int circ,
-                        std::vector<SasArc> &arcs, RingTangents &tangents) {
+                        std::vector<RingArc> &arcs, RingTangents &tangents) {
     const int n = static_cast<int>(ring.verts.size());
     if (n == 0) {
       if (!ring.covered) {

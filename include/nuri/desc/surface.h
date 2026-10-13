@@ -176,7 +176,7 @@ namespace internal {
    * `phi` is measured in the frame `e1`, `e2` of `SasCircle`. `beg`, `end`
    * are probes, both -1 for a full circle.
    */
-  struct SasArc {
+  struct RingArc {
     double phi, dphi;
     int circ, beg, end;
   };
@@ -189,7 +189,7 @@ namespace internal {
     std::vector<SasCircle> circles;
     Matrix4Xd beta;
     Matrix2Xd integral;
-    std::vector<SasArc> arcs;
+    std::vector<RingArc> arcs;
     ArrayXd area;
   };
 

@@ -18,9 +18,9 @@
 #include <gtest/gtest.h>
 
 #include "nuri/eigen_config.h"
+#include "desc/surface/analytic/stages.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
-#include "desc/surface/analytic/stages.h"
 
 namespace nuri {
 namespace internal {
@@ -858,7 +858,7 @@ int check_zero_arcs(const Matrix3Xd &pts, const ArrayXd &sar, const double rp) {
   auto vertex = [&](int p) { return del.vertex[ss->order[p]]; };
 
   int n_pairs = 0;
-  for (const SasArc &arc: geo.arcs) {
+  for (const RingArc &arc: geo.arcs) {
     if (arc.beg < 0 || arc.dphi != 0)
       continue;
     EXPECT_EQ(arc.beg, arc.end);

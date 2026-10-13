@@ -371,7 +371,7 @@ namespace internal {
      * offset even on a circle the probe positions cannot resolve.
      */
     struct Arcs {
-      std::vector<SasArc> arcs;
+      std::vector<RingArc> arcs;
       RingTangents tangents;
       OffsetTable off;
     };
@@ -724,7 +724,7 @@ namespace internal {
           const bool first = s < caps.partner[p];
 
           for (int r = arcs.off[q]; r < arcs.off[q + 1]; ++r) {
-            const SasArc &arc = arcs.arcs[r];
+            const RingArc &arc = arcs.arcs[r];
             const auto &[tb, te] = arcs.tangents[r];
             if (arc.beg < 0) {
               solver.add_arc(slot, -1, -1, arc.dphi, tb, te);
@@ -810,7 +810,7 @@ namespace internal {
         merged.plus[q] = first.plus;
       }
 
-      for (SasArc &arc: arcs.arcs) {
+      for (RingArc &arc: arcs.arcs) {
         if (arc.beg < 0)
           continue;
 
@@ -825,7 +825,7 @@ namespace internal {
      * point and contributes no tangent, unless it is the full loop grazing
      * the vertex (`dphi ≥ π`), which contributes both.
      */
-    bool has_tangents(const SasArc &arc) {
+    bool has_tangents(const RingArc &arc) {
       return arc.beg >= 0 && (arc.beg != arc.end || arc.dphi >= constants::kPi);
     }
 
@@ -834,7 +834,7 @@ namespace internal {
 
       ArrayXi &toff = pr.tan_off.off();
       toff.setZero();
-      for (const SasArc &arc: arcs.arcs) {
+      for (const RingArc &arc: arcs.arcs) {
         if (!has_tangents(arc))
           continue;
 
@@ -846,7 +846,7 @@ namespace internal {
       pr.tan.resize(3, toff[np]);
       ArrayXi cur = toff.head(np);
       for (int r = 0; r < static_cast<int>(arcs.arcs.size()); ++r) {
-        const SasArc &arc = arcs.arcs[r];
+        const RingArc &arc = arcs.arcs[r];
         if (!has_tangents(arc))
           continue;
 

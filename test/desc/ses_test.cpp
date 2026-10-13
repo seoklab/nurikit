@@ -259,7 +259,7 @@ double convex_from_dots(const SurfaceGeometry &s, const int i,
 double saddle_from_quadrature(const SurfaceGeometry &s, const double rp) {
   const ToroidalPatches &tor = s.toroidal();
   double total = 0;
-  for (const SasArc &arc: tor.arcs) {
+  for (const RingArc &arc: tor.arcs) {
     const SasCircle &c = tor.circles[arc.circ];
     EXPECT_GE(c.rl, rp);
     const double lo = -std::atan2(c.a, c.rl), hi = std::atan2(c.d - c.a, c.rl);

@@ -115,9 +115,9 @@ void expect_no_unmerged_pairs(const Matrix3Xd &pos, const double tau) {
 /**
  * Arcs with exactly one end at probe `p`.
  */
-int arc_ends_at(const std::vector<SasArc> &arcs, const int p) {
+int arc_ends_at(const std::vector<RingArc> &arcs, const int p) {
   int n = 0;
-  for (const SasArc &arc: arcs)
+  for (const RingArc &arc: arcs)
     n += static_cast<int>(arc.beg >= 0 && arc.beg != arc.end
                           && (arc.beg == p || arc.end == p));
   return n;
@@ -285,7 +285,7 @@ TEST(BuildSasTest, SpherePairs) {
                     - kTwoPi * sar[1] * (sar[1] - (d - a0)),
                 1e-12);
 
-    const std::vector<SasArc> &arcs = s.ses.toroidal().arcs;
+    const std::vector<RingArc> &arcs = s.ses.toroidal().arcs;
     ASSERT_EQ(arcs.size(), 1);
     EXPECT_EQ(arcs[0].beg, -1);
     EXPECT_EQ(arcs[0].end, -1);
@@ -354,9 +354,9 @@ TEST(BuildSasTest, CoplanarTriangle) {
     EXPECT_EQ(hemispheres(ses, p).cols(), 3);
   }
 
-  const std::vector<SasArc> &arcs = ses.toroidal().arcs;
+  const std::vector<RingArc> &arcs = ses.toroidal().arcs;
   EXPECT_EQ(arcs.size(), 3);
-  for (const SasArc &arc: arcs) {
+  for (const RingArc &arc: arcs) {
     EXPECT_GE(arc.beg, 0);
     EXPECT_GE(arc.end, 0);
     EXPECT_NE(arc.beg, arc.end);
@@ -1310,7 +1310,7 @@ TEST(BuildSasTest, NearPairInCoplanarQuad) {
 
   const Sas sas = solve_rp(pts, sar, 0.5);
   expect_sr(sas, pts, sar, 50000);
-  for (const SasArc &arc: sas.geo.arcs)
+  for (const RingArc &arc: sas.geo.arcs)
     EXPECT_LE(arc.dphi, kTwoPi);
 }
 
@@ -2186,7 +2186,7 @@ TEST(BuildSasTest, GrazingVertex) {
   ASSERT_GE(buried, 0);
 
   int n_loops = 0;
-  for (const SasArc &arc: s.toroidal().arcs) {
+  for (const RingArc &arc: s.toroidal().arcs) {
     ASSERT_EQ(arc.beg, c);
     ASSERT_EQ(arc.end, c);
     if (arc.circ == buried) {
@@ -2346,7 +2346,7 @@ TEST(BuildSasTest, RandomDenseSets) {
         EXPECT_EQ(hemispheres(s.ses, p).cols(), 3) << "probe " << p;
       }
       std::vector<std::pair<int, int>> ends;
-      for (const SasArc &arc: s.ses.toroidal().arcs) {
+      for (const RingArc &arc: s.ses.toroidal().arcs) {
         if (arc.beg < 0)
           continue;
         ends.emplace_back(arc.circ, arc.beg);
@@ -2408,7 +2408,7 @@ void expect_same_circle(const SasCircle &a, const SasCircle &b) {
   EXPECT_EQ(a.j, b.j);
 }
 
-void expect_same_arc(const SasArc &a, const SasArc &b) {
+void expect_same_arc(const RingArc &a, const RingArc &b) {
   EXPECT_EQ(a.phi, b.phi);
   EXPECT_EQ(a.dphi, b.dphi);
   EXPECT_EQ(a.circ, b.circ);
