@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <optional>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -94,6 +96,154 @@ TEST(ShapeComplementarityTest, SwapIsSymmetric) {
   expect_same_side(ab->sides[1], ba->sides[0]);
 }
 
+void expect_same_result(const ScResult &lhs, const ScResult &rhs) {
+  EXPECT_DOUBLE_EQ(lhs.sc, rhs.sc);
+  EXPECT_DOUBLE_EQ(lhs.distance, rhs.distance);
+  EXPECT_DOUBLE_EQ(lhs.area, rhs.area);
+  for (int i = 0; i < 2; ++i) {
+    const ScSide &l = lhs.sides[i], &r = rhs.sides[i];
+    expect_same_side(l, r);
+    EXPECT_EQ(l.dots.pts(), r.dots.pts());
+    EXPECT_EQ(l.dots.nrm(), r.dots.nrm());
+    EXPECT_TRUE((l.dots.area() == r.dots.area()).all());
+    EXPECT_TRUE((l.dots.atom() == r.dots.atom()).all());
+    EXPECT_TRUE((l.distance == r.distance).all());
+    EXPECT_TRUE((l.score == r.score).all());
+  }
+}
+
+TEST(ShapeComplementarityTest, ClassMatchesFreeFunction) {
+  const Matrix3Xd a = slab(0.0), b = slab(3.4, 1.5);
+  const ArrayXd radii = ArrayXd::Constant(a.cols(), kRadius);
+
+  ScParams params;
+  params.rp = 1.4;
+  params.density = 10;
+  params.weight = 0.4;
+  params.band = 1.0;
+  params.sep = 6;
+  params.clamp = 0.9;
+
+  ShapeComplementarity sc(params);
+  EXPECT_DOUBLE_EQ(sc.params().rp, params.rp);
+  EXPECT_DOUBLE_EQ(sc.params().density, params.density);
+  EXPECT_DOUBLE_EQ(sc.params().weight, params.weight);
+  EXPECT_DOUBLE_EQ(sc.params().band, params.band);
+  EXPECT_DOUBLE_EQ(sc.params().sep, params.sep);
+  EXPECT_DOUBLE_EQ(sc.params().clamp, params.clamp);
+
+  internal::seed_thread(7);
+  const std::optional<ScResult> first = sc.compute(a, radii, b, radii);
+  internal::seed_thread(7);
+  const std::optional<ScResult> direct =
+      shape_complementarity(a, radii, b, radii, params);
+  internal::seed_thread(7);
+  const std::optional<ScResult> second = sc.compute(a, radii, b, radii);
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(direct);
+  ASSERT_TRUE(second);
+
+  expect_same_result(*first, *direct);
+  expect_same_result(*first, *second);
+}
+
+double median(const ArrayXd &arr) {
+  std::vector<double> v(arr.begin(), arr.end());
+  std::sort(v.begin(), v.end());
+  const auto mid = v.size() / 2;
+  if (v.size() % 2 == 1)
+    return v[mid];
+  return 0.5 * (v[mid - 1] + v[mid]);
+}
+
+std::optional<ScResult> seeded_slabs(const ScParams &params = {}) {
+  const Matrix3Xd a = slab(0.0), b = slab(3.4, 1.5);
+  const ArrayXd radii = ArrayXd::Constant(a.cols(), kRadius);
+  internal::seed_thread(0);
+  return shape_complementarity(a, radii, b, radii, params);
+}
+
+TEST(ShapeComplementarityTest, SideArrays) {
+  const ScParams params;
+  const std::optional<ScResult> res = seeded_slabs(params);
+  ASSERT_TRUE(res);
+
+  for (const ScSide &s: res->sides) {
+    const SurfaceDots &dots = s.dots;
+    EXPECT_EQ(dots.n(), s.n_trimmed);
+    EXPECT_EQ(s.distance.size(), s.n_trimmed);
+    EXPECT_EQ(s.score.size(), s.n_trimmed);
+    EXPECT_NEAR(s.trimmed_area, dots.area().sum(), 1e-9);
+    EXPECT_EQ(dots.kind(), SurfaceKind::kSes);
+    EXPECT_DOUBLE_EQ(dots.rp(), params.rp);
+    EXPECT_EQ(dots.count(SurfacePatch::kConvex)
+                  + dots.count(SurfacePatch::kToroidal)
+                  + dots.count(SurfacePatch::kConcave),
+              dots.n());
+    EXPECT_TRUE((s.score.abs() <= params.clamp).all());
+    EXPECT_TRUE((s.distance > 0).all());
+    EXPECT_DOUBLE_EQ(s.d_median, median(s.distance));
+    EXPECT_DOUBLE_EQ(s.s_median, median(s.score));
+  }
+
+  EXPECT_DOUBLE_EQ(res->area,
+                   res->sides[0].trimmed_area + res->sides[1].trimmed_area);
+  EXPECT_DOUBLE_EQ(res->sc,
+                   0.5 * (res->sides[0].s_median + res->sides[1].s_median));
+  EXPECT_DOUBLE_EQ(res->distance,
+                   0.5 * (res->sides[0].d_median + res->sides[1].d_median));
+}
+
+TEST(ShapeComplementarityTest, ParamsMatter) {
+  const std::optional<ScResult> base = seeded_slabs();
+  ASSERT_TRUE(base);
+
+  const Matrix3Xd wide = slab(0.0, 0, 9), b = slab(3.4, 1.5);
+  const ArrayXd wide_radii = ArrayXd::Constant(wide.cols(), kRadius),
+                radii = ArrayXd::Constant(b.cols(), kRadius);
+  ScParams params;
+  internal::seed_thread(0);
+  const std::optional<ScResult> sep_default =
+      shape_complementarity(wide, wide_radii, b, radii, params);
+  params.sep = 4.5;
+  internal::seed_thread(0);
+  const std::optional<ScResult> sep_short =
+      shape_complementarity(wide, wide_radii, b, radii, params);
+  ASSERT_TRUE(sep_default);
+  ASSERT_TRUE(sep_short);
+  EXPECT_EQ(sep_default->sides[0].n_active, 81);
+  EXPECT_EQ(sep_default->sides[1].n_active, 49);
+  EXPECT_LT(sep_short->sides[0].n_active, 81);
+  EXPECT_GT(sep_short->sides[0].n_active, 0);
+  EXPECT_EQ(sep_short->sides[1].n_active, 49);
+
+  params = {};
+  params.density = 30;
+  const std::optional<ScResult> dense = seeded_slabs(params);
+  ASSERT_TRUE(dense);
+  for (int i = 0; i < 2; ++i) {
+    const double expected = 2.0 * base->sides[i].n_dots;
+    EXPECT_NEAR(dense->sides[i].n_dots, expected, 0.1 * expected);
+  }
+
+  params = {};
+  params.band = 0.1;
+  const std::optional<ScResult> untrimmed = seeded_slabs(params);
+  ASSERT_TRUE(untrimmed);
+  for (const ScSide &s: untrimmed->sides)
+    EXPECT_EQ(s.n_trimmed, s.n_buried);
+
+  params = {};
+  params.clamp = 0.5;
+  const std::optional<ScResult> clamped = seeded_slabs(params);
+  ASSERT_TRUE(clamped);
+  for (const ScSide &s: clamped->sides) {
+    EXPECT_LE(s.s_median, 0.5);
+    EXPECT_TRUE((s.score.abs() <= 0.5).all());
+  }
+  EXPECT_LT(clamped->sc, base->sc);
+}
+
 struct Protein {
   Matrix3Xd pts;
   ArrayXd radii;
@@ -132,9 +282,13 @@ TEST(ShapeComplementarityTest, BarnaseBarstar) {
   ASSERT_GT(a.pts.cols(), 500);
   ASSERT_GT(b.pts.cols(), 500);
 
+  internal::seed_thread(0);
   const std::optional<ScResult> res =
       shape_complementarity(a.pts, a.radii, b.pts, b.radii);
   ASSERT_TRUE(res);
+  EXPECT_NEAR(res->sc, 0.660846137477, 1e-6);
+  EXPECT_NEAR(res->distance, 0.639743237709, 1e-6);
+  EXPECT_NEAR(res->area, 906.024644525, 1e-6);
   EXPECT_GT(res->sc, 0.0);
   EXPECT_LT(res->sc, 1.0);
   EXPECT_GT(res->distance, 0.0);
