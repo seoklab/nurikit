@@ -285,7 +285,7 @@ namespace internal {
 
       PairCaps pc { ArrayXi(m),      ArrayXi(m), Matrix3Xd(3, m),
                     Matrix3Xd(3, m), ArrayXd(m), 0 };
-      int &w = pc.n;
+      int w = 0;
       for (const int k: order) {
         const int l = left[k], r = right[k];
         if (!hts.low[l] || !hts.low[r])
@@ -314,6 +314,7 @@ namespace internal {
         pc.cosa[w] = cos_a;
         ++w;
       }
+      pc.n = w;
       return pc;
     }
 

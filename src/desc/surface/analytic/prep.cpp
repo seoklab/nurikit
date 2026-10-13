@@ -32,8 +32,7 @@ namespace internal {
      */
     constexpr double kSharedCircleSafety = 1.1, kSharedCircleCoordTerm = 4.2,
                      kSharedCircleWeightTerm = 8.3,
-                     kSharedCircleRadiusTerm = 16, kSharedCircleTail = 50,
-                     kSharedCircleCoordBound = 3;
+                     kSharedCircleRadiusTerm = 16, kSharedCircleTail = 50;
 
     /**
      * Candidate pairs within the near band over every atom, the pairs left
@@ -193,8 +192,7 @@ namespace internal {
                                     const BallExact &ex, const double rmax,
                                     const double wmax) {
       constexpr double cutoff = 2 * kSurfaceLengthEps * kSurfaceLengthEps,
-                       c2 = kSharedCircleCoordBound * kSurfaceMaxCoord
-                            * kSurfaceMaxCoord;
+                       c2 = 3 * kSurfaceMaxCoord * kSurfaceMaxCoord;
       const double knum =
                        kSharedCircleSafety * kUnitRoundoff
                            * (kSharedCircleCoordTerm * c2

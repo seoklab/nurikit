@@ -600,6 +600,8 @@ namespace internal {
      * axis; a constant cell shift preserves the sorted order, so the 13
      * forward neighbour shifts are 13 merge joins of the order with itself.
      * The result is the set of pairs within `tau`, whatever the probe order.
+     * Cell indices fit `int64`: the span is `≤ 2 (kSurfaceMaxCoord + rmax)`
+     * and `prepare` keeps `rmax ≥ 2 kSurfaceLengthEps`, so `span / tau < 2^43`.
      */
     void merge_near_probes(const SurfaceSpheres &ss,
                            const std::vector<RawProbe> &raw,
@@ -609,12 +611,9 @@ namespace internal {
         return;
 
       const double tau = probe_merge_tol(ss.rmax), tau2 = tau * tau;
-      Vector3d lo = raw[0].pos, hi = raw[0].pos;
-      for (const RawProbe &r: raw) {
+      Vector3d lo = raw[0].pos;
+      for (const RawProbe &r: raw)
         lo = lo.cwiseMin(r.pos);
-        hi = hi.cwiseMax(r.pos);
-      }
-      ABSL_DCHECK_LT((hi - lo).maxCoeff() / tau, 0x1p62);
       auto pos = [&](const int p) -> const Vector3d & {
         return raw[order[p]].pos;
       };
