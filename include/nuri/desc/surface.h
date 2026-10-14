@@ -471,7 +471,8 @@ namespace internal {
  * both and keeps the SES. See @ref analytic_surface for the construction.
  *
  * @note No coordinate may exceed 1e4 angstroms in absolute value; subtract
- *       one common shift from all inputs first.
+ *       one common shift from all inputs first. Centering inside would
+ *       re-round every output.
  * @note The triangulation inserts the spheres in a randomized order drawn
  *       from the thread's random engine, so the numbering of probes, arcs
  *       and dots and the last bits of per-atom areas (about 1e-14) change
@@ -566,7 +567,8 @@ private:
  * from Rosetta's `sc`.
  *
  * @note No coordinate may exceed 1e4 angstroms in absolute value; subtract
- *       one common shift from all inputs first.
+ *       one common shift from all inputs first. Centering inside would
+ *       re-round one side's dots against the other's raw coordinates.
  */
 class ShapeComplementarity {
 public:

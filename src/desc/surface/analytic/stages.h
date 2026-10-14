@@ -38,7 +38,8 @@ namespace internal {
   /**
    * The near, contained and shared-circle bands are supersets of the exact
    * sets, and the overlap-certain band a subset, only while `ulp(|c|^2)`
-   * stays far below `kSurfaceLengthEps`.
+   * stays far below `kSurfaceLengthEps`: the margin is about 60x at 1e4 and
+   * gone near 1e5.
    */
   constexpr double kSurfaceMaxCoord = 1e4;
   /**

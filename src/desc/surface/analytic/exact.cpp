@@ -64,7 +64,8 @@ namespace internal {
 
     /**
      * Exact operands that cancel are equal (IEEE), so their zero is exact; an
-     * exact zero times any finite value is an exact zero.
+     * exact zero times any finite value is an exact zero. No `a +- 0 -> a`
+     * shortcut: it flipped a certification on 2CTS.
      */
     ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator+(Fx a, Fx b) {
       const double v = a.v + b.v;
@@ -811,7 +812,9 @@ namespace internal {
 
     /**
      * `|u|^2 |u'|^2 (x - x')` for root `x` of `f` and `x'` of `f2`:
-     * `P + sqrt(D) Q + sqrt(D') Q'` (`BallExact::difference`).
+     * `P + sqrt(D) Q + sqrt(D') Q'` (`BallExact::difference`). Not bitwise
+     * antisymmetric under the swap of its arguments; one ill-conditioned
+     * 2CTS face turns a last-ulp change into 1e-11 of area.
      */
     template <class T>
     struct Diff {

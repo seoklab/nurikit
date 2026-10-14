@@ -286,6 +286,7 @@ The mean of the two sides' median nearest-dot distances, in angstroms.
       .def_readonly("area", &ScResult::area, R"doc(
 The total area of the kept dots of both sides, in angstroms squared.
 )doc")
+      // keep_alive cannot attach to a tuple, so sides is a plain property.
       .def_property_readonly(
           "sides",
           [](py::handle self) -> pyt::Tuple<ScSide, ScSide> {

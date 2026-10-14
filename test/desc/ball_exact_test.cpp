@@ -22,6 +22,9 @@
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
 
+// Exact fixtures are dyadic (integer Pythagorean layouts), so the floating
+// filter and the exact kernel see the same input.
+
 namespace nuri {
 namespace internal {
 namespace {

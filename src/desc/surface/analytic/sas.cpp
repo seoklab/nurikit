@@ -41,6 +41,8 @@ namespace internal {
           Vector3d axis = (ss.pts.col(j) - pi) / d;
           const auto [e1, e2] = circle_frame(ss.pts.col(j) - pi, axis);
           double a = (d * d + ri2 - rj2) / (2 * d);
+          // The one rounding guard (design rules of the analytic_surface
+          // page): an exact overlap of sub-ulp depth.
           double rl = std::sqrt(nuri::max(ri2 - a * a, 0.0));
           Vector3d cntr = pi + a * axis;
 
