@@ -124,9 +124,10 @@ bands that are supersets of exactly decided sets; every decision is exact.
 1. **Candidates.** A non-positive probe radius, non-finite input, any
    coordinate beyond `kSurfaceMaxCoord` \f$= 10^4\f$ Å in absolute value
    (where the bands below stop being supersets), and SAS radii with
-   \f$R_{\min}^2 < 2 r_p^2 + 2\,\tau\,R_{\max}\f$ (the hypothesis of @ref lemma-10 "Lemma 10";
-   a vdW radius just above \f$(\sqrt 2 - 1) r_p\f$, 0.58 Å for water, which
-   is also what rejects a non-positive atom radius) are rejected. Pairs \f$(i < j)\f$ with
+   \f$R_{\min} < \sqrt{2 r_p^2 + 2\,\tau\,R_{\max}}\f$ (the hypothesis of
+   @ref lemma-10 "Lemma 10" for positive radii, a vdW radius just above
+   \f$(\sqrt 2 - 1) r_p\f$, 0.58 Å for water; the sign of the comparison is
+   what rejects a non-positive atom radius) are rejected. Pairs \f$(i < j)\f$ with
    \f$d \le R_i + R_j + 2\tau\f$ are the **near** pairs, found by a
    nuri::VoxelGrid over the atoms within `kBandHops + 1` near-pair lengths of
    an active atom. Pairs below \f$R_i + R_j - 2\tau\f$ are overlaps outright;

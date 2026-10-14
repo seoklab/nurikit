@@ -186,6 +186,19 @@ TEST(BuildSasTest, RejectsBadRadii) {
   EXPECT_FALSE(surf.initialize(1.0));
   EXPECT_FALSE(surf.initialized());
 
+  const double threshold = std::sqrt(2.0) * kRp;
+  r.setConstant(threshold * (1 - 1e-3) - kRp);
+  EXPECT_FALSE(surf.initialize(kRp));
+  EXPECT_FALSE(surf.initialized());
+
+  r.setConstant(threshold * (1 + 1e-3) - kRp);
+  EXPECT_TRUE(surf.initialize(kRp));
+  EXPECT_TRUE(surf.initialized());
+
+  r.setConstant(-5.0);
+  EXPECT_FALSE(surf.initialize(kRp));
+  EXPECT_FALSE(surf.initialized());
+
   r = sar - kRp;
   EXPECT_TRUE(surf.initialize(kRp));
   EXPECT_TRUE(surf.initialized());

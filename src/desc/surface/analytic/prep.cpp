@@ -413,7 +413,7 @@ namespace internal {
     }
 
     const double rmin = sar.minCoeff(), rmax = sar.maxCoeff();
-    if (rmin * rmin < 2.0 * rp * rp + 2 * rmax * kSurfaceLengthEps) {
+    if (rmin < std::sqrt(2.0 * rp * rp + 2 * rmax * kSurfaceLengthEps)) {
       ABSL_LOG(ERROR) << "Atom radii must be at least (sqrt 2 - 1) rp";
       return std::nullopt;
     }
