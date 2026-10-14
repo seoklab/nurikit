@@ -288,7 +288,7 @@ namespace internal {
 
     /**
      * An apex that misses one of the face spheres, or is a bounding point
-     * (SAS step 1 of the analytic_surface page), has non-negative power on
+     * (Lemma 1(a) of the analytic_surface page), has non-negative power on
      * that surface, zero only at a tangency point, and never rejects a
      * root. Apex `lv` of cell `c` overlaps all three iff the other faces of
      * the cell carry every pair.

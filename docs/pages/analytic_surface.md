@@ -434,21 +434,25 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
 ### Correctness {#sas-correctness}
 
 \anchor lemma-1
-**Lemma 1 (bounding points are inert).** In plain words: a bounding point
-never rejects a vertex and never bounds a fan. Precisely: (a) every bounding point has positive power on all of
-\f$U\f$, so it rejects no cut point of any face; (b) every hull face of
-\f$RT\f$ consists of bounding points only, so the cells around an edge
-between two spheres form a closed cycle of finite cells.
+**Lemma 1 (bounding points are inert).** In plain words: a bounding point never
+rejects a vertex and never bounds a fan. Precisely:
 
-*Proof.* Every point of \f$U\f$ lies within \f$\Delta + R_{\max}\f$ of the
-box center and a bounding point at distance \f$4(\Delta + R_{\max}) + 1\f$
-from it, so its power, the squared distance for weight 0, is at least
-\f$(3(\Delta + R_{\max}) + 1)^2 > 0\f$ on \f$U\f$; a cut point lies on
-\f$U\f$. The inradius of the tetrahedron is a third of its circumradius and
-exceeds \f$\Delta\f$, so every center is strictly inside it and the convex
-hull of the lifted input is the tetrahedron: its facets are the hull faces
-of \f$RT\f$, spanned by bounding points only, and no edge between two
-spheres lies on the hull.
+- (a) Every bounding point has positive power on all of \f$U\f$, so it rejects
+  no cut point of any face.
+
+  *Proof.* Every point of \f$U\f$ lies within \f$\Delta + R_{\max}\f$ of the box
+  center and a bounding point at distance \f$4(\Delta + R_{\max}) + 1\f$ from
+  it, so its power, the squared distance for weight 0, is at least
+  \f$(3(\Delta + R_{\max}) + 1)^2 > 0\f$ on \f$U\f$; a cut point lies on
+  \f$U\f$.
+- (b) Every hull face of \f$RT\f$ consists of bounding points only, so the cells
+  around an edge between two spheres form a closed cycle of finite cells.
+
+  *Proof.* The inradius of the tetrahedron is a third of its circumradius and
+  exceeds \f$\Delta\f$, so every center is strictly inside it and the convex
+  hull of the lifted input is the tetrahedron: its facets are the hull faces of
+  \f$RT\f$, spanned by bounding points only, and no edge between two spheres
+  lies on the hull.
 
 \anchor theorem-1
 **Theorem 1 (vertex recipe).** In plain words: a cut point of a face is on
@@ -535,24 +539,28 @@ arc on circle \f$(s, t)\f$ lies in the facet \f$V_s \cap V_t\f$, so
 @ref lemma-2 "Lemma 2", its endpoints are the ring of that edge.
 
 \anchor lemma-3
-**Lemma 3 (occluder crop).** In plain words: an occluder that is near no
-atom with caps can be deleted before the triangulation without changing any
-surface that is reported. Let \f$S\f$ be the kept spheres after preparation
-with their ranks and
+**Lemma 3 (occluder crop).** In plain words: an occluder that is near no atom
+with caps can be deleted before the triangulation without changing any surface
+that is reported. Let \f$S\f$ be the kept spheres after preparation with their
+ranks and
 \f$O \subseteq \{o \in S : \operatorname{rank}(o) = 3,\ \text{no near pair } (o, a) \text{ with } \operatorname{rank}(a) \le 2\}\f$.
 Let \f$S' = S \setminus O\f$ with the same \f$W\f$ and heights \f$t\f$, the
 survivors in their relative index order, `g`, `d` and `order` restricted to
 \f$S'\f$, and `n_active`, `n_solve`, `n_enum` unchanged (a restriction of the
-prepared spheres, not a second `prepare`, whose \f$W\f$ and contained-ball
-drops depend on the dropped atoms). Running `triangulate`, `build_sas`,
-`build_ses` and the sampler on \f$S'\f$ instead of \f$S\f$ leaves unchanged,
-as sets: (a) the accepted roots, each named by its sorted sphere triple and
-root sign, with their positions, hence the probes, their atom lists and the
-merged clusters; (b) on every sphere below `n_enum` the ring of every circle,
-the arcs with their \f$\varphi\f$, \f$\Delta\varphi\f$, ends and tangents,
-the union of its caps and its component count, and its area to rounding; (c)
-the SES patches and the dots. The cap *list* of a sphere is not invariant
-(@ref remark-2 "Remark 2"); its union is.
+prepared spheres, not a second `prepare`, whose \f$W\f$ and contained-ball drops
+depend on the dropped atoms). Running `triangulate`, `build_sas`, `build_ses`
+and the sampler on \f$S'\f$ instead of \f$S\f$ leaves unchanged, as sets:
+
+- (a) the accepted roots, each named by its sorted sphere triple and root sign,
+  with their positions, hence the probes, their atom lists and the merged
+  clusters;
+- (b) on every sphere below `n_enum` the ring of every circle, the arcs with
+  their \f$\varphi\f$, \f$\Delta\varphi\f$, ends and tangents, the union of its
+  caps and its component count, and its area to rounding;
+- (c) the SES patches and the dots.
+
+The cap *list* of a sphere is not invariant (@ref remark-2 "Remark 2"); its
+union is.
 
 *Setting.* For a point \f$y \in S_a\f$ let
 \f$X(y) = \{m \ne a : \pi_m(y) \le 0\}\f$ be the balls holding \f$y\f$,
@@ -566,9 +574,9 @@ which no perturbation changes.
    \f$|c_o - c_a| > \rho_o + \rho_a\f$: the pair is not near, so its floating
    distance exceeds \f$R_o + R_a + 2\tau\f$, and the near band is a superset
    of the exact overlaps and tangencies on \f$\rho\f$ within
-   `kSurfaceMaxCoord`. Hence (i) \f$(o, a) \notin g\f$; (ii) no enumerated
+   `kSurfaceMaxCoord`. Hence (a) \f$(o, a) \notin g\f$; (b) no enumerated
    face contains \f$o\f$, since a face needs pairwise `g`-edges and a vertex
-   below `n_enum`; (iii) \f$\pi_o > 0\f$ on \f$B_a\f$, so for every
+   below `n_enum`; (c) \f$\pi_o > 0\f$ on \f$B_a\f$, so for every
    \f$y \in S_a\f$, \f$X(y) \subseteq S'\f$.
 2. *Tie signs are order-local.* A predicate whose participants lie in
    \f$S'\f$ plus bounding points has the same sign in both runs. Untied, it
@@ -583,7 +591,7 @@ which no perturbation changes.
 3. *Root verdicts are local.* Let \f$f = (a, b, c)\f$ be a `g`-face with
    \f$\min f <\f$ `n_enum` and \f$x\f$ a root of it. Claim: the verdict on
    \f$(f, x)\f$ is a function of `g` on \f$f \cup X(x)\f$ and of signs of
-   predicates on \f$f \cup X(x)\f$. With 1(iii) and 2 this gives (a);
+   predicates on \f$f \cup X(x)\f$. With 1(c) and 2 this gives (a);
    positions are bitwise equal, since the root reads only the face's columns
    and \f$W\f$. Take the radical line \f$\ell\f$ of \f$f\f$; for every vertex
    \f$m \notin f\f$ the constraint \f$\pi_m \ge \pi_a\f$ cuts \f$\ell\f$ in
@@ -597,7 +605,7 @@ which no perturbation changes.
    - *Far constraints.* For \f$m \notin X(x)\f$, \f$x\f$ is inside \f$H_m\f$
      at a margin from \f$t_m\f$ for every small \f$\varepsilon\f$: such an
      \f$m\f$ never rejects, tested or not. Bounding points are far by
-     @ref lemma-1 "Lemma 1", every \f$o \in O\f$ by 1(iii).
+     @ref lemma-1 "Lemma 1", every \f$o \in O\f$ by 1(c).
    - *Strict containment rejects.* If \f$m \in X^-(x)\f$, \f$x\f$ is outside
      \f$H_m\f$ at a margin, and \f$F \subseteq H_m\f$; the apex on that side
      has its tight point at the margin from \f$x\f$, so it is not in
@@ -635,9 +643,9 @@ which no perturbation changes.
    so it is in the fan; the answer is settled by far spheres strictly and by
    \f$X^0(Q) \subseteq S'\f$ through `antipode`.
 5. *Caps, components, areas.* The two runs may list different neighbor caps
-   for a sphere (remark). By @ref theorem-2 "Theorem 2" in each run, the union of the listed
+   for a sphere (@ref remark-2 "Remark 2"). By @ref theorem-2 "Theorem 2" in each run, the union of the listed
    open caps is the union of all `g`-caps of \f$s\f$, one set \f$U_s\f$ for
-   both runs (1(i)). The solver joins two caps when a vertex links them or
+   both runs (1(a)). The solver joins two caps when a vertex links them or
    `discs_intersect` holds, i.e. when their open discs meet; the components
    of a finite union of open connected sets are those of their intersection
    graph, so the count is the number of components of \f$U_s\f$. A cap listed
@@ -649,7 +657,7 @@ which no perturbation changes.
    tangents, bitwise. The turning sum and \f$\sum \Delta\varphi \cos\alpha\f$
    are summed in list order, which may differ, so the area agrees to
    rounding. A sphere with no edge gets 0 without a solve: its power cell is
-   empty, so every point of \f$S_s\f$ is held by a ball of \f$S'\f$ (1(iii)),
+   empty, so every point of \f$S_s\f$ is held by a ball of \f$S'\f$ (1(c)),
    the same in both runs; in the other run no root on \f$s\f$ is accepted,
    no circle of \f$s\f$ is full, and the solve with caps and no arc returns
    0.
@@ -706,7 +714,7 @@ that @ref lemma-11 "Lemma 11" identifies as the first-touch cutters of faces on 
 atoms; dropping \f$o\f$ deletes a cutter and its cap. Replacing the band by
 `g` is not safe either: a sphere exactly tangent to \f$a\f$ is in
 \f$X^0(x)\f$ at its tangency point \f$x\f$, and if \f$x\f$ is a root there
-it takes part in the verdict of 3; the near band is the floating superset of
+it takes part in the verdict of step 3 of the proof of @ref lemma-3 "Lemma 3"; the near band is the floating superset of
 overlap and tangency that keeps \f$X(y) \subseteq S'\f$ for every \f$y\f$ on
 a sphere with caps.
 
@@ -715,74 +723,73 @@ a sphere with caps.
 #### Corners at k-fold points {#sas-corners}
 
 \anchor lemma-4
-**Lemma 4 (corners at a k-fold point add up).** In plain words: where
-several circles of one sphere pass through one point, the perturbation
-spreads that point into a short chain of vertices; the run evaluates every
-chain corner at the point itself and gives the arcs between them length
-zero, and each of those terms is exactly the limit of the perturbed term, so
-no merged corner is ever needed. Precisely: let \f$x\f$ be a point of a
-solved sphere \f$s\f$ on \f$k - 1 \ge 2\f$ of its circles, every other kept
-sphere at positive power at \f$x\f$, and let \f$v_1, \dots, v_m\f$ be the
-accepted roots at \f$x\f$ of the configuration of
-@ref sas-step-1 "step 1". (a) The corner \f$\iota_j\f$ the run computes
-at \f$v_j\f$ from the exact tangents of its two circles at \f$x\f$ is the
-limit of the perturbed corner at \f$v_j(\varepsilon)\f$ and lies in
-\f$[0, \pi]\f$. (b) An arc between two consecutive chain vertices on one
-circle carries \f$\Delta\varphi = 0\f$, the limit of its perturbed length,
-except the wrap arc of a single-point window, which is the rest of the circle
-in both. (c) When the circles cross pairwise transversally at \f$x\f$,
-\f$m \le k - 1\f$, and \f$m \le k - 2\f$ unless the chain closes into a loop
-of its own. (d) In floating point the chain's turning sum deviates from the
-exact one by at most \f$m\f$ `kSurfaceAngleEps`.
+**Lemma 4 (corners at a k-fold point add up).** In plain words: where several
+circles of one sphere pass through one point, the perturbation spreads that
+point into a short chain of vertices; the run evaluates every chain corner at
+the point itself and gives the arcs between them length zero, and each of those
+terms is exactly the limit of the perturbed term, so no merged corner is ever
+needed. Precisely: let \f$x\f$ be a point of a solved sphere \f$s\f$ on
+\f$k - 1 \ge 2\f$ of its circles, every other kept sphere at positive power at
+\f$x\f$, and let \f$v_1, \dots, v_m\f$ be the accepted roots at \f$x\f$ of the
+configuration of @ref sas-step-1 "step 1".
 
-*Proof.* (a) In the configuration of @ref sas-step-1 "step 1" the two circles of
-\f$v_j\f$ cross transversally at \f$v_j(\varepsilon)\f$ and no other circle
-passes
-through it, so near the vertex the accessible region is the wedge outside
-both caps, the intersection of two half-planes of the tangent plane, and the
-perturbed corner is the wedge's opening, in \f$(0, \pi)\f$. As
-\f$\varepsilon \to 0\f$ the circles move continuously and
-\f$v_j(\varepsilon) \to x\f$, so the departing and arriving tangents converge
-to the tangents of the exact circles at \f$x\f$, the ones the run reads from
-each circle's frame at the vertex's own angle (@ref sas-step-4 "step 4"), and
-the corner converges to a value in \f$[0, \pi]\f$. The run folds the signed
-angle into
-\f$(-\pi/2, 3\pi/2]\f$ (@ref sas-step-5 "step 5"); that fold is continuous on
-the open window, which contains \f$[0, \pi]\f$ with a margin of \f$\pi/2\f$ on
-each side, so
-the folded value of the limit tangents is the limit of the perturbed corners.
-The endpoints occur: \f$\pi\f$ when the two circles are tangent at \f$x\f$
-from the same side, 0 at a cusp.
+- (a) The corner \f$\iota_j\f$ the run computes at \f$v_j\f$ from the exact
+  tangents of its two circles at \f$x\f$ is the limit of the perturbed corner at
+  \f$v_j(\varepsilon)\f$ and lies in \f$[0, \pi]\f$.
 
-(b) Two consecutive ring entries that are both roots at \f$x\f$ fall in one
-exact half-plane class with `ccw` exactly zero, and @ref sas-step-4 "step 4"
-assigns that pair \f$\Delta\varphi = 0\f$. The perturbed vertices lie within
-\f$O(\varepsilon)\f$ of \f$x\f$ on a circle of radius bounded away from zero
-(@ref sas-step-2 "step 2"), so the perturbed arc between consecutive ones is
-either the short arc, of length \f$O(\varepsilon)\f$ and \f$\int\kappa_g \to
-0\f$, or the rest
-of the circle; the wrap is decided against the exact reference ray, so the
-rest of the circle is a chain arc only in the single-point window, where
-@ref sas-step-4 "step 4" assigns it the \f$2\pi\f$.
+  *Proof.* In the configuration of @ref sas-step-1 "step 1" the two circles of
+  \f$v_j\f$ cross transversally at \f$v_j(\varepsilon)\f$ and no other circle
+  passes through it, so near the vertex the accessible region is the wedge
+  outside both caps, the intersection of two half-planes of the tangent plane,
+  and the perturbed corner is the wedge's opening, in \f$(0, \pi)\f$. As
+  \f$\varepsilon \to 0\f$ the circles move continuously and
+  \f$v_j(\varepsilon) \to x\f$, so the departing and arriving tangents converge
+  to the tangents of the exact circles at \f$x\f$, the ones the run reads from
+  each circle's frame at the vertex's own angle (@ref sas-step-4 "step 4"), and
+  the corner converges to a value in \f$[0, \pi]\f$. The run folds the signed
+  angle into \f$(-\pi/2, 3\pi/2]\f$ (@ref sas-step-5 "step 5"); that fold is
+  continuous on the open window, which contains \f$[0, \pi]\f$ with a margin of
+  \f$\pi/2\f$ on each side, so the folded value of the limit tangents is the
+  limit of the perturbed corners. The endpoints occur: \f$\pi\f$ when the two
+  circles are tangent at \f$x\f$ from the same side, 0 at a cusp.
+- (b) An arc between two consecutive chain vertices on one circle carries
+  \f$\Delta\varphi = 0\f$, the limit of its perturbed length, except the wrap
+  arc of a single-point window, which is the rest of the circle in both.
 
-(c) Choose a neighbourhood \f$N\f$ of \f$x\f$ in which the exact circles of
-\f$s\f$ through \f$x\f$ meet only at \f$x\f$; for \f$\varepsilon\f$ small
-every perturbed pair crosses exactly once in \f$N\f$, no three at one point,
-and the complement of the caps in \f$N\f$ is combinatorially the cell of an
-arrangement of \f$k - 1\f$ lines in general position: an intersection of
-\f$k - 1\f$ half-planes. A bounded cell has at most one vertex per edge,
-\f$m \le k - 1\f$, and an unbounded one, whose two ends leave \f$N\f$ as the
-arrival and departure arcs of the exact region, one fewer. Two circles of
-\f$s\f$ tangent at \f$x\f$ may cross twice near it, and then the chain can be
-longer; nothing reads \f$m\f$, so no bound is claimed.
+  *Proof.* Two consecutive ring entries that are both roots at \f$x\f$ fall in
+  one exact half-plane class with `ccw` exactly zero, and
+  @ref sas-step-4 "step 4" assigns that pair \f$\Delta\varphi = 0\f$. The
+  perturbed vertices lie within \f$O(\varepsilon)\f$ of \f$x\f$ on a circle of
+  radius bounded away from zero (@ref sas-step-2 "step 2"), so the perturbed arc
+  between consecutive ones is either the short arc, of length
+  \f$O(\varepsilon)\f$ and \f$\int\kappa_g \to 0\f$, or the rest of the circle;
+  the wrap is decided against the exact reference ray, so the rest of the circle
+  is a chain arc only in the single-point window, where @ref sas-step-4 "step 4"
+  assigns it the \f$2\pi\f$.
+- (c) When the circles cross pairwise transversally at \f$x\f$,
+  \f$m \le k - 1\f$, and \f$m \le k - 2\f$ unless the chain closes into a loop
+  of its own.
 
-(d) Each computed corner is within `kSurfaceAngleEps` of the exact one
-(@ref analysis-fp "Floating point"), and the sum of \f$m\f$ of them inherits
-\f$m\f$ times that.
+  *Proof.* Choose a neighbourhood \f$N\f$ of \f$x\f$ in which the exact circles
+  of \f$s\f$ through \f$x\f$ meet only at \f$x\f$; for \f$\varepsilon\f$ small
+  every perturbed pair crosses exactly once in \f$N\f$, no three at one point,
+  and the complement of the caps in \f$N\f$ is combinatorially the cell of an
+  arrangement of \f$k - 1\f$ lines in general position: an intersection of
+  \f$k - 1\f$ half-planes. A bounded cell has at most one vertex per edge,
+  \f$m \le k - 1\f$, and an unbounded one, whose two ends leave \f$N\f$ as the
+  arrival and departure arcs of the exact region, one fewer. Two circles of
+  \f$s\f$ tangent at \f$x\f$ may cross twice near it, and then the chain can be
+  longer; nothing reads \f$m\f$, so no bound is claimed.
+- (d) In floating point the chain's turning sum deviates from the exact one by
+  at most \f$m\f$ `kSurfaceAngleEps`.
+
+  *Proof.* Each computed corner is within `kSurfaceAngleEps` of the exact one
+  (@ref analysis-fp "Floating point"), and the sum of \f$m\f$ of them inherits
+  \f$m\f$ times that.
 
 At a pinch the two circles through \f$x\f$ on a third sphere are tangent at
-\f$x\f$ and (a) gives \f$\iota = \pi\f$; what the sweep does with the
-tangent pair itself is @ref theorem-3 "Theorem 3".
+\f$x\f$ and (a) gives \f$\iota = \pi\f$; what the sweep does with the tangent
+pair itself is @ref theorem-3 "Theorem 3".
 
 #### Discontinuity at exact coincidences {#sas-discontinuity}
 
@@ -876,7 +883,7 @@ so in \f$\Sigma\f$ no point has both \f$\pi_p\f$ and \f$\pi_q\f$ below
    \f$o_{F \cup l}\f$. (a) If \f$x_0\f$ is a simple root, \f$P\f$ is monotone
    in \f$N\f$, so the root at level \f$v \in \{0, -\gamma\}\f$ passes \f$l\f$
    according to the sign of \f$v - \lambda_{F \cup l}\f$. Both levels lie on
-   the same side of every \f$\lambda\f$ of step 1 except for the apex
+   the same side of every \f$\lambda\f$ of 1 except for the apex
    \f$q^*\f$ with \f$p^* \in F\f$, which the run does not test and which
    \f$\Sigma\f$ passes: with \f$\pi_{p^*} = P = -\gamma\f$ the identity gives
    \f$\pi_{q^*} - P = (1 + \rho_{q^*}/\rho_{p^*})\,\delta + O(\varepsilon^2) > 0\f$.
@@ -886,7 +893,7 @@ so in \f$\Sigma\f$ no point has both \f$\pi_p\f$ and \f$\pi_q\f$ below
    in \f$K\f$ is tested. On \f$\ell_F\f$, \f$P = |u|^2 s^2 + \mu_F\f$ with the
    foot within \f$O(\varepsilon)\f$ of \f$x_0\f$. An apex in \f$K\f$ gives
    \f$\mu_F \le \lambda_{F \cup l}\f$; if both apexes are outside \f$K\f$,
-   the foot lies on the dual edge, and the bracket of step 1 at the foot is
+   the foot lies on the dual edge, and the bracket of 1 at the foot is
    again at least \f$c\,\varepsilon\eta^n\f$. In both cases
    \f$\mu_F < -\gamma - c'\varepsilon\eta^n\f$, so both levels cut, at
    \f$|s| \gg \varepsilon\f$, beyond every \f$o_T\f$ of \f$K\f$, and a root is
@@ -896,7 +903,7 @@ so in \f$\Sigma\f$ no point has both \f$\pi_p\f$ and \f$\pi_q\f$ below
 3. *Rings.* A ring lists accepted roots in fan order, exit before entry, the
    fan of \f$\Sigma\f$; by @ref lemma-2 "Lemma 2" for \f$\Sigma\f$ that is
    the cyclic order of its vertices. A fan face cuts at level 0 iff it cuts
-   at \f$-\gamma\f$ (step 2), a partner neither cuts nor contains, and in a
+   at \f$-\gamma\f$ (2), a partner neither cuts nor contains, and in a
    single-point window the antipode lies away from \f$x_0\f$, where the
    decision is strict. So full-circle decisions, arcs and successors agree,
    and so does \f$L\f$.
@@ -912,7 +919,7 @@ so in \f$\Sigma\f$ no point has both \f$\pi_p\f$ and \f$\pi_q\f$ below
    \f$B\f$ be their unions in \f$\Sigma\f$. Where the boundary of
    \f$A \cup B\f$ passes from \f$\partial A\f$ to \f$\partial B\f$ there is a
    point outside every cap: a vertex of \f$\Sigma\f$ on two non-partner
-   caps (partners are apart), hence by step 2 an accepted root that links
+   caps (partners are apart), hence by 2 an accepted root that links
    the chains. So \f$C\f$ agrees; the partners' own discs are the case
    \f$A \cap B = \emptyset\f$.
 5. *Area.* Outside the \f$O(\sqrt\varepsilon)\f$ neighbourhoods of the
@@ -1077,51 +1084,63 @@ so \f$|v - c_a| \ge |s - c_a|\f$, which expands to
 \f$|p - v|^2 - |p - s|^2 = |v - s|^2 - 2\tau (q - s) \cdot (v - s) \ge (1 - \tau)|v - s|^2\f$.
 
 \anchor corollary-1
-**Corollary 1 (consequences of the contact hull).** Three consequences of
-@ref lemma-5 "Lemma 5":
+**Corollary 1 (consequences of the contact hull).** In plain words: a probe's
+face is cut only beyond its contact plane, a saddle only in its spindle, and a
+probe whose ball misses its own contact triangle is cut by nothing. Precisely,
+with \f$n\f$ the unit normal of the contact plane of vertex \f$x\f$ pointing
+from \f$x\f$ toward it and \f$h\f$ the distance to the plane:
 
-- (a) **Cuts lie beyond the contact plane.** Every \f$d \in C_x\f$ does meet
-  \f$T_x\f$: radial rescaling by \f$R_a\f$ leaves the cone alone, so
-  \f$C_x = \operatorname{cone}\{c_a - x\}\f$, exactly the cone over
-  \f$\operatorname{conv}\{c_a\}\f$ from the apex \f$x\f$. Take \f$s = x\f$,
-  \f$q\f$ the point where the ray \f$d\f$ meets \f$T_x\f$,
-  \f$\tau = r_p / t_x(d)\f$: a face point \f$x + r_p d\f$ with
-  \f$t_x(d) \ge r_p\f$ is cut by nothing. Since \f$t_x(d)\,(d \cdot n) = h\f$,
-  where \f$n\f$ is the unit normal of the contact plane pointing from \f$x\f$
-  toward it and \f$h\f$ the distance to the plane, the cut part of the face
-  lies inside the **beyond-plane cap** \f$D_x = \{d : d \cdot n > \cos\beta\}\f$,
-  \f$\cos\beta = h/r_p\f$. This is a cap only when \f$h < r_p\f$, which holds
-  on every low vertex since \f$h \le \operatorname{dist}(x, T_x)\f$. The
-  bound is attained: \f$D_x\f$ is exactly the cap cut by the mirror triple
-  point \f$x + 2hn\f$, the second point where the three SAS spheres meet (a
-  vertex only if it is accessible); that pair cutting each other along the
-  contact plane is the coincident-face case of
+- (a) A face point \f$x + r_p d\f$ with \f$t_x(d) \ge r_p\f$ is cut by nothing,
+  so the cut part of the face lies inside the **beyond-plane cap**
+  \f$D_x = \{d : d \cdot n > \cos\beta\}\f$, \f$\cos\beta = h/r_p\f$, a cap
+  whenever \f$h < r_p\f$, which holds on every low vertex; the bound is
+  attained.
+
+  *Proof.* Every \f$d \in C_x\f$ meets \f$T_x\f$: radial rescaling by \f$R_a\f$
+  leaves the cone alone, so \f$C_x = \operatorname{cone}\{c_a - x\}\f$, exactly
+  the cone over \f$\operatorname{conv}\{c_a\}\f$ from the apex \f$x\f$. Apply
+  @ref lemma-5 "Lemma 5" with \f$s = x\f$, \f$q\f$ the point where the ray
+  \f$d\f$ meets \f$T_x\f$ and \f$\tau = r_p / t_x(d)\f$. Since
+  \f$t_x(d)\,(d \cdot n) = h\f$, the uncut directions \f$t_x(d) \ge r_p\f$ are
+  exactly those outside \f$D_x\f$, and
+  \f$h \le \operatorname{dist}(x, T_x) < r_p\f$ on a low vertex. \f$D_x\f$ is
+  exactly the cap cut by the mirror triple point \f$x + 2hn\f$, the second point
+  where the three SAS spheres meet (a vertex only if it is accessible); that
+  pair cutting each other along the contact plane is the coincident-face case of
   @cite desc:surface:sanner-1996.
-- (b) **Saddles are cut only in the spindle.** A saddle point with
-  \f$\varrho(\beta) \ge 0\f$ is cut by nothing, so the spindle cut of the
-  saddle ranges (@ref ses-patches "Patch areas") is the whole cut: the ray at angle \f$\beta\f$ from the
-  inward radial direction meets the segment \f$[c_i, c_j]\f$ on the torus
-  axis at distance \f$r_l / \cos\beta \ge r_p\f$. This is the toroidal case
-  of Theorem 5.2 of @cite desc:surface:quan-stamm-2016 and the radial
-  singularity of @cite desc:surface:sanner-1996.
-- (c) **High and low vertices (Sanner's criterion).** That a probe whose
-  ball misses its own contact triangle has an uncut face is stated in
-  @cite desc:surface:sanner-1996; this is its proof.
-  \f$\min_{d \in C_x} t_x(d) = \operatorname{dist}(x, T_x)\f$: the plane
-  distance \f$h\f$ when the foot of the perpendicular lies inside
-  \f$T_x\f$, the distance to the nearest edge otherwise. A vertex with
-  \f$\operatorname{dist}(x, T_x) \ge r_p\f$, whose own ball does not reach
-  its contact triangle, is **high**: nothing cuts its face, which is the
-  spherical triangle \f$\{d : d \cdot t_m \le 0\}\f$ bounded by the three
-  departure great circles, with area \f$r_p^2\f$ times the spherical excess,
+- (b) A saddle point with \f$\varrho(\beta) \ge 0\f$ is cut by nothing, so the
+  spindle cut of the saddle ranges (@ref ses-patches "Patch areas") is the whole
+  cut.
+
+  *Proof.* The ray at angle \f$\beta\f$ from the inward radial direction meets
+  the segment \f$[c_i, c_j]\f$ on the torus axis at distance
+  \f$r_l / \cos\beta \ge r_p\f$, so @ref lemma-5 "Lemma 5" applies with that
+  point as \f$q\f$. This is the toroidal case of Theorem 5.2 of
+  @cite desc:surface:quan-stamm-2016 and the radial singularity of
+  @cite desc:surface:sanner-1996.
+- (c) \f$\min_{d \in C_x} t_x(d) = \operatorname{dist}(x, T_x)\f$, the plane
+  distance \f$h\f$ when the foot of the perpendicular lies inside \f$T_x\f$ and
+  the distance to the nearest edge otherwise. A vertex with
+  \f$\operatorname{dist}(x, T_x) \ge r_p\f$, whose own ball does not reach its
+  contact triangle, is **high**: nothing cuts its face, which is the spherical
+  triangle \f$\{d : d \cdot t_m \le 0\}\f$ bounded by the three departure great
+  circles, with area \f$r_p^2\f$ times the spherical excess,
   \f[
   A = r_p^2 \Bigl(2\pi - \sum_m \angle(t_m, t_{m+1})\Bigr),
   \qquad
   \angle(t_m, t_{m+1}) = \operatorname{atan2}(|t_m \times t_{m+1}|,\ t_m \cdot t_{m+1}).
   \f]
-  Every other vertex is **low** (\f$k\f$-fold probes count as low). A high
-  face whose three tangents are linearly dependent has no spherical triangle and goes to the face solver on its hemispheres alone,
-  where two of them are complementary and the area is 0.
+  Every other vertex is **low** (\f$k\f$-fold probes count as low). A high face
+  whose three tangents are linearly dependent has no spherical triangle and goes
+  to the face solver on its hemispheres alone, where two of them are
+  complementary and the area is 0.
+
+  *Proof.* \f$t_x\f$ is the distance along the ray to \f$T_x\f$, and the rays of
+  \f$C_x\f$ sweep all of \f$T_x\f$, so its minimum is the distance from \f$x\f$
+  to the triangle; then (a) cuts nothing when it is at least \f$r_p\f$, and the
+  uncut face is bounded by the departure great circles. That a probe whose ball
+  misses its own contact triangle has an uncut face is stated in
+  @cite desc:surface:sanner-1996; this is its proof.
 
 \anchor lemma-6
 **Lemma 6 (the first SAS point an inflating ball touches is a vertex).** Let
@@ -1137,73 +1156,74 @@ SAS point \f$s_1 \ne x\f$ lies on its boundary; for all but a null set of
 directions \f$d\f$, \f$s_1\f$ is a vertex. Consequently, if \f$t_1 < r_p\f$,
 the face point \f$x + r_p d\f$ is cut by the vertex \f$s_1\f$.
 
-*Proof.* *Small balls stay inside the union.* A point of \f$B_t^\circ\f$ is
-\f$x + t(d + e)\f$ with \f$|e| < 1\f$. It is inside the SAS ball of atom
-\f$a\f$ iff \f$\hat c_a \cdot (d + e) > t|d + e|^2/2R_a\f$. With
-\f$d = \sum \lambda_a \hat c_a\f$,
-\f$\sum \lambda_a \hat c_a \cdot (d + e) = 1 + d \cdot e > |d + e|^2/2\f$, so
-the largest \f$\hat c_a \cdot (d + e)\f$ exceeds
-\f$|d + e|^2/(2\sum\lambda_a)\f$, which is at least \f$t|d + e|^2/(2R_a)\f$
-for the maximizing \f$a\f$ once \f$t \le \min_b R_b / \sum_b \lambda_b\f$.
+*Proof.*
 
-*SAS points near the vertex are never inside.* Near \f$x\f$ the SAS consists of
-the sphere patches leaving \f$x\f$; a tangent direction \f$w\f$ of the patch
-of atom \f$a\f$ satisfies \f$w \perp \hat c_a\f$ and \f$w \cdot \hat c_b \le 0\f$
-for every other touched atom \f$b\f$. Hence
-\f$d \cdot w = \sum_{b \ne a} \lambda_b\, w \cdot \hat c_b \le 0\f$, with
-equality only for \f$w = 0\f$ because the contact directions span space. So
-\f$d \cdot (s - x) < 0\f$ for SAS points \f$s\f$ close to \f$x\f$, and
-\f$|s - (x + td)|^2 - t^2 = |s - x|^2 - 2t\, d \cdot (s - x) > 0\f$ for every
-\f$t\f$: no such \f$s\f$ is in any \f$B_t^\circ\f$.
+1. *Small balls stay inside the union.* A point of \f$B_t^\circ\f$ is
+   \f$x + t(d + e)\f$ with \f$|e| < 1\f$. It is inside the SAS ball of atom
+   \f$a\f$ iff \f$\hat c_a \cdot (d + e) > t|d + e|^2/2R_a\f$. With
+   \f$d = \sum \lambda_a \hat c_a\f$,
+   \f$\sum \lambda_a \hat c_a \cdot (d + e) = 1 + d \cdot e > |d + e|^2/2\f$, so
+   the largest \f$\hat c_a \cdot (d + e)\f$ exceeds
+   \f$|d + e|^2/(2\sum\lambda_a)\f$, which is at least \f$t|d + e|^2/(2R_a)\f$
+   for the maximizing \f$a\f$ once \f$t \le \min_b R_b / \sum_b \lambda_b\f$.
 
-*The first touch.* Hence \f$t_1 > 0\f$, and it is finite whenever some SAS
-point lies in \f$B_{r_p}^\circ\f$ (the only case used). The union of the open
-balls \f$B_t^\circ\f$, \f$t < t_1\f$, is the open ball
-\f$B^\circ(p_1, t_1)\f$, \f$p_1 = x + t_1 d\f$; it is connected, avoids the
-SAS and contains points inside \f$U\f$, so it lies inside \f$U\f$, and the
-closed ball lies in \f$U\f$. Slightly larger balls contain SAS points, which
-accumulate on the boundary of \f$B(p_1, t_1)\f$ at an SAS point \f$s_1\f$,
-and \f$s_1 \ne x\f$ by the previous paragraph. So \f$x\f$ and \f$s_1\f$ are
-both nearest SAS points of \f$p_1\f$, at distance \f$t_1\f$, and \f$p_1\f$
-lies on the bisector plane of \f$x\f$ and \f$s_1\f$.
+2. *SAS points near the vertex are never inside.* Near \f$x\f$ the SAS consists
+   of the sphere patches leaving \f$x\f$; a tangent direction \f$w\f$ of the
+   patch of atom \f$a\f$ satisfies \f$w \perp \hat c_a\f$ and
+   \f$w \cdot \hat c_b \le 0\f$ for every other touched atom \f$b\f$. Hence
+   \f$d \cdot w = \sum_{b \ne a} \lambda_b\, w \cdot \hat c_b \le 0\f$, with
+   equality only for \f$w = 0\f$ because the contact directions span space. So
+   \f$d \cdot (s - x) < 0\f$ for SAS points \f$s\f$ close to \f$x\f$, and
+   \f$|s - (x + td)|^2 - t^2 = |s - x|^2 - 2t\, d \cdot (s - x) > 0\f$ for every
+   \f$t\f$: no such \f$s\f$ is in any \f$B_t^\circ\f$.
 
-*Not inside a sphere patch.* If \f$s_1\f$ were, on the patch of atom
-\f$a\f$, the ball \f$B(p_1, t_1) \subset U\f$ would touch the sphere
-\f$S(c_a, R_a)\f$ from inside at \f$s_1\f$, so \f$p_1\f$ lies on the radius
-from \f$c_a\f$ to \f$s_1\f$ at distance \f$R_a - t_1\f$ from \f$c_a\f$. Then
-\f$|x - c_a| \le |x - p_1| + |p_1 - c_a| = R_a\f$, while \f$x\f$, an SAS
-point, has \f$|x - c_a| \ge R_a\f$; equality puts \f$p_1\f$ on the segment
-from \f$x\f$ to \f$c_a\f$, so the radius through \f$p_1\f$ is the radius
-through \f$x\f$ and \f$s_1 = x\f$. (If \f$p_1 = c_a\f$, then
-\f$d = \hat c_a\f$, a cone edge, excluded.)
+3. *The first touch.* Hence \f$t_1 > 0\f$, and it is finite whenever some SAS
+   point lies in \f$B_{r_p}^\circ\f$ (the only case used). The union of the open
+   balls \f$B_t^\circ\f$, \f$t < t_1\f$, is the open ball
+   \f$B^\circ(p_1, t_1)\f$, \f$p_1 = x + t_1 d\f$; it is connected, avoids the
+   SAS and contains points inside \f$U\f$, so it lies inside \f$U\f$, and the
+   closed ball lies in \f$U\f$. Slightly larger balls contain SAS points, which
+   accumulate on the boundary of \f$B(p_1, t_1)\f$ at an SAS point \f$s_1\f$,
+   and \f$s_1 \ne x\f$ by 2. So \f$x\f$ and \f$s_1\f$ are both nearest SAS
+   points of \f$p_1\f$, at distance \f$t_1\f$, and \f$p_1\f$ lies on the
+   bisector plane of \f$x\f$ and \f$s_1\f$.
 
-*Not inside an arc.* If \f$s_1\f$ were, on the circle of atoms
-\f$a, b\f$, then near \f$s_1\f$ the region \f$U\f$ is the union of the two
-SAS balls, and a ball inside \f$U\f$ touching their common boundary at
-\f$s_1\f$ must have its center in the wedge spanned at \f$s_1\f$ by the
-directions to \f$c_a\f$ and \f$c_b\f$ (a direction pointing away from both
-centers leaves both balls, hence \f$U\f$, while staying inside the ball).
-So \f$p_1\f$
-lies in the plane through \f$s_1\f$ and the axis \f$c_a c_b\f$, within the
-angle at \f$s_1\f$ of the triangle \f$(s_1, c_a, c_b)\f$. By @ref lemma-5 "Lemma 5" with
-\f$s = s_1\f$, \f$v = x\f$, no point strictly inside that triangle is
-equidistant from \f$x\f$ and \f$s_1\f$, so \f$p_1\f$ is on or beyond the
-segment \f$[c_a, c_b]\f$: on the axis or across it. Across the axis,
-\f$s_1\f$ is the *farthest* point of the circle from \f$p_1\f$: writing
-\f$p_1 = t + z u + \xi \hat r\f$ with \f$\hat r\f$ the radial direction of
-\f$s_1\f$, \f$|p_1 - s(\theta)|^2 = z^2 + \xi^2 + r_l^2 - 2\xi r_l \cos\theta\f$,
-and across the axis \f$\xi < 0\f$, so the distance is largest at
-\f$\theta = 0\f$. The end vertices of the arc through \f$s_1\f$ are
-therefore strictly closer than \f$t_1\f$, contradicting that no SAS point is
-closer than \f$t_1\f$. On the axis the whole circle is equidistant and an end
-vertex is also a nearest point; take it as \f$s_1\f$. (A vertex-free circle
-would need the ray of \f$d\f$ to meet a fixed line: a null set of
-directions.)
+4. *Not inside a sphere patch.* If \f$s_1\f$ were, on the patch of atom \f$a\f$,
+   the ball \f$B(p_1, t_1) \subset U\f$ would touch the sphere \f$S(c_a, R_a)\f$
+   from inside at \f$s_1\f$, so \f$p_1\f$ lies on the radius from \f$c_a\f$ to
+   \f$s_1\f$ at distance \f$R_a - t_1\f$ from \f$c_a\f$. Then
+   \f$|x - c_a| \le |x - p_1| + |p_1 - c_a| = R_a\f$, while \f$x\f$, an SAS
+   point, has \f$|x - c_a| \ge R_a\f$; equality puts \f$p_1\f$ on the segment
+   from \f$x\f$ to \f$c_a\f$, so the radius through \f$p_1\f$ is the radius
+   through \f$x\f$ and \f$s_1 = x\f$. (If \f$p_1 = c_a\f$, then
+   \f$d = \hat c_a\f$, a cone edge, excluded.)
 
-*The cut.* \f$p_1\f$ is on the bisector plane of \f$x\f$ and \f$s_1\f$, and
-\f$x + r_p d\f$ lies beyond \f$p_1\f$ on the ray from \f$x\f$ when
-\f$t_1 < r_p\f$, so it is closer to \f$s_1\f$ than to \f$x\f$:
-\f$|x + r_p d - s_1| < r_p\f$.
+5. *Not inside an arc.* If \f$s_1\f$ were, on the circle of atoms \f$a, b\f$,
+   then near \f$s_1\f$ the region \f$U\f$ is the union of the two SAS balls, and
+   a ball inside \f$U\f$ touching their common boundary at \f$s_1\f$ must have
+   its center in the wedge spanned at \f$s_1\f$ by the directions to \f$c_a\f$
+   and \f$c_b\f$ (a direction pointing away from both centers leaves both balls,
+   hence \f$U\f$, while staying inside the ball). So \f$p_1\f$ lies in the plane
+   through \f$s_1\f$ and the axis \f$c_a c_b\f$, within the angle at \f$s_1\f$
+   of the triangle \f$(s_1, c_a, c_b)\f$. By @ref lemma-5 "Lemma 5" with
+   \f$s = s_1\f$, \f$v = x\f$, no point strictly inside that triangle is
+   equidistant from \f$x\f$ and \f$s_1\f$, so \f$p_1\f$ is on or beyond the
+   segment \f$[c_a, c_b]\f$: on the axis or across it. Across the axis,
+   \f$s_1\f$ is the *farthest* point of the circle from \f$p_1\f$: writing
+   \f$p_1 = t + z u + \xi \hat r\f$ with \f$\hat r\f$ the radial direction of
+   \f$s_1\f$,
+   \f$|p_1 - s(\theta)|^2 = z^2 + \xi^2 + r_l^2 - 2\xi r_l \cos\theta\f$, and
+   across the axis \f$\xi < 0\f$, so the distance is largest at
+   \f$\theta = 0\f$. The end vertices of the arc through \f$s_1\f$ are therefore
+   strictly closer than \f$t_1\f$, contradicting that no SAS point is closer
+   than \f$t_1\f$. On the axis the whole circle is equidistant and an end vertex
+   is also a nearest point; take it as \f$s_1\f$. (A vertex-free circle would
+   need the ray of \f$d\f$ to meet a fixed line: a null set of directions.)
+
+6. *The cut.* \f$p_1\f$ is on the bisector plane of \f$x\f$ and \f$s_1\f$, and
+   \f$x + r_p d\f$ lies beyond \f$p_1\f$ on the ray from \f$x\f$ when
+   \f$t_1 < r_p\f$, so it is closer to \f$s_1\f$ than to \f$x\f$:
+   \f$|x + r_p d - s_1| < r_p\f$.
 
 \anchor lemma-7
 **Lemma 7 (caps from one circle are nested).** In plain words: of the probes
@@ -1373,42 +1393,48 @@ for the smallest SAS radius; without the tolerance the bound is
 \f$|x - y|^2 > 2 R_x R_y\f$ and the threshold is \f$R \ge \sqrt 2\, r_p\f$,
 i.e. a vdW radius of \f$(\sqrt 2 - 1) r_p\f$.
 
-*Proof.* Take the point \f$q\f$ from the proof of @ref lemma-8 "Lemma 8":
-\f$x = q - \varrho u\f$, \f$y = q - \varrho e\f$ with \f$u \in C_x\f$,
-\f$e \in C_y\f$, \f$\varrho < r_p\f$. Write \f$w = x - y = \varrho(e - u)\f$,
-\f$\ell = |w|\f$, \f$\gamma = u \cdot e < 1\f$, so
-\f$\ell^2 = 2\varrho^2(1 - \gamma)\f$, \f$w \cdot u = -\varrho(1 - \gamma)\f$,
-\f$w \cdot e = \varrho(1 - \gamma)\f$. Let \f$u = \sum_a \lambda_a \hat c_a\f$
-and \f$e = \sum_d \mu_d \hat c_d\f$ with non-negative weights over the
-hosts, and abbreviate \f$\Lambda = \sum\lambda_a\f$,
-\f$\Lambda' = \sum\lambda_a/R_a\f$, \f$M = \sum\mu_d\f$,
-\f$M' = \sum\mu_d/R_d\f$, \f$P = \varrho\Lambda'\f$, \f$Q = \varrho M'\f$.
+*Proof.*
 
-*Both probes are outside the other's balls.* \f$|y - c_a| \ge R_a\f$ with
-\f$y - c_a = -w - R_a \hat c_a\f$ gives \f$w \cdot \hat c_a \ge -\ell^2/2R_a\f$;
-weighting by \f$\lambda_a\f$ and summing,
-\f$-\varrho(1 - \gamma) \ge -(\ell^2/2)\Lambda' = -\varrho^2(1 - \gamma)\Lambda'\f$,
-i.e. \f$P \ge 1\f$. Likewise \f$|x - c_d| \ge R_d\f$ gives \f$Q \ge 1\f$.
+1. *Notation.* Take the point \f$q\f$ from the proof of @ref lemma-8 "Lemma 8":
+   \f$x = q - \varrho u\f$, \f$y = q - \varrho e\f$ with \f$u \in C_x\f$,
+   \f$e \in C_y\f$, \f$\varrho < r_p\f$. Write \f$w = x - y = \varrho(e - u)\f$,
+   \f$\ell = |w|\f$, \f$\gamma = u \cdot e < 1\f$, so
+   \f$\ell^2 = 2\varrho^2(1 - \gamma)\f$,
+   \f$w \cdot u = -\varrho(1 - \gamma)\f$,
+   \f$w \cdot e = \varrho(1 - \gamma)\f$. Let
+   \f$u = \sum_a \lambda_a \hat c_a\f$ and \f$e = \sum_d \mu_d \hat c_d\f$ with
+   non-negative weights over the hosts, and abbreviate
+   \f$\Lambda = \sum\lambda_a\f$, \f$\Lambda' = \sum\lambda_a/R_a\f$,
+   \f$M = \sum\mu_d\f$, \f$M' = \sum\mu_d/R_d\f$, \f$P = \varrho\Lambda'\f$,
+   \f$Q = \varrho M'\f$.
 
-*A non-overlapping host pair.* \f$c_a - c_d = w + R_a \hat c_a - R_d \hat c_d\f$,
-so \f$|c_a - c_d| \ge R_a + R_d - \tau\f$ expands to
-\f$\ell^2 + 2R_a\, w \cdot \hat c_a - 2R_d\, w \cdot \hat c_d \ge 2R_a R_d (1 + \hat c_a \cdot \hat c_d) - 2\tau(R_a + R_d)\f$
-(the \f$\tau^2\f$ term only helps and is dropped).
+2. *Both probes are outside the other's balls.* \f$|y - c_a| \ge R_a\f$ with
+   \f$y - c_a = -w - R_a \hat c_a\f$ gives
+   \f$w \cdot \hat c_a \ge -\ell^2/2R_a\f$; weighting by \f$\lambda_a\f$ and
+   summing,
+   \f$-\varrho(1 - \gamma) \ge -(\ell^2/2)\Lambda' = -\varrho^2(1 - \gamma)\Lambda'\f$,
+   i.e. \f$P \ge 1\f$. Likewise \f$|x - c_d| \ge R_d\f$ gives \f$Q \ge 1\f$.
 
-*Average over both cones.* Multiply each pair's inequality by
-\f$\lambda_a \mu_d/(R_a R_d)\f$ and sum. The left side becomes
-\f$\ell^2 \Lambda' M' + 2M'(w \cdot u) - 2\Lambda'(w \cdot e) = 2(1 - \gamma)(PQ - P - Q)\f$,
-the right side \f$2(\Lambda M + \gamma) - 2\tau(\Lambda M' + \Lambda' M)\f$.
-Since \f$\Lambda \le R_{\max}\Lambda'\f$ and \f$M \le R_{\max} M'\f$, the
-tolerance term is at most \f$4\tau R_{\max} \Lambda' M'\f$; hence
-\f$(1 - \gamma)(PQ - P - Q) \ge (\Lambda M - 2\tau R_{\max}\Lambda' M') + \gamma\f$.
+3. *A non-overlapping host pair.*
+   \f$c_a - c_d = w + R_a \hat c_a - R_d \hat c_d\f$, so
+   \f$|c_a - c_d| \ge R_a + R_d - \tau\f$ expands to
+   \f$\ell^2 + 2R_a\, w \cdot \hat c_a - 2R_d\, w \cdot \hat c_d \ge 2R_a R_d (1 + \hat c_a \cdot \hat c_d) - 2\tau(R_a + R_d)\f$
+   (the \f$\tau^2\f$ term only helps and is dropped).
 
-*Conclude.* \f$\Lambda \ge R_x \Lambda'\f$ and \f$M \ge R_y M'\f$ give
-\f$\Lambda M - 2\tau R_{\max}\Lambda' M' \ge (R_x R_y - 2\tau R_{\max})\, PQ/\varrho^2\f$,
-and \f$P + Q \ge 2\f$ gives \f$(1 - \gamma)(PQ - 2) \ge (1 - \gamma)(PQ - P - Q)\f$.
-Together,
-\f$PQ\,[(1 - \gamma) - (R_x R_y - 2\tau R_{\max})/\varrho^2] \ge 2 - \gamma > 0\f$,
-so \f$R_x R_y - 2\tau R_{\max} < \varrho^2(1 - \gamma) = \ell^2/2\f$.
+4. *Average over both cones.* Multiply each pair's inequality by
+   \f$\lambda_a \mu_d/(R_a R_d)\f$ and sum. The left side becomes
+   \f$\ell^2 \Lambda' M' + 2M'(w \cdot u) - 2\Lambda'(w \cdot e) = 2(1 - \gamma)(PQ - P - Q)\f$,
+   the right side \f$2(\Lambda M + \gamma) - 2\tau(\Lambda M' + \Lambda' M)\f$.
+   Since \f$\Lambda \le R_{\max}\Lambda'\f$ and \f$M \le R_{\max} M'\f$, the
+   tolerance term is at most \f$4\tau R_{\max} \Lambda' M'\f$; hence
+   \f$(1 - \gamma)(PQ - P - Q) \ge (\Lambda M - 2\tau R_{\max}\Lambda' M') + \gamma\f$.
+
+5. *Conclude.* \f$\Lambda \ge R_x \Lambda'\f$ and \f$M \ge R_y M'\f$ give
+   \f$\Lambda M - 2\tau R_{\max}\Lambda' M' \ge (R_x R_y - 2\tau R_{\max})\, PQ/\varrho^2\f$,
+   and \f$P + Q \ge 2\f$ gives
+   \f$(1 - \gamma)(PQ - 2) \ge (1 - \gamma)(PQ - P - Q)\f$. Together,
+   \f$PQ\,[(1 - \gamma) - (R_x R_y - 2\tau R_{\max})/\varrho^2] \ge 2 - \gamma > 0\f$,
+   so \f$R_x R_y - 2\tau R_{\max} < \varrho^2(1 - \gamma) = \ell^2/2\f$.
 
 \anchor corollary-3
 **Corollary 3 (two neighbor shells suffice).** Enumerating the vertices
@@ -1673,7 +1699,7 @@ SAS intersection point \f$x\f$ within \f$2 r_p\f$ and imposes no filter):
 | MolSurfComp | There | Here |
 |---|---|---|
 | high probe implies an uncut face, by height over the plane of the three atom centers | asserted | not adopted. @ref corollary-1 "Corollary 1"(c), proved, on the distance to the contact *triangle* |
-| only low probes may cut | asserted | not adopted. Corollary of @ref lemma-8 "Lemma 8" (cut symmetry), proved |
+| only low probes may cut | asserted | not adopted. @ref corollary-2 "Corollary 2" (cut symmetry), proved |
 | first-atom neighborhood restriction | asserted | not adopted. @ref lemma-11 "Lemma 11" (host overlap) gives the provable version: a cutter's hosts reach the cut face's hosts within two overlap hops, one hop is not enough |
 | keep only the largest departure angle among probes sharing two atoms | asserted | @ref lemma-7 "Lemma 7", proved, not a code path |
 
