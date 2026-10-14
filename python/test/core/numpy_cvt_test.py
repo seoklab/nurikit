@@ -86,6 +86,24 @@ def test_cast_inner_strided():
     _assert_same_content(arr, out)
 
 
+def test_cast_force_copy():
+    arr = np.arange(9, dtype=np.float64).reshape(3, 3)
+
+    out = cast_test_helper(arr, "matrix", force_copy=True)
+    _assert_same_content(arr, out)
+
+    out = cast_test_helper(arr, "dynamic", force_copy=True)
+    _assert_same_content(arr, out)
+
+    arr = arr[0]
+
+    out = cast_test_helper(arr, "col_vector", force_copy=True)
+    _assert_same_content(arr, out)
+
+    out = cast_test_helper(arr, "row_vector", force_copy=True)
+    _assert_same_content(arr, out)
+
+
 def test_cast_converted():
     arr = np.arange(9, dtype=np.int32).reshape(3, 3)
 

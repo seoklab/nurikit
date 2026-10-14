@@ -72,27 +72,27 @@ Set the seed of random number generator for the current thread.
 
   m.def(
       "_py_array_cast_test_helper",
-      [](py::handle obj, std::string_view kind) {
+      [](py::handle obj, std::string_view kind, bool force_copy) {
         if (kind == "matrix") {
-          auto arr = py_array_cast<3, 3>(obj);
+          auto arr = py_array_cast<3, 3>(obj, force_copy);
           return arr.numpy();
         }
 
         if (kind == "col_vector") {
-          auto arr = py_array_cast<3, 1>(obj);
+          auto arr = py_array_cast<3, 1>(obj, force_copy);
           return arr.numpy();
         }
 
         if (kind == "row_vector") {
-          auto arr = py_array_cast<1, 3>(obj);
+          auto arr = py_array_cast<1, 3>(obj, force_copy);
           return arr.numpy();
         }
 
         // dynamic
-        auto arr = py_array_cast(obj);
+        auto arr = py_array_cast(obj, force_copy);
         return arr.numpy();
       },
-      py::arg("obj"), py::arg("kind"));
+      py::arg("obj"), py::arg("kind"), py::arg("force_copy") = false);
 
   py::class_<EigenViewTestData>(m, "_EigenViewTestData")
       .def(py::init([](py::handle dynamic, py::handle semi_dynamic,
