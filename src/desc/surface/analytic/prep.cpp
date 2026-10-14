@@ -260,7 +260,7 @@ namespace internal {
     /**
      * Rank every atom: active, need, shell, occluder near a sphere with
      * caps, or ignored (contained, or an occluder near no sphere with caps;
-     * Lemma 3 of the analytic_surface page).
+     * Lemma 2 of the analytic_surface page).
      */
     AtomRanking rank_atoms(NearPairs &&np, const ArrayXb &active) {
       // inplace rebuild of rank from keep
