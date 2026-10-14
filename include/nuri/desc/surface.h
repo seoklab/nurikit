@@ -460,8 +460,12 @@ namespace internal {
 /**
  * @brief Analytic SAS and SES of a set of spheres.
  *
- * Active atoms own surface, the rest only occlude. `build_sas` stops after
- * the SAS, `build_ses` builds both and keeps the SES.
+ * The solvent-excluded surface of Richards @cite desc:surface:richards-1977
+ * in the analytic patch decomposition of Connolly
+ * @cite desc:surface:connolly-1983, built from the characterisation of Quan
+ * and Stamm @cite desc:surface:quan-stamm-2016. Active atoms own surface,
+ * the rest only occlude. `build_sas` stops after the SAS, `build_ses` builds
+ * both and keeps the SES.
  *
  * @note Coordinates must lie within 1e4 angstroms of the origin; subtract one
  *       common shift from all inputs first.

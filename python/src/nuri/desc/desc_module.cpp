@@ -331,6 +331,11 @@ NURI_PYTHON_MODULE(m) {
 Build the analytic solvent-accessible (SAS) or solvent-excluded (SES) surface
 of a set of spheres.
 
+The SES is the molecular surface of
+Richards\ :footcite:`desc:surface:richards-1977` in the patch decomposition of
+Connolly\ :footcite:`desc:surface:connolly-1983`, built from the
+characterisation of Quan and Stamm\ :footcite:`desc:surface:quan-stamm-2016`.
+
 :param pts: The sphere centres, as a 2D array of shape ``(N, 3)``.
 :param radii: The sphere radii, as a 1D array of shape ``(N,)``.
 :param rp: The probe radius, in angstroms. Default is 1.4 angstroms.
