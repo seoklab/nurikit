@@ -211,8 +211,8 @@ namespace internal {
     /**
      * Whether the cap `(axis, cos a)` on the sphere of `p` overlaps the cap
      * beyond the contact plane, `dot(d, normal) > cos b`: the angle between the
-     * axes is below `a + b` (the cap-reach test of the analytic_surface
-     * page). Probes without a plane pass.
+     * axes is below `a + b` (Lemma 9 of the analytic_surface page). Probes
+     * without a plane pass.
      */
     bool meets_plane_cap(const ProbeHeights &hts, const int p,
                          const Vector3d &axis, const double cos_a,
@@ -225,12 +225,12 @@ namespace internal {
     /**
      * Whether the cap `(axis, cos a)` on the sphere of `p` meets its
      * spherical triangle: the axis is inside, or within `a` of a corner, or
-     * within `a` of an edge arc (the triangle-reach test of the
-     * analytic_surface page). The foot of the axis on the great circle of
-     * `t_m` lies on the arc iff it is on the arc's side of the corners'
-     * bisector `p + q`; the corners are perpendicular to `t_m`, so the
-     * foot's component along the bisector is the axis's own. All
-     * comparisons are on squared cosines. Probes without a triangle pass.
+     * within `a` of an edge arc (Lemma 10 of the analytic_surface page).
+     * The foot of the axis on the great circle of `t_m` lies on the arc iff
+     * it is on the arc's side of the corners' bisector `p + q`; the corners
+     * are perpendicular to `t_m`, so the foot's component along the
+     * bisector is the axis's own. All comparisons are on squared cosines.
+     * Probes without a triangle pass.
      */
     bool meets_triangle(const SasProbes &probes, const FaceTriangles &tri,
                         const int p, const Vector3d &axis, const double cos_a) {

@@ -480,7 +480,7 @@ namespace internal {
     }
 
     /**
-     * Walk the cell fan around edge `(a, b)` counter-clockwise (Lemma 1 of
+     * Walk the cell fan around edge `(a, b)` counter-clockwise (Lemma 2 of
      * the analytic_surface page);
      * each face `(a, b, c)` with a sphere `c` overlapping both contributes
      * its accepted roots as (enter ball `c`, leave ball `c`). `fan` collects

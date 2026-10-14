@@ -105,7 +105,7 @@ bands that are supersets of exactly decided sets; every decision is exact.
    coordinate beyond `kSurfaceMaxCoord` \f$= 10^4\,\AA\f$ in absolute value
    (where the bands below stop being supersets), and SAS radii with
    \f$R_{\min} < \sqrt{2 r_p^2 + 2\,\tau\,R_{\max}}\f$ (the hypothesis of
-   @ref lemma-7 "Lemma 7" for positive radii, a vdW radius just above
+   @ref lemma-11 "Lemma 11" for positive radii, a vdW radius just above
    \f$(\sqrt 2 - 1) r_p\f$, \f$0.58\,\AA\f$ for water; the sign of the comparison is
    what rejects a non-positive atom radius) are rejected. Pairs \f$(i < j)\f$ with
    \f$d \le R_i + R_j + 2\tau\f$ are the **near** pairs, found by a
@@ -152,7 +152,7 @@ bands that are supersets of exactly decided sets; every decision is exact.
 4. **Order.** `active` is the caller's mask minus dropped atoms; `need` is
    `active` plus its near neighbors and `shell` the near neighbors of
    `need`. Occluders near no `shell`, `need` or `active` atom are dropped
-   (@ref lemma-2 "Lemma 2"). Atoms are permuted to `[active | need | shell | occluders]`,
+   (@ref lemma-3 "Lemma 3"). Atoms are permuted to `[active | need | shell | occluders]`,
    and the overlap graph `g` over the kept atoms is remapped and sorted. From
    here on state is read from index ranges: a sphere owns dots iff its index
    is below `n_active`, has its arrangement solved iff below `n_solve`, has
@@ -174,12 +174,12 @@ bands that are supersets of exactly decided sets; every decision is exact.
    indices are the lowest), so active torus arcs come from solved spheres.
    The hosts of a probe on an active atom overlap pairwise, so they are
    in `need`, every circle between two of them is solved, and the probe's
-   departure tangents are complete. By @ref lemma-7 "Lemma 7", a probe that cuts the face of
+   departure tangents are complete. By @ref lemma-11 "Lemma 11", a probe that cuts the face of
    a probe on an active atom has a host that overlaps one of that probe's
    hosts, hence a host in `shell`: it is enumerated, its accessibility is
    decided like every other root, and its cap is present. Its own departure
    tangents may be incomplete (a circle between two shell atoms is never
-   solved); it then fails the triangle predicate of @ref triangle-reach "triangle-reach test" and is tested
+   solved); it then fails the triangle predicate of @ref lemma-10 "Lemma 10" and is tested
    unfiltered, which is always allowed. Two shells are exactly what
    @ref corollary-3 "Corollary 3" needs; one shell of neighbors is not
    enough: the cutter's hosts need only touch a *neighbor* of the active
@@ -279,19 +279,13 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    the tie and preparation takes the limit answer, and `ccw` and
    `half_plane` report zero for the caller to resolve structurally.
 
-   \anchor bounding-points
    Four **bounding points** of weight 0 at the corners of a regular
    tetrahedron of circumradius \f$4(\Delta + R_{\max}) + 1\f$ around the
    bounding box (\f$\Delta\f$ its half diagonal) are appended so the input is
    never coplanar, the initial simplex of Bowyer and Watson
-   @cite desc:surface:bowyer-1981 @cite desc:surface:watson-1981. They are
-   inert: every point of \f$U\f$ lies within \f$\Delta + R_{\max}\f$ of the
-   box center, so a bounding point has positive power on all of \f$U\f$ and
-   never rejects a cut point, and, because every center is strictly inside
-   the tetrahedron (its inradius exceeds \f$\Delta\f$), every hull face of
-   the triangulation consists of bounding points only. A sphere that appears
-   in no cell has an empty power cell, no accessible surface, and gets area 0
-   without a solve.
+   @cite desc:surface:bowyer-1981 @cite desc:surface:watson-1981; they are
+   inert (@ref lemma-1 "Lemma 1"). A sphere that appears in no cell has an
+   empty power cell, no accessible surface, and gets area 0 without a solve.
 2. **Caps.** The caps of sphere \f$s\f$ are its \f$RT\f$ neighbors \f$t\f$
    whose ball overlaps \f$B_s\f$, decided exactly and rationally: with
    \f$T = \rho_s^2 + \rho_t^2 - |c_s - c_t|^2\f$ the balls overlap iff
@@ -326,7 +320,7 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    apexes \f$l\f$ of the two cells sharing the face (`accept`:
    \f$\pi_l - \pi_a\f$ is affine along \f$\ell\f$, so this is the sign of
    \f$A \pm B\sqrt D\f$, decided exactly; a tie is perturbed like the
-   triangulation). An apex that is a bounding point (@ref bounding-points "step 1") or misses one
+   triangulation). An apex that is a bounding point (@ref lemma-1 "Lemma 1") or misses one
    of the face spheres is not tested: its power on that sphere is
    non-negative, zero only at a tangency point, and the limit accepts there
    (step 2). Each accepted root is one **probe** with exactly the three atoms
@@ -336,12 +330,12 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
 4. **Rings from cell fans.** For every \f$RT\f$ edge \f$(a, b)\f$ that is a
    cap pair, the cells around the edge are walked in cyclic order (across the
    two faces of each cell that contain the edge; the cycle closes within the
-   finite cells by @ref bounding-points "step 1"). Each face \f$(a, b, c)\f$ of the fan that cuts
+   finite cells by @ref lemma-1 "Lemma 1"). Each face \f$(a, b, c)\f$ of the fan that cuts
    the circle contributes its accepted roots in the order **exit from the
    facet, then entry into the facet** (entering ball \f$c\f$, then leaving
    it) along the circle's orientation about \f$a \to b\f$; the
    orientation of the fan comes from the sign of the cell (geogram cells are
-   positively oriented), so no angle is ever compared. @ref lemma-1 "Lemma 1" says this is
+   positively oriented), so no angle is ever compared. @ref lemma-2 "Lemma 2" says this is
    the cyclic order of the vertices on the circle. Consecutive ring entries
    alternate entry/exit (a structural `DCHECK`); the arc from an **entry to
    the next vertex is accessible**, from an exit it is not. An empty ring is
@@ -426,6 +420,23 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
 
 ### Correctness {#sas-correctness}
 
+\anchor lemma-1
+**Lemma 1 (bounding points are inert).** In plain words: a bounding point
+never rejects a vertex and never bounds a fan. Precisely: (a) every bounding point has positive power on all of
+\f$U\f$, so it rejects no cut point of any face; (b) every hull face of
+\f$RT\f$ consists of bounding points only, so the cells around an edge
+between two spheres form a closed cycle of finite cells.
+
+*Proof.* Every point of \f$U\f$ lies within \f$\Delta + R_{\max}\f$ of the
+box center and a bounding point at distance \f$4(\Delta + R_{\max}) + 1\f$
+from it, so its power, the squared distance for weight 0, is at least
+\f$(3(\Delta + R_{\max}) + 1)^2 > 0\f$ on \f$U\f$; a cut point lies on
+\f$U\f$. The inradius of the tetrahedron is a third of its circumradius and
+exceeds \f$\Delta\f$, so every center is strictly inside it and the convex
+hull of the lifted input is the tetrahedron: its facets are the hull faces
+of \f$RT\f$, spanned by bounding points only, and no edge between two
+spheres lies on the hull.
+
 \anchor theorem-1
 **Theorem 1 (vertex recipe).** In plain words: a cut point of a face is on
 the surface iff it is outside the two balls on either side of that face, and
@@ -454,7 +465,8 @@ Conversely an accessible cut point lies on exactly three spheres in this
 configuration, so \f$V_a \cap V_b \cap V_c\f$ is one-dimensional, \f$abc\f$
 is a face, and that face produces the point.
 
-**Remark (degenerate cells).** At an unperturbed \f$k\f$-fold point the
+\anchor remark-1
+**Remark 1 (degenerate cells).** At an unperturbed \f$k\f$-fold point the
 recipe still holds pointwise, but
 two cells can share an orthocentre, and then every face of the degenerate
 cell accepts the same point, so the probe count and the ring alternation
@@ -468,8 +480,8 @@ zero-length dual edge; after the perturbation it is a chain of cells with
 \f$O(\varepsilon)\f$ edges, every face of the chain produces its own cut
 point at the same position to rounding, and each accepted one is a probe.
 
-\anchor lemma-1
-**Lemma 1 (fan order is ring order).** In plain words: walking the cells
+\anchor lemma-2
+**Lemma 2 (fan order is ring order).** In plain words: walking the cells
 around an edge visits the circle's vertices in their order along the circle.
 Hypotheses: no face of the fan is tangent to the circle (a double root is
 perturbed to a cut or a miss before this lemma applies) and no cell
@@ -499,7 +511,7 @@ convex polyhedron whose facets are the \f$RT\f$ edges of \f$s\f$
 (non-empty for a solved sphere, which has arcs); if \f$x \notin V_s\f$ some
 facet neighbor \f$n\f$ has \f$\pi_n(x) < 0\f$ strictly, and \f$n\f$ is a
 sphere since a bounding point has \f$\pi \ge 0\f$ on \f$U\f$
-(@ref bounding-points "step 1"), so a point of \f$S_s\f$ inside some open
+(@ref lemma-1 "Lemma 1"), so a point of \f$S_s\f$ inside some open
 ball is inside the open ball of an \f$RT\f$ neighbor. Hence the union of the open
 neighbor caps equals the union of all open overlapping caps exactly (a
 tangent neighbor has an empty open cap, consistent with
@@ -507,15 +519,15 @@ tangent neighbor has an empty open cap, consistent with
 components of @ref sas-construction "step 5", and every accessible
 arc on circle \f$(s, t)\f$ lies in the facet \f$V_s \cap V_t\f$, so
 \f$(s, t)\f$ is an edge and, by @ref theorem-1 "Theorem 1" and
-@ref lemma-1 "Lemma 1", its endpoints are the ring of that edge. The same
+@ref lemma-2 "Lemma 2", its endpoints are the ring of that edge. The same
 dual complex underlies the alpha-shape area of @cite desc:surface:liang-1998,
 which sums inclusion-exclusion terms instead of solving each sphere's
 arrangement; the exact arrangement of the circles on one sphere was
 previously computed by a sweep over all its intersecting neighbors
 @cite desc:surface:cazals-loriot-2009.
 
-\anchor lemma-2
-**Lemma 2 (occluder crop).** In plain words: an occluder that is near no
+\anchor lemma-3
+**Lemma 3 (occluder crop).** In plain words: an occluder that is near no
 atom with caps can be deleted before the triangulation without changing any
 surface that is reported. Let \f$S\f$ be the kept spheres after preparation
 with their ranks and
@@ -532,7 +544,7 @@ merged clusters; (b) on every sphere below `n_enum` the ring of every circle,
 the arcs with their \f$\varphi\f$, \f$\Delta\varphi\f$, ends and tangents,
 the union of its caps and its component count, and its area to rounding; (c)
 the SES patches and the dots. The cap *list* of a sphere is not invariant
-(remark below); its union is.
+(@ref remark-2 "Remark 2"); its union is.
 
 *Setting.* For a point \f$y \in S_a\f$ let
 \f$X(y) = \{m \ne a : \pi_m(y) \le 0\}\f$ be the balls holding \f$y\f$,
@@ -577,7 +589,7 @@ which no perturbation changes.
    - *Far constraints.* For \f$m \notin X(x)\f$, \f$x\f$ is inside \f$H_m\f$
      at a margin from \f$t_m\f$ for every small \f$\varepsilon\f$: such an
      \f$m\f$ never rejects, tested or not. Bounding points are far by
-     @ref bounding-points "step 1", every \f$o \in O\f$ by 1(iii).
+     @ref lemma-1 "Lemma 1", every \f$o \in O\f$ by 1(iii).
    - *Strict containment rejects.* If \f$m \in X^-(x)\f$, \f$x\f$ is outside
      \f$H_m\f$ at a margin, and \f$F \subseteq H_m\f$; the apex on that side
      has its tight point at the margin from \f$x\f$, so it is not in
@@ -593,7 +605,7 @@ which no perturbation changes.
      are signs of predicates on \f$f \cup X^0(x)\f$, and by 2 geogram makes
      the same choice in both runs. A far binder is untested or accepts.
 4. *Rings, arcs, antipode.* Fix a circle \f$(i, j) \in g\f$ with
-   \f$i <\f$ `n_enum` and the facet \f$P = V_i \cap V_j\f$ (@ref lemma-1 "Lemma 1"). Every
+   \f$i <\f$ `n_enum` and the facet \f$P = V_i \cap V_j\f$ (@ref lemma-2 "Lemma 2"). Every
    accepted root of a face \f$(i, j, c)\f$ is in the fan of the edge, and
    the fan contributes exactly its accepted roots; a skipped fan face, whose
    third vertex is not `g`-adjacent to both, neither cuts nor contains the
@@ -664,7 +676,8 @@ about \f$10^{-14}\f$ relative, not bitwise; a patch's dot count
 \f$\operatorname{lround}(\text{area} \cdot \text{density})\f$ flips only when
 the product is within that rounding of a half-integer.
 
-**Remark (the cap list is not invariant).** \f$s = (0, 0, 0)\f$,
+\anchor remark-2
+**Remark 2 (the cap list is not invariant).** \f$s = (0, 0, 0)\f$,
 \f$t = (1.2, 0, 0)\f$, \f$u = (0.6, 0, 0.5)\f$, \f$o = (0.6, 0, -1.92)\f$ with
 \f$R = 1, 1, 1.4, 1\f$; \f$s\f$ active, \f$t\f$ and \f$u\f$ need, \f$o\f$
 rank 3 and near nothing. The circle \f$(s, t)\f$ (plane \f$x = 0.6\f$,
@@ -677,10 +690,11 @@ on \f$s\f$ lies inside the cap of \f$u\f$. On the radical plane
 give \f$s\f$ the cap union \f$\mathrm{cap}(u)\f$, one component, the same
 arcs and area.
 
-**Remark (sharpness).** The criterion is the near band of rank \f$\le 2\f$,
-not less. A rank-3 atom \f$o\f$ near a rank-2 atom \f$a\f$ hosts faces
+\anchor remark-3
+**Remark 3 (sharpness of @ref lemma-3 "Lemma 3").** The criterion is the
+near band of rank \f$\le 2\f$, not less. A rank-3 atom \f$o\f$ near a rank-2 atom \f$a\f$ hosts faces
 \f$(a, o, o')\f$ whose accepted roots are the probes with a host in `shell`
-that @ref lemma-7 "Lemma 7" identifies as the first-touch cutters of faces on active
+that @ref lemma-11 "Lemma 11" identifies as the first-touch cutters of faces on active
 atoms; dropping \f$o\f$ deletes a cutter and its cap. Replacing the band by
 `g` is not safe either: a sphere exactly tangent to \f$a\f$ is in
 \f$X^0(x)\f$ at its tangency point \f$x\f$, and if \f$x\f$ is a root there
@@ -692,8 +706,9 @@ a sphere with caps.
 
 #### Corners at k-fold points {#sas-corners}
 
-Where the SAS is locally a disc around a
-\f$k\f$-fold point \f$x\f$ with all \f$k\f$ spheres on faces through
+\anchor lemma-4
+**Lemma 4 (corners at a k-fold point add up).** Where the SAS is locally a
+disc around a \f$k\f$-fold point \f$x\f$ with all \f$k\f$ spheres on faces through
 \f$x\f$, the point produces \f$k - 2\f$ probes within rounding of one
 position, joined by arcs of length \f$O(\text{rounding})\f$. The turning of
 the tangent along the boundary is additive modulo \f$2\pi\f$, and the local
@@ -761,7 +776,7 @@ caps through \f$x_0\f$ are those of \f$\Sigma\f$; and on every sphere below
 
 *Proof.* Powers are compared only by differences, so \f$\Sigma\f$ has the
 \f$RT\f$, cells, orthocentres \f$o_T\f$ and fans of the run, and
-@ref theorem-1 "Theorem 1" and @ref lemma-1 "Lemma 1" hold for it. Its ball
+@ref theorem-1 "Theorem 1" and @ref lemma-2 "Lemma 2" hold for it. Its ball
 \f$i\f$ is \f$\{\pi_i < -\gamma\}\f$, so its cut points lie on the same
 radical lines at power \f$-\gamma\f$ where the run's lie at 0. If a ball
 contains \f$x_0\f$ in its interior, nothing near \f$x_0\f$ is accessible in
@@ -818,7 +833,7 @@ so in \f$\Sigma\f$ no point has both \f$\pi_p\f$ and \f$\pi_q\f$ below
    Faces with a sphere outside \f$K\f$ have no root in \f$N\f$. So the run's
    accepted roots in \f$N\f$ are the vertices of \f$\Sigma\f$ there.
 3. *Rings.* A ring lists accepted roots in fan order, exit before entry, the
-   fan of \f$\Sigma\f$; by @ref lemma-1 "Lemma 1" for \f$\Sigma\f$ that is
+   fan of \f$\Sigma\f$; by @ref lemma-2 "Lemma 2" for \f$\Sigma\f$ that is
    the cyclic order of its vertices. A fan face cuts at level 0 iff it cuts
    at \f$-\gamma\f$ (step 2), a partner neither cuts nor contains, and in a
    single-point window the antipode lies away from \f$x_0\f$, where the
@@ -852,7 +867,8 @@ so in \f$\Sigma\f$ no point has both \f$\pi_p\f$ and \f$\pi_q\f$ below
    Gauss-Bonnet for \f$R'_s\f$ converges to the run's sum, while the area of
    \f$R'_s\f$ converges to the exact area, as regions do.
 
-The shift must be local to \f$x_0\f$: shifting by the largest lens parameter
+\anchor remark-4
+**Remark 4 (the shift is local, the tie is load-bearing).** The shift must be local to \f$x_0\f$: shifting by the largest lens parameter
 over all pinch points would, at a pinch with a smaller one or at a
 \f$k\f$-fold point decided by a higher index, outweigh the perturbation and
 make rejected points accessible. The exact tie in `discs_intersect` is
@@ -964,7 +980,7 @@ unchanged by it.
   vertices, and each circle's ring is sorted by the exact half-plane class of
   the SAS rings, then by the numeric angle, with the perturbed `ccw` deciding
   only the pairs whose angles lie within `kRingSortEps` (the SAS itself never
-  sorts: its ring order is the fan order of @ref lemma-1 "Lemma 1"; the
+  sorts: its ring order is the fan order of @ref lemma-2 "Lemma 2"; the
   sort is sound by the certificate of @ref analysis-fp "Floating point").
   Ties are perturbed in the order probe, then caps as
   given. The `ArrangementSolver` then walks the darts and applies
@@ -982,8 +998,8 @@ three-atom vertex, the complement of the three departure hemispheres), the
 \f$B^\circ(y, r_p)\f$. Merged \f$k\f$-fold probes take the unfiltered path;
 the filters are for three-atom probes.
 
-\anchor lemma-3
-**Lemma 3 (contact hull).** Points that lie between an SAS point and the
+\anchor lemma-5
+**Lemma 5 (contact hull).** Points that lie between an SAS point and the
 atoms it touches are closer to that SAS point than to any other point outside
 \f$U\f$. Precisely: let \f$s\f$ be an SAS point touching atoms \f$A(s)\f$,
 \f$v\f$ any point not inside \f$U\f$ (every SAS point qualifies), \f$q\f$
@@ -1003,7 +1019,7 @@ so \f$|v - c_a| \ge |s - c_a|\f$, which expands to
 
 \anchor corollary-1
 **Corollary 1 (consequences of the contact hull).** Three consequences of
-@ref lemma-3 "Lemma 3":
+@ref lemma-5 "Lemma 5":
 
 - (a) **Cuts lie beyond the contact plane.** Every \f$d \in C_x\f$ does meet
   \f$T_x\f$: radial rescaling by \f$R_a\f$ leaves the cone alone, so
@@ -1050,8 +1066,8 @@ so \f$|v - c_a| \ge |s - c_a|\f$, which expands to
   spherical triangle and goes to the face solver on its hemispheres alone,
   where two of them are complementary and the area is 0.
 
-\anchor lemma-4
-**Lemma 4 (the first SAS point an inflating ball touches is a vertex).** Let
+\anchor lemma-6
+**Lemma 6 (the first SAS point an inflating ball touches is a vertex).** Let
 \f$x\f$ be a vertex whose contact directions span space (they fail to only
 when \f$x\f$ lies in the plane of its atom centers, and then its face has no
 area) and \f$d\f$ a unit direction strictly inside \f$C_x\f$
@@ -1112,7 +1128,7 @@ directions to \f$c_a\f$ and \f$c_b\f$ (a direction pointing away from both
 centers leaves both balls, hence \f$U\f$, while staying inside the ball).
 So \f$p_1\f$
 lies in the plane through \f$s_1\f$ and the axis \f$c_a c_b\f$, within the
-angle at \f$s_1\f$ of the triangle \f$(s_1, c_a, c_b)\f$. By @ref lemma-3 "Lemma 3" with
+angle at \f$s_1\f$ of the triangle \f$(s_1, c_a, c_b)\f$. By @ref lemma-5 "Lemma 5" with
 \f$s = s_1\f$, \f$v = x\f$, no point strictly inside that triangle is
 equidistant from \f$x\f$ and \f$s_1\f$, so \f$p_1\f$ is on or beyond the
 segment \f$[c_a, c_b]\f$: on the axis or across it. Across the axis,
@@ -1132,8 +1148,8 @@ directions.)
 \f$t_1 < r_p\f$, so it is closer to \f$s_1\f$ than to \f$x\f$:
 \f$|x + r_p d - s_1| < r_p\f$.
 
-\anchor lemma-5
-**Lemma 5 (caps from one circle are nested).** In plain words: of the probes
+\anchor lemma-7
+**Lemma 7 (caps from one circle are nested).** In plain words: of the probes
 on one circle through \f$x\f$, the one farthest along the circle cuts
 everything the others cut, and the probe rolling along the arc cuts nothing
 beyond the departure hemisphere and the arc's end vertex. Let \f$x\f$ be a
@@ -1170,18 +1186,18 @@ nothing else, up to a null set of directions, which affects neither area nor
 dots. This is Theorem 5.1 of @cite desc:surface:quan-stamm-2016,
 \f$P_- = P_0 \setminus \bigcup_{x \in K} B_{r_p}(x)\f$; the paper proves it
 in the plane and states that space adds no essential difficulty, and
-@ref lemma-4 "Lemma 4" is the proof in \f$\mathbb R^3\f$. The
+@ref lemma-6 "Lemma 6" is the proof in \f$\mathbb R^3\f$. The
 reduced-surface algorithm of @cite desc:surface:sanner-1996 computes the same
 probe-probe cuts without proof.
 
 *Proof.* If any SAS point at all cuts a face point \f$x + r_p d\f$, that
 point lies in \f$B_{r_p}^\circ\f$, so \f$t_1 < r_p\f$ and
-@ref lemma-4 "Lemma 4" supplies a vertex within \f$r_p\f$ of the face
+@ref lemma-6 "Lemma 6" supplies a vertex within \f$r_p\f$ of the face
 point. For the probes rolling along the arcs that leave \f$x\f$ this is
-also @ref lemma-5 "Lemma 5".
+also @ref lemma-7 "Lemma 7".
 
-\anchor lemma-6
-**Lemma 6 (cutting is symmetric).** Let \f$x\f$, \f$y\f$ be vertices with
+\anchor lemma-8
+**Lemma 8 (cutting is symmetric).** Let \f$x\f$, \f$y\f$ be vertices with
 \f$|x - y| < 2 r_p\f$, and suppose the cap of \f$y\f$ removes a region of
 positive area from the face of \f$x\f$ computed without \f$y\f$ (the cone
 minus the caps of all other vertices within \f$2 r_p\f$). Then the ball of
@@ -1190,9 +1206,9 @@ there is \f$e \in C_y\f$ with \f$|y + r_p e - x| < r_p\f$, and
 \f$t_y(e) < r_p\f$.
 
 *Proof.* Pick a removed face point \f$k = x + r_p d\f$ with \f$d\f$ strictly
-inside the cone and outside the null set of @ref lemma-4 "Lemma 4". It is cut by \f$y\f$
+inside the cone and outside the null set of @ref lemma-6 "Lemma 6". It is cut by \f$y\f$
 and by no other vertex. Since \f$y \in B^\circ(k, r_p)\f$, the first-touch
-radius of @ref lemma-4 "Lemma 4" satisfies \f$t_1 < r_p\f$, and its vertex \f$s_1\f$ is
+radius of @ref lemma-6 "Lemma 6" satisfies \f$t_1 < r_p\f$, and its vertex \f$s_1\f$ is
 within \f$r_p\f$ of \f$k\f$; the only such vertex is \f$y\f$. Call
 \f$s_1\f$ the **first-touch cutter** of \f$k\f$; the rest of the proof uses
 only that \f$y = s_1\f$, never that \f$y\f$ is the unique cutter. So
@@ -1211,24 +1227,24 @@ the SAS point \f$x\f$, gives \f$t_y(e) < r_p\f$.
 **Corollary 2 (both ends low, symmetric drop).** If \f$y\f$ cuts \f$x\f$,
 then \f$y\f$ is low and the cap of \f$x\f$ on \f$y\f$'s sphere meets
 both \f$y\f$'s beyond-plane cap and \f$y\f$'s spherical triangle. Hence
-the two tests below (@ref cap-reach "cap-reach", @ref triangle-reach "triangle-reach") are
+the two tests (@ref lemma-9 "Lemma 9", @ref lemma-10 "Lemma 10") are
 necessary conditions for cutting in either direction, and a failure on either
 side drops the pair **for both faces**.
 
 *Proof.* \f$x\f$ reaches \f$y\f$'s face beyond its plane by
-@ref lemma-6 "Lemma 6", so \f$y\f$ is low (@ref corollary-1 "Corollary 1"(c)).
+@ref lemma-8 "Lemma 8", so \f$y\f$ is low (@ref corollary-1 "Corollary 1"(c)).
 The x-side test is immediate from @ref corollary-1 "Corollary 1"(a) (the
 removed direction lies in
 \f$\mathrm{cap}(y) \cap D_x \cap \text{triangle}_x\f$), the y-side test is
-@ref lemma-6 "Lemma 6"; by symmetry the same two conditions are necessary
-for \f$x\f$ to cut \f$y\f$. The hypothesis of @ref lemma-6 "Lemma 6" that
+@ref lemma-8 "Lemma 8"; by symmetry the same two conditions are necessary
+for \f$x\f$ to cut \f$y\f$. The hypothesis of @ref lemma-8 "Lemma 8" that
 the face is computed without \f$y\f$ cannot be dropped: a point of
 \f$x\f$'s beyond-plane cap can lie inside \f$y\f$'s ball while \f$x\f$'s
 ball misses \f$y\f$'s cone entirely; such a point is always inside some
-other vertex ball, which is what @ref lemma-4 "Lemma 4" finds.
+other vertex ball, which is what @ref lemma-6 "Lemma 6" finds.
 
-\anchor cap-reach
-**Cap-reach test.** A cap
+\anchor lemma-9
+**Lemma 9 (cap reach).** A cap
 \f$\{d : d \cdot u > \cos\alpha\}\f$ cuts the face of \f$x\f$ only if
 \f[
 u \cdot n > \cos(\alpha + \beta) = \cos\alpha \cos\beta - \sin\alpha \sin\beta,
@@ -1236,7 +1252,7 @@ u \cdot n > \cos(\alpha + \beta) = \cos\alpha \cos\beta - \sin\alpha \sin\beta,
 with \f$n\f$, \f$\beta\f$ of the beyond-plane cap \f$D_x\f$. All four
 values are stored; no angle is recovered.
 
-By @ref corollary-1 "Corollary 1"(a) the cut part of the face lies
+*Proof.* By @ref corollary-1 "Corollary 1"(a) the cut part of the face lies
 inside \f$D_x = \{d : d \cdot n > \cos\beta\}\f$, and a cap meets it only
 if the angle between \f$u\f$ and \f$n\f$ is below \f$\alpha + \beta\f$.
 The step
@@ -1247,13 +1263,13 @@ have \f$\cos\alpha = |x - y|/2r_p \ge 0\f$ and the beyond-plane cap has
 bound the test is not merely necessary but exact for
 \f$\mathrm{cap} \cap D_x \ne \emptyset\f$.
 
-\anchor triangle-reach
-**Triangle-reach test.** The cap meets the
+\anchor lemma-10
+**Lemma 10 (triangle reach).** The cap meets the
 closed triangle \f$S = \{d : d \cdot t_m \le 0\}\f$ iff \f$u \in S\f$ or the
 angular distance from \f$u\f$ to the boundary of \f$S\f$ is below
-\f$\alpha\f$, which the three tests below decide without a square root.
+\f$\alpha\f$, which three tests decide without a square root.
 
-Edge \f$m\f$ is the arc of the great circle
+*Proof.* Edge \f$m\f$ is the arc of the great circle
 \f$t_m \cdot d = 0\f$ between the corners \f$p_{m+1}\f$ and \f$p_{m+2}\f$,
 \f$p_m = \pm(t_{m+1} \times t_{m+2})/|\cdot|\f$ signed so that
 \f$t_m \cdot p_m \le 0\f$; the corners are perpendicular to \f$t_m\f$. The
@@ -1286,11 +1302,11 @@ independence, like \f$k\f$-fold probes, pass the test and are solved
 unfiltered. The condition is necessary for the cap to cut anything and, for
 a face with no other caps, sufficient.
 
-\anchor lemma-7
-**Lemma 7 (host overlap).** Whenever one probe trims another's face, some
+\anchor lemma-11
+**Lemma 11 (host overlap).** Whenever one probe trims another's face, some
 atom under the first touches some atom under the second, provided no atom is
 smaller than about 0.41 probe radii. Precisely: let \f$y\f$ be the
-first-touch cutter (@ref lemma-6 "Lemma 6") of a face point of \f$x\f$,
+first-touch cutter (@ref lemma-8 "Lemma 8") of a face point of \f$x\f$,
 \f$R_x\f$ and \f$R_y\f$ the
 smallest SAS radii among the hosts of \f$x\f$ and \f$y\f$, \f$R_{\max}\f$
 the largest SAS radius of the structure, and call two atoms overlapping when
@@ -1305,7 +1321,7 @@ for the smallest SAS radius; without the tolerance the bound is
 \f$|x - y|^2 > 2 R_x R_y\f$ and the threshold is \f$R \ge \sqrt 2\, r_p\f$,
 i.e. a vdW radius of \f$(\sqrt 2 - 1) r_p\f$.
 
-*Proof.* Take the point \f$q\f$ from the proof of @ref lemma-6 "Lemma 6":
+*Proof.* Take the point \f$q\f$ from the proof of @ref lemma-8 "Lemma 8":
 \f$x = q - \varrho u\f$, \f$y = q - \varrho e\f$ with \f$u \in C_x\f$,
 \f$e \in C_y\f$, \f$\varrho < r_p\f$. Write \f$w = x - y = \varrho(e - u)\f$,
 \f$\ell = |w|\f$, \f$\gamma = u \cdot e < 1\f$, so
@@ -1352,7 +1368,7 @@ step 5). One hop does not suffice.
 share a point, and two hosts from different triples of a merged cluster have
 contact points within the cluster's diameter, at most \f$\tau_m \ll 2\tau\f$
 (@ref sas-construction "SAS step 4"), so \f$|c_a - c_d| \le R_a + R_d + 2\tau\f$. An overlap is a
-near pair, so by @ref lemma-7 "Lemma 7" a host of a first-touch cutter of
+near pair, so by @ref lemma-11 "Lemma 11" a host of a first-touch cutter of
 \f$x\f$ is within two near hops of every host of \f$x\f$. The radius
 threshold is not vacuous: with vdW radii of \f$0.03\,\AA\f$ at \f$r_p \approx 1\f$
 a cutter exists none of whose hosts overlaps any host of the cut face.
@@ -1361,14 +1377,14 @@ a cutter exists none of whose hosts overlaps any host of the cut face.
 
 \anchor theorem-5
 **Theorem 5 (the filters are exact).** Dropping every probe pair with a high
-end, or failing @ref cap-reach "cap-reach test" or @ref triangle-reach "triangle-reach test" on either
+end, or failing @ref lemma-9 "Lemma 9" or @ref lemma-10 "Lemma 10" on either
 side, leaves the accessible region, the area and the dots of every face
 unchanged.
 
 *Proof.* For almost every cut face point \f$k\f$ (outside the null set of
-@ref lemma-4 "Lemma 4") its first-touch cutter \f$s_1\f$ is a vertex
+@ref lemma-6 "Lemma 6") its first-touch cutter \f$s_1\f$ is a vertex
 within \f$r_p\f$ of \f$k\f$ that satisfies the conclusion of
-@ref lemma-6 "Lemma 6", so by @ref corollary-2 "Corollary 2" the pair
+@ref lemma-8 "Lemma 8", so by @ref corollary-2 "Corollary 2" the pair
 \f$(x, s_1)\f$ is low at both ends and passes both filters on both sides. A
 cap that fails a filter is therefore never \f$s_1\f$ for any point, every
 cut point keeps its first-touch cutter, and the face computed from the
@@ -1378,8 +1394,8 @@ direction, so the pair is dropped for both faces.
 
 Per structure: heights of all probes (@ref corollary-1 "Corollary 1"(c)), then probe
 pairs within \f$2 r_p\f$ (a nuri::VoxelGrid query), then drop pairs with a
-high end (both ends low), then drop pairs failing @ref cap-reach "cap-reach test" on
-either side, then drop pairs failing @ref triangle-reach "triangle-reach test" on either side,
+high end (both ends low), then drop pairs failing @ref lemma-9 "Lemma 9" on
+either side, then drop pairs failing @ref lemma-10 "Lemma 10" on either side,
 tested on the survivors only, then closed-form areas of the high active faces
 with a triangle, and the face solver on every other active face with the surviving caps. By
 @ref theorem-5 "Theorem 5" the dropped caps change nothing. The filters are
@@ -1601,9 +1617,9 @@ SAS intersection point \f$x\f$ within \f$2 r_p\f$ and imposes no filter):
 | MolSurfComp | There | Here |
 |---|---|---|
 | high probe implies an uncut face, by height over the plane of the three atom centers | asserted | not adopted. @ref corollary-1 "Corollary 1"(c), proved, on the distance to the contact *triangle* |
-| only low probes may cut | asserted | not adopted. Corollary of @ref lemma-6 "Lemma 6" (cut symmetry), proved |
-| first-atom neighborhood restriction | asserted | not adopted. @ref lemma-7 "Lemma 7" (host overlap) gives the provable version: a cutter's hosts reach the cut face's hosts within two overlap hops, one hop is not enough |
-| keep only the largest departure angle among probes sharing two atoms | asserted | @ref lemma-5 "Lemma 5", proved, not a code path |
+| only low probes may cut | asserted | not adopted. Corollary of @ref lemma-8 "Lemma 8" (cut symmetry), proved |
+| first-atom neighborhood restriction | asserted | not adopted. @ref lemma-11 "Lemma 11" (host overlap) gives the provable version: a cutter's hosts reach the cut face's hosts within two overlap hops, one hop is not enough |
+| keep only the largest departure angle among probes sharing two atoms | asserted | @ref lemma-7 "Lemma 7", proved, not a code path |
 
 Since \f$\operatorname{dist}(x, T) \ge h\f$, strictly more faces are uncut
 here, and the two implementations disagree observably (on 1BRS, 3782 high
