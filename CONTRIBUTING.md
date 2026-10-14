@@ -104,6 +104,8 @@ are different from the Google C++ Style Guide:
   `.clang-format` file. If part of the code needs to be formatted manually for
   some reasons, `// clang-format off` and `// clang-format on` comments may be
   used.
+- A field with no valid default gets no member initializer: a sanitizer build
+  surfaces a missed write, a fabricated default masks it.
 
 [^1]: Internal functions are functions that are not part of the public C++
       API. They are not declared in the header files, or they are declared
@@ -115,6 +117,12 @@ The remaining rules are the same as the Google C++ Style Guide.
 
 All code written in Python should follow the
 [PEP 8](https://www.python.org/dev/peps/pep-0008/) style guide.
+
+In the binding sources (`python/src`), a `try_` prefix marks a function that
+takes unverified user input and either throws the Python exception or returns
+the verified value. Core C++ code does not throw, so a throwing helper needs a
+visible marker at its call site. Library code (`src/`, `include/`) keeps the
+ordinary C++ meaning, where `try_` means "may fail" (does not throw as well).
 
 ### Pull requests
 
