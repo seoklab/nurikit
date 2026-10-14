@@ -106,8 +106,9 @@ mask into a `SurfaceSpheres`. Its tolerance is
 `kSurfaceLengthEps` \f$= 10^{-6}\,\AA\f$ (`stages.h`), used only for candidate
 bands that are supersets of exactly decided sets; every decision is exact.
 
-1. **Candidates.** A non-positive probe radius, non-finite input, any
-   coordinate beyond `kSurfaceMaxCoord` \f$= 10^4\,\AA\f$ in absolute value
+1. \anchor prep-step-1 **Candidates.**
+   A non-positive probe radius, non-finite input, any coordinate beyond
+   `kSurfaceMaxCoord` \f$= 10^4\,\AA\f$ in absolute value
    (where the bands below stop being supersets), and SAS radii with
    \f$R_{\min} < \sqrt{2 r_p^2 + 2\,\tau\,R_{\max}}\f$ (the hypothesis of
    @ref lemma-11 "Lemma 11" for positive radii, a vdW radius just above
@@ -119,16 +120,19 @@ bands that are supersets of exactly decided sets; every decision is exact.
    inside the band `BallExact::overlap` decides exactly on the lifted heights
    of the @ref sas-notation "SAS notation", and a pair tangent to within rounding is a tie that
    is *reported*, not perturbed: it carries no circle (the zero-measure rule
-   below), but it still counts as a neighbor for the ranks of step 4.
-2. **Contained balls.** The band \f$d \le |R_i - R_j| + \tau\f$ selects
-   candidates; `BallExact::contained` decides: with
+   below), but it still counts as a neighbor for the ranks of
+   @ref prep-step-4 "step 4".
+2. \anchor prep-step-2 **Contained balls.**
+   The band \f$d \le |R_i - R_j| + \tau\f$ selects candidates;
+   `BallExact::contained` decides: with
    \f$K = \rho_i^2 - \rho_j^2 - d^2\f$, \f$B_j \subset B_i\f$ iff
    \f$K \ge 0\f$ and \f$K^2 \ge 4 \rho_j^2 d^2\f$, internal tangency included
    (identical balls keep the active one, else the first). Coincident centers
    are contained pairs. A contained ball has no surface, generates no cap and
    is dropped from everything that follows, including the overlap graph.
-3. **Shared circles.** If a third sphere passes through the circle where two
-   others meet, the sphere whose center lies between the other two on the
+3. \anchor prep-step-3 **Shared circles.**
+   If a third sphere passes through the circle where two others meet, the sphere
+   whose center lies between the other two on the
    axis lies inside their union: on each side of the circle plane the outer
    sphere bulges more, so each of the middle sphere's two caps sits inside the
    neighboring sphere's larger cap. It is dropped like a contained ball.
@@ -154,8 +158,9 @@ bands that are supersets of exactly decided sets; every decision is exact.
    stays far below \f$\tau\f$; the lifted radius \f$\rho_i\f$ drifts from
    \f$R_i\f$ by about \f$\operatorname{ulp}(|c_i|^2 + W)\f$, which is what
    bounds the coordinates.
-4. **Order.** `active` is the caller's mask minus dropped atoms; `need` is
-   `active` plus its near neighbors and `shell` the near neighbors of
+4. \anchor prep-step-4 **Order.**
+   `active` is the caller's mask minus dropped atoms; `need` is `active` plus
+   its near neighbors and `shell` the near neighbors of
    `need`. Occluders near no `shell`, `need` or `active` atom are dropped
    (@ref lemma-3 "Lemma 3"). Atoms are permuted to `[active | need | shell | occluders]`,
    and the overlap graph `g` over the kept atoms is remapped and sorted. From
@@ -173,8 +178,9 @@ bands that are supersets of exactly decided sets; every decision is exact.
    within three hops, its containing partners and shared-circle triangles
    within four, and ranks only propagate from rank \f$\le 2\f$ sources, so
    the prepared set, its order, `g` and `d` equal the all-pairs computation.
-5. **What the mask makes exact.** Every atom occludes, so the caps of any
-   sphere below `n_enum` are complete and the convex patches of active atoms
+5. \anchor prep-step-5 **What the mask makes exact.**
+   Every atom occludes, so the caps of any sphere below `n_enum` are complete
+   and the convex patches of active atoms
    are exact. An active circle's first sphere is its active atom (active
    indices are the lowest), so active torus arcs come from solved spheres.
    The hosts of a probe on an active atom overlap pairwise, so they are
@@ -206,8 +212,9 @@ only floating prefilters.
 ### Notation {#sas-notation}
 
 \f$\rho_i^2 = W + |c_i|^2 - h_i\f$ is the lifted squared radius
-(@ref sas-construction "step 1"). For a circle \f$(a, b)\f$: \f$d = c_b - c_a\f$, \f$G = |d|^2\f$,
-\f$v = \tfrac12(h_b - h_a) - c_a \cdot d = \tfrac12(\rho_a^2 - \rho_b^2 + G)\f$,
+(@ref sas-step-1 "step 1"). For a circle \f$(a, b)\f$: \f$d = c_b - c_a\f$, \f$G
+= |d|^2\f$, \f$v = \tfrac12(h_b - h_a) - c_a \cdot d = \tfrac12(\rho_a^2 -
+\rho_b^2 + G)\f$,
 center \f$\mathrm{cntr} = c_a + (v/G)\, d\f$, squared radius
 \f$r^2 = \rho_a^2 - v^2/G\f$; \f$\pi_b - \pi_a = 2(v - y \cdot d)\f$ for
 \f$y = x - c_a\f$. For a face \f$(a, b, c)\f$ relative to \f$a\f$:
@@ -222,8 +229,9 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
 
 ### Construction {#sas-construction}
 
-1. **Weights and perturbation.** The kept spheres, in original index order so
-   that the result is shared across active masks, are lifted to
+1. \anchor sas-step-1 **Weights and perturbation.**
+   The kept spheres, in original index order so that the result is shared across
+   active masks, are lifted to
    \f$(c_i, t_i)\f$, \f$t_i = \mathrm{fl}(\sqrt{W - R_i^2})\f$,
    \f$W = \max R^2\f$, and handed to geogram, which derives the height
    \f$h_i = t_i^2 + |c_i|^2\f$ (rounded, in a fixed evaluation order) and
@@ -281,8 +289,9 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    @cite desc:surface:bowyer-1981 @cite desc:surface:watson-1981; they are
    inert (@ref lemma-1 "Lemma 1"). A sphere that appears in no cell has an
    empty power cell, no accessible surface, and gets area 0 without a solve.
-2. **Caps.** The caps of sphere \f$s\f$ are its \f$RT\f$ neighbors \f$t\f$
-   whose ball overlaps \f$B_s\f$, decided exactly and rationally: with
+2. \anchor sas-step-2 **Caps.**
+   The caps of sphere \f$s\f$ are its \f$RT\f$ neighbors \f$t\f$ whose ball
+   overlaps \f$B_s\f$, decided exactly and rationally: with
    \f$T = \rho_s^2 + \rho_t^2 - |c_s - c_t|^2\f$ the balls overlap iff
    \f$T \ge 0\f$ or \f$T^2 < 4 \rho_s^2 \rho_t^2\f$ (the cross term of
    \f$(\rho_s + \rho_t)^2\f$ is irrational); the second kernel is
@@ -295,18 +304,21 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    a circle of radius \f$O(\sqrt\varepsilon)\f$ cut by every sphere through
    the tangency point: the pair is not an edge of the overlap graph, so no
    face \f$(a, b, \cdot)\f$ is examined and no fan contains it; two caps of
-   one sphere whose spheres do not overlap never intersect (step 5), so on a
-   third sphere through the point the two tangent discs stay two components;
+   one sphere whose spheres do not overlap never intersect (@ref sas-step-5
+   "step 5"), so on a third sphere through the point the two tangent discs stay
+   two components;
    and an apex that does not overlap some face sphere never rejects a root
-   (step 3), since its power is non-negative on that sphere and zero only at
-   the tangency point. On the tangent spheres themselves the boundary passes
+   (@ref sas-step-3 "step 3"), since its power is non-negative on that sphere
+   and zero only at the tangency point. On the tangent spheres themselves the
+   boundary passes
    smoothly through the point (the perturbed detour, two corners of
    \f$\pi/2\f$ around a half circle with \f$\cos\alpha \to 1\f$, has net
    turning zero), and on the third sphere the lens of the two discs closes to
    two cusps whose corners sum to \f$2\pi\f$, the same area as two disjoint
    discs.
-3. **Vertices from faces.** Every face \f$(a, b, c)\f$ of a finite cell whose
-   three spheres pairwise overlap and whose smallest index is below `n_enum`
+3. \anchor sas-step-3 **Vertices from faces.**
+   Every face \f$(a, b, c)\f$ of a finite cell whose three spheres pairwise
+   overlap and whose smallest index is below `n_enum`
    is handled once. Sphere \f$c\f$ cuts circle
    \f$(a, b)\f$ in two points, one, or none (`cuts`: the sign of \f$D\f$); a
    double root is a tie and is perturbed to a cut or a miss. The two roots
@@ -318,12 +330,14 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    triangulation). An apex that is a bounding point (@ref lemma-1 "Lemma 1") or misses one
    of the face spheres is not tested: its power on that sphere is
    non-negative, zero only at a tangency point, and the limit accepts there
-   (step 2). Each accepted root is one **probe** with exactly the three atoms
-   \f$a, b, c\f$, its position evaluated as \f$\mathrm{cntr} + \text{offset}\f$
+   (@ref sas-step-2 "step 2"). Each accepted root is one **probe** with exactly
+   the three atoms \f$a, b, c\f$, its position evaluated as \f$\mathrm{cntr} +
+   \text{offset}\f$
    (see @ref analysis-fp "Floating point"). @ref theorem-1 "Theorem 1" states that this is exact, with no
    slack.
-4. **Rings from cell fans.** For every \f$RT\f$ edge \f$(a, b)\f$ that is a
-   cap pair, the cells around the edge are walked in cyclic order (across the
+4. \anchor sas-step-4 **Rings from cell fans.**
+   For every \f$RT\f$ edge \f$(a, b)\f$ that is a cap pair, the cells around the
+   edge are walked in cyclic order (across the
    two faces of each cell that contain the edge; the cycle closes within the
    finite cells by @ref lemma-1 "Lemma 1"). Each face \f$(a, b, c)\f$ of the fan that cuts
    the circle contributes its accepted roots in the order **exit from the
@@ -371,14 +385,16 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    and the \f$2\pi\f$ goes to an arc of that accessibility. The window is
    justified because every perturbed vertex of the ring lies within
    \f$O(\varepsilon)\f$ of \f$x\f$ on a circle of radius bounded away from
-   zero (step 2 removed the zero-length ones), so the rest of the circle is
-   one arc, and \f$Q\f$ lies on it. Each arc also carries its two end
+   zero (@ref sas-step-2 "step 2" removed the zero-length ones), so the rest of
+   the circle is one arc, and \f$Q\f$ lies on it. Each arc also carries its two
+   end
    tangents, taken from the circle frame at each end vertex's own angle
    rather than from the probe positions: darts and arcs then describe one
    closed curve even on a circle too small for the positions to resolve,
    which is what Gauss-Bonnet needs.
-5. **Arrangement per sphere** (`ArrangementSolver`, `arrangement.cpp`). On
-   sphere \f$s\f$ a probe lies on exactly two circles, so it has one in-dart
+5. \anchor sas-step-5 **Arrangement per sphere**
+   (`ArrangementSolver`, `arrangement.cpp`). On sphere \f$s\f$ a probe lies on
+   exactly two circles, so it has one in-dart
    and one out-dart. Arcs are stored with increasing \f$\varphi\f$, which
    runs counter-clockwise around the cap axis with the cap on the left, so
    the accessible region is traversed against \f$\varphi\f$; the out-dart's
@@ -397,12 +413,14 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    union of open discs are the components of their intersection graph, and
    two open discs intersect iff their circles cross (`cuts`) or one circle
    lies inside the other's ball (`side`, either way); two discs touching at
-   a point are not joined, as in step 2. Collinear centers never tie in
-   `cuts` here: coincident circles are removed in preparation, and otherwise
+   a point are not joined, as in @ref sas-step-2 "step 2". Collinear centers
+   never tie in `cuts` here: coincident circles are removed in preparation, and
+   otherwise
    \f$D = -|d_b|^2 (\kappa v_b - v_c)^2 < 0\f$ strictly for
    \f$d_c = \kappa d_b\f$. Caps sharing a probe are joined for free, caps
-   whose spheres do not overlap are never joined (step 2), and the remaining
-   pairs need the predicates (`discs_intersect`), at most \f$m(m-1)/2\f$ per
+   whose spheres do not overlap are never joined (@ref sas-step-2 "step 2"), and
+   the remaining pairs need the predicates (`discs_intersect`), at most
+   \f$m(m-1)/2\f$ per
    sphere. Counting only caps with arcs is wrong: a band of two rows of caps
    has a north loop from the top row and a south loop from the bottom row and
    no cap on both, so it would count two components instead of one and be
@@ -436,8 +454,8 @@ spheres lies on the hull.
 **Theorem 1 (vertex recipe).** In plain words: a cut point of a face is on
 the surface iff it is outside the two balls on either side of that face, and
 every surface vertex is a cut point of some face. Fix \f$\varepsilon > 0\f$
-small enough in the sense of @ref sas-construction "step 1"; in that configuration no two
-triangulation cells share an orthocentre and no cell orthocentre has zero
+small enough in the sense of @ref sas-step-1 "step 1"; in that configuration no
+two triangulation cells share an orthocentre and no cell orthocentre has zero
 power. Let \f$x\f$ be a cut point of circle \f$(a, b)\f$ with sphere
 \f$c\f$, and let \f$abc\f$ be a face of \f$RT\f$ with apexes \f$l_1\f$,
 \f$l_2\f$. Then \f$x\f$ is accessible iff \f$\pi_{l_1}(x) \ge 0\f$ and
@@ -510,8 +528,8 @@ sphere since a bounding point has \f$\pi \ge 0\f$ on \f$U\f$
 ball is inside the open ball of an \f$RT\f$ neighbor. Hence the union of the open
 neighbor caps equals the union of all open overlapping caps exactly (a
 tangent neighbor has an empty open cap, consistent with
-@ref sas-construction "step 2"), the components of that union are the
-components of @ref sas-construction "step 5", and every accessible
+@ref sas-step-2 "step 2"), the components of that union are the
+components of @ref sas-step-5 "step 5", and every accessible
 arc on circle \f$(s, t)\f$ lies in the facet \f$V_s \cap V_t\f$, so
 \f$(s, t)\f$ is an edge and, by @ref theorem-1 "Theorem 1" and
 @ref lemma-2 "Lemma 2", its endpoints are the ring of that edge.
@@ -706,7 +724,7 @@ no merged corner is ever needed. Precisely: let \f$x\f$ be a point of a
 solved sphere \f$s\f$ on \f$k - 1 \ge 2\f$ of its circles, every other kept
 sphere at positive power at \f$x\f$, and let \f$v_1, \dots, v_m\f$ be the
 accepted roots at \f$x\f$ of the configuration of
-@ref sas-construction "step 1". (a) The corner \f$\iota_j\f$ the run computes
+@ref sas-step-1 "step 1". (a) The corner \f$\iota_j\f$ the run computes
 at \f$v_j\f$ from the exact tangents of its two circles at \f$x\f$ is the
 limit of the perturbed corner at \f$v_j(\varepsilon)\f$ and lies in
 \f$[0, \pi]\f$. (b) An arc between two consecutive chain vertices on one
@@ -717,31 +735,35 @@ in both. (c) When the circles cross pairwise transversally at \f$x\f$,
 of its own. (d) In floating point the chain's turning sum deviates from the
 exact one by at most \f$m\f$ `kSurfaceAngleEps`.
 
-*Proof.* (a) In the configuration of step 1 the two circles of \f$v_j\f$
-cross transversally at \f$v_j(\varepsilon)\f$ and no other circle passes
+*Proof.* (a) In the configuration of @ref sas-step-1 "step 1" the two circles of
+\f$v_j\f$ cross transversally at \f$v_j(\varepsilon)\f$ and no other circle
+passes
 through it, so near the vertex the accessible region is the wedge outside
 both caps, the intersection of two half-planes of the tangent plane, and the
 perturbed corner is the wedge's opening, in \f$(0, \pi)\f$. As
 \f$\varepsilon \to 0\f$ the circles move continuously and
 \f$v_j(\varepsilon) \to x\f$, so the departing and arriving tangents converge
 to the tangents of the exact circles at \f$x\f$, the ones the run reads from
-each circle's frame at the vertex's own angle (step 4), and the corner
-converges to a value in \f$[0, \pi]\f$. The run folds the signed angle into
-\f$(-\pi/2, 3\pi/2]\f$ (step 5); that fold is continuous on the open window,
-which contains \f$[0, \pi]\f$ with a margin of \f$\pi/2\f$ on each side, so
+each circle's frame at the vertex's own angle (@ref sas-step-4 "step 4"), and
+the corner converges to a value in \f$[0, \pi]\f$. The run folds the signed
+angle into
+\f$(-\pi/2, 3\pi/2]\f$ (@ref sas-step-5 "step 5"); that fold is continuous on
+the open window, which contains \f$[0, \pi]\f$ with a margin of \f$\pi/2\f$ on
+each side, so
 the folded value of the limit tangents is the limit of the perturbed corners.
 The endpoints occur: \f$\pi\f$ when the two circles are tangent at \f$x\f$
 from the same side, 0 at a cusp.
 
 (b) Two consecutive ring entries that are both roots at \f$x\f$ fall in one
-exact half-plane class with `ccw` exactly zero, and step 4 assigns that pair
-\f$\Delta\varphi = 0\f$. The perturbed vertices lie within
+exact half-plane class with `ccw` exactly zero, and @ref sas-step-4 "step 4"
+assigns that pair \f$\Delta\varphi = 0\f$. The perturbed vertices lie within
 \f$O(\varepsilon)\f$ of \f$x\f$ on a circle of radius bounded away from zero
-(step 2), so the perturbed arc between consecutive ones is either the short
-arc, of length \f$O(\varepsilon)\f$ and \f$\int\kappa_g \to 0\f$, or the rest
+(@ref sas-step-2 "step 2"), so the perturbed arc between consecutive ones is
+either the short arc, of length \f$O(\varepsilon)\f$ and \f$\int\kappa_g \to
+0\f$, or the rest
 of the circle; the wrap is decided against the exact reference ray, so the
 rest of the circle is a chain arc only in the single-point window, where
-step 4 assigns it the \f$2\pi\f$.
+@ref sas-step-4 "step 4" assigns it the \f$2\pi\f$.
 
 (c) Choose a neighbourhood \f$N\f$ of \f$x\f$ in which the exact circles of
 \f$s\f$ through \f$x\f$ meet only at \f$x\f$; for \f$\varepsilon\f$ small
@@ -800,7 +822,7 @@ shrank by one common power, just enough to part the touching pairs there;
 the shrink leaves the power diagram alone, so nothing else near the point
 changes side. Precisely: fix a pinch point \f$x_0\f$, let \f$K\f$ be the kept
 spheres through it, \f$e_i = \varepsilon\eta^i\f$ the weight perturbations of
-@ref sas-construction "step 1", and for a tangent pair \f$(p, q)\f$ let
+@ref sas-step-1 "step 1", and for a tangent pair \f$(p, q)\f$ let
 \f$\gamma_{pq} = (\rho_q e_p + \rho_p e_q)/(\rho_p + \rho_q)\f$, its **lens
 parameter**. The pair \f$(p^*, q^*)\f$ at \f$x_0\f$ with the largest
 \f$\gamma\f$ is unique (the \f$\gamma\f$ are linear forms in \f$e\f$ with
@@ -1391,14 +1413,15 @@ so \f$R_x R_y - 2\tau R_{\max} < \varrho^2(1 - \gamma) = \ell^2/2\f$.
 \anchor corollary-3
 **Corollary 3 (two neighbor shells suffice).** Enumerating the vertices
 that have a host in `active`, its near neighbors or their near neighbors
-captures every cutter of every face on an active atom (@ref prep "preparation"
-step 5). One hop does not suffice.
+captures every cutter of every face on an active atom (@ref prep-step-5
+"preparation step 5"). One hop does not suffice.
 
 *Proof.* The hosts of a probe are pairwise near: two hosts from one triple
 share a point, and two hosts from different triples of a merged cluster have
 contact points within the cluster's diameter, at most \f$\tau_m \ll 2\tau\f$
-(@ref sas-construction "SAS step 4"), so \f$|c_a - c_d| \le R_a + R_d + 2\tau\f$. An overlap is a
-near pair, so by @ref lemma-11 "Lemma 11" a host of a first-touch cutter of
+(@ref sas-step-4 "SAS step 4"), so \f$|c_a - c_d| \le R_a + R_d + 2\tau\f$. An
+overlap is a near pair, so by @ref lemma-11 "Lemma 11" a host of a first-touch
+cutter of
 \f$x\f$ is within two near hops of every host of \f$x\f$. One hop is not
 enough: the cutter's hosts need only touch a *neighbor* of the active atom,
 and a probe wedged between two nearly opposite atoms and touched by a third
