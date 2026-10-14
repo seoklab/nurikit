@@ -6,17 +6,29 @@ How nuri::AnalyticSurface computes the solvent-accessible surface (SAS) and
 the solvent-excluded surface (SES) of a set of spheres, how
 nuri::SurfaceSampler places dots on them, and how nuri::ShapeComplementarity
 turns two dot sets into the Lawrence–Colman statistic. The code is in
-`src/desc/surface/analytic/` (`prep.cpp`, `delaunay.cpp`, `sas.cpp`,
-`arrangement.cpp`, `exact.cpp`, `ses.cpp`, `sample.cpp`, `surface.cpp`,
-shared declarations in `stages.h`) and `src/desc/surface/sc.cpp`.
+`src/desc/surface/analytic/` and `src/desc/surface/sc.cpp`.
 
-Two conventions run through everything. **Filter first**: exceptional input
-(coincident atoms, contained balls, inactive atoms, a non-positive probe
-radius) is removed or partitioned in a preparation stage, and no kernel afterwards
-carries a guard for it. **Trig values, not angles**: caps store
-\f$(\cos\alpha, \sin\alpha)\f$, predicates compare trig values
-(\f$\arccos x \le a\f$ is written \f$x \ge \cos a\f$), and `atan2` is used
-only where an angle is consumed as an angle.
+## Design rules
+
+- **Filter first**: exceptional input (coincident atoms, contained balls,
+  inactive atoms, a non-positive probe radius) is removed or partitioned in
+  a preparation stage, and no kernel afterwards carries a guard for it.
+- **Trig values, not angles**: caps store \f$(\cos\alpha, \sin\alpha)\f$,
+  predicates compare trig values (\f$\arccos x \le a\f$ is written
+  \f$x \ge \cos a\f$), and `atan2` is used only where an angle is consumed
+  as an angle.
+- **One predicate per decision**: each geometric fact (overlap, containment,
+  shared circle, crossing, accessibility, arc validity, ...) is decided once
+  and stored; consumers read it and never re-derive it by another formula or
+  default.
+- **No accessibility slack**: a positive slack breaks consistency between
+  vertex acceptance and arc tests; do not reintroduce one.
+- **Roots are proven, not clamped**: a square root's argument is
+  non-negative by a preparation filter or an exact predicate, so kernels
+  assert rather than clamp, and a loosened tolerance is fixed by a filter in
+  the preparation. The clamps that remain are real zero branches (the
+  spindle root at a pinch, the crossing half-chord) and one rounding guard
+  on the circle radius of an exact overlap of sub-ulp depth (`sas.cpp`).
 
 ## Provenance
 
@@ -192,7 +204,7 @@ bands that are supersets of exactly decided sets; every decision is exact.
    sphere below `n_enum` are complete and the convex patches of active atoms
    are exact. An active circle's first sphere is its active atom (active
    indices are the lowest), so active torus arcs come from solved spheres.
-   The three hosts of a probe on an active atom overlap pairwise, so they are
+   The hosts of a probe on an active atom overlap pairwise, so they are
    in `need`, every circle between two of them is solved, and the probe's
    departure tangents are complete. By @ref lemma-10 "Lemma 10", a probe that cuts the face of
    a probe on an active atom has a host that overlaps one of that probe's
@@ -439,7 +451,8 @@ a bounding point \f$b\f$ lies at distance \f$4(\Delta + R_{\max}) + 1\f$, so
 are unchanged inside \f$U\f$, a bounding apex never rejects a cut point,
 and, because every centre is strictly inside the bounding tetrahedron (its
 inradius exceeds \f$\Delta\f$), every hull face of the triangulation
-consists of bounding points only. ∎
+consists of bounding points only. A bounding point is never hidden, so this
+holds for the triangulation actually built. ∎
 
 \anchor theorem-1
 **Theorem 1 (vertex recipe).** In plain words: a cut point of a face is on
@@ -757,8 +770,8 @@ touch is no join). This is correct iff every pinch point counts loops and
 components one way: vertex present ⇒ joined (cusp pair, net area 0), absent
 ⇒ not joined (two loops, two components).
 
-\anchor theorem-5
-**Theorem 5 (the hybrid sweep is a limit).** Near every pinch point, for any
+\anchor theorem-3
+**Theorem 3 (the hybrid sweep is a limit).** Near every pinch point, for any
 number of spheres through it and for every index order and mask, the
 sweep's input is that of a genuine arrangement arbitrarily close to the
 exact one, and the area it reports is that arrangement's limit.
@@ -912,7 +925,7 @@ is a `DCHECK` on an invariant, not a decision.
   circle (two opposite hemispheres, zero face), and nearly coplanar contacts
   (zero face). These two kinds of caps are all that is needed: whatever SAS
   point cuts a face point, some vertex probe within \f$2 r_p\f$ cuts it too
-  (@ref theorem-3 "Theorem 3").
+  (@ref theorem-4 "Theorem 4").
 
   The face is solved by the same exact kernel as the SAS, on the probe
   sphere: each cap is lifted to a ball on the probe sphere (\f$(t, 0)\f$ for
@@ -1001,8 +1014,8 @@ so \f$|v - c_a| \ge |s - c_a|\f$, which expands to
   \angle(t_m, t_{m+1}) = \operatorname{atan2}(|t_m \times t_{m+1}|,\ t_m \cdot t_{m+1}).
   \f]
   Every other vertex is **low** (\f$k\f$-fold probes count as low). This is
-  decided once for every probe; high active faces never reach the pair
-  query. A high face whose three tangents are linearly dependent has no
+  decided once for every probe; high faces are dropped at the pair stage, so
+  a high active face is never solved against any cap. A high face whose three tangents are linearly dependent has no
   spherical triangle and goes to the face solver on its hemispheres alone,
   where two of them are complementary and the area is 0. ∎
 
@@ -1100,8 +1113,8 @@ directions.)
 \f$t_1 < r_p\f$, so it is closer to \f$s_1\f$ than to \f$x\f$:
 \f$|x + r_p d - s_1| < r_p\f$. ∎
 
-\anchor theorem-3
-**Theorem 3 (vertex caps suffice).** The concave face of a vertex \f$x\f$ is
+\anchor theorem-4
+**Theorem 4 (vertex caps suffice).** The concave face of a vertex \f$x\f$ is
 \f$C_x\f$ minus the caps of the vertex probes within \f$2 r_p\f$, and
 nothing else, up to a null set of directions, which affects neither area nor
 dots. This is Theorem 5.1 of @cite desc:surface:quan-stamm-2016,
@@ -1283,16 +1296,19 @@ that have a host in `active`, its near neighbours or their near neighbours
 captures every cutter of every face on an active atom (preparation
 step 5). One hop does not suffice.
 
-*Proof.* The hosts of a probe are pairwise near and an overlap is a near
-pair, so by @ref lemma-10 "Lemma 10" a host of a first-touch cutter of
+*Proof.* The hosts of a probe are pairwise near: two hosts from one triple
+share a point, and two hosts from different triples of a merged cluster have
+contact points within the cluster's diameter, at most \f$\tau_m \ll 2\tau\f$
+(SAS step 4), so \f$|c_a - c_d| \le R_a + R_d + 2\tau\f$. An overlap is a
+near pair, so by @ref lemma-10 "Lemma 10" a host of a first-touch cutter of
 \f$x\f$ is within two near hops of every host of \f$x\f$. The radius
 threshold is not vacuous: with vdW radii of 0.03 Å at \f$r_p \approx 1\f$
 a cutter exists none of whose hosts overlaps any host of the cut face. ∎
 
 ### Filter order
 
-\anchor theorem-4
-**Theorem 4 (the filters are exact).** Dropping every probe pair with a high
+\anchor theorem-5
+**Theorem 5 (the filters are exact).** Dropping every probe pair with a high
 end, or failing @ref lemma-8 "Lemma 8" or @ref lemma-9 "Lemma 9" on either
 side, leaves the accessible region, the area and the dots of every face
 unchanged.
@@ -1314,7 +1330,7 @@ with a high end (both ends low) → drop pairs failing @ref lemma-8 "Lemma 8" on
 → drop pairs failing @ref lemma-9 "Lemma 9" on either side, tested on the survivors only →
 closed-form areas of the high active faces with a triangle, and the face
 solver on every other active face with the surviving caps. By
-@ref theorem-4 "Theorem 4" the dropped caps change nothing. The filters are
+@ref theorem-5 "Theorem 5" the dropped caps change nothing. The filters are
 necessary conditions evaluated in floating point: a rounding flip can only
 drop a cap that reaches the face by a rounding-scale sliver, an area effect
 far below what the brute-force test (every face solved against every probe
