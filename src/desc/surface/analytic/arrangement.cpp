@@ -13,8 +13,8 @@
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
-#include "nuri/core/geometry.h"
 #include "stages.h"
+#include "nuri/core/geometry.h"
 
 namespace nuri {
 namespace internal {
@@ -133,7 +133,8 @@ namespace internal {
   }  // namespace
 
   /**
-   * `n_patches = 1 + n_loops − n_components` (§2 step 7): the components of
+   * `n_patches = 1 + n_loops − n_components` (analytic_surface page,
+   * Definitions): the components of
    * the union of all caps come from the corners plus the exact disc
    * intersection test on the remaining pairs. Caps without any arc leave the
    * accessible region without boundary, so it is empty.

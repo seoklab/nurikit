@@ -129,8 +129,9 @@ namespace internal {
 
     /**
      * Caps of sphere `s` are its overlapping Delaunay neighbours: every other
-     * overlapping sphere cuts a cap inside their union (Theorem 2), so the
-     * accessible region and its component structure are unchanged.
+     * overlapping sphere cuts a cap inside their union (Theorem 2 of the
+     * analytic_surface page), so the accessible region and its component
+     * structure are unchanged.
      */
     SasCaps neighbor_caps(const SurfaceSpheres &ss, const SasDelaunay &del,
                           const VertexMap &vm, const ArrayXi &pair_of_edge,
@@ -285,9 +286,10 @@ namespace internal {
 
     /**
      * An apex that misses one of the face spheres, or is a bounding point
-     * (Lemma 0), has non-negative power on that surface, zero only at a
-     * tangency point, and never rejects a root. Apex `lv` of cell `c`
-     * overlaps all three iff the other faces of the cell carry every pair.
+     * (Lemma 1 of the analytic_surface page), has non-negative power on
+     * that surface, zero only at a tangency point, and never rejects a
+     * root. Apex `lv` of cell `c` overlaps all three iff the other faces of
+     * the cell carry every pair.
      */
     bool apex_may_reject(const std::vector<FaceRec> &fs, const SasDelaunay &del,
                          const int c, const int lv) {
@@ -299,7 +301,8 @@ namespace internal {
 
     /**
      * A cut point is a probe iff its power against both apexes is
-     * non-negative, decided exactly for the perturbed weights (Theorem 1).
+     * non-negative, decided exactly for the perturbed weights (Theorem 1 of
+     * the analytic_surface page).
      */
     std::vector<FaceRec> accept_faces(const SurfaceSpheres &ss,
                                       const SasDelaunay &del,
@@ -475,7 +478,8 @@ namespace internal {
     }
 
     /**
-     * Walk the cell fan around edge `(a, b)` counter-clockwise (Lemma F);
+     * Walk the cell fan around edge `(a, b)` counter-clockwise (Lemma 2 of
+     * the analytic_surface page);
      * each face `(a, b, c)` with a sphere `c` overlapping both contributes
      * its accepted roots as (enter ball `c`, leave ball `c`). `fan` collects
      * the spheres `c`.

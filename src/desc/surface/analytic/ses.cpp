@@ -110,8 +110,9 @@ namespace internal {
      * Per probe: whether its ball reaches its contact triangle (`low`) and,
      * for low three-atom probes (`planar`), the unit normal of the contact
      * plane pointing from the probe toward the triangle with `cos b = h /
-     * rp` for the plane distance `h < rp` (Lemma 1(a), (c)). Probes of more
-     * than three atoms are low and never planar.
+     * rp` for the plane distance `h < rp` (Corollary 1(a), (c) of the
+     * analytic_surface page). Probes of more than three atoms are low and
+     * never planar.
      */
     struct ProbeHeights {
       ArrayXb low, planar;
@@ -206,7 +207,7 @@ namespace internal {
     /**
      * Whether the cap `(axis, cos a)` on the sphere of `p` overlaps the cap
      * beyond the contact plane, `d · normal > cos b`: the angle between the
-     * axes is below `a + b` (Lemma 5). Probes without a plane pass.
+     * axes is below `a + b` (Lemma 8). Probes without a plane pass.
      */
     bool meets_plane_cap(const ProbeHeights &hts, const int p,
                          const Vector3d &axis, const double cos_a,
@@ -219,7 +220,7 @@ namespace internal {
     /**
      * Whether the cap `(axis, cos a)` on the sphere of `p` meets its
      * spherical triangle: the axis is inside, or within `a` of a corner, or
-     * within `a` of an edge arc (Lemma 6). The foot of the axis on the
+     * within `a` of an edge arc (Lemma 9). The foot of the axis on the
      * great circle of `t_m` lies on the arc iff it is on the arc's side of
      * the corners' bisector `p + q`; the corners are perpendicular to `t_m`,
      * so the foot's component along the bisector is the axis's own. All
@@ -604,7 +605,7 @@ namespace internal {
 
     /**
      * Area of face `p` with caps `beg .. beg + m - 1`: high faces with a
-     * triangle get their closed form (Lemma 1(c)), every other face is
+     * triangle get their closed form (Corollary 1(c)), every other face is
      * solved exactly on its lifted caps.
      */
     double face_area(FaceSolver &solver, const SasProbes &probes,

@@ -465,7 +465,7 @@ namespace internal {
  * @cite desc:surface:connolly-1983, built from the characterisation of Quan
  * and Stamm @cite desc:surface:quan-stamm-2016. Active atoms own surface,
  * the rest only occlude. `build_sas` stops after the SAS, `build_ses` builds
- * both and keeps the SES.
+ * both and keeps the SES. See @ref analytic_surface for the construction.
  *
  * @note Coordinates must lie within 1e4 angstroms of the origin; subtract one
  *       common shift from all inputs first.
@@ -528,7 +528,8 @@ private:
 /**
  * @brief Dot sampler at a fixed density (dots per square angstrom).
  *
- * Lattices and scratch persist across calls.
+ * Lattices and scratch persist across calls. See @ref analytic_surface for
+ * the placement rules.
  */
 class SurfaceSampler {
 public:
@@ -552,7 +553,8 @@ private:
  *
  * The atoms within `sep` of the other side own the interface surface, the
  * rest only occlude; a mask narrows the owners further. Scratch persists
- * across calls.
+ * across calls. See @ref analytic_surface for the stages and the deviations
+ * from Rosetta's `sc`.
  *
  * @note Coordinates must lie within 1e4 angstroms of the origin; subtract one
  *       common shift from all inputs first.

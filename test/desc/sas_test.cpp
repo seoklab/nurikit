@@ -2050,8 +2050,8 @@ void expect_order_invariant_areas(const Matrix3Xd &pts, const ArrayXd &sar,
  * point, all of radius 3: on every sphere the two caps of the others touch
  * at the origin, their centres coplanar with it. Only some orders resolve
  * the touch into a 4-atom probe; the others see two caps that merely
- * touch, which are not joined (ALGORITHMS.md §2 step 5), so every order
- * gives the same areas.
+ * touch, which are not joined (analytic_surface page, SAS step 5), so every
+ * order gives the same areas.
  */
 TEST(BuildSasTest, TouchingCapsWithoutLensVertex) {
   Matrix3Xd pts(3, 4);
