@@ -74,7 +74,12 @@ rst_prolog = """
 .. _C++ API Reference: cpp/
 """
 
-doctest_global_setup = "import nuri"
+doctest_global_setup = """
+import nuri
+from pathlib import Path
+
+test_data = Path("@PROJECT_SOURCE_DIR@/test/test_data")
+"""
 
 
 class UnneededBaseStripDocumenter(autodoc.ClassDocumenter):
