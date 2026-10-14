@@ -33,9 +33,14 @@ nuri::ConnollyRadii; no radii file is copied from any program.
   \f$x \ge \cos a\f$), and `atan2` is used only where an angle is consumed
   as an angle.
 - **One predicate per decision**: each geometric fact (overlap, containment,
-  shared circle, crossing, accessibility, arc validity, ...) is decided once
-  and stored; consumers read it and never re-derive it by another formula or
-  default.
+  shared circle, crossing, accessibility, ring order, cap components, ...)
+  is decided once, by an exact predicate on the numbers geogram triangulated
+  (`BallExact` in `exact.cpp`) with geogram's perturbation for every tie
+  that is perturbed, and stored; consumers read it and never re-derive it by
+  another formula or default. Floating point decides only candidate
+  prefilters that are supersets of the exact sets and produces the outputs.
+  There is no clustering tolerance: two points are the same vertex only
+  when they are the same `(face, root)`.
 - **No accessibility slack**: a positive slack breaks consistency between
   vertex acceptance and arc tests; do not reintroduce one.
 - **Roots are proven, not clamped**: a square root's argument is
@@ -181,11 +186,7 @@ bands that are supersets of exactly decided sets; every decision is exact.
    tangents may be incomplete (a circle between two shell atoms is never
    solved); it then fails the triangle predicate of @ref lemma-10 "Lemma 10" and is tested
    unfiltered, which is always allowed. Two shells are exactly what
-   @ref corollary-3 "Corollary 3" needs; one shell of neighbors is not
-   enough: the cutter's hosts need only touch a *neighbor* of the active
-   atom, and a probe wedged between two nearly opposite atoms and touched by
-   a third from above can be cut by a shallow probe on the other side whose
-   hosts overlap neither the third atom nor anything active.
+   @ref corollary-3 "Corollary 3" needs, and one is not enough.
 
 ## Solvent-accessible surface (SAS) {#sas}
 
@@ -198,15 +199,9 @@ inside ball \f$i\f$ iff \f$\pi_i(x) < 0\f$, on \f$S_i\f$ iff
 \f$V_i = \{x : \pi_i(x) \le \pi_m(x)\ \forall m\}\f$; a point of \f$S_i\f$
 is accessible iff \f$x \in V_i\f$.
 
-The design rule is **one source of truth**: every yes/no decision (which
-pairs overlap, which faces cut, which cut points are accessible, in which
-order vertices sit on a circle, which caps form one component) is an exact
-predicate on the same numbers geogram triangulated (`BallExact` in
-`exact.cpp`), and every tie that is perturbed uses geogram's perturbation.
-Floating point decides only candidate prefilters that are supersets of the
-exact sets (the bands of the preparation) and produces the outputs
-(positions, angles, areas). There is no clustering tolerance: two points are
-the same vertex only when they are the same `(face, root)`.
+Every decision below is an exact predicate on these numbers
+(@ref prelim-rules "design rules"); the bands of the preparation are the
+only floating prefilters.
 
 ### Notation {#sas-notation}
 
@@ -519,12 +514,7 @@ tangent neighbor has an empty open cap, consistent with
 components of @ref sas-construction "step 5", and every accessible
 arc on circle \f$(s, t)\f$ lies in the facet \f$V_s \cap V_t\f$, so
 \f$(s, t)\f$ is an edge and, by @ref theorem-1 "Theorem 1" and
-@ref lemma-2 "Lemma 2", its endpoints are the ring of that edge. The same
-dual complex underlies the alpha-shape area of @cite desc:surface:liang-1998,
-which sums inclusion-exclusion terms instead of solving each sphere's
-arrangement; the exact arrangement of the circles on one sphere was
-previously computed by a sweep over all its intersecting neighbors
-@cite desc:surface:cazals-loriot-2009.
+@ref lemma-2 "Lemma 2", its endpoints are the ring of that edge.
 
 \anchor lemma-3
 **Lemma 3 (occluder crop).** In plain words: an occluder that is near no
@@ -881,9 +871,6 @@ the two discs would be off by \f$4\pi R^2\f$; the sweep keeps them apart
 because `discs_intersect` reads the unperturbed sign and `side` reports a
 touch.
 
-The theorem is also exercised on 133 exact fixtures over index orders, rigid
-motions and masks.
-
 #### Probe merge {#sas-merge}
 
 `build_sas` merges probes within
@@ -1060,10 +1047,8 @@ so \f$|v - c_a| \ge |s - c_a|\f$, which expands to
   \qquad
   \angle(t_m, t_{m+1}) = \operatorname{atan2}(|t_m \times t_{m+1}|,\ t_m \cdot t_{m+1}).
   \f]
-  Every other vertex is **low** (\f$k\f$-fold probes count as low). This is
-  decided once for every probe; high faces are dropped at the pair stage, so
-  a high active face is never solved against any cap. A high face whose three tangents are linearly dependent has no
-  spherical triangle and goes to the face solver on its hemispheres alone,
+  Every other vertex is **low** (\f$k\f$-fold probes count as low). A high
+  face whose three tangents are linearly dependent has no spherical triangle and goes to the face solver on its hemispheres alone,
   where two of them are complementary and the area is 0.
 
 \anchor lemma-6
@@ -1174,10 +1159,7 @@ the plane of \f$x\f$, so the departure hemisphere is \f$\{0 < \psi < \pi\}\f$,
 the limit \f$\Delta\varphi \to 0\f$, and \f$C_x\f$, which excludes it, lies
 in \f$\{\pi \le \psi \le 2\pi\}\f$. Intersecting gives the claim, and the
 union over \f$\Delta\varphi \in (0, \Delta\varphi_1]\f$ is
-\f$\{0 < \psi < \pi + \Delta\varphi_1/2\}\f$. The face solver needs no rule
-from this: a nested cap carries no vertex of the arrangement. The
-largest-departure-angle pruning recorded in the provenance table is this
-lemma.
+\f$\{0 < \psi < \pi + \Delta\varphi_1/2\}\f$.
 
 \anchor theorem-4
 **Theorem 4 (vertex caps suffice).** The concave face of a vertex \f$x\f$ is
@@ -1186,9 +1168,7 @@ nothing else, up to a null set of directions, which affects neither area nor
 dots. This is Theorem 5.1 of @cite desc:surface:quan-stamm-2016,
 \f$P_- = P_0 \setminus \bigcup_{x \in K} B_{r_p}(x)\f$; the paper proves it
 in the plane and states that space adds no essential difficulty, and
-@ref lemma-6 "Lemma 6" is the proof in \f$\mathbb R^3\f$. The
-reduced-surface algorithm of @cite desc:surface:sanner-1996 computes the same
-probe-probe cuts without proof.
+@ref lemma-6 "Lemma 6" is the proof in \f$\mathbb R^3\f$.
 
 *Proof.* If any SAS point at all cuts a face point \f$x + r_p d\f$, that
 point lies in \f$B_{r_p}^\circ\f$, so \f$t_1 < r_p\f$ and
@@ -1369,8 +1349,12 @@ share a point, and two hosts from different triples of a merged cluster have
 contact points within the cluster's diameter, at most \f$\tau_m \ll 2\tau\f$
 (@ref sas-construction "SAS step 4"), so \f$|c_a - c_d| \le R_a + R_d + 2\tau\f$. An overlap is a
 near pair, so by @ref lemma-11 "Lemma 11" a host of a first-touch cutter of
-\f$x\f$ is within two near hops of every host of \f$x\f$. The radius
-threshold is not vacuous: with vdW radii of \f$0.03\,\AA\f$ at \f$r_p \approx 1\f$
+\f$x\f$ is within two near hops of every host of \f$x\f$. One hop is not
+enough: the cutter's hosts need only touch a *neighbor* of the active atom,
+and a probe wedged between two nearly opposite atoms and touched by a third
+from above can be cut by a shallow probe on the other side whose hosts
+overlap neither the third atom nor anything active. The radius threshold is
+not vacuous: with vdW radii of \f$0.03\,\AA\f$ at \f$r_p \approx 1\f$
 a cutter exists none of whose hosts overlaps any host of the cut face.
 
 ### The filter pipeline {#ses-pipeline}
@@ -1388,13 +1372,12 @@ within \f$r_p\f$ of \f$k\f$ that satisfies the conclusion of
 \f$(x, s_1)\f$ is low at both ends and passes both filters on both sides. A
 cap that fails a filter is therefore never \f$s_1\f$ for any point, every
 cut point keeps its first-touch cutter, and the face computed from the
-survivors is the same. @ref corollary-2 "Corollary 2" also makes the drop
-symmetric: a failure on either side proves there is no cutting in either
-direction, so the pair is dropped for both faces.
+survivors is the same.
 
 Per structure: heights of all probes (@ref corollary-1 "Corollary 1"(c)), then probe
 pairs within \f$2 r_p\f$ (a nuri::VoxelGrid query), then drop pairs with a
-high end (both ends low), then drop pairs failing @ref lemma-9 "Lemma 9" on
+high end (both ends low), so that a high active face is never solved against
+any cap, then drop pairs failing @ref lemma-9 "Lemma 9" on
 either side, then drop pairs failing @ref lemma-10 "Lemma 10" on either side,
 tested on the survivors only, then closed-form areas of the high active faces
 with a triangle, and the face solver on every other active face with the surviving caps. By
@@ -1637,3 +1620,11 @@ from it:
   (Fibonacci lattice and equal-area rings against Rosetta's grid), so
   per-interface values differ by about \f$\pm 0.01\f$.
 - Burial and the peripheral band are identical in definition.
+
+Related constructions: the dual complex of @ref theorem-2 "Theorem 2"
+underlies the alpha-shape area of @cite desc:surface:liang-1998, which sums
+inclusion-exclusion terms instead of solving each sphere's arrangement; the
+exact arrangement of the circles on one sphere was previously computed by a
+sweep over all its intersecting neighbors @cite desc:surface:cazals-loriot-2009;
+and the reduced-surface algorithm of @cite desc:surface:sanner-1996 computes
+the probe-probe cuts of @ref theorem-4 "Theorem 4" without proof.
