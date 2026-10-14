@@ -128,6 +128,7 @@ def test_ses_totals(cluster):
     pts, radii = cluster
     geo = analytic_surface(pts, radii, RP)
     assert geo.kind == "ses"
+    assert analytic_surface(pts, radii).total_area() == geo.total_area()
 
     by_patch = [geo.total_area(p) for p in SurfacePatch]
     assert geo.total_area() == pytest.approx(sum(by_patch), rel=1e-12)

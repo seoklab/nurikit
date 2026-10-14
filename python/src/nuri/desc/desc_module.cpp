@@ -326,14 +326,14 @@ NURI_PYTHON_MODULE(m) {
                                                              : surf.build_ses();
                             });
       },
-      py::arg("pts"), py::arg("radii"), py::arg("rp"), py::arg("kind") = "ses",
-      py::arg("active") = py::none(), R"doc(
+      py::arg("pts"), py::arg("radii"), py::arg("rp") = 1.4,
+      py::arg("kind") = "ses", py::arg("active") = py::none(), R"doc(
 Build the analytic solvent-accessible (SAS) or solvent-excluded (SES) surface
 of a set of spheres.
 
 :param pts: The sphere centres, as a 2D array of shape ``(N, 3)``.
 :param radii: The sphere radii, as a 1D array of shape ``(N,)``.
-:param rp: The probe radius, in angstroms.
+:param rp: The probe radius, in angstroms. Default is 1.4 angstroms.
 :param kind: ``"sas"`` or ``"ses"``. A SAS has convex patches only.
 :param active: Optional boolean mask of shape ``(N,)``. Active spheres own
   surface patches; the others only occlude. All spheres are active by default.
