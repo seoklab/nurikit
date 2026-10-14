@@ -208,6 +208,11 @@ Supported radii sets:
 
   The set relies on hydrogen counts, so reveal or set the implicit hydrogens
   of heavy-atom-only structures first.
+
+  .. tip::
+    For protein structures, prefer the :class:`~nuri.fmt.pdb.Model` overload:
+    it classifies by residue and atom name, which is exact, whereas the
+    hydrogen counts of a perceived molecule are a (possibly incorrect) guess.
 )doc")
       .def(
           "assign_radii",
@@ -246,6 +251,11 @@ Supported radii sets:
   program\ :footcite:`param:radii:connolly-msp-1993`, classified by residue and
   atom name. Covers the heavy atoms of the standard amino acids and MSE; other
   atoms are not assigned.
+
+  .. tip::
+    Prefer this overload over the :class:`~nuri.core.Molecule` one for
+    protein structures: residue and atom names are exact, whereas the
+    hydrogen counts of a perceived molecule are a (possibly incorrect) guess.
 )doc");
 }
 }  // namespace
