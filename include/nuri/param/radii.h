@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#ifndef NURI_CORE_RADII_H_
-#define NURI_CORE_RADII_H_
+#ifndef NURI_PARAM_RADII_H_
+#define NURI_PARAM_RADII_H_
 
 //! @cond
 #include <string_view>
@@ -38,10 +38,10 @@ constexpr double kUnknownRadius = -1;
  * | S, SH, Se    | 1.90       | P          | 1.80       |
  *
  * The values are the default atomic radii of the Molecular Surface Package
- * @cite core:radii:connolly-msp-1993, Table 5 of its user manual
- * @cite core:radii:connolly-msp-manual-2002. The same set, as shipped with
+ * @cite param:radii:connolly-msp-1993, Table 5 of its user manual
+ * @cite param:radii:connolly-msp-manual-2002. The same set, as shipped with
  * Biosym's copy of MS, is listed alongside other radii sets in
- * @cite core:radii:wampler-ms-radii. Carbonyl and carboxyl carbons take the
+ * @cite param:radii:wampler-ms-radii. Carbonyl and carboxyl carbons take the
  * bare-carbon value, and selenium takes the sulfur value. The package's
  * separate nucleic-acid types are not implemented.
  *
@@ -75,4 +75,4 @@ public:
 };
 }  // namespace nuri
 
-#endif /* NURI_CORE_RADII_H_ */
+#endif /* NURI_PARAM_RADII_H_ */

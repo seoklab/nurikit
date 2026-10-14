@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "nuri/core/radii.h"
+#include "nuri/param/radii.h"
 
 #include <string_view>
 #include <utility>

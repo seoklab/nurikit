@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "nuri/core/radii.h"
-
 #include <string_view>
 #include <utility>
 
@@ -14,6 +12,7 @@
 
 #include "nuri/core/container/container_ext.h"
 #include "nuri/core/molecule.h"
+#include "nuri/param/radii.h"
 
 namespace nuri {
 namespace {
