@@ -697,21 +697,70 @@ a sphere with caps.
 #### Corners at k-fold points {#sas-corners}
 
 \anchor lemma-4
-**Lemma 4 (corners at a k-fold point add up).** Where the SAS is locally a
-disc around a \f$k\f$-fold point \f$x\f$ with all \f$k\f$ spheres on faces through
-\f$x\f$, the point produces \f$k - 2\f$ probes within rounding of one
-position, joined by arcs of length \f$O(\text{rounding})\f$. The turning of
-the tangent along the boundary is additive modulo \f$2\pi\f$, and the local
-convexity of the disc keeps every partial sum of corners within one turn, so
-the sum of their signed corners plus the geodesic curvature of the tiny arcs
-equals the corner a single merged vertex would have, exactly in exact
-arithmetic and to \f$(k - 2)\,\delta / r_{\text{circle}}\f$ in floating
-point, \f$\delta\f$ the position rounding and \f$r_{\text{circle}}\f$ the
-smallest circle radius involved; the tangent directions themselves come from
-the exact offsets of @ref analysis-fp "Floating point". A pinch (two probes on tangent circles a small
-distance apart with an ordinary arc between them) is the special case; no
-structural re-ordering is required because every probe has exactly two darts
-on each sphere.
+**Lemma 4 (corners at a k-fold point add up).** In plain words: where
+several circles of one sphere pass through one point, the perturbation
+spreads that point into a short chain of vertices; the run evaluates every
+chain corner at the point itself and gives the arcs between them length
+zero, and each of those terms is exactly the limit of the perturbed term, so
+no merged corner is ever needed. Precisely: let \f$x\f$ be a point of a
+solved sphere \f$s\f$ on \f$k - 1 \ge 2\f$ of its circles, every other kept
+sphere at positive power at \f$x\f$, and let \f$v_1, \dots, v_m\f$ be the
+accepted roots at \f$x\f$ of the configuration of
+@ref sas-construction "step 1". (a) The corner \f$\iota_j\f$ the run computes
+at \f$v_j\f$ from the exact tangents of its two circles at \f$x\f$ is the
+limit of the perturbed corner at \f$v_j(\varepsilon)\f$ and lies in
+\f$[0, \pi]\f$. (b) An arc between two consecutive chain vertices on one
+circle carries \f$\Delta\varphi = 0\f$, the limit of its perturbed length,
+except the wrap arc of a single-point window, which is the rest of the circle
+in both. (c) When the circles cross pairwise transversally at \f$x\f$,
+\f$m \le k - 1\f$, and \f$m \le k - 2\f$ unless the chain closes into a loop
+of its own. (d) In floating point the chain's turning sum deviates from the
+exact one by at most \f$m\f$ `kSurfaceAngleEps`.
+
+*Proof.* (a) In the configuration of step 1 the two circles of \f$v_j\f$
+cross transversally at \f$v_j(\varepsilon)\f$ and no other circle passes
+through it, so near the vertex the accessible region is the wedge outside
+both caps, the intersection of two half-planes of the tangent plane, and the
+perturbed corner is the wedge's opening, in \f$(0, \pi)\f$. As
+\f$\varepsilon \to 0\f$ the circles move continuously and
+\f$v_j(\varepsilon) \to x\f$, so the departing and arriving tangents converge
+to the tangents of the exact circles at \f$x\f$, the ones the run reads from
+each circle's frame at the vertex's own angle (step 4), and the corner
+converges to a value in \f$[0, \pi]\f$. The run folds the signed angle into
+\f$(-\pi/2, 3\pi/2]\f$ (step 5); that fold is continuous on the open window,
+which contains \f$[0, \pi]\f$ with a margin of \f$\pi/2\f$ on each side, so
+the folded value of the limit tangents is the limit of the perturbed corners.
+The endpoints occur: \f$\pi\f$ when the two circles are tangent at \f$x\f$
+from the same side, 0 at a cusp.
+
+(b) Two consecutive ring entries that are both roots at \f$x\f$ fall in one
+exact half-plane class with `ccw` exactly zero, and step 4 assigns that pair
+\f$\Delta\varphi = 0\f$. The perturbed vertices lie within
+\f$O(\varepsilon)\f$ of \f$x\f$ on a circle of radius bounded away from zero
+(step 2), so the perturbed arc between consecutive ones is either the short
+arc, of length \f$O(\varepsilon)\f$ and \f$\int\kappa_g \to 0\f$, or the rest
+of the circle; the wrap is decided against the exact reference ray, so the
+rest of the circle is a chain arc only in the single-point window, where
+step 4 assigns it the \f$2\pi\f$.
+
+(c) Choose a neighbourhood \f$N\f$ of \f$x\f$ in which the exact circles of
+\f$s\f$ through \f$x\f$ meet only at \f$x\f$; for \f$\varepsilon\f$ small
+every perturbed pair crosses exactly once in \f$N\f$, no three at one point,
+and the complement of the caps in \f$N\f$ is combinatorially the cell of an
+arrangement of \f$k - 1\f$ lines in general position: an intersection of
+\f$k - 1\f$ half-planes. A bounded cell has at most one vertex per edge,
+\f$m \le k - 1\f$, and an unbounded one, whose two ends leave \f$N\f$ as the
+arrival and departure arcs of the exact region, one fewer. Two circles of
+\f$s\f$ tangent at \f$x\f$ may cross twice near it, and then the chain can be
+longer; nothing reads \f$m\f$, so no bound is claimed.
+
+(d) Each computed corner is within `kSurfaceAngleEps` of the exact one
+(@ref analysis-fp "Floating point"), and the sum of \f$m\f$ of them inherits
+\f$m\f$ times that.
+
+At a pinch the two circles through \f$x\f$ on a third sphere are tangent at
+\f$x\f$ and (a) gives \f$\iota = \pi\f$; what the sweep does with the
+tangent pair itself is @ref theorem-3 "Theorem 3".
 
 #### Discontinuity at exact coincidences {#sas-discontinuity}
 
@@ -853,7 +902,8 @@ so in \f$\Sigma\f$ no point has both \f$\pi_p\f$ and \f$\pi_q\f$ below
    its own ball, joined by \f$C^1\f$-small interpolations across the annuli
    between, where every crossing is transversal. It is a genuine region with
    the run's vertices, arcs, \f$L\f$ and \f$C\f$; its corners and
-   \f$\int\kappa_g\f$ converge to the run's exactly evaluated terms, so
+   \f$\int\kappa_g\f$ converge to the run's exactly evaluated terms
+   (@ref lemma-4 "Lemma 4"), so
    Gauss-Bonnet for \f$R'_s\f$ converges to the run's sum, while the area of
    \f$R'_s\f$ converges to the exact area, as regions do.
 
