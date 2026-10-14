@@ -2,13 +2,28 @@
 
 [TOC]
 
-How nuri::AnalyticSurface computes the solvent-accessible surface (SAS) and
-the solvent-excluded surface (SES) of a set of spheres, how
+How nuri::AnalyticSurface computes the solvent-accessible and
+solvent-excluded surfaces of a set of spheres, how
 nuri::SurfaceSampler places dots on them, and how nuri::ShapeComplementarity
 turns two dot sets into the Lawrence-Colman statistic. The code is in
 `src/desc/surface/analytic/` and `src/desc/surface/sc.cpp`.
 
-## Design rules
+## Preliminaries {#prelim}
+
+### Sources {#prelim-sources}
+
+The SES is the molecular surface of Richards @cite desc:surface:richards-1977
+in the analytic patch decomposition of Connolly
+@cite desc:surface:connolly-1983. The characterization of the concave patches
+and the Gauss-Bonnet area formula follow Quan and Stamm
+@cite desc:surface:quan-stamm-2016 (their Theorem 5.1 and formulas
+(4.19)/(5.25)/(5.28)); the derivations on this page are this document's own. The
+shape complementarity statistic and its defaults are those of Lawrence and
+Colman @cite desc:sc:lawrence-colman-1993 as implemented in Rosetta's `sc`
+application. The united-atom radii come from a published table, see
+nuri::ConnollyRadii; no radii file is copied from any program.
+
+### Design rules {#prelim-rules}
 
 - **Filter first**: exceptional input (coincident atoms, contained balls,
   inactive atoms, a non-positive probe radius) is removed or partitioned in
@@ -30,54 +45,7 @@ turns two dot sets into the Lawrence-Colman statistic. The code is in
   spindle root at a pinch, the crossing half-chord) and one rounding guard
   on the circle radius of an exact overlap of sub-ulp depth (`sas.cpp`).
 
-## Provenance
-
-The SES is the molecular surface of Richards @cite desc:surface:richards-1977
-in the analytic patch decomposition of Connolly
-@cite desc:surface:connolly-1983. The characterization of the concave patches
-and the Gauss-Bonnet area formula follow Quan and Stamm
-@cite desc:surface:quan-stamm-2016 (their Theorem 5.1 and formulas
-(4.19)/(5.25)/(5.28)); the derivations below are this document's own. The
-shape complementarity statistic and its defaults are those of Lawrence and
-Colman @cite desc:sc:lawrence-colman-1993 as implemented in Rosetta's `sc`
-application. The united-atom radii come from a published table, see
-nuri::ConnollyRadii; no radii file is copied from any program.
-
-The authors' Matlab implementation of the surface, MolSurfComp
-(<https://github.com/quanchaoyu/MolSurfComp>, LGPL-3.0), is distributed under
-terms incompatible with this project's Apache-2.0 license. No code, formula,
-constant, tolerance, table, identifier or file structure from it appears in
-this source tree; the implementation was written from the paper and from the
-derivations below, and MolSurfComp was read once, as a black box, for a
-correctness audit. That audit found four prunings of the concave cut set that
-the paper does not state (its Theorem 5.1 removes \f$B_{r_p}(x)\f$ for every
-SAS intersection point \f$x\f$ within \f$2 r_p\f$ and imposes no filter):
-
-| MolSurfComp | There | Here |
-|---|---|---|
-| high probe implies an uncut face, by height over the plane of the three atom centers | asserted | not adopted. @ref corollary-1 "Corollary 1"(c), proved, on the distance to the contact *triangle* |
-| only low probes may cut | asserted | not adopted. Corollary of @ref lemma-6 "Lemma 6" (cut symmetry), proved |
-| first-atom neighborhood restriction | asserted | not adopted. @ref lemma-7 "Lemma 7" (host overlap) gives the provable version: a cutter's hosts reach the cut face's hosts within two overlap hops, one hop is not enough |
-| keep only the largest departure angle among probes sharing two atoms | asserted | @ref lemma-5 "Lemma 5", proved, not a code path |
-
-Since \f$\operatorname{dist}(x, T) \ge h\f$, strictly more faces are uncut
-here, and the two implementations disagree observably (on 1BRS, 3782 high
-faces here against 3520 there; on 2PTC, 1686 against 1555).
-
-Rosetta's `sc` application was used only as a numeric oracle for the
-statistic; it is neither linked nor redistributed. Intentional deviations
-from it:
-
-- Rosetta builds missing C-terminal `OXT` atoms; the input is scored as given.
-- At torus cusps (probe-circle radius below \f$r_p\f$) Rosetta emits only one
-  of the two arc halves; both valid halves are kept here (paper-correct, a
-  tiny area effect).
-- Rosetta uses `float`, this code `double`, and the sampling patterns differ
-  (Fibonacci lattice and equal-area rings against Rosetta's grid), so
-  per-interface values differ by about \f$\pm 0.01\f$.
-- Burial and the peripheral band are identical in definition.
-
-## Definitions
+### Definitions {#prelim-defs}
 
 - Atom \f$i\f$ has center \f$c_i\f$, van der Waals radius \f$r_i\f$ and SAS
   radius \f$R_i = r_i + r_p\f$, where \f$r_p\f$ is the probe radius.
@@ -126,7 +94,7 @@ of the union of the caps (the sphere minus \f$L\f$ disjoint simple loops has
 \f$L + 1\f$ faces alternating accessible/inaccessible, and each inaccessible
 face is one cap component).
 
-## Preparation
+## Preparation {#prep}
 
 `prepare` in `prep.cpp` turns centers, radii, a probe radius and an active
 mask into a `SurfaceSpheres`. Its tolerance is
@@ -144,7 +112,7 @@ bands that are supersets of exactly decided sets; every decision is exact.
    nuri::VoxelGrid over the atoms within `kBandHops + 1` near-pair lengths of
    an active atom. Pairs below \f$R_i + R_j - 2\tau\f$ are overlaps outright;
    inside the band `BallExact::overlap` decides exactly on the lifted heights
-   of the next section, and a pair tangent to within rounding is a tie that
+   of the @ref sas-notation "SAS notation", and a pair tangent to within rounding is a tie that
    is *reported*, not perturbed: it carries no circle (the zero-measure rule
    below), but it still counts as a neighbor for the ranks of step 4.
 2. **Contained balls.** The band \f$d \le |R_i - R_j| + \tau\f$ selects
@@ -166,7 +134,7 @@ bands that are supersets of exactly decided sets; every decision is exact.
    graph are the candidates, a band on floating circle centers and axes a
    prefilter, and `BallExact::shared_circle` decides: circles \f$(a, b)\f$ and
    \f$(a, c)\f$ coincide iff \f$u = d_b \times d_c = 0\f$ and the discriminant
-   \f$D\f$ of the next section is zero; the middle is \f$a\f$ iff
+   \f$D\f$ of the @ref sas-notation "SAS notation" is zero; the middle is \f$a\f$ iff
    \f$d_b \cdot d_c < 0\f$, else the nearer of \f$b\f$, \f$c\f$.
 
    The three filters follow one rule: **a sphere, or a circle, whose surface
@@ -219,7 +187,7 @@ bands that are supersets of exactly decided sets; every decision is exact.
    a third from above can be cut by a shallow probe on the other side whose
    hosts overlap neither the third atom nor anything active.
 
-## SAS on the regular triangulation
+## Solvent-accessible surface (SAS) {#sas}
 
 `triangulate` (`delaunay.cpp`, on the vendored geogram weighted Delaunay) and
 `build_sas` (`sas.cpp`) construct the SAS on the **regular triangulation**
@@ -240,10 +208,10 @@ exact sets (the bands of the preparation) and produces the outputs
 (positions, angles, areas). There is no clustering tolerance: two points are
 the same vertex only when they are the same `(face, root)`.
 
-### Symbols
+### Notation {#sas-notation}
 
 \f$\rho_i^2 = W + |c_i|^2 - h_i\f$ is the lifted squared radius
-(step 1). For a circle \f$(a, b)\f$: \f$d = c_b - c_a\f$, \f$G = |d|^2\f$,
+(@ref sas-construction "step 1"). For a circle \f$(a, b)\f$: \f$d = c_b - c_a\f$, \f$G = |d|^2\f$,
 \f$v = \tfrac12(h_b - h_a) - c_a \cdot d = \tfrac12(\rho_a^2 - \rho_b^2 + G)\f$,
 center \f$\mathrm{cntr} = c_a + (v/G)\, d\f$, squared radius
 \f$r^2 = \rho_a^2 - v^2/G\f$; \f$\pi_b - \pi_a = 2(v - y \cdot d)\f$ for
@@ -256,6 +224,8 @@ center \f$\mathrm{cntr} = c_a + (v/G)\, d\f$, squared radius
 \f$D = |u|^2 (\rho_a^2 - |y_\perp|^2)\f$, a polynomial in \f$(c, h)\f$.
 \f$k\f$ is the number of spheres through a point, \f$L\f$ the number of
 boundary loops on a sphere, \f$C\f$ the number of cap components.
+
+### Construction {#sas-construction}
 
 1. **Weights and perturbation.** The kept spheres, in original index order so
    that the result is shared across active masks, are lifted to
@@ -361,7 +331,7 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    non-negative, zero only at a tangency point, and the limit accepts there
    (step 2). Each accepted root is one **probe** with exactly the three atoms
    \f$a, b, c\f$, its position evaluated as \f$\mathrm{cntr} + \text{offset}\f$
-   (see the floating-point subsection below). @ref theorem-1 "Theorem 1" states that this is exact, with no
+   (see @ref analysis-fp "Floating point"). @ref theorem-1 "Theorem 1" states that this is exact, with no
    slack.
 4. **Rings from cell fans.** For every \f$RT\f$ edge \f$(a, b)\f$ that is a
    cap pair, the cells around the edge are walked in cyclic order (across the
@@ -454,13 +424,13 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    carry no arc (their roots are rejected by @ref theorem-1 "Theorem 1") and join their
    container's component.
 
-### Correctness
+### Correctness {#sas-correctness}
 
 \anchor theorem-1
 **Theorem 1 (vertex recipe).** In plain words: a cut point of a face is on
 the surface iff it is outside the two balls on either side of that face, and
 every surface vertex is a cut point of some face. Fix \f$\varepsilon > 0\f$
-small enough in the sense of step 1; in that configuration no two
+small enough in the sense of @ref sas-construction "step 1"; in that configuration no two
 triangulation cells share an orthocentre and no cell orthocentre has zero
 power. Let \f$x\f$ be a cut point of circle \f$(a, b)\f$ with sphere
 \f$c\f$, and let \f$abc\f$ be a face of \f$RT\f$ with apexes \f$l_1\f$,
@@ -532,8 +502,9 @@ sphere since a bounding point has \f$\pi \ge 0\f$ on \f$U\f$
 (@ref bounding-points "step 1"), so a point of \f$S_s\f$ inside some open
 ball is inside the open ball of an \f$RT\f$ neighbor. Hence the union of the open
 neighbor caps equals the union of all open overlapping caps exactly (a
-tangent neighbor has an empty open cap, consistent with step 2), the
-components of that union are the components of step 5, and every accessible
+tangent neighbor has an empty open cap, consistent with
+@ref sas-construction "step 2"), the components of that union are the
+components of @ref sas-construction "step 5", and every accessible
 arc on circle \f$(s, t)\f$ lies in the facet \f$V_s \cap V_t\f$, so
 \f$(s, t)\f$ is an edge and, by @ref theorem-1 "Theorem 1" and
 @ref lemma-1 "Lemma 1", its endpoints are the ring of that edge. The same
@@ -717,9 +688,9 @@ it takes part in the verdict of 3; the near band is the floating superset of
 overlap and tangency that keeps \f$X(y) \subseteq S'\f$ for every \f$y\f$ on
 a sphere with caps.
 
-### Coincident probes
+### Degenerate configurations {#sas-degenerate}
 
-#### Corners
+#### Corners at k-fold points {#sas-corners}
 
 Where the SAS is locally a disc around a
 \f$k\f$-fold point \f$x\f$ with all \f$k\f$ spheres on faces through
@@ -732,12 +703,12 @@ equals the corner a single merged vertex would have, exactly in exact
 arithmetic and to \f$(k - 2)\,\delta / r_{\text{circle}}\f$ in floating
 point, \f$\delta\f$ the position rounding and \f$r_{\text{circle}}\f$ the
 smallest circle radius involved; the tangent directions themselves come from
-the exact offsets below. A pinch (two probes on tangent circles a small
+the exact offsets of @ref analysis-fp "Floating point". A pinch (two probes on tangent circles a small
 distance apart with an ordinary arc between them) is the special case; no
 structural re-ordering is required because every probe has exactly two darts
 on each sphere.
 
-#### Exact coincidences
+#### Discontinuity at exact coincidences {#sas-discontinuity}
 
 The output is the arrangement of the
 perturbed kept spheres: preparation removes the zero-area spheres and the
@@ -753,7 +724,7 @@ the four triple points of the four spheres; all four are accessible for
 \f$\varepsilon > 0\f$ and none for \f$\varepsilon < 0\f$, so the two limits
 differ. Areas are continuous within each sign.
 
-#### Hybrid semantics
+#### The hybrid sweep {#sas-hybrid}
 
 The kernel sweeps the SoS-perturbed arrangement of the kept spheres
 restricted to the unperturbed overlap graph `g`. Objects of measure zero at
@@ -775,7 +746,7 @@ shrank by one common power, just enough to part the touching pairs there;
 the shrink leaves the power diagram alone, so nothing else near the point
 changes side. Precisely: fix a pinch point \f$x_0\f$, let \f$K\f$ be the kept
 spheres through it, \f$e_i = \varepsilon\eta^i\f$ the weight perturbations of
-step 1, and for a tangent pair \f$(p, q)\f$ let
+@ref sas-construction "step 1", and for a tangent pair \f$(p, q)\f$ let
 \f$\gamma_{pq} = (\rho_q e_p + \rho_p e_q)/(\rho_p + \rho_q)\f$, its **lens
 parameter**. The pair \f$(p^*, q^*)\f$ at \f$x_0\f$ with the largest
 \f$\gamma\f$ is unique (the \f$\gamma\f$ are linear forms in \f$e\f$ with
@@ -897,7 +868,7 @@ touch.
 The theorem is also exercised on 133 exact fixtures over index orders, rigid
 motions and masks.
 
-#### Merged probes
+#### Probe merge {#sas-merge}
 
 `build_sas` merges probes within
 \f$\tau_m = 4 \cdot\f$ `kOffsetRelTol` \f$\cdot R_{\max}\f$ (`probe_merge_tol`)
@@ -918,67 +889,11 @@ and never topological, since the face arrangement is exact on the caps it
 receives; the SAS arcs, caps and areas are computed before the merge and
 unchanged by it.
 
-### Floating point
-
-The predicates live in one translation unit compiled
-without fast-math (like the vendored geogram sources), because the
-floating-point filter's running error bound and the exact fallback both
-assume round-to-nearest without reassociation or contraction. Each predicate
-is evaluated first in double with a running error bound
-(\f$|v - \text{exact}| \le e\f$, certified iff \f$|v| > 2e\f$; a literal
-zero is certified exactly) and falls back to exact arithmetic only when the
-bound does not certify the sign, the filtered floating point of
-@cite desc:surface:fortune-vanwyk-1996 with the runtime bound of
-@cite desc:surface:burnikel-funke-seel-2001, as geogram's predicate kit
-does @cite desc:surface:levy-2016. The exact type is a dyadic
-\f$m \cdot 2^e\f$ with an arbitrary-precision integer \f$m\f$: the
-adaptive expansions of @cite desc:surface:shewchuk-1997 cannot serve here,
-since they assume no underflow and a high-degree polynomial of rounded-zero
-coordinates (\f$10^{-16}\f$) has terms below the double exponent range,
-where underflow silently breaks their exactness. Perturbation
-ties are resolved by the same kernel evaluated on dual numbers, which yields
-the first-order coefficients automatically. The lower rungs of the fallback
-(the deeper perturbation orders, an exact zero under `sqrt_floor`, an
-uncertifiable quotient) are reached by the bit pattern of an input, not by
-its geometry; no test fixture targets them and their coverage is incidental.
-
-Positions and vertex angles come from the **offset**
-\f$x - \mathrm{cntr} = (P \pm \sqrt D\, Q)/(G|u|^2)\f$ of a root from its
-circle's center, with
-\f$P = G(|u|^2 (c_f - c_a) + \lambda d_b + \mu d_c) - |u|^2 v\, d\f$
-(\f$\lambda, \mu, d_b, d_c\f$ of the face relative to its first center
-\f$c_f\f$; \f$v, d, G\f$ of the circle \f$(a, b)\f$) and \f$Q = G u\f$
-rational and \f$P \perp Q\f$: it is taken from the filtered double when the
-running bound certifies it to `kOffsetRelTol` \f$= 2^{-26}\f$ of its own
-length, and otherwise from the exact dyadic (\f$P\f$, \f$Q\f$, \f$D\f$
-rounded to double and combined in a few more roundings), so the direction
-from the center is right to \f$2^{-26}\f$ on a circle of any radius. The
-certificate is relative to the offset's own length; coordinate-scale
-roundings in \f$v\f$ only enlarge the certified error (measured
-\f$10^{-14}\f$ at the origin, \f$10^{-9}\f$ at \f$1000\,\AA\f$). This matters for a
-circle tiny only by rounding (a tangent pair under a rigid motion has radius
-about \f$10^{-8}\,\AA\f$, and a non-tie can be far smaller): the floating
-discriminant and squared radius of such a circle are smaller than their own
-rounding error, and the vertex angles of a position taken from them are
-noise. The probe position is \f$\mathrm{cntr} + \text{offset}\f$;
-\f$\varphi\f$, dart angles and areas inherit at most that \f$2^{-26}\f$
-relative error. The floating comparisons that remain are output-only: the
-fold of each vertex's `atan2` into its exact half-plane class (the class
-carries the side of the ray, `atan2` only the magnitude, so a vertex at
-\f$\pi \mp \delta\f$ folds to \f$\pi\f$, never to 0 or \f$2\pi\f$), the
-normalization of the dart angle \f$\iota\f$ and the \f$\max(\cdot, 0)\f$
-clamps. A genuine corner is \f$\pi - \angle(h_a, h_b)\f$ for the two cap
-normals in the tangent plane at the vertex (the accessible region there is
-the wedge outside both caps), so it lies in \f$[0, \pi]\f$, \f$\pi\f$
-exactly at an internal tangency; the computed corner deviates by at most one
-offset certificate per dart plus roundoff, \f$2 \cdot 2^{-26} + 2^{-40}\f$
-(`kSurfaceAngleEps`), the vertex normal's error entering only
-quadratically, so the reflex check \f$\iota \le \pi +\f$ `kSurfaceAngleEps`
-is a `DCHECK` on an invariant, not a decision.
-
-## SES
+## Solvent-excluded surface (SES) {#ses}
 
 `build_ses` (`ses.cpp`) derives the three patch families from the SAS.
+
+### Patch areas {#ses-patches}
 
 - **Convex area** of atom \f$i\f$: \f$A_{\text{sas}}(i) \cdot (r_i/R_i)^2\f$
   (radial scaling maps the SAS patch onto the vdW sphere).
@@ -1049,17 +964,13 @@ is a `DCHECK` on an invariant, not a decision.
   vertices, and each circle's ring is sorted by the exact half-plane class of
   the SAS rings, then by the numeric angle, with the perturbed `ccw` deciding
   only the pairs whose angles lie within `kRingSortEps` (the SAS itself never
-  sorts: its ring order is the fan order of @ref lemma-1 "Lemma 1"). This is sound
-  because each vertex's offset is certified to `kOffsetRelTol` of its
-  length, the frame shared by the ring is an orientation-preserving linear
-  map and so only reparametrizes the angles monotonically, and the dots,
-  `atan2`, the class fold and the subtraction add roundoff only; a pair
-  further apart than the sum is in the exact order, and an exact tie is
-  always within it. Ties are perturbed in the order probe, then caps as
+  sorts: its ring order is the fan order of @ref lemma-1 "Lemma 1"; the
+  sort is sound by the certificate of @ref analysis-fp "Floating point").
+  Ties are perturbed in the order probe, then caps as
   given. The `ArrangementSolver` then walks the darts and applies
   Gauss-Bonnet as on a SAS sphere.
 
-### Which probes can cut a face
+### Which probes can cut a face {#ses-cuts}
 
 Notation for a vertex \f$x\f$ on atoms \f$a\f$ with contact directions
 \f$\hat c_a = (c_a - x)/R_a\f$: the **face cone** is
@@ -1113,7 +1024,7 @@ so \f$|v - c_a| \ge |s - c_a|\f$, which expands to
   @cite desc:surface:sanner-1996.
 - (b) **Saddles are cut only in the spindle.** A saddle point with
   \f$\varrho(\beta) \ge 0\f$ is cut by nothing, so the spindle cut of the
-  saddle ranges above is the whole cut: the ray at angle \f$\beta\f$ from the
+  saddle ranges (@ref ses-patches "Patch areas") is the whole cut: the ray at angle \f$\beta\f$ from the
   inward radial direction meets the segment \f$[c_i, c_j]\f$ on the torus
   axis at distance \f$r_l / \cos\beta \ge r_p\f$. This is the toroidal case
   of Theorem 5.2 of @cite desc:surface:quan-stamm-2016 and the radial
@@ -1434,19 +1345,19 @@ so \f$R_x R_y - 2\tau R_{\max} < \varrho^2(1 - \gamma) = \ell^2/2\f$.
 \anchor corollary-3
 **Corollary 3 (two neighbor shells suffice).** Enumerating the vertices
 that have a host in `active`, its near neighbors or their near neighbors
-captures every cutter of every face on an active atom (preparation
+captures every cutter of every face on an active atom (@ref prep "preparation"
 step 5). One hop does not suffice.
 
 *Proof.* The hosts of a probe are pairwise near: two hosts from one triple
 share a point, and two hosts from different triples of a merged cluster have
 contact points within the cluster's diameter, at most \f$\tau_m \ll 2\tau\f$
-(SAS step 4), so \f$|c_a - c_d| \le R_a + R_d + 2\tau\f$. An overlap is a
+(@ref sas-construction "SAS step 4"), so \f$|c_a - c_d| \le R_a + R_d + 2\tau\f$. An overlap is a
 near pair, so by @ref lemma-7 "Lemma 7" a host of a first-touch cutter of
 \f$x\f$ is within two near hops of every host of \f$x\f$. The radius
 threshold is not vacuous: with vdW radii of \f$0.03\,\AA\f$ at \f$r_p \approx 1\f$
 a cutter exists none of whose hosts overlaps any host of the cut face.
 
-### Filter order
+### The filter pipeline {#ses-pipeline}
 
 \anchor theorem-5
 **Theorem 5 (the filters are exact).** Dropping every probe pair with a high
@@ -1477,7 +1388,7 @@ drop a cap that reaches the face by a rounding-scale sliver, an area effect
 far below what the brute-force test (every face solved against every probe
 within \f$2 r_p\f$) enforces, never a topological one.
 
-## Dots
+## Dot sampling {#dots}
 
 nuri::SurfaceSampler (`sample.cpp`) places dots **inside the exact patch
 domains** above. Their weights are normalized so that the sum over a patch
@@ -1532,7 +1443,7 @@ Dots are stored as one block per patch kind (nuri::SurfaceDots::offset(),
 nuri::SurfaceDots::count()) and `atom` carries the original index. Counts
 round half away from zero.
 
-## Shape complementarity
+## Shape complementarity {#sc}
 
 nuri::ShapeComplementarity (`sc.cpp`) implements the statistic of
 @cite desc:sc:lawrence-colman-1993 with the parameters of nuri::ScParams,
@@ -1565,7 +1476,9 @@ area-weighted median differs by about 0.001). Every neighbor query (active
 atoms, burial, trim, nearest dot) is a
 nuri::VoxelGrid query on squared distances with the comparisons above.
 
-## Complexity
+## Analysis {#analysis}
+
+### Complexity {#analysis-complexity}
 
 Let \f$n\f$ be the kept atoms, \f$m\f$ the largest number of overlapping
 neighbors of one atom (the cap count; about 15 for proteins), \f$p\f$ the
@@ -1606,3 +1519,105 @@ memory; the stages:
   nuri::VoxelGrid::nearest(), \f$O(1)\f$ expected per dot when the cell
   size matches the dot spacing; the medians use `nth_element`, \f$O(D)\f$.
   Two surfaces, two samplings, and these passes give the total above.
+
+### Floating point {#analysis-fp}
+
+The predicates live in one translation unit compiled
+without fast-math (like the vendored geogram sources), because the
+floating-point filter's running error bound and the exact fallback both
+assume round-to-nearest without reassociation or contraction. Each predicate
+is evaluated first in double with a running error bound
+(\f$|v - \text{exact}| \le e\f$, certified iff \f$|v| > 2e\f$; a literal
+zero is certified exactly) and falls back to exact arithmetic only when the
+bound does not certify the sign, the filtered floating point of
+@cite desc:surface:fortune-vanwyk-1996 with the runtime bound of
+@cite desc:surface:burnikel-funke-seel-2001, as geogram's predicate kit
+does @cite desc:surface:levy-2016. The exact type is a dyadic
+\f$m \cdot 2^e\f$ with an arbitrary-precision integer \f$m\f$: the
+adaptive expansions of @cite desc:surface:shewchuk-1997 cannot serve here,
+since they assume no underflow and a high-degree polynomial of rounded-zero
+coordinates (\f$10^{-16}\f$) has terms below the double exponent range,
+where underflow silently breaks their exactness. Perturbation
+ties are resolved by the same kernel evaluated on dual numbers, which yields
+the first-order coefficients automatically. The lower rungs of the fallback
+(the deeper perturbation orders, an exact zero under `sqrt_floor`, an
+uncertifiable quotient) are reached by the bit pattern of an input, not by
+its geometry; no test fixture targets them and their coverage is incidental.
+
+Positions and vertex angles come from the **offset**
+\f$x - \mathrm{cntr} = (P \pm \sqrt D\, Q)/(G|u|^2)\f$ of a root from its
+circle's center, with
+\f$P = G(|u|^2 (c_f - c_a) + \lambda d_b + \mu d_c) - |u|^2 v\, d\f$
+(\f$\lambda, \mu, d_b, d_c\f$ of the face relative to its first center
+\f$c_f\f$; \f$v, d, G\f$ of the circle \f$(a, b)\f$) and \f$Q = G u\f$
+rational and \f$P \perp Q\f$: it is taken from the filtered double when the
+running bound certifies it to `kOffsetRelTol` \f$= 2^{-26}\f$ of its own
+length, and otherwise from the exact dyadic (\f$P\f$, \f$Q\f$, \f$D\f$
+rounded to double and combined in a few more roundings), so the direction
+from the center is right to \f$2^{-26}\f$ on a circle of any radius. The
+certificate is relative to the offset's own length; coordinate-scale
+roundings in \f$v\f$ only enlarge the certified error (measured
+\f$10^{-14}\f$ at the origin, \f$10^{-9}\f$ at \f$1000\,\AA\f$). This matters for a
+circle tiny only by rounding (a tangent pair under a rigid motion has radius
+about \f$10^{-8}\,\AA\f$, and a non-tie can be far smaller): the floating
+discriminant and squared radius of such a circle are smaller than their own
+rounding error, and the vertex angles of a position taken from them are
+noise. The probe position is \f$\mathrm{cntr} + \text{offset}\f$;
+\f$\varphi\f$, dart angles and areas inherit at most that \f$2^{-26}\f$
+relative error. The floating comparisons that remain are output-only: the
+fold of each vertex's `atan2` into its exact half-plane class (the class
+carries the side of the ray, `atan2` only the magnitude, so a vertex at
+\f$\pi \mp \delta\f$ folds to \f$\pi\f$, never to 0 or \f$2\pi\f$), the
+normalization of the dart angle \f$\iota\f$ and the \f$\max(\cdot, 0)\f$
+clamps. A genuine corner is \f$\pi - \angle(h_a, h_b)\f$ for the two cap
+normals in the tangent plane at the vertex (the accessible region there is
+the wedge outside both caps), so it lies in \f$[0, \pi]\f$, \f$\pi\f$
+exactly at an internal tangency; the computed corner deviates by at most one
+offset certificate per dart plus roundoff, \f$2 \cdot 2^{-26} + 2^{-40}\f$
+(`kSurfaceAngleEps`), the vertex normal's error entering only
+quadratically, so the reflex check \f$\iota \le \pi +\f$ `kSurfaceAngleEps`
+is a `DCHECK` on an invariant, not a decision.
+
+The face solver's ring sort (@ref ses-patches "Patch areas") is sound for
+the same reason: each vertex's offset is certified to `kOffsetRelTol` of its
+length, the frame shared by the ring is an orientation-preserving linear map
+and so only reparametrizes the angles monotonically, and the dots, `atan2`,
+the class fold and the subtraction add roundoff only; a pair further apart
+than `kRingSortEps` is in the exact order, and an exact tie is always within
+it.
+
+## Deviations from MolSurfComp and Rosetta {#deviations}
+
+The authors' Matlab implementation of the surface, MolSurfComp
+(<https://github.com/quanchaoyu/MolSurfComp>, LGPL-3.0), is distributed under
+terms incompatible with this project's Apache-2.0 license. No code, formula,
+constant, tolerance, table, identifier or file structure from it appears in
+this source tree; the implementation was written from the paper and from the
+derivations above, and MolSurfComp was read once, as a black box, for a
+correctness audit. That audit found four prunings of the concave cut set that
+the paper does not state (its Theorem 5.1 removes \f$B_{r_p}(x)\f$ for every
+SAS intersection point \f$x\f$ within \f$2 r_p\f$ and imposes no filter):
+
+| MolSurfComp | There | Here |
+|---|---|---|
+| high probe implies an uncut face, by height over the plane of the three atom centers | asserted | not adopted. @ref corollary-1 "Corollary 1"(c), proved, on the distance to the contact *triangle* |
+| only low probes may cut | asserted | not adopted. Corollary of @ref lemma-6 "Lemma 6" (cut symmetry), proved |
+| first-atom neighborhood restriction | asserted | not adopted. @ref lemma-7 "Lemma 7" (host overlap) gives the provable version: a cutter's hosts reach the cut face's hosts within two overlap hops, one hop is not enough |
+| keep only the largest departure angle among probes sharing two atoms | asserted | @ref lemma-5 "Lemma 5", proved, not a code path |
+
+Since \f$\operatorname{dist}(x, T) \ge h\f$, strictly more faces are uncut
+here, and the two implementations disagree observably (on 1BRS, 3782 high
+faces here against 3520 there; on 2PTC, 1686 against 1555).
+
+Rosetta's `sc` application was used only as a numeric oracle for the
+statistic; it is neither linked nor redistributed. Intentional deviations
+from it:
+
+- Rosetta builds missing C-terminal `OXT` atoms; the input is scored as given.
+- At torus cusps (probe-circle radius below \f$r_p\f$) Rosetta emits only one
+  of the two arc halves; both valid halves are kept here (paper-correct, a
+  tiny area effect).
+- Rosetta uses `float`, this code `double`, and the sampling patterns differ
+  (Fibonacci lattice and equal-area rings against Rosetta's grid), so
+  per-interface values differ by about \f$\pm 0.01\f$.
+- Burial and the peripheral band are identical in definition.
