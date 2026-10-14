@@ -170,6 +170,41 @@ def test_swapped_sides(
         assert mine.s_median == pytest.approx(theirs.s_median, rel=1e-12)
 
 
+def test_active_masks(
+    slab_a: np.ndarray, slab_b: np.ndarray, radii: np.ndarray
+):
+    extra = slab(10.9) + np.array([1.5, 1.5, 0.0])
+    a_ext = np.vstack([slab_a, extra])
+    radii_ext = np.full(len(a_ext), 1.7)
+    mask = np.ones(len(a_ext), dtype=bool)
+    mask[len(slab_a) :] = False
+
+    nuri.seed_thread(5)
+    plain = shape_complementarity(slab_a, radii, slab_b, radii)
+    nuri.seed_thread(5)
+    masked = shape_complementarity(
+        a_ext, radii_ext, slab_b, radii, active_a=mask
+    )
+    nuri.seed_thread(5)
+    unmasked = shape_complementarity(a_ext, radii_ext, slab_b, radii)
+
+    assert masked.sc == pytest.approx(plain.sc, rel=1e-12)
+    assert masked.distance == pytest.approx(plain.distance, rel=1e-12)
+    assert masked.area == pytest.approx(plain.area, rel=1e-12)
+    assert masked.sides[0].n_atoms == len(a_ext)
+    assert masked.sides[0].n_active == plain.sides[0].n_active
+    assert masked.sides[0].n_dots == plain.sides[0].n_dots
+    assert unmasked.sides[0].n_active == len(a_ext)
+    assert unmasked.sides[0].n_dots > masked.sides[0].n_dots
+
+    with pytest.raises(ValueError, match="active mask size"):
+        shape_complementarity(slab_a, radii, slab_b, radii, active_b=mask)
+    with pytest.raises(ValueError, match="no interface"):
+        shape_complementarity(
+            slab_a, radii, slab_b, radii, active_a=np.zeros(49, dtype=bool)
+        )
+
+
 def _heavy_atoms(model, chain: str):
     idxs = [
         i

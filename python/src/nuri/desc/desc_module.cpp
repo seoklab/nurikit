@@ -350,11 +350,17 @@ of a set of spheres.
       "shape_complementarity",
       [](py::handle pts_a, py::handle radii_a, py::handle pts_b,
          py::handle radii_b, double rp, double density, double weight,
-         double band, double sep, double clamp) {
+         double band, double sep, double clamp, py::handle py_active_a,
+         py::handle py_active_b) {
         Spheres a = cast_spheres(pts_a, radii_a),
                 b = cast_spheres(pts_b, radii_b);
         if (a.radii.size() == 0 || b.radii.size() == 0)
           throw py::value_error("each side must have at least one atom");
+
+        const ArrayXb active_a = cast_active(py_active_a,
+                                             static_cast<int>(a.radii.size())),
+                      active_b = cast_active(py_active_b,
+                                             static_cast<int>(b.radii.size()));
 
         const ScParams params {
           check_positive(rp, "rp"),
@@ -368,7 +374,8 @@ of a set of spheres.
         std::optional<ScResult> res;
         {
           py::gil_scoped_release rel;
-          res = shape_complementarity(a.pts, a.radii, b.pts, b.radii, params);
+          res = shape_complementarity(a.pts, a.radii, active_a, b.pts, b.radii,
+                                      active_b, params);
         }
         if (!res) {
           throw py::value_error(
@@ -381,6 +388,7 @@ of a set of spheres.
       py::arg("radii_b"), py::kw_only(), py::arg("rp") = 1.7,
       py::arg("density") = 15.0, py::arg("weight") = 0.5, py::arg("band") = 1.5,
       py::arg("sep") = 8.0, py::arg("clamp") = 0.999,
+      py::arg("active_a") = py::none(), py::arg("active_b") = py::none(),
       R"doc(
 Shape complementarity statistic of Lawrence and
 Colman\ :footcite:`desc:sc:lawrence-colman-1993` between two sets of spheres.
@@ -409,11 +417,15 @@ is the mean of the two sides' median scores.
 :param band: The peripheral trim band, in angstroms.
 :param sep: The interface atom cutoff, in angstroms.
 :param clamp: The magnitude the scores are clamped to, in ``(0, 1]``.
+:param active_a: Optional boolean mask of shape ``(N,)``. Only these atoms of
+  the first side may take part in the interface; the others only occlude. All
+  atoms may take part by default.
+:param active_b: Optional boolean mask of shape ``(M,)`` for the second side.
 :returns: The statistic with its per-side summaries.
 :raises ValueError: If any of the shapes mismatch, a side is empty, any radii
   or `rp`, `density`, `weight`, `band` or `sep` are not positive, `clamp` is
   outside ``(0, 1]``, the surface inputs are rejected, or no interface dot of
-  either side survives trimming.
+  either side survives trimming (which includes a mask that leaves no atom).
 
 .. note::
   The default parameters are those of Rosetta's ``sc`` application.
