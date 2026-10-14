@@ -270,9 +270,13 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    equal to it. Working on \f$R_i^2\f$ instead is inconsistent at the
    \f$10^{-15}\f$ level, exactly where degenerate cells live.
 
-   Exact ties are resolved by **Simulation of Simplicity**: geogram sorts the
-   five points of its predicate by address, which for one contiguous vertex
-   array is index order, and its tie branch returns the sign of
+   Exact ties are resolved by **Simulation of Simplicity**
+   @cite desc:surface:edelsbrunner-mucke-1990 on the heights alone, the
+   scheme of @cite desc:surface:devillers-teillaud-2011 (centers fixed,
+   radii perturbed by index, so every cell of the limit triangulation is a
+   genuine cell of a nearby input): geogram sorts the five points of its
+   predicate by address, which for one contiguous vertex array is index
+   order, and its tie branch returns the sign of
    \f$\partial r / \partial h_m\f$ for \f$h_m \to h_m - \varepsilon_m\f$ with
    \f$\varepsilon_i \gg \varepsilon_j\f$ for \f$i < j\f$: every ball grows,
    lower index first. Formally
@@ -284,10 +288,12 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    vanished discriminant dominates every first-order
    \f$\varepsilon \eta^m\f$ term; the sign of a tied predicate is the sign of
    its first non-zero first-order coefficient in index order. Geogram's
-   predicate is linear in the heights; the predicates here are \f$C^1\f$ in
-   the heights away from \f$D = 0\f$ (discriminants, \f$A \pm B\sqrt D\f$),
-   so the first-order rule applies as long as one participant has a non-zero
-   first-order coefficient, which holds for `cuts` (the three coefficients
+   predicate is linear in the heights, the polynomial case the cited scheme
+   covers; the predicates here are \f$C^1\f$ in the heights away from
+   \f$D = 0\f$ (discriminants, \f$A \pm B\sqrt D\f$), and extending the
+   rule to them is this document's: the first-order rule applies as long as
+   one participant has a non-zero first-order coefficient, which holds for
+   `cuts` (the three coefficients
    sum to \f$|u|^2\f$, non-zero unless the centers are collinear, which
    `cuts` meets only on a shared circle, removed in preparation), `side`
    (the coefficient of \f$\rho_c^2\f$ is \f$-|d_b|^2/2\f$), `accept` (the
@@ -757,7 +763,10 @@ are the accessible cut points of `g`-faces (@ref theorem-1 "Theorem 1");
 two caps are joined iff a vertex links them or their open discs meet (a
 touch is no join). This is correct iff every pinch point counts loops and
 components one way: vertex present means joined (cusp pair, net area 0), absent
-means not joined (two loops, two components).
+means not joined (two loops, two components). The alternative is to displace
+the spheres numerically until every feature is separated and report the
+displaced arrangement @cite desc:surface:halperin-shelton-1998; the limit is
+taken here instead.
 
 \anchor theorem-3
 **Theorem 3 (the hybrid sweep is a limit).** Near every pinch point, for any
@@ -811,11 +820,15 @@ assume round-to-nearest without reassociation or contraction. Each predicate
 is evaluated first in double with a running error bound
 (\f$|v - \text{exact}| \le e\f$, certified iff \f$|v| > 2e\f$; a literal
 zero is certified exactly) and falls back to exact arithmetic only when the
-bound does not certify the sign. The exact type is a dyadic
-\f$m \cdot 2^e\f$ with an arbitrary-precision integer \f$m\f$: Shewchuk
-expansions cannot serve here, since a high-degree polynomial of
-rounded-zero coordinates (\f$10^{-16}\f$) has terms below the double
-exponent range and underflow silently breaks their exactness. Perturbation
+bound does not certify the sign, the filtered floating point of
+@cite desc:surface:fortune-vanwyk-1996 with the runtime bound of
+@cite desc:surface:burnikel-funke-seel-2001, as geogram's predicate kit
+does @cite desc:surface:levy-2016. The exact type is a dyadic
+\f$m \cdot 2^e\f$ with an arbitrary-precision integer \f$m\f$: the
+adaptive expansions of @cite desc:surface:shewchuk-1997 cannot serve here,
+since they assume no underflow and a high-degree polynomial of rounded-zero
+coordinates (\f$10^{-16}\f$) has terms below the double exponent range,
+where underflow silently breaks their exactness. Perturbation
 ties are resolved by the same kernel evaluated on dual numbers, which yields
 the first-order coefficients automatically. The lower rungs of the fallback
 (the deeper perturbation orders, an exact zero under `sqrt_floor`, an
@@ -988,7 +1001,9 @@ so \f$|v - c_a| \ge |s - c_a|\f$, which expands to
   on every low vertex since \f$h \le \operatorname{dist}(x, T_x)\f$. The
   bound is attained: \f$D_x\f$ is exactly the cap cut by the mirror triple
   point \f$x + 2hn\f$, the second point where the three SAS spheres meet (a
-  vertex only if it is accessible).
+  vertex only if it is accessible); that pair cutting each other along the
+  contact plane is the coincident-face case of
+  @cite desc:surface:sanner-1996.
 - (b) **Saddles are cut only in the spindle.** A saddle point with
   \f$\varrho(\beta) \ge 0\f$ is cut by nothing, so the spindle cut of the
   saddle ranges above is the whole cut: the ray at angle \f$\beta\f$ from the
@@ -996,7 +1011,9 @@ so \f$|v - c_a| \ge |s - c_a|\f$, which expands to
   axis at distance \f$r_l / \cos\beta \ge r_p\f$. This is the toroidal case
   of Theorem 5.2 of @cite desc:surface:quan-stamm-2016 and the radial
   singularity of @cite desc:surface:sanner-1996.
-- (c) **High and low vertices.**
+- (c) **High and low vertices (Sanner's criterion).** That a probe whose
+  ball misses its own contact triangle has an uncut face is stated in
+  @cite desc:surface:sanner-1996; this is its proof.
   \f$\min_{d \in C_x} t_x(d) = \operatorname{dist}(x, T_x)\f$: the plane
   distance \f$h\f$ when the foot of the perpendicular lies inside
   \f$T_x\f$, the distance to the nearest edge otherwise. A vertex with
@@ -1427,9 +1444,12 @@ memory; the stages:
 - **Preparation**: two nuri::VoxelGrid queries, \f$O(n m)\f$ for the
   near pairs and the exact predicates on them, plus \f$O(n + nm)\f$ for
   the ranks and the sort of `g`.
-- **SAS**: one regular triangulation, \f$O(n \log n)\f$ expected with
-  about \f$6n\f$ cells (measured on dense random sets: \f$6.1n\f$ cells,
-  \f$12.4n\f$ faces, mean degree 14.5); every face is examined once, each
+- **SAS**: one regular triangulation, \f$O(n \log n)\f$ expected
+  (linear expected size for well-distributed points
+  @cite desc:surface:dwyer-1991, inserted in the biased random order of
+  @cite desc:surface:amenta-choi-rote-2003) with about \f$6n\f$ cells
+  (measured on dense random sets: \f$6.1n\f$ cells, \f$12.4n\f$ faces,
+  mean degree 14.5); every face is examined once, each
   behind a floating-point filter that falls back to exact arithmetic only
   near degeneracy, \f$O(n)\f$ predicates; each sphere's arrangement is
   \f$O(m^2)\f$ in its cap count for the disc-intersection components and
