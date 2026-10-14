@@ -769,23 +769,130 @@ displaced arrangement @cite desc:surface:halperin-shelton-1998; the limit is
 taken here instead.
 
 \anchor theorem-3
-**Theorem 3 (the hybrid sweep is a limit).** Near every pinch point, for any
-number of spheres through it and for every index order and mask, the
-sweep's input is that of a genuine arrangement arbitrarily close to the
-exact one, and the area it reports is that arrangement's limit.
+**Theorem 3 (the hybrid sweep is a limit).** In plain words: near a point
+where two spheres touch, the sweep sees what it would see if every ball
+shrank by one common power, just enough to part the touching pairs there;
+the shrink leaves the power diagram alone, so nothing else near the point
+changes side. Precisely: fix a pinch point \f$x_0\f$, let \f$K\f$ be the kept
+spheres through it, \f$e_i = \varepsilon\eta^i\f$ the weight perturbations of
+step 1, and for a tangent pair \f$(p, q)\f$ let
+\f$\gamma_{pq} = (\rho_q e_p + \rho_p e_q)/(\rho_p + \rho_q)\f$, its **lens
+parameter**. The pair \f$(p^*, q^*)\f$ at \f$x_0\f$ with the largest
+\f$\gamma\f$ is unique (the \f$\gamma\f$ are linear forms in \f$e\f$ with
+disjoint supports). Let \f$\gamma = \gamma_{p^*q^*} + \delta\f$ with
+\f$\varepsilon^2 \ll \delta \ll \varepsilon\eta^n\f$, and let \f$\Sigma\f$ be
+the configuration with weights \f$\rho_i^2(\varepsilon) - \gamma\f$, a genuine
+arrangement for all but finitely many \f$\delta\f$. Then in a ball \f$N\f$
+around \f$x_0\f$ that meets no sphere outside \f$K\f$, for every index order
+and mask, the sweep's accepted roots, their ring order and the joins between
+caps through \f$x_0\f$ are those of \f$\Sigma\f$; and on every sphere below
+`n_enum` the reported area is the area of the exact arrangement.
 
-*Proof.* Shift all weights by the largest lens parameter
-\f$\gamma_{\max} = (\rho_q \varepsilon_p + \rho_p \varepsilon_q)/(\rho_p + \rho_q)\f$
-over tangent pairs (a power-diagram invariant) and pull every tangent pair
-apart by a \f$\delta\f$ below every \f$\varepsilon\f$ power: a genuine
-arrangement arbitrarily close to the exact one. On a face's radical line a
-tangent partner's constraint (common power \f$\le -\gamma_{pq}\f$, tight at
-the orthocentre, violated at the root) always rejects the near root, which
-the hybrid keeps iff the cell with the partner exists, the shifted
-configuration's accessible root; faces without a pair member are rejected on
-both sides, a grazing face never has a partner as apex, and components agree
-by corner-first joins and the nested/touching dichotomy. So near every pinch
-the sweep's input is that arrangement's and the area its limit.
+*Proof.* Powers are compared only by differences, so \f$\Sigma\f$ has the
+\f$RT\f$, cells, orthocentres \f$o_T\f$ and fans of the run, and
+@ref theorem-1 "Theorem 1" and @ref lemma-1 "Lemma 1" hold for it. Its ball
+\f$i\f$ is \f$\{\pi_i < -\gamma\}\f$, so its cut points lie on the same
+radical lines at power \f$-\gamma\f$ where the run's lie at 0. If a ball
+contains \f$x_0\f$ in its interior, nothing near \f$x_0\f$ is accessible in
+either configuration and that ball's cap meets every cap through \f$x_0\f$;
+assume none does. Spheres outside \f$K\f$ have power bounded below in
+\f$N\f$ and never reject there. Two spheres of \f$K\f$ with the same normal
+at \f$x_0\f$ are nested and were dropped, so the tangent pairs at \f$x_0\f$
+are disjoint pairs \f$(p, q)\f$ with opposite normals, the **partners**, and
+every other pair of \f$K\f$ crosses at \f$x_0\f$ and is a `g` edge. Since
+\f$x_0 = (\rho_q c_p + \rho_p c_q)/(\rho_p + \rho_q)\f$, expanding gives
+exactly
+\f$\Phi_{pq} := (\rho_q\pi_p + \rho_p\pi_q)/(\rho_p + \rho_q) = |x - x_0|^2 - \gamma_{pq}\f$,
+so in \f$\Sigma\f$ no point has both \f$\pi_p\f$ and \f$\pi_q\f$ below
+\f$-\gamma\f$: every pair at \f$x_0\f$ is apart.
+
+1. *Orthocentres.* Let \f$T \subset K\f$ be a cell with power
+   \f$\lambda_T\f$ at \f$o_T = x_0 + O(\varepsilon)\f$. For \f$m \notin T\f$,
+   \f$\pi_m(o_T) - \lambda_T > 0\f$, and its first-order part has coefficient
+   \f$-1\f$ on \f$e_m\f$, so it is at least \f$c\,\varepsilon\eta^n\f$.
+   Trivially
+   \f$\lambda_T = \Phi_{p^*q^*}(o_T) - [\rho_{q^*}(\pi_{p^*} - \lambda_T) + \rho_{p^*}(\pi_{q^*} - \lambda_T)](o_T)/(\rho_{p^*} + \rho_{q^*})\f$.
+   If \f$T \supseteq \{p^*, q^*\}\f$ the bracket vanishes and
+   \f$\lambda_T = |o_T - x_0|^2 - \gamma_{p^*q^*} \in (-\gamma, 0)\f$;
+   otherwise the bracket is at least \f$c\,\varepsilon\eta^n \gg \delta\f$ and
+   \f$\lambda_T < -\gamma - c'\varepsilon\eta^n\f$. The same identity for a
+   second pair in \f$T\f$ would put \f$\lambda_T\f$ within \f$O(\varepsilon^2)\f$
+   of both \f$-\gamma_{pq}\f$ and a value at or below \f$-\gamma_{p^*q^*}\f$,
+   which differ at first order. So the only partners inside one cell are
+   \f$p^*, q^*\f$, and the only apex in \f$K\f$ the run leaves untested is
+   \f$q^*\f$ for a face containing \f$p^*\f$, or the reverse.
+2. *Vertices.* A face containing a pair is not a `g` face and is skipped by
+   the run; in \f$\Sigma\f$ its radical line has
+   \f$\pi = \Phi_{pq} \ge -\gamma_{pq} > -\gamma\f$ and no root. Let
+   \f$F \subset K\f$ be a `g` face, \f$P\f$ the common power of its spheres
+   along \f$\ell_F\f$, and \f$l\f$ an apex, whose constraint is tight at
+   \f$o_{F \cup l}\f$. (a) If \f$x_0\f$ is a simple root, \f$P\f$ is monotone
+   in \f$N\f$, so the root at level \f$v \in \{0, -\gamma\}\f$ passes \f$l\f$
+   according to the sign of \f$v - \lambda_{F \cup l}\f$. Both levels lie on
+   the same side of every \f$\lambda\f$ of step 1 except for the apex
+   \f$q^*\f$ with \f$p^* \in F\f$, which the run does not test and which
+   \f$\Sigma\f$ passes: with \f$\pi_{p^*} = P = -\gamma\f$ the identity gives
+   \f$\pi_{q^*} - P = (1 + \rho_{q^*}/\rho_{p^*})\,\delta + O(\varepsilon^2) > 0\f$.
+   (b) If \f$x_0\f$ is a double root, the centers of \f$F\f$ are coplanar
+   with \f$x_0\f$, and a partner of a member of \f$F\f$ has its center on
+   that plane, so it is never an apex (the cell would be flat): every apex
+   in \f$K\f$ is tested. On \f$\ell_F\f$, \f$P = |u|^2 s^2 + \mu_F\f$ with the
+   foot within \f$O(\varepsilon)\f$ of \f$x_0\f$. An apex in \f$K\f$ gives
+   \f$\mu_F \le \lambda_{F \cup l}\f$; if both apexes are outside \f$K\f$,
+   the foot lies on the dual edge, and the bracket of step 1 at the foot is
+   again at least \f$c\,\varepsilon\eta^n\f$. In both cases
+   \f$\mu_F < -\gamma - c'\varepsilon\eta^n\f$, so both levels cut, at
+   \f$|s| \gg \varepsilon\f$, beyond every \f$o_T\f$ of \f$K\f$, and a root is
+   accepted at either level iff the dual edge leaves \f$N\f$ on its side.
+   Faces with a sphere outside \f$K\f$ have no root in \f$N\f$. So the run's
+   accepted roots in \f$N\f$ are the vertices of \f$\Sigma\f$ there.
+3. *Rings.* A ring lists accepted roots in fan order, exit before entry, the
+   fan of \f$\Sigma\f$; by @ref lemma-1 "Lemma 1" for \f$\Sigma\f$ that is
+   the cyclic order of its vertices. A fan face cuts at level 0 iff it cuts
+   at \f$-\gamma\f$ (step 2), a partner neither cuts nor contains, and in a
+   single-point window the antipode lies away from \f$x_0\f$, where the
+   decision is strict. So full-circle decisions, arcs and successors agree,
+   and so does \f$L\f$.
+4. *Components.* The run joins two caps iff they share an accepted root or
+   their exact open discs meet; `discs_intersect` reads unperturbed signs
+   and its tie falls to `side`, never tied after preparation. Discs that
+   meet exactly meet in \f$\Sigma\f$, and a shared root is a crossing in
+   \f$\Sigma\f$. Conversely let \f$D_j\f$ and \f$D_l\f$ meet in \f$\Sigma\f$
+   but not exactly: their exact closures touch at one point \f$w \in N\f$
+   with tangent circles. A cap crossing or containing \f$w\f$ meets both
+   exactly. Otherwise the caps through \f$w\f$ form two nested chains, one
+   on each side of the common tangent, each joined exactly; let \f$A\f$ and
+   \f$B\f$ be their unions in \f$\Sigma\f$. Where the boundary of
+   \f$A \cup B\f$ passes from \f$\partial A\f$ to \f$\partial B\f$ there is a
+   point outside every cap: a vertex of \f$\Sigma\f$ on two non-partner
+   caps (partners are apart), hence by step 2 an accepted root that links
+   the chains. So \f$C\f$ agrees; the partners' own discs are the case
+   \f$A \cap B = \emptyset\f$.
+5. *Area.* Outside the \f$O(\sqrt\varepsilon)\f$ neighbourhoods of the
+   degenerate points no decision is tied, and at a degenerate point without
+   a tangent pair the run equals the \f$\varepsilon\f$-configuration, which
+   serves as its \f$\Sigma\f$. On a sphere below `n_enum` every face
+   through it is handled and its caps are complete. Let \f$R'_s\f$ be the
+   region on it bounded by the comparison circles of each such point inside
+   its own ball, joined by \f$C^1\f$-small interpolations across the annuli
+   between, where every crossing is transversal. It is a genuine region with
+   the run's vertices, arcs, \f$L\f$ and \f$C\f$; its corners and
+   \f$\int\kappa_g\f$ converge to the run's exactly evaluated terms, so
+   Gauss-Bonnet for \f$R'_s\f$ converges to the run's sum, while the area of
+   \f$R'_s\f$ converges to the exact area, as regions do.
+
+The shift must be local to \f$x_0\f$: shifting by the largest lens parameter
+over all pinch points would, at a pinch with a smaller one or at a
+\f$k\f$-fold point decided by a higher index, outweigh the perturbation and
+make rejected points accessible. The exact tie in `discs_intersect` is
+load-bearing: with the coplanar centers \f$p = (-1, 0, 0)\f$,
+\f$q = (1, 0, 0)\f$, \f$c, c' = (0.6, \pm 0.8, 0)\f$ and all radii 1, every
+sphere passes through the origin, where \f$p\f$ and \f$q\f$ touch; on
+\f$S_p\f$ the discs of \f$c\f$ and \f$c'\f$ touch there, the triangulation
+takes the diagonal \f$pq\f$, and the perturbed circles would cross. Joining
+the two discs would be off by \f$4\pi R^2\f$; the sweep keeps them apart
+because `discs_intersect` reads the unperturbed sign and `side` reports a
+touch.
 
 The theorem is also exercised on 133 exact fixtures over index orders, rigid
 motions and masks.
