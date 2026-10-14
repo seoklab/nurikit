@@ -211,7 +211,7 @@ bands that are supersets of exactly decided sets; every decision is exact.
    hosts, hence a host in `shell`: it is enumerated, its accessibility is
    decided like every other root, and its cap is present. Its own departure
    tangents may be incomplete (a circle between two shell atoms is never
-   solved); it then fails the triangle predicate of @ref lemma-9 "Lemma 9" and is tested
+   solved); it then fails the triangle predicate of @ref triangle-reach "triangle-reach test" and is tested
    unfiltered, which is always allowed. Two shells are exactly what
    @ref corollary-3 "Corollary 3" needs; one shell of neighbors is not
    enough: the cutter's hosts need only touch a *neighbor* of the active
@@ -303,11 +303,19 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    the tie and preparation takes the limit answer, and `ccw` and
    `half_plane` report zero for the caller to resolve structurally.
 
+   \anchor bounding-points
    Four **bounding points** of weight 0 at the corners of a regular
    tetrahedron of circumradius \f$4(\Delta + R_{\max}) + 1\f$ around the
    bounding box (\f$\Delta\f$ its half diagonal) are appended so the input is
-   never coplanar (@ref lemma-1 "Lemma 1"). A sphere that appears in no cell has an empty
-   power cell, no accessible surface, and gets area 0 without a solve.
+   never coplanar, the initial simplex of Bowyer and Watson
+   @cite desc:surface:bowyer-1981 @cite desc:surface:watson-1981. They are
+   inert: every point of \f$U\f$ lies within \f$\Delta + R_{\max}\f$ of the
+   box center, so a bounding point has positive power on all of \f$U\f$ and
+   never rejects a cut point, and, because every center is strictly inside
+   the tetrahedron (its inradius exceeds \f$\Delta\f$), every hull face of
+   the triangulation consists of bounding points only. A sphere that appears
+   in no cell has an empty power cell, no accessible surface, and gets area 0
+   without a solve.
 2. **Caps.** The caps of sphere \f$s\f$ are its \f$RT\f$ neighbors \f$t\f$
    whose ball overlaps \f$B_s\f$, decided exactly and rationally: with
    \f$T = \rho_s^2 + \rho_t^2 - |c_s - c_t|^2\f$ the balls overlap iff
@@ -342,7 +350,7 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    apexes \f$l\f$ of the two cells sharing the face (`accept`:
    \f$\pi_l - \pi_a\f$ is affine along \f$\ell\f$, so this is the sign of
    \f$A \pm B\sqrt D\f$, decided exactly; a tie is perturbed like the
-   triangulation). An apex that is a bounding point (@ref lemma-1 "Lemma 1") or misses one
+   triangulation). An apex that is a bounding point (@ref bounding-points "step 1") or misses one
    of the face spheres is not tested: its power on that sphere is
    non-negative, zero only at a tangency point, and the limit accepts there
    (step 2). Each accepted root is one **probe** with exactly the three atoms
@@ -352,7 +360,7 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
 4. **Rings from cell fans.** For every \f$RT\f$ edge \f$(a, b)\f$ that is a
    cap pair, the cells around the edge are walked in cyclic order (across the
    two faces of each cell that contain the edge; the cycle closes within the
-   finite cells by @ref lemma-1 "Lemma 1"). Each face \f$(a, b, c)\f$ of the fan that cuts
+   finite cells by @ref bounding-points "step 1"). Each face \f$(a, b, c)\f$ of the fan that cuts
    the circle contributes its accepted roots in the order **exit from the
    facet, then entry into the facet** (entering ball \f$c\f$, then leaving
    it) along the circle's orientation about \f$a \to b\f$; the
@@ -442,18 +450,6 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
 
 ### Correctness
 
-\anchor lemma-1
-**Lemma 1 (the bounding points are inert).** In plain words: the four far
-corners change nothing inside the molecule. Every sphere point and every
-point of \f$U\f$ lies within \f$\Delta + R_{\max}\f$ of the box center, and
-a bounding point \f$b\f$ lies at distance \f$4(\Delta + R_{\max}) + 1\f$, so
-\f$\pi_b(x) = |x - b|^2 > 0\f$ there. Hence the power cells of the spheres
-are unchanged inside \f$U\f$, a bounding apex never rejects a cut point,
-and, because every center is strictly inside the bounding tetrahedron (its
-inradius exceeds \f$\Delta\f$), every hull face of the triangulation
-consists of bounding points only. A bounding point is never hidden, so this
-holds for the triangulation actually built.
-
 \anchor theorem-1
 **Theorem 1 (vertex recipe).** In plain words: a cut point of a face is on
 the surface iff it is outside the two balls on either side of that face, and
@@ -466,30 +462,24 @@ power. Let \f$x\f$ be a cut point of circle \f$(a, b)\f$ with sphere
 \f$\pi_{l_2}(x) \ge 0\f$; and every accessible cut point is produced by some
 face.
 
-*Proof.* \f$x\f$ lies on the radical line \f$\ell\f$, along which
-\f$\pi_m - \pi_a\f$ is affine for every \f$m\f$, so each constraint
-\f$\pi_m \ge \pi_a\f$ cuts \f$\ell\f$ in a half-line (a center \f$c_m\f$ in
-the face plane makes \f$\pi_m - \pi_a\f$ constant along \f$\ell\f$, so that
-constraint is all of \f$\ell\f$ or none; it holds at the orthocentres, hence
-it is all of \f$\ell\f$ and never binds). The orthocentres of the two cells
-lie on \f$\ell\f$ and satisfy every constraint, and the constraint of an
-apex is tight at its own orthocentre; therefore the apex constraints are the
-binding lower and upper bounds, and
-\f$\{s : \pi_m(x(s)) \ge \pi_a(x(s))\ \forall m\}\f$ is the segment between
-the two orthocentres, the edge of the power diagram dual to the face. The
-two apexes lie on opposite sides of the face plane, as any two cells sharing
-a face do, so their half-lines point opposite ways and the bounds are a
-lower and an upper one; the two orthocentres are distinct by the choice of
-configuration. At \f$x\f$, \f$\pi_a = 0\f$, so membership is
-\f$\pi_{l_1} \ge 0 \wedge \pi_{l_2} \ge 0\f$. Conversely let \f$x\f$ be an
-accessible cut point of circle \f$(a, b)\f$ with \f$c\f$. No accessible
-point lies on four spheres in this configuration (it would be a cell
-orthocentre of zero power), so \f$x\f$ lies in the cells of exactly
-\f$a, b, c\f$, \f$V_a \cap V_b \cap V_c\f$ is the power edge dual to the
-\f$RT\f$ face \f$abc\f$, \f$x\f$ is one of that face's cut points, and the
-face accepts \f$x\f$.
+*Proof.* This is the duality of the power diagram and the regular
+triangulation @cite desc:surface:aurenhammer-1987 applied to the boundary of
+a union of balls @cite desc:surface:edelsbrunner-1995. The power cell
+\f$V_m\f$ is the intersection of the half-spaces \f$\pi_m \le \pi_l\f$, and
+the edge of the power diagram dual to the face \f$abc\f$ is the segment of
+the radical line \f$\ell = \{\pi_a = \pi_b = \pi_c\}\f$ between the
+orthocentres of the two cells sharing the face, where the apex constraints
+are tight (a center in the face plane makes \f$\pi_m - \pi_a\f$ constant
+along \f$\ell\f$ and never binds). A point of \f$S_a\f$ is accessible iff it
+lies in \f$V_a\f$, so the accessible cut points of circle \f$(a, b)\f$ with
+\f$c\f$ are the points of \f$S_a \cap \ell\f$ on that segment; at \f$x\f$,
+\f$\pi_a = 0\f$, so membership is \f$\pi_{l_1} \ge 0 \wedge \pi_{l_2} \ge 0\f$.
+Conversely an accessible cut point lies on exactly three spheres in this
+configuration, so \f$V_a \cap V_b \cap V_c\f$ is one-dimensional, \f$abc\f$
+is a face, and that face produces the point.
 
-At an unperturbed \f$k\f$-fold point the recipe still holds pointwise, but
+**Remark (degenerate cells).** At an unperturbed \f$k\f$-fold point the
+recipe still holds pointwise, but
 two cells can share an orthocentre, and then every face of the degenerate
 cell accepts the same point, so the probe count and the ring alternation
 match no arrangement. That configuration is never evaluated: ties in
@@ -508,45 +498,44 @@ around an edge visits the circle's vertices in their order along the circle.
 Hypotheses: no face of the fan is tangent to the circle (a double root is
 perturbed to a cut or a miss before this lemma applies) and no cell
 orthocentre lies on the circle (a tie that `accept` perturbs away). The
-circle \f$(a, b)\f$ and the power facet \f$V_a \cap V_b\f$ both lie in the
-radical plane \f$\{\pi_a = \pi_b\}\f$. The facet is a convex polygon
-\f$P\f$ whose edges are the dual segments of the fan faces \f$(a, b, c)\f$,
-each on the radical line of its face; consecutive fan cells share a face, so
-consecutive vertices of \f$P\f$ (the orthocentres) share an edge, and the
-fan order is the cyclic order of the edges of \f$P\f$. The accessible arcs
-are the circle inside \f$P\f$, and their endpoints are where the circle
-crosses the edges of \f$P\f$ transversally. Take a point \f$p\f$ inside
-\f$\mathrm{disc} \cap P\f$ (it exists as soon as one crossing is
-transversal). The circle, \f$\partial P\f$ and
-\f$\partial(\mathrm{disc} \cap P)\f$ are all star-shaped about \f$p\f$, so
-along each of them the crossing points come in the order of their polar
-angle about \f$p\f$, the same order on all three. Hence the crossings occur
-along the circle in the cyclic order of the edges of \f$P\f$, and on one
-edge the circle first enters and then leaves the half-plane of ball \f$c\f$
-(exit from the facet, then entry) when the circle and \f$\partial P\f$ are
-both run counter-clockwise about \f$a \to b\f$, the orientation the
-positively oriented cells give the fan. Points not accepted by @ref theorem-1 "Theorem 1" lie
-outside the segment and are skipped without disturbing the order. A face
+circle \f$(a, b)\f$ and the power facet \f$P = V_a \cap V_b\f$ both lie in
+the radical plane \f$\{\pi_a = \pi_b\}\f$; \f$P\f$ is a convex polygon
+whose edges, in fan order, are the dual segments of the fan faces, and the
+accessible arcs are the circle inside \f$P\f$. Since
+\f$\mathrm{disc} \cap P\f$ is convex, its boundary alternates arcs of the
+circle and edges of \f$P\f$ in one cyclic order, so the crossings occur
+along the circle in the cyclic order of the edges, and on one edge the
+circle first enters and then leaves the half-plane of ball \f$c\f$ (exit
+from the facet, then entry) when the circle and \f$\partial P\f$ are both
+run counter-clockwise about \f$a \to b\f$, the orientation the positively
+oriented cells give the fan. Points not accepted by
+@ref theorem-1 "Theorem 1" lie outside the segment and are skipped; a face
 that cuts the circle with both roots rejected has its segment wholly inside
-or wholly outside the disc; either way the circle does not meet that
-edge.
+or wholly outside the disc, and the circle does not meet that edge.
 
 \anchor theorem-2
 **Theorem 2 (neighbor caps suffice).** In plain words: every buried point
 of a sphere is buried by a triangulation neighbor, so the neighbor caps
-alone give the right components. For \f$x \in S_s\f$, \f$x\f$ is accessible
-iff \f$x \in V_s\f$. \f$V_s\f$ is a convex polyhedron whose facets are the
-\f$RT\f$ edges of \f$s\f$ (non-empty for a solved sphere, which has arcs);
-if \f$x \notin V_s\f$ some facet neighbor \f$n\f$ has \f$\pi_n(x) < 0\f$
-strictly, and \f$n\f$ is a sphere since a bounding point has \f$\pi \ge 0\f$
-everywhere (@ref lemma-1 "Lemma 1"), so a point of \f$S_s\f$ inside some open ball is
-inside the open ball of an \f$RT\f$ neighbor. Hence the union of the open
+alone give the right components. The union of balls decomposes as
+\f$U = \bigcup_s (B_s \cap V_s)\f$, and \f$x \in S_s\f$ is accessible iff
+\f$x \in V_s\f$ @cite desc:surface:edelsbrunner-1995. \f$V_s\f$ is a
+convex polyhedron whose facets are the \f$RT\f$ edges of \f$s\f$
+(non-empty for a solved sphere, which has arcs); if \f$x \notin V_s\f$ some
+facet neighbor \f$n\f$ has \f$\pi_n(x) < 0\f$ strictly, and \f$n\f$ is a
+sphere since a bounding point has \f$\pi \ge 0\f$ on \f$U\f$
+(@ref bounding-points "step 1"), so a point of \f$S_s\f$ inside some open
+ball is inside the open ball of an \f$RT\f$ neighbor. Hence the union of the open
 neighbor caps equals the union of all open overlapping caps exactly (a
 tangent neighbor has an empty open cap, consistent with step 2), the
 components of that union are the components of step 5, and every accessible
 arc on circle \f$(s, t)\f$ lies in the facet \f$V_s \cap V_t\f$, so
-\f$(s, t)\f$ is an edge and, by @ref theorem-1 "Theorem 1" and @ref lemma-2 "Lemma 2", its endpoints are the
-ring of that edge.
+\f$(s, t)\f$ is an edge and, by @ref theorem-1 "Theorem 1" and
+@ref lemma-2 "Lemma 2", its endpoints are the ring of that edge. The same
+dual complex underlies the alpha-shape area of @cite desc:surface:liang-1998,
+which sums inclusion-exclusion terms instead of solving each sphere's
+arrangement; the exact arrangement of the circles on one sphere was
+previously computed by a sweep over all its intersecting neighbors
+@cite desc:surface:cazals-loriot-2009.
 
 \anchor lemma-3
 **Lemma 3 (occluder crop).** In plain words: an occluder that is near no
@@ -587,12 +576,12 @@ which no perturbation changes.
 2. *Tie signs are order-local.* A predicate whose participants lie in
    \f$S'\f$ plus bounding points has the same sign in both runs. Untied, it
    is the same number. Tied, its sign is that of the first non-zero
-   first-order coefficient in index order among its participants.
-   `triangulate` lifts the kept spheres in original index order and appends
-   the bounding points, so the relative order of any \f$S'\f$ subset is the
-   same in both lifts and the same coefficient is picked; geogram's tie
-   branch sorts by address, the same order, so each run's triangulation is
-   the regular triangulation of its own perturbed weights, and the two runs
+   first-order coefficient in index order among its participants, and the
+   perturbation of each point depends on its own index alone
+   (@cite desc:surface:edelsbrunner-mucke-1990). `triangulate` lifts the
+   kept spheres in original index order and appends the bounding points, so
+   the relative order of any \f$S'\f$ subset is the same in both lifts, and
+   geogram's tie branch sorts by address, the same order. The two runs
    differ in exponents, not in which term dominates.
 3. *Root verdicts are local.* Let \f$f = (a, b, c)\f$ be a `g`-face with
    \f$\min f <\f$ `n_enum` and \f$x\f$ a root of it. Claim: the verdict on
@@ -611,7 +600,7 @@ which no perturbation changes.
    - *Far constraints.* For \f$m \notin X(x)\f$, \f$x\f$ is inside \f$H_m\f$
      at a margin from \f$t_m\f$ for every small \f$\varepsilon\f$: such an
      \f$m\f$ never rejects, tested or not. Bounding points are far by
-     @ref lemma-1 "Lemma 1", every \f$o \in O\f$ by 1(iii).
+     @ref bounding-points "step 1", every \f$o \in O\f$ by 1(iii).
    - *Strict containment rejects.* If \f$m \in X^-(x)\f$, \f$x\f$ is outside
      \f$H_m\f$ at a margin, and \f$F \subseteq H_m\f$; the apex on that side
      has its tight point at the margin from \f$x\f$, so it is not in
@@ -970,6 +959,10 @@ atoms it touches are closer to that SAS point than to any other point outside
 any point of the convex hull of \f$\{c_a : a \in A(s)\}\f$, and
 \f$p = (1 - \tau) s + \tau q\f$ with \f$0 \le \tau \le 1\f$. Then
 \f$|p - v| \ge |p - s|\f$, strictly for \f$\tau < 1\f$ and \f$v \ne s\f$.
+This is the sufficiency half of Theorems 4.1, 4.2 and Corollary 4.1 of
+@cite desc:surface:quan-stamm-2016 (the segment, triangle or polyhedron
+under an SAS point has it as a closest SAS point), stated once over the
+convex hull so that it covers \f$k\f$-fold points.
 
 *Proof.* \f$v\f$ is outside the SAS ball of \f$a\f$ and \f$s\f$ is on it,
 so \f$|v - c_a| \ge |s - c_a|\f$, which expands to
@@ -996,13 +989,13 @@ so \f$|v - c_a| \ge |s - c_a|\f$, which expands to
   bound is attained: \f$D_x\f$ is exactly the cap cut by the mirror triple
   point \f$x + 2hn\f$, the second point where the three SAS spheres meet (a
   vertex only if it is accessible).
-- (b) **Saddles are cut only in the spindle.** For a probe center on the
-  circle of atoms \f$i, j\f$, the generating directions are the cone of
-  \f$\hat c_i, \hat c_j\f$, and the ray at angle \f$\beta\f$ from the inward
-  radial direction meets the segment \f$[c_i, c_j]\f$, which lies on the
-  torus axis, at distance \f$r_l / \cos\beta\f$. So a saddle point with
-  \f$r_l \ge r_p \cos\beta\f$, i.e. \f$\varrho(\beta) \ge 0\f$, is cut by
-  nothing, and the spindle cut of the saddle ranges above is the whole cut.
+- (b) **Saddles are cut only in the spindle.** A saddle point with
+  \f$\varrho(\beta) \ge 0\f$ is cut by nothing, so the spindle cut of the
+  saddle ranges above is the whole cut: the ray at angle \f$\beta\f$ from the
+  inward radial direction meets the segment \f$[c_i, c_j]\f$ on the torus
+  axis at distance \f$r_l / \cos\beta \ge r_p\f$. This is the toroidal case
+  of Theorem 5.2 of @cite desc:surface:quan-stamm-2016 and the radial
+  singularity of @cite desc:surface:sanner-1996.
 - (c) **High and low vertices.**
   \f$\min_{d \in C_x} t_x(d) = \operatorname{dist}(x, T_x)\f$: the plane
   distance \f$h\f$ when the foot of the perpendicular lies inside
@@ -1021,20 +1014,6 @@ so \f$|v - c_a| \ge |s - c_a|\f$, which expands to
   a high active face is never solved against any cap. A high face whose three tangents are linearly dependent has no
   spherical triangle and goes to the face solver on its hemispheres alone,
   where two of them are complementary and the area is 0.
-
-\anchor lemma-5
-**Lemma 5 (a ball inside the union that touches a vertex points into its
-cone).** If \f$B(q, \varrho) \subset U\f$ and the vertex \f$y\f$ lies on its
-boundary, then the direction from \f$y\f$ to \f$q\f$ lies in \f$C_y\f$.
-
-*Proof.* Suppose not. Then some direction \f$w\f$ points away from every
-touched center (\f$w \cdot (c_b - y) \le 0\f$ for all \f$b \in A(y)\f$) yet
-toward \f$q\f$ (\f$w \cdot (q - y) > 0\f$). Moving from \f$y\f$ a short way
-along \f$w\f$ leaves every SAS ball of the touched atoms
-(\f$|y + \epsilon w - c_b|^2 = R_b^2 - 2\epsilon\, w \cdot (c_b - y) + \epsilon^2 > R_b^2\f$)
-and stays outside the SAS balls \f$y\f$ does not touch, so the point is
-outside \f$U\f$; yet it is inside \f$B(q, \varrho)\f$, which lies in
-\f$U\f$.
 
 \anchor lemma-6
 **Lemma 6 (the first SAS point an inflating ball touches is a vertex).** Let
@@ -1094,7 +1073,9 @@ through \f$x\f$ and \f$s_1 = x\f$. (If \f$p_1 = c_a\f$, then
 \f$a, b\f$, then near \f$s_1\f$ the region \f$U\f$ is the union of the two
 SAS balls, and a ball inside \f$U\f$ touching their common boundary at
 \f$s_1\f$ must have its center in the wedge spanned at \f$s_1\f$ by the
-directions to \f$c_a\f$ and \f$c_b\f$, exactly as in @ref lemma-5 "Lemma 5". So \f$p_1\f$
+directions to \f$c_a\f$ and \f$c_b\f$ (a direction pointing away from both
+centers leaves both balls, hence \f$U\f$, while staying inside the ball).
+So \f$p_1\f$
 lies in the plane through \f$s_1\f$ and the axis \f$c_a c_b\f$, within the
 angle at \f$s_1\f$ of the triangle \f$(s_1, c_a, c_b)\f$. By @ref lemma-4 "Lemma 4" with
 \f$s = s_1\f$, \f$v = x\f$, no point strictly inside that triangle is
@@ -1123,7 +1104,9 @@ nothing else, up to a null set of directions, which affects neither area nor
 dots. This is Theorem 5.1 of @cite desc:surface:quan-stamm-2016,
 \f$P_- = P_0 \setminus \bigcup_{x \in K} B_{r_p}(x)\f$; the paper proves it
 in the plane and states that space adds no essential difficulty, and
-@ref lemma-6 "Lemma 6" is the proof in \f$\mathbb R^3\f$.
+@ref lemma-6 "Lemma 6" is the proof in \f$\mathbb R^3\f$. The
+reduced-surface algorithm of @cite desc:surface:sanner-1996 computes the same
+probe-probe cuts without proof.
 
 *Proof.* If any SAS point at all cuts a face point \f$x + r_p d\f$, that
 point lies in \f$B_{r_p}^\circ\f$, so \f$t_1 < r_p\f$ and
@@ -1151,7 +1134,9 @@ within \f$r_p\f$ of \f$k\f$; the only such vertex is \f$y\f$. Call
 only that \f$y = s_1\f$, never that \f$y\f$ is the unique cutter. So
 \f$q = p_1\f$ is equidistant from \f$x\f$ and \f$y\f$, at distance
 \f$\varrho = t_1 < r_p\f$, and \f$B(q, \varrho) \subset U\f$. Both \f$x\f$
-and \f$y\f$ lie on its boundary, so @ref lemma-5 "Lemma 5" applies at both:
+and \f$y\f$ lie on its boundary, so at each the direction to \f$q\f$ lies
+in the face cone (a direction pointing away from every touched center leaves
+\f$U\f$ while staying inside the ball):
 \f$u = (q - x)/\varrho \in C_x\f$ and \f$e = (q - y)/\varrho \in C_y\f$. Then
 \f$|y + r_p e - x| \le |y + r_p e - q| + |q - x| = (r_p - \varrho) + \varrho = r_p\f$,
 with equality only if \f$q - x\f$ and \f$q - y\f$ point the same way, which
@@ -1162,7 +1147,7 @@ the SAS point \f$x\f$, gives \f$t_y(e) < r_p\f$.
 **Corollary 2 (both ends low, symmetric drop).** If \f$y\f$ cuts \f$x\f$,
 then \f$y\f$ is low and the cap of \f$x\f$ on \f$y\f$'s sphere meets
 both \f$y\f$'s beyond-plane cap and \f$y\f$'s spherical triangle. Hence
-the two filters below (@ref lemma-8 "Lemma 8", @ref lemma-9 "Lemma 9") are
+the two tests below (@ref cap-reach "cap-reach", @ref triangle-reach "triangle-reach") are
 necessary conditions for cutting in either direction, and a failure on either
 side drops the pair **for both faces**.
 
@@ -1178,8 +1163,8 @@ the face is computed without \f$y\f$ cannot be dropped: a point of
 ball misses \f$y\f$'s cone entirely; such a point is always inside some
 other vertex ball, which is what @ref lemma-6 "Lemma 6" finds.
 
-\anchor lemma-8
-**Lemma 8 (the cap must reach the beyond-plane cap).** A cap
+\anchor cap-reach
+**Cap-reach test.** A cap
 \f$\{d : d \cdot u > \cos\alpha\}\f$ cuts the face of \f$x\f$ only if
 \f[
 u \cdot n > \cos(\alpha + \beta) = \cos\alpha \cos\beta - \sin\alpha \sin\beta,
@@ -1187,7 +1172,7 @@ u \cdot n > \cos(\alpha + \beta) = \cos\alpha \cos\beta - \sin\alpha \sin\beta,
 with \f$n\f$, \f$\beta\f$ of the beyond-plane cap \f$D_x\f$. All four
 values are stored; no angle is recovered.
 
-*Proof.* By @ref corollary-1 "Corollary 1"(a) the cut part of the face lies
+By @ref corollary-1 "Corollary 1"(a) the cut part of the face lies
 inside \f$D_x = \{d : d \cdot n > \cos\beta\}\f$, and a cap meets it only
 if the angle between \f$u\f$ and \f$n\f$ is below \f$\alpha + \beta\f$.
 The step
@@ -1198,13 +1183,13 @@ have \f$\cos\alpha = |x - y|/2r_p \ge 0\f$ and the beyond-plane cap has
 bound the test is not merely necessary but exact for
 \f$\mathrm{cap} \cap D_x \ne \emptyset\f$.
 
-\anchor lemma-9
-**Lemma 9 (the cap must meet the spherical triangle).** The cap meets the
+\anchor triangle-reach
+**Triangle-reach test.** The cap meets the
 closed triangle \f$S = \{d : d \cdot t_m \le 0\}\f$ iff \f$u \in S\f$ or the
 angular distance from \f$u\f$ to the boundary of \f$S\f$ is below
 \f$\alpha\f$, which the three tests below decide without a square root.
 
-*Proof.* Edge \f$m\f$ is the arc of the great circle
+Edge \f$m\f$ is the arc of the great circle
 \f$t_m \cdot d = 0\f$ between the corners \f$p_{m+1}\f$ and \f$p_{m+2}\f$,
 \f$p_m = \pm(t_{m+1} \times t_{m+2})/|\cdot|\f$ signed so that
 \f$t_m \cdot p_m \le 0\f$; the corners are perpendicular to \f$t_m\f$. The
@@ -1312,7 +1297,7 @@ a cutter exists none of whose hosts overlaps any host of the cut face.
 
 \anchor theorem-5
 **Theorem 5 (the filters are exact).** Dropping every probe pair with a high
-end, or failing @ref lemma-8 "Lemma 8" or @ref lemma-9 "Lemma 9" on either
+end, or failing @ref cap-reach "cap-reach test" or @ref triangle-reach "triangle-reach test" on either
 side, leaves the accessible region, the area and the dots of every face
 unchanged.
 
@@ -1329,8 +1314,8 @@ direction, so the pair is dropped for both faces.
 
 Per structure: heights of all probes (@ref corollary-1 "Corollary 1"(c)), then probe
 pairs within \f$2 r_p\f$ (a nuri::VoxelGrid query), then drop pairs with a
-high end (both ends low), then drop pairs failing @ref lemma-8 "Lemma 8" on
-either side, then drop pairs failing @ref lemma-9 "Lemma 9" on either side,
+high end (both ends low), then drop pairs failing @ref cap-reach "cap-reach test" on
+either side, then drop pairs failing @ref triangle-reach "triangle-reach test" on either side,
 tested on the survivors only, then closed-form areas of the high active faces
 with a triangle, and the face solver on every other active face with the surviving caps. By
 @ref theorem-5 "Theorem 5" the dropped caps change nothing. The filters are
