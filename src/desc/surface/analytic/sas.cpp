@@ -561,7 +561,7 @@ namespace internal {
                    const VertexMap &vm, const ArrayXi &edge_of_pair,
                    const std::vector<SasCircle> &circ,
                    const std::vector<FaceRec> &fs, const ArrayXi &pid) {
-      Arcs out;
+      Arcs out;  // reserving `out.arcs` measured as noise (+-1 %)
       out.off = OffsetTable(ss.g.m());
       Ring ring;
       std::vector<int> fan;

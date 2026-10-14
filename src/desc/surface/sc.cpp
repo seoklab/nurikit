@@ -21,6 +21,8 @@ namespace nuri {
 namespace {
   using internal::ScScratch;
 
+  // Three mean dot spacings: a 0.5..2.0 angstrom sweep at density 15 bottomed
+  // at 0.75 angstrom on a shallow curve.
   constexpr double kNearestCellSpacings = 3;
 
   template <class Pred>
@@ -132,7 +134,8 @@ namespace {
 
   /**
    * Nearest-dot distance and score of every dot of `a` against `b`, and
-   * their medians.
+   * their medians. An array formulation measured neutral, and an IndexedView
+   * inside a colwise redux copies the index per column, O(n^2).
    */
   void side_stats(const ScParams &params, ScScratch &scratch,
                   const SurfaceDots &theirs, ScSide &side) {

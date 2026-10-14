@@ -200,6 +200,8 @@ std::pair<int, double> VoxelGrid::nearest(const Vector3d &pt) const {
   return nearest(pt, scratch);
 }
 
+// Own-cell-first and a branchless tie measured +3..20 % (the improvement
+// branch is rare and predicted); cell-ordered queries +6..12 % per grid phase.
 std::pair<int, double> VoxelGrid::nearest(const Vector3d &pt,
                                           Scratch &scratch) const {
   const int n = static_cast<int>(pts_.cols());

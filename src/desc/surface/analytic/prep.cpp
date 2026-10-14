@@ -25,6 +25,8 @@
 namespace nuri {
 namespace internal {
   namespace {
+    // Dropping the band once the halo exists measured +16 % on 1AON: the thin
+    // graph-distance shell keeps `g` smaller than the Euclidean halo.
     constexpr int kBandHops = 4;
 
     /**

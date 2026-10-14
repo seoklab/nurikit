@@ -191,7 +191,8 @@ namespace internal {
 
   /**
    * Per active circle (`circles`, `beta`, `integral`) and per active arc
-   * (`arcs`, `area`).
+   * (`arcs`, `area`). Column-wise circles would need SoA temporaries and a
+   * scatter pass; `circle_frame` is per pair.
    */
   struct ToroidalPatches {
     std::vector<SasCircle> circles;

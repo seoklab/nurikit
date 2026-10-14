@@ -189,7 +189,8 @@ namespace {
 
   /**
    * Lattice directions outside every cap `(axis_c, cosa_c)`: `dot(axis_c, d)
-   * > cosa_c` for no `c`.
+   * > cosa_c` for no `c`. An m x n product in place of the early exit
+   * measured +60 % on sample_ses.
    */
   auto outside_caps(SampleScratch &scratch, const Matrix3Xd &dirs,
                     ConstBlock<Matrix3Xd, 3, E::Dynamic, true> axes,
