@@ -490,11 +490,9 @@ private:
 };
 
 /**
- * Shape complementarity of Lawrence and Colman (1993). The raw-points
- * overload makes the atoms within `sep` of the other side the surface owners
- * and scores the two SES through the geometry overload, which takes them as
- * given. Scratch persists across calls; the kept dots, distances and scores
- * of the last call stay readable.
+ * Shape complementarity of Lawrence and Colman (1993). The atoms within `sep`
+ * of the other side own the interface surface, the rest only occlude; a mask
+ * narrows the owners further. Scratch persists across calls.
  */
 class ShapeComplementarity {
 public:
@@ -506,6 +504,11 @@ public:
                                   ConstRef<ArrayXd> radii_a,
                                   ConstRef<Matrix3Xd> pts_b,
                                   ConstRef<ArrayXd> radii_b);
+
+  std::optional<ScResult>
+  compute(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
+          ConstRef<ArrayXb> active_a, ConstRef<Matrix3Xd> pts_b,
+          ConstRef<ArrayXd> radii_b, ConstRef<ArrayXb> active_b);
 
 private:
   ScParams params_;
@@ -530,6 +533,30 @@ private:
 extern std::optional<ScResult>
 shape_complementarity(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
                       ConstRef<Matrix3Xd> pts_b, ConstRef<ArrayXd> radii_b,
+                      const ScParams &params = {});
+
+/**
+ * @brief Shape complementarity statistic of Lawrence and Colman (1993)
+ *        between two sets of spheres, with the interface owners restricted.
+ *
+ * @param pts_a Atom centres of the first side.
+ * @param radii_a Van der Waals radii of the first side; the probe radius is
+ *        added internally.
+ * @param active_a Atoms of the first side allowed to own interface surface;
+ *        the others only occlude. An owner must still lie within `sep` of the
+ *        other side.
+ * @param pts_b Atom centres of the second side.
+ * @param radii_b Van der Waals radii of the second side.
+ * @param active_b Atoms of the second side allowed to own interface surface.
+ * @param params Probe radius, dot density and the statistic's parameters.
+ * @return The statistic with its per-side summaries, or nullopt when the
+ *         surface of either side could not be prepared or no interface dot of
+ *         either side survives trimming.
+ */
+extern std::optional<ScResult>
+shape_complementarity(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
+                      ConstRef<ArrayXb> active_a, ConstRef<Matrix3Xd> pts_b,
+                      ConstRef<ArrayXd> radii_b, ConstRef<ArrayXb> active_b,
                       const ScParams &params = {});
 }  // namespace nuri
 

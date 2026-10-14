@@ -34,15 +34,17 @@ namespace {
     return false;
   }
 
-  ArrayXb active_atoms(ConstRef<Matrix3Xd> pts, ConstRef<Matrix3Xd> other,
-                       const double sep, ScScratch &scratch) {
+  ArrayXb active_atoms(ConstRef<Matrix3Xd> pts, ConstRef<ArrayXb> mask,
+                       ConstRef<Matrix3Xd> other, const double sep,
+                       ScScratch &scratch) {
     const VoxelGrid grid(other, sep);
     const double sepsq = sep * sep;
 
     ArrayXb active(pts.cols());
     for (int i = 0; i < pts.cols(); ++i) {
-      active[i] = any_neighbor(grid, pts.col(i), scratch,
-                               [&](int, double dsq) { return dsq < sepsq; });
+      active[i] = mask[i]
+                  && any_neighbor(grid, pts.col(i), scratch,
+                                  [&](int, double dsq) { return dsq < sepsq; });
     }
     return active;
   }
@@ -94,9 +96,10 @@ namespace {
    */
   bool build_side(const ScParams &params, SurfaceSampler &sampler,
                   ScScratch &scratch, ConstRef<Matrix3Xd> pts,
-                  ConstRef<ArrayXd> radii, ConstRef<Matrix3Xd> other,
-                  ConstRef<ArrayXd> other_radii, ScSide &side) {
-    const ArrayXb active = active_atoms(pts, other, params.sep, scratch);
+                  ConstRef<ArrayXd> radii, ConstRef<ArrayXb> mask,
+                  ConstRef<Matrix3Xd> other, ConstRef<ArrayXd> other_radii,
+                  ScSide &side) {
+    const ArrayXb active = active_atoms(pts, mask, other, params.sep, scratch);
     AnalyticSurface surf(pts, radii);
     if (!surf.initialize(params.rp, active))
       return false;
@@ -155,9 +158,11 @@ namespace {
     side.s_median = median(scratch.s);
   }
 
-  void check_side(ConstRef<Matrix3Xd> pts, ConstRef<ArrayXd> radii) {
+  void check_side(ConstRef<Matrix3Xd> pts, ConstRef<ArrayXd> radii,
+                  ConstRef<ArrayXb> mask) {
     ABSL_DCHECK_GT(pts.cols(), 0);
     ABSL_DCHECK_EQ(pts.cols(), radii.size());
+    ABSL_DCHECK_EQ(pts.cols(), mask.size());
     ABSL_DCHECK((radii.array() > 0).all());
   }
 }  // namespace
@@ -175,15 +180,23 @@ ShapeComplementarity::ShapeComplementarity(ScParams params)
 std::optional<ScResult> ShapeComplementarity::compute(
     ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
     ConstRef<Matrix3Xd> pts_b, ConstRef<ArrayXd> radii_b) {
-  check_side(pts_a, radii_a);
-  check_side(pts_b, radii_b);
+  return compute(pts_a, radii_a, ArrayXb::Constant(pts_a.cols(), true), pts_b,
+                 radii_b, ArrayXb::Constant(pts_b.cols(), true));
+}
+
+std::optional<ScResult> ShapeComplementarity::compute(
+    ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
+    ConstRef<ArrayXb> active_a, ConstRef<Matrix3Xd> pts_b,
+    ConstRef<ArrayXd> radii_b, ConstRef<ArrayXb> active_b) {
+  check_side(pts_a, radii_a, active_a);
+  check_side(pts_b, radii_b, active_b);
 
   ScResult res;
-  if (!build_side(params_, sampler_, scratch_, pts_a, radii_a, pts_b, radii_b,
-                  res.sides[0]))
+  if (!build_side(params_, sampler_, scratch_, pts_a, radii_a, active_a, pts_b,
+                  radii_b, res.sides[0]))
     return std::nullopt;
-  if (!build_side(params_, sampler_, scratch_, pts_b, radii_b, pts_a, radii_a,
-                  res.sides[1]))
+  if (!build_side(params_, sampler_, scratch_, pts_b, radii_b, active_b, pts_a,
+                  radii_a, res.sides[1]))
     return std::nullopt;
 
   side_stats(params_, scratch_, res.sides[1].dots, res.sides[0]);
@@ -200,5 +213,14 @@ std::optional<ScResult> shape_complementarity(ConstRef<Matrix3Xd> pts_a,
                                               ConstRef<ArrayXd> radii_b,
                                               const ScParams &params) {
   return ShapeComplementarity(params).compute(pts_a, radii_a, pts_b, radii_b);
+}
+
+std::optional<ScResult>
+shape_complementarity(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
+                      ConstRef<ArrayXb> active_a, ConstRef<Matrix3Xd> pts_b,
+                      ConstRef<ArrayXd> radii_b, ConstRef<ArrayXb> active_b,
+                      const ScParams &params) {
+  return ShapeComplementarity(params).compute(pts_a, radii_a, active_a, pts_b,
+                                              radii_b, active_b);
 }
 }  // namespace nuri

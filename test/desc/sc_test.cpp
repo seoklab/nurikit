@@ -147,6 +147,63 @@ TEST(ShapeComplementarityTest, ClassMatchesFreeFunction) {
   expect_same_result(*first, *second);
 }
 
+TEST(ShapeComplementarityTest, FullMasksMatchUnmasked) {
+  const Matrix3Xd a = slab(0.0), b = slab(3.4, 1.5);
+  const ArrayXd radii = ArrayXd::Constant(a.cols(), kRadius);
+  const ArrayXb all = ArrayXb::Constant(a.cols(), true);
+
+  internal::seed_thread(3);
+  const std::optional<ScResult> plain =
+      shape_complementarity(a, radii, b, radii);
+  internal::seed_thread(3);
+  const std::optional<ScResult> masked =
+      shape_complementarity(a, radii, all, b, radii, all);
+  ASSERT_TRUE(plain);
+  ASSERT_TRUE(masked);
+  expect_same_result(*plain, *masked);
+}
+
+TEST(ShapeComplementarityTest, MaskedAtomsOnlyOcclude) {
+  const Matrix3Xd a = slab(0.0), b = slab(3.4, 1.5), extra = slab(10.9, 1.5);
+  Matrix3Xd a_ext(3, a.cols() + extra.cols());
+  a_ext << a, extra;
+  const ArrayXd radii = ArrayXd::Constant(a.cols(), kRadius),
+                radii_ext = ArrayXd::Constant(a_ext.cols(), kRadius);
+  ArrayXb mask = ArrayXb::Constant(a_ext.cols(), true);
+  mask.tail(extra.cols()).setConstant(false);
+
+  internal::seed_thread(5);
+  const std::optional<ScResult> plain =
+      shape_complementarity(a, radii, b, radii);
+  internal::seed_thread(5);
+  const std::optional<ScResult> masked = shape_complementarity(
+      a_ext, radii_ext, mask, b, radii, ArrayXb::Constant(b.cols(), true));
+  internal::seed_thread(5);
+  const std::optional<ScResult> unmasked =
+      shape_complementarity(a_ext, radii_ext, b, radii);
+  ASSERT_TRUE(plain);
+  ASSERT_TRUE(masked);
+  ASSERT_TRUE(unmasked);
+
+  EXPECT_DOUBLE_EQ(masked->sc, plain->sc);
+  EXPECT_DOUBLE_EQ(masked->distance, plain->distance);
+  EXPECT_DOUBLE_EQ(masked->area, plain->area);
+  EXPECT_EQ(masked->sides[0].n_atoms, a_ext.cols());
+  EXPECT_EQ(masked->sides[0].n_active, plain->sides[0].n_active);
+  EXPECT_EQ(masked->sides[0].n_dots, plain->sides[0].n_dots);
+  EXPECT_EQ(masked->sides[0].n_trimmed, plain->sides[0].n_trimmed);
+  expect_same_side(masked->sides[1], plain->sides[1]);
+
+  EXPECT_EQ(unmasked->sides[0].n_active, a_ext.cols());
+  EXPECT_GT(unmasked->sides[0].n_dots, masked->sides[0].n_dots);
+  EXPECT_DOUBLE_EQ(unmasked->sc, masked->sc);
+
+  const std::optional<ScResult> none =
+      shape_complementarity(a, radii, ArrayXb::Constant(a.cols(), false), b,
+                            radii, ArrayXb::Constant(b.cols(), true));
+  EXPECT_FALSE(none);
+}
+
 double median(const ArrayXd &arr) {
   std::vector<double> v(arr.begin(), arr.end());
   std::sort(v.begin(), v.end());
