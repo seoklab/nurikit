@@ -699,8 +699,8 @@ give \f$s\f$ the cap union \f$\mathrm{cap}(u)\f$, one component, the same
 arcs and area.
 
 \anchor remark-3
-**Remark 3 (sharpness of @ref lemma-3 "Lemma 3").** The criterion is the
-near band of rank \f$\le 2\f$, not less. A rank-3 atom \f$o\f$ near a rank-2 atom \f$a\f$ hosts faces
+<b>Remark 3 (sharpness of @ref lemma-3 "Lemma 3").</b> The criterion is
+the near band of rank \f$\le 2\f$, not less. A rank-3 atom \f$o\f$ near a rank-2 atom \f$a\f$ hosts faces
 \f$(a, o, o')\f$ whose accepted roots are the probes with a host in `shell`
 that @ref lemma-11 "Lemma 11" identifies as the first-touch cutters of faces on active
 atoms; dropping \f$o\f$ deletes a cutter and its cap. Replacing the band by
