@@ -336,6 +336,12 @@ Richards\ :footcite:`desc:surface:richards-1977` in the patch decomposition of
 Connolly\ :footcite:`desc:surface:connolly-1983`, built from the
 characterization of Quan and Stamm\ :footcite:`desc:surface:quan-stamm-2016`.
 
+.. note::
+  The triangulation inserts the spheres in a randomized order, so the
+  numbering of patches and the last bits of per-atom areas (about 1e-14)
+  change between calls; totals agree to rounding. Call
+  :func:`nuri.seed_thread` first for reproducible output.
+
 :param pts: The sphere centers, as a 2D array of shape ``(N, 3)``.
 :param radii: The sphere radii, as a 1D array of shape ``(N,)``.
 :param rp: The probe radius, in angstroms. Default is 1.4 angstroms.
@@ -438,6 +444,11 @@ is the mean of the two sides' median scores.
 .. note::
   No coordinate may exceed :math:`10^4` angstroms in absolute value; subtract
   one common shift from all inputs first.
+
+.. note::
+  The surface triangulation inserts the spheres in a randomized order, so the
+  dot order and the last bits of the result (about 1e-14) change between
+  calls. Call :func:`nuri.seed_thread` first for reproducible output.
 )doc");
 
   m.def(

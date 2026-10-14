@@ -471,6 +471,11 @@ namespace internal {
  *
  * @note No coordinate may exceed 1e4 angstroms in absolute value; subtract
  *       one common shift from all inputs first.
+ * @note The triangulation inserts the spheres in a randomized order drawn
+ *       from the thread's random engine, so the numbering of probes, arcs
+ *       and dots and the last bits of per-atom areas (about 1e-14) change
+ *       between calls; totals agree to rounding. Call
+ *       `internal::seed_thread()` first for reproducible output.
  */
 class AnalyticSurface {
 public:
