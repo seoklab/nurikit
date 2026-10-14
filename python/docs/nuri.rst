@@ -21,6 +21,7 @@ Submodules
    :maxdepth: 1
 
    nuri.core
+   nuri.param
    nuri.fmt
    nuri.algo
    nuri.desc
