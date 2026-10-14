@@ -684,7 +684,7 @@ TEST(BuildSesTest, FiltersDoNotChangeArea) {
  * carries no cap; one an ulp closer carries a cap of angular radius
  * `2^-26`, cut or buried exactly, of area below `1e-14`.
  */
-TEST(BuildSesTest, TangentNeighbourCapIsDropped) {
+TEST(BuildSesTest, TangentNeighborCapIsDropped) {
   const double rp = 1.0;
   Matrix3Xd n(3, 4);
   n.col(0) = Vector3d(1, 0, -1).normalized();
@@ -729,7 +729,7 @@ Matrix3Xd circumradius_four_triangle() {
  * `(4, 0, ±3)` are exactly `2 rp` apart, so neither caps the other; a rigid
  * motion rounds the pair to either side of tangency.
  */
-TEST(BuildSesTest, TangentNeighbourProbe) {
+TEST(BuildSesTest, TangentNeighborProbe) {
   const double rp = 3.0;
   const Matrix3Xd base = circumradius_four_triangle();
   const ArrayXd sar = ArrayXd::Constant(3, 5.0);

@@ -862,7 +862,7 @@ namespace internal {
       return out / o.den.to_double();
     }
 
-    Vector3d circle_centre(const Matrix3Xd &c, const ArrayXd &h, const int a,
+    Vector3d circle_center(const Matrix3Xd &c, const ArrayXd &h, const int a,
                            const int b) {
       const Vector3d ca = c.col(a), db = c.col(b) - ca;
       const double vb = (h[b] - h[a]) / 2 - ca.dot(db);
@@ -1205,7 +1205,7 @@ namespace internal {
   ABSL_ATTRIBUTE_NOINLINE Vector3d
   BallExactImpl<kForceExact, kFilterOnly>::root(const BallTriple f,
                                                 const bool plus) const {
-    return circle_centre(c_, h_, f.a, f.b) + offset(f.a, f.b, f, plus);
+    return circle_center(c_, h_, f.a, f.b) + offset(f.a, f.b, f, plus);
   }
 
   template <bool kForceExact, bool kFilterOnly>
@@ -1261,7 +1261,7 @@ namespace internal {
       const Sphere<T> sa = sph(ctx, f.a), sb = sph(ctx, f.b);
       return root_offset(pair(sa, sb), sa, k.at(ctx), plus);
     };
-    return circle_centre(c_, h_, f.a, f.b)
+    return circle_center(c_, h_, f.a, f.b)
            + offset_decide<kForceExact, kFilterOnly>(d, kernel);
   }
 

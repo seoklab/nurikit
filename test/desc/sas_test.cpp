@@ -1327,7 +1327,7 @@ TEST(BuildSasTest, NearPairInCoplanarQuad) {
     EXPECT_LE(arc.dphi, kTwoPi);
 }
 
-Vector3d cap_centre(const Vector3d &n, const double a, const double rc,
+Vector3d cap_center(const Vector3d &n, const double a, const double rc,
                     const double rs) {
   return (a + std::sqrt(a * a - rs * rs + rc * rc)) * n;
 }
@@ -1346,11 +1346,11 @@ TEST(BuildSasTest, InternallyTangentNestedCaps) {
   ArrayXd sar(4);
   pts.col(0).setZero();
   sar[0] = rs;
-  pts.col(1) = cap_centre(nu, rs * std::cos(au), 2.0, rs);
+  pts.col(1) = cap_center(nu, rs * std::cos(au), 2.0, rs);
   sar[1] = 2.0;
-  pts.col(2) = cap_centre(nt, rs * std::cos(at), 1.6, rs);
+  pts.col(2) = cap_center(nt, rs * std::cos(at), 1.6, rs);
   sar[2] = 1.6;
-  pts.col(3) = cap_centre(nc, 0.0, 2.2, rs);
+  pts.col(3) = cap_center(nc, 0.0, 2.2, rs);
   sar[3] = 2.2;
 
   const Sas sas = solve_rp(pts, sar, 0.5);
@@ -1400,13 +1400,13 @@ TEST(BuildSasTest, TinyCapSteepCrossing) {
   ArrayXd sar(5);
   pts.col(0).setZero();
   sar[0] = rs;
-  pts.col(1) = cap_centre(nj, atiny, rt, rs);
+  pts.col(1) = cap_center(nj, atiny, rt, rs);
   sar[1] = rt;
-  pts.col(2) = cap_centre(nc, rs * std::cos(alc), rbig, rs);
+  pts.col(2) = cap_center(nc, rs * std::cos(alc), rbig, rs);
   sar[2] = rbig;
-  pts.col(3) = cap_centre(nk, atiny, rt, rs);
+  pts.col(3) = cap_center(nk, atiny, rt, rs);
   sar[3] = rt;
-  pts.col(4) = cap_centre(ne, rs * std::cos(ale), rbig, rs);
+  pts.col(4) = cap_center(ne, rs * std::cos(ale), rbig, rs);
   sar[4] = rbig;
 
   const Sas sas = solve_rp(pts, sar, 0.5);
@@ -1566,7 +1566,7 @@ void append_off_axis(Matrix3Xd &pts, ArrayXd &sar, const int n,
  * The shared-circle triple among enough off-axis neighbors that its row
  * holds several unrelated circles on either side of the matching keys.
  */
-TEST(BuildSasTest, SharedCircleMiddleAmongNeighbours) {
+TEST(BuildSasTest, SharedCircleMiddleAmongNeighbors) {
   for (int mid = 0; mid < 3; ++mid) {
     ArrayXd sar;
     Matrix3Xd pts = shared_circle_pts(mid, sar);
@@ -1998,11 +1998,11 @@ TEST(BuildSasTest, ExactCircleTangencies) {
     { { 0, 0, 0 }, { 0, 0, 6 }, { 1, 0, 7 }, { 4, 5, 3 } },
     { { 0, 0, 0 }, { 0, 0, 6 }, { 1, 0, 7 }, { 4, -5, 3 } },
   };
-  for (const auto &centres: cases) {
-    const int n = static_cast<int>(centres.size());
+  for (const auto &centers: cases) {
+    const int n = static_cast<int>(centers.size());
     Matrix3Xd pts(3, n);
     for (int i = 0; i < n; ++i)
-      pts.col(i) = centres[i];
+      pts.col(i) = centers[i];
     const ArrayXd sar = ArrayXd::Constant(n, 5.0);
     const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
     const ArrayXd ref = solve(pts, sar).geo.area;
