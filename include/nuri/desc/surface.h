@@ -274,8 +274,9 @@ namespace internal {
  * gives the centre of the probe touching the surface at each dot. `atom()`
  * is the ORIGINAL atom index owning each dot; the dots come in the blocks of
  * `SurfacePatch`, block `p` being `[offset(p), offset(p) + count(p))`.
- * Weights are equal within a patch and sum to its analytic area; patches
- * that received no dot add their area to `dropped_area()`.
+ * Weights are equal within a convex or concave patch and within each ring
+ * of a toroidal patch, and sum to the patch's analytic area; patches that
+ * received no dot add their area to `dropped_area()`.
  */
 class SurfaceDots {
 public:
@@ -467,8 +468,8 @@ namespace internal {
  * the rest only occlude. `build_sas` stops after the SAS, `build_ses` builds
  * both and keeps the SES. See @ref analytic_surface for the construction.
  *
- * @note Coordinates must lie within 1e4 angstroms of the origin; subtract one
- *       common shift from all inputs first.
+ * @note No coordinate may exceed 1e4 angstroms in absolute value; subtract
+ *       one common shift from all inputs first.
  */
 class AnalyticSurface {
 public:
@@ -485,7 +486,8 @@ public:
    *        or only those in `active`.
    *
    * False when the inputs are rejected (see `internal::prepare`). May be
-   * called again with another mask; storage only grows.
+   * called again with another mask; the previous preparation is replaced,
+   * and cleared on failure.
    */
   ABSL_MUST_USE_RESULT bool initialize(double rp);
   ABSL_MUST_USE_RESULT bool initialize(double rp, ConstRef<ArrayXb> active);
@@ -556,8 +558,8 @@ private:
  * across calls. See @ref analytic_surface for the stages and the deviations
  * from Rosetta's `sc`.
  *
- * @note Coordinates must lie within 1e4 angstroms of the origin; subtract one
- *       common shift from all inputs first.
+ * @note No coordinate may exceed 1e4 angstroms in absolute value; subtract
+ *       one common shift from all inputs first.
  */
 class ShapeComplementarity {
 public:
@@ -603,8 +605,8 @@ private:
  *         surface of either side could not be prepared or no interface dot of
  *         either side survives trimming.
  *
- * @note Coordinates must lie within 1e4 angstroms of the origin; subtract one
- *       common shift from all inputs first.
+ * @note No coordinate may exceed 1e4 angstroms in absolute value; subtract
+ *       one common shift from all inputs first.
  */
 extern std::optional<ScResult>
 shape_complementarity(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
@@ -630,8 +632,8 @@ shape_complementarity(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
  *         surface of either side could not be prepared or no interface dot of
  *         either side survives trimming.
  *
- * @note Coordinates must lie within 1e4 angstroms of the origin; subtract one
- *       common shift from all inputs first.
+ * @note No coordinate may exceed 1e4 angstroms in absolute value; subtract
+ *       one common shift from all inputs first.
  */
 extern std::optional<ScResult>
 shape_complementarity(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,

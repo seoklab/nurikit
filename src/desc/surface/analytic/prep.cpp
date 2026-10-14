@@ -406,9 +406,9 @@ namespace internal {
       return std::nullopt;
     }
     if (pts.cwiseAbs().maxCoeff() > kSurfaceMaxCoord) {
-      ABSL_LOG(ERROR) << "Coordinates must lie within " << kSurfaceMaxCoord
-                      << " of the origin; subtract one common shift from all "
-                         "inputs first";
+      ABSL_LOG(ERROR) << "No coordinate may exceed " << kSurfaceMaxCoord
+                      << " in absolute value; subtract one common shift from "
+                         "all inputs first";
       return std::nullopt;
     }
 

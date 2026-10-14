@@ -347,7 +347,7 @@ characterisation of Quan and Stamm\ :footcite:`desc:surface:quan-stamm-2016`.
   `rp` are not positive, `kind` is unknown, or the inputs are rejected.
 
 .. note::
-  Coordinates must lie within :math:`10^4` angstroms of the origin; subtract
+  No coordinate may exceed :math:`10^4` angstroms in absolute value; subtract
   one common shift from all inputs first.
 )doc");
 
@@ -436,7 +436,7 @@ is the mean of the two sides' median scores.
   The default parameters are those of Rosetta's ``sc`` application.
 
 .. note::
-  Coordinates must lie within :math:`10^4` angstroms of the origin; subtract
+  No coordinate may exceed :math:`10^4` angstroms in absolute value; subtract
   one common shift from all inputs first.
 )doc");
 

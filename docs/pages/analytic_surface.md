@@ -1402,9 +1402,10 @@ clamp 0.999). For each side:
 
 The statistic is the mean of the two sides' median scores, the reported
 distance the mean of their median separations, and the area the sum of the
-trimmed areas. Dots are equal-weight samples within a patch and the medians
-ignore areas (an area-weighted median differs by about 0.001). Every
-neighbour query (active atoms, burial, trim, nearest dot) is a
+trimmed areas. Dots are equal-weight samples within a convex or concave
+patch and within a toroidal ring, and the medians ignore areas (an
+area-weighted median differs by about 0.001). Every neighbour query (active
+atoms, burial, trim, nearest dot) is a
 nuri::VoxelGrid query on squared distances with the comparisons above.
 
 ## Complexity
