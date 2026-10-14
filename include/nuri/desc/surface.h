@@ -138,7 +138,7 @@ void argsort_bucket(ArrayXi &idxs, internal::OffsetTable &off, const Key &key,
 }
 
 /**
- * @brief Kind of a molecular surface: solvent-accessible (probe centres) or
+ * @brief Kind of a molecular surface: solvent-accessible (probe centers) or
  *        solvent-excluded (probe front).
  */
 enum class SurfaceKind : int { kSas = 0, kSes = 1 };
@@ -202,7 +202,7 @@ namespace internal {
   };
 
   /**
-   * Per active probe: its centre, contact atoms, face area and face caps.
+   * Per active probe: its center, contact atoms, face area and face caps.
    */
   struct ConcavePatches {
     Matrix3Xd pos;
@@ -271,7 +271,7 @@ namespace internal {
  * @brief Dots sampled on a molecular surface.
  *
  * Dots on a surface with their outward normals (into the solvent); `probes()`
- * gives the centre of the probe touching the surface at each dot. `atom()`
+ * gives the center of the probe touching the surface at each dot. `atom()`
  * is the ORIGINAL atom index owning each dot; the dots come in the blocks of
  * `SurfacePatch`, block `p` being `[offset(p), offset(p) + count(p))`.
  * Weights are equal within a convex or concave patch and within each ring
@@ -320,7 +320,7 @@ public:
   double dropped_area() const { return dropped_area_; }
 
   /**
-   * @brief Centre of the probe touching the surface at each dot.
+   * @brief Center of the probe touching the surface at each dot.
    */
   Matrix3Xd probes() const;
 
@@ -349,8 +349,8 @@ private:
  *
  * `rp` is the probe radius (angstroms) the solvent-excluded surfaces are
  * built with, `density` the number of surface dots per square angstrom. An
- * atom takes part in the interface when its centre lies within `sep` of an
- * atom of the other side; a dot is buried when its probe centre lies inside a
+ * atom takes part in the interface when its center lies within `sep` of an
+ * atom of the other side; a dot is buried when its probe center lies inside a
  * solvent-accessible sphere of the other side, and a buried dot within `band`
  * of an exposed dot of its own side is trimmed as peripheral. Each remaining
  * dot scores `-(n · n') exp(-weight d²)` against the nearest remaining dot of
@@ -405,7 +405,7 @@ namespace internal {
    * forward overlap graph on new indices (`row(i)` = sorted `j > i`) over all
    * kept spheres, decided exactly for the lifted heights `t = √(wmax − sar²)`
    * (the near band only ranks atoms); pair `q` carries a circle iff
-   * `i < n_enum`, and `d[q]` is its centre distance. `r` are the atom radii
+   * `i < n_enum`, and `d[q]` is its center distance. `r` are the atom radii
    * as given, `sar = r + rp` the accessible ones for the probe radius `rp`,
    * `rmax` the largest `sar` of the kept atoms.
    */
@@ -447,7 +447,7 @@ namespace internal {
   };
 
   /**
-   * Buffers of one `ShapeComplementarity::compute` call: the neighbour query
+   * Buffers of one `ShapeComplementarity::compute` call: the neighbor query
    * outputs and the per-dot statistics before their medians.
    */
   struct ScScratch {
@@ -463,7 +463,7 @@ namespace internal {
  *
  * The solvent-excluded surface of Richards @cite desc:surface:richards-1977
  * in the analytic patch decomposition of Connolly
- * @cite desc:surface:connolly-1983, built from the characterisation of Quan
+ * @cite desc:surface:connolly-1983, built from the characterization of Quan
  * and Stamm @cite desc:surface:quan-stamm-2016. Active atoms own surface,
  * the rest only occlude. `build_sas` stops after the SAS, `build_ses` builds
  * both and keeps the SES. See @ref analytic_surface for the construction.
@@ -474,7 +474,7 @@ namespace internal {
 class AnalyticSurface {
 public:
   /**
-   * @brief Bind the sphere centres and radii.
+   * @brief Bind the sphere centers and radii.
    *
    * The object holds references to both; they must outlive it, so pass
    * stored matrices, never expressions.
@@ -595,10 +595,10 @@ private:
  * @brief Shape complementarity statistic of Lawrence and Colman
  *        @cite desc:sc:lawrence-colman-1993 between two sets of spheres.
  *
- * @param pts_a Atom centres of the first side.
+ * @param pts_a Atom centers of the first side.
  * @param radii_a Van der Waals radii of the first side; the probe radius is
  *        added internally.
- * @param pts_b Atom centres of the second side.
+ * @param pts_b Atom centers of the second side.
  * @param radii_b Van der Waals radii of the second side.
  * @param params Probe radius, dot density and the statistic's parameters.
  * @return The statistic with its per-side summaries, or nullopt when the
@@ -618,13 +618,13 @@ shape_complementarity(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
  *        @cite desc:sc:lawrence-colman-1993 between two sets of spheres,
  *        with the interface owners restricted.
  *
- * @param pts_a Atom centres of the first side.
+ * @param pts_a Atom centers of the first side.
  * @param radii_a Van der Waals radii of the first side; the probe radius is
  *        added internally.
  * @param active_a Atoms of the first side allowed to own interface surface;
  *        the others only occlude. An owner must still lie within `sep` of the
  *        other side.
- * @param pts_b Atom centres of the second side.
+ * @param pts_b Atom centers of the second side.
  * @param radii_b Van der Waals radii of the second side.
  * @param active_b Atoms of the second side allowed to own interface surface.
  * @param params Probe radius, dot density and the statistic's parameters.

@@ -128,7 +128,7 @@ namespace internal {
     }
 
     /**
-     * Caps of sphere `s` are its overlapping Delaunay neighbours: every other
+     * Caps of sphere `s` are its overlapping Delaunay neighbors: every other
      * overlapping sphere cuts a cap inside their union (Theorem 2 of the
      * analytic_surface page), so the accessible region and its component
      * structure are unchanged.
@@ -607,7 +607,7 @@ namespace internal {
      * are bucketed on a lattice of pitch `tau` and sorted by cell, so a
      * pair within `tau` shares a cell or sits in cells adjacent along each
      * axis; a constant cell shift preserves the sorted order, so the 13
-     * forward neighbour shifts are 13 merge joins of the order with itself.
+     * forward neighbor shifts are 13 merge joins of the order with itself.
      * The result is the set of pairs within `tau`, whatever the probe order.
      * Cell indices fit `int64`: the span is `≤ 2 (kSurfaceMaxCoord + rmax)`
      * and `prepare` keeps `rmax ≥ 2 kSurfaceLengthEps`, so `span / tau < 2^43`.
@@ -761,7 +761,7 @@ namespace internal {
     /**
      * Probes linked in `uf` become one probe on the sorted union of their
      * atoms at the position and root of their lowest member, owner-sorted
-     * like `make_probes`; arc ends are relabelled to the merged ids.
+     * like `make_probes`; arc ends are relabeled to the merged ids.
      */
     SasProbes merge_probes(const SurfaceSpheres &ss,
                            const std::vector<RawProbe> &raw,

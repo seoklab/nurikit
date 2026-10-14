@@ -334,9 +334,9 @@ of a set of spheres.
 The SES is the molecular surface of
 Richards\ :footcite:`desc:surface:richards-1977` in the patch decomposition of
 Connolly\ :footcite:`desc:surface:connolly-1983`, built from the
-characterisation of Quan and Stamm\ :footcite:`desc:surface:quan-stamm-2016`.
+characterization of Quan and Stamm\ :footcite:`desc:surface:quan-stamm-2016`.
 
-:param pts: The sphere centres, as a 2D array of shape ``(N, 3)``.
+:param pts: The sphere centers, as a 2D array of shape ``(N, 3)``.
 :param radii: The sphere radii, as a 1D array of shape ``(N,)``.
 :param rp: The probe radius, in angstroms. Default is 1.4 angstroms.
 :param kind: ``"sas"`` or ``"ses"``. A SAS has convex patches only.
@@ -400,19 +400,19 @@ Colman\ :footcite:`desc:sc:lawrence-colman-1993` between two sets of spheres.
 
 Each side's solvent-excluded surface is built with probe radius `rp` and
 sampled at `density` dots per square angstrom. An atom takes part in the
-interface when its centre lies within `sep` of an atom of the other side; a
-dot is buried when its probe centre lies inside a solvent-accessible sphere of
+interface when its center lies within `sep` of an atom of the other side; a
+dot is buried when its probe center lies inside a solvent-accessible sphere of
 the other side, and a buried dot within `band` of an exposed dot of its own
 side is trimmed as peripheral. Each remaining dot scores
 :math:`-(n \cdot n') \exp(-\text{weight} \, d^2)` against the nearest
 remaining dot of the other side, clamped to ``[-clamp, clamp]``; the statistic
 is the mean of the two sides' median scores.
 
-:param pts_a: The atom centres of the first side, as a 2D array of shape
+:param pts_a: The atom centers of the first side, as a 2D array of shape
   ``(N, 3)``.
 :param radii_a: The van der Waals radii of the first side, as a 1D array of
   shape ``(N,)``.
-:param pts_b: The atom centres of the second side, as a 2D array of shape
+:param pts_b: The atom centers of the second side, as a 2D array of shape
   ``(M, 3)``.
 :param radii_b: The van der Waals radii of the second side, as a 1D array of
   shape ``(M,)``.

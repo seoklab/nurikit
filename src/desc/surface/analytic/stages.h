@@ -25,7 +25,7 @@ namespace internal {
   constexpr double kUnitRoundoff = std::numeric_limits<double>::epsilon() / 2;
   constexpr double kSurfaceLengthEps = 1e-6;
   /**
-   * Band on a pair's centre distance: two length tolerances.
+   * Band on a pair's center distance: two length tolerances.
    */
   constexpr double kPairLengthEps = 2 * kSurfaceLengthEps;
   /**
@@ -41,13 +41,13 @@ namespace internal {
    */
   constexpr double kSurfaceMaxCoord = 1e4;
   /**
-   * A vertex offset from its circle centre is taken from the floating filter
+   * A vertex offset from its circle center is taken from the floating filter
    * when certified to this fraction of its length (`BallExact::offset`).
    */
   constexpr double kOffsetRelTol = 0x1p-26;
   /**
    * Two probes at one point differ by two offsets, each certified to
-   * `kOffsetRelTol` of a length `≤ rmax`, taken twice for margin; the centre
+   * `kOffsetRelTol` of a length `≤ rmax`, taken twice for margin; the center
    * rounding (`≤ 2^-52 · kSurfaceMaxCoord`) is far below. `build_sas` merges
    * every pair of probes within this distance, so no two of its probes are
    * closer.
@@ -65,7 +65,7 @@ namespace internal {
    * Two ring vertices of one circle whose numeric angles differ by more than
    * this are in the exact `ccw` order: one offset certificate per vertex,
    * a shared frame (an orientation-preserving linear map, so it only
-   * reparametrises), and the dots, `atan2`, the class fold and the subtraction
+   * reparametrizes), and the dots, `atan2`, the class fold and the subtraction
    * add at most `46 * 2^-53`.
    */
   constexpr double kRingSortEps = kSurfaceAngleEps;
@@ -175,7 +175,7 @@ namespace internal {
   /**
    * Exact predicates on a set of balls: the power arrangement of weighted
    * points as geogram triangulates them. The balls are the SAS spheres, and
-   * later the caps of an SES face lifted to balls. Each ball has centre `c_i`,
+   * later the caps of an SES face lifted to balls. Each ball has center `c_i`,
    * height `h_i = ((t_i² + x_i²) + y_i²) + z_i²` as geogram evaluates it (or
    * given directly), and squared radius `ρ_i² = W + |c_i|² − h_i`. Every
    * exact tie is resolved by
@@ -270,7 +270,7 @@ namespace internal {
      * however close they are. The filter evaluates `(P + √D Q + √D' Q') /
      * (|u|² |u'|²)` with rational `P = |u|² |u'|² (c_a − c_a') + |u'|² (λ
      * d_b + μ d_c) − |u|² (λ' d_b' + μ' d_c')`, `Q = ±|u'|² u`, `Q' =
-     * ∓|u|² u'` (each face relative to its first centre) and is accepted
+     * ∓|u|² u'` (each face relative to its first center) and is accepted
      * when its running bound certifies the vector to `kOffsetRelTol` of
      * its own length; otherwise the exact dyadics are combined with `√D`,
      * `√D'` taken to `k` extra bits, `k` doubled from 64 until the sum's
@@ -437,7 +437,7 @@ namespace internal {
    * are per active circle `q < ss.g.offset(ss.n_active)`; `saddle_area` is
    * per active arc (prefix `n_active_arcs` of `geo.arcs`). `face_area` and
    * the caps `face_off`, `face_axis`, `face_cosa` (hemispheres of the
-   * departure tangents first, then the neighbour probes that may cut, less
+   * departure tangents first, then the neighbor probes that may cut, less
    * the caps dropped by the face solver's hygiene) are per active probe
    * `p < probes.n_active`.
    */

@@ -383,7 +383,7 @@ namespace internal {
 
     /**
      * Circle `(a, b)` relative to `a`: `d = c_b − c_a`, `G = |d|²`, and
-     * `π_b − π_a = 2(v − y·d)` for `y = x − c_a`. Its centre is
+     * `π_b − π_a = 2(v − y·d)` for `y = x − c_a`. Its center is
      * `c_a + (v / G) d`.
      */
     template <class T>
@@ -728,8 +728,8 @@ namespace internal {
     /**
      * `G |u|² (x − cntr)` for root `x` of `f` on circle `(a, b)`:
      * `P + σ √D Q` with rational `P = G (|u|² (c_f − c_a) + λ d_b + μ d_c) −
-     * |u|² v d` (`λ, μ, d_b, d_c` of the face relative to its first centre
-     * `c_f`; `v, d, G` of the circle) and `Q = G u`, written in centre
+     * |u|² v d` (`λ, μ, d_b, d_c` of the face relative to its first center
+     * `c_f`; `v, d, G` of the circle) and `Q = G u`, written in center
      * differences so the filter's error bound is relative to the offset's
      * own length. `P ⊥ Q`.
      */
@@ -1074,8 +1074,8 @@ namespace internal {
   }
 
   /**
-   * Circles `(a, b)` and `(a, c)` coincide iff `u = 0` (collinear centres)
-   * and then `D = −gbb (k vb − vc)² = 0` for `d_c = k d_b` (equal centres).
+   * Circles `(a, b)` and `(a, c)` coincide iff `u = 0` (collinear centers)
+   * and then `D = −gbb (k vb − vc)² = 0` for `d_c = k d_b` (equal centers).
    * The middle sphere is `a` iff `gbc < 0`, else the nearer of `b`, `c`.
    */
   template <bool kForceExact, bool kFilterOnly>
@@ -1196,10 +1196,10 @@ namespace internal {
   }
 
   /**
-   * Root as `cntr + offset`: the centre of circle `(a, b)` in double
+   * Root as `cntr + offset`: the center of circle `(a, b)` in double
    * and the radical-line offset certified by the running bound or taken
-   * exact, so the direction from the centre is right to rounding on a
-   * circle of any radius and for a third centre anywhere.
+   * exact, so the direction from the center is right to rounding on a
+   * circle of any radius and for a third center anywhere.
    */
   template <bool kForceExact, bool kFilterOnly>
   ABSL_ATTRIBUTE_NOINLINE Vector3d

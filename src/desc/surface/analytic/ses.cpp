@@ -323,7 +323,7 @@ namespace internal {
     /**
      * Every cap of the active faces lifted to a ball relative to its probe
      * (`solve_ses_face`): `(t, 0)` for a hemisphere, `(w, |w|²)` for a
-     * neighbour at `w`.
+     * neighbor at `w`.
      */
     struct LiftedCaps {
       Matrix3Xd n;
@@ -332,7 +332,7 @@ namespace internal {
 
     /**
      * Caps of every active face, hemispheres of the departure tangents
-     * first, then the surviving neighbour caps.
+     * first, then the surviving neighbor caps.
      */
     LiftedCaps faces(SesGeometry &ses, const SasProbes &probes,
                      const PairCaps &pc) {

@@ -527,7 +527,7 @@ TEST(BallExactTest, SharedCircle) {
 
 /**
  * A tangent pair under rigid motions: rounding leaves a circle of radius
- * ~1e-8 whose floating discriminant is noise, yet the offset from the centre
+ * ~1e-8 whose floating discriminant is noise, yet the offset from the center
  * must keep its direction.
  */
 TEST(BallExactTest, OffsetOnRoundingTinyCircle) {
@@ -561,7 +561,7 @@ TEST(BallExactTest, OffsetOnRoundingTinyCircle) {
 }
 
 /**
- * Centres nearly collinear (`|u| ~ ε |d_b| |d_c|`) with both circles through
+ * Centers nearly collinear (`|u| ~ ε |d_b| |d_c|`) with both circles through
  * `a` nearly great circles of `a`, so the root is `c_a ± ρ_a u / |u|` up to
  * `ε`: the normal `u` and the divisor `G |u|²` both carry a relative rounding
  * of order `2^-52 / ε`, and the filter's certificate must cover the divisor

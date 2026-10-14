@@ -125,7 +125,7 @@ RigidMotion rigid_motion(const int seed) {
 }
 
 /**
- * Every relabelling of the atoms: the result must not depend on the index
+ * Every relabeling of the atoms: the result must not depend on the index
  * order the perturbation uses.
  */
 template <class F>
@@ -429,7 +429,7 @@ TEST(BuildSesTest, TwoSpheresNoActiveNoSaddle) {
 
 /**
  * `rp² (2π − Σ angles)` over the planes through the probe and each pair of
- * its atom centres, oriented away from the third atom.
+ * its atom centers, oriented away from the third atom.
  */
 double excess_from_planes(const SurfaceGeometry &s, const int p) {
   const Vector3d x = s.concave().pos.col(p);
@@ -680,7 +680,7 @@ TEST(BuildSesTest, FiltersDoNotChangeArea) {
 }
 
 /**
- * A neighbour probe at exactly `2 rp` is tangent to the probe sphere and
+ * A neighbor probe at exactly `2 rp` is tangent to the probe sphere and
  * carries no cap; one an ulp closer carries a cap of angular radius
  * `2^-26`, cut or buried exactly, of area below `1e-14`.
  */
@@ -714,7 +714,7 @@ TEST(BuildSesTest, TangentNeighbourCapIsDropped) {
 }
 
 /**
- * Dyadic triangle with circumcentre `(4, 0, 0)` and circumradius exactly 4.
+ * Dyadic triangle with circumcenter `(4, 0, 0)` and circumradius exactly 4.
  */
 Matrix3Xd circumradius_four_triangle() {
   Matrix3Xd pts(3, 3);
@@ -725,7 +725,7 @@ Matrix3Xd circumradius_four_triangle() {
 }
 
 /**
- * Circumcentre `(4, 0, 0)`, circumradius 4, `sar` 5, `rp` 3: the probes at
+ * Circumcenter `(4, 0, 0)`, circumradius 4, `sar` 5, `rp` 3: the probes at
  * `(4, 0, ±3)` are exactly `2 rp` apart, so neither caps the other; a rigid
  * motion rounds the pair to either side of tangency.
  */
@@ -764,7 +764,7 @@ TEST(BuildSesTest, TangentNeighbourProbe) {
 /**
  * Acute dyadic triangle inscribed in the circle of radius 5 about the origin
  * with `sar` 5: probe height exactly 0, the two probes coincide at the
- * circumcentre. Shrake–Rupley to 0.05 of NearBandPinch times `(sar / 2)²`.
+ * circumcenter. Shrake–Rupley to 0.05 of NearBandPinch times `(sar / 2)²`.
  */
 TEST(BuildSesTest, PlanarProbe) {
   const double rp = 2.0, sr_tol = 0.05 * 2.5 * 2.5;
@@ -935,7 +935,7 @@ TEST(BuildSesTest, KFoldFaceUnderRigidMotion) {
 /**
  * The occluder-shell fixture of sas_test, all active, under rigid motions:
  * where the tangent pair `(0, 1)` rounds into an overlap, the roots on its
- * circle of radius ~1e-8 are neighbour probes 1e-8 to 1e-7 apart whose
+ * circle of radius ~1e-8 are neighbor probes 1e-8 to 1e-7 apart whose
  * cap axes their positions cannot resolve. The faces at the point sum to
  * the quarter sphere of the exact 4-fold point and match the lattice.
  */
@@ -1005,7 +1005,7 @@ TEST(BuildSesTest, SpindleAxisCoincidentRoots) {
 
 /**
  * Active faces of a masked run equal the same faces of the all-active run:
- * the shells supply every neighbour probe within `2 rp`.
+ * the shells supply every neighbor probe within `2 rp`.
  */
 TEST(BuildSesTest, MaskedFacesMatchFull) {
   const RandomCluster c = random_cluster(11, 12);

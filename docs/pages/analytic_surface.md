@@ -12,7 +12,7 @@ turns two dot sets into the Lawrence–Colman statistic. The code is in
 
 - **Filter first**: exceptional input (coincident atoms, contained balls,
   inactive atoms, a non-positive probe radius) is removed or partitioned in
-  a preparation stage, and no kernel afterwards carries a guard for it.
+  a preparation stage, and no kernel afterward carries a guard for it.
 - **Trig values, not angles**: caps store \f$(\cos\alpha, \sin\alpha)\f$,
   predicates compare trig values (\f$\arccos x \le a\f$ is written
   \f$x \ge \cos a\f$), and `atan2` is used only where an angle is consumed
@@ -34,7 +34,7 @@ turns two dot sets into the Lawrence–Colman statistic. The code is in
 
 The SES is the molecular surface of Richards @cite desc:surface:richards-1977
 in the analytic patch decomposition of Connolly
-@cite desc:surface:connolly-1983. The characterisation of the concave patches
+@cite desc:surface:connolly-1983. The characterization of the concave patches
 and the Gauss–Bonnet area formula follow Quan and Stamm
 @cite desc:surface:quan-stamm-2016 (their Theorem 5.1 and formulas
 (4.19)/(5.25)/(5.28)); the derivations below are this document's own. The
@@ -45,7 +45,7 @@ nuri::ConnollyRadii; no radii file is copied from any program.
 
 The authors' Matlab implementation of the surface, MolSurfComp
 (<https://github.com/quanchaoyu/MolSurfComp>, LGPL-3.0), is distributed under
-terms incompatible with this project's Apache-2.0 licence. No code, formula,
+terms incompatible with this project's Apache-2.0 license. No code, formula,
 constant, tolerance, table, identifier or file structure from it appears in
 this source tree; the implementation was written from the paper and from the
 derivations below, and MolSurfComp was read once, as a black box, for a
@@ -55,9 +55,9 @@ SAS intersection point \f$x\f$ within \f$2 r_p\f$ and imposes no filter):
 
 | MolSurfComp | There | Here |
 |---|---|---|
-| high probe ⇒ uncut face, by height over the plane of the three atom centres | asserted | not adopted. @ref corollary-1 "Corollary 1"(c), proved, on the distance to the contact *triangle* |
+| high probe ⇒ uncut face, by height over the plane of the three atom centers | asserted | not adopted. @ref corollary-1 "Corollary 1"(c), proved, on the distance to the contact *triangle* |
 | only low probes may cut | asserted | not adopted. Corollary of @ref lemma-7 "Lemma 7" (cut symmetry), proved |
-| first-atom neighbourhood restriction | asserted | not adopted. @ref lemma-10 "Lemma 10" (host overlap) gives the provable version: a cutter's hosts reach the cut face's hosts within two overlap hops, one hop is not enough |
+| first-atom neighborhood restriction | asserted | not adopted. @ref lemma-10 "Lemma 10" (host overlap) gives the provable version: a cutter's hosts reach the cut face's hosts within two overlap hops, one hop is not enough |
 | keep only the largest departure angle among probes sharing two atoms | asserted | proved (pencil argument), not a code path |
 
 Since \f$\operatorname{dist}(x, T) \ge h\f$, strictly more faces are uncut
@@ -79,12 +79,12 @@ from it:
 
 ## Definitions
 
-- Atom \f$i\f$ has centre \f$c_i\f$, van der Waals radius \f$r_i\f$ and SAS
+- Atom \f$i\f$ has center \f$c_i\f$, van der Waals radius \f$r_i\f$ and SAS
   radius \f$R_i = r_i + r_p\f$, where \f$r_p\f$ is the probe radius.
 - \f$B(c, R)\f$ is the closed ball, \f$B^\circ(c, R)\f$ its interior,
   \f$S(c, R)\f$ the sphere. \f$U = \bigcup_i B(c_i, R_i)\f$ is closed. The
   **SAS** is the boundary of \f$U\f$; its points are the accessible probe
-  centres. An SAS point \f$s\f$ *touches* the atoms \f$a\f$ with
+  centers. An SAS point \f$s\f$ *touches* the atoms \f$a\f$ with
   \f$|s - c_a| = R_a\f$.
 - The **SES** is the boundary of \f$\{p : B(p, r_p) \subset U\}\f$: the
   points of \f$U\f$ at distance exactly \f$r_p\f$ from the SAS. A point closer
@@ -93,9 +93,9 @@ from it:
   @cite desc:surface:connolly-1983 (nuri::SurfacePatch):
   - **convex**: the probe touches one atom; the patch is the atom's vdW
     sphere scaled from the accessible part of its SAS sphere;
-  - **toroidal (saddle)**: the probe rolls on two atoms; its centre traces an
+  - **toroidal (saddle)**: the probe rolls on two atoms; its center traces an
     arc of the circle where the two SAS spheres meet;
-  - **concave**: the probe rests on three (or more) atoms; its centre is a
+  - **concave**: the probe rests on three (or more) atoms; its center is a
     **vertex** of the SAS and the patch is a region of the probe sphere.
 - A **cap** on a unit sphere is \f$\{x : n \cdot x > \cos\alpha\}\f$ for a
   unit axis \f$n\f$, stored as \f$(n, \cos\alpha, \sin\alpha)\f$. The cap
@@ -104,9 +104,9 @@ from it:
   empty unless \f$|x - y| < 2 r_p\f$, and \f$\alpha \le \pi/2\f$.
 
 Every patch family is derived from **arrangements of caps**: the accessible
-part of a SAS sphere is the sphere minus the caps cut by neighbouring SAS
+part of a SAS sphere is the sphere minus the caps cut by neighboring SAS
 spheres, and the concave face of a vertex is the probe sphere minus the caps
-cut by neighbouring vertex probes and by the arcs it rolls off along.
+cut by neighboring vertex probes and by the arcs it rolls off along.
 
 The region of a sphere outside a set of caps is measured by Gauss–Bonnet.
 For a region with its boundary on the left, on a sphere of radius \f$R\f$,
@@ -128,7 +128,7 @@ face is one cap component).
 
 ## Preparation
 
-`prepare` in `prep.cpp` turns centres, radii, a probe radius and an active
+`prepare` in `prep.cpp` turns centers, radii, a probe radius and an active
 mask into a `SurfaceSpheres`. Its tolerance is
 `kSurfaceLengthEps` \f$= 10^{-6}\f$ Å (`stages.h`), used only for candidate
 bands that are supersets of exactly decided sets; every decision is exact.
@@ -146,24 +146,24 @@ bands that are supersets of exactly decided sets; every decision is exact.
    inside the band `BallExact::overlap` decides exactly on the lifted heights
    of the next section, and a pair tangent to within rounding is a tie that
    is *reported*, not perturbed: it carries no circle (the zero-measure rule
-   below), but it still counts as a neighbour for the ranks of step 4.
+   below), but it still counts as a neighbor for the ranks of step 4.
 2. **Contained balls.** The band \f$d \le |R_i - R_j| + \tau\f$ selects
    candidates; `BallExact::contained` decides: with
    \f$K = \rho_i^2 - \rho_j^2 - d^2\f$, \f$B_j \subset B_i\f$ iff
    \f$K \ge 0\f$ and \f$K^2 \ge 4 \rho_j^2 d^2\f$, internal tangency included
-   (identical balls keep the active one, else the first). Coincident centres
+   (identical balls keep the active one, else the first). Coincident centers
    are contained pairs. A contained ball has no surface, generates no cap and
    is dropped from everything that follows, including the overlap graph.
 3. **Shared circles.** If a third sphere passes through the circle where two
-   others meet, the sphere whose centre lies between the other two on the
+   others meet, the sphere whose center lies between the other two on the
    axis lies inside their union: on each side of the circle plane the outer
    sphere bulges more, so each of the middle sphere's two caps sits inside the
-   neighbouring sphere's larger cap. It is dropped like a contained ball.
+   neighboring sphere's larger cap. It is dropped like a contained ball.
    Without this, one sphere would carry two caps on the same circle, and the
    middle sphere's two caps would be exact complements, a tie for the covered
    test; the kernel also evaluates `cuts` on triples that are not faces, and
    two caps on one circle would tie there. The triangles of the exact overlap
-   graph are the candidates, a band on floating circle centres and axes a
+   graph are the candidates, a band on floating circle centers and axes a
    prefilter, and `BallExact::shared_circle` decides: circles \f$(a, b)\f$ and
    \f$(a, c)\f$ coincide iff \f$u = d_b \times d_c = 0\f$ and the discriminant
    \f$D\f$ of the next section is zero; the middle is \f$a\f$ iff
@@ -177,12 +177,12 @@ bands that are supersets of exactly decided sets; every decision is exact.
    perturbed arrangement and nothing in its \f$\varepsilon \to 0\f$ limit. A
    sphere inside a band but not exactly contained or coincident is kept and
    its sliver computed like any other surface. The bands are supersets of the
-   exact sets as long as the rounding of \f$d\f$, circle centres and axes
+   exact sets as long as the rounding of \f$d\f$, circle centers and axes
    stays far below \f$\tau\f$; the lifted radius \f$\rho_i\f$ drifts from
    \f$R_i\f$ by about \f$\operatorname{ulp}(|c_i|^2 + W)\f$, which is what
    bounds the coordinates.
 4. **Order.** `active` is the caller's mask minus dropped atoms; `need` is
-   `active` plus its near neighbours and `shell` the near neighbours of
+   `active` plus its near neighbors and `shell` the near neighbors of
    `need`. Occluders near no `shell`, `need` or `active` atom are dropped
    (@ref lemma-3 "Lemma 3"). Atoms are permuted to `[active | need | shell | occluders]`,
    and the overlap graph `g` over the kept atoms is remapped and sorted. From
@@ -213,8 +213,8 @@ bands that are supersets of exactly decided sets; every decision is exact.
    tangents may be incomplete (a circle between two shell atoms is never
    solved); it then fails the triangle predicate of @ref lemma-9 "Lemma 9" and is tested
    unfiltered, which is always allowed. Two shells are exactly what
-   @ref corollary-3 "Corollary 3" needs; one shell of neighbours is not
-   enough: the cutter's hosts need only touch a *neighbour* of the active
+   @ref corollary-3 "Corollary 3" needs; one shell of neighbors is not
+   enough: the cutter's hosts need only touch a *neighbor* of the active
    atom, and a probe wedged between two nearly opposite atoms and touched by
    a third from above can be cut by a shallow probe on the other side whose
    hosts overlap neither the third atom nor anything active.
@@ -245,7 +245,7 @@ the same vertex only when they are the same `(face, root)`.
 \f$\rho_i^2 = W + |c_i|^2 - h_i\f$ is the lifted squared radius
 (step 1). For a circle \f$(a, b)\f$: \f$d = c_b - c_a\f$, \f$G = |d|^2\f$,
 \f$v = \tfrac12(h_b - h_a) - c_a \cdot d = \tfrac12(\rho_a^2 - \rho_b^2 + G)\f$,
-centre \f$\mathrm{cntr} = c_a + (v/G)\, d\f$, squared radius
+center \f$\mathrm{cntr} = c_a + (v/G)\, d\f$, squared radius
 \f$r^2 = \rho_a^2 - v^2/G\f$; \f$\pi_b - \pi_a = 2(v - y \cdot d)\f$ for
 \f$y = x - c_a\f$. For a face \f$(a, b, c)\f$ relative to \f$a\f$:
 \f$d_b, d_c\f$, \f$u = d_b \times d_c\f$, \f$v_b, v_c\f$ as above,
@@ -288,7 +288,7 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    the heights away from \f$D = 0\f$ (discriminants, \f$A \pm B\sqrt D\f$),
    so the first-order rule applies as long as one participant has a non-zero
    first-order coefficient, which holds for `cuts` (the three coefficients
-   sum to \f$|u|^2\f$, non-zero unless the centres are collinear, which
+   sum to \f$|u|^2\f$, non-zero unless the centers are collinear, which
    `cuts` meets only on a shared circle, removed in preparation), `side`
    (the coefficient of \f$\rho_c^2\f$ is \f$-|d_b|^2/2\f$), `accept` (the
    coefficient of the apex is \f$-|u|^2/2\f$, and the apex is never a face
@@ -308,7 +308,7 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    bounding box (\f$\Delta\f$ its half diagonal) are appended so the input is
    never coplanar (@ref lemma-1 "Lemma 1"). A sphere that appears in no cell has an empty
    power cell, no accessible surface, and gets area 0 without a solve.
-2. **Caps.** The caps of sphere \f$s\f$ are its \f$RT\f$ neighbours \f$t\f$
+2. **Caps.** The caps of sphere \f$s\f$ are its \f$RT\f$ neighbors \f$t\f$
    whose ball overlaps \f$B_s\f$, decided exactly and rationally: with
    \f$T = \rho_s^2 + \rho_t^2 - |c_s - c_t|^2\f$ the balls overlap iff
    \f$T \ge 0\f$ or \f$T^2 < 4 \rho_s^2 \rho_t^2\f$ (the cross term of
@@ -424,7 +424,7 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    union of open discs are the components of their intersection graph, and
    two open discs intersect iff their circles cross (`cuts`) or one circle
    lies inside the other's ball (`side`, either way); two discs touching at
-   a point are not joined, as in step 2. Collinear centres never tie in
+   a point are not joined, as in step 2. Collinear centers never tie in
    `cuts` here: coincident circles are removed in preparation, and otherwise
    \f$D = -|d_b|^2 (\kappa v_b - v_c)^2 < 0\f$ strictly for
    \f$d_c = \kappa d_b\f$. Caps sharing a probe are joined for free, caps
@@ -445,11 +445,11 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
 \anchor lemma-1
 **Lemma 1 (the bounding points are inert).** In plain words: the four far
 corners change nothing inside the molecule. Every sphere point and every
-point of \f$U\f$ lies within \f$\Delta + R_{\max}\f$ of the box centre, and
+point of \f$U\f$ lies within \f$\Delta + R_{\max}\f$ of the box center, and
 a bounding point \f$b\f$ lies at distance \f$4(\Delta + R_{\max}) + 1\f$, so
 \f$\pi_b(x) = |x - b|^2 > 0\f$ there. Hence the power cells of the spheres
 are unchanged inside \f$U\f$, a bounding apex never rejects a cut point,
-and, because every centre is strictly inside the bounding tetrahedron (its
+and, because every center is strictly inside the bounding tetrahedron (its
 inradius exceeds \f$\Delta\f$), every hull face of the triangulation
 consists of bounding points only. A bounding point is never hidden, so this
 holds for the triangulation actually built. ∎
@@ -468,7 +468,7 @@ face.
 
 *Proof.* \f$x\f$ lies on the radical line \f$\ell\f$, along which
 \f$\pi_m - \pi_a\f$ is affine for every \f$m\f$, so each constraint
-\f$\pi_m \ge \pi_a\f$ cuts \f$\ell\f$ in a half-line (a centre \f$c_m\f$ in
+\f$\pi_m \ge \pi_a\f$ cuts \f$\ell\f$ in a half-line (a center \f$c_m\f$ in
 the face plane makes \f$\pi_m - \pi_a\f$ constant along \f$\ell\f$, so that
 constraint is all of \f$\ell\f$ or none; it holds at the orthocentres, hence
 it is all of \f$\ell\f$ and never binds). The orthocentres of the two cells
@@ -532,17 +532,17 @@ or wholly outside the disc; either way the circle does not meet that
 edge. ∎
 
 \anchor theorem-2
-**Theorem 2 (neighbour caps suffice).** In plain words: every buried point
-of a sphere is buried by a triangulation neighbour, so the neighbour caps
+**Theorem 2 (neighbor caps suffice).** In plain words: every buried point
+of a sphere is buried by a triangulation neighbor, so the neighbor caps
 alone give the right components. For \f$x \in S_s\f$, \f$x\f$ is accessible
 iff \f$x \in V_s\f$. \f$V_s\f$ is a convex polyhedron whose facets are the
 \f$RT\f$ edges of \f$s\f$ (non-empty for a solved sphere, which has arcs);
-if \f$x \notin V_s\f$ some facet neighbour \f$n\f$ has \f$\pi_n(x) < 0\f$
+if \f$x \notin V_s\f$ some facet neighbor \f$n\f$ has \f$\pi_n(x) < 0\f$
 strictly, and \f$n\f$ is a sphere since a bounding point has \f$\pi \ge 0\f$
 everywhere (@ref lemma-1 "Lemma 1"), so a point of \f$S_s\f$ inside some open ball is
-inside the open ball of an \f$RT\f$ neighbour. Hence the union of the open
-neighbour caps equals the union of all open overlapping caps exactly (a
-tangent neighbour has an empty open cap, consistent with step 2), the
+inside the open ball of an \f$RT\f$ neighbor. Hence the union of the open
+neighbor caps equals the union of all open overlapping caps exactly (a
+tangent neighbor has an empty open cap, consistent with step 2), the
 components of that union are the components of step 5, and every accessible
 arc on circle \f$(s, t)\f$ lies in the facet \f$V_s \cap V_t\f$, so
 \f$(s, t)\f$ is an edge and, by @ref theorem-1 "Theorem 1" and @ref lemma-2 "Lemma 2", its endpoints are the
@@ -648,7 +648,7 @@ which no perturbation changes.
    \f$P\f$ fails at \f$Q\f$, and that edge's sphere holds \f$Q\f$ strictly,
    so it is in the fan; the answer is settled by far spheres strictly and by
    \f$X^0(Q) \subseteq S'\f$ through `antipode`.
-5. *Caps, components, areas.* The two runs may list different neighbour caps
+5. *Caps, components, areas.* The two runs may list different neighbor caps
    for a sphere (remark). By @ref theorem-2 "Theorem 2" in each run, the union of the listed
    open caps is the union of all `g`-caps of \f$s\f$, one set \f$U_s\f$ for
    both runs (1(i)). The solver joins two caps when a vertex links them or
@@ -706,7 +706,7 @@ radius 0.8) lies inside \f$B_u\f$, so it has no arc, and the cap of \f$t\f$
 on \f$s\f$ lies inside the cap of \f$u\f$. On the radical plane
 \f$x = 0.6\f$, \f$\pi_s \le \pi_u\f$ iff \f$z \le -1.07\f$ and
 \f$\pi_s \le \pi_o\f$ iff \f$z \ge -0.87\f$: with \f$o\f$ the facet
-\f$V_s \cap V_t\f$ is empty and \f$t\f$ is no neighbour of \f$s\f$; without
+\f$V_s \cap V_t\f$ is empty and \f$t\f$ is no neighbor of \f$s\f$; without
 \f$o\f$ it is the half-plane \f$z \le -1.07\f$ and \f$t\f$ is one. Both runs
 give \f$s\f$ the cap union \f$\mathrm{cap}(u)\f$, one component, the same
 arcs and area.
@@ -800,7 +800,7 @@ of each other by union-find over every pair within \f$\tau_m\f$, found by one
 pass over the probes bucketed on a lattice of pitch \f$\tau_m\f$ and sorted
 by cell (a pair within \f$\tau_m\f$ shares a cell or sits in adjacent cells,
 and a constant cell shift preserves the sorted order, so each of the 13
-forward neighbour shifts is one merge join); roots that share no circle, as
+forward neighbor shifts is one merge join); roots that share no circle, as
 at a point where tangent pairs have deleted the linking circles, are merged
 like any other, and exact coincidence needs no separate test since two
 certified positions of one point differ by less than \f$\tau_m\f$. A
@@ -832,15 +832,15 @@ the first-order coefficients automatically.
 
 Positions and vertex angles come from the **offset**
 \f$x - \mathrm{cntr} = (P \pm \sqrt D\, Q)/(G|u|^2)\f$ of a root from its
-circle's centre, with
+circle's center, with
 \f$P = G(|u|^2 (c_f - c_a) + \lambda d_b + \mu d_c) - |u|^2 v\, d\f$
-(\f$\lambda, \mu, d_b, d_c\f$ of the face relative to its first centre
+(\f$\lambda, \mu, d_b, d_c\f$ of the face relative to its first center
 \f$c_f\f$; \f$v, d, G\f$ of the circle \f$(a, b)\f$) and \f$Q = G u\f$
 rational and \f$P \perp Q\f$: it is taken from the filtered double when the
 running bound certifies it to `kOffsetRelTol` \f$= 2^{-26}\f$ of its own
 length, and otherwise from the exact dyadic (\f$P\f$, \f$Q\f$, \f$D\f$
 rounded to double and combined in a few more roundings), so the direction
-from the centre is right to \f$2^{-26}\f$ on a circle of any radius. The
+from the center is right to \f$2^{-26}\f$ on a circle of any radius. The
 certificate is relative to the offset's own length; coordinate-scale
 roundings in \f$v\f$ only enlarge the certified error (measured
 \f$10^{-14}\f$ at the origin, \f$10^{-9}\f$ at 1000 Å). This matters for a
@@ -854,7 +854,7 @@ relative error. The floating comparisons that remain are output-only: the
 fold of each vertex's `atan2` into its exact half-plane class (the class
 carries the side of the ray, `atan2` only the magnitude, so a vertex at
 \f$\pi \mp \delta\f$ folds to \f$\pi\f$, never to 0 or \f$2\pi\f$), the
-normalisation of the dart angle \f$\iota\f$ and the \f$\max(\cdot, 0)\f$
+normalization of the dart angle \f$\iota\f$ and the \f$\max(\cdot, 0)\f$
 clamps. A genuine corner is \f$\pi - \angle(h_a, h_b)\f$ for the two cap
 normals in the tangent plane at the vertex (the accessible region there is
 the wedge outside both caps), so it lies in \f$[0, \pi]\f$, \f$\pi\f$
@@ -871,11 +871,11 @@ is a `DCHECK` on an invariant, not a decision.
 - **Convex area** of atom \f$i\f$: \f$A_{\text{sas}}(i) \cdot (r_i/R_i)^2\f$
   (radial scaling maps the SAS patch onto the vdW sphere).
 - **Saddle** of an arc on circle \f$c\f$ with span \f$\Delta\varphi\f$. The
-  generating arc on the probe sphere is parametrised by \f$\beta\f$, the
+  generating arc on the probe sphere is parametrized by \f$\beta\f$, the
   angle from the inward radial direction (toward the axis); \f$\beta < 0\f$
   leans toward atom \f$i\f$. The valid range is \f$[-\theta_i, \theta_j]\f$
   with \f$\sin\theta_i = a/R_i\f$, \f$\sin\theta_j = (d - a)/R_j\f$, where
-  \f$a\f$ is the circle plane's offset from \f$c_i\f$ and \f$d\f$ the centre
+  \f$a\f$ is the circle plane's offset from \f$c_i\f$ and \f$d\f$ the center
   distance. The distance from the axis is \f$\varrho(\beta) = r_l - r_p \cos\beta\f$
   (\f$r_l\f$ the circle radius); for a **spindle torus** (\f$r_l < r_p\f$) it
   vanishes at \f$\beta_0\f$ with \f$\sin\beta_0 = \sqrt{r_p^2 - r_l^2}/r_p\f$,
@@ -940,7 +940,7 @@ is a `DCHECK` on an invariant, not a decision.
   sorts: its ring order is the fan order of @ref lemma-2 "Lemma 2"). This is sound
   because each vertex's offset is certified to `kOffsetRelTol` of its
   length, the frame shared by the ring is an orientation-preserving linear
-  map and so only reparametrises the angles monotonically, and the dots,
+  map and so only reparametrizes the angles monotonically, and the dots,
   `atan2`, the class fold and the subtraction add roundoff only; a pair
   further apart than the sum is in the exact order, and an exact tie is
   always within it. Ties are perturbed in the order probe, then caps as
@@ -993,7 +993,7 @@ so \f$|v - c_a| \ge |s - c_a|\f$, which expands to
   bound is attained: \f$D_x\f$ is exactly the cap cut by the mirror triple
   point \f$x + 2hn\f$, the second point where the three SAS spheres meet (a
   vertex only if it is accessible).
-- (b) **Saddles are cut only in the spindle.** For a probe centre on the
+- (b) **Saddles are cut only in the spindle.** For a probe center on the
   circle of atoms \f$i, j\f$, the generating directions are the cone of
   \f$\hat c_i, \hat c_j\f$, and the ray at angle \f$\beta\f$ from the inward
   radial direction meets the segment \f$[c_i, c_j]\f$, which lies on the
@@ -1025,7 +1025,7 @@ cone).** If \f$B(q, \varrho) \subset U\f$ and the vertex \f$y\f$ lies on its
 boundary, then the direction from \f$y\f$ to \f$q\f$ lies in \f$C_y\f$.
 
 *Proof.* Suppose not. Then some direction \f$w\f$ points away from every
-touched centre (\f$w \cdot (c_b - y) \le 0\f$ for all \f$b \in A(y)\f$) yet
+touched center (\f$w \cdot (c_b - y) \le 0\f$ for all \f$b \in A(y)\f$) yet
 toward \f$q\f$ (\f$w \cdot (q - y) > 0\f$). Moving from \f$y\f$ a short way
 along \f$w\f$ leaves every SAS ball of the touched atoms
 (\f$|y + \epsilon w - c_b|^2 = R_b^2 - 2\epsilon\, w \cdot (c_b - y) + \epsilon^2 > R_b^2\f$)
@@ -1036,7 +1036,7 @@ outside \f$U\f$; yet it is inside \f$B(q, \varrho)\f$, which lies in
 \anchor lemma-6
 **Lemma 6 (the first SAS point an inflating ball touches is a vertex).** Let
 \f$x\f$ be a vertex whose contact directions span space (they fail to only
-when \f$x\f$ lies in the plane of its atom centres, and then its face has no
+when \f$x\f$ lies in the plane of its atom centers, and then its face has no
 area) and \f$d\f$ a unit direction strictly inside \f$C_x\f$
 (\f$d = \sum \lambda_a \hat c_a\f$ with every \f$\lambda_a > 0\f$, scaled to
 \f$|d| = 1\f$). Inflate the balls \f$B_t = B(x + t d, t)\f$, \f$t > 0\f$,
@@ -1054,7 +1054,7 @@ the face point \f$x + r_p d\f$ is cut by the vertex \f$s_1\f$.
 \f$\sum \lambda_a \hat c_a \cdot (d + e) = 1 + d \cdot e > |d + e|^2/2\f$, so
 the largest \f$\hat c_a \cdot (d + e)\f$ exceeds
 \f$|d + e|^2/(2\sum\lambda_a)\f$, which is at least \f$t|d + e|^2/(2R_a)\f$
-for the maximising \f$a\f$ once \f$t \le \min_b R_b / \sum_b \lambda_b\f$.
+for the maximizing \f$a\f$ once \f$t \le \min_b R_b / \sum_b \lambda_b\f$.
 
 *SAS points near the vertex are never inside.* Near \f$x\f$ the SAS consists of
 the sphere patches leaving \f$x\f$; a tangent direction \f$w\f$ of the patch
@@ -1090,7 +1090,7 @@ through \f$x\f$ and \f$s_1 = x\f$. (If \f$p_1 = c_a\f$, then
 *Not inside an arc.* If \f$s_1\f$ were, on the circle of atoms
 \f$a, b\f$, then near \f$s_1\f$ the region \f$U\f$ is the union of the two
 SAS balls, and a ball inside \f$U\f$ touching their common boundary at
-\f$s_1\f$ must have its centre in the wedge spanned at \f$s_1\f$ by the
+\f$s_1\f$ must have its center in the wedge spanned at \f$s_1\f$ by the
 directions to \f$c_a\f$ and \f$c_b\f$, exactly as in @ref lemma-5 "Lemma 5". So \f$p_1\f$
 lies in the plane through \f$s_1\f$ and the axis \f$c_a c_b\f$, within the
 angle at \f$s_1\f$ of the triangle \f$(s_1, c_a, c_b)\f$. By @ref lemma-4 "Lemma 4" with
@@ -1221,7 +1221,7 @@ So the cap meets the triangle iff
 \f$f\f$ on arc \f$m\f$ and \f$1 - (u \cdot t_m)^2 > \cos^2\alpha\f$ for some
 \f$m\f$ (edge reached), or \f$\max_m u \cdot p_m > \cos\alpha\f$ (corner
 reached), the corner test covering feet off their arcs. The first disjunct
-is not redundant: a neighbour probe whose cap lies entirely in the interior
+is not redundant: a neighbor probe whose cap lies entirely in the interior
 of the triangle, a hole punched in the middle of a face, meets \f$S\f$
 without meeting \f$\partial S\f$, and dropping it would delete the hole.
 
@@ -1291,8 +1291,8 @@ Together,
 so \f$R_x R_y - 2\tau R_{\max} < \varrho^2(1 - \gamma) = \ell^2/2\f$. ∎
 
 \anchor corollary-3
-**Corollary 3 (two neighbour shells suffice).** Enumerating the vertices
-that have a host in `active`, its near neighbours or their near neighbours
+**Corollary 3 (two neighbor shells suffice).** Enumerating the vertices
+that have a host in `active`, its near neighbors or their near neighbors
 captures every cutter of every face on an active atom (preparation
 step 5). One hop does not suffice.
 
@@ -1339,10 +1339,10 @@ within \f$2 r_p\f$) enforces, never a topological one.
 ## Dots
 
 nuri::SurfaceSampler (`sample.cpp`) places dots **inside the exact patch
-domains** above. Their weights are normalised so that the sum over a patch
+domains** above. Their weights are normalized so that the sum over a patch
 equals the patch's analytic area; dot counts follow the requested density.
 Only the count is a sampled quantity. Normals point from the surface into the
-solvent; for toroidal and concave dots that is toward the probe centre, so
+solvent; for toroidal and concave dots that is toward the probe center, so
 nuri::SurfaceDots::probes() recovers the probe positions.
 
 - **Convex** (atom \f$i\f$ below `n_active`). A Fibonacci lattice with
@@ -1363,7 +1363,7 @@ nuri::SurfaceDots::probes() recovers the probe positions.
   3. \f$k_{\varphi, m} = \operatorname{lround}(a_m \cdot \text{density})\f$
      dots on ring \f$m\f$, uniformly spaced in \f$\varphi\f$ inside the arc
      at \f$\varphi = \varphi_{\text{beg}} + (n + \tfrac14 \text{or} \tfrac34)\,\Delta\varphi/k_{\varphi,m}\f$,
-     the quarter alternating with \f$m\f$ so neighbouring rings interleave;
+     the quarter alternating with \f$m\f$ so neighboring rings interleave;
      weight \f$a_m / k_{\varphi, m}\f$. Ring areas are rescaled so that the
      row's weights sum to its exact area; a row whose rings all round to zero
      is collapsed to one ring with
@@ -1382,7 +1382,7 @@ nuri::SurfaceDots::probes() recovers the probe positions.
   not rotated per face: weights are \f$A_{\text{face}}/n_{\text{kept}}\f$, so
   orientation is unbiased) is tested against the face arrangement; a
   direction is kept iff it is outside every live cap, which encodes both the
-  polygon of departure hemispheres and the neighbour-probe cuts. Dot
+  polygon of departure hemispheres and the neighbor-probe cuts. Dot
   \f$q + r_p d\f$, normal \f$-d\f$, weight \f$A_{\text{face}}/n_{\text{kept}}\f$,
   owner the atom whose vdW surface is nearest, from
   \f$|p - c_a|^2 = R_a^2 + r_p^2 - 2 r_p R_a (d \cdot \hat c_a)\f$.
@@ -1403,7 +1403,7 @@ clamp 0.999). For each side:
    (Rosetta's "buried atoms"), narrowed by the caller's mask; every other
    atom of the side occludes (Rosetta's "blocked atoms"). The SES of the side
    is built with that mask and sampled at the density.
-2. **Burial.** A dot is buried when its probe centre lies strictly inside a
+2. **Burial.** A dot is buried when its probe center lies strictly inside a
    solvent-accessible sphere of the other side (\f$|p_{\text{probe}} - c| < R + r_p\f$).
 3. **Peripheral trim.** A buried dot within `band` of an exposed dot of its
    own side is trimmed; the survivors are the interface dots.
@@ -1420,14 +1420,14 @@ The statistic is the mean of the two sides' median scores, the reported
 distance the mean of their median separations, and the area the sum of the
 trimmed areas. Dots are equal-weight samples within a convex or concave
 patch and within a toroidal ring, and the medians ignore areas (an
-area-weighted median differs by about 0.001). Every neighbour query (active
+area-weighted median differs by about 0.001). Every neighbor query (active
 atoms, burial, trim, nearest dot) is a
 nuri::VoxelGrid query on squared distances with the comparisons above.
 
 ## Complexity
 
 Let \f$n\f$ be the kept atoms, \f$m\f$ the largest number of overlapping
-neighbours of one atom (the cap count; about 15 for proteins), \f$p\f$ the
+neighbors of one atom (the cap count; about 15 for proteins), \f$p\f$ the
 probes (at most the faces of the triangulation, \f$\sim 12n\f$, so
 \f$O(n)\f$), \f$k\f$ the largest number of probes within \f$2 r_p\f$ of
 one probe (bounded by packing), and \f$D\f$ the dots,
@@ -1449,7 +1449,7 @@ memory; the stages:
   \f$O(n m^2)\f$ in all; the probe merge is one sort, \f$O(p \log p)\f$.
 - **SES**: heights and contact triangles \f$O(p)\f$; the probe-pair query
   \f$O(p\,k)\f$ and the two filters \f$O(1)\f$ per pair; the face solver
-  \f$O(k^2)\f$ per low face (its caps are the surviving neighbours plus
+  \f$O(k^2)\f$ per low face (its caps are the surviving neighbors plus
   three hemispheres), \f$O(p\,k^2)\f$ in all; saddles \f$O(n m)\f$ per
   arc count. Since \f$k \le m\f$ up to a constant, the SES is
   \f$O(n m^2)\f$.

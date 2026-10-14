@@ -554,7 +554,7 @@ TEST(BuildSasTest, GrazingApexWithinTolerance) {
 }
 
 /**
- * Flat cell: the apex sphere's centre lies 1e-3 above the plane of the face
+ * Flat cell: the apex sphere's center lies 1e-3 above the plane of the face
  * and grazes the triple point, while a steeper fifth sphere contains the
  * point by 5e-5; the point must be rejected.
  */
@@ -910,7 +910,7 @@ TEST(BuildSasTest, EmptySurfaces) {
 /**
  * A chain active, need, shell, then the hop-3 sphere 3 contains the hop-3
  * sphere 4 and the hop-4 sphere 5, which is near nothing else. A container
- * is near every neighbour of the ball it contains, so the container of a
+ * is near every neighbor of the ball it contains, so the container of a
  * hop-3 atom is within three hops itself and the band sees both pairs.
  */
 Masked contained_partner() {
@@ -939,7 +939,7 @@ TEST(BuildSasTest, BandContainedPartnerAtHopFour) {
 }
 
 /**
- * The hop-4 sphere of a chain with a partner of radius `r` on its centre at
+ * The hop-4 sphere of a chain with a partner of radius `r` on its center at
  * `x`: an identical twin, a larger ball around it or a smaller ball inside
  * it, within reach of the hop-3 sphere at 10 and out of its reach at 10.8,
  * where only a larger partner stays at hop 4.
@@ -1233,7 +1233,7 @@ TEST(BuildSasTest, BenzeneCoverNoSpuriousProbe) {
 }
 
 /**
- * The third centre lies `amp` from the axis of circle `(a, b)`: the radical
+ * The third center lies `amp` from the axis of circle `(a, b)`: the radical
  * line form of the cut points loses `amp²` of precision, the circle form is
  * exact there, and the builder keeps whichever fits its spheres better.
  */
@@ -1563,7 +1563,7 @@ void append_off_axis(Matrix3Xd &pts, ArrayXd &sar, const int n,
 }
 
 /**
- * The shared-circle triple among enough off-axis neighbours that its row
+ * The shared-circle triple among enough off-axis neighbors that its row
  * holds several unrelated circles on either side of the matching keys.
  */
 TEST(BuildSasTest, SharedCircleMiddleAmongNeighbours) {
@@ -1831,7 +1831,7 @@ TEST(BuildSasTest, SharedCircleSparesTwin) {
 /**
  * A third sphere through the point of circle (a, b) at frame angle π: the
  * vertex's atan2 is ±π to rounding and must fold with its exact class, not
- * towards the ray.
+ * toward the ray.
  */
 TEST(BuildSasTest, VertexAtFrameAnglePi) {
   const Vector3d ca(0, 0, 0), cb(2, 0, 0);
@@ -1861,7 +1861,7 @@ TEST(BuildSasTest, VertexAtFrameAnglePi) {
 }
 
 /**
- * Every relabelling of the atoms: the result must not depend on the index
+ * Every relabeling of the atoms: the result must not depend on the index
  * order the perturbation uses.
  */
 template <class F>
@@ -2061,7 +2061,7 @@ void expect_order_invariant_areas(const Matrix3Xd &pts, const ArrayXd &sar,
 /**
  * A tangent pair `p`, `q` and two spheres `b`, `c` through their touching
  * point, all of radius 3: on every sphere the two caps of the others touch
- * at the origin, their centres coplanar with it. Only some orders resolve
+ * at the origin, their centers coplanar with it. Only some orders resolve
  * the touch into a 4-atom probe; the others see two caps that merely
  * touch, which are not joined (analytic_surface page, SAS step 5), so every
  * order gives the same areas.
@@ -2083,7 +2083,7 @@ TEST(BuildSasTest, TouchingCapsWithoutLensVertex) {
 
 /**
  * The tangent pair of radius 7 with four spheres through the touching
- * point whose centres are coplanar with it: a 6-fold touch with three
+ * point whose centers are coplanar with it: a 6-fold touch with three
  * tangent pairs, whose deleted circles leave the roots of `{0, 2, 4}` and
  * `{0, 3, 5}` at the origin on no common circle.
  */
@@ -2141,7 +2141,7 @@ TEST(BuildSasTest, TangentApexUnderRigidMotion) {
 }
 
 /**
- * Genuine k-fold points: `k` equal spheres with centres on a cone through
+ * Genuine k-fold points: `k` equal spheres with centers on a cone through
  * the origin. Under rigid motions the coincident probes round apart but
  * merge into one probe on all `k` atoms with one tangent per leaving arc.
  */

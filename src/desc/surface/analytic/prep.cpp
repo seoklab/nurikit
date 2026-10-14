@@ -184,7 +184,7 @@ namespace internal {
      * side of the circle plane the outer sphere bulges more, so it has no
      * surface, whether or not an outer sphere is itself contained in a
      * larger one. Two circles of sphere `i` coincide only if their unsigned
-     * plane offsets `|a|` agree within the row band and their centres are
+     * plane offsets `|a|` agree within the row band and their centers are
      * collinear with `c_i`, so each row sorted by `|a|` is scanned by a
      * sliding window; `shared_circle` decides.
      */
