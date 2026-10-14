@@ -14,6 +14,7 @@
 #include <vector>
 
 #include <absl/functional/function_ref.h>
+#include <absl/log/absl_check.h>
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
@@ -88,11 +89,10 @@ namespace internal {
         : parent_(ArrayXi::LinSpaced(n, 0, n - 1)), n_(n) { }
 
     /**
-     * Start over with `n` singletons; storage only grows.
+     * Start over with `n` singletons within the constructed capacity.
      */
     void reset(int n) {
-      if (parent_.size() < n)
-        parent_.resize(n);
+      ABSL_DCHECK_LE(n, parent_.size());
       parent_.head(n) = ArrayXi::LinSpaced(n, 0, n - 1);
       n_ = n;
     }

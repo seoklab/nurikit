@@ -828,7 +828,10 @@ expansions cannot serve here, since a high-degree polynomial of
 rounded-zero coordinates (\f$10^{-16}\f$) has terms below the double
 exponent range and underflow silently breaks their exactness. Perturbation
 ties are resolved by the same kernel evaluated on dual numbers, which yields
-the first-order coefficients automatically.
+the first-order coefficients automatically. The lower rungs of the fallback
+(the deeper perturbation orders, an exact zero under `sqrt_floor`, an
+uncertifiable quotient) are reached by the bit pattern of an input, not by
+its geometry; no test fixture targets them and their coverage is incidental.
 
 Positions and vertex angles come from the **offset**
 \f$x - \mathrm{cntr} = (P \pm \sqrt D\, Q)/(G|u|^2)\f$ of a root from its

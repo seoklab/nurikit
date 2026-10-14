@@ -191,6 +191,8 @@ namespace internal {
           continue;
 
         const auto t = probe_tangents(probes, p);
+        // Coplanar tangents merge within the probe tolerance; an exact float
+        // zero is the one case that slips through.
         if (t.col(0).dot(t.col(1).cross(t.col(2))) == 0.0)
           continue;
 
@@ -300,6 +302,8 @@ namespace internal {
                           ball_triple(probes.face.col(l)), probes.plus[l]);
         const double dist = diff.norm(), cos_a = dist / (2 * rp);
         ABSL_DCHECK_GT(dist, 0);
+        // The grid distance on rounded positions and the exact difference may
+        // disagree by an ulp.
         if (cos_a >= 1)
           continue;
 
@@ -472,8 +476,13 @@ namespace internal {
         ex_.load(std::as_const(c_).leftCols(m + 1),
                  std::as_const(h_).head(m + 1), rp * rp);
 
+        // The exact overlap decides; the pair stage is a conservative
+        // prefilter.
         for (int k = 1; k <= m; ++k)
           live[k - 1] = ex_.overlap(0, k) == Sgn::kPos;
+        // Two caps on one circle: opposite sides cover the sphere (no face),
+        // the same side is one cap. Equal probe balls on the same side were
+        // merged, so only a hemisphere can take that branch.
         for (int b = 1; b <= m; ++b) {
           for (int c = b + 1; c <= m; ++c) {
             if (!live[b - 1] || !live[c - 1])
