@@ -56,9 +56,9 @@ SAS intersection point \f$x\f$ within \f$2 r_p\f$ and imposes no filter):
 | MolSurfComp | There | Here |
 |---|---|---|
 | high probe implies an uncut face, by height over the plane of the three atom centers | asserted | not adopted. @ref corollary-1 "Corollary 1"(c), proved, on the distance to the contact *triangle* |
-| only low probes may cut | asserted | not adopted. Corollary of @ref lemma-5 "Lemma 5" (cut symmetry), proved |
-| first-atom neighborhood restriction | asserted | not adopted. @ref lemma-6 "Lemma 6" (host overlap) gives the provable version: a cutter's hosts reach the cut face's hosts within two overlap hops, one hop is not enough |
-| keep only the largest departure angle among probes sharing two atoms | asserted | proved (pencil argument), not a code path |
+| only low probes may cut | asserted | not adopted. Corollary of @ref lemma-6 "Lemma 6" (cut symmetry), proved |
+| first-atom neighborhood restriction | asserted | not adopted. @ref lemma-7 "Lemma 7" (host overlap) gives the provable version: a cutter's hosts reach the cut face's hosts within two overlap hops, one hop is not enough |
+| keep only the largest departure angle among probes sharing two atoms | asserted | @ref lemma-5 "Lemma 5", proved, not a code path |
 
 Since \f$\operatorname{dist}(x, T) \ge h\f$, strictly more faces are uncut
 here, and the two implementations disagree observably (on 1BRS, 3782 high
@@ -137,7 +137,7 @@ bands that are supersets of exactly decided sets; every decision is exact.
    coordinate beyond `kSurfaceMaxCoord` \f$= 10^4\,\AA\f$ in absolute value
    (where the bands below stop being supersets), and SAS radii with
    \f$R_{\min} < \sqrt{2 r_p^2 + 2\,\tau\,R_{\max}}\f$ (the hypothesis of
-   @ref lemma-6 "Lemma 6" for positive radii, a vdW radius just above
+   @ref lemma-7 "Lemma 7" for positive radii, a vdW radius just above
    \f$(\sqrt 2 - 1) r_p\f$, \f$0.58\,\AA\f$ for water; the sign of the comparison is
    what rejects a non-positive atom radius) are rejected. Pairs \f$(i < j)\f$ with
    \f$d \le R_i + R_j + 2\tau\f$ are the **near** pairs, found by a
@@ -206,7 +206,7 @@ bands that are supersets of exactly decided sets; every decision is exact.
    indices are the lowest), so active torus arcs come from solved spheres.
    The hosts of a probe on an active atom overlap pairwise, so they are
    in `need`, every circle between two of them is solved, and the probe's
-   departure tangents are complete. By @ref lemma-6 "Lemma 6", a probe that cuts the face of
+   departure tangents are complete. By @ref lemma-7 "Lemma 7", a probe that cuts the face of
    a probe on an active atom has a host that overlaps one of that probe's
    hosts, hence a host in `shell`: it is enumerated, its accessibility is
    decided like every other root, and its cap is present. Its own departure
@@ -709,7 +709,7 @@ arcs and area.
 **Remark (sharpness).** The criterion is the near band of rank \f$\le 2\f$,
 not less. A rank-3 atom \f$o\f$ near a rank-2 atom \f$a\f$ hosts faces
 \f$(a, o, o')\f$ whose accepted roots are the probes with a host in `shell`
-that @ref lemma-6 "Lemma 6" identifies as the first-touch cutters of faces on active
+that @ref lemma-7 "Lemma 7" identifies as the first-touch cutters of faces on active
 atoms; dropping \f$o\f$ deletes a cutter and its cap. Replacing the band by
 `g` is not safe either: a sphere exactly tangent to \f$a\f$ is in
 \f$X^0(x)\f$ at its tangency point \f$x\f$, and if \f$x\f$ is a root there
@@ -1114,6 +1114,37 @@ directions.)
 \f$t_1 < r_p\f$, so it is closer to \f$s_1\f$ than to \f$x\f$:
 \f$|x + r_p d - s_1| < r_p\f$.
 
+\anchor lemma-5
+**Lemma 5 (caps from one circle are nested).** In plain words: of the probes
+on one circle through \f$x\f$, the one farthest along the circle cuts
+everything the others cut, and the probe rolling along the arc cuts nothing
+beyond the departure hemisphere and the arc's end vertex. Let \f$x\f$ be a
+vertex on the circle of atoms \f$a, b\f$ with an accessible arc leaving it,
+and measure the angle \f$\psi\f$ about the axis \f$c_a c_b\f$ from the
+plane through the axis and \f$x\f$, positive toward the arc. For a probe
+\f$y\f$ on the circle at angle \f$\Delta\varphi \in (0, 2\pi)\f$ from
+\f$x\f$ in that direction, the cap of \f$y\f$ on \f$S(x, r_p)\f$ meets the
+face cone \f$C_x\f$ in \f$\{\pi < \psi < \pi + \Delta\varphi/2\}\f$. Hence
+the caps of all probes on one circle are nested in the order of
+\f$\Delta\varphi\f$, and the union of the caps of the probes rolling along the
+arc is the departure hemisphere together with the cap of the arc's end
+vertex.
+
+*Proof.* Every point of the axis is equidistant from \f$x\f$ and \f$y\f$,
+so the bisector plane of \f$x\f$ and \f$y\f$ contains the axis and makes the
+angle \f$\Delta\varphi/2\f$ with the plane of \f$x\f$. The cap of \f$y\f$ is
+the side of that plane containing \f$y\f$, which off the axis is
+\f$\{\Delta\varphi/2 < \psi < \Delta\varphi/2 + \pi\}\f$; the axis itself
+is a null set of directions. The departure tangent at \f$x\f$ is normal to
+the plane of \f$x\f$, so the departure hemisphere is \f$\{0 < \psi < \pi\}\f$,
+the limit \f$\Delta\varphi \to 0\f$, and \f$C_x\f$, which excludes it, lies
+in \f$\{\pi \le \psi \le 2\pi\}\f$. Intersecting gives the claim, and the
+union over \f$\Delta\varphi \in (0, \Delta\varphi_1]\f$ is
+\f$\{0 < \psi < \pi + \Delta\varphi_1/2\}\f$. The face solver needs no rule
+from this: a nested cap carries no vertex of the arrangement. The
+largest-departure-angle pruning recorded in the provenance table is this
+lemma.
+
 \anchor theorem-4
 **Theorem 4 (vertex caps suffice).** The concave face of a vertex \f$x\f$ is
 \f$C_x\f$ minus the caps of the vertex probes within \f$2 r_p\f$, and
@@ -1129,12 +1160,10 @@ probe-probe cuts without proof.
 point lies in \f$B_{r_p}^\circ\f$, so \f$t_1 < r_p\f$ and
 @ref lemma-4 "Lemma 4" supplies a vertex within \f$r_p\f$ of the face
 point. For the probes rolling along the arcs that leave \f$x\f$ this is
-also visible directly: their bisector planes with \f$x\f$ all contain the
-torus axis, and the union of their caps is the departure hemisphere together
-with the cap of the arc's end vertex.
+also @ref lemma-5 "Lemma 5".
 
-\anchor lemma-5
-**Lemma 5 (cutting is symmetric).** Let \f$x\f$, \f$y\f$ be vertices with
+\anchor lemma-6
+**Lemma 6 (cutting is symmetric).** Let \f$x\f$, \f$y\f$ be vertices with
 \f$|x - y| < 2 r_p\f$, and suppose the cap of \f$y\f$ removes a region of
 positive area from the face of \f$x\f$ computed without \f$y\f$ (the cone
 minus the caps of all other vertices within \f$2 r_p\f$). Then the ball of
@@ -1169,12 +1198,12 @@ necessary conditions for cutting in either direction, and a failure on either
 side drops the pair **for both faces**.
 
 *Proof.* \f$x\f$ reaches \f$y\f$'s face beyond its plane by
-@ref lemma-5 "Lemma 5", so \f$y\f$ is low (@ref corollary-1 "Corollary 1"(c)).
+@ref lemma-6 "Lemma 6", so \f$y\f$ is low (@ref corollary-1 "Corollary 1"(c)).
 The x-side test is immediate from @ref corollary-1 "Corollary 1"(a) (the
 removed direction lies in
 \f$\mathrm{cap}(y) \cap D_x \cap \text{triangle}_x\f$), the y-side test is
-@ref lemma-5 "Lemma 5"; by symmetry the same two conditions are necessary
-for \f$x\f$ to cut \f$y\f$. The hypothesis of @ref lemma-5 "Lemma 5" that
+@ref lemma-6 "Lemma 6"; by symmetry the same two conditions are necessary
+for \f$x\f$ to cut \f$y\f$. The hypothesis of @ref lemma-6 "Lemma 6" that
 the face is computed without \f$y\f$ cannot be dropped: a point of
 \f$x\f$'s beyond-plane cap can lie inside \f$y\f$'s ball while \f$x\f$'s
 ball misses \f$y\f$'s cone entirely; such a point is always inside some
@@ -1239,11 +1268,11 @@ independence, like \f$k\f$-fold probes, pass the test and are solved
 unfiltered. The condition is necessary for the cap to cut anything and, for
 a face with no other caps, sufficient.
 
-\anchor lemma-6
-**Lemma 6 (host overlap).** Whenever one probe trims another's face, some
+\anchor lemma-7
+**Lemma 7 (host overlap).** Whenever one probe trims another's face, some
 atom under the first touches some atom under the second, provided no atom is
 smaller than about 0.41 probe radii. Precisely: let \f$y\f$ be the
-first-touch cutter (@ref lemma-5 "Lemma 5") of a face point of \f$x\f$,
+first-touch cutter (@ref lemma-6 "Lemma 6") of a face point of \f$x\f$,
 \f$R_x\f$ and \f$R_y\f$ the
 smallest SAS radii among the hosts of \f$x\f$ and \f$y\f$, \f$R_{\max}\f$
 the largest SAS radius of the structure, and call two atoms overlapping when
@@ -1258,7 +1287,7 @@ for the smallest SAS radius; without the tolerance the bound is
 \f$|x - y|^2 > 2 R_x R_y\f$ and the threshold is \f$R \ge \sqrt 2\, r_p\f$,
 i.e. a vdW radius of \f$(\sqrt 2 - 1) r_p\f$.
 
-*Proof.* Take the point \f$q\f$ from the proof of @ref lemma-5 "Lemma 5":
+*Proof.* Take the point \f$q\f$ from the proof of @ref lemma-6 "Lemma 6":
 \f$x = q - \varrho u\f$, \f$y = q - \varrho e\f$ with \f$u \in C_x\f$,
 \f$e \in C_y\f$, \f$\varrho < r_p\f$. Write \f$w = x - y = \varrho(e - u)\f$,
 \f$\ell = |w|\f$, \f$\gamma = u \cdot e < 1\f$, so
@@ -1305,7 +1334,7 @@ step 5). One hop does not suffice.
 share a point, and two hosts from different triples of a merged cluster have
 contact points within the cluster's diameter, at most \f$\tau_m \ll 2\tau\f$
 (SAS step 4), so \f$|c_a - c_d| \le R_a + R_d + 2\tau\f$. An overlap is a
-near pair, so by @ref lemma-6 "Lemma 6" a host of a first-touch cutter of
+near pair, so by @ref lemma-7 "Lemma 7" a host of a first-touch cutter of
 \f$x\f$ is within two near hops of every host of \f$x\f$. The radius
 threshold is not vacuous: with vdW radii of \f$0.03\,\AA\f$ at \f$r_p \approx 1\f$
 a cutter exists none of whose hosts overlaps any host of the cut face.
@@ -1321,7 +1350,7 @@ unchanged.
 *Proof.* For almost every cut face point \f$k\f$ (outside the null set of
 @ref lemma-4 "Lemma 4") its first-touch cutter \f$s_1\f$ is a vertex
 within \f$r_p\f$ of \f$k\f$ that satisfies the conclusion of
-@ref lemma-5 "Lemma 5", so by @ref corollary-2 "Corollary 2" the pair
+@ref lemma-6 "Lemma 6", so by @ref corollary-2 "Corollary 2" the pair
 \f$(x, s_1)\f$ is low at both ends and passes both filters on both sides. A
 cap that fails a filter is therefore never \f$s_1\f$ for any point, every
 cut point keeps its first-touch cutter, and the face computed from the
