@@ -358,9 +358,10 @@ struct ScSide {
 /**
  * @brief Shape complementarity of an interface.
  *
- * `sc` is the statistic of Lawrence and Colman (1993): the mean of the two
- * sides' median scores. `distance` is the mean of their median nearest-dot
- * distances, `area` the total surface area of the kept dots.
+ * `sc` is the statistic of Lawrence and Colman
+ * @cite desc:sc:lawrence-colman-1993, the mean of the two sides' median
+ * scores. `distance` is the mean of their median nearest-dot distances,
+ * `area` the total surface area of the kept dots.
  */
 struct ScResult {
   ScSide sides[2];
@@ -490,9 +491,10 @@ private:
 };
 
 /**
- * Shape complementarity of Lawrence and Colman (1993). The atoms within `sep`
- * of the other side own the interface surface, the rest only occlude; a mask
- * narrows the owners further. Scratch persists across calls.
+ * Shape complementarity of Lawrence and Colman
+ * @cite desc:sc:lawrence-colman-1993. The atoms within `sep` of the other
+ * side own the interface surface, the rest only occlude; a mask narrows the
+ * owners further. Scratch persists across calls.
  */
 class ShapeComplementarity {
 public:
@@ -517,8 +519,8 @@ private:
 };
 
 /**
- * @brief Shape complementarity statistic of Lawrence and Colman (1993)
- *        between two sets of spheres.
+ * @brief Shape complementarity statistic of Lawrence and Colman
+ *        @cite desc:sc:lawrence-colman-1993 between two sets of spheres.
  *
  * @param pts_a Atom centres of the first side.
  * @param radii_a Van der Waals radii of the first side; the probe radius is
@@ -536,8 +538,9 @@ shape_complementarity(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
                       const ScParams &params = {});
 
 /**
- * @brief Shape complementarity statistic of Lawrence and Colman (1993)
- *        between two sets of spheres, with the interface owners restricted.
+ * @brief Shape complementarity statistic of Lawrence and Colman
+ *        @cite desc:sc:lawrence-colman-1993 between two sets of spheres,
+ *        with the interface owners restricted.
  *
  * @param pts_a Atom centres of the first side.
  * @param radii_a Van der Waals radii of the first side; the probe radius is
