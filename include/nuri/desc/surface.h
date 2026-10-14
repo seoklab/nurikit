@@ -436,6 +436,9 @@ namespace internal {
  * Analytic SAS and SES of a set of spheres. Active atoms own surface, the
  * rest only occlude; the inputs must outlive the object. `build_sas` stops
  * after the SAS, `build_ses` builds both and keeps the SES.
+ *
+ * @note Coordinates must lie within 1e4 angstroms of the origin; subtract one
+ *       common shift from all inputs first.
  */
 class AnalyticSurface {
 public:
@@ -495,6 +498,9 @@ private:
  * @cite desc:sc:lawrence-colman-1993. The atoms within `sep` of the other
  * side own the interface surface, the rest only occlude; a mask narrows the
  * owners further. Scratch persists across calls.
+ *
+ * @note Coordinates must lie within 1e4 angstroms of the origin; subtract one
+ *       common shift from all inputs first.
  */
 class ShapeComplementarity {
 public:
@@ -531,6 +537,9 @@ private:
  * @return The statistic with its per-side summaries, or nullopt when the
  *         surface of either side could not be prepared or no interface dot of
  *         either side survives trimming.
+ *
+ * @note Coordinates must lie within 1e4 angstroms of the origin; subtract one
+ *       common shift from all inputs first.
  */
 extern std::optional<ScResult>
 shape_complementarity(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
@@ -555,6 +564,9 @@ shape_complementarity(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
  * @return The statistic with its per-side summaries, or nullopt when the
  *         surface of either side could not be prepared or no interface dot of
  *         either side survives trimming.
+ *
+ * @note Coordinates must lie within 1e4 angstroms of the origin; subtract one
+ *       common shift from all inputs first.
  */
 extern std::optional<ScResult>
 shape_complementarity(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,

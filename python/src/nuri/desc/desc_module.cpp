@@ -342,8 +342,8 @@ of a set of spheres.
   `rp` are not positive, `kind` is unknown, or the inputs are rejected.
 
 .. note::
-  Coordinates must stay within :math:`10^4` angstroms in absolute value, so
-  subtract one common shift from far-away structures first.
+  Coordinates must lie within :math:`10^4` angstroms of the origin; subtract
+  one common shift from all inputs first.
 )doc");
 
   m.def(
@@ -429,6 +429,10 @@ is the mean of the two sides' median scores.
 
 .. note::
   The default parameters are those of Rosetta's ``sc`` application.
+
+.. note::
+  Coordinates must lie within :math:`10^4` angstroms of the origin; subtract
+  one common shift from all inputs first.
 )doc");
 
   m.def(
