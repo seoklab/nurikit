@@ -137,8 +137,16 @@ void argsort_bucket(ArrayXi &idxs, internal::OffsetTable &off, const Key &key,
   return argsort_bucket(idxs, off.off(), key, map);
 }
 
+/**
+ * @brief Kind of a molecular surface: solvent-accessible (probe centres) or
+ *        solvent-excluded (probe front).
+ */
 enum class SurfaceKind : int { kSas = 0, kSes = 1 };
 
+/**
+ * @brief Kind of an analytic surface patch: on an atom sphere, on the probe
+ *        rolling over two atoms, or on the probe resting on three or more.
+ */
 enum class SurfacePatch : int { kConvex = 0, kToroidal, kConcave };
 
 namespace internal {
@@ -260,6 +268,8 @@ namespace internal {
 }  // namespace internal
 
 /**
+ * @brief Dots sampled on a molecular surface.
+ *
  * Dots on a surface with their outward normals (into the solvent); `probes()`
  * gives the centre of the probe touching the surface at each dot. `atom()`
  * is the ORIGINAL atom index owning each dot; the dots come in the blocks of
@@ -281,10 +291,16 @@ public:
 
   int n() const { return static_cast<int>(area_.size()); }
 
+  /**
+   * @brief First dot of the patches of one kind.
+   */
   int offset(SurfacePatch patch) const {
     return patch_[static_cast<int>(patch)];
   }
 
+  /**
+   * @brief Number of dots on the patches of one kind.
+   */
   int count(SurfacePatch patch) const {
     return patch_.degree(static_cast<int>(patch));
   }
@@ -297,15 +313,24 @@ public:
 
   const ArrayXi &atom() const { return atom_; }
 
+  /**
+   * @brief Analytic area of the patches that received no dot.
+   */
   double dropped_area() const { return dropped_area_; }
 
+  /**
+   * @brief Centre of the probe touching the surface at each dot.
+   */
   Matrix3Xd probes() const;
 
   /**
-   * Drop every dot not in `mask`, in place.
+   * @brief Drop every dot not in `mask`, in place.
    */
   void keep(const ArrayXb &mask);
 
+  /**
+   * @brief Copy of the dots in `mask`.
+   */
   SurfaceDots subset(const ArrayXb &mask) const;
 
 private:
@@ -433,18 +458,28 @@ namespace internal {
 }  // namespace internal
 
 /**
- * Analytic SAS and SES of a set of spheres. Active atoms own surface, the
- * rest only occlude; the inputs must outlive the object. `build_sas` stops
- * after the SAS, `build_ses` builds both and keeps the SES.
+ * @brief Analytic SAS and SES of a set of spheres.
+ *
+ * Active atoms own surface, the rest only occlude. `build_sas` stops after
+ * the SAS, `build_ses` builds both and keeps the SES.
  *
  * @note Coordinates must lie within 1e4 angstroms of the origin; subtract one
  *       common shift from all inputs first.
  */
 class AnalyticSurface {
 public:
+  /**
+   * @brief Bind the sphere centres and radii.
+   *
+   * The object holds references to both; they must outlive it, so pass
+   * stored matrices, never expressions.
+   */
   AnalyticSurface(ConstRef<Matrix3Xd> pts, ConstRef<ArrayXd> radii);
 
   /**
+   * @brief Prepare the spheres for the probe radius `rp`, all atoms active
+   *        or only those in `active`.
+   *
    * False when the inputs are rejected (see `internal::prepare`). May be
    * called again with another mask; storage only grows.
    */
@@ -453,10 +488,19 @@ public:
 
   bool initialized() const { return rp() > 0; }
 
+  /**
+   * @brief Build the SAS.
+   */
   internal::SurfaceGeometry build_sas() const;
 
+  /**
+   * @brief Build the SES.
+   */
   internal::SurfaceGeometry build_ses() const;
 
+  /**
+   * @brief Build both surfaces, SAS first.
+   */
   std::pair<internal::SurfaceGeometry, internal::SurfaceGeometry>
   build_both() const;
 
@@ -478,7 +522,9 @@ private:
 };
 
 /**
- * Dots at a fixed density; lattices and scratch persist across calls.
+ * @brief Dot sampler at a fixed density (dots per square angstrom).
+ *
+ * Lattices and scratch persist across calls.
  */
 class SurfaceSampler {
 public:
@@ -486,6 +532,9 @@ public:
 
   double density() const { return density_; }
 
+  /**
+   * @brief Sample dots on every patch of `geo`.
+   */
   SurfaceDots sample(const internal::SurfaceGeometry &geo);
 
 private:
@@ -494,10 +543,12 @@ private:
 };
 
 /**
- * Shape complementarity of Lawrence and Colman
- * @cite desc:sc:lawrence-colman-1993. The atoms within `sep` of the other
- * side own the interface surface, the rest only occlude; a mask narrows the
- * owners further. Scratch persists across calls.
+ * @brief Shape complementarity of Lawrence and Colman
+ *        @cite desc:sc:lawrence-colman-1993.
+ *
+ * The atoms within `sep` of the other side own the interface surface, the
+ * rest only occlude; a mask narrows the owners further. Scratch persists
+ * across calls.
  *
  * @note Coordinates must lie within 1e4 angstroms of the origin; subtract one
  *       common shift from all inputs first.
@@ -508,11 +559,19 @@ public:
 
   const ScParams &params() const { return params_; }
 
+  /**
+   * @brief Same as shape_complementarity(), with the parameters of this
+   *        object.
+   */
   std::optional<ScResult> compute(ConstRef<Matrix3Xd> pts_a,
                                   ConstRef<ArrayXd> radii_a,
                                   ConstRef<Matrix3Xd> pts_b,
                                   ConstRef<ArrayXd> radii_b);
 
+  /**
+   * @brief Same as shape_complementarity(), with the parameters of this
+   *        object and the interface owners restricted.
+   */
   std::optional<ScResult>
   compute(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
           ConstRef<ArrayXb> active_a, ConstRef<Matrix3Xd> pts_b,
