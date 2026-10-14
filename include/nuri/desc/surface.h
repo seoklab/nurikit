@@ -152,7 +152,7 @@ enum class SurfacePatch : int { kConvex = 0, kToroidal, kConcave };
 namespace internal {
   /**
    * Caps on one sphere per row; cap `k` of row `s` covers the directions `d`
-   * with `axis(k) · d > cosa[k]`.
+   * with `dot(axis(k), d) > cosa[k]`.
    */
   struct CapTable {
     OffsetTable off;
@@ -169,8 +169,8 @@ namespace internal {
   };
 
   /**
-   * Circle of spheres `i < j`, with its frame `e1 = normalize(d × e_k)`,
-   * `d = c_j − c_i`, `k = reference_axis(d)`, `e2 = axis × e1`. `aij` is
+   * Circle of spheres `i < j`, with its frame `e1 = normalize(cross(d, e_k))`,
+   * `d = c_j - c_i`, `k = reference_axis(d)`, `e2 = cross(axis, e1)`. `aij` is
    * the plane's offset along `axis` from `c_i` and from `c_j`.
    */
   struct SasCircle {
@@ -353,8 +353,8 @@ private:
  * atom of the other side; a dot is buried when its probe center lies inside a
  * solvent-accessible sphere of the other side, and a buried dot within `band`
  * of an exposed dot of its own side is trimmed as peripheral. Each remaining
- * dot scores `-(n · n') exp(-weight d²)` against the nearest remaining dot of
- * the other side, clamped to `[-clamp, clamp]`.
+ * dot scores `-dot(n, n') exp(-weight d^2)` against the nearest remaining dot
+ * of the other side, clamped to `[-clamp, clamp]`.
  */
 struct ScParams {
   double rp = 1.7;
@@ -403,8 +403,9 @@ namespace internal {
    * `< n_active` own
    * surface, `< n_solve` get arrangements, `< n_enum` get caps. `g` is the
    * forward overlap graph on new indices (`row(i)` = sorted `j > i`) over all
-   * kept spheres, decided exactly for the lifted heights `t = √(wmax − sar²)`
-   * (the near band only ranks atoms); pair `q` carries a circle iff
+   * kept spheres, decided exactly for the lifted heights
+   * `t = sqrt(wmax - sar^2)` (the near band only ranks atoms); pair `q`
+   * carries a circle iff
    * `i < n_enum`, and `d[q]` is its center distance. `r` are the atom radii
    * as given, `sar = r + rp` the accessible ones for the probe radius `rp`,
    * `rmax` the largest `sar` of the kept atoms.

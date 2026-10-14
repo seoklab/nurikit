@@ -58,7 +58,7 @@ namespace internal {
   }
 
   /**
-   * Frame of a circle about unit `axis` with reference ray `d × e_k`.
+   * Frame of a circle about unit `axis` with reference ray `cross(d, e_k)`.
    */
   inline std::pair<Vector3d, Vector3d> circle_frame(const Vector3d &d,
                                                     const Vector3d &axis) {
@@ -67,9 +67,9 @@ namespace internal {
   }
 
   /**
-   * Angle of every vertex in `[0, 2π]` from the frame's reference ray, with
+   * Angle of every vertex in `[0, 2pi]` from the frame's reference ray, with
    * the exact half-plane class overriding the rounding of `atan2` at the
-   * ray and at `π`, so the numeric angles are monotone in the exact order.
+   * ray and at `pi`, so the numeric angles are monotone in the exact order.
    */
   template <class Ops>
   void ring_angles(Ring &ring, const Ops &ops) {
@@ -118,10 +118,10 @@ namespace internal {
 
   /**
    * Which consecutive pair's arc contains the reference ray (its `dphi`
-   * gets `+2π`) and which pairs coincide. A same-class pair of class `1` or
+   * gets `+2pi`) and which pairs coincide. A same-class pair of class `1` or
    * `3` is decided by its numeric angles when they differ by more than
    * `eps`, by the exact `ccw` otherwise. A ring without any decrease is a
-   * single-point window: the `2π` goes to an arc of the accessibility of
+   * single-point window: the `2pi` goes to an arc of the accessibility of
    * the antipode.
    */
   template <class Ops>

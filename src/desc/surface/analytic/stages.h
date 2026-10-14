@@ -47,8 +47,8 @@ namespace internal {
   constexpr double kOffsetRelTol = 0x1p-26;
   /**
    * Two probes at one point differ by two offsets, each certified to
-   * `kOffsetRelTol` of a length `≤ rmax`, taken twice for margin; the center
-   * rounding (`≤ 2^-52 · kSurfaceMaxCoord`) is far below. `build_sas` merges
+   * `kOffsetRelTol` of a length `<= rmax`, taken twice for margin; the center
+   * rounding (`<= 2^-52 * kSurfaceMaxCoord`) is far below. `build_sas` merges
    * every pair of probes within this distance, so no two of its probes are
    * closer.
    */
@@ -142,7 +142,8 @@ namespace internal {
 
   /**
    * Three triangulation vertices; root labels refer to this order:
-   * `x± = c_a + y_⊥ ± (√D / |u|²) u` with `u = (c_b − c_a) × (c_c − c_a)`.
+   * `x+- = c_a + y_perp +- (sqrt(D) / |u|^2) u` with
+   * `u = cross(c_b - c_a, c_c - c_a)`.
    */
   struct BallTriple {
     int a, b, c;
@@ -168,7 +169,7 @@ namespace internal {
   /**
    * Test hook: whether the filter's exact-input operands and its generic
    * operands on `{a, 0}`, `{b, 0}` give the same value and bound, bit for
-   * bit, in `−`, `×` and the mixed sums and products with a bounded operand.
+   * bit, in `-`, `*` and the mixed sums and products with a bounded operand.
    */
   extern bool filter_inputs_agree(double a, double b);
 
@@ -176,10 +177,10 @@ namespace internal {
    * Exact predicates on a set of balls: the power arrangement of weighted
    * points as geogram triangulates them. The balls are the SAS spheres, and
    * later the caps of an SES face lifted to balls. Each ball has center `c_i`,
-   * height `h_i = ((t_i² + x_i²) + y_i²) + z_i²` as geogram evaluates it (or
-   * given directly), and squared radius `ρ_i² = W + |c_i|² − h_i`. Every
-   * exact tie is resolved by
-   * geogram's perturbation: every squared radius grows, lower index first.
+   * height `h_i = ((t_i^2 + x_i^2) + y_i^2) + z_i^2` as geogram evaluates it
+   * (or given directly), and squared radius `rho_i^2 = W + |c_i|^2 - h_i`.
+   * Every exact tie is resolved by geogram's perturbation: every squared
+   * radius grows, lower index first.
    * Compiled without fast-math (`NURI_STRICT_FP_SRCS` in src/CMakeLists.txt);
    * the header carries no arithmetic. `kForceExact` skips the floating
    * filter, `kFilterOnly` aborts on reaching the exact stage (tests only).
@@ -229,7 +230,7 @@ namespace internal {
      */
     Sgn cuts(BallTriple f) const;
     /**
-     * Sign of `π_c` on circle `(a, b)`, valid when `c` does not cut it:
+     * Sign of `pi_c` on circle `(a, b)`, valid when `c` does not cut it:
      * positive outside ball `c`, negative inside.
      */
     Sgn side(int a, int b, int c) const;
@@ -240,7 +241,7 @@ namespace internal {
      */
     bool discs_intersect(int s, int j, int l) const;
     /**
-     * `π_l(x) ≥ 0` for root `x` of face `f`: the cut point is not inside ball
+     * `pi_l(x) >= 0` for root `x` of face `f`: the cut point is not inside ball
      * `l`. Requires `cuts(f)` positive.
      */
     Sgn accept(BallTriple f, bool plus, int l) const;
@@ -259,39 +260,40 @@ namespace internal {
     Sgn accept(FaceKernel &k, bool plus, int l) const;
     Vector3d root(FaceKernel &k, bool plus) const;
     /**
-     * `x − cntr` for root `x` of `f` on circle `(a, b)`, in double but to
+     * `x - cntr` for root `x` of `f` on circle `(a, b)`, in double but to
      * rounding of its own length: the direction is right on a circle of any
      * radius. Requires `cuts(f)` non-negative.
      */
     Vector3d offset(int a, int b, BallTriple f, bool plus) const;
     /**
-     * `x − x'` for root `x` of `f` and root `x'` of `f2`, in double but to
+     * `x - x'` for root `x` of `f` and root `x'` of `f2`, in double but to
      * rounding of its own length: the direction between two roots is right
-     * however close they are. The filter evaluates `(P + √D Q + √D' Q') /
-     * (|u|² |u'|²)` with rational `P = |u|² |u'|² (c_a − c_a') + |u'|² (λ
-     * d_b + μ d_c) − |u|² (λ' d_b' + μ' d_c')`, `Q = ±|u'|² u`, `Q' =
-     * ∓|u|² u'` (each face relative to its first center) and is accepted
-     * when its running bound certifies the vector to `kOffsetRelTol` of
-     * its own length; otherwise the exact dyadics are combined with `√D`,
-     * `√D'` taken to `k` extra bits, `k` doubled from 64 until the sum's
-     * error bound is below `2^-52` of its length, so the result is within
-     * a few ulp of `|x − x'|` (the roundings of the conversion and the
-     * division). Requires `cuts` non-negative for both faces and distinct
-     * roots.
+     * however close they are. The filter evaluates
+     * `(P + sqrt(D) Q + sqrt(D') Q') / (|u|^2 |u'|^2)` with rational
+     * `P = |u|^2 |u'|^2 (c_a - c_a') + |u'|^2 (lambda d_b + mu d_c)
+     * - |u|^2 (lambda' d_b' + mu' d_c')`, `Q = +-|u'|^2 u`,
+     * `Q' = -+|u|^2 u'` (each face relative to its first center) and is
+     * accepted when its running bound certifies the vector to
+     * `kOffsetRelTol` of its own length; otherwise the exact dyadics are
+     * combined with `sqrt(D)`, `sqrt(D')` taken to `k` extra bits, `k`
+     * doubled from 64 until the sum's error bound is below `2^-52` of its
+     * length, so the result is within a few ulp of `|x - x'|` (the roundings
+     * of the conversion and the division). Requires `cuts` non-negative for
+     * both faces and distinct roots.
      */
     Vector3d difference(BallTriple f, bool plus, BallTriple f2,
                         bool plus2) const;
 
     /**
      * Position of root `x` of `f` on circle `(a, b)` relative to the
-     * reference ray `r = (c_b − c_a) × e_k`, `k = reference_axis(c_b − c_a)`:
-     * 0 on the ray, 1 in `(0, π)`, 2 at `π`, 3 in `(π, 2π)`, counter-clockwise
-     * about `c_b − c_a`.
+     * reference ray `r = cross(c_b - c_a, e_k)`,
+     * `k = reference_axis(c_b - c_a)`: 0 on the ray, 1 in `(0, pi)`, 2 at
+     * `pi`, 3 in `(pi, 2pi)`, counter-clockwise about `c_b - c_a`.
      */
     int half_plane(int a, int b, BallTriple f, bool plus) const;
     /**
      * Sign of the oriented angle from root `x_i` to root `x_j` about
-     * `c_b − c_a` on circle `(a, b)`; zero iff the points coincide or are
+     * `c_b - c_a` on circle `(a, b)`; zero iff the points coincide or are
      * antipodal (no perturbation: the caller separates the two cases by
      * `half_plane`).
      */
@@ -304,7 +306,7 @@ namespace internal {
     Sgn ccw_perturbed(int a, int b, BallTriple fi, bool plus_i, BallTriple fj,
                       bool plus_j) const;
     /**
-     * `π_c(Q) ≥ 0` for the antipode `Q = 2 cntr − x` of root `x` of `f` on
+     * `pi_c(Q) >= 0` for the antipode `Q = 2 cntr - x` of root `x` of `f` on
      * circle `(a, b)`.
      */
     Sgn antipode(int a, int b, BallTriple f, bool plus, int c) const;
@@ -331,7 +333,7 @@ namespace internal {
   using BallExact = BallExactImpl<false>;
 
   /**
-   * Reference ray `d × e_k`, `k = BallExact::reference_axis(d)`, of the
+   * Reference ray `cross(d, e_k)`, `k = BallExact::reference_axis(d)`, of the
    * circle frames.
    */
   inline Vector3d reference_ray(const Vector3d &d) {
@@ -456,7 +458,7 @@ namespace internal {
                                const SasGeometry &geo);
 
   /**
-   * Gauss–Bonnet area of one sphere from its caps and the accessible arcs on
+   * Gauss-Bonnet area of one sphere from its caps and the accessible arcs on
    * their circles. Fill with `begin`, `add_cap`, `add_vertex` and `add_arc`
    * (ids are assigned in call order; an arc runs from `beg` to `end`, both -1
    * for a full circle), then `solve`
@@ -521,11 +523,11 @@ namespace internal {
   };
 
   /**
-   * Exact Gauss–Bonnet area of one SES concave face: the probe sphere of
+   * Exact Gauss-Bonnet area of one SES concave face: the probe sphere of
    * radius `rp` at the origin outside every cap, cap `k` lifted to the ball
-   * `(n_k, h_k)` with `π_k(y) = |y − n_k|² − (rp² + |n_k|² − h_k)`, so that
-   * on the sphere `π_k < 0` is the cap: `(t, 0)` for the hemisphere of
-   * tangent `t`, `(w, |w|²)` for the probe at `w`; `cosa_k` is the cosine
+   * `(n_k, h_k)` with `pi_k(y) = |y - n_k|^2 - (rp^2 + |n_k|^2 - h_k)`, so that
+   * on the sphere `pi_k < 0` is the cap: `(t, 0)` for the hemisphere of
+   * tangent `t`, `(w, |w|^2)` for the probe at `w`; `cosa_k` is the cosine
    * of its angular radius. Ties are resolved by `BallExact`'s perturbation
    * in the order probe, then caps as given. On return `live` marks the caps
    * that took part: a cap whose ball does not overlap the probe sphere (an

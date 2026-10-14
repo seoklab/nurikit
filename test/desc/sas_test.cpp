@@ -205,7 +205,7 @@ TEST(BuildSasTest, RejectsBadRadii) {
 }
 
 /**
- * Three standard deviations of a Shrake–Rupley estimate with `n` points at
+ * Three standard deviations of a Shrake-Rupley estimate with `n` points at
  * the worst-case accessible fraction 1/2.
  */
 double sr_tol(const double radius, const int n) {
@@ -490,7 +490,7 @@ TEST(BuildSasTest, NearBandPinch) {
 }
 
 /**
- * Pairs below `touch − 2ε` are overlaps without the predicate, the tangency
+ * Pairs below `touch - 2eps` are overlaps without the predicate, the tangency
  * band is decided exactly, and a pair beyond `touch` is near but no overlap.
  */
 TEST(BuildSasTest, OverlapBandsAroundTouch) {
@@ -1182,8 +1182,8 @@ int flat_cells(const SasDelaunay &del, const int n_coplanar) {
 /**
  * Four coplanar spheres through two points and a fifth covering the upper
  * one: under a rigid motion the coplanar four form a cell of rounding-level
- * height whose apex the old slack excused, leaving a probe 0.4 Å inside the
- * cover.
+ * height whose apex the old slack excused, leaving a probe 0.4 angstrom inside
+ * the cover.
  */
 TEST(BuildSasTest, FlatSquareApexNoSpuriousProbe) {
   Matrix3Xd base(3, 5);
@@ -1234,7 +1234,7 @@ TEST(BuildSasTest, BenzeneCoverNoSpuriousProbe) {
 
 /**
  * The third center lies `amp` from the axis of circle `(a, b)`: the radical
- * line form of the cut points loses `amp²` of precision, the circle form is
+ * line form of the cut points loses `amp^2` of precision, the circle form is
  * exact there, and the builder keeps whichever fits its spheres better.
  */
 TEST(BuildSasTest, CoaxialCutPointsStayOnTheirSpheres) {
@@ -1829,8 +1829,8 @@ TEST(BuildSasTest, SharedCircleSparesTwin) {
 }
 
 /**
- * A third sphere through the point of circle (a, b) at frame angle π: the
- * vertex's atan2 is ±π to rounding and must fold with its exact class, not
+ * A third sphere through the point of circle (a, b) at frame angle pi: the
+ * vertex's atan2 is +-pi to rounding and must fold with its exact class, not
  * toward the ray.
  */
 TEST(BuildSasTest, VertexAtFrameAnglePi) {
@@ -2028,7 +2028,7 @@ TEST(BuildSasTest, ExactCircleTangencies) {
 
 /**
  * Per-atom areas of every index order agree with the first order to 1e-9
- * and with Shrake–Rupley; `ref` receives the first order's areas by atom.
+ * and with Shrake-Rupley; `ref` receives the first order's areas by atom.
  */
 void expect_order_invariant_areas(const Matrix3Xd &pts, const ArrayXd &sar,
                                   ArrayXd &ref) {
@@ -2181,7 +2181,7 @@ TEST(BuildSasTest, MergedKFoldUnderRigidMotion) {
  * perturbed to a cut with both roots at P. The three circles through P
  * share the tangent `y`; (a, b) and (b, c) are accessible full loops back
  * to P (an hourglass on b), (a, c) is buried. One probe, whose tangents are
- * the loops' `±y`, hemispheres that cancel in pairs, so no face.
+ * the loops' `+-y`, hemispheres that cancel in pairs, so no face.
  */
 TEST(BuildSasTest, GrazingVertex) {
   Matrix3Xd pts(3, 3);
@@ -2337,7 +2337,7 @@ TEST(BuildSasTest, CoincidentShellProbesUnderRigidMotion) {
 
 /**
  * Random dense sets: every probe has three tangents, a probe ends at most
- * one arc per circle, and the areas match Shrake–Rupley.
+ * one arc per circle, and the areas match Shrake-Rupley.
  */
 TEST(BuildSasTest, RandomDenseSets) {
   for (const int n: { 60, 200 }) {

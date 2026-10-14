@@ -42,8 +42,8 @@ namespace internal {
     }
 
     /**
-     * Running error bound of a double computation: `|v − exact| ≤ e`. Each
-     * rounding adds `u|v|` (`u = 2^-53`, taken as `2^-52` to cover `1/(1−u)`)
+     * Running error bound of a double computation: `|v - exact| <= e`. Each
+     * rounding adds `u|v|` (`u = 2^-53`, taken as `2^-52` to cover `1/(1-u)`)
      * plus half an ulp of the smallest subnormal for results that underflow.
      * A sign is certified iff `|v| > 2e`; the factor 2 absorbs the rounding
      * of `e` itself for any number of operations below `2^50`.
@@ -150,7 +150,7 @@ namespace internal {
     }
 
     /**
-     * Exact dyadic number `m · 2^e`: every double is one, sums and products
+     * Exact dyadic number `m * 2^e`: every double is one, sums and products
      * stay exact, and no exponent range limits them (expansion arithmetic
      * underflows on degree-20 polynomials of rounded-zero coordinates).
      */
@@ -203,7 +203,7 @@ namespace internal {
       }
 
       /**
-       * `lo ≤ √x < lo + unit` with `unit < 2^-bits lo`; both zero for
+       * `lo <= sqrt(x) < lo + unit` with `unit < 2^-bits lo`; both zero for
        * `x = 0`.
        */
       std::pair<Xp, Xp> sqrt_floor(const int bits) const {
@@ -301,8 +301,8 @@ namespace internal {
     }
 
     /**
-     * Height of vertex `i`; `h_i = W + |c_i|² − ρ_i²`, so the perturbed
-     * vertex has derivative −1 along its own squared radius.
+     * Height of vertex `i`; `h_i = W + |c_i|^2 - rho_i^2`, so the perturbed
+     * vertex has derivative -1 along its own squared radius.
      */
     template <class T>
     input_t<T> height(double h, bool perturbed) {
@@ -382,8 +382,8 @@ namespace internal {
     }
 
     /**
-     * Circle `(a, b)` relative to `a`: `d = c_b − c_a`, `G = |d|²`, and
-     * `π_b − π_a = 2(v − y·d)` for `y = x − c_a`. Its center is
+     * Circle `(a, b)` relative to `a`: `d = c_b - c_a`, `G = |d|^2`, and
+     * `pi_b - pi_a = 2(v - dot(y, d))` for `y = x - c_a`. Its center is
      * `c_a + (v / G) d`.
      */
     template <class T>
@@ -400,9 +400,10 @@ namespace internal {
 
     /**
      * Face `(a, b, c)` relative to `a`. The radical line is
-     * `y = y_⊥ + s u`, `u = d_b × d_c`, `|u|² y_⊥ = λ d_b + μ d_c`, and the
-     * cut points of circle `(a, b)` by `c` are `s = ±√D / |u|²` with
-     * `D = |u|² (ρ_a² − |y_⊥|²)` written as a polynomial.
+     * `y = y_perp + s u`, `u = cross(d_b, d_c)`,
+     * `|u|^2 y_perp = lambda d_b + mu d_c`, and the cut points of circle
+     * `(a, b)` by `c` are `s = +-sqrt(D) / |u|^2` with
+     * `D = |u|^2 (rho_a^2 - |y_perp|^2)` written as a polynomial.
      */
     template <class T>
     struct Face {
@@ -441,7 +442,7 @@ namespace internal {
     }
 
     /**
-     * `A + B √D`, `D ≥ 0`; `B = D = 0` for a rational quantity.
+     * `A + B sqrt(D)`, `D >= 0`; `B = D = 0` for a rational quantity.
      */
     template <class T>
     struct Root {
@@ -454,7 +455,7 @@ namespace internal {
     }
 
     /**
-     * `π_l` at the root `σ` of `fc`.
+     * `pi_l` at the root `sigma` of `fc`.
      */
     template <class T>
     Root<T> accept_root(const Ctx<T> &ctx, const Face<T> &fc, bool plus,
@@ -486,7 +487,8 @@ namespace internal {
     }
 
     /**
-     * `2√D d/dε (A + B√D) = (2 B' D + B D') + 2 A' √D` for `D > 0`.
+     * `2 sqrt(D) d/deps (A + B sqrt(D)) = (2 B' D + B D') + 2 A' sqrt(D)` for
+     * `D > 0`.
      */
     Root<Xp> first_order(const Root<Dual> &r) {
       const Xp two(2.0);
@@ -495,10 +497,10 @@ namespace internal {
     }
 
     /**
-     * Sign of `d/dε (A + B√D)` at an exact zero, with `D(ε) > 0`: for
-     * `D > 0` it is `(2 A' √D + 2 B' D + B D') / (2√D)`; for `D = 0`
-     * (a tangency perturbed to a cut) `√D(ε)` dominates every first-order
-     * term unless `B = 0`.
+     * Sign of `d/deps (A + B sqrt(D))` at an exact zero, with `D(eps) > 0`:
+     * for `D > 0` it is `(2 A' sqrt(D) + 2 B' D + B D') / (2 sqrt(D))`; for
+     * `D = 0` (a tangency perturbed to a cut) `sqrt(D(eps))` dominates every
+     * first-order term unless `B = 0`.
      */
     int tie_sign(const Root<Dual> &r) {
       const int sd = sgn(r.disc.v);
@@ -555,7 +557,8 @@ namespace internal {
     }
 
     /**
-     * `(x0 + x1 √Di) + (y0 + y1 √Di) √Dj`; zero is reported, not perturbed.
+     * `(x0 + x1 sqrt(Di)) + (y0 + y1 sqrt(Di)) sqrt(Dj)`; zero is reported,
+     * not perturbed.
      */
     template <class T>
     struct Root2 {
@@ -585,13 +588,15 @@ namespace internal {
     }
 
     /**
-     * First-order sign of `F = X + Y √Dj`, `X = x0 + x1 √Di`,
-     * `Y = y0 + y1 √Di`, at an exact zero with both `D(ε) > 0`, along one
-     * participant. For `Di, Dj > 0`, with `2√Di X' = A0 + A1 √Di` and
-     * `2√Di Y' = B0 + B1 √Di`, `2√Di√Dj F' = √Dj (A0 + A1 √Di)
-     * + Dj (B0 + B1 √Di) + Dj' (y0 √Di + y1 Di)`. One vanished discriminant
-     * grows like `√ε`, so its coefficient, if non-zero, dominates every
-     * first-order term whichever participant moves it.
+     * First-order sign of `F = X + Y sqrt(Dj)`, `X = x0 + x1 sqrt(Di)`,
+     * `Y = y0 + y1 sqrt(Di)`, at an exact zero with both `D(eps) > 0`, along
+     * one participant. For `Di, Dj > 0`, with
+     * `2 sqrt(Di) X' = A0 + A1 sqrt(Di)` and
+     * `2 sqrt(Di) Y' = B0 + B1 sqrt(Di)`,
+     * `2 sqrt(Di) sqrt(Dj) F' = sqrt(Dj) (A0 + A1 sqrt(Di))
+     * + Dj (B0 + B1 sqrt(Di)) + Dj' (y0 sqrt(Di) + y1 Di)`. One vanished
+     * discriminant grows like `sqrt(eps)`, so its coefficient, if non-zero,
+     * dominates every first-order term whichever participant moves it.
      */
     int tie_sign2_one(const Root2<Dual> &r) {
       const int si = sgn(r.di.v), sj = sgn(r.dj.v);
@@ -616,17 +621,19 @@ namespace internal {
 
     /**
      * Both discriminants vanished; `rs[k]` carries the derivatives along the
-     * `k`-th participant in grading order (`ρ_k²(ε) = ρ_k² + ε η^k`, `ε`
-     * below every power of `η`), the values are shared. With
-     * `Di(ε) = ε Li`, `Li = Σ_k Di_k' η^k`, and `Lj` likewise,
-     * `F = √ε (x1 √Li + y0 √Lj) + ε Σ_k x0_k' η^k`: two roots tangent at an
-     * exact zero have `P_i ∥ P_j`, hence `Q_i ∥ Q_j`, `y1 = 0` and
-     * `x1, y0 ≠ 0`. The `√ε` term is decided by the discriminant that moves
-     * first, or, when both first move at `j`, by `c = x1 √Di_j' + y0 √Dj_j'`
-     * unless `c = 0`: then it is `x1 √Di_j' √η^j (√(1 + A) − √(1 + B))`
-     * for the tails `A = Σ_{k>j} (Di_k' / Di_j') η^(k−j)` and `B` likewise,
-     * of the sign of `x1 (A − B)`, so the first `k > j` with
-     * `Di_k' Dj_j' ≠ Dj_k' Di_j'` decides; if none does, the `ε` term.
+     * `k`-th participant in grading order
+     * (`rho_k^2(eps) = rho_k^2 + eps eta^k`, `eps` below every power of
+     * `eta`), the values are shared. With `Di(eps) = eps Li`,
+     * `Li = sum_k Di_k' eta^k`, and `Lj` likewise,
+     * `F = sqrt(eps) (x1 sqrt(Li) + y0 sqrt(Lj)) + eps sum_k x0_k' eta^k`:
+     * two roots tangent at an exact zero have `P_i || P_j`, hence
+     * `Q_i || Q_j`, `y1 = 0` and `x1, y0 != 0`. The `sqrt(eps)` term is
+     * decided by the discriminant that moves first, or, when both first move
+     * at `j`, by `c = x1 sqrt(Di_j') + y0 sqrt(Dj_j')` unless `c = 0`: then
+     * it is `x1 sqrt(Di_j') sqrt(eta^j) (sqrt(1 + A) - sqrt(1 + B))` for the
+     * tails `A = sum_{k>j} (Di_k' / Di_j') eta^(k-j)` and `B` likewise, of
+     * the sign of `x1 (A - B)`, so the first `k > j` with
+     * `Di_k' Dj_j' != Dj_k' Di_j'` decides; if none does, the `eps` term.
      */
     int tie_sign2_vanished(const Root2<Dual> *rs, const int n) {
       const Root2<Dual> &r0 = rs[0];
@@ -726,12 +733,13 @@ namespace internal {
     }
 
     /**
-     * `G |u|² (x − cntr)` for root `x` of `f` on circle `(a, b)`:
-     * `P + σ √D Q` with rational `P = G (|u|² (c_f − c_a) + λ d_b + μ d_c) −
-     * |u|² v d` (`λ, μ, d_b, d_c` of the face relative to its first center
-     * `c_f`; `v, d, G` of the circle) and `Q = G u`, written in center
-     * differences so the filter's error bound is relative to the offset's
-     * own length. `P ⊥ Q`.
+     * `G |u|^2 (x - cntr)` for root `x` of `f` on circle `(a, b)`:
+     * `P + sigma sqrt(D) Q` with rational
+     * `P = G (|u|^2 (c_f - c_a) + lambda d_b + mu d_c) - |u|^2 v d`
+     * (`lambda, mu, d_b, d_c` of the face relative to its first center `c_f`;
+     * `v, d, G` of the circle) and `Q = G u`, written in center differences
+     * so the filter's error bound is relative to the offset's own length.
+     * `P perp Q`.
      */
     template <class T>
     struct Offset {
@@ -753,8 +761,9 @@ namespace internal {
     }
 
     /**
-     * `√a` for certified non-negative `a`: `|√(v + δ) − √v| ≤ |δ| / √v`
-     * plus the rounding of the square root.
+     * `sqrt(a)` for certified non-negative `a`:
+     * `|sqrt(v + delta) - sqrt(v)| <= |delta| / sqrt(v)` plus the rounding of
+     * the square root.
      */
     Fx sqrt_fx(const Fx &a) {
       const double s = std::sqrt(a.v);
@@ -784,8 +793,8 @@ namespace internal {
     }
 
     /**
-     * `(P + √D Q) / den`; `P ⊥ Q`, so the terms never cancel and the bound
-     * is the sum of their errors.
+     * `(P + sqrt(D) Q) / den`; `P perp Q`, so the terms never cancel and the
+     * bound is the sum of their errors.
      */
     bool certified_offset(const Offset<Fx> &o, Vector3d &out) {
       return certified_nonneg(o.disc)
@@ -801,8 +810,8 @@ namespace internal {
     }
 
     /**
-     * `|u|² |u'|² (x − x')` for root `x` of `f` and `x'` of `f2`:
-     * `P + √D Q + √D' Q'` (`BallExact::difference`).
+     * `|u|^2 |u'|^2 (x - x')` for root `x` of `f` and `x'` of `f2`:
+     * `P + sqrt(D) Q + sqrt(D') Q'` (`BallExact::difference`).
      */
     template <class T>
     struct Diff {
@@ -826,7 +835,7 @@ namespace internal {
     }
 
     /**
-     * `(P + √D Q + √D' Q') / den`.
+     * `(P + sqrt(D) Q + sqrt(D') Q') / den`.
      */
     bool certified_difference(const Diff<Fx> &o, Vector3d &out) {
       return certified_nonneg(o.disc) && certified_nonneg(o.disc2)
@@ -838,8 +847,8 @@ namespace internal {
     constexpr int kMinSqrtBits = 64, kMaxSqrtBits = 4096;
 
     /**
-     * The exact dyadics combined with `√D`, `√D'` to `bits` extra bits,
-     * doubled until the sum's error bound is below `kUlp` of its length.
+     * The exact dyadics combined with `sqrt(D)`, `sqrt(D')` to `bits` extra
+     * bits, doubled until the sum's error bound is below `kUlp` of its length.
      */
     Vector3d exact_difference(const Diff<Xp> &o) {
       ABSL_DCHECK_GE(sgn(o.disc), 0);
@@ -929,10 +938,11 @@ namespace internal {
     }
 
     /**
-     * `T = ρ_a² + ρ_b² − d²`: overlap iff `T ≥ 0` or `4 ρ_a² ρ_b² − T² > 0`.
-     * The second kernel is `4 G (ρ_a² − v_b² / G)`, the circle radius; an
-     * exact zero is a tangency, a circle of zero length, and is reported so
-     * the pair carries no cap.
+     * `T = rho_a^2 + rho_b^2 - d^2`: overlap iff `T >= 0` or
+     * `4 rho_a^2 rho_b^2 - T^2 > 0`. The second kernel is
+     * `4 G (rho_a^2 - v_b^2 / G)`, the circle radius; an exact zero is a
+     * tangency, a circle of zero length, and is reported so the pair carries
+     * no cap.
      */
     template <bool kForceExact, bool kFilterOnly>
     Sgn overlap_impl(const Data &d, const int a, const int b) {
@@ -1032,8 +1042,8 @@ namespace internal {
   }
 
   /**
-   * `U = ρ_x² − ρ_y² − d²`: `B_y ⊂ B_x` iff `U ≥ 0` and `U² ≥ 4 ρ_y² d²`,
-   * internal tangency included.
+   * `U = rho_x^2 - rho_y^2 - d^2`: `B_y inside B_x` iff `U >= 0` and
+   * `U^2 >= 4 rho_y^2 d^2`, internal tangency included.
    */
   template <bool kForceExact, bool kFilterOnly>
   ABSL_ATTRIBUTE_NOINLINE int
@@ -1075,7 +1085,7 @@ namespace internal {
 
   /**
    * Circles `(a, b)` and `(a, c)` coincide iff `u = 0` (collinear centers)
-   * and then `D = −gbb (k vb − vc)² = 0` for `d_c = k d_b` (equal centers).
+   * and then `D = -gbb (k vb - vc)^2 = 0` for `d_c = k d_b` (equal centers).
    * The middle sphere is `a` iff `gbc < 0`, else the nearer of `b`, `c`.
    */
   template <bool kForceExact, bool kFilterOnly>
@@ -1129,7 +1139,7 @@ namespace internal {
   namespace {
     /**
      * Three signs from one face kernel relative to `s`: the discriminant of
-     * the triple and `π_l` on circle `(s, j)`, `π_j` on circle `(s, l)`.
+     * the triple and `pi_l` on circle `(s, j)`, `pi_j` on circle `(s, l)`.
      */
     template <class T>
     std::array<Root<T>, 3> disc_roots(const Ctx<T> &ctx, int s, int j, int l) {
@@ -1335,8 +1345,8 @@ namespace internal {
 
   namespace {
     /**
-     * `(y_i × y_j) · d` for the offsets of roots `x_i`, `x_j` on circle
-     * `(a, b)`, each `P + σ √D Q`.
+     * `dot(cross(y_i, y_j), d)` for the offsets of roots `x_i`, `x_j` on circle
+     * `(a, b)`, each `P + sigma sqrt(D) Q`.
      */
     template <class T>
     Root2<T> ccw_kernel(const Ctx<T> &ctx, int a, int b, BallTriple fi,

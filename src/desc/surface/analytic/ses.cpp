@@ -44,11 +44,12 @@ namespace internal {
     };
 
     /**
-     * Valid ranges `(lo0, hi0, lo1, hi1)` of the generating arc angle `β`
-     * on circle `(i, j)` and the integral `rl (hi − lo) − rp (sin hi − sin
-     * lo)` of each. `β` runs from `−θ_i` to `θ_j` with `sin θ = a / R`; on
-     * a spindle (`rl < rp`) the part `|β| < β0` lies beyond the axis and is
-     * cut out, `β0 = 0` otherwise. Absent parts are zero-width. Endpoints
+     * Valid ranges `(lo0, hi0, lo1, hi1)` of the generating arc angle `beta`
+     * on circle `(i, j)` and the integral `rl (hi - lo) - rp (sin hi - sin
+     * lo)` of each. `beta` runs from `-theta_i` to `theta_j` with
+     * `sin theta = a / R`; on a spindle (`rl < rp`) the part `|beta| < beta0`
+     * lies beyond the axis and is cut out, `beta0 = 0` otherwise. Absent
+     * parts are zero-width. Endpoints
      * are selected together with their sines, so no sine of a selected
      * angle is ever evaluated.
      */
@@ -166,9 +167,10 @@ namespace internal {
 
     /**
      * Per probe with exactly three linearly independent departure tangents
-     * (`triangular`): the corners `p_m = ±normalize(t_{m+1} × t_{m+2})`,
-     * `t_m · p_m ≤ 0`, of the spherical triangle `{d : d · t_m ≤ 0}`, in
-     * columns `3p .. 3p + 2`.
+     * (`triangular`): the corners
+     * `p_m = +-normalize(cross(t_{m+1}, t_{m+2}))`, `dot(t_m, p_m) <= 0`, of
+     * the spherical triangle `{d : dot(d, t_m) <= 0}`, in columns
+     * `3p .. 3p + 2`.
      */
     struct FaceTriangles {
       ArrayXb triangular;
@@ -206,7 +208,7 @@ namespace internal {
 
     /**
      * Whether the cap `(axis, cos a)` on the sphere of `p` overlaps the cap
-     * beyond the contact plane, `d · normal > cos b`: the angle between the
+     * beyond the contact plane, `dot(d, normal) > cos b`: the angle between the
      * axes is below `a + b` (Lemma 8). Probes without a plane pass.
      */
     bool meets_plane_cap(const ProbeHeights &hts, const int p,
@@ -322,7 +324,7 @@ namespace internal {
 
     /**
      * Every cap of the active faces lifted to a ball relative to its probe
-     * (`solve_ses_face`): `(t, 0)` for a hemisphere, `(w, |w|²)` for a
+     * (`solve_ses_face`): `(t, 0)` for a hemisphere, `(w, |w|^2)` for a
      * neighbor at `w`.
      */
     struct LiftedCaps {

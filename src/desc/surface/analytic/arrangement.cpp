@@ -62,7 +62,7 @@ namespace internal {
    * Two darts per arc end: the departing tangent at `beg` and the reversed
    * arriving tangent at `end`. A vertex ends exactly one arc on each of its
    * two circles, so it carries one in-dart and one out-dart; the corner from
-   * the out-dart to the in-dart is the signed angle in `(−π/2, 3π/2]`, and
+   * the out-dart to the in-dart is the signed angle in `(-pi/2, 3pi/2]`, and
    * the two arcs are linked into one loop. Every corner also joins its two
    * caps' components.
    */
@@ -133,7 +133,7 @@ namespace internal {
   }  // namespace
 
   /**
-   * `n_patches = 1 + n_loops − n_components` (analytic_surface page,
+   * `n_patches = 1 + n_loops - n_components` (analytic_surface page,
    * Definitions): the components of
    * the union of all caps come from the corners plus the exact disc
    * intersection test on the remaining pairs. Caps without any arc leave the

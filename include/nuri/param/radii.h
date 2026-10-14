@@ -28,7 +28,7 @@ constexpr double kUnknownRadius = -1;
  * atom radius grows with the number of absorbed hydrogens. The set covers the
  * heavy atoms of standard amino acids and selenomethionine:
  *
- * | Atom         | Radius (Å) | Atom       | Radius (Å) |
+ * | Atom         | Radius (angstrom) | Atom       | Radius (angstrom) |
  * | ------------ | ---------- | ---------- | ---------- |
  * | C            | 1.80       | N, NH      | 1.65       |
  * | CH           | 1.85       | NH2        | 1.70       |

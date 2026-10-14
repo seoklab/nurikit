@@ -39,7 +39,7 @@ namespace internal {
      * Candidate pairs within the near band over every atom, the pairs left
      * for `overlap` to decide (both ends within `kBandHops` near hops of an
      * active atom, minus the exactly contained ones, identical twins
-     * included), of which the ones below `touch − 2ε` overlap without the
+     * included), of which the ones below `touch - 2eps` overlap without the
      * predicate (the lifted radius drifts from `sar` by far less, the
      * superset bound of `kSurfaceMaxCoord`), and the atoms that survive the
      * contained-ball filter. Every kept atom lies within three hops, its

@@ -126,7 +126,7 @@ void expect_block_sums_with_drops(const Sampled &s) {
 }
 
 /**
- * Every probe center `pts + rp·nrm` is outside every SAS sphere, and every
+ * Every probe center `pts + rp * nrm` is outside every SAS sphere, and every
  * normal is unit.
  */
 void expect_on_ses(const Sampled &s, const Matrix3Xd &pts, const ArrayXd &sar,

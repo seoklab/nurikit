@@ -5,7 +5,7 @@
 How nuri::AnalyticSurface computes the solvent-accessible surface (SAS) and
 the solvent-excluded surface (SES) of a set of spheres, how
 nuri::SurfaceSampler places dots on them, and how nuri::ShapeComplementarity
-turns two dot sets into the Lawrence–Colman statistic. The code is in
+turns two dot sets into the Lawrence-Colman statistic. The code is in
 `src/desc/surface/analytic/` and `src/desc/surface/sc.cpp`.
 
 ## Design rules
@@ -35,7 +35,7 @@ turns two dot sets into the Lawrence–Colman statistic. The code is in
 The SES is the molecular surface of Richards @cite desc:surface:richards-1977
 in the analytic patch decomposition of Connolly
 @cite desc:surface:connolly-1983. The characterization of the concave patches
-and the Gauss–Bonnet area formula follow Quan and Stamm
+and the Gauss-Bonnet area formula follow Quan and Stamm
 @cite desc:surface:quan-stamm-2016 (their Theorem 5.1 and formulas
 (4.19)/(5.25)/(5.28)); the derivations below are this document's own. The
 shape complementarity statistic and its defaults are those of Lawrence and
@@ -55,7 +55,7 @@ SAS intersection point \f$x\f$ within \f$2 r_p\f$ and imposes no filter):
 
 | MolSurfComp | There | Here |
 |---|---|---|
-| high probe ⇒ uncut face, by height over the plane of the three atom centers | asserted | not adopted. @ref corollary-1 "Corollary 1"(c), proved, on the distance to the contact *triangle* |
+| high probe implies an uncut face, by height over the plane of the three atom centers | asserted | not adopted. @ref corollary-1 "Corollary 1"(c), proved, on the distance to the contact *triangle* |
 | only low probes may cut | asserted | not adopted. Corollary of @ref lemma-7 "Lemma 7" (cut symmetry), proved |
 | first-atom neighborhood restriction | asserted | not adopted. @ref lemma-10 "Lemma 10" (host overlap) gives the provable version: a cutter's hosts reach the cut face's hosts within two overlap hops, one hop is not enough |
 | keep only the largest departure angle among probes sharing two atoms | asserted | proved (pencil argument), not a code path |
@@ -74,7 +74,7 @@ from it:
   tiny area effect).
 - Rosetta uses `float`, this code `double`, and the sampling patterns differ
   (Fibonacci lattice and equal-area rings against Rosetta's grid), so
-  per-interface values differ by about ±0.01.
+  per-interface values differ by about \f$\pm 0.01\f$.
 - Burial and the peripheral band are identical in definition.
 
 ## Definitions
@@ -108,7 +108,7 @@ part of a SAS sphere is the sphere minus the caps cut by neighboring SAS
 spheres, and the concave face of a vertex is the probe sphere minus the caps
 cut by neighboring vertex probes and by the arcs it rolls off along.
 
-The region of a sphere outside a set of caps is measured by Gauss–Bonnet.
+The region of a sphere outside a set of caps is measured by Gauss-Bonnet.
 For a region with its boundary on the left, on a sphere of radius \f$R\f$,
 
 \f[
@@ -130,15 +130,15 @@ face is one cap component).
 
 `prepare` in `prep.cpp` turns centers, radii, a probe radius and an active
 mask into a `SurfaceSpheres`. Its tolerance is
-`kSurfaceLengthEps` \f$= 10^{-6}\f$ Å (`stages.h`), used only for candidate
+`kSurfaceLengthEps` \f$= 10^{-6}\,\AA\f$ (`stages.h`), used only for candidate
 bands that are supersets of exactly decided sets; every decision is exact.
 
 1. **Candidates.** A non-positive probe radius, non-finite input, any
-   coordinate beyond `kSurfaceMaxCoord` \f$= 10^4\f$ Å in absolute value
+   coordinate beyond `kSurfaceMaxCoord` \f$= 10^4\,\AA\f$ in absolute value
    (where the bands below stop being supersets), and SAS radii with
    \f$R_{\min} < \sqrt{2 r_p^2 + 2\,\tau\,R_{\max}}\f$ (the hypothesis of
    @ref lemma-10 "Lemma 10" for positive radii, a vdW radius just above
-   \f$(\sqrt 2 - 1) r_p\f$, 0.58 Å for water; the sign of the comparison is
+   \f$(\sqrt 2 - 1) r_p\f$, \f$0.58\,\AA\f$ for water; the sign of the comparison is
    what rejects a non-positive atom radius) are rejected. Pairs \f$(i < j)\f$ with
    \f$d \le R_i + R_j + 2\tau\f$ are the **near** pairs, found by a
    nuri::VoxelGrid over the atoms within `kBandHops + 1` near-pair lengths of
@@ -195,7 +195,7 @@ bands that are supersets of exactly decided sets; every decision is exact.
    in `build_sas` and read everywhere else, and the active circles, the only
    ones with saddle patches, are the pairs below `g.offset(n_active)`. Dot
    owners are mapped back through `order` at the
-   very end. The predicates of steps 1–3 run only on pairs whose two atoms
+   very end. The predicates of steps 1-3 run only on pairs whose two atoms
    lie within four near-pair hops of an active atom: every kept atom is
    within three hops, its containing partners and shared-circle triangles
    within four, and ranks only propagate from rank \f$\le 2\f$ sources, so
@@ -368,7 +368,7 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
 
    The arcs carry \f$\varphi\f$ and \f$\Delta\varphi\f$ in the circle frame
    for output and for the \f$\sum \Delta\varphi \cos\alpha\f$ term. The
-   \f$+2\pi\f$ wrap is a decision, not a convention: Gauss–Bonnet sums only
+   \f$+2\pi\f$ wrap is a decision, not a convention: Gauss-Bonnet sums only
    the accessible arcs, so placing the wrap on an accessible instead of an
    inaccessible arc changes the area by \f$2\pi R^2 \cos\alpha\f$, and at a
    ring whose vertices are all probes of one \f$k\f$-fold point every
@@ -403,7 +403,7 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    tangents, taken from the circle frame at each end vertex's own angle
    rather than from the probe positions: darts and arcs then describe one
    closed curve even on a circle too small for the positions to resolve,
-   which is what Gauss–Bonnet needs.
+   which is what Gauss-Bonnet needs.
 5. **Arrangement per sphere** (`ArrangementSolver`, `arrangement.cpp`). On
    sphere \f$s\f$ a probe lies on exactly two circles, so it has one in-dart
    and one out-dart. Arcs are stored with increasing \f$\varphi\f$, which
@@ -433,7 +433,7 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    sphere. Counting only caps with arcs is wrong: a band of two rows of caps
    has a north loop from the top row and a south loop from the bottom row and
    no cap on both, so it would count two components instead of one and be
-   off by \f$4\pi R^2\f$. Then \f$P = 1 + L - C\f$ and the Gauss–Bonnet
+   off by \f$4\pi R^2\f$. Then \f$P = 1 + L - C\f$ and the Gauss-Bonnet
    formula give the area. The degenerate cases are structural: no caps,
    \f$4\pi R^2\f$; caps but no accessible arc, the accessible region has no
    boundary and is not the whole sphere, so it is empty, area 0. Nested caps
@@ -452,7 +452,7 @@ are unchanged inside \f$U\f$, a bounding apex never rejects a cut point,
 and, because every center is strictly inside the bounding tetrahedron (its
 inradius exceeds \f$\Delta\f$), every hull face of the triangulation
 consists of bounding points only. A bounding point is never hidden, so this
-holds for the triangulation actually built. ∎
+holds for the triangulation actually built.
 
 \anchor theorem-1
 **Theorem 1 (vertex recipe).** In plain words: a cut point of a face is on
@@ -487,7 +487,7 @@ point lies on four spheres in this configuration (it would be a cell
 orthocentre of zero power), so \f$x\f$ lies in the cells of exactly
 \f$a, b, c\f$, \f$V_a \cap V_b \cap V_c\f$ is the power edge dual to the
 \f$RT\f$ face \f$abc\f$, \f$x\f$ is one of that face's cut points, and the
-face accepts \f$x\f$. ∎
+face accepts \f$x\f$.
 
 At an unperturbed \f$k\f$-fold point the recipe still holds pointwise, but
 two cells can share an orthocentre, and then every face of the degenerate
@@ -529,7 +529,7 @@ positively oriented cells give the fan. Points not accepted by @ref theorem-1 "T
 outside the segment and are skipped without disturbing the order. A face
 that cuts the circle with both roots rejected has its segment wholly inside
 or wholly outside the disc; either way the circle does not meet that
-edge. ∎
+edge.
 
 \anchor theorem-2
 **Theorem 2 (neighbor caps suffice).** In plain words: every buried point
@@ -546,7 +546,7 @@ tangent neighbor has an empty open cap, consistent with step 2), the
 components of that union are the components of step 5, and every accessible
 arc on circle \f$(s, t)\f$ lies in the facet \f$V_s \cap V_t\f$, so
 \f$(s, t)\f$ is an edge and, by @ref theorem-1 "Theorem 1" and @ref lemma-2 "Lemma 2", its endpoints are the
-ring of that edge. ∎
+ring of that edge.
 
 \anchor lemma-3
 **Lemma 3 (occluder crop).** In plain words: an occluder that is near no
@@ -682,7 +682,7 @@ which no perturbation changes.
    keeps the lattice directions outside every listed cap, i.e. outside
    \f$U_s\f$ (convex) or outside the live face caps (concave), the same
    sets; toroidal rows are per arc from bitwise data; owners are per dot
-   from the same sorted atom lists. So (c). ∎
+   from the same sorted atom lists. So (c).
 
 *What may change.* Everything the triangulation numbers: cells, adjacency,
 face and root ids, probe ids within one owner, the start of each ring, the
@@ -767,8 +767,8 @@ circles and their cut points) are deleted before the sweep, whose vertices
 are the accessible cut points of `g`-faces (@ref theorem-1 "Theorem 1");
 two caps are joined iff a vertex links them or their open discs meet (a
 touch is no join). This is correct iff every pinch point counts loops and
-components one way: vertex present ⇒ joined (cusp pair, net area 0), absent
-⇒ not joined (two loops, two components).
+components one way: vertex present means joined (cusp pair, net area 0), absent
+means not joined (two loops, two components).
 
 \anchor theorem-3
 **Theorem 3 (the hybrid sweep is a limit).** Near every pinch point, for any
@@ -787,7 +787,7 @@ the hybrid keeps iff the cell with the partner exists, the shifted
 configuration's accessible root; faces without a pair member are rejected on
 both sides, a grazing face never has a partner as apex, and components agree
 by corner-first joins and the nested/touching dichotomy. So near every pinch
-the sweep's input is that arrangement's and the area its limit. ∎
+the sweep's input is that arrangement's and the area its limit.
 
 The theorem is also exercised on 133 exact fixtures over index orders, rigid
 motions and masks.
@@ -843,10 +843,10 @@ rounded to double and combined in a few more roundings), so the direction
 from the center is right to \f$2^{-26}\f$ on a circle of any radius. The
 certificate is relative to the offset's own length; coordinate-scale
 roundings in \f$v\f$ only enlarge the certified error (measured
-\f$10^{-14}\f$ at the origin, \f$10^{-9}\f$ at 1000 Å). This matters for a
+\f$10^{-14}\f$ at the origin, \f$10^{-9}\f$ at \f$1000\,\AA\f$). This matters for a
 circle tiny only by rounding (a tangent pair under a rigid motion has radius
-about \f$10^{-8}\f$ Å, and a non-tie can be far smaller): the floating
-discriminant and radius² of such a circle are smaller than their own
+about \f$10^{-8}\,\AA\f$, and a non-tie can be far smaller): the floating
+discriminant and squared radius of such a circle are smaller than their own
 rounding error, and the vertex angles of a position taken from them are
 noise. The probe position is \f$\mathrm{cntr} + \text{offset}\f$;
 \f$\varphi\f$, dart angles and areas inherit at most that \f$2^{-26}\f$
@@ -945,7 +945,7 @@ is a `DCHECK` on an invariant, not a decision.
   further apart than the sum is in the exact order, and an exact tie is
   always within it. Ties are perturbed in the order probe, then caps as
   given. The `ArrangementSolver` then walks the darts and applies
-  Gauss–Bonnet as on a SAS sphere.
+  Gauss-Bonnet as on a SAS sphere.
 
 ### Which probes can cut a face
 
@@ -972,7 +972,7 @@ any point of the convex hull of \f$\{c_a : a \in A(s)\}\f$, and
 so \f$|v - c_a| \ge |s - c_a|\f$, which expands to
 \f$(c_a - s) \cdot (v - s) \le |v - s|^2/2\f$. Averaging over the weights of
 \f$q\f$ gives the same bound for \f$(q - s) \cdot (v - s)\f$, and then
-\f$|p - v|^2 - |p - s|^2 = |v - s|^2 - 2\tau (q - s) \cdot (v - s) \ge (1 - \tau)|v - s|^2\f$. ∎
+\f$|p - v|^2 - |p - s|^2 = |v - s|^2 - 2\tau (q - s) \cdot (v - s) \ge (1 - \tau)|v - s|^2\f$.
 
 \anchor corollary-1
 **Corollary 1 (consequences of the contact hull).** Three consequences of
@@ -1017,7 +1017,7 @@ so \f$|v - c_a| \ge |s - c_a|\f$, which expands to
   decided once for every probe; high faces are dropped at the pair stage, so
   a high active face is never solved against any cap. A high face whose three tangents are linearly dependent has no
   spherical triangle and goes to the face solver on its hemispheres alone,
-  where two of them are complementary and the area is 0. ∎
+  where two of them are complementary and the area is 0.
 
 \anchor lemma-5
 **Lemma 5 (a ball inside the union that touches a vertex points into its
@@ -1031,7 +1031,7 @@ along \f$w\f$ leaves every SAS ball of the touched atoms
 (\f$|y + \epsilon w - c_b|^2 = R_b^2 - 2\epsilon\, w \cdot (c_b - y) + \epsilon^2 > R_b^2\f$)
 and stays outside the SAS balls \f$y\f$ does not touch, so the point is
 outside \f$U\f$; yet it is inside \f$B(q, \varrho)\f$, which lies in
-\f$U\f$. ∎
+\f$U\f$.
 
 \anchor lemma-6
 **Lemma 6 (the first SAS point an inflating ball touches is a vertex).** Let
@@ -1111,7 +1111,7 @@ directions.)
 *The cut.* \f$p_1\f$ is on the bisector plane of \f$x\f$ and \f$s_1\f$, and
 \f$x + r_p d\f$ lies beyond \f$p_1\f$ on the ray from \f$x\f$ when
 \f$t_1 < r_p\f$, so it is closer to \f$s_1\f$ than to \f$x\f$:
-\f$|x + r_p d - s_1| < r_p\f$. ∎
+\f$|x + r_p d - s_1| < r_p\f$.
 
 \anchor theorem-4
 **Theorem 4 (vertex caps suffice).** The concave face of a vertex \f$x\f$ is
@@ -1128,7 +1128,7 @@ point lies in \f$B_{r_p}^\circ\f$, so \f$t_1 < r_p\f$ and
 point. For the probes rolling along the arcs that leave \f$x\f$ this is
 also visible directly: their bisector planes with \f$x\f$ all contain the
 torus axis, and the union of their caps is the departure hemisphere together
-with the cap of the arc's end vertex. ∎
+with the cap of the arc's end vertex.
 
 \anchor lemma-7
 **Lemma 7 (cutting is symmetric).** Let \f$x\f$, \f$y\f$ be vertices with
@@ -1153,7 +1153,7 @@ and \f$y\f$ lie on its boundary, so @ref lemma-5 "Lemma 5" applies at both:
 \f$|y + r_p e - x| \le |y + r_p e - q| + |q - x| = (r_p - \varrho) + \varrho = r_p\f$,
 with equality only if \f$q - x\f$ and \f$q - y\f$ point the same way, which
 with equal lengths means \f$x = y\f$. Finally @ref corollary-1 "Corollary 1"(a) at \f$y\f$, with
-the SAS point \f$x\f$, gives \f$t_y(e) < r_p\f$. ∎
+the SAS point \f$x\f$, gives \f$t_y(e) < r_p\f$.
 
 \anchor corollary-2
 **Corollary 2 (both ends low, symmetric drop).** If \f$y\f$ cuts \f$x\f$,
@@ -1173,7 +1173,7 @@ for \f$x\f$ to cut \f$y\f$. The hypothesis of @ref lemma-7 "Lemma 7" that
 the face is computed without \f$y\f$ cannot be dropped: a point of
 \f$x\f$'s beyond-plane cap can lie inside \f$y\f$'s ball while \f$x\f$'s
 ball misses \f$y\f$'s cone entirely; such a point is always inside some
-other vertex ball, which is what @ref lemma-6 "Lemma 6" finds. ∎
+other vertex ball, which is what @ref lemma-6 "Lemma 6" finds.
 
 \anchor lemma-8
 **Lemma 8 (the cap must reach the beyond-plane cap).** A cap
@@ -1193,7 +1193,7 @@ The step
 have \f$\cos\alpha = |x - y|/2r_p \ge 0\f$ and the beyond-plane cap has
 \f$\cos\beta = h/r_p \ge 0\f$, so both are at most \f$\pi/2\f$. Under that
 bound the test is not merely necessary but exact for
-\f$\mathrm{cap} \cap D_x \ne \emptyset\f$. ∎
+\f$\mathrm{cap} \cap D_x \ne \emptyset\f$.
 
 \anchor lemma-9
 **Lemma 9 (the cap must meet the spherical triangle).** The cap meets the
@@ -1232,7 +1232,7 @@ than \f$\pi\f$, so \f$p + q \ne 0\f$ and \f$p \cdot (p + q) = 1 + p \cdot q > 0\
 which is what makes the squaring above sign-safe. Probes failing
 independence, like \f$k\f$-fold probes, pass the test and are solved
 unfiltered. The condition is necessary for the cap to cut anything and, for
-a face with no other caps, sufficient. ∎
+a face with no other caps, sufficient.
 
 \anchor lemma-10
 **Lemma 10 (host overlap).** Whenever one probe trims another's face, some
@@ -1288,7 +1288,7 @@ tolerance term is at most \f$4\tau R_{\max} \Lambda' M'\f$; hence
 and \f$P + Q \ge 2\f$ gives \f$(1 - \gamma)(PQ - 2) \ge (1 - \gamma)(PQ - P - Q)\f$.
 Together,
 \f$PQ\,[(1 - \gamma) - (R_x R_y - 2\tau R_{\max})/\varrho^2] \ge 2 - \gamma > 0\f$,
-so \f$R_x R_y - 2\tau R_{\max} < \varrho^2(1 - \gamma) = \ell^2/2\f$. ∎
+so \f$R_x R_y - 2\tau R_{\max} < \varrho^2(1 - \gamma) = \ell^2/2\f$.
 
 \anchor corollary-3
 **Corollary 3 (two neighbor shells suffice).** Enumerating the vertices
@@ -1302,8 +1302,8 @@ contact points within the cluster's diameter, at most \f$\tau_m \ll 2\tau\f$
 (SAS step 4), so \f$|c_a - c_d| \le R_a + R_d + 2\tau\f$. An overlap is a
 near pair, so by @ref lemma-10 "Lemma 10" a host of a first-touch cutter of
 \f$x\f$ is within two near hops of every host of \f$x\f$. The radius
-threshold is not vacuous: with vdW radii of 0.03 Å at \f$r_p \approx 1\f$
-a cutter exists none of whose hosts overlaps any host of the cut face. ∎
+threshold is not vacuous: with vdW radii of \f$0.03\,\AA\f$ at \f$r_p \approx 1\f$
+a cutter exists none of whose hosts overlaps any host of the cut face.
 
 ### Filter order
 
@@ -1322,14 +1322,14 @@ cap that fails a filter is therefore never \f$s_1\f$ for any point, every
 cut point keeps its first-touch cutter, and the face computed from the
 survivors is the same. @ref corollary-2 "Corollary 2" also makes the drop
 symmetric: a failure on either side proves there is no cutting in either
-direction, so the pair is dropped for both faces. ∎
+direction, so the pair is dropped for both faces.
 
-Per structure: heights of all probes (@ref corollary-1 "Corollary 1"(c))
-→ probe pairs within \f$2 r_p\f$ (a nuri::VoxelGrid query) → drop pairs
-with a high end (both ends low) → drop pairs failing @ref lemma-8 "Lemma 8" on either side
-→ drop pairs failing @ref lemma-9 "Lemma 9" on either side, tested on the survivors only →
-closed-form areas of the high active faces with a triangle, and the face
-solver on every other active face with the surviving caps. By
+Per structure: heights of all probes (@ref corollary-1 "Corollary 1"(c)), then probe
+pairs within \f$2 r_p\f$ (a nuri::VoxelGrid query), then drop pairs with a
+high end (both ends low), then drop pairs failing @ref lemma-8 "Lemma 8" on
+either side, then drop pairs failing @ref lemma-9 "Lemma 9" on either side,
+tested on the survivors only, then closed-form areas of the high active faces
+with a triangle, and the face solver on every other active face with the surviving caps. By
 @ref theorem-5 "Theorem 5" the dropped caps change nothing. The filters are
 necessary conditions evaluated in floating point: a rounding flip can only
 drop a cap that reaches the face by a rounding-scale sliver, an area effect
@@ -1396,7 +1396,7 @@ round half away from zero.
 nuri::ShapeComplementarity (`sc.cpp`) implements the statistic of
 @cite desc:sc:lawrence-colman-1993 with the parameters of nuri::ScParams,
 whose defaults are those of Rosetta's `sc` application
-(\f$r_p = 1.7\f$ Å, density 15 Å⁻², weight 0.5, band 1.5 Å, separation 8 Å,
+(\f$r_p = 1.7\,\AA\f$, density \f$15\,\AA^{-2}\f$, weight 0.5, band \f$1.5\,\AA\f$, separation \f$8\,\AA\f$,
 clamp 0.999). For each side:
 
 1. **Active atoms** are those with an atom of the other side within `sep`

@@ -188,7 +188,7 @@ namespace {
   }
 
   /**
-   * Lattice directions outside every cap `(axis_c, cosa_c)`: `axis_c · d
+   * Lattice directions outside every cap `(axis_c, cosa_c)`: `dot(axis_c, d)
    * > cosa_c` for no `c`.
    */
   auto outside_caps(SampleScratch &scratch, const Matrix3Xd &dirs,
@@ -258,7 +258,7 @@ namespace {
   };
 
   /**
-   * Rings of equal `β` width, each with `round(a_m ρ)` dots; a row whose
+   * Rings of equal `beta` width, each with `round(a_m rho)` dots; a row whose
    * rings all round to zero is sampled as one ring, and a row that still
    * rounds to zero is dropped.
    */

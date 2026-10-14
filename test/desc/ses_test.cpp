@@ -253,8 +253,8 @@ double convex_from_dots(const SurfaceGeometry &s, const int i,
 }
 
 /**
- * Torus patches by quadrature of `rp (rl − rp cos β)` over each arc's full
- * generating range; spindles excluded (`rl ≥ rp` asserted).
+ * Torus patches by quadrature of `rp (rl - rp cos beta)` over each arc's full
+ * generating range; spindles excluded (`rl >= rp` asserted).
  */
 double saddle_from_quadrature(const SurfaceGeometry &s, const double rp) {
   const ToroidalPatches &tor = s.toroidal();
@@ -335,7 +335,8 @@ TEST(BuildSesTest, TwoSpheresClosedForm) {
 }
 
 /**
- * Spindle torus: the arc `[−θ_1, θ_2]` loses `|β| < β0 = acos(rl / rp)`.
+ * Spindle torus: the arc `[-theta_1, theta_2]` loses
+ * `|beta| < beta0 = acos(rl / rp)`.
  */
 void expect_two_sphere_cusp(const double r1, const double r2, const double d,
                             const bool lower_part, const bool upper_part) {
@@ -428,7 +429,7 @@ TEST(BuildSesTest, TwoSpheresNoActiveNoSaddle) {
 }
 
 /**
- * `rp² (2π − Σ angles)` over the planes through the probe and each pair of
+ * `rp^2 (2pi - sum angles)` over the planes through the probe and each pair of
  * its atom centers, oriented away from the third atom.
  */
 double excess_from_planes(const SurfaceGeometry &s, const int p) {
@@ -726,7 +727,7 @@ Matrix3Xd circumradius_four_triangle() {
 
 /**
  * Circumcenter `(4, 0, 0)`, circumradius 4, `sar` 5, `rp` 3: the probes at
- * `(4, 0, ±3)` are exactly `2 rp` apart, so neither caps the other; a rigid
+ * `(4, 0, +-3)` are exactly `2 rp` apart, so neither caps the other; a rigid
  * motion rounds the pair to either side of tangency.
  */
 TEST(BuildSesTest, TangentNeighborProbe) {
@@ -764,7 +765,7 @@ TEST(BuildSesTest, TangentNeighborProbe) {
 /**
  * Acute dyadic triangle inscribed in the circle of radius 5 about the origin
  * with `sar` 5: probe height exactly 0, the two probes coincide at the
- * circumcenter. Shrake–Rupley to 0.05 of NearBandPinch times `(sar / 2)²`.
+ * circumcenter. Shrake-Rupley to 0.05 of NearBandPinch times `(sar / 2)^2`.
  */
 TEST(BuildSesTest, PlanarProbe) {
   const double rp = 2.0, sr_tol = 0.05 * 2.5 * 2.5;
@@ -973,7 +974,7 @@ TEST(BuildSesTest, RoundedTangentPairFaces) {
 
 /**
  * Spindle circle (a, b) of radius 3 under `rp = 3.25` with four probes at
- * dyadic points; the two axis points `(0, 0, ±1.25)` lie on every probe
+ * dyadic points; the two axis points `(0, 0, +-1.25)` lie on every probe
  * sphere, so on each face the hemisphere of the `(a, b)` arc and the caps
  * of the other three probes pass through the same two points exactly.
  */

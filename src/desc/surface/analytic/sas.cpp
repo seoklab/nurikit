@@ -400,8 +400,8 @@ namespace internal {
 
     /**
      * Sign of the permutation `(a, b, c)` of the sorted face; the root
-     * `−ε` enters ball `c` along circle `(a, b)` oriented about `a → b`,
-     * the root `+ε` leaves it.
+     * `-eps` enters ball `c` along circle `(a, b)` oriented about `a -> b`,
+     * the root `+eps` leaves it.
      */
     int face_parity(const Array3i &sorted, const int a, const int b) {
       const int ia = value_if(sorted[1] == a) + 2 * value_if(sorted[2] == a),
@@ -412,8 +412,8 @@ namespace internal {
     }
 
     /**
-     * Cells around edge `(a, b)` counter-clockwise about `a → b`; positively
-     * oriented cells make `(a, b, d, c)` even iff `d → c` turns
+     * Cells around edge `(a, b)` counter-clockwise about `a -> b`; positively
+     * oriented cells make `(a, b, d, c)` even iff `d -> c` turns
      * counter-clockwise. `face()` is the face `(a, b, third())` about to be
      * crossed.
      */
@@ -609,8 +609,9 @@ namespace internal {
      * axis; a constant cell shift preserves the sorted order, so the 13
      * forward neighbor shifts are 13 merge joins of the order with itself.
      * The result is the set of pairs within `tau`, whatever the probe order.
-     * Cell indices fit `int64`: the span is `≤ 2 (kSurfaceMaxCoord + rmax)`
-     * and `prepare` keeps `rmax ≥ 2 kSurfaceLengthEps`, so `span / tau < 2^43`.
+     * Cell indices fit `int64`: the span is `<= 2 (kSurfaceMaxCoord + rmax)`
+     * and `prepare` keeps `rmax >= 2 kSurfaceLengthEps`, so
+     * `span / tau < 2^43`.
      */
     void merge_near_probes(const SurfaceSpheres &ss,
                            const std::vector<RawProbe> &raw,
@@ -829,7 +830,7 @@ namespace internal {
     /**
      * An arc with both ends in one merged probe is a diagonal of a k-fold
      * point and contributes no tangent, unless it is the full loop grazing
-     * the vertex (`dphi ≥ π`), which contributes both.
+     * the vertex (`dphi >= pi`), which contributes both.
      */
     bool has_tangents(const RingArc &arc) {
       return arc.beg >= 0 && (arc.beg != arc.end || arc.dphi >= constants::kPi);

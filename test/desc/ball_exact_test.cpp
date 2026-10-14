@@ -561,12 +561,12 @@ TEST(BallExactTest, OffsetOnRoundingTinyCircle) {
 }
 
 /**
- * Centers nearly collinear (`|u| ~ ε |d_b| |d_c|`) with both circles through
- * `a` nearly great circles of `a`, so the root is `c_a ± ρ_a u / |u|` up to
- * `ε`: the normal `u` and the divisor `G |u|²` both carry a relative rounding
- * of order `2^-52 / ε`, and the filter's certificate must cover the divisor
- * as well as the numerator. Sphere `a` sits at the origin so that no
- * coordinate-scale rounding enters `v`.
+ * Centers nearly collinear (`|u| ~ eps |d_b| |d_c|`) with both circles through
+ * `a` nearly great circles of `a`, so the root is `c_a +- rho_a u / |u|` up to
+ * `eps`: the normal `u` and the divisor `G |u|^2` both carry a relative
+ * rounding of order `2^-52 / eps`, and the filter's certificate must cover
+ * the divisor as well as the numerator. Sphere `a` sits at the origin so
+ * that no coordinate-scale rounding enters `v`.
  */
 TEST(BallExactTest, OffsetNearCollinearGreatCircle) {
   std::mt19937 rng(31);
@@ -764,7 +764,7 @@ std::vector<CircleRoot> circle_roots(const BallExact &ex, const int a,
 /**
  * Groups of exactly coincident roots on every circle: the perturbed order
  * must be a strict total order on each, and match the oracle away from
- * tangencies (one radius at a time misses the `√ε` growth of a vanished
+ * tangencies (one radius at a time misses the `sqrt(eps)` growth of a vanished
  * discriminant that the graded perturbation lets dominate). Returns the
  * number of groups.
  */
@@ -944,8 +944,8 @@ TEST(BallExactTest, CcwPerturbedMatchesForcedExact) {
 
 /**
  * Spheres 2 and 3 are both tangent to circle `(0, 1)` at `(1, 0, 0)` and
- * split from it at the same first-order rate, so the `√ε` terms of the two
- * tangent roots cancel at the first participant and the second decides;
+ * split from it at the same first-order rate, so the `sqrt(eps)` terms of the
+ * two tangent roots cancel at the first participant and the second decides;
  * the signs are those of a 700-digit graded oracle.
  */
 TEST(BallExactTest, CcwPerturbedCancellingTangentRoots) {
@@ -1082,7 +1082,7 @@ TEST(BallExactTest, HeightsConstructorMatchesLift) {
 
 /**
  * The lift of the face solver (`solve_ses_face`): probe at the origin,
- * hemisphere caps `(t, 0)`, `W = rp²`. Every rational part of the ring
+ * hemisphere caps `(t, 0)`, `W = rp^2`. Every rational part of the ring
  * predicates is then an exact zero built from exact zeros, which the filter
  * certifies: the exact stage is never entered (`kFilterOnly` aborts there).
  */
