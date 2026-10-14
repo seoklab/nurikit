@@ -1684,14 +1684,27 @@ the class fold and the subtraction add roundoff only; a pair further apart
 than `kRingSortEps` is in the exact order, and an exact tie is always within
 it.
 
-## Deviations from MolSurfComp and Rosetta {#deviations}
+## Related work {#related}
+
+### Related constructions {#related-constructions}
+
+- The dual complex of @ref theorem-2 "Theorem 2" underlies the alpha-shape
+  area of @cite desc:surface:liang-1998, which sums inclusion-exclusion terms
+  instead of solving each sphere's arrangement.
+- The exact arrangement of the circles on one sphere
+  (@ref sas-step-5 "SAS step 5") was previously computed by a sweep over all
+  its intersecting neighbors @cite desc:surface:cazals-loriot-2009.
+- The reduced-surface algorithm of @cite desc:surface:sanner-1996 computes
+  the probe-probe cuts of @ref theorem-4 "Theorem 4" without proof.
+
+### MolSurfComp {#related-molsurfcomp}
 
 The authors' Matlab implementation of the surface, MolSurfComp
 (<https://github.com/quanchaoyu/MolSurfComp>, LGPL-3.0), is distributed under
 terms incompatible with this project's Apache-2.0 license. No code, formula,
 constant, tolerance, table, identifier or file structure from it appears in
 this source tree; the implementation was written from the paper and from the
-derivations above, and MolSurfComp was read once, as a black box, for a
+derivations on this page, and MolSurfComp was read once, as a black box, for a
 correctness audit. That audit found four prunings of the concave cut set that
 the paper does not state (its Theorem 5.1 removes \f$B_{r_p}(x)\f$ for every
 SAS intersection point \f$x\f$ within \f$2 r_p\f$ and imposes no filter):
@@ -1707,6 +1720,8 @@ Since \f$\operatorname{dist}(x, T) \ge h\f$, strictly more faces are uncut
 here, and the two implementations disagree observably (on 1BRS, 3782 high
 faces here against 3520 there; on 2PTC, 1686 against 1555).
 
+### Rosetta {#related-rosetta}
+
 Rosetta's `sc` application was used only as a numeric oracle for the
 statistic; it is neither linked nor redistributed. Intentional deviations
 from it:
@@ -1719,11 +1734,3 @@ from it:
   (Fibonacci lattice and equal-area rings against Rosetta's grid), so
   per-interface values differ by about \f$\pm 0.01\f$.
 - Burial and the peripheral band are identical in definition.
-
-Related constructions: the dual complex of @ref theorem-2 "Theorem 2"
-underlies the alpha-shape area of @cite desc:surface:liang-1998, which sums
-inclusion-exclusion terms instead of solving each sphere's arrangement; the
-exact arrangement of the circles on one sphere was previously computed by a
-sweep over all its intersecting neighbors @cite desc:surface:cazals-loriot-2009;
-and the reduced-surface algorithm of @cite desc:surface:sanner-1996 computes
-the probe-probe cuts of @ref theorem-4 "Theorem 4" without proof.
