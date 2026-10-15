@@ -9,6 +9,7 @@
 #include <numeric>
 #include <optional>
 #include <random>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -639,45 +640,78 @@ TEST(BuildSesTest, RandomClustersVsDots) {
 
 /**
  * Every face solved again on the unfiltered cap list (all probes strictly
- * within `2 rp`) through the same solver.
+ * within `2 rp`) through the same solver; returns how many faces had a
+ * filtered cap.
  */
+int expect_filters_keep_area(const Matrix3Xd &pts, const ArrayXd &sar,
+                             const std::string &where) {
+  const Ses s = solve_stages(pts, sar);
+  const SasProbes &probes = s.geo.probes;
+
+  int n_extra = 0;
+  for (int p = 0; p < probes.n_active; ++p) {
+    const Vector3d x = probes.pos.col(p);
+    const int nt = probes.tan_off.degree(p);
+    std::vector<int> near;
+    for (int y = 0; y < probes.pos.cols(); ++y) {
+      if (y != p && (probes.pos.col(y) - x).norm() < 2 * kRp)
+        near.push_back(y);
+    }
+
+    const int m = nt + static_cast<int>(near.size());
+    n_extra += m > s.ses.face_off.degree(p);
+    Matrix3Xd n(3, m);
+    ArrayXd h(m), cosa(m);
+    n.leftCols(nt) = probes.tan.middleCols(probes.tan_off[p], nt);
+    h.head(nt).setZero();
+    cosa.head(nt).setZero();
+    for (int k = 0; k < static_cast<int>(near.size()); ++k) {
+      n.col(nt + k) = probes.pos.col(near[k]) - x;
+      h[nt + k] = n.col(nt + k).squaredNorm();
+      cosa[nt + k] = std::sqrt(h[nt + k]) / (2 * kRp);
+    }
+
+    ArrayXb live;
+    const double area = solve_ses_face(n, h, cosa, kRp, live);
+    EXPECT_TRUE(live.all()) << where << " probe " << p;
+    EXPECT_NEAR(area, s.ses.face_area[p], 1e-9) << where << " probe " << p;
+  }
+  return n_extra;
+}
+
+/**
+ * Spheres 1, 2 overlap by 1e-4 in a circle of radius 0.014 that sphere 0
+ * cuts nearly tangentially, so the face's two roots sit `h` on either side
+ * of the plane of the three centers with nearly coplanar departure
+ * tangents; sphere 3 supplies cutters within `2 rp` of them.
+ */
+std::pair<Matrix3Xd, ArrayXd> near_tangent_face(const double h) {
+  const double r = 2.0, d = 4.0 - 1e-4, zs = 3.0;
+  const double rc = std::sqrt(r * r - d * d / 4),
+               zc = std::sqrt(rc * rc - h * h);
+  Matrix3Xd pts(3, 4);
+  pts.col(0) << 0, 0, zs;
+  pts.col(1) << -d / 2, 0, 0;
+  pts.col(2) << d / 2, 0, 0;
+  pts.col(3) << 1.5, 1.5, 1.0;
+  ArrayXd sar(4);
+  sar << std::sqrt(h * h + (zs - zc) * (zs - zc)), r, r, 2.2;
+  return { pts, sar };
+}
+
 TEST(BuildSesTest, FiltersDoNotChangeArea) {
   int n_extra = 0;
   for (const int seed: { 1, 2, 3, 4, 5, 6 }) {
     const RandomCluster c = random_cluster(seed, 8 + seed % 5);
-    const Ses s = solve_stages(c.pts, c.sar);
-    const SasProbes &probes = s.geo.probes;
-
-    for (int p = 0; p < probes.n_active; ++p) {
-      const Vector3d x = probes.pos.col(p);
-      const int nt = probes.tan_off.degree(p);
-      std::vector<int> near;
-      for (int y = 0; y < probes.pos.cols(); ++y) {
-        if (y != p && (probes.pos.col(y) - x).norm() < 2 * kRp)
-          near.push_back(y);
-      }
-
-      const int m = nt + static_cast<int>(near.size());
-      n_extra += m > s.ses.face_off.degree(p);
-      Matrix3Xd n(3, m);
-      ArrayXd h(m), cosa(m);
-      n.leftCols(nt) = probes.tan.middleCols(probes.tan_off[p], nt);
-      h.head(nt).setZero();
-      cosa.head(nt).setZero();
-      for (int k = 0; k < static_cast<int>(near.size()); ++k) {
-        n.col(nt + k) = probes.pos.col(near[k]) - x;
-        h[nt + k] = n.col(nt + k).squaredNorm();
-        cosa[nt + k] = std::sqrt(h[nt + k]) / (2 * kRp);
-      }
-
-      ArrayXb live;
-      const double area = solve_ses_face(n, h, cosa, kRp, live);
-      EXPECT_TRUE(live.all()) << "seed " << seed << " probe " << p;
-      EXPECT_NEAR(area, s.ses.face_area[p], 1e-9)
-          << "seed " << seed << " probe " << p;
-    }
+    n_extra +=
+        expect_filters_keep_area(c.pts, c.sar, "seed " + std::to_string(seed));
   }
   EXPECT_GT(n_extra, 0);
+
+  for (const double h: { 5e-6, 2e-7 }) {
+    const auto [pts, sar] = near_tangent_face(h);
+    EXPECT_GT(expect_filters_keep_area(pts, sar, "h " + std::to_string(h)), 0);
+  }
 }
 
 /**

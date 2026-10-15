@@ -71,6 +71,20 @@ namespace internal {
    * add at most `46 * 2^-53`.
    */
   constexpr double kRingSortEps = kSurfaceAngleEps;
+  /**
+   * Error of a departure tangent: the corner certificate plus the roundoff
+   * of its normalization.
+   */
+  constexpr double kTangentEps = kSurfaceAngleEps + 4 * kUnitRoundoff;
+  /**
+   * Three tangents bound a usable contact triangle only when their
+   * determinant clears this: every direction of the exact triangle is then
+   * within `asin(3 kTangentEps / (|det| - 8 kUnitRoundoff)) <= pi/6` of the
+   * computed one (Lemma 10 of the analytic_surface page), a slack
+   * `meets_triangle` adds to the cap radius; below it the face goes to the
+   * exact solver.
+   */
+  constexpr double kTriangleDetMin = 6 * kTangentEps + 8 * kUnitRoundoff;
 
   /**
    * Orient every pair of `VoxelGrid::find_neighbors_self` as `left < right`.

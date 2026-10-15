@@ -170,15 +170,17 @@ namespace internal {
     }
 
     /**
-     * Per probe with exactly three linearly independent departure tangents
-     * (`triangular`): the corners
+     * Per probe with exactly three departure tangents whose determinant
+     * clears `kTriangleDetMin` (`triangular`): the corners
      * `p_m = +-normalize(cross(t_{m+1}, t_{m+2}))`, `dot(t_m, p_m) <= 0`, of
      * the spherical triangle `{d : dot(d, t_m) <= 0}`, in columns
-     * `3p .. 3p + 2`.
+     * `3p .. 3p + 2`, and the angle `H` within which every direction of the
+     * exact triangle lies from the computed one.
      */
     struct FaceTriangles {
       ArrayXb triangular;
       Matrix3Xd corners;
+      ArrayXd sin_h, cos_h;
     };
 
     auto probe_tangents(const SasProbes &probes, const int p) {
@@ -188,19 +190,21 @@ namespace internal {
     FaceTriangles face_triangles(const SasProbes &probes) {
       const int np = static_cast<int>(probes.pos.cols());
       FaceTriangles tri { ArrayXb::Constant(np, false),
-                          Matrix3Xd::Zero(3, 3L * np) };
+                          Matrix3Xd::Zero(3, 3L * np), ArrayXd::Zero(np),
+                          ArrayXd::Ones(np) };
 
       for (int p = 0; p < np; ++p) {
         if (probes.tan_off.degree(p) != 3)
           continue;
 
         const auto t = probe_tangents(probes, p);
-        // Coplanar tangents merge within the probe tolerance; an exact float
-        // zero is the one case that slips through.
-        if (t.col(0).dot(t.col(1).cross(t.col(2))) == 0.0)
+        const double det = std::abs(t.col(0).dot(t.col(1).cross(t.col(2))));
+        if (det < kTriangleDetMin)
           continue;
 
         tri.triangular[p] = true;
+        tri.sin_h[p] = 3 * kTangentEps / (det - 8 * kUnitRoundoff);
+        tri.cos_h[p] = std::sqrt(1 - tri.sin_h[p] * tri.sin_h[p]);
         for (int m = 0; m < 3; ++m) {
           Vector3d v =
               t.col((m + 1) % 3).cross(t.col((m + 2) % 3)).normalized();
@@ -227,18 +231,23 @@ namespace internal {
     }
 
     /**
-     * Whether the cap `(axis, cos a)` on the sphere of `p` meets its
-     * spherical triangle: the axis is inside, or within `a` of a corner, or
-     * within `a` of an edge arc (Lemma 10 of the analytic_surface page).
-     * The foot of the axis on the great circle of `t_m` lies on the arc iff
-     * it is on the arc's side of the corners' bisector `p + q`; the corners
-     * are perpendicular to `t_m`, so the foot's component along the
-     * bisector is the axis's own. All comparisons are on squared cosines.
-     * Probes without a triangle pass.
+     * Whether the cap `(axis, cos a)` on the sphere of `p`, widened by the
+     * triangle's slack `H`, meets its computed spherical triangle: the axis
+     * is inside, or within `a + H` of a corner, or within `a + H` of an edge
+     * arc (Lemma 10 of the analytic_surface page). The foot of the axis on
+     * the great circle of `t_m` lies on the arc iff it is on the triangle's
+     * side of the other two tangents, `along_k - along_m dot(t_k, t_m) <= 0`.
+     * Comparisons are on squared cosines, valid while `a + H < pi/2`; a
+     * wider cap and probes without a triangle pass.
      */
     bool meets_triangle(const SasProbes &probes, const FaceTriangles &tri,
-                        const int p, const Vector3d &axis, const double cos_a) {
+                        const int p, const Vector3d &axis, const double cos_a,
+                        const double sin_a) {
       if (!tri.triangular[p])
+        return true;
+
+      const double cos_ah = cos_a * tri.cos_h[p] - sin_a * tri.sin_h[p];
+      if (cos_ah <= 0)
         return true;
 
       const auto t = probe_tangents(probes, p);
@@ -247,17 +256,17 @@ namespace internal {
       if ((along.array() <= 0).all())
         return true;
 
-      const double cos2_a = cos_a * cos_a;
+      const double cos2_ah = cos_ah * cos_ah;
       for (int m = 0; m < 3; ++m) {
-        if (c.col(m).dot(axis) > cos_a)
+        if (c.col(m).dot(axis) > cos_ah)
           return true;
 
-        const Vector3d pc = c.col((m + 1) % 3), mid = pc + c.col((m + 2) % 3);
-        const double axis_mid = axis.dot(mid), p_mid = pc.dot(mid),
-                     cos2_foot = 1 - along[m] * along[m];
-        const bool on_arc = axis_mid >= 0
-                            && axis_mid * axis_mid >= cos2_foot * p_mid * p_mid;
-        if (on_arc && cos2_foot > cos2_a)
+        const int k1 = (m + 1) % 3, k2 = (m + 2) % 3;
+        const bool on_arc = along[k1] - along[m] * t.col(k1).dot(t.col(m)) <= 0
+                            && along[k2] - along[m] * t.col(k2).dot(t.col(m))
+                                   <= 0;
+        const double cos2_foot = 1 - along[m] * along[m];
+        if (on_arc && cos2_foot > cos2_ah)
           return true;
       }
       return false;
@@ -317,8 +326,8 @@ namespace internal {
         const double sin_a = std::sqrt(1 - cos_a * cos_a);
         if (!meets_plane_cap(hts, l, axis, cos_a, sin_a)
             || !meets_plane_cap(hts, r, -axis, cos_a, sin_a)
-            || !meets_triangle(probes, tri, l, axis, cos_a)
-            || !meets_triangle(probes, tri, r, -axis, cos_a))
+            || !meets_triangle(probes, tri, l, axis, cos_a, sin_a)
+            || !meets_triangle(probes, tri, r, -axis, cos_a, sin_a))
           continue;
 
         pc.left[w] = l;
