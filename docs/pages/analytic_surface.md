@@ -452,7 +452,11 @@ rejects a vertex and never bounds a fan. Precisely:
 
   *Proof.* The inradius of the tetrahedron is a third of its circumradius and
   exceeds \f$\Delta\f$, so every center is strictly inside it and the convex
-  hull of the lifted input is the tetrahedron: its facets are the hull faces of
+  hull of the centers is the tetrahedron. Each bounding point \f$b\f$ is a
+  vertex of \f$RT\f$: its own position lies in its power cell, since
+  \f$\pi_b(b) = 0\f$ while \f$\pi_i(b) = |b - c_i|^2 - \rho_i^2 > 0\f$ for
+  every sphere, \f$b\f$ being outside \f$U\f$ by the distance bound of (a). So
+  the facets of the tetrahedron are the hull faces of
   \f$RT\f$, spanned by bounding points only, and no edge between two spheres
   lies on the hull.
 
@@ -726,21 +730,31 @@ a sphere with caps.
 #### Corners at k-fold points {#sas-corners}
 
 \anchor lemma-4
-**Lemma 4 (corners at a k-fold point add up).** In plain words: where several
-circles of one sphere pass through one point, the perturbation spreads that
-point into a short chain of vertices; the run evaluates every chain corner at
-the point itself and gives the arcs between them length zero, and each of those
-terms is exactly the limit of the perturbed term, so no merged corner is ever
-needed. Precisely: let \f$x\f$ be a point of a solved sphere \f$s\f$ on
+**Lemma 4 (corners at a k-fold point are limits).** In plain words: where
+several circles of one sphere pass through one point, a perturbation spreads
+that point into a short chain of vertices; the run evaluates every chain corner
+at the point itself and gives the arcs between them length zero, and each of
+those terms is exactly the limit of the perturbed term, so no merged corner is
+ever needed. Precisely: let \f$x\f$ be a point of a solved sphere \f$s\f$ on
 \f$k - 1 \ge 2\f$ of its circles, every other kept sphere at positive power at
-\f$x\f$, and let \f$v_1, \dots, v_m\f$ be the accepted roots at \f$x\f$ of the
-configuration of @ref sas-step-1 "step 1".
+\f$x\f$ or tangent to \f$s\f$ there (a partner carries no circle with
+\f$s\f$, @ref theorem-3 "Theorem 3"), and let \f$v_1, \dots, v_m\f$ be the accepted roots at \f$x\f$ of
+faces containing \f$s\f$. Let \f$\Sigma_\varepsilon\f$ be a family of
+configurations with the run's \f$RT\f$, cells and fans, whose spheres converge
+to the kept spheres as \f$\varepsilon \to 0\f$, in which for small
+\f$\varepsilon\f$ the circles of \f$s\f$ near \f$x\f$ cross pairwise
+transversally with no three through one point, and whose vertices
+\f$v_j(\varepsilon)\f$ near \f$x\f$ correspond one to one to the \f$v_j\f$ and
+are listed by the run's rings in the cyclic order of \f$\Sigma_\varepsilon\f$.
+The configuration of @ref sas-step-1 "step 1" is one such family
+(@ref theorem-1 "Theorem 1", @ref lemma-2 "Lemma 2"); \f$\Sigma\f$ of
+@ref theorem-3 "Theorem 3" is another (steps 1-3 of its proof).
 
 - (a) The corner \f$\iota_j\f$ the run computes at \f$v_j\f$ from the exact
   tangents of its two circles at \f$x\f$ is the limit of the perturbed corner at
   \f$v_j(\varepsilon)\f$ and lies in \f$[0, \pi]\f$.
 
-  *Proof.* In the configuration of @ref sas-step-1 "step 1" the two circles of
+  *Proof.* In \f$\Sigma_\varepsilon\f$ the two circles of
   \f$v_j\f$ cross transversally at \f$v_j(\varepsilon)\f$ and no other circle
   passes through it, so near the vertex the accessible region is the wedge
   outside both caps, the intersection of two half-planes of the tangent plane,
@@ -762,7 +776,7 @@ configuration of @ref sas-step-1 "step 1".
   *Proof.* Two consecutive ring entries that are both roots at \f$x\f$ fall in
   one exact half-plane class with `ccw` exactly zero, and
   @ref sas-step-4 "step 4" assigns that pair \f$\Delta\varphi = 0\f$. The
-  perturbed vertices lie within \f$O(\varepsilon)\f$ of \f$x\f$ on a circle of
+  perturbed vertices lie within \f$o(1)\f$ of \f$x\f$ on a circle of
   radius bounded away from zero (@ref sas-step-2 "step 2"), so the perturbed arc
   between consecutive ones is either the short arc, of length
   \f$O(\varepsilon)\f$ and \f$\int\kappa_g \to 0\f$, or the rest of the circle;
@@ -775,7 +789,7 @@ configuration of @ref sas-step-1 "step 1".
 
   *Proof.* Choose a neighbourhood \f$N\f$ of \f$x\f$ in which the exact circles
   of \f$s\f$ through \f$x\f$ meet only at \f$x\f$; for \f$\varepsilon\f$ small
-  every perturbed pair crosses exactly once in \f$N\f$, no three at one point,
+  every pair of \f$\Sigma_\varepsilon\f$ crosses exactly once in \f$N\f$, no three at one point,
   and the complement of the caps in \f$N\f$ is combinatorially the cell of an
   arrangement of \f$k - 1\f$ lines in general position: an intersection of
   \f$k - 1\f$ half-planes. A bounded cell has at most one vertex per edge,
@@ -790,9 +804,9 @@ configuration of @ref sas-step-1 "step 1".
   (@ref analysis-fp "Floating point"), and the sum of \f$m\f$ of them inherits
   \f$m\f$ times that.
 
-At a pinch the two circles through \f$x\f$ on a third sphere are tangent at
-\f$x\f$ and (a) gives \f$\iota = \pi\f$; what the sweep does with the tangent
-pair itself is @ref theorem-3 "Theorem 3".
+At a pinch the tangent pair carries no circle and no root; on a third sphere
+its two discs touch from opposite sides and stay two components
+(@ref sas-step-2 "step 2"); the pair itself is @ref theorem-3 "Theorem 3".
 
 #### Discontinuity at exact coincidences {#sas-discontinuity}
 
@@ -803,12 +817,7 @@ of \f$k \ge 4\f$ spheres it picks one resolution of the degeneracy (which
 triples form cells and which of the coincident probes are accessible), and
 rounding of the input under a rigid motion can pick another; areas differ
 only at rounding level, but the probe set at such a point is not a
-continuous function of the coordinates. The SES area itself is genuinely
-discontinuous at a four-sphere coincidence: a fourth sphere passing at
-distance \f$\varepsilon\f$ from an existing vertex splits that vertex into
-the four triple points of the four spheres; all four are accessible for
-\f$\varepsilon > 0\f$ and none for \f$\varepsilon < 0\f$, so the two limits
-differ. Areas are continuous within each sign.
+continuous function of the coordinates. The area is (@ref sas-merge "Probe merge").
 
 #### The hybrid sweep {#sas-hybrid}
 
@@ -935,7 +944,8 @@ so in \f$\Sigma\f$ no point has both \f$\pi_p\f$ and \f$\pi_q\f$ below
    between, where every crossing is transversal. It is a genuine region with
    the run's vertices, arcs, \f$L\f$ and \f$C\f$; its corners and
    \f$\int\kappa_g\f$ converge to the run's exactly evaluated terms
-   (@ref lemma-4 "Lemma 4"), so
+   (@ref lemma-4 "Lemma 4", whose hypotheses \f$\Sigma\f$ satisfies by
+   1-3), so
    Gauss-Bonnet for \f$R'_s\f$ converges to the run's sum, while the area of
    \f$R'_s\f$ converges to the exact area, as regions do.
 
