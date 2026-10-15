@@ -96,10 +96,6 @@ namespace internal {
       }
     }
 
-    double sign(const double x) {
-      return static_cast<double>(x > 0) - static_cast<double>(x < 0);
-    }
-
     double segment_distance(const Vector3d &x, const Vector3d &p,
                             const Vector3d &q) {
       const Vector3d e = q - p;
@@ -112,8 +108,12 @@ namespace internal {
      * for low three-atom probes (`planar`), the unit normal of the contact
      * plane pointing from the probe toward the triangle with `cos b = h /
      * rp` for the plane distance `h < rp` (Corollary 1(a), (c) of the
-     * analytic_surface page). Probes of more than three atoms are low and
-     * never planar.
+     * analytic_surface page). The side is the root's: the probe is root
+     * `sigma` of its face, `x = c_a + y_perp + sigma sqrt(D) u / |u|^2`
+     * with `u = cross(c_b - c_a, c_c - c_a)` in the kernel's vertex order,
+     * so the normal toward the plane is `-sigma u / |u|`, whatever the
+     * rounded height. Probes of more than three atoms are low and never
+     * planar.
      */
     struct ProbeHeights {
       ArrayXb low, planar;
@@ -121,24 +121,28 @@ namespace internal {
       ArrayXd cos_b, sin_b;
     };
 
-    ProbeHeights probe_heights(const SurfaceSpheres &ss,
+    ProbeHeights probe_heights(const SurfaceSpheres &ss, const BallExact &ex,
                                const SasProbes &probes, const double rp) {
       const int np = static_cast<int>(probes.pos.cols());
       ProbeHeights hts { ArrayXb::Constant(np, true),
                          ArrayXb::Constant(np, false), Matrix3Xd::Zero(3, np),
                          ArrayXd::Zero(np), ArrayXd::Zero(np) };
 
+      const auto centers = ex.centers();
       for (int p = 0; p < np; ++p) {
         if (probes.atoms.degree(p) != 3)
           continue;
 
         const Matrix3d tri = ss.pts(E::all, probes.atoms.nbrs(p));
-        const Vector3d x = probes.pos.col(p),
+        const Array3i f = probes.face.col(p);
+        const Vector3d x = probes.pos.col(p), ca = centers.col(f[0]),
+                       u = (centers.col(f[1]) - ca)
+                               .cross(centers.col(f[2]) - ca)
+                               .normalized(),
                        nrm = (tri.col(1) - tri.col(0))
                                  .cross(tri.col(2) - tri.col(0))
                                  .normalized();
-        const double signed_h = (x - tri.col(0)).dot(nrm),
-                     h = std::abs(signed_h);
+        const double h = std::abs((x - ca).dot(u));
 
         bool inside = true;
         for (int m = 0; m < 3; ++m) {
@@ -158,7 +162,7 @@ namespace internal {
           continue;
 
         hts.planar[p] = true;
-        hts.normal.col(p) = -sign(signed_h) * nrm;
+        hts.normal.col(p) = probes.plus[p] ? -u : u;
         hts.cos_b[p] = h / rp;
         hts.sin_b[p] = std::sqrt(1 - hts.cos_b[p] * hts.cos_b[p]);
       }
@@ -697,7 +701,7 @@ namespace internal {
     saddles(ses, ss, geo, rp);
 
     const SasProbes &probes = geo.probes;
-    const ProbeHeights hts = probe_heights(ss, probes, rp);
+    const ProbeHeights hts = probe_heights(ss, del.ex, probes, rp);
     const FaceTriangles tri = face_triangles(probes);
     const PairCaps pc = pair_caps(del.ex, probes, rp, hts, tri);
     const LiftedCaps lifted = faces(ses, probes, pc);
