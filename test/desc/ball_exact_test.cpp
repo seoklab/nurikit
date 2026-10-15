@@ -1009,10 +1009,12 @@ TEST(BallExactTest, DifferenceMatchesRoots) {
           continue;
 
         const QVec w = s.ref.root(ri.f, ri.plus) - s.ref.root(rj.f, rj.plus);
+        const RootDifference rd = s.ex.difference(ri.f, ri.plus, rj.f, rj.plus);
         const Vector3d want(static_cast<double>(w.x), static_cast<double>(w.y),
                             static_cast<double>(w.z)),
-            got = s.ex.difference(ri.f, ri.plus, rj.f, rj.plus),
+            got = rd.len * rd.dir,
             naive = s.ex.root(ri.f, ri.plus) - s.ex.root(rj.f, rj.plus);
+        EXPECT_NEAR(rd.dir.norm(), 1, 1e-15) << "trial " << trial;
         EXPECT_LT((got - want).norm(), 1e-12) << "trial " << trial;
         EXPECT_LT((got - naive).norm(), 1e-12) << "trial " << trial;
         ++n_pairs;
@@ -1059,12 +1061,14 @@ TEST(BallExactTest, DifferenceOnRoundedTangentPair) {
         if (&ri == &rj)
           continue;
 
-        const Vector3d want = e.ex.difference(ri.f, ri.plus, rj.f, rj.plus),
-                       got = s.ex.difference(ri.f, ri.plus, rj.f, rj.plus);
-        ASSERT_GT(want.norm(), 0) << "seed " << seed;
-        EXPECT_LT(want.norm(), 2e-7) << "seed " << seed;
-        EXPECT_LT((got.normalized() - want.normalized()).norm(), 0x1p-25)
-            << "seed " << seed;
+        const RootDifference want =
+                                 e.ex.difference(ri.f, ri.plus, rj.f, rj.plus),
+                             got =
+                                 s.ex.difference(ri.f, ri.plus, rj.f, rj.plus);
+        ASSERT_GT(want.len, 0) << "seed " << seed;
+        EXPECT_LT(want.len, 2e-7) << "seed " << seed;
+        EXPECT_NEAR(got.len, want.len, 1e-12 * want.len) << "seed " << seed;
+        EXPECT_LT((got.dir - want.dir).norm(), 0x1p-25) << "seed " << seed;
         ++n_pairs;
       }
     }

@@ -312,17 +312,16 @@ namespace internal {
         if (!hts.low[l] || !hts.low[r])
           continue;
 
-        const Vector3d diff =
+        const auto [axis, dist] =
             ex.difference(ball_triple(probes.face.col(r)), probes.plus[r],
                           ball_triple(probes.face.col(l)), probes.plus[l]);
-        const double dist = diff.norm(), cos_a = dist / (2 * rp);
-        ABSL_DCHECK_GT(dist, 0);
+        const double cos_a = dist / (2 * rp);
         // The grid distance on rounded positions and the exact difference may
         // disagree by an ulp.
         if (cos_a >= 1)
           continue;
 
-        const Vector3d axis = diff / dist;
+        const Vector3d diff = dist * axis;
         const double sin_a = std::sqrt(1 - cos_a * cos_a);
         if (!meets_plane_cap(hts, l, axis, cos_a, sin_a)
             || !meets_plane_cap(hts, r, -axis, cos_a, sin_a)
@@ -496,8 +495,8 @@ namespace internal {
         for (int k = 1; k <= m; ++k)
           live[k - 1] = ex_.overlap(0, k) == Sgn::kPos;
         // Two caps on one circle: opposite sides cover the sphere (no face),
-        // the same side is one cap. Equal probe balls on the same side were
-        // merged, so only a hemisphere can take that branch.
+        // the same side is one cap. Equal probe balls (two neighbors closer
+        // than the certificate resolves) are one cap, dropped as `2`.
         for (int b = 1; b <= m; ++b) {
           for (int c = b + 1; c <= m; ++c) {
             if (!live[b - 1] || !live[c - 1])

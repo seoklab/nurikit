@@ -164,6 +164,15 @@ namespace internal {
     int a, b, c;
   };
 
+  /**
+   * `x - x'` for two roots as a unit direction and a length
+   * (`BallExact::difference`).
+   */
+  struct RootDifference {
+    Vector3d dir;
+    double len;
+  };
+
   inline BallTriple ball_triple(const Array3i &v) {
     return { v[0], v[1], v[2] };
   }
@@ -293,11 +302,13 @@ namespace internal {
      * combined with `sqrt(D)`, `sqrt(D')` taken to `k` extra bits, `k`
      * doubled from 64 until the sum's error bound is below `2^-52` of its
      * length, so the result is within a few ulp of `|x - x'|` (the roundings
-     * of the conversion and the division). Requires `cuts` non-negative for
-     * both faces and distinct roots.
+     * of the conversion and the division). The direction is taken from the
+     * dyadics scaled to unit size, so it stays right when the length itself
+     * underflows to 0: distinct roots have no separation bound that fits a
+     * double. Requires `cuts` non-negative for both faces and distinct roots.
      */
-    Vector3d difference(BallTriple f, bool plus, BallTriple f2,
-                        bool plus2) const;
+    RootDifference difference(BallTriple f, bool plus, BallTriple f2,
+                              bool plus2) const;
 
     /**
      * Position of root `x` of `f` on circle `(a, b)` relative to the

@@ -199,9 +199,24 @@ namespace internal {
       }
       friend int sgn(const Xp &a) { return a.m_.sign(); }
 
-      double to_double() const {
-        return std::ldexp(m_.convert_to<double>(), e_);
+      double to_double() const { return scaled(0); }
+
+      /**
+       * `m 2^(e + shift)` rounded to double from the top 64 bits of `m`, so
+       * a mantissa wider than a double's exponent range converts too.
+       */
+      double scaled(const int shift) const {
+        if (m_.is_zero())
+          return 0;
+
+        const int drop = nuri::max(bits() - 64, 0);
+        return std::ldexp((m_ >> drop).convert_to<double>(), e_ + drop + shift);
       }
+
+      /**
+       * `|m 2^e| < 2^exponent()`; 0 for zero.
+       */
+      int exponent() const { return m_.is_zero() ? 0 : e_ + bits(); }
 
       /**
        * `lo <= sqrt(x) < lo + unit` with `unit < 2^-bits lo`; both zero for
@@ -232,6 +247,10 @@ namespace internal {
       }
 
     private:
+      int bits() const {
+        return static_cast<int>(boost::multiprecision::msb(abs(m_))) + 1;
+      }
+
       void strip() {
         if (m_.is_zero()) {
           e_ = 0;
@@ -840,38 +859,51 @@ namespace internal {
     /**
      * `(P + sqrt(D) Q + sqrt(D') Q') / den`.
      */
-    bool certified_difference(const Diff<Fx> &o, Vector3d &out) {
-      return certified_nonneg(o.disc) && certified_nonneg(o.disc2)
-             && certified_quotient(o.p + sqrt_fx(o.disc) * o.q
-                                       + sqrt_fx(o.disc2) * o.q2,
-                                   o.den, out);
+    bool certified_difference(const Diff<Fx> &o, RootDifference &out) {
+      Vector3d v;
+      if (!certified_nonneg(o.disc) || !certified_nonneg(o.disc2)
+          || !certified_quotient(
+              o.p + sqrt_fx(o.disc) * o.q + sqrt_fx(o.disc2) * o.q2, o.den, v))
+        return false;
+
+      out.len = v.stableNorm();
+      out.dir = v / out.len;
+      return true;
     }
 
     constexpr int kMinSqrtBits = 64, kMaxSqrtBits = 4096;
 
     /**
      * The exact dyadics combined with `sqrt(D)`, `sqrt(D')` to `bits` extra
-     * bits, doubled until the sum's error bound is below `kUlp` of its length.
+     * bits, doubled until the sum's error bound is below `kUlp` of its
+     * length. The sum and its bound are read at the sum's own scale, so the
+     * direction is right whatever the length, which may then underflow.
      */
-    Vector3d exact_difference(const Diff<Xp> &o) {
+    RootDifference exact_difference(const Diff<Xp> &o) {
       ABSL_DCHECK_GE(sgn(o.disc), 0);
       ABSL_DCHECK_GE(sgn(o.disc2), 0);
 
       const V3<Xp> aq { abs(o.q.x), abs(o.q.y), abs(o.q.z) },
           aq2 { abs(o.q2.x), abs(o.q2.y), abs(o.q2.z) };
       Vector3d out;
+      int scale = 0;
       bool certified = false;
       for (int bits = kMinSqrtBits; !certified && bits <= kMaxSqrtBits;
            bits *= 2) {
         const auto [s, u] = o.disc.sqrt_floor(bits);
         const auto [s2, u2] = o.disc2.sqrt_floor(bits);
         const V3<Xp> v = o.p + s * o.q + s2 * o.q2, e = u * aq + u2 * aq2;
-        out << v.x.to_double(), v.y.to_double(), v.z.to_double();
-        const Vector3d err(e.x.to_double(), e.y.to_double(), e.z.to_double());
-        certified = err.norm() <= kUlp * out.norm();
+        scale = nuri::max(nuri::max(v.x.exponent(), v.y.exponent()),
+                          v.z.exponent());
+        out << v.x.scaled(-scale), v.y.scaled(-scale), v.z.scaled(-scale);
+        const Vector3d err(e.x.scaled(-scale), e.y.scaled(-scale),
+                           e.z.scaled(-scale));
+        certified = (out.array() != 0).any() && err.norm() <= kUlp * out.norm();
       }
       ABSL_DCHECK(certified) << "coincident roots";
-      return out / o.den.to_double();
+
+      const double norm = out.norm();
+      return { out / norm, std::ldexp(norm, scale) / o.den.to_double() };
     }
 
     Vector3d circle_center(const Matrix3Xd &c, const ArrayXd &h, const int a,
@@ -1293,7 +1325,7 @@ namespace internal {
   }
 
   template <bool kForceExact, bool kFilterOnly>
-  ABSL_ATTRIBUTE_NOINLINE Vector3d
+  ABSL_ATTRIBUTE_NOINLINE RootDifference
   BallExactImpl<kForceExact, kFilterOnly>::difference(const BallTriple f,
                                                       const bool plus,
                                                       const BallTriple f2,
@@ -1303,7 +1335,7 @@ namespace internal {
       return root_difference(ctx, f, plus, f2, plus2);
     };
 
-    Vector3d out;
+    RootDifference out;
     if constexpr (!kForceExact) {
       if (certified_difference(kernel(Ctx<Fx> { d, -1 }), out))
         return out;
