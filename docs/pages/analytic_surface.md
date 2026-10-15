@@ -1002,7 +1002,9 @@ exact point with the same total area to rounding. The pair stage places
 them by `difference`, whose direction is certified however close the roots
 are (@ref analysis-fp "Floating point"), and the contact-plane and
 triangle filters apply to single-root probes only (`members`); a cluster of
-several roots, as at an exact tangency, is solved unfiltered.
+several roots is solved unfiltered, and at an exact tangency its antipodal
+hemispheres end it empty (@ref corollary-4 "Corollary 4",
+@ref remark-5 "Remark 5").
 
 ## Solvent-excluded surface (SES) {#ses}
 
@@ -1095,7 +1097,8 @@ three-atom vertex, the complement of the three departure hemispheres), the
 **contact triangle** is \f$T_x = \operatorname{conv}\{c_a\}\f$, and
 \f$t_x(d)\f$ is the distance from \f$x\f$ along the ray \f$d \in C_x\f$ to
 \f$T_x\f$. The face is cut by a probe \f$y\f$ where it enters the open ball
-\f$B^\circ(y, r_p)\f$. Merged probes take the unfiltered path; the filters
+\f$B^\circ(y, r_p)\f$. Merged probes take the unfiltered path (a cluster at
+a coincident root has no face, @ref corollary-4 "Corollary 4"); the filters
 are for single-root three-atom probes.
 
 \anchor lemma-5
@@ -1180,7 +1183,8 @@ from \f$x\f$ toward it and \f$h\f$ the distance to the plane:
 **Lemma 6 (the first SAS point an inflating ball touches is a vertex).** Let
 \f$x\f$ be a vertex whose contact directions span space (they fail to only
 when \f$x\f$ lies in the plane of its atom centers, and then its face has no
-area) and \f$d\f$ a unit direction strictly inside \f$C_x\f$
+area, @ref corollary-4 "Corollary 4") and \f$d\f$ a unit direction strictly
+inside \f$C_x\f$
 (\f$d = \sum \lambda_a \hat c_a\f$ with every \f$\lambda_a > 0\f$, scaled to
 \f$|d| = 1\f$). Inflate the balls \f$B_t = B(x + t d, t)\f$, \f$t > 0\f$,
 which are nested and all pass through \f$x\f$, and let \f$t_1\f$ be the
@@ -1517,6 +1521,110 @@ from above can be cut by a shallow probe on the other side whose hosts
 overlap neither the third atom nor anything active. The radius threshold is
 not vacuous: with vdW radii of \f$0.03\,\AA\f$ at \f$r_p \approx 1\f$
 a cutter exists none of whose hosts overlaps any host of the cut face.
+
+\anchor lemma-12
+**Lemma 12 (a two-sided arc through a vertex leaves it no face).** In plain
+words: if the probe can roll away from a vertex along one circle in both
+directions, the positions it rolls through cover the whole probe sphere
+except the great circle perpendicular to the rolling direction, so the
+vertex's face has no area, whatever else cuts it. Precisely: let \f$x\f$ be
+a vertex on the circle \f$(a, b)\f$ of center \f$m\f$ and radius \f$r > 0\f$,
+\f$\gamma(s)\f$ its arclength parametrization with \f$\gamma(0) = x\f$ and
+unit tangent \f$t = \gamma'(0)\f$, and let \f$\gamma(s)\f$ be an SAS point
+for every \f$0 < |s| < \delta\f$. Then for every unit \f$d\f$ with
+\f$d \cdot t \ne 0\f$ the face point \f$x + r_p d\f$ lies strictly inside
+\f$B(\gamma(s), r_p)\f$ for every \f$s\f$ of the sign of \f$d \cdot t\f$ with
+\f$0 < |s| < \min(\delta, s_0)\f$,
+\f$s_0 = 2r \arctan\bigl(r_p |d \cdot t| / (r + r_p)\bigr)\f$; the face of
+\f$x\f$ lies in the great circle \f$\{d : d \cdot t = 0\}\f$ and has area 0.
+
+*Proof.* With \f$\rho' = (x - m)/r\f$ and \f$\theta = s/r\f$,
+\f$\gamma(s) - x = r\sin\theta\, t - r(1 - \cos\theta)\rho'\f$ and
+\f$|\gamma(s) - x|^2 = 2r^2(1 - \cos\theta)\f$, so
+\f$|x + r_p d - \gamma(s)|^2 < r_p^2\f$ iff
+\f$2 r_p [\, r \sin\theta\, (d \cdot t) - r(1 - \cos\theta)(d \cdot \rho')\,]
+> 2 r^2 (1 - \cos\theta)\f$; dividing by \f$4 r \sin^2(\theta/2) > 0\f$ gives
+\f$r_p \cot(\theta/2)\, (d \cdot t) > r + r_p\, (d \cdot \rho')\f$, implied by
+\f$r_p \cot(\theta/2)\, (d \cdot t) > r + r_p\f$ since \f$d \cdot \rho' \le 1\f$,
+i.e. by \f$\operatorname{sign}\theta = \operatorname{sign}(d \cdot t)\f$ and
+\f$|\tan(\theta/2)| < r_p |d \cdot t| / (r + r_p)\f$. Any such \f$s\f$ below
+\f$\delta\f$ is an SAS point whose open probe ball holds \f$x + r_p d\f$.
+\f$\blacksquare\f$
+
+\anchor lemma-13
+**Lemma 13 (coincident roots).** In plain words: the two roots of a face
+coincide exactly when the point lies in the plane of the three centers; then
+every circle through it is tangent to the plane's normal there, and a circle
+of two of the atoms is accessible or covered by the third according to the
+sign of one barycentric coordinate. Precisely, for a face \f$(a, b, c)\f$ with
+\f$u \ne 0\f$ and \f$\Pi\f$ the plane of the centers:
+
+- (a) \f$D = 0\f$ iff the two roots coincide iff the root \f$x\f$ lies in
+  \f$\Pi\f$; then \f$h = 0\f$, the mirror point \f$x + 2hn\f$ is \f$x\f$, and
+  the three spheres meet only at \f$x\f$.
+- (b) Each of the circles \f$(a, b)\f$, \f$(a, c)\f$, \f$(b, c)\f$ has tangent
+  \f$\pm n\f$ at \f$x\f$, \f$n\f$ the unit normal of \f$\Pi\f$.
+- (c) With \f$x = \lambda_a c_a + \lambda_b c_b + \lambda_c c_c\f$,
+  \f$\sum \lambda = 1\f$, every point \f$y\f$ satisfies
+  \f$\lambda_a \pi_a(y) + \lambda_b \pi_b(y) + \lambda_c \pi_c(y) = |y - x|^2\f$.
+  Hence on the circle \f$(i, j)\f$, \f$\pi_k(y) = |y - x|^2 / \lambda_k\f$
+  (\f$\{i, j, k\} = \{a, b, c\}\f$; no \f$\lambda\f$ vanishes), so the circle
+  minus \f$x\f$ is strictly outside \f$B_k\f$ iff \f$\lambda_k > 0\f$ and
+  strictly inside iff \f$\lambda_k < 0\f$.
+- (d) \f$\lambda_k > 0\f$ iff \f$x\f$ and \f$c_k\f$ lie on the same side of
+  the line \f$c_i c_j\f$. Since the \f$\lambda\f$ sum to 1, at least one is
+  positive: at least one circle through \f$x\f$ is accessible near \f$x\f$ on
+  both sides, at most two are covered (all accessible inside the triangle of
+  centers, one covered across an edge, two beyond a corner).
+
+*Proof.* (a) The roots \f$c_a + y_\perp \pm (\sqrt D/|u|^2) u\f$ lie on the
+line through \f$c_a + y_\perp \in \Pi\f$ along \f$u \perp \Pi\f$, which meets
+\f$\Pi\f$ once, and \f$\pi_a(c_a + y_\perp + s u) = s^2 |u|^2 - D/|u|^2\f$.
+(b) The tangent is perpendicular to the axis \f$c_j - c_i\f$ and to the
+radius \f$x - m_{ij}\f$, two independent vectors of \f$\Pi\f$. (c)
+\f$\sum \lambda_m \pi_m(y) = |y|^2 - 2 y \cdot x + K\f$ with \f$K = |x|^2\f$
+because every \f$\pi_m(x) = 0\f$; on the circle \f$\pi_i = \pi_j = 0\f$, and
+\f$\lambda_k = 0\f$ would put the whole circle at \f$x\f$. (d)
+\f$\lambda_k\f$ is the ratio of the signed distances of \f$x\f$ and \f$c_k\f$
+from the line \f$c_i c_j\f$, and \f$x\f$'s is \f$r_{ij} > 0\f$ on its own
+side; three negatives cannot sum to 1. \f$\blacksquare\f$
+
+Two degeneracies of @cite desc:surface:halperin-shelton-1998 (p. 186), three
+spheres through one point and a circle tangent to a third sphere, are by (a)
+and (b) one configuration. It is the probe height \f$h = 0\f$ that
+@cite desc:surface:connolly-1983 (pp. 550-551) defines and skips.
+
+\anchor corollary-4
+**Corollary 4 (a coincident-root vertex has no face).** Let \f$x\f$ lie on
+exactly three kept spheres \f$a, b, c\f$ with \f$D = 0\f$ for the face and
+\f$\pi_l(x) > 0\f$ for every other kept sphere. Then \f$x\f$ is an SAS vertex
+(\f$\pi_m(x + sn) = s^2\f$ for \f$m \in \{a, b, c\}\f$ by Lemma 13(b)), at
+least one circle through it is accessible on both sides (Lemma 13(d),
+continuity for the other spheres), and by Lemma 12 with \f$t = n\f$ its face
+lies in the great circle \f$\Pi \cap S(x, r_p)\f$ and has area 0, whatever the
+other probes do. In particular the two coincident roots do not carry
+complementary hemispheres: Corollary 1(a) at \f$h = 0\f$ constrains only the
+planar cone \f$C_x\f$, a null set of directions. This is the limit
+\f$h \to 0\f$ of the coincident reduced-surface faces that
+@cite desc:surface:sanner-1996 (p. 312) deletes when their probes cut each
+other through the face plane, stated exactly.
+
+\anchor remark-5
+**Remark 5 (what the run does at a coincident root).** Both roots are at
+\f$x\f$, accepted, and merged into one cluster (`members == 2`, three atoms).
+On each circle through \f$x\f$ the ring is a single-point window: its
+antipode has \f$\pi_k = 4 r_{ij}^2 / \lambda_k\f$ (Lemma 13(c)), so the
+\f$2\pi\f$ arc is accessible iff \f$\lambda_k > 0\f$, and the cluster
+receives the tangent pair \f$\pm n\f$ from every such loop (or from the two
+arcs at \f$x\f$ when a fourth sphere interrupts the loop elsewhere) and
+nothing from a covered circle, whose only arc at the cluster is the
+zero-length diagonal. Coincident ring vertices share one angle, so the pair
+is bitwise antipodal. The contact-plane and triangle filters skip the
+cluster, every neighbor within \f$2 r_p\f$ is kept, and the face solver
+returns 0 at the first live complementary pair, before any cutter is
+examined. When the perturbation resolves the tie \f$D = 0\f$ to a miss
+instead, no probe exists and `side` covers or frees each circle by the same
+sign; both branches give the exact area 0.
 
 ### The filter pipeline {#ses-pipeline}
 

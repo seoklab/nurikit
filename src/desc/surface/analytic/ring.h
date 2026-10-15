@@ -120,9 +120,10 @@ namespace internal {
    * Which consecutive pair's arc contains the reference ray (its `dphi`
    * gets `+2pi`) and which pairs coincide. A same-class pair of class `1` or
    * `3` is decided by its numeric angles when they differ by more than
-   * `eps`, by the exact `ccw` otherwise. A ring without any decrease is a
-   * single-point window: the `2pi` goes to an arc of the accessibility of
-   * the antipode.
+   * `eps`, by the exact `ccw` otherwise; a coincident pair is one point and
+   * shares one angle, so every tangent taken there is one value. A ring
+   * without any decrease is a single-point window: the `2pi` goes to an arc
+   * of the accessibility of the antipode.
    */
   template <class Ops>
   void decide_wrap(Ring &ring, const Ops &ops, const double eps) {
@@ -130,8 +131,7 @@ namespace internal {
 
     int n_dec = 0;
     for (int k = 0; k < n; ++k) {
-      RingVertex &p = ring.verts[k];
-      const RingVertex &r = ring.verts[(k + 1) % n];
+      RingVertex &p = ring.verts[k], &r = ring.verts[(k + 1) % n];
       ABSL_DCHECK_NE(p.leave, r.leave) << "ring does not alternate";
       p.dec = p.coinc = false;
       if (p.cls != r.cls) {
@@ -144,6 +144,8 @@ namespace internal {
         const Sgn s = ops.ccw(p, r);
         p.coinc = s == Sgn::kZero;
         p.dec = s == Sgn::kNeg;
+        if (p.coinc)
+          r.phi = p.phi;
       }
       n_dec += static_cast<int>(p.dec);
     }

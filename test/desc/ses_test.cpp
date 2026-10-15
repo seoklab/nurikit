@@ -905,6 +905,31 @@ TEST(BuildSesTest, TangentNeighborProbe) {
 }
 
 /**
+ * The merged probe at `x` of a planar layout: `k` atoms, hemispheres in
+ * antipodal pairs, exactly zero area. Returns its index, -1 if absent.
+ */
+int expect_grazing_cluster(const SurfaceGeometry &s, const Vector3d &x,
+                           const int k) {
+  const ConcavePatches &con = s.concave();
+  const int c = probe_at(con.pos, x);
+  EXPECT_GE(c, 0);
+  if (c < 0)
+    return c;
+
+  EXPECT_EQ(con.atoms.degree(c), k);
+  const auto hs = hemispheres(s, c);
+  EXPECT_GE(hs.cols(), 2);
+  bool antipodal = false;
+  for (int i = 0; i < hs.cols(); ++i) {
+    for (int j = i + 1; j < hs.cols(); ++j)
+      antipodal |= hs.col(i) == -hs.col(j);
+  }
+  EXPECT_TRUE(antipodal);
+  EXPECT_EQ(con.area[c], 0);
+  return c;
+}
+
+/**
  * Acute dyadic triangle inscribed in the circle of radius 5 about the origin
  * with `sar` 5: probe height exactly 0, the two probes coincide at the
  * circumcenter. Shrake-Rupley to 0.05 of NearBandPinch times `(sar / 2)^2`.
@@ -948,7 +973,14 @@ TEST(BuildSesTest, PlanarProbe) {
                          }
                          EXPECT_NEAR(ses.total_area(), ref_total, 1e-9);
                          expect_faces_match_dots(ses, rp, "planar");
+                         expect_grazing_cluster(ses, Vector3d::Zero(), 3);
                        });
+
+  const Ses stages = solve_stages(base, sar, rp);
+  const int c = probe_at(stages.geo.probes.pos, Vector3d::Zero());
+  ASSERT_GE(c, 0);
+  EXPECT_EQ(stages.geo.probes.members[c], 2);
+  EXPECT_EQ(stages.ses.face_area[c], 0);
 
   for (int seed = 0; seed < 8; ++seed) {
     SCOPED_TRACE(seed);
@@ -957,6 +989,90 @@ TEST(BuildSesTest, PlanarProbe) {
     const auto [sas, ses] = solve_both(pts, sar, rp);
     expect_sr(sas, pts);
     expect_faces_match_dots(ses, rp, "planar");
+  }
+}
+
+/**
+ * The planar triangle with a fourth atom above it whose probes cut the
+ * circumcenter's probe sphere: the grazing loops end the face before the
+ * cutters are looked at, so its area stays exactly 0.
+ */
+TEST(BuildSesTest, PlanarProbeWithCutter) {
+  const double rp = 2.0;
+  Matrix3Xd pts(3, 4);
+  pts << 5, -3, -3, 0,  //
+      0, 4, -4, 0,      //
+      0, 0, 0, 7;
+  ArrayXd sar(4);
+  sar << 5, 5, 5, 5;
+
+  const SurfaceGeometry ses = solve(pts, sar, rp);
+  const int c = expect_grazing_cluster(ses, Vector3d::Zero(), 3);
+  ASSERT_GE(c, 0);
+  int n_near = 0;
+  for (int p = 0; p < ses.concave().pos.cols(); ++p) {
+    const double dist = ses.concave().pos.col(p).norm();
+    n_near += p != c && dist < 2 * rp;
+  }
+  EXPECT_GT(n_near, 0);
+  expect_faces_match_dots(ses, rp, "cutter");
+}
+
+/**
+ * Coincident roots with covered circles (Lemma 13 of the analytic_surface
+ * page): the obtuse triangle `(-3, 0), (3, 0), (0, 1)` of `sar` 5 meets at
+ * `(0, -4, 0)` where the circle of the first two is covered by the third;
+ * the pair `(-3, 4), (3, 4)` of `sar` 5 and `(0, 3)` of `sar` 3 meet at
+ * the origin beyond a corner, two circles covered. Under the perturbation
+ * the tie is a cut iff the first-listed atom's barycentric coordinate is
+ * positive: one order gives the zero-area cluster with one antipodal pair,
+ * the other no probe at all, and the surface is the same.
+ */
+TEST(BuildSesTest, CoincidentRootsWithCoveredCircles) {
+  const double rp = 2.0;
+  struct Layout {
+    Matrix3Xd pts;
+    ArrayXd sar;
+    Vector3d x;
+    std::vector<int> cut, miss;
+  };
+  Matrix3Xd obtuse(3, 3), corner(3, 3);
+  obtuse << -3, 3, 0,  //
+      0, 0, 1,         //
+      0, 0, 0;
+  corner << -3, 3, 0,  //
+      4, 4, 3,         //
+      0, 0, 0;
+  ArrayXd sar(3);
+  sar << 5, 5, 5;
+  ArrayXd mixed(3);
+  mixed << 5, 5, 3;
+  const std::array<Layout, 2> layouts {
+    Layout { obtuse, sar, Vector3d(0, -4, 0), { 0, 1, 2 }, { 2, 0, 1 } },
+    Layout { corner, mixed, Vector3d::Zero(), { 2, 0, 1 }, { 0, 1, 2 } },
+  };
+
+  for (const Layout &l: layouts) {
+    SCOPED_TRACE(l.x.transpose());
+    auto reorder = [&](const std::vector<int> &order) {
+      Matrix3Xd p(3, 3);
+      ArrayXd r(3);
+      for (int i = 0; i < 3; ++i) {
+        p.col(i) = l.pts.col(order[i]);
+        r[i] = l.sar[order[i]];
+      }
+      return solve(p, r, rp);
+    };
+
+    const SurfaceGeometry cut = reorder(l.cut);
+    const int c = expect_grazing_cluster(cut, l.x, 3);
+    ASSERT_GE(c, 0);
+    expect_faces_match_dots(cut, rp, "cut");
+
+    const SurfaceGeometry miss = reorder(l.miss);
+    EXPECT_EQ(probe_at(miss.concave().pos, l.x), -1);
+    expect_faces_match_dots(miss, rp, "miss");
+    EXPECT_NEAR(miss.total_area(), cut.total_area(), 1e-9);
   }
 }
 

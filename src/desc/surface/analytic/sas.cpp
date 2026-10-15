@@ -843,7 +843,7 @@ namespace internal {
      * An arc with both ends in one merged probe joins two roots at one exact
      * point: a diagonal of a k-fold point (`dphi` exactly 0) that contributes
      * no tangent, or the full loop grazing the vertex (`dphi >= pi`), which
-     * contributes both.
+     * contributes exact antipodes so its hemispheres end the face empty.
      */
     bool has_tangents(const RingArc &arc) {
       return arc.beg >= 0 && (arc.beg != arc.end || arc.dphi >= constants::kPi);
