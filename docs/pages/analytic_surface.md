@@ -187,13 +187,15 @@ bands that are supersets of exactly decided sets; every decision is exact.
    indices are the lowest), so active torus arcs come from solved spheres.
    The hosts of a probe on an active atom overlap pairwise, so they are
    in `need`, every circle between two of them is solved, and the probe's
-   departure tangents are complete. By @ref lemma-11 "Lemma 11", a probe that cuts the face of
-   a probe on an active atom has a host that overlaps one of that probe's
-   hosts, hence a host in `shell`: it is enumerated, its accessibility is
-   decided like every other root, and its cap is present. Its own departure
-   tangents may be incomplete (a circle between two shell atoms is never
-   solved); it then fails the triangle predicate of @ref lemma-10 "Lemma 10" and is tested
-   unfiltered, which is always allowed. Two shells are exactly what
+   departure tangents are complete. By @ref lemma-11 "Lemma 11", a
+   first-touch cutter (@ref lemma-8 "Lemma 8") of a face on an active atom,
+   all a face needs by @ref lemma-6 "Lemma 6", has a host that overlaps
+   one of that face's hosts, hence a host in `shell`: it is enumerated, its
+   accessibility is decided like every other root, and its cap is present.
+   Its own departure tangents may be incomplete (a circle between two of its
+   occluder hosts gets no ring); it is then skipped by the triangle gate of
+   @ref lemma-10 "Lemma 10" and is tested without the triangle filter, which is always
+   allowed. Two shells are exactly what
    @ref corollary-3 "Corollary 3" needs, and one is not enough.
 
 ## Solvent-accessible surface (SAS) {#sas}
@@ -1182,7 +1184,8 @@ from \f$x\f$ toward it and \f$h\f$ the distance to the plane:
   Every other vertex is **low** (\f$k\f$-fold probes count as low). A high face
   whose three tangents are linearly dependent, or dependent within the
   tangent certificate (@ref lemma-10 "Lemma 10"), has no usable spherical
-  triangle and goes to the face solver on its hemispheres alone.
+  triangle and goes to the face solver on its hemispheres alone; a high face
+  is uncut, so the solver on the hemispheres alone returns the exact face.
 
   *Proof.* \f$t_x\f$ is the distance along the ray to \f$T_x\f$, and the rays of
   \f$C_x\f$ sweep all of \f$T_x\f$, so its minimum is the distance from \f$x\f$
@@ -1453,13 +1456,15 @@ triangle is used only when
 \f$|\Delta| \ge\f$ `kTriangleDetMin` \f$= 6\eta + 8 \cdot 2^{-53}\f$, which
 keeps \f$\sin H \le 1/2\f$ and the corner signs
 \f$\tilde t_m \cdot \tilde p_m \le -|\Delta|\f$ clear of their rounding;
-below it, and for a cluster of several roots, the probe passes the test and
-is solved unfiltered, which is sound since the filter only ever drops. The
+below it, and for a probe with other than three tangents, the probe passes
+the triangle test; a cluster of several roots passes both filters and is
+solved unfiltered, which is sound since the filters only ever drop. The
 condition is necessary for the cap to cut anything and, for a face with no
 other caps, sufficient up to \f$H\f$.
 
 \anchor lemma-11
-**Lemma 11 (host overlap).** Whenever one probe trims another's face, some
+**Lemma 11 (host overlap).** Whenever one probe is the first-touch cutter of
+a point of another's face, some
 atom under the first touches some atom under the second, provided no atom is
 smaller than about 0.41 probe radii. Precisely: let \f$y\f$ be the
 first-touch cutter (@ref lemma-8 "Lemma 8") of a face point of \f$x\f$,
@@ -1523,8 +1528,9 @@ i.e. a vdW radius of \f$(\sqrt 2 - 1) r_p\f$.
 \anchor corollary-3
 **Corollary 3 (two neighbor shells suffice).** Enumerating the vertices
 that have a host in `active`, its near neighbors or their near neighbors
-captures every cutter of every face on an active atom (@ref prep-step-5
-"preparation step 5"). One hop does not suffice.
+captures every first-touch cutter of every face on an active atom
+(@ref prep-step-5 "preparation step 5"), which by @ref lemma-6 "Lemma 6"
+leaves every such face exact. One hop does not suffice.
 
 *Proof.* The hosts of a probe are pairwise near: two hosts from one triple
 share a point, and two hosts from different triples of a merged cluster
