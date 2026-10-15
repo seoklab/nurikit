@@ -38,9 +38,11 @@ nuri::ConnollyRadii; no radii file is copied from any program.
   (`BallExact` in `exact.cpp`) with geogram's perturbation for every tie
   that is perturbed, and stored; consumers read it and never re-derive it by
   another formula or default. Floating point decides only candidate
-  prefilters that are supersets of the exact sets and produces the outputs.
-  There is no clustering tolerance: two points are the same vertex only
-  when they are the same `(face, root)`.
+  prefilters that are supersets of the exact sets, necessary-condition
+  filters whose failure mode is a sliver (@ref ses-pipeline "The filter
+  pipeline"), and produces the outputs. There is no clustering tolerance:
+  two roots are one vertex only when an exact predicate finds them one
+  point (@ref sas-merge "Probe merge").
 - **No accessibility slack**: a positive slack breaks consistency between
   vertex acceptance and arc tests; do not reintroduce one.
 - **Roots are proven, not clamped**: a square root's argument is
@@ -662,8 +664,9 @@ which no perturbation changes.
    no circle of \f$s\f$ is full, and the solve with caps and no arc returns
    0.
 6. *Probes, SES, dots.* Probes are sorted by owner and `n_active` counts the
-   same set; the merge joins exactly the pairs within \f$\tau_m\f$ (a set
-   over the same positions) and takes the sorted atom union. In
+   same set; the merge joins exactly the coincident pairs (an exact
+   predicate on the input, @ref sas-merge "Probe merge") and takes the
+   sorted atom union. In
    `build_ses`, the convex area scales the SAS area; saddle ranges and
    integrals are per circle from `pts`, `sar`, `d` (bitwise) and saddle
    areas per arc from its \f$\Delta\varphi\f$; probe heights and contact
@@ -685,9 +688,9 @@ and carries no arc may appear or disappear), solver slots, the column order
 of a probe's tangents and the cap order handed to the face solver, hence the
 index order of its perturbation: an exact tie inside one face may resolve
 differently, with the same area to rounding and the same live caps. The
-first member of a merged cluster, hence its position within \f$\tau_m\f$ and
-whatever reads that position: the \f$O(\tau_m r_p)\f$ merge error, never
-topological. Floating sums in a data-dependent order, so areas agree to
+first member of a merged cluster, hence which certified position of its
+one exact point the probe carries, and whatever reads that position.
+Floating sums in a data-dependent order, so areas agree to
 about \f$10^{-14}\f$ relative, not bitwise; a patch's dot count
 \f$\operatorname{lround}(\text{area} \cdot \text{density})\f$ flips only when
 the product is within that rounding of a half-integer.
@@ -952,24 +955,54 @@ touch.
 
 #### Probe merge {#sas-merge}
 
-`build_sas` merges probes within
-\f$\tau_m = 4 \cdot\f$ `kOffsetRelTol` \f$\cdot R_{\max}\f$ (`probe_merge_tol`)
-of each other by union-find over every pair within \f$\tau_m\f$, found by one
-pass over the probes bucketed on a lattice of pitch \f$\tau_m\f$ and sorted
-by cell (a pair within \f$\tau_m\f$ shares a cell or sits in adjacent cells,
-and a constant cell shift preserves the sorted order, so each of the 13
-forward neighbor shifts is one merge join); roots that share no circle, as
-at a point where tangent pairs have deleted the linking circles, are merged
-like any other, and exact coincidence needs no separate test since two
-certified positions of one point differ by less than \f$\tau_m\f$. A
-cluster's atoms are the union of its members', its position that of the
-first member, and its tangents come from the arcs with one end in the
-cluster plus its full loops (\f$\Delta\varphi \ge \pi\f$, the grazing vertex
-gets \f$\pm t\f$); an internal short arc, a diagonal of the \f$k\f$-fold
-point, contributes nothing. The merge error is \f$O(\tau_m r_p)\f$ in area
-and never topological, since the face arrangement is exact on the caps it
-receives; the SAS arcs, caps and areas are computed before the merge and
-unchanged by it.
+Two roots are one probe iff they are one exact point. `build_sas` decides
+it with `BallExact::coincide`: for roots \f$x\f$ of \f$f\f$ and \f$x'\f$
+of \f$f'\f$ the difference
+\f$|u|^2 |u'|^2 (x - x') = P + \sqrt D\, Q + \sqrt{D'}\, Q'\f$ (the kernel
+of `difference`, @ref analysis-fp "Floating point") has every component
+zero, each decided as the unperturbed sign of an element of
+\f$\mathbb{Q}(\sqrt D, \sqrt{D'})\f$ by repeated squaring, the comparison
+across quadratic extensions of the CGAL spherical kernel
+@cite desc:surface:decastro-2009. A tangency perturbed to a cut, whose two
+roots are one point, needs no branch (\f$D = 0\f$). Candidates are the
+pairs within
+\f$\tau_m = 4 \cdot\f$ `kOffsetRelTol` \f$\cdot R_{\max} + 64 \cdot 2^{-53} \cdot\f$ `kSurfaceMaxCoord`
+(`probe_merge_tol`), a certified superset of the coincident pairs: two
+certified positions of one point differ by two offsets within
+`kOffsetRelTol` of a length \f$\le R_{\max}\f$ (the factor 2 also covers
+the rounded model radii) and two circle centers computed in double, each
+within \f$7\sqrt 3 \cdot 2^{-53}\f$ `kSurfaceMaxCoord` of the exact one
+(@ref analysis-fp "Floating point"). They are found by one pass over the
+probes bucketed on a lattice of pitch \f$\tau_m\f$ and sorted by cell (a
+pair within \f$\tau_m\f$ shares a cell or sits in adjacent cells, and a
+constant cell shift preserves the sorted order, so each of the 13 forward
+neighbor shifts is one merge join) and joined by union-find; a candidate
+already linked is skipped, since coincidence is transitive. Roots that
+share no circle, as at a point where tangent pairs have deleted the linking
+circles, are tested like any other. The clusters are the event sites of
+@cite desc:surface:cazals-loriot-2009, which groups coincident event points
+exactly and links them by union-find rather than perturbing the spheres
+apart. A cluster's atoms are the union of its members', its position that
+of the first member, and its tangents come from the arcs with one end in
+the cluster plus its full loops (\f$\Delta\varphi \ge \pi\f$, the grazing
+vertex gets \f$\pm t\f$); an internal arc, a diagonal of the \f$k\f$-fold
+point with \f$\Delta\varphi = 0\f$ exactly, contributes nothing. The merge
+has no error of its own: a cluster is one point, carried at one of its
+certified positions; the SAS arcs, caps and areas are computed before the
+merge and unchanged by it.
+
+Distinct roots may be arbitrarily close, and a tolerance would not help:
+an exact \f$k\f$-fold point of the input rounds, under a rigid motion, into
+\f$k - 2\f$ distinct roots some \f$10^{-15}\f$ apart, and a tolerance that
+snapped them back "simply activates rounding to zero"
+@cite desc:surface:kettner-2008, with the same fractured boundary one scale
+up. Such roots stay distinct probes, each with its three atoms; their
+faces, cut by each other's near-hemisphere caps, partition the face of the
+exact point with the same total area to rounding. The pair stage places
+them by `difference`, whose direction is certified however close the roots
+are (@ref analysis-fp "Floating point"), and the contact-plane and
+triangle filters apply to single-root probes only (`members`); a cluster of
+several roots, as at an exact tangency, is solved unfiltered.
 
 ## Solvent-excluded surface (SES) {#ses}
 
@@ -1031,8 +1064,9 @@ unchanged by it.
   \f$(a, b)\f$ is normal to the plane through \f$q\f$, \f$c_a\f$,
   \f$c_b\f$). The same rule handles merged \f$k\f$-fold vertices (one
   hemisphere per surviving arc), a vertex that is the only vertex on a
-  circle (two opposite hemispheres, zero face), and nearly coplanar contacts
-  (zero face). These two kinds of caps are all that is needed: whatever SAS
+  circle (two opposite hemispheres, zero face), and the two roots of a
+  nearly tangent face (each cut to a sliver by the other's cap). These two
+  kinds of caps are all that is needed: whatever SAS
   point cuts a face point, some vertex probe within \f$2 r_p\f$ cuts it too
   (@ref theorem-4 "Theorem 4").
 
@@ -1061,8 +1095,8 @@ three-atom vertex, the complement of the three departure hemispheres), the
 **contact triangle** is \f$T_x = \operatorname{conv}\{c_a\}\f$, and
 \f$t_x(d)\f$ is the distance from \f$x\f$ along the ray \f$d \in C_x\f$ to
 \f$T_x\f$. The face is cut by a probe \f$y\f$ where it enters the open ball
-\f$B^\circ(y, r_p)\f$. Merged \f$k\f$-fold probes take the unfiltered path;
-the filters are for three-atom probes.
+\f$B^\circ(y, r_p)\f$. Merged probes take the unfiltered path; the filters
+are for single-root three-atom probes.
 
 \anchor lemma-5
 **Lemma 5 (contact hull).** Points that lie between an SAS point and the
@@ -1131,9 +1165,9 @@ from \f$x\f$ toward it and \f$h\f$ the distance to the plane:
   \angle(t_m, t_{m+1}) = \operatorname{atan2}(|t_m \times t_{m+1}|,\ t_m \cdot t_{m+1}).
   \f]
   Every other vertex is **low** (\f$k\f$-fold probes count as low). A high face
-  whose three tangents are linearly dependent has no spherical triangle and goes
-  to the face solver on its hemispheres alone, where two of them are
-  complementary and the area is 0.
+  whose three tangents are linearly dependent, or dependent within the
+  tangent certificate (@ref lemma-10 "Lemma 10"), has no usable spherical
+  triangle and goes to the face solver on its hemispheres alone.
 
   *Proof.* \f$t_x\f$ is the distance along the ray to \f$T_x\f$, and the rays of
   \f$C_x\f$ sweep all of \f$T_x\f$, so its minimum is the distance from \f$x\f$
@@ -1322,7 +1356,15 @@ other vertex ball, which is what @ref lemma-6 "Lemma 6" finds.
 u \cdot n > \cos(\alpha + \beta) = \cos\alpha \cos\beta - \sin\alpha \sin\beta,
 \f]
 with \f$n\f$, \f$\beta\f$ of the beyond-plane cap \f$D_x\f$. All four
-values are stored; no angle is recovered.
+values are stored; no angle is recovered. The side of the contact plane,
+hence \f$n\f$, is read from the root: \f$x\f$ is root \f$\sigma\f$ of its
+face, \f$x = c_a + y_\perp + \sigma \sqrt D\, u / |u|^2\f$ with
+\f$u = (c_b - c_a) \times (c_c - c_a)\f$, so \f$n = -\sigma\, u/|u|\f$
+whatever the rounded height; only \f$h = |(x - c_a) \cdot u| / |u|\f$ is
+floating, and the test is a necessary condition for every \f$h > 0\f$. A
+side read from the floating height would be noise once \f$h\f$ is below the
+position certificate, and a wrong side drops the mirror root's cap, the one
+that cuts the face to \f$D_x\f$.
 
 *Proof.* By @ref corollary-1 "Corollary 1"(a) the cut part of the face lies
 inside \f$D_x = \{d : d \cdot n > \cos\beta\}\f$, and a cap meets it only
@@ -1342,21 +1384,21 @@ angular distance from \f$u\f$ to the boundary of \f$S\f$ is below
 \f$\alpha\f$, which three tests decide without a square root.
 
 *Proof.* Edge \f$m\f$ is the arc of the great circle
-\f$t_m \cdot d = 0\f$ between the corners \f$p_{m+1}\f$ and \f$p_{m+2}\f$,
+\f$t_m \cdot d = 0\f$ inside the other two half-spaces,
+\f$\{d : t_m \cdot d = 0,\ t_k \cdot d \le 0 \text{ for } k \ne m\}\f$,
+between the corners \f$p_{m+1}\f$ and \f$p_{m+2}\f$,
 \f$p_m = \pm(t_{m+1} \times t_{m+2})/|\cdot|\f$ signed so that
-\f$t_m \cdot p_m \le 0\f$; the corners are perpendicular to \f$t_m\f$. The
-foot of \f$u\f$ on that great circle is \f$f = u - (u \cdot t_m) t_m\f$, the
-squared cosine of the angle from \f$u\f$ to \f$f\f$ is
-\f$|f|^2 = 1 - (u \cdot t_m)^2\f$, and \f$f\f$ lies on the arc iff the angle
-from \f$f\f$ to the corners' bisector \f$p + q\f$ is at most half the arc.
-Because \f$p, q \perp t_m\f$, \f$f \cdot (p + q) = u \cdot (p + q)\f$, and
-the test is
+\f$t_m \cdot p_m \le 0\f$. The foot of \f$u\f$ on that great circle is
+\f$f = u - (u \cdot t_m) t_m\f$ up to a positive factor, the squared cosine
+of the angle from \f$u\f$ to \f$f\f$ is \f$1 - (u \cdot t_m)^2\f$, and
+\f$f\f$ lies on the arc iff
 \f[
-u \cdot (p + q) \ge 0
-\quad\text{and}\quad
-(u \cdot (p + q))^2 \ge \bigl(1 - (u \cdot t_m)^2\bigr)\,(p \cdot (p + q))^2.
+u \cdot t_k - (u \cdot t_m)(t_k \cdot t_m) \le 0
+\quad\text{for both } k \ne m,
 \f]
-So the cap meets the triangle iff
+a test whose floating error is of the order of one rounding (the bisector
+form \f$p \cdot (p + q) = 1 + p \cdot q\f$ is pure rounding for an edge
+near \f$\pi\f$). So the cap meets the triangle iff
 \f$u \cdot t_m \le 0\f$ for all \f$m\f$ (axis inside \f$S\f$), or
 \f$f\f$ on arc \f$m\f$ and \f$1 - (u \cdot t_m)^2 > \cos^2\alpha\f$ for some
 \f$m\f$ (edge reached), or \f$\max_m u \cdot p_m > \cos\alpha\f$ (corner
@@ -1366,13 +1408,33 @@ of the triangle, a hole punched in the middle of a face, meets \f$S\f$
 without meeting \f$\partial S\f$, and dropping it would delete the hole.
 
 No square root is taken; all comparisons are on cosines or their squares.
-The triangle exists only when the three tangents are linearly independent
-(\f$t_1 \cdot (t_2 \times t_3) \ne 0\f$); this also keeps every edge shorter
-than \f$\pi\f$, so \f$p + q \ne 0\f$ and \f$p \cdot (p + q) = 1 + p \cdot q > 0\f$,
-which is what makes the squaring above sign-safe. Probes failing
-independence, like \f$k\f$-fold probes, pass the test and are solved
-unfiltered. The condition is necessary for the cap to cut anything and, for
-a face with no other caps, sufficient.
+
+The tangents are computed, each within
+\f$\eta =\f$ `kTangentEps` \f$=\f$ `kSurfaceAngleEps` \f$+ 4 \cdot 2^{-53}\f$
+of the exact one (@ref analysis-fp "Floating point"), so the test runs on
+a computed triangle \f$\tilde S\f$ with corners \f$\tilde p_m\f$. Let
+\f$\Delta = \tilde t_1 \cdot (\tilde t_2 \times \tilde t_3)\f$. Every
+direction of the exact triangle \f$S\f$ is within
+\f$H = \arcsin(3\eta / |\Delta|)\f$ of \f$\tilde S\f$: the corners satisfy
+\f$\tilde t_k \cdot \tilde p_m = 0\f$ for \f$k \ne m\f$ and
+\f$\tilde t_m \cdot \tilde p_m = -|\Delta| / |\tilde t_{m+1} \times \tilde t_{m+2}| \le -|\Delta|\f$,
+so \f$v = \sum_m \tilde p_m / |\sum_m \tilde p_m|\f$ has
+\f$\tilde t_k \cdot v \le -|\Delta|/3\f$ for every \f$k\f$; a direction
+\f$d \in S\f$ has \f$\tilde t_k \cdot d \le \eta\f$, hence
+\f$w = d + (3\eta / |\Delta|)\, v\f$ lies in \f$\tilde S\f$ at angle at most
+\f$H\f$ from \f$d\f$. A cap that meets \f$S\f$ therefore meets
+\f$\tilde S\f$ with its radius widened by \f$H\f$, and the filter tests
+\f$\alpha + H\f$ (\f$\cos(\alpha + H)\f$ from the stored
+\f$\cos\alpha, \sin\alpha\f$; a cap with \f$\alpha + H \ge \pi/2\f$
+passes, as the squared comparisons need \f$\alpha + H < \pi/2\f$). The
+triangle is used only when
+\f$|\Delta| \ge\f$ `kTriangleDetMin` \f$= 6\eta + 8 \cdot 2^{-53}\f$, which
+keeps \f$\sin H \le 1/2\f$ and the corner signs
+\f$\tilde t_m \cdot \tilde p_m \le -|\Delta|\f$ clear of their rounding;
+below it, and for a cluster of several roots, the probe passes the test and
+is solved unfiltered, which is sound since the filter only ever drops. The
+condition is necessary for the cap to cut anything and, for a face with no
+other caps, sufficient up to \f$H\f$.
 
 \anchor lemma-11
 **Lemma 11 (host overlap).** Whenever one probe trims another's face, some
@@ -1443,9 +1505,9 @@ captures every cutter of every face on an active atom (@ref prep-step-5
 "preparation step 5"). One hop does not suffice.
 
 *Proof.* The hosts of a probe are pairwise near: two hosts from one triple
-share a point, and two hosts from different triples of a merged cluster have
-contact points within the cluster's diameter, at most \f$\tau_m \ll 2\tau\f$
-(@ref sas-step-4 "SAS step 4"), so \f$|c_a - c_d| \le R_a + R_d + 2\tau\f$. An
+share a point, and two hosts from different triples of a merged cluster
+share the cluster's one exact point (@ref sas-merge "Probe merge"), so
+\f$|c_a - c_d| \le R_a + R_d\f$ in either case. An
 overlap is a near pair, so by @ref lemma-11 "Lemma 11" a host of a first-touch
 cutter of
 \f$x\f$ is within two near hops of every host of \f$x\f$. One hop is not
@@ -1601,7 +1663,9 @@ memory; the stages:
   near degeneracy, \f$O(n)\f$ predicates; each sphere's arrangement is
   \f$O(m^2)\f$ in its cap count for the disc-intersection components and
   \f$O(m)\f$ for the walk, independent of all other spheres, so
-  \f$O(n m^2)\f$ in all; the probe merge is one sort, \f$O(p \log p)\f$.
+  \f$O(n m^2)\f$ in all; the probe merge is one sort, \f$O(p \log p)\f$,
+  plus one exact coincidence predicate per candidate pair not already
+  linked: one per root at a \f$k\f$-fold point, none elsewhere.
 - **SES**: heights and contact triangles \f$O(p)\f$; the probe-pair query
   \f$O(p\,k)\f$ and the two filters \f$O(1)\f$ per pair; the face solver
   \f$O(k^2)\f$ per low face (its caps are the surviving neighbors plus
@@ -1660,9 +1724,25 @@ circle tiny only by rounding (a tangent pair under a rigid motion has radius
 about \f$10^{-8}\,\AA\f$, and a non-tie can be far smaller): the floating
 discriminant and squared radius of such a circle are smaller than their own
 rounding error, and the vertex angles of a position taken from them are
-noise. The probe position is \f$\mathrm{cntr} + \text{offset}\f$;
-\f$\varphi\f$, dart angles and areas inherit at most that \f$2^{-26}\f$
-relative error. The floating comparisons that remain are output-only: the
+noise. The probe position is \f$\mathrm{cntr} + \text{offset}\f$ with the
+center \f$c_a + (v_b / |d|^2)\, d\f$ in plain double, so it is within
+\f$1.01 \cdot 2^{-26} \rho_{\max} + 7\sqrt 3 \cdot 2^{-53}\f$ `kSurfaceMaxCoord`
+\f$+ 13 \cdot 2^{-53} \rho_{\max}\f$ of the exact root (\f$\rho_{\max}\f$ the
+largest model radius, \f$\le R_{\max} + \sqrt{12 \cdot 2^{-53}}\f$
+`kSurfaceMaxCoord`), which sets the candidate band of the
+@ref sas-merge "probe merge"; \f$\varphi\f$, dart angles and areas inherit
+at most the \f$2^{-26}\f$ relative error. The difference of two roots is
+never taken from their positions: `difference` evaluates
+\f$P + \sqrt D\, Q + \sqrt{D'}\, Q'\f$ under the same certificate, and
+otherwise from the exact dyadics with the square roots taken to \f$k\f$
+extra bits, doubled until the sum's bound is below \f$2^{-52}\f$ of its
+length, read at the sum's own scale. It returns a unit direction and a
+length separately, because distinct roots have no separation that fits a
+double: a separation bound of the kind of @cite desc:surface:bfmss-2009 on
+one component, a polynomial of degree 9 in inputs within
+`kSurfaceMaxCoord`, is about \f$2^{-1800}\f$. The direction is right
+however close the roots are; a length that underflows lifts the neighbor's
+cap as the hemisphere limit. The floating comparisons that remain are output-only: the
 fold of each vertex's `atan2` into its exact half-plane class (the class
 carries the side of the ray, `atan2` only the magnitude, so a vertex at
 \f$\pi \mp \delta\f$ folds to \f$\pi\f$, never to 0 or \f$2\pi\f$), the
@@ -1674,7 +1754,9 @@ exactly at an internal tangency; the computed corner deviates by at most one
 offset certificate per dart plus roundoff, \f$2 \cdot 2^{-26} + 2^{-40}\f$
 (`kSurfaceAngleEps`), the vertex normal's error entering only
 quadratically, so the reflex check \f$\iota \le \pi +\f$ `kSurfaceAngleEps`
-is a `DCHECK` on an invariant, not a decision.
+is a `DCHECK` on an invariant, not a decision. A departure tangent carries
+the same bound plus its normalization (`kTangentEps`), which gates the
+contact triangle (@ref lemma-10 "Lemma 10").
 
 The face solver's ring sort (@ref ses-patches "Patch areas") is sound for
 the same reason: each vertex's offset is certified to `kOffsetRelTol` of its
