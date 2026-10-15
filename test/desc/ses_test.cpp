@@ -792,6 +792,37 @@ TEST(BuildSesTest, FiltersDoNotChangeArea) {
 }
 
 /**
+ * The two roots of the nearly tangent face, `(0, +-h, zc)`, each keep the
+ * other's cap and are cut by it to the zone between the contact plane and
+ * its mirror, of area at most `2 pi rp h` up to the vertex certificate
+ * (a wrong side keeps the hemisphere, `2 pi rp^2`): the side of the plane
+ * comes from the root sign, which the rounded height cannot give below
+ * the position certificate.
+ */
+TEST(BuildSesTest, NearTangentFacesAreSlivers) {
+  for (const double h: { 5e-6, 2e-7, 1e-13 }) {
+    SCOPED_TRACE(h);
+    const auto [pts, sar] = near_tangent_face(h);
+    const double r = 2.0, d = 4.0 - 1e-4,
+                 zc = std::sqrt(r * r - d * d / 4 - h * h);
+    const SurfaceGeometry s = solve(pts, sar);
+    const ConcavePatches &con = s.concave();
+
+    int n = 0;
+    for (int p = 0; p < con.pos.cols(); ++p) {
+      if ((con.pos.col(p) - Vector3d(0, 0, zc)).norm() > 1e-5)
+        continue;
+      ++n;
+      EXPECT_GT(con.caps.off.degree(p), hemispheres(s, p).cols()) << p;
+      EXPECT_LE(con.area[p],
+                4 * kPi * kRp * h + kTwoPi * kRp * kRp * kOffsetRelTol)
+          << p;
+    }
+    EXPECT_EQ(n, 2);
+  }
+}
+
+/**
  * A neighbor probe at exactly `2 rp` is tangent to the probe sphere and
  * carries no cap; one an ulp closer carries a cap of angular radius
  * `2^-26`, cut or buried exactly, of area below `1e-14`.
