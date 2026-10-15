@@ -51,8 +51,8 @@ namespace internal {
    * Two certified positions of one exact point differ by two offsets, each
    * within `kOffsetRelTol` of a length `<= rmax` (taken twice for margin,
    * which also covers the rounded model radii), plus two circle centers in
-   * double, each within `7 sqrt(3) 2^-53 kSurfaceMaxCoord` (taken with 64 for
-   * margin). `build_sas` tests every pair of probes within this distance for
+   * double with their final sums, each within
+   * `8 sqrt(3) 2^-53 kSurfaceMaxCoord` (taken with 64 for margin). `build_sas` tests every pair of probes within this distance for
    * exact coincidence and merges the coincident ones, so no two of its probes
    * are one point; distinct probes may be arbitrarily close.
    */

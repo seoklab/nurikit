@@ -970,9 +970,9 @@ pairs within
 (`probe_merge_tol`), a certified superset of the coincident pairs: two
 certified positions of one point differ by two offsets within
 `kOffsetRelTol` of a length \f$\le R_{\max}\f$ (the factor 2 also covers
-the rounded model radii) and two circle centers computed in double, each
-within \f$7\sqrt 3 \cdot 2^{-53}\f$ `kSurfaceMaxCoord` of the exact one
-(@ref analysis-fp "Floating point"). They are found by one pass over the
+the rounded model radii) and two circle centers computed in double with
+their final sums, each within \f$8\sqrt 3 \cdot 2^{-53}\f$ `kSurfaceMaxCoord`
+of the exact one (@ref analysis-fp "Floating point"). They are found by one pass over the
 probes bucketed on a lattice of pitch \f$\tau_m\f$ and sorted by cell (a
 pair within \f$\tau_m\f$ shares a cell or sits in adjacent cells, and a
 constant cell shift preserves the sorted order, so each of the 13 forward
@@ -982,8 +982,10 @@ share no circle, as at a point where tangent pairs have deleted the linking
 circles, are tested like any other. The clusters are the event sites of
 @cite desc:surface:cazals-loriot-2009, which groups coincident event points
 exactly and links them by union-find rather than perturbing the spheres
-apart. A cluster's atoms are the union of its members', its position that
-of the first member, and its tangents come from the arcs with one end in
+apart. A cluster's atoms are the union of its members' (a sphere through
+the point none of whose roots is accepted is not listed: the perturbation
+holds it inside by \f$\varepsilon\f$, and only the dot owners read the
+list), its position that of the first member, and its tangents come from the arcs with one end in
 the cluster plus its full loops (\f$\Delta\varphi \ge \pi\f$, the grazing
 vertex gets \f$\pm t\f$); an internal arc, a diagonal of the \f$k\f$-fold
 point with \f$\Delta\varphi = 0\f$ exactly, contributes nothing. The merge
@@ -1365,8 +1367,14 @@ hence \f$n\f$, is read from the root: \f$x\f$ is root \f$\sigma\f$ of its
 face, \f$x = c_a + y_\perp + \sigma \sqrt D\, u / |u|^2\f$ with
 \f$u = (c_b - c_a) \times (c_c - c_a)\f$, so \f$n = -\sigma\, u/|u|\f$
 whatever the rounded height; only \f$h = |(x - c_a) \cdot u| / |u|\f$ is
-floating, and the test is a necessary condition for every \f$h > 0\f$. A
-side read from the floating height would be noise once \f$h\f$ is below the
+floating, and the test is a necessary condition for every \f$h > 0\f$. The
+computed \f$h\f$ is within the position certificate
+\f$\delta h\f$ (@ref analysis-fp "Floating point") of the exact one, and a
+test that flips on that error drops only a cap whose overlap with
+\f$D_x\f$ is shallower than the error in \f$\beta\f$, a region inside
+the band of that angular width along the boundary of \f$D_x\f$, of area at
+most \f$2\pi r_p^2\, \delta(\cos\beta) = 2\pi r_p\, \delta h\f$, about
+\f$2\pi r_p \rho_{\max} 2^{-26}\f$. A side read from the floating height would be noise once \f$h\f$ is below the
 position certificate, and a wrong side drops the mirror root's cap, the one
 that cuts the face to \f$D_x\f$.
 
@@ -1834,8 +1842,9 @@ discriminant and squared radius of such a circle are smaller than their own
 rounding error, and the vertex angles of a position taken from them are
 noise. The probe position is \f$\mathrm{cntr} + \text{offset}\f$ with the
 center \f$c_a + (v_b / |d|^2)\, d\f$ in plain double, so it is within
-\f$1.01 \cdot 2^{-26} \rho_{\max} + 7\sqrt 3 \cdot 2^{-53}\f$ `kSurfaceMaxCoord`
-\f$+ 13 \cdot 2^{-53} \rho_{\max}\f$ of the exact root (\f$\rho_{\max}\f$ the
+\f$1.01 \cdot 2^{-26} \rho_{\max} + 8\sqrt 3 \cdot 2^{-53}\f$ `kSurfaceMaxCoord`
+\f$+ 15 \cdot 2^{-53} \rho_{\max}\f$ of the exact root (the last
+\f$\sqrt 3 \cdot 2^{-53}\f$ of each is the rounding of the sum itself) (\f$\rho_{\max}\f$ the
 largest model radius, \f$\le R_{\max} + \sqrt{12 \cdot 2^{-53}}\f$
 `kSurfaceMaxCoord`), which sets the candidate band of the
 @ref sas-merge "probe merge"; \f$\varphi\f$, dart angles and areas inherit
