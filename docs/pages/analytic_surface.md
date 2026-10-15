@@ -14,14 +14,15 @@ turns two dot sets into the Lawrence-Colman statistic. The code is in
 
 The SES is the molecular surface of Richards @cite desc:surface:richards-1977
 in the analytic patch decomposition of Connolly
-@cite desc:surface:connolly-1983. The characterization of the concave patches
-and the Gauss-Bonnet area formula follow Quan and Stamm
-@cite desc:surface:quan-stamm-2016 (their Theorem 5.1 and formulas
-(4.19)/(5.25)/(5.28)); the derivations on this page are this document's own. The
-shape complementarity statistic and its defaults are those of Lawrence and
-Colman @cite desc:sc:lawrence-colman-1993 as implemented in Rosetta's `sc`
-application. The united-atom radii come from a published table, see
-nuri::ConnollyRadii; no radii file is copied from any program.
+@cite desc:surface:connolly-1983, whose Gauss-Bonnet patch areas are used.
+The characterization of the concave patches and the formulas used follow
+Quan and Stamm @cite desc:surface:quan-stamm-2016 (their Theorem 5.1 and
+formulas (4.19)/(5.25)/(5.28)); the derivations on this page are this
+document's own. The shape complementarity statistic and its defaults are
+those of Lawrence and Colman @cite desc:sc:lawrence-colman-1993 as
+implemented in Rosetta's `sc` application. The united-atom radii are Table 5
+of the Connolly MSP 3.9.2 manual @cite param:radii:connolly-msp-manual-2002,
+see nuri::ConnollyRadii; no radii file is copied from any program.
 
 ### Design rules {#prelim-rules}
 
@@ -267,8 +268,8 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    its first non-zero first-order coefficient in index order. Geogram's
    predicate is linear in the heights, the polynomial case the cited scheme
    covers; the predicates here are \f$C^1\f$ in the heights away from
-   \f$D = 0\f$ (discriminants, \f$A \pm B\sqrt D\f$), and extending the
-   rule to them is this document's: the first-order rule applies as long as
+   \f$D = 0\f$ (discriminants, \f$A \pm B\sqrt D\f$), and the application
+   of the rule to them is this document's: the first-order rule applies as long as
    one participant has a non-zero first-order coefficient, which holds for
    `cuts` (the three coefficients
    sum to \f$|u|^2\f$, non-zero unless the centers are collinear, which
@@ -1920,14 +1921,15 @@ The authors' Matlab implementation of the surface, MolSurfComp
 terms incompatible with this project's Apache-2.0 license. No code, formula,
 constant, tolerance, table, identifier or file structure from it appears in
 this source tree; the implementation was written from the paper and from the
-derivations on this page, and MolSurfComp was read once, as a black box, for a
-correctness audit. That audit found four prunings of the concave cut set that
-the paper does not state (its Theorem 5.1 removes \f$B_{r_p}(x)\f$ for every
-SAS intersection point \f$x\f$ within \f$2 r_p\f$ and imposes no filter):
+derivations on this page, and MolSurfComp was read once, to audit its concave
+cut set against this page; nothing was taken from it. That audit found four
+prunings of the concave cut set that the paper does not state (its Theorem
+5.1 removes \f$B_{r_p}(x)\f$ for every SAS intersection point \f$x\f$ within
+\f$2 r_p\f$ and imposes no filter):
 
-| MolSurfComp | There | Here |
+| Pruning | MolSurfComp (asserted in code) | Here |
 |---|---|---|
-| high probe implies an uncut face, by height over the plane of the three atom centers | asserted | not adopted. @ref corollary-1 "Corollary 1"(c), proved, on the distance to the contact *triangle* |
+| high probe implies an uncut face, by height over the plane of the three atom centers | asserted | not adopted. Sanner's criterion, proved as @ref corollary-1 "Corollary 1"(c) on the distance to the contact *triangle* |
 | only low probes may cut | asserted | not adopted. @ref corollary-2 "Corollary 2" (cut symmetry), proved |
 | first-atom neighborhood restriction | asserted | not adopted. @ref lemma-11 "Lemma 11" (host overlap) gives the provable version: a cutter's hosts reach the cut face's hosts within two overlap hops, one hop is not enough |
 | keep only the largest departure angle among probes sharing two atoms | asserted | @ref lemma-7 "Lemma 7", proved, not a code path |
@@ -1938,9 +1940,10 @@ faces here against 3520 there; on 2PTC, 1686 against 1555).
 
 ### Rosetta {#related-rosetta}
 
-Rosetta's `sc` application was used only as a numeric oracle for the
-statistic; it is neither linked nor redistributed. Intentional deviations
-from it:
+Rosetta's `sc` application was consulted for its defaults and deviations
+and run as a numeric oracle for the statistic; it is neither linked nor
+redistributed and no code was taken. Intentional deviations from it, as
+observed:
 
 - Rosetta builds missing C-terminal `OXT` atoms; the input is scored as given.
 - At torus cusps (probe-circle radius below \f$r_p\f$) Rosetta emits only one
