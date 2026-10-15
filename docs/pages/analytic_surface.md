@@ -57,12 +57,12 @@ numerical values approximate), with the consistency motivation of
   non-negative by a preparation filter or an exact predicate, so kernels
   assert rather than clamp, and a loosened tolerance is fixed by a filter in
   the preparation. The clamps that remain are real zero branches (the
-  spindle root at a pinch, the crossing half-chord) and one rounding guard
+  spindle root \f$\sqrt{r_p^2 - r_l^2}\f$ at \f$r_l = r_p\f$, the crossing half-chord) and one rounding guard
   on the circle radius of an exact overlap of sub-ulp depth (`sas.cpp`).
 
 ### Definitions {#prelim-defs}
 
-- Atom \f$i\f$ has center \f$c_i\f$, van der Waals radius \f$r_i\f$ and SAS
+- Atom \f$i\f$ has center \f$c_i\f$, van der Waals (vdW) radius \f$r_i\f$ and SAS
   radius \f$R_i = r_i + r_p\f$, where \f$r_p\f$ is the probe radius.
 - \f$B(c, R)\f$ is the closed ball, \f$B^\circ(c, R)\f$ its interior,
   \f$S(c, R)\f$ the sphere. \f$U = \bigcup_i B(c_i, R_i)\f$ is closed. The
@@ -113,7 +113,7 @@ face is one cap component).
 
 `prepare` in `prep.cpp` turns centers, radii, a probe radius and an active
 mask into a `SurfaceSpheres`. Its tolerance is
-`kSurfaceLengthEps` \f$= 10^{-6}\,\AA\f$ (`stages.h`), used only for candidate
+`kSurfaceLengthEps` \f$= \tau = 10^{-6}\,\AA\f$ (`stages.h`), used only for candidate
 bands that are supersets of exactly decided sets; every decision is exact.
 
 1. \anchor prep-step-1 **Candidates.**
@@ -129,8 +129,7 @@ bands that are supersets of exactly decided sets; every decision is exact.
    an active atom. Pairs below \f$R_i + R_j - 2\tau\f$ are overlaps outright;
    inside the band `BallExact::overlap` decides exactly on the lifted heights
    of the @ref sas-notation "SAS notation", and a pair tangent to within rounding is a tie that
-   is *reported*, not perturbed: it carries no circle (the zero-measure rule
-   below), but it still counts as a neighbor for the ranks of
+   is *reported*, not perturbed: it carries no circle (the @ref prep-zero-measure "zero-measure rule"), but it still counts as a neighbor for the ranks of
    @ref prep-step-4 "step 4".
 2. \anchor prep-step-2 **Contained balls.**
    The band \f$d \le |R_i - R_j| + \tau\f$ selects candidates;
@@ -156,7 +155,7 @@ bands that are supersets of exactly decided sets; every decision is exact.
    \f$D\f$ of the @ref sas-notation "SAS notation" is zero; the middle is \f$a\f$ iff
    \f$d_b \cdot d_c < 0\f$, else the nearer of \f$b\f$, \f$c\f$.
 
-   The three filters follow one rule: **a sphere, or a circle, whose surface
+   The three filters follow one rule: \anchor prep-zero-measure **a sphere, or a circle, whose surface
    or length is zero in the unperturbed configuration is removed, decided
    exactly, and an exact tie is that answer.** A contained ball (internal
    tangency included), a shared-circle middle and an exactly tangent pair
@@ -255,7 +254,7 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    equal to it. Working on \f$R_i^2\f$ instead is inconsistent at the
    \f$10^{-15}\f$ level, exactly where degenerate cells live.
 
-   Exact ties are resolved by **Simulation of Simplicity**
+   Exact ties are resolved by **Simulation of Simplicity** (SoS)
    @cite desc:surface:edelsbrunner-mucke-1990 on the heights alone, the
    scheme of @cite desc:surface:devillers-teillaud-2011 (centers fixed,
    radii perturbed by index, so every cell of the limit triangulation is a
@@ -313,7 +312,7 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    \f$4 G r^2\f$, so its exact zero is a tangency, a circle of zero length.
    The perturbation would resolve it to an overlap (the coefficient of
    \f$t\f$'s height is \f$4\rho_s^2 - 2T = 4\rho_s^2 + 4\rho_s\rho_t > 0\f$),
-   but the tie is reported instead: by the zero-measure rule the pair carries
+   but the tie is reported instead: by the @ref prep-zero-measure "zero-measure rule" the pair carries
    no circle. Three structural rules make this the \f$\varepsilon \to 0\f$
    limit of the perturbed arrangement, in which the tangent pair would carry
    a circle of radius \f$O(\sqrt\varepsilon)\f$ cut by every sphere through
@@ -355,16 +354,16 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    edge are walked in cyclic order (across the
    two faces of each cell that contain the edge; the cycle closes within the
    finite cells by @ref lemma-1 "Lemma 1"). Each face \f$(a, b, c)\f$ of the fan that cuts
-   the circle contributes its accepted roots in the order **exit from the
-   facet, then entry into the facet** (entering ball \f$c\f$, then leaving
+   the circle contributes its accepted roots in the order *exit from the
+   facet, then entry into the facet* (entering ball \f$c\f$, then leaving
    it) along the circle's orientation about \f$a \to b\f$; the
    orientation of the fan comes from the sign of the cell (geogram cells are
    positively oriented), so no angle is ever compared. @ref lemma-2 "Lemma 2" says this is
    the cyclic order of the vertices on the circle. Consecutive ring entries
-   alternate entry/exit (a structural `DCHECK`); the arc from an **entry to
-   the next vertex is accessible**, from an exit it is not. An empty ring is
-   a full circle, accessible iff **no fan face cuts the circle and none
-   contains it** (`side`: the sign of \f$\mu\f$, which is the sign of
+   alternate entry/exit (a structural `DCHECK`); the arc from an *entry to
+   the next vertex is accessible*, from an exit it is not. An empty ring is
+   a full circle, accessible iff *no fan face cuts the circle and none
+   contains it* (`side`: the sign of \f$\mu\f$, which is the sign of
    \f$\pi_c\f$ on a circle \f$c\f$ does not cut; a face that cuts the circle
    with both roots rejected means the circle is covered).
 
@@ -423,7 +422,7 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    the accessible arcs, a full circle is its own loop, and loops are the
    cycles of the successor permutation, counted by one visited-flag walk.
 
-   \f$C\f$ is the number of components of the union of **all** caps of
+   \f$C\f$ is the number of components of the union of *all* caps of
    \f$s\f$, including caps with no accessible arc: the components of a finite
    union of open discs are the components of their intersection graph, and
    two open discs intersect iff their circles cross (`cuts`) or one circle
@@ -521,8 +520,9 @@ point at the same position to rounding, and each accepted one is a probe.
 around an edge visits the circle's vertices in their order along the circle.
 Hypotheses: no face of the fan is tangent to the circle (a double root is
 perturbed to a cut or a miss before this lemma applies) and no cell
-orthocentre lies on the circle (a tie that `accept` perturbs away). The
-circle \f$(a, b)\f$ and the power facet \f$P = V_a \cap V_b\f$ both lie in
+orthocentre lies on the circle (a tie that `accept` perturbs away).
+
+*Proof.* The circle \f$(a, b)\f$ and the power facet \f$P = V_a \cap V_b\f$ both lie in
 the radical plane \f$\{\pi_a = \pi_b\}\f$; \f$P\f$ is a convex polygon
 whose edges, in fan order, are the dual segments of the fan faces, and the
 accessible arcs are the circle inside \f$P\f$. Since
@@ -540,7 +540,9 @@ or wholly outside the disc, and the circle does not meet that edge.
 \anchor theorem-2
 **Theorem 2 (neighbor caps suffice).** In plain words: every buried point
 of a sphere is buried by a triangulation neighbor, so the neighbor caps
-alone give the right components. The union of balls decomposes as
+alone give the right components.
+
+*Proof.* The union of balls decomposes as
 \f$U = \bigcup_s (B_s \cap V_s)\f$, and \f$x \in S_s\f$ is accessible iff
 \f$x \in V_s\f$ @cite desc:surface:edelsbrunner-1995. \f$V_s\f$ is a
 convex polyhedron whose facets are the \f$RT\f$ edges of \f$s\f$
@@ -840,7 +842,8 @@ restricted to the unperturbed overlap graph `g`. Objects of measure zero at
 circles and their cut points) are deleted before the sweep, whose vertices
 are the accessible cut points of `g`-faces (@ref theorem-1 "Theorem 1");
 two caps are joined iff a vertex links them or their open discs meet (a
-touch is no join). This is correct iff every pinch point counts loops and
+touch is no join). This is correct iff every **pinch point**, a point where two kept spheres
+touch, counts loops and
 components one way: vertex present means joined (cusp pair, net area 0), absent
 means not joined (two loops, two components). The alternative is to displace
 the spheres numerically until every feature is separated and report the
@@ -971,7 +974,8 @@ load-bearing: with the coplanar centers \f$p = (-1, 0, 0)\f$,
 \f$q = (1, 0, 0)\f$, \f$c, c' = (0.6, \pm 0.8, 0)\f$ and all radii 1, every
 sphere passes through the origin, where \f$p\f$ and \f$q\f$ touch; on
 \f$S_p\f$ the discs of \f$c\f$ and \f$c'\f$ touch there, the triangulation
-takes the diagonal \f$pq\f$, and the perturbed circles would cross. Joining
+takes the diagonal \f$pq\f$ (for the index order \f$p, q, c, c'\f$; with
+\f$c\f$ first it takes \f$cc'\f$), and the perturbed circles would cross. Joining
 the two discs would be off by \f$4\pi R^2\f$; the sweep keeps them apart
 because `discs_intersect` reads the unperturbed sign and `side` reports a
 touch.
@@ -1133,8 +1137,8 @@ atoms it touches are closer to that SAS point than to any other point outside
 \f$U\f$. Precisely: let \f$s\f$ be an SAS point touching atoms \f$A(s)\f$,
 \f$v\f$ any point not inside \f$U\f$ (every SAS point qualifies), \f$q\f$
 any point of the convex hull of \f$\{c_a : a \in A(s)\}\f$, and
-\f$p = (1 - \tau) s + \tau q\f$ with \f$0 \le \tau \le 1\f$. Then
-\f$|p - v| \ge |p - s|\f$, strictly for \f$\tau < 1\f$ and \f$v \ne s\f$.
+\f$p = (1 - \omega) s + \omega q\f$ with \f$0 \le \omega \le 1\f$. Then
+\f$|p - v| \ge |p - s|\f$, strictly for \f$\omega < 1\f$ and \f$v \ne s\f$.
 This is the sufficiency half of Theorems 4.1, 4.2 and Corollary 4.1 of
 @cite desc:surface:quan-stamm-2016 (the segment, triangle or polyhedron
 under an SAS point has it as a closest SAS point), stated once over the
@@ -1144,7 +1148,7 @@ convex hull so that it covers \f$k\f$-fold points.
 so \f$|v - c_a| \ge |s - c_a|\f$, which expands to
 \f$(c_a - s) \cdot (v - s) \le |v - s|^2/2\f$. Averaging over the weights of
 \f$q\f$ gives the same bound for \f$(q - s) \cdot (v - s)\f$, and then
-\f$|p - v|^2 - |p - s|^2 = |v - s|^2 - 2\tau (q - s) \cdot (v - s) \ge (1 - \tau)|v - s|^2\f$.
+\f$|p - v|^2 - |p - s|^2 = |v - s|^2 - 2\omega (q - s) \cdot (v - s) \ge (1 - \omega)|v - s|^2\f$.
 
 \anchor corollary-1
 **Corollary 1 (consequences of the contact hull).** In plain words: a probe's
@@ -1163,7 +1167,7 @@ from \f$x\f$ toward it and \f$h\f$ the distance to the plane:
   leaves the cone alone, so \f$C_x = \operatorname{cone}\{c_a - x\}\f$, exactly
   the cone over \f$\operatorname{conv}\{c_a\}\f$ from the apex \f$x\f$. Apply
   @ref lemma-5 "Lemma 5" with \f$s = x\f$, \f$q\f$ the point where the ray
-  \f$d\f$ meets \f$T_x\f$ and \f$\tau = r_p / t_x(d)\f$. Since
+  \f$d\f$ meets \f$T_x\f$ and \f$\omega = r_p / t_x(d)\f$. Since
   \f$t_x(d)\,(d \cdot n) = h\f$, the uncut directions \f$t_x(d) \ge r_p\f$ are
   exactly those outside \f$D_x\f$, and
   \f$h \le \operatorname{dist}(x, T_x) < r_p\f$ on a low vertex. \f$D_x\f$ is
@@ -1339,26 +1343,26 @@ also @ref lemma-7 "Lemma 7".
 positive area from the face of \f$x\f$ computed without \f$y\f$ (the cone
 minus the caps of all other vertices within \f$2 r_p\f$). Then the ball of
 \f$x\f$ reaches the face region of \f$y\f$ beyond \f$y\f$'s contact plane:
-there is \f$e \in C_y\f$ with \f$|y + r_p e - x| < r_p\f$, and
-\f$t_y(e) < r_p\f$.
+there is \f$\nu_y \in C_y\f$ with \f$|y + r_p \nu_y - x| < r_p\f$, and
+\f$t_y(\nu_y) < r_p\f$.
 
-*Proof.* Pick a removed face point \f$k = x + r_p d\f$ with \f$d\f$ strictly
+*Proof.* Pick a removed face point \f$z = x + r_p d\f$ with \f$d\f$ strictly
 inside the cone and outside the null set of @ref lemma-6 "Lemma 6". It is cut by \f$y\f$
-and by no other vertex. Since \f$y \in B^\circ(k, r_p)\f$, the first-touch
+and by no other vertex. Since \f$y \in B^\circ(z, r_p)\f$, the first-touch
 radius of @ref lemma-6 "Lemma 6" satisfies \f$t_1 < r_p\f$, and its vertex \f$s_1\f$ is
-within \f$r_p\f$ of \f$k\f$; the only such vertex is \f$y\f$. Call
-\f$s_1\f$ the **first-touch cutter** of \f$k\f$; the rest of the proof uses
+within \f$r_p\f$ of \f$z\f$; the only such vertex is \f$y\f$. Call
+\f$s_1\f$ the **first-touch cutter** of \f$z\f$; the rest of the proof uses
 only that \f$y = s_1\f$, never that \f$y\f$ is the unique cutter. So
 \f$q = p_1\f$ is equidistant from \f$x\f$ and \f$y\f$, at distance
-\f$\varrho = t_1 < r_p\f$, and \f$B(q, \varrho) \subset U\f$. Both \f$x\f$
+\f$t_1 < r_p\f$, and \f$B(q, t_1) \subset U\f$. Both \f$x\f$
 and \f$y\f$ lie on its boundary, so at each the direction to \f$q\f$ lies
 in the face cone (a direction pointing away from every touched center leaves
 \f$U\f$ while staying inside the ball):
-\f$u = (q - x)/\varrho \in C_x\f$ and \f$e = (q - y)/\varrho \in C_y\f$. Then
-\f$|y + r_p e - x| \le |y + r_p e - q| + |q - x| = (r_p - \varrho) + \varrho = r_p\f$,
+\f$\nu_x = (q - x)/t_1 \in C_x\f$ and \f$\nu_y = (q - y)/t_1 \in C_y\f$. Then
+\f$|y + r_p \nu_y - x| \le |y + r_p \nu_y - q| + |q - x| = (r_p - t_1) + t_1 = r_p\f$,
 with equality only if \f$q - x\f$ and \f$q - y\f$ point the same way, which
 with equal lengths means \f$x = y\f$. Finally @ref corollary-1 "Corollary 1"(a) at \f$y\f$, with
-the SAS point \f$x\f$, gives \f$t_y(e) < r_p\f$.
+the SAS point \f$x\f$, gives \f$t_y(\nu_y) < r_p\f$.
 
 \anchor corollary-2
 **Corollary 2 (both ends low, symmetric drop).** If \f$y\f$ cuts \f$x\f$,
@@ -1366,7 +1370,7 @@ then \f$y\f$ is low and the cap of \f$x\f$ on \f$y\f$'s sphere meets
 both \f$y\f$'s beyond-plane cap and \f$y\f$'s spherical triangle. Hence
 the two tests (@ref lemma-9 "Lemma 9", @ref lemma-10 "Lemma 10") are
 necessary conditions for cutting in either direction, and a failure on either
-side drops the pair **for both faces**.
+side drops the pair *for both faces*.
 
 *Proof.* \f$x\f$ reaches \f$y\f$'s face beyond its plane by
 @ref lemma-8 "Lemma 8", so \f$y\f$ is low (@ref corollary-1 "Corollary 1"(c)).
@@ -1381,10 +1385,11 @@ ball misses \f$y\f$'s cone entirely; such a point is always inside some
 other vertex ball, which is what @ref lemma-6 "Lemma 6" finds.
 
 \anchor lemma-9
-**Lemma 9 (cap reach).** A cap
-\f$\{d : d \cdot u > \cos\alpha\}\f$ cuts the face of \f$x\f$ only if
+**Lemma 9 (cap reach).** The cap
+\f$\{d : d \cdot \hat y > \cos\alpha\}\f$ of a probe \f$y\f$,
+\f$\hat y = (y - x)/|y - x|\f$, cuts the face of \f$x\f$ only if
 \f[
-u \cdot n > \cos(\alpha + \beta) = \cos\alpha \cos\beta - \sin\alpha \sin\beta,
+\hat y \cdot n > \cos(\alpha + \beta) = \cos\alpha \cos\beta - \sin\alpha \sin\beta,
 \f]
 with \f$n\f$, \f$\beta\f$ of the beyond-plane cap \f$D_x\f$. All four
 values are stored; no angle is recovered. The side of the contact plane,
@@ -1405,9 +1410,9 @@ that cuts the face to \f$D_x\f$.
 
 *Proof.* By @ref corollary-1 "Corollary 1"(a) the cut part of the face lies
 inside \f$D_x = \{d : d \cdot n > \cos\beta\}\f$, and a cap meets it only
-if the angle between \f$u\f$ and \f$n\f$ is below \f$\alpha + \beta\f$.
+if the angle between \f$\hat y\f$ and \f$n\f$ is below \f$\alpha + \beta\f$.
 The step
-\f$\gamma < \alpha + \beta \iff u \cdot n > \cos(\alpha + \beta)\f$ needs
+\f$\angle(\hat y, n) < \alpha + \beta \iff \hat y \cdot n > \cos(\alpha + \beta)\f$ needs
 \f$\alpha + \beta \le \pi\f$, which holds throughout: probe-on-probe caps
 have \f$\cos\alpha = |x - y|/2r_p \ge 0\f$ and the beyond-plane cap has
 \f$\cos\beta = h/r_p \ge 0\f$, so both are at most \f$\pi/2\f$. Under that
@@ -1416,8 +1421,8 @@ bound the test is not merely necessary but exact for
 
 \anchor lemma-10
 **Lemma 10 (triangle reach).** The cap meets the
-closed triangle \f$S = \{d : d \cdot t_m \le 0\}\f$ iff \f$u \in S\f$ or the
-angular distance from \f$u\f$ to the boundary of \f$S\f$ is below
+closed triangle \f$S = \{d : d \cdot t_m \le 0\}\f$ iff \f$\hat y \in S\f$ or the
+angular distance from \f$\hat y\f$ to the boundary of \f$S\f$ is below
 \f$\alpha\f$, which three tests decide without a square root.
 
 *Proof.* Edge \f$m\f$ is the arc of the great circle
@@ -1425,20 +1430,20 @@ angular distance from \f$u\f$ to the boundary of \f$S\f$ is below
 \f$\{d : t_m \cdot d = 0,\ t_k \cdot d \le 0 \text{ for } k \ne m\}\f$,
 between the corners \f$p_{m+1}\f$ and \f$p_{m+2}\f$,
 \f$p_m = \pm(t_{m+1} \times t_{m+2})/|\cdot|\f$ signed so that
-\f$t_m \cdot p_m \le 0\f$. The foot of \f$u\f$ on that great circle is
-\f$f = u - (u \cdot t_m) t_m\f$ up to a positive factor, the squared cosine
-of the angle from \f$u\f$ to \f$f\f$ is \f$1 - (u \cdot t_m)^2\f$, and
+\f$t_m \cdot p_m \le 0\f$. The foot of \f$\hat y\f$ on that great circle is
+\f$f = \hat y - (\hat y \cdot t_m) t_m\f$ up to a positive factor, the squared cosine
+of the angle from \f$\hat y\f$ to \f$f\f$ is \f$1 - (\hat y \cdot t_m)^2\f$, and
 \f$f\f$ lies on the arc iff
 \f[
-u \cdot t_k - (u \cdot t_m)(t_k \cdot t_m) \le 0
+\hat y \cdot t_k - (\hat y \cdot t_m)(t_k \cdot t_m) \le 0
 \quad\text{for both } k \ne m,
 \f]
 a test whose floating error is of the order of one rounding (the bisector
 form \f$p \cdot (p + q) = 1 + p \cdot q\f$ is pure rounding for an edge
 near \f$\pi\f$). So the cap meets the triangle iff
-\f$u \cdot t_m \le 0\f$ for all \f$m\f$ (axis inside \f$S\f$), or
-\f$f\f$ on arc \f$m\f$ and \f$1 - (u \cdot t_m)^2 > \cos^2\alpha\f$ for some
-\f$m\f$ (edge reached), or \f$\max_m u \cdot p_m > \cos\alpha\f$ (corner
+\f$\hat y \cdot t_m \le 0\f$ for all \f$m\f$ (axis inside \f$S\f$), or
+\f$f\f$ on arc \f$m\f$ and \f$1 - (\hat y \cdot t_m)^2 > \cos^2\alpha\f$ for some
+\f$m\f$ (edge reached), or \f$\max_m \hat y \cdot p_m > \cos\alpha\f$ (corner
 reached), the corner test covering feet off their arcs. The first disjunct
 is not redundant: a neighbor probe whose cap lies entirely in the interior
 of the triangle, a hole punched in the middle of a face, meets \f$S\f$
@@ -1497,23 +1502,23 @@ i.e. a vdW radius of \f$(\sqrt 2 - 1) r_p\f$.
 *Proof.*
 
 1. *Notation.* Take the point \f$q\f$ from the proof of @ref lemma-8 "Lemma 8":
-   \f$x = q - \varrho u\f$, \f$y = q - \varrho e\f$ with \f$u \in C_x\f$,
-   \f$e \in C_y\f$, \f$\varrho < r_p\f$. Write \f$w = x - y = \varrho(e - u)\f$,
-   \f$\ell = |w|\f$, \f$\gamma = u \cdot e < 1\f$, so
-   \f$\ell^2 = 2\varrho^2(1 - \gamma)\f$,
-   \f$w \cdot u = -\varrho(1 - \gamma)\f$,
-   \f$w \cdot e = \varrho(1 - \gamma)\f$. Let
-   \f$u = \sum_a \lambda_a \hat c_a\f$ and \f$e = \sum_d \mu_d \hat c_d\f$ with
+   \f$x = q - t_1 \nu_x\f$, \f$y = q - t_1 \nu_y\f$ with \f$\nu_x \in C_x\f$,
+   \f$\nu_y \in C_y\f$, \f$t_1 < r_p\f$. Write \f$w = x - y = t_1(\nu_y - \nu_x)\f$,
+   \f$\ell = |w|\f$, \f$\zeta = \nu_x \cdot \nu_y < 1\f$, so
+   \f$\ell^2 = 2t_1^2(1 - \zeta)\f$,
+   \f$w \cdot \nu_x = -t_1(1 - \zeta)\f$,
+   \f$w \cdot \nu_y = t_1(1 - \zeta)\f$. Let
+   \f$\nu_x = \sum_a \lambda_a \hat c_a\f$ and \f$\nu_y = \sum_d \mu_d \hat c_d\f$ with
    non-negative weights over the hosts, and abbreviate
    \f$\Lambda = \sum\lambda_a\f$, \f$\Lambda' = \sum\lambda_a/R_a\f$,
-   \f$M = \sum\mu_d\f$, \f$M' = \sum\mu_d/R_d\f$, \f$P = \varrho\Lambda'\f$,
-   \f$Q = \varrho M'\f$.
+   \f$M = \sum\mu_d\f$, \f$M' = \sum\mu_d/R_d\f$, \f$P = t_1\Lambda'\f$,
+   \f$Q = t_1 M'\f$.
 
 2. *Both probes are outside the other's balls.* \f$|y - c_a| \ge R_a\f$ with
    \f$y - c_a = -w - R_a \hat c_a\f$ gives
    \f$w \cdot \hat c_a \ge -\ell^2/2R_a\f$; weighting by \f$\lambda_a\f$ and
    summing,
-   \f$-\varrho(1 - \gamma) \ge -(\ell^2/2)\Lambda' = -\varrho^2(1 - \gamma)\Lambda'\f$,
+   \f$-t_1(1 - \zeta) \ge -(\ell^2/2)\Lambda' = -t_1^2(1 - \zeta)\Lambda'\f$,
    i.e. \f$P \ge 1\f$. Likewise \f$|x - c_d| \ge R_d\f$ gives \f$Q \ge 1\f$.
 
 3. *A non-overlapping host pair.*
@@ -1524,18 +1529,18 @@ i.e. a vdW radius of \f$(\sqrt 2 - 1) r_p\f$.
 
 4. *Average over both cones.* Multiply each pair's inequality by
    \f$\lambda_a \mu_d/(R_a R_d)\f$ and sum. The left side becomes
-   \f$\ell^2 \Lambda' M' + 2M'(w \cdot u) - 2\Lambda'(w \cdot e) = 2(1 - \gamma)(PQ - P - Q)\f$,
-   the right side \f$2(\Lambda M + \gamma) - 2\tau(\Lambda M' + \Lambda' M)\f$.
+   \f$\ell^2 \Lambda' M' + 2M'(w \cdot \nu_x) - 2\Lambda'(w \cdot \nu_y) = 2(1 - \zeta)(PQ - P - Q)\f$,
+   the right side \f$2(\Lambda M + \zeta) - 2\tau(\Lambda M' + \Lambda' M)\f$.
    Since \f$\Lambda \le R_{\max}\Lambda'\f$ and \f$M \le R_{\max} M'\f$, the
    tolerance term is at most \f$4\tau R_{\max} \Lambda' M'\f$; hence
-   \f$(1 - \gamma)(PQ - P - Q) \ge (\Lambda M - 2\tau R_{\max}\Lambda' M') + \gamma\f$.
+   \f$(1 - \zeta)(PQ - P - Q) \ge (\Lambda M - 2\tau R_{\max}\Lambda' M') + \zeta\f$.
 
 5. *Conclude.* \f$\Lambda \ge R_x \Lambda'\f$ and \f$M \ge R_y M'\f$ give
-   \f$\Lambda M - 2\tau R_{\max}\Lambda' M' \ge (R_x R_y - 2\tau R_{\max})\, PQ/\varrho^2\f$,
+   \f$\Lambda M - 2\tau R_{\max}\Lambda' M' \ge (R_x R_y - 2\tau R_{\max})\, PQ/t_1^2\f$,
    and \f$P + Q \ge 2\f$ gives
-   \f$(1 - \gamma)(PQ - 2) \ge (1 - \gamma)(PQ - P - Q)\f$. Together,
-   \f$PQ\,[(1 - \gamma) - (R_x R_y - 2\tau R_{\max})/\varrho^2] \ge 2 - \gamma > 0\f$,
-   so \f$R_x R_y - 2\tau R_{\max} < \varrho^2(1 - \gamma) = \ell^2/2\f$.
+   \f$(1 - \zeta)(PQ - 2) \ge (1 - \zeta)(PQ - P - Q)\f$. Together,
+   \f$PQ\,[(1 - \zeta) - (R_x R_y - 2\tau R_{\max})/t_1^2] \ge 2 - \zeta > 0\f$,
+   so \f$R_x R_y - 2\tau R_{\max} < t_1^2(1 - \zeta) = \ell^2/2\f$.
 
 \anchor corollary-3
 **Corollary 3 (two neighbor shells suffice).** Enumerating the vertices
@@ -1664,22 +1669,7 @@ sign; both branches give the exact area 0.
 
 ### The filter pipeline {#ses-pipeline}
 
-\anchor theorem-5
-**Theorem 5 (the filters are exact).** Dropping every probe pair with a high
-end, or failing @ref lemma-9 "Lemma 9" or @ref lemma-10 "Lemma 10" on either
-side, leaves the accessible region, the area and the dots of every face
-unchanged.
-
-*Proof.* For almost every cut face point \f$k\f$ (outside the null set of
-@ref lemma-6 "Lemma 6") its first-touch cutter \f$s_1\f$ is a vertex
-within \f$r_p\f$ of \f$k\f$ that satisfies the conclusion of
-@ref lemma-8 "Lemma 8", so by @ref corollary-2 "Corollary 2" the pair
-\f$(x, s_1)\f$ is low at both ends and passes both filters on both sides. A
-cap that fails a filter is therefore never \f$s_1\f$ for any point, every
-cut point keeps its first-touch cutter, and the face computed from the
-survivors is the same.
-
-Per structure: heights of all probes (@ref corollary-1 "Corollary 1"(c)), then probe
+The pipeline, per structure: heights of all probes (@ref corollary-1 "Corollary 1"(c)), then probe
 pairs within \f$2 r_p\f$ (a nuri::VoxelGrid query), then drop pairs with a
 high end (both ends low), so that a high active face is never solved against
 any cap, then drop pairs failing @ref lemma-9 "Lemma 9" on
@@ -1692,10 +1682,25 @@ drop a cap that reaches the face by a rounding-scale sliver, an area effect
 far below what the brute-force test (every face solved against every probe
 within \f$2 r_p\f$) enforces, never a topological one.
 
+\anchor theorem-5
+**Theorem 5 (the filters are exact).** Dropping every probe pair with a high
+end, or failing @ref lemma-9 "Lemma 9" or @ref lemma-10 "Lemma 10" on either
+side, leaves the accessible region, the area and the dots of every face
+unchanged.
+
+*Proof.* For almost every cut face point \f$z\f$ (outside the null set of
+@ref lemma-6 "Lemma 6") its first-touch cutter \f$s_1\f$ is a vertex
+within \f$r_p\f$ of \f$z\f$ that satisfies the conclusion of
+@ref lemma-8 "Lemma 8", so by @ref corollary-2 "Corollary 2" the pair
+\f$(x, s_1)\f$ is low at both ends and passes both filters on both sides. A
+cap that fails a filter is therefore never \f$s_1\f$ for any point, every
+cut point keeps its first-touch cutter, and the face computed from the
+survivors is the same.
+
 ## Dot sampling {#dots}
 
-nuri::SurfaceSampler (`sample.cpp`) places dots **inside the exact patch
-domains** above. Their weights are normalized so that the sum over a patch
+nuri::SurfaceSampler (`sample.cpp`) places dots *inside the exact patch
+domains* above. Their weights are normalized so that the sum over a patch
 equals the patch's analytic area; dot counts follow the requested density.
 Only the count is a sampled quantity. Normals point from the surface into the
 solvent; for toroidal and concave dots that is toward the probe center, so
@@ -1897,8 +1902,7 @@ carries the side of the ray, `atan2` only the magnitude, so a vertex at
 normalization of the dart angle \f$\iota\f$ and the \f$\max(\cdot, 0)\f$
 clamps. A genuine corner is \f$\pi - \angle(h_a, h_b)\f$ for the two cap
 normals in the tangent plane at the vertex (the accessible region there is
-the wedge outside both caps), so it lies in \f$[0, \pi]\f$, \f$\pi\f$
-exactly at an internal tangency; the computed corner deviates by at most one
+the wedge outside both caps, @ref sas-step-5 "SAS step 5"); the computed corner deviates by at most one
 offset certificate per dart plus roundoff, \f$2 \cdot 2^{-26} + 2^{-40}\f$
 (`kSurfaceAngleEps`), the vertex normal's error entering only
 quadratically, so the reflex check \f$\iota \le \pi +\f$ `kSurfaceAngleEps`
