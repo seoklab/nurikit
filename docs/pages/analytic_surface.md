@@ -14,17 +14,24 @@ turns two dot sets into the Lawrence-Colman statistic. The code is in
 
 The SES is the molecular surface of Richards @cite desc:surface:richards-1977
 in the analytic patch decomposition of Connolly
-@cite desc:surface:connolly-1983, whose Gauss-Bonnet patch areas are used.
+@cite desc:surface:connolly-1983, whose Gauss-Bonnet patch areas are used,
+as is Richmond's for the SAS @cite desc:surface:richmond-1984.
 The characterization of the concave patches and the formulas used follow
 Quan and Stamm @cite desc:surface:quan-stamm-2016 (their Theorem 5.1 and
 formulas (4.19)/(5.25)/(5.28)); the derivations on this page are this
-document's own. The shape complementarity statistic and its defaults are
-those of Lawrence and Colman @cite desc:sc:lawrence-colman-1993 as
-implemented in Rosetta's `sc` application. The united-atom radii are Table 5
+document's own. The shape complementarity statistic is that of Lawrence and
+Colman @cite desc:sc:lawrence-colman-1993 with the defaults of Lawrence's
+CCP4 `sc` @cite desc:sc:ccp4-sc, which Rosetta's `sc` application ports.
+The united-atom radii are Table 5
 of the Connolly MSP 3.9.2 manual @cite param:radii:connolly-msp-manual-2002,
 see nuri::ConnollyRadii; no radii file is copied from any program.
 
 ### Design rules {#prelim-rules}
+
+The rules are the Exact Geometric Computation principles of
+@cite desc:surface:sharma-yap-2017 (every branching decision errorless,
+numerical values approximate), with the consistency motivation of
+@cite desc:surface:hoffmann-1989.
 
 - **Filter first**: exceptional input (coincident atoms, contained balls,
   inactive atoms, a non-positive probe radius) is removed or partitioned in
@@ -267,7 +274,10 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    \f$\varepsilon \eta^m\f$ term; the sign of a tied predicate is the sign of
    its first non-zero first-order coefficient in index order. Geogram's
    predicate is linear in the heights, the polynomial case the cited scheme
-   covers; the predicates here are \f$C^1\f$ in the heights away from
+   covers. The perturbation is a limit along a curve in the sense of
+   @cite desc:surface:seidel-1998, and predicates on circle intersections,
+   which carry square roots, are perturbed by @cite desc:surface:qsp-2017;
+   the predicates here are \f$C^1\f$ in the heights away from
    \f$D = 0\f$ (discriminants, \f$A \pm B\sqrt D\f$), and the application
    of the rule to them is this document's: the first-order rule applies as long as
    one participant has a non-zero first-order coefficient, which holds for
@@ -1028,7 +1038,8 @@ hemispheres end it empty (@ref corollary-4 "Corollary 4",
 ### Patch areas {#ses-patches}
 
 - **Convex area** of atom \f$i\f$: \f$A_{\text{sas}}(i) \cdot (r_i/R_i)^2\f$
-  (radial scaling maps the SAS patch onto the vdW sphere).
+  (radial scaling maps the SAS patch onto the vdW sphere, the SAS-to-contact
+  scaling of @cite desc:surface:totrov-abagyan-1996).
 - **Saddle** of an arc on circle \f$c\f$ with span \f$\Delta\varphi\f$. The
   generating arc on the probe sphere is parametrized by \f$\beta\f$, the
   angle from the inward radial direction (toward the axis); \f$\beta < 0\f$
@@ -1690,7 +1701,8 @@ Only the count is a sampled quantity. Normals point from the surface into the
 solvent; for toroidal and concave dots that is toward the probe center, so
 nuri::SurfaceDots::probes() recovers the probe positions.
 
-- **Convex** (atom \f$i\f$ below `n_active`). A Fibonacci lattice with
+- **Convex** (atom \f$i\f$ below `n_active`). A Fibonacci lattice
+  @cite core:geom:fiblat-2010 @cite core:geom:fiblat-2020 with
   \f$\max(\operatorname{lround}(4\pi r_i^2 \cdot \text{density}), 1)\f$ directions is
   generated on the unit sphere (one lattice per distinct count, cached); a
   direction is kept iff it is outside every cap of the atom. Dot
@@ -1740,7 +1752,8 @@ round half away from zero.
 
 nuri::ShapeComplementarity (`sc.cpp`) implements the statistic of
 @cite desc:sc:lawrence-colman-1993 with the parameters of nuri::ScParams,
-whose defaults are those of Rosetta's `sc` application
+whose defaults are those of Lawrence's CCP4 `sc` @cite desc:sc:ccp4-sc,
+ported by Rosetta's `sc` application
 (\f$r_p = 1.7\,\AA\f$, density \f$15\,\AA^{-2}\f$, weight 0.5, band \f$1.5\,\AA\f$, separation \f$8\,\AA\f$,
 clamp 0.999). For each side:
 
@@ -1905,14 +1918,32 @@ it.
 
 ### Related constructions {#related-constructions}
 
-- The dual complex of @ref theorem-2 "Theorem 2" underlies the alpha-shape
-  area of @cite desc:surface:liang-1998, which sums inclusion-exclusion terms
-  instead of solving each sphere's arrangement.
+- The alpha complex, the dual complex of @cite desc:surface:edelsbrunner-1995
+  that @ref theorem-2 "Theorem 2" uses as the triangulation restricted to
+  overlapping pairs, underlies the alpha-shape area of
+  @cite desc:surface:liang-1998, which sums inclusion-exclusion terms, one
+  per simplex, instead of solving each sphere's arrangement.
+- The decomposition \f$U = \bigcup_s (B_s \cap V_s)\f$ of
+  @ref theorem-2 "Theorem 2" is the restriction decomposition on which
+  @cite desc:surface:cazals-kanhere-loriot-2011 build a certified volume of
+  a union of balls, with interval arithmetic and a per-construction analysis
+  of the predicates; the area here is certified by exact predicates instead.
+- The contour-buildup algorithm @cite desc:surface:totrov-abagyan-1996
+  assembles each atom's boundary by inserting its neighbors' circles one at
+  a time into a circular arc list, "instead of calculating all possible arcs
+  and then filtering" (p. 139); here the regular triangulation names the
+  neighbors (@ref theorem-2 "Theorem 2") and the fan gives the ring order
+  (@ref lemma-2 "Lemma 2"), with no sequential insertion.
 - The exact arrangement of the circles on one sphere
   (@ref sas-step-5 "SAS step 5") was previously computed by a sweep over all
   its intersecting neighbors @cite desc:surface:cazals-loriot-2009.
 - The reduced-surface algorithm of @cite desc:surface:sanner-1996 computes
   the probe-probe cuts of @ref theorem-4 "Theorem 4" without proof.
+- SESA @cite desc:surface:wang-2024 computes SES areas analytically from an
+  exhaustive probe-probe intersection search and identifies the exterior
+  surface as a component of a region graph; the port keeps every component
+  (the cSES of @cite desc:surface:quan-stamm-2016) and leaves the exterior
+  split to later work.
 
 ### MolSurfComp {#related-molsurfcomp}
 
