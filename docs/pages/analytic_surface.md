@@ -1742,7 +1742,8 @@ double: a separation bound of the kind of @cite desc:surface:bfmss-2009 on
 one component, a polynomial of degree 9 in inputs within
 `kSurfaceMaxCoord`, is about \f$2^{-1800}\f$. The direction is right
 however close the roots are; a length that underflows lifts the neighbor's
-cap as the hemisphere limit. The floating comparisons that remain are output-only: the
+cap as the hemisphere limit (the lift takes the unit direction once the
+squared length is 0). The floating comparisons that remain are output-only: the
 fold of each vertex's `atan2` into its exact half-plane class (the class
 carries the side of the ray, `atan2` only the magnitude, so a vertex at
 \f$\pi \mp \delta\f$ folds to \f$\pi\f$, never to 0 or \f$2\pi\f$), the

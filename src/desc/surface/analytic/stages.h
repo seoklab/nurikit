@@ -200,6 +200,15 @@ namespace internal {
   extern bool filter_inputs_agree(double a, double b);
 
   /**
+   * Test hook: the exact rung of `BallExact::difference` on the forged kernel
+   * `(p + sqrt(disc) q + sqrt(disc2) q2) / den` with `p`, `q`, `q2` scaled by
+   * `2^shift`, so a test can put the length below double range.
+   */
+  extern RootDifference forged_difference(const Vector3d &p, const Vector3d &q,
+                                          const Vector3d &q2, double disc,
+                                          double disc2, double den, int shift);
+
+  /**
    * Exact predicates on a set of balls: the power arrangement of weighted
    * points as geogram triangulates them. The balls are the SAS spheres, and
    * later the caps of an SES face lifted to balls. Each ball has center `c_i`,

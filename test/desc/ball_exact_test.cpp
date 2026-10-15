@@ -1220,6 +1220,37 @@ TEST(BallExactTest, FilterCertifiesHemisphereLift) {
   }
   EXPECT_GT(n_pairs, 0);
 }
+
+/**
+ * The exact rung reads the difference at its own scale: a dyadic `(3, 4, 0)`
+ * placed below double range keeps the direction `(0.6, 0.8, 0)` exactly
+ * while the length is the subnormal `5 2^-1060` or 0; a sign that the
+ * floating filter cannot see (`sqrt 2` against its double, `2^-54` apart)
+ * is decided by the dyadic square root at the same scale.
+ */
+TEST(BallExactTest, DifferenceDirectionUnderUnderflow) {
+  const Vector3d zero = Vector3d::Zero(), dir(0.6, 0.8, 0);
+  const Vector3d p(3, 4, 0);
+
+  RootDifference rd = forged_difference(p, zero, zero, 0, 0, 1, -1060);
+  EXPECT_EQ(rd.dir, dir);
+  EXPECT_EQ(rd.len, std::ldexp(5.0, -1060));
+  EXPECT_GT(rd.len, 0);
+
+  rd = forged_difference(p, zero, zero, 0, 0, 1, -1100);
+  EXPECT_EQ(rd.dir, dir);
+  EXPECT_EQ(rd.len, 0);
+
+  const double root2 = std::sqrt(2.0);
+  const double sign = q_sgn(q_sqrt(2) - static_cast<Q>(root2));
+  ASSERT_NE(sign, 0);
+  for (const double flip: { 1.0, -1.0 }) {
+    rd = forged_difference(Vector3d(-flip * root2, 0, 0), Vector3d(flip, 0, 0),
+                           zero, 2, 0, 1, -1070);
+    EXPECT_EQ(rd.dir, Vector3d(flip * sign, 0, 0)) << "flip " << flip;
+    EXPECT_EQ(rd.len, 0) << "flip " << flip;
+  }
+}
 }  // namespace
 }  // namespace internal
 }  // namespace nuri

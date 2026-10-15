@@ -343,7 +343,7 @@ namespace internal {
     /**
      * Every cap of the active faces lifted to a ball relative to its probe
      * (`solve_ses_face`): `(t, 0)` for a hemisphere, `(w, |w|^2)` for a
-     * neighbor at `w`.
+     * neighbor at `w`, the hemisphere of its direction once `|w|^2` is 0.
      */
     struct LiftedCaps {
       Matrix3Xd n;
@@ -394,10 +394,12 @@ namespace internal {
             continue;
 
           const Vector3d axis = pc.axis.col(k), diff = pc.diff.col(k);
+          const double h = diff.squaredNorm();
+          const Vector3d lift = h > 0 ? diff : axis;
           ses.face_axis.col(cur[p]) = side == 0 ? axis : Vector3d(-axis);
           ses.face_cosa[cur[p]] = pc.cosa[k];
-          lifted.n.col(cur[p]) = side == 0 ? diff : Vector3d(-diff);
-          lifted.h[cur[p]] = pc.diff.col(k).squaredNorm();
+          lifted.n.col(cur[p]) = side == 0 ? lift : Vector3d(-lift);
+          lifted.h[cur[p]] = h;
           ++cur[p];
         }
       }

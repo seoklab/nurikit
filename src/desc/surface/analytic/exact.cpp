@@ -199,6 +199,13 @@ namespace internal {
       }
       friend int sgn(const Xp &a) { return a.m_.sign(); }
 
+      Xp shifted(const int k) const {
+        Xp r(*this);
+        if (!r.m_.is_zero())
+          r.e_ += k;
+        return r;
+      }
+
       double to_double() const { return scaled(0); }
 
       /**
@@ -898,8 +905,7 @@ namespace internal {
         const auto [s, u] = o.disc.sqrt_floor(bits);
         const auto [s2, u2] = o.disc2.sqrt_floor(bits);
         const V3<Xp> v = o.p + s * o.q + s2 * o.q2, e = u * aq + u2 * aq2;
-        scale = nuri::max(nuri::max(v.x.exponent(), v.y.exponent()),
-                          v.z.exponent());
+        scale = (abs(v.x) + abs(v.y) + abs(v.z)).exponent();
         out << v.x.scaled(-scale), v.y.scaled(-scale), v.z.scaled(-scale);
         const Vector3d err(e.x.scaled(-scale), e.y.scaled(-scale),
                            e.z.scaled(-scale));
@@ -1513,6 +1519,18 @@ namespace internal {
       return bits(p.first.v) == bits(p.second.v)
              && bits(p.first.e) == bits(p.second.e);
     });
+  }
+
+  RootDifference forged_difference(const Vector3d &p, const Vector3d &q,
+                                   const Vector3d &q2, const double disc,
+                                   const double disc2, const double den,
+                                   const int shift) {
+    auto vec = [shift](const Vector3d &v) {
+      return V3<Xp> { Xp(v[0]).shifted(shift), Xp(v[1]).shifted(shift),
+                      Xp(v[2]).shifted(shift) };
+    };
+    return exact_difference(
+        Diff<Xp> { vec(p), vec(q), vec(q2), Xp(disc), Xp(disc2), Xp(den) });
   }
 
   template class BallExactImpl<false>;
