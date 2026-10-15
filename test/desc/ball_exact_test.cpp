@@ -765,6 +765,85 @@ std::vector<CircleRoot> circle_roots(const BallExact &ex, const int a,
 }
 
 /**
+ * Every root of every cut face, grouped by `coincide`: on the dyadic square
+ * with apex the groups are the roots within 1e-9 of each other (faces
+ * sharing a circle, one sphere, or none); an exact tangency (sphere 2
+ * through one point of circle (0, 1)) has both roots of one face in one
+ * group; under a rigid motion the rounded points are distinct, so a group
+ * never exceeds one root while positions still agree to 1e-14.
+ */
+struct RootGroups {
+  int n_roots = 0, n_close = 0, n_coincident = 0;
+};
+
+RootGroups root_groups(const BallExact &ex) {
+  std::vector<CircleRoot> roots;
+  const int n = ex.n();
+  for (int a = 0; a < n; ++a) {
+    for (int b = a + 1; b < n; ++b) {
+      for (int c = b + 1; c < n; ++c) {
+        const BallTriple f { a, b, c };
+        if (ex.cuts(f) != Sgn::kPos)
+          continue;
+        roots.push_back({ f, true });
+        roots.push_back({ f, false });
+      }
+    }
+  }
+
+  RootGroups g;
+  g.n_roots = static_cast<int>(roots.size());
+  for (int i = 0; i < g.n_roots; ++i) {
+    for (int j = i + 1; j < g.n_roots; ++j) {
+      const CircleRoot &ri = roots[i], &rj = roots[j];
+      const bool same = ex.coincide(ri.f, ri.plus, rj.f, rj.plus);
+      EXPECT_EQ(same, ex.coincide(rj.f, rj.plus, ri.f, ri.plus));
+      const double dist =
+          (ex.root(ri.f, ri.plus) - ex.root(rj.f, rj.plus)).norm();
+      g.n_close += static_cast<int>(dist < 1e-9);
+      g.n_coincident += static_cast<int>(same);
+      if (same)
+        EXPECT_LT(dist, 1e-12);
+    }
+  }
+  return g;
+}
+
+TEST(BallExactTest, CoincideAcrossFaces) {
+  const Fixture<> s = setup(square_apex(), ArrayXd::Constant(5, 1.5));
+  const RootGroups exact = root_groups(s.ex);
+  EXPECT_GT(exact.n_coincident, 0);
+  EXPECT_EQ(exact.n_coincident, exact.n_close);
+
+  Matrix3Xd grazing(3, 3);
+  grazing << 0, 0, 7,  //
+      0, 0, 0,         //
+      0, 6, 7;
+  const Fixture<> t = setup(grazing, ArrayXd::Constant(3, 5.0));
+  const BallTriple f { 0, 1, 2 };
+  ASSERT_EQ(t.ex.cuts(f), Sgn::kPos);
+  EXPECT_TRUE(t.ex.coincide(f, true, f, false));
+  EXPECT_TRUE(t.ex.coincide(f, true, f, true));
+
+  int n_split = 0;
+  for (int seed = 0; seed < 8; ++seed) {
+    std::mt19937 rng(seed);
+    std::normal_distribution<double> nd;
+    const Vector3d ax(nd(rng), nd(rng), nd(rng));
+    const Matrix3d rot =
+        AngleAxisd(nd(rng), ax.normalized()).toRotationMatrix();
+    const Vector3d tr(nd(rng), nd(rng), nd(rng));
+    const Matrix3Xd pts = (rot * square_apex()).colwise() + tr;
+    const Fixture<> r = setup(pts, ArrayXd::Constant(5, 1.5));
+    const RootGroups rounded = root_groups(r.ex);
+    EXPECT_EQ(rounded.n_roots, exact.n_roots) << "seed " << seed;
+    EXPECT_LE(rounded.n_coincident, rounded.n_close) << "seed " << seed;
+    n_split += rounded.n_close - rounded.n_coincident;
+  }
+  EXPECT_GT(n_split, 0);
+}
+
+/**
  * Groups of exactly coincident roots on every circle: the perturbed order
  * must be a strict total order on each, and match the oracle away from
  * tangencies (one radius at a time misses the `sqrt(eps)` growth of a vanished

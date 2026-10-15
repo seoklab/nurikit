@@ -102,6 +102,10 @@ double merge_tol(const Surface &s) {
   return probe_merge_tol(s.sas.sar().maxCoeff());
 }
 
+/**
+ * On an exact fixture coincident roots merge and distinct roots lie far
+ * apart, so no two probes are within the merge band.
+ */
 void expect_no_unmerged_pairs(const Matrix3Xd &pos, const double tau) {
   const int np = static_cast<int>(pos.cols());
   for (int p = 0; p < np; ++p) {
@@ -110,6 +114,51 @@ void expect_no_unmerged_pairs(const Matrix3Xd &pos, const double tau) {
           << "probes " << p << ", " << q;
     }
   }
+}
+
+/**
+ * No two probes are one exact point.
+ */
+void expect_no_coincident_pairs(const SasGeometry &geo, const BallExact &ex) {
+  const SasProbes &pr = geo.probes;
+  const int np = static_cast<int>(pr.pos.cols());
+  for (int p = 0; p < np; ++p) {
+    for (int q = p + 1; q < np; ++q) {
+      EXPECT_FALSE(ex.coincide(ball_triple(pr.face.col(p)), pr.plus[p],
+                               ball_triple(pr.face.col(q)), pr.plus[q]))
+          << "probes " << p << ", " << q;
+    }
+  }
+}
+
+void expect_no_coincident_pairs(const Matrix3Xd &pts, const ArrayXd &sar) {
+  std::optional<SurfaceSpheres> ss =
+      prepare(pts, sar - kRp, ArrayXb::Constant(sar.size(), true), kRp);
+  ASSERT_TRUE(ss);
+  const SasDelaunay del = triangulate(*ss);
+  expect_no_coincident_pairs(build_sas(*ss, del), del.ex);
+}
+
+/**
+ * The probes within `radius` of `x` (the roots of one rounded point)
+ * exist and together touch exactly the `k` atoms.
+ */
+void expect_atoms_within(const SurfaceSpheres &ss, const SasGeometry &geo,
+                         const Vector3d &x, const double radius, const int k) {
+  const SasProbes &pr = geo.probes;
+  std::vector<int> atoms;
+  int n = 0;
+  for (int p = 0; p < pr.pos.cols(); ++p) {
+    if ((pr.pos.col(p) - x).norm() > radius)
+      continue;
+    ++n;
+    for (const int a: pr.atoms.nbrs(p))
+      atoms.push_back(ss.order[a]);
+  }
+  std::sort(atoms.begin(), atoms.end());
+  atoms.erase(std::unique(atoms.begin(), atoms.end()), atoms.end());
+  EXPECT_GE(n, 1);
+  EXPECT_EQ(static_cast<int>(atoms.size()), k);
 }
 
 /**
@@ -408,10 +457,11 @@ TEST(BuildSasTest, FourSphereVertex) {
   ArrayXd sar = ArrayXd::Constant(4, reach);
 
   const Surface s = surface(pts, sar);
-  // trapped point: the perturbation decides whether any coincident probe is
-  // accessible there; the area does not depend on it
-  EXPECT_LE(probes_at(s.ses.concave().pos, Vector3d::Zero()), 1);
-  expect_no_unmerged_pairs(s.ses.concave().pos, merge_tol(s));
+  // trapped point of a rounded tetrahedron: its four roots are distinct
+  // points, each accessible or not by the rounded geometry; the area does
+  // not depend on it
+  EXPECT_LE(probes_at(s.ses.concave().pos, Vector3d::Zero(), 1e-6), 4);
+  expect_no_coincident_pairs(pts, sar);
   const double total = s.sas.convex().area.sum();
   EXPECT_NEAR(total, sr_total(pts, sar), 1e-2 * total);
 }
@@ -650,27 +700,34 @@ TEST(BuildSasTest, NearPairPinchWithThirdSphere) {
 
 /**
  * Spheres j, k overlap by 1e-4 in a circle of radius 0.014; the host cuts
- * that circle nearly tangentially so the face's two cut points are 1e-5
- * apart. They are distinct vertices: only a tangency within
- * kSurfaceLengthEps merges the two cut points of one face.
+ * that circle nearly tangentially so the face's two cut points are `2h`
+ * apart. They are distinct vertices at any `h > 0`, far below the merge
+ * band included: only exact coincidence merges two roots.
  */
 TEST(BuildSasTest, TwoCutPointsOfOneFaceStayDistinct) {
-  const double r = 2.0, d = 4.0 - 1e-4, h = 5e-6, zs = 3.0;
-  const double rc = std::sqrt(r * r - d * d / 4),
-               zc = std::sqrt(rc * rc - h * h);
-  Matrix3Xd pts(3, 3);
-  pts.col(0) << 0, 0, zs;
-  pts.col(1) << -d / 2, 0, 0;
-  pts.col(2) << d / 2, 0, 0;
-  ArrayXd sar(3);
-  sar << std::sqrt(h * h + (zs - zc) * (zs - zc)), r, r;
+  for (const double h: { 5e-6, 1e-13 }) {
+    const double r = 2.0, d = 4.0 - 1e-4, zs = 3.0;
+    const double rc = std::sqrt(r * r - d * d / 4),
+                 zc = std::sqrt(rc * rc - h * h);
+    Matrix3Xd pts(3, 3);
+    pts.col(0) << 0, 0, zs;
+    pts.col(1) << -d / 2, 0, 0;
+    pts.col(2) << d / 2, 0, 0;
+    ArrayXd sar(3);
+    sar << std::sqrt(h * h + (zs - zc) * (zs - zc)), r, r;
 
-  auto [ss, geo] = solve(pts, sar);
-  ASSERT_EQ(geo.probes.pos.cols(), 2);
-  EXPECT_NEAR((geo.probes.pos.col(0) - geo.probes.pos.col(1)).norm(), 2 * h,
-              1e-9);
-  for (int p = 0; p < 2; ++p)
-    EXPECT_EQ(geo.probes.atoms.degree(p), 3);
+    auto [ss, geo] = solve(pts, sar);
+    ASSERT_EQ(geo.probes.pos.cols(), 2) << "h " << h;
+    const double dist = (geo.probes.pos.col(0) - geo.probes.pos.col(1)).norm();
+    if (h > probe_merge_tol(sar.maxCoeff())) {
+      EXPECT_NEAR(dist, 2 * h, 1e-9);
+    } else {
+      EXPECT_LT(dist, probe_merge_tol(sar.maxCoeff()));
+      expect_no_coincident_pairs(pts, sar);
+    }
+    for (int p = 0; p < 2; ++p)
+      EXPECT_EQ(geo.probes.atoms.degree(p), 3) << "h " << h;
+  }
 }
 
 /**
@@ -1971,10 +2028,8 @@ TEST(BuildSasTest, ApexTangentAtVertexIndexOrders) {
                        [&](const Matrix3Xd &p, const ArrayXd &r,
                            const std::vector<int> &order) {
                          const Sas sas = solve(p, r);
-                         EXPECT_EQ(sas.geo.probes.pos.cols(), 3);
-                         const int c = probe_at(sas.geo.probes.pos, t.x);
-                         ASSERT_GE(c, 0);
-                         EXPECT_EQ(sas.geo.probes.atoms.degree(c), 4);
+                         expect_atoms_within(sas.ss, sas.geo, t.x, 1e-6, 4);
+                         expect_no_coincident_pairs(p, r);
                          ArrayXd sr_p(4);
                          for (int i = 0; i < 4; ++i)
                            sr_p[i] = sr[order[i]];
@@ -2142,8 +2197,9 @@ TEST(BuildSasTest, TangentApexUnderRigidMotion) {
 
 /**
  * Genuine k-fold points: `k` equal spheres with centers on a cone through
- * the origin. Under rigid motions the coincident probes round apart but
- * merge into one probe on all `k` atoms with one tangent per leaving arc.
+ * the origin. Under rigid motions the coincident probes round apart into
+ * distinct points whose probes together touch the `k` atoms and whose
+ * areas are those of the exact point.
  */
 TEST(BuildSasTest, MergedKFoldUnderRigidMotion) {
   for (const int k: { 4, 5 }) {
@@ -2160,13 +2216,11 @@ TEST(BuildSasTest, MergedKFoldUnderRigidMotion) {
       const auto [rot, t] = rigid_motion(seed);
       const Matrix3Xd pts = (rot * base).colwise() + t;
       const Surface s = surface(pts, sar);
-      const ConcavePatches &con = s.ses.concave();
-      const int c = probe_at(con.pos, t);
-      ASSERT_GE(c, 0) << "k " << k << " seed " << seed;
-      EXPECT_EQ(con.atoms.degree(c), k) << "seed " << seed;
-      EXPECT_EQ(hemispheres(s.ses, c).cols(), k) << "seed " << seed;
-      EXPECT_EQ(arc_ends_at(s.ses.toroidal().arcs, c), k) << "seed " << seed;
-      expect_no_unmerged_pairs(con.pos, merge_tol(s));
+      const Sas sas = solve(pts, sar);
+      expect_atoms_within(sas.ss, sas.geo, t, 1e-6, k);
+      expect_no_coincident_pairs(sas.geo, triangulate(sas.ss).ex);
+      EXPECT_NEAR(s.ses.total_area(), ref.ses.total_area(), 1e-9)
+          << "k " << k << " seed " << seed;
       ASSERT_EQ(s.sas.convex().area.size(), k);
       for (int p = 0; p < k; ++p) {
         EXPECT_NEAR(s.sas.convex().area[p], ref_area[s.sas.order()[p]], 1e-9)
@@ -2301,12 +2355,12 @@ TEST(BuildSasTest, CoincidentShellProbesAcrossOccluderCircle) {
 }
 
 /**
- * Under a rigid motion the two shell roots round apart by a few 1e-15 and
- * are one probe within `probe_merge_tol`, as consecutive ring vertices are.
- * The tangent pair `(0, 1)` rounds to a gap of either sign: apart or
- * exactly tangent, the probe of four atoms sits within the ~1e-8 rounding
- * of a tangency root; overlapping, its circle of radius ~1e-8 has two cut
- * points farther apart than the tolerance, which stay distinct probes.
+ * Under a rigid motion the two shell roots round apart by a few 1e-15 into
+ * distinct points, no longer one probe. The tangent pair `(0, 1)` rounds
+ * to a gap of either sign: apart or exactly tangent, the probes within the
+ * ~1e-8 rounding of the tangency root together touch its four atoms;
+ * overlapping, its circle of radius ~1e-8 has two cut points that stay
+ * distinct probes.
  */
 TEST(BuildSasTest, CoincidentShellProbesUnderRigidMotion) {
   const Matrix3Xd base = occluder_shell_pts();
@@ -2324,14 +2378,11 @@ TEST(BuildSasTest, CoincidentShellProbesUnderRigidMotion) {
     const SasGeometry geo = build_sas(*ss, del);
 
     SCOPED_TRACE(seed);
-    expect_no_unmerged_pairs(geo.probes.pos, probe_merge_tol(sar.maxCoeff()));
+    expect_no_coincident_pairs(geo, del.ex);
     if ((pts.col(0) - pts.col(1)).norm() < 3.0)
       continue;
 
-    const int c = probe_at(geo.probes.pos, rot * Vector3d(1.5, 0, 0) + t, 1e-6);
-    EXPECT_GE(c, 0);
-    if (c >= 0)
-      EXPECT_EQ(geo.probes.atoms.degree(c), 4);
+    expect_atoms_within(*ss, geo, rot * Vector3d(1.5, 0, 0) + t, 1e-6, 4);
   }
 }
 

@@ -130,7 +130,7 @@ namespace internal {
 
       const auto centers = ex.centers();
       for (int p = 0; p < np; ++p) {
-        if (probes.atoms.degree(p) != 3)
+        if (probes.atoms.degree(p) != 3 || probes.members[p] != 1)
           continue;
 
         const Matrix3d tri = ss.pts(E::all, probes.atoms.nbrs(p));
@@ -194,7 +194,7 @@ namespace internal {
                           ArrayXd::Ones(np) };
 
       for (int p = 0; p < np; ++p) {
-        if (probes.tan_off.degree(p) != 3)
+        if (probes.tan_off.degree(p) != 3 || probes.members[p] != 1)
           continue;
 
         const auto t = probe_tangents(probes, p);

@@ -48,14 +48,16 @@ namespace internal {
    */
   constexpr double kOffsetRelTol = 0x1p-26;
   /**
-   * Two probes at one point differ by two offsets, each certified to
-   * `kOffsetRelTol` of a length `<= rmax`, taken twice for margin; the center
-   * rounding (`<= 2^-52 * kSurfaceMaxCoord`) is far below. `build_sas` merges
-   * every pair of probes within this distance, so no two of its probes are
-   * closer.
+   * Two certified positions of one exact point differ by two offsets, each
+   * within `kOffsetRelTol` of a length `<= rmax` (taken twice for margin,
+   * which also covers the rounded model radii), plus two circle centers in
+   * double, each within `7 sqrt(3) 2^-53 kSurfaceMaxCoord` (taken with 64 for
+   * margin). `build_sas` tests every pair of probes within this distance for
+   * exact coincidence and merges the coincident ones, so no two of its probes
+   * are one point; distinct probes may be arbitrarily close.
    */
   constexpr double probe_merge_tol(double rmax) {
-    return 4 * kOffsetRelTol * rmax;
+    return 4 * kOffsetRelTol * rmax + 64 * kUnitRoundoff * kSurfaceMaxCoord;
   }
   /**
    * Error bound on a corner of `ArrangementSolver::walk`: one offset
@@ -309,6 +311,14 @@ namespace internal {
      */
     RootDifference difference(BallTriple f, bool plus, BallTriple f2,
                               bool plus2) const;
+    /**
+     * Whether root `x` of `f` and root `x'` of `f2` are one point: every
+     * component of `P + sqrt(D) Q + sqrt(D') Q'` is zero, decided as the
+     * unperturbed sign of an element of `Q(sqrt D, sqrt D')` (an exact
+     * tangency with both roots of one face at one point included). Requires
+     * `cuts` non-negative for both faces.
+     */
+    bool coincide(BallTriple f, bool plus, BallTriple f2, bool plus2) const;
 
     /**
      * Position of root `x` of `f` on circle `(a, b)` relative to the
@@ -432,7 +442,8 @@ namespace internal {
   /**
    * `face` (triangulation vertices as `SasDelaunay::ex` indexes them,
    * sorted) and `plus` name the root at `pos`: of a merged probe, its first
-   * member's, whose position is the probe's.
+   * member's, whose position is the probe's; `members` counts the roots
+   * merged into it.
    */
   struct SasProbes {
     CSR atoms;
@@ -440,6 +451,7 @@ namespace internal {
     OffsetTable tan_off;
     Array3Xi face;
     ArrayXb plus;
+    ArrayXi members;
     int n_active;
   };
 

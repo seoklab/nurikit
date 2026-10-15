@@ -340,6 +340,11 @@ namespace internal {
     };
 
     template <class T>
+    const T &component(const V3<T> &v, const int k) {
+      return k == 0 ? v.x : k == 1 ? v.y : v.z;
+    }
+
+    template <class T>
     V3<T> operator+(const V3<T> &a, const V3<T> &b) {
       return { a.x + b.x, a.y + b.y, a.z + b.z };
     }
@@ -1342,6 +1347,26 @@ namespace internal {
     }
     exact_stage<kFilterOnly>();
     return exact_difference(kernel(Ctx<Xp> { d, -1 }));
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE bool
+  BallExactImpl<kForceExact, kFilterOnly>::coincide(const BallTriple f,
+                                                    const bool plus,
+                                                    const BallTriple f2,
+                                                    const bool plus2) const {
+    const Data d { &c_, &h_, w_ };
+    for (int k = 0; k < 3; ++k) {
+      auto kernel = [&](auto ctx) {
+        using T = typename decltype(ctx)::Scalar;
+        const Diff<T> o = root_difference(ctx, f, plus, f2, plus2);
+        return Root2<T> { component(o.p, k),  component(o.q, k), o.disc,
+                          component(o.q2, k), lit<T>(0.0),       o.disc2 };
+      };
+      if (sign2<kForceExact, kFilterOnly>(d, kernel) != 0)
+        return false;
+    }
+    return true;
   }
 
   template <bool kForceExact, bool kFilterOnly>

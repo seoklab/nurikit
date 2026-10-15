@@ -605,17 +605,20 @@ namespace internal {
     }
 
     /**
-     * Every pair of probes within `probe_merge_tol` joined in `uf`. Probes
+     * Every pair of exactly coincident probes joined in `uf`. Candidates
+     * are the pairs within `probe_merge_tol`, a certified superset: probes
      * are bucketed on a lattice of pitch `tau` and sorted by cell, so a
      * pair within `tau` shares a cell or sits in cells adjacent along each
      * axis; a constant cell shift preserves the sorted order, so the 13
      * forward neighbor shifts are 13 merge joins of the order with itself.
-     * The result is the set of pairs within `tau`, whatever the probe order.
+     * `BallExact::coincide` decides each candidate not already linked
+     * (coincidence is transitive, so the skipped pairs are known). The
+     * result is the partition into exact points, whatever the probe order.
      * Cell indices fit `int64`: the span is `<= 2 (kSurfaceMaxCoord + rmax)`
      * and `prepare` keeps `rmax >= 2 kSurfaceLengthEps`, so
      * `span / tau < 2^43`.
      */
-    void merge_near_probes(const SurfaceSpheres &ss,
+    void merge_near_probes(const SurfaceSpheres &ss, const BallExact &ex,
                            const std::vector<RawProbe> &raw,
                            const ArrayXi &order, UnionFind &uf) {
       const int np = static_cast<int>(order.size());
@@ -647,13 +650,18 @@ namespace internal {
           ++j;
         return j;
       };
+      auto coincident = [&](const int p, const int r) {
+        const RawProbe &rp = raw[order[p]], &rr = raw[order[r]];
+        return (pos(p) - pos(r)).squaredNorm() <= tau2
+               && uf.find(p) != uf.find(r)
+               && ex.coincide(ball_triple(rp.face), rp.plus,
+                              ball_triple(rr.face), rr.plus);
+      };
       auto join = [&](const int bi, const int ei, const int bj, const int ej) {
         for (int a = bi; a < ei; ++a) {
-          const int p = by_cell[a];
           for (int b = bj; b < ej; ++b) {
-            const int r = by_cell[b];
-            if ((pos(p) - pos(r)).squaredNorm() <= tau2)
-              uf.merge(p, r);
+            if (coincident(by_cell[a], by_cell[b]))
+              uf.merge(by_cell[a], by_cell[b]);
           }
         }
       };
@@ -803,6 +811,7 @@ namespace internal {
                          OffsetTable(nc),
                          Array3Xi(3, nc),
                          ArrayXb(nc),
+                         ArrayXi(nc),
                          own_off[ss.n_active] };
       ArrayXi &adj = merged.atoms.adj(), &aoff = merged.atoms.off();
       ArrayXi cid(nc);
@@ -817,6 +826,7 @@ namespace internal {
         merged.pos.col(q) = first.pos;
         merged.face.col(q) = first.face;
         merged.plus[q] = first.plus;
+        merged.members[q] = moff.degree(c);
       }
 
       for (RingArc &arc: arcs.arcs) {
@@ -830,9 +840,10 @@ namespace internal {
     }
 
     /**
-     * An arc with both ends in one merged probe is a diagonal of a k-fold
-     * point and contributes no tangent, unless it is the full loop grazing
-     * the vertex (`dphi >= pi`), which contributes both.
+     * An arc with both ends in one merged probe joins two roots at one exact
+     * point: a diagonal of a k-fold point (`dphi` exactly 0) that contributes
+     * no tangent, or the full loop grazing the vertex (`dphi >= pi`), which
+     * contributes both.
      */
     bool has_tangents(const RingArc &arc) {
       return arc.beg >= 0 && (arc.beg != arc.end || arc.dphi >= constants::kPi);
@@ -888,7 +899,7 @@ namespace internal {
     ArrayXd area = sweep_spheres(ss, del, vm, caps, arcs, raw, po.order);
 
     UnionFind uf(static_cast<int>(raw.size()));
-    merge_near_probes(ss, raw, po.order, uf);
+    merge_near_probes(ss, del.ex, raw, po.order, uf);
     SasProbes merged = merge_probes(ss, raw, po.order, vm, uf, arcs);
     tangents(merged, arcs);
 

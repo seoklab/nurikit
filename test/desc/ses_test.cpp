@@ -51,6 +51,7 @@ solve_both(const Matrix3Xd &pts, const ArrayXd &sar, const double rp) {
 
 struct Ses {
   SurfaceSpheres ss;
+  SasDelaunay del;
   SasGeometry geo;
   SesGeometry ses;
 };
@@ -63,7 +64,7 @@ Ses solve_stages(const Matrix3Xd &pts, const ArrayXd &sar,
   SasDelaunay del = triangulate(*ss);
   SasGeometry geo = build_sas(*ss, del);
   SesGeometry ses = build_ses(*ss, del, geo);
-  return { std::move(*ss), std::move(geo), std::move(ses) };
+  return { std::move(*ss), std::move(del), std::move(geo), std::move(ses) };
 }
 
 /**
@@ -204,8 +205,21 @@ const Matrix3Xd &lattice() {
 /**
  * Lattice estimate of face `p`: directions outside every departure
  * hemisphere whose point on the probe sphere is outside every other probe
- * ball, brute force over the active probes; complete for all-active runs.
+ * ball (`|rp d - w|^2 >= rp^2` as `2 rp dot(d, w) <= |w|^2`, exact enough
+ * for neighbors at rounding distance), brute force over the active probes;
+ * complete for all-active runs.
  */
+double area_within(const SurfaceGeometry &s, const Vector3d &x,
+                   const double radius) {
+  const Matrix3Xd &pos = s.concave().pos;
+  double total = 0;
+  for (int p = 0; p < pos.cols(); ++p) {
+    if ((pos.col(p) - x).norm() < radius)
+      total += s.concave().area[p];
+  }
+  return total;
+}
+
 double face_from_dots(const SurfaceGeometry &s, const int p, const double rp) {
   const Matrix3Xd &pos = s.concave().pos;
   const Matrix3Xd &dirs = lattice();
@@ -227,7 +241,56 @@ double face_from_dots(const SurfaceGeometry &s, const int p, const double rp) {
       continue;
     bool outside = true;
     for (const Vector3d &w: near)
-      outside &= (rp * d - w).squaredNorm() >= rp * rp;
+      outside &= 2 * rp * d.dot(w) <= w.squaredNorm();
+    count += outside;
+  }
+  return 2 * kTwoPi * rp * rp * count / dirs.cols();
+}
+
+double area_within(const Ses &s, const Vector3d &x, const double radius) {
+  const Matrix3Xd &pos = s.geo.probes.pos;
+  double total = 0;
+  for (int p = 0; p < s.geo.probes.n_active; ++p) {
+    if ((pos.col(p) - x).norm() < radius)
+      total += s.ses.face_area[p];
+  }
+  return total;
+}
+
+/**
+ * `face_from_dots` on the stages: a neighbor closer than the rounded
+ * positions resolve (the roots of one rounded point) is placed by the exact
+ * kernel's difference, as the pair stage places it.
+ */
+double face_from_dots(const Ses &s, const int p, const double rp) {
+  const SasProbes &pr = s.geo.probes;
+  const Matrix3Xd &dirs = lattice();
+  const Vector3d x = pr.pos.col(p);
+  const auto t = pr.tan.middleCols(pr.tan_off[p], pr.tan_off.degree(p));
+  const int nt = static_cast<int>(t.cols());
+
+  std::vector<Vector3d> near;
+  for (int y = 0; y < pr.pos.cols(); ++y) {
+    Vector3d w = pr.pos.col(y) - x;
+    if (y == p || w.norm() >= 2 * rp)
+      continue;
+    if (w.norm() < 1e-6) {
+      const auto [dir, len] =
+          s.del.ex.difference(ball_triple(pr.face.col(y)), pr.plus[y],
+                              ball_triple(pr.face.col(p)), pr.plus[p]);
+      w = len * dir;
+    }
+    near.push_back(w);
+  }
+
+  int count = 0;
+  for (int k = 0; k < dirs.cols(); ++k) {
+    const Vector3d d = dirs.col(k);
+    if (nt > 0 && (t.transpose() * d).maxCoeff() > 0)
+      continue;
+    bool outside = true;
+    for (const Vector3d &w: near)
+      outside &= 2 * rp * d.dot(w) <= w.squaredNorm();
     count += outside;
   }
   return 2 * kTwoPi * rp * rp * count / dirs.cols();
@@ -281,6 +344,20 @@ void expect_faces_match_dots(const SurfaceGeometry &s, const double rp,
                              const char *tag = "") {
   const double sphere = 2 * kTwoPi * rp * rp;
   const ArrayXd &face_area = s.concave().area;
+  for (int p = 0; p < face_area.size(); ++p) {
+    const double area = face_area[p];
+    ASSERT_TRUE(std::isfinite(area)) << tag << " probe " << p;
+    EXPECT_GE(area, -1e-9) << tag << " probe " << p;
+    const double dots = face_from_dots(s, p, rp);
+    EXPECT_NEAR(area, dots, nuri::max(1e-3 * dots, 1.5e-3 * sphere))
+        << tag << " probe " << p;
+  }
+}
+
+void expect_faces_match_dots(const Ses &s, const double rp,
+                             const char *tag = "") {
+  const double sphere = 2 * kTwoPi * rp * rp;
+  const ArrayXd &face_area = s.ses.face_area;
   for (int p = 0; p < face_area.size(); ++p) {
     const double area = face_area[p];
     ASSERT_TRUE(std::isfinite(area)) << tag << " probe " << p;
@@ -708,7 +785,7 @@ TEST(BuildSesTest, FiltersDoNotChangeArea) {
   }
   EXPECT_GT(n_extra, 0);
 
-  for (const double h: { 5e-6, 2e-7 }) {
+  for (const double h: { 5e-6, 2e-7, 1e-13 }) {
     const auto [pts, sar] = near_tangent_face(h);
     EXPECT_GT(expect_filters_keep_area(pts, sar, "h " + std::to_string(h)), 0);
   }
@@ -860,6 +937,8 @@ TEST(BuildSesTest, PlanarProbe) {
  * there and the loop is decided by the antipode `(3, 0, 4)`, which the
  * hemisphere covers: the face is the spherical quadrilateral `i, j, k', k`.
  * Four atoms per probe keep both off the planar and triangular prefilters.
+ * Under a rigid motion each 4-fold point rounds into distinct roots whose
+ * faces partition its face, with the same areas.
  */
 TEST(BuildSesTest, SinglePointWindow) {
   const double rp = 5.0;
@@ -907,10 +986,7 @@ TEST(BuildSesTest, SinglePointWindow) {
     const auto [rot, t] = rigid_motion(seed);
     const Matrix3Xd pts = (rot * base).colwise() + t;
     const SurfaceGeometry s = solve(pts, sar, rp);
-    const int c = probe_at(s.concave().pos, rot * x0 + t, 1e-6);
-    ASSERT_GE(c, 0);
-    EXPECT_EQ(s.concave().caps.off.degree(c), 5);
-    EXPECT_NEAR(s.concave().area[c], quad, 1e-9);
+    EXPECT_NEAR(area_within(s, rot * x0 + t, 1e-6), quad, 1e-9);
     EXPECT_NEAR(s.concave().area.sum(), ref_total, 1e-9);
   }
 }
@@ -925,7 +1001,9 @@ struct KFold {
 /**
  * The ring of the k-star alone, and the 4-ring with a fifth sphere whose
  * probe with two ring atoms lies within `2 rp` of the 4-fold probe and cuts
- * its face.
+ * its face. The 4-ring's coordinates round symmetrically, so its point is
+ * exact; the 5-ring's do not, so even the reference is a rounded point
+ * whose roots are distinct probes.
  */
 std::vector<KFold> k_fold_fixtures() {
   std::vector<KFold> fixtures;
@@ -943,26 +1021,33 @@ std::vector<KFold> k_fold_fixtures() {
 TEST(BuildSesTest, KFoldFaceUnderRigidMotion) {
   for (const KFold &f: k_fold_fixtures()) {
     SCOPED_TRACE(testing::Message() << "k " << f.k << " cut " << f.cut);
-    const SurfaceGeometry ref = solve(f.pts, f.sar, 1.0);
-    const int c0 = probe_at(ref.concave().pos, Vector3d::Zero());
-    ASSERT_GE(c0, 0);
-    ASSERT_EQ(ref.concave().atoms.degree(c0), f.k);
-    if (f.cut) {
-      EXPECT_GT(ref.concave().caps.off.degree(c0), hemispheres(ref, c0).cols());
+    const Ses ref = solve_stages(f.pts, f.sar, 1.0);
+    std::vector<int> atoms;
+    int n_cut = 0;
+    for (int p = 0; p < ref.geo.probes.n_active; ++p) {
+      if (ref.geo.probes.pos.col(p).norm() > 1e-6)
+        continue;
+      for (const int a: ref.geo.probes.atoms.nbrs(p))
+        atoms.push_back(ref.ss.order[a]);
+      n_cut += ref.ses.face_off.degree(p) > ref.geo.probes.tan_off.degree(p);
     }
-    const double ref_face = ref.concave().area[c0],
-                 ref_total = ref.concave().area.sum();
+    std::sort(atoms.begin(), atoms.end());
+    atoms.erase(std::unique(atoms.begin(), atoms.end()), atoms.end());
+    EXPECT_EQ(static_cast<int>(atoms.size()), f.k);
+    if (f.cut)
+      EXPECT_GT(n_cut, 0);
+    const double ref_face = area_within(ref, Vector3d::Zero(), 1e-6),
+                 ref_total = ref.ses.face_area.sum();
     EXPECT_GT(ref_face, 0);
     expect_faces_match_dots(ref, 1.0, "k-fold");
 
     for (int seed = 0; seed < 16; ++seed) {
       const auto [rot, t] = rigid_motion(seed);
       const Matrix3Xd pts = (rot * f.pts).colwise() + t;
-      const SurfaceGeometry s = solve(pts, f.sar, 1.0);
-      const int c = probe_at(s.concave().pos, t);
-      ASSERT_GE(c, 0) << "seed " << seed;
-      EXPECT_NEAR(s.concave().area[c], ref_face, 1e-9) << "seed " << seed;
-      EXPECT_NEAR(s.concave().area.sum(), ref_total, 1e-9) << "seed " << seed;
+      const Ses s = solve_stages(pts, f.sar, 1.0);
+      EXPECT_NEAR(area_within(s, t, 1e-6), ref_face, 1e-9) << "seed " << seed;
+      EXPECT_NEAR(s.ses.face_area.sum(), ref_total, 1e-9) << "seed " << seed;
+      expect_faces_match_dots(s, 1.0, "rounded k-fold");
     }
   }
 }
@@ -971,8 +1056,9 @@ TEST(BuildSesTest, KFoldFaceUnderRigidMotion) {
  * The occluder-shell fixture of sas_test, all active, under rigid motions:
  * where the tangent pair `(0, 1)` rounds into an overlap, the roots on its
  * circle of radius ~1e-8 are neighbor probes 1e-8 to 1e-7 apart whose
- * cap axes their positions cannot resolve. The faces at the point sum to
- * the quarter sphere of the exact 4-fold point and match the lattice.
+ * cap axes their positions cannot resolve, so the lattice oracle places
+ * them by the exact difference. The faces at the point sum to the quarter
+ * sphere of the exact 4-fold point and match the lattice.
  */
 TEST(BuildSesTest, RoundedTangentPairFaces) {
   Matrix3Xd base(3, 6);
@@ -992,16 +1078,10 @@ TEST(BuildSesTest, RoundedTangentPairFaces) {
     SCOPED_TRACE(seed);
     const auto [rot, t] = rigid_motion(seed);
     const Matrix3Xd pts = (rot * base).colwise() + t;
-    const SurfaceGeometry s = solve(pts, sar, rp);
+    const Ses s = solve_stages(pts, sar, rp);
 
-    const Vector3d x = rot * x0 + t;
-    double at_point = 0;
-    for (int p = 0; p < s.concave().pos.cols(); ++p) {
-      if ((s.concave().pos.col(p) - x).norm() < 1e-6)
-        at_point += s.concave().area[p];
-    }
-    EXPECT_NEAR(at_point, quarter, 1e-6);
-    EXPECT_NEAR(s.concave().area.sum(), ref.concave().area.sum(), 1e-6);
+    EXPECT_NEAR(area_within(s, rot * x0 + t, 1e-6), quarter, 1e-6);
+    EXPECT_NEAR(s.ses.face_area.sum(), ref.concave().area.sum(), 1e-6);
     expect_faces_match_dots(s, rp);
   }
 }
