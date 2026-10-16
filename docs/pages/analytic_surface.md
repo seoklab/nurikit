@@ -1009,10 +1009,16 @@ an exact \f$k\f$-fold point of the input rounds, under a rigid motion, into
 \f$k - 2\f$ distinct roots some \f$10^{-15}\f$ apart, and a tolerance that
 snapped them back "simply activates rounding to zero"
 @cite desc:surface:kettner-2008, with the same fractured boundary one scale
-up. Such roots stay distinct probes, each with its three atoms; their
-faces, cut by each other's near-hemisphere caps, partition the face of the
-exact point with the same total area to rounding. The pair stage places
-them by `difference`, whose direction is certified however close the roots
+up. Such roots stay distinct probes, each with its three atoms; each cuts a
+neighbor's cone only in a band along a great circle whose area is bounded by a
+multiple of their separation, and the faces sum to the face of the exact point
+within a multiple of the rounding and of the SAS displacement it causes
+(@ref lemma-14 "Lemma 14"). The lemma needs the exact point's contact
+directions to span space and lie in an open hemisphere: the coincident-root
+case is @ref corollary-4 "Corollary 4", and the pinch of
+@ref theorem-3 "Theorem 3" and a point inside the polygon of its coplanar host
+centers are excluded. The pair stage places the roots by `difference`, whose
+direction is certified however close the roots
 are (@ref analysis-fp "Floating point"), and the filters apply to single-root
 probes only (@ref ses-cuts "Which probes can cut a face"); at an exact tangency
 its antipodal hemispheres end it empty (@ref corollary-4 "Corollary 4",
@@ -1651,6 +1657,301 @@ r_p\f$ is kept, and the face solver returns 0 at the first live complementary
 pair, before any cutter is examined. When the perturbation resolves the tie \f$D
 = 0\f$ to a miss instead, no probe exists and `side` covers or frees each circle
 by the same sign; both branches give the exact area 0.
+
+\anchor lemma-14
+**Lemma 14 (a vertex split by rounding keeps its face area).** In plain words:
+when a point where several spheres meet is perturbed into a cluster of nearby
+vertices, each cluster vertex's cap removes from a neighbor's cone only a thin
+band along a great circle, the cluster's exact-direction cones tile the cone of
+the exact point, and the cluster's faces sum to the exact point's face within a
+multiple of the perturbation and of the SAS displacement it causes. Precisely:
+let \f$x\f$ be a vertex of the configuration \f$\Sigma\f$ with hosts \f$A(x)\f$
+whose contact directions \f$\hat c_a = (c_a - x)/R_a\f$ span space and lie in an
+open hemisphere, so that \f$\vartheta_0 = \max_{|n| = 1} \min_{a \in A(x)} \hat
+c_a \cdot n > 0\f$, the cosine of the angular radius of the smallest cap holding
+them, attained at the unit axis \f$n_0\f$. Equivalently \f$0 \notin
+\operatorname{conv}\{\hat c_a\}\f$ and \f$C_x\f$ is pointed; excluded are an
+antipodal pair, two hosts tangent at \f$x\f$, the pinch of
+@ref theorem-3 "Theorem 3", and \f$x\f$ inside the polygon of its coplanar host
+centers. Let \f$\Sigma_\varepsilon\f$ be a family of configurations on the same
+atoms with centers \f$c_a^\varepsilon\f$ and radii \f$R_a^\varepsilon\f$ within
+\f$\varepsilon\f$ of those of \f$\Sigma\f$, \f$U_\varepsilon\f$ the union of
+its balls, and let no three spheres of \f$\Sigma\f$ or of
+\f$\Sigma_\varepsilon\f$ share a circle (finitely many vertices, as after
+@ref prep-step-3 "preparation step 3"). Let \f$3\gamma > 0\f$ be smaller than
+the clearance \f$|x - c_l| - R_l\f$ of every non-host \f$l\f$, than the
+distance from \f$x\f$ to every other common point of a host triple, and than
+\f$r_p\f$. The **cluster** \f$x_1(\varepsilon), \dots, x_m(\varepsilon)\f$ is
+the set of vertices of \f$\Sigma_\varepsilon\f$ within \f$\gamma\f$ of \f$x\f$
+(\f$m \ge 1\f$ for small \f$\varepsilon\f$, step 4; \f$x_i\f$ for short).
+The SAS displacement \f$\eta\f$ near \f$x\f$ is the largest distance from a
+vertex of \f$\Sigma_\varepsilon\f$ within \f$3 r_p\f$ of \f$x\f$ to the nearest
+vertex of \f$\Sigma\f$, or from a vertex of \f$\Sigma\f$ within \f$3 r_p\f$ of
+\f$x\f$ to the nearest SAS point of \f$\Sigma_\varepsilon\f$; \f$\eta \to 0\f$,
+and the cluster lies within \f$\eta\f$ of \f$x\f$ once \f$\eta < \gamma\f$
+(Setting).
+For an SAS point \f$y\f$ of either configuration write \f$A(y)\f$ for the
+atoms it touches (its hosts),
+\f$\hat c_a(y)\f$ for its contact directions there (\f$\hat c_a = \hat
+c_a(x)\f$), \f$C_y\f$ for their cone and \f$\vartheta_y = \max_{|n| = 1}
+\min_{a \in A(y)} \hat c_a(y) \cdot n\f$, and \f$C_i, \vartheta_i\f$ for \f$y =
+x_i(\varepsilon)\f$. \f$E_i\f$ is the cone of the exact
+directions \f$\{\hat c_a(x) : a \in A(x_i(\varepsilon))\}\f$ (hosts of \f$x\f$
+for small \f$\varepsilon\f$, step 2). \f$R_{\min}\f$ is the smallest SAS radius
+of \f$\Sigma\f$ (\f$R_{\max}\f$ as in @ref lemma-11 "Lemma 11"), \f$d_{\min}\f$
+the distance from \f$x\f$ to the nearest other vertex of \f$\Sigma\f$, \f$M =
+\sum_y 2\binom{|A(y)|}{3}\f$ over the vertices \f$y \ne x\f$ of \f$\Sigma\f$
+within \f$3 r_p\f$ of \f$x\f$, and \f$\kappa = \pi (2\varepsilon + \eta) /
+(\vartheta_0 (R_{\min} - \varepsilon))\f$. Areas are measured on the unit
+sphere of directions (times \f$r_p^2\f$ on the probe sphere).
+
+- (a) For \f$\varepsilon\f$ small enough that every \f$\vartheta_i > 0\f$
+  (step 2), and for \f$i \ne j\f$, put
+  \f$e = x_j - x_i\f$, \f$\eta_{ij} = |e|\f$, \f$\hat e = e/\eta_{ij}\f$. Then
+  every unit \f$d \in C_i\f$ has \f$d \cdot
+  \hat e \le \eta_{ij} / (2 \vartheta_i (R_{\min} - \varepsilon))\f$, while the cap of
+  \f$x_j\f$ on \f$S(x_i, r_p)\f$ is \f$\{d : d \cdot \hat e > \eta_{ij} / 2
+  r_p\}\f$. The cap meets \f$C_i\f$ in a zone of area at most \f$\pi \eta_{ij} /
+  (\vartheta_i (R_{\min} - \varepsilon))\f$, and not at all when \f$\vartheta_i (R_{\min} -
+  \varepsilon) \ge r_p\f$. Likewise \f$C_i \cap C_j\f$ lies in \f$|d \cdot \hat
+  e| \le \eta_{ij} / (2 \min(\vartheta_i, \vartheta_j) (R_{\min} - \varepsilon))\f$, of area at
+  most \f$2\pi \eta_{ij} / (\min(\vartheta_i, \vartheta_j) (R_{\min} - \varepsilon))\f$.
+- (b) For small \f$\varepsilon\f$ the exact cones \f$E_i\f$ of the cluster tile
+  \f$C_x\f$: they have disjoint interiors and cover \f$C_x\f$, and
+  \f[
+  \operatorname{area}\Bigl(\bigl(\bigcup_i C_i\bigr) \,\triangle\, C_x\Bigr)
+  \le \sum_i \operatorname{area}(C_i \,\triangle\, E_i)
+  \le 2 m |A(x)| (2\pi\kappa + \pi\kappa^2),
+  \qquad
+  \Bigl|\sum_i \operatorname{area}(C_i) - \operatorname{area}(C_x)\Bigr|
+  \le \sum_i \operatorname{area}(C_i \,\triangle\, E_i).
+  \f]
+- (c) For small \f$\varepsilon\f$, with the faces of
+  @ref theorem-4 "Theorem 4" in \f$\Sigma_\varepsilon\f$ and in \f$\Sigma\f$,
+  \f[
+  \Bigl|\sum_i \operatorname{area}(\text{face of } x_i(\varepsilon)) -
+  \operatorname{area}(\text{face of } x)\Bigr|
+  \le \sum_i \operatorname{area}(C_i \,\triangle\, E_i)
+  + \frac{4\pi m (m - 1)\, \eta}{\vartheta_0 (R_{\min} - \varepsilon)}
+  + 16\pi m M \eta \Bigl(\frac{1}{2 r_p} + \frac{2}{d_{\min}}\Bigr),
+  \f]
+  every term a multiple of \f$\eta + \varepsilon\f$ (\f$\kappa \le 1\f$ for
+  small \f$\varepsilon\f$) by a constant of \f$\Sigma\f$ at \f$x\f$.
+
+*Setting.* \f$\eta \to 0\f$: a limit point of vertices of
+\f$\Sigma_\varepsilon\f$ is outside every open ball of \f$\Sigma\f$ and on
+three of its spheres, a vertex of \f$\Sigma\f$; and an SAS point of
+\f$\Sigma\f$ has points outside \f$U\f$ and points inside a ball of
+\f$\Sigma\f$ arbitrarily close, each keeping its side for small
+\f$\varepsilon\f$, so the SAS of \f$\Sigma_\varepsilon\f$ meets the segment
+between them. Every other vertex of \f$\Sigma\f$ lies on a non-host sphere of
+\f$x\f$ or is another common point of a host triple, so \f$d_{\min} >
+3\gamma\f$, and once \f$\eta < \gamma\f$ the nearest vertex of \f$\Sigma\f$ to a
+cluster member is \f$x\f$: the cluster lies within \f$\eta\f$ of \f$x\f$.
+
+*Proof.*
+
+1. *The band.* \f$x_j\f$ is an SAS point of \f$\Sigma_\varepsilon\f$, outside
+   the host balls of \f$x_i\f$: for \f$a \in A(x_i)\f$, with \f$\hat c_a(x_i) =
+   (c_a^\varepsilon - x_i)/R_a^\varepsilon\f$ and \f$R_a^\varepsilon \ge
+   R_{\min} - \varepsilon\f$, \f$|x_j - c_a^\varepsilon|^2 = |e -
+   R_a^\varepsilon \hat c_a(x_i)|^2 = \eta_{ij}^2 - 2 R_a^\varepsilon\, e \cdot
+   \hat c_a(x_i) + (R_a^\varepsilon)^2 \ge (R_a^\varepsilon)^2\f$, i.e. \f$e
+   \cdot \hat c_a(x_i) \le \eta_{ij}^2 / 2 R_a^\varepsilon\f$. For a unit \f$d
+   = \sum \lambda_a \hat c_a(x_i) \in C_i\f$ (\f$\lambda_a \ge 0\f$) and a unit
+   \f$n\f$ with \f$\hat c_a(x_i) \cdot n \ge \vartheta_i\f$ for every \f$a\f$,
+   \f$1 \ge d \cdot n \ge \vartheta_i \sum \lambda_a\f$, so \f$\sum \lambda_a
+   \le 1/\vartheta_i\f$ and \f$d \cdot e \le \sum \lambda_a \eta_{ij}^2 / 2
+   R_a^\varepsilon \le \eta_{ij}^2 / (2 \vartheta_i (R_{\min} -
+   \varepsilon))\f$. The cap of \f$x_j\f$ is \f$\{d : |x_i + r_p d - x_j| <
+   r_p\} = \{d : \eta_{ij}^2 - 2 r_p\, d \cdot e < 0\}\f$, the cap of the
+   @ref prelim-defs "Definitions" with \f$\cos\alpha = \eta_{ij}/2 r_p\f$. A
+   zone of the unit sphere between two parallel planes has area \f$2\pi\f$
+   times their distance. Exchanging \f$i\f$ and \f$j\f$ bounds \f$-d \cdot \hat
+   e\f$ on \f$C_j\f$, which gives the overlap zone.
+
+2. <em>Near \f$x\f$ only hosts, and the cluster converges to \f$x\f$.</em> Once \f$\varepsilon < \gamma\f$, a non-host sphere
+   of \f$x\f$ keeps a clearance above \f$\gamma\f$ at \f$x\f$ in
+   \f$\Sigma_\varepsilon\f$, so every SAS point of \f$\Sigma_\varepsilon\f$
+   within \f$\gamma\f$ of \f$x\f$ lies on host spheres of \f$x\f$ only. Hence
+   the hosts of a cluster vertex are hosts of \f$x\f$. Every cluster vertex is
+   within \f$\eta\f$ of \f$x\f$ (Setting), so converges to it; \f$\hat
+   c_a(x_i(\varepsilon)) \to \hat c_a(x)\f$ uniformly in \f$i\f$, and
+   \f$\vartheta_i\f$ converges to the value for \f$E_i\f$, at least
+   \f$\vartheta_0\f$ (a minimum over fewer directions is no smaller), so
+   \f$\vartheta_i \ge \vartheta_0/2\f$ for small \f$\varepsilon\f$. Also \f$m
+   \le 2\binom{|A(x)|}{3}\f$, since distinct vertices are distinct common
+   points of host triples and a triple has at most two. Every \f$C_i\f$ lies in
+   a neighborhood of the convex spherical polygon \f$C_x\f$ that shrinks with
+   \f$\varepsilon\f$.
+
+3. <em>The nearest SAS point of a cone point lies near \f$x\f$.</em> Let \f$K = \{q :
+   q \cdot \hat c_a \le 0 \text{ for all } a \in A(x)\}\f$, the polar of
+   \f$C_x\f$, with \f$-n_0\f$ in its interior. Fix a unit \f$d\f$ strictly inside
+   \f$C_x\f$. Then \f$d \cdot q < 0\f$ for every nonzero \f$q \in K\f$ (\f$d +
+   \delta q \in C_x\f$ for small \f$\delta > 0\f$ gives \f$d \cdot q +
+   \delta|q|^2 \le 0\f$), so \f$\mu = -\max\{d \cdot q : q \in K, |q| = 1\} \in
+   (0, 1]\f$. Put \f$p = x + t d\f$ with \f$0 < t \le \vartheta_0 R_{\min}/4\f$.
+   Writing \f$d = \sum \lambda_a \hat c_a\f$ with \f$\lambda_a \ge 0\f$,
+   \f$1 = d \cdot d = \sum \lambda_a\, d \cdot \hat c_a \le (\max_a d \cdot \hat
+   c_a)/\vartheta_0\f$ (\f$\sum \lambda_a \le 1/\vartheta_0\f$ as in step 1), so
+   some host \f$a\f$ has \f$d \cdot \hat c_a \ge \vartheta_0\f$, and \f$|p -
+   c_a|^2 = R_a^2 - 2 t R_a\, d \cdot \hat c_a + t^2 \le R_a^2 - t R_a \vartheta_0\f$,
+   so \f$p \in U_\varepsilon\f$ for small \f$\varepsilon\f$. Let \f$y = x + v\f$
+   be a nearest SAS point of \f$p\f$ in \f$\Sigma_\varepsilon\f$ (the SAS is
+   compact) and \f$\rho = |p - y| \le t + \operatorname{dist}(x, \text{SAS of }
+   \Sigma_\varepsilon) \le t + \eta\f$. The
+   open ball \f$B^\circ(p, \rho)\f$ contains no SAS point, contains \f$p \in
+   U_\varepsilon\f$ and is connected, so \f$B(p, \rho) \subset U_\varepsilon\f$.
+   Since \f$y\f$ is outside every open ball of \f$\Sigma_\varepsilon\f$, whose
+   centers and radii are within \f$\varepsilon\f$ of those of \f$\Sigma\f$,
+   every host \f$a\f$ of \f$x\f$ has
+   \f[
+   v \cdot \hat c_a \le \beta = \frac{|v|^2 + 2|v|\varepsilon + 4 R_{\max}
+   \varepsilon + \varepsilon^2}{2 R_{\min}}.
+   \f]
+   With \f$z = n_0/\vartheta_0\f$ (so \f$\hat c_a \cdot z \ge 1\f$), \f$v - \beta z \in
+   K\f$, hence \f$d \cdot v \le -\mu |v - \beta z| + \beta\, d \cdot z \le
+   -\mu|v| + (1 + \mu)\beta/\vartheta_0 \le -\mu|v| + 2\beta/\vartheta_0\f$, and
+   \f[
+   (t + \eta)^2 \ge \rho^2 = t^2 - 2t\, d \cdot v + |v|^2 \ge t^2 + 2t\mu|v| -
+   4t\beta/\vartheta_0 + |v|^2.
+   \f]
+   As \f$2t/(\vartheta_0 R_{\min}) \le 1/2\f$, \f$4t\beta/\vartheta_0 \le |v|^2/2 + |v|\varepsilon
+   + 2R_{\max}\varepsilon + \varepsilon^2/2\f$, and for \f$\varepsilon \le
+   t\mu\f$ this gives \f$t\mu|v| \le 2t\eta + \eta^2 + 2R_{\max}\varepsilon +
+   \varepsilon^2/2\f$, i.e.
+   \f[
+   |v| \le \nu = \frac{2\eta + \eta^2/t + 2R_{\max}\varepsilon/t +
+   \varepsilon^2/2t}{\mu} \to 0.
+   \f]
+
+4. <em>\f$y\f$ is a cluster vertex and \f$d\f$ is near its cone.</em> For small
+   \f$\varepsilon\f$, \f$\nu < \gamma\f$, so \f$y\f$ lies on host spheres of
+   \f$x\f$ only (step 2), and \f$\rho \in [t - \nu, t + \eta]\f$. \f$B(p, \rho)
+   \subset U_\varepsilon\f$ touches the boundary at \f$y\f$, and \f$y\f$, in no
+   open ball and on no sphere but those of its hosts, is strictly outside every
+   other ball, so near \f$y\f$ the set \f$U_\varepsilon\f$ is the union of the
+   host balls of \f$y\f$. Write \f$u = (p - y)/\rho\f$.
+   - If \f$y\f$ lies on one host sphere \f$a\f$, the ball is internally tangent
+     to it at \f$y\f$, so \f$u = \hat c_a(y)\f$ (@ref lemma-6 "Lemma 6" step 4)
+     and \f$|d - \hat c_a(y)| = |d - u| \le |\rho - t|/\rho + \nu/\rho \le (\eta +
+     2\nu)/(t - \nu) \to 0\f$, while \f$\hat c_a(y) \to \hat c_a(x)\f$: excluded for
+     small \f$\varepsilon\f$ whenever \f$d\f$ is none of the \f$\hat c_a(x)\f$.
+   - If \f$y\f$ lies on two host spheres \f$a, b\f$, then \f$u\f$ lies in the
+     wedge spanned by \f$\hat c_a(y), \hat c_b(y)\f$ (@ref lemma-6 "Lemma 6"
+     step 5): the wedge is pointed, its two directions converging to distinct
+     members of an open hemisphere. For \f$u\f$ outside it some \f$q\f$ has
+     \f$q \cdot u > 0\f$ and a negative dot product with both, and \f$y + \delta q\f$
+     lies in \f$B^\circ(p, \rho)\f$ outside both host balls, hence outside
+     \f$U_\varepsilon\f$, for small \f$\delta > 0\f$. So \f$d\f$ is within \f$(\eta
+     + 2\nu)/(t - \nu) + o(1)\f$ of the great circle through \f$\hat c_a(x), \hat
+     c_b(x)\f$: excluded for small \f$\varepsilon\f$ whenever \f$d\f$ is off the
+     finitely many great circles through pairs of contact directions.
+   - Otherwise \f$y\f$ lies on three or more host spheres: it is a vertex of
+     \f$\Sigma_\varepsilon\f$ within \f$\gamma\f$ of \f$x\f$, a cluster vertex
+     \f$x_i(\varepsilon)\f$ (so \f$m \ge 1\f$ for small \f$\varepsilon\f$), and
+     the same separation (\f$C_i\f$ is pointed since
+     \f$\vartheta_i > 0\f$) puts \f$u\f$ in \f$C_i\f$, so \f$d\f$ is within \f$(\eta +
+     2\nu)/(t - \nu)\f$ of \f$C_i\f$.
+
+5. *Tiling in the limit.* Let \f$Q\f$ be a compact subset of the interior of \f$C_x\f$
+   avoiding the contact directions and the great circles through pairs of them.
+   On \f$Q\f$, \f$\mu = \mu(d) \ge \mu_Q > 0\f$ (\f$\mu\f$ is 1-Lipschitz in \f$d\f$)
+   and the two exclusions of step 4 hold uniformly, since \f$Q\f$ keeps a
+   positive distance from those finitely many points and circles; so for small
+   \f$\varepsilon\f$ every \f$d \in Q\f$ is within \f$\delta_\varepsilon = (\eta
+   + 2\nu_Q)/(t - \nu_Q) \to 0\f$ of some \f$C_i\f$ (\f$\nu_Q\f$: \f$\nu\f$
+   with \f$\mu_Q\f$ for \f$\mu\f$). A point outside a closed set and
+   within \f$\delta\f$ of it is within \f$\delta\f$ of its boundary, so \f$Q
+   \setminus \bigcup_i C_i\f$ lies in the \f$\delta_\varepsilon\f$-neighborhoods
+   of the \f$m\f$ cone boundaries, at most \f$|A(x)|\f$ great-circle arcs each,
+   of total area at most \f$m |A(x)| (2\pi\delta_\varepsilon +
+   \pi\delta_\varepsilon^2) \to 0\f$. With step 2 (\f$\bigcup_i C_i\f$ inside a
+   shrinking neighborhood of \f$C_x\f$, whose boundary is a null set) and
+   \f$Q\f$ exhausting \f$C_x\f$, \f$\operatorname{area}((\bigcup_i C_i)
+   \,\triangle\, C_x) \to 0\f$; with the overlap bound of (a),
+   \f$\operatorname{area}(\bigcup_i C_i) \le \sum_i \operatorname{area}(C_i) \le
+   \operatorname{area}(\bigcup_i C_i) + \sum_{i < j} \operatorname{area}(C_i \cap
+   C_j)\f$, so \f$\sum_i \operatorname{area}(C_i) \to
+   \operatorname{area}(C_x)\f$.
+
+6. *The rate.* \f$E_i \subset C_x\f$ by step 2 and convexity. A contact
+   direction moves by \f$|\hat c_a(x_i(\varepsilon)) - \hat c_a(x)| \le (|c_a^\varepsilon
+   - c_a| + |x_i(\varepsilon) - x|)/R_a^\varepsilon + R_a\, |1/R_a^\varepsilon -
+   1/R_a| \le (2\varepsilon + \eta)/(R_{\min} - \varepsilon)\f$. A direction of
+   \f$C_i\f$ is that of \f$s = \sum \lambda_a \hat c_a(x_i)\f$, with \f$|s|
+   \ge \vartheta_i \sum \lambda_a\f$, and \f$s' = \sum \lambda_a \hat c_a(x) \in E_i\f$
+   has \f$|s - s'| \le \sum \lambda_a (2\varepsilon + \eta)/(R_{\min} -
+   \varepsilon) \le \ell |s|\f$ with \f$\ell = (2\varepsilon + \eta)/(\vartheta_i
+   (R_{\min} - \varepsilon)) \le 2(2\varepsilon + \eta)/(\vartheta_0 (R_{\min} -
+   \varepsilon))\f$. The angle \f$\psi\f$ between \f$s\f$ and \f$s'\f$ has
+   \f$|s| \sin\psi \le |s - s'|\f$, so for \f$\ell \le 1\f$ (small
+   \f$\varepsilon\f$) \f$\psi \le \arcsin\ell \le \pi\ell/2 \le \kappa\f$:
+   every direction of \f$C_i\f$ is within \f$\kappa\f$ of \f$E_i\f$, and with
+   \f$\vartheta_0\f$ in place of \f$\vartheta_i\f$ every direction of \f$E_i\f$ is within
+   \f$\kappa\f$ of \f$C_i\f$. A point of one cone outside the other is thus
+   within \f$\kappa\f$ of the other's boundary, so \f$C_i \,\triangle\, E_i\f$
+   lies in the \f$\kappa\f$-neighborhoods of the two boundaries, at most
+   \f$|A(x)|\f$ great-circle arcs each, of area at most \f$2|A(x)|(2\pi\kappa +
+   \pi\kappa^2)\f$. The \f$E_i\f$ are cones over subsets of the finitely many
+   contact directions, so \f$\operatorname{area}(C_x \setminus \bigcup_i E_i)\f$
+   and \f$\operatorname{area}(E_i \cap E_j)\f$ take finitely many values; both
+   are bounded by step 5's quantities plus \f$\sum_i \operatorname{area}(C_i
+   \,\triangle\, E_i)\f$ and tend to 0, so for small \f$\varepsilon\f$ both are
+   0: the \f$E_i\f$ cover \f$C_x\f$ (a point of \f$C_x\f$ outside the closed
+   union has a neighborhood of positive area outside it) with disjoint
+   interiors, and \f$\sum_i \operatorname{area}(E_i) = \operatorname{area}(C_x)\f$.
+   Hence \f$\operatorname{area}((\bigcup_i C_i) \,\triangle\, C_x) \le \sum_i
+   \operatorname{area}(C_i \,\triangle\, E_i)\f$ and \f$|\sum_i
+   \operatorname{area}(C_i) - \operatorname{area}(C_x)| \le \sum_i
+   |\operatorname{area}(C_i) - \operatorname{area}(E_i)| \le \sum_i
+   \operatorname{area}(C_i \,\triangle\, E_i)\f$.
+
+7. *Faces.* By @ref theorem-4 "Theorem 4" the face of \f$x_i(\varepsilon)\f$ is
+   \f$C_i\f$ minus the caps of the vertices of \f$\Sigma_\varepsilon\f$ within
+   \f$2 r_p\f$ of \f$x_i(\varepsilon)\f$, and the face of \f$x\f$ is \f$C_x
+   \setminus W\f$, \f$W\f$ the union of the caps of the vertices \f$y \ne x\f$ of
+   \f$\Sigma\f$ within \f$2 r_p\f$ of \f$x\f$, up to null sets (a cluster vertex
+   with coplanar contact directions has face and cone both of area 0,
+   @ref lemma-12 "Lemma 12" as invoked in @ref lemma-6 "Lemma 6",
+   @ref corollary-4 "Corollary 4" for three hosts). Write \f$N_i\f$ for the
+   union of the caps of the other cluster members on \f$S(x_i(\varepsilon),
+   r_p)\f$ and \f$F_i\f$ for that of the remaining vertices of
+   \f$\Sigma_\varepsilon\f$ within \f$2 r_p\f$ of \f$x_i(\varepsilon)\f$, so
+   that the face is \f$C_i \setminus (N_i \cup F_i)\f$. \f$N_i\f$ meets
+   \f$C_i\f$ in the bands of (a), \f$m - 1\f$ of area at most \f$\pi \cdot 2\eta
+   / ((\vartheta_0/2)(R_{\min} - \varepsilon))\f$ each (\f$\eta_{ij} \le 2\eta\f$). The
+   cap of a displacement \f$w\f$ is \f$\{d : d \cdot \hat w > \cos\alpha\}\f$
+   with \f$\hat w = w/|w|\f$, \f$\cos\alpha = |w|/2 r_p\f$, empty for \f$|w|
+   \ge 2 r_p\f$. For two displacements \f$w, w'\f$ each part of the symmetric
+   difference lies in a zone of height \f$|\cos\alpha - \cos\alpha'| + |\hat w - \hat
+   w'|\f$ (\f$\hat w', \cos\alpha'\f$ those of \f$w'\f$), so the caps differ by area at most \f$4\pi(|\cos\alpha -
+   \cos\alpha'| + |\hat w - \hat w'|) \le 4\pi |w - w'| (1/2 r_p + 2/|w|)\f$,
+   which is \f$8\pi\eta(1/2 r_p +
+   2/d_{\min})\f$ when \f$|w - w'| \le 2\eta\f$ and \f$|w| \ge d_{\min}\f$.
+   Each vertex \f$y(\varepsilon)\f$ counted in \f$F_i\f$ lies within \f$2 r_p
+   + \eta < 3 r_p\f$ of \f$x\f$, so once \f$\eta < \gamma\f$ it is within
+   \f$\eta\f$ of a vertex \f$y \ne x\f$ of \f$\Sigma\f$ with \f$|y - x| < 3
+   r_p\f$: with
+   \f$w = y - x\f$ and \f$w' = y(\varepsilon) - x_i(\varepsilon)\f$ its cap
+   lies in \f$W\f$ up to that area, and at most \f$M\f$ such vertices occur
+   (step 2's count at each \f$y\f$). Conversely each vertex \f$y \ne x\f$ of
+   \f$\Sigma\f$ with \f$|y - x| < 2 r_p\f$ has an SAS point \f$y'\f$ of
+   \f$\Sigma_\varepsilon\f$ within \f$\eta\f$; with \f$w' = y' -
+   x_i(\varepsilon)\f$ the cap of \f$y'\f$ differs from that of \f$y\f$ by at
+   most the same area, and it meets \f$C_i\f$ only inside \f$N_i \cup F_i\f$ up to a null
+   set, since by @ref theorem-4 "Theorem 4" in \f$\Sigma_\varepsilon\f$ a face
+   point cut by any SAS point is cut by a vertex within \f$2 r_p\f$ of
+   \f$x_i(\varepsilon)\f$. At most \f$M\f$ such \f$y\f$ occur. Hence \f$(N_i
+   \cup F_i) \cap C_i\f$ and \f$W \cap C_i\f$ differ by at most the area of the
+   bands plus \f$16\pi M \eta (1/2 r_p + 2/d_{\min})\f$. So
+   \f$|\operatorname{area}(\text{face of } x_i(\varepsilon))
+   - \operatorname{area}(C_i \setminus W)|\f$ is at most that, and \f$\sum_i
+   \operatorname{area}(C_i \setminus W)\f$ differs from \f$\sum_i
+   \operatorname{area}(E_i \setminus W) = \operatorname{area}(C_x \setminus
+   W)\f$ (step 6) by at most \f$\sum_i \operatorname{area}(C_i \,\triangle\,
+   E_i)\f$.
 
 ### The filter pipeline {#ses-pipeline}
 
