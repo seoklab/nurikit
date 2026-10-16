@@ -196,16 +196,15 @@ bands that are supersets of exactly decided sets; every decision is exact.
    indices are the lowest), so active torus arcs come from solved spheres.
    The hosts of a probe on an active atom overlap pairwise, so they are
    in `need`, every circle between two of them is solved, and the probe's
-   departure tangents are complete. By @ref lemma-11 "Lemma 11", a
-   first-touch cutter (@ref lemma-8 "Lemma 8") of a face on an active atom,
-   all a face needs by @ref lemma-6 "Lemma 6", has a host that overlaps
-   one of that face's hosts, hence a host in `shell`: it is enumerated, its
-   accessibility is decided like every other root, and its cap is present.
-   Its own departure tangents may be incomplete (a circle between two of its
-   occluder hosts gets no ring); it is then skipped by the triangle gate of
-   @ref lemma-10 "Lemma 10" and is tested without the triangle filter, which is always
-   allowed. Two shells are exactly what
-   @ref corollary-3 "Corollary 3" needs, and one is not enough.
+   departure tangents are complete. Every first-touch cutter (@ref lemma-8
+   "Lemma 8") of a face on an active atom, all a face needs by @ref lemma-6
+   "Lemma 6", has a host in `shell` (@ref corollary-3 "Corollary 3"): it is
+   enumerated, its accessibility is decided like every other root, and its cap
+   is present. Its own departure tangents may be incomplete (a circle between
+   two of its occluder hosts gets no ring); it is then skipped by the triangle
+   gate of @ref lemma-10 "Lemma 10" and is tested without the triangle filter,
+   which is always allowed. Two shells are exactly what @ref corollary-3
+   "Corollary 3" needs, and one is not enough.
 
 ## Solvent-accessible surface (SAS) {#sas}
 
@@ -218,9 +217,8 @@ inside ball \f$i\f$ iff \f$\pi_i(x) < 0\f$, on \f$S_i\f$ iff
 \f$V_i = \{x : \pi_i(x) \le \pi_m(x)\ \forall m\}\f$; a point of \f$S_i\f$
 is accessible iff \f$x \in V_i\f$.
 
-Every decision below is an exact predicate on these numbers
-(@ref prelim-rules "design rules"); the bands of the preparation are the
-only floating prefilters.
+Every decision below is an exact predicate on these numbers (@ref prelim-rules
+"design rules").
 
 ### Notation {#sas-notation}
 
@@ -341,8 +339,7 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    \f$\pi_l - \pi_a\f$ is affine along \f$\ell\f$, so this is the sign of
    \f$A \pm B\sqrt D\f$, decided exactly; a tie is perturbed like the
    triangulation). An apex that is a bounding point (@ref lemma-1 "Lemma 1"(a))
-   or misses one of the face spheres is not tested: its power on that sphere is
-   non-negative, zero only at a tangency point, and the limit accepts there
+   or misses one of the face spheres is not tested: the limit accepts there
    (@ref sas-step-2 "step 2"). Each accepted root is one **probe** with exactly
    the three atoms \f$a, b, c\f$, its position evaluated as \f$\mathrm{cntr} +
    \text{offset}\f$ (see @ref analysis-fp "Floating point"). @ref theorem-1
@@ -660,21 +657,19 @@ which no perturbation changes.
    for a sphere (@ref remark-2 "Remark 2"). By @ref theorem-2 "Theorem 2" in each run, the union of the listed
    open caps is the union of all `g`-caps of \f$s\f$, one set \f$U_s\f$ for
    both runs (1(a)). The solver joins two caps when a vertex links them or
-   `discs_intersect` holds, i.e. when their open discs meet; the components
-   of a finite union of open connected sets are those of their intersection
-   graph, so the count is the number of components of \f$U_s\f$. A cap listed
-   in one run only has an open disc inside \f$U_s\f$, connected and
-   non-empty, so it meets caps of one component and changes no count; it
-   links no vertex, since an accepted root on circle \f$(s, t)\f$ makes
-   \f$(s, t, c)\f$ a face of both triangulations by 3. Loops follow the
-   successor over the arc set (4); each corner comes from the same two arcs'
-   tangents, bitwise. The turning sum and \f$\sum \Delta\varphi \cos\alpha\f$
-   are summed in list order, which may differ, so the area agrees to
-   rounding. A sphere with no edge gets 0 without a solve: its power cell is
-   empty, so every point of \f$S_s\f$ is held by a ball of \f$S'\f$ (1(c)),
-   the same in both runs; in the other run no root on \f$s\f$ is accepted,
-   no circle of \f$s\f$ is full, and the solve with caps and no arc returns 0.
-   So (b).
+   `discs_intersect` holds, i.e. when their open discs meet (@ref sas-step-5
+   "step 5"), so the count is the number of components of \f$U_s\f$. A cap
+   listed in one run only has an open disc inside \f$U_s\f$, connected and
+   non-empty, so it meets caps of one component and changes no count; it links
+   no vertex, since an accepted root on circle \f$(s, t)\f$ makes \f$(s, t,
+   c)\f$ a face of both triangulations by 3. Loops follow the successor over the
+   arc set (4); each corner comes from the same two arcs' tangents, bitwise. The
+   turning sum and \f$\sum \Delta\varphi \cos\alpha\f$ are summed in list order,
+   which may differ, so the area agrees to rounding. A sphere with no edge gets
+   0 without a solve: its power cell is empty, so every point of \f$S_s\f$ is
+   held by a ball of \f$S'\f$ (1(c)), the same in both runs; in the other run no
+   root on \f$s\f$ is accepted, no circle of \f$s\f$ is full, and the solve with
+   caps and no arc returns 0. So (b).
 6. *Probes, SES, dots.* Probes are sorted by owner and `n_active` counts the
    same set; the merge joins exactly the coincident pairs (an exact
    predicate on the input, @ref sas-merge "Probe merge") and takes the
@@ -834,12 +829,11 @@ restricted to the unperturbed overlap graph `g`. Objects of measure zero at
 \f$\varepsilon = 0\f$ (contained balls, shared-circle middles, tangent-pair
 circles and their cut points) are deleted before the sweep, whose vertices
 are the accessible cut points of `g`-faces (@ref theorem-1 "Theorem 1");
-two caps are joined iff a vertex links them or their open discs meet (a
-touch is no join). This is correct iff every **pinch point**, a point where two kept spheres
-touch, counts loops and
-components one way: vertex present means joined (cusp pair, net area 0), absent
-means not joined (two loops, two components). The alternative is to displace
-the spheres numerically until every feature is separated and report the
+two caps are joined as in @ref sas-step-5 "step 5" (a touch is no join). This is
+correct iff every **pinch point**, a point where two kept spheres touch, counts
+loops and components one way: vertex present means joined (cusp pair, net area
+0), absent means not joined (two loops, two components). The alternative is to
+displace the spheres numerically until every feature is separated and report the
 displaced arrangement @cite desc:surface:halperin-shelton-1998; the limit is
 taken here instead.
 
@@ -863,22 +857,21 @@ order and mask, the sweep's accepted roots, their ring order and the joins
 between caps through \f$x_0\f$ are those of \f$\Sigma\f$; and on every solved
 sphere the reported area is the area of the exact arrangement.
 
-*Proof.* Powers are compared only by differences, so \f$\Sigma\f$ has the
-\f$RT\f$, cells, orthocenters \f$o_T\f$ and fans of the run, and
-@ref theorem-1 "Theorem 1" and @ref lemma-2 "Lemma 2" hold for it. Its ball
-\f$i\f$ is \f$\{\pi_i < -\gamma\}\f$, so its cut points lie on the same
+*Proof.* By @ref sas-step-1 "step 1" (powers compare by differences)
+\f$\Sigma\f$ has the \f$RT\f$, cells, orthocenters \f$o_T\f$ and fans of the
+run, and @ref theorem-1 "Theorem 1" and @ref lemma-2 "Lemma 2" hold for it. Its
+ball \f$i\f$ is \f$\{\pi_i < -\gamma\}\f$, so its cut points lie on the same
 radical lines at power \f$-\gamma\f$ where the run's lie at 0. If a ball
 contains \f$x_0\f$ in its interior, nothing near \f$x_0\f$ is accessible in
 either configuration and that ball's cap meets every cap through \f$x_0\f$;
-assume none does. Spheres outside \f$K\f$ have power bounded below in
-\f$N\f$ and never reject there. Two spheres of \f$K\f$ with the same normal
-at \f$x_0\f$ are nested and were dropped, so the tangent pairs at \f$x_0\f$
-are disjoint pairs \f$(p, q)\f$ with opposite normals, the **partners**, and
-every other pair of \f$K\f$ crosses at \f$x_0\f$ and is a `g` edge. Since
-\f$x_0 = (\rho_q c_p + \rho_p c_q)/(\rho_p + \rho_q)\f$, expanding gives
-exactly
-\f$\Phi_{pq} := (\rho_q\pi_p + \rho_p\pi_q)/(\rho_p + \rho_q) = |x - x_0|^2 - \gamma_{pq}\f$,
-so in \f$\Sigma\f$ no point has both \f$\pi_p\f$ and \f$\pi_q\f$ below
+assume none does. Spheres outside \f$K\f$ have power bounded below in \f$N\f$
+and never reject there. Two spheres of \f$K\f$ with the same normal at \f$x_0\f$
+are nested and were dropped, so the tangent pairs at \f$x_0\f$ are disjoint
+pairs \f$(p, q)\f$ with opposite normals, the **partners**, and every other pair
+of \f$K\f$ crosses at \f$x_0\f$ and is a `g` edge. Since \f$x_0 = (\rho_q c_p +
+\rho_p c_q)/(\rho_p + \rho_q)\f$, expanding gives exactly \f$\Phi_{pq} :=
+(\rho_q\pi_p + \rho_p\pi_q)/(\rho_p + \rho_q) = |x - x_0|^2 - \gamma_{pq}\f$, so
+in \f$\Sigma\f$ no point has both \f$\pi_p\f$ and \f$\pi_q\f$ below
 \f$-\gamma\f$: every pair at \f$x_0\f$ is apart.
 
 1. *Orthocenters.* Let \f$T \subset K\f$ be a cell with power
@@ -928,21 +921,20 @@ so in \f$\Sigma\f$ no point has both \f$\pi_p\f$ and \f$\pi_q\f$ below
    single-point window the antipode lies away from \f$x_0\f$, where the
    decision is strict. So full-circle decisions, arcs and successors agree,
    and so does \f$L\f$.
-4. *Components.* The run joins two caps iff they share an accepted root or
-   their exact open discs meet; `discs_intersect` reads unperturbed signs
-   and its tie falls to `side`, never tied after preparation. Discs that
-   meet exactly meet in \f$\Sigma\f$, and a shared root is a crossing in
-   \f$\Sigma\f$. Conversely let \f$D_j\f$ and \f$D_l\f$ meet in \f$\Sigma\f$
-   but not exactly: their exact closures touch at one point \f$w \in N\f$
-   with tangent circles. A cap crossing or containing \f$w\f$ meets both
-   exactly. Otherwise the caps through \f$w\f$ form two nested chains, one
-   on each side of the common tangent, each joined exactly; let \f$A\f$ and
-   \f$B\f$ be their unions in \f$\Sigma\f$. Where the boundary of
-   \f$A \cup B\f$ passes from \f$\partial A\f$ to \f$\partial B\f$ there is a
-   point outside every cap: a vertex of \f$\Sigma\f$ on two non-partner
-   caps (partners are apart), hence by 2 an accepted root that links
-   the chains. So \f$C\f$ agrees; the partners' own discs are the case
-   \f$A \cap B = \emptyset\f$.
+4. *Components.* The run joins two caps as in @ref sas-step-5 "step 5";
+   `discs_intersect` reads unperturbed signs and its tie falls to `side`, never
+   tied after preparation. Discs that meet exactly meet in \f$\Sigma\f$, and a
+   shared root is a crossing in \f$\Sigma\f$. Conversely let \f$D_j\f$ and
+   \f$D_l\f$ meet in \f$\Sigma\f$ but not exactly: their exact closures touch at
+   one point \f$w \in N\f$ with tangent circles. A cap crossing or containing
+   \f$w\f$ meets both exactly. Otherwise the caps through \f$w\f$ form two
+   nested chains, one on each side of the common tangent, each joined exactly;
+   let \f$A\f$ and \f$B\f$ be their unions in \f$\Sigma\f$. Where the boundary
+   of \f$A \cup B\f$ passes from \f$\partial A\f$ to \f$\partial B\f$ there is a
+   point outside every cap: a vertex of \f$\Sigma\f$ on two non-partner caps
+   (partners are apart), hence by 2 an accepted root that links the chains. So
+   \f$C\f$ agrees; the partners' own discs are the case \f$A \cap B =
+   \emptyset\f$.
 5. *Area.* Outside the \f$O(\sqrt\varepsilon)\f$ neighborhoods of the
    degenerate points no decision is tied, and at a degenerate point without
    a tangent pair the run equals the \f$\varepsilon\f$-configuration, which
@@ -1021,10 +1013,9 @@ up. Such roots stay distinct probes, each with its three atoms; their
 faces, cut by each other's near-hemisphere caps, partition the face of the
 exact point with the same total area to rounding. The pair stage places
 them by `difference`, whose direction is certified however close the roots
-are (@ref analysis-fp "Floating point"), and the contact-plane and
-triangle filters apply to single-root probes only (`members`); a cluster of
-several roots is solved unfiltered, and at an exact tangency its antipodal
-hemispheres end it empty (@ref corollary-4 "Corollary 4",
+are (@ref analysis-fp "Floating point"), and the filters apply to single-root
+probes only (@ref ses-cuts "Which probes can cut a face"); at an exact tangency
+its antipodal hemispheres end it empty (@ref corollary-4 "Corollary 4",
 @ref remark-5 "Remark 5").
 
 ## Solvent-excluded surface (SES) {#ses}
@@ -1170,9 +1161,7 @@ of (c)):
   where the three SAS spheres meet (a vertex only if it is accessible); that
   pair cutting each other along the contact plane is the coincident-face case of
   @cite desc:surface:sanner-1996.
-- (b) A saddle point with \f$\varrho(\beta) \ge 0\f$ is cut by nothing, so the
-  spindle cut of the saddle ranges (@ref ses-patches "Patch areas") is the whole
-  cut.
+- (b) A saddle point with \f$\varrho(\beta) \ge 0\f$ is cut by nothing.
 
   *Proof.* The ray at angle \f$\beta\f$ from the inward radial direction meets
   the segment \f$[c_i, c_j]\f$ on the torus axis at distance
@@ -1354,13 +1343,12 @@ only that \f$y = s_1\f$, never that \f$y\f$ is the unique cutter. So
 \f$q = p_1\f$ is equidistant from \f$x\f$ and \f$y\f$, at distance
 \f$t_1 < r_p\f$, and \f$B(q, t_1) \subset U\f$. Both \f$x\f$
 and \f$y\f$ lie on its boundary, so at each the direction to \f$q\f$ lies
-in the face cone (a direction pointing away from every touched center leaves
-\f$U\f$ while staying inside the ball):
-\f$\nu_x = (q - x)/t_1 \in C_x\f$ and \f$\nu_y = (q - y)/t_1 \in C_y\f$. Then
-\f$|y + r_p \nu_y - x| \le |y + r_p \nu_y - q| + |q - x| = (r_p - t_1) + t_1 = r_p\f$,
-with equality only if \f$q - x\f$ and \f$q - y\f$ point the same way, which
-with equal lengths means \f$x = y\f$. Finally @ref corollary-1 "Corollary 1"(a) at \f$y\f$, with
-the SAS point \f$x\f$, gives \f$t_y(\nu_y) < r_p\f$.
+in the face cone (step 5 of @ref lemma-6 "Lemma 6"): \f$\nu_x = (q - x)/t_1 \in
+C_x\f$ and \f$\nu_y = (q - y)/t_1 \in C_y\f$. Then \f$|y + r_p \nu_y - x| \le |y
++ r_p \nu_y - q| + |q - x| = (r_p - t_1) + t_1 = r_p\f$, with equality only if
+\f$q - x\f$ and \f$q - y\f$ point the same way, which with equal lengths means
+\f$x = y\f$. Finally @ref corollary-1 "Corollary 1"(a) at \f$y\f$, with the SAS
+point \f$x\f$, gives \f$t_y(\nu_y) < r_p\f$.
 
 \anchor corollary-2
 **Corollary 2 (both ends low, symmetric drop).** If \f$y\f$ is the first-touch
@@ -1657,12 +1645,12 @@ receives the tangent pair \f$\pm n\f$ from every such full circle (or from the
 two arcs at \f$x\f$ when a fourth sphere interrupts the loop elsewhere) and
 nothing from a covered circle, whose only arc at the cluster is the zero-length
 diagonal. Coincident ring vertices share one angle, so the pair is bitwise
-antipodal. The contact-plane and triangle filters skip the cluster, every low
-neighbor within \f$2 r_p\f$ is kept, and the face solver returns 0 at the first
-live complementary pair, before any cutter is examined. When the perturbation
-resolves the tie \f$D = 0\f$ to a miss instead, no probe exists and `side`
-covers or frees each circle by the same sign; both branches give the exact area
-0.
+antipodal. The filters skip the cluster
+(@ref ses-cuts "Which probes can cut a face"), every low neighbor within \f$2
+r_p\f$ is kept, and the face solver returns 0 at the first live complementary
+pair, before any cutter is examined. When the perturbation resolves the tie \f$D
+= 0\f$ to a miss instead, no probe exists and `side` covers or frees each circle
+by the same sign; both branches give the exact area 0.
 
 ### The filter pipeline {#ses-pipeline}
 
