@@ -79,7 +79,8 @@ numerical values approximate), with the consistency motivation of
   - **toroidal (saddle)**: the probe rolls on two atoms; its center traces an
     arc of the circle where the two SAS spheres meet;
   - **concave**: the probe rests on three (or more) atoms; its center is a
-    **vertex** of the SAS and the patch is a region of the probe sphere.
+    **vertex** of the SAS and the patch is a region of the probe sphere. The
+    atoms a vertex or probe touches are its **hosts**.
 - A **cap** on a unit sphere is \f$\{x : n \cdot x > \cos\alpha\}\f$ for a
   unit axis \f$n\f$, stored as \f$(n, \cos\alpha, \sin\alpha)\f$. The cap
   that a ball \f$B(y, r_p)\f$ cuts on the probe sphere \f$S(x, r_p)\f$ has
@@ -125,12 +126,12 @@ bands that are supersets of exactly decided sets; every decision is exact.
    \f$(\sqrt 2 - 1) r_p\f$, \f$0.58\,\AA\f$ for water; the sign of the comparison is
    what rejects a non-positive atom radius) are rejected. Pairs \f$(i < j)\f$
    with \f$d_{ij} \le R_i + R_j + 2\tau\f$ are the **near** pairs, found by a
-   nuri::VoxelGrid over the atoms within `kBandHops + 1` near-pair lengths of an
-   active atom. Pairs below \f$R_i + R_j - 2\tau\f$ are overlaps outright;
-   inside the band `BallExact::overlap` decides exactly on the lifted heights of
-   the @ref sas-notation "SAS notation", and a pair tangent to within rounding
-   is a tie that is *reported*, not perturbed: it carries no circle (the
-   @ref prep-zero-measure "zero-measure rule"), but it still counts as a
+   nuri::VoxelGrid over the atoms within `kBandHops` \f$+ 1 = 5\f$ near-pair
+   lengths of an active atom. Pairs below \f$R_i + R_j - 2\tau\f$ are overlaps
+   outright; inside the band `BallExact::overlap` decides exactly on the lifted
+   heights of the @ref sas-notation "SAS notation", and a pair tangent to within
+   rounding is a tie that is *reported*, not perturbed: it carries no circle
+   (the @ref prep-zero-measure "zero-measure rule"), but it still counts as a
    neighbor for the ranks of @ref prep-step-4 "step 4".
 2. \anchor prep-step-2 **Contained balls.**
    The band \f$d_{ij} \le |R_i - R_j| + \tau\f$ selects candidates;
@@ -286,8 +287,8 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    `accept` (the coefficient of the apex is \f$-|u|^2/2\f$, and the apex is
    never a face vertex) and `antipode` (the kernel is \f$\pi_c(Q)\f$ scaled by
    \f$G|u|^2/2\f$; for a fan sphere \f$c\f$ off the face \f$d\pi_c(Q)/d\rho_c^2
-   = -1\f$, and against the vertex's own cutter \f$-2\f$). Where \f$D(0) = 0\f$
-   (a tangency perturbed to a cut) \f$\sqrt{D(\varepsilon)}\f$ is of order
+   = -1\f$, and against the face's own third sphere \f$-2\f$). Where \f$D(0) =
+   0\f$ (a tangency perturbed to a cut) \f$\sqrt{D(\varepsilon)}\f$ is of order
    \f$\sqrt\varepsilon\f$ and dominates every first-order term unless its
    coefficient \f$B\f$ vanishes; `accept` and `antipode` carry that one
    \f$\sqrt\varepsilon\f$ rule. Not every tie is perturbed: `overlap`,
@@ -303,29 +304,28 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    inert (@ref lemma-1 "Lemma 1"). A sphere that appears in no cell has an
    empty power cell, no accessible surface, and gets area 0 without a solve.
 2. \anchor sas-step-2 **Caps.**
-   The caps of sphere \f$s\f$ are its \f$RT\f$ neighbors \f$t\f$ whose ball
-   overlaps \f$B_s\f$, decided exactly and rationally: with
-   \f$T = \rho_s^2 + \rho_t^2 - |c_s - c_t|^2\f$ the balls overlap iff
-   \f$T \ge 0\f$ or \f$T^2 < 4 \rho_s^2 \rho_t^2\f$ (the cross term of
-   \f$(\rho_s + \rho_t)^2\f$ is irrational); the second kernel is
-   \f$4 G r^2\f$, so its exact zero is a tangency, a circle of zero length.
-   The perturbation would resolve it to an overlap (the coefficient of
-   \f$t\f$'s height is \f$4\rho_s^2 - 2T = 4\rho_s^2 + 4\rho_s\rho_t > 0\f$),
-   but the tie is reported instead: by the @ref prep-zero-measure "zero-measure rule" the pair carries
-   no circle. Three structural rules make this the \f$\varepsilon \to 0\f$
-   limit of the perturbed arrangement, in which the tangent pair would carry
-   a circle of radius \f$O(\sqrt\varepsilon)\f$ cut by every sphere through
-   the tangency point: the pair is not an edge of the overlap graph, so no
-   face \f$(a, b, \cdot)\f$ is examined and no fan contains it; two caps of
-   one sphere whose spheres do not overlap never intersect (@ref sas-step-5
-   "step 5"), so on a third sphere through the point the two tangent discs stay
-   two components;
-   and an apex that does not overlap some face sphere never rejects a root
+   The caps of sphere \f$s\f$ are its \f$RT\f$ neighbors \f$t\f$ with \f$(s,
+   t)\f$ in `g` (@ref prep-step-1 "preparation step 1"); the overlap predicate
+   `BallExact::overlap` is rational: with \f$T = \rho_s^2 + \rho_t^2 - |c_s -
+   c_t|^2\f$ the balls overlap iff \f$T \ge 0\f$ or \f$T^2 < 4 \rho_s^2
+   \rho_t^2\f$ (the cross term of \f$(\rho_s + \rho_t)^2\f$ is irrational); the
+   second kernel is \f$4 G r^2\f$, so its exact zero is a tangency, a circle of
+   zero length. The perturbation would resolve it to an overlap (the coefficient
+   of \f$t\f$'s height is \f$4\rho_s^2 - 2T = 4\rho_s^2 + 4\rho_s\rho_t > 0\f$),
+   but the tie is reported instead: by the
+   @ref prep-zero-measure "zero-measure rule" the pair carries no circle. Three
+   structural rules make this the \f$\varepsilon \to 0\f$ limit of the perturbed
+   arrangement, in which the tangent pair would carry a circle of radius
+   \f$O(\sqrt\varepsilon)\f$ cut by every sphere through the tangency point: the
+   pair is not an edge of the overlap graph, so no face \f$(a, b, \cdot)\f$ is
+   examined and no fan contains it; two caps of one sphere whose spheres do not
+   overlap never intersect (@ref sas-step-5 "step 5"), so on a third sphere
+   through the point the two tangent discs stay two components; and an apex that
+   does not overlap some face sphere never rejects a root
    (@ref sas-step-3 "step 3"), since its power is non-negative on that sphere
    and zero only at the tangency point. On the tangent spheres themselves the
-   boundary passes
-   smoothly through the point (the perturbed detour, two corners of
-   \f$\pi/2\f$ around a half circle with \f$\cos\alpha \to 1\f$, has net
+   boundary passes smoothly through the point (the perturbed detour, two corners
+   of \f$\pi/2\f$ around a half circle with \f$\cos\alpha \to 1\f$, has net
    turning zero), and on the third sphere the lens of the two discs closes to
    two cusps whose corners sum to \f$2\pi\f$, the same area as two disjoint
    discs.
@@ -340,31 +340,30 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    apexes \f$l\f$ of the two cells sharing the face (`accept`:
    \f$\pi_l - \pi_a\f$ is affine along \f$\ell\f$, so this is the sign of
    \f$A \pm B\sqrt D\f$, decided exactly; a tie is perturbed like the
-   triangulation). An apex that is a bounding point (@ref lemma-1 "Lemma 1") or misses one
-   of the face spheres is not tested: its power on that sphere is
+   triangulation). An apex that is a bounding point (@ref lemma-1 "Lemma 1"(a))
+   or misses one of the face spheres is not tested: its power on that sphere is
    non-negative, zero only at a tangency point, and the limit accepts there
    (@ref sas-step-2 "step 2"). Each accepted root is one **probe** with exactly
    the three atoms \f$a, b, c\f$, its position evaluated as \f$\mathrm{cntr} +
-   \text{offset}\f$
-   (see @ref analysis-fp "Floating point"). @ref theorem-1 "Theorem 1" states that this is exact, with no
-   slack.
+   \text{offset}\f$ (see @ref analysis-fp "Floating point"). @ref theorem-1
+   "Theorem 1" states that this is exact, with no slack.
 4. \anchor sas-step-4 **Rings from cell fans.**
    For every \f$RT\f$ edge \f$(a, b)\f$ that is a cap pair, the cells around the
    edge are walked in cyclic order (across the
    two faces of each cell that contain the edge; the cycle closes within the
-   finite cells by @ref lemma-1 "Lemma 1"). Each face \f$(a, b, c)\f$ of the fan that cuts
-   the circle contributes its accepted roots in the order *exit from the
-   facet, then entry into the facet* (entering ball \f$c\f$, then leaving
-   it) along the circle's orientation about \f$a \to b\f$; the
+   finite cells by @ref lemma-1 "Lemma 1"(b)). Each face \f$(a, b, c)\f$ of the
+   fan that cuts the circle contributes its accepted roots in the order *exit
+   from the facet, then entry into the facet* (entering ball \f$c\f$, then
+   leaving it) along the circle's orientation about \f$a \to b\f$; the
    orientation of the fan comes from the sign of the cell (geogram cells are
-   positively oriented), so no angle is ever compared. @ref lemma-2 "Lemma 2" says this is
-   the cyclic order of the vertices on the circle. Consecutive ring entries
-   alternate entry/exit (a structural `DCHECK`); the arc from an *entry to
-   the next vertex is accessible*, from an exit it is not. An empty ring is
-   a full circle, accessible iff *no fan face cuts the circle and none
-   contains it* (`side`: the sign of \f$\mu\f$, which is the sign of
-   \f$\pi_c\f$ on a circle \f$c\f$ does not cut; a face that cuts the circle
-   with both roots rejected means the circle is covered).
+   positively oriented), so no angle is ever compared. @ref lemma-2 "Lemma 2"
+   says this is the cyclic order of the vertices on the circle. Consecutive ring
+   entries alternate entry/exit (a structural `DCHECK`); the arc from an *entry
+   to the next vertex is accessible*, from an exit it is not. An empty ring is a
+   full circle, accessible iff *no fan face cuts the circle and none contains
+   it* (`side`: the sign of \f$\mu\f$, which is the sign of \f$\pi_c\f$ on a
+   circle \f$c\f$ does not cut; a face that cuts the circle with both roots
+   rejected means the circle is covered).
 
    The arcs carry \f$\varphi\f$ and \f$\Delta\varphi\f$ in the circle frame
    for output and for the \f$\sum \Delta\varphi \cos\alpha\f$ term. The
@@ -427,19 +426,18 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    never tie in `cuts` here: coincident circles are removed in preparation, and
    otherwise
    \f$D = -|d_b|^2 (\kappa v_b - v_c)^2 < 0\f$ strictly for
-   \f$d_c = \kappa d_b\f$. Caps sharing a probe are joined for free, caps
-   whose spheres do not overlap are never joined (@ref sas-step-2 "step 2"), and
-   the remaining pairs need the predicates (`discs_intersect`), at most
-   \f$m(m-1)/2\f$ per
-   sphere. Counting only caps with arcs is wrong: a band of two rows of caps
-   has a north loop from the top row and a south loop from the bottom row and
-   no cap on both, so it would count two components instead of one and be
-   off by \f$4\pi R^2\f$. Then \f$P = 1 + L - C\f$ and the Gauss-Bonnet
-   formula give the area. The degenerate cases are structural: no caps,
-   \f$4\pi R^2\f$; caps but no accessible arc, the accessible region has no
-   boundary and is not the whole sphere, so it is empty, area 0. Nested caps
-   carry no arc (their roots are rejected by @ref theorem-1 "Theorem 1") and join their
-   container's component.
+   \f$d_c = \kappa d_b\f$. Caps sharing a probe are joined for free, caps whose
+   spheres do not overlap are never joined (disjoint balls cut disjoint caps),
+   and the remaining pairs need the predicates (`discs_intersect`), at most
+   \f$m(m-1)/2\f$ per sphere. Counting only caps with arcs is wrong: a band of
+   two rows of caps has a north loop from the top row and a south loop from the
+   bottom row and no cap on both, so it would count two components instead of
+   one and be off by \f$4\pi R^2\f$. Then \f$P = 1 + L - C\f$ and the
+   Gauss-Bonnet formula give the area. The degenerate cases are structural: no
+   caps, \f$4\pi R^2\f$; caps but no accessible arc, the accessible region has
+   no boundary and is not the whole sphere, so it is empty, area 0. Nested caps
+   carry no arc (their roots are rejected by @ref theorem-1 "Theorem 1") and
+   join their container's component.
 
 ### Correctness {#sas-correctness}
 
@@ -542,18 +540,18 @@ alone give the right components.
 \f$U = \bigcup_s (B_s \cap V_s)\f$, and \f$x \in S_s\f$ is accessible iff
 \f$x \in V_s\f$ @cite desc:surface:edelsbrunner-1995. \f$V_s\f$ is a
 convex polyhedron whose facets are the \f$RT\f$ edges of \f$s\f$
-(non-empty for a solved sphere, which has arcs); if \f$x \notin V_s\f$ some
-facet neighbor \f$n\f$ has \f$\pi_n(x) < 0\f$ strictly, and \f$n\f$ is a
-sphere since a bounding point has \f$\pi \ge 0\f$ on \f$U\f$
-(@ref lemma-1 "Lemma 1"), so a point of \f$S_s\f$ inside some open
-ball is inside the open ball of an \f$RT\f$ neighbor. Hence the union of the open
-neighbor caps equals the union of all open overlapping caps exactly (a
-tangent neighbor has an empty open cap, consistent with
-@ref sas-step-2 "step 2"), the components of that union are the
-components of @ref sas-step-5 "step 5", and every accessible
-arc on circle \f$(s, t)\f$ lies in the facet \f$V_s \cap V_t\f$, so
-\f$(s, t)\f$ is an edge and, by @ref theorem-1 "Theorem 1" and
-@ref lemma-2 "Lemma 2", its endpoints are the ring of that edge.
+(non-empty for a sphere that is an \f$RT\f$ vertex; one in no cell gets area 0
+without a solve, @ref sas-step-1 "step 1"); if \f$x \notin V_s\f$ some facet
+neighbor \f$n\f$ has \f$\pi_n(x) < 0\f$ strictly, and \f$n\f$ is a sphere since
+a bounding point has \f$\pi \ge 0\f$ on \f$U\f$ (@ref lemma-1 "Lemma 1"(a)), so
+a point of \f$S_s\f$ inside some open ball is inside the open ball of an
+\f$RT\f$ neighbor. Hence the union of the open neighbor caps equals the union of
+all open overlapping caps exactly (a tangent neighbor has an empty open cap,
+consistent with @ref sas-step-2 "step 2"), the components of that union are the
+components of @ref sas-step-5 "step 5", and every accessible arc on circle
+\f$(s, t)\f$ lies in the facet \f$V_s \cap V_t\f$, so \f$(s, t)\f$ is an edge
+and, by @ref theorem-1 "Theorem 1" and @ref lemma-2 "Lemma 2", its endpoints are
+the ring of that edge.
 
 \anchor lemma-3
 **Lemma 3 (occluder crop).** In plain words: an occluder that is near no atom
@@ -622,7 +620,7 @@ which no perturbation changes.
    - *Far constraints.* For \f$m \notin X(x)\f$, \f$x\f$ is inside \f$H_m\f$
      at a margin from \f$t_m\f$ for every small \f$\varepsilon\f$: such an
      \f$m\f$ never rejects, tested or not. Bounding points are far by
-     @ref lemma-1 "Lemma 1", every \f$o \in O\f$ by 1(c).
+     @ref lemma-1 "Lemma 1"(a), every \f$o \in O\f$ by 1(c).
    - *Strict containment rejects.* If \f$m \in X^-(x)\f$, \f$x\f$ is outside
      \f$H_m\f$ at a margin, and \f$F \subseteq H_m\f$; the apex on that side
      has its tight point at the margin from \f$x\f$, so it is not in
@@ -1008,12 +1006,12 @@ spheres apart. A cluster's atoms are the union of its members' (a sphere through
 the point none of whose roots is accepted is not listed: the perturbation holds
 it inside by \f$\varepsilon\f$, and only the dot owners read the list), its
 position that of the first member, and its tangents come from the arcs with one
-end in the cluster plus its full loops (\f$\Delta\varphi \ge \pi\f$, the grazing
-vertex gets \f$\pm t\f$); an internal arc, a diagonal of the \f$k\f$-fold point
-with \f$\Delta\varphi = 0\f$ exactly, contributes nothing. The merge has no
-error of its own: a cluster is one point, carried at one of its certified
-positions; the SAS arcs, caps and areas are computed before the merge and
-unchanged by it.
+end in the cluster plus its full circles (\f$\Delta\varphi \ge \pi\f$, the
+grazing vertex gets \f$\pm t\f$); an internal arc, a diagonal of the
+\f$k\f$-fold point with \f$\Delta\varphi = 0\f$ exactly, contributes nothing.
+The merge has no error of its own: a cluster is one point, carried at one of its
+certified positions; the SAS arcs, caps and areas are computed before the merge
+and unchanged by it.
 
 Distinct roots may be arbitrarily close, and a tolerance would not help:
 an exact \f$k\f$-fold point of the input rounds, under a rigid motion, into
@@ -1080,8 +1078,9 @@ hemispheres end it empty (@ref corollary-4 "Corollary 4",
 - **Concave face** of probe \f$q\f$ (only probes whose smallest atom is
   active). Caps on the probe sphere:
   1. one cap for every other probe \f$q'\f$ strictly within \f$2 r_p\f$ (a
-     tangent probe cuts nothing), as in the definitions; every probe pair is
-     measured once and read from both sides with opposite axes;
+     tangent probe cuts nothing), as in the @ref prelim-defs "Definitions";
+     every probe pair is measured once and read from both sides with opposite
+     axes;
   2. one **hemisphere per accessible arc leaving the probe**, axis the
      arc's departure tangent at \f$q\f$. Rolling along that arc, the probe sweeps
      the half of its sphere facing the tangent, so that half is not SES.
@@ -1106,11 +1105,11 @@ hemispheres end it empty (@ref corollary-4 "Corollary 4",
   cutting pair of live caps that lie outside every other live cap are the
   vertices, and each circle's ring is sorted by the exact half-plane class of
   the SAS rings, then by the numeric angle, with the perturbed `ccw` deciding
-  only the pairs whose angles lie within `kRingSortEps` (the SAS itself never
-  sorts: its ring order is the fan order of @ref lemma-2 "Lemma 2"; the
-  sort is sound by the certificate of @ref analysis-fp "Floating point").
-  Ties are perturbed in the order probe, then caps as
-  given. The `ArrangementSolver` then walks the darts and applies
+  only the pairs whose angles lie within `kRingSortEps` (= `kSurfaceAngleEps`)
+  (the SAS itself never sorts: its ring order is the fan order of @ref lemma-2
+  "Lemma 2"; the sort is sound by the certificate of
+  @ref analysis-fp "Floating point"). Ties are perturbed in the order probe,
+  then caps as given. The `ArrangementSolver` then walks the darts and applies
   Gauss-Bonnet as on a SAS sphere.
 
 ### Which probes can cut a face {#ses-cuts}
@@ -1150,7 +1149,9 @@ so \f$|v - c_a| \ge |s - c_a|\f$, which expands to
 face is cut only beyond its contact plane, a saddle only in its spindle, and a
 probe whose ball misses its own contact triangle is cut by nothing. Precisely,
 with \f$n\f$ the unit normal of the contact plane of vertex \f$x\f$ pointing
-from \f$x\f$ toward it and \f$h\f$ the distance to the plane:
+from \f$x\f$ toward it, \f$h\f$ the distance to the plane, and \f$x\f$ **low**
+when \f$\operatorname{dist}(x, T_x) < r_p\f$ and **high** otherwise (the split
+of (c)):
 
 - (a) A face point \f$x + r_p d\f$ with \f$t_x(d) \ge r_p\f$ is cut by nothing,
   so the cut part of the face lies inside the **beyond-plane cap**
@@ -1184,7 +1185,7 @@ from \f$x\f$ toward it and \f$h\f$ the distance to the plane:
   distance \f$h\f$ when the foot of the perpendicular lies inside \f$T_x\f$ and
   the distance to the nearest edge otherwise. A vertex with
   \f$\operatorname{dist}(x, T_x) \ge r_p\f$, whose own ball does not reach its
-  contact triangle, is **high**: nothing cuts its face, which is the spherical
+  contact triangle, is high: nothing cuts its face, which is the spherical
   triangle \f$\{d : d \cdot t_m \le 0\}\f$ bounded by the three departure great
   circles, with area \f$r_p^2\f$ times the spherical excess,
   \f[
@@ -1192,11 +1193,11 @@ from \f$x\f$ toward it and \f$h\f$ the distance to the plane:
   \qquad
   \angle(t_m, t_{m+1}) = \operatorname{atan2}(|t_m \times t_{m+1}|,\ t_m \cdot t_{m+1}).
   \f]
-  Every other vertex is **low** (\f$k\f$-fold probes count as low). A high face
-  whose three tangents are linearly dependent, or dependent within the
-  tangent certificate (@ref lemma-10 "Lemma 10"), has no usable spherical
-  triangle and goes to the face solver on its hemispheres alone; a high face
-  is uncut, so the solver on the hemispheres alone returns the exact face.
+  Every other vertex is low (\f$k\f$-fold probes count as low). A high face
+  whose three tangents are linearly dependent, or dependent within the tangent
+  certificate (@ref lemma-10 "Lemma 10"), has no usable spherical triangle and
+  goes to the face solver on its hemispheres alone; a high face is uncut, so the
+  solver on the hemispheres alone returns the exact face.
 
   *Proof.* \f$t_x\f$ is the distance along the ray to \f$T_x\f$, and the rays of
   \f$C_x\f$ sweep all of \f$T_x\f$, so its minimum is the distance from \f$x\f$
@@ -1655,30 +1656,32 @@ exactly.
 On each circle through \f$x\f$ the ring is a single-point window: its
 antipode has \f$\pi_k = 4 r_{ij}^2 / w_k\f$ (@ref lemma-13 "Lemma 13"(c)),
 so the \f$2\pi\f$ arc is accessible iff \f$w_k > 0\f$, and the cluster
-receives the tangent pair \f$\pm n\f$ from every such loop (or from the two arcs
-at \f$x\f$ when a fourth sphere interrupts the loop elsewhere) and nothing from
-a covered circle, whose only arc at the cluster is the zero-length diagonal.
-Coincident ring vertices share one angle, so the pair is bitwise antipodal. The
-contact-plane and triangle filters skip the cluster, every neighbor within \f$2
-r_p\f$ is kept, and the face solver returns 0 at the first live complementary
-pair, before any cutter is examined. When the perturbation resolves the tie \f$D
-= 0\f$ to a miss instead, no probe exists and `side` covers or frees each circle
-by the same sign; both branches give the exact area 0.
+receives the tangent pair \f$\pm n\f$ from every such full circle (or from the
+two arcs at \f$x\f$ when a fourth sphere interrupts the loop elsewhere) and
+nothing from a covered circle, whose only arc at the cluster is the zero-length
+diagonal. Coincident ring vertices share one angle, so the pair is bitwise
+antipodal. The contact-plane and triangle filters skip the cluster, every low
+neighbor within \f$2 r_p\f$ is kept, and the face solver returns 0 at the first
+live complementary pair, before any cutter is examined. When the perturbation
+resolves the tie \f$D = 0\f$ to a miss instead, no probe exists and `side`
+covers or frees each circle by the same sign; both branches give the exact area
+0.
 
 ### The filter pipeline {#ses-pipeline}
 
-The pipeline, per structure: heights of all probes (@ref corollary-1 "Corollary 1"(c)), then probe
-pairs within \f$2 r_p\f$ (a nuri::VoxelGrid query), then drop pairs with a
-high end (both ends low), so that a high active face is never solved against
-any cap, then drop pairs failing @ref lemma-9 "Lemma 9" on
-either side, then drop pairs failing @ref lemma-10 "Lemma 10" on either side,
-tested on the survivors only, then closed-form areas of the high active faces
-with a triangle, and the face solver on every other active face with the surviving caps. By
+The pipeline, per structure: heights (@ref lemma-9 "Lemma 9") and the high/low
+split (@ref corollary-1 "Corollary 1"(c)) of all probes, then probe pairs within
+\f$2 r_p\f$ (a nuri::VoxelGrid query), then drop pairs with a high end (both
+ends low), so that a high active face is never solved against any cap, then drop
+pairs failing @ref lemma-9 "Lemma 9" on either side, then drop pairs failing
+@ref lemma-10 "Lemma 10" on either side, tested on the survivors only, then
+closed-form areas of the high active faces with a triangle, and the face solver
+on every other active face with the surviving caps. By
 @ref theorem-5 "Theorem 5" the dropped caps change nothing. The filters are
-necessary conditions evaluated in floating point: a rounding flip can only
-drop a cap that reaches the face by a rounding-scale sliver, an area effect
-far below what the brute-force test (every face solved against every probe
-within \f$2 r_p\f$) enforces, never a topological one.
+necessary conditions evaluated in floating point: a rounding flip can only drop
+a cap that reaches the face by a rounding-scale sliver, an area effect far below
+what the brute-force test (every face solved against every probe within \f$2
+r_p\f$) enforces, never a topological one.
 
 \anchor theorem-5
 **Theorem 5 (the filters are exact).** Dropping every probe pair with a high
@@ -1691,8 +1694,8 @@ unchanged.
 within \f$r_p\f$ of \f$z\f$ that satisfies the conclusion of
 @ref lemma-8 "Lemma 8", so by @ref corollary-2 "Corollary 2" the pair
 \f$(x, s_1)\f$ is low at both ends and passes both filters on both sides. A
-cap that fails a filter is therefore never \f$s_1\f$ for any point, every
-cut point keeps its first-touch cutter, and the face computed from the
+cap that fails a filter is therefore never \f$s_1\f$ for any point, every cut
+face point keeps its first-touch cutter, and the face computed from the
 survivors is the same.
 
 ## Dot sampling {#dots}
@@ -1766,7 +1769,7 @@ clamp 0.999). For each side:
    is built with that mask and sampled at the density.
 2. **Burial.** A dot is buried when its probe center lies strictly inside a
    solvent-accessible sphere of the other side (\f$|p_{\text{probe}} - c| < R + r_p\f$).
-3. **Peripheral trim.** A buried dot within `band` of an exposed dot of its
+3. **Peripheral trim.** A buried dot within `band` of a non-buried dot of its
    own side is trimmed; the survivors are the interface dots.
 4. **Scores.** Each surviving dot is paired with the nearest surviving dot of
    the other side (nuri::VoxelGrid::nearest(); equal distances take the
@@ -1963,7 +1966,7 @@ prunings of the concave cut set that the paper does not state (its Theorem
 |---|---|---|
 | high probe implies an uncut face, by height over the plane of the three atom centers | asserted | not adopted. Sanner's criterion, proved as @ref corollary-1 "Corollary 1"(c) on the distance to the contact *triangle* |
 | only low probes may cut | asserted | not adopted. @ref corollary-2 "Corollary 2" (cut symmetry), proved |
-| first-atom neighborhood restriction | asserted | not adopted. @ref lemma-11 "Lemma 11" (host overlap) gives the provable version: a cutter's hosts reach the cut face's hosts within two overlap hops, one hop is not enough |
+| first-atom neighborhood restriction | asserted | not adopted. @ref lemma-11 "Lemma 11" and @ref corollary-3 "Corollary 3" give the provable version: a first-touch cutter's hosts reach the cut face's hosts within two near hops, one hop is not enough |
 | keep only the largest departure angle among probes sharing two atoms | asserted | @ref lemma-7 "Lemma 7", proved, not a code path |
 
 Since \f$\operatorname{dist}(x, T) \ge h\f$, strictly more faces are uncut
