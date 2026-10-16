@@ -165,11 +165,11 @@ namespace internal {
     }
 
     for (int c = 0; c < nf; ++c) {
-      ABSL_DCHECK_EQ(GEO::PCK::orient_3d(lifted.col(del.tets(0, c)).data(),
-                                         lifted.col(del.tets(1, c)).data(),
-                                         lifted.col(del.tets(2, c)).data(),
-                                         lifted.col(del.tets(3, c)).data()),
-                     GEO::POSITIVE)
+      ABSL_DCHECK(GEO::PCK::orient_3d(lifted.col(del.tets(0, c)).data(),
+                                      lifted.col(del.tets(1, c)).data(),
+                                      lifted.col(del.tets(2, c)).data(),
+                                      lifted.col(del.tets(3, c)).data())
+                  == GEO::POSITIVE)
           << "cell " << c << " is not positively oriented";
     }
 
