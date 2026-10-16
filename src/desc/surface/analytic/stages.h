@@ -216,9 +216,12 @@ namespace internal {
    * (or given directly), and squared radius `rho_i^2 = W + |c_i|^2 - h_i`.
    * Every exact tie is resolved by geogram's perturbation: every squared
    * radius grows, lower index first.
-   * Compiled without fast-math (`NURI_STRICT_FP_FLAGS` in src/CMakeLists.txt);
-   * the header carries no arithmetic. `kForceExact` skips the floating
-   * filter, `kFilterOnly` aborts on reaching the exact stage (tests only).
+   * Compiled without fast-math (`NURI_STRICT_FP_FLAGS` in src/CMakeLists.txt).
+   * The flags protect only that file's own code: Eigen (template) arithmetic
+   * is shared with fast-math units at link time, so the kernels do their
+   * floating point on scalars and keep Eigen for storage. The header carries
+   * no arithmetic. `kForceExact` skips the floating filter, `kFilterOnly`
+   * aborts on reaching the exact stage (tests only).
    */
   template <bool kForceExact, bool kFilterOnly = false>
   class BallExactImpl {

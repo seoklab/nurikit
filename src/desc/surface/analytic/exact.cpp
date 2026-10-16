@@ -304,6 +304,10 @@ namespace internal {
     template <class T>
     T lit(double d);
     template <>
+    double lit<double>(double d) {
+      return d;
+    }
+    template <>
     Fx lit<Fx>(double d) {
       return { d, 0.0 };
     }
@@ -380,6 +384,26 @@ namespace internal {
     V3<T> cross(const V3<T> &a, const V3<T> &b) {
       return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z,
                a.x * b.y - a.y * b.x };
+    }
+
+    // Eigen arithmetic is linkonce and may resolve to a fast-math unit's
+    // copy; the kernels' floating point stays on these scalars.
+    V3<double> operator/(const V3<double> &a, const double s) {
+      return { a.x / s, a.y / s, a.z / s };
+    }
+    V3<double> to_double(const V3<Xp> &v) {
+      return { v.x.to_double(), v.y.to_double(), v.z.to_double() };
+    }
+    Vector3d to_vector(const V3<double> &v) {
+      return { v.x, v.y, v.z };
+    }
+    double norm(const V3<double> &v) {
+      return std::sqrt(dot(v, v));
+    }
+    double stable_norm(const V3<double> &v) {
+      const double m =
+          nuri::max(nuri::max(std::fabs(v.x), std::fabs(v.y)), std::fabs(v.z));
+      return m > 0 ? m * norm(v / m) : 0.0;
     }
 
     template <class T>
@@ -812,21 +836,15 @@ namespace internal {
      * `v / den` in double when the running bound, including the relative
      * error of `den`, certifies the vector to `kOffsetRelTol` of its length.
      */
-    bool certified_quotient(const V3<Fx> &v, const Fx &den, Vector3d &out) {
+    bool certified_quotient(const V3<Fx> &v, const Fx &den, V3<double> &out) {
       if (!certified_nonneg(den) || den.v <= 0)
         return false;
 
-      double err = 0, norm2 = 0;
-      const std::array<Fx, 3> vs { v.x, v.y, v.z };
-      for (int i = 0; i < 3; ++i) {
-        out[i] = vs[i].v;
-        err += vs[i].e;
-        norm2 += vs[i].v * vs[i].v;
-      }
-      const double norm = std::sqrt(norm2);
-      if (err + norm * (den.e / den.v) > kOffsetRelTol * norm)
+      const V3<double> val { v.x.v, v.y.v, v.z.v };
+      const double err = v.x.e + v.y.e + v.z.e, len = norm(val);
+      if (err + len * (den.e / den.v) > kOffsetRelTol * len)
         return false;
-      out /= den.v;
+      out = val / den.v;
       return true;
     }
 
@@ -835,16 +853,19 @@ namespace internal {
      * bound is the sum of their errors.
      */
     bool certified_offset(const Offset<Fx> &o, Vector3d &out) {
-      return certified_nonneg(o.disc)
-             && certified_quotient(o.p + sqrt_fx(o.disc) * o.q, o.den, out);
+      V3<double> v;
+      if (!certified_nonneg(o.disc)
+          || !certified_quotient(o.p + sqrt_fx(o.disc) * o.q, o.den, v))
+        return false;
+      out = to_vector(v);
+      return true;
     }
 
     Vector3d exact_offset(const Offset<Xp> &o) {
       ABSL_DCHECK_GE(sgn(o.disc), 0);
       const double s = std::sqrt(o.disc.to_double());
-      const Vector3d p(o.p.x.to_double(), o.p.y.to_double(), o.p.z.to_double()),
-          q(o.q.x.to_double(), o.q.y.to_double(), o.q.z.to_double());
-      return (p + s * q) / o.den.to_double();
+      const V3<double> p = to_double(o.p), q = to_double(o.q);
+      return to_vector((p + s * q) / o.den.to_double());
     }
 
     /**
@@ -878,14 +899,14 @@ namespace internal {
      * `(P + sqrt(D) Q + sqrt(D') Q') / den`.
      */
     bool certified_difference(const Diff<Fx> &o, RootDifference &out) {
-      Vector3d v;
+      V3<double> v;
       if (!certified_nonneg(o.disc) || !certified_nonneg(o.disc2)
           || !certified_quotient(
               o.p + sqrt_fx(o.disc) * o.q + sqrt_fx(o.disc2) * o.q2, o.den, v))
         return false;
 
-      out.len = v.stableNorm();
-      out.dir = v / out.len;
+      out.len = stable_norm(v);
+      out.dir = to_vector(v / out.len);
       return true;
     }
 
@@ -905,7 +926,8 @@ namespace internal {
 
       const V3<Xp> aq { abs(o.q.x), abs(o.q.y), abs(o.q.z) },
           aq2 { abs(o.q2.x), abs(o.q2.y), abs(o.q2.z) };
-      Vector3d out;
+      V3<double> out;
+      double len = 0;
       int scale = 0;
       bool certified = false;
       for (int bits = kMinSqrtBits; !certified && bits <= kMaxSqrtBits;
@@ -914,22 +936,24 @@ namespace internal {
         const auto [s2, u2] = o.disc2.sqrt_floor(bits);
         const V3<Xp> v = o.p + s * o.q + s2 * o.q2, e = u * aq + u2 * aq2;
         scale = (abs(v.x) + abs(v.y) + abs(v.z)).exponent();
-        out << v.x.scaled(-scale), v.y.scaled(-scale), v.z.scaled(-scale);
-        const Vector3d err(e.x.scaled(-scale), e.y.scaled(-scale),
-                           e.z.scaled(-scale));
-        certified = (out.array() != 0).any() && err.norm() <= kUlp * out.norm();
+        out = { v.x.scaled(-scale), v.y.scaled(-scale), v.z.scaled(-scale) };
+        const V3<double> err { e.x.scaled(-scale), e.y.scaled(-scale),
+                               e.z.scaled(-scale) };
+        len = norm(out);
+        certified = len > 0 && norm(err) <= kUlp * len;
       }
       ABSL_DCHECK(certified) << "coincident roots";
 
-      const double norm = out.norm();
-      return { out / norm, std::ldexp(norm, scale) / o.den.to_double() };
+      return { to_vector(out / len),
+               std::ldexp(len, scale) / o.den.to_double() };
     }
 
     Vector3d circle_center(const Matrix3Xd &c, const ArrayXd &h, const int a,
                            const int b) {
-      const Vector3d ca = c.col(a), db = c.col(b) - ca;
-      const double vb = (h[b] - h[a]) / 2 - ca.dot(db);
-      return ca + (vb / db.squaredNorm()) * db;
+      const V3<double> ca = lift<double>(c.col(a)),
+                       db = lift<double>(c.col(b)) - ca;
+      const double vb = (h[b] - h[a]) / 2 - dot(ca, db);
+      return to_vector(ca + (vb / dot(db, db)) * db);
     }
 
     template <bool kForceExact, bool kFilterOnly, class K>
