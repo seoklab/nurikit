@@ -20,6 +20,7 @@
 #include <utility>
 
 #include <absl/base/attributes.h>
+#include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <boost/multiprecision/cpp_int.hpp>
@@ -563,9 +564,7 @@ namespace internal {
         if (t != 0)
           return static_cast<Sgn>(t);
       }
-      ABSL_DCHECK(false)
-          << "every first-order perturbation coefficient vanishes";
-      return Sgn::kZero;
+      ABSL_UNREACHABLE();
     }
 
     /**
