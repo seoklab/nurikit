@@ -47,10 +47,10 @@ numerical values approximate), with the consistency motivation of
   that is perturbed, and stored; consumers read it and never re-derive it by
   another formula or default. Floating point decides only candidate
   prefilters that are supersets of the exact sets, necessary-condition
-  filters whose failure mode is a sliver (@ref ses-pipeline "The filter
-  pipeline"), and produces the outputs. There is no clustering tolerance:
-  two roots are one vertex only when an exact predicate finds them one
-  point (@ref sas-merge "Probe merge").
+  filters whose failure mode is a sliver
+  (@ref ses-pipeline "The filter pipeline"), and produces the outputs. There is
+  no clustering tolerance: two roots are one vertex only when an exact predicate
+  finds them one point (@ref sas-merge "Probe merge").
 - **No accessibility slack**: a positive slack breaks consistency between
   vertex acceptance and arc tests; do not reintroduce one.
 - **Roots are proven, not clamped**: a square root's argument is
@@ -843,12 +843,12 @@ where two spheres touch, the sweep sees what it would see if every ball
 shrank by one common power, just enough to part the touching pairs there;
 the shrink leaves the power diagram alone, so nothing else near the point
 changes side. Precisely: fix a pinch point \f$x_0\f$, let \f$K\f$ be the kept
-spheres through it, \f$e_i\f$ the weight perturbations of @ref sas-step-1 "step
-1", and for a tangent pair \f$(p, q)\f$ let \f$\gamma_{pq} = (\rho_q e_p +
-\rho_p e_q)/(\rho_p + \rho_q)\f$, its **lens parameter**. The pair \f$(p^*,
-q^*)\f$ at \f$x_0\f$ with the largest \f$\gamma\f$ is unique (the \f$\gamma\f$
-are linear forms in \f$e\f$ with disjoint supports). Let \f$\gamma =
-\gamma_{p^*q^*} + \delta\f$ with \f$\varepsilon^2 \ll \delta \ll
+spheres through it, \f$e_i\f$ the weight perturbations of
+@ref sas-step-1 "step 1", and for a tangent pair \f$(p, q)\f$ let \f$\gamma_{pq}
+= (\rho_q e_p + \rho_p e_q)/(\rho_p + \rho_q)\f$, its **lens parameter**. The
+pair \f$(p^*, q^*)\f$ at \f$x_0\f$ with the largest \f$\gamma\f$ is unique (the
+\f$\gamma\f$ are linear forms in \f$e\f$ with disjoint supports). Let \f$\gamma
+= \gamma_{p^*q^*} + \delta\f$ with \f$\varepsilon^2 \ll \delta \ll
 \varepsilon\eta^n\f$, \f$n\f$ the number of kept spheres, and let \f$\Sigma\f$
 be the configuration with weights \f$\rho_i^2(\varepsilon) - \gamma\f$, a
 genuine arrangement for all but finitely many \f$\delta\f$. Then in a ball
@@ -983,22 +983,22 @@ tangency perturbed to a cut, whose two roots are one point, needs no branch
 positions of one point differ by two offsets within `kOffsetRelTol` of a length
 \f$\le R_{\max}\f$ (the factor 2 also covers the rounded model radii) and two
 circle centers computed in double with their final sums, each within \f$8\sqrt 3
-\cdot 2^{-53}\f$ `kSurfaceMaxCoord` of the exact one (@ref analysis-fp "Floating
-point"). They are found by one pass over the probes bucketed on a lattice of
-pitch \f$\tau_m\f$ and sorted by cell (a pair within \f$\tau_m\f$ shares a cell
-or sits in adjacent cells, and a constant cell shift preserves the sorted order,
-so each of the 13 forward neighbor shifts is one merge join) and joined by
-union-find; a candidate already linked is skipped, since coincidence is
-transitive. Roots that share no circle, as at a point where tangent pairs have
-deleted the linking circles, are tested like any other. The clusters are the
-event sites of @cite desc:surface:cazals-loriot-2009, which groups coincident
-event points exactly and links them by union-find rather than perturbing the
-spheres apart. A cluster's atoms are the union of its members' (a sphere through
-the point none of whose roots is accepted is not listed: the perturbation holds
-it inside by \f$\varepsilon\f$, and only the dot owners read the list), its
-position that of the first member, and its tangents come from the arcs with one
-end in the cluster plus its full circles (\f$\Delta\varphi \ge \pi\f$, the
-grazing vertex gets \f$\pm t\f$); an internal arc, a diagonal of the
+\cdot 2^{-53}\f$ `kSurfaceMaxCoord` of the exact one
+(@ref analysis-fp "Floating point"). They are found by one pass over the probes
+bucketed on a lattice of pitch \f$\tau_m\f$ and sorted by cell (a pair within
+\f$\tau_m\f$ shares a cell or sits in adjacent cells, and a constant cell shift
+preserves the sorted order, so each of the 13 forward neighbor shifts is one
+merge join) and joined by union-find; a candidate already linked is skipped,
+since coincidence is transitive. Roots that share no circle, as at a point where
+tangent pairs have deleted the linking circles, are tested like any other. The
+clusters are the event sites of @cite desc:surface:cazals-loriot-2009, which
+groups coincident event points exactly and links them by union-find rather than
+perturbing the spheres apart. A cluster's atoms are the union of its members' (a
+sphere through the point none of whose roots is accepted is not listed: the
+perturbation holds it inside by \f$\varepsilon\f$, and only the dot owners read
+the list), its position that of the first member, and its tangents come from the
+arcs with one end in the cluster plus its full circles (\f$\Delta\varphi \ge
+\pi\f$, the grazing vertex gets \f$\pm t\f$); an internal arc, a diagonal of the
 \f$k\f$-fold point with \f$\Delta\varphi = 0\f$ exactly, contributes nothing.
 The merge has no error of its own: a cluster is one point, carried at one of its
 certified positions; the SAS arcs, caps and areas are computed before the merge
