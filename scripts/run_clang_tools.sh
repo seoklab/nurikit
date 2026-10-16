@@ -104,7 +104,10 @@ if [[ -n $diff_base ]]; then
 	mapfile -d '' -t format_paths < <(list-changed 'test/*')
 	format_paths+=("${tidy_paths[@]}")
 elif [[ $# -eq 0 ]]; then
-	tidy_paths=("$project_root"/{include,src,python/include,python/src})
+	tidy_paths=(
+		"$project_root"/{include,src,python/include}
+		"$project_root"/python/*src
+	)
 	format_paths=("${tidy_paths[@]}" "$project_root"/test)
 else
 	format_paths=("$@")
