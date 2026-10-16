@@ -489,27 +489,14 @@ using the Shrake-Rupley algorithm.
           "shrake_rupley_sasa",
           [&](py::handle py_pts, py::handle py_radii, int nprobe,
               double rprobe) {
-            auto pts = py_array_cast<3>(py_pts);
-            auto radii = py_array_cast<E::Dynamic, 1>(py_radii);
-
-            if (pts.eigen().cols() != radii.eigen().size()) {
-              throw py::value_error(
-                  absl::StrCat("number of points (", pts.eigen().cols(),
-                               ") does not match number of radii (",
-                               radii.eigen().size(), ")"));
-            }
-
-            if (!(radii.eigen().array() > 0).all()) {
-              throw py::value_error("all radii must be positive values");
-            }
-
+            Spheres sph = cast_spheres(py_pts, py_radii);
             sr_sasa_validate_common_args(nprobe, rprobe);
 
             ArrayXd sasa;
             {
               py::gil_scoped_release rel;
-              ArrayXd rcuts = radii.eigen().array() + rprobe;
-              sasa = internal::sr_sasa_impl(pts.eigen(), rcuts, nprobe,
+              ArrayXd rcuts = sph.radii + rprobe;
+              sasa = internal::sr_sasa_impl(sph.pts, rcuts, nprobe,
                                             internal::SrSasaMethod::kAuto);
             }
             return eigen_as_numpy(sasa);
