@@ -23,7 +23,6 @@
 
 namespace nuri {
 namespace internal {
-  constexpr double kUnitRoundoff = std::numeric_limits<double>::epsilon() / 2;
   constexpr double kSurfaceLengthEps = 1e-6;
   /**
    * Band on a pair's center distance: two length tolerances.

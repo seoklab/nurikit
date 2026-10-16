@@ -21,11 +21,11 @@
 
 namespace nuri {
 namespace {
-  constexpr double kUnitRoundoff = 0x1p-53;
   // 2^-20 for 4u(T + 4) within a grid, 2^-20 for 8uM across two; class docs
   constexpr double kBinMargin = 0x1p-19;
   // 8uM <= kBinMargin / 2; windows beyond are widened by a cell (class docs)
-  constexpr double kGridRangeMagnitude = kBinMargin / 2 / (8 * kUnitRoundoff);
+  constexpr double kGridRangeMagnitude =
+      kBinMargin / 2 / (8 * internal::kUnitRoundoff);
 
   Array3i voxel_of(const Vector3d &p, const Vector3d &origin, double cell) {
     return ((p - origin).array() / cell).floor().cast<int>();

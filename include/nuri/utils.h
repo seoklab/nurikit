@@ -449,6 +449,8 @@ constexpr int log_base10(Int x) {
 }
 
 namespace internal {
+  constexpr double kUnitRoundoff = std::numeric_limits<double>::epsilon() / 2;
+
 #ifdef absl_nullable
   // These 3 are deprecated as of v20250512
   template <class T>
