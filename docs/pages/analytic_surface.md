@@ -1459,27 +1459,26 @@ of the exact one (@ref analysis-fp "Floating point"), so the test runs on
 a computed triangle \f$\tilde S\f$ with corners \f$\tilde p_m\f$. Let
 \f$\Delta = \tilde t_1 \cdot (\tilde t_2 \times \tilde t_3)\f$. Every
 direction of the exact triangle \f$S\f$ is within
-\f$H = \arcsin(3\eta / |\Delta|)\f$ of \f$\tilde S\f$: the corners satisfy
-\f$\tilde t_k \cdot \tilde p_m = 0\f$ for \f$k \ne m\f$ and
-\f$\tilde t_m \cdot \tilde p_m = -|\Delta| / |\tilde t_{m+1} \times \tilde t_{m+2}| \le -|\Delta|\f$,
-so \f$v = \sum_m \tilde p_m / |\sum_m \tilde p_m|\f$ has
-\f$\tilde t_k \cdot v \le -|\Delta|/3\f$ for every \f$k\f$; a direction
-\f$d \in S\f$ has \f$\tilde t_k \cdot d \le \eta\f$, hence
-\f$w = d + (3\eta / |\Delta|)\, v\f$ lies in \f$\tilde S\f$ at angle at most
-\f$H\f$ from \f$d\f$. A cap that meets \f$S\f$ therefore meets
-\f$\tilde S\f$ with its radius widened by \f$H\f$, and the filter tests
-\f$\alpha + H\f$ (\f$\cos(\alpha + H)\f$ from the stored
-\f$\cos\alpha, \sin\alpha\f$; a cap with \f$\alpha + H \ge \pi/2\f$
-passes, as the squared comparisons need \f$\alpha + H < \pi/2\f$). The
-triangle is used only when
-\f$|\Delta| \ge\f$ `kTriangleDetMin` \f$= 6\eta + 8 \cdot 2^{-53}\f$, which
-keeps \f$\sin H \le 1/2\f$ and the corner signs
-\f$\tilde t_m \cdot \tilde p_m \le -|\Delta|\f$ clear of their rounding;
-below it, and for a probe with other than three tangents, the probe passes
-the triangle test; a cluster of several roots passes both filters and is
-solved unfiltered, which is sound since the filters only ever drop. The
-condition is necessary for the cap to cut anything and, for a face with no
-other caps, sufficient up to \f$H\f$.
+\f$H = \arcsin\bigl(3\eta / (|\Delta| - 8 \cdot 2^{-53})\bigr)\f$ of \f$\tilde
+S\f$ (the \f$8 \cdot 2^{-53}\f$ is the rounding of \f$\Delta\f$ itself): the
+corners satisfy \f$\tilde t_k \cdot \tilde p_m = 0\f$ for \f$k \ne m\f$ and
+\f$\tilde t_m \cdot \tilde p_m = -|\Delta| / |\tilde t_{m+1} \times \tilde
+t_{m+2}| \le -|\Delta|\f$, so \f$v = \sum_m \tilde p_m / |\sum_m \tilde p_m|\f$
+has \f$\tilde t_k \cdot v \le -|\Delta|/3\f$ for every \f$k\f$; a direction \f$d
+\in S\f$ has \f$\tilde t_k \cdot d \le \eta\f$, hence \f$w = d + (3\eta /
+(|\Delta| - 8 \cdot 2^{-53}))\, v\f$ lies in \f$\tilde S\f$ at angle at most
+\f$H\f$ from \f$d\f$. A cap that meets \f$S\f$ therefore meets \f$\tilde S\f$
+with its radius widened by \f$H\f$, and the filter tests \f$\alpha + H\f$
+(\f$\cos(\alpha + H)\f$ from the stored \f$\cos\alpha, \sin\alpha\f$; a cap with
+\f$\alpha + H \ge \pi/2\f$ passes, as the squared comparisons need \f$\alpha + H
+< \pi/2\f$). The triangle is used only when \f$|\Delta| \ge\f$ `kTriangleDetMin`
+\f$= 6\eta + 8 \cdot 2^{-53}\f$, which keeps \f$\sin H \le 1/2\f$ and the corner
+signs \f$\tilde t_m \cdot \tilde p_m \le -|\Delta|\f$ clear of their rounding;
+below it, and for a probe with other than three tangents, the probe passes the
+triangle test; a cluster of several roots passes both filters and is solved
+unfiltered, which is sound since the filters only ever drop. The condition is
+necessary for the cap to cut anything and, for a face with no other caps,
+sufficient up to \f$H\f$.
 
 \anchor lemma-11
 **Lemma 11 (host overlap).** Whenever one probe is the first-touch cutter of
