@@ -81,14 +81,13 @@ namespace {
     }
 
     const VoxelGrid grid(exposed, band);
-    const double bandsq = band * band;
 
     ArrayXb keep = buried;
     for (int k = 0; k < dots.n(); ++k) {
       if (!buried[k])
         continue;
       keep[k] = !any_neighbor(grid, dots.pts().col(k), scratch,
-                              [&](int, double dsq) { return dsq <= bandsq; });
+                              [](int, double) { return true; });
     }
     return keep;
   }
