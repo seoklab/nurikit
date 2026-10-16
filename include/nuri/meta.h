@@ -23,6 +23,20 @@
 #define NURI_CLANG_ANALYZER_NOLINT_END
 #endif
 
+#ifdef __clang_analyzer__
+namespace nuri {
+namespace internal {
+  template <class T>
+  extern T clang_analyzer_nolint_expr();
+}  // namespace internal
+}  // namespace nuri
+
+#define NURI_CLANG_ANALYZER_NOLINT_EXPR(expr)                                  \
+  ::nuri::internal::clang_analyzer_nolint_expr<decltype(expr)>()
+#else
+#define NURI_CLANG_ANALYZER_NOLINT_EXPR(expr) (expr)
+#endif
+
 #if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14
 #define NURI_NO_DANGLING [[gnu::no_dangling]]
 #else

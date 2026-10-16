@@ -29,6 +29,7 @@
 
 #include "nuri/eigen_config.h"
 #include "stages.h"
+#include "nuri/meta.h"
 #include "nuri/utils.h"
 
 namespace nuri {
@@ -171,14 +172,19 @@ namespace internal {
       friend Xp operator+(const Xp &a, const Xp &b) {
         Xp r;
         r.e_ = nuri::min(a.e_, b.e_);
-        r.m_ = (a.m_ << (a.e_ - r.e_)) + (b.m_ << (b.e_ - r.e_));
+        // boost's shift kernels trip clang-analyzer core.BitwiseShift on an
+        // infeasible path (count % 8 != 0 yet count % 64 == 0).
+        // Same for all NOLINT-ed bitwise shift expressions below.
+        NURI_CLANG_ANALYZER_NOLINT_EXPR(r.m_ = (a.m_ << (a.e_ - r.e_))
+                                               + (b.m_ << (b.e_ - r.e_)));
         r.strip();
         return r;
       }
       friend Xp operator-(const Xp &a, const Xp &b) {
         Xp r;
         r.e_ = nuri::min(a.e_, b.e_);
-        r.m_ = (a.m_ << (a.e_ - r.e_)) - (b.m_ << (b.e_ - r.e_));
+        NURI_CLANG_ANALYZER_NOLINT_EXPR(r.m_ = (a.m_ << (a.e_ - r.e_))
+                                               - (b.m_ << (b.e_ - r.e_)));
         r.strip();
         return r;
       }
@@ -218,7 +224,9 @@ namespace internal {
           return 0;
 
         const int drop = nuri::max(bits() - 64, 0);
-        return std::ldexp((m_ >> drop).convert_to<double>(), e_ + drop + shift);
+        return std::ldexp(
+            NURI_CLANG_ANALYZER_NOLINT_EXPR((m_ >> drop).convert_to<double>()),
+            e_ + drop + shift);
       }
 
       /**
@@ -238,12 +246,12 @@ namespace internal {
         boost::multiprecision::cpp_int m = m_;
         int e = e_;
         if ((e & 1) != 0) {
-          m <<= 1;
+          NURI_CLANG_ANALYZER_NOLINT_EXPR(m <<= 1);
           --e;
         }
         const int len = static_cast<int>(boost::multiprecision::msb(m)) + 1,
                   s = nuri::max((2 * bits + 3 - len) / 2, 0);
-        m <<= 2 * s;
+        NURI_CLANG_ANALYZER_NOLINT_EXPR(m <<= 2 * s);
 
         Xp lo, unit;
         lo.m_ = boost::multiprecision::sqrt(m);
@@ -264,9 +272,9 @@ namespace internal {
           e_ = 0;
           return;
         }
-        const auto lsb = boost::multiprecision::lsb(abs(m_));
-        m_ >>= lsb;
-        e_ += static_cast<int>(lsb);
+        const int lsb = static_cast<int>(boost::multiprecision::lsb(abs(m_)));
+        NURI_CLANG_ANALYZER_NOLINT_EXPR(m_ >>= lsb);
+        e_ += lsb;
       }
 
       boost::multiprecision::cpp_int m_;
