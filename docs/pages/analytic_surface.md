@@ -18,7 +18,7 @@ in the analytic patch decomposition of Connolly
 as is Richmond's for the SAS @cite desc:surface:richmond-1984.
 The characterization of the concave patches and the formulas used follow
 Quan and Stamm @cite desc:surface:quan-stamm-2016 (their Theorem 5.1 and
-formulas (4.19)/(5.25)/(5.28)); the derivations on this page are this
+formulas (4.19)/(5.25)/(5.28)); proofs not attributed to a source are this
 document's own. The shape complementarity statistic is that of Lawrence and
 Colman @cite desc:sc:lawrence-colman-1993 with the defaults of Lawrence's
 CCP4 `sc` @cite desc:sc:ccp4-sc, which Rosetta's `sc` application ports.
@@ -1031,8 +1031,8 @@ its antipodal hemispheres end it empty (@ref corollary-4 "Corollary 4",
 ### Patch areas {#ses-patches}
 
 - **Convex area** of atom \f$i\f$: \f$A_{\text{sas}}(i) \cdot (r_i/R_i)^2\f$
-  (radial scaling maps the SAS patch onto the vdW sphere, the SAS-to-contact
-  scaling of @cite desc:surface:totrov-abagyan-1996).
+  (radial scaling maps the SAS patch onto the vdW sphere, as in
+  @cite desc:surface:totrov-abagyan-1996).
 - **Saddle** of an arc on the circle \f$(i, j)\f$ with span \f$\Delta\varphi\f$.
   The generating arc on the probe sphere is parametrized by \f$\beta\f$, the
   angle from the inward radial direction (toward the axis); \f$\beta < 0\f$
@@ -1065,8 +1065,10 @@ its antipodal hemispheres end it empty (@ref corollary-4 "Corollary 4",
       \bigl[ r_l (\beta_{\text{hi}} - \beta_{\text{lo}})
              - r_p (\sin\beta_{\text{hi}} - \sin\beta_{\text{lo}}) \bigr].
   \f]
-  Endpoints are selected together with their sines (all \f$\beta\f$ lie in
-  \f$(-\pi/2, \pi/2)\f$), and the bracketed integral of each range is stored
+  For a single range this is the saddle formula (3) of
+  @cite desc:surface:connolly-1983. Endpoints are selected together with their
+  sines (all \f$\beta\f$ lie in \f$(-\pi/2, \pi/2)\f$), and the bracketed
+  integral of each range is stored
   once per circle; the arc areas and the sampler's row totals are both
   gathers of it. The range is never empty once contained balls are gone:
   \f$\theta_i + \theta_j\f$ is the angle at the probe in the triangle
@@ -2139,7 +2141,9 @@ since they assume no underflow and a high-degree polynomial of rounded-zero
 coordinates (\f$10^{-16}\f$) has terms below the double exponent range,
 where underflow silently breaks their exactness. Perturbation
 ties are resolved by the same kernel evaluated on dual numbers, which yields
-the first-order coefficients automatically. The lower rungs of the fallback
+the first-order coefficients automatically, where the predicate kit of
+@cite desc:surface:levy-2016 expands the perturbation terms explicitly in
+generated code. The lower rungs of the fallback
 (the deeper perturbation orders, an exact zero under `sqrt_floor`, an
 uncertifiable quotient) are reached by the bit pattern of an input, not by
 its geometry; no test fixture targets them and their coverage is incidental.
@@ -2175,7 +2179,9 @@ taken from their positions: `difference` evaluates \f$P_\delta + \sqrt D\,
 Q_\delta + \sqrt{D'}\, Q'_\delta\f$ under the same certificate, and otherwise
 from the exact dyadics with the square roots taken to \f$k\f$ extra bits,
 doubled until the sum's bound is below \f$2^{-52}\f$ of its length, read at the
-sum's own scale. It returns a unit direction and a length separately, because
+sum's own scale; the doubling ends only for distinct roots, which the merge
+guarantees by running first, and `exact_difference` caps it at `kMaxSqrtBits`
+and asserts. It returns a unit direction and a length separately, because
 distinct roots have no separation that fits a double: a separation bound of the
 kind of @cite desc:surface:bfmss-2009 on one component, a polynomial of degree 9
 in inputs within `kSurfaceMaxCoord`, is about \f$2^{-1800}\f$. The direction is
@@ -2227,13 +2233,15 @@ it.
 - The exact arrangement of the circles on one sphere
   (@ref sas-step-5 "SAS step 5") was previously computed by a sweep over all
   its intersecting neighbors @cite desc:surface:cazals-loriot-2009.
-- The reduced-surface algorithm of @cite desc:surface:sanner-1996 computes
-  the probe-probe cuts of @ref theorem-4 "Theorem 4" without proof.
+- @cite desc:surface:connolly-1983 leaves interpenetrating concave faces open
+  ("Self-intersecting surfaces"); the reduced-surface algorithm of
+  @cite desc:surface:sanner-1996 computes the probe-probe cuts of
+  @ref theorem-4 "Theorem 4" without proof.
 - SESA @cite desc:surface:wang-2024 computes SES areas analytically from an
   exhaustive probe-probe intersection search and identifies the exterior
-  surface as a component of a region graph; the port keeps every component
-  (the cSES of @cite desc:surface:quan-stamm-2016) and leaves the exterior
-  split to later work.
+  surface as a component of a region graph; this implementation keeps every
+  component (the cSES of @cite desc:surface:quan-stamm-2016) and leaves the
+  exterior split to later work.
 
 ### MolSurfComp {#related-molsurfcomp}
 
