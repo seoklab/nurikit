@@ -26,16 +26,7 @@ constexpr double kUnknownRadius = -1;
  *
  * Hydrogens are absorbed into the heavy atom they are bonded to, and the heavy
  * atom radius grows with the number of absorbed hydrogens. The set covers the
- * heavy atoms of standard amino acids and selenomethionine:
- *
- * | Atom         | Radius (angstrom) | Atom       | Radius (angstrom) |
- * | ------------ | ---------- | ---------- | ---------- |
- * | C            | 1.80       | N, NH      | 1.65       |
- * | CH           | 1.85       | NH2        | 1.70       |
- * | CH2          | 1.90       | NH3        | 1.75       |
- * | CH3          | 1.95       | O          | 1.60       |
- * | aromatic CH  | 1.90       | OH         | 1.70       |
- * | S, SH, Se    | 1.90       | P          | 1.80       |
+ * heavy atoms of standard amino acids and selenomethionine.
  *
  * The values are the default atomic radii of the Molecular Surface Package
  * @cite param:radii:connolly-msp-1993, Table 5 of its user manual
