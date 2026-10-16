@@ -88,7 +88,6 @@ double simpson(const F &f, const double lo, const double hi, const int n) {
   return h / 3 * (f(lo) + 4 * odd + 2 * even + f(hi));
 }
 
-
 struct RandomCluster {
   Matrix3Xd pts;
   ArrayXd sar;
@@ -251,24 +250,19 @@ double saddle_from_quadrature(const SurfaceGeometry &s, const double rp) {
  * `1.5e-3` of the probe sphere: four times the worst lattice error over
  * these fixtures, below their smallest face (`2.2e-3` of its sphere).
  */
-void expect_faces_match_dots(const SurfaceGeometry &s, const double rp,
-                             const char *tag = "") {
-  const double sphere = 2 * kTwoPi * rp * rp;
-  const ArrayXd &face_area = s.concave().area;
-  for (int p = 0; p < face_area.size(); ++p) {
-    const double area = face_area[p];
-    ASSERT_TRUE(std::isfinite(area)) << tag << " probe " << p;
-    EXPECT_GE(area, -1e-9) << tag << " probe " << p;
-    const double dots = face_from_dots(s, p, rp);
-    EXPECT_NEAR(area, dots, nuri::max(1e-3 * dots, 1.5e-3 * sphere))
-        << tag << " probe " << p;
-  }
+const ArrayXd &face_areas(const SurfaceGeometry &s) {
+  return s.concave().area;
 }
 
-void expect_faces_match_dots(const Ses &s, const double rp,
+const ArrayXd &face_areas(const Ses &s) {
+  return s.ses.face_area;
+}
+
+template <class S>
+void expect_faces_match_dots(const S &s, const double rp,
                              const char *tag = "") {
   const double sphere = 2 * kTwoPi * rp * rp;
-  const ArrayXd &face_area = s.ses.face_area;
+  const ArrayXd &face_area = face_areas(s);
   for (int p = 0; p < face_area.size(); ++p) {
     const double area = face_area[p];
     ASSERT_TRUE(std::isfinite(area)) << tag << " probe " << p;

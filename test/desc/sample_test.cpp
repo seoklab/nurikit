@@ -31,7 +31,7 @@ constexpr SurfacePatch kPatch[] = { SurfacePatch::kConvex,
                                     SurfacePatch::kConcave };
 
 struct Sampled {
-  internal::SurfaceGeometry geo;
+  SurfaceGeometry geo;
   SurfaceDots dots;
 };
 
@@ -71,7 +71,7 @@ Sampled solve(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXb &active,
   const ArrayXd r = sar - rp;
   AnalyticSurface surf(pts, r);
   EXPECT_TRUE(surf.initialize(rp, active));
-  internal::SurfaceGeometry geo = surf.build_ses();
+  SurfaceGeometry geo = surf.build_ses();
   SurfaceSampler sampler(density);
   SurfaceDots dots = sampler.sample(geo);
   return { std::move(geo), std::move(dots) };
@@ -82,11 +82,11 @@ Sampled solve(const Matrix3Xd &pts, const ArrayXd &sar, const double rp,
   return solve(pts, sar, ArrayXb::Constant(sar.size(), true), rp, density);
 }
 
-internal::SurfaceGeometry seeded_ses(const Spheres &s, const double rp) {
+SurfaceGeometry seeded_ses(const Spheres &s, const double rp) {
   const ArrayXd r = s.sar - rp;
   AnalyticSurface surf(s.pts, r);
   EXPECT_TRUE(surf.initialize(rp, s.active));
-  internal::seed_thread(0);
+  seed_thread(0);
   return surf.build_ses();
 }
 
@@ -194,7 +194,7 @@ ArrayXb every_other(const int n) {
   return keep;
 }
 
-TEST(SampleSesTest, SingleSphere) {
+TEST(SurfaceSamplerTest, SingleSphere) {
   const double r = 1.5, rp = 1.7, density = 15;
   const Matrix3Xd pts = Matrix3Xd::Zero(3, 1);
   const ArrayXd sar = ArrayXd::Constant(1, r + rp);
@@ -216,7 +216,7 @@ TEST(SampleSesTest, SingleSphere) {
   }
 }
 
-TEST(SampleSesTest, TwoSpheresStammTable1) {
+TEST(SurfaceSamplerTest, TwoSpheresStammTable1) {
   const double rp = 1.2;
   Matrix3Xd pts(3, 2);
   pts << 0, 2, 0, 0, 0, 0;
@@ -228,7 +228,7 @@ TEST(SampleSesTest, TwoSpheresStammTable1) {
   EXPECT_NEAR(block_area(s.dots, 0) + block_area(s.dots, 1), 32.23514, 1e-4);
 }
 
-TEST(SampleSesTest, TwoSpheresCusp) {
+TEST(SurfaceSamplerTest, TwoSpheresCusp) {
   const double rp = 1.2;
   Matrix3Xd pts(3, 2);
   pts << 0, 4.4, 0, 0, 0, 0;
@@ -241,7 +241,7 @@ TEST(SampleSesTest, TwoSpheresCusp) {
   expect_on_ses(s, pts, sar, rp);
 }
 
-TEST(SampleSesTest, ThreeSpheresConcave) {
+TEST(SurfaceSamplerTest, ThreeSpheresConcave) {
   const Spheres c = three_spheres();
   const Matrix3Xd &pts = c.pts;
   const ArrayXd &sar = c.sar;
@@ -264,7 +264,7 @@ TEST(SampleSesTest, ThreeSpheresConcave) {
   }
 }
 
-TEST(SampleSesTest, MaskedRunAndSubset) {
+TEST(SurfaceSamplerTest, MaskedRunAndSubset) {
   const Spheres c = random_cluster();
   const int n = static_cast<int>(c.sar.size());
 
@@ -282,12 +282,12 @@ TEST(SampleSesTest, MaskedRunAndSubset) {
   expect_keep_subset(d, every_other(d.n()));
 }
 
-TEST(SampleSesTest, SasDots) {
+TEST(SurfaceSamplerTest, SasDots) {
   const Spheres c = random_cluster();
   const ArrayXd r = c.sar - kRp;
   AnalyticSurface surf(c.pts, r);
   ASSERT_TRUE(surf.initialize(kRp, c.active));
-  const internal::SurfaceGeometry geo = surf.build_sas();
+  const SurfaceGeometry geo = surf.build_sas();
   const SurfaceDots d = SurfaceSampler(15).sample(geo);
 
   EXPECT_EQ(d.kind(), SurfaceKind::kSas);
@@ -324,7 +324,7 @@ TEST(SampleSesTest, SasDots) {
   }
 }
 
-TEST(SampleSesTest, ProteinDensity) {
+TEST(SurfaceSamplerTest, ProteinDensity) {
   const double rp = 1.7, density = 15;
   const Protein prot = heavy_atoms("1brs.pdb");
   ASSERT_GT(prot.pts.cols(), 500);
@@ -351,14 +351,14 @@ void expect_same_dots(const SurfaceDots &lhs, const SurfaceDots &rhs) {
     EXPECT_EQ(lhs.offset(p), rhs.offset(p));
 }
 
-TEST(SampleSesTest, SamplerReuse) {
+TEST(SurfaceSamplerTest, SamplerReuse) {
   const double rp = 1.7, density = 15;
   Protein prot = heavy_atoms("1brs.pdb");
   ASSERT_GT(prot.pts.cols(), 500);
   const Spheres protein { std::move(prot.pts), prot.radii + rp,
                           ArrayXb::Constant(prot.radii.size(), true) };
-  const internal::SurfaceGeometry big = seeded_ses(protein, rp);
-  const internal::SurfaceGeometry small = seeded_ses(three_spheres(), kRp);
+  const SurfaceGeometry big = seeded_ses(protein, rp);
+  const SurfaceGeometry small = seeded_ses(three_spheres(), kRp);
 
   SurfaceSampler sampler(density);
   const SurfaceDots first = sampler.sample(small);

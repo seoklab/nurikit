@@ -12,8 +12,11 @@ import nuri
 from nuri.desc import ScResult, ScSide, SurfacePatch, shape_complementarity
 from nuri.fmt.pdb import read_models
 
+SLAB_N = 7
+SLAB_ATOMS = SLAB_N**2
 
-def slab(z: float, n: int = 7, spacing: float = 3.0):
+
+def slab(z: float, n: int = SLAB_N, spacing: float = 3.0):
     xs = (np.arange(n) - (n - 1) / 2) * spacing
     gx, gy = np.meshgrid(xs, xs, indexing="ij")
     return np.column_stack(
@@ -23,7 +26,7 @@ def slab(z: float, n: int = 7, spacing: float = 3.0):
 
 @pytest.fixture()
 def radii():
-    return np.full(49, 1.7)
+    return np.full(SLAB_ATOMS, 1.7)
 
 
 @pytest.fixture()
@@ -201,7 +204,11 @@ def test_active_masks(
         shape_complementarity(slab_a, radii, slab_b, radii, active_b=mask)
     with pytest.raises(ValueError, match="no interface"):
         shape_complementarity(
-            slab_a, radii, slab_b, radii, active_a=np.zeros(49, dtype=bool)
+            slab_a,
+            radii,
+            slab_b,
+            radii,
+            active_a=np.zeros(SLAB_ATOMS, dtype=bool),
         )
 
 

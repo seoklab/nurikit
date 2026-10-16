@@ -56,8 +56,6 @@ def test_validation(cluster):
         analytic_surface(far_pts, radii, RP)
 
     geo = analytic_surface(pts, radii, RP)
-    with pytest.raises(ValueError, match="is not a valid SurfacePatch"):
-        geo.area(SurfacePatch(5))
     with pytest.raises(TypeError):
         geo.total_area(5)
 

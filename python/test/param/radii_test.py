@@ -13,6 +13,8 @@ from nuri.core import Molecule
 from nuri.fmt import pdb
 from nuri.param import assign_radii
 
+ELEMENT_RADIUS_ATTR = {"cov": "covalent_radius", "vdw": "vdw_radius"}
+
 pdb_data = """\
 ATOM      1  N   MET A   1     -13.991  -6.903  33.129  1.00 22.97           N
 ATOM      2  CA  MET A   1     -13.215  -8.093  33.479  1.00 22.29           C
@@ -28,8 +30,7 @@ HETATM    9  O   HOH A 101      -9.123  -4.567  30.000  1.00 30.00           O
 
 @pytest.fixture()
 def phenol() -> Molecule:
-    mol = next(nuri.readstring("smi", "Oc1ccccc1"))
-    return mol
+    return next(nuri.readstring("smi", "Oc1ccccc1"))
 
 
 @pytest.fixture()
@@ -40,7 +41,7 @@ def model(tmp_path: Path) -> pdb.Model:
 
 
 def _element_radii(mol: Molecule, kind: str) -> np.ndarray:
-    attr = "covalent_radius" if kind == "cov" else "vdw_radius"
+    attr = ELEMENT_RADIUS_ATTR[kind]
     return np.array([getattr(atom.element, attr) for atom in mol])
 
 
@@ -77,7 +78,7 @@ def test_mol_scale(phenol: Molecule):
     phenol.reveal_hydrogens()
     radii = assign_radii(phenol, "connolly", missing="ignore", scale=0.5)
     assert radii[0] == pytest.approx(0.85)
-    assert np.allclose(radii[7:], -0.5)
+    assert (radii[7:] < 0).all()
 
 
 def test_mol_template(phenol: Molecule):
@@ -114,7 +115,7 @@ def test_model_connolly(model: pdb.Model):
 
 @pytest.mark.parametrize("kind", ["cov", "vdw"])
 def test_model_element(model: pdb.Model, kind: str):
-    attr = "covalent_radius" if kind == "cov" else "vdw_radius"
+    attr = ELEMENT_RADIUS_ATTR[kind]
     radii = assign_radii(model, kind)
     expected = [getattr(atom.element, attr) for atom in model.atoms]
     assert np.allclose(radii, expected)

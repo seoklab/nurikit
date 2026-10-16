@@ -315,11 +315,6 @@ TEST(ShapeComplementarityTest, BarnaseBarstar) {
   EXPECT_NEAR(res->sc, 0.660846137477, 1e-6);
   EXPECT_NEAR(res->distance, 0.639743237709, 1e-6);
   EXPECT_NEAR(res->area, 906.024644525, 1e-6);
-  EXPECT_GT(res->sc, 0.0);
-  EXPECT_LT(res->sc, 1.0);
-  EXPECT_GT(res->distance, 0.0);
-  EXPECT_LT(res->distance, 3.0);
-  EXPECT_GT(res->area, 100.0);
 
   EXPECT_EQ(res->sides[0].n_atoms, a.pts.cols());
   EXPECT_EQ(res->sides[1].n_atoms, b.pts.cols());

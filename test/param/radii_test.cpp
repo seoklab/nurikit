@@ -5,17 +5,15 @@
 
 #include "nuri/param/radii.h"
 
-#include <string_view>
-#include <utility>
-
 #include <gtest/gtest.h>
 
+#include "test_utils.h"
 #include "nuri/core/molecule.h"
-#include "nuri/fmt/parse_result.h"
-#include "nuri/fmt/smiles.h"
 
 namespace nuri {
 namespace {
+using internal::read_first;
+
 constexpr ConnollyRadii kRadii {};
 
 TEST(ConnollyRadiiTest, Backbone) {
@@ -61,45 +59,39 @@ TEST(ConnollyRadiiTest, UnknownNames) {
   EXPECT_LT(kRadii("", ""), 0);
 }
 
-Molecule parse(std::string_view smiles) {
-  ParseResult<Molecule> mol = read_smiles(smiles);
-  EXPECT_TRUE(mol) << mol.error_msg();
-  return *std::move(mol);
-}
-
 TEST(ConnollyRadiiTest, MoleculeCarbon) {
-  const Molecule mol = parse("Cc1ccccc1");
+  const Molecule mol = read_first("smi", "Cc1ccccc1");
   EXPECT_DOUBLE_EQ(kRadii(mol[0]), 1.95);
   EXPECT_DOUBLE_EQ(kRadii(mol[1]), 1.80);
   EXPECT_DOUBLE_EQ(kRadii(mol[2]), 1.90);
 
-  const Molecule ethane = parse("[H]C([H])([H])C");
+  const Molecule ethane = read_first("smi", "[H]C([H])([H])C");
   EXPECT_LT(kRadii(ethane[0]), 0);
   EXPECT_DOUBLE_EQ(kRadii(ethane[1]), 1.95);
   EXPECT_DOUBLE_EQ(kRadii(ethane[4]), 1.95);
 
-  EXPECT_DOUBLE_EQ(kRadii(parse("CC(C)C")[1]), 1.85);
-  EXPECT_LT(kRadii(parse("C")[0]), 0);
+  EXPECT_DOUBLE_EQ(kRadii(read_first("smi", "CC(C)C")[1]), 1.85);
+  EXPECT_LT(kRadii(read_first("smi", "C")[0]), 0);
 }
 
 TEST(ConnollyRadiiTest, MoleculeHeteroatoms) {
-  const Molecule mol = parse("NCC(=O)NC(=O)[O-]");
+  const Molecule mol = read_first("smi", "NCC(=O)NC(=O)[O-]");
   EXPECT_DOUBLE_EQ(kRadii(mol[0]), 1.70);
   EXPECT_DOUBLE_EQ(kRadii(mol[1]), 1.90);
   EXPECT_DOUBLE_EQ(kRadii(mol[3]), 1.60);
   EXPECT_DOUBLE_EQ(kRadii(mol[4]), 1.65);
 
-  EXPECT_DOUBLE_EQ(kRadii(parse("C[NH3+]")[1]), 1.75);
-  EXPECT_DOUBLE_EQ(kRadii(parse("CO")[1]), 1.70);
-  EXPECT_DOUBLE_EQ(kRadii(parse("CS")[1]), 1.90);
-  EXPECT_DOUBLE_EQ(kRadii(parse("CSC")[1]), 1.90);
-  EXPECT_DOUBLE_EQ(kRadii(parse("C[Se]C")[1]), 1.90);
-  EXPECT_DOUBLE_EQ(kRadii(parse("OP(=O)(O)O")[1]), 1.80);
-  EXPECT_DOUBLE_EQ(kRadii(parse("c1cc[nH]c1")[3]), 1.65);
+  EXPECT_DOUBLE_EQ(kRadii(read_first("smi", "C[NH3+]")[1]), 1.75);
+  EXPECT_DOUBLE_EQ(kRadii(read_first("smi", "CO")[1]), 1.70);
+  EXPECT_DOUBLE_EQ(kRadii(read_first("smi", "CS")[1]), 1.90);
+  EXPECT_DOUBLE_EQ(kRadii(read_first("smi", "CSC")[1]), 1.90);
+  EXPECT_DOUBLE_EQ(kRadii(read_first("smi", "C[Se]C")[1]), 1.90);
+  EXPECT_DOUBLE_EQ(kRadii(read_first("smi", "OP(=O)(O)O")[1]), 1.80);
+  EXPECT_DOUBLE_EQ(kRadii(read_first("smi", "c1cc[nH]c1")[3]), 1.65);
 
-  EXPECT_LT(kRadii(parse("O")[0]), 0);
-  EXPECT_LT(kRadii(parse("[NH4+]")[0]), 0);
-  EXPECT_LT(kRadii(parse("[Na+]")[0]), 0);
+  EXPECT_LT(kRadii(read_first("smi", "O")[0]), 0);
+  EXPECT_LT(kRadii(read_first("smi", "[NH4+]")[0]), 0);
+  EXPECT_LT(kRadii(read_first("smi", "[Na+]")[0]), 0);
 }
 }  // namespace
 }  // namespace nuri

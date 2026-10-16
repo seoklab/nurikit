@@ -25,6 +25,8 @@
 
 namespace nuri {
 namespace {
+constexpr double kVoxelGridBinMargin = 0x1p-19;
+
 // Implementation detail, but should be exposed for testing
 
 const std::array<Vector3d, 8> kOctantMasks = []() {
@@ -522,7 +524,7 @@ TEST(VoxelGridTest, Create) {
     const int cx = v % nx;
     for (int p = grid.cell_offset()[v]; p < grid.cell_offset()[v + 1]; ++p) {
       Array3i c = ((grid.pts().col(p) - grid.origin()).array()
-                   / (cutoff / (1 - 0x1p-19)))
+                   / (cutoff / (1 - kVoxelGridBinMargin)))
                       .floor()
                       .cast<int>()
                       .min(upper)
@@ -1117,11 +1119,11 @@ TEST(VoxelGridTest, FindNeighborGridFull) {
   }
 }
 
-constexpr double kGridRangeMagnitude = 0x1p30;
+constexpr double kGridRangeMagnitude = kVoxelGridBinMargin / 2 / (8 * 0x1p-53);
 
 double grid_range_magnitude(const VoxelGrid &lgrid, const VoxelGrid &rgrid,
                             const int axis) {
-  const double cell = lgrid.cutoff() / (1 - 0x1p-19);
+  const double cell = lgrid.cutoff() / (1 - kVoxelGridBinMargin);
   return std::abs(lgrid.origin()[axis] - rgrid.origin()[axis]) / cell
          + lgrid.dims()[axis] + 1;
 }

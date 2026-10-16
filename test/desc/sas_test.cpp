@@ -37,16 +37,17 @@ struct Sas {
   SasGeometry geo;
 };
 
-Sas solve(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXb &active) {
-  std::optional<SurfaceSpheres> ss = prepare(pts, sar - kRp, active, kRp);
+Sas solve(const Matrix3Xd &pts, const ArrayXd &sar, const ArrayXb &active,
+          const double rp = kRp) {
+  std::optional<SurfaceSpheres> ss = prepare(pts, sar - rp, active, rp);
   EXPECT_TRUE(ss);
   SasDelaunay del = triangulate(*ss);
   SasGeometry geo = build_sas(*ss, del);
   return { std::move(*ss), std::move(geo) };
 }
 
-Sas solve(const Matrix3Xd &pts, const ArrayXd &sar) {
-  return solve(pts, sar, ArrayXb::Constant(sar.size(), true));
+Sas solve(const Matrix3Xd &pts, const ArrayXd &sar, const double rp = kRp) {
+  return solve(pts, sar, ArrayXb::Constant(sar.size(), true), rp);
 }
 
 struct Surface {
@@ -404,6 +405,11 @@ TEST(BuildSasTest, CoveredSphere) {
   EXPECT_NEAR(area.sum(), sr_total(pts, sar), 1e-2 * area.sum());
 }
 
+/**
+ * Trapped point of a rounded tetrahedron: its four roots are distinct
+ * points, each accessible or not by the rounded geometry; the area does
+ * not depend on it.
+ */
 TEST(BuildSasTest, FourSphereVertex) {
   const double reach = 2.0;
   Matrix3Xd pts(3, 4);
@@ -414,9 +420,6 @@ TEST(BuildSasTest, FourSphereVertex) {
   ArrayXd sar = ArrayXd::Constant(4, reach);
 
   const Surface s = surface(pts, sar);
-  // trapped point of a rounded tetrahedron: its four roots are distinct
-  // points, each accessible or not by the rounded geometry; the area does
-  // not depend on it
   EXPECT_LE(probes_at(s.ses.concave().pos, Vector3d::Zero(), 1e-6), 4);
   expect_no_coincident_pairs(pts, sar);
   const double total = s.sas.convex().area.sum();
@@ -1123,15 +1126,6 @@ TEST(BuildSasTest, EdgeTablesMatchBruteForce) {
   EXPECT_GT(n_both_corners, 0);
 }
 
-Sas solve_rp(const Matrix3Xd &pts, const ArrayXd &sar, const double rp) {
-  std::optional<SurfaceSpheres> ss =
-      prepare(pts, sar - rp, ArrayXb::Constant(sar.size(), true), rp);
-  EXPECT_TRUE(ss);
-  SasDelaunay del = triangulate(*ss);
-  SasGeometry geo = build_sas(*ss, del);
-  return { std::move(*ss), std::move(geo) };
-}
-
 Matrix3Xd rigid(const Matrix3Xd &pts, const int seed) {
   const auto [rot, t] = rigid_motion(seed);
   return (rot * pts).colwise() + t;
@@ -1214,7 +1208,7 @@ TEST(BuildSasTest, BenzeneCoverNoSpuriousProbe) {
 
   for (int seed = 0; seed < 10; ++seed) {
     const Matrix3Xd pts = rigid(base, seed);
-    const Sas sas = solve_rp(pts, sar, rp);
+    const Sas sas = solve(pts, sar, rp);
     EXPECT_EQ(spurious_probes(sas, pts, sar), 0) << "seed " << seed;
     expect_sr(sas, pts, sar, 5000);
   }
@@ -1309,7 +1303,7 @@ TEST(BuildSasTest, NearPairInCoplanarQuad) {
   pts.col(0) = pts.col(1) + (sar[1] + rl - delta) * Vector3d::UnitX();
   sar[0] = rl;
 
-  const Sas sas = solve_rp(pts, sar, 0.5);
+  const Sas sas = solve(pts, sar, 0.5);
   expect_sr(sas, pts, sar, 50000);
   for (const RingArc &arc: sas.geo.arcs)
     EXPECT_LE(arc.dphi, kTwoPi);
@@ -1341,7 +1335,7 @@ TEST(BuildSasTest, InternallyTangentNestedCaps) {
   pts.col(3) = cap_center(nc, 0.0, 2.2, rs);
   sar[3] = 2.2;
 
-  const Sas sas = solve_rp(pts, sar, 0.5);
+  const Sas sas = solve(pts, sar, 0.5);
   expect_sr(sas, pts, sar, 50000);
 }
 
@@ -1397,7 +1391,7 @@ TEST(BuildSasTest, TinyCapSteepCrossing) {
   pts.col(4) = cap_center(ne, rs * std::cos(ale), rbig, rs);
   sar[4] = rbig;
 
-  const Sas sas = solve_rp(pts, sar, 0.5);
+  const Sas sas = solve(pts, sar, 0.5);
   expect_sr(sas, pts, sar, 50000);
 }
 
@@ -1826,12 +1820,11 @@ TEST(BuildSasTest, VertexAtFrameAnglePi) {
     if (sar[2] < 1.0)
       continue;
 
-    const Sas sas = solve_rp(pts, sar, 0.5);
+    const Sas sas = solve(pts, sar, 0.5);
     expect_sr(sas, pts, sar);
   }
 }
 
-/**
 /**
  * Two exactly tangent spheres and a third through the tangency point, the
  * circle of zero length with two coincident cut points. Over every axis
@@ -1871,7 +1864,7 @@ TEST(BuildSasTest, TangentPairThirdSphereThroughPoint) {
     for_each_index_order(pts, sar,
                          [&](const Matrix3Xd &p, const ArrayXd &r,
                              const std::vector<int> &order) {
-                           const Sas sas = solve_rp(p, r, rp);
+                           const Sas sas = solve(p, r, rp);
                            ASSERT_EQ(sas.ss.order.size(), 3);
                            EXPECT_EQ(sas.geo.probes.pos.cols(), 0);
                            ArrayXd sr_p(3);
@@ -1902,7 +1895,7 @@ TEST(BuildSasTest, TangentPairFourFoldPoint) {
   for_each_index_order(base, sar,
                        [&](const Matrix3Xd &p, const ArrayXd &r,
                            const std::vector<int> &order) {
-                         const Sas sas = solve_rp(p, r, 0.5);
+                         const Sas sas = solve(p, r, 0.5);
                          ASSERT_EQ(sas.ss.order.size(), 4);
                          const int c = probe_at(sas.geo.probes.pos, x);
                          ASSERT_GE(c, 0);
@@ -1977,14 +1970,13 @@ TEST(BuildSasTest, ExactCircleTangencies) {
 
 /**
  * Per-atom areas of every index order agree with the first order to 1e-9
- * and with Shrake-Rupley; `ref` receives the first order's areas by atom.
+ * and with Shrake-Rupley; returns the first order's areas by atom.
  */
-void expect_order_invariant_areas(const Matrix3Xd &pts, const ArrayXd &sar,
-                                  ArrayXd &ref) {
+ArrayXd expect_order_invariant_areas(const Matrix3Xd &pts, const ArrayXd &sar) {
   const int n = static_cast<int>(sar.size());
   const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
   const Sas first = solve(pts, sar);
-  ref.resize(n);
+  ArrayXd ref(n);
   for (int p = 0; p < n; ++p)
     ref[first.ss.order[p]] = first.geo.area[p];
 
@@ -2005,6 +1997,7 @@ void expect_order_invariant_areas(const Matrix3Xd &pts, const ArrayXd &sar,
                                << "atom " << o << " order " << tag;
                          }
                        });
+  return ref;
 }
 
 /**
@@ -2022,8 +2015,7 @@ TEST(BuildSasTest, TouchingCapsWithoutLensVertex) {
       -3, 3, 2, 2;
   const ArrayXd sar = ArrayXd::Constant(4, 3.0);
 
-  ArrayXd ref;
-  expect_order_invariant_areas(pts, sar, ref);
+  const ArrayXd ref = expect_order_invariant_areas(pts, sar);
   EXPECT_NEAR(ref[0], 103.243270, 1e-5);
   EXPECT_NEAR(ref[1], 46.171794, 1e-5);
   EXPECT_NEAR(ref[2], 74.707532, 1e-5);
@@ -2043,8 +2035,7 @@ TEST(BuildSasTest, TouchingCapsSixFold) {
       -7, 7, 2, 2, -2, -2;
   const ArrayXd sar = ArrayXd::Constant(6, 7.0);
 
-  ArrayXd ref;
-  expect_order_invariant_areas(pts, sar, ref);
+  const ArrayXd ref = expect_order_invariant_areas(pts, sar);
 
   int k = 0;
   for_each_index_order(
@@ -2072,7 +2063,7 @@ TEST(BuildSasTest, RoundingTinyCirclesUnderRigidMotion) {
 
   for (int seed = 0; seed < 128; ++seed) {
     const Matrix3Xd p3 = rigid(base3, seed);
-    expect_sr(solve_rp(p3, sar3, 0.5), p3, sar3);
+    expect_sr(solve(p3, sar3, 0.5), p3, sar3);
 
     const Matrix3Xd p4 = rigid(t.pts, seed);
     expect_sr(solve(p4, t.sar), p4, t.sar);
