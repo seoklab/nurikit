@@ -448,13 +448,13 @@ SurfaceDots SurfaceSampler::sample(const SurfaceGeometry &geo) {
 
   int n_dots = 0;
   double dropped = 0;
-  off[0] = 0;
+  off[static_cast<int>(SurfacePatch::kConvex)] = 0;
   sample_convex(geo, density_, scratch_, out, n_dots, dropped);
-  off[1] = n_dots;
+  off[static_cast<int>(SurfacePatch::kToroidal)] = n_dots;
   sample_toroidal(geo, density_, scratch_, out, n_dots, dropped);
-  off[2] = n_dots;
+  off[static_cast<int>(SurfacePatch::kConcave)] = n_dots;
   sample_concave(geo, density_, scratch_, out, n_dots, dropped);
-  off[3] = n_dots;
+  off[kNumSurfacePatches] = n_dots;
 
   resize_dots(out, n_dots);
   out.atom = geo.order()(out.atom);

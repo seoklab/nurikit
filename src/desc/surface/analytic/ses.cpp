@@ -34,10 +34,6 @@ namespace internal {
       double angle, sin;
     };
 
-    Beta pick(const bool cond, const Beta &x, const Beta &y) {
-      return cond ? x : y;
-    }
-
     struct SaddleRanges {
       Array4d beta;
       E::Array2d integral;
@@ -61,10 +57,10 @@ namespace internal {
       const Beta b0 { std::atan2(root, rl), root / rp },
           nb0 { -b0.angle, -b0.sin };
 
-      Beta m = pick(hi.angle < nb0.angle, hi, nb0);
-      const Beta below_hi = pick(lo.angle > m.angle, lo, m);
-      m = pick(lo.angle > b0.angle, lo, b0);
-      const Beta above_lo = pick(hi.angle < m.angle, hi, m);
+      Beta m = hi.angle < nb0.angle ? hi : nb0;
+      const Beta below_hi = lo.angle > m.angle ? lo : m;
+      m = lo.angle > b0.angle ? lo : b0;
+      const Beta above_lo = hi.angle < m.angle ? hi : m;
 
       SaddleRanges out;
       out.beta << lo.angle, below_hi.angle, above_lo.angle, hi.angle;
@@ -75,7 +71,8 @@ namespace internal {
     }
 
     void saddles(SesGeometry &ses, const SurfaceSpheres &ss,
-                 const SasGeometry &geo, const double rp) {
+                 const SasGeometry &geo) {
+      const double rp = ss.rp;
       const int n_circ = ss.g.offset(ss.n_active);
       ses.saddle_beta.resize(4, n_circ);
       ses.saddle_integral.resize(2, n_circ);
@@ -121,7 +118,8 @@ namespace internal {
     };
 
     ProbeHeights probe_heights(const SurfaceSpheres &ss, const BallExact &ex,
-                               const SasProbes &probes, const double rp) {
+                               const SasProbes &probes) {
+      const double rp = ss.rp;
       const int np = static_cast<int>(probes.pos.cols());
       ProbeHeights hts { ArrayXb::Constant(np, true),
                          ArrayXb::Constant(np, false), Matrix3Xd::Zero(3, np),
@@ -202,7 +200,7 @@ namespace internal {
           continue;
 
         tri.triangular[p] = true;
-        tri.sin_h[p] = 3 * kTangentEps / (det - 8 * kUnitRoundoff);
+        tri.sin_h[p] = 3 * kTangentEps / (det - kTriangleDetRoundoff);
         tri.cos_h[p] = std::sqrt(1 - tri.sin_h[p] * tri.sin_h[p]);
         for (int m = 0; m < 3; ++m) {
           Vector3d v =
@@ -705,10 +703,10 @@ namespace internal {
     const double rp = ss.rp;
     SesGeometry ses;
     ses.convex_area = convex_areas(ss, geo);
-    saddles(ses, ss, geo, rp);
+    saddles(ses, ss, geo);
 
     const SasProbes &probes = geo.probes;
-    const ProbeHeights hts = probe_heights(ss, del.ex, probes, rp);
+    const ProbeHeights hts = probe_heights(ss, del.ex, probes);
     const FaceTriangles tri = face_triangles(probes);
     const PairCaps pc = pair_caps(del.ex, probes, rp, hts, tri);
     const LiftedCaps lifted = faces(ses, probes, pc);

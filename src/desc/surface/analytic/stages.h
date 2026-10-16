@@ -85,7 +85,8 @@ namespace internal {
    * `meets_triangle` adds to the cap radius; below it the face goes to the
    * exact solver.
    */
-  constexpr double kTriangleDetMin = 6 * kTangentEps + 8 * kUnitRoundoff;
+  constexpr double kTriangleDetRoundoff = 8 * kUnitRoundoff;
+  constexpr double kTriangleDetMin = 6 * kTangentEps + kTriangleDetRoundoff;
 
   /**
    * Orient every pair of `VoxelGrid::find_neighbors_self` as `left < right`.
@@ -452,10 +453,13 @@ namespace internal {
   };
 
   /**
-   * `face` (triangulation vertices as `SasDelaunay::ex` indexes them,
-   * sorted) and `plus` name the root at `pos`: of a merged probe, its first
-   * member's, whose position is the probe's; `members` counts the roots
-   * merged into it.
+   * Probes sorted by owner, the lowest of their `atoms` (sorted sphere
+   * indices); the first `n_active` are owned by active spheres. `face`
+   * (triangulation vertices as `SasDelaunay::ex` indexes them, sorted) and
+   * `plus` name the root at `pos`: of a merged probe, its first member's,
+   * whose position is the probe's; `members` counts the roots merged into
+   * it. `tan` holds, per probe in `tan_off` segments, the unit departure
+   * tangent of every arc ending at it.
    */
   struct SasProbes {
     CSR atoms;
