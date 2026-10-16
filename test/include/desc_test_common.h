@@ -13,7 +13,6 @@
 #include <fstream>
 #include <numeric>
 #include <random>
-#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -84,22 +83,26 @@ inline Matrix3Xd star(const int n_ring, const double polar_deg,
   return pts;
 }
 
+struct Balls {
+  Matrix3Xd pts;
+  ArrayXd sar;
+};
+
 /**
  * Three spheres on the z axis through one circle, with radii and offsets
  * whose rounded heights are exactly consistent (searched offline); the one in
  * the middle has no surface.
  */
-inline Matrix3Xd shared_circle_pts(const int mid, ArrayXd &sar) {
+inline Balls shared_circle_pts(const int mid) {
   constexpr std::array<double, 3> r { 3.5, 3.25, 3.375 },
       z { -1.421875, 0.578125, 1.078125 };
-  Matrix3Xd pts(3, 3);
-  sar.resize(3);
+  Balls b { Matrix3Xd(3, 3), ArrayXd(3) };
   for (int q = 0; q < 3; ++q) {
     const int src = (q + 1 - mid + 3) % 3;
-    pts.col(q) << 0, 0, z[src];
-    sar[q] = r[src];
+    b.pts.col(q) << 0, 0, z[src];
+    b.sar[q] = r[src];
   }
-  return pts;
+  return b;
 }
 
 struct RigidMotion {
@@ -139,23 +142,22 @@ inline Matrix3Xd occluder_shell_pts() {
  * Two exactly tangent spheres and a third through the tangency point, the
  * circle of zero length with two coincident cut points.
  */
-inline Matrix3Xd tangent_through_pts(ArrayXd &sar) {
+inline Balls tangent_through_pts() {
   Matrix3Xd pts(3, 3);
   pts.col(0) << 0, 0, 0;
   pts.col(1) << 3, 0, 0;
   pts.col(2) << 1.5, 1.5, 0;
-  sar = ArrayXd::Constant(3, 1.5);
-  return pts;
+  return { pts, ArrayXd::Constant(3, 1.5) };
 }
 
-inline Matrix3Xd three_spheres_pts(ArrayXd &sar, const double rp) {
+inline Balls three_spheres_pts(const double rp) {
   Matrix3Xd pts(3, 3);
   pts << 0, 4.8, 2.6,  //
       0, 0.2, 4.16,    //
       0, 0.3, -0.4;
-  sar.resize(3);
+  ArrayXd sar(3);
   sar << 1.5 + rp, 1.9 + rp, 1.7 + rp;
-  return pts;
+  return { pts, sar };
 }
 
 /**
@@ -164,7 +166,7 @@ inline Matrix3Xd three_spheres_pts(ArrayXd &sar, const double rp) {
  * of the plane of the three centers with nearly coplanar departure
  * tangents; sphere 3 supplies cutters within `2 rp` of them.
  */
-inline std::pair<Matrix3Xd, ArrayXd> near_tangent_face(const double h) {
+inline Balls near_tangent_face(const double h) {
   const double r = 2.0, d = 4.0 - 1e-4, zs = 3.0;
   const double rc = std::sqrt(r * r - d * d / 4),
                zc = std::sqrt(rc * rc - h * h);

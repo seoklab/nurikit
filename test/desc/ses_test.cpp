@@ -251,7 +251,10 @@ const ArrayXd &face_areas(const Ses &s) {
 /**
  * Every active face against the lattice to `1e-3` relative, floored at
  * `1.5e-3` of the probe sphere: four times the worst lattice error over
- * these fixtures, below their smallest face (`2.2e-3` of its sphere).
+ * these fixtures, below their smallest face (`2.2e-3` of its sphere). A
+ * face area is an unclamped Gauss-Bonnet sum (or `rp^2 (2 pi - angles)` for
+ * a triangle face), so a vanishing face may round below zero by roundoff;
+ * `1e-9` is far above it and far below any face.
  */
 template <class S>
 void expect_faces_match_dots(const S &s, const double rp,
@@ -577,8 +580,7 @@ TEST(BuildSesTest, FiltersAreNecessary) {
 }
 
 TEST(BuildSesTest, ThreeSpheresVsDots) {
-  ArrayXd sar;
-  const Matrix3Xd pts = three_spheres_pts(sar, kRp);
+  const auto [pts, sar] = three_spheres_pts(kRp);
 
   const SurfaceGeometry s = solve(pts, sar);
   const int n_probes = static_cast<int>(s.concave().pos.cols());
@@ -671,10 +673,10 @@ TEST(BuildSesTest, FiltersDoNotChangeArea) {
 /**
  * The two roots of the nearly tangent face, `(0, +-h, zc)`, each keep the
  * other's cap and are cut by it to the zone between the contact plane and
- * its mirror, of area at most `2 pi rp h` up to the vertex certificate
- * (a wrong side keeps the hemisphere, `2 pi rp^2`): the side of the plane
- * comes from the root sign, which the rounded height cannot give below
- * the position certificate.
+ * its mirror, of width `2h` and area at most `4 pi rp h` up to the vertex
+ * certificate (a wrong side keeps the hemisphere, `2 pi rp^2`): the side
+ * of the plane comes from the root sign, which the rounded height cannot
+ * give below the position certificate.
  */
 TEST(BuildSesTest, NearTangentFacesAreSlivers) {
   for (const double h: { 5e-6, 2e-7, 1e-13 }) {

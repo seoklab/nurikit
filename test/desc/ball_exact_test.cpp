@@ -132,7 +132,7 @@ struct Ref {
   Q inside(int x, int y) const {
     const QVec d = cen(y) - cen(x);
     const Q g = dot(d, d), u = rho2[x] - rho2[y] - g;
-    return std::min(u, u * u - 4 * rho2[y] * g);
+    return nuri::min(u, u * u - 4 * rho2[y] * g);
   }
 
   int contained(int a, int b) const {
@@ -476,8 +476,7 @@ TEST(BallExactTest, ContainedBall) {
 
 TEST(BallExactTest, SharedCircle) {
   for (int mid = 0; mid < 3; ++mid) {
-    ArrayXd sar;
-    const Matrix3Xd pts = shared_circle_pts(mid, sar);
+    const auto [pts, sar] = shared_circle_pts(mid);
     const Fixture<> s = setup(pts, sar);
     const BallTriple f { 0, 1, 2 };
     ASSERT_EQ(q_sgn(s.ref.coincidence(f)), 0);
@@ -486,14 +485,13 @@ TEST(BallExactTest, SharedCircle) {
     EXPECT_EQ(s.ex.shared_circle({ 2, 0, 1 }), (mid + 1) % 3);
   }
 
-  ArrayXd sar;
-  Matrix3Xd pts = shared_circle_pts(1, sar);
+  auto [pts, sar] = shared_circle_pts(1);
   pts(2, 1) += 1e-9;
   const Fixture<> s = setup(pts, sar);
   ASSERT_NE(q_sgn(s.ref.coincidence({ 0, 1, 2 }), kQTol), 0);
   EXPECT_EQ(s.ex.shared_circle({ 0, 1, 2 }), -1);
 
-  pts = shared_circle_pts(1, sar);
+  pts = shared_circle_pts(1).pts;
   sar[1] = std::nextafter(sar[1], 4.0);
   const Fixture<> sr = setup(pts, sar);
   ASSERT_NE(q_sgn(sr.ref.coincidence({ 0, 1, 2 })), 0);
@@ -506,8 +504,7 @@ TEST(BallExactTest, SharedCircle) {
  * must keep its direction.
  */
 TEST(BallExactTest, OffsetOnRoundingTinyCircle) {
-  ArrayXd sar;
-  const Matrix3Xd base = tangent_through_pts(sar);
+  const auto [base, sar] = tangent_through_pts();
 
   std::mt19937 rng(5);
   std::normal_distribution<double> nd;
@@ -589,13 +586,11 @@ TEST(BallExactTest, OffsetNearCollinearGreatCircle) {
 }
 
 TEST(BallExactTest, TangentPairCarriesNoCircle) {
-  ArrayXd sar;
-  const Matrix3Xd pts = tangent_through_pts(sar);
+  const auto [pts, sar] = tangent_through_pts();
   const Fixture<> s = setup(pts, sar);
 
   EXPECT_EQ(s.ex.overlap(0, 1), Sgn::kZero);
   EXPECT_EQ(s.ex.overlap(0, 2), Sgn::kPos);
-  // sphere 2 passes exactly through the tangency point (1.5, 0, 0)
   const BallTriple f { 0, 1, 2 };
   const int want = perturbed_sign(s.ref, { 0, 1, 2 },
                                   [&](const Ref &r) { return r.face(f).disc; });
@@ -751,14 +746,9 @@ struct RootGroups {
 };
 
 /**
- * Every root of every cut face, grouped by `coincide`: on the dyadic square
- * with apex the groups are the roots within 1e-9 of each other (faces
- * sharing a circle, one sphere, or none); an exact tangency (sphere 2
- * through one point of circle (0, 1)) has both roots of one face in one
- * group; under a rigid motion the rounded points are distinct, so a group
- * never exceeds one root while positions still agree to 1e-14.
+ * Every root of every cut face.
  */
-RootGroups root_groups(const BallExact &ex) {
+std::vector<CircleRoot> all_roots(const BallExact &ex) {
   std::vector<CircleRoot> roots;
   const int n = ex.n();
   for (int a = 0; a < n; ++a) {
@@ -772,6 +762,15 @@ RootGroups root_groups(const BallExact &ex) {
       }
     }
   }
+  return roots;
+}
+
+/**
+ * Over all root pairs: the pairs within 1e-9 and the pairs `coincide`
+ * accepts; `coincide` is symmetric and a coincident pair is within 1e-12.
+ */
+RootGroups root_groups(const BallExact &ex) {
+  const std::vector<CircleRoot> roots = all_roots(ex);
 
   RootGroups g;
   g.n_roots = static_cast<int>(roots.size());
@@ -791,6 +790,13 @@ RootGroups root_groups(const BallExact &ex) {
   return g;
 }
 
+/**
+ * On the dyadic square with apex the groups of `coincide` are the roots
+ * within 1e-9 of each other (faces sharing a circle, one sphere, or none); an
+ * exact tangency (sphere 2 through one point of circle (0, 1)) has both roots
+ * of one face in one group; under a rigid motion the rounded points are
+ * distinct and some close pair splits.
+ */
 TEST(BallExactTest, CoincideAcrossFaces) {
   const Fixture<> s = setup(square_apex(), ArrayXd::Constant(5, 1.5));
   const RootGroups exact = root_groups(s.ex);
@@ -1047,19 +1053,7 @@ TEST(BallExactTest, DifferenceMatchesRoots) {
     const Fixture<> s =
         setup(random_pts(rng, n, 1.6), random_radii(rng, n, 1.5, 2.5));
 
-    std::vector<CircleRoot> roots;
-    for (int a = 0; a < n; ++a) {
-      for (int b = a + 1; b < n; ++b) {
-        for (int c = b + 1; c < n; ++c) {
-          const BallTriple f { a, b, c };
-          if (s.ex.cuts(f) != Sgn::kPos)
-            continue;
-          roots.push_back({ f, true });
-          roots.push_back({ f, false });
-        }
-      }
-    }
-
+    const std::vector<CircleRoot> roots = all_roots(s.ex);
     for (const CircleRoot &ri: roots) {
       for (const CircleRoot &rj: roots) {
         if (&ri == &rj)
@@ -1204,14 +1198,13 @@ TEST(BallExactTest, DifferenceDirectionUnderUnderflow) {
   RootDifference rd = forged_difference(p, zero, zero, 0, 0, 1, -1060);
   EXPECT_EQ(rd.dir, dir);
   EXPECT_EQ(rd.len, std::ldexp(5.0, -1060));
-  EXPECT_GT(rd.len, 0);
 
   rd = forged_difference(p, zero, zero, 0, 0, 1, -1100);
   EXPECT_EQ(rd.dir, dir);
   EXPECT_EQ(rd.len, 0);
 
   const double root2 = std::sqrt(2.0);
-  const double sign = q_sgn(q_sqrt(2) - static_cast<Q>(root2));
+  const int sign = q_sgn(q_sqrt(2) - static_cast<Q>(root2));
   ASSERT_NE(sign, 0);
   for (const double flip: { 1.0, -1.0 }) {
     rd = forged_difference(Vector3d(-flip * root2, 0, 0), Vector3d(flip, 0, 0),

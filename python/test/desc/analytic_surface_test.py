@@ -70,7 +70,7 @@ def test_view_semantics(cluster):
     convex = geo.area(SurfacePatch.Convex)
     total = geo.total_area(SurfacePatch.Convex)
     del geo
-    assert convex.sum() == pytest.approx(total)
+    assert convex.sum() == pytest.approx(total, rel=1e-12)
 
 
 def test_single_sphere():

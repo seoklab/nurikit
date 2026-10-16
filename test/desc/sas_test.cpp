@@ -72,8 +72,8 @@ double sr_total(const Matrix3Xd &pts, const ArrayXd &sar) {
   return sr_sasa_impl(pts, sar, 5000, SrSasaMethod::kDirect).sum();
 }
 
-int probes_at(const Matrix3Xd &pos, const Vector3d &x,
-              const double radius = 1e-9) {
+int count_probes_at(const Matrix3Xd &pos, const Vector3d &x,
+                    const double radius = 1e-9) {
   int n = 0;
   for (int p = 0; p < pos.cols(); ++p)
     n += static_cast<int>((pos.col(p) - x).norm() <= radius);
@@ -204,12 +204,18 @@ double sr_tol(const double radius, const int n) {
   return 3 * 4 * kPi * radius * radius * 0.5 / std::sqrt(n);
 }
 
+void expect_areas(ConstRef<ArrayXd> area, ConstRef<ArrayXi> order,
+                  const ArrayXd &sr, const ArrayXd &sar, const int n) {
+  for (int p = 0; p < area.size(); ++p) {
+    const int o = order[p];
+    EXPECT_NEAR(area[p], sr[o], sr_tol(sar[o], n)) << "atom " << o;
+  }
+}
+
 void expect_areas(const Sas &sas, const ArrayXd &sr, const ArrayXd &sar,
                   const int n) {
-  for (int p = 0; p < sas.ss.n_solve; ++p) {
-    const int o = sas.ss.order[p];
-    EXPECT_NEAR(sas.geo.area[p], sr[o], sr_tol(sar[o], n)) << "atom " << o;
-  }
+  const int ns = sas.ss.n_solve;
+  expect_areas(sas.geo.area.head(ns), sas.ss.order.head(ns), sr, sar, n);
   for (int p = 0; p < sas.geo.probes.pos.cols(); ++p)
     EXPECT_GE(sas.geo.probes.atoms.degree(p), 3);
 }
@@ -223,10 +229,7 @@ void expect_sr(const Surface &s, const Matrix3Xd &pts, const ArrayXd &sar,
                const int n = 20000) {
   const ArrayXd sr = sr_sasa_impl(pts, sar, n, SrSasaMethod::kDirect);
   const ArrayXd &area = s.sas.convex().area;
-  for (int p = 0; p < area.size(); ++p) {
-    const int o = s.sas.order()[p];
-    EXPECT_NEAR(area[p], sr[o], sr_tol(sar[o], n)) << "atom " << o;
-  }
+  expect_areas(area, s.sas.order().head(area.size()), sr, sar, n);
   const ConcavePatches &con = s.ses.concave();
   for (int p = 0; p < con.pos.cols(); ++p)
     EXPECT_GE(con.atoms.degree(p), 3);
@@ -405,7 +408,7 @@ TEST(BuildSasTest, FourSphereVertex) {
   ArrayXd sar = ArrayXd::Constant(4, reach);
 
   const Surface s = surface(pts, sar);
-  EXPECT_LE(probes_at(s.ses.concave().pos, Vector3d::Zero(), 1e-6), 4);
+  EXPECT_LE(count_probes_at(s.ses.concave().pos, Vector3d::Zero(), 1e-6), 4);
   expect_no_coincident_pairs(pts, sar);
   const double total = s.sas.convex().area.sum();
   EXPECT_NEAR(total, sr_total(pts, sar), 1e-2 * total);
@@ -416,7 +419,7 @@ TEST(BuildSasTest, FiveSphereVertex) {
   const ArrayXd sar = ArrayXd::Constant(5, 2.0);
 
   const Sas sas = solve(pts, sar);
-  EXPECT_LE(probes_at(sas.geo.probes.pos, Vector3d::Zero()), 1);
+  EXPECT_LE(count_probes_at(sas.geo.probes.pos, Vector3d::Zero()), 1);
   expect_no_unmerged_pairs(sas.geo.probes.pos, merge_tol(sas));
   EXPECT_NEAR(sas.geo.area.sum(), sr_total(pts, sar),
               1e-2 * sas.geo.area.sum());
@@ -533,7 +536,7 @@ TEST(BuildSasTest, GrazingApexWithinTolerance) {
     pts.col(3) = t.x - (t.sar[3] - depth) * m;
 
     auto [ss, geo] = solve(pts, t.sar);
-    EXPECT_GE(probes_at(geo.probes.pos, t.x, kSurfaceLengthEps), 1)
+    EXPECT_GE(count_probes_at(geo.probes.pos, t.x, kSurfaceLengthEps), 1)
         << "depth " << depth;
     const ArrayXd sr = sr_sasa_impl(pts, t.sar, 20000, SrSasaMethod::kDirect);
     for (int p = 0; p < 4; ++p)
@@ -1446,8 +1449,7 @@ TEST(BuildSasTest, IdenticalTwinsKeepActive) {
  */
 TEST(BuildSasTest, SharedCircleMiddle) {
   for (int mid = 0; mid < 3; ++mid) {
-    ArrayXd sar;
-    const Matrix3Xd pts = shared_circle_pts(mid, sar);
+    const auto [pts, sar] = shared_circle_pts(mid);
     const Surface s = surface(pts, sar);
     ASSERT_EQ(s.sas.n_atoms(), 2);
     EXPECT_TRUE((s.sas.order() != mid).all());
@@ -1456,8 +1458,7 @@ TEST(BuildSasTest, SharedCircleMiddle) {
   }
 
   for (const double shift: { 1e-9, -1e-9 }) {
-    ArrayXd sar;
-    Matrix3Xd pts = shared_circle_pts(1, sar);
+    auto [pts, sar] = shared_circle_pts(1);
     pts(2, 1) += shift;
     const Surface s = surface(pts, sar);
     ASSERT_EQ(s.sas.n_atoms(), 3);
@@ -1465,9 +1466,9 @@ TEST(BuildSasTest, SharedCircleMiddle) {
   }
 
   for (int seed = 0; seed < 8; ++seed) {
-    ArrayXd sar;
-    const Matrix3Xd pts = rigid(shared_circle_pts(seed % 3, sar), seed);
-    expect_sr(surface(pts, sar), pts, sar);
+    const Balls b = shared_circle_pts(seed % 3);
+    const Matrix3Xd pts = rigid(b.pts, seed);
+    expect_sr(surface(pts, b.sar), pts, b.sar);
   }
 }
 
@@ -1477,13 +1478,12 @@ TEST(BuildSasTest, SharedCircleMiddle) {
  */
 TEST(BuildSasTest, SharedCircleMiddleUnderContainedOuter) {
   for (int mid = 0; mid < 3; ++mid) {
-    ArrayXd sar3;
-    const Matrix3Xd pts3 = shared_circle_pts(mid, sar3);
+    const Balls b = shared_circle_pts(mid);
     Matrix3Xd pts(3, 4);
-    pts.leftCols(3) = pts3;
+    pts.leftCols(3) = b.pts;
     pts.col(3) << 0, 0, 1.140625;
     ArrayXd sar(4);
-    sar << sar3, 3.5;
+    sar << b.sar, 3.5;
 
     const Sas sas = solve(pts, sar);
     ASSERT_EQ(sas.ss.order.size(), 2);
@@ -1518,8 +1518,7 @@ void append_off_axis(Matrix3Xd &pts, ArrayXd &sar, const int n,
  */
 TEST(BuildSasTest, SharedCircleMiddleAmongNeighbors) {
   for (int mid = 0; mid < 3; ++mid) {
-    ArrayXd sar;
-    Matrix3Xd pts = shared_circle_pts(mid, sar);
+    auto [pts, sar] = shared_circle_pts(mid);
     append_off_axis(pts, sar, 6, mid);
 
     const Surface s = surface(pts, sar);
@@ -1537,10 +1536,9 @@ TEST(BuildSasTest, SharedCircleMiddleAmongNeighbors) {
  * middles pass reads its row from outside the three-hop set.
  */
 Masked shared_circle_chain(const int mid) {
-  Masked m;
-  m.pts = shared_circle_pts(mid, m.sar);
-  m.active = append_chain(m.pts, m.sar, { 0, 0, 5.078125 });
-  return m;
+  auto [pts, sar] = shared_circle_pts(mid);
+  const ArrayXb active = append_chain(pts, sar, { 0, 0, 5.078125 });
+  return { std::move(pts), std::move(sar), active };
 }
 
 TEST(BuildSasTest, BandSharedCircleRowAtHopFour) {
@@ -1826,14 +1824,13 @@ void for_each_axis_variant(const Matrix3Xd &pts, const F &f) {
  * sees two tangent discs, no probe sits at the point.
  */
 TEST(BuildSasTest, TangentPairThirdSphereThroughPoint) {
-  ArrayXd sar;
-  const Matrix3Xd base = tangent_through_pts(sar);
+  const Balls b = tangent_through_pts();
   const double rp = 0.5;
   int n_variants = 0;
 
-  for_each_axis_variant(base, [&](const Matrix3Xd &pts) {
-    const ArrayXd sr = sr_sasa_impl(pts, sar, 20000, SrSasaMethod::kDirect);
-    for_each_index_order(pts, sar,
+  for_each_axis_variant(b.pts, [&](const Matrix3Xd &pts) {
+    const ArrayXd sr = sr_sasa_impl(pts, b.sar, 20000, SrSasaMethod::kDirect);
+    for_each_index_order(pts, b.sar,
                          [&](const Matrix3Xd &p, const ArrayXd &r,
                              const std::vector<int> &order) {
                            const Sas sas = solve(p, r, rp);
@@ -1855,10 +1852,8 @@ TEST(BuildSasTest, TangentPairThirdSphereThroughPoint) {
  * circles against the tangent apex, the limit accepts them.
  */
 TEST(BuildSasTest, TangentPairFourFoldPoint) {
-  ArrayXd sar3;
-  const Matrix3Xd base3 = tangent_through_pts(sar3);
   Matrix3Xd base(3, 4);
-  base.leftCols(3) = base3;
+  base.leftCols(3) = tangent_through_pts().pts;
   base.col(3) << 1.5, 0, 1.5;
   const ArrayXd sar = ArrayXd::Constant(4, 1.5);
   const Vector3d x(1.5, 0, 0);
@@ -1995,11 +1990,15 @@ TEST(BuildSasTest, TouchingCapsWithoutLensVertex) {
   EXPECT_NEAR(ref[3], 74.707532, 1e-5);
 }
 
+constexpr int kOrderStride = 37;
+
 /**
  * The tangent pair of radius 7 with four spheres through the touching
  * point whose centers are coplanar with it: a 6-fold touch with three
  * tangent pairs, whose deleted circles leave the roots of `{0, 2, 4}` and
- * `{0, 3, 5}` at the origin on no common circle.
+ * `{0, 3, 5}` at the origin on no common circle. Every `kOrderStride`-th of
+ * the 720 index orders is solved; 37 is prime to 720, so the sampled orders
+ * spread over the permutation sequence instead of sharing a prefix.
  */
 TEST(BuildSasTest, TouchingCapsSixFold) {
   Matrix3Xd pts(3, 6);
@@ -2014,7 +2013,7 @@ TEST(BuildSasTest, TouchingCapsSixFold) {
   for_each_index_order(
       pts, sar,
       [&](const Matrix3Xd &p, const ArrayXd &r, const std::vector<int> &order) {
-        if (k++ % 37 != 0)
+        if (k++ % kOrderStride != 0)
           return;
         const Sas sas = solve(p, r);
         expect_no_unmerged_pairs(sas.geo.probes.pos, merge_tol(sas));
@@ -2030,8 +2029,7 @@ TEST(BuildSasTest, TouchingCapsSixFold) {
  * floating positions do not resolve the circle.
  */
 TEST(BuildSasTest, RoundingTinyCirclesUnderRigidMotion) {
-  ArrayXd sar3;
-  const Matrix3Xd base3 = tangent_through_pts(sar3);
+  const auto [base3, sar3] = tangent_through_pts();
   const TangentApex t = tangent_apex(0);
 
   for (int seed = 0; seed < 128; ++seed) {
@@ -2174,29 +2172,29 @@ TEST(BuildSasTest, CoincidentShellProbesAcrossOccluderCircle) {
   const ArrayXd sar = ArrayXd::Constant(6, 1.5);
   const Vector3d x(1.5, 0, 0);
 
-  std::array<int, 6> perm { 0, 1, 2, 3, 4, 5 };
-  do {
-    Matrix3Xd pts(3, 6);
-    ArrayXb shell(6);
-    for (int i = 0; i < 6; ++i) {
-      pts.col(i) = base.col(perm[i]);
-      shell[i] = perm[i] == 5;
-    }
-    for (const bool all: { false, true }) {
-      const std::optional<SurfaceSpheres> ss = prepare(
-          pts, sar - 0.5, all ? ArrayXb::Constant(6, true) : shell, 0.5);
-      ASSERT_TRUE(ss);
-      ASSERT_EQ(ss->n_enum, all ? 6 : 4);
-      const SasDelaunay del = triangulate(*ss);
-      const SasGeometry geo = build_sas(*ss, del);
+  for_each_index_order(
+      base, sar,
+      [&](const Matrix3Xd &pts, const ArrayXd &r,
+          const std::vector<int> &order) {
+        ArrayXb shell(6);
+        for (int i = 0; i < 6; ++i)
+          shell[i] = order[i] == 5;
+        for (const bool all: { false, true }) {
+          const std::optional<SurfaceSpheres> ss = prepare(
+              pts, r - 0.5, all ? ArrayXb::Constant(6, true) : shell, 0.5);
+          ASSERT_TRUE(ss);
+          ASSERT_EQ(ss->n_enum, all ? 6 : 4);
+          const SasDelaunay del = triangulate(*ss);
+          const SasGeometry geo = build_sas(*ss, del);
 
-      const int c = probe_at(geo.probes.pos, x);
-      ASSERT_GE(c, 0) << "all " << all << " perm " << perm[0] << perm[1]
-                      << perm[2] << perm[3] << perm[4] << perm[5];
-      EXPECT_EQ(geo.probes.atoms.degree(c), 4);
-      expect_no_unmerged_pairs(geo.probes.pos, probe_merge_tol(sar.maxCoeff()));
-    }
-  } while (std::next_permutation(perm.begin(), perm.end()));
+          const int c = probe_at(geo.probes.pos, x);
+          ASSERT_GE(c, 0) << "all " << all << " perm " << order[0] << order[1]
+                          << order[2] << order[3] << order[4] << order[5];
+          EXPECT_EQ(geo.probes.atoms.degree(c), 4);
+          expect_no_unmerged_pairs(geo.probes.pos,
+                                   probe_merge_tol(r.maxCoeff()));
+        }
+      });
 }
 
 /**
@@ -2356,14 +2354,16 @@ void expect_same_geometry(const SurfaceGeometry &a, const SurfaceGeometry &b) {
   expect_same_caps(ca.caps, cb.caps);
 }
 
+std::array<Masked, 2> masked_fixtures() {
+  return { random_masked(80, 11, 3), random_masked(60, 3, 1) };
+}
+
 /**
  * `build_both` gives the geometries of `build_sas` and `build_ses`, table
  * for table, from the same triangulation seed.
  */
 TEST(BuildSasTest, BuildBothMatchesSingle) {
-  const std::array<Masked, 2> fixtures { random_masked(80, 11, 3),
-                                         random_masked(60, 3, 1) };
-  for (const Masked &m: fixtures) {
+  for (const Masked &m: masked_fixtures()) {
     const ArrayXd r = m.sar - kRp;
     AnalyticSurface surf(m.pts, r);
     ASSERT_TRUE(surf.initialize(kRp, m.active));
@@ -2385,9 +2385,7 @@ TEST(BuildSasTest, BuildBothMatchesSingle) {
  * The public geometries are the active prefixes of the stage tables.
  */
 TEST(BuildSasTest, PublicGeometryMatchesStages) {
-  const std::array<Masked, 2> fixtures { random_masked(80, 11, 3),
-                                         random_masked(60, 3, 1) };
-  for (const Masked &m: fixtures) {
+  for (const Masked &m: masked_fixtures()) {
     const ArrayXd r = m.sar - kRp;
 
     seed_thread(0);

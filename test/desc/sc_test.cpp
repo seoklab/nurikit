@@ -41,7 +41,7 @@ TEST(ShapeComplementarityTest, FacingSlabs) {
       shape_complementarity(a, radii, b, radii);
   ASSERT_TRUE(tight);
   EXPECT_GT(tight->sc, 0.6);
-  EXPECT_LE(tight->sc, 0.999);
+  EXPECT_LE(tight->sc, ScParams {}.clamp);
   EXPECT_LT(tight->distance, 1.0);
   EXPECT_GT(tight->area, 0.0);
   for (const ScSide &s: tight->sides) {
@@ -280,7 +280,8 @@ TEST(ShapeComplementarityTest, ParamsMatter) {
   const std::optional<ScResult> dense = seeded_slabs(params);
   ASSERT_TRUE(dense);
   for (int i = 0; i < 2; ++i) {
-    const double expected = 2.0 * base->sides[i].n_dots;
+    const double expected =
+        params.density / ScParams {}.density * base->sides[i].n_dots;
     EXPECT_NEAR(dense->sides[i].n_dots, expected, 0.1 * expected);
   }
 
@@ -331,7 +332,7 @@ TEST(ShapeComplementarityTest, BarnaseBarstar) {
     EXPECT_GT(s.trimmed_area, 0.0);
     EXPECT_GT(s.d_median, 0.0);
     EXPECT_GT(s.s_median, 0.0);
-    EXPECT_LE(s.s_median, 0.999);
+    EXPECT_LE(s.s_median, ScParams {}.clamp);
   }
 }
 }  // namespace

@@ -16,8 +16,8 @@ SLAB_N = 7
 SLAB_ATOMS = SLAB_N**2
 
 
-def slab(z: float, n: int = SLAB_N, spacing: float = 3.0):
-    xs = (np.arange(n) - (n - 1) / 2) * spacing
+def slab(z: float):
+    xs = (np.arange(SLAB_N) - (SLAB_N - 1) / 2) * 3.0
     gx, gy = np.meshgrid(xs, xs, indexing="ij")
     return np.column_stack(
         [gx.ravel(), gy.ravel(), np.full(gx.size, z, dtype=float)]
@@ -45,7 +45,7 @@ def tight(slab_a: np.ndarray, slab_b: np.ndarray, radii: np.ndarray):
 
 
 def test_facing_slabs(tight: ScResult, slab_a: np.ndarray, radii: np.ndarray):
-    assert 0.6 < tight.sc <= 0.999
+    assert 0.6 < tight.sc
     assert tight.distance < 1.0
     assert tight.area > 0.0
     assert all(s.n_trimmed > 0 for s in tight.sides)

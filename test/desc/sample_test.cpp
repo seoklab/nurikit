@@ -42,8 +42,7 @@ struct Spheres {
 };
 
 Spheres three_spheres() {
-  ArrayXd sar;
-  Matrix3Xd pts = three_spheres_pts(sar, kRp);
+  auto [pts, sar] = three_spheres_pts(kRp);
   return { std::move(pts), std::move(sar), ArrayXb::Constant(3, true) };
 }
 
@@ -212,6 +211,10 @@ TEST(SurfaceSamplerTest, SingleSphere) {
   }
 }
 
+/**
+ * Two spheres on an ordinary torus: the SES area of Quan & Stamm (2016),
+ * Table 1.
+ */
 TEST(SurfaceSamplerTest, TwoSpheresStammTable1) {
   const double rp = 1.2;
   Matrix3Xd pts(3, 2);
