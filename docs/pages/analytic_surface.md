@@ -1342,30 +1342,31 @@ also @ref lemma-7 "Lemma 7".
 
 \anchor lemma-8
 **Lemma 8 (cutting is symmetric).** Let \f$z = x + r_p d\f$ be a face point of
-a vertex \f$x\f$ whose direction \f$d\f$ is strictly inside the cone and
-outside the null set of @ref lemma-6 "Lemma 6", and let \f$z\f$ be cut by some
-vertex, so that its first-touch radius satisfies \f$t_1 < r_p\f$ and the
-first-touch point \f$s_1\f$ is a vertex \f$y\f$. Call \f$y\f$ the
-**first-touch cutter** of \f$z\f$ and let \f$q = x + t_1 d\f$ be the center of
-the first-touch ball. Then \f$q\f$ is equidistant from \f$x\f$ and \f$y\f$ at
-distance \f$t_1\f$, \f$B(q, t_1) \subset U\f$, the directions
+a vertex \f$x\f$ as in @ref lemma-6 "Lemma 6" (contact directions spanning
+space, \f$d\f$ strictly inside the cone and outside the null set), and let
+\f$z\f$ be cut by some vertex, so that its first-touch radius satisfies
+\f$t_1 < r_p\f$ and a first-touch point \f$s_1\f$ is a vertex \f$y\f$. Call
+\f$y\f$ the **first-touch cutter** of \f$z\f$ and let \f$q = x + t_1 d\f$ be
+the center of the first-touch ball. Then \f$q\f$ is equidistant from \f$x\f$
+and \f$y\f$ at distance \f$t_1\f$, \f$B(q, t_1) \subset U\f$, the directions
 \f$\nu_x = (q - x)/t_1\f$ and \f$\nu_y = (q - y)/t_1\f$ lie in \f$C_x\f$ and
-\f$C_y\f$, and the ball of \f$x\f$ reaches the face region of \f$y\f$ beyond
-\f$y\f$'s contact plane: \f$|y + r_p \nu_y - x| < r_p\f$ and
-\f$t_y(\nu_y) < r_p\f$. In particular, if the cap of a vertex \f$y\f$ with
-\f$|x - y| < 2 r_p\f$ removes a region of positive area from the face of
-\f$x\f$ computed without \f$y\f$ (the cone minus the caps of all other
-vertices within \f$2 r_p\f$), then \f$y\f$ is the first-touch cutter of every
-removed face point outside the null set.
+\f$C_y\f$, and the ball of \f$x\f$ reaches \f$y\f$'s cone beyond \f$y\f$'s
+contact plane: \f$|y + r_p \nu_y - x| < r_p\f$ and \f$t_y(\nu_y) < r_p\f$.
+In particular, if the cap of a vertex \f$y\f$ with \f$|x - y| < 2 r_p\f$
+removes a region of positive area from the face of \f$x\f$ computed without
+\f$y\f$ (the cone minus the caps of all other vertices within \f$2 r_p\f$),
+then \f$y\f$ is the first-touch cutter of every removed face point outside
+the null set and the cone boundary.
 
 *Proof.* \f$B(q, t_1) \subset U\f$ with \f$x\f$ and \f$y\f$ on its boundary is
 @ref lemma-6 "Lemma 6". \f$\nu_x = d\f$ by construction. If \f$\nu_y\f$ were
 outside \f$C_y\f$, a direction \f$w\f$ with \f$w \cdot \nu_y > 0\f$ and
 \f$w \cdot \hat c_a(y) \le 0\f$ for every host \f$a\f$ of \f$y\f$ would put
 \f$y + \delta w\f$ inside \f$B^\circ(q, t_1) \subset U\f$ and, by the
-\f$\delta^2\f$ term, outside every host ball and every other ball, for small
-\f$\delta > 0\f$. Then \f$|y + r_p \nu_y - x| \le |y + r_p \nu_y - q| +
-|q - x| = (r_p - t_1) + t_1 = r_p\f$, with equality only if \f$q - x\f$ and
+\f$\delta^2\f$ term, outside every host ball, hence by continuity outside
+every other ball too, for small \f$\delta > 0\f$. Then
+\f$|y + r_p \nu_y - x| \le |y + r_p \nu_y - q| + |q - x| = (r_p - t_1) + t_1 =
+r_p\f$, with equality only if \f$q - x\f$ and
 \f$q - y\f$ point the same way, which with equal lengths means \f$x = y\f$.
 Finally @ref corollary-1 "Corollary 1"(a) at \f$y\f$, with the SAS point
 \f$x\f$, gives \f$t_y(\nu_y) < r_p\f$. For the last claim pick a removed face
@@ -1384,14 +1385,14 @@ cap and \f$y\f$'s spherical triangle. Hence the two tests
 cutting in either direction, and a failure on either side drops the pair *for
 both faces*.
 
-*Proof.* \f$x\f$ reaches \f$y\f$'s face beyond its plane by
+*Proof.* \f$x\f$ reaches \f$y\f$'s cone beyond its plane by
 @ref lemma-8 "Lemma 8", so \f$y\f$ is low (@ref corollary-1 "Corollary 1"(c)).
 The x-side test is immediate from @ref corollary-1 "Corollary 1"(a) (the
 cut point's direction lies in
 \f$\mathrm{cap}(y) \cap D_x \cap \text{triangle}_x\f$), the y-side test is
 @ref lemma-8 "Lemma 8"; by symmetry the same two conditions are necessary
-for \f$x\f$ to cut \f$y\f$. The hypothesis of @ref lemma-8 "Lemma 8" that
-the face is computed without \f$y\f$ cannot be dropped: a point of
+for \f$x\f$ to cut \f$y\f$. The hypothesis of @ref lemma-8 "Lemma 8"'s last
+clause that the face is computed without \f$y\f$ cannot be dropped: a point of
 \f$x\f$'s beyond-plane cap can lie inside \f$y\f$'s ball while \f$x\f$'s
 ball misses \f$y\f$'s cone entirely; such a point is always inside some
 other vertex ball, which is what @ref lemma-6 "Lemma 6" finds.
