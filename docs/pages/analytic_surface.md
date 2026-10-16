@@ -199,7 +199,7 @@ bands that are supersets of exactly decided sets; every decision is exact.
    in `need`, every circle between two of them is solved, and the probe's
    departure tangents are complete. Every first-touch cutter (@ref lemma-8
    "Lemma 8") of a face on an active atom, all a face needs by @ref lemma-6
-   "Lemma 6", has a host in `shell` (@ref corollary-3 "Corollary 3"): it is
+   "Lemma 6", has a host below `n_enum` (@ref corollary-3 "Corollary 3"): it is
    enumerated, its accessibility is decided like every other root, and its cap
    is present. Its own departure tangents may be incomplete (a circle between
    two of its occluder hosts gets no ring); it is then skipped by the triangle
@@ -265,13 +265,14 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    \f$\partial \mathcal{P} / \partial h_m\f$, \f$\mathcal{P}\f$ the predicate
    value, for \f$h_m \to h_m - e_m\f$ with \f$e_i \gg e_j\f$ for \f$i < j\f$:
    every ball grows, lower index first. Formally \f$\rho_i^2(\varepsilon) =
-   \rho_i^2 + e_i\f$, \f$e_i = \varepsilon \eta^i\f$, with \f$0 < \varepsilon
-   \ll \eta \ll 1\f$ and \f$\varepsilon\f$ below every power of \f$\eta\f$, so
-   that at first order the term of the lowest index dominates every later one,
-   every second-order term is negligible against every first-order one, and a
-   \f$\sqrt\varepsilon\, \eta^k\f$ term of a vanished discriminant dominates
-   every first-order \f$\varepsilon \eta^m\f$ term; the sign of a tied predicate
-   is the sign of its first non-zero first-order coefficient in index order.
+   \rho_i^2 + e_i\f$, \f$e_i = \varepsilon \varpi^i\f$, with \f$0 <
+   \varepsilon \ll \varpi \ll 1\f$ and \f$\varepsilon\f$ below every power of
+   \f$\varpi\f$, so that at first order the term of the lowest index dominates
+   every later one, every second-order term is negligible against every
+   first-order one, and a \f$\sqrt\varepsilon\, \varpi^k\f$ term of a vanished
+   discriminant dominates every first-order \f$\varepsilon \varpi^m\f$ term; the
+   sign of a tied predicate is the sign of its first non-zero first-order
+   coefficient in index order.
    Geogram's predicate is linear in the heights, the polynomial case the cited
    scheme covers. The perturbation is a limit along a curve in the sense of
    @cite desc:surface:seidel-1998, and predicates on circle intersections, which
@@ -511,7 +512,9 @@ point at the same position to rounding, and each accepted one is a probe.
 around an edge visits the circle's vertices in their order along the circle.
 Precisely: assume no face of the fan is tangent to the circle (a double root is
 perturbed to a cut or a miss before this lemma applies) and no cell orthocenter
-lies on the circle (a tie that `accept` perturbs away).
+lies on the circle (a tie that `accept` perturbs away). Then the fan order is
+the cyclic order of the vertices on the circle, each cutting face contributing
+its exit from \f$F_{ab}\f$ and then its entry.
 
 *Proof.* The circle \f$(a, b)\f$ and the power facet
 \f$F_{ab} = V_a \cap V_b\f$ both lie in the radical plane
@@ -565,7 +568,7 @@ depend on the dropped atoms). Running `triangulate`, `build_sas`, `build_ses`
 and the sampler on \f$S'\f$ instead of \f$S\f$ leaves unchanged, as sets:
 
 - (a) the accepted roots, each named by its sorted sphere triple and root sign,
-  with their positions, hence the probes, their atom lists;
+  with their positions, hence the probes and their atom lists;
 - (b) on every sphere below `n_enum` the ring of every circle, the arcs with
   their \f$\varphi\f$, \f$\Delta\varphi\f$, ends and tangents, the union of its
   caps and its component count, and, where it is solved (below `n_solve`), its
@@ -854,7 +857,7 @@ spheres through it, \f$e_i\f$ the weight perturbations of
 pair \f$(p^*, q^*)\f$ at \f$x_0\f$ with the largest \f$\gamma\f$ is unique (the
 \f$\gamma\f$ are linear forms in \f$e\f$ with disjoint supports). Let \f$\gamma
 = \gamma_{p^*q^*} + \delta\f$ with \f$\varepsilon^2 \ll \delta \ll
-\varepsilon\eta^n\f$, \f$n\f$ the number of kept spheres, and let \f$\Sigma\f$
+\varepsilon\varpi^n\f$, \f$n\f$ the number of kept spheres, and let \f$\Sigma\f$
 be the configuration with weights \f$\rho_i^2(\varepsilon) - \gamma\f$, a
 genuine arrangement for all but finitely many \f$\delta\f$. Then in a ball
 \f$N\f$ around \f$x_0\f$ that meets no sphere outside \f$K\f$, for every index
@@ -882,14 +885,14 @@ in \f$\Sigma\f$ no point has both \f$\pi_p\f$ and \f$\pi_q\f$ below
 1. *Orthocenters.* Let \f$T \subset K\f$ be a cell with power
    \f$\lambda_T\f$ at \f$o_T = x_0 + O(\varepsilon)\f$. For \f$m \notin T\f$,
    \f$\pi_m(o_T) - \lambda_T > 0\f$, and its first-order part has coefficient
-   \f$-1\f$ on \f$e_m\f$, so it is at least \f$c\,\varepsilon\eta^n\f$.
+   \f$-1\f$ on \f$e_m\f$, so it is at least \f$c\,\varepsilon\varpi^n\f$.
    Trivially
    \f$\lambda_T = \Phi_{p^*q^*}(o_T) - [\rho_{q^*}(\pi_{p^*} - \lambda_T) + \rho_{p^*}(\pi_{q^*} - \lambda_T)](o_T)/(\rho_{p^*} + \rho_{q^*})\f$.
    If \f$T \supseteq \{p^*, q^*\}\f$ the bracket vanishes and
    \f$\lambda_T = |o_T - x_0|^2 - \gamma_{p^*q^*} \in (-\gamma, 0)\f$;
-   otherwise the bracket is at least \f$c\,\varepsilon\eta^n \gg \delta\f$ and
-   \f$\lambda_T < -\gamma - c'\varepsilon\eta^n\f$. The same identity for a
-   second pair in \f$T\f$ would put \f$\lambda_T\f$ within \f$O(\varepsilon^2)\f$
+   otherwise the bracket is at least \f$c\,\varepsilon\varpi^n \gg \delta\f$
+   and \f$\lambda_T < -\gamma - c'\varepsilon\varpi^n\f$. The same identity for
+   a second pair in \f$T\f$ would put \f$\lambda_T\f$ within \f$O(\varepsilon^2)\f$
    of both \f$-\gamma_{pq}\f$ and a value at or below \f$-\gamma_{p^*q^*}\f$,
    which differ at first order. So the only partners inside one cell are
    \f$p^*, q^*\f$, and the only apex in \f$K\f$ the run leaves untested is
@@ -909,12 +912,12 @@ in \f$\Sigma\f$ no point has both \f$\pi_p\f$ and \f$\pi_q\f$ below
    (b) If \f$x_0\f$ is a double root, the centers of \f$F\f$ are coplanar
    with \f$x_0\f$, and a partner of a member of \f$F\f$ has its center on
    that plane, so it is never an apex (the cell would be flat): every apex
-   in \f$K\f$ is tested. On \f$\ell_F\f$, \f$P = |u|^2 s^2 + \mu_F\f$ with the
-   foot within \f$O(\varepsilon)\f$ of \f$x_0\f$. An apex in \f$K\f$ gives
-   \f$\mu_F \le \lambda_{F \cup l}\f$; if both apexes are outside \f$K\f$,
-   the foot lies on the dual edge, and the bracket of 1 at the foot is
-   again at least \f$c\,\varepsilon\eta^n\f$. In both cases
-   \f$\mu_F < -\gamma - c'\varepsilon\eta^n\f$, so both levels cut, at
+   in \f$K\f$ is tested. On \f$\ell_F\f$, \f$P = |u|^2 s^2 + P_F^{\min}\f$ with
+   the foot within \f$O(\varepsilon)\f$ of \f$x_0\f$. An apex in \f$K\f$ gives
+   \f$P_F^{\min} \le \lambda_{F \cup l}\f$; if both apexes are outside
+   \f$K\f$, the foot lies on the dual edge, and the bracket of 1 at the foot is
+   again at least \f$c\,\varepsilon\varpi^n\f$. In both cases
+   \f$P_F^{\min} < -\gamma - c'\varepsilon\varpi^n\f$, so both levels cut, at
    \f$|s| \gg \varepsilon\f$, beyond every \f$o_T\f$ of \f$K\f$, and a root is
    accepted at either level iff the dual edge leaves \f$N\f$ on its side.
    Faces with a sphere outside \f$K\f$ have no root in \f$N\f$. So the run's
@@ -1382,7 +1385,7 @@ both faces*.
 *Proof.* \f$x\f$ reaches \f$y\f$'s face beyond its plane by
 @ref lemma-8 "Lemma 8", so \f$y\f$ is low (@ref corollary-1 "Corollary 1"(c)).
 The x-side test is immediate from @ref corollary-1 "Corollary 1"(a) (the
-removed direction lies in
+cut point's direction lies in
 \f$\mathrm{cap}(y) \cap D_x \cap \text{triangle}_x\f$), the y-side test is
 @ref lemma-8 "Lemma 8"; by symmetry the same two conditions are necessary
 for \f$x\f$ to cut \f$y\f$. The hypothesis of @ref lemma-8 "Lemma 8" that
@@ -1455,8 +1458,6 @@ reached), the corner test covering feet off their arcs. The first disjunct
 is not redundant: a neighbor probe whose cap lies entirely in the interior
 of the triangle, a hole punched in the middle of a face, meets \f$S\f$
 without meeting \f$\partial S\f$, and dropping it would delete the hole.
-
-No square root is taken; all comparisons are on cosines or their squares.
 
 The tangents are computed, each within
 \f$\eta_t =\f$ `kTangentEps` \f$=\f$ `kSurfaceAngleEps` \f$+ 4 \cdot 2^{-53}\f$

@@ -570,9 +570,10 @@ private:
  * across calls. See @ref analytic_surface for the stages and the deviations
  * from Rosetta's `sc`.
  *
- * @note No coordinate may exceed 1e4 angstroms in absolute value; subtract
- *       one common shift from all inputs first. Centering inside would
- *       re-round one side's dots against the other's raw coordinates.
+ * @note Each side must have at least one atom. No coordinate may exceed 1e4
+ *       angstroms in absolute value; subtract one common shift from all
+ *       inputs first. Centering inside would re-round one side's dots against
+ *       the other's raw coordinates.
  */
 class ShapeComplementarity {
 public:
@@ -618,8 +619,9 @@ private:
  *         inputs of either side are rejected or no interface dot of either
  *         side survives trimming.
  *
- * @note No coordinate may exceed 1e4 angstroms in absolute value; subtract
- *       one common shift from all inputs first.
+ * @note Each side must have at least one atom. No coordinate may exceed 1e4
+ *       angstroms in absolute value; subtract one common shift from all
+ *       inputs first.
  */
 extern std::optional<ScResult>
 shape_complementarity(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
@@ -645,8 +647,9 @@ shape_complementarity(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
  *         inputs of either side are rejected or no interface dot of either
  *         side survives trimming.
  *
- * @note No coordinate may exceed 1e4 angstroms in absolute value; subtract
- *       one common shift from all inputs first.
+ * @note Each side must have at least one atom. No coordinate may exceed 1e4
+ *       angstroms in absolute value; subtract one common shift from all
+ *       inputs first.
  */
 extern std::optional<ScResult>
 shape_complementarity(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,

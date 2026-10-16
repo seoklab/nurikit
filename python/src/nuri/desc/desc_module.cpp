@@ -126,8 +126,8 @@ Total area of the surface, in angstroms squared.
       },
       R"doc(
 The original atom index of each convex patch, parallel to
-``area(SurfacePatch.Convex)``. Atoms that own no surface (inactive ones) are
-absent.
+``area(SurfacePatch.Convex)``. Atoms that own no surface (inactive or dropped
+ones) are absent.
 )doc");
 }
 
