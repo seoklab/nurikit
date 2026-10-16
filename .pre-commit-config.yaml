@@ -64,7 +64,6 @@ repos:
           (?x)^(
             test/test_data/|
             fuzz/corpus-min/|
-            \.github/patches/|
             src/third-party/|
             \.agents/|
             \.github/|
