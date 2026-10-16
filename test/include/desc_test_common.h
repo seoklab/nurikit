@@ -130,12 +130,12 @@ inline Matrix3Xd rigid(const Matrix3Xd &pts, const int seed) {
  * `{0, 2, 3}` and `{1, 2, 3}` there are linked only by the circle of the
  * pair `(2, 3)`, which carries no ring when both are occluders.
  */
-inline Matrix3Xd occluder_shell_pts() {
-  Matrix3Xd base(3, 6);
-  base << 0, 3, 1.5, 1.5, 1.5, 1.5,  //
-      0, 0, 1.5, 0, -1.5, -3.5,      //
+inline Balls occluder_shell_pts() {
+  Matrix3Xd pts(3, 6);
+  pts << 0, 3, 1.5, 1.5, 1.5, 1.5,  //
+      0, 0, 1.5, 0, -1.5, -3.5,     //
       0, 0, 0, 1.5, -1.5, -3.5;
-  return base;
+  return { pts, ArrayXd::Constant(6, 1.5) };
 }
 
 /**
@@ -150,6 +150,18 @@ inline Balls tangent_through_pts() {
   return { pts, ArrayXd::Constant(3, 1.5) };
 }
 
+/**
+ * Four coplanar spheres at the corners of a square, through the two points
+ * `(0, 0, +-0.5)`, and an apex sphere covering the upper one.
+ */
+inline Balls square_apex() {
+  Matrix3Xd pts(3, 5);
+  pts << 1, 1, -1, -1, 0,  //
+      1, -1, 1, -1, 0,     //
+      0, 0, 0, 0, 1.6;
+  return { pts, ArrayXd::Constant(5, 1.5) };
+}
+
 inline Balls three_spheres_pts(const double rp) {
   Matrix3Xd pts(3, 3);
   pts << 0, 4.8, 2.6,  //
@@ -160,13 +172,18 @@ inline Balls three_spheres_pts(const double rp) {
   return { pts, sar };
 }
 
+struct NearTangentFace {
+  Balls balls;
+  double zc;
+};
+
 /**
  * Spheres 1, 2 overlap by 1e-4 in a circle of radius 0.014 that sphere 0
- * cuts nearly tangentially, so the face's two roots sit `h` on either side
- * of the plane of the three centers with nearly coplanar departure
- * tangents; sphere 3 supplies cutters within `2 rp` of them.
+ * cuts nearly tangentially, so the face's two roots `(0, +-h, zc)` sit `h`
+ * on either side of the plane of the three centers with nearly coplanar
+ * departure tangents; sphere 3 supplies cutters within `2 rp` of them.
  */
-inline Balls near_tangent_face(const double h) {
+inline NearTangentFace near_tangent_face(const double h) {
   const double r = 2.0, d = 4.0 - 1e-4, zs = 3.0;
   const double rc = std::sqrt(r * r - d * d / 4),
                zc = std::sqrt(rc * rc - h * h);
@@ -177,7 +194,7 @@ inline Balls near_tangent_face(const double h) {
   pts.col(3) << 1.5, 1.5, 1.0;
   ArrayXd sar(4);
   sar << std::sqrt(h * h + (zs - zc) * (zs - zc)), r, r, 2.2;
-  return { pts, sar };
+  return { Balls { pts, sar }, zc };
 }
 
 /**

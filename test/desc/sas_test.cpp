@@ -656,7 +656,7 @@ TEST(BuildSasTest, NearPairPinchWithThirdSphere) {
  */
 TEST(BuildSasTest, TwoCutPointsOfOneFaceStayDistinct) {
   for (const double h: { 5e-6, 1e-13 }) {
-    const auto [pts4, sar4] = near_tangent_face(h);
+    const auto [pts4, sar4] = near_tangent_face(h).balls;
     const Matrix3Xd pts = pts4.leftCols(3);
     const ArrayXd sar = sar4.head(3);
 
@@ -1031,19 +1031,25 @@ TEST(BuildSasTest, TriangulationTables) {
     EXPECT_NEAR(del.ex.rho2(v), 2.25, 1e-12);
 }
 
-TEST(BuildSasTest, EdgeTablesMatchBruteForce) {
-  const int n = 80;
-  std::mt19937 rng(11);
+/**
+ * `n` spheres of radius 1.5 to 2.5 in a box of side 10, every `stride`th
+ * active.
+ */
+Masked random_masked(const int n, const int seed, const int stride) {
+  std::mt19937 rng(seed);
   std::uniform_real_distribution<double> ud(0.0, 10.0), ur(1.5, 2.5);
-  Matrix3Xd pts(3, n);
-  ArrayXd sar(n);
-  ArrayXb active(n);
+  Masked m { Matrix3Xd(3, n), ArrayXd(n), ArrayXb(n) };
   for (int i = 0; i < n; ++i) {
-    pts.col(i) << ud(rng), ud(rng), ud(rng);
-    sar[i] = ur(rng);
-    active[i] = i % 3 == 0;
+    m.pts.col(i) << ud(rng), ud(rng), ud(rng);
+    m.sar[i] = ur(rng);
+    m.active[i] = i % stride == 0;
   }
-  std::optional<SurfaceSpheres> ss = prepare(pts, sar - kRp, active, kRp);
+  return m;
+}
+
+TEST(BuildSasTest, EdgeTablesMatchBruteForce) {
+  const Masked m = random_masked(80, 11, 3);
+  std::optional<SurfaceSpheres> ss = prepare(m.pts, m.sar - kRp, m.active, kRp);
   ASSERT_TRUE(ss);
   const SasDelaunay del = triangulate(*ss);
   const SasEdgeTables tbl = edge_tables(*ss, del);
@@ -1161,11 +1167,7 @@ int flat_cells(const SasDelaunay &del, const int n_coplanar) {
  * the cover.
  */
 TEST(BuildSasTest, FlatSquareApexNoSpuriousProbe) {
-  Matrix3Xd base(3, 5);
-  base << 1, 1, -1, -1, 0,  //
-      1, -1, 1, -1, 0,      //
-      0, 0, 0, 0, 1.6;
-  const ArrayXd sar = ArrayXd::Constant(5, 1.5);
+  const auto [base, sar] = square_apex();
 
   int with_flat = 0;
   for (int seed = 0; seed < 40; ++seed) {
@@ -2168,8 +2170,7 @@ TEST(BuildSasTest, CutterOnlyClusterMerged) {
  * the all-active run is the control.
  */
 TEST(BuildSasTest, CoincidentShellProbesAcrossOccluderCircle) {
-  const Matrix3Xd base = occluder_shell_pts();
-  const ArrayXd sar = ArrayXd::Constant(6, 1.5);
+  const auto [base, sar] = occluder_shell_pts();
   const Vector3d x(1.5, 0, 0);
 
   for_each_index_order(
@@ -2206,8 +2207,7 @@ TEST(BuildSasTest, CoincidentShellProbesAcrossOccluderCircle) {
  * distinct probes.
  */
 TEST(BuildSasTest, CoincidentShellProbesUnderRigidMotion) {
-  const Matrix3Xd base = occluder_shell_pts();
-  const ArrayXd sar = ArrayXd::Constant(6, 1.5);
+  const auto [base, sar] = occluder_shell_pts();
   ArrayXb shell = ArrayXb::Constant(6, false);
   shell[5] = true;
 
@@ -2266,22 +2266,6 @@ TEST(BuildSasTest, RandomDenseSets) {
       EXPECT_NEAR(total, sr_total(pts, sar), 1e-2 * total);
     }
   }
-}
-
-/**
- * `n` spheres of radius 1.5 to 2.5 in a box of side 10, every `stride`th
- * active; stride 3 at seed 11 is the fixture of EdgeTablesMatchBruteForce.
- */
-Masked random_masked(const int n, const int seed, const int stride) {
-  std::mt19937 rng(seed);
-  std::uniform_real_distribution<double> ud(0.0, 10.0), ur(1.5, 2.5);
-  Masked m { Matrix3Xd(3, n), ArrayXd(n), ArrayXb(n) };
-  for (int i = 0; i < n; ++i) {
-    m.pts.col(i) << ud(rng), ud(rng), ud(rng);
-    m.sar[i] = ur(rng);
-    m.active[i] = i % stride == 0;
-  }
-  return m;
 }
 
 template <class Lhs, class Rhs>

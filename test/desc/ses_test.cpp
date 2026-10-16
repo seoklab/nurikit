@@ -88,16 +88,10 @@ double simpson(const F &f, const double lo, const double hi, const int n) {
   return h / 3 * (f(lo) + 4 * odd + 2 * even + f(hi));
 }
 
-struct RandomCluster {
-  Matrix3Xd pts;
-  ArrayXd sar;
-};
-
-RandomCluster random_cluster(const int seed, const int n,
-                             const double box = 6.0) {
+Balls random_cluster(const int seed, const int n, const double box = 6.0) {
   std::mt19937 rng(seed);
   std::uniform_real_distribution<double> u(0, box), ur(1.0, 1.4);
-  RandomCluster c { Matrix3Xd(3, n), ArrayXd(n) };
+  Balls c { Matrix3Xd(3, n), ArrayXd(n) };
   for (int i = 0; i < n; ++i) {
     c.pts.col(i) << u(rng), u(rng), u(rng);
     c.sar[i] = ur(rng) + kRp;
@@ -603,12 +597,12 @@ TEST(BuildSesTest, ThreeSpheresVsDots) {
 
 TEST(BuildSesTest, RandomClustersVsDots) {
   for (const int seed: { 1, 2, 3, 4, 5, 6 }) {
-    const RandomCluster c = random_cluster(seed, 8 + seed % 5);
+    const Balls c = random_cluster(seed, 8 + seed % 5);
     const SurfaceGeometry s = solve(c.pts, c.sar);
     expect_faces_match_dots(s, kRp, "seed " + std::to_string(seed));
   }
 
-  const RandomCluster dense = random_cluster(1, 32, 8.0);
+  const Balls dense = random_cluster(1, 32, 8.0);
   const SurfaceGeometry s = solve(dense.pts, dense.sar);
   EXPECT_GE(s.concave().caps.off.max_deg(), 8);
   expect_faces_match_dots(s, kRp, "dense");
@@ -658,14 +652,14 @@ int expect_filters_keep_area(const Matrix3Xd &pts, const ArrayXd &sar,
 TEST(BuildSesTest, FiltersDoNotChangeArea) {
   int n_extra = 0;
   for (const int seed: { 1, 2, 3, 4, 5, 6 }) {
-    const RandomCluster c = random_cluster(seed, 8 + seed % 5);
+    const Balls c = random_cluster(seed, 8 + seed % 5);
     n_extra +=
         expect_filters_keep_area(c.pts, c.sar, "seed " + std::to_string(seed));
   }
   EXPECT_GT(n_extra, 0);
 
   for (const double h: { 5e-6, 2e-7, 1e-13 }) {
-    const auto [pts, sar] = near_tangent_face(h);
+    const auto [pts, sar] = near_tangent_face(h).balls;
     EXPECT_GT(expect_filters_keep_area(pts, sar, "h " + std::to_string(h)), 0);
   }
 }
@@ -681,10 +675,8 @@ TEST(BuildSesTest, FiltersDoNotChangeArea) {
 TEST(BuildSesTest, NearTangentFacesAreSlivers) {
   for (const double h: { 5e-6, 2e-7, 1e-13 }) {
     SCOPED_TRACE(h);
-    const auto [pts, sar] = near_tangent_face(h);
-    const double r = 2.0, d = 4.0 - 1e-4,
-                 zc = std::sqrt(r * r - d * d / 4 - h * h);
-    const SurfaceGeometry s = solve(pts, sar);
+    const auto [balls, zc] = near_tangent_face(h);
+    const SurfaceGeometry s = solve(balls.pts, balls.sar);
     const ConcavePatches &con = s.concave();
 
     int n = 0;
@@ -1087,8 +1079,7 @@ TEST(BuildSesTest, KFoldFaceUnderRigidMotion) {
  * face boundaries, and the sums, by as much.
  */
 TEST(BuildSesTest, RoundedTangentPairFaces) {
-  const Matrix3Xd base = occluder_shell_pts();
-  const ArrayXd sar = ArrayXd::Constant(6, 1.5);
+  const auto [base, sar] = occluder_shell_pts();
   const double rp = 0.5, quarter = kPi * rp * rp;
   const Vector3d x0(1.5, 0, 0);
 
@@ -1146,7 +1137,7 @@ TEST(BuildSesTest, SpindleAxisCoincidentRoots) {
  * the shells supply every neighbor probe within `2 rp`.
  */
 TEST(BuildSesTest, MaskedFacesMatchFull) {
-  const RandomCluster c = random_cluster(11, 12);
+  const Balls c = random_cluster(11, 12);
   const SurfaceGeometry full = solve(c.pts, c.sar);
 
   for (const int stride: { 2, 6 }) {

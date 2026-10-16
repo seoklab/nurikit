@@ -735,6 +735,14 @@ Matrix3Xd nearest_queries(const Matrix3Xd &pts, double cutoff,
   return qry;
 }
 
+void expect_nearest_exact(const Matrix3Xd &pts, const Vector3d &q,
+                          const VoxelGrid &grid, const std::string &ctx) {
+  auto [ref_idx, ref_dsq] = brute_nearest(pts, q);
+  auto [idx, dsq] = grid.nearest(q);
+  EXPECT_EQ(idx, ref_idx) << ctx;
+  EXPECT_DOUBLE_EQ(dsq, ref_dsq) << ctx;
+}
+
 void verify_nearest(const Matrix3Xd &pts, std::mt19937 &rng) {
   const double box =
       (pts.rowwise().maxCoeff() - pts.rowwise().minCoeff()).maxCoeff();
@@ -742,14 +750,9 @@ void verify_nearest(const Matrix3Xd &pts, std::mt19937 &rng) {
   for (double cutoff: { 0.1, 0.5, 2.0, 10 * box }) {
     const VoxelGrid grid(pts, cutoff);
     const Matrix3Xd qry = nearest_queries(pts, cutoff, rng);
-
     for (int q = 0; q < qry.cols(); ++q) {
-      const Vector3d p = qry.col(q);
-      auto [ref_idx, ref_dsq] = brute_nearest(pts, p);
-
-      auto [idx, dsq] = grid.nearest(p);
-      EXPECT_EQ(idx, ref_idx) << "cutoff = " << cutoff << ", q = " << q;
-      EXPECT_DOUBLE_EQ(dsq, ref_dsq) << "cutoff = " << cutoff << ", q = " << q;
+      expect_nearest_exact(pts, qry.col(q), grid,
+                           absl::StrCat("cutoff = ", cutoff, ", q = ", q));
     }
   }
 }
@@ -812,14 +815,6 @@ TEST(VoxelGridTest, NearestTies) {
     EXPECT_EQ(grid.nearest(Vector3d(2, 2, 2)), Hit(0, 0.0))
         << "cutoff = " << cutoff;
   }
-}
-
-void expect_nearest_exact(const Matrix3Xd &pts, const Vector3d &q,
-                          const VoxelGrid &grid, const std::string &ctx) {
-  auto [ref_idx, ref_dsq] = brute_nearest(pts, q);
-  auto [idx, dsq] = grid.nearest(q);
-  EXPECT_EQ(idx, ref_idx) << ctx;
-  EXPECT_DOUBLE_EQ(dsq, ref_dsq) << ctx;
 }
 
 Matrix3Xd stack_pts(const std::vector<Vector3d> &pts) {

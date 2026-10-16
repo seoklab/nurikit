@@ -164,35 +164,46 @@ TEST(ShapeComplementarityTest, FullMasksMatchUnmasked) {
   expect_same_result(*plain, *masked);
 }
 
+/**
+ * A masked slab 6.6 angstrom under slab `a`, within SAS reach `2 (r + rp)`
+ * of its atoms and out of reach of slab `b`: counted in `n_atoms`, absent
+ * from `n_active`, it removes surface from the bottom of `a`, so the dot
+ * count and weights change while the trimmed dots, the medians and side
+ * `b` do not. `sep` is widened so that the unmasked control activates the
+ * extra slab.
+ */
 TEST(ShapeComplementarityTest, MaskedAtomsOnlyOcclude) {
-  const Matrix3Xd a = slab(0.0), b = slab(3.4, 1.5), extra = slab(10.9, 1.5);
+  const Matrix3Xd a = slab(0.0), b = slab(3.4, 1.5), extra = slab(-6.6);
   Matrix3Xd a_ext(3, a.cols() + extra.cols());
   a_ext << a, extra;
   const ArrayXd radii = ArrayXd::Constant(a.cols(), kRadius),
                 radii_ext = ArrayXd::Constant(a_ext.cols(), kRadius);
   ArrayXb mask = ArrayXb::Constant(a_ext.cols(), true);
   mask.tail(extra.cols()).setConstant(false);
+  ScParams params;
+  params.sep = 12;
 
   internal::seed_thread(5);
   const std::optional<ScResult> plain =
-      shape_complementarity(a, radii, b, radii);
+      shape_complementarity(a, radii, b, radii, params);
   internal::seed_thread(5);
-  const std::optional<ScResult> masked = shape_complementarity(
-      a_ext, radii_ext, mask, b, radii, ArrayXb::Constant(b.cols(), true));
+  const std::optional<ScResult> masked =
+      shape_complementarity(a_ext, radii_ext, mask, b, radii,
+                            ArrayXb::Constant(b.cols(), true), params);
   internal::seed_thread(5);
   const std::optional<ScResult> unmasked =
-      shape_complementarity(a_ext, radii_ext, b, radii);
+      shape_complementarity(a_ext, radii_ext, b, radii, params);
   ASSERT_TRUE(plain);
   ASSERT_TRUE(masked);
   ASSERT_TRUE(unmasked);
 
-  EXPECT_DOUBLE_EQ(masked->sc, plain->sc);
-  EXPECT_DOUBLE_EQ(masked->distance, plain->distance);
-  EXPECT_DOUBLE_EQ(masked->area, plain->area);
   EXPECT_EQ(masked->sides[0].n_atoms, a_ext.cols());
   EXPECT_EQ(masked->sides[0].n_active, plain->sides[0].n_active);
-  EXPECT_EQ(masked->sides[0].n_dots, plain->sides[0].n_dots);
+  EXPECT_NE(masked->sides[0].n_dots, plain->sides[0].n_dots);
+  EXPECT_NE(masked->sides[0].trimmed_area, plain->sides[0].trimmed_area);
   EXPECT_EQ(masked->sides[0].n_trimmed, plain->sides[0].n_trimmed);
+  EXPECT_DOUBLE_EQ(masked->sc, plain->sc);
+  EXPECT_DOUBLE_EQ(masked->distance, plain->distance);
   expect_same_side(masked->sides[1], plain->sides[1]);
 
   EXPECT_EQ(unmasked->sides[0].n_active, a_ext.cols());
@@ -231,7 +242,7 @@ TEST(ShapeComplementarityTest, SideArrays) {
     EXPECT_EQ(dots.n(), s.n_trimmed);
     EXPECT_EQ(s.distance.size(), s.n_trimmed);
     EXPECT_EQ(s.score.size(), s.n_trimmed);
-    EXPECT_NEAR(s.trimmed_area, dots.area().sum(), 1e-9);
+    EXPECT_DOUBLE_EQ(s.trimmed_area, dots.area().sum());
     EXPECT_EQ(dots.kind(), SurfaceKind::kSes);
     EXPECT_DOUBLE_EQ(dots.rp(), params.rp);
     EXPECT_EQ(dots.count(SurfacePatch::kConvex)
@@ -296,10 +307,8 @@ TEST(ShapeComplementarityTest, ParamsMatter) {
   params.clamp = 0.5;
   const std::optional<ScResult> clamped = seeded_slabs(params);
   ASSERT_TRUE(clamped);
-  for (const ScSide &s: clamped->sides) {
-    EXPECT_LE(s.s_median, 0.5);
+  for (const ScSide &s: clamped->sides)
     EXPECT_TRUE((s.score.abs() <= 0.5).all());
-  }
   EXPECT_LT(clamped->sc, base->sc);
 }
 

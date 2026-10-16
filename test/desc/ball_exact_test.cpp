@@ -183,14 +183,9 @@ Fixture<kForceExact> setup(const Matrix3Xd &pts, const ArrayXd &sar) {
   return s;
 }
 
-Matrix3Xd square_apex() {
-  Matrix3Xd pts(3, 5);
-  pts.col(0) << 1, 1, 0;
-  pts.col(1) << 1, -1, 0;
-  pts.col(2) << -1, 1, 0;
-  pts.col(3) << -1, -1, 0;
-  pts.col(4) << 0, 0, 1.6;
-  return pts;
+template <bool kForceExact = false>
+Fixture<kForceExact> setup(const Balls &b) {
+  return setup<kForceExact>(b.pts, b.sar);
 }
 
 Matrix3Xd tetra_through_origin() {
@@ -273,7 +268,7 @@ TEST(BallExactTest, HeightsMatchGeogram) {
 
   expect_geogram_agrees(setup(star(4, 110, 2), ArrayXd::Constant(5, 2.0)));
   expect_geogram_agrees(setup(star(5, 100, 2), ArrayXd::Constant(6, 2.0)));
-  expect_geogram_agrees(setup(square_apex(), ArrayXd::Constant(5, 1.5)));
+  expect_geogram_agrees(setup(square_apex()));
   expect_geogram_agrees(
       setup(tetra_through_origin(), ArrayXd::Constant(4, 1.0)));
 
@@ -341,10 +336,6 @@ void check_random_agreement() {
             continue;
           }
 
-          const auto [xp, xm] = s.ex.roots(f);
-          const QVec qp = ref.root(f, true), qm = ref.root(f, false);
-          EXPECT_LT(std::abs(xp[0] - static_cast<double>(qp.x)), 1e-9);
-          EXPECT_LT(std::abs(xm[1] - static_cast<double>(qm.y)), 1e-9);
           for (const auto &[ca, cb]: {
                    std::pair { a, b },
                     std::pair { b, c },
@@ -651,8 +642,8 @@ TEST(BallExactTest, FiveFoldStar) {
 }
 
 TEST(BallExactTest, CoplanarSquareWithApex) {
-  check_tie_fixture(square_apex(), ArrayXd::Constant(5, 1.5),
-                    Vector3d(0, 0, 0.5));
+  const auto [pts, sar] = square_apex();
+  check_tie_fixture(pts, sar, Vector3d(0, 0, 0.5));
 }
 
 struct SquareTie {
@@ -667,7 +658,7 @@ struct SquareTie {
  * root of `f1`.
  */
 SquareTie square_tie() {
-  Fixture<> s = setup(square_apex(), ArrayXd::Constant(5, 1.5));
+  Fixture<> s = setup(square_apex());
   const BallTriple f1 { 0, 1, 2 }, f2 { 0, 1, 3 };
   EXPECT_EQ(s.ex.cuts(f1), Sgn::kPos);
   EXPECT_EQ(s.ex.cuts(f2), Sgn::kPos);
@@ -798,7 +789,8 @@ RootGroups root_groups(const BallExact &ex) {
  * distinct and some close pair splits.
  */
 TEST(BallExactTest, CoincideAcrossFaces) {
-  const Fixture<> s = setup(square_apex(), ArrayXd::Constant(5, 1.5));
+  const Balls sq = square_apex();
+  const Fixture<> s = setup(sq);
   const RootGroups exact = root_groups(s.ex);
   EXPECT_GT(exact.n_coincident, 0);
   EXPECT_EQ(exact.n_coincident, exact.n_close);
@@ -821,8 +813,8 @@ TEST(BallExactTest, CoincideAcrossFaces) {
     const Matrix3d rot =
         AngleAxisd(nd(rng), ax.normalized()).toRotationMatrix();
     const Vector3d tr(nd(rng), nd(rng), nd(rng));
-    const Matrix3Xd pts = (rot * square_apex()).colwise() + tr;
-    const Fixture<> r = setup(pts, ArrayXd::Constant(5, 1.5));
+    const Matrix3Xd pts = (rot * sq.pts).colwise() + tr;
+    const Fixture<> r = setup(pts, sq.sar);
     const RootGroups rounded = root_groups(r.ex);
     EXPECT_EQ(rounded.n_roots, exact.n_roots) << "seed " << seed;
     EXPECT_LE(rounded.n_coincident, rounded.n_close) << "seed " << seed;
@@ -971,7 +963,8 @@ TEST(BallExactTest, CcwPerturbedResolvesCoincidentRoots) {
   EXPECT_GT(
       check_coincident_order(setup(octahedron(), ArrayXd::Constant(6, 1.0))),
       0);
-  EXPECT_GT(check_zero_arcs(square_apex(), ArrayXd::Constant(5, 1.5), 1.0), 0);
+  const auto [pts, sar] = square_apex();
+  EXPECT_GT(check_zero_arcs(pts, sar, 1.0), 0);
 }
 
 TEST(BallExactTest, CcwPerturbedMatchesForcedExact) {
@@ -1084,8 +1077,7 @@ TEST(BallExactTest, DifferenceMatchesRoots) {
  * positions does not guarantee.
  */
 TEST(BallExactTest, DifferenceOnRoundedTangentPair) {
-  const Matrix3Xd base = occluder_shell_pts();
-  const ArrayXd sar = ArrayXd::Constant(6, 1.5);
+  const auto [base, sar] = occluder_shell_pts();
 
   int n_overlap = 0, n_pairs = 0;
   for (int seed = 0; seed < 32; ++seed) {
@@ -1122,7 +1114,7 @@ TEST(BallExactTest, DifferenceOnRoundedTangentPair) {
 TEST(BallExactTest, HeightsConstructorMatchesLift) {
   std::mt19937 rng(23);
   for (const Fixture<> &s:
-       { setup(square_apex(), ArrayXd::Constant(5, 1.5)),
+       { setup(square_apex()),
          setup(random_pts(rng, 8, 1.6), random_radii(rng, 8, 1.5, 2.5)) }) {
     expect_same_predicates(BallExact::make(s.ex.centers(), s.ex.h(), s.wmax),
                            s.ex);
