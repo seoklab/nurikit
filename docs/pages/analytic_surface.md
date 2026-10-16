@@ -123,22 +123,23 @@ bands that are supersets of exactly decided sets; every decision is exact.
    \f$R_{\min} < \sqrt{2 r_p^2 + 2\,\tau\,R_{\max}}\f$ (the hypothesis of
    @ref lemma-11 "Lemma 11" for positive radii, a vdW radius just above
    \f$(\sqrt 2 - 1) r_p\f$, \f$0.58\,\AA\f$ for water; the sign of the comparison is
-   what rejects a non-positive atom radius) are rejected. Pairs \f$(i < j)\f$ with
-   \f$d \le R_i + R_j + 2\tau\f$ are the **near** pairs, found by a
-   nuri::VoxelGrid over the atoms within `kBandHops + 1` near-pair lengths of
-   an active atom. Pairs below \f$R_i + R_j - 2\tau\f$ are overlaps outright;
-   inside the band `BallExact::overlap` decides exactly on the lifted heights
-   of the @ref sas-notation "SAS notation", and a pair tangent to within rounding is a tie that
-   is *reported*, not perturbed: it carries no circle (the @ref prep-zero-measure "zero-measure rule"), but it still counts as a neighbor for the ranks of
-   @ref prep-step-4 "step 4".
+   what rejects a non-positive atom radius) are rejected. Pairs \f$(i < j)\f$
+   with \f$d_{ij} \le R_i + R_j + 2\tau\f$ are the **near** pairs, found by a
+   nuri::VoxelGrid over the atoms within `kBandHops + 1` near-pair lengths of an
+   active atom. Pairs below \f$R_i + R_j - 2\tau\f$ are overlaps outright;
+   inside the band `BallExact::overlap` decides exactly on the lifted heights of
+   the @ref sas-notation "SAS notation", and a pair tangent to within rounding
+   is a tie that is *reported*, not perturbed: it carries no circle (the
+   @ref prep-zero-measure "zero-measure rule"), but it still counts as a
+   neighbor for the ranks of @ref prep-step-4 "step 4".
 2. \anchor prep-step-2 **Contained balls.**
-   The band \f$d \le |R_i - R_j| + \tau\f$ selects candidates;
-   `BallExact::contained` decides: with
-   \f$K = \rho_i^2 - \rho_j^2 - d^2\f$, \f$B_j \subset B_i\f$ iff
-   \f$K \ge 0\f$ and \f$K^2 \ge 4 \rho_j^2 d^2\f$, internal tangency included
-   (identical balls keep the active one, else the first). Coincident centers
-   are contained pairs. A contained ball has no surface, generates no cap and
-   is dropped from everything that follows, including the overlap graph.
+   The band \f$d_{ij} \le |R_i - R_j| + \tau\f$ selects candidates;
+   `BallExact::contained` decides: with \f$K = \rho_i^2 - \rho_j^2 -
+   d_{ij}^2\f$, \f$B_j \subset B_i\f$ iff \f$K \ge 0\f$ and \f$K^2 \ge 4
+   \rho_j^2 d_{ij}^2\f$, internal tangency included (identical balls keep the
+   active one, else the first). Coincident centers are contained pairs. A
+   contained ball has no surface, generates no cap and is dropped from
+   everything that follows, including the overlap graph.
 3. \anchor prep-step-3 **Shared circles.**
    If a third sphere passes through the circle where two others meet, the sphere
    whose center lies between the other two on the
@@ -163,30 +164,30 @@ bands that are supersets of exactly decided sets; every decision is exact.
    perturbed arrangement and nothing in its \f$\varepsilon \to 0\f$ limit. A
    sphere inside a band but not exactly contained or coincident is kept and
    its sliver computed like any other surface. The bands are supersets of the
-   exact sets as long as the rounding of \f$d\f$, circle centers and axes
-   stays far below \f$\tau\f$; the lifted radius \f$\rho_i\f$ drifts from
-   \f$R_i\f$ by about \f$\operatorname{ulp}(|c_i|^2 + W)\f$, which is what
-   bounds the coordinates.
+   exact sets as long as the rounding of \f$d_{ij}\f$, circle centers and axes
+   stays far below \f$\tau\f$; the lifted squared radius \f$\rho_i^2\f$ drifts
+   from \f$R_i^2\f$ by about \f$\operatorname{ulp}(|c_i|^2 + W)\f$, which is
+   what bounds the coordinates.
 4. \anchor prep-step-4 **Order.**
    `active` is the caller's mask minus dropped atoms; `need` is `active` plus
    its near neighbors and `shell` the near neighbors of
    `need`. Occluders near no `shell`, `need` or `active` atom are dropped
-   (@ref lemma-3 "Lemma 3"). Atoms are permuted to `[active | need | shell | occluders]`,
-   and the overlap graph `g` over the kept atoms is remapped and sorted. From
-   here on state is read from index ranges: a sphere owns dots iff its index
-   is below `n_active`, has its arrangement solved iff below `n_solve`, has
-   caps and hosts vertices iff below `n_enum`; a pair touches a sphere with
-   caps iff its smaller index is below `n_enum`, and such a circle gets its
-   ring of arcs. Probes are sorted by their smallest atom, the owner; active
-   probes and active torus arcs are prefixes whose lengths are counted once
-   in `build_sas` and read everywhere else, and the active circles, the only
-   ones with saddle patches, are the pairs below `g.offset(n_active)`. Dot
-   owners are mapped back through `order` at the
-   very end. The predicates of steps 1-3 run only on pairs whose two atoms
-   lie within four near-pair hops of an active atom: every kept atom is
-   within three hops, its containing partners and shared-circle triangles
-   within four, and ranks only propagate from rank \f$\le 2\f$ sources, so
-   the prepared set, its order, `g` and `d` equal the all-pairs computation.
+   (@ref lemma-3 "Lemma 3"). Atoms are permuted to `[active | need | shell |
+   occluders]`, ranks 0 to 3, and the overlap graph `g` over the kept atoms is
+   remapped and sorted. From here on state is read from index ranges: a sphere
+   owns dots iff its index is below `n_active`, has its arrangement solved iff
+   below `n_solve`, has caps and hosts vertices iff below `n_enum`; a pair
+   touches a sphere with caps iff its smaller index is below `n_enum`, and such
+   a circle gets its ring of arcs. Probes are sorted by their smallest atom, the
+   owner; active probes and active torus arcs are prefixes whose lengths are
+   counted once in `build_sas` and read everywhere else, and the active circles,
+   the only ones with saddle patches, are the pairs below `g.offset(n_active)`.
+   Dot owners are mapped back through `order` at the very end. The predicates of
+   steps 1-3 run only on pairs whose two atoms lie within four near-pair hops of
+   an active atom: every kept atom is within three hops, its containing partners
+   and shared-circle triangles within four, and ranks only propagate from rank
+   \f$\le 2\f$ sources, so the prepared set, its order, `g` and `d` equal the
+   all-pairs computation.
 5. \anchor prep-step-5 **What the mask makes exact.**
    Every atom occludes, so the caps of any sphere below `n_enum` are complete
    and the convex patches of active atoms
@@ -261,40 +262,38 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    genuine cell of a nearby input): geogram sorts the five points of its
    predicate by address, which for one contiguous vertex array is index
    order, and its tie branch returns the sign of
-   \f$\partial r / \partial h_m\f$ for \f$h_m \to h_m - \varepsilon_m\f$ with
-   \f$\varepsilon_i \gg \varepsilon_j\f$ for \f$i < j\f$: every ball grows,
-   lower index first. Formally
-   \f$\rho_i^2(\varepsilon) = \rho_i^2 + \varepsilon \eta^i\f$ with
-   \f$0 < \varepsilon \ll \eta \ll 1\f$ and \f$\varepsilon\f$ below every
-   power of \f$\eta\f$, so that at first order the term of the lowest index
-   dominates every later one, every second-order term is negligible against
-   every first-order one, and a \f$\sqrt\varepsilon\, \eta^k\f$ term of a
-   vanished discriminant dominates every first-order
-   \f$\varepsilon \eta^m\f$ term; the sign of a tied predicate is the sign of
-   its first non-zero first-order coefficient in index order. Geogram's
-   predicate is linear in the heights, the polynomial case the cited scheme
-   covers. The perturbation is a limit along a curve in the sense of
-   @cite desc:surface:seidel-1998, and predicates on circle intersections,
-   which carry square roots, are perturbed by @cite desc:surface:qsp-2017;
-   the predicates here are \f$C^1\f$ in the heights away from
-   \f$D = 0\f$ (discriminants, \f$A \pm B\sqrt D\f$), and the application
-   of the rule to them is this document's: the first-order rule applies as long as
-   one participant has a non-zero first-order coefficient, which holds for
-   `cuts` (the three coefficients
-   sum to \f$|u|^2\f$, non-zero unless the centers are collinear, which
-   `cuts` meets only on a shared circle, removed in preparation), `side`
-   (the coefficient of \f$\rho_c^2\f$ is \f$-|d_b|^2/2\f$), `accept` (the
-   coefficient of the apex is \f$-|u|^2/2\f$, and the apex is never a face
-   vertex) and `antipode` (the kernel is \f$\pi_c(Q)\f$ scaled by
-   \f$G|u|^2/2\f$; for a fan sphere \f$c\f$ off the face
-   \f$d\pi_c(Q)/d\rho_c^2 = -1\f$, and against the vertex's own cutter
-   \f$-2\f$). Where \f$D(0) = 0\f$ (a tangency perturbed to a cut)
-   \f$\sqrt{D(\varepsilon)}\f$ is of order \f$\sqrt\varepsilon\f$ and
-   dominates every first-order term unless its coefficient \f$B\f$ vanishes;
-   `accept` and `antipode` carry that one \f$\sqrt\varepsilon\f$ rule. Not
-   every tie is perturbed: `overlap`, `contained` and `shared_circle` report
-   the tie and preparation takes the limit answer, and `ccw` and
-   `half_plane` report zero for the caller to resolve structurally.
+   \f$\partial \mathcal{P} / \partial h_m\f$, \f$\mathcal{P}\f$ the predicate
+   value, for \f$h_m \to h_m - e_m\f$ with \f$e_i \gg e_j\f$ for \f$i < j\f$:
+   every ball grows, lower index first. Formally \f$\rho_i^2(\varepsilon) =
+   \rho_i^2 + e_i\f$, \f$e_i = \varepsilon \eta^i\f$, with \f$0 < \varepsilon
+   \ll \eta \ll 1\f$ and \f$\varepsilon\f$ below every power of \f$\eta\f$, so
+   that at first order the term of the lowest index dominates every later one,
+   every second-order term is negligible against every first-order one, and a
+   \f$\sqrt\varepsilon\, \eta^k\f$ term of a vanished discriminant dominates
+   every first-order \f$\varepsilon \eta^m\f$ term; the sign of a tied predicate
+   is the sign of its first non-zero first-order coefficient in index order.
+   Geogram's predicate is linear in the heights, the polynomial case the cited
+   scheme covers. The perturbation is a limit along a curve in the sense of
+   @cite desc:surface:seidel-1998, and predicates on circle intersections, which
+   carry square roots, are perturbed by @cite desc:surface:qsp-2017; the
+   predicates here are \f$C^1\f$ in the heights away from \f$D = 0\f$
+   (discriminants, \f$A \pm B\sqrt D\f$), and the application of the rule to
+   them is this document's: the first-order rule applies as long as one
+   participant has a non-zero first-order coefficient, which holds for `cuts`
+   (the three coefficients sum to \f$|u|^2\f$, non-zero unless the centers are
+   collinear, which `cuts` meets only on a shared circle, removed in
+   preparation), `side` (the coefficient of \f$\rho_c^2\f$ is \f$-|d_b|^2/2\f$),
+   `accept` (the coefficient of the apex is \f$-|u|^2/2\f$, and the apex is
+   never a face vertex) and `antipode` (the kernel is \f$\pi_c(Q)\f$ scaled by
+   \f$G|u|^2/2\f$; for a fan sphere \f$c\f$ off the face \f$d\pi_c(Q)/d\rho_c^2
+   = -1\f$, and against the vertex's own cutter \f$-2\f$). Where \f$D(0) = 0\f$
+   (a tangency perturbed to a cut) \f$\sqrt{D(\varepsilon)}\f$ is of order
+   \f$\sqrt\varepsilon\f$ and dominates every first-order term unless its
+   coefficient \f$B\f$ vanishes; `accept` and `antipode` carry that one
+   \f$\sqrt\varepsilon\f$ rule. Not every tie is perturbed: `overlap`,
+   `contained` and `shared_circle` report the tie and preparation takes the
+   limit answer, and `ccw` and `half_plane` report zero for the caller to
+   resolve structurally.
 
    Four **bounding points** of weight 0 at the corners of a regular
    tetrahedron of circumradius \f$4(\Delta + R_{\max}) + 1\f$ around the
@@ -374,38 +373,35 @@ boundary loops on a sphere, \f$C\f$ the number of cap components.
    inaccessible arc changes the area by \f$2\pi R^2 \cos\alpha\f$, and at a
    ring whose vertices are all probes of one \f$k\f$-fold point every
    floating \f$\varphi\f$ difference is rounding noise. It is decided exactly
-   against a rational reference direction \f$r\f$ in the circle's plane
-   (\f$r = d \times e_m\f$ for the coordinate axis \f$e_m\f$ with
-   \f$m = \arg\min |d_m|\f$; the output frame's \f$e_1\f$ is \f$r/|r|\f$):
-   each vertex is classified as on the ray, in \f$(0, \pi)\f$, at \f$\pi\f$,
-   or in \f$(\pi, 2\pi)\f$ by the signs of two linear forms in
-   \f$x - \mathrm{cntr}\f$ (`half_plane`, one square root each); two
-   consecutive vertices in the same open half-plane are ordered by the sign
-   of the oriented area
-   \f$((x_i - \mathrm{cntr}) \times (x_j - \mathrm{cntr})) \cdot d\f$ (`ccw`,
-   an expression in two square roots reduced to one by squaring), and an
+   against the rational reference ray \f$d \times \mathbf{e}_m\f$ in the
+   circle's plane (\f$\mathbf{e}_m\f$ the coordinate axis with \f$m = \arg\min
+   |d_m|\f$, `reference_ray`; the output frame's \f$e_1\f$ is its unit vector):
+   each vertex is classified as on the ray, in \f$(0, \pi)\f$, at \f$\pi\f$, or
+   in \f$(\pi, 2\pi)\f$ by the signs of two linear forms in \f$x -
+   \mathrm{cntr}\f$ (`half_plane`, one square root each); two consecutive
+   vertices in the same open half-plane are ordered by the sign of the oriented
+   area \f$((x_i - \mathrm{cntr}) \times (x_j - \mathrm{cntr})) \cdot d\f$
+   (`ccw`, an expression in two square roots reduced to one by squaring), and an
    exact zero within one half-plane means the two probes coincide (antipodal
-   points fall into different classes). The numeric angle of each vertex is
-   then made consistent with its exact class (0 on the ray, \f$\pi\f$ at
-   \f$\pi\f$, `atan2` otherwise, folded into \f$[0, 2\pi]\f$), so the angles
-   are monotone across classes and the wrap goes to the unique consecutive
-   pair whose arc contains the ray; a coincident pair gets
-   \f$\Delta\varphi = 0\f$, and a rounding-level negative
-   \f$\Delta\varphi\f$ elsewhere is clamped at zero. If every consecutive
-   pair coincides (the **single-point window**: all vertices are one point
-   \f$x\f$ to the exact order), the circle away from the point is accessible
-   iff its antipode \f$Q = 2\,\mathrm{cntr} - x\f$ has \f$\pi_c(Q) \ge 0\f$
-   for every fan sphere \f$c\f$ (`antipode`, exact, same form as `accept`),
-   and the \f$2\pi\f$ goes to an arc of that accessibility. The window is
-   justified because every perturbed vertex of the ring lies within
-   \f$O(\varepsilon)\f$ of \f$x\f$ on a circle of radius bounded away from
-   zero (@ref sas-step-2 "step 2" removed the zero-length ones), so the rest of
-   the circle is one arc, and \f$Q\f$ lies on it. Each arc also carries its two
-   end
-   tangents, taken from the circle frame at each end vertex's own angle
-   rather than from the probe positions: darts and arcs then describe one
-   closed curve even on a circle too small for the positions to resolve,
-   which is what Gauss-Bonnet needs.
+   points fall into different classes). The numeric angle of each vertex is then
+   made consistent with its exact class (0 on the ray, \f$\pi\f$ at \f$\pi\f$,
+   `atan2` otherwise, folded into \f$[0, 2\pi]\f$), so the angles are monotone
+   across classes and the wrap goes to the unique consecutive pair whose arc
+   contains the ray; a coincident pair gets \f$\Delta\varphi = 0\f$, and a
+   rounding-level negative \f$\Delta\varphi\f$ elsewhere is clamped at zero. If
+   every consecutive pair coincides (the **single-point window**: all vertices
+   are one point \f$x\f$ to the exact order), the circle away from the point is
+   accessible iff its antipode \f$Q = 2\,\mathrm{cntr} - x\f$ has \f$\pi_c(Q)
+   \ge 0\f$ for every fan sphere \f$c\f$ (`antipode`, exact, same form as
+   `accept`), and the \f$2\pi\f$ goes to an arc of that accessibility. The
+   window is justified because every perturbed vertex of the ring lies within
+   \f$O(\varepsilon)\f$ of \f$x\f$ on a circle of radius bounded away from zero
+   (@ref sas-step-2 "step 2" removed the zero-length ones), so the rest of the
+   circle is one arc, and \f$Q\f$ lies on it. Each arc also carries its two end
+   tangents, taken from the circle frame at each end vertex's own angle rather
+   than from the probe positions: darts and arcs then describe one closed curve
+   even on a circle too small for the positions to resolve, which is what
+   Gauss-Bonnet needs.
 5. \anchor sas-step-5 **Arrangement per sphere**
    (`ArrangementSolver`, `arrangement.cpp`). On sphere \f$s\f$ a probe lies on
    exactly two circles, so it has one in-dart
@@ -856,19 +852,19 @@ where two spheres touch, the sweep sees what it would see if every ball
 shrank by one common power, just enough to part the touching pairs there;
 the shrink leaves the power diagram alone, so nothing else near the point
 changes side. Precisely: fix a pinch point \f$x_0\f$, let \f$K\f$ be the kept
-spheres through it, \f$e_i = \varepsilon\eta^i\f$ the weight perturbations of
-@ref sas-step-1 "step 1", and for a tangent pair \f$(p, q)\f$ let
-\f$\gamma_{pq} = (\rho_q e_p + \rho_p e_q)/(\rho_p + \rho_q)\f$, its **lens
-parameter**. The pair \f$(p^*, q^*)\f$ at \f$x_0\f$ with the largest
-\f$\gamma\f$ is unique (the \f$\gamma\f$ are linear forms in \f$e\f$ with
-disjoint supports). Let \f$\gamma = \gamma_{p^*q^*} + \delta\f$ with
-\f$\varepsilon^2 \ll \delta \ll \varepsilon\eta^n\f$, and let \f$\Sigma\f$ be
-the configuration with weights \f$\rho_i^2(\varepsilon) - \gamma\f$, a genuine
-arrangement for all but finitely many \f$\delta\f$. Then in a ball \f$N\f$
-around \f$x_0\f$ that meets no sphere outside \f$K\f$, for every index order
-and mask, the sweep's accepted roots, their ring order and the joins between
-caps through \f$x_0\f$ are those of \f$\Sigma\f$; and on every solved sphere the
-reported area is the area of the exact arrangement.
+spheres through it, \f$e_i\f$ the weight perturbations of @ref sas-step-1 "step
+1", and for a tangent pair \f$(p, q)\f$ let \f$\gamma_{pq} = (\rho_q e_p +
+\rho_p e_q)/(\rho_p + \rho_q)\f$, its **lens parameter**. The pair \f$(p^*,
+q^*)\f$ at \f$x_0\f$ with the largest \f$\gamma\f$ is unique (the \f$\gamma\f$
+are linear forms in \f$e\f$ with disjoint supports). Let \f$\gamma =
+\gamma_{p^*q^*} + \delta\f$ with \f$\varepsilon^2 \ll \delta \ll
+\varepsilon\eta^n\f$, \f$n\f$ the number of kept spheres, and let \f$\Sigma\f$
+be the configuration with weights \f$\rho_i^2(\varepsilon) - \gamma\f$, a
+genuine arrangement for all but finitely many \f$\delta\f$. Then in a ball
+\f$N\f$ around \f$x_0\f$ that meets no sphere outside \f$K\f$, for every index
+order and mask, the sweep's accepted roots, their ring order and the joins
+between caps through \f$x_0\f$ are those of \f$\Sigma\f$; and on every solved
+sphere the reported area is the area of the exact arrangement.
 
 *Proof.* Powers are compared only by differences, so \f$\Sigma\f$ has the
 \f$RT\f$, cells, orthocentres \f$o_T\f$ and fans of the run, and
@@ -985,40 +981,39 @@ touch.
 Two roots are one probe iff they are one exact point. `build_sas` decides
 it with `BallExact::coincide`: for roots \f$x\f$ of \f$f\f$ and \f$x'\f$
 of \f$f'\f$ the difference
-\f$|u|^2 |u'|^2 (x - x') = P + \sqrt D\, Q + \sqrt{D'}\, Q'\f$ (the kernel
-of `difference`, @ref analysis-fp "Floating point") has every component
-zero, each decided as the unperturbed sign of an element of
-\f$\mathbb{Q}(\sqrt D, \sqrt{D'})\f$ by repeated squaring, the comparison
-across quadratic extensions of the CGAL spherical kernel
-@cite desc:surface:decastro-2009. A tangency perturbed to a cut, whose two
-roots are one point, needs no branch (\f$D = 0\f$). Candidates are the
-pairs within
-\f$\tau_m = 4 \cdot\f$ `kOffsetRelTol` \f$\cdot R_{\max} + 64 \cdot 2^{-53} \cdot\f$ `kSurfaceMaxCoord`
-(`probe_merge_tol`), a certified superset of the coincident pairs: two
-certified positions of one point differ by two offsets within
-`kOffsetRelTol` of a length \f$\le R_{\max}\f$ (the factor 2 also covers
-the rounded model radii) and two circle centers computed in double with
-their final sums, each within \f$8\sqrt 3 \cdot 2^{-53}\f$ `kSurfaceMaxCoord`
-of the exact one (@ref analysis-fp "Floating point"). They are found by one pass over the
-probes bucketed on a lattice of pitch \f$\tau_m\f$ and sorted by cell (a
-pair within \f$\tau_m\f$ shares a cell or sits in adjacent cells, and a
-constant cell shift preserves the sorted order, so each of the 13 forward
-neighbor shifts is one merge join) and joined by union-find; a candidate
-already linked is skipped, since coincidence is transitive. Roots that
-share no circle, as at a point where tangent pairs have deleted the linking
-circles, are tested like any other. The clusters are the event sites of
-@cite desc:surface:cazals-loriot-2009, which groups coincident event points
-exactly and links them by union-find rather than perturbing the spheres
-apart. A cluster's atoms are the union of its members' (a sphere through
-the point none of whose roots is accepted is not listed: the perturbation
-holds it inside by \f$\varepsilon\f$, and only the dot owners read the
-list), its position that of the first member, and its tangents come from the arcs with one end in
-the cluster plus its full loops (\f$\Delta\varphi \ge \pi\f$, the grazing
-vertex gets \f$\pm t\f$); an internal arc, a diagonal of the \f$k\f$-fold
-point with \f$\Delta\varphi = 0\f$ exactly, contributes nothing. The merge
-has no error of its own: a cluster is one point, carried at one of its
-certified positions; the SAS arcs, caps and areas are computed before the
-merge and unchanged by it.
+\f$|u|^2 |u'|^2 (x - x') = P_\delta + \sqrt D\, Q_\delta + \sqrt{D'}\,
+Q'_\delta\f$ (\f$P_\delta, Q_\delta, Q'_\delta\f$ its own rational parts; the
+kernel of `difference`, @ref analysis-fp "Floating point") has every component
+zero, each decided as the unperturbed sign of an element of \f$\mathbb{Q}(\sqrt
+D, \sqrt{D'})\f$ by repeated squaring, the comparison across quadratic
+extensions of the CGAL spherical kernel @cite desc:surface:decastro-2009. A
+tangency perturbed to a cut, whose two roots are one point, needs no branch
+(\f$D = 0\f$). Candidates are the pairs within \f$\tau_m = 4 \cdot\f$
+`kOffsetRelTol` \f$\cdot R_{\max} + 64 \cdot 2^{-53} \cdot\f$ `kSurfaceMaxCoord`
+(`probe_merge_tol`), a certified superset of the coincident pairs: two certified
+positions of one point differ by two offsets within `kOffsetRelTol` of a length
+\f$\le R_{\max}\f$ (the factor 2 also covers the rounded model radii) and two
+circle centers computed in double with their final sums, each within \f$8\sqrt 3
+\cdot 2^{-53}\f$ `kSurfaceMaxCoord` of the exact one (@ref analysis-fp "Floating
+point"). They are found by one pass over the probes bucketed on a lattice of
+pitch \f$\tau_m\f$ and sorted by cell (a pair within \f$\tau_m\f$ shares a cell
+or sits in adjacent cells, and a constant cell shift preserves the sorted order,
+so each of the 13 forward neighbor shifts is one merge join) and joined by
+union-find; a candidate already linked is skipped, since coincidence is
+transitive. Roots that share no circle, as at a point where tangent pairs have
+deleted the linking circles, are tested like any other. The clusters are the
+event sites of @cite desc:surface:cazals-loriot-2009, which groups coincident
+event points exactly and links them by union-find rather than perturbing the
+spheres apart. A cluster's atoms are the union of its members' (a sphere through
+the point none of whose roots is accepted is not listed: the perturbation holds
+it inside by \f$\varepsilon\f$, and only the dot owners read the list), its
+position that of the first member, and its tangents come from the arcs with one
+end in the cluster plus its full loops (\f$\Delta\varphi \ge \pi\f$, the grazing
+vertex gets \f$\pm t\f$); an internal arc, a diagonal of the \f$k\f$-fold point
+with \f$\Delta\varphi = 0\f$ exactly, contributes nothing. The merge has no
+error of its own: a cluster is one point, carried at one of its certified
+positions; the SAS arcs, caps and areas are computed before the merge and
+unchanged by it.
 
 Distinct roots may be arbitrarily close, and a tolerance would not help:
 an exact \f$k\f$-fold point of the input rounds, under a rigid motion, into
@@ -1044,18 +1039,18 @@ hemispheres end it empty (@ref corollary-4 "Corollary 4",
 - **Convex area** of atom \f$i\f$: \f$A_{\text{sas}}(i) \cdot (r_i/R_i)^2\f$
   (radial scaling maps the SAS patch onto the vdW sphere, the SAS-to-contact
   scaling of @cite desc:surface:totrov-abagyan-1996).
-- **Saddle** of an arc on circle \f$c\f$ with span \f$\Delta\varphi\f$. The
-  generating arc on the probe sphere is parametrized by \f$\beta\f$, the
+- **Saddle** of an arc on the circle \f$(i, j)\f$ with span \f$\Delta\varphi\f$.
+  The generating arc on the probe sphere is parametrized by \f$\beta\f$, the
   angle from the inward radial direction (toward the axis); \f$\beta < 0\f$
-  leans toward atom \f$i\f$. The valid range is \f$[-\theta_i, \theta_j]\f$
-  with \f$\sin\theta_i = a/R_i\f$, \f$\sin\theta_j = (d - a)/R_j\f$, where
-  \f$a\f$ is the circle plane's offset from \f$c_i\f$ and \f$d\f$ the center
-  distance. The distance from the axis is \f$\varrho(\beta) = r_l - r_p \cos\beta\f$
+  leans toward atom \f$i\f$. The valid range is \f$[-\theta_i, \theta_j]\f$ with
+  \f$\sin\theta_i = a/R_i\f$, \f$\sin\theta_j = (d - a)/R_j\f$, where \f$a\f$ is
+  the circle plane's offset from \f$c_i\f$ and \f$d\f$ the center distance. The
+  distance from the axis is \f$\varrho(\beta) = r_l - r_p \cos\beta\f$
   (\f$r_l\f$ the circle radius); for a **spindle torus** (\f$r_l < r_p\f$) it
   vanishes at \f$\beta_0\f$ with \f$\sin\beta_0 = \sqrt{r_p^2 - r_l^2}/r_p\f$,
-  and the part \f$|\beta| < \beta_0\f$ lies beyond the axis. Those points
-  are inside every other probe ball on the same circle, because for a probe
-  at angular offset \f$\Delta\varphi\f$
+  and the part \f$|\beta| < \beta_0\f$ lies beyond the axis. Those points are
+  inside every other probe ball on the same circle, because for a probe at
+  angular offset \f$\Delta\varphi\f$
   \f[
   |p - q(\varphi + \Delta\varphi)|^2 = r_p^2 + 2\varrho r_l (1 - \cos\Delta\varphi),
   \f]
@@ -1280,15 +1275,17 @@ x\f$ lies on its boundary; for all but a null set of directions \f$d\f$,
    equidistant from \f$x\f$ and \f$s_1\f$, so \f$p_1\f$ is on or beyond the
    segment \f$[c_a, c_b]\f$: on the axis or across it. Across the axis,
    \f$s_1\f$ is the *farthest* point of the circle from \f$p_1\f$: writing
-   \f$p_1 = t + z u + \xi \hat r\f$ with \f$\hat r\f$ the radial direction of
-   \f$s_1\f$,
-   \f$|p_1 - s(\theta)|^2 = z^2 + \xi^2 + r_l^2 - 2\xi r_l \cos\theta\f$, and
-   across the axis \f$\xi < 0\f$, so the distance is largest at
-   \f$\theta = 0\f$. The end vertices of the arc through \f$s_1\f$ are therefore
-   strictly closer than \f$t_1\f$, contradicting that no SAS point is closer
-   than \f$t_1\f$. On the axis the whole circle is equidistant and an end vertex
-   is also a nearest point; take it as \f$s_1\f$. (A vertex-free circle would
-   need the ray of \f$d\f$ to meet a fixed line: a null set of directions.)
+   \f$p_1 = m + z \hat u + \xi \hat r\f$ with \f$m\f$ the circle's center,
+   \f$\hat u\f$ its unit axis, \f$r_l\f$ its radius and \f$\hat r\f$ the radial
+   direction of \f$s_1\f$, \f$|p_1 - y(\theta)|^2 = z^2 + \xi^2 + r_l^2 - 2\xi
+   r_l \cos\theta\f$ (\f$y(\theta)\f$ the circle point at angle \f$\theta\f$
+   from \f$s_1\f$), and across the axis \f$\xi < 0\f$, so the distance is
+   largest at \f$\theta = 0\f$. The end vertices of the arc through \f$s_1\f$
+   are therefore strictly closer than \f$t_1\f$, contradicting that no SAS point
+   is closer than \f$t_1\f$. On the axis the whole circle is equidistant and an
+   end vertex is also a nearest point; take it as \f$s_1\f$. (A vertex-free
+   circle would need the ray of \f$d\f$ to meet a fixed line: a null set of
+   directions.)
 
 6. *The cut.* \f$p_1\f$ is on the bisector plane of \f$x\f$ and \f$s_1\f$, and
    \f$x + r_p d\f$ lies beyond \f$p_1\f$ on the ray from \f$x\f$ when
@@ -1454,25 +1451,25 @@ without meeting \f$\partial S\f$, and dropping it would delete the hole.
 No square root is taken; all comparisons are on cosines or their squares.
 
 The tangents are computed, each within
-\f$\eta =\f$ `kTangentEps` \f$=\f$ `kSurfaceAngleEps` \f$+ 4 \cdot 2^{-53}\f$
+\f$\eta_t =\f$ `kTangentEps` \f$=\f$ `kSurfaceAngleEps` \f$+ 4 \cdot 2^{-53}\f$
 of the exact one (@ref analysis-fp "Floating point"), so the test runs on
 a computed triangle \f$\tilde S\f$ with corners \f$\tilde p_m\f$. Let
 \f$\Delta = \tilde t_1 \cdot (\tilde t_2 \times \tilde t_3)\f$. Every
 direction of the exact triangle \f$S\f$ is within
-\f$H = \arcsin\bigl(3\eta / (|\Delta| - 8 \cdot 2^{-53})\bigr)\f$ of \f$\tilde
+\f$H = \arcsin\bigl(3\eta_t / (|\Delta| - 8 \cdot 2^{-53})\bigr)\f$ of \f$\tilde
 S\f$ (the \f$8 \cdot 2^{-53}\f$ is the rounding of \f$\Delta\f$ itself): the
 corners satisfy \f$\tilde t_k \cdot \tilde p_m = 0\f$ for \f$k \ne m\f$ and
 \f$\tilde t_m \cdot \tilde p_m = -|\Delta| / |\tilde t_{m+1} \times \tilde
 t_{m+2}| \le -|\Delta|\f$, so \f$v = \sum_m \tilde p_m / |\sum_m \tilde p_m|\f$
 has \f$\tilde t_k \cdot v \le -|\Delta|/3\f$ for every \f$k\f$; a direction \f$d
-\in S\f$ has \f$\tilde t_k \cdot d \le \eta\f$, hence \f$w = d + (3\eta /
+\in S\f$ has \f$\tilde t_k \cdot d \le \eta_t\f$, hence \f$w = d + (3\eta_t /
 (|\Delta| - 8 \cdot 2^{-53}))\, v\f$ lies in \f$\tilde S\f$ at angle at most
 \f$H\f$ from \f$d\f$. A cap that meets \f$S\f$ therefore meets \f$\tilde S\f$
 with its radius widened by \f$H\f$, and the filter tests \f$\alpha + H\f$
 (\f$\cos(\alpha + H)\f$ from the stored \f$\cos\alpha, \sin\alpha\f$; a cap with
 \f$\alpha + H \ge \pi/2\f$ passes, as the squared comparisons need \f$\alpha + H
 < \pi/2\f$). The triangle is used only when \f$|\Delta| \ge\f$ `kTriangleDetMin`
-\f$= 6\eta + 8 \cdot 2^{-53}\f$, which keeps \f$\sin H \le 1/2\f$ and the corner
+\f$= 6\eta_t + 8 \cdot 2^{-53}\f$, which keeps \f$\sin H \le 1/2\f$ and the corner
 signs \f$\tilde t_m \cdot \tilde p_m \le -|\Delta|\f$ clear of their rounding;
 below it, and for a probe with other than three tangents, the probe passes the
 triangle test; a cluster of several roots passes both filters and is solved
@@ -1505,8 +1502,8 @@ i.e. a vdW radius of \f$(\sqrt 2 - 1) r_p\f$.
 1. *Notation.* Take the point \f$q\f$ from the proof of @ref lemma-8 "Lemma 8":
    \f$x = q - t_1 \nu_x\f$, \f$y = q - t_1 \nu_y\f$ with \f$\nu_x \in C_x\f$,
    \f$\nu_y \in C_y\f$, \f$t_1 < r_p\f$. Write \f$w = x - y = t_1(\nu_y - \nu_x)\f$,
-   \f$\ell = |w|\f$, \f$\zeta = \nu_x \cdot \nu_y < 1\f$, so
-   \f$\ell^2 = 2t_1^2(1 - \zeta)\f$,
+   \f$\zeta = \nu_x \cdot \nu_y < 1\f$, so
+   \f$|w|^2 = 2t_1^2(1 - \zeta)\f$,
    \f$w \cdot \nu_x = -t_1(1 - \zeta)\f$,
    \f$w \cdot \nu_y = t_1(1 - \zeta)\f$. Let
    \f$\nu_x = \sum_a \lambda_a \hat c_a\f$ and \f$\nu_y = \sum_d \mu_d \hat c_d\f$ with
@@ -1517,20 +1514,20 @@ i.e. a vdW radius of \f$(\sqrt 2 - 1) r_p\f$.
 
 2. *Both probes are outside the other's balls.* \f$|y - c_a| \ge R_a\f$ with
    \f$y - c_a = -w - R_a \hat c_a\f$ gives
-   \f$w \cdot \hat c_a \ge -\ell^2/2R_a\f$; weighting by \f$\lambda_a\f$ and
+   \f$w \cdot \hat c_a \ge -|w|^2/2R_a\f$; weighting by \f$\lambda_a\f$ and
    summing,
-   \f$-t_1(1 - \zeta) \ge -(\ell^2/2)\Lambda' = -t_1^2(1 - \zeta)\Lambda'\f$,
+   \f$-t_1(1 - \zeta) \ge -(|w|^2/2)\Lambda' = -t_1^2(1 - \zeta)\Lambda'\f$,
    i.e. \f$P \ge 1\f$. Likewise \f$|x - c_d| \ge R_d\f$ gives \f$Q \ge 1\f$.
 
 3. *A non-overlapping host pair.*
    \f$c_a - c_d = w + R_a \hat c_a - R_d \hat c_d\f$, so
    \f$|c_a - c_d| \ge R_a + R_d - \tau\f$ expands to
-   \f$\ell^2 + 2R_a\, w \cdot \hat c_a - 2R_d\, w \cdot \hat c_d \ge 2R_a R_d (1 + \hat c_a \cdot \hat c_d) - 2\tau(R_a + R_d)\f$
+   \f$|w|^2 + 2R_a\, w \cdot \hat c_a - 2R_d\, w \cdot \hat c_d \ge 2R_a R_d (1 + \hat c_a \cdot \hat c_d) - 2\tau(R_a + R_d)\f$
    (the \f$\tau^2\f$ term only helps and is dropped).
 
 4. *Average over both cones.* Multiply each pair's inequality by
    \f$\lambda_a \mu_d/(R_a R_d)\f$ and sum. The left side becomes
-   \f$\ell^2 \Lambda' M' + 2M'(w \cdot \nu_x) - 2\Lambda'(w \cdot \nu_y) = 2(1 - \zeta)(PQ - P - Q)\f$,
+   \f$|w|^2 \Lambda' M' + 2M'(w \cdot \nu_x) - 2\Lambda'(w \cdot \nu_y) = 2(1 - \zeta)(PQ - P - Q)\f$,
    the right side \f$2(\Lambda M + \zeta) - 2\tau(\Lambda M' + \Lambda' M)\f$.
    Since \f$\Lambda \le R_{\max}\Lambda'\f$ and \f$M \le R_{\max} M'\f$, the
    tolerance term is at most \f$4\tau R_{\max} \Lambda' M'\f$; hence
@@ -1541,7 +1538,7 @@ i.e. a vdW radius of \f$(\sqrt 2 - 1) r_p\f$.
    and \f$P + Q \ge 2\f$ gives
    \f$(1 - \zeta)(PQ - 2) \ge (1 - \zeta)(PQ - P - Q)\f$. Together,
    \f$PQ\,[(1 - \zeta) - (R_x R_y - 2\tau R_{\max})/t_1^2] \ge 2 - \zeta > 0\f$,
-   so \f$R_x R_y - 2\tau R_{\max} < t_1^2(1 - \zeta) = \ell^2/2\f$.
+   so \f$R_x R_y - 2\tau R_{\max} < t_1^2(1 - \zeta) = |w|^2/2\f$.
 
 \anchor corollary-3
 **Corollary 3 (two neighbor shells suffice).** Enumerating the vertices
@@ -1606,15 +1603,15 @@ sign of one barycentric coordinate. Precisely, for a face \f$(a, b, c)\f$ with
   the three spheres meet only at \f$x\f$.
 - (b) Each of the circles \f$(a, b)\f$, \f$(a, c)\f$, \f$(b, c)\f$ has tangent
   \f$\pm n\f$ at \f$x\f$, \f$n\f$ the unit normal of \f$\Pi\f$.
-- (c) With \f$x = \lambda_a c_a + \lambda_b c_b + \lambda_c c_c\f$,
-  \f$\sum \lambda = 1\f$, every point \f$y\f$ satisfies
-  \f$\lambda_a \pi_a(y) + \lambda_b \pi_b(y) + \lambda_c \pi_c(y) = |y - x|^2\f$.
-  Hence on the circle \f$(i, j)\f$, \f$\pi_k(y) = |y - x|^2 / \lambda_k\f$
-  (\f$\{i, j, k\} = \{a, b, c\}\f$; no \f$\lambda\f$ vanishes), so the circle
-  minus \f$x\f$ is strictly outside \f$B_k\f$ iff \f$\lambda_k > 0\f$ and
-  strictly inside iff \f$\lambda_k < 0\f$.
-- (d) \f$\lambda_k > 0\f$ iff \f$x\f$ and \f$c_k\f$ lie on the same side of
-  the line \f$c_i c_j\f$. Since the \f$\lambda\f$ sum to 1, at least one is
+- (c) With \f$x = w_a c_a + w_b c_b + w_c c_c\f$,
+  \f$\sum w = 1\f$, every point \f$y\f$ satisfies
+  \f$w_a \pi_a(y) + w_b \pi_b(y) + w_c \pi_c(y) = |y - x|^2\f$.
+  Hence on the circle \f$(i, j)\f$, \f$\pi_k(y) = |y - x|^2 / w_k\f$
+  (\f$\{i, j, k\} = \{a, b, c\}\f$; no \f$w\f$ vanishes), so the circle
+  minus \f$x\f$ is strictly outside \f$B_k\f$ iff \f$w_k > 0\f$ and
+  strictly inside iff \f$w_k < 0\f$.
+- (d) \f$w_k > 0\f$ iff \f$x\f$ and \f$c_k\f$ lie on the same side of
+  the line \f$c_i c_j\f$. Since the \f$w\f$ sum to 1, at least one is
   positive: at least one circle through \f$x\f$ is accessible near \f$x\f$ on
   both sides, at most two are covered (all accessible inside the triangle of
   centers, one covered across an edge, two beyond a corner).
@@ -1624,10 +1621,10 @@ line through \f$c_a + y_\perp \in \Pi\f$ along \f$u \perp \Pi\f$, which meets
 \f$\Pi\f$ once, and \f$\pi_a(c_a + y_\perp + s u) = s^2 |u|^2 - D/|u|^2\f$.
 (b) The tangent is perpendicular to the axis \f$c_j - c_i\f$ and to the
 radius \f$x - m_{ij}\f$, two independent vectors of \f$\Pi\f$. (c)
-\f$\sum \lambda_m \pi_m(y) = |y|^2 - 2 y \cdot x + K\f$ with \f$K = |x|^2\f$
+\f$\sum w_m \pi_m(y) = |y|^2 - 2 y \cdot x + K\f$ with \f$K = |x|^2\f$
 because every \f$\pi_m(x) = 0\f$; on the circle \f$\pi_i = \pi_j = 0\f$, and
-\f$\lambda_k = 0\f$ would put the whole circle at \f$x\f$. (d)
-\f$\lambda_k\f$ is the ratio of the signed distances of \f$x\f$ and \f$c_k\f$
+\f$w_k = 0\f$ would put the whole circle at \f$x\f$. (d)
+\f$w_k\f$ is the ratio of the signed distances of \f$x\f$ and \f$c_k\f$
 from the line \f$c_i c_j\f$, and \f$x\f$'s is \f$r_{ij} > 0\f$ on its own
 side; three negatives cannot sum to 1. \f$\blacksquare\f$
 
@@ -1656,8 +1653,8 @@ exactly.
 **Remark 5 (what the run does at a coincident root).** Both roots are at
 \f$x\f$, accepted, and merged into one cluster (`members == 2`, three atoms).
 On each circle through \f$x\f$ the ring is a single-point window: its
-antipode has \f$\pi_k = 4 r_{ij}^2 / \lambda_k\f$ (@ref lemma-13 "Lemma 13"(c)),
-so the \f$2\pi\f$ arc is accessible iff \f$\lambda_k > 0\f$, and the cluster
+antipode has \f$\pi_k = 4 r_{ij}^2 / w_k\f$ (@ref lemma-13 "Lemma 13"(c)),
+so the \f$2\pi\f$ arc is accessible iff \f$w_k > 0\f$, and the cluster
 receives the tangent pair \f$\pm n\f$ from every such loop (or from the two arcs
 at \f$x\f$ when a fourth sphere interrupts the loop elsewhere) and nothing from
 a covered circle, whose only arc at the cluster is the zero-length diagonal.
@@ -1795,11 +1792,11 @@ nuri::VoxelGrid query on squared distances with the comparisons above.
 Let \f$n\f$ be the kept atoms, \f$m\f$ the largest number of overlapping
 neighbors of one atom (the cap count; about 15 for proteins), \f$p\f$ the
 probes (at most the faces of the triangulation, \f$\sim 12n\f$, so
-\f$O(n)\f$), \f$k\f$ the largest number of probes within \f$2 r_p\f$ of
-one probe (bounded by packing), and \f$D\f$ the dots,
-\f$D \approx \text{density} \cdot \text{area}\f$. In short, a shape
-complementarity run costs \f$O(n \log n + n m^2 + D\,m)\f$ time, which
-for bounded \f$m\f$ is \f$O(n \log n + D)\f$, and \f$O(n m + D)\f$
+\f$O(n)\f$), \f$k_p\f$ the largest number of probes within \f$2 r_p\f$ of
+one probe (bounded by packing), and \f$N_d\f$ the dots,
+\f$N_d \approx \text{density} \cdot \text{area}\f$. In short, a shape
+complementarity run costs \f$O(n \log n + n m^2 + N_d\,m)\f$ time, which
+for bounded \f$m\f$ is \f$O(n \log n + N_d)\f$, and \f$O(n m + N_d)\f$
 memory; the stages:
 
 - **Preparation**: two nuri::VoxelGrid queries, \f$O(n m)\f$ for the
@@ -1819,19 +1816,19 @@ memory; the stages:
   plus one exact coincidence predicate per candidate pair not already
   linked: one per root at a \f$k\f$-fold point, none elsewhere.
 - **SES**: heights and contact triangles \f$O(p)\f$; the probe-pair query
-  \f$O(p\,k)\f$ and the two filters \f$O(1)\f$ per pair; the face solver
-  \f$O(k^2)\f$ per low face (its caps are the surviving neighbors plus
-  three hemispheres), \f$O(p\,k^2)\f$ in all; saddles \f$O(n m)\f$ per
-  arc count. Since \f$k \le m\f$ up to a constant, the SES is
+  \f$O(p\,k_p)\f$ and the two filters \f$O(1)\f$ per pair; the face solver
+  \f$O(k_p^2)\f$ per low face (its caps are the surviving neighbors plus
+  three hemispheres), \f$O(p\,k_p^2)\f$ in all; saddles \f$O(n m)\f$ per
+  arc count. Since \f$k_p \le m\f$ up to a constant, the SES is
   \f$O(n m^2)\f$.
 - **Sampling**: each convex or concave dot is tested against the caps of its
-  sphere or face, \f$O(D\,m)\f$; toroidal rows are closed-form,
-  \f$O(D + n m)\f$. Lattices are cached per dot count.
+  sphere or face, \f$O(N_d\,m)\f$; toroidal rows are closed-form,
+  \f$O(N_d + n m)\f$. Lattices are cached per dot count.
 - **Shape complementarity**: the active-atom, burial and trim queries are
   nuri::VoxelGrid queries at a fixed cutoff, \f$O(n m)\f$ for the atoms
-  and \f$O(D\,m)\f$ for the dots; the nearest-dot query is
+  and \f$O(N_d\,m)\f$ for the dots; the nearest-dot query is
   nuri::VoxelGrid::nearest(), \f$O(1)\f$ expected per dot when the cell
-  size matches the dot spacing; the medians use `nth_element`, \f$O(D)\f$.
+  size matches the dot spacing; the medians use `nth_element`, \f$O(N_d)\f$.
   Two surfaces, two samplings, and these passes give the total above.
 
 ### Floating point {#analysis-fp}
@@ -1877,39 +1874,38 @@ about \f$10^{-8}\,\AA\f$, and a non-tie can be far smaller): the floating
 discriminant and squared radius of such a circle are smaller than their own
 rounding error, and the vertex angles of a position taken from them are
 noise. The probe position is \f$\mathrm{cntr} + \text{offset}\f$ with the
-center \f$c_a + (v_b / |d|^2)\, d\f$ in plain double, so it is within
-\f$1.01 \cdot 2^{-26} \rho_{\max} + 8\sqrt 3 \cdot 2^{-53}\f$ `kSurfaceMaxCoord`
-\f$+ 15 \cdot 2^{-53} \rho_{\max}\f$ of the exact root (the last
-\f$\sqrt 3 \cdot 2^{-53}\f$ of each is the rounding of the sum itself) (\f$\rho_{\max}\f$ the
-largest model radius, \f$\le R_{\max} + \sqrt{12 \cdot 2^{-53}}\f$
-`kSurfaceMaxCoord`), which sets the candidate band of the
-@ref sas-merge "probe merge"; \f$\varphi\f$, dart angles and areas inherit
-at most the \f$2^{-26}\f$ relative error. The difference of two roots is
-never taken from their positions: `difference` evaluates
-\f$P + \sqrt D\, Q + \sqrt{D'}\, Q'\f$ under the same certificate, and
-otherwise from the exact dyadics with the square roots taken to \f$k\f$
-extra bits, doubled until the sum's bound is below \f$2^{-52}\f$ of its
-length, read at the sum's own scale. It returns a unit direction and a
-length separately, because distinct roots have no separation that fits a
-double: a separation bound of the kind of @cite desc:surface:bfmss-2009 on
-one component, a polynomial of degree 9 in inputs within
-`kSurfaceMaxCoord`, is about \f$2^{-1800}\f$. The direction is right
-however close the roots are; a length that underflows lifts the neighbor's
-cap as the hemisphere limit (the lift takes the unit direction once the
-squared length is 0). The floating comparisons that remain are output-only: the
-fold of each vertex's `atan2` into its exact half-plane class (the class
-carries the side of the ray, `atan2` only the magnitude, so a vertex at
-\f$\pi \mp \delta\f$ folds to \f$\pi\f$, never to 0 or \f$2\pi\f$), the
-normalization of the dart angle \f$\iota\f$ and the \f$\max(\cdot, 0)\f$
-clamps. A genuine corner is \f$\pi - \angle(h_a, h_b)\f$ for the two cap
-normals in the tangent plane at the vertex (the accessible region there is
-the wedge outside both caps, @ref sas-step-5 "SAS step 5"); the computed corner deviates by at most one
+center \f$\mathrm{cntr}\f$ (@ref sas-notation "Notation") in plain double, so it
+is within \f$1.01 \cdot 2^{-26} \rho_{\max} + 8\sqrt 3 \cdot 2^{-53}\f$
+`kSurfaceMaxCoord` \f$+ 15 \cdot 2^{-53} \rho_{\max}\f$ of the exact root (the
+last \f$\sqrt 3 \cdot 2^{-53}\f$ of each is the rounding of the sum itself)
+(\f$\rho_{\max}\f$ the largest model radius, \f$\le R_{\max} + \sqrt{12 \cdot
+2^{-53}}\f$ `kSurfaceMaxCoord`), which sets the candidate band of the
+@ref sas-merge "probe merge"; \f$\varphi\f$, dart angles and areas inherit at
+most the \f$2^{-26}\f$ relative error. The difference of two roots is never
+taken from their positions: `difference` evaluates \f$P_\delta + \sqrt D\,
+Q_\delta + \sqrt{D'}\, Q'_\delta\f$ under the same certificate, and otherwise
+from the exact dyadics with the square roots taken to \f$k\f$ extra bits,
+doubled until the sum's bound is below \f$2^{-52}\f$ of its length, read at the
+sum's own scale. It returns a unit direction and a length separately, because
+distinct roots have no separation that fits a double: a separation bound of the
+kind of @cite desc:surface:bfmss-2009 on one component, a polynomial of degree 9
+in inputs within `kSurfaceMaxCoord`, is about \f$2^{-1800}\f$. The direction is
+right however close the roots are; a length that underflows lifts the neighbor's
+cap as the hemisphere limit (the lift takes the unit direction once the squared
+length is 0). The floating comparisons that remain are output-only: the fold of
+each vertex's `atan2` into its exact half-plane class (the class carries the
+side of the ray, `atan2` only the magnitude, so a vertex at \f$\pi \mp \delta\f$
+folds to \f$\pi\f$, never to 0 or \f$2\pi\f$), the normalization of the dart
+angle \f$\iota\f$ and the \f$\max(\cdot, 0)\f$ clamps. A genuine corner is
+\f$\pi - \angle(h_a, h_b)\f$ for the two cap normals in the tangent plane at the
+vertex (the accessible region there is the wedge outside both caps,
+@ref sas-step-5 "SAS step 5"); the computed corner deviates by at most one
 offset certificate per dart plus roundoff, \f$2 \cdot 2^{-26} + 2^{-40}\f$
-(`kSurfaceAngleEps`), the vertex normal's error entering only
-quadratically, so the reflex check \f$\iota \le \pi +\f$ `kSurfaceAngleEps`
-is a `DCHECK` on an invariant, not a decision. A departure tangent carries
-the same bound plus its normalization (`kTangentEps`), which gates the
-contact triangle (@ref lemma-10 "Lemma 10").
+(`kSurfaceAngleEps`), the vertex normal's error entering only quadratically, so
+the reflex check \f$\iota \le \pi +\f$ `kSurfaceAngleEps` is a `DCHECK` on an
+invariant, not a decision. A departure tangent carries the same bound plus its
+normalization (`kTangentEps`), which gates the contact triangle (@ref lemma-10
+"Lemma 10").
 
 The face solver's ring sort (@ref ses-patches "Patch areas") is sound for
 the same reason: each vertex's offset is certified to `kOffsetRelTol` of its
