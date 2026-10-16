@@ -83,10 +83,14 @@ set(NURI_STRICT_FP_FLAGS
   -fsigned-zeros
   -ftrapping-math
 )
+set(NURI_VENDORED_FLAGS -w ${NURI_STRICT_FP_FLAGS})
+if(NURI_TEST_COVERAGE)
+  list(APPEND NURI_VENDORED_FLAGS -fno-profile-arcs -fno-test-coverage)
+endif()
 file(GLOB_RECURSE NURI_VENDORED_SRCS CONFIGURE_DEPENDS third-party/*.cpp)
 set_source_files_properties(${NURI_VENDORED_SRCS}
   PROPERTIES
-  COMPILE_OPTIONS "-w;${NURI_STRICT_FP_FLAGS}"
+  COMPILE_OPTIONS "${NURI_VENDORED_FLAGS}"
 )
 set_source_files_properties(desc/surface/analytic/exact.cpp
   PROPERTIES
