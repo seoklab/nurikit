@@ -440,7 +440,7 @@ SurfaceDots SurfaceSampler::sample(const SurfaceGeometry &geo) {
 
   DotArrays out;
   resize_dots(out, dot_capacity(geo, density_));
-  internal::OffsetTable patch(3);
+  internal::OffsetTable patch(kNumSurfacePatches);
   ArrayXi &off = patch.off();
 
   int n_dots = 0;

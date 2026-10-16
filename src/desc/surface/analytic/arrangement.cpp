@@ -134,10 +134,10 @@ namespace internal {
 
   /**
    * `n_patches = 1 + n_loops - n_components` (analytic_surface page,
-   * Definitions): the components of
-   * the union of all caps come from the corners plus the exact disc
-   * intersection test on the remaining pairs. Caps without any arc leave the
-   * accessible region without boundary, so it is empty.
+   * Definitions): the components of the union of all caps come from the
+   * corners plus the exact disc intersection test on the remaining pairs.
+   * Caps without any arc leave the accessible region without boundary, so it
+   * is empty.
    */
   double
   ArrangementSolver::solve(absl::FunctionRef<bool(int, int)> intersects) {

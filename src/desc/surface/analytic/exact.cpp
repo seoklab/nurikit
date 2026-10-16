@@ -332,8 +332,7 @@ namespace internal {
      * vertex has derivative -1 along its own squared radius.
      */
     template <class T>
-    input_t<T> height(double h, bool perturbed) {
-      (void)perturbed;
+    input_t<T> height(double h, bool /*perturbed*/) {
       return input<T>(h);
     }
     template <>
@@ -883,6 +882,8 @@ namespace internal {
       return true;
     }
 
+    // The page's root separation bound (Floating point) is 2^-1800: 2048 bits
+    // certify terms at kSurfaceMaxCoord against it, 4096 leaves one doubling.
     constexpr int kMinSqrtBits = 64, kMaxSqrtBits = 4096;
 
     /**
@@ -950,10 +951,7 @@ namespace internal {
 
     BallTriple triple() const { return f_; }
 
-    const Face<Fx> &at(const Ctx<Fx> &ctx) const {
-      (void)ctx;
-      return fx_;
-    }
+    const Face<Fx> &at(const Ctx<Fx> & /*ctx*/) const { return fx_; }
 
     const Face<Xp> &at(const Ctx<Xp> &ctx) {
       if (!xp_)

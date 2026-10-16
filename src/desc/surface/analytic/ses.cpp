@@ -464,10 +464,10 @@ namespace internal {
 
     /**
      * Face solver with its buffers; cap `k` of the input is ball `k + 1`,
-     * the probe ball 0. Faces are `(0, m, l)`, `m <
-     * l`, circles `(0, m)` oriented about the cap axis `n_m`, so the root
-     * `+` leaves ball `l` along circle `(0, m)` and enters it along `(0, l)`
-     * (`face_parity` of sas.cpp).
+     * the probe ball 0. Faces are `(0, m, l)`, `m < l`, circles `(0, m)`
+     * oriented about the cap axis `n_m`, so the root `+` leaves ball `l`
+     * along circle `(0, m)` and enters it along `(0, l)` (`face_parity` of
+     * sas.cpp).
      */
     class FaceSolver {
     public:
@@ -492,13 +492,11 @@ namespace internal {
         ex_.load(std::as_const(c_).leftCols(m + 1),
                  std::as_const(h_).head(m + 1), rp * rp);
 
-        // The exact overlap decides; the pair stage is a conservative
-        // prefilter.
+        // the pair stage only prefilters; the exact overlap decides
         for (int k = 1; k <= m; ++k)
           live[k - 1] = ex_.overlap(0, k) == Sgn::kPos;
-        // Two caps on one circle: opposite sides cover the sphere (no face),
-        // the same side is one cap. Equal probe balls (two neighbors closer
-        // than the certificate resolves) are one cap, dropped as `2`.
+        // caps on one circle, opposite sides: the sphere is covered; same
+        // side or equal balls (closer than the certificate resolves): one cap
         for (int b = 1; b <= m; ++b) {
           for (int c = b + 1; c <= m; ++c) {
             if (!live[b - 1] || !live[c - 1])

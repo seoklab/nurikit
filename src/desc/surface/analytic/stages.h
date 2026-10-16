@@ -52,9 +52,10 @@ namespace internal {
    * within `kOffsetRelTol` of a length `<= rmax` (taken twice for margin,
    * which also covers the rounded model radii), plus two circle centers in
    * double with their final sums, each within
-   * `8 sqrt(3) 2^-53 kSurfaceMaxCoord` (taken with 64 for margin). `build_sas` tests every pair of probes within this distance for
-   * exact coincidence and merges the coincident ones, so no two of its probes
-   * are one point; distinct probes may be arbitrarily close.
+   * `8 sqrt(3) 2^-53 kSurfaceMaxCoord` (taken with 64 for margin). `build_sas`
+   * tests every pair of probes within this distance for exact coincidence and
+   * merges the coincident ones, so no two of its probes are one point;
+   * distinct probes may be arbitrarily close.
    */
   constexpr double probe_merge_tol(double rmax) {
     return 4 * kOffsetRelTol * rmax + 64 * kUnitRoundoff * kSurfaceMaxCoord;
@@ -362,12 +363,16 @@ namespace internal {
       return k;
     }
 
+    /**
+     * Test hook: geogram's `two_sum`/`two_product` and the exact and filtered
+     * kernels on `1 + 2^-60`, the only use of `multi_precision.h`.
+     */
     static bool selftest();
 
   private:
     Matrix3Xd c_;
     ArrayXd h_;
-    double w_ = 0;
+    double w_;
     int n_ = 0;
   };
 
@@ -553,8 +558,8 @@ namespace internal {
 
     std::pair<int, double> walk();
 
-    double radius_ = 0;
-    int m_ = 0, k_ = 0;
+    double radius_;
+    int m_, k_;
 
     UnionFind uf_;
 

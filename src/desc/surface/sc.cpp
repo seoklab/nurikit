@@ -56,9 +56,10 @@ namespace {
     const VoxelGrid grid(other, sar_other.maxCoeff());
     const ArrayXd sarsq = sar_other.square();
 
+    const Matrix3Xd probes = dots.probes();
     ArrayXb buried(dots.n());
     for (int k = 0; k < dots.n(); ++k) {
-      const Vector3d probe = dots.pts().col(k) + dots.rp() * dots.nrm().col(k);
+      const Vector3d probe = probes.col(k);
       buried[k] = any_neighbor(grid, probe, scratch, [&](int j, double dsq) {
         return dsq < sarsq[j];
       });

@@ -19,6 +19,7 @@
 #include "nuri/eigen_config.h"
 #include "nuri/core/geometry.h"
 #include "nuri/core/molecule.h"
+#include "nuri/utils.h"
 
 namespace nuri {
 namespace internal {
@@ -129,6 +130,7 @@ namespace internal {
     ArrayXi adj_;
     OffsetTable tbl_;
   };
+
 }  // namespace internal
 
 template <class Key, class Map>
@@ -148,6 +150,11 @@ enum class SurfaceKind : int { kSas = 0, kSes = 1 };
  *        rolling over two atoms, or on the probe resting on three or more.
  */
 enum class SurfacePatch : int { kConvex = 0, kToroidal, kConcave };
+
+/**
+ * @brief Number of `SurfacePatch` kinds.
+ */
+constexpr int kNumSurfacePatches = static_cast<int>(SurfacePatch::kConcave) + 1;
 
 namespace internal {
   /**
@@ -401,15 +408,13 @@ namespace internal {
    * Atoms ordered `[active | need | shell | occluders]`, the occluders being
    * the kept atoms near a sphere with caps, with contained spheres and the
    * other occluders dropped: `order` maps new to old indices, spheres
-   * `< n_active` own
-   * surface, `< n_solve` get arrangements, `< n_enum` get caps. `g` is the
-   * forward overlap graph on new indices (`row(i)` = sorted `j > i`) over all
-   * kept spheres, decided exactly for the lifted heights
+   * `< n_active` own surface, `< n_solve` get arrangements, `< n_enum` get
+   * caps. `g` is the forward overlap graph on new indices (`row(i)` = sorted
+   * `j > i`) over all kept spheres, decided exactly for the lifted heights
    * `t = sqrt(wmax - sar^2)` (the near band only ranks atoms); pair `q`
-   * carries a circle iff
-   * `i < n_enum`, and `d[q]` is its center distance. `r` are the atom radii
-   * as given, `sar = r + rp` the accessible ones for the probe radius `rp`,
-   * `rmax` the largest `sar` of the kept atoms.
+   * carries a circle iff `i < n_enum`, and `d[q]` is its center distance.
+   * `r` are the atom radii as given, `sar = r + rp` the accessible ones for
+   * the probe radius `rp`, `rmax` the largest `sar` of the kept atoms.
    */
   struct SurfaceSpheres {
     Matrix3Xd pts;
