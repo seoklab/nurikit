@@ -563,7 +563,7 @@ namespace internal {
         if (t != 0)
           return static_cast<Sgn>(t);
       }
-      ABSL_CHECK(false)
+      ABSL_DCHECK(false)
           << "every first-order perturbation coefficient vanishes";
       return Sgn::kZero;
     }
@@ -723,7 +723,7 @@ namespace internal {
         for (int k = 0; k < n && t == 0; ++k)
           t = tie_sign2_one(rs[k]);
       }
-      ABSL_CHECK(t != 0)
+      ABSL_DCHECK(t != 0)
           << "every first-order perturbation coefficient vanishes";
       return static_cast<Sgn>(t);
     }

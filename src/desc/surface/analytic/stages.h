@@ -228,6 +228,9 @@ namespace internal {
     BallExactImpl() = default;
 
     static BallExactImpl make(const Matrix4Xd &lifted, double wmax);
+    /**
+     * Test hook: the balls from `centers` and `heights` as given.
+     */
     static BallExactImpl make(const Matrix3Xd &centers, const ArrayXd &heights,
                               double wmax);
 
@@ -241,6 +244,9 @@ namespace internal {
 
     int n() const { return n_; }
     auto centers() const { return c_.leftCols(n_); }
+    /**
+     * Test hooks: the heights and the squared radius of ball `i`.
+     */
     auto h() const { return h_.head(n_); }
     double rho2(int i) const;
 
@@ -281,8 +287,8 @@ namespace internal {
      */
     Sgn accept(BallTriple f, bool plus, int l) const;
     /**
-     * Both roots of `f` in double, `first` the `plus` root; requires
-     * `cuts(f)` positive.
+     * Test hook: both roots of `f` in double, `first` the `plus` root;
+     * requires `cuts(f)` positive.
      */
     std::pair<Vector3d, Vector3d> roots(BallTriple f) const;
     Vector3d root(BallTriple f, bool plus) const;

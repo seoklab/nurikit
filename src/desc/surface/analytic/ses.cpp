@@ -57,10 +57,10 @@ namespace internal {
       const Beta b0 { std::atan2(root, rl), root / rp },
           nb0 { -b0.angle, -b0.sin };
 
-      Beta m = hi.angle < nb0.angle ? hi : nb0;
-      const Beta below_hi = lo.angle > m.angle ? lo : m;
-      m = lo.angle > b0.angle ? lo : b0;
-      const Beta above_lo = hi.angle < m.angle ? hi : m;
+      const Beta below_inner = hi.angle < nb0.angle ? hi : nb0,
+                 above_inner = lo.angle > b0.angle ? lo : b0;
+      const Beta below_hi = lo.angle > below_inner.angle ? lo : below_inner,
+                 above_lo = hi.angle < above_inner.angle ? hi : above_inner;
 
       SaddleRanges out;
       out.beta << lo.angle, below_hi.angle, above_lo.angle, hi.angle;
@@ -108,8 +108,8 @@ namespace internal {
      * `sigma` of its face, `x = c_a + y_perp + sigma sqrt(D) u / |u|^2`
      * with `u = cross(c_b - c_a, c_c - c_a)` in the kernel's vertex order,
      * so the normal toward the plane is `-sigma u / |u|`, whatever the
-     * rounded height. Probes of more than three atoms are low and never
-     * planar.
+     * rounded height. Probes of more than three atoms, or merged from
+     * several roots (`members > 1`), are low and never planar.
      */
     struct ProbeHeights {
       ArrayXb low, planar;
@@ -167,8 +167,9 @@ namespace internal {
     }
 
     /**
-     * Per probe with exactly three departure tangents whose determinant
-     * clears `kTriangleDetMin` (`triangular`): the corners
+     * Per unmerged probe (`members == 1`) with exactly three departure
+     * tangents whose determinant clears `kTriangleDetMin` (`triangular`):
+     * the corners
      * `p_m = +-normalize(cross(t_{m+1}, t_{m+2}))`, `dot(t_m, p_m) <= 0`, of
      * the spherical triangle `{d : dot(d, t_m) <= 0}`, in columns
      * `3p .. 3p + 2`, and the angle `H` within which every direction of the

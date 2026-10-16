@@ -54,36 +54,9 @@ void SurfaceDots::keep(const ArrayXb &mask) {
 }
 
 SurfaceDots SurfaceDots::subset(const ArrayXb &mask) const {
-  ABSL_DCHECK_EQ(mask.size(), n());
-
-  const int m = static_cast<int>(mask.count());
-  Matrix3Xd pts(3, m), nrm(3, m);
-  ArrayXd area(m);
-  ArrayXi atom(m);
-  internal::OffsetTable patch(patch_.size());
-
-  int w = 0;
-  patch.off()[0] = 0;
-  for (int b = 0; b < patch_.size(); ++b) {
-    for (int i = patch_[b]; i < patch_[b + 1]; ++i) {
-      if (!mask[i])
-        continue;
-      pts.col(w) = pts_.col(i);
-      nrm.col(w) = nrm_.col(i);
-      area[w] = area_[i];
-      atom[w] = atom_[i];
-      ++w;
-    }
-    patch.off()[b + 1] = w;
-  }
-  return { kind_,
-           rp_,
-           std::move(pts),
-           std::move(nrm),
-           std::move(area),
-           std::move(atom),
-           std::move(patch),
-           dropped_area_ };
+  SurfaceDots ret = *this;
+  ret.keep(mask);
+  return ret;
 }
 
 namespace {
@@ -311,7 +284,7 @@ namespace {
     const int i = c.i, j = c.j;
     const ArrayXd &sar = geo.sar();
     const double a_i = c.aij[0], a_j = c.aij[1], sas_i = sar[i], sas_j = sar[j],
-                 r_i = sas_i - rp, r_j = sas_j - rp;
+                 r_i = geo.r()[i], r_j = geo.r()[j];
 
     for (int m = 0; m < rows; ++m) {
       const int k = k_phi[m];
