@@ -169,14 +169,14 @@ namespace internal {
 
       friend Xp operator+(const Xp &a, const Xp &b) {
         Xp r;
-        r.e_ = std::min(a.e_, b.e_);
+        r.e_ = nuri::min(a.e_, b.e_);
         r.m_ = (a.m_ << (a.e_ - r.e_)) + (b.m_ << (b.e_ - r.e_));
         r.strip();
         return r;
       }
       friend Xp operator-(const Xp &a, const Xp &b) {
         Xp r;
-        r.e_ = std::min(a.e_, b.e_);
+        r.e_ = nuri::min(a.e_, b.e_);
         r.m_ = (a.m_ << (a.e_ - r.e_)) - (b.m_ << (b.e_ - r.e_));
         r.strip();
         return r;

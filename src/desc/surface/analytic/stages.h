@@ -216,7 +216,7 @@ namespace internal {
    * (or given directly), and squared radius `rho_i^2 = W + |c_i|^2 - h_i`.
    * Every exact tie is resolved by geogram's perturbation: every squared
    * radius grows, lower index first.
-   * Compiled without fast-math (`NURI_STRICT_FP_SRCS` in src/CMakeLists.txt);
+   * Compiled without fast-math (`NURI_STRICT_FP_FLAGS` in src/CMakeLists.txt);
    * the header carries no arithmetic. `kForceExact` skips the floating
    * filter, `kFilterOnly` aborts on reaching the exact stage (tests only).
    */
