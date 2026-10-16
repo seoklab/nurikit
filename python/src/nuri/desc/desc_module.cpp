@@ -25,6 +25,8 @@
 namespace nuri {
 namespace python_internal {
 namespace {
+constexpr ScParams kScDefaults {};
+
 void sr_sasa_validate_common_args(int nprobe, double rprobe) {
   check_positive(nprobe, "nprobe");
   check_positive(rprobe, "rprobe");
@@ -390,10 +392,12 @@ characterization of Quan and Stamm\ :footcite:`desc:surface:quan-stamm-2016`.
         return std::move(*res);
       },
       py::arg("pts_a"), py::arg("radii_a"), py::arg("pts_b"),
-      py::arg("radii_b"), py::kw_only(), py::arg("rp") = 1.7,
-      py::arg("density") = 15.0, py::arg("weight") = 0.5, py::arg("band") = 1.5,
-      py::arg("sep") = 8.0, py::arg("clamp") = 0.999,
-      py::arg("active_a") = py::none(), py::arg("active_b") = py::none(),
+      py::arg("radii_b"), py::kw_only(), py::arg("rp") = kScDefaults.rp,
+      py::arg("density") = kScDefaults.density,
+      py::arg("weight") = kScDefaults.weight,
+      py::arg("band") = kScDefaults.band, py::arg("sep") = kScDefaults.sep,
+      py::arg("clamp") = kScDefaults.clamp, py::arg("active_a") = py::none(),
+      py::arg("active_b") = py::none(),
       R"doc(
 Shape complementarity statistic of Lawrence and
 Colman\ :footcite:`desc:sc:lawrence-colman-1993` between two sets of spheres.
