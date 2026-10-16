@@ -573,12 +573,12 @@ depend on the dropped atoms). Running `triangulate`, `build_sas`, `build_ses`
 and the sampler on \f$S'\f$ instead of \f$S\f$ leaves unchanged, as sets:
 
 - (a) the accepted roots, each named by its sorted sphere triple and root sign,
-  with their positions, hence the probes, their atom lists and the merged
-  clusters;
+  with their positions, hence the probes, their atom lists;
 - (b) on every sphere below `n_enum` the ring of every circle, the arcs with
   their \f$\varphi\f$, \f$\Delta\varphi\f$, ends and tangents, the union of its
-  caps and its component count, and its area to rounding;
-- (c) the SES patches and the dots.
+  caps and its component count, and, where it is solved (below `n_solve`), its
+  area to rounding;
+- (c) the merged clusters, the SES patches and the dots.
 
 The cap *list* of a sphere is not invariant (@ref remark-2 "Remark 2"); its
 union is.
@@ -680,8 +680,8 @@ which no perturbation changes.
    rounding. A sphere with no edge gets 0 without a solve: its power cell is
    empty, so every point of \f$S_s\f$ is held by a ball of \f$S'\f$ (1(c)),
    the same in both runs; in the other run no root on \f$s\f$ is accepted,
-   no circle of \f$s\f$ is full, and the solve with caps and no arc returns
-   0.
+   no circle of \f$s\f$ is full, and the solve with caps and no arc returns 0.
+   So (b).
 6. *Probes, SES, dots.* Probes are sorted by owner and `n_active` counts the
    same set; the merge joins exactly the coincident pairs (an exact
    predicate on the input, @ref sas-merge "Probe merge") and takes the
@@ -867,8 +867,8 @@ the configuration with weights \f$\rho_i^2(\varepsilon) - \gamma\f$, a genuine
 arrangement for all but finitely many \f$\delta\f$. Then in a ball \f$N\f$
 around \f$x_0\f$ that meets no sphere outside \f$K\f$, for every index order
 and mask, the sweep's accepted roots, their ring order and the joins between
-caps through \f$x_0\f$ are those of \f$\Sigma\f$; and on every sphere below
-`n_enum` the reported area is the area of the exact arrangement.
+caps through \f$x_0\f$ are those of \f$\Sigma\f$; and on every solved sphere the
+reported area is the area of the exact arrangement.
 
 *Proof.* Powers are compared only by differences, so \f$\Sigma\f$ has the
 \f$RT\f$, cells, orthocentres \f$o_T\f$ and fans of the run, and
@@ -1212,18 +1212,20 @@ from \f$x\f$ toward it and \f$h\f$ the distance to the plane:
 
 \anchor lemma-6
 **Lemma 6 (the first SAS point an inflating ball touches is a vertex).** Let
-\f$x\f$ be a vertex whose contact directions span space (they fail to only
-when \f$x\f$ lies in the plane of its atom centers, and then its face has no
-area, @ref corollary-4 "Corollary 4") and \f$d\f$ a unit direction strictly
-inside \f$C_x\f$
-(\f$d = \sum \lambda_a \hat c_a\f$ with every \f$\lambda_a > 0\f$, scaled to
-\f$|d| = 1\f$). Inflate the balls \f$B_t = B(x + t d, t)\f$, \f$t > 0\f$,
-which are nested and all pass through \f$x\f$, and let \f$t_1\f$ be the
-largest \f$t\f$ for which the open ball \f$B_t^\circ\f$ contains no SAS
-point. Then \f$t_1 > 0\f$, \f$B(x + t_1 d, t_1) \subset U\f$, and a second
-SAS point \f$s_1 \ne x\f$ lies on its boundary; for all but a null set of
-directions \f$d\f$, \f$s_1\f$ is a vertex. Consequently, if \f$t_1 < r_p\f$,
-the face point \f$x + r_p d\f$ is cut by the vertex \f$s_1\f$.
+\f$x\f$ be a vertex whose contact directions span space (they fail to only when
+\f$x\f$ lies in the plane of its atom centers; then every circle through \f$x\f$
+is perpendicular to that plane and the reflection in it maps accessible arcs to
+accessible arcs, so an arc leaving \f$x\f$ is two-sided and the face has no area
+by @ref lemma-12 "Lemma 12"; @ref corollary-4 "Corollary 4" is the three-atom
+case) and \f$d\f$ a unit direction strictly inside \f$C_x\f$ (\f$d = \sum
+\lambda_a \hat c_a\f$ with every \f$\lambda_a > 0\f$, scaled to \f$|d| = 1\f$).
+Inflate the balls \f$B_t = B(x + t d, t)\f$, \f$t > 0\f$, which are nested and
+all pass through \f$x\f$, let \f$t_1\f$ be the largest \f$t\f$ for which the
+open ball \f$B_t^\circ\f$ contains no SAS point, and suppose some SAS point lies
+in \f$B^\circ(x + r_p d, r_p)\f$, so that \f$t_1\f$ is finite. Then \f$0 < t_1 <
+r_p\f$, \f$B(x + t_1 d, t_1) \subset U\f$, and a second SAS point \f$s_1 \ne
+x\f$ lies on its boundary; for all but a null set of directions \f$d\f$,
+\f$s_1\f$ is a vertex, and the face point \f$x + r_p d\f$ is cut by it.
 
 *Proof.*
 
@@ -1246,9 +1248,8 @@ the face point \f$x + r_p d\f$ is cut by the vertex \f$s_1\f$.
    \f$|s - (x + td)|^2 - t^2 = |s - x|^2 - 2t\, d \cdot (s - x) > 0\f$ for every
    \f$t\f$: no such \f$s\f$ is in any \f$B_t^\circ\f$.
 
-3. *The first touch.* Hence \f$t_1 > 0\f$, and it is finite whenever some SAS
-   point lies in \f$B_{r_p}^\circ\f$ (the only case used). The union of the open
-   balls \f$B_t^\circ\f$, \f$t < t_1\f$, is the open ball
+3. *The first touch.* Hence \f$t_1 > 0\f$, and finite by hypothesis. The union
+   of the open balls \f$B_t^\circ\f$, \f$t < t_1\f$, is the open ball
    \f$B^\circ(p_1, t_1)\f$, \f$p_1 = x + t_1 d\f$; it is connected, avoids the
    SAS and contains points inside \f$U\f$, so it lies inside \f$U\f$, and the
    closed ball lies in \f$U\f$. Slightly larger balls contain SAS points, which
@@ -1365,12 +1366,13 @@ with equal lengths means \f$x = y\f$. Finally @ref corollary-1 "Corollary 1"(a) 
 the SAS point \f$x\f$, gives \f$t_y(\nu_y) < r_p\f$.
 
 \anchor corollary-2
-**Corollary 2 (both ends low, symmetric drop).** If \f$y\f$ cuts \f$x\f$,
-then \f$y\f$ is low and the cap of \f$x\f$ on \f$y\f$'s sphere meets
-both \f$y\f$'s beyond-plane cap and \f$y\f$'s spherical triangle. Hence
-the two tests (@ref lemma-9 "Lemma 9", @ref lemma-10 "Lemma 10") are
-necessary conditions for cutting in either direction, and a failure on either
-side drops the pair *for both faces*.
+**Corollary 2 (both ends low, symmetric drop).** If \f$y\f$ is the first-touch
+cutter (@ref lemma-8 "Lemma 8") of a point of \f$x\f$'s face, then \f$y\f$ is
+low and the cap of \f$x\f$ on \f$y\f$'s sphere meets both \f$y\f$'s beyond-plane
+cap and \f$y\f$'s spherical triangle. Hence the two tests
+(@ref lemma-9 "Lemma 9", @ref lemma-10 "Lemma 10") are necessary conditions for
+cutting in either direction, and a failure on either side drops the pair *for
+both faces*.
 
 *Proof.* \f$x\f$ reaches \f$y\f$'s face beyond its plane by
 @ref lemma-8 "Lemma 8", so \f$y\f$ is low (@ref corollary-1 "Corollary 1"(c)).
@@ -1639,33 +1641,33 @@ and (b) one configuration. It is the probe height \f$h = 0\f$ that
 **Corollary 4 (a coincident-root vertex has no face).** Let \f$x\f$ lie on
 exactly three kept spheres \f$a, b, c\f$ with \f$D = 0\f$ for the face and
 \f$\pi_l(x) > 0\f$ for every other kept sphere. Then \f$x\f$ is an SAS vertex
-(\f$\pi_m(x + sn) = s^2\f$ for \f$m \in \{a, b, c\}\f$ by Lemma 13(b)), at
-least one circle through it is accessible on both sides (Lemma 13(d),
-continuity for the other spheres), and by Lemma 12 with \f$t = n\f$ its face
-lies in the great circle \f$\Pi \cap S(x, r_p)\f$ and has area 0, whatever the
-other probes do. In particular the two coincident roots do not carry
-complementary hemispheres: Corollary 1(a) at \f$h = 0\f$ constrains only the
-planar cone \f$C_x\f$, a null set of directions. This is the limit
-\f$h \to 0\f$ of the coincident reduced-surface faces that
-@cite desc:surface:sanner-1996 (p. 312) deletes when their probes cut each
-other through the face plane, stated exactly.
+(\f$\pi_m(x + sn) = s^2\f$ for \f$m \in \{a, b, c\}\f$, since \f$n \perp x -
+c_m\f$ by @ref lemma-13 "Lemma 13"(a)), at least one circle through it is
+accessible on both sides (@ref lemma-13 "Lemma 13"(d), continuity for the other
+spheres), and by @ref lemma-12 "Lemma 12" with \f$t = n\f$ its face lies in the
+great circle \f$\Pi \cap S(x, r_p)\f$ and has area 0, whatever the other probes
+do. In particular the two coincident roots do not carry complementary
+hemispheres: @ref corollary-1 "Corollary 1"(a) at \f$h = 0\f$ constrains only
+the planar cone \f$C_x\f$, a null set of directions. This is the limit \f$h \to
+0\f$ of the coincident reduced-surface faces that @cite desc:surface:sanner-1996
+(p. 312) deletes when their probes cut each other through the face plane, stated
+exactly.
 
 \anchor remark-5
 **Remark 5 (what the run does at a coincident root).** Both roots are at
 \f$x\f$, accepted, and merged into one cluster (`members == 2`, three atoms).
 On each circle through \f$x\f$ the ring is a single-point window: its
-antipode has \f$\pi_k = 4 r_{ij}^2 / \lambda_k\f$ (Lemma 13(c)), so the
-\f$2\pi\f$ arc is accessible iff \f$\lambda_k > 0\f$, and the cluster
-receives the tangent pair \f$\pm n\f$ from every such loop (or from the two
-arcs at \f$x\f$ when a fourth sphere interrupts the loop elsewhere) and
-nothing from a covered circle, whose only arc at the cluster is the
-zero-length diagonal. Coincident ring vertices share one angle, so the pair
-is bitwise antipodal. The contact-plane and triangle filters skip the
-cluster, every neighbor within \f$2 r_p\f$ is kept, and the face solver
-returns 0 at the first live complementary pair, before any cutter is
-examined. When the perturbation resolves the tie \f$D = 0\f$ to a miss
-instead, no probe exists and `side` covers or frees each circle by the same
-sign; both branches give the exact area 0.
+antipode has \f$\pi_k = 4 r_{ij}^2 / \lambda_k\f$ (@ref lemma-13 "Lemma 13"(c)),
+so the \f$2\pi\f$ arc is accessible iff \f$\lambda_k > 0\f$, and the cluster
+receives the tangent pair \f$\pm n\f$ from every such loop (or from the two arcs
+at \f$x\f$ when a fourth sphere interrupts the loop elsewhere) and nothing from
+a covered circle, whose only arc at the cluster is the zero-length diagonal.
+Coincident ring vertices share one angle, so the pair is bitwise antipodal. The
+contact-plane and triangle filters skip the cluster, every neighbor within \f$2
+r_p\f$ is kept, and the face solver returns 0 at the first live complementary
+pair, before any cutter is examined. When the perturbation resolves the tie \f$D
+= 0\f$ to a miss instead, no probe exists and `side` covers or frees each circle
+by the same sign; both branches give the exact area 0.
 
 ### The filter pipeline {#ses-pipeline}
 
