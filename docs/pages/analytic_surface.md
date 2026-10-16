@@ -720,7 +720,7 @@ arcs and area.
 <b>Remark 3 (sharpness of @ref lemma-3 "Lemma 3").</b> The criterion is
 the near band of rank \f$\le 2\f$, not less. A rank-3 atom \f$o\f$ near a rank-2 atom \f$a\f$ hosts faces
 \f$(a, o, o')\f$ whose accepted roots are the probes with a host in `shell`
-that @ref lemma-11 "Lemma 11" identifies as the first-touch cutters of faces on active
+that @ref corollary-3 "Corollary 3" identifies as the first-touch cutters of faces on active
 atoms; dropping \f$o\f$ deletes a cutter and its cap. Replacing the band by
 `g` is not safe either: a sphere exactly tangent to \f$a\f$ is in
 \f$X^0(x)\f$ at its tangency point \f$x\f$, and if \f$x\f$ is a root there
@@ -820,7 +820,8 @@ of \f$k \ge 4\f$ spheres it picks one resolution of the degeneracy (which
 triples form cells and which of the coincident probes are accessible), and
 rounding of the input under a rigid motion can pick another; areas differ
 only at rounding level, but the probe set at such a point is not a
-continuous function of the coordinates. The area is (@ref sas-merge "Probe merge").
+continuous function of the coordinates. The area is continuous there
+(@ref sas-merge "Probe merge", @ref lemma-14 "Lemma 14").
 
 #### The hybrid sweep {#sas-hybrid}
 
