@@ -970,7 +970,7 @@ TEST(BuildSesTest, SinglePointWindow) {
   const CapTable &caps = ref.concave().caps;
   ASSERT_EQ(caps.off.degree(p), 5);
   const int kcap = caps.off[p] + 4;
-  EXPECT_EQ(caps.cosa[kcap], w.norm() / (2 * rp));
+  EXPECT_DOUBLE_EQ(caps.cosa[kcap], w.norm() / (2 * rp));
   EXPECT_EQ(caps.axis.col(kcap), Vector3d(w / w.norm()));
 
   EXPECT_NEAR(ref.concave().area[p], quad, 1e-12);
