@@ -168,6 +168,8 @@ namespace internal {
     const int n_patches = 1 + n_loops - n_sets;
     const int chi = 2 * n_patches - n_loops;
     const double area = r2 * (kTwoPi * chi - turn_sum + geo_sum);
+    // TODO(jnooree): the slack borrows the length tolerance as a dimensionless
+    // bound; derive it from kSurfaceAngleEps per dart.
     ABSL_DCHECK_GE(area, -kSurfaceLengthEps * r2);
     return area;
   }
