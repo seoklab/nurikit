@@ -409,7 +409,7 @@ namespace internal {
    * the kept atoms near a sphere with caps, with contained spheres and the
    * other occluders dropped: `order` maps new to old indices, spheres
    * `< n_active` own surface, `< n_solve` get arrangements, `< n_enum` get
-   * caps. `g` is the forward overlap graph on new indices (`row(i)` = sorted
+   * caps. `g` is the forward overlap graph on new indices (`nbrs(i)` = sorted
    * `j > i`) over all kept spheres, decided exactly for the lifted heights
    * `t = sqrt(wmax - sar^2)` (the near band only ranks atoms); pair `q`
    * carries a circle iff `i < n_enum`, and `d[q]` is its center distance.
@@ -526,7 +526,7 @@ public:
   double rp() const { return ss_.rp; }
 
   /**
-   * Kept spheres: those within reach of an active one.
+   * @brief Number of the kept spheres (`SurfaceSpheres::order`).
    */
   int n_atoms() const { return static_cast<int>(ss_.order.size()); }
 
@@ -616,8 +616,8 @@ private:
  * @param radii_b Van der Waals radii of the second side.
  * @param params Probe radius, dot density and the statistic's parameters.
  * @return The statistic with its per-side summaries, or nullopt when the
- *         surface of either side could not be prepared or no interface dot of
- *         either side survives trimming.
+ *         inputs of either side are rejected or no interface dot of either
+ *         side survives trimming.
  *
  * @note No coordinate may exceed 1e4 angstroms in absolute value; subtract
  *       one common shift from all inputs first.
@@ -643,8 +643,8 @@ shape_complementarity(ConstRef<Matrix3Xd> pts_a, ConstRef<ArrayXd> radii_a,
  * @param active_b Atoms of the second side allowed to own interface surface.
  * @param params Probe radius, dot density and the statistic's parameters.
  * @return The statistic with its per-side summaries, or nullopt when the
- *         surface of either side could not be prepared or no interface dot of
- *         either side survives trimming.
+ *         inputs of either side are rejected or no interface dot of either
+ *         side survives trimming.
  *
  * @note No coordinate may exceed 1e4 angstroms in absolute value; subtract
  *       one common shift from all inputs first.

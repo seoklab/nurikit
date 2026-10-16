@@ -513,15 +513,16 @@ Precisely: assume no face of the fan is tangent to the circle (a double root is
 perturbed to a cut or a miss before this lemma applies) and no cell orthocenter
 lies on the circle (a tie that `accept` perturbs away).
 
-*Proof.* The circle \f$(a, b)\f$ and the power facet \f$P = V_a \cap V_b\f$ both lie in
-the radical plane \f$\{\pi_a = \pi_b\}\f$; \f$P\f$ is a convex polygon
+*Proof.* The circle \f$(a, b)\f$ and the power facet
+\f$F_{ab} = V_a \cap V_b\f$ both lie in the radical plane
+\f$\{\pi_a = \pi_b\}\f$; \f$F_{ab}\f$ is a convex polygon
 whose edges, in fan order, are the dual segments of the fan faces, and the
-accessible arcs are the circle inside \f$P\f$. Since
-\f$\mathrm{disc} \cap P\f$ is convex, its boundary alternates arcs of the
-circle and edges of \f$P\f$ in one cyclic order, so the crossings occur
+accessible arcs are the circle inside \f$F_{ab}\f$. Since
+\f$\mathrm{disc} \cap F_{ab}\f$ is convex, its boundary alternates arcs of the
+circle and edges of \f$F_{ab}\f$ in one cyclic order, so the crossings occur
 along the circle in the cyclic order of the edges, and on one edge the
 circle first enters and then leaves the half-plane of ball \f$c\f$ (exit
-from the facet, then entry) when the circle and \f$\partial P\f$ are both
+from the facet, then entry) when the circle and \f$\partial F_{ab}\f$ are both
 run counter-clockwise about \f$a \to b\f$, the orientation the positively
 oriented cells give the fan. Points not accepted by
 @ref theorem-1 "Theorem 1" lie outside the segment and are skipped; a face
@@ -633,7 +634,8 @@ which no perturbation changes.
      are signs of predicates on \f$f \cup X^0(x)\f$, and by 2 geogram makes
      the same choice in both runs. A far binder is untested or accepts.
 4. *Rings, arcs, antipode.* Fix a circle \f$(i, j) \in g\f$ with
-   \f$i <\f$ `n_enum` and the facet \f$P = V_i \cap V_j\f$ (@ref lemma-2 "Lemma 2"). Every
+   \f$i <\f$ `n_enum` and the facet \f$F_{ij} = V_i \cap V_j\f$
+   (@ref lemma-2 "Lemma 2"). Every
    accepted root of a face \f$(i, j, c)\f$ is in the fan of the edge, and
    the fan contributes exactly its accepted roots; a skipped fan face, whose
    third vertex is not `g`-adjacent to both, neither cuts nor contains the
@@ -641,17 +643,17 @@ which no perturbation changes.
    parity, class, angle and the `ccw` of each pair. Distinct vertices are
    ordered by position; coincident vertices at a \f$k\f$-fold point \f$x\f$
    are roots of faces \f$(i, j, c)\f$ with \f$c \in X^0(x)\f$, and near
-   \f$x\f$ the edges of \f$P\f$ are the lines \f$\{\pi_c = \pi_i\}\f$,
+   \f$x\f$ the edges of \f$F_{ij}\f$ are the lines \f$\{\pi_c = \pi_i\}\f$,
    \f$c \in X^0(x)\f$, shifted by \f$O(\varepsilon)\f$, every other line at
-   a margin, so their order around \f$P\f$ is a sign of predicates on
+   a margin, so their order around \f$F_{ij}\f$ is a sign of predicates on
    \f$\{i, j\} \cup X^0(x)\f$, the same in both runs by 2. Hence the ring is
    the same cyclic sequence with the same wrap, arcs and tangents. A full
-   circle is emitted iff the circle lies in \f$P\f$, iff every point of it
+   circle is emitted iff the circle lies in \f$F_{ij}\f$, iff every point of it
    has \f$\pi_m \ge 0\f$ for every \f$m\f$; spheres with \f$\pi_m > 0\f$ on
    the whole circle are irrelevant by compactness, and every other \f$m\f$
    holds a circle point \f$y \in S_i\f$, so \f$m \in X(y) \subseteq S'\f$.
-   In the single-point window, \f$Q \notin P\f$ iff an edge constraint of
-   \f$P\f$ fails at \f$Q\f$, and that edge's sphere holds \f$Q\f$ strictly,
+   In the single-point window, \f$Q \notin F_{ij}\f$ iff an edge constraint of
+   \f$F_{ij}\f$ fails at \f$Q\f$, and that edge's sphere holds \f$Q\f$ strictly,
    so it is in the fan; the answer is settled by far spheres strictly and by
    \f$X^0(Q) \subseteq S'\f$ through `antipode`.
 5. *Caps, components, areas.* The two runs may list different neighbor caps
@@ -1039,10 +1041,11 @@ its antipodal hemispheres end it empty (@ref corollary-4 "Corollary 4",
 - **Saddle** of an arc on the circle \f$(i, j)\f$ with span \f$\Delta\varphi\f$.
   The generating arc on the probe sphere is parametrized by \f$\beta\f$, the
   angle from the inward radial direction (toward the axis); \f$\beta < 0\f$
-  leans toward atom \f$i\f$. The valid range is \f$[-\theta_i, \theta_j]\f$ with
-  \f$\sin\theta_i = a/R_i\f$, \f$\sin\theta_j = (d - a)/R_j\f$, where \f$a\f$ is
-  the circle plane's offset from \f$c_i\f$ and \f$d\f$ the center distance. The
-  distance from the axis is \f$\varrho(\beta) = r_l - r_p \cos\beta\f$
+  leans toward atom \f$i\f$. The valid range is \f$[-\theta_i, \theta_j]\f$
+  with \f$\sin\theta_i = a/R_i\f$, \f$\sin\theta_j = (d_{ij} - a)/R_j\f$, where
+  \f$a\f$ is the circle plane's offset from \f$c_i\f$ and \f$d_{ij}\f$ the
+  center distance. The distance from the axis is
+  \f$\varrho(\beta) = r_l - r_p \cos\beta\f$
   (\f$r_l\f$ the circle radius); for a **spindle torus** (\f$r_l < r_p\f$) it
   vanishes at \f$\beta_0\f$ with \f$\sin\beta_0 = \sqrt{r_p^2 - r_l^2}/r_p\f$,
   and the part \f$|\beta| < \beta_0\f$ lies beyond the axis. Those points are
@@ -1061,7 +1064,7 @@ its antipodal hemispheres end it empty (@ref corollary-4 "Corollary 4",
   \f]
   cover every case: they tile the arc for an ordinary torus, cut out the
   spindle, and collapse to zero width where a part is absent (which also
-  happens when \f$a < 0\f$ or \f$d - a < 0\f$). They are stored per active
+  happens when \f$a < 0\f$ or \f$d_{ij} - a < 0\f$). They are stored per active
   circle, and the area is
   \f[
   A = \Delta\varphi\, r_p \sum_{\text{ranges}}
@@ -1336,30 +1339,36 @@ point. For the probes rolling along the arcs that leave \f$x\f$ this is
 also @ref lemma-7 "Lemma 7".
 
 \anchor lemma-8
-**Lemma 8 (cutting is symmetric).** Let \f$x\f$, \f$y\f$ be vertices with
-\f$|x - y| < 2 r_p\f$, and suppose the cap of \f$y\f$ removes a region of
-positive area from the face of \f$x\f$ computed without \f$y\f$ (the cone
-minus the caps of all other vertices within \f$2 r_p\f$). Then the ball of
-\f$x\f$ reaches the face region of \f$y\f$ beyond \f$y\f$'s contact plane:
-there is \f$\nu_y \in C_y\f$ with \f$|y + r_p \nu_y - x| < r_p\f$, and
-\f$t_y(\nu_y) < r_p\f$.
+**Lemma 8 (cutting is symmetric).** Let \f$z = x + r_p d\f$ be a face point of
+a vertex \f$x\f$ whose direction \f$d\f$ is strictly inside the cone and
+outside the null set of @ref lemma-6 "Lemma 6", and let \f$z\f$ be cut by some
+vertex, so that its first-touch radius satisfies \f$t_1 < r_p\f$ and the
+first-touch point \f$s_1\f$ is a vertex \f$y\f$. Call \f$y\f$ the
+**first-touch cutter** of \f$z\f$ and let \f$q = x + t_1 d\f$ be the center of
+the first-touch ball. Then \f$q\f$ is equidistant from \f$x\f$ and \f$y\f$ at
+distance \f$t_1\f$, \f$B(q, t_1) \subset U\f$, the directions
+\f$\nu_x = (q - x)/t_1\f$ and \f$\nu_y = (q - y)/t_1\f$ lie in \f$C_x\f$ and
+\f$C_y\f$, and the ball of \f$x\f$ reaches the face region of \f$y\f$ beyond
+\f$y\f$'s contact plane: \f$|y + r_p \nu_y - x| < r_p\f$ and
+\f$t_y(\nu_y) < r_p\f$. In particular, if the cap of a vertex \f$y\f$ with
+\f$|x - y| < 2 r_p\f$ removes a region of positive area from the face of
+\f$x\f$ computed without \f$y\f$ (the cone minus the caps of all other
+vertices within \f$2 r_p\f$), then \f$y\f$ is the first-touch cutter of every
+removed face point outside the null set.
 
-*Proof.* Pick a removed face point \f$z = x + r_p d\f$ with \f$d\f$ strictly
-inside the cone and outside the null set of @ref lemma-6 "Lemma 6". It is cut by \f$y\f$
-and by no other vertex. Since \f$y \in B^\circ(z, r_p)\f$, the first-touch
-radius of @ref lemma-6 "Lemma 6" satisfies \f$t_1 < r_p\f$, and its vertex \f$s_1\f$ is
-within \f$r_p\f$ of \f$z\f$; the only such vertex is \f$y\f$. Call
-\f$s_1\f$ the **first-touch cutter** of \f$z\f$; the rest of the proof uses
-only that \f$y = s_1\f$, never that \f$y\f$ is the unique cutter. So
-\f$q = p_1\f$ is equidistant from \f$x\f$ and \f$y\f$, at distance
-\f$t_1 < r_p\f$, and \f$B(q, t_1) \subset U\f$. Both \f$x\f$
-and \f$y\f$ lie on its boundary, so at each the direction to \f$q\f$ lies
-in the face cone (step 5 of @ref lemma-6 "Lemma 6"): \f$\nu_x = (q - x)/t_1 \in
-C_x\f$ and \f$\nu_y = (q - y)/t_1 \in C_y\f$. Then \f$|y + r_p \nu_y - x| \le |y
-+ r_p \nu_y - q| + |q - x| = (r_p - t_1) + t_1 = r_p\f$, with equality only if
-\f$q - x\f$ and \f$q - y\f$ point the same way, which with equal lengths means
-\f$x = y\f$. Finally @ref corollary-1 "Corollary 1"(a) at \f$y\f$, with the SAS
-point \f$x\f$, gives \f$t_y(\nu_y) < r_p\f$.
+*Proof.* \f$B(q, t_1) \subset U\f$ with \f$x\f$ and \f$y\f$ on its boundary is
+@ref lemma-6 "Lemma 6", so at each the direction to \f$q\f$ lies in the face
+cone (step 5 of @ref lemma-6 "Lemma 6"): \f$\nu_x \in C_x\f$ and
+\f$\nu_y \in C_y\f$. Then \f$|y + r_p \nu_y - x| \le |y + r_p \nu_y - q| +
+|q - x| = (r_p - t_1) + t_1 = r_p\f$, with equality only if \f$q - x\f$ and
+\f$q - y\f$ point the same way, which with equal lengths means \f$x = y\f$.
+Finally @ref corollary-1 "Corollary 1"(a) at \f$y\f$, with the SAS point
+\f$x\f$, gives \f$t_y(\nu_y) < r_p\f$. For the last claim pick a removed face
+point \f$z\f$ outside the null set; it is cut by \f$y\f$ and by no other
+vertex. Since \f$y \in B^\circ(z, r_p)\f$, \f$t_1 < r_p\f$, and the
+first-touch vertex \f$s_1 \ne x\f$ lies in \f$B^\circ(z, r_p)\f$ (the
+inflating balls are nested and meet only at \f$x\f$); the only vertex there
+is \f$y\f$.
 
 \anchor corollary-2
 **Corollary 2 (both ends low, symmetric drop).** If \f$y\f$ is the first-touch
@@ -1453,23 +1462,23 @@ The tangents are computed, each within
 \f$\eta_t =\f$ `kTangentEps` \f$=\f$ `kSurfaceAngleEps` \f$+ 4 \cdot 2^{-53}\f$
 of the exact one (@ref analysis-fp "Floating point"), so the test runs on
 a computed triangle \f$\tilde S\f$ with corners \f$\tilde p_m\f$. Let
-\f$\Delta = \tilde t_1 \cdot (\tilde t_2 \times \tilde t_3)\f$. Every
+\f$\Delta_t = \tilde t_1 \cdot (\tilde t_2 \times \tilde t_3)\f$. Every
 direction of the exact triangle \f$S\f$ is within
-\f$H = \arcsin\bigl(3\eta_t / (|\Delta| - 8 \cdot 2^{-53})\bigr)\f$ of \f$\tilde
-S\f$ (the \f$8 \cdot 2^{-53}\f$ is the rounding of \f$\Delta\f$ itself): the
+\f$H = \arcsin\bigl(3\eta_t / (|\Delta_t| - 8 \cdot 2^{-53})\bigr)\f$ of \f$\tilde
+S\f$ (the \f$8 \cdot 2^{-53}\f$ is the rounding of \f$\Delta_t\f$ itself): the
 corners satisfy \f$\tilde t_k \cdot \tilde p_m = 0\f$ for \f$k \ne m\f$ and
-\f$\tilde t_m \cdot \tilde p_m = -|\Delta| / |\tilde t_{m+1} \times \tilde
-t_{m+2}| \le -|\Delta|\f$, so \f$v = \sum_m \tilde p_m / |\sum_m \tilde p_m|\f$
-has \f$\tilde t_k \cdot v \le -|\Delta|/3\f$ for every \f$k\f$; a direction \f$d
+\f$\tilde t_m \cdot \tilde p_m = -|\Delta_t| / |\tilde t_{m+1} \times \tilde
+t_{m+2}| \le -|\Delta_t|\f$, so \f$v = \sum_m \tilde p_m / |\sum_m \tilde p_m|\f$
+has \f$\tilde t_k \cdot v \le -|\Delta_t|/3\f$ for every \f$k\f$; a direction \f$d
 \in S\f$ has \f$\tilde t_k \cdot d \le \eta_t\f$, hence \f$w = d + (3\eta_t /
-(|\Delta| - 8 \cdot 2^{-53}))\, v\f$ lies in \f$\tilde S\f$ at angle at most
+(|\Delta_t| - 8 \cdot 2^{-53}))\, v\f$ lies in \f$\tilde S\f$ at angle at most
 \f$H\f$ from \f$d\f$. A cap that meets \f$S\f$ therefore meets \f$\tilde S\f$
 with its radius widened by \f$H\f$, and the filter tests \f$\alpha + H\f$
 (\f$\cos(\alpha + H)\f$ from the stored \f$\cos\alpha, \sin\alpha\f$; a cap with
 \f$\alpha + H \ge \pi/2\f$ passes, as the squared comparisons need \f$\alpha + H
-< \pi/2\f$). The triangle is used only when \f$|\Delta| \ge\f$ `kTriangleDetMin`
+< \pi/2\f$). The triangle is used only when \f$|\Delta_t| \ge\f$ `kTriangleDetMin`
 \f$= 6\eta_t + 8 \cdot 2^{-53}\f$, which keeps \f$\sin H \le 1/2\f$ and the corner
-signs \f$\tilde t_m \cdot \tilde p_m \le -|\Delta|\f$ clear of their rounding;
+signs \f$\tilde t_m \cdot \tilde p_m \le -|\Delta_t|\f$ clear of their rounding;
 below it, and for a probe with other than three tangents, the probe passes the
 triangle test; a cluster of several roots passes both filters and is solved
 unfiltered, which is sound since the filters only ever drop. The condition is
@@ -1495,7 +1504,7 @@ R_y\f$ and the threshold is \f$R \ge \sqrt 2\, r_p\f$, i.e. a vdW radius of
 
 *Proof.*
 
-1. *Notation.* Take the point \f$q\f$ from the proof of @ref lemma-8 "Lemma 8":
+1. *Notation.* Take the point \f$q\f$ of @ref lemma-8 "Lemma 8":
    \f$x = q - t_1 \nu_x\f$, \f$y = q - t_1 \nu_y\f$ with \f$\nu_x \in C_x\f$,
    \f$\nu_y \in C_y\f$, \f$t_1 < r_p\f$. Write \f$w = x - y = t_1(\nu_y - \nu_x)\f$,
    \f$\zeta = \nu_x \cdot \nu_y < 1\f$, so
@@ -1625,7 +1634,7 @@ sign of one barycentric coordinate. Precisely: for a face \f$(a, b, c)\f$ with
   \f$c_k\f$ from the line \f$c_i c_j\f$, and \f$x\f$'s is \f$r_{ij} > 0\f$ on
   its own side; three negatives cannot sum to 1.
 
-Two degeneracies of @cite desc:surface:halperin-shelton-1998 (p. 186), three
+Two degeneracies of @cite desc:surface:halperin-shelton-1998, three
 spheres through one point and a circle tangent to a third sphere, are by (a)
 and (b) one configuration. It is the probe height \f$h = 0\f$ that
 @cite desc:surface:connolly-1983 (pp. 550-551) defines and skips.
@@ -2029,7 +2038,7 @@ nuri::SurfaceDots::probes() recovers the probe positions.
      normal \f$(q - p)/r_p\f$, owner the atom whose vdW surface is nearer.
      \f$\cos\beta\f$, \f$\sin\beta\f$ and the owner are per ring:
      \f$|p - c_i|^2 = R_i^2 + r_p^2 - 2r_p(r_l \cos\beta - a \sin\beta)\f$ and
-     \f$|p - c_j|^2 = R_j^2 + r_p^2 - 2r_p(r_l \cos\beta + (d - a)\sin\beta)\f$
+     \f$|p - c_j|^2 = R_j^2 + r_p^2 - 2r_p(r_l \cos\beta + (d_{ij} - a)\sin\beta)\f$
      do not depend on \f$\varphi\f$.
 - **Concave** (face of probe \f$q\f$). One probe-sphere Fibonacci lattice
   (\f$\max(\operatorname{lround}(4\pi r_p^2 \cdot \text{density}), 1)\f$ directions,
