@@ -17,11 +17,11 @@ in the analytic patch decomposition of Connolly
 @cite desc:surface:connolly-1983, whose Gauss-Bonnet patch areas are used,
 as is Richmond's for the SAS @cite desc:surface:richmond-1984.
 The characterization of the concave patches and the formulas used follow
-Quan and Stamm @cite desc:surface:quan-stamm-2016 (their Theorem 5.1 and
-formulas (4.19)/(5.25)/(5.28)); proofs not attributed to a source are this
-document's own. The shape complementarity statistic is that of Lawrence and
-Colman @cite desc:sc:lawrence-colman-1993 with the defaults of Lawrence's
-CCP4 `sc` @cite desc:sc:ccp4-sc, which Rosetta's `sc` application ports.
+Quan and Stamm @cite desc:surface:quan-stamm-2016 (their Theorem 5.1); proofs
+not attributed to a source are this document's own. The shape complementarity
+statistic is that of Lawrence and Colman @cite desc:sc:lawrence-colman-1993
+with the defaults of Lawrence's CCP4 `sc` @cite desc:sc:ccp4-sc, which
+Rosetta's `sc` application ports.
 The united-atom radii are Table 5
 of the Connolly MSP 3.9.2 manual @cite param:radii:connolly-msp-manual-2002,
 see nuri::ConnollyRadii; no radii file is copied from any program.
@@ -466,14 +466,14 @@ rejects a vertex and never bounds a fan. Precisely:
 \anchor theorem-1
 **Theorem 1 (vertex recipe).** In plain words: a cut point of a face is on
 the surface iff it is outside the two balls on either side of that face, and
-every surface vertex is a cut point of some face. Fix \f$\varepsilon > 0\f$
-small enough in the sense of @ref sas-step-1 "step 1"; in that configuration no
-two triangulation cells share an orthocenter and no cell orthocenter has zero
-power. Let \f$x\f$ be a cut point of circle \f$(a, b)\f$ with sphere
-\f$c\f$, and let \f$abc\f$ be a face of \f$RT\f$ with apexes \f$l_1\f$,
-\f$l_2\f$. Then \f$x\f$ is accessible iff \f$\pi_{l_1}(x) \ge 0\f$ and
-\f$\pi_{l_2}(x) \ge 0\f$; and every accessible cut point is produced by some
-face.
+every surface vertex is a cut point of some face. Precisely: fix
+\f$\varepsilon > 0\f$ small enough in the sense of @ref sas-step-1 "step 1";
+in that configuration no two triangulation cells share an orthocenter and no
+cell orthocenter has zero power. Let \f$x\f$ be a cut point of circle
+\f$(a, b)\f$ with sphere \f$c\f$, and let \f$abc\f$ be a face of \f$RT\f$ with
+apexes \f$l_1\f$, \f$l_2\f$. Then \f$x\f$ is accessible iff
+\f$\pi_{l_1}(x) \ge 0\f$ and \f$\pi_{l_2}(x) \ge 0\f$; and every accessible cut
+point is produced by some face.
 
 *Proof.* This is the duality of the power diagram and the regular
 triangulation @cite desc:surface:aurenhammer-1987 applied to the boundary of
@@ -553,8 +553,8 @@ the ring of that edge.
 \anchor lemma-3
 **Lemma 3 (occluder crop).** In plain words: an occluder that is near no atom
 with caps can be deleted before the triangulation without changing any surface
-that is reported. Let \f$S\f$ be the kept spheres after preparation with their
-ranks and
+that is reported. Precisely: let \f$S\f$ be the kept spheres after preparation
+with their ranks and
 \f$O \subseteq \{o \in S : \operatorname{rank}(o) = 3,\ \text{no near pair } (o, a) \text{ with } \operatorname{rank}(a) \le 2\}\f$.
 Let \f$S' = S \setminus O\f$ with the same \f$W\f$ and heights \f$t\f$, the
 survivors in their relative index order, `g`, `d` and `order` restricted to
@@ -718,8 +718,9 @@ give \f$s\f$ the cap union \f$\mathrm{cap}(u)\f$, one component, the same
 arcs and area.
 
 \anchor remark-3
-<b>Remark 3 (sharpness of @ref lemma-3 "Lemma 3").</b> The criterion is
-the near band of rank \f$\le 2\f$, not less. A rank-3 atom \f$o\f$ near a rank-2 atom \f$a\f$ hosts faces
+**Remark 3 (sharpness of the occluder crop).** The criterion of
+@ref lemma-3 "Lemma 3" is the near band of rank \f$\le 2\f$, not less. A rank-3
+atom \f$o\f$ near a rank-2 atom \f$a\f$ hosts faces
 \f$(a, o, o')\f$ whose accepted roots are the probes with a host in `shell`
 that @ref corollary-3 "Corollary 3" identifies as the first-touch cutters of faces on active
 atoms; dropping \f$o\f$ deletes a cutter and its cap. Replacing the band by
@@ -1295,10 +1296,10 @@ x\f$ lies on its boundary; for all but a null set of directions \f$d\f$,
 **Lemma 7 (caps from one circle are nested).** In plain words: of the probes
 on one circle through \f$x\f$, the one farthest along the circle cuts
 everything the others cut, and the probe rolling along the arc cuts nothing
-beyond the departure hemisphere and the arc's end vertex. Let \f$x\f$ be a
-vertex on the circle of atoms \f$a, b\f$ with an accessible arc leaving it,
-and measure the angle \f$\psi\f$ about the axis \f$c_a c_b\f$ from the
-plane through the axis and \f$x\f$, positive toward the arc. For a probe
+beyond the departure hemisphere and the arc's end vertex. Precisely: let
+\f$x\f$ be a vertex on the circle of atoms \f$a, b\f$ with an accessible arc
+leaving it, and measure the angle \f$\psi\f$ about the axis \f$c_a c_b\f$ from
+the plane through the axis and \f$x\f$, positive toward the arc. For a probe
 \f$y\f$ on the circle at angle \f$\Delta\varphi \in (0, 2\pi)\f$ from
 \f$x\f$ in that direction, the cap of \f$y\f$ on \f$S(x, r_p)\f$ meets the
 face cone \f$C_x\f$ in \f$\{\pi < \psi < \pi + \Delta\varphi/2\}\f$. Hence
@@ -2111,9 +2112,9 @@ memory; the stages:
 - **SES**: heights and contact triangles \f$O(p)\f$; the probe-pair query
   \f$O(p\,k_p)\f$ and the two filters \f$O(1)\f$ per pair; the face solver
   \f$O(k_p^2)\f$ per low face (its caps are the surviving neighbors plus
-  three hemispheres), \f$O(p\,k_p^2)\f$ in all; saddles \f$O(n m)\f$ per
-  arc count. Since \f$k_p \le m\f$ up to a constant, the SES is
-  \f$O(n m^2)\f$.
+  three hemispheres), \f$O(p\,k_p^2)\f$ in all; saddles \f$O(n m)\f$ (one
+  range pair per circle, one gather per arc). Since \f$k_p \le m\f$ up to a
+  constant, the SES is \f$O(n m^2)\f$.
 - **Sampling**: each convex or concave dot is tested against the caps of its
   sphere or face, \f$O(N_d\,m)\f$; toroidal rows are closed-form,
   \f$O(N_d + n m)\f$. Lattices are cached per dot count.

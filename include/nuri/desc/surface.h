@@ -476,8 +476,8 @@ namespace internal {
  * @note The triangulation inserts the spheres in a randomized order drawn
  *       from the thread's random engine, so the numbering of probes, arcs
  *       and dots and the last bits of per-atom areas (about 1e-14) change
- *       between calls; totals agree to rounding. Call
- *       `internal::seed_thread()` first for reproducible output.
+ *       between calls; totals agree to rounding. Call `seed_thread()`
+ *       first for reproducible output.
  */
 class AnalyticSurface {
 public:
@@ -493,9 +493,9 @@ public:
    * @brief Prepare the spheres for the probe radius `rp`, all atoms active
    *        or only those in `active`.
    *
-   * False when the inputs are rejected (see `internal::prepare`). May be
-   * called again with another mask; the previous preparation is replaced,
-   * and cleared on failure.
+   * False when the inputs are rejected
+   * (@ref prep-step-1 "preparation step 1"). May be called again with another
+   * mask; the previous preparation is replaced, and cleared on failure.
    */
   ABSL_MUST_USE_RESULT bool initialize(double rp);
   ABSL_MUST_USE_RESULT bool initialize(double rp, ConstRef<ArrayXb> active);

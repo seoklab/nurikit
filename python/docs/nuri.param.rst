@@ -5,8 +5,8 @@
 nuri.param
 ==========
 
-Tabulated per-atom parameters, looked up from a molecule or a PDB model. Today
-this is radii sets.
+Tabulated per-atom parameters, looked up from a molecule or a PDB model.
+Currently only radii sets.
 
 .. automodule:: nuri.param
 

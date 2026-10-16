@@ -440,7 +440,9 @@ is the mean of the two sides' median scores.
   either side survives trimming (which includes a mask that leaves no atom).
 
 .. note::
-  The default parameters are those of Rosetta's ``sc`` application.
+  The default parameters are those of Lawrence's CCP4
+  ``sc``\ :footcite:`desc:sc:ccp4-sc`, which Rosetta's ``sc`` application
+  ports.
 
 .. note::
   No coordinate may exceed :math:`10^4` angstroms in absolute value; subtract
