@@ -197,7 +197,7 @@ def test_active_masks(
     assert unmasked.sides[0].n_active == len(a_ext)
     assert unmasked.sides[0].n_dots > masked.sides[0].n_dots
 
-    with pytest.raises(ValueError, match="active mask size"):
+    with pytest.raises(ValueError, match="active_b size"):
         shape_complementarity(slab_a, radii, slab_b, radii, active_b=mask)
     with pytest.raises(ValueError, match="no interface"):
         shape_complementarity(

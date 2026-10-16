@@ -162,7 +162,7 @@ auto assign_radii(const T &obj, std::string_view kind, std::string_view missing,
         uncovered.push_back(i);
     }
 
-    throw py::value_error(absl::StrCat("No ", kind, " radius for atoms: [",
+    throw py::value_error(absl::StrCat("no ", kind, " radius for atoms: [",
                                        absl::StrJoin(uncovered, ", "), "]"));
   }
 
@@ -218,9 +218,8 @@ Supported radii sets:
           "assign_radii",
           [](const PDBModel &model, std::string_view kind,
              std::string_view missing, double scale, py::handle templ) {
-            return assign_radii(
-                model, kind, missing, scale, templ,
-                static_cast<Eigen::Index>(model.atoms().size()));
+            return assign_radii(model, kind, missing, scale, templ,
+                                static_cast<E::Index>(model.atoms().size()));
           },
           py::arg("model"), py::arg("kind"), py::kw_only(),
           py::arg("missing") = "error", py::arg("scale") = 1.0,

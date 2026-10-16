@@ -50,38 +50,17 @@ Spheres cast_spheres(py::handle py_pts, py::handle py_radii) {
   return { pts.eigen(), radii.eigen().array() };
 }
 
-ArrayXb cast_active(py::handle py_active, const int n) {
+ArrayXb cast_active(py::handle py_active, const int n, std::string_view name) {
   if (py_active.is_none())
     return ArrayXb::Constant(n, true);
 
   auto mask = py_array_cast<E::Dynamic, 1, bool>(py_active);
-  if (mask.eigen().size() != n)
-    throw py::value_error("active mask size does not match number of atoms");
-  return mask.eigen();
-}
-
-/**
- * Runs `then(surface)` without the GIL on the initialized surface of the
- * given spheres.
- */
-template <class F>
-auto with_surface(py::handle py_pts, py::handle py_radii, double rp,
-                  py::handle py_active, const F &then) {
-  const Spheres spheres = cast_spheres(py_pts, py_radii);
-  const int n = static_cast<int>(spheres.radii.size());
-  check_positive(rp, "rp");
-  const ArrayXb active = cast_active(py_active, n);
-
-  std::optional<decltype(then(std::declval<const AnalyticSurface &>()))> res;
-  {
-    py::gil_scoped_release rel;
-    AnalyticSurface surf(spheres.pts, spheres.radii);
-    if (surf.initialize(rp, active))
-      res = then(surf);
+  if (mask.eigen().size() != n) {
+    throw py::value_error(absl::StrCat(name, " size (", mask.eigen().size(),
+                                       ") does not match number of atoms (", n,
+                                       ")"));
   }
-  if (!res)
-    throw py::value_error("preparation failed; see log for details");
-  return std::move(*res);
+  return mask.eigen();
 }
 
 std::string_view kind_str(SurfaceKind kind) {
@@ -321,11 +300,23 @@ NURI_PYTHON_MODULE(m) {
               "kind must be \"sas\" or \"ses\", got \"", kind, "\""));
         }
 
-        return with_surface(py_pts, py_radii, rp, py_active,
-                            [sk](const AnalyticSurface &surf) {
-                              return sk == SurfaceKind::kSas ? surf.build_sas()
-                                                             : surf.build_ses();
-                            });
+        const Spheres spheres = cast_spheres(py_pts, py_radii);
+        const int n = static_cast<int>(spheres.radii.size());
+        check_positive(rp, "rp");
+        const ArrayXb active = cast_active(py_active, n, "active");
+
+        std::optional<internal::SurfaceGeometry> geo;
+        {
+          py::gil_scoped_release rel;
+          AnalyticSurface surf(spheres.pts, spheres.radii);
+          if (surf.initialize(rp, active)) {
+            geo = sk == SurfaceKind::kSas ? surf.build_sas() : surf.build_ses();
+          }
+        }
+        if (!geo)
+          throw py::value_error(
+              "the surface inputs were rejected; see log for details");
+        return std::move(*geo);
       },
       py::arg("pts"), py::arg("radii"), py::arg("rp") = 1.4,
       py::arg("kind") = "ses", py::arg("active") = py::none(), R"doc(
@@ -345,7 +336,7 @@ characterization of Quan and Stamm\ :footcite:`desc:surface:quan-stamm-2016`.
 
 :param pts: The sphere centers, as a 2D array of shape ``(N, 3)``.
 :param radii: The sphere radii, as a 1D array of shape ``(N,)``.
-:param rp: The probe radius, in angstroms. Default is 1.4 angstroms.
+:param rp: The probe radius, in angstroms.
 :param kind: ``"sas"`` or ``"ses"``. A SAS has convex patches only.
 :param active: Optional boolean mask of shape ``(N,)``. Active spheres own
   surface patches; the others only occlude. All spheres are active by default.
@@ -370,9 +361,11 @@ characterization of Quan and Stamm\ :footcite:`desc:surface:quan-stamm-2016`.
           throw py::value_error("each side must have at least one atom");
 
         const ArrayXb active_a = cast_active(py_active_a,
-                                             static_cast<int>(a.radii.size())),
+                                             static_cast<int>(a.radii.size()),
+                                             "active_a"),
                       active_b = cast_active(py_active_b,
-                                             static_cast<int>(b.radii.size()));
+                                             static_cast<int>(b.radii.size()),
+                                             "active_b");
 
         const ScParams params {
           check_positive(rp, "rp"),

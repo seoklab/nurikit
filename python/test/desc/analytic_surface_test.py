@@ -39,7 +39,7 @@ def test_validation(cluster):
     with pytest.raises(ValueError, match="kind must be"):
         analytic_surface(pts, radii, RP, kind="foo")
 
-    with pytest.raises(ValueError, match="active mask size"):
+    with pytest.raises(ValueError, match="active size"):
         analytic_surface(pts, radii, RP, active=np.ones(5, dtype=bool))
 
     with pytest.raises(ValueError, match=r"rp must be in \(0, inf\)"):
@@ -52,7 +52,7 @@ def test_validation(cluster):
 
     far_pts = pts.copy()
     far_pts[0, 2] = 2e4
-    with pytest.raises(ValueError, match="preparation failed"):
+    with pytest.raises(ValueError, match="rejected"):
         analytic_surface(far_pts, radii, RP)
 
     geo = analytic_surface(pts, radii, RP)

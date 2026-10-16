@@ -64,7 +64,7 @@ def test_mol_connolly(phenol: Molecule):
 
     with pytest.raises(
         ValueError,
-        match=r"No connolly radius for atoms: \[7, 8, 9, 10, 11, 12\]",
+        match=r"no connolly radius for atoms: \[7, 8, 9, 10, 11, 12\]",
     ):
         assign_radii(phenol, "connolly")
 
