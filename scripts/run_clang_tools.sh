@@ -144,7 +144,8 @@ function search-exec() {
 		;;
 	esac
 
-	find "$@" \( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) -print0 |
+	find "$@" -path '*/third-party' -prune -o \
+		\( -iname '*.h' -o -iname '*.hpp' -o -iname '*.cpp' \) -print0 |
 		xargs -0 -r -P"$nproc" -n1 "$prog" "${args[@]}"
 }
 
