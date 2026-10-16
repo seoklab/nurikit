@@ -514,10 +514,9 @@ Precisely: assume no face of the fan is tangent to the circle (a double root is
 perturbed to a cut or a miss before this lemma applies) and no cell orthocenter
 lies on the circle (a tie that `accept` perturbs away). Then the fan order is
 the cyclic order of the vertices on the circle, each cutting face contributing
-its exit from \f$F_{ab}\f$ and then its entry.
+its exit from the power facet \f$F_{ab} = V_a \cap V_b\f$ and then its entry.
 
-*Proof.* The circle \f$(a, b)\f$ and the power facet
-\f$F_{ab} = V_a \cap V_b\f$ both lie in the radical plane
+*Proof.* The circle and the facet \f$F_{ab}\f$ both lie in the radical plane
 \f$\{\pi_a = \pi_b\}\f$; \f$F_{ab}\f$ is a convex polygon
 whose edges, in fan order, are the dual segments of the fan faces, and the
 accessible arcs are the circle inside \f$F_{ab}\f$. Since
@@ -1360,9 +1359,12 @@ vertices within \f$2 r_p\f$), then \f$y\f$ is the first-touch cutter of every
 removed face point outside the null set.
 
 *Proof.* \f$B(q, t_1) \subset U\f$ with \f$x\f$ and \f$y\f$ on its boundary is
-@ref lemma-6 "Lemma 6", so at each the direction to \f$q\f$ lies in the face
-cone (step 5 of @ref lemma-6 "Lemma 6"): \f$\nu_x \in C_x\f$ and
-\f$\nu_y \in C_y\f$. Then \f$|y + r_p \nu_y - x| \le |y + r_p \nu_y - q| +
+@ref lemma-6 "Lemma 6". \f$\nu_x = d\f$ by construction. If \f$\nu_y\f$ were
+outside \f$C_y\f$, a direction \f$w\f$ with \f$w \cdot \nu_y > 0\f$ and
+\f$w \cdot \hat c_a(y) \le 0\f$ for every host \f$a\f$ of \f$y\f$ would put
+\f$y + \delta w\f$ inside \f$B^\circ(q, t_1) \subset U\f$ and, by the
+\f$\delta^2\f$ term, outside every host ball and every other ball, for small
+\f$\delta > 0\f$. Then \f$|y + r_p \nu_y - x| \le |y + r_p \nu_y - q| +
 |q - x| = (r_p - t_1) + t_1 = r_p\f$, with equality only if \f$q - x\f$ and
 \f$q - y\f$ point the same way, which with equal lengths means \f$x = y\f$.
 Finally @ref corollary-1 "Corollary 1"(a) at \f$y\f$, with the SAS point
@@ -2004,8 +2006,10 @@ survivors is the same.
 nuri::SurfaceSampler (`sample.cpp`) places dots *inside the exact patch
 domains* above. Their weights are normalized so that the sum over a patch
 equals the patch's analytic area; dot counts follow the requested density.
-Only the count is a sampled quantity. Normals point from the surface into the
-solvent; for toroidal and concave dots that is toward the probe center, so
+Only the count is a sampled quantity. A patch whose lattice keeps no
+direction, or a toroidal row that rounds to zero, emits nothing and adds its
+area to nuri::SurfaceDots::dropped_area(). Normals point from the surface into
+the solvent; for toroidal and concave dots that is toward the probe center, so
 nuri::SurfaceDots::probes() recovers the probe positions.
 
 - **Convex** (atom \f$i\f$ below `n_active`). A Fibonacci lattice
@@ -2032,9 +2036,8 @@ nuri::SurfaceDots::probes() recovers the probe positions.
      row's weights sum to its exact area; a row whose rings all round to zero
      is collapsed to one ring with
      \f$\operatorname{lround}(\text{area} \cdot \text{density})\f$ dots, and
-     only rows that still round to zero are dropped (recorded in
-     nuri::SurfaceDots::dropped_area()). An absent spindle side is a
-     zero-width row: it drops zero area and emits nothing.
+     a row that still rounds to zero is dropped as stated above. An absent
+     spindle side is a zero-width row: it drops zero area and emits nothing.
   4. Dot position \f$p = q(\varphi) + r_p(-\cos\beta \cdot \text{radial}(\varphi) + \sin\beta \cdot u)\f$,
      normal \f$(q - p)/r_p\f$, owner the atom whose vdW surface is nearer.
      \f$\cos\beta\f$, \f$\sin\beta\f$ and the owner are per ring:
