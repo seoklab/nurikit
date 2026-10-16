@@ -88,17 +88,6 @@ double simpson(const F &f, const double lo, const double hi, const int n) {
   return h / 3 * (f(lo) + 4 * odd + 2 * even + f(hi));
 }
 
-Balls random_cluster(const int seed, const int n, const double box = 6.0) {
-  std::mt19937 rng(seed);
-  std::uniform_real_distribution<double> u(0, box), ur(1.0, 1.4);
-  Balls c { Matrix3Xd(3, n), ArrayXd(n) };
-  for (int i = 0; i < n; ++i) {
-    c.pts.col(i) << u(rng), u(rng), u(rng);
-    c.sar[i] = ur(rng) + kRp;
-  }
-  return c;
-}
-
 constexpr int kLattice = 30000;
 
 const Matrix3Xd &lattice() {
@@ -521,16 +510,7 @@ TEST(BuildSesTest, FiltersAreNecessary) {
   int n_kept = 0, n_dropped = 0, n_cut = 0;
 
   for (const int seed: { 1, 2, 3, 4, 5, 6, 7, 8 }) {
-    std::mt19937 rng(seed);
-    std::uniform_real_distribution<double> u(0, 6.0), ur(1.0, 1.4);
-    const int n = 8;
-    Matrix3Xd pts(3, n);
-    ArrayXd sar(n);
-    for (int i = 0; i < n; ++i) {
-      pts.col(i) << u(rng), u(rng), u(rng);
-      sar[i] = ur(rng) + kRp;
-    }
-
+    const auto [pts, sar] = random_cluster(seed, 8, kRp);
     const SurfaceGeometry s = solve(pts, sar);
     const ConcavePatches &con = s.concave();
     for (int p = 0; p < con.pos.cols(); ++p) {
@@ -597,12 +577,12 @@ TEST(BuildSesTest, ThreeSpheresVsDots) {
 
 TEST(BuildSesTest, RandomClustersVsDots) {
   for (const int seed: { 1, 2, 3, 4, 5, 6 }) {
-    const Balls c = random_cluster(seed, 8 + seed % 5);
+    const Balls c = random_cluster(seed, 8 + seed % 5, kRp);
     const SurfaceGeometry s = solve(c.pts, c.sar);
     expect_faces_match_dots(s, kRp, "seed " + std::to_string(seed));
   }
 
-  const Balls dense = random_cluster(1, 32, 8.0);
+  const Balls dense = random_cluster(1, 32, kRp, 8.0);
   const SurfaceGeometry s = solve(dense.pts, dense.sar);
   EXPECT_GE(s.concave().caps.off.max_deg(), 8);
   expect_faces_match_dots(s, kRp, "dense");
@@ -652,7 +632,7 @@ int expect_filters_keep_area(const Matrix3Xd &pts, const ArrayXd &sar,
 TEST(BuildSesTest, FiltersDoNotChangeArea) {
   int n_extra = 0;
   for (const int seed: { 1, 2, 3, 4, 5, 6 }) {
-    const Balls c = random_cluster(seed, 8 + seed % 5);
+    const Balls c = random_cluster(seed, 8 + seed % 5, kRp);
     n_extra +=
         expect_filters_keep_area(c.pts, c.sar, "seed " + std::to_string(seed));
   }
@@ -1137,7 +1117,7 @@ TEST(BuildSesTest, SpindleAxisCoincidentRoots) {
  * the shells supply every neighbor probe within `2 rp`.
  */
 TEST(BuildSesTest, MaskedFacesMatchFull) {
-  const Balls c = random_cluster(11, 12);
+  const Balls c = random_cluster(11, 12, kRp);
   const SurfaceGeometry full = solve(c.pts, c.sar);
 
   for (const int stride: { 2, 6 }) {

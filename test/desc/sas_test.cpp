@@ -355,7 +355,6 @@ TEST(BuildSasTest, CoplanarTriangle) {
 
   const ConcavePatches &con = ses.concave();
   ASSERT_EQ(con.pos.cols(), 2);
-  EXPECT_NEAR(std::abs(con.pos(2, 0)), std::abs(con.pos(2, 1)), 1e-12);
   EXPECT_NEAR(con.pos(2, 0) + con.pos(2, 1), 0, 1e-12);
   for (int p = 0; p < 2; ++p) {
     EXPECT_EQ(con.atoms.degree(p), 3);
@@ -733,12 +732,6 @@ TEST(BuildSasTest, Reinitialize) {
   seed_thread(0);
   EXPECT_TRUE((surf.build_sas().convex().area == area).all());
 }
-
-struct Masked {
-  Matrix3Xd pts;
-  ArrayXd sar;
-  ArrayXb active;
-};
 
 ArrayXi all_but(const int n, std::initializer_list<int> drop) {
   ArrayXi rest(n - static_cast<int>(drop.size()));
@@ -1543,6 +1536,22 @@ Masked shared_circle_chain(const int mid) {
   return { std::move(pts), std::move(sar), active };
 }
 
+/**
+ * Four equal spheres through one point and a smaller active fifth off the
+ * ring: the four are cutters only (`n_active` 1, `n_solve` 2, `n_enum` 5).
+ */
+Masked cutter_only_cluster() {
+  const Matrix3Xd ring = star(4, 110, 2.0).rightCols(4);
+  Matrix3Xd pts(3, 5);
+  pts.leftCols(4) = ring;
+  pts.col(4) = ring.col(3) + Vector3d(0, -3.0, 0);
+  ArrayXd sar(5);
+  sar << 2.0, 2.0, 2.0, 2.0, 1.5;
+  ArrayXb active = ArrayXb::Constant(5, false);
+  active[4] = true;
+  return { std::move(pts), std::move(sar), std::move(active) };
+}
+
 TEST(BuildSasTest, BandSharedCircleRowAtHopFour) {
   for (int mid = 0; mid < 3; ++mid) {
     SCOPED_TRACE(mid);
@@ -1730,16 +1739,8 @@ TEST(BuildSasTest, PrepareRanksMatchOracle) {
     expect_ranks(m.pts, m.sar, m.active);
   }
   {
-    const Matrix3Xd ring = star(4, 110, 2.0).rightCols(4);
-    Matrix3Xd pts(3, 5);
-    pts.leftCols(4) = ring;
-    pts.col(4) = ring.col(3) + Vector3d(0, -3.0, 0);
-    ArrayXd sar(5);
-    sar << 2.0, 2.0, 2.0, 2.0, 1.5;
-    ArrayXb active = ArrayXb::Constant(5, false);
-    active[4] = true;
-
-    const SurfaceSpheres ss = expect_ranks(pts, sar, active);
+    const Masked m = cutter_only_cluster();
+    const SurfaceSpheres ss = expect_ranks(m.pts, m.sar, m.active);
     EXPECT_EQ(ss.n_active, 1);
     EXPECT_EQ(ss.n_solve, 2);
     EXPECT_EQ(ss.n_enum, 5);
@@ -2141,16 +2142,8 @@ TEST(BuildSasTest, GrazingVertex) {
  * probe on `{b, c, d, e}`.
  */
 TEST(BuildSasTest, CutterOnlyClusterMerged) {
-  const Matrix3Xd ring = star(4, 110, 2.0).rightCols(4);
-  Matrix3Xd pts(3, 5);
-  pts.leftCols(4) = ring;
-  pts.col(4) = ring.col(3) + Vector3d(0, -3.0, 0);
-  ArrayXd sar(5);
-  sar << 2.0, 2.0, 2.0, 2.0, 1.5;
-  ArrayXb active = ArrayXb::Constant(5, false);
-  active[4] = true;
-
-  const Sas sas = solve(pts, sar, active);
+  const Masked m = cutter_only_cluster();
+  const Sas sas = solve(m.pts, m.sar, m.active);
   ASSERT_EQ(sas.ss.n_active, 1);
   ASSERT_EQ(sas.ss.n_solve, 2);
   ASSERT_EQ(sas.ss.n_enum, 5);

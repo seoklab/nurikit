@@ -35,29 +35,15 @@ struct Sampled {
   SurfaceDots dots;
 };
 
-struct Spheres {
-  Matrix3Xd pts;
-  ArrayXd sar;
-  ArrayXb active;
-};
-
-Spheres three_spheres() {
+Masked three_spheres() {
   auto [pts, sar] = three_spheres_pts(kRp);
   return { std::move(pts), std::move(sar), ArrayXb::Constant(3, true) };
 }
 
-Spheres random_cluster() {
-  const int n = 12;
-  std::mt19937 rng(11);
-  std::uniform_real_distribution<double> u(0, 6.0), ur(1.0, 1.4);
-  Matrix3Xd pts(3, n);
-  ArrayXd sar(n);
-  for (int i = 0; i < n; ++i) {
-    pts.col(i) << u(rng), u(rng), u(rng);
-    sar[i] = ur(rng) + kRp;
-  }
-  ArrayXb active = ArrayXb::Constant(n, false);
-  active.head(n / 2).setConstant(true);
+Masked half_masked_cluster() {
+  auto [pts, sar] = random_cluster(11, 12, kRp);
+  ArrayXb active = ArrayXb::Constant(12, false);
+  active.head(6).setConstant(true);
   return { std::move(pts), std::move(sar), std::move(active) };
 }
 
@@ -77,7 +63,7 @@ Sampled solve(const Matrix3Xd &pts, const ArrayXd &sar, const double rp,
   return solve(pts, sar, ArrayXb::Constant(sar.size(), true), rp, density);
 }
 
-SurfaceGeometry seeded_ses(const Spheres &s, const double rp) {
+SurfaceGeometry seeded_ses(const Masked &s, const double rp) {
   const ArrayXd r = s.sar - rp;
   AnalyticSurface surf(s.pts, r);
   EXPECT_TRUE(surf.initialize(rp, s.active));
@@ -241,7 +227,7 @@ TEST(SurfaceSamplerTest, TwoSpheresCusp) {
 }
 
 TEST(SurfaceSamplerTest, ThreeSpheresConcave) {
-  const Spheres c = three_spheres();
+  const Masked c = three_spheres();
   const Matrix3Xd &pts = c.pts;
   const ArrayXd &sar = c.sar;
 
@@ -264,7 +250,7 @@ TEST(SurfaceSamplerTest, ThreeSpheresConcave) {
 }
 
 TEST(SurfaceSamplerTest, MaskedRunAndSubset) {
-  const Spheres c = random_cluster();
+  const Masked c = half_masked_cluster();
   const int n = static_cast<int>(c.sar.size());
 
   const Sampled s = solve(c.pts, c.sar, c.active, kRp, 15);
@@ -282,7 +268,7 @@ TEST(SurfaceSamplerTest, MaskedRunAndSubset) {
 }
 
 TEST(SurfaceSamplerTest, SasDots) {
-  const Spheres c = random_cluster();
+  const Masked c = half_masked_cluster();
   const ArrayXd r = c.sar - kRp;
   AnalyticSurface surf(c.pts, r);
   ASSERT_TRUE(surf.initialize(kRp, c.active));
@@ -354,8 +340,8 @@ TEST(SurfaceSamplerTest, SamplerReuse) {
   const double rp = 1.7, density = 15;
   Protein prot = heavy_atoms("1brs.pdb");
   ASSERT_GT(prot.pts.cols(), 500);
-  const Spheres protein { std::move(prot.pts), prot.radii + rp,
-                          ArrayXb::Constant(prot.radii.size(), true) };
+  const Masked protein { std::move(prot.pts), prot.radii + rp,
+                         ArrayXb::Constant(prot.radii.size(), true) };
   const SurfaceGeometry big = seeded_ses(protein, rp);
   const SurfaceGeometry small = seeded_ses(three_spheres(), kRp);
 

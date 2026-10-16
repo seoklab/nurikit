@@ -88,6 +88,28 @@ struct Balls {
   ArrayXd sar;
 };
 
+struct Masked {
+  Matrix3Xd pts;
+  ArrayXd sar;
+  ArrayXb active;
+};
+
+/**
+ * `n` spheres with centers uniform in `[0, box]^3` and SAS radii
+ * `rp + [1.0, 1.4)`.
+ */
+inline Balls random_cluster(const int seed, const int n, const double rp,
+                            const double box = 6.0) {
+  std::mt19937 rng(seed);
+  std::uniform_real_distribution<double> u(0, box), ur(1.0, 1.4);
+  Balls c { Matrix3Xd(3, n), ArrayXd(n) };
+  for (int i = 0; i < n; ++i) {
+    c.pts.col(i) << u(rng), u(rng), u(rng);
+    c.sar[i] = ur(rng) + rp;
+  }
+  return c;
+}
+
 /**
  * Three spheres on the z axis through one circle, with radii and offsets
  * whose rounded heights are exactly consistent (searched offline); the one in
@@ -194,7 +216,10 @@ inline NearTangentFace near_tangent_face(const double h) {
   pts.col(3) << 1.5, 1.5, 1.0;
   ArrayXd sar(4);
   sar << std::sqrt(h * h + (zs - zc) * (zs - zc)), r, r, 2.2;
-  return { Balls { pts, sar }, zc };
+  return {
+    Balls { pts, sar },
+     zc
+  };
 }
 
 /**
