@@ -30,8 +30,8 @@ namespace internal {
     constexpr int kBandHops = 4;
 
     /**
-     * Rounding bound of the shared-circle key
-     * (nurikit-data/scscore/bench/proofs/shared_circle_key.md).
+     * Rounding bound of the shared-circle key, Remark 6 of the
+     * analytic_surface page.
      */
     constexpr double kSharedCircleSafety = 1.1, kSharedCircleCoordTerm = 4.2,
                      kSharedCircleWeightTerm = 8.3,

@@ -151,7 +151,8 @@ bands that are supersets of exactly decided sets; every decision is exact.
    middle sphere's two caps would be exact complements, a tie for the covered
    test; the kernel also evaluates `cuts` on triples that are not faces, and
    two caps on one circle would tie there. The triangles of the exact overlap
-   graph are the candidates, a band on floating circle centers and axes a
+   graph are the candidates, a sorted window on the floating circle-center
+   offsets (@ref remark-6 "Remark 6") and a collinearity test on the axes a
    prefilter, and `BallExact::shared_circle` decides: circles \f$(a, b)\f$ and
    \f$(a, c)\f$ coincide iff \f$u = d_b \times d_c = 0\f$ and the discriminant
    \f$D\f$ of the @ref sas-notation "SAS notation" is zero; the middle is \f$a\f$ iff
@@ -2210,6 +2211,53 @@ and so only reparametrizes the angles monotonically, and the dots, `atan2`,
 the class fold and the subtraction add roundoff only; a pair further apart
 than `kRingSortEps` is in the exact order, and an exact tie is always within
 it.
+
+\anchor remark-6
+**Remark 6 (rounding bound of the shared-circle key).** Preparation
+@ref prep-step-3 "step 3" finds the candidate triples for
+`BallExact::shared_circle` by sorting the edges \f$(i, j)\f$ of the overlap
+graph at each \f$i\f$ on the floating key \f$q_{ij} = |a_{ij}|\f$,
+\f$a_{ij} = (d_{ij}^2 + R_i^2 - R_j^2) / (2 d_{ij})\f$, the unsigned offset
+of the circle's center from \f$c_i\f$ along the axis, evaluated from the
+stored edge length and the rounded squared radii, and testing only the pairs
+inside a sliding window of width \f$2 \max_e \epsilon_e\f$ over row
+\f$i\f$, with
+\f[
+\epsilon_e = \frac{1.1\, \epsilon_\rho + 16 \cdot 2^{-53} R_{\max}^2}{d_e}
++ 50 \cdot 2^{-53} R_{\max}, \qquad
+\epsilon_\rho = 2^{-53} \bigl(4.2\, |c|_{\max}^2 + 8.3\, W\bigr),
+\f]
+the five constants of `prep.cpp`, \f$|c|_{\max}^2 = 3 \cdot\f$
+`kSurfaceMaxCoord`\f$^2\f$ the bound on \f$|c_m|^2\f$. The window is sound:
+if circles
+\f$(i, j)\f$ and \f$(i, k)\f$ coincide exactly for the lifted radii, then
+\f$|q_{ij} - q_{ik}| \le \epsilon_{ij} + \epsilon_{ik}\f$. The
+collinearity test \f$R_i^2 |d_{ij} \times d_{ik}|^2 < 2 \tau^2 d_{ij}^2
+d_{ik}^2\f$ stays as a second filter (on an exactly collinear triple the
+floating cross product is pure rounding, \f$\sin < 10^{-15}\f$), and the
+predicate decides. *Proof sketch.* Exact coincidence makes \f$d_{ik}\f$ a
+real multiple of \f$d_{ij}\f$ and \f$v_{ik}\f$ the same multiple of
+\f$v_{ij}\f$, so the exact offsets agree in absolute value (the sign flips
+exactly when \f$i\f$ is the middle, which is why the key is unsigned).
+Three error sources separate the floating key from the exact offset. The
+lifted squared radius \f$\rho_m^2\f$ drifts from \f$R_m^2\f$ by at most
+\f$\epsilon_\rho\f$ (the roundings of \f$t_m^2\f$, of \f$|c_m|^2\f$ and of
+the three additions of the height), which moves the offset by at most
+\f$\epsilon_\rho / d_e\f$. The inputs, \f$d_e\f$ within \f$3.6 \cdot
+2^{-53}\f$ relative after subtraction, squared norm and square root, and
+\f$R^2\f$ within one rounding, move it by at most \f$3.6 \cdot 2^{-53} (d_e
++ R_{\max}) + 2^{-53} R_{\max}^2 / d_e\f$. The at most five roundings of the
+key expression itself, under the library's fast-math flags (any association,
+a reciprocal for the division, contraction), add \f$5.1 \cdot 2^{-53} d_e +
+10.2 \cdot 2^{-53} R_{\max}^2 / d_e\f$. With \f$d_e \le 2.0001 R_{\max}\f$
+on an edge of the overlap graph the sum is below \f$\epsilon_e\f$ with a
+factor 2 of slack on every rounding term and 9 % on \f$\epsilon_\rho\f$,
+which also absorbs the rounding of the window comparison. At the coordinate
+bound and \f$R_{\max} = 4\,\AA\f$, \f$\epsilon_e \approx 1.5 \cdot
+10^{-7}\,\AA\f$ at \f$d_e = 1\,\AA\f$; for a protein within
+\f$100\,\AA\f$ of the origin the numerator is about \f$1.6 \cdot
+10^{-11}\,\AA^2\f$. The constants assume a correctly rounded square root
+and division (no `-mrecip`).
 
 ## Related work {#related}
 
