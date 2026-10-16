@@ -12,6 +12,7 @@
 #include <gtest/gtest.h>
 
 #include "nuri/eigen_config.h"
+#include "desc_test_common.h"
 #include "nuri/desc/surface.h"
 #include "nuri/fmt/pdb.h"
 #include "nuri/random.h"
@@ -301,41 +302,9 @@ TEST(ShapeComplementarityTest, ParamsMatter) {
   EXPECT_LT(clamped->sc, base->sc);
 }
 
-struct Protein {
-  Matrix3Xd pts;
-  ArrayXd radii;
-};
-
-Protein heavy_atoms(const char *name, const char chain) {
-  std::ifstream ifs(std::filesystem::path(NURI_TEST_DATA_DIR) / name);
-  EXPECT_TRUE(ifs) << name;
-  PDBReader reader(ifs);
-  PDBRecord record;
-  EXPECT_TRUE(reader.getnext(record));
-  ParseResult<PDBModel> model = read_pdb_model(record.text());
-  EXPECT_TRUE(model) << model.error_msg();
-
-  const auto &atoms = model->atoms();
-  const int n = static_cast<int>(atoms.size());
-  Protein out { Matrix3Xd(3, n), ArrayXd(n) };
-  int w = 0;
-  for (int i = 0; i < n; ++i) {
-    const PDBAtom &a = atoms[i];
-    if (a.hetero() || a.element().atomic_number() <= 1
-        || a.rid().chain_id != chain)
-      continue;
-    out.pts.col(w) = model->major_conf().col(i);
-    out.radii[w] = a.element().vdw_radius();
-    ++w;
-  }
-  out.pts.conservativeResize(3, w);
-  out.radii.conservativeResize(w);
-  return out;
-}
-
 TEST(ShapeComplementarityTest, BarnaseBarstar) {
-  const Protein a = heavy_atoms("1brs.pdb", 'A'),
-                b = heavy_atoms("1brs.pdb", 'D');
+  const internal::Protein a = internal::heavy_atoms("1brs.pdb", 'A'),
+                          b = internal::heavy_atoms("1brs.pdb", 'D');
   ASSERT_GT(a.pts.cols(), 500);
   ASSERT_GT(b.pts.cols(), 500);
 

@@ -18,6 +18,7 @@
 #include <gtest/gtest.h>
 
 #include "nuri/eigen_config.h"
+#include "desc_test_common.h"
 #include "desc/surface/analytic/stages.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
@@ -180,18 +181,6 @@ Fixture<kForceExact> setup(const Matrix3Xd &pts, const ArrayXd &sar) {
     s.ref.rho2[i] = Q(s.wmax) + cc - Q(s.ex.h()[i]);
   }
   return s;
-}
-
-Matrix3Xd star(const int n_ring, const double polar_deg, const double reach) {
-  const double polar = polar_deg * constants::kPi / 180;
-  Matrix3Xd pts(3, n_ring + 1);
-  pts.col(0) << 0, 0, reach;
-  for (int k = 0; k < n_ring; ++k) {
-    const double az = constants::kTwoPi * k / n_ring;
-    pts.col(k + 1) << reach * std::sin(polar) * std::cos(az),
-        reach * std::sin(polar) * std::sin(az), reach * std::cos(polar);
-  }
-  return pts;
 }
 
 Matrix3Xd square_apex() {
@@ -483,23 +472,6 @@ TEST(BallExactTest, ContainedBall) {
   EXPECT_EQ(s.ex.contained(3, 0), 2);
   EXPECT_EQ(s.ex.contained(0, 4), -1);
   EXPECT_EQ(s.ex.contained(4, 0), -1);
-}
-
-/**
- * Three spheres on the z axis through one circle, with radii and offsets
- * whose rounded heights are exactly consistent (searched offline).
- */
-Matrix3Xd shared_circle_pts(const int mid, ArrayXd &sar) {
-  constexpr std::array<double, 3> r { 3.5, 3.25, 3.375 },
-      z { -1.421875, 0.578125, 1.078125 };
-  Matrix3Xd pts(3, 3);
-  sar.resize(3);
-  for (int q = 0; q < 3; ++q) {
-    const int src = (q + 1 - mid + 3) % 3;
-    pts.col(q) << 0, 0, z[src];
-    sar[q] = r[src];
-  }
-  return pts;
 }
 
 TEST(BallExactTest, SharedCircle) {
@@ -1120,13 +1092,8 @@ TEST(BallExactTest, DifferenceOnRoundedTangentPair) {
 
   int n_overlap = 0, n_pairs = 0;
   for (int seed = 0; seed < 32; ++seed) {
-    std::mt19937 rng(seed);
-    std::normal_distribution<double> nd;
-    const Vector3d ax(nd(rng), nd(rng), nd(rng));
-    const Matrix3d rot =
-        AngleAxisd(nd(rng), ax.normalized()).toRotationMatrix();
-    const Vector3d t(nd(rng), nd(rng), nd(rng));
-    const Matrix3Xd pts = (rot * base).colwise() + 3.0 * t;
+    const auto [rot, t] = rigid_motion(seed);
+    const Matrix3Xd pts = (rot * base).colwise() + t;
 
     const Fixture<> s = setup(pts, sar);
     const Fixture<true> e = setup<true>(pts, sar);

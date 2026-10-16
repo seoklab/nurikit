@@ -13,6 +13,7 @@
 #include <gtest/gtest.h>
 
 #include "nuri/eigen_config.h"
+#include "desc_test_common.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
 #include "nuri/fmt/pdb.h"
@@ -321,37 +322,6 @@ TEST(SampleSesTest, SasDots) {
     EXPECT_EQ(none.offset(p), 0);
     EXPECT_EQ(none.count(p), 0);
   }
-}
-
-struct Protein {
-  Matrix3Xd pts;
-  ArrayXd radii;
-};
-
-Protein heavy_atoms(const char *name) {
-  std::ifstream ifs(std::filesystem::path(NURI_TEST_DATA_DIR) / name);
-  EXPECT_TRUE(ifs) << name;
-  PDBReader reader(ifs);
-  PDBRecord record;
-  EXPECT_TRUE(reader.getnext(record));
-  ParseResult<PDBModel> model = read_pdb_model(record.text());
-  EXPECT_TRUE(model) << model.error_msg();
-
-  const auto &atoms = model->atoms();
-  const int n = static_cast<int>(atoms.size());
-  Protein out { Matrix3Xd(3, n), ArrayXd(n) };
-  int w = 0;
-  for (int i = 0; i < n; ++i) {
-    const PDBAtom &a = atoms[i];
-    if (a.hetero() || a.element().atomic_number() <= 1)
-      continue;
-    out.pts.col(w) = model->major_conf().col(i);
-    out.radii[w] = a.element().vdw_radius();
-    ++w;
-  }
-  out.pts.conservativeResize(3, w);
-  out.radii.conservativeResize(w);
-  return out;
 }
 
 TEST(SampleSesTest, ProteinDensity) {

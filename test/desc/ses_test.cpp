@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 
 #include "nuri/eigen_config.h"
+#include "desc_test_common.h"
 #include "desc/surface/analytic/stages.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
@@ -67,19 +68,6 @@ Ses solve_stages(const Matrix3Xd &pts, const ArrayXd &sar,
   return { std::move(*ss), std::move(del), std::move(geo), std::move(ses) };
 }
 
-/**
- * The departure-tangent hemispheres of face `p`: the leading caps of its row
- * with `cosa == 0`, whose axes are the tangents.
- */
-auto hemispheres(const SurfaceGeometry &s, const int p) {
-  const CapTable &caps = s.concave().caps;
-  const int beg = caps.off[p];
-  int n = 0;
-  while (n < caps.off.degree(p) && caps.cosa[beg + n] == 0)
-    ++n;
-  return caps.axis.middleCols(beg, n);
-}
-
 struct TwoSpheres {
   double a1, a2, rl;
 };
@@ -100,83 +88,6 @@ double simpson(const F &f, const double lo, const double hi, const int n) {
   return h / 3 * (f(lo) + 4 * odd + 2 * even + f(hi));
 }
 
-Matrix3Xd star(const int n_ring, const double polar_deg, const double reach) {
-  const double polar = polar_deg * kPi / 180;
-  Matrix3Xd pts(3, n_ring + 1);
-  pts.col(0) << 0, 0, reach;
-  for (int k = 0; k < n_ring; ++k) {
-    const double az = kTwoPi * k / n_ring;
-    pts.col(k + 1) << reach * std::sin(polar) * std::cos(az),
-        reach * std::sin(polar) * std::sin(az), reach * std::cos(polar);
-  }
-  return pts;
-}
-
-struct RigidMotion {
-  Matrix3d rot;
-  Vector3d t;
-};
-
-RigidMotion rigid_motion(const int seed) {
-  std::mt19937 rng(seed);
-  std::normal_distribution<double> nd;
-  const Vector3d ax(nd(rng), nd(rng), nd(rng));
-  const Matrix3d rot = AngleAxisd(nd(rng), ax.normalized()).toRotationMatrix();
-  const Vector3d t(nd(rng), nd(rng), nd(rng));
-  return { rot, 3.0 * t };
-}
-
-/**
- * Every relabeling of the atoms: the result must not depend on the index
- * order the perturbation uses.
- */
-template <class F>
-void for_each_index_order(const Matrix3Xd &pts, const ArrayXd &sar,
-                          const F &f) {
-  const int n = static_cast<int>(sar.size());
-  std::vector<int> order(n);
-  std::iota(order.begin(), order.end(), 0);
-  do {
-    Matrix3Xd p(3, n);
-    ArrayXd r(n);
-    for (int i = 0; i < n; ++i) {
-      p.col(i) = pts.col(order[i]);
-      r[i] = sar[order[i]];
-    }
-    f(p, r, order);
-  } while (std::next_permutation(order.begin(), order.end()));
-}
-
-/**
- * Circle of the original atoms `a`, `b`, -1 if none.
- */
-int circle_of(const SurfaceGeometry &s, const int a, const int b) {
-  const auto [lo, hi] = nuri::minmax(a, b);
-  const std::vector<SasCircle> &circles = s.toroidal().circles;
-  for (int q = 0; q < static_cast<int>(circles.size()); ++q) {
-    const SasCircle &c = circles[q];
-    const auto [ci, cj] = nuri::minmax(s.order()[c.i], s.order()[c.j]);
-    if (ci == lo && cj == hi)
-      return q;
-  }
-  return -1;
-}
-
-/**
- * The one probe within `radius` of `x`, -1 if none or several.
- */
-int probe_at(const Matrix3Xd &pos, const Vector3d &x,
-             const double radius = 1e-9) {
-  int found = -1;
-  for (int p = 0; p < pos.cols(); ++p) {
-    if ((pos.col(p) - x).norm() > radius)
-      continue;
-    if (found >= 0)
-      return -1;
-    found = p;
-  }
-  return found;
-}
 
 struct RandomCluster {
   Matrix3Xd pts;
