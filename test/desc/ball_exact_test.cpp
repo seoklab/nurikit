@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include <boost/multiprecision/cpp_bin_float.hpp>
 #include <geogram/delaunay/delaunay_3d.h>
 #include <geogram/numerics/predicates.h>
 
@@ -29,18 +30,13 @@
 namespace nuri {
 namespace internal {
 namespace {
-using Q = __float128;
+using Q = boost::multiprecision::cpp_bin_float_quad;
 
-Q q_sqrt(const Q x) {
-  if (x <= 0)
-    return 0;
-  Q s = std::sqrt(static_cast<double>(x));
-  for (int i = 0; i < 4; ++i)
-    s = (s + x / s) / 2;
-  return s;
+Q q_sqrt(const Q &x) {
+  return x <= 0 ? Q(0) : sqrt(x);
 }
 
-int q_sgn(const Q x, const Q tol = 0) {
+int q_sgn(const Q &x, const Q &tol = 0) {
   return x > tol ? 1 : x < -tol ? -1 : 0;
 }
 
@@ -54,7 +50,7 @@ QVec operator-(const QVec &a, const QVec &b) {
 QVec operator+(const QVec &a, const QVec &b) {
   return { a.x + b.x, a.y + b.y, a.z + b.z };
 }
-QVec operator*(const Q s, const QVec &a) {
+QVec operator*(const Q &s, const QVec &a) {
   return { s * a.x, s * a.y, s * a.z };
 }
 Q dot(const QVec &a, const QVec &b) {
@@ -131,8 +127,9 @@ struct Ref {
   // B_y inside B_x: min of the two signed conditions
   Q inside(int x, int y) const {
     const QVec d = cen(y) - cen(x);
-    const Q g = dot(d, d), u = rho2[x] - rho2[y] - g;
-    return nuri::min(u, u * u - 4 * rho2[y] * g);
+    const Q g = dot(d, d), u = rho2[x] - rho2[y] - g,
+            w = u * u - 4 * rho2[y] * g;
+    return nuri::min(u, w);
   }
 
   int contained(int a, int b) const {
@@ -276,7 +273,7 @@ TEST(BallExactTest, HeightsMatchGeogram) {
   expect_geogram_agrees(setup(lattice, ArrayXd::Constant(27, 0.8)));
 }
 
-constexpr Q kQTol = 1e-26;
+const Q kQTol = 1e-26;
 
 template <bool kForceExact>
 void expect_offset(const BallExactImpl<kForceExact> &ex, const Ref &ref,
