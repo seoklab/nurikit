@@ -122,7 +122,7 @@ In the binding sources (`python/src`), a `try_` prefix marks a function that
 takes unverified user input and either throws the Python exception or returns
 the verified value. Core C++ code does not throw, so a throwing helper needs a
 visible marker at its call site. Library code (`src/`, `include/`) keeps the
-ordinary C++ meaning, where `try_` means "may fail" (does not throw as well).
+ordinary C++ meaning, where `try_` means "may fail" (and does not throw).
 
 ### Pull requests
 
