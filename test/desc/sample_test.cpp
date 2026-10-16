@@ -42,12 +42,8 @@ struct Spheres {
 };
 
 Spheres three_spheres() {
-  Matrix3Xd pts(3, 3);
-  pts << 0, 4.8, 2.6,  //
-      0, 0.2, 4.16,    //
-      0, 0.3, -0.4;
-  ArrayXd sar(3);
-  sar << 1.5 + kRp, 1.9 + kRp, 1.7 + kRp;
+  ArrayXd sar;
+  Matrix3Xd pts = three_spheres_pts(sar, kRp);
   return { std::move(pts), std::move(sar), ArrayXb::Constant(3, true) };
 }
 

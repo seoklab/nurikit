@@ -13,6 +13,7 @@
 #include <fstream>
 #include <numeric>
 #include <random>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -113,6 +114,68 @@ inline RigidMotion rigid_motion(const int seed) {
   const Matrix3d rot = AngleAxisd(nd(rng), ax.normalized()).toRotationMatrix();
   const Vector3d t(nd(rng), nd(rng), nd(rng));
   return { rot, 3.0 * t };
+}
+
+inline Matrix3Xd rigid(const Matrix3Xd &pts, const int seed) {
+  const auto [rot, t] = rigid_motion(seed);
+  return (rot * pts).colwise() + t;
+}
+
+/**
+ * The exactly tangent pair `(0, 1)` and spheres 2, 3 through the touching
+ * point `(1.5, 0, 0)`, four spheres through one point; the roots of faces
+ * `{0, 2, 3}` and `{1, 2, 3}` there are linked only by the circle of the
+ * pair `(2, 3)`, which carries no ring when both are occluders.
+ */
+inline Matrix3Xd occluder_shell_pts() {
+  Matrix3Xd base(3, 6);
+  base << 0, 3, 1.5, 1.5, 1.5, 1.5,  //
+      0, 0, 1.5, 0, -1.5, -3.5,      //
+      0, 0, 0, 1.5, -1.5, -3.5;
+  return base;
+}
+
+/**
+ * Two exactly tangent spheres and a third through the tangency point, the
+ * circle of zero length with two coincident cut points.
+ */
+inline Matrix3Xd tangent_through_pts(ArrayXd &sar) {
+  Matrix3Xd pts(3, 3);
+  pts.col(0) << 0, 0, 0;
+  pts.col(1) << 3, 0, 0;
+  pts.col(2) << 1.5, 1.5, 0;
+  sar = ArrayXd::Constant(3, 1.5);
+  return pts;
+}
+
+inline Matrix3Xd three_spheres_pts(ArrayXd &sar, const double rp) {
+  Matrix3Xd pts(3, 3);
+  pts << 0, 4.8, 2.6,  //
+      0, 0.2, 4.16,    //
+      0, 0.3, -0.4;
+  sar.resize(3);
+  sar << 1.5 + rp, 1.9 + rp, 1.7 + rp;
+  return pts;
+}
+
+/**
+ * Spheres 1, 2 overlap by 1e-4 in a circle of radius 0.014 that sphere 0
+ * cuts nearly tangentially, so the face's two roots sit `h` on either side
+ * of the plane of the three centers with nearly coplanar departure
+ * tangents; sphere 3 supplies cutters within `2 rp` of them.
+ */
+inline std::pair<Matrix3Xd, ArrayXd> near_tangent_face(const double h) {
+  const double r = 2.0, d = 4.0 - 1e-4, zs = 3.0;
+  const double rc = std::sqrt(r * r - d * d / 4),
+               zc = std::sqrt(rc * rc - h * h);
+  Matrix3Xd pts(3, 4);
+  pts.col(0) << 0, 0, zs;
+  pts.col(1) << -d / 2, 0, 0;
+  pts.col(2) << d / 2, 0, 0;
+  pts.col(3) << 1.5, 1.5, 1.0;
+  ArrayXd sar(4);
+  sar << std::sqrt(h * h + (zs - zc) * (zs - zc)), r, r, 2.2;
+  return { pts, sar };
 }
 
 /**

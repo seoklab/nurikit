@@ -302,6 +302,10 @@ TEST(ShapeComplementarityTest, ParamsMatter) {
   EXPECT_LT(clamped->sc, base->sc);
 }
 
+/**
+ * Heavy atoms with element vdW radii, seeded. The values are pinned from
+ * this implementation's optdebug build at 1e-6; reldeb agrees.
+ */
 TEST(ShapeComplementarityTest, BarnaseBarstar) {
   const internal::Protein a = internal::heavy_atoms("1brs.pdb", 'A'),
                           b = internal::heavy_atoms("1brs.pdb", 'D');

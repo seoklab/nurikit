@@ -132,8 +132,11 @@ def test_side_consistency(tight: ScResult):
     )
 
 
-def test_views_readonly_and_owned(tight: ScResult):
-    side = tight.sides[0]
+def test_views_readonly_and_owned(
+    slab_a: np.ndarray, slab_b: np.ndarray, radii: np.ndarray
+):
+    res = shape_complementarity(slab_a, radii, slab_b, radii)
+    side = res.sides[0]
     assert side.dots.pts.flags.writeable is False
     assert side.dots.normals.flags.writeable is False
     assert side.dots.areas.flags.writeable is False
@@ -144,7 +147,7 @@ def test_views_readonly_and_owned(tight: ScResult):
     dots = side.dots
     pts = dots.pts
     total = pts.sum()
-    del tight, side, dots
+    del res, side, dots
     assert pts.sum() == total
 
 
@@ -234,6 +237,7 @@ def test_barnase_barstar(test_data: Path):
 
     nuri.seed_thread(0)
     res = shape_complementarity(pts_a, radii_a, pts_b, radii_b)
+    # pinned by the C++ ShapeComplementarityTest.BarnaseBarstar
     assert res.sc == pytest.approx(0.660846137477, abs=1e-6)
     assert res.distance == pytest.approx(0.639743237709, abs=1e-6)
     assert res.area == pytest.approx(906.024644525, abs=1e-6)

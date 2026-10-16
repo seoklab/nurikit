@@ -84,10 +84,6 @@ double merge_tol(const Sas &sas) {
   return probe_merge_tol(sas.ss.sar.maxCoeff());
 }
 
-double merge_tol(const Surface &s) {
-  return probe_merge_tol(s.sas.sar().maxCoeff());
-}
-
 /**
  * On an exact fixture coincident roots merge and distinct roots lie far
  * apart, so no two probes are within the merge band.
@@ -145,17 +141,6 @@ void expect_atoms_within(const SurfaceSpheres &ss, const SasGeometry &geo,
   atoms.erase(std::unique(atoms.begin(), atoms.end()), atoms.end());
   EXPECT_GE(n, 1);
   EXPECT_EQ(static_cast<int>(atoms.size()), k);
-}
-
-/**
- * Arcs with exactly one end at probe `p`.
- */
-int arc_ends_at(const std::vector<RingArc> &arcs, const int p) {
-  int n = 0;
-  for (const RingArc &arc: arcs)
-    n += static_cast<int>(arc.beg >= 0 && arc.beg != arc.end
-                          && (arc.beg == p || arc.end == p));
-  return n;
 }
 
 TEST(BuildSasTest, RejectsNonFiniteOrFarCoordinates) {
@@ -476,6 +461,12 @@ TangentApex tangent_apex(const double gap) {
   return t;
 }
 
+/**
+ * Shrake-Rupley with 20000 points agrees to 0.05 here and on the fixtures
+ * of similar size below, `(sar / 2)^2` times that elsewhere: empirical.
+ * `sr_tol` is the random-sampling bound, 0.3 to 0.5 at these radii, which
+ * the Fibonacci lattice beats by an order of magnitude.
+ */
 TEST(BuildSasTest, NearBandPinch) {
   for (const double gap: { 1e-7, 5e-7, 2e-6 }) {
     const TangentApex t = tangent_apex(gap);
@@ -578,25 +569,34 @@ TEST(BuildSasTest, FlatCellApexDoesNotHideCover) {
 }
 
 /**
- * Ideal benzene has 6-fold axis vertices and 4-fold C-C-H-H vertices; a
- * 1e-7 jitter scatters the raw points of one vertex beyond
- * kSurfaceLengthEps along their circles while every sphere still passes
- * within the tolerance. Deterministic jitter, rp 1.4.
+ * Ideal benzene: 6-fold axis vertices and 4-fold C-C-H-H vertices.
  */
-TEST(BuildSasTest, JitteredBenzeneVertices) {
+Matrix3Xd benzene_pts(ArrayXd &sar, const double rp) {
   Matrix3Xd pts(3, 12);
-  ArrayXd sar(12);
+  sar.resize(12);
   for (int k = 0; k < 6; ++k) {
     const double az = kPi / 3 * k;
     pts.col(k) << 1.39 * std::cos(az), 1.39 * std::sin(az), 0;
     pts.col(6 + k) << 2.47 * std::cos(az), 2.47 * std::sin(az), 0;
-    sar[k] = 1.7 + 1.4;
-    sar[6 + k] = 1.2 + 1.4;
+    sar[k] = 1.7 + rp;
+    sar[6 + k] = 1.2 + rp;
   }
+  return pts;
+}
+
+/**
+ * A 1e-7 jitter scatters the raw points of one benzene vertex beyond
+ * kSurfaceLengthEps along their circles while every sphere still passes
+ * within the tolerance. Deterministic jitter, rp 1.4; Shrake-Rupley to 0.1,
+ * the 0.05 of NearBandPinch for these larger spheres.
+ */
+TEST(BuildSasTest, JitteredBenzeneVertices) {
+  const double rp = 1.4;
+  ArrayXd sar;
+  Matrix3Xd pts = benzene_pts(sar, rp);
   for (int i = 0; i < pts.size(); ++i)
     pts.data()[i] += 1e-7 * std::sin(1000.0 * (i + 1));
 
-  const double rp = 1.4;
   std::optional<SurfaceSpheres> ss =
       prepare(pts, sar - rp, ArrayXb::Constant(12, true), rp);
   ASSERT_TRUE(ss);
@@ -647,22 +647,15 @@ TEST(BuildSasTest, NearPairPinchWithThirdSphere) {
 }
 
 /**
- * Spheres j, k overlap by 1e-4 in a circle of radius 0.014; the host cuts
- * that circle nearly tangentially so the face's two cut points are `2h`
- * apart. They are distinct vertices at any `h > 0`, far below the merge
- * band included: only exact coincidence merges two roots.
+ * The two cut points of `near_tangent_face` without its cutter are `2h`
+ * apart: distinct vertices at any `h > 0`, far below the merge band
+ * included, since only exact coincidence merges two roots.
  */
 TEST(BuildSasTest, TwoCutPointsOfOneFaceStayDistinct) {
   for (const double h: { 5e-6, 1e-13 }) {
-    const double r = 2.0, d = 4.0 - 1e-4, zs = 3.0;
-    const double rc = std::sqrt(r * r - d * d / 4),
-                 zc = std::sqrt(rc * rc - h * h);
-    Matrix3Xd pts(3, 3);
-    pts.col(0) << 0, 0, zs;
-    pts.col(1) << -d / 2, 0, 0;
-    pts.col(2) << d / 2, 0, 0;
-    ArrayXd sar(3);
-    sar << std::sqrt(h * h + (zs - zc) * (zs - zc)), r, r;
+    const auto [pts4, sar4] = near_tangent_face(h);
+    const Matrix3Xd pts = pts4.leftCols(3);
+    const ArrayXd sar = sar4.head(3);
 
     auto [ss, geo] = solve(pts, sar);
     ASSERT_EQ(geo.probes.pos.cols(), 2) << "h " << h;
@@ -678,18 +671,24 @@ TEST(BuildSasTest, TwoCutPointsOfOneFaceStayDistinct) {
   }
 }
 
-/**
- * One object initialized again: the same mask gives the same surface, a
- * half mask the same areas on its active atoms, a rejected probe radius
- * empties the object and the next good call brings the surface back.
- */
-TEST(BuildSasTest, Reinitialize) {
+Matrix3Xd lattice24_pts() {
   const int n = 24;
   Matrix3Xd pts(3, n);
   for (int i = 0; i < n; ++i) {
     const int ix = i % 4, iy = (i / 4) % 3, iz = i / 12;
     pts.col(i) << 1.7 * ix, 1.6 * iy + 0.3 * (i % 2), 1.5 * iz + 0.2 * (i % 3);
   }
+  return pts;
+}
+
+/**
+ * One object initialized again: the same mask gives the same surface, a
+ * half mask the same areas on its active atoms, a rejected probe radius
+ * empties the object and the next good call brings the surface back.
+ */
+TEST(BuildSasTest, Reinitialize) {
+  const Matrix3Xd pts = lattice24_pts();
+  const int n = static_cast<int>(pts.cols());
   const ArrayXd sar =
       ArrayXd::Constant(n, 1.5) + 0.05 * ArrayXd::LinSpaced(n, 0, 1);
   const ArrayXd r = sar - kRp;
@@ -985,12 +984,8 @@ TEST(BuildSasTest, BandTwinAtHopFour) {
 }
 
 TEST(BuildSasTest, TriangulationTables) {
-  const int n = 24;
-  Matrix3Xd pts(3, n);
-  for (int i = 0; i < n; ++i) {
-    const int ix = i % 4, iy = (i / 4) % 3, iz = i / 12;
-    pts.col(i) << 1.7 * ix, 1.6 * iy + 0.3 * (i % 2), 1.5 * iz + 0.2 * (i % 3);
-  }
+  const Matrix3Xd pts = lattice24_pts();
+  const int n = static_cast<int>(pts.cols());
   const ArrayXd sar = ArrayXd::Constant(n, 1.5);
   std::optional<SurfaceSpheres> ss =
       prepare(pts, sar - kRp, ArrayXb::Constant(n, true), kRp);
@@ -1126,11 +1121,6 @@ TEST(BuildSasTest, EdgeTablesMatchBruteForce) {
   EXPECT_GT(n_both_corners, 0);
 }
 
-Matrix3Xd rigid(const Matrix3Xd &pts, const int seed) {
-  const auto [rot, t] = rigid_motion(seed);
-  return (rot * pts).colwise() + t;
-}
-
 /**
  * Probes strictly inside a sphere that is not one of their atoms.
  */
@@ -1191,15 +1181,10 @@ TEST(BuildSasTest, FlatSquareApexNoSpuriousProbe) {
 
 TEST(BuildSasTest, BenzeneCoverNoSpuriousProbe) {
   const double rp = 1.4;
-  Matrix3Xd base(3, 13);
-  ArrayXd sar(13);
-  for (int k = 0; k < 6; ++k) {
-    const double az = kPi / 3 * k;
-    base.col(k) << 1.39 * std::cos(az), 1.39 * std::sin(az), 0;
-    base.col(6 + k) << 2.47 * std::cos(az), 2.47 * std::sin(az), 0;
-    sar[k] = 1.7 + rp;
-    sar[6 + k] = 1.2 + rp;
-  }
+  ArrayXd sar;
+  Matrix3Xd base = benzene_pts(sar, rp);
+  base.conservativeResize(3, 13);
+  sar.conservativeResize(13);
   Vector3d v(1.93, 1.1147, 0);
   v[2] = std::sqrt(sar[0] * sar[0]
                    - (v.head(2) - base.col(0).head(2)).squaredNorm());
@@ -1784,10 +1769,7 @@ TEST(BuildSasTest, SharedCircleSparesTwin) {
     EXPECT_TRUE((sas.ss.order != 3 - alive).all());
     EXPECT_TRUE((sas.ss.order == alive).any());
 
-    ArrayXi rest(7);
-    for (int q = 0, p = 0; q < 8; ++q)
-      if (q != 3 - alive)
-        rest[p++] = q;
+    const ArrayXi rest = all_but(8, { 3 - alive });
     const Sas ref = solve(pts(E::all, rest), sar(rest));
     EXPECT_NEAR(sas.geo.area.sum(), ref.geo.area.sum(), 1e-9);
   }
@@ -1825,21 +1807,6 @@ TEST(BuildSasTest, VertexAtFrameAnglePi) {
   }
 }
 
-/**
- * Two exactly tangent spheres and a third through the tangency point, the
- * circle of zero length with two coincident cut points. Over every axis
- * permutation, sign flip and index order: the tangent pair carries no cap,
- * the third sphere sees two tangent discs, no probe sits at the point.
- */
-Matrix3Xd tangent_through_pts(ArrayXd &sar) {
-  Matrix3Xd pts(3, 3);
-  pts.col(0) << 0, 0, 0;
-  pts.col(1) << 3, 0, 0;
-  pts.col(2) << 1.5, 1.5, 0;
-  sar = ArrayXd::Constant(3, 1.5);
-  return pts;
-}
-
 template <class F>
 void for_each_axis_variant(const Matrix3Xd &pts, const F &f) {
   std::array<int, 3> perm { 0, 1, 2 };
@@ -1853,6 +1820,11 @@ void for_each_axis_variant(const Matrix3Xd &pts, const F &f) {
   } while (std::next_permutation(perm.begin(), perm.end()));
 }
 
+/**
+ * Over every axis permutation, sign flip and index order of
+ * `tangent_through_pts`: the tangent pair carries no cap, the third sphere
+ * sees two tangent discs, no probe sits at the point.
+ */
 TEST(BuildSasTest, TangentPairThirdSphereThroughPoint) {
   ArrayXd sar;
   const Matrix3Xd base = tangent_through_pts(sar);
@@ -2006,7 +1978,8 @@ ArrayXd expect_order_invariant_areas(const Matrix3Xd &pts, const ArrayXd &sar) {
  * at the origin, their centers coplanar with it. Only some orders resolve
  * the touch into a 4-atom probe; the others see two caps that merely
  * touch, which are not joined (analytic_surface page, SAS step 5), so every
- * order gives the same areas.
+ * order gives the same areas. The areas are pinned from this
+ * implementation's optdebug build at 1e-5; reldeb agrees.
  */
 TEST(BuildSasTest, TouchingCapsWithoutLensVertex) {
   Matrix3Xd pts(3, 4);
@@ -2190,19 +2163,6 @@ TEST(BuildSasTest, CutterOnlyClusterMerged) {
   std::sort(atoms.begin(), atoms.end());
   EXPECT_EQ(atoms, (std::vector<int> { 0, 1, 2, 3 }));
   expect_no_unmerged_pairs(sas.geo.probes.pos, merge_tol(sas));
-}
-
-/**
- * Four occluders through `(1.5, 0, 0)`; the roots of faces `{0, 2, 3}` and
- * `{1, 2, 3}` there are linked only by the circle of the occluder pair
- * `(2, 3)`, which carries no ring.
- */
-Matrix3Xd occluder_shell_pts() {
-  Matrix3Xd base(3, 6);
-  base << 0, 3, 1.5, 1.5, 1.5, 1.5,  //
-      0, 0, 1.5, 0, -1.5, -3.5,      //
-      0, 0, 0, 1.5, -1.5, -3.5;
-  return base;
 }
 
 /**

@@ -297,8 +297,8 @@ void expect_offset(const BallExactImpl<kForceExact> &ex, const Ref &ref,
       << a << b << " face " << f.a << f.b << f.c << " root " << plus;
 }
 
-int expect_root_sign(const Ref &ref, const BallTriple f, const bool plus,
-                     const int l) {
+int root_sign(const Ref &ref, const BallTriple f, const bool plus,
+              const int l) {
   return q_sgn(ref.power(l, ref.root(f, plus)), kQTol);
 }
 
@@ -345,7 +345,7 @@ void check_random_agreement() {
           const QVec qp = ref.root(f, true), qm = ref.root(f, false);
           EXPECT_LT(std::abs(xp[0] - static_cast<double>(qp.x)), 1e-9);
           EXPECT_LT(std::abs(xm[1] - static_cast<double>(qm.y)), 1e-9);
-          for (const auto [ca, cb]: {
+          for (const auto &[ca, cb]: {
                    std::pair { a, b },
                     std::pair { b, c },
                    std::pair { a, c }
@@ -358,7 +358,7 @@ void check_random_agreement() {
             if (l == a || l == b || l == c)
               continue;
             for (const bool plus: { true, false }) {
-              const int want = expect_root_sign(ref, f, plus, l);
+              const int want = root_sign(ref, f, plus, l);
               if (want == 0)
                 continue;
               EXPECT_EQ(static_cast<int>(s.ex.accept(f, plus, l)), want)
@@ -506,11 +506,8 @@ TEST(BallExactTest, SharedCircle) {
  * must keep its direction.
  */
 TEST(BallExactTest, OffsetOnRoundingTinyCircle) {
-  Matrix3Xd base(3, 3);
-  base.col(0) << 0, 0, 0;
-  base.col(1) << 3, 0, 0;
-  base.col(2) << 1.5, 1.5, 0;
-  const ArrayXd sar = ArrayXd::Constant(3, 1.5);
+  ArrayXd sar;
+  const Matrix3Xd base = tangent_through_pts(sar);
 
   std::mt19937 rng(5);
   std::normal_distribution<double> nd;
@@ -592,11 +589,8 @@ TEST(BallExactTest, OffsetNearCollinearGreatCircle) {
 }
 
 TEST(BallExactTest, TangentPairCarriesNoCircle) {
-  Matrix3Xd pts(3, 3);
-  pts.col(0) << 0, 0, 0;
-  pts.col(1) << 3, 0, 0;
-  pts.col(2) << 1.5, 1.5, 0;
-  const ArrayXd sar = ArrayXd::Constant(3, 1.5);
+  ArrayXd sar;
+  const Matrix3Xd pts = tangent_through_pts(sar);
   const Fixture<> s = setup(pts, sar);
 
   EXPECT_EQ(s.ex.overlap(0, 1), Sgn::kZero);
@@ -666,17 +660,33 @@ TEST(BallExactTest, CoplanarSquareWithApex) {
                     Vector3d(0, 0, 0.5));
 }
 
-TEST(BallExactTest, CoincidentRootsTie) {
-  // two 4-fold points from two faces of the square: coincident roots
-  const Fixture<> s = setup(square_apex(), ArrayXd::Constant(5, 1.5));
+struct SquareTie {
+  Fixture<> s;
+  BallTriple f1, f2;
+  bool same;
+};
+
+/**
+ * Two 4-fold points from two faces of the square with apex on circle
+ * `(0, 1)`: coincident roots, `same` naming the root of `f2` at the plus
+ * root of `f1`.
+ */
+SquareTie square_tie() {
+  Fixture<> s = setup(square_apex(), ArrayXd::Constant(5, 1.5));
   const BallTriple f1 { 0, 1, 2 }, f2 { 0, 1, 3 };
-  ASSERT_EQ(s.ex.cuts(f1), Sgn::kPos);
-  ASSERT_EQ(s.ex.cuts(f2), Sgn::kPos);
+  EXPECT_EQ(s.ex.cuts(f1), Sgn::kPos);
+  EXPECT_EQ(s.ex.cuts(f2), Sgn::kPos);
   const auto [p1, m1] = s.ex.roots(f1);
   const auto [p2, m2] = s.ex.roots(f2);
   const bool same = (p1 - p2).norm() < 1e-12;
   EXPECT_EQ(s.ex.ccw(0, 1, f1, true, f2, same), Sgn::kZero);
-  EXPECT_EQ(s.ex.half_plane(0, 1, f1, true), s.ex.half_plane(0, 1, f2, same));
+  return { std::move(s), f1, f2, same };
+}
+
+TEST(BallExactTest, CoincidentRootsTie) {
+  const SquareTie t = square_tie();
+  EXPECT_EQ(t.s.ex.half_plane(0, 1, t.f1, true),
+            t.s.ex.half_plane(0, 1, t.f2, t.same));
 }
 
 void expect_same_predicates(const BallExact &ex, const BallExact &want) {
@@ -736,6 +746,10 @@ std::vector<CircleRoot> circle_roots(const BallExact &ex, const int a,
   return out;
 }
 
+struct RootGroups {
+  int n_roots = 0, n_close = 0, n_coincident = 0;
+};
+
 /**
  * Every root of every cut face, grouped by `coincide`: on the dyadic square
  * with apex the groups are the roots within 1e-9 of each other (faces
@@ -744,10 +758,6 @@ std::vector<CircleRoot> circle_roots(const BallExact &ex, const int a,
  * group; under a rigid motion the rounded points are distinct, so a group
  * never exceeds one root while positions still agree to 1e-14.
  */
-struct RootGroups {
-  int n_roots = 0, n_close = 0, n_coincident = 0;
-};
-
 RootGroups root_groups(const BallExact &ex) {
   std::vector<CircleRoot> roots;
   const int n = ex.n();
@@ -875,11 +885,11 @@ int check_coincident_order(const Fixture<> &s) {
           for (const CircleRoot &q: group) {
             if (&p == &q)
               continue;
-            const Sgn s = before(p, q);
-            EXPECT_NE(s, Sgn::kZero) << a << b;
-            EXPECT_EQ(static_cast<int>(before(q, p)), -static_cast<int>(s))
+            const Sgn pq = before(p, q);
+            EXPECT_NE(pq, Sgn::kZero) << a << b;
+            EXPECT_EQ(static_cast<int>(before(q, p)), -static_cast<int>(pq))
                 << a << b;
-            if (s != Sgn::kPos)
+            if (pq != Sgn::kPos)
               continue;
             for (const CircleRoot &r: group) {
               if (&r == &p || &r == &q || before(q, r) != Sgn::kPos)
@@ -944,18 +954,14 @@ int check_zero_arcs(const Matrix3Xd &pts, const ArrayXd &sar, const double rp) {
 }
 
 TEST(BallExactTest, CcwPerturbedResolvesCoincidentRoots) {
-  const Fixture<> sq = setup(square_apex(), ArrayXd::Constant(5, 1.5));
-  const BallTriple f1 { 0, 1, 2 }, f2 { 0, 1, 3 };
-  const auto [p1, m1] = sq.ex.roots(f1);
-  const auto [p2, m2] = sq.ex.roots(f2);
-  const bool same = (p1 - p2).norm() < 1e-12;
-  ASSERT_EQ(sq.ex.ccw(0, 1, f1, true, f2, same), Sgn::kZero);
-  const Sgn s = sq.ex.ccw_perturbed(0, 1, f1, true, f2, same);
+  const SquareTie t = square_tie();
+  const Sgn s = t.s.ex.ccw_perturbed(0, 1, t.f1, true, t.f2, t.same);
   EXPECT_NE(s, Sgn::kZero);
-  EXPECT_EQ(static_cast<int>(sq.ex.ccw_perturbed(0, 1, f2, same, f1, true)),
-            -static_cast<int>(s));
+  EXPECT_EQ(
+      static_cast<int>(t.s.ex.ccw_perturbed(0, 1, t.f2, t.same, t.f1, true)),
+      -static_cast<int>(s));
 
-  EXPECT_GT(check_coincident_order(sq), 0);
+  EXPECT_GT(check_coincident_order(t.s), 0);
   EXPECT_GT(
       check_coincident_order(setup(octahedron(), ArrayXd::Constant(6, 1.0))),
       0);
@@ -1076,7 +1082,7 @@ TEST(BallExactTest, DifferenceMatchesRoots) {
 }
 
 /**
- * The occluder-shell fixture of sas_test under rigid motions: where the
+ * The occluder-shell fixture under rigid motions: where the
  * tangent pair `(0, 1)` rounds into an overlap, its circle of radius
  * ~1e-8 is cut by the three spheres through the touching point at roots
  * 1e-8 to 1e-7 apart. The filtered `difference` must point as the forced
@@ -1084,16 +1090,12 @@ TEST(BallExactTest, DifferenceMatchesRoots) {
  * positions does not guarantee.
  */
 TEST(BallExactTest, DifferenceOnRoundedTangentPair) {
-  Matrix3Xd base(3, 6);
-  base << 0, 3, 1.5, 1.5, 1.5, 1.5,  //
-      0, 0, 1.5, 0, -1.5, -3.5,      //
-      0, 0, 0, 1.5, -1.5, -3.5;
+  const Matrix3Xd base = occluder_shell_pts();
   const ArrayXd sar = ArrayXd::Constant(6, 1.5);
 
   int n_overlap = 0, n_pairs = 0;
   for (int seed = 0; seed < 32; ++seed) {
-    const auto [rot, t] = rigid_motion(seed);
-    const Matrix3Xd pts = (rot * base).colwise() + t;
+    const Matrix3Xd pts = rigid(base, seed);
 
     const Fixture<> s = setup(pts, sar);
     const Fixture<true> e = setup<true>(pts, sar);

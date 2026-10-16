@@ -112,13 +112,6 @@ const Matrix3Xd &lattice() {
   return dirs;
 }
 
-/**
- * Lattice estimate of face `p`: directions outside every departure
- * hemisphere whose point on the probe sphere is outside every other probe
- * ball (`|rp d - w|^2 >= rp^2` as `2 rp dot(d, w) <= |w|^2`, exact enough
- * for neighbors at rounding distance), brute force over the active probes;
- * complete for all-active runs.
- */
 double area_within(const SurfaceGeometry &s, const Vector3d &x,
                    const double radius) {
   const Matrix3Xd &pos = s.concave().pos;
@@ -130,12 +123,37 @@ double area_within(const SurfaceGeometry &s, const Vector3d &x,
   return total;
 }
 
+/**
+ * Lattice directions outside every departure hemisphere `t` whose point on
+ * the probe sphere is outside every neighbor ball at offset `w` in `near`
+ * (`|rp d - w|^2 >= rp^2` as `2 rp dot(d, w) <= |w|^2`, exact enough for
+ * neighbors at rounding distance).
+ */
+template <class T>
+int count_outside(const Matrix3Xd &dirs, const T &t,
+                  const std::vector<Vector3d> &near, const double rp) {
+  int count = 0;
+  for (int k = 0; k < dirs.cols(); ++k) {
+    const Vector3d d = dirs.col(k);
+    if (t.cols() > 0 && (t.transpose() * d).maxCoeff() > 0)
+      continue;
+    bool outside = true;
+    for (const Vector3d &w: near)
+      outside &= 2 * rp * d.dot(w) <= w.squaredNorm();
+    count += outside;
+  }
+  return count;
+}
+
+/**
+ * Lattice estimate of face `p`, brute force over the active probes; complete
+ * for all-active runs.
+ */
 double face_from_dots(const SurfaceGeometry &s, const int p, const double rp) {
   const Matrix3Xd &pos = s.concave().pos;
   const Matrix3Xd &dirs = lattice();
   const Vector3d x = pos.col(p);
   const auto t = hemispheres(s, p);
-  const int nt = static_cast<int>(t.cols());
 
   std::vector<Vector3d> near;
   for (int y = 0; y < pos.cols(); ++y) {
@@ -143,18 +161,7 @@ double face_from_dots(const SurfaceGeometry &s, const int p, const double rp) {
     if (y != p && w.norm() < 2 * rp)
       near.push_back(w);
   }
-
-  int count = 0;
-  for (int k = 0; k < dirs.cols(); ++k) {
-    const Vector3d d = dirs.col(k);
-    if (nt > 0 && (t.transpose() * d).maxCoeff() > 0)
-      continue;
-    bool outside = true;
-    for (const Vector3d &w: near)
-      outside &= 2 * rp * d.dot(w) <= w.squaredNorm();
-    count += outside;
-  }
-  return 2 * kTwoPi * rp * rp * count / dirs.cols();
+  return 2 * kTwoPi * rp * rp * count_outside(dirs, t, near, rp) / dirs.cols();
 }
 
 double area_within(const Ses &s, const Vector3d &x, const double radius) {
@@ -177,7 +184,6 @@ double face_from_dots(const Ses &s, const int p, const double rp) {
   const Matrix3Xd &dirs = lattice();
   const Vector3d x = pr.pos.col(p);
   const auto t = pr.tan.middleCols(pr.tan_off[p], pr.tan_off.degree(p));
-  const int nt = static_cast<int>(t.cols());
 
   std::vector<Vector3d> near;
   for (int y = 0; y < pr.pos.cols(); ++y) {
@@ -192,18 +198,7 @@ double face_from_dots(const Ses &s, const int p, const double rp) {
     }
     near.push_back(w);
   }
-
-  int count = 0;
-  for (int k = 0; k < dirs.cols(); ++k) {
-    const Vector3d d = dirs.col(k);
-    if (nt > 0 && (t.transpose() * d).maxCoeff() > 0)
-      continue;
-    bool outside = true;
-    for (const Vector3d &w: near)
-      outside &= 2 * rp * d.dot(w) <= w.squaredNorm();
-    count += outside;
-  }
-  return 2 * kTwoPi * rp * rp * count / dirs.cols();
+  return 2 * kTwoPi * rp * rp * count_outside(dirs, t, near, rp) / dirs.cols();
 }
 
 double convex_from_dots(const SurfaceGeometry &s, const int i,
@@ -245,11 +240,6 @@ double saddle_from_quadrature(const SurfaceGeometry &s, const double rp) {
   return total;
 }
 
-/**
- * Every active face against the lattice to `1e-3` relative, floored at
- * `1.5e-3` of the probe sphere: four times the worst lattice error over
- * these fixtures, below their smallest face (`2.2e-3` of its sphere).
- */
 const ArrayXd &face_areas(const SurfaceGeometry &s) {
   return s.concave().area;
 }
@@ -258,9 +248,14 @@ const ArrayXd &face_areas(const Ses &s) {
   return s.ses.face_area;
 }
 
+/**
+ * Every active face against the lattice to `1e-3` relative, floored at
+ * `1.5e-3` of the probe sphere: four times the worst lattice error over
+ * these fixtures, below their smallest face (`2.2e-3` of its sphere).
+ */
 template <class S>
 void expect_faces_match_dots(const S &s, const double rp,
-                             const char *tag = "") {
+                             const std::string &tag = "") {
   const double sphere = 2 * kTwoPi * rp * rp;
   const ArrayXd &face_area = face_areas(s);
   for (int p = 0; p < face_area.size(); ++p) {
@@ -366,7 +361,7 @@ TEST(BuildSesTest, TwoSpheresCusp) {
   expect_two_sphere_cusp(1.0, 2.0, 1.1, false, true);
 }
 
-TEST(BuildSesTest, TwoSpheresNoActiveNoSaddle) {
+TEST(BuildSesTest, InactiveSphereKeepsSaddleNoFace) {
   Matrix3Xd pts(3, 2);
   pts << 0, 2.5, 0, 0, 0, 0;
   ArrayXd sar(2);
@@ -551,20 +546,21 @@ TEST(BuildSesTest, FiltersAreNecessary) {
         n_dropped += !c.kept;
       }
 
-      ArrayXb inside(cs.size());
+      const int nc = static_cast<int>(cs.size());
+      ArrayXb inside(nc);
       for (int k = 0; k < dirs.cols(); ++k) {
         const Vector3d d = dirs.col(k);
         if ((t.transpose() * d).maxCoeff() > 0)
           continue;
 
-        for (int y = 0; y < cs.size(); ++y)
+        for (int y = 0; y < nc; ++y)
           inside[y] = d.dot(cs[y].axis) > cs[y].cosa;
         const int n_inside = inside.count();
         bool kept_inside = false;
-        for (int y = 0; y < cs.size(); ++y)
+        for (int y = 0; y < nc; ++y)
           kept_inside |= inside[y] && cs[y].kept;
 
-        for (int y = 0; y < cs.size(); ++y) {
+        for (int y = 0; y < nc; ++y) {
           if (!inside[y] || cs[y].kept)
             continue;
           EXPECT_TRUE(kept_inside)
@@ -581,12 +577,8 @@ TEST(BuildSesTest, FiltersAreNecessary) {
 }
 
 TEST(BuildSesTest, ThreeSpheresVsDots) {
-  Matrix3Xd pts(3, 3);
-  pts << 0, 4.8, 2.6,  //
-      0, 0.2, 4.16,    //
-      0, 0.3, -0.4;
-  ArrayXd sar(3);
-  sar << 1.5 + kRp, 1.9 + kRp, 1.7 + kRp;
+  ArrayXd sar;
+  const Matrix3Xd pts = three_spheres_pts(sar, kRp);
 
   const SurfaceGeometry s = solve(pts, sar);
   const int n_probes = static_cast<int>(s.concave().pos.cols());
@@ -611,7 +603,7 @@ TEST(BuildSesTest, RandomClustersVsDots) {
   for (const int seed: { 1, 2, 3, 4, 5, 6 }) {
     const RandomCluster c = random_cluster(seed, 8 + seed % 5);
     const SurfaceGeometry s = solve(c.pts, c.sar);
-    expect_faces_match_dots(s, kRp, "seed");
+    expect_faces_match_dots(s, kRp, "seed " + std::to_string(seed));
   }
 
   const RandomCluster dense = random_cluster(1, 32, 8.0);
@@ -659,26 +651,6 @@ int expect_filters_keep_area(const Matrix3Xd &pts, const ArrayXd &sar,
     EXPECT_NEAR(area, s.ses.face_area[p], 1e-9) << where << " probe " << p;
   }
   return n_extra;
-}
-
-/**
- * Spheres 1, 2 overlap by 1e-4 in a circle of radius 0.014 that sphere 0
- * cuts nearly tangentially, so the face's two roots sit `h` on either side
- * of the plane of the three centers with nearly coplanar departure
- * tangents; sphere 3 supplies cutters within `2 rp` of them.
- */
-std::pair<Matrix3Xd, ArrayXd> near_tangent_face(const double h) {
-  const double r = 2.0, d = 4.0 - 1e-4, zs = 3.0;
-  const double rc = std::sqrt(r * r - d * d / 4),
-               zc = std::sqrt(rc * rc - h * h);
-  Matrix3Xd pts(3, 4);
-  pts.col(0) << 0, 0, zs;
-  pts.col(1) << -d / 2, 0, 0;
-  pts.col(2) << d / 2, 0, 0;
-  pts.col(3) << 1.5, 1.5, 1.0;
-  ArrayXd sar(4);
-  sar << std::sqrt(h * h + (zs - zc) * (zs - zc)), r, r, 2.2;
-  return { pts, sar };
 }
 
 TEST(BuildSesTest, FiltersDoNotChangeArea) {
@@ -796,8 +768,7 @@ TEST(BuildSesTest, TangentNeighborProbe) {
 
   for (int seed = 0; seed < 16; ++seed) {
     SCOPED_TRACE(seed);
-    const auto [rot, t] = rigid_motion(seed);
-    const Matrix3Xd pts = (rot * base).colwise() + t;
+    const Matrix3Xd pts = rigid(base, seed);
     const SurfaceGeometry s = solve(pts, sar, rp);
     ASSERT_EQ(s.concave().pos.cols(), 2);
     for (int p = 0; p < 2; ++p) {
@@ -889,8 +860,7 @@ TEST(BuildSesTest, PlanarProbe) {
 
   for (int seed = 0; seed < 8; ++seed) {
     SCOPED_TRACE(seed);
-    const auto [rot, t] = rigid_motion(seed);
-    const Matrix3Xd pts = (rot * base).colwise() + t;
+    const Matrix3Xd pts = rigid(base, seed);
     const auto [sas, ses] = solve_both(pts, sar, rp);
     expect_sr(sas, pts);
     expect_faces_match_dots(ses, rp, "planar");
@@ -1105,18 +1075,17 @@ TEST(BuildSesTest, KFoldFaceUnderRigidMotion) {
 }
 
 /**
- * The occluder-shell fixture of sas_test, all active, under rigid motions:
- * where the tangent pair `(0, 1)` rounds into an overlap, the roots on its
- * circle of radius ~1e-8 are neighbor probes 1e-8 to 1e-7 apart whose
- * cap axes their positions cannot resolve, so the lattice oracle places
- * them by the exact difference. The faces at the point sum to the quarter
- * sphere of the exact 4-fold point and match the lattice.
+ * The occluder-shell fixture, all active, under rigid motions: where the
+ * tangent pair `(0, 1)` rounds into an overlap, the roots on its circle of
+ * radius ~1e-8 are neighbor probes 1e-8 to 1e-7 apart whose cap axes their
+ * positions cannot resolve, so the lattice oracle places them by the exact
+ * difference. The faces at the point match the lattice
+ * and sum to the quarter sphere of the exact 4-fold point to 1e-6, not the
+ * 1e-9 of exact k-fold points: the roots' 1e-8 to 1e-7 spread shifts the
+ * face boundaries, and the sums, by as much.
  */
 TEST(BuildSesTest, RoundedTangentPairFaces) {
-  Matrix3Xd base(3, 6);
-  base << 0, 3, 1.5, 1.5, 1.5, 1.5,  //
-      0, 0, 1.5, 0, -1.5, -3.5,      //
-      0, 0, 0, 1.5, -1.5, -3.5;
+  const Matrix3Xd base = occluder_shell_pts();
   const ArrayXd sar = ArrayXd::Constant(6, 1.5);
   const double rp = 0.5, quarter = kPi * rp * rp;
   const Vector3d x0(1.5, 0, 0);
