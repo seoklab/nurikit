@@ -146,6 +146,11 @@ namespace {
                  nuri::max(static_cast<int>(buf.cols()), cols));
   }
 
+  int beta_rings(const double rp, const double width, const double density) {
+    return static_cast<int>(
+        nuri::max(std::lround(rp * width * std::sqrt(density)), 1L));
+  }
+
   /**
    * Grows every buffer to the largest lattice, cap list, probe contact list
    * and saddle row of `geo`; storage only grows across calls.
@@ -161,14 +166,13 @@ namespace {
               mcap = nuri::max(geo.convex().caps.off.max_deg(),
                                geo.concave().caps.off.max_deg()),
               ncontact = geo.concave().atoms.max_deg(),
-              k_beta = static_cast<int>(nuri::max(
-                  std::lround(rp * constants::kPi * std::sqrt(density)), 1L));
+              k_beta = beta_rings(rp, constants::kPi, density);
 
     grow(scratch.outside, ndir);
     grow(scratch.axt, mcap, 3);
     grow(scratch.kept, 3, ndir);
     grow(scratch.contacts, 3, ncontact);
-    grow(scratch.big, ncontact);
+    grow(scratch.sar, ncontact);
     grow(scratch.r, ncontact);
     grow(scratch.depth, ncontact, ndir);
     grow(scratch.sin_edge, k_beta + 1);
@@ -272,8 +276,7 @@ namespace {
     if (width <= 0)
       return;
 
-    const int k_beta = static_cast<int>(
-        nuri::max(std::lround(rp * width * std::sqrt(density)), 1L));
+    const int k_beta = beta_rings(rp, width, density);
     const double dbeta = width / k_beta;
 
     auto sin_edge = scratch.sin_edge.head(k_beta + 1);
@@ -400,7 +403,7 @@ namespace {
       const auto atoms = concave.atoms.nbrs(p);
       const int na = static_cast<int>(atoms.size());
       auto contacts = scratch.contacts.leftCols(na);
-      auto big = scratch.big.head(na), small = scratch.r.head(na);
+      auto big = scratch.sar.head(na), small = scratch.r.head(na);
       for (int a = 0; a < na; ++a) {
         contacts.col(a) = (geo.pts().col(atoms[a]) - pos).normalized();
         big[a] = sar[atoms[a]];

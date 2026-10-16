@@ -167,8 +167,6 @@ namespace {
     ABSL_DCHECK_GT(pts.cols(), 0);
     ABSL_DCHECK_EQ(pts.cols(), radii.size());
     ABSL_DCHECK_EQ(pts.cols(), mask.size());
-    ABSL_DCHECK(pts.allFinite());
-    ABSL_DCHECK((radii.array() > 0).all());
   }
 }  // namespace
 

@@ -177,11 +177,11 @@ namespace internal {
     }
 
     /**
-     * One triangulation face: its sorted vertices (-1 if it holds a corner
-     * or a non-overlapping pair), the probe of each root (0 = plus, 1 =
-     * minus; -1 if rejected), whether its three vertices are kept spheres
-     * carrying all three overlapping pairs, and whether its third sphere
-     * cuts the circle.
+     * One triangulation face: its sorted vertices (-1 if it holds a corner,
+     * a non-overlapping pair or no capped sphere), the probe of each root
+     * (0 = plus, 1 = minus; -1 if rejected), whether its three vertices are
+     * kept spheres carrying all three overlapping pairs, and whether its
+     * third sphere cuts the circle.
      */
     struct FaceRec {
       Array3i verts = Array3i::Constant(-1);

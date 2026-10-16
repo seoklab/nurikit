@@ -13,8 +13,8 @@
 #include <geogram/numerics/predicates.h>
 
 #include "nuri/eigen_config.h"
-#include "nuri/desc/surface.h"
 #include "stages.h"
+#include "nuri/desc/surface.h"
 #include "nuri/utils.h"
 
 namespace nuri {

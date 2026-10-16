@@ -7,7 +7,6 @@
 #define NURI_DESC_SURFACE_ANALYTIC_STAGES_H_
 
 #include <array>
-#include <limits>
 #include <memory>
 #include <tuple>
 #include <utility>
@@ -512,9 +511,8 @@ namespace internal {
    * Gauss-Bonnet area of one sphere from its caps and the accessible arcs on
    * their circles. Fill with `begin`, `add_cap`, `add_vertex` and `add_arc`
    * (ids are assigned in call order; an arc runs from `beg` to `end`, both -1
-   * for a full circle), then `solve`
-   * with the exact test whether two caps' discs intersect; buffers persist
-   * across problems.
+   * for a full circle), then `solve` with the exact test whether two caps'
+   * discs intersect; buffers persist across problems.
    */
   class ArrangementSolver {
   public:

@@ -60,9 +60,7 @@ namespace internal {
 
     explicit OffsetTable(ArrayXi &&off) noexcept: off_(std::move(off)) { }
 
-    int operator[](int i) const { return offset(i); }
-
-    int offset(int i) const { return off_[i]; }
+    int operator[](int i) const { return off_[i]; }
 
     int degree(int i) const { return off_[i + 1] - off_[i]; }
 
@@ -131,13 +129,14 @@ namespace internal {
     OffsetTable tbl_;
   };
 
-}  // namespace internal
+  using nuri::argsort_bucket;
 
-template <class Key, class Map>
-void argsort_bucket(ArrayXi &idxs, internal::OffsetTable &off, const Key &key,
-                    const Map &map) {
-  return argsort_bucket(idxs, off.off(), key, map);
-}
+  template <class Key, class Map>
+  void argsort_bucket(ArrayXi &idxs, OffsetTable &off, const Key &key,
+                      const Map &map) {
+    return argsort_bucket(idxs, off.off(), key, map);
+  }
+}  // namespace internal
 
 /**
  * @brief Kind of a molecular surface: solvent-accessible (probe centers) or
@@ -447,7 +446,7 @@ namespace internal {
     ArrayXb outside;
     MatrixX3d axt;
     Matrix3Xd kept, contacts;
-    ArrayXd big, r;
+    ArrayXd sar, r;
     MatrixXd depth;
     ArrayXd sin_edge, beta, area;
     ArrayXi k_phi;

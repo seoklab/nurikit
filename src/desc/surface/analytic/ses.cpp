@@ -49,9 +49,8 @@ namespace internal {
      * lo)` of each. `beta` runs from `-theta_i` to `theta_j` with
      * `sin theta = a / R`; on a spindle (`rl < rp`) the part `|beta| < beta0`
      * lies beyond the axis and is cut out, `beta0 = 0` otherwise. Absent
-     * parts are zero-width. Endpoints
-     * are selected together with their sines, so no sine of a selected
-     * angle is ever evaluated.
+     * parts are zero-width. Endpoints are selected together with their
+     * sines, so no sine of a selected angle is ever evaluated.
      */
     SaddleRanges saddle_ranges(const double rl, const double rp,
                                const double a_i, const double a_j,
