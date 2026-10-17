@@ -71,8 +71,8 @@ def test_invalid_inputs():
         shape_complementarity(a, [1.7], a, [1.7], clamp=0.0)
     with pytest.raises(ValueError, match="clamp"):
         shape_complementarity(a, [1.7], a, [1.7], clamp=1.5)
-    with pytest.raises(ValueError, match="rp"):
-        shape_complementarity(a, [1.7], a, [1.7], rp=0.0)
+    with pytest.raises(ValueError, match="rprobe"):
+        shape_complementarity(a, [1.7], a, [1.7], rprobe=0.0)
     with pytest.raises(ValueError, match="density"):
         shape_complementarity(a, [1.7], a, [1.7], density=0.0)
     with pytest.raises(ValueError, match="number of points"):

@@ -290,7 +290,7 @@ NURI_PYTHON_MODULE(m) {
 
   m.def(
       "analytic_surface",
-      [](py::handle py_pts, py::handle py_radii, double rp,
+      [](py::handle py_pts, py::handle py_radii, double rprobe,
          std::string_view kind, py::handle py_active) {
         SurfaceKind sk;
         if (kind == "sas") {
@@ -304,14 +304,14 @@ NURI_PYTHON_MODULE(m) {
 
         const Spheres spheres = cast_spheres(py_pts, py_radii);
         const int n = static_cast<int>(spheres.radii.size());
-        check_positive(rp, "rp");
+        check_positive(rprobe, "rprobe");
         const ArrayXb active = cast_active(py_active, n, "active");
 
         std::optional<internal::SurfaceGeometry> geo;
         {
           py::gil_scoped_release rel;
           AnalyticSurface surf(spheres.pts, spheres.radii);
-          if (surf.initialize(rp, active)) {
+          if (surf.initialize(rprobe, active)) {
             geo = sk == SurfaceKind::kSas ? surf.build_sas() : surf.build_ses();
           }
         }
@@ -320,7 +320,7 @@ NURI_PYTHON_MODULE(m) {
               "the surface inputs were rejected; see log for details");
         return std::move(*geo);
       },
-      py::arg("pts"), py::arg("radii"), py::arg("rp") = 1.4,
+      py::arg("pts"), py::arg("radii"), py::kw_only(), py::arg("rprobe") = 1.4,
       py::arg("kind") = "ses", py::arg("active") = py::none(), R"doc(
 Build the analytic solvent-accessible (SAS) or solvent-excluded (SES) surface
 of a set of spheres.
@@ -338,13 +338,13 @@ characterization of Quan and Stamm\ :footcite:`desc:surface:quan-stamm-2016`.
 
 :param pts: The sphere centers, as a 2D array of shape ``(N, 3)``.
 :param radii: The sphere radii, as a 1D array of shape ``(N,)``.
-:param rp: The probe radius, in angstroms.
+:param rprobe: The probe radius, in angstroms.
 :param kind: ``"sas"`` or ``"ses"``. A SAS has convex patches only.
 :param active: Optional boolean mask of shape ``(N,)``. Active spheres own
   surface patches; the others only occlude. All spheres are active by default.
 :returns: The patch areas of the surface.
 :raises ValueError: If any of the shapes mismatch, any of the `radii` values or
-  `rp` are not positive, `kind` is unknown, or the inputs are rejected.
+  `rprobe` are not positive, `kind` is unknown, or the inputs are rejected.
 
 .. note::
   No coordinate may exceed :math:`10^4` angstroms in absolute value; subtract
@@ -354,7 +354,7 @@ characterization of Quan and Stamm\ :footcite:`desc:surface:quan-stamm-2016`.
   m.def(
       "shape_complementarity",
       [](py::handle pts_a, py::handle radii_a, py::handle pts_b,
-         py::handle radii_b, double rp, double density, double weight,
+         py::handle radii_b, double rprobe, double density, double weight,
          double band, double sep, double clamp, py::handle py_active_a,
          py::handle py_active_b) {
         Spheres a = cast_spheres(pts_a, radii_a),
@@ -370,7 +370,7 @@ characterization of Quan and Stamm\ :footcite:`desc:surface:quan-stamm-2016`.
                                              "active_b");
 
         const ScParams params {
-          check_positive(rp, "rp"),
+          check_positive(rprobe, "rprobe"),
           check_positive(density, "density"),
           check_positive(weight, "weight"),
           check_positive(band, "band"),
@@ -392,7 +392,7 @@ characterization of Quan and Stamm\ :footcite:`desc:surface:quan-stamm-2016`.
         return std::move(*res);
       },
       py::arg("pts_a"), py::arg("radii_a"), py::arg("pts_b"),
-      py::arg("radii_b"), py::kw_only(), py::arg("rp") = kScDefaults.rp,
+      py::arg("radii_b"), py::kw_only(), py::arg("rprobe") = kScDefaults.rp,
       py::arg("density") = kScDefaults.density,
       py::arg("weight") = kScDefaults.weight,
       py::arg("band") = kScDefaults.band, py::arg("sep") = kScDefaults.sep,
@@ -402,7 +402,7 @@ characterization of Quan and Stamm\ :footcite:`desc:surface:quan-stamm-2016`.
 Shape complementarity statistic of Lawrence and
 Colman\ :footcite:`desc:sc:lawrence-colman-1993` between two sets of spheres.
 
-Each side's solvent-excluded surface is built with probe radius `rp` and
+Each side's solvent-excluded surface is built with probe radius `rprobe` and
 sampled at `density` dots per square angstrom. An atom takes part in the
 interface when its center lies within `sep` of an atom of the other side; a
 dot is buried when its probe center lies inside a solvent-accessible sphere of
@@ -420,7 +420,7 @@ is the mean of the two sides' median scores.
   ``(M, 3)``.
 :param radii_b: The van der Waals radii of the second side, as a 1D array of
   shape ``(M,)``.
-:param rp: The probe radius, in angstroms.
+:param rprobe: The probe radius, in angstroms.
 :param density: The number of surface dots per square angstrom.
 :param weight: The weight of the squared distance in the score.
 :param band: The peripheral trim band, in angstroms.
@@ -432,7 +432,7 @@ is the mean of the two sides' median scores.
 :param active_b: Optional boolean mask of shape ``(M,)`` for the second side.
 :returns: The statistic with its per-side summaries.
 :raises ValueError: If any of the shapes mismatch, a side is empty, any radii
-  or `rp`, `density`, `weight`, `band` or `sep` are not positive, `clamp` is
+  or `rprobe`, `density`, `weight`, `band` or `sep` are not positive, `clamp` is
   outside ``(0, 1]``, the surface inputs are rejected, or no interface dot of
   either side survives trimming (which includes a mask that leaves no atom).
 
