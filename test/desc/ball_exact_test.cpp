@@ -164,11 +164,11 @@ template <bool kForceExact = false>
 Fixture<kForceExact> setup(const Matrix3Xd &pts, const ArrayXd &sar) {
   Fixture<kForceExact> s;
   const int n = static_cast<int>(sar.size());
-  s.wmax = sar.square().maxCoeff();
+  const ArrayXd sar2 = sar.square();
+  s.wmax = sar2.maxCoeff();
   s.lifted.resize(4, n);
   s.lifted.topRows(3) = pts;
-  for (int i = 0; i < n; ++i)
-    s.lifted(3, i) = std::sqrt(s.wmax - sar[i] * sar[i]);
+  s.lifted.row(3) = (s.wmax - sar2).sqrt().matrix().transpose();
   s.ex = BallExactImpl<kForceExact>::make(s.lifted, s.wmax);
   s.ref.c = pts;
   s.ref.rho2.resize(n);
