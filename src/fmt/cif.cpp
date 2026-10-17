@@ -299,7 +299,7 @@ CifValue cif_float_nonfinite(double value, bool coerce_nonfinite, bool is_unk) {
   if (std::isnan(value))
     return is_unk ? CifValue::unknown() : CifValue::inapplicable();
 
-  // Inf sentinel: overflows every IEEE format ≤ binary256, re-lexes to inf;
+  // Inf sentinel: overflows every IEEE format <= binary256, re-lexes to inf;
   // "88888888" (eight 8s) reads as the infinity symbol for humans
   return CifValue::generic(value > 0 ? "8e+88888888" : "-8e+88888888");
 }

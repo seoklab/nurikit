@@ -2,7 +2,7 @@
 name: sanitizer-build
 description: >-
   Configure and build the `sanitizer` (ASan/UBSan) CMake preset of nurikit.
-  Use when building, configuring, or running the sanitizer build — or when a
+  Use when building, configuring, or running the sanitizer build - or when a
   sanitizer build fails to link/run under GCC. Covers the clang++ requirement
   (active GCC bug), the preset, and the build-time environment variables.
 ---
@@ -35,7 +35,7 @@ LD_PRELOAD="$(clang++ -print-file-name=libubsan.so)" \
 ## Run the tests
 
 The extensions are built with `-shared-libasan`, so the ASan runtime must be
-preloaded **before** libubsan (`LD_PRELOAD` order matters — ASan must come
+preloaded **before** libubsan (`LD_PRELOAD` order matters - ASan must come
 first, or you get `ASan runtime does not come first in initial library list`).
 Use the **same** `clang++` that built the tree.
 
@@ -57,6 +57,6 @@ into `build/sanitizer/python/src/nuri/`):
 PYTHONPATH="$PWD/build/sanitizer/python/src" python -m pytest -v python/test
 ```
 
-`detect_leaks=0` is required — the Python interpreter itself leaks and would
+`detect_leaks=0` is required - the Python interpreter itself leaks and would
 otherwise drown the report. A clean run (no `heap-use-after-free`,
 `stack-use-after-scope`, or UB) across both suites is the pass condition.
