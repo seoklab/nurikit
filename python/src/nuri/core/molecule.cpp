@@ -310,13 +310,10 @@ void bind_bond(py::class_<PyBondsWrapper> &bonds,
   enable_copy(bond_data);
   add_bond_data_interface(bond_data)
       .def(py::init<>())
-      .def(py::init([](constants::BondOrder order) {
-             return BondData(get_or_throw_ord(order));
-           }),
-           py::arg("order"), R"doc(
+      .def(py::init<constants::BondOrder>(), py::arg("order"), R"doc(
 Create a bond data with the given bond order.
 
-:param BondOrder|int order: The bond order of the bond.
+:param BondOrder order: The bond order of the bond.
 )doc");
   def_property_subobject(
       bond_data, "props",
@@ -427,24 +424,6 @@ const Element &get_or_throw_z(int z) {
   if (elem == nullptr)
     throw py::value_error(absl::StrCat("invalid atomic number: ", z));
   return *elem;
-}
-
-constants::Hybridization get_or_throw_hyb(constants::Hybridization hyb) {
-  if (hyb < constants::Hybridization::kUnbound
-      || hyb > constants::Hybridization::kOtherHyb)
-    throw py::value_error(
-        absl::StrCat("invalid hybridization: ", static_cast<int>(hyb)));
-
-  return hyb;
-}
-
-constants::BondOrder get_or_throw_ord(constants::BondOrder ord) {
-  if (ord < constants::BondOrder::kOtherBond
-      || ord > constants::BondOrder::kAromaticBond)
-    throw py::value_error(
-        absl::StrCat("invalid bond order: ", static_cast<int>(ord)));
-
-  return ord;
 }
 
 void log_aromatic_warning(const AtomData &atom) {
@@ -1245,8 +1224,7 @@ context manager is exited.
           "register_bond",
           [](PyMutator &self, int src, int dst, constants::BondOrder order) {
             std::tie(src, dst) = check_bond_ends(self.mol(), src, dst);
-            return self.register_bond(src, dst,
-                                      BondData(get_or_throw_ord(order)));
+            return self.register_bond(src, dst, BondData(order));
           },
           py::arg("src"), py::arg("dst"),
           py::arg("order") = constants::kSingleBond,
@@ -1265,8 +1243,7 @@ until the mutator context is exited.
           [](PyMutator &self, PyAtom &src, PyAtom &dst,
              constants::BondOrder order) {
             auto [sa, da] = check_bond_ends(self.mol(), src, dst);
-            return self.register_bond(sa.id(), da.id(),
-                                      BondData(get_or_throw_ord(order)));
+            return self.register_bond(sa.id(), da.id(), BondData(order));
           },
           py::arg("src"), py::arg("dst"),
           py::arg("order") = constants::kSingleBond,

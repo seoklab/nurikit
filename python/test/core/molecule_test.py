@@ -107,6 +107,9 @@ def test_add_atom():
         with pytest.raises(ValueError, match="is not a valid Hyb"):
             atom.update(hyb=Hyb(100))
 
+        with pytest.raises(TypeError):
+            atom.update(hyb=100)  # pyright: ignore[reportArgumentType]
+
         atom_data = atom.copy_data()
 
     assert atom_data.atomic_number == 6
