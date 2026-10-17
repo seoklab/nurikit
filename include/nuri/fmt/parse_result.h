@@ -113,7 +113,10 @@ public:
     return *std::get_if<std::string>(&data_);
   }
 
-  //! @copydoc error_msg() const &
+  /**
+   * @brief Get the failure reason.
+   * @pre status() == ParseStatus::kError.
+   */
   std::string error_msg() && {
     ABSL_DCHECK(status() == ParseStatus::kError);
     return std::move(*std::get_if<std::string>(&data_));
