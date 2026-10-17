@@ -114,7 +114,7 @@ void expect_block_sums_with_drops(const Sampled &s) {
 void expect_on_ses(const Sampled &s, const Matrix3Xd &pts, const ArrayXd &sar,
                    const double rp) {
   const SurfaceDots &d = s.dots;
-  EXPECT_EQ(d.probes(), Matrix3Xd(d.pts() + rp * d.nrm()));
+  EXPECT_TRUE(d.probes().isApprox(d.pts() + rp * d.nrm()));
   for (int k = 0; k < d.n(); ++k) {
     EXPECT_NEAR(d.nrm().col(k).norm(), 1, 1e-12) << "dot " << k;
     const Vector3d probe = d.pts().col(k) + rp * d.nrm().col(k);

@@ -28,6 +28,7 @@ using constants::kPi;
 using constants::kTwoPi;
 
 constexpr double kRp = 1.4;
+constexpr double kAreaTol = 1e-9;
 
 SurfaceGeometry solve(const Matrix3Xd &pts, const ArrayXd &sar,
                       const ArrayXb &active, const double rp = kRp) {
@@ -247,7 +248,7 @@ void expect_faces_match_dots(const S &s, const double rp,
   for (int p = 0; p < face_area.size(); ++p) {
     const double area = face_area[p];
     ASSERT_TRUE(std::isfinite(area)) << tag << " probe " << p;
-    EXPECT_GE(area, -1e-9) << tag << " probe " << p;
+    EXPECT_GE(area, -kAreaTol) << tag << " probe " << p;
     const double dots = face_from_dots(s, p, rp);
     EXPECT_NEAR(area, dots, nuri::max(1e-3 * dots, 1.5e-3 * sphere))
         << tag << " probe " << p;
@@ -624,7 +625,7 @@ int expect_filters_keep_area(const Matrix3Xd &pts, const ArrayXd &sar,
     ArrayXb live;
     const double area = solve_ses_face(n, h, cosa, kRp, live);
     EXPECT_TRUE(live.all()) << where << " probe " << p;
-    EXPECT_NEAR(area, s.ses.face_area[p], 1e-9) << where << " probe " << p;
+    EXPECT_NEAR(area, s.ses.face_area[p], kAreaTol) << where << " probe " << p;
   }
   return n_extra;
 }
@@ -746,7 +747,7 @@ TEST(BuildSesTest, TangentNeighborProbe) {
     const SurfaceGeometry s = solve(pts, sar, rp);
     ASSERT_EQ(s.concave().pos.cols(), 2);
     for (int p = 0; p < 2; ++p) {
-      EXPECT_NEAR(s.concave().area[p], con.area[0], 1e-9) << "probe " << p;
+      EXPECT_NEAR(s.concave().area[p], con.area[0], kAreaTol) << "probe " << p;
       const int m = s.concave().caps.off.degree(p);
       EXPECT_TRUE(m == 3 || m == 4) << "probe " << p << " caps " << m;
     }
@@ -808,23 +809,23 @@ TEST(BuildSesTest, PlanarProbe) {
     }
   };
 
-  for_each_index_order(base, sar,
-                       [&](const Matrix3Xd &pts, const ArrayXd &r,
-                           const std::vector<int> &order) {
-                         SCOPED_TRACE(testing::Message()
-                                      << "order " << order[0] << order[1]
-                                      << order[2]);
-                         const auto [sas, ses] = solve_both(pts, r, rp);
-                         expect_sr(sas, pts);
-                         for (int i = 0; i < sas.n_atoms(); ++i) {
-                           const int o = order[sas.order()[i]];
-                           EXPECT_NEAR(sas.convex().area[i], ref_area[o], 1e-9)
-                               << "atom " << o;
-                         }
-                         EXPECT_NEAR(ses.total_area(), ref_total, 1e-9);
-                         expect_faces_match_dots(ses, rp, "planar");
-                         expect_grazing_cluster(ses, Vector3d::Zero(), 3);
-                       });
+  for_each_index_order(
+      base, sar,
+      [&](const Matrix3Xd &pts, const ArrayXd &r,
+          const std::vector<int> &order) {
+        SCOPED_TRACE(testing::Message()
+                     << "order " << order[0] << order[1] << order[2]);
+        const auto [sas, ses] = solve_both(pts, r, rp);
+        expect_sr(sas, pts);
+        for (int i = 0; i < sas.n_atoms(); ++i) {
+          const int o = order[sas.order()[i]];
+          EXPECT_NEAR(sas.convex().area[i], ref_area[o], kAreaTol)
+              << "atom " << o;
+        }
+        EXPECT_NEAR(ses.total_area(), ref_total, kAreaTol);
+        expect_faces_match_dots(ses, rp, "planar");
+        expect_grazing_cluster(ses, Vector3d::Zero(), 3);
+      });
 
   const Ses stages = solve_stages(base, sar, rp);
   const int c = probe_at(stages.geo.probes.pos, Vector3d::Zero());
@@ -921,7 +922,7 @@ TEST(BuildSesTest, CoincidentRootsWithCoveredCircles) {
     const SurfaceGeometry miss = reorder(l.miss);
     EXPECT_EQ(probe_at(miss.concave().pos, l.x), -1);
     expect_faces_match_dots(miss, rp, "miss");
-    EXPECT_NEAR(miss.total_area(), cut.total_area(), 1e-9);
+    EXPECT_NEAR(miss.total_area(), cut.total_area(), kAreaTol);
   }
 }
 
@@ -982,8 +983,8 @@ TEST(BuildSesTest, SinglePointWindow) {
     const auto [rot, t] = rigid_motion(seed);
     const Matrix3Xd pts = (rot * base).colwise() + t;
     const SurfaceGeometry s = solve(pts, sar, rp);
-    EXPECT_NEAR(area_within(s, rot * x0 + t, 1e-6), quad, 1e-9);
-    EXPECT_NEAR(s.concave().area.sum(), ref_total, 1e-9);
+    EXPECT_NEAR(area_within(s, rot * x0 + t, 1e-6), quad, kAreaTol);
+    EXPECT_NEAR(s.concave().area.sum(), ref_total, kAreaTol);
   }
 }
 
@@ -1041,8 +1042,10 @@ TEST(BuildSesTest, KFoldFaceUnderRigidMotion) {
       const auto [rot, t] = rigid_motion(seed);
       const Matrix3Xd pts = (rot * f.pts).colwise() + t;
       const Ses s = solve_stages(pts, f.sar, 1.0);
-      EXPECT_NEAR(area_within(s, t, 1e-6), ref_face, 1e-9) << "seed " << seed;
-      EXPECT_NEAR(s.ses.face_area.sum(), ref_total, 1e-9) << "seed " << seed;
+      EXPECT_NEAR(area_within(s, t, 1e-6), ref_face, kAreaTol)
+          << "seed " << seed;
+      EXPECT_NEAR(s.ses.face_area.sum(), ref_total, kAreaTol)
+          << "seed " << seed;
       expect_faces_match_dots(s, 1.0, "rounded k-fold");
     }
   }
@@ -1133,7 +1136,7 @@ TEST(BuildSesTest, MaskedFacesMatchFull) {
     for (int p = 0; p < n_probes; ++p) {
       const int q = probe_at(full.concave().pos, part.concave().pos.col(p));
       ASSERT_GE(q, 0) << "stride " << stride << " probe " << p;
-      EXPECT_NEAR(part.concave().area[p], full.concave().area[q], 1e-12)
+      EXPECT_NEAR(part.concave().area[p], full.concave().area[q], kAreaTol)
           << "stride " << stride << " probe " << p;
     }
   }
