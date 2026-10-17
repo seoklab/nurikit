@@ -118,7 +118,15 @@ Total area of the surface, in angstroms squared.
 
 :param patch: If given, sum only the patches of this kind.
 :returns: The total area.
-)doc");
+)doc")
+      .def("__repr__", [](const internal::SurfaceGeometry &geo) {
+        const Eigen::Index n = geo.area(SurfacePatch::kConvex).size()
+                               + geo.area(SurfacePatch::kToroidal).size()
+                               + geo.area(SurfacePatch::kConcave).size();
+        return absl::StrCat("<nuri.desc.SurfaceGeometry ", kind_str(geo.kind()),
+                            " with ", n, " patches, total area ",
+                            geo.total_area(), ">");
+      });
   def_property_readonly_subobject(
       sg, "order",
       [](py::handle self) {
@@ -160,7 +168,11 @@ Number of dots on the patches of one kind.
 
 :param patch: The kind of patches.
 :returns: The size of the block.
-)doc");
+)doc")
+      .def("__repr__", [](const SurfaceDots &dots) {
+        return absl::StrCat("<nuri.desc.SurfaceDots ", kind_str(dots.kind()),
+                            " with ", dots.n(), " dots>");
+      });
   def_property_readonly_subobject(
       sd, "pts",
       [](py::handle self) {
@@ -231,7 +243,12 @@ The median score of the kept dots.
 )doc")
       .def_readonly("dots", &ScSide::dots, R"doc(
 The kept dots of this side.
-)doc");
+)doc")
+      .def("__repr__", [](const ScSide &s) {
+        return absl::StrCat("<nuri.desc.ScSide with ", s.n_trimmed,
+                            " kept dots, s_median=", s.s_median,
+                            ", d_median=", s.d_median, ">");
+      });
   def_property_readonly_subobject(
       side, "distance",
       [](py::handle self) {
@@ -278,7 +295,11 @@ The total area of the kept dots of both sides, in angstroms squared.
           },
           R"doc(
 The per-side summaries, in the order of the arguments.
-)doc");
+)doc")
+      .def("__repr__", [](const ScResult &r) {
+        return py::str("ScResult(sc={!r}, distance={!r}, area={!r})")
+            .format(r.sc, r.distance, r.area);
+      });
 }
 
 NURI_PYTHON_MODULE(m) {
