@@ -74,7 +74,12 @@ rst_prolog = """
 .. _C++ API Reference: cpp/
 """
 
-doctest_global_setup = "import nuri"
+doctest_global_setup = """
+import nuri
+from pathlib import Path
+
+test_data = Path("@PROJECT_SOURCE_DIR@/test/test_data")
+"""
 
 
 class UnneededBaseStripDocumenter(autodoc.ClassDocumenter):
@@ -104,10 +109,12 @@ class OutputChecker(doctest.OutputChecker):
 doctest.OutputChecker = OutputChecker
 
 _overload_re = re.compile(r"^(\d+)\. ")
+_bare_star_re = re.compile(r"(?<=[(,] )\*(?=,)")
 
 
 def _strip_proxy_overloads(app, what, name, obj, options, lines):
-    """Drop doc overloads whose signature takes a private ``_Proxy*`` type."""
+    """Drop doc overloads whose signature takes a private ``_Proxy*`` type,
+    and escape the keyword-only ``*`` marker of the remaining signatures."""
     if not any(line.strip() == "Overloaded function." for line in lines):
         return
 
@@ -128,7 +135,8 @@ def _strip_proxy_overloads(app, what, name, obj, options, lines):
 
     out = lines[:start]
     for number, block in enumerate(kept, 1):
-        out.append(_overload_re.sub(f"{number}. ", block[0]))
+        head = _overload_re.sub(f"{number}. ", block[0])
+        out.append(_bare_star_re.sub(r"\\*", head))
         out.extend(block[1:])
     lines[:] = out
 

@@ -79,6 +79,10 @@ nuri_python_add_module(desc
   nuri/desc/desc_module.cpp
 )
 
+nuri_python_add_module(param
+  nuri/param/param_module.cpp
+)
+
 nuri_python_add_module(fmt
   nuri/fmt/fmt_module.cpp
   nuri/fmt/cif.cpp

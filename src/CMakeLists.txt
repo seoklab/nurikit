@@ -72,6 +72,32 @@ if(NURI_LIBRARY_FLAGS)
   target_link_options(NuriLib PRIVATE ${NURI_LIBRARY_FLAGS})
 endif()
 
+target_include_directories(NuriLib PRIVATE "${CMAKE_CURRENT_LIST_DIR}/third-party")
+
+set(NURI_STRICT_FP_FLAGS
+  -fno-fast-math
+  -frounding-math
+  -ffp-contract=off
+  -fno-associative-math
+  -fno-reciprocal-math
+  -fsigned-zeros
+  -ftrapping-math
+)
+set(NURI_VENDORED_FLAGS -w ${NURI_STRICT_FP_FLAGS})
+if(NURI_TEST_COVERAGE)
+  list(APPEND NURI_VENDORED_FLAGS -fno-profile-arcs -fno-test-coverage)
+endif()
+file(GLOB_RECURSE NURI_VENDORED_SRCS CONFIGURE_DEPENDS third-party/*.cpp)
+set_source_files_properties(${NURI_VENDORED_SRCS}
+  PROPERTIES
+  COMPILE_OPTIONS "${NURI_VENDORED_FLAGS}"
+)
+set_source_files_properties(desc/surface/analytic/exact.cpp
+  PROPERTIES
+  COMPILE_OPTIONS "${NURI_STRICT_FP_FLAGS}"
+  COMPILE_DEFINITIONS NURI_STRICT_FP=1
+)
+
 if(NURI_ENABLE_SANITIZERS)
   include(ProcessorCount)
   ProcessorCount(nproc)

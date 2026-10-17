@@ -31,12 +31,21 @@ file(
   CONFIGURE_DEPENDS
   "${PROJECT_SOURCE_DIR}/include/nuri/*.h"
 )
+file(
+  GLOB nuri_doc_pages
+  CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_LIST_DIR}/pages/*.md"
+)
 add_custom_command(
   OUTPUT "${DOXYGEN_OUTPUT_DIR}/html/cpp/index.html"
   COMMAND ${CMAKE_COMMAND} -E make_directory "${DOXYGEN_OUTPUT_DIR}/html"
   COMMAND ${DOXYGEN_EXECUTABLE} Doxyfile
   MAIN_DEPENDENCY "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile"
-  DEPENDS ${nuri_public_headers} ${NURI_BIBTEX_FILE}
+  DEPENDS
+    ${nuri_public_headers}
+    ${nuri_doc_pages}
+    ${NURI_BIBTEX_FILE}
+    "${CMAKE_CURRENT_LIST_DIR}/formulas.tex"
   WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
   COMMENT "Generating API documentation with Doxygen"
   VERBATIM

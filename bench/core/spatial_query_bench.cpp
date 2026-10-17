@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <cmath>
 #include <fstream>
+#include <random>
 #include <utility>
 #include <vector>
 
@@ -159,6 +161,80 @@ namespace {
       ->Range(16, 1024)
       ->Complexity(benchmark::oNLogN)
       ->Unit(benchmark::kMicrosecond);
+
+  constexpr int kKnnPoints = 100000;
+  constexpr double kKnnBox = 60.0;
+
+  std::pair<Matrix3Xd, Matrix3Xd> knn_cloud() {
+    std::mt19937_64 rng(20261002);
+    std::uniform_real_distribution<double> box(0.0, kKnnBox);
+    std::normal_distribution<double> jitter(0.0, 0.35);
+
+    Matrix3Xd pts(3, kKnnPoints), queries(3, kKnnPoints);
+    for (int i = 0; i < kKnnPoints; ++i)
+      for (int d = 0; d < 3; ++d)
+        pts(d, i) = box(rng);
+
+    for (int i = 0; i < kKnnPoints; ++i) {
+      const int src = static_cast<int>(rng() % kKnnPoints);
+      for (int d = 0; d < 3; ++d)
+        queries(d, i) = pts(d, src) + jitter(rng);
+    }
+    return { std::move(pts), std::move(queries) };
+  }
+
+  void octree_knn_query(benchmark::State &state) {
+    auto [pts, queries] = knn_cloud();
+    const OCTree tree(pts);
+    const int k = static_cast<int>(state.range(0));
+
+    std::vector<int> idxs;
+    std::vector<double> dsqs;
+
+    double dsum = 0;
+    for (int i = 0; i < kKnnPoints; ++i) {
+      tree.find_neighbors_kd(queries.col(i), k, idxs, dsqs);
+      dsum += std::sqrt(dsqs[0]);
+    }
+
+    for (auto _: state) {
+      for (int i = 0; i < kKnnPoints; ++i) {
+        const Vector3d query_pt = queries.col(i);
+        tree.find_neighbors_kd(query_pt, k, idxs, dsqs);
+      }
+    }
+
+    state.SetItemsProcessed(state.iterations() * kKnnPoints);
+    state.counters["nodes"] = tree.size();
+    state.counters["d1_mean"] = dsum / kKnnPoints;
+  }
+  BENCHMARK(octree_knn_query)->Arg(1)->Arg(8)->Unit(benchmark::kMillisecond);
+
+  void octree_knn_query_scratch(benchmark::State &state) {
+    auto [pts, queries] = knn_cloud();
+    const OCTree tree(pts);
+    const int k = static_cast<int>(state.range(0));
+
+    std::vector<int> idxs;
+    std::vector<double> dsqs;
+    OCTree::KdScratch scratch;
+
+    for (int i = 0; i < kKnnPoints; ++i)
+      tree.find_neighbors_kd(queries.col(i), k, idxs, dsqs, scratch);
+
+    for (auto _: state) {
+      for (int i = 0; i < kKnnPoints; ++i) {
+        const Vector3d query_pt = queries.col(i);
+        tree.find_neighbors_kd(query_pt, k, idxs, dsqs, scratch);
+      }
+    }
+
+    state.SetItemsProcessed(state.iterations() * kKnnPoints);
+  }
+  BENCHMARK(octree_knn_query_scratch)
+      ->Arg(1)
+      ->Arg(8)
+      ->Unit(benchmark::kMillisecond);
 
   void octree_inter_query(benchmark::State &state) {
     Matrix3Xd pts = read_1ubq(state);

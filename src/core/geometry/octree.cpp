@@ -17,7 +17,6 @@
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
-#include "nuri/core/container/container_ext.h"
 #include "nuri/core/geometry.h"
 #include "nuri/utils.h"
 
@@ -96,10 +95,12 @@ namespace {
                    const Vector3d &max, const Vector3d &size, ArrayXi &idxs,
                    const int begin, const int nleaf, const int bucket_size,
                    int &max_nleaf) {
+    Vector3d half = size * 0.5;
+
     Array8i children;
     auto epilog = [&] {
       int id = static_cast<int>(data.size());
-      data.emplace_back(std::move(children), begin, nleaf);
+      data.emplace_back(std::move(children), begin, nleaf, max, half);
       return id;
     };
 
@@ -113,7 +114,6 @@ namespace {
       return epilog();
     }
 
-    Vector3d half = size * 0.5;
     Vector3d cntr = max - half;
 
     // Bounds the recursion at floating-point precision
@@ -181,29 +181,7 @@ void OCTree::rebuild_impl(Points src) {
 namespace {
   using Array8d = Array<double, 8, 1>;
 
-  struct NodeEntry {
-    int idx;
-    Vector3d maxs;
-    Vector3d size;
-    double min_dsq;
-  };
-
-  bool node_cmp(const NodeEntry &a, const NodeEntry &b) {
-    return a.min_dsq > b.min_dsq;
-  }
-
-  using NodeHeap = internal::ClearablePQ<NodeEntry, decltype(&node_cmp)>;
-
-  struct CandEntry {
-    double dsq;
-    int idx;
-  };
-
-  bool cand_cmp(const CandEntry &a, const CandEntry &b) {
-    return a.dsq < b.dsq;
-  }
-
-  using CandHeap = internal::ClearablePQ<CandEntry, decltype(&cand_cmp)>;
+  using internal::OCTreeKdScratch;
 
   int octant_idx(const Vector3d &diff) {
     Array3i isneg = (diff.array() < 0.).cast<int>();
@@ -241,12 +219,132 @@ namespace {
   }
 }  // namespace
 
+namespace {
+  class ScalarBest {
+  public:
+    double offer(double d, int i, double worst_dsq) {
+      if (idx_ < 0) {
+        dsq_ = d;
+        idx_ = i;
+        return worst_dsq;
+      }
+
+      if (d <= dsq_) {
+        dsq_ = d;
+        idx_ = i;
+      }
+      return dsq_;
+    }
+
+    void drain(std::vector<int> &idxs, std::vector<double> &distsq) const {
+      if (idx_ < 0)
+        return;
+
+      idxs.push_back(idx_);
+      distsq.push_back(dsq_);
+    }
+
+  private:
+    double dsq_ = 0;
+    int idx_ = -1;
+  };
+
+  class HeapBest {
+  public:
+    HeapBest(int k, OCTreeKdScratch::CandHeap &heap): k_(k), heap_(&heap) { }
+
+    double offer(double d, int i, double worst_dsq) {
+      heap_->push({ d, i });
+      if (static_cast<int>(heap_->size()) <= k_)
+        return worst_dsq;
+
+      heap_->pop();
+      return heap_->top().dsq;
+    }
+
+    void drain(std::vector<int> &idxs, std::vector<double> &distsq) {
+      const int n = static_cast<int>(heap_->size());
+      idxs.resize(n);
+      distsq.resize(n);
+      for (int i = n - 1; i >= 0; --i) {
+        auto e = heap_->pop_get();
+        idxs[i] = e.idx;
+        distsq[i] = e.dsq;
+      }
+    }
+
+  private:
+    int k_;
+    internal::Nonnull<OCTreeKdScratch::CandHeap *> heap_;
+  };
+
+  template <class Best>
+  void find_kd_impl(const OCTree &tree, const Vector3d &pt, double worst_dsq,
+                    Best &best, OCTreeKdScratch &scratch,
+                    std::vector<int> &idxs, std::vector<double> &distsq) {
+    ArrayXd &dsqbuf = scratch.dsqbuf(tree.max_nleaf());
+
+    OCTreeKdScratch::NodeHeap &node_heap = scratch.nodes();
+    node_heap.push({ tree.root(), 0 });
+
+    while (!node_heap.empty()) {
+      auto [idx, min_dsq] = node_heap.pop_get();
+      // Nodes are popped in order of increasing min_dsq, so once min_dsq
+      // exceeds worst_dsq we cannot improve the answer anymore.
+      if (min_dsq > worst_dsq)
+        break;
+
+      const OCTreeNode &node = tree[idx];
+      if (node.leaf()) {
+        const int cnt = node.nleaf();
+        dsqbuf.head(cnt) =
+            (tree.pts().middleCols(node.begin(), cnt).colwise() - pt)
+                .colwise()
+                .squaredNorm();
+
+        for (int i = 0; i < cnt; ++i) {
+          double d = dsqbuf[i];
+          if (d > worst_dsq)
+            continue;
+
+          worst_dsq = best.offer(d, tree.idxs()[i + node.begin()], worst_dsq);
+        }
+        continue;
+      }
+
+      Vector3d cntr_diff = pt - node.maxs() + node.half();
+      int octant = octant_idx(cntr_diff);
+      Array8d octant_distsq =
+          octant_min_distsq(octant, cntr_diff.cwiseAbs2(), min_dsq);
+
+      for (int i = 0; i < 8; ++i) {
+        int cid = node[i];
+        if (cid < 0 || octant_distsq[i] > worst_dsq)
+          continue;
+
+        node_heap.push({ cid, octant_distsq[i] });
+      }
+    }
+
+    best.drain(idxs, distsq);
+  }
+}  // namespace
+
 void OCTree::find_neighbors_kd(const Vector3d &pt, const int k,
                                std::vector<int> &idxs,
                                std::vector<double> &distsq,
                                double cutoff) const {
+  KdScratch scratch;
+  find_neighbors_kd(pt, k, idxs, distsq, scratch, cutoff);
+}
+
+void OCTree::find_neighbors_kd(const Vector3d &pt, const int k,
+                               std::vector<int> &idxs,
+                               std::vector<double> &distsq, KdScratch &scratch,
+                               double cutoff) const {
   idxs.clear();
   distsq.clear();
+  scratch.clear();
   if (k <= 0) {
     ABSL_LOG(WARNING) << "k is not a positive number: " << k;
     return;
@@ -265,70 +363,20 @@ void OCTree::find_neighbors_kd(const Vector3d &pt, const int k,
     worst_dsq = maxsq_box_point(max_, len_, pt);
   }
 
-  ArrayXd dsqbuf(max_nleaf());
-
-  NodeHeap node_heap(node_cmp);
-  CandHeap best_heap(cand_cmp);
-  node_heap.push({ root(), max(), len(), 0 });
-
-  while (!node_heap.empty()) {
-    auto [idx, maxs, size, min_dsq] = node_heap.pop_get();
-    // Nodes are popped in order of increasing min_dsq, so once min_dsq
-    // exceeds worst_dsq we cannot improve the answer anymore.
-    if (min_dsq > worst_dsq)
-      break;
-
-    const OCTreeNode &node = nodes()[idx];
-    if (node.leaf()) {
-      const int cnt = node.nleaf();
-      dsqbuf.head(cnt) = (pts().middleCols(node.begin(), cnt).colwise() - pt)
-                             .colwise()
-                             .squaredNorm();
-
-      for (int i = 0; i < cnt; ++i) {
-        double d = dsqbuf[i];
-        if (d > worst_dsq)
-          continue;
-
-        best_heap.push({ d, idxs_[i + node.begin()] });
-        if (static_cast<int>(best_heap.size()) > k) {
-          best_heap.pop();
-          worst_dsq = best_heap.top().dsq;
-        }
-      }
-      continue;
-    }
-
-    Vector3d half = size * 0.5;
-    Vector3d cntr_diff = pt - maxs + half;
-    int octant = octant_idx(cntr_diff);
-    Array8d octant_distsq =
-        octant_min_distsq(octant, cntr_diff.cwiseAbs2(), min_dsq);
-
-    for (int i = 0; i < 8; ++i) {
-      int cid = node[i];
-      if (cid < 0 || octant_distsq[i] > worst_dsq)
-        continue;
-
-      node_heap.push({ cid, max_of(i, maxs, half), half, octant_distsq[i] });
-    }
+  if (k == 1) {
+    ScalarBest best;
+    find_kd_impl(*this, pt, worst_dsq, best, scratch, idxs, distsq);
+    return;
   }
 
-  const int n = static_cast<int>(best_heap.size());
-  idxs.resize(n);
-  distsq.resize(n);
-  for (int i = n - 1; i >= 0; --i) {
-    auto e = best_heap.pop_get();
-    idxs[i] = e.idx;
-    distsq[i] = e.dsq;
-  }
+  HeapBest best(k, scratch.cands());
+  find_kd_impl(*this, pt, worst_dsq, best, scratch, idxs, distsq);
 }
 
 namespace {
   void find_candidates_d(const OCTree &oct, const Vector3d &pt,
                          const double cutoffsq, std::vector<int> &idxs,
                          std::vector<double> &distsq, const OCTreeNode &node,
-                         const Vector3d &maxs, const Vector3d &size,
                          ArrayXd &dsqbuf) {
     if (node.leaf()) {
       const int cnt = node.nleaf();
@@ -343,8 +391,7 @@ namespace {
       return;
     }
 
-    Vector3d half = size * 0.5;
-    Vector3d cntr_diff = pt - maxs + half;
+    Vector3d cntr_diff = pt - node.maxs() + node.half();
     int octant = octant_idx(cntr_diff);
     Array8d octant_distsq = octant_min_distsq(octant, cntr_diff.cwiseAbs2());
 
@@ -353,8 +400,7 @@ namespace {
       if (octant_distsq[i] > cutoffsq || cid < 0)
         continue;
 
-      find_candidates_d(oct, pt, cutoffsq, idxs, distsq, oct[cid],
-                        max_of(i, maxs, half), half, dsqbuf);
+      find_candidates_d(oct, pt, cutoffsq, idxs, distsq, oct[cid], dsqbuf);
     }
   }
 }  // namespace
@@ -370,8 +416,7 @@ void OCTree::find_neighbors_d(const Vector3d &pt, const double cutoff,
     return;
 
   ArrayXd dsqbuf(max_nleaf());
-  find_candidates_d(*this, pt, cutoffsq, idxs, distsq, node(root()), max_, len_,
-                    dsqbuf);
+  find_candidates_d(*this, pt, cutoffsq, idxs, distsq, node(root()), dsqbuf);
 
   int n = 0;
   for (int i = 0; i < idxs.size(); ++i) {
@@ -619,16 +664,5 @@ void OCTree::find_neighbors_self(double cutoff, std::vector<int> &left,
   OCTreeBox root(*this);
   find_neighbors_tree_impl<true>(left, right, dsqbuf, jbuf, root, root,
                                  cutoffsq);
-}
-
-void OCTree::notify_transform(const Vector3d &new_max,
-                              const Vector3d &new_len) {
-  Vector3d scale =
-      (len_.array() > 0).select(new_len.array() / len_.array(), 1.0);
-  Vector3d trs = new_max - max_.cwiseProduct(scale);
-
-  max_ = new_max;
-  len_ = new_len;
-  pts_ = (pts_.array().colwise() * scale.array()).matrix().colwise() + trs;
 }
 }  // namespace nuri

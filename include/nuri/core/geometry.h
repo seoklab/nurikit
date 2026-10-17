@@ -17,6 +17,7 @@
 //! @endcond
 
 #include "nuri/eigen_config.h"
+#include "nuri/core/container/container_ext.h"
 #include "nuri/meta.h"
 
 namespace nuri {
@@ -25,8 +26,10 @@ namespace internal {
 
   class OCTreeNode {
   public:
-    OCTreeNode(Array8i &&children, int begin, int nleaf)
-        : children_(std::move(children)), begin_(begin), nleaf_(nleaf) { }
+    OCTreeNode(Array8i &&children, int begin, int nleaf, const Vector3d &maxs,
+               const Vector3d &half)
+        : children_(std::move(children)), begin_(begin), nleaf_(nleaf),
+          maxs_(maxs), half_(half) { }
 
     const Array8i &children() const { return children_; }
 
@@ -41,10 +44,64 @@ namespace internal {
 
     int nleaf() const { return nleaf_; }
 
+    const Vector3d &maxs() const { return maxs_; }
+
+    const Vector3d &half() const { return half_; }
+
   private:
     Array8i children_;
     int begin_;
     int nleaf_;
+    Vector3d maxs_;
+    Vector3d half_;
+  };
+
+  struct OCTreeNodeEntry {
+    int idx;
+    double min_dsq;
+  };
+
+  struct OCTreeNodeFarther {
+    bool operator()(const OCTreeNodeEntry &a, const OCTreeNodeEntry &b) const {
+      return a.min_dsq > b.min_dsq;
+    }
+  };
+
+  struct OCTreeCandEntry {
+    double dsq;
+    int idx;
+  };
+
+  struct OCTreeCandCloser {
+    bool operator()(const OCTreeCandEntry &a, const OCTreeCandEntry &b) const {
+      return a.dsq < b.dsq;
+    }
+  };
+
+  class OCTreeKdScratch {
+  public:
+    using NodeHeap = ClearablePQ<OCTreeNodeEntry, OCTreeNodeFarther>;
+    using CandHeap = ClearablePQ<OCTreeCandEntry, OCTreeCandCloser>;
+
+    void clear() {
+      nodes_.clear();
+      cands_.clear();
+    }
+
+    NodeHeap &nodes() { return nodes_; }
+
+    CandHeap &cands() { return cands_; }
+
+    ArrayXd &dsqbuf(int cap) {
+      if (dsqbuf_.size() < cap)
+        dsqbuf_.resize(cap);
+      return dsqbuf_;
+    }
+
+  private:
+    NodeHeap nodes_;
+    CandHeap cands_;
+    ArrayXd dsqbuf_;
   };
 }  // namespace internal
 
@@ -56,13 +113,6 @@ namespace internal {
  *
  * This implementation is designed for static point clouds. To update the point
  * set, one must rebuild(const MatrixLike &) the octree.
- *
- * One notable exception is that if the points are only scaled uniformly in each
- * axis and/or translated in any order, the octree can still be used without
- * rebuilding, due to the axis-aligned nature of the octree. Note that,
- * however, it is the user's responsibility to ensure that the points are
- * "correctly" transformed separately from the octree; otherwise, the behavior
- * is undefined.
  */
 class OCTree {
 public:
@@ -81,8 +131,18 @@ public:
     rebuild_impl(pts);
   }
 
+  using KdScratch = internal::OCTreeKdScratch;
+
   void find_neighbors_kd(const Vector3d &pt, int k, std::vector<int> &idxs,
                          std::vector<double> &distsq, double cutoff = -1) const;
+
+  /**
+   * @brief Same as find_neighbors_kd(), reusing @p scratch across calls so
+   *        that repeated queries do not allocate.
+   */
+  void find_neighbors_kd(const Vector3d &pt, int k, std::vector<int> &idxs,
+                         std::vector<double> &distsq, KdScratch &scratch,
+                         double cutoff = -1) const;
 
   void find_neighbors_d(const Vector3d &pt, double cutoff,
                         std::vector<int> &idxs,
@@ -103,19 +163,6 @@ public:
   const Vector3d &max() const { return max_; }
 
   const Vector3d &len() const { return len_; }
-
-  /**
-   * @brief Notify the octree that the point set has been transformed by
-   *        scaling and/or translation.
-   *
-   * @param new_max The new maximum corner of the bounding box.
-   * @param new_len The new length of the bounding box in each axis.
-   *
-   * @warning It is the user's responsibility to ensure that the points are
-   *          "correctly" transformed separately from the octree; otherwise, the
-   *          behavior is undefined.
-   */
-  void notify_transform(const Vector3d &new_max, const Vector3d &new_len);
 
   const std::vector<internal::OCTreeNode> &nodes() const { return nodes_; }
 
@@ -146,14 +193,35 @@ private:
   int max_nleaf_ = 0;
 };
 
+namespace internal {
+  class VoxelGridScratch {
+  public:
+    void reserve(int cap) {
+      if (dsqbuf_.size() >= cap)
+        return;
+
+      dsqbuf_.resize(cap);
+      jbuf_.resize(cap);
+    }
+
+    VectorXd &dsqbuf() { return dsqbuf_; }
+
+    ArrayXi &jbuf() { return jbuf_; }
+
+  private:
+    VectorXd dsqbuf_;
+    ArrayXi jbuf_;
+  };
+}  // namespace internal
+
 /**
  * @brief A uniform voxel-grid (cell list) index for 3D point clouds with a
  *        fixed neighbor cutoff.
  *
- * Unlike OCTree, the cutoff distance is baked in at build time and equals the
- * voxel edge length. Neighbor queries therefore only need to scan the 3x3x3 =
- * 27 voxels around each query point. The grid stores its contents in a
- * CSR-style layout:
+ * Unlike OCTree, the cutoff distance is baked in at build time and sets the
+ * voxel edge length, so neighbor queries only need to scan the 3x3x3 = 27
+ * voxels around each query point. The grid stores its contents in a CSR-style
+ * layout:
  *  - `cell_offset()` is a prefix-sum array of length `num_cells() + 1`.
  *  - `cell_pts()` contains all atom indices grouped by voxel, of length
  *    equal to the number of input points.
@@ -164,6 +232,36 @@ private:
  * `pts()` corresponds to the original input point `cell_pts()[p]`. The
  * original point set is *not* referenced after rebuild() returns, so the
  * caller is free to mutate or destroy it.
+ *
+ * Voxels are the cutoff widened by `kBinMargin = 2^-19`, `cell = cutoff /
+ * (1 - 2^-19)`, so that binning stays sound under rounding (`u = 2^-53`); the
+ * margin has two halves of `2^-20`.
+ *
+ * Within one grid (find_neighbors_d(), find_neighbors_self(), nearest()), a
+ * coordinate is binned as `floor(fl(fl(p - origin) / cell))`; the two
+ * roundings move the scaled coordinate by up to `2u * |scaled|`, i.e. by up
+ * to `2u * T` cells with `T` the grid extent in cells (`T < 2^31` by the cell
+ * cap of rebuild(); a nearest() query outside the grid lies within `r + 1`
+ * cells of the point it stops on, which is inside). Two points within the
+ * cutoff of each other are at most `1 - 2^-19` cells apart before rounding,
+ * so they bin at index distance at most 1 after it, and a point binned at
+ * index distance `r + 1` or more from a query is more than `r * (1 - 4u *
+ * (T + 1))` cells away before rounding, hence farther than `r * cutoff` by a
+ * factor of at least `1 + 2^-19 - 4u * (T + 2)`. The first half,
+ * `2^-20 > 4u * (T + 4)`, absorbs these roundings, the rounding of `cell`
+ * itself and the roundings of the two squared distances nearest() compares
+ * (at most `8u` together).
+ *
+ * Across two grids (find_neighbors_grid()), each end of the window of
+ * other-grid cells for a cell of this grid is `floor(fl((fl(origin -
+ * other.origin) + fl(cell * k)) * fl(1 / other.cell)))`; its four roundings
+ * and the two of the other grid's own binning move the window ends and the
+ * other points by up to `6u * M` cells of this grid, with `M = |origin -
+ * other.origin| / cell + dims + 1` the magnitude the arithmetic runs at, which
+ * no cell count bounds because the two cell sizes differ. The second half
+ * absorbs them while `8u * M <= 2^-20`, i.e. `M <= 2^30`; beyond that
+ * find_neighbors_grid() widens every window by one cell of the other grid,
+ * which covers the roundings of any window that meets the other grid at all.
  *
  * @warning The cutoff must be a positive, finite number. Building with a
  *          non-positive or non-finite cutoff is undefined behavior (the voxel
@@ -190,6 +288,8 @@ public:
     rebuild_impl(pts);
   }
 
+  using Scratch = internal::VoxelGridScratch;
+
   /**
    * @brief Find indices of all points within the build-time cutoff of a query
    *        point.
@@ -200,6 +300,39 @@ public:
    */
   void find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
                         std::vector<double> &distsq) const;
+
+  /**
+   * @brief Same as find_neighbors_d(), reusing @p scratch across calls so
+   *        that repeated queries do not allocate.
+   */
+  void find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
+                        std::vector<double> &distsq, Scratch &scratch) const;
+
+  /**
+   * @brief Find the point nearest to a query point.
+   * @param pt The query point; may lie anywhere, inside or outside the grid.
+   * @return The index of the nearest point in the original input (a
+   *         `cell_pts()` value) and its squared distance, or `{-1, -1}` if the
+   *         grid is empty.
+   *
+   * The result is exact for every query position: cells are visited in shells
+   * of increasing Chebyshev index distance around the query's cell, and the
+   * search stops after shell `r` once the best squared distance is at most
+   * `(r * cutoff())^2`, because any unvisited point lies in a cell at index
+   * distance `r + 1` or more and hence, by the widened voxels (see the class
+   * notes), strictly farther than `r * cutoff()` even after the binning
+   * roundings and the roundings of the two compared squares. Ties in squared
+   * distance are broken by the smallest index. The cost grows with the number
+   * of empty shells scanned, so the cell size should match the expected
+   * nearest distance.
+   */
+  std::pair<int, double> nearest(const Vector3d &pt) const;
+
+  /**
+   * @brief Same as nearest(), reusing @p scratch across calls so that repeated
+   *        queries do not allocate.
+   */
+  std::pair<int, double> nearest(const Vector3d &pt, Scratch &scratch) const;
 
   /**
    * @brief Find all pairs (i, j) where i is in *this and j is in @p grid and
@@ -265,6 +398,7 @@ private:
   ArrayXi cell_offset_;
   ArrayXi cell_pts_;
   double cutoff_ = 0;
+  double cell_ = 0;
   int max_occ_ = 0;
 };
 

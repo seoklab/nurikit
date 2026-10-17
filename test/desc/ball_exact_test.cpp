@@ -1,0 +1,1204 @@
+//
+// Project NuriKit - Copyright 2026 SNU Compbio Lab.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <optional>
+#include <random>
+#include <utility>
+#include <vector>
+
+#include <boost/multiprecision/cpp_bin_float.hpp>
+#include <geogram/delaunay/delaunay_3d.h>
+#include <geogram/numerics/predicates.h>
+
+#include <gtest/gtest.h>
+
+#include "nuri/eigen_config.h"
+#include "desc_test_common.h"
+#include "desc/surface/analytic/stages.h"
+#include "nuri/core/geometry.h"
+#include "nuri/desc/surface.h"
+
+// Exact fixtures are dyadic (integer Pythagorean layouts), so the floating
+// filter and the exact kernel see the same input.
+
+namespace nuri {
+namespace internal {
+namespace {
+using Q = boost::multiprecision::cpp_bin_float_quad;
+
+Q q_sqrt(const Q &x) {
+  return x <= 0 ? Q(0) : sqrt(x);
+}
+
+int q_sgn(const Q &x, const Q &tol = 0) {
+  return x > tol ? 1 : x < -tol ? -1 : 0;
+}
+
+struct QVec {
+  Q x, y, z;
+};
+
+QVec operator-(const QVec &a, const QVec &b) {
+  return { a.x - b.x, a.y - b.y, a.z - b.z };
+}
+QVec operator+(const QVec &a, const QVec &b) {
+  return { a.x + b.x, a.y + b.y, a.z + b.z };
+}
+QVec operator*(const Q &s, const QVec &a) {
+  return { s * a.x, s * a.y, s * a.z };
+}
+Q dot(const QVec &a, const QVec &b) {
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+QVec cross(const QVec &a, const QVec &b) {
+  return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z,
+           a.x * b.y - a.y * b.x };
+}
+
+/**
+ * Reference geometry in quad precision on squared radii `rho2` (which the
+ * tie tests perturb one at a time).
+ */
+struct Ref {
+  Matrix3Xd c;
+  std::vector<Q> rho2;
+
+  QVec cen(int i) const { return { c(0, i), c(1, i), c(2, i) }; }
+
+  Q power(int i, const QVec &x) const {
+    const QVec y = x - cen(i);
+    return dot(y, y) - rho2[i];
+  }
+
+  // pi_i - pi_a = 2 (v_i - y . d_i), y = x - c_a
+  Q v(int a, int i) const {
+    const QVec d = cen(i) - cen(a);
+    return (dot(d, d) + rho2[a] - rho2[i]) / 2;
+  }
+
+  struct Face {
+    QVec db, dc, u, yperp;
+    Q u2, disc;
+  };
+
+  Face face(BallTriple f) const {
+    Face r;
+    r.db = cen(f.b) - cen(f.a);
+    r.dc = cen(f.c) - cen(f.a);
+    r.u = cross(r.db, r.dc);
+    r.u2 = dot(r.u, r.u);
+    const Q gbb = dot(r.db, r.db), gbc = dot(r.db, r.dc), gcc = dot(r.dc, r.dc),
+            vb = v(f.a, f.b), vc = v(f.a, f.c);
+    const Q lam = gcc * vb - gbc * vc, mu = gbb * vc - gbc * vb;
+    r.yperp = (1 / r.u2) * (lam * r.db + mu * r.dc);
+    r.disc = r.u2 * (rho2[f.a] - dot(r.yperp, r.yperp));
+    return r;
+  }
+
+  QVec root(BallTriple f, bool plus) const {
+    const Face fc = face(f);
+    const Q s = q_sqrt(fc.disc) / fc.u2;
+    return cen(f.a) + fc.yperp + ((plus ? s : -s) * fc.u);
+  }
+
+  QVec cntr(int a, int b) const {
+    const QVec d = cen(b) - cen(a);
+    return cen(a) + (v(a, b) / dot(d, d)) * d;
+  }
+
+  // sign of pi_c on circle (a, b): constant when c does not cut it
+  Q side(int a, int b, int c) const {
+    const QVec d = cen(b) - cen(a), dc = cen(c) - cen(a);
+    return dot(d, d) * v(a, c) - dot(d, dc) * v(a, b);
+  }
+
+  Q overlap(int a, int b) const {
+    const QVec d = cen(b) - cen(a);
+    const Q t = rho2[a] + rho2[b] - dot(d, d);
+    return t >= 0 ? Q(1) : 4 * rho2[a] * rho2[b] - t * t;
+  }
+
+  // B_y inside B_x: min of the two signed conditions
+  Q inside(int x, int y) const {
+    const QVec d = cen(y) - cen(x);
+    const Q g = dot(d, d), u = rho2[x] - rho2[y] - g,
+            w = u * u - 4 * rho2[y] * g;
+    return nuri::min(u, w);
+  }
+
+  int contained(int a, int b) const {
+    if (inside(a, b) >= 0)
+      return 1;
+    if (inside(b, a) >= 0)
+      return 0;
+    return -1;
+  }
+
+  // zero iff circles (a, b) and (a, c) coincide: |u|^2 + |D| as a polynomial
+  Q coincidence(BallTriple f) const {
+    const QVec db = cen(f.b) - cen(f.a), dc = cen(f.c) - cen(f.a),
+               u = cross(db, dc);
+    const Q gbb = dot(db, db), gbc = dot(db, dc), gcc = dot(dc, dc),
+            vb = v(f.a, f.b), vc = v(f.a, f.c);
+    const Q disc = rho2[f.a] * dot(u, u)
+                   - (gcc * vb * vb - 2 * gbc * vb * vc + gbb * vc * vc);
+    return dot(u, u) + (disc < 0 ? -disc : disc);
+  }
+};
+
+template <bool kForceExact = false>
+struct Fixture {
+  Matrix4Xd lifted;
+  double wmax;
+  BallExactImpl<kForceExact> ex;
+  Ref ref;
+};
+
+template <bool kForceExact = false>
+Fixture<kForceExact> setup(const Matrix3Xd &pts, const ArrayXd &sar) {
+  Fixture<kForceExact> s;
+  const int n = static_cast<int>(sar.size());
+  const ArrayXd sar2 = sar.square();
+  s.wmax = sar2.maxCoeff();
+  s.lifted.resize(4, n);
+  s.lifted.topRows(3) = pts;
+  s.lifted.row(3) = (s.wmax - sar2).sqrt().matrix().transpose();
+  s.ex = BallExactImpl<kForceExact>::make(s.lifted, s.wmax);
+  s.ref.c = pts;
+  s.ref.rho2.resize(n);
+  for (int i = 0; i < n; ++i) {
+    const Q cc = Q(pts(0, i)) * pts(0, i) + Q(pts(1, i)) * pts(1, i)
+                 + Q(pts(2, i)) * pts(2, i);
+    s.ref.rho2[i] = Q(s.wmax) + cc - Q(s.ex.h()[i]);
+  }
+  return s;
+}
+
+template <bool kForceExact = false>
+Fixture<kForceExact> setup(const Balls &b) {
+  return setup<kForceExact>(b.pts, b.sar);
+}
+
+Matrix3Xd tetra_through_origin() {
+  Matrix3Xd pts(3, 4);
+  pts.col(0) << 1, 1, 1;
+  pts.col(1) << 1, -1, -1;
+  pts.col(2) << -1, 1, -1;
+  pts.col(3) << -1, -1, 1;
+  return pts / std::sqrt(3.0);
+}
+
+Matrix3Xd random_pts(std::mt19937 &rng, const int n, const double box) {
+  std::uniform_real_distribution<double> u(-box, box);
+  Matrix3Xd pts(3, n);
+  for (int i = 0; i < n; ++i)
+    pts.col(i) << u(rng), u(rng), u(rng);
+  return pts;
+}
+
+ArrayXd random_radii(std::mt19937 &rng, const int n, const double lo,
+                     const double hi) {
+  std::uniform_real_distribution<double> u(lo, hi);
+  ArrayXd r(n);
+  for (int i = 0; i < n; ++i)
+    r[i] = u(rng);
+  return r;
+}
+
+TEST(BallExactTest, Selftest) {
+  EXPECT_TRUE(BallExact::selftest());
+}
+
+TEST(BallExactTest, FilterInputsAgree) {
+  std::vector<double> xs { 0.0,       -0.0, 0x1p-1074, -0x1p-1074, 0x1p-1060,
+                           0x1p-1022, 1.0,  -1.0,      0x1p-60,    -0x1p60 };
+  std::mt19937 rng(7);
+  std::uniform_real_distribution<double> mant(-2.0, 2.0);
+  std::uniform_int_distribution<int> exp(-1074, 500);
+  for (int i = 0; i < 300; ++i)
+    xs.push_back(std::ldexp(mant(rng), exp(rng)));
+
+  for (const double a: xs)
+    for (const double b: xs)
+      ASSERT_TRUE(filter_inputs_agree(a, b)) << a << ' ' << b;
+}
+
+void expect_geogram_agrees(const Fixture<> &s) {
+  const int n = static_cast<int>(s.lifted.cols());
+  GEO::Delaunay3d del(4);
+  del.set_keeps_infinite(true);
+  del.set_vertices(n, s.lifted.data());
+
+  EXPECT_GT(del.nb_finite_cells(), 0U);
+  const double *p = s.lifted.data();
+  for (GEO::index_t c = 0; c < del.nb_finite_cells(); ++c) {
+    std::array<int, 4> v;
+    for (int lv = 0; lv < 4; ++lv)
+      v[lv] = static_cast<int>(del.cell_vertex(c, lv));
+    for (int q = 0; q < n; ++q) {
+      if (q == v[0] || q == v[1] || q == v[2] || q == v[3])
+        continue;
+      const GEO::Sign sg = GEO::PCK::orient_3dlifted_SOS(
+          p + 4 * v[0], p + 4 * v[1], p + 4 * v[2], p + 4 * v[3], p + 4 * q,
+          s.ex.h()[v[0]], s.ex.h()[v[1]], s.ex.h()[v[2]], s.ex.h()[v[3]],
+          s.ex.h()[q]);
+      ASSERT_EQ(sg, GEO::NEGATIVE) << "cell " << c << " conflicts with " << q;
+    }
+  }
+}
+
+TEST(BallExactTest, HeightsMatchGeogram) {
+  std::mt19937 rng(7);
+  for (int trial = 0; trial < 5; ++trial) {
+    const Matrix3Xd pts = random_pts(rng, 40, 5.0);
+    const ArrayXd sar = random_radii(rng, 40, 1.4, 2.6);
+    expect_geogram_agrees(setup(pts, sar));
+  }
+
+  expect_geogram_agrees(setup(star(4, 110, 2), ArrayXd::Constant(5, 2.0)));
+  expect_geogram_agrees(setup(star(5, 100, 2), ArrayXd::Constant(6, 2.0)));
+  expect_geogram_agrees(setup(square_apex()));
+  expect_geogram_agrees(
+      setup(tetra_through_origin(), ArrayXd::Constant(4, 1.0)));
+
+  Matrix3Xd lattice(3, 27);
+  for (int i = 0; i < 27; ++i)
+    lattice.col(i) << i % 3, (i / 3) % 3, i / 9;
+  expect_geogram_agrees(setup(lattice, ArrayXd::Constant(27, 0.8)));
+}
+
+const Q kQTol = 1e-26;
+
+template <bool kForceExact>
+void expect_offset(const BallExactImpl<kForceExact> &ex, const Ref &ref,
+                   const int a, const int b, const BallTriple f,
+                   const bool plus, const double rel) {
+  const QVec y = ref.root(f, plus) - ref.cntr(a, b);
+  const Vector3d want(static_cast<double>(y.x), static_cast<double>(y.y),
+                      static_cast<double>(y.z));
+  const Vector3d got = ex.offset(a, b, f, plus);
+  EXPECT_LT((got - want).norm(), rel * want.norm())
+      << a << b << " face " << f.a << f.b << f.c << " root " << plus;
+}
+
+int root_sign(const Ref &ref, const BallTriple f, const bool plus,
+              const int l) {
+  return q_sgn(ref.power(l, ref.root(f, plus)), kQTol);
+}
+
+template <bool kForceExact>
+void check_random_agreement() {
+  std::mt19937 rng(kForceExact ? 11 : 13);
+  int n_accept = 0, n_cuts = 0, n_side = 0, n_hp = 0, n_ccw = 0, n_anti = 0;
+
+  for (int trial = 0; trial < 40; ++trial) {
+    const int n = 8;
+    const Matrix3Xd pts = random_pts(rng, n, 1.6);
+    const ArrayXd sar = random_radii(rng, n, 1.5, 2.5);
+    const Fixture<kForceExact> s = setup<kForceExact>(pts, sar);
+    const Ref &ref = s.ref;
+
+    for (int a = 0; a < n; ++a) {
+      for (int b = a + 1; b < n; ++b) {
+        const int ov = q_sgn(ref.overlap(a, b), kQTol);
+        if (ov != 0)
+          EXPECT_EQ(static_cast<int>(s.ex.overlap(a, b)), ov);
+        if (q_sgn(ref.inside(a, b), kQTol) != 0
+            && q_sgn(ref.inside(b, a), kQTol) != 0)
+          EXPECT_EQ(s.ex.contained(a, b), ref.contained(a, b));
+        for (int c = b + 1; c < n; ++c) {
+          const BallTriple f { a, b, c };
+          EXPECT_EQ(s.ex.shared_circle(f), -1);
+          const Ref::Face rf = ref.face(f);
+          const int cut = q_sgn(rf.disc, kQTol);
+          if (cut == 0)
+            continue;
+          EXPECT_EQ(static_cast<int>(s.ex.cuts(f)), cut);
+          ++n_cuts;
+
+          if (cut < 0) {
+            const int sd = q_sgn(ref.side(a, b, c), kQTol);
+            if (sd != 0) {
+              EXPECT_EQ(static_cast<int>(s.ex.side(a, b, c)), sd);
+              ++n_side;
+            }
+            continue;
+          }
+
+          for (const auto &[ca, cb]: {
+                   std::pair { a, b },
+                    std::pair { b, c },
+                   std::pair { a, c }
+          }) {
+            for (const bool plus: { true, false })
+              expect_offset(s.ex, ref, ca, cb, f, plus, 1e-12);
+          }
+
+          for (int l = 0; l < n; ++l) {
+            if (l == a || l == b || l == c)
+              continue;
+            for (const bool plus: { true, false }) {
+              const int want = root_sign(ref, f, plus, l);
+              if (want == 0)
+                continue;
+              EXPECT_EQ(static_cast<int>(s.ex.accept(f, plus, l)), want)
+                  << a << b << c << " root " << plus << " apex " << l;
+              ++n_accept;
+
+              const QVec q = (Q(2) * ref.cntr(a, b)) - ref.root(f, plus);
+              const int anti = q_sgn(ref.power(l, q), kQTol);
+              if (anti != 0) {
+                EXPECT_EQ(static_cast<int>(s.ex.antipode(a, b, f, plus, l)),
+                          anti);
+                ++n_anti;
+              }
+            }
+          }
+
+          const Vector3d dfl = pts.col(b) - pts.col(a);
+          const int k = BallExact::reference_axis(dfl);
+          Vector3d ek = Vector3d::Zero();
+          ek[k] = 1;
+          const Vector3d rfl = dfl.cross(ek);
+          const QVec r { rfl[0], rfl[1], rfl[2] };
+          const QVec d = ref.cen(b) - ref.cen(a), r2 = cross(d, r);
+          for (const bool plus: { true, false }) {
+            const QVec y = ref.root(f, plus) - ref.cntr(a, b);
+            const int sc = q_sgn(dot(r, y), kQTol),
+                      ss = q_sgn(dot(r2, y), kQTol);
+            if (ss == 0 || sc == 0)
+              continue;
+            EXPECT_EQ(s.ex.half_plane(a, b, f, plus), ss > 0 ? 1 : 3);
+            ++n_hp;
+          }
+
+          for (int c2 = c + 1; c2 < n; ++c2) {
+            const BallTriple f2 { a, b, c2 };
+            if (q_sgn(ref.face(f2).disc, kQTol) <= 0)
+              continue;
+            const QVec yi = ref.root(f, true) - ref.cntr(a, b),
+                       yj = ref.root(f2, false) - ref.cntr(a, b);
+            const int want = q_sgn(dot(cross(yi, yj), d), kQTol);
+            if (want == 0)
+              continue;
+            EXPECT_EQ(static_cast<int>(s.ex.ccw(a, b, f, true, f2, false)),
+                      want);
+            EXPECT_EQ(
+                static_cast<int>(s.ex.ccw_perturbed(a, b, f, true, f2, false)),
+                want);
+            ++n_ccw;
+          }
+        }
+      }
+    }
+  }
+  EXPECT_GT(n_accept, 1000);
+  EXPECT_GT(n_cuts, 300);
+  EXPECT_GT(n_side, 30);
+  EXPECT_GT(n_hp, 100);
+  EXPECT_GT(n_ccw, 50);
+  EXPECT_GT(n_anti, 500);
+}
+
+TEST(BallExactTest, FilteredMatchesQuad) {
+  check_random_agreement<false>();
+}
+
+TEST(BallExactTest, ExactMatchesQuad) {
+  check_random_agreement<true>();
+}
+
+/**
+ * Perturbation oracle: grow the squared radii one at a time by 1e-20, in
+ * index order, and take the first sign that emerges.
+ */
+template <class F>
+int perturbed_sign(Ref ref, const std::vector<int> &participants, F &&value) {
+  std::vector<int> order = participants;
+  std::sort(order.begin(), order.end());
+  order.erase(std::unique(order.begin(), order.end()), order.end());
+  for (const int j: order) {
+    Ref pert = ref;
+    pert.rho2[j] += Q(1e-20);
+    const int s = q_sgn(value(pert), kQTol);
+    if (s != 0)
+      return s;
+  }
+  return 0;
+}
+
+/**
+ * Radii 5 and 3 lift to t = 0 and 4 exactly, so the internal tangency at
+ * d = 2 is an exact tie of the stored heights.
+ */
+TEST(BallExactTest, ContainedBall) {
+  Matrix3Xd pts(3, 5);
+  pts.col(0) << 0, 0, 0;
+  pts.col(1) << 2, 0, 0;
+  pts.col(2) << -0.5, 0, 0;
+  pts.col(3) << 0, 0, 0;
+  pts.col(4) << std::nextafter(2.0, 3.0), 0, 0;
+  ArrayXd sar(5);
+  sar << 5, 3, 1, 5, 3;
+  const Fixture<> s = setup(pts, sar);
+
+  EXPECT_EQ(q_sgn(s.ref.inside(0, 1), 0), 0);
+  EXPECT_EQ(s.ex.contained(0, 1), 1);
+  EXPECT_EQ(s.ex.contained(1, 0), 0);
+  EXPECT_EQ(s.ex.contained(0, 2), 1);
+  EXPECT_EQ(s.ex.contained(2, 0), 0);
+  EXPECT_EQ(s.ex.contained(1, 2), -1);
+  EXPECT_EQ(s.ex.contained(0, 3), 2);
+  EXPECT_EQ(s.ex.contained(3, 0), 2);
+  EXPECT_EQ(s.ex.contained(0, 4), -1);
+  EXPECT_EQ(s.ex.contained(4, 0), -1);
+}
+
+TEST(BallExactTest, SharedCircle) {
+  for (int mid = 0; mid < 3; ++mid) {
+    const auto [pts, sar] = shared_circle_pts(mid);
+    const Fixture<> s = setup(pts, sar);
+    const BallTriple f { 0, 1, 2 };
+    ASSERT_EQ(q_sgn(s.ref.coincidence(f)), 0);
+    EXPECT_EQ(s.ex.shared_circle(f), mid);
+    EXPECT_EQ(s.ex.shared_circle({ 1, 2, 0 }), (mid + 2) % 3);
+    EXPECT_EQ(s.ex.shared_circle({ 2, 0, 1 }), (mid + 1) % 3);
+  }
+
+  auto [pts, sar] = shared_circle_pts(1);
+  pts(2, 1) += 1e-9;
+  const Fixture<> s = setup(pts, sar);
+  ASSERT_NE(q_sgn(s.ref.coincidence({ 0, 1, 2 }), kQTol), 0);
+  EXPECT_EQ(s.ex.shared_circle({ 0, 1, 2 }), -1);
+
+  pts = shared_circle_pts(1).pts;
+  sar[1] = std::nextafter(sar[1], 4.0);
+  const Fixture<> sr = setup(pts, sar);
+  ASSERT_NE(q_sgn(sr.ref.coincidence({ 0, 1, 2 })), 0);
+  EXPECT_EQ(sr.ex.shared_circle({ 0, 1, 2 }), -1);
+}
+
+/**
+ * A tangent pair under rigid motions: rounding leaves a circle of radius
+ * ~1e-8 whose floating discriminant is noise, yet the offset from the center
+ * must keep its direction.
+ */
+TEST(BallExactTest, OffsetOnRoundingTinyCircle) {
+  const auto [base, sar] = tangent_through_pts();
+
+  std::mt19937 rng(5);
+  std::normal_distribution<double> nd;
+  int n_tiny = 0;
+  for (int seed = 0; seed < 64; ++seed) {
+    const Vector3d ax(nd(rng), nd(rng), nd(rng));
+    const Matrix3d rot =
+        AngleAxisd(nd(rng), ax.normalized()).toRotationMatrix();
+    const Vector3d t(nd(rng), nd(rng), nd(rng));
+    const Matrix3Xd pts = (rot * base).colwise() + 3.0 * t;
+    const Fixture<> s = setup(pts, sar);
+    const BallTriple f { 0, 1, 2 };
+    if (s.ex.overlap(0, 1) != Sgn::kPos || s.ex.cuts(f) != Sgn::kPos)
+      continue;
+
+    ++n_tiny;
+    const QVec y = s.ref.root(f, true) - s.ref.cntr(0, 1);
+    ASSERT_LT(static_cast<double>(dot(y, y)), 1e-12);
+    for (const bool plus: { true, false })
+      expect_offset(s.ex, s.ref, 0, 1, f, plus, 1e-9);
+  }
+  EXPECT_GT(n_tiny, 5);
+}
+
+/**
+ * Centers nearly collinear (`|u| ~ eps |d_b| |d_c|`) with both circles through
+ * `a` nearly great circles of `a`, so the root is `c_a +- rho_a u / |u|` up to
+ * `eps`: the normal `u` and the divisor `G |u|^2` both carry a relative
+ * rounding of order `2^-52 / eps`, and the filter's certificate must cover
+ * the divisor as well as the numerator. Sphere `a` sits at the origin so
+ * that no coordinate-scale rounding enters `v`.
+ */
+TEST(BallExactTest, OffsetNearCollinearGreatCircle) {
+  std::mt19937 rng(31);
+  std::normal_distribution<double> nd;
+  std::uniform_real_distribution<double> ud(-1, 1);
+  const BallTriple f { 0, 1, 2 };
+
+  for (const double eps: { 1e-3, 1e-4, 1e-5, 1e-6, 3e-7, 1e-7 }) {
+    for (int trial = 0; trial < 200; ++trial) {
+      const Vector3d db = (1 + std::abs(ud(rng)))
+                          * Vector3d(nd(rng), nd(rng), nd(rng)).normalized();
+      Vector3d w(nd(rng), nd(rng), nd(rng));
+      w -= w.dot(db) / db.squaredNorm() * db;
+      w *= eps * db.norm() / w.norm();
+      const double t = ud(rng) < 0 ? -1 - std::abs(ud(rng))
+                                   : 2 + std::abs(ud(rng));
+      const Vector3d dc = t * db + w;
+
+      Matrix3Xd pts(3, 3);
+      pts.col(0).setZero();
+      pts.col(1) = db;
+      pts.col(2) = dc;
+      ArrayXd sar(3);
+      sar[0] = 1.5 + std::abs(ud(rng));
+      sar[1] = std::sqrt(sar[0] * sar[0]
+                         + (1 + eps * eps * ud(rng)) * db.squaredNorm());
+      sar[2] = std::sqrt(sar[0] * sar[0]
+                         + (1 + eps * eps * ud(rng)) * dc.squaredNorm());
+
+      const Fixture<> s = setup(pts, sar);
+      const Fixture<true> e = setup<true>(pts, sar);
+      ASSERT_EQ(s.ex.overlap(0, 1), Sgn::kPos);
+      ASSERT_EQ(s.ex.overlap(0, 2), Sgn::kPos);
+      ASSERT_EQ(s.ex.cuts(f), Sgn::kPos);
+
+      for (const int b: { 1, 2 }) {
+        for (const bool plus: { true, false }) {
+          expect_offset(e.ex, e.ref, 0, b, f, plus, 1e-12);
+          const Vector3d want = e.ex.offset(0, b, f, plus),
+                         got = s.ex.offset(0, b, f, plus);
+          EXPECT_LE((got - want).norm(), kOffsetRelTol * want.norm())
+              << "eps " << eps << " trial " << trial << " pair 0" << b
+              << " root " << plus;
+        }
+      }
+    }
+  }
+}
+
+TEST(BallExactTest, TangentPairCarriesNoCircle) {
+  const auto [pts, sar] = tangent_through_pts();
+  const Fixture<> s = setup(pts, sar);
+
+  EXPECT_EQ(s.ex.overlap(0, 1), Sgn::kZero);
+  EXPECT_EQ(s.ex.overlap(0, 2), Sgn::kPos);
+  const BallTriple f { 0, 1, 2 };
+  const int want = perturbed_sign(s.ref, { 0, 1, 2 },
+                                  [&](const Ref &r) { return r.face(f).disc; });
+  ASSERT_NE(want, 0);
+  EXPECT_EQ(static_cast<int>(s.ex.cuts(f)), want);
+}
+
+void check_tie_fixture(const Matrix3Xd &pts, const ArrayXd &sar,
+                       const Vector3d &point) {
+  const Fixture<> s = setup(pts, sar);
+  const int n = static_cast<int>(sar.size());
+  int n_ties = 0;
+
+  for (int a = 0; a < n; ++a) {
+    for (int b = a + 1; b < n; ++b) {
+      for (int c = b + 1; c < n; ++c) {
+        const BallTriple f { a, b, c };
+        const int cut = static_cast<int>(s.ex.cuts(f));
+        const int want_cut = perturbed_sign(
+            s.ref, { a, b, c }, [&](const Ref &r) { return r.face(f).disc; });
+        if (want_cut != 0) {
+          EXPECT_EQ(cut, want_cut) << a << b << c;
+        }
+        if (cut <= 0)
+          continue;
+
+        for (const bool plus: { true, false }) {
+          const auto [xp, xm] = s.ex.roots(f);
+          const Vector3d x = plus ? xp : xm;
+          for (int l = 0; l < n; ++l) {
+            if (l == a || l == b || l == c)
+              continue;
+            const int got = static_cast<int>(s.ex.accept(f, plus, l));
+            const int want =
+                perturbed_sign(s.ref, { a, b, c, l }, [&](const Ref &r) {
+                  return r.power(l, r.root(f, plus));
+                });
+            ASSERT_NE(want, 0);
+            EXPECT_EQ(got, want)
+                << a << b << c << " root " << plus << " apex " << l;
+            n_ties += (x - point).norm() < 1e-9;
+          }
+        }
+      }
+    }
+  }
+  EXPECT_GT(n_ties, 0);
+}
+
+TEST(BallExactTest, TetraThroughOrigin) {
+  check_tie_fixture(tetra_through_origin(), ArrayXd::Constant(4, 1.0),
+                    Vector3d::Zero());
+}
+
+TEST(BallExactTest, FiveFoldStar) {
+  check_tie_fixture(star(4, 110, 2), ArrayXd::Constant(5, 2.0),
+                    Vector3d::Zero());
+}
+
+TEST(BallExactTest, CoplanarSquareWithApex) {
+  const auto [pts, sar] = square_apex();
+  check_tie_fixture(pts, sar, Vector3d(0, 0, 0.5));
+}
+
+struct SquareTie {
+  Fixture<> s;
+  BallTriple f1, f2;
+  bool same;
+};
+
+/**
+ * Two 4-fold points from two faces of the square with apex on circle
+ * `(0, 1)`: coincident roots, `same` naming the root of `f2` at the plus
+ * root of `f1`.
+ */
+SquareTie square_tie() {
+  Fixture<> s = setup(square_apex());
+  const BallTriple f1 { 0, 1, 2 }, f2 { 0, 1, 3 };
+  EXPECT_EQ(s.ex.cuts(f1), Sgn::kPos);
+  EXPECT_EQ(s.ex.cuts(f2), Sgn::kPos);
+  const auto [p1, m1] = s.ex.roots(f1);
+  const auto [p2, m2] = s.ex.roots(f2);
+  const bool same = (p1 - p2).norm() < 1e-12;
+  EXPECT_EQ(s.ex.ccw(0, 1, f1, true, f2, same), Sgn::kZero);
+  return { std::move(s), f1, f2, same };
+}
+
+TEST(BallExactTest, CoincidentRootsTie) {
+  const SquareTie t = square_tie();
+  EXPECT_EQ(t.s.ex.half_plane(0, 1, t.f1, true),
+            t.s.ex.half_plane(0, 1, t.f2, t.same));
+}
+
+void expect_same_predicates(const BallExact &ex, const BallExact &want) {
+  const int n = want.n();
+  ASSERT_EQ(ex.n(), n);
+  for (int i = 0; i < n; ++i)
+    EXPECT_EQ(ex.rho2(i), want.rho2(i));
+
+  for (int a = 0; a < n; ++a) {
+    for (int b = a + 1; b < n; ++b) {
+      for (int c = b + 1; c < n; ++c) {
+        const BallTriple f { a, b, c };
+        const Sgn cut = want.cuts(f);
+        EXPECT_EQ(ex.cuts(f), cut);
+        if (cut != Sgn::kPos)
+          continue;
+
+        for (const bool plus: { true, false }) {
+          const Vector3d x = ex.root(f, plus), y = want.root(f, plus);
+          EXPECT_TRUE((x.array() == y.array()).all()) << x << "\n" << y;
+          for (int l = 0; l < n; ++l) {
+            if (l == a || l == b || l == c)
+              continue;
+            EXPECT_EQ(ex.accept(f, plus, l), want.accept(f, plus, l));
+          }
+        }
+      }
+    }
+  }
+}
+
+Matrix3Xd octahedron() {
+  Matrix3Xd pts(3, 6);
+  pts << 1, -1, 0, 0, 0, 0,  //
+      0, 0, 1, -1, 0, 0,     //
+      0, 0, 0, 0, 1, -1;
+  return pts;
+}
+
+struct CircleRoot {
+  BallTriple f;
+  bool plus;
+};
+
+std::vector<CircleRoot> circle_roots(const BallExact &ex, const int a,
+                                     const int b) {
+  std::vector<CircleRoot> out;
+  for (int c = 0; c < ex.n(); ++c) {
+    if (c == a || c == b)
+      continue;
+    const BallTriple f { a, b, c };
+    if (ex.cuts(f) != Sgn::kPos)
+      continue;
+    out.push_back({ f, true });
+    out.push_back({ f, false });
+  }
+  return out;
+}
+
+struct RootGroups {
+  int n_roots = 0, n_close = 0, n_coincident = 0;
+};
+
+/**
+ * Every root of every cut face.
+ */
+std::vector<CircleRoot> all_roots(const BallExact &ex) {
+  std::vector<CircleRoot> roots;
+  const int n = ex.n();
+  for (int a = 0; a < n; ++a) {
+    for (int b = a + 1; b < n; ++b) {
+      for (int c = b + 1; c < n; ++c) {
+        const BallTriple f { a, b, c };
+        if (ex.cuts(f) != Sgn::kPos)
+          continue;
+        roots.push_back({ f, true });
+        roots.push_back({ f, false });
+      }
+    }
+  }
+  return roots;
+}
+
+/**
+ * Over all root pairs: the pairs within 1e-9 and the pairs `coincide`
+ * accepts; `coincide` is symmetric and a coincident pair is within 1e-12.
+ */
+RootGroups root_groups(const BallExact &ex) {
+  const std::vector<CircleRoot> roots = all_roots(ex);
+
+  RootGroups g;
+  g.n_roots = static_cast<int>(roots.size());
+  for (int i = 0; i < g.n_roots; ++i) {
+    for (int j = i + 1; j < g.n_roots; ++j) {
+      const CircleRoot &ri = roots[i], &rj = roots[j];
+      const bool same = ex.coincide(ri.f, ri.plus, rj.f, rj.plus);
+      EXPECT_EQ(same, ex.coincide(rj.f, rj.plus, ri.f, ri.plus));
+      const double dist =
+          (ex.root(ri.f, ri.plus) - ex.root(rj.f, rj.plus)).norm();
+      g.n_close += static_cast<int>(dist < 1e-9);
+      g.n_coincident += static_cast<int>(same);
+      if (same)
+        EXPECT_LT(dist, 1e-12);
+    }
+  }
+  return g;
+}
+
+/**
+ * On the dyadic square with apex the groups of `coincide` are the roots
+ * within 1e-9 of each other (faces sharing a circle, one sphere, or none); an
+ * exact tangency (sphere 2 through one point of circle (0, 1)) has both roots
+ * of one face in one group; under a rigid motion the rounded points are
+ * distinct and some close pair splits.
+ */
+TEST(BallExactTest, CoincideAcrossFaces) {
+  const Balls sq = square_apex();
+  const Fixture<> s = setup(sq);
+  const RootGroups exact = root_groups(s.ex);
+  EXPECT_GT(exact.n_coincident, 0);
+  EXPECT_EQ(exact.n_coincident, exact.n_close);
+
+  Matrix3Xd grazing(3, 3);
+  grazing << 0, 0, 7,  //
+      0, 0, 0,         //
+      0, 6, 7;
+  const Fixture<> t = setup(grazing, ArrayXd::Constant(3, 5.0));
+  const BallTriple f { 0, 1, 2 };
+  ASSERT_EQ(t.ex.cuts(f), Sgn::kPos);
+  EXPECT_TRUE(t.ex.coincide(f, true, f, false));
+  EXPECT_TRUE(t.ex.coincide(f, true, f, true));
+
+  int n_split = 0;
+  for (int seed = 0; seed < 8; ++seed) {
+    std::mt19937 rng(seed);
+    std::normal_distribution<double> nd;
+    const Vector3d ax(nd(rng), nd(rng), nd(rng));
+    const Matrix3d rot =
+        AngleAxisd(nd(rng), ax.normalized()).toRotationMatrix();
+    const Vector3d tr(nd(rng), nd(rng), nd(rng));
+    const Matrix3Xd pts = (rot * sq.pts).colwise() + tr;
+    const Fixture<> r = setup(pts, sq.sar);
+    const RootGroups rounded = root_groups(r.ex);
+    EXPECT_EQ(rounded.n_roots, exact.n_roots) << "seed " << seed;
+    n_split += rounded.n_close - rounded.n_coincident;
+  }
+  EXPECT_GT(n_split, 0);
+}
+
+/**
+ * Groups of exactly coincident roots on every circle: the perturbed order
+ * must be a strict total order on each, and match the oracle away from
+ * tangencies (one radius at a time misses the `sqrt(eps)` growth of a vanished
+ * discriminant that the graded perturbation lets dominate). Returns the
+ * number of groups.
+ */
+int check_coincident_order(const Fixture<> &s) {
+  const BallExact &ex = s.ex;
+  const Ref &ref = s.ref;
+  int n_groups = 0;
+  for (int a = 0; a < ex.n(); ++a) {
+    for (int b = a + 1; b < ex.n(); ++b) {
+      if (ex.overlap(a, b) != Sgn::kPos)
+        continue;
+
+      const std::vector<CircleRoot> roots = circle_roots(ex, a, b);
+      auto before = [&](const CircleRoot &p, const CircleRoot &q) {
+        const Sgn got = ex.ccw_perturbed(a, b, p.f, p.plus, q.f, q.plus);
+        if (q_sgn(ref.face(p.f).disc, kQTol) == 0
+            || q_sgn(ref.face(q.f).disc, kQTol) == 0)
+          return got;
+
+        const int want = perturbed_sign(
+            ref, { a, b, p.f.a, p.f.b, p.f.c, q.f.a, q.f.b, q.f.c },
+            [&](const Ref &r) {
+              const QVec cn = r.cntr(a, b);
+              return dot(cross(r.root(p.f, p.plus) - cn,
+                               r.root(q.f, q.plus) - cn),
+                         r.cen(b) - r.cen(a));
+            });
+        EXPECT_EQ(static_cast<int>(got), want) << a << b;
+        return got;
+      };
+      auto coincident = [&](const CircleRoot &p, const CircleRoot &q) {
+        return ex.ccw(a, b, p.f, p.plus, q.f, q.plus) == Sgn::kZero
+               && (ex.offset(a, b, p.f, p.plus) - ex.offset(a, b, q.f, q.plus))
+                          .norm()
+                      < 1e-9;
+      };
+
+      std::vector<bool> done(roots.size(), false);
+      for (std::size_t i = 0; i < roots.size(); ++i) {
+        if (done[i])
+          continue;
+        std::vector<CircleRoot> group { roots[i] };
+        for (std::size_t j = i + 1; j < roots.size(); ++j) {
+          if (!done[j] && coincident(roots[i], roots[j])) {
+            group.push_back(roots[j]);
+            done[j] = true;
+          }
+        }
+        if (group.size() < 2)
+          continue;
+        ++n_groups;
+
+        for (const CircleRoot &p: group) {
+          for (const CircleRoot &q: group) {
+            if (&p == &q)
+              continue;
+            const Sgn pq = before(p, q);
+            EXPECT_NE(pq, Sgn::kZero) << a << b;
+            EXPECT_EQ(static_cast<int>(before(q, p)), -static_cast<int>(pq))
+                << a << b;
+            if (pq != Sgn::kPos)
+              continue;
+            for (const CircleRoot &r: group) {
+              if (&r == &p || &r == &q || before(q, r) != Sgn::kPos)
+                continue;
+              EXPECT_EQ(before(p, r), Sgn::kPos) << a << b;
+            }
+          }
+        }
+      }
+    }
+  }
+  return n_groups;
+}
+
+/**
+ * Zero-length arcs of `build_sas` close on one merged probe where at least
+ * two roots of the circle coincide; the perturbed order must resolve every
+ * such pair. Returns the number of pairs.
+ */
+int check_zero_arcs(const Matrix3Xd &pts, const ArrayXd &sar, const double rp) {
+  const std::optional<SurfaceSpheres> ss =
+      prepare(pts, sar - rp, ArrayXb::Constant(sar.size(), true), rp);
+  EXPECT_TRUE(ss);
+  if (!ss)
+    return 0;
+  const SasDelaunay del = triangulate(*ss);
+  const SasGeometry geo = build_sas(*ss, del);
+  const BallExact &ex = del.ex;
+
+  auto vertex = [&](int p) { return del.vertex[ss->order[p]]; };
+
+  int n_pairs = 0;
+  for (const RingArc &arc: geo.arcs) {
+    if (arc.beg < 0 || arc.dphi != 0)
+      continue;
+    EXPECT_EQ(arc.beg, arc.end);
+    const SasCircle &c = geo.circles[arc.circ];
+    const int va = vertex(c.i), vb = vertex(c.j);
+    const Vector3d x = geo.probes.pos.col(arc.beg);
+
+    std::vector<CircleRoot> at_x;
+    for (const CircleRoot &r: circle_roots(ex, va, vb)) {
+      if ((ex.root(r.f, r.plus) - x).norm() < 1e-12)
+        at_x.push_back(r);
+    }
+    EXPECT_GE(at_x.size(), 2) << "circle " << c.i << c.j;
+
+    for (std::size_t i = 0; i < at_x.size(); ++i) {
+      for (std::size_t j = i + 1; j < at_x.size(); ++j) {
+        const CircleRoot &p = at_x[i], &r = at_x[j];
+        EXPECT_EQ(ex.ccw(va, vb, p.f, p.plus, r.f, r.plus), Sgn::kZero);
+        const Sgn s = ex.ccw_perturbed(va, vb, p.f, p.plus, r.f, r.plus);
+        EXPECT_NE(s, Sgn::kZero) << "circle " << c.i << c.j;
+        EXPECT_EQ(static_cast<int>(
+                      ex.ccw_perturbed(va, vb, r.f, r.plus, p.f, p.plus)),
+                  -static_cast<int>(s));
+        ++n_pairs;
+      }
+    }
+  }
+  return n_pairs;
+}
+
+TEST(BallExactTest, CcwPerturbedResolvesCoincidentRoots) {
+  const SquareTie t = square_tie();
+  const Sgn s = t.s.ex.ccw_perturbed(0, 1, t.f1, true, t.f2, t.same);
+  EXPECT_NE(s, Sgn::kZero);
+  EXPECT_EQ(
+      static_cast<int>(t.s.ex.ccw_perturbed(0, 1, t.f2, t.same, t.f1, true)),
+      -static_cast<int>(s));
+
+  EXPECT_GT(check_coincident_order(t.s), 0);
+  EXPECT_GT(
+      check_coincident_order(setup(octahedron(), ArrayXd::Constant(6, 1.0))),
+      0);
+  const auto [pts, sar] = square_apex();
+  EXPECT_GT(check_zero_arcs(pts, sar, 1.0), 0);
+}
+
+TEST(BallExactTest, CcwPerturbedMatchesForcedExact) {
+  std::mt19937 rng(17);
+  int n_pairs = 0;
+  for (int trial = 0; trial < 20; ++trial) {
+    const int n = 8;
+    const Matrix3Xd pts = random_pts(rng, n, 1.6);
+    const ArrayXd sar = random_radii(rng, n, 1.5, 2.5);
+    const Fixture<false> sf = setup<false>(pts, sar);
+    const Fixture<true> se = setup<true>(pts, sar);
+
+    for (int a = 0; a < n; ++a) {
+      for (int b = a + 1; b < n; ++b) {
+        if (sf.ex.overlap(a, b) != Sgn::kPos)
+          continue;
+        const std::vector<CircleRoot> roots = circle_roots(sf.ex, a, b);
+        for (const CircleRoot &p: roots) {
+          for (const CircleRoot &q: roots) {
+            if (p.f.c == q.f.c)
+              continue;
+            const Sgn want =
+                se.ex.ccw_perturbed(a, b, p.f, p.plus, q.f, q.plus);
+            EXPECT_EQ(sf.ex.ccw_perturbed(a, b, p.f, p.plus, q.f, q.plus),
+                      want);
+            const Sgn exact = sf.ex.ccw(a, b, p.f, p.plus, q.f, q.plus);
+            EXPECT_TRUE(exact == Sgn::kZero || exact == want);
+            ++n_pairs;
+          }
+        }
+      }
+    }
+  }
+  EXPECT_GT(n_pairs, 500);
+}
+
+/**
+ * Spheres 2 and 3 are both tangent to circle `(0, 1)` at `(1, 0, 0)` and
+ * split from it at the same first-order rate, so the `sqrt(eps)` terms of the
+ * two tangent roots cancel at the first participant and the second decides;
+ * the signs are those of a 700-digit graded oracle.
+ */
+TEST(BallExactTest, CcwPerturbedCancellingTangentRoots) {
+  Matrix3Xd c(3, 4);
+  c << 0, 0, 2, 3,  //
+      0, 0, 0, 0,   //
+      -1, 1, 1, 1;
+  ArrayXd h(4);
+  h << 7, 7, 11, 13;
+  const BallTriple f2 { 0, 1, 2 }, f3 { 0, 1, 3 };
+
+  auto check = [&](const auto &ex) {
+    ASSERT_EQ(ex.cuts(f2), Sgn::kPos);
+    ASSERT_EQ(ex.cuts(f3), Sgn::kPos);
+    for (const bool p2: { true, false }) {
+      for (const bool p3: { true, false }) {
+        ASSERT_EQ(ex.ccw(0, 1, f2, p2, f3, p3), Sgn::kZero);
+        const Sgn want = p3 ? Sgn::kPos : Sgn::kNeg;
+        EXPECT_EQ(ex.ccw_perturbed(0, 1, f2, p2, f3, p3), want) << p2 << p3;
+        EXPECT_EQ(static_cast<int>(ex.ccw_perturbed(0, 1, f3, p3, f2, p2)),
+                  -static_cast<int>(want))
+            << p2 << p3;
+      }
+    }
+  };
+  check(BallExactImpl<false>::make(c, h, 8.0));
+  check(BallExactImpl<true>::make(c, h, 8.0));
+}
+
+/**
+ * `difference` against the quad reference and against the subtraction of
+ * two `root`s on random fixtures, where every pair of roots is far apart.
+ */
+TEST(BallExactTest, DifferenceMatchesRoots) {
+  std::mt19937 rng(29);
+  int n_pairs = 0;
+  for (int trial = 0; trial < 20; ++trial) {
+    const int n = 6;
+    const Fixture<> s =
+        setup(random_pts(rng, n, 1.6), random_radii(rng, n, 1.5, 2.5));
+
+    const std::vector<CircleRoot> roots = all_roots(s.ex);
+    for (const CircleRoot &ri: roots) {
+      for (const CircleRoot &rj: roots) {
+        if (&ri == &rj)
+          continue;
+
+        const QVec w = s.ref.root(ri.f, ri.plus) - s.ref.root(rj.f, rj.plus);
+        const RootDifference rd = s.ex.difference(ri.f, ri.plus, rj.f, rj.plus);
+        const Vector3d want(static_cast<double>(w.x), static_cast<double>(w.y),
+                            static_cast<double>(w.z)),
+            got = rd.len * rd.dir,
+            naive = s.ex.root(ri.f, ri.plus) - s.ex.root(rj.f, rj.plus);
+        EXPECT_NEAR(rd.dir.norm(), 1, 1e-15) << "trial " << trial;
+        EXPECT_LT((got - want).norm(), 1e-12) << "trial " << trial;
+        EXPECT_LT((got - naive).norm(), 1e-12) << "trial " << trial;
+        ++n_pairs;
+      }
+    }
+  }
+  EXPECT_GT(n_pairs, 1000);
+}
+
+/**
+ * The occluder-shell fixture under rigid motions: where the
+ * tangent pair `(0, 1)` rounds into an overlap, its circle of radius
+ * ~1e-8 is cut by the two spheres 2, 3 through the touching point at roots
+ * 1e-8 to 1e-7 apart. The filtered `difference` must point as the forced
+ * exact one to `2^-25`, which the subtraction of the two certified
+ * positions does not guarantee.
+ */
+TEST(BallExactTest, DifferenceOnRoundedTangentPair) {
+  const auto [base, sar] = occluder_shell_pts();
+
+  int n_overlap = 0, n_pairs = 0;
+  for (int seed = 0; seed < 32; ++seed) {
+    const Matrix3Xd pts = rigid(base, seed);
+
+    const Fixture<> s = setup(pts, sar);
+    const Fixture<true> e = setup<true>(pts, sar);
+    if (s.ex.overlap(0, 1) != Sgn::kPos)
+      continue;
+    ++n_overlap;
+
+    const std::vector<CircleRoot> roots = circle_roots(s.ex, 0, 1);
+    for (const CircleRoot &ri: roots) {
+      for (const CircleRoot &rj: roots) {
+        if (&ri == &rj)
+          continue;
+
+        const RootDifference want =
+                                 e.ex.difference(ri.f, ri.plus, rj.f, rj.plus),
+                             got =
+                                 s.ex.difference(ri.f, ri.plus, rj.f, rj.plus);
+        ASSERT_GT(want.len, 0) << "seed " << seed;
+        EXPECT_LT(want.len, 2e-7) << "seed " << seed;
+        EXPECT_NEAR(got.len, want.len, 1e-12 * want.len) << "seed " << seed;
+        EXPECT_LT((got.dir - want.dir).norm(), 0x1p-25) << "seed " << seed;
+        ++n_pairs;
+      }
+    }
+  }
+  EXPECT_GT(n_overlap, 4);
+  EXPECT_GT(n_pairs, 40);
+}
+
+TEST(BallExactTest, HeightsConstructorMatchesLift) {
+  std::mt19937 rng(23);
+  for (const Fixture<> &s:
+       { setup(square_apex()),
+         setup(random_pts(rng, 8, 1.6), random_radii(rng, 8, 1.5, 2.5)) }) {
+    expect_same_predicates(BallExact::make(s.ex.centers(), s.ex.h(), s.wmax),
+                           s.ex);
+  }
+}
+
+/**
+ * The lift of the face solver (`solve_ses_face`): probe at the origin,
+ * hemisphere caps `(t, 0)`, `W = rp^2`. Every rational part of the ring
+ * predicates is then an exact zero built from exact zeros, which the filter
+ * certifies: the exact stage is never entered (`kFilterOnly` aborts there).
+ */
+TEST(BallExactTest, FilterCertifiesHemisphereLift) {
+  const double rp = 1.7;
+  Matrix3Xd c(3, 5);
+  c << 0, 0.6, -0.48, 0, 0.36,     //
+      0, 0.8, 0.64, -0.28, -0.48,  //
+      0, 0, 0.6, 0.96, -0.8;
+  const ArrayXd h = ArrayXd::Zero(5);
+  const BallExactImpl<false, true> ex =
+      BallExactImpl<false, true>::make(c, h, rp * rp);
+  const BallExactImpl<true> want = BallExactImpl<true>::make(c, h, rp * rp);
+
+  int n_pairs = 0;
+  for (int m = 1; m < 5; ++m) {
+    ASSERT_EQ(ex.overlap(0, m), Sgn::kPos);
+
+    std::vector<CircleRoot> roots;
+    for (int l = 1; l < 5; ++l) {
+      if (l == m)
+        continue;
+      const auto [b, cc] = nuri::minmax(m, l);
+      const BallTriple f { 0, b, cc };
+      ASSERT_EQ(ex.cuts(f), Sgn::kPos);
+      for (const bool plus: { true, false }) {
+        for (int k = 1; k < 5; ++k) {
+          if (k != m && k != l) {
+            EXPECT_EQ(ex.accept(f, plus, k), want.accept(f, plus, k));
+          }
+        }
+        EXPECT_LT((ex.root(f, plus) - want.root(f, plus)).norm(), 1e-12);
+        roots.push_back({ f, plus });
+      }
+    }
+
+    for (const CircleRoot &p: roots) {
+      const int cls = ex.half_plane(0, m, p.f, p.plus);
+      EXPECT_EQ(cls, want.half_plane(0, m, p.f, p.plus));
+      for (const CircleRoot &r: roots) {
+        if (r.f.c == p.f.c || ex.half_plane(0, m, r.f, r.plus) != cls)
+          continue;
+        const Sgn s = ex.ccw_perturbed(0, m, p.f, p.plus, r.f, r.plus);
+        EXPECT_NE(s, Sgn::kZero);
+        EXPECT_EQ(s, want.ccw_perturbed(0, m, p.f, p.plus, r.f, r.plus));
+        ++n_pairs;
+      }
+    }
+  }
+  EXPECT_GT(n_pairs, 0);
+}
+
+/**
+ * The exact rung reads the difference at its own scale: a dyadic `(3, 4, 0)`
+ * placed below double range keeps the direction `(0.6, 0.8, 0)` exactly
+ * while the length is the subnormal `5 2^-1060` or 0; a sign that the
+ * floating filter cannot see (`sqrt 2` against its double, `2^-54` apart)
+ * is decided by the dyadic square root at the same scale.
+ */
+TEST(BallExactTest, DifferenceDirectionUnderUnderflow) {
+  const Vector3d zero = Vector3d::Zero(), dir(0.6, 0.8, 0);
+  const Vector3d p(3, 4, 0);
+
+  RootDifference rd = forged_difference(p, zero, zero, 0, 0, 1, -1060);
+  EXPECT_EQ(rd.dir, dir);
+  EXPECT_EQ(rd.len, std::ldexp(5.0, -1060));
+
+  rd = forged_difference(p, zero, zero, 0, 0, 1, -1100);
+  EXPECT_EQ(rd.dir, dir);
+  EXPECT_EQ(rd.len, 0);
+
+  const double root2 = std::sqrt(2.0);
+  const int sign = q_sgn(q_sqrt(2) - static_cast<Q>(root2));
+  ASSERT_NE(sign, 0);
+  for (const double flip: { 1.0, -1.0 }) {
+    rd = forged_difference(Vector3d(-flip * root2, 0, 0), Vector3d(flip, 0, 0),
+                           zero, 2, 0, 1, -1070);
+    EXPECT_EQ(rd.dir, Vector3d(flip * sign, 0, 0)) << "flip " << flip;
+    EXPECT_EQ(rd.len, 0) << "flip " << flip;
+  }
+}
+}  // namespace
+}  // namespace internal
+}  // namespace nuri

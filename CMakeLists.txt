@@ -55,6 +55,8 @@ option(NURI_BUILD_PYTHON_DOCTEST "Build python doctest" OFF)
 option(NURI_INSTALL_RPATH "Install with RPATH when building full library" ON)
 
 set(NURI_OPTIMIZATION_LEVEL "O3" CACHE STRING "Optimization level")
+set(NURI_DEBUG_OPTIMIZATION_LEVEL "O0" CACHE STRING
+  "Optimization level for debug builds")
 option(NURI_ENABLE_IPO "Do interprocedural optimization" ON)
 
 option(NURI_TEST_COVERAGE "Enable coverage build" OFF)
@@ -121,7 +123,7 @@ endif()
 set(nuri_is_release "$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>")
 
 add_both_options(
-  "$<$<CONFIG:Debug>:-O0>"
+  "$<$<CONFIG:Debug>:-${NURI_DEBUG_OPTIMIZATION_LEVEL}>"
   "$<${nuri_is_release}:-${NURI_OPTIMIZATION_LEVEL}>"
 )
 
@@ -252,7 +254,10 @@ if(NURI_TEST_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 
   # Threaded tests race gcov counters without atomic updates:
   # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=68080
-  add_both_options(--coverage -fprofile-update=atomic)
+  # Spelled out so that vendored sources can negate the pair (--coverage is
+  # appended last by the driver and cannot be undone).
+  add_compile_options(-fprofile-arcs -ftest-coverage -fprofile-update=atomic)
+  add_link_options(--coverage)
 endif()
 
 if(NURI_BUILD_FUZZING)

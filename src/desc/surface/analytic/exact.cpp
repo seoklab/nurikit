@@ -1,0 +1,1569 @@
+//
+// Project NuriKit - Copyright 2026 SNU Compbio Lab.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+#if !defined(NURI_STRICT_FP) || defined(__FAST_MATH__)                         \
+    || defined(__ASSOCIATIVE_MATH__) || defined(__RECIPROCAL_MATH__)
+#error                                                                         \
+    "exact.cpp must be compiled with NURI_STRICT_FP_FLAGS (src/CMakeLists.txt)"
+#endif
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdint>
+#include <cstring>
+#include <limits>
+#include <memory>
+#include <optional>
+#include <utility>
+
+#include <absl/base/attributes.h>
+#include <absl/base/optimization.h>
+#include <absl/log/absl_check.h>
+#include <absl/log/absl_log.h>
+#include <boost/multiprecision/cpp_int.hpp>
+#include <Eigen/Dense>
+#include <geogram/numerics/multi_precision.h>
+
+#include "nuri/eigen_config.h"
+#include "stages.h"
+#include "nuri/meta.h"
+#include "nuri/utils.h"
+
+namespace nuri {
+namespace internal {
+  namespace {
+    constexpr int kUnknown = 2;
+
+    template <bool kFilterOnly>
+    void exact_stage() {
+      if constexpr (kFilterOnly)
+        ABSL_LOG(FATAL) << "exact stage entered under kFilterOnly";
+    }
+
+    /**
+     * Running error bound of a double computation: `|v - exact| <= e`. Each
+     * rounding adds `u|v|` (`u = 2^-53`, taken as `2^-52` to cover `1/(1-u)`)
+     * plus half an ulp of the smallest subnormal for results that underflow.
+     * A sign is certified iff `|v| > 2e`; the factor 2 absorbs the rounding
+     * of `e` itself for any number of operations below `2^50`.
+     */
+    struct Fx {
+      double v, e;
+    };
+
+    constexpr double kUlp = 2 * kUnitRoundoff;
+    constexpr double kTiny = std::numeric_limits<double>::denorm_min();
+
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool is_zero(Fx a) {
+      // GCC lowers v == 0.0 to ucomisd/setnp/cmovne and hoists it before
+      // the e <= 0 test; |v| <= 0 is one ordered compare and leaves the
+      // bound test, false for every computed operand, first.
+      return a.e <= 0 && std::fabs(a.v) <= 0.0;
+    }
+
+    /**
+     * Exact operands that cancel are equal (IEEE), so their zero is exact; an
+     * exact zero times any finite value is an exact zero. No `a +- 0 -> a`
+     * shortcut: it flipped a certification on 2CTS.
+     */
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator+(Fx a, Fx b) {
+      const double v = a.v + b.v;
+      if (is_zero({ v, a.e + b.e }))
+        return { v, 0.0 };
+      return { v, a.e + b.e + kUlp * std::fabs(v) + kTiny };
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator-(Fx a, Fx b) {
+      const double v = a.v - b.v;
+      if (is_zero({ v, a.e + b.e }))
+        return { v, 0.0 };
+      return { v, a.e + b.e + kUlp * std::fabs(v) + kTiny };
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator*(Fx a, Fx b) {
+      const double v = a.v * b.v;
+      if (is_zero(a) || is_zero(b))
+        return { v, 0.0 };
+      return { v, std::fabs(a.v) * b.e + std::fabs(b.v) * a.e + a.e * b.e
+                      + kUlp * std::fabs(v) + kTiny };
+    }
+    int sgn(Fx a) {
+      if (a.e <= 0)
+        return static_cast<int>(a.v > 0) - static_cast<int>(a.v < 0);
+      if (a.v > 2 * a.e)
+        return 1;
+      if (a.v < -2 * a.e)
+        return -1;
+      return kUnknown;
+    }
+
+    /**
+     * An input of the filter, a double taken exact. Its operations drop the
+     * error terms that are zero by construction and add the survivors in the
+     * order of the `Fx` ones, so the bound is the same double.
+     */
+    struct Ex {
+      double v;
+    };
+
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool is_zero(Ex a) {
+      return std::fabs(a.v) <= 0.0;
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx rounded(double v) {
+      return { v, kUlp * std::fabs(v) + kTiny };
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx rounded(double v, double e) {
+      return { v, e + kUlp * std::fabs(v) + kTiny };
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx bounded(double v, double e) {
+      if (is_zero({ v, e }))
+        return { v, 0.0 };
+      return rounded(v, e);
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator-(Ex a, Ex b) {
+      const double v = a.v - b.v;
+      if (is_zero(Ex { v }))
+        return { v, 0.0 };
+      return rounded(v);
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator+(Ex a, Fx b) {
+      return bounded(a.v + b.v, b.e);
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator-(Fx a, Ex b) {
+      return bounded(a.v - b.v, a.e);
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator*(Ex a, Ex b) {
+      const double v = a.v * b.v;
+      if (is_zero(a) || is_zero(b))
+        return { v, 0.0 };
+      return rounded(v);
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator*(Ex a, Fx b) {
+      const double v = a.v * b.v;
+      if (is_zero(a) || is_zero(b))
+        return { v, 0.0 };
+      return rounded(v, std::fabs(a.v) * b.e);
+    }
+    ABSL_ATTRIBUTE_ALWAYS_INLINE inline Fx operator*(Fx a, Ex b) {
+      return b * a;
+    }
+    Ex operator-(Ex a) {
+      return { -a.v };
+    }
+
+    /**
+     * Exact dyadic number `m * 2^e`: every double is one, sums and products
+     * stay exact, and no exponent range limits them (expansion arithmetic
+     * underflows on degree-20 polynomials of rounded-zero coordinates).
+     */
+    class Xp {
+    public:
+      Xp(): m_(0), e_(0) { }
+
+      explicit Xp(double d) {
+        int exp = 0;
+        const double fr = std::frexp(d, &exp);
+        m_ = static_cast<std::int64_t>(std::ldexp(fr, 53));
+        e_ = exp - 53;
+        strip();
+      }
+
+      friend Xp operator+(const Xp &a, const Xp &b) {
+        Xp r;
+        r.e_ = nuri::min(a.e_, b.e_);
+        // boost's shift kernels trip clang-analyzer core.BitwiseShift on an
+        // infeasible path (count % 8 != 0 yet count % 64 == 0).
+        // Same for all NOLINT-ed bitwise shift expressions below.
+        NURI_CLANG_ANALYZER_NOLINT_EXPR(r.m_ = (a.m_ << (a.e_ - r.e_))
+                                               + (b.m_ << (b.e_ - r.e_)));
+        r.strip();
+        return r;
+      }
+      friend Xp operator-(const Xp &a, const Xp &b) {
+        Xp r;
+        r.e_ = nuri::min(a.e_, b.e_);
+        NURI_CLANG_ANALYZER_NOLINT_EXPR(r.m_ = (a.m_ << (a.e_ - r.e_))
+                                               - (b.m_ << (b.e_ - r.e_)));
+        r.strip();
+        return r;
+      }
+      friend Xp operator*(const Xp &a, const Xp &b) {
+        Xp r;
+        r.m_ = a.m_ * b.m_;
+        r.e_ = a.e_ + b.e_;
+        return r;
+      }
+      friend Xp operator-(const Xp &a) {
+        Xp r(a);
+        r.m_ = -r.m_;
+        return r;
+      }
+      friend Xp abs(const Xp &a) {
+        Xp r(a);
+        r.m_ = abs(r.m_);
+        return r;
+      }
+      friend int sgn(const Xp &a) { return a.m_.sign(); }
+
+      Xp shifted(const int k) const {
+        Xp r(*this);
+        if (!r.m_.is_zero())
+          r.e_ += k;
+        return r;
+      }
+
+      double to_double() const { return scaled(0); }
+
+      /**
+       * `m 2^(e + shift)` rounded to double from the top 64 bits of `m`, so
+       * a mantissa wider than a double's exponent range converts too.
+       */
+      double scaled(const int shift) const {
+        if (m_.is_zero())
+          return 0;
+
+        const int drop = nuri::max(bits() - 64, 0);
+        return std::ldexp(
+            NURI_CLANG_ANALYZER_NOLINT_EXPR((m_ >> drop).convert_to<double>()),
+            e_ + drop + shift);
+      }
+
+      /**
+       * `|m 2^e| < 2^exponent()`; 0 for zero.
+       */
+      int exponent() const { return m_.is_zero() ? 0 : e_ + bits(); }
+
+      /**
+       * `lo <= sqrt(x) < lo + unit` with `unit < 2^-bits lo`; both zero for
+       * `x = 0`.
+       */
+      std::pair<Xp, Xp> sqrt_floor(const int bits) const {
+        ABSL_DCHECK_GE(m_.sign(), 0);
+        if (m_.is_zero())
+          return { Xp(), Xp() };
+
+        boost::multiprecision::cpp_int m = m_;
+        int e = e_;
+        if ((e & 1) != 0) {
+          NURI_CLANG_ANALYZER_NOLINT_EXPR(m <<= 1);
+          --e;
+        }
+        const int len = static_cast<int>(boost::multiprecision::msb(m)) + 1,
+                  s = nuri::max((2 * bits + 3 - len) / 2, 0);
+        NURI_CLANG_ANALYZER_NOLINT_EXPR(m <<= 2 * s);
+
+        Xp lo, unit;
+        lo.m_ = boost::multiprecision::sqrt(m);
+        lo.e_ = e / 2 - s;
+        lo.strip();
+        unit.m_ = 1;
+        unit.e_ = e / 2 - s;
+        return { lo, unit };
+      }
+
+    private:
+      int bits() const {
+        return static_cast<int>(boost::multiprecision::msb(abs(m_))) + 1;
+      }
+
+      void strip() {
+        if (m_.is_zero()) {
+          e_ = 0;
+          return;
+        }
+        const int lsb = static_cast<int>(boost::multiprecision::lsb(abs(m_)));
+        NURI_CLANG_ANALYZER_NOLINT_EXPR(m_ >>= lsb);
+        e_ += lsb;
+      }
+
+      boost::multiprecision::cpp_int m_;
+      int e_;
+    };
+
+    /**
+     * Exact value and its derivative along one perturbed squared radius.
+     */
+    struct Dual {
+      Xp v, d;
+    };
+
+    Dual operator+(const Dual &a, const Dual &b) {
+      return { a.v + b.v, a.d + b.d };
+    }
+    Dual operator-(const Dual &a, const Dual &b) {
+      return { a.v - b.v, a.d - b.d };
+    }
+    Dual operator*(const Dual &a, const Dual &b) {
+      return { a.v * b.v, a.v * b.d + a.d * b.v };
+    }
+    Dual operator-(const Dual &a) {
+      return { -a.v, -a.d };
+    }
+
+    template <class T>
+    T lit(double d);
+    template <>
+    double lit<double>(double d) {
+      return d;
+    }
+    template <>
+    Fx lit<Fx>(double d) {
+      return { d, 0.0 };
+    }
+    template <>
+    Xp lit<Xp>(double d) {
+      return Xp(d);
+    }
+    template <>
+    Dual lit<Dual>(double d) {
+      return { Xp(d), Xp(0.0) };
+    }
+    template <>
+    Ex lit<Ex>(double d) {
+      return { d };
+    }
+
+    template <class T>
+    struct InputOf {
+      using type = T;
+    };
+    template <>
+    struct InputOf<Fx> {
+      using type = Ex;
+    };
+    template <class T>
+    using input_t = typename InputOf<T>::type;
+
+    template <class T>
+    input_t<T> input(double d) {
+      return lit<input_t<T>>(d);
+    }
+
+    /**
+     * Height of vertex `i`; `h_i = W + |c_i|^2 - rho_i^2`, so the perturbed
+     * vertex has derivative -1 along its own squared radius.
+     */
+    template <class T>
+    input_t<T> height(double h, bool /*perturbed*/) {
+      return input<T>(h);
+    }
+    template <>
+    Dual height<Dual>(double h, bool perturbed) {
+      return { Xp(h), Xp(perturbed ? -1.0 : 0.0) };
+    }
+
+    template <class T>
+    struct V3 {
+      T x, y, z;
+    };
+
+    template <class T>
+    const T &component(const V3<T> &v, const int k) {
+      return k == 0 ? v.x : k == 1 ? v.y : v.z;
+    }
+
+    template <class T>
+    V3<T> operator+(const V3<T> &a, const V3<T> &b) {
+      return { a.x + b.x, a.y + b.y, a.z + b.z };
+    }
+    template <class A, class B>
+    auto operator-(const V3<A> &a, const V3<B> &b) -> V3<decltype(a.x - b.x)> {
+      return { a.x - b.x, a.y - b.y, a.z - b.z };
+    }
+    template <class T>
+    V3<T> operator*(const T &s, const V3<T> &a) {
+      return { s * a.x, s * a.y, s * a.z };
+    }
+    template <class A, class B>
+    auto dot(const V3<A> &a, const V3<B> &b)
+        -> decltype(a.x * b.x + a.y * b.y + a.z * b.z) {
+      return a.x * b.x + a.y * b.y + a.z * b.z;
+    }
+    template <class T>
+    V3<T> cross(const V3<T> &a, const V3<T> &b) {
+      return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z,
+               a.x * b.y - a.y * b.x };
+    }
+
+    // Eigen arithmetic is linkonce and may resolve to a fast-math unit's
+    // copy; the kernels' floating point stays on these scalars.
+    V3<double> operator/(const V3<double> &a, const double s) {
+      return { a.x / s, a.y / s, a.z / s };
+    }
+    V3<double> to_double(const V3<Xp> &v) {
+      return { v.x.to_double(), v.y.to_double(), v.z.to_double() };
+    }
+    Vector3d to_vector(const V3<double> &v) {
+      return { v.x, v.y, v.z };
+    }
+    double norm(const V3<double> &v) {
+      return std::sqrt(dot(v, v));
+    }
+    double stable_norm(const V3<double> &v) {
+      const double m =
+          nuri::max(nuri::max(std::fabs(v.x), std::fabs(v.y)), std::fabs(v.z));
+      return m > 0 ? m * norm(v / m) : 0.0;
+    }
+
+    template <class T>
+    struct Sphere {
+      V3<input_t<T>> c;
+      input_t<T> h;
+    };
+
+    struct Data {
+      const Matrix3Xd *c;
+      const ArrayXd *h;
+      double w;
+    };
+
+    template <class T>
+    struct Ctx {
+      using Scalar = T;
+
+      Data d;
+      int pert;
+    };
+
+    template <class T>
+    Sphere<T> sph(const Ctx<T> &ctx, int i) {
+      const Matrix3Xd &c = *ctx.d.c;
+      return {
+        { input<T>(c(0, i)), input<T>(c(1, i)), input<T>(c(2, i)) },
+        height<T>((*ctx.d.h)[i], i == ctx.pert)
+      };
+    }
+
+    template <class T>
+    input_t<T> wval(const Ctx<T> &ctx) {
+      return input<T>(ctx.d.w);
+    }
+
+    template <class T>
+    T half(const T &a) {
+      return input<T>(0.5) * a;
+    }
+
+    /**
+     * Circle `(a, b)` relative to `a`: `d = c_b - c_a`, `G = |d|^2`, and
+     * `pi_b - pi_a = 2(v - dot(y, d))` for `y = x - c_a`. Its center is
+     * `c_a + (v / G) d`.
+     */
+    template <class T>
+    struct Pair {
+      V3<T> d;
+      T g, v;
+    };
+
+    template <class T>
+    Pair<T> pair(const Sphere<T> &sa, const Sphere<T> &sb) {
+      V3<T> d = sb.c - sa.c;
+      return { d, dot(d, d), half(sb.h - sa.h) - dot(sa.c, d) };
+    }
+
+    /**
+     * Face `(a, b, c)` relative to `a`. The radical line is
+     * `y = y_perp + s u`, `u = cross(d_b, d_c)`,
+     * `|u|^2 y_perp = lambda d_b + mu d_c`, and the cut points of circle
+     * `(a, b)` by `c` are `s = +-sqrt(D) / |u|^2` with
+     * `D = |u|^2 (rho_a^2 - |y_perp|^2)` written as a polynomial.
+     */
+    template <class T>
+    struct Face {
+      Sphere<T> sa;
+      V3<T> db, dc, u;
+      T gbb, gbc, gcc, vb, vc, lam, mu, u2, ra, disc;
+    };
+
+    template <class T>
+    Face<T> face(const Ctx<T> &ctx, BallTriple f) {
+      const Sphere<T> sa = sph(ctx, f.a), sb = sph(ctx, f.b),
+                      sc = sph(ctx, f.c);
+      Face<T> r;
+      r.sa = sa;
+      r.db = sb.c - sa.c;
+      r.dc = sc.c - sa.c;
+      r.u = cross(r.db, r.dc);
+      r.gbb = dot(r.db, r.db);
+      r.gbc = dot(r.db, r.dc);
+      r.gcc = dot(r.dc, r.dc);
+      r.u2 = dot(r.u, r.u);
+      r.vb = half(sb.h - sa.h) - dot(sa.c, r.db);
+      r.vc = half(sc.h - sa.h) - dot(sa.c, r.dc);
+      r.lam = r.gcc * r.vb - r.gbc * r.vc;
+      r.mu = r.gbb * r.vc - r.gbc * r.vb;
+      r.ra = wval(ctx) + dot(sa.c, sa.c) - sa.h;
+      r.disc = r.ra * r.u2
+               - (r.gcc * r.vb * r.vb - input<T>(2.0) * r.gbc * r.vb * r.vc
+                  + r.gbb * r.vc * r.vc);
+      return r;
+    }
+
+    template <class T>
+    input_t<T> root_sign(bool plus) {
+      return input<T>(plus ? 1.0 : -1.0);
+    }
+
+    /**
+     * `A + B sqrt(D)`, `D >= 0`; `B = D = 0` for a rational quantity.
+     */
+    template <class T>
+    struct Root {
+      T lin, rad, disc;
+    };
+
+    template <class T>
+    Root<T> cut_root(const Face<T> &fc) {
+      return { fc.disc, lit<T>(0.0), lit<T>(0.0) };
+    }
+
+    /**
+     * `pi_l` at the root `sigma` of `fc`.
+     */
+    template <class T>
+    Root<T> accept_root(const Ctx<T> &ctx, const Face<T> &fc, bool plus,
+                        int l) {
+      const Sphere<T> sl = sph(ctx, l);
+      const V3<T> dl = sl.c - fc.sa.c;
+      const T vl = half(sl.h - fc.sa.h) - dot(fc.sa.c, dl);
+      const T lin =
+          fc.u2 * vl - fc.lam * dot(fc.db, dl) - fc.mu * dot(fc.dc, dl);
+      return { lin, -root_sign<T>(plus) * dot(fc.u, dl), fc.disc };
+    }
+
+    template <class T>
+    int sign_root(const Root<T> &r) {
+      const int sa = sgn(r.lin), sb = sgn(r.rad), sd = sgn(r.disc);
+      if (sa == kUnknown || sb == kUnknown || sd == kUnknown)
+        return kUnknown;
+
+      ABSL_DCHECK_GE(sd, 0);
+      if (sd == 0 || sb == 0)
+        return sa;
+      if (sa == 0)
+        return sb;
+      if (sa == sb)
+        return sa;
+
+      const int t = sgn(r.lin * r.lin - r.rad * r.rad * r.disc);
+      return t == kUnknown ? kUnknown : sa * t;
+    }
+
+    /**
+     * `2 sqrt(D) d/deps (A + B sqrt(D)) = (2 B' D + B D') + 2 A' sqrt(D)` for
+     * `D > 0`.
+     */
+    Root<Xp> first_order(const Root<Dual> &r) {
+      const Xp two(2.0);
+      return { two * r.rad.d * r.disc.v + r.rad.v * r.disc.d, two * r.lin.d,
+               r.disc.v };
+    }
+
+    /**
+     * Sign of `d/deps (A + B sqrt(D))` at an exact zero, with `D(eps) > 0`:
+     * for `D > 0` it is `(2 A' sqrt(D) + 2 B' D + B D') / (2 sqrt(D))`; for
+     * `D = 0` (a tangency perturbed to a cut) `sqrt(D(eps))` dominates every
+     * first-order term unless `B = 0`.
+     */
+    int tie_sign(const Root<Dual> &r) {
+      const int sd = sgn(r.disc.v);
+      ABSL_DCHECK_GE(sd, 0);
+      if (sd > 0)
+        return sign_root(first_order(r));
+
+      const int sb = sgn(r.rad.v);
+      return sb != 0 ? sb : sgn(r.lin.d);
+    }
+
+    constexpr int kMaxParticipants = 8;
+
+    struct Participants {
+      std::array<int, kMaxParticipants> v;
+      int n;
+    };
+
+    /**
+     * The perturbation over the participating vertices in index order: the
+     * first non-zero coefficient decides.
+     */
+    template <class K, class Tie>
+    Sgn perturbed(const Data &d, const K &kernel, Participants parts, Tie tie) {
+      std::sort(parts.v.begin(), parts.v.begin() + parts.n);
+      const int *end = std::unique(parts.v.begin(), parts.v.begin() + parts.n);
+      for (const int *j = parts.v.begin(); j != end; ++j) {
+        const int t = tie(kernel(Ctx<Dual> { d, *j }));
+        if (t != 0)
+          return static_cast<Sgn>(t);
+      }
+      ABSL_UNREACHABLE();
+    }
+
+    /**
+     * Filter, then exact, then the perturbation. `kernel(ctx)` returns
+     * `Root<T>`.
+     */
+    template <bool kForceExact, bool kFilterOnly, class K>
+    Sgn decide(const Data &d, const K &kernel, Participants parts) {
+      if constexpr (!kForceExact) {
+        const int s = sign_root(kernel(Ctx<Fx> { d, -1 }));
+        if (s != kUnknown)
+          return static_cast<Sgn>(s);
+      }
+
+      exact_stage<kFilterOnly>();
+      const int s = sign_root(kernel(Ctx<Xp> { d, -1 }));
+      if (s != 0)
+        return static_cast<Sgn>(s);
+      return perturbed(d, kernel, parts, tie_sign);
+    }
+
+    /**
+     * `(x0 + x1 sqrt(Di)) + (y0 + y1 sqrt(Di)) sqrt(Dj)`; zero is reported,
+     * not perturbed.
+     */
+    template <class T>
+    struct Root2 {
+      T x0, x1, di, y0, y1, dj;
+    };
+
+    template <class T>
+    int sign_root2(const Root2<T> &r) {
+      const int sx = sign_root(Root<T> { r.x0, r.x1, r.di }),
+                sy = sign_root(Root<T> { r.y0, r.y1, r.di }), sd = sgn(r.dj);
+      if (sx == kUnknown || sy == kUnknown || sd == kUnknown)
+        return kUnknown;
+
+      ABSL_DCHECK_GE(sd, 0);
+      if (sd == 0 || sy == 0)
+        return sx;
+      if (sx == 0)
+        return sy;
+      if (sx == sy)
+        return sx;
+
+      const T p = r.x0 * r.x0 + r.x1 * r.x1 * r.di
+                  - (r.y0 * r.y0 + r.y1 * r.y1 * r.di) * r.dj,
+              q = input<T>(2.0) * (r.x0 * r.x1 - r.y0 * r.y1 * r.dj);
+      const int t = sign_root(Root<T> { p, q, r.di });
+      return t == kUnknown ? kUnknown : sx * t;
+    }
+
+    /**
+     * First-order sign of `F = X + Y sqrt(Dj)`, `X = x0 + x1 sqrt(Di)`,
+     * `Y = y0 + y1 sqrt(Di)`, at an exact zero with both `D(eps) > 0`, along
+     * one participant. For `Di, Dj > 0`, with
+     * `2 sqrt(Di) X' = A0 + A1 sqrt(Di)` and
+     * `2 sqrt(Di) Y' = B0 + B1 sqrt(Di)`,
+     * `2 sqrt(Di) sqrt(Dj) F' = sqrt(Dj) (A0 + A1 sqrt(Di))
+     * + Dj (B0 + B1 sqrt(Di)) + Dj' (y0 sqrt(Di) + y1 Di)`. One vanished
+     * discriminant grows like `sqrt(eps)`, so its coefficient, if non-zero,
+     * dominates every first-order term whichever participant moves it.
+     */
+    int tie_sign2_one(const Root2<Dual> &r) {
+      const int si = sgn(r.di.v), sj = sgn(r.dj.v);
+      ABSL_DCHECK_GE(si, 0);
+      ABSL_DCHECK_GE(sj, 0);
+      ABSL_DCHECK(si > 0 || sj > 0);
+
+      if (si > 0 && sj > 0) {
+        const Root<Xp> a = first_order({ r.x0, r.x1, r.di }),
+                       b = first_order({ r.y0, r.y1, r.di });
+        return sign_root2(Root2<Xp> { r.dj.v * b.lin + r.dj.d * r.y1.v * r.di.v,
+                                      r.dj.v * b.rad + r.dj.d * r.y0.v, r.di.v,
+                                      a.lin, a.rad, r.dj.v });
+      }
+      if (si > 0) {
+        const int sy = sign_root(Root<Xp> { r.y0.v, r.y1.v, r.di.v });
+        return sy != 0 ? sy : tie_sign({ r.x0, r.x1, r.di });
+      }
+      const int sx = sign_root(Root<Xp> { r.x1.v, r.y1.v, r.dj.v });
+      return sx != 0 ? sx : tie_sign({ r.x0, r.y0, r.dj });
+    }
+
+    /**
+     * Both discriminants vanished; `rs[k]` carries the derivatives along the
+     * `k`-th participant in grading order
+     * (`rho_k^2(eps) = rho_k^2 + eps eta^k`, `eps` below every power of
+     * `eta`), the values are shared. With `Di(eps) = eps Li`,
+     * `Li = sum_k Di_k' eta^k`, and `Lj` likewise,
+     * `F = sqrt(eps) (x1 sqrt(Li) + y0 sqrt(Lj)) + eps sum_k x0_k' eta^k`:
+     * two roots tangent at an exact zero have `P_i || P_j`, hence
+     * `Q_i || Q_j`, `y1 = 0` and `x1, y0 != 0`. The `sqrt(eps)` term is
+     * decided by the discriminant that moves first, or, when both first move
+     * at `j`, by `c = x1 sqrt(Di_j') + y0 sqrt(Dj_j')` unless `c = 0`: then
+     * it is `x1 sqrt(Di_j') sqrt(eta^j) (sqrt(1 + A) - sqrt(1 + B))` for the
+     * tails `A = sum_{k>j} (Di_k' / Di_j') eta^(k-j)` and `B` likewise, of
+     * the sign of `x1 (A - B)`, so the first `k > j` with
+     * `Di_k' Dj_j' != Dj_k' Di_j'` decides; if none does, the `eps` term.
+     */
+    int tie_sign2_vanished(const Root2<Dual> *rs, const int n) {
+      const Root2<Dual> &r0 = rs[0];
+      const int sx = sgn(r0.x1.v), sy = sgn(r0.y0.v);
+      ABSL_DCHECK(sx != 0 && sy != 0);
+      ABSL_DCHECK_EQ(sgn(r0.y1.v), 0);
+
+      for (int j = 0; j < n; ++j) {
+        const Xp &ai = rs[j].di.d, &bi = rs[j].dj.d;
+        const int sa = sgn(ai), sb = sgn(bi);
+        if (sa == 0 && sb == 0)
+          continue;
+        ABSL_DCHECK_GE(sa, 0);
+        ABSL_DCHECK_GE(sb, 0);
+        if (sb == 0)
+          return sx;
+        if (sa == 0)
+          return sy;
+
+        const Xp zero(0.0);
+        const int s =
+            sign_root2(Root2<Xp> { zero, r0.x1.v, ai, r0.y0.v, zero, bi });
+        if (s != 0)
+          return s;
+        for (int k = j + 1; k < n; ++k) {
+          const int t = sgn(rs[k].di.d * bi - rs[k].dj.d * ai);
+          if (t != 0)
+            return sx * t;
+        }
+        break;
+      }
+
+      for (int k = 0; k < n; ++k) {
+        const int s = sgn(rs[k].x0.d);
+        if (s != 0)
+          return s;
+      }
+      return 0;
+    }
+
+    template <class K>
+    Sgn perturbed2(const Data &d, const K &kernel, Participants parts) {
+      std::sort(parts.v.begin(), parts.v.begin() + parts.n);
+      const int n = static_cast<int>(
+          std::unique(parts.v.begin(), parts.v.begin() + parts.n)
+          - parts.v.begin());
+
+      std::array<Root2<Dual>, kMaxParticipants> rs;
+      for (int k = 0; k < n; ++k)
+        rs[k] = kernel(Ctx<Dual> { d, parts.v[k] });
+
+      int t = 0;
+      if (sgn(rs[0].di.v) == 0 && sgn(rs[0].dj.v) == 0) {
+        t = tie_sign2_vanished(rs.data(), n);
+      } else {
+        for (int k = 0; k < n && t == 0; ++k)
+          t = tie_sign2_one(rs[k]);
+      }
+      ABSL_DCHECK(t != 0)
+          << "every first-order perturbation coefficient vanishes";
+      return static_cast<Sgn>(t);
+    }
+
+    template <bool kForceExact, bool kFilterOnly, class K>
+    int sign2(const Data &d, const K &kernel) {
+      if constexpr (!kForceExact) {
+        const int s = sign_root2(kernel(Ctx<Fx> { d, -1 }));
+        if (s != kUnknown)
+          return s;
+      }
+      exact_stage<kFilterOnly>();
+      return sign_root2(kernel(Ctx<Xp> { d, -1 }));
+    }
+
+    template <bool kForceExact, bool kFilterOnly, class K>
+    Sgn decide2(const Data &d, const K &kernel) {
+      return static_cast<Sgn>(sign2<kForceExact, kFilterOnly>(d, kernel));
+    }
+
+    template <bool kForceExact, bool kFilterOnly, class K>
+    Sgn decide2_perturbed(const Data &d, const K &kernel, Participants parts) {
+      const int s = sign2<kForceExact, kFilterOnly>(d, kernel);
+      if (s != 0)
+        return static_cast<Sgn>(s);
+      return perturbed2(d, kernel, parts);
+    }
+
+    double geogram_height(double x, double y, double z, double t) {
+      const double tt = t * t, xx = x * x, yy = y * y, zz = z * z;
+      const double s1 = tt + xx, s2 = s1 + yy;
+      return s2 + zz;
+    }
+
+    template <class T>
+    V3<T> lift(const Vector3d &v) {
+      return { lit<T>(v[0]), lit<T>(v[1]), lit<T>(v[2]) };
+    }
+
+    /**
+     * `G |u|^2 (x - cntr)` for root `x` of `f` on circle `(a, b)`:
+     * `P + sigma sqrt(D) Q` with rational
+     * `P = G (|u|^2 (c_f - c_a) + lambda d_b + mu d_c) - |u|^2 v d`
+     * (`lambda, mu, d_b, d_c` of the face relative to its first center `c_f`;
+     * `v, d, G` of the circle) and `Q = G u`, written in center differences
+     * so the filter's error bound is relative to the offset's own length.
+     * `P perp Q`.
+     */
+    template <class T>
+    struct Offset {
+      V3<T> p, q;
+      T disc, u2, den;
+    };
+
+    template <class T>
+    Offset<T> root_offset(const Pair<T> &ab, const Sphere<T> &sa,
+                          const Face<T> &fc, bool plus) {
+      const V3<T> y = fc.u2 * (fc.sa.c - sa.c) + fc.lam * fc.db + fc.mu * fc.dc;
+      return { ab.g * y - (fc.u2 * ab.v) * ab.d,
+               (root_sign<T>(plus) * ab.g) * fc.u, fc.disc, fc.u2,
+               ab.g * fc.u2 };
+    }
+
+    bool certified_nonneg(const Fx &a) {
+      return a.e <= 0 || a.v > 2 * a.e;
+    }
+
+    /**
+     * `sqrt(a)` for certified non-negative `a`:
+     * `|sqrt(v + delta) - sqrt(v)| <= |delta| / sqrt(v)` plus the rounding of
+     * the square root.
+     */
+    Fx sqrt_fx(const Fx &a) {
+      const double s = std::sqrt(a.v);
+      return { s, (s > 0 ? a.e / s : 0) + kUlp * s + kTiny };
+    }
+
+    /**
+     * `v / den` in double when the running bound, including the relative
+     * error of `den`, certifies the vector to `kOffsetRelTol` of its length.
+     */
+    bool certified_quotient(const V3<Fx> &v, const Fx &den, V3<double> &out) {
+      if (!certified_nonneg(den) || den.v <= 0)
+        return false;
+
+      const V3<double> val { v.x.v, v.y.v, v.z.v };
+      const double err = v.x.e + v.y.e + v.z.e, len = norm(val);
+      if (err + len * (den.e / den.v) > kOffsetRelTol * len)
+        return false;
+      out = val / den.v;
+      return true;
+    }
+
+    /**
+     * `(P + sqrt(D) Q) / den`; `P perp Q`, so the terms never cancel and the
+     * bound is the sum of their errors.
+     */
+    bool certified_offset(const Offset<Fx> &o, Vector3d &out) {
+      V3<double> v;
+      if (!certified_nonneg(o.disc)
+          || !certified_quotient(o.p + sqrt_fx(o.disc) * o.q, o.den, v))
+        return false;
+      out = to_vector(v);
+      return true;
+    }
+
+    Vector3d exact_offset(const Offset<Xp> &o) {
+      ABSL_DCHECK_GE(sgn(o.disc), 0);
+      const double s = std::sqrt(o.disc.to_double());
+      const V3<double> p = to_double(o.p), q = to_double(o.q);
+      return to_vector((p + s * q) / o.den.to_double());
+    }
+
+    /**
+     * `|u|^2 |u'|^2 (x - x')` for root `x` of `f` and `x'` of `f2`:
+     * `P + sqrt(D) Q + sqrt(D') Q'` (`BallExact::difference`). Not bitwise
+     * antisymmetric under the swap of its arguments; one ill-conditioned
+     * 2CTS face turns a last-ulp change into 1e-11 of area.
+     */
+    template <class T>
+    struct Diff {
+      V3<T> p, q, q2;
+      T disc, disc2, den;
+    };
+
+    template <class T>
+    Diff<T> root_difference(const Ctx<T> &ctx, BallTriple f, bool plus,
+                            BallTriple f2, bool plus2) {
+      const Face<T> fa = face(ctx, f), fb = face(ctx, f2);
+      const T den = fa.u2 * fb.u2;
+      const V3<T> ya = fa.lam * fa.db + fa.mu * fa.dc,
+                  yb = fb.lam * fb.db + fb.mu * fb.dc;
+      return { den * (fa.sa.c - fb.sa.c) + fb.u2 * ya - fa.u2 * yb,
+               (root_sign<T>(plus) * fb.u2) * fa.u,
+               (-root_sign<T>(plus2) * fa.u2) * fb.u,
+               fa.disc,
+               fb.disc,
+               den };
+    }
+
+    /**
+     * `(P + sqrt(D) Q + sqrt(D') Q') / den`.
+     */
+    bool certified_difference(const Diff<Fx> &o, RootDifference &out) {
+      V3<double> v;
+      if (!certified_nonneg(o.disc) || !certified_nonneg(o.disc2)
+          || !certified_quotient(
+              o.p + sqrt_fx(o.disc) * o.q + sqrt_fx(o.disc2) * o.q2, o.den, v))
+        return false;
+
+      out.len = stable_norm(v);
+      out.dir = to_vector(v / out.len);
+      return true;
+    }
+
+    // The page's root separation bound (Floating point) is 2^-1800: 2048 bits
+    // certify terms at kSurfaceMaxCoord against it, 4096 leaves one doubling.
+    constexpr int kMinSqrtBits = 64, kMaxSqrtBits = 4096;
+
+    /**
+     * The exact dyadics combined with `sqrt(D)`, `sqrt(D')` to `bits` extra
+     * bits, doubled until the sum's error bound is below `kUlp` of its
+     * length. The sum and its bound are read at the sum's own scale, so the
+     * direction is right whatever the length, which may then underflow.
+     */
+    RootDifference exact_difference(const Diff<Xp> &o) {
+      ABSL_DCHECK_GE(sgn(o.disc), 0);
+      ABSL_DCHECK_GE(sgn(o.disc2), 0);
+
+      const V3<Xp> aq { abs(o.q.x), abs(o.q.y), abs(o.q.z) },
+          aq2 { abs(o.q2.x), abs(o.q2.y), abs(o.q2.z) };
+      V3<double> out;
+      double len = 0;
+      int scale = 0;
+      bool certified = false;
+      for (int bits = kMinSqrtBits; !certified && bits <= kMaxSqrtBits;
+           bits *= 2) {
+        const auto [s, u] = o.disc.sqrt_floor(bits);
+        const auto [s2, u2] = o.disc2.sqrt_floor(bits);
+        const V3<Xp> v = o.p + s * o.q + s2 * o.q2, e = u * aq + u2 * aq2;
+        scale = (abs(v.x) + abs(v.y) + abs(v.z)).exponent();
+        out = { v.x.scaled(-scale), v.y.scaled(-scale), v.z.scaled(-scale) };
+        const V3<double> err { e.x.scaled(-scale), e.y.scaled(-scale),
+                               e.z.scaled(-scale) };
+        len = norm(out);
+        certified = len > 0 && norm(err) <= kUlp * len;
+      }
+      ABSL_DCHECK(certified) << "coincident roots";
+
+      return { to_vector(out / len),
+               std::ldexp(len, scale) / o.den.to_double() };
+    }
+
+    Vector3d circle_center(const Matrix3Xd &c, const ArrayXd &h, const int a,
+                           const int b) {
+      const V3<double> ca = lift<double>(c.col(a)),
+                       db = lift<double>(c.col(b)) - ca;
+      const double vb = (h[b] - h[a]) / 2 - dot(ca, db);
+      return to_vector(ca + (vb / dot(db, db)) * db);
+    }
+
+    template <bool kForceExact, bool kFilterOnly, class K>
+    Vector3d offset_decide(const Data &d, const K &kernel) {
+      Vector3d out;
+      if constexpr (!kForceExact) {
+        if (certified_offset(kernel(Ctx<Fx> { d, -1 }), out))
+          return out;
+      }
+      exact_stage<kFilterOnly>();
+      return exact_offset(kernel(Ctx<Xp> { d, -1 }));
+    }
+  }  // namespace
+
+  /**
+   * One face's `Face<T>` per stage: the filtered face at `load`, the exact
+   * face on first need, the perturbed face per participant.
+   */
+  class FaceKernel {
+  public:
+    void load(const Data &d, const BallTriple f) {
+      f_ = f;
+      fx_ = face(Ctx<Fx> { d, -1 }, f);
+      xp_.reset();
+    }
+
+    BallTriple triple() const { return f_; }
+
+    const Face<Fx> &at(const Ctx<Fx> & /*ctx*/) const { return fx_; }
+
+    const Face<Xp> &at(const Ctx<Xp> &ctx) {
+      if (!xp_)
+        xp_ = face(ctx, f_);
+      return *xp_;
+    }
+
+    Face<Dual> at(const Ctx<Dual> &ctx) const { return face(ctx, f_); }
+
+  private:
+    BallTriple f_;
+    Face<Fx> fx_;
+    std::optional<Face<Xp>> xp_;
+  };
+
+  void FaceKernelDelete::operator()(FaceKernel *k) const {
+    std::default_delete<FaceKernel>()(k);
+  }
+
+  FaceKernelPtr face_kernel() {
+    return FaceKernelPtr(new FaceKernel);
+  }
+
+  namespace {
+    template <class T>
+    Root<T> overlap_root(const T &t, const T &rr) {
+      return { input<T>(4.0) * rr - t * t, lit<T>(0.0), lit<T>(0.0) };
+    }
+
+    /**
+     * `T = rho_a^2 + rho_b^2 - d^2`: overlap iff `T >= 0` or
+     * `4 rho_a^2 rho_b^2 - T^2 > 0`. The second kernel is
+     * `4 G (rho_a^2 - v_b^2 / G)`, the circle radius; an exact zero is a
+     * tangency, a circle of zero length, and is reported so the pair carries
+     * no cap.
+     */
+    template <bool kForceExact, bool kFilterOnly>
+    Sgn overlap_impl(const Data &d, const int a, const int b) {
+      auto stage = [&](auto ctx) {
+        using T = typename decltype(ctx)::Scalar;
+        const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b);
+        const V3<T> dd = sb.c - sa.c;
+        const T ra = wval(ctx) + dot(sa.c, sa.c) - sa.h,
+                rb = wval(ctx) + dot(sb.c, sb.c) - sb.h;
+        return std::pair<T, T> { ra + rb - dot(dd, dd), ra * rb };
+      };
+
+      if constexpr (!kForceExact) {
+        const auto [t, rr] = stage(Ctx<Fx> { d, -1 });
+        const int s = sgn(t);
+        if (s == 1 || s == 0)
+          return Sgn::kPos;
+        if (s == -1) {
+          const int s2 = sign_root(overlap_root(t, rr));
+          if (s2 != kUnknown && s2 != 0)
+            return static_cast<Sgn>(s2);
+        }
+      }
+
+      exact_stage<kFilterOnly>();
+      const auto [t, rr] = stage(Ctx<Xp> { d, -1 });
+      if (sgn(t) >= 0)
+        return Sgn::kPos;
+      return static_cast<Sgn>(sign_root(overlap_root(t, rr)));
+    }
+  }  // namespace
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE BallExactImpl<kForceExact, kFilterOnly>
+  BallExactImpl<kForceExact, kFilterOnly>::make(const Matrix4Xd &lifted,
+                                                const double wmax) {
+    BallExactImpl ex;
+    const int n = static_cast<int>(lifted.cols());
+    ex.c_ = lifted.topRows(3);
+    ex.h_.resize(n);
+    for (int i = 0; i < n; ++i)
+      ex.h_[i] = geogram_height(lifted(0, i), lifted(1, i), lifted(2, i),
+                                lifted(3, i));
+    ex.w_ = wmax;
+    ex.n_ = n;
+    return ex;
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE BallExactImpl<kForceExact, kFilterOnly>
+  BallExactImpl<kForceExact, kFilterOnly>::make(const Matrix3Xd &centers,
+                                                const ArrayXd &heights,
+                                                const double wmax) {
+    ABSL_DCHECK_EQ(centers.cols(), heights.size());
+    BallExactImpl ex;
+    ex.c_ = centers;
+    ex.h_ = heights;
+    ex.w_ = wmax;
+    ex.n_ = static_cast<int>(heights.size());
+    return ex;
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  void BallExactImpl<kForceExact, kFilterOnly>::reserve(const int cap) {
+    if (c_.cols() < cap) {
+      c_.resize(3, cap);
+      h_.resize(cap);
+    }
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  void BallExactImpl<kForceExact, kFilterOnly>::load(
+      ConstBlock<Matrix3Xd, 3, E::Dynamic, true> centers,
+      ConstVecBlock<ArrayXd> heights, const double wmax) {
+    const int n = static_cast<int>(heights.size());
+    ABSL_DCHECK_EQ(centers.cols(), n);
+    ABSL_DCHECK_LE(n, c_.cols());
+    c_.leftCols(n) = centers;
+    h_.head(n) = heights;
+    w_ = wmax;
+    n_ = n;
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE double
+  BallExactImpl<kForceExact, kFilterOnly>::rho2(const int i) const {
+    const double cc =
+        c_(0, i) * c_(0, i) + c_(1, i) * c_(1, i) + c_(2, i) * c_(2, i);
+    return w_ + cc - h_[i];
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact, kFilterOnly>::overlap(
+      const int a, const int b) const {
+    const Data d { &c_, &h_, w_ };
+    return overlap_impl<kForceExact, kFilterOnly>(d, a, b);
+  }
+
+  /**
+   * `U = rho_x^2 - rho_y^2 - d^2`: `B_y inside B_x` iff `U >= 0` and
+   * `U^2 >= 4 rho_y^2 d^2`, internal tangency included.
+   */
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE int
+  BallExactImpl<kForceExact, kFilterOnly>::contained(const int a,
+                                                     const int b) const {
+    const Data d { &c_, &h_, w_ };
+    auto check = [&](auto ctx, const int x, const int y) {
+      using T = typename decltype(ctx)::Scalar;
+      const Sphere<T> sx = sph(ctx, x), sy = sph(ctx, y);
+      const V3<T> dd = sy.c - sx.c;
+      const T rx = wval(ctx) + dot(sx.c, sx.c) - sx.h,
+              ry = wval(ctx) + dot(sy.c, sy.c) - sy.h, g = dot(dd, dd);
+      const T u = rx - ry - g;
+      const int su = sgn(u), sv = sgn(u * u - input<T>(4.0) * ry * g);
+      if (su == -1 || sv == -1)
+        return 0;
+      if (su == kUnknown || sv == kUnknown)
+        return kUnknown;
+      return 1;
+    };
+    auto inside = [&](const int x, const int y) {
+      if constexpr (!kForceExact) {
+        const int r = check(Ctx<Fx> { d, -1 }, x, y);
+        if (r != kUnknown)
+          return r == 1;
+      }
+      exact_stage<kFilterOnly>();
+      return check(Ctx<Xp> { d, -1 }, x, y) == 1;
+    };
+    const bool ab = inside(a, b), ba = inside(b, a);
+    if (ab && ba)
+      return 2;
+    if (ab)
+      return 1;
+    if (ba)
+      return 0;
+    return -1;
+  }
+
+  /**
+   * Circles `(a, b)` and `(a, c)` coincide iff `u = 0` (collinear centers)
+   * and then `D = -gbb (k vb - vc)^2 = 0` for `d_c = k d_b` (equal centers).
+   * The middle sphere is `a` iff `gbc < 0`, else the nearer of `b`, `c`.
+   */
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE int
+  BallExactImpl<kForceExact, kFilterOnly>::shared_circle(
+      const BallTriple f) const {
+    const Data d { &c_, &h_, w_ };
+    if constexpr (!kForceExact) {
+      const Face<Fx> fc = face(Ctx<Fx> { d, -1 }, f);
+      const int su = sgn(fc.u2), sd = sgn(fc.disc);
+      if (su == 1 || sd == 1 || sd == -1)
+        return -1;
+    }
+
+    exact_stage<kFilterOnly>();
+    const Face<Xp> fc = face(Ctx<Xp> { d, -1 }, f);
+    if (sgn(fc.u2) != 0 || sgn(fc.disc) != 0)
+      return -1;
+    if (sgn(fc.gbc) < 0)
+      return 0;
+    return sgn(fc.gcc - fc.gbb) > 0 ? 1 : 2;
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn
+  BallExactImpl<kForceExact, kFilterOnly>::cuts(const BallTriple f) const {
+    auto kernel = [&](auto ctx) { return cut_root(face(ctx, f)); };
+    const Data d { &c_, &h_, w_ };
+    const Participants parts {
+      { f.a, f.b, f.c },
+      3
+    };
+    return decide<kForceExact, kFilterOnly>(d, kernel, parts);
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact, kFilterOnly>::side(
+      const int a, const int b, const int c) const {
+    auto kernel = [&](auto ctx) {
+      using T = typename decltype(ctx)::Scalar;
+      return Root<T> { face(ctx, { a, b, c }).mu, lit<T>(0.0), lit<T>(0.0) };
+    };
+    const Data d { &c_, &h_, w_ };
+    const Participants parts {
+      { a, b, c },
+      3
+    };
+    return decide<kForceExact, kFilterOnly>(d, kernel, parts);
+  }
+
+  namespace {
+    /**
+     * Three signs from one face kernel relative to `s`: the discriminant of
+     * the triple and `pi_l` on circle `(s, j)`, `pi_j` on circle `(s, l)`.
+     */
+    template <class T>
+    std::array<Root<T>, 3> disc_roots(const Ctx<T> &ctx, int s, int j, int l) {
+      const Face<T> fc = face(ctx, { s, j, l });
+      const T zero = lit<T>(0.0);
+      return {
+        Root<T> { fc.disc, zero, zero },
+         Root<T> {   fc.mu, zero, zero },
+        Root<T> {  fc.lam, zero, zero }
+      };
+    }
+
+    /**
+     * Intersect iff cut, else iff one circle is inside the other's ball; a
+     * sign that stays unknown or ties is delegated to the exact `side`.
+     */
+    template <class T>
+    int disc_decision(const std::array<Root<T>, 3> &r) {
+      const int cut = sign_root(r[0]);
+      if (cut == kUnknown || cut == 0)
+        return kUnknown;
+      if (cut > 0)
+        return 1;
+
+      const int s1 = sign_root(r[1]), s2 = sign_root(r[2]);
+      if (s1 == -1 || s2 == -1)
+        return 1;
+      if (s1 == 1 && s2 == 1)
+        return -1;
+      return kUnknown;
+    }
+  }  // namespace
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE bool
+  BallExactImpl<kForceExact, kFilterOnly>::discs_intersect(const int s,
+                                                           const int j,
+                                                           const int l) const {
+    const Data d { &c_, &h_, w_ };
+    if constexpr (!kForceExact) {
+      const int r = disc_decision(disc_roots(Ctx<Fx> { d, -1 }, s, j, l));
+      if (r != kUnknown)
+        return r > 0;
+    }
+    exact_stage<kFilterOnly>();
+    const int r = disc_decision(disc_roots(Ctx<Xp> { d, -1 }, s, j, l));
+    if (r != kUnknown)
+      return r > 0;
+    return side(s, j, l) == Sgn::kNeg || side(s, l, j) == Sgn::kNeg;
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact, kFilterOnly>::accept(
+      const BallTriple f, const bool plus, const int l) const {
+    auto kernel = [&](auto ctx) {
+      return accept_root(ctx, face(ctx, f), plus, l);
+    };
+    const Data d { &c_, &h_, w_ };
+    const Participants parts {
+      { f.a, f.b, f.c, l },
+      4
+    };
+    return decide<kForceExact, kFilterOnly>(d, kernel, parts);
+  }
+
+  /**
+   * Root as `cntr + offset`: the center of circle `(a, b)` in double
+   * and the radical-line offset certified by the running bound or taken
+   * exact, so the direction from the center is right to rounding on a
+   * circle of any radius and for a third center anywhere.
+   */
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Vector3d
+  BallExactImpl<kForceExact, kFilterOnly>::root(const BallTriple f,
+                                                const bool plus) const {
+    return circle_center(c_, h_, f.a, f.b) + offset(f.a, f.b, f, plus);
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE std::pair<Vector3d, Vector3d>
+  BallExactImpl<kForceExact, kFilterOnly>::roots(const BallTriple f) const {
+    return { root(f, true), root(f, false) };
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE void
+  BallExactImpl<kForceExact, kFilterOnly>::load(FaceKernel &k,
+                                                const BallTriple f) const {
+    const Data d { &c_, &h_, w_ };
+    k.load(d, f);
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn
+  BallExactImpl<kForceExact, kFilterOnly>::cuts(FaceKernel &k) const {
+    const BallTriple f = k.triple();
+    auto kernel = [&](auto ctx) { return cut_root(k.at(ctx)); };
+    const Data d { &c_, &h_, w_ };
+    const Participants parts {
+      { f.a, f.b, f.c },
+      3
+    };
+    return decide<kForceExact, kFilterOnly>(d, kernel, parts);
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact, kFilterOnly>::accept(
+      FaceKernel &k, const bool plus, const int l) const {
+    const BallTriple f = k.triple();
+    auto kernel = [&](auto ctx) {
+      return accept_root(ctx, k.at(ctx), plus, l);
+    };
+    const Data d { &c_, &h_, w_ };
+    const Participants parts {
+      { f.a, f.b, f.c, l },
+      4
+    };
+    return decide<kForceExact, kFilterOnly>(d, kernel, parts);
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Vector3d
+  BallExactImpl<kForceExact, kFilterOnly>::root(FaceKernel &k,
+                                                const bool plus) const {
+    const BallTriple f = k.triple();
+    const Data d { &c_, &h_, w_ };
+    auto kernel = [&](auto ctx) {
+      using T = typename decltype(ctx)::Scalar;
+      const Sphere<T> sa = sph(ctx, f.a), sb = sph(ctx, f.b);
+      return root_offset(pair(sa, sb), sa, k.at(ctx), plus);
+    };
+    return circle_center(c_, h_, f.a, f.b)
+           + offset_decide<kForceExact, kFilterOnly>(d, kernel);
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Vector3d
+  BallExactImpl<kForceExact, kFilterOnly>::offset(const int a, const int b,
+                                                  const BallTriple f,
+                                                  const bool plus) const {
+    const Data d { &c_, &h_, w_ };
+    auto kernel = [&](auto ctx) {
+      using T = typename decltype(ctx)::Scalar;
+      const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b);
+      return root_offset(pair(sa, sb), sa, face(ctx, f), plus);
+    };
+    return offset_decide<kForceExact, kFilterOnly>(d, kernel);
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE RootDifference
+  BallExactImpl<kForceExact, kFilterOnly>::difference(const BallTriple f,
+                                                      const bool plus,
+                                                      const BallTriple f2,
+                                                      const bool plus2) const {
+    const Data d { &c_, &h_, w_ };
+    auto kernel = [&](auto ctx) {
+      return root_difference(ctx, f, plus, f2, plus2);
+    };
+
+    RootDifference out;
+    if constexpr (!kForceExact) {
+      if (certified_difference(kernel(Ctx<Fx> { d, -1 }), out))
+        return out;
+    }
+    exact_stage<kFilterOnly>();
+    return exact_difference(kernel(Ctx<Xp> { d, -1 }));
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE bool
+  BallExactImpl<kForceExact, kFilterOnly>::coincide(const BallTriple f,
+                                                    const bool plus,
+                                                    const BallTriple f2,
+                                                    const bool plus2) const {
+    const Data d { &c_, &h_, w_ };
+    for (int k = 0; k < 3; ++k) {
+      auto kernel = [&](auto ctx) {
+        using T = typename decltype(ctx)::Scalar;
+        const Diff<T> o = root_difference(ctx, f, plus, f2, plus2);
+        return Root2<T> { component(o.p, k),  component(o.q, k), o.disc,
+                          component(o.q2, k), lit<T>(0.0),       o.disc2 };
+      };
+      if (sign2<kForceExact, kFilterOnly>(d, kernel) != 0)
+        return false;
+    }
+    return true;
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE int
+  BallExactImpl<kForceExact, kFilterOnly>::half_plane(const int a, const int b,
+                                                      const BallTriple f,
+                                                      const bool plus) const {
+    const Vector3d r = reference_ray(c_.col(b) - c_.col(a));
+    const Data d { &c_, &h_, w_ };
+
+    auto along = [&](const bool sine) {
+      auto kernel = [&](auto ctx) {
+        using T = typename decltype(ctx)::Scalar;
+        const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b);
+        const Pair<T> ab = pair(sa, sb);
+        const Offset<T> o = root_offset(ab, sa, face(ctx, f), plus);
+        const V3<T> rr = lift<T>(r), qv = sine ? cross(ab.d, rr) : rr;
+        return Root<T> { dot(qv, o.p), dot(qv, o.q), o.disc };
+      };
+      if constexpr (!kForceExact) {
+        const int s = sign_root(kernel(Ctx<Fx> { d, -1 }));
+        if (s != kUnknown)
+          return s;
+      }
+      exact_stage<kFilterOnly>();
+      return sign_root(kernel(Ctx<Xp> { d, -1 }));
+    };
+
+    const int s = along(true);
+    if (s > 0)
+      return 1;
+    if (s < 0)
+      return 3;
+    return along(false) >= 0 ? 0 : 2;
+  }
+
+  namespace {
+    /**
+     * `dot(cross(y_i, y_j), d)` for the offsets of roots `x_i`, `x_j` on circle
+     * `(a, b)`, each `P + sigma sqrt(D) Q`.
+     */
+    template <class T>
+    Root2<T> ccw_kernel(const Ctx<T> &ctx, int a, int b, BallTriple fi,
+                        bool plus_i, BallTriple fj, bool plus_j) {
+      const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b);
+      const Pair<T> ab = pair(sa, sb);
+      const Offset<T> oi = root_offset(ab, sa, face(ctx, fi), plus_i),
+                      oj = root_offset(ab, sa, face(ctx, fj), plus_j);
+      return {
+        dot(cross(oi.p, oj.p), ab.d), dot(cross(oi.q, oj.p), ab.d), oi.disc,
+        dot(cross(oi.p, oj.q), ab.d), dot(cross(oi.q, oj.q), ab.d), oj.disc
+      };
+    }
+  }  // namespace
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact, kFilterOnly>::ccw(
+      const int a, const int b, const BallTriple fi, const bool plus_i,
+      const BallTriple fj, const bool plus_j) const {
+    auto kernel = [&](auto ctx) {
+      return ccw_kernel(ctx, a, b, fi, plus_i, fj, plus_j);
+    };
+    const Data d { &c_, &h_, w_ };
+    return decide2<kForceExact, kFilterOnly>(d, kernel);
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn
+  BallExactImpl<kForceExact, kFilterOnly>::ccw_perturbed(
+      const int a, const int b, const BallTriple fi, const bool plus_i,
+      const BallTriple fj, const bool plus_j) const {
+    constexpr int n_parts = 8;
+    static_assert(n_parts <= kMaxParticipants);
+    auto kernel = [&](auto ctx) {
+      return ccw_kernel(ctx, a, b, fi, plus_i, fj, plus_j);
+    };
+    const Data d { &c_, &h_, w_ };
+    const Participants parts {
+      { a, b, fi.a, fi.b, fi.c, fj.a, fj.b, fj.c },
+      n_parts
+    };
+    return decide2_perturbed<kForceExact, kFilterOnly>(d, kernel, parts);
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE Sgn BallExactImpl<kForceExact, kFilterOnly>::antipode(
+      const int a, const int b, const BallTriple f, const bool plus,
+      const int c) const {
+    auto kernel = [&](auto ctx) {
+      using T = typename decltype(ctx)::Scalar;
+      const Sphere<T> sa = sph(ctx, a), sb = sph(ctx, b), sc = sph(ctx, c);
+      const Pair<T> ab = pair(sa, sb), ac = pair(sa, sc);
+      const Offset<T> o = root_offset(ab, sa, face(ctx, f), plus);
+      const T lin =
+          ab.g * o.u2 * ac.v - o.u2 * ab.v * dot(ab.d, ac.d) + dot(o.p, ac.d);
+      return Root<T> { lin, dot(o.q, ac.d), o.disc };
+    };
+    const Data d { &c_, &h_, w_ };
+    const Participants parts {
+      { a, b, f.a, f.b, f.c, c },
+      6
+    };
+    return decide<kForceExact, kFilterOnly>(d, kernel, parts);
+  }
+
+  template <bool kForceExact, bool kFilterOnly>
+  ABSL_ATTRIBUTE_NOINLINE bool
+  BallExactImpl<kForceExact, kFilterOnly>::selftest() {
+    double x, y;
+    GEO::two_sum(1.0, 0x1p-60, x, y);
+    if (x != 1.0 || y != 0x1p-60)
+      return false;
+    GEO::two_product(1.0 + 0x1p-30, 1.0 + 0x1p-30, x, y);
+    if (y != 0x1p-60)
+      return false;
+
+    const Xp one(1.0), tiny(0x1p-60);
+    if (sgn((one + tiny) - one) != 1)
+      return false;
+
+    const Fx f = (Fx { 1.0, 0.0 } + Fx { 0x1p-60, 0.0 }) - Fx { 1.0, 0.0 };
+    return sgn(f) == kUnknown;
+  }
+
+  bool filter_inputs_agree(const double a, const double b) {
+    const Ex xa { a }, xb { b };
+    const Fx fa { a, 0.0 }, fb { b, 0.0 }, fc = fa * fb + fa;
+    const std::array<std::pair<Fx, Fx>, 6> cases {
+      {
+       { xa - xb, fa - fb },
+       { xa * xb, fa * fb },
+       { xa * fc, fa * fc },
+       { fc * xb, fc * fb },
+       { xa + fc, fa + fc },
+       { fc - xb, fc - fb },
+       }
+    };
+    auto bits = [](const double d) {
+      std::uint64_t u;
+      std::memcpy(&u, &d, sizeof(u));
+      return u;
+    };
+    return std::all_of(cases.begin(), cases.end(), [&](const auto &p) {
+      return bits(p.first.v) == bits(p.second.v)
+             && bits(p.first.e) == bits(p.second.e);
+    });
+  }
+
+  RootDifference forged_difference(const Vector3d &p, const Vector3d &q,
+                                   const Vector3d &q2, const double disc,
+                                   const double disc2, const double den,
+                                   const int shift) {
+    auto vec = [shift](const Vector3d &v) {
+      return V3<Xp> { Xp(v[0]).shifted(shift), Xp(v[1]).shifted(shift),
+                      Xp(v[2]).shifted(shift) };
+    };
+    return exact_difference(
+        Diff<Xp> { vec(p), vec(q), vec(q2), Xp(disc), Xp(disc2), Xp(den) });
+  }
+
+  template class BallExactImpl<false>;
+  template class BallExactImpl<true>;
+  template class BallExactImpl<false, true>;
+}  // namespace internal
+}  // namespace nuri

@@ -515,7 +515,7 @@ private:
   friend NpArrayLike<ML> empty_like(const ML &mat);
 
   template <Eigen::Index R, Eigen::Index C, class DU>
-  friend NpArrayWrapper<R, C, DU> py_array_cast(py::handle h);
+  friend NpArrayWrapper<R, C, DU> py_array_cast(py::handle h, bool force_copy);
 };
 
 template <Eigen::Index Rows = Eigen::Dynamic,
@@ -539,7 +539,8 @@ NpArrayLike<ML> empty_like(const ML &mat) {
 
 template <Eigen::Index Rows = Eigen::Dynamic,
           Eigen::Index Cols = Eigen::Dynamic, class DT = double>
-NpArrayWrapper<Rows, Cols, DT> py_array_cast(py::handle h) {
+NpArrayWrapper<Rows, Cols, DT> py_array_cast(py::handle h,
+                                             bool force_copy = false) {
   if (h.is_none())
     throw py::type_error("expected array-like object, got None");
 
@@ -555,8 +556,9 @@ NpArrayWrapper<Rows, Cols, DT> py_array_cast(py::handle h) {
   broadcast_if_compatible<Rows, Cols, DT>(arr);
   numpy_to_eigen_check_compat<Rows, Cols, DT>(arr);
 
-  auto finalize = [&arr](Eigen::Index rows, Eigen::Index cols, auto strides) {
-    if (strides.inner() == 1) {
+  auto finalize = [&arr, force_copy](Eigen::Index rows, Eigen::Index cols,
+                                     auto strides) {
+    if (strides.inner() == 1 && !force_copy) {
       NpArrayWrapper<Rows, Cols, DT> wrapper(std::move(arr));
       wrapper.check_finite();
       return wrapper;

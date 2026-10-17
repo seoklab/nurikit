@@ -236,6 +236,14 @@ namespace internal {
     ABSL_ASSUME(ret == 1 || ret == -1);
     return ret;
   }
+
+  template <class AL, class T = typename AL::Scalar>
+  E::Array3<T> sort3(const AL &v) {
+    const auto [lo01, hi01] = nuri::minmax(v[0], v[1]);
+    const auto [mid, hi] = nuri::minmax(hi01, v[2]);
+    const auto [lo, md] = nuri::minmax(lo01, mid);
+    return { lo, md, hi };
+  }
 }  // namespace internal
 
 template <int N = Eigen::Dynamic, int... Extra>
@@ -269,6 +277,30 @@ auto argpartition(const Container &container, int count, Comp op = {}) {
                      return op(container[i], container[j]);
                    });
   return idxs;
+}
+
+template <class Offset, class Key, class Map>
+// NOLINTNEXTLINE(*-missing-std-forward)
+void argsort_bucket(ArrayXi &idxs, Offset &&off, const Key &key,
+                    const Map &map) {
+  ABSL_DCHECK_GE(idxs.size(), key.size());
+
+  const int m = static_cast<int>(key.size());
+
+  off.setZero();
+  for (int k = 0; k < m; ++k)
+    ++off[key[k]];
+  std::inclusive_scan(off.begin(), off.end(), off.begin());
+
+  for (int p = m - 1; p >= 0; --p) {
+    int k = map(p);
+    idxs[--off[key[k]]] = k;
+  }
+}
+
+template <class Offset, class Key>
+void argsort_bucket(ArrayXi &idxs, Offset &&off, const Key &key) {
+  argsort_bucket(idxs, std::forward<Offset>(off), key, [](int p) { return p; });
 }
 
 template <class Container>
@@ -417,6 +449,8 @@ constexpr int log_base10(Int x) {
 }
 
 namespace internal {
+  constexpr double kUnitRoundoff = std::numeric_limits<double>::epsilon() / 2;
+
 #ifdef absl_nullable
   // These 3 are deprecated as of v20250512
   template <class T>

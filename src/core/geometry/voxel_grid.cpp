@@ -3,7 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <cmath>
+#include <cstdint>
 #include <limits>
+#include <utility>
 #include <vector>
 
 #include <absl/base/attributes.h>
@@ -18,8 +21,23 @@
 
 namespace nuri {
 namespace {
-  Array3i voxel_of(const Vector3d &p, const Vector3d &origin, double cutoff) {
-    return ((p - origin).array() / cutoff).floor().cast<int>();
+  // 2^-20 for 4u(T + 4) within a grid, 2^-20 for 8uM across two; class docs
+  constexpr double kBinMargin = 0x1p-19;
+  // 8uM <= kBinMargin / 2; windows beyond are widened by a cell (class docs)
+  constexpr double kGridRangeMagnitude =
+      kBinMargin / 2 / (8 * internal::kUnitRoundoff);
+
+  Array3i voxel_of(const Vector3d &p, const Vector3d &origin, double cell) {
+    return ((p - origin).array() / cell).floor().cast<int>();
+  }
+
+  // Per-column form: the colwise().squaredNorm() expression shared by both
+  // queries stopped being inlined under LTO (one out-of-line call per run).
+  ABSL_ATTRIBUTE_ALWAYS_INLINE inline void
+  run_distsq(const Matrix3Xd &pts, const int beg, const int cnt,
+             const Vector3d &pt, VectorXd &dsqbuf) {
+    for (int k = 0; k < cnt; ++k)
+      dsqbuf[k] = (pts.col(beg + k) - pt).squaredNorm();
   }
 }  // namespace
 
@@ -57,6 +75,7 @@ void VoxelGrid::rebuild_impl(Points src) {
                       << cutoff_;
   }
 
+  cell_ = cutoff_ / (1 - kBinMargin);
   dims_ = dims.cast<int>();
   const int ncells = dims_.prod();
 
@@ -72,7 +91,7 @@ void VoxelGrid::rebuild_impl(Points src) {
     const Array3i upper = dims_ - 1;
 
     for (int i = 0; i < n; ++i) {
-      Array3i c = voxel_of(src.col(i), origin_, cutoff_).min(upper).max(0);
+      Array3i c = voxel_of(src.col(i), origin_, cell_).min(upper).max(0);
       int v = c.x() + nx * (c.y() + ny * c.z());
       pt_cell[i] = v;
       ++cell_offset_[v + 1];
@@ -94,6 +113,13 @@ void VoxelGrid::rebuild_impl(Points src) {
 
 void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
                                  std::vector<double> &distsq) const {
+  Scratch scratch;
+  find_neighbors_d(pt, idxs, distsq, scratch);
+}
+
+void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
+                                 std::vector<double> &distsq,
+                                 Scratch &scratch) const {
   idxs.clear();
   distsq.clear();
 
@@ -101,12 +127,16 @@ void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
     return;
 
   const double cutsq = cutoff_ * cutoff_;
-  Array3i c = voxel_of(pt, origin_, cutoff_);
+  Array3i c = voxel_of(pt, origin_, cell_);
+  if ((c < -1).any() || (c > dims_).any())
+    return;
+
   Array3i imin = (c - 1).max(0);
   Array3i imax = (c + 1).min(dims_ - 1);
 
-  VectorXd dsqbuf(3 * max_occ_);
-  ArrayXi jbuf(dsqbuf.size());
+  scratch.reserve(3 * max_occ_);
+  VectorXd &dsqbuf = scratch.dsqbuf();
+  ArrayXi &jbuf = scratch.jbuf();
 
   const int nx = dims_.x();
   const int ny = dims_.y();
@@ -120,8 +150,7 @@ void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
       if (cnt == 0)
         continue;
 
-      dsqbuf.head(cnt) =
-          (pts_.middleCols(beg, cnt).colwise() - pt).colwise().squaredNorm();
+      run_distsq(pts_, beg, cnt, pt, dsqbuf);
 
       int n = 0;
       for (int k = 0; k < cnt; ++k) {
@@ -136,25 +165,102 @@ void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
 }
 
 namespace {
-  Array2Xi axis_cell_range(int ldim, double lorg, double lcut,  //
-                           int rdim, double rorg, double rcut) {
-    Array2Xi lohi(2, ldim);
+  void scan_cells(const VoxelGrid &grid, const Vector3d &pt, const Array3i &lo,
+                  const Array3i &hi, VectorXd &dsqbuf,
+                  std::pair<int, double> &best) {
+    if ((lo > hi).any())
+      return;
 
+    const Array3i &dims = grid.dims();
+    const ArrayXi &cell_offset = grid.cell_offset(),
+                  &cell_pts = grid.cell_pts();
+    for (int z = lo.z(); z <= hi.z(); ++z) {
+      for (int y = lo.y(); y <= hi.y(); ++y) {
+        const int basex = dims.x() * (y + dims.y() * z);
+        const int beg = cell_offset[lo.x() + basex];
+        const int cnt = cell_offset[hi.x() + 1 + basex] - beg;
+        if (cnt == 0)
+          continue;
+
+        run_distsq(grid.pts(), beg, cnt, pt, dsqbuf);
+
+        for (int k = 0; k < cnt; ++k) {
+          const double dsq = dsqbuf[k];
+          const int j = cell_pts[beg + k];
+          if (dsq < best.second || (dsq <= best.second && j < best.first))
+            best = { j, dsq };
+        }
+      }
+    }
+  }
+}  // namespace
+
+std::pair<int, double> VoxelGrid::nearest(const Vector3d &pt) const {
+  Scratch scratch;
+  return nearest(pt, scratch);
+}
+
+// Own-cell-first and a branchless tie measured +3..20 % (the improvement
+// branch is rare and predicted); cell-ordered queries +6..12 % per grid phase.
+std::pair<int, double> VoxelGrid::nearest(const Vector3d &pt,
+                                          Scratch &scratch) const {
+  const int n = static_cast<int>(pts_.cols());
+  if (n == 0)
+    return { -1, -1.0 };
+
+  const Array3i c = voxel_of(pt, origin_, cell_);
+  const Array3i upper = dims_ - 1;
+  const int rmax = c.max(upper - c).maxCoeff();
+
+  scratch.reserve(static_cast<int>(
+      nuri::min<int64_t>(n, int64_t { max_occ_ } * dims_.x())));
+  std::pair<int, double> best { -1, std::numeric_limits<double>::infinity() };
+
+  for (int r = 0;; ++r) {
+    const Array3i lo = c - r, hi = c + r;
+    const Array3i ilo = (lo + 1).max(0), ihi = (hi - 1).min(upper);
+    Array3i blo = lo.max(0), bhi = hi.min(upper);
+    const int face_step = nuri::max(2 * r, 1);
+
+    for (int axis = 2; axis >= 0; --axis) {
+      for (int f = lo[axis]; f <= hi[axis]; f += face_step) {
+        if (f < 0 || f > upper[axis])
+          continue;
+
+        blo[axis] = bhi[axis] = f;
+        scan_cells(*this, pt, blo, bhi, scratch.dsqbuf(), best);
+      }
+      blo[axis] = ilo[axis];
+      bhi[axis] = ihi[axis];
+    }
+
+    const double reach = r * cutoff_;
+    if (best.second <= reach * reach || r >= rmax)
+      break;
+  }
+
+  return best;
+}
+
+namespace {
+  Array2Xi axis_cell_range(const int ldim, const double lorg,
+                           const double lcell, const int rdim,
+                           const double rorg, const double rcell) {
     const double rel = lorg - rorg;
-    const double inv = 1.0 / rcut;
-    const int upper = rdim - 1;
+    const double magnitude = std::abs(rel) / lcell + ldim + 1;
+    const double widen = magnitude > kGridRangeMagnitude ? 1.0 : 0.0;
+    const double inv = 1 / rcell;
+    const ArrayXd k = ArrayXi::LinSpaced(ldim, -1, ldim - 2).cast<double>();
 
-    lohi.row(0) = ArrayXd::LinSpaced(ldim, inv * (rel - lcut),
-                                     inv * (rel + lcut * (ldim - 2)))
-                      .floor()
-                      .cast<int>()
-                      .max(0);
-    lohi.row(1) = ArrayXd::LinSpaced(ldim, inv * (rel + lcut * 2),
-                                     inv * (rel + lcut * (ldim + 1)))
-                      .floor()
-                      .cast<int>()
-                      .min(upper);
-
+    Array2Xi lohi(2, ldim);
+    lohi.row(0) = (((rel + lcell * k) * inv).floor() - widen)
+                      .max(0.0)
+                      .min(static_cast<double>(rdim))
+                      .cast<int>();
+    lohi.row(1) = (((rel + lcell * (k + 3)) * inv).floor() + widen)
+                      .min(rdim - 1.0)
+                      .max(-1.0)
+                      .cast<int>();
     return lohi;
   }
 
@@ -190,12 +296,12 @@ void VoxelGrid::find_neighbors_grid(const VoxelGrid &grid,
   const int gny = grid.dims_.y();
   const int gnz = grid.dims_.z();
 
-  Array2Xi xlim = axis_cell_range(nx, origin_.x(), cutoff_,  //
-                                  gnx, grid.origin_.x(), grid.cutoff_),
-           ylim = axis_cell_range(ny, origin_.y(), cutoff_,  //
-                                  gny, grid.origin_.y(), grid.cutoff_),
-           zlim = axis_cell_range(nz, origin_.z(), cutoff_,  //
-                                  gnz, grid.origin_.z(), grid.cutoff_);
+  Array2Xi xlim = axis_cell_range(nx, origin_.x(), cell_,  //
+                                  gnx, grid.origin_.x(), grid.cell_),
+           ylim = axis_cell_range(ny, origin_.y(), cell_,  //
+                                  gny, grid.origin_.y(), grid.cell_),
+           zlim = axis_cell_range(nz, origin_.z(), cell_,  //
+                                  gnz, grid.origin_.z(), grid.cell_);
 
   const int max_xrange = (xlim.row(1) - xlim.row(0) + 1).cwiseMax(0).maxCoeff();
   VectorXd dsqbuf(max_xrange * grid.max_occ_);
