@@ -65,13 +65,10 @@ repos:
             test/test_data/|
             fuzz/corpus-min/|
             src/third-party/|
-            \.agents/|
             \.github/|
             \.vscode/|
             docs/refs\.bib|
             include/nuri/core/element\.h|
-            src/core/geometry/voxel_grid\.cpp|
-            src/fmt/cif\.cpp|
             NOTICE\.md
           )
   - repo: https://github.com/jorisroovers/gitlint

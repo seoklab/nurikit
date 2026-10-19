@@ -106,6 +106,9 @@ are different from the Google C++ Style Guide:
   used.
 - A field with no valid default gets no member initializer: a sanitizer build
   surfaces a missed write, a fabricated default masks it.
+- Plain data structs stay aggregates and keep their `= 0` member initializers;
+  a constructor (plus `NOLINT`) is ceremony that also forfeits aggregate
+  initialization.
 
 [^1]: Internal functions are functions that are not part of the public C++
       API. They are not declared in the header files, or they are declared

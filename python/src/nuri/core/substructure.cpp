@@ -10,7 +10,6 @@
 #include <vector>
 
 #include <absl/cleanup/cleanup.h>
-#include <absl/strings/str_cat.h>
 #include <Eigen/Dense>
 #include <pybind11/cast.h>
 #include <pybind11/eigen.h>
@@ -869,9 +868,7 @@ the substructure's behavior.
 )doc");
   sub.def_property(
       "category", [](P &self) { return self->category(); },
-      [](P &self, SubstructCategory cat) {
-        self->category() = get_or_throw_cat(cat);
-      },
+      [](P &self, SubstructCategory cat) { self->category() = cat; },
       rvp::automatic,
       R"doc(
 :type: SubstructureCategory
@@ -954,20 +951,10 @@ void PySubstruct::erase_hydrogens() {
   self_tick();
 }
 
-SubstructCategory get_or_throw_cat(SubstructCategory cat) {
-  if (cat < SubstructCategory::kUnknown || cat > SubstructCategory::kChain)
-    throw py::value_error(
-        absl::StrCat("invalid substructure category: ", static_cast<int>(cat)));
-
-  return cat;
-}
-
 Substructure create_substruct(Molecule &mol,
                               const std::optional<AtomsArg> &atoms,
                               const std::optional<BondsArg> &bonds,
                               SubstructCategory cat) {
-  cat = get_or_throw_cat(cat);
-
   std::vector<int> atom_idxs, bond_idxs;
   if (atoms)
     for (py::handle obj: *atoms)

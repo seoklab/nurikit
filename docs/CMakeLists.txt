@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-find_package(Doxygen 1.8)
+find_package(Doxygen 1.9.2)
 
 if(DOXYGEN_FOUND)
   message(STATUS "Doxygen found")

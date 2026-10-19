@@ -193,8 +193,8 @@ struct graph_traits<nuri::Subgraph<NT, ET, is_const>>
 
 // These functions must be put here for ADL
 namespace nuri {
-//! @section Concept requirements for nuri::Graph
-//! @subsection IncidenceGraph concept requirements
+//! @section graph_concepts Concept requirements for nuri::Graph
+//! @subsection graph_incidence IncidenceGraph concept requirements
 
 template <class NT, class ET>
 auto out_edges(typename boost::graph_traits<Graph<NT, ET>>::vertex_descriptor v,
@@ -223,7 +223,7 @@ auto out_degree(typename boost::graph_traits<Graph<NT, ET>>::vertex_descriptor v
   return g.degree(v);
 }
 
-//! @subsection BidirectionalGraph concept requirements
+//! @subsection graph_bidirectional BidirectionalGraph concept requirements
 
 template <class NT, class ET>
 auto in_edges(typename boost::graph_traits<Graph<NT, ET>>::vertex_descriptor v,
@@ -244,7 +244,7 @@ auto degree(typename boost::graph_traits<Graph<NT, ET>>::vertex_descriptor v,
   return g.degree(v);
 }
 
-//! @subsection AdjacencyGraph concept requirements
+//! @subsection graph_adjacency AdjacencyGraph concept requirements
 
 template <class NT, class ET>
 auto adjacent_vertices(
@@ -254,7 +254,7 @@ auto adjacent_vertices(
   return std::make_pair(Iter(g[v].begin()), Iter(g[v].end()));
 }
 
-//! @subsection VertexListGraph concept requirements
+//! @subsection graph_vertex_list VertexListGraph concept requirements
 
 template <class NT, class ET>
 auto vertices(const Graph<NT, ET> &g) {
@@ -267,7 +267,7 @@ auto num_vertices(const Graph<NT, ET> &g) {
   return g.size();
 }
 
-//! @subsection EdgeListGraph concept requirements
+//! @subsection graph_edge_list EdgeListGraph concept requirements
 
 template <class NT, class ET>
 auto edges(const Graph<NT, ET> &g) {
@@ -280,7 +280,7 @@ auto num_edges(const Graph<NT, ET> &g) {
   return g.num_edges();
 }
 
-//! @subsection MutableGraph concept requirements
+//! @subsection graph_mutable MutableGraph concept requirements
 
 template <class NT, class ET>
 auto add_vertex(Graph<NT, ET> &g) {
@@ -338,7 +338,7 @@ void remove_edge(typename boost::graph_traits<Graph<NT, ET>>::edge_iterator it,
   remove_edge(*it, g);
 }
 
-//! @subsection PropertyGraph concept requirements (partial)
+//! @subsection graph_property PropertyGraph concept requirements (partial)
 
 template <class NT, class ET>
 auto get(boost::vertex_index_t /* tag */, const Graph<NT, ET> & /* g */) {
@@ -366,8 +366,8 @@ auto get(boost::edge_index_t /* tag */, const Graph<NT, ET> & /* g */,
   return e.id;
 }
 
-//! @section Concept requirements for nuri::Subgraph
-//! @subsection IncidenceGraph concept requirements
+//! @section subgraph_concepts Concept requirements for nuri::Subgraph
+//! @subsection subgraph_incidence IncidenceGraph concept requirements
 
 template <class NT, class ET, bool is_const>
 auto out_edges(typename boost::graph_traits<
@@ -401,7 +401,7 @@ auto out_degree(typename boost::graph_traits<
   return g.degree(v);
 }
 
-//! @subsection BidirectionalGraph concept requirements
+//! @subsection subgraph_bidirectional BidirectionalGraph concept requirements
 
 template <class NT, class ET, bool is_const>
 auto in_edges(typename boost::graph_traits<
@@ -426,7 +426,7 @@ auto degree(typename boost::graph_traits<
   return g.degree(v);
 }
 
-//! @subsection AdjacencyGraph concept requirements
+//! @subsection subgraph_adjacency AdjacencyGraph concept requirements
 
 template <class NT, class ET, bool is_const>
 auto adjacent_vertices(typename boost::graph_traits<
@@ -437,7 +437,7 @@ auto adjacent_vertices(typename boost::graph_traits<
   return std::make_pair(Iter(g[v].begin()), Iter(g[v].end()));
 }
 
-//! @subsection VertexListGraph concept requirements
+//! @subsection subgraph_vertex_list VertexListGraph concept requirements
 
 template <class NT, class ET, bool is_const>
 auto vertices(const Subgraph<NT, ET, is_const> &g) {
@@ -451,7 +451,7 @@ auto num_vertices(const Subgraph<NT, ET, is_const> &g) {
   return g.size();
 }
 
-//! @subsection EdgeListGraph concept requirements
+//! @subsection subgraph_edge_list EdgeListGraph concept requirements
 
 template <class NT, class ET, bool is_const>
 auto edges(const Subgraph<NT, ET, is_const> &g) {
@@ -465,7 +465,7 @@ auto num_edges(const Subgraph<NT, ET, is_const> &g) {
   return g.num_edges();
 }
 
-//! @subsection PropertyGraph concept requirements (partial)
+//! @subsection subgraph_property PropertyGraph concept requirements (partial)
 
 template <class NT, class ET, bool is_const>
 auto get(boost::vertex_index_t /* tag */,

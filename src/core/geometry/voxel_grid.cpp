@@ -371,7 +371,7 @@ namespace {
   // Forward half-shell of 13 neighbor cells, grouped into 5 rows of contiguous
   // dx ranges per (dy, dz). Each row enumerates every unordered cell pair
   // exactly once: the (dy=0, dz=0) row spans dx > 0 only, the four (dy != 0 or
-  // dz > 0) rows span dx ∈ {-1, 0, 1}. Fusing the dx range into one wider qts
+  // dz > 0) rows span dx in {-1, 0, 1}. Fusing the dx range into one wider qts
   // slab amortises per-call overhead vs. the unfused 13-entry walk.
   constexpr int kHalfShellRows[5][4] = {
     // { dy, dz, dx_lo, dx_hi }

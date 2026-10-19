@@ -634,9 +634,6 @@ extern const Isotope &isotope_from_element_and_mass(const Element &elem,
                                                     int mass_number);
 
 extern const Element &get_or_throw_z(int z);
-extern constants::Hybridization get_or_throw_hyb(constants::Hybridization hyb);
-extern constants::BondOrder get_or_throw_ord(constants::BondOrder ord);
-extern SubstructCategory get_or_throw_cat(SubstructCategory cat);
 
 extern void log_aromatic_warning(const AtomData &atom);
 extern void log_aromatic_warning(const BondData &bond);
@@ -657,11 +654,11 @@ void assign_conf(MatrixLike &conf, const py::handle &obj) {
 }
 
 inline void update_hyb(AtomData &self, constants::Hybridization hyb) {
-  self.set_hybridization(get_or_throw_hyb(hyb));
+  self.set_hybridization(hyb);
 }
 
 inline void update_ord(BondData &self, constants::BondOrder ord) {
-  self.set_order(get_or_throw_ord(ord));
+  self.set_order(ord);
   log_aromatic_warning(self);
 }
 
@@ -1016,9 +1013,6 @@ The name of the atom. Returns an empty string if the name is not set.
         // Possibly throwing functions
 
         AtomData &data = atom_prolog(self);
-
-        if (hyb)
-          *hyb = get_or_throw_hyb(*hyb);
 
         check_nonneg(implicit_hydrogens, "implicit_hydrogens");
         check_finite(partial_charge, "partial_charge");

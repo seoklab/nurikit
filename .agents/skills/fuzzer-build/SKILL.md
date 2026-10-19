@@ -15,7 +15,7 @@ The `fuzzer` CMake variant is libFuzzer + ASan/UBSan and is **Clang-only**
 exercises the format parsers via `LLVMFuzzerTestOneInput` harnesses in
 `fuzz/fmt/`. See the `sanitizer-build` skill for the clang++ build rationale.
 
-**All fuzz output (corpus growth, `crash-*`, coverage) MUST stay outside git** —
+**All fuzz output (corpus growth, `crash-*`, coverage) MUST stay outside git** -
 run everything from a user-chosen run directory, never inside the repo.
 
 Resolve the repo root once; use it for every repo path:
@@ -44,8 +44,8 @@ Note `smi` maps to the `smiles` binary. Binaries land at
 The run directory holds per-format corpora that persist across runs. Do **not**
 hardcode it.
 
-1. Check Claude memory for `fuzz-run-dir` (see §7). If present, reuse it —
-   don't re-ask.
+1. Check Claude memory for `fuzz-run-dir` (see section 7). If present, reuse
+   it - don't re-ask.
 2. Otherwise ask the user for an absolute path, then save it to memory.
 3. If the user names a different directory, use it and update the memory.
 
@@ -69,12 +69,12 @@ LD_PRELOAD="$(clang++ -print-file-name=libubsan.so)" \
 `NuriAllFuzz` builds all five binaries. For a single format, use its target,
 e.g. `--target NuriFuzz-fmt-pdb_fuzz`.
 
-## 4. Run the loop (local, time-boxed — default)
+## 4. Run the loop (local, time-boxed - default)
 
 `scripts/fuzz.sh` preloads the ASan/UBSan runtimes and UBSan suppressions
-itself — call it directly. Seed the persistent corpus from the in-repo minimized
+itself - call it directly. Seed the persistent corpus from the in-repo minimized
 corpus only when empty. libFuzzer reads *and* writes the corpus dir, and drops
-`crash-*` / timeout / oom files into the cwd — all inside `$RUNDIR`, outside git.
+`crash-*` / timeout / oom files into the cwd - all inside `$RUNDIR`, outside git.
 
 ```bash
 fmt=pdb; bin=nuri-fmt-pdb_fuzz   # smi -> nuri-fmt-smiles_fuzz
@@ -88,7 +88,7 @@ cd "$RUNDIR/$fmt"
 ```
 
 `-fork` = `nproc` (one CPU knob, same as SLURM). `-max_total_time` is the time
-box — raise it for longer campaigns. Run-all: loop over the five formats.
+box - raise it for longer campaigns. Run-all: loop over the five formats.
 
 ## 5. Triage a crash
 
@@ -109,14 +109,14 @@ Minimize the reproducer:
 
 Report the top `nuri` frame as `file:line`; the parser lives in
 `nuri/fmt/<fmt>.h` (+ its `.cpp`). New regressions get a fixed-input test under
-`test/fmt/` — see the `// Found with fuzzing` precedent there.
+`test/fmt/` - see the `// Found with fuzzing` precedent there.
 
 ## 6. Coverage report (on request)
 
-`--coverage` must come **first** — `fuzz.sh` parses it with `getopts`, which
+`--coverage` must come **first** - `fuzz.sh` parses it with `getopts`, which
 stops at the first non-dash token (the binary path). Pass `-runs=0` so libFuzzer
 replays the corpus once and exits; without it (or `-max_total_time`) it replays
-then fuzzes forever. Don't pass the corpus dir positionally — the script already
+then fuzzes forever. Don't pass the corpus dir positionally - the script already
 appends the default `corpus`.
 
 ```bash
@@ -129,7 +129,7 @@ notably cold regions.
 
 ## 7. Persist the run dir (memory)
 
-On the first run — or whenever the user changes it — save the run directory to
+On the first run - or whenever the user changes it - save the run directory to
 Claude memory as a file `fuzz-run-dir.md` (`type: project`) holding the absolute
 path plus the host/user it applies to, and add a one-line pointer to `MEMORY.md`.
 On later runs, read it and reuse without re-asking.
@@ -138,12 +138,12 @@ On later runs, read it and reuse without re-asking.
 
 Only when the user asks for SLURM. Ask for the batch args first:
 
-- **CPUs `N`** — `-fork` equals `-c` (one knob; fork workers = allocated CPUs).
+- **CPUs `N`** - `-fork` equals `-c` (one knob; fork workers = allocated CPUs).
 - **`-max_total_time`** (seconds).
-- **Extra sbatch flags** — partition `-p`, node `-w`, etc., passed through verbatim.
+- **Extra sbatch flags** - partition `-p`, node `-w`, etc., passed through verbatim.
 
 Submit a generated job from the run dir (no dependency on any out-of-tree
-script). `$REPO` must be absolute — the job's cwd is the submit dir.
+script). `$REPO` must be absolute - the job's cwd is the submit dir.
 
 ```bash
 cd "$RUNDIR/$fmt"
@@ -152,33 +152,33 @@ sbatch -c <N> -J "fuzz-$fmt" <extra sbatch flags> --wrap \
    -only_ascii=1 -max_total_time=<T> -ignore_crashes=1 -fork=<N>"
 ```
 
-Run-all → one job per format. This mirrors the historical `fuzz-slurm.sh`
+Run-all -> one job per format. This mirrors the historical `fuzz-slurm.sh`
 pattern (`-c 24`, `-fork=24`, `-max_total_time=3600`).
 
 ## 9. Troubleshooting: symbolizer hang
 
 If a run produces **no output and never finishes** (wedged during corpus load),
 the symbolizer is hanging. Root cause: **LLVM 18's symbolizer deadlocks**
-symbolizing these binaries on some hosts (e.g. Ubuntu 24.04) — both the
+symbolizing these binaries on some hosts (e.g. Ubuntu 24.04) - both the
 in-process symbolizer baked into the binary by compiler-rt and the external
-`llvm-symbolizer` 18. LLVM ≥ 19 fixed it.
+`llvm-symbolizer` 18. LLVM >= 19 fixed it.
 
 `fuzz.sh` already forces the external symbolizer via
 `external_symbolizer_path="$(command -v llvm-symbolizer)"` (this bypasses the
 broken in-process one). So the fix is to make the first `llvm-symbolizer` on
-`PATH` a **≥ 19** build:
+`PATH` a **>= 19** build:
 
 ```bash
 command -v llvm-symbolizer            # which one fuzz.sh will use
 llvm-symbolizer --version             # must be >= 19; 18.x hangs
 ```
 
-If it's 18.x, put a newer one first on `PATH` (e.g. from a Homebrew/apt LLVM ≥
+If it's 18.x, put a newer one first on `PATH` (e.g. from a Homebrew/apt LLVM >=
 19 install) and re-run.
 
 Last resort, sacrificing symbolized crash stacks: `fuzz.sh` merges any
 caller-supplied `ASAN_OPTIONS`/`UBSAN_OPTIONS` after its own (caller wins), so
-set `symbolize=0` on the invocation — no script edit:
+set `symbolize=0` on the invocation - no script edit:
 
 ```bash
 cd "$RUNDIR/$fmt"
