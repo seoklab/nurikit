@@ -1528,15 +1528,33 @@ FORMULA_MACROFILE      = @CMAKE_CURRENT_SOURCE_DIR@/formulas.tex
 
 USE_MATHJAX            = YES
 
+# With MATHJAX_VERSION it is possible to specify the MathJax version to be used.
+# Note that the different versions of MathJax have different requirements with
+# regards to the different settings, so it is possible that also other MathJax
+# settings have to be changed when switching between the different MathJax
+# versions.
+# Possible values are: MathJax_2 and MathJax_3.
+# The default value is: MathJax_2.
+# This tag requires that the tag USE_MATHJAX is set to YES.
+
+MATHJAX_VERSION        = MathJax_3
+
 # When MathJax is enabled you can set the default output format to be used for
-# the MathJax output. See the MathJax site (see:
-# http://docs.mathjax.org/en/latest/output.html) for more details.
+# the MathJax output. For more details about the output format see MathJax
+# version 2 (see:
+# http://docs.mathjax.org/en/v2.7-latest/output.html) and MathJax version 3
+# (see:
+# http://docs.mathjax.org/en/latest/web/components/output.html).
 # Possible values are: HTML-CSS (which is slower, but has the best
-# compatibility), NativeMML (i.e. MathML) and SVG.
+# compatibility. This is the name for Mathjax version 2, for MathJax version 3
+# this will be translated into chtml), NativeMML (i.e. MathML. Only supported
+# for NathJax 2. For MathJax version 3 chtml will be used instead.), chtml (This
+# is the name for Mathjax version 3, for MathJax version 2 this will be
+# translated into HTML-CSS) and SVG.
 # The default value is: HTML-CSS.
 # This tag requires that the tag USE_MATHJAX is set to YES.
 
-MATHJAX_FORMAT         = HTML-CSS
+MATHJAX_FORMAT         = chtml
 
 # When MathJax is enabled you need to specify the location relative to the HTML
 # output directory using the MATHJAX_RELPATH option. The destination directory
@@ -1545,19 +1563,24 @@ MATHJAX_FORMAT         = HTML-CSS
 # MATHJAX_RELPATH should be ../mathjax. The default value points to the MathJax
 # Content Delivery Network so you can quickly see the result without installing
 # MathJax. However, it is strongly recommended to install a local copy of
-# MathJax from https://www.mathjax.org before deployment.
-# The default value is: https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/.
+# MathJax from https://www.mathjax.org before deployment. The default value is:
+# - in case of MathJax version 2: https://cdn.jsdelivr.net/npm/mathjax@2
+# - in case of MathJax version 3: https://cdn.jsdelivr.net/npm/mathjax@3
 # This tag requires that the tag USE_MATHJAX is set to YES.
 
-MATHJAX_RELPATH        = https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/
+MATHJAX_RELPATH        = https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/
 
 # The MATHJAX_EXTENSIONS tag can be used to specify one or more MathJax
 # extension names that should be enabled during MathJax rendering. For example
+# for MathJax version 2 (see
+# https://docs.mathjax.org/en/v2.7-latest/tex.html#tex-and-latex-extensions):
 # MATHJAX_EXTENSIONS = TeX/AMSmath TeX/AMSsymbols
+# For example for MathJax version 3 (see
+# http://docs.mathjax.org/en/latest/input/tex/extensions/index.html):
+# MATHJAX_EXTENSIONS = ams
 # This tag requires that the tag USE_MATHJAX is set to YES.
 
-MATHJAX_EXTENSIONS     = TeX/AMSmath \
-                         TeX/AMSsymbols
+MATHJAX_EXTENSIONS     = ams
 
 # The MATHJAX_CODEFILE tag can be used to specify a file with javascript pieces
 # of code that will be used on startup of the MathJax code. See the MathJax site
