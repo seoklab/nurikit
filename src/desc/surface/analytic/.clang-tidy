@@ -1,0 +1,10 @@
+---
+# The exact kernels drive every path-sensitive analysis to clang's default
+# per-function node budget (225000): 91 functions at 2-4 s each, 220 s for
+# exact.cpp alone. 1/20 of the budget keeps the analyzer on at ~12 s.
+InheritParentConfig: true
+ExtraArgsBefore:
+  - -Xclang
+  - -analyzer-config
+  - -Xclang
+  - max-nodes=10000
