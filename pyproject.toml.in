@@ -164,6 +164,7 @@ before-all = [
     "ln -sfT /host/home/linuxbrew /home/linuxbrew",
     'test -z "${CCACHE_DIR-}" || { yum -y install ccache && mkdir -p "$(dirname "$CCACHE_DIR")" && ln -sfT "/host$CCACHE_DIR" "$CCACHE_DIR"; }',
 ]
+before-test = 'test -z "${CCACHE_DIR-}" || ccache -s'
 
 [tool.pytest.ini_options]
 testpaths = ["python/test"]
