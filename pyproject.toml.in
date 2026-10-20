@@ -153,8 +153,17 @@ PIP_PREFER_BINARY = "1"
 MACOSX_DEPLOYMENT_TARGET = "10.15"
 
 [tool.cibuildwheel.linux]
-environment-pass = ["SKBUILD_CMAKE_ARGS", "CMAKE_PREFIX_PATH"]
-before-all = ["ln -sfT /host/home/linuxbrew /home/linuxbrew"]
+environment-pass = [
+    "SKBUILD_CMAKE_ARGS",
+    "CMAKE_PREFIX_PATH",
+    "CMAKE_CXX_COMPILER_LAUNCHER",
+    "CCACHE_DIR",
+    "CCACHE_MAXSIZE",
+]
+before-all = [
+    "ln -sfT /host/home/linuxbrew /home/linuxbrew",
+    'test -z "${CCACHE_DIR-}" || { yum -y install ccache && mkdir -p "$(dirname "$CCACHE_DIR")" && ln -sfT "/host$CCACHE_DIR" "$CCACHE_DIR"; }',
+]
 
 [tool.pytest.ini_options]
 testpaths = ["python/test"]

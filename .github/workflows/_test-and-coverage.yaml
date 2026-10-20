@@ -7,6 +7,11 @@ name: Test and Report Coverage
 
 on:
   workflow_call:
+    inputs:
+      ccache:
+        type: boolean
+        description: "Cache compilations with ccache"
+        default: true
     secrets:
       CODECOV_TOKEN:
         required: true
@@ -35,6 +40,11 @@ jobs:
       - run: pip install sphinx
 
       - uses: actions/checkout@v7
+
+      - if: ${{ inputs.ccache }}
+        uses: ./.github/actions/ccache
+        with:
+          key: coverage
 
       - run: .github/scripts/setup-deps.sh
 
