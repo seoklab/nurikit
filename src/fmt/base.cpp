@@ -54,16 +54,17 @@ void TextBlock::append(const TextBlock &other) {
   const int offset = static_cast<int>(data_.size());
   data_.append(other.data_);
 
-  const auto cnt = static_cast<E::Index>(segments_.size());
-  segments_.insert(segments_.end(), other.segments_.begin() + 1,
-                   other.segments_.end());
-  E::Map<ArrayXi> m(segments_.data() + cnt, other.size());
+  std::vector<int> &seg = segments_.off();
+  const std::vector<int> &oseg = other.segments_.off();
+  const auto cnt = static_cast<E::Index>(seg.size());
+  seg.insert(seg.end(), oseg.begin() + 1, oseg.end());
+  E::Map<ArrayXi> m(seg.data() + cnt, other.size());
   m += offset;
 }
 
 void TextBlock::clear() noexcept {
   data_.clear();
-  segments_.resize(1);
+  segments_.clear();
 }
 
 std::string ascii_safe(std::string_view str) {
