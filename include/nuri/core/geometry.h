@@ -18,6 +18,7 @@
 
 #include "nuri/eigen_config.h"
 #include "nuri/core/container/container_ext.h"
+#include "nuri/core/container/csr.h"
 #include "nuri/meta.h"
 
 namespace nuri {
@@ -383,11 +384,11 @@ public:
 
   const Array3i &dims() const { return dims_; }
 
-  int num_cells() const { return static_cast<int>(cell_offset_.size()) - 1; }
+  int num_cells() const { return cells_.n(); }
 
-  const ArrayXi &cell_offset() const { return cell_offset_; }
+  const ArrayXi &cell_offset() const { return cells_.off(); }
 
-  const ArrayXi &cell_pts() const { return cell_pts_; }
+  const ArrayXi &cell_pts() const { return cells_.adj(); }
 
 private:
   void rebuild_impl(Points src);
@@ -395,8 +396,7 @@ private:
   Matrix3Xd pts_;
   Vector3d origin_;
   Array3i dims_;
-  ArrayXi cell_offset_;
-  ArrayXi cell_pts_;
+  internal::CSR cells_;
   double cutoff_ = 0;
   double cell_ = 0;
   int max_occ_ = 0;

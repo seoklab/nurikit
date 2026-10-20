@@ -16,6 +16,7 @@
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
+#include "nuri/core/container/csr.h"
 #include "nuri/core/geometry.h"
 #include "nuri/utils.h"
 
@@ -49,8 +50,7 @@ void VoxelGrid::rebuild_impl(Points src) {
     pts_.resize(3, 0);
     origin_.setZero();
     dims_.setZero();
-    cell_offset_.setZero(1);
-    cell_pts_.resize(0);
+    cells_ = {};
     max_occ_ = 0;
     return;
   }
@@ -79,9 +79,8 @@ void VoxelGrid::rebuild_impl(Points src) {
   dims_ = dims.cast<int>();
   const int ncells = dims_.prod();
 
-  cell_offset_.setZero(ncells + 1);
-  cell_pts_.resize(n);
-  ArrayXi cursor(ncells), pt_cell(n);
+  ArrayXi adj(n), pt_cell(n);
+  internal::OffsetTable off(ncells);
 
   {
     internal::AllowEigenMallocScoped<false> ems;
@@ -92,23 +91,14 @@ void VoxelGrid::rebuild_impl(Points src) {
 
     for (int i = 0; i < n; ++i) {
       Array3i c = voxel_of(src.col(i), origin_, cell_).min(upper).max(0);
-      int v = c.x() + nx * (c.y() + ny * c.z());
-      pt_cell[i] = v;
-      ++cell_offset_[v + 1];
+      pt_cell[i] = c.x() + nx * (c.y() + ny * c.z());
     }
-    max_occ_ = cell_offset_.maxCoeff();
-
-    for (int v = 0; v < ncells; ++v)
-      cell_offset_[v + 1] += cell_offset_[v];
-
-    cursor = cell_offset_.head(ncells);
-    for (int i = 0; i < n; ++i) {
-      const int slot = cursor[pt_cell[i]]++;
-      cell_pts_[slot] = i;
-    }
+    argsort_bucket(adj, off, pt_cell);
   }
 
-  pts_ = src(Eigen::all, cell_pts_);
+  cells_ = internal::CSR(std::move(adj), std::move(off));
+  max_occ_ = cells_.max_deg();
+  pts_ = src(Eigen::all, cells_.adj());
 }
 
 void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
@@ -144,8 +134,8 @@ void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
     const int basey = ny * z;
     for (int y = imin.y(); y <= imax.y(); ++y) {
       const int basex = nx * (y + basey);
-      const int beg = cell_offset_[imin.x() + basex];
-      const int end = cell_offset_[imax.x() + 1 + basex];
+      const int beg = cells_.offset(imin.x() + basex);
+      const int end = cells_.offset(imax.x() + 1 + basex);
       const int cnt = end - beg;
       if (cnt == 0)
         continue;
@@ -154,7 +144,7 @@ void VoxelGrid::find_neighbors_d(const Vector3d &pt, std::vector<int> &idxs,
 
       int n = 0;
       for (int k = 0; k < cnt; ++k) {
-        jbuf[n] = cell_pts_[beg + k];
+        jbuf[n] = cells_.adj()[beg + k];
         const double dsq = dsqbuf[n] = dsqbuf[k];
         n += value_if(dsq <= cutsq);
       }
@@ -324,8 +314,8 @@ void VoxelGrid::find_neighbors_grid(const VoxelGrid &grid,
           continue;
 
         const int va = cx + nx * (cy + ny * cz);
-        const int ab = cell_offset_[va];
-        const int ae = cell_offset_[va + 1];
+        const int ab = cells_.offset(va);
+        const int ae = cells_.offset(va + 1);
         const int na = ae - ab;
         if (na == 0)
           continue;
@@ -336,8 +326,8 @@ void VoxelGrid::find_neighbors_grid(const VoxelGrid &grid,
           const int basey = gny * kz;
           for (int ky = cylim[0]; ky <= cylim[1]; ++ky) {
             const int basex = gnx * (ky + basey);
-            const int bb = grid.cell_offset_[cxlim[0] + basex];
-            const int be = grid.cell_offset_[cxlim[1] + 1 + basex];
+            const int bb = grid.cells_.offset(cxlim[0] + basex);
+            const int be = grid.cells_.offset(cxlim[1] + 1 + basex);
             const int nb = be - bb;
             if (nb == 0)
               continue;
@@ -346,8 +336,8 @@ void VoxelGrid::find_neighbors_grid(const VoxelGrid &grid,
             for (int p = 0; p < na; ++p) {
               const Vector3d pi = pts.col(p);
               dsqbuf.head(nb) = (qts.colwise() - pi).colwise().squaredNorm();
-              emit_filtered(self, other, dsqbuf, jbuf, cell_pts_[ab + p],
-                            grid.cell_pts_.data() + bb, nb, cutsq);
+              emit_filtered(self, other, dsqbuf, jbuf, cells_.adj()[ab + p],
+                            grid.cells_.adj().data() + bb, nb, cutsq);
             }
           }
         }
@@ -404,8 +394,8 @@ void VoxelGrid::find_neighbors_self(std::vector<int> &left,
     for (int cy = 0; cy < ny; ++cy) {
       for (int cx = 0; cx < nx; ++cx) {
         const int va = cx + nx * (cy + ny * cz);
-        const int ab = cell_offset_[va];
-        const int ae = cell_offset_[va + 1];
+        const int ab = cells_.offset(va);
+        const int ae = cells_.offset(va + 1);
         const int na = ae - ab;
         if (na == 0)
           continue;
@@ -418,8 +408,8 @@ void VoxelGrid::find_neighbors_self(std::vector<int> &left,
                                  .colwise()
                                  .squaredNorm();
 
-          emit_filtered(left, right, dsqbuf, jbuf, cell_pts_[ab + p],
-                        cell_pts_.data() + ab + p + 1, cnt, cutsq);
+          emit_filtered(left, right, dsqbuf, jbuf, cells_.adj()[ab + p],
+                        cells_.adj().data() + ab + p + 1, cnt, cutsq);
         }
 
         for (auto [dy, dz, dxlo, dxhi]: kHalfShellRows) {
@@ -431,8 +421,8 @@ void VoxelGrid::find_neighbors_self(std::vector<int> &left,
             continue;
 
           const int baserow = nx * (by + ny * bz);
-          const int bb = cell_offset_[bxlo + baserow];
-          const int be = cell_offset_[bxhi + baserow + 1];
+          const int bb = cells_.offset(bxlo + baserow);
+          const int be = cells_.offset(bxhi + baserow + 1);
           const int nb = be - bb;
           if (nb == 0)
             continue;
@@ -441,8 +431,8 @@ void VoxelGrid::find_neighbors_self(std::vector<int> &left,
           for (int p = 0; p < na; ++p) {
             const Vector3d pi = pts.col(p);
             dsqbuf.head(nb) = (qts.colwise() - pi).colwise().squaredNorm();
-            emit_filtered(left, right, dsqbuf, jbuf, cell_pts_[ab + p],
-                          cell_pts_.data() + bb, nb, cutsq);
+            emit_filtered(left, right, dsqbuf, jbuf, cells_.adj()[ab + p],
+                          cells_.adj().data() + bb, nb, cutsq);
           }
         }
       }
