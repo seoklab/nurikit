@@ -6,6 +6,7 @@
 #ifndef NURI_DESC_SURFACE_ANALYTIC_STAGES_H_
 #define NURI_DESC_SURFACE_ANALYTIC_STAGES_H_
 
+#include <algorithm>
 #include <array>
 #include <memory>
 #include <tuple>
@@ -17,6 +18,7 @@
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
+#include "nuri/core/container/csr.h"
 #include "nuri/desc/surface.h"
 #include "nuri/utils.h"
 
@@ -87,6 +89,14 @@ namespace internal {
    */
   constexpr double kTriangleDetRoundoff = 8 * kUnitRoundoff;
   constexpr double kTriangleDetMin = 6 * kTangentEps + kTriangleDetRoundoff;
+
+  /**
+   * Edge id of `j` in the sorted row `i` of `g`, -1 if absent.
+   */
+  inline int find_sorted(const CSR &g, const int i, const int j) {
+    const auto e = g.end(i), it = std::lower_bound(g.begin(i), e, j);
+    return it != e && *it == j ? g.eid(it) : -1;
+  }
 
   /**
    * Orient every pair of `VoxelGrid::find_neighbors_self` as `left < right`.

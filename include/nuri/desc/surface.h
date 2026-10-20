@@ -6,8 +6,6 @@
 #ifndef NURI_DESC_SURFACE_H_
 #define NURI_DESC_SURFACE_H_
 
-#include <algorithm>
-#include <cmath>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -17,9 +15,9 @@
 #include <Eigen/Dense>
 
 #include "nuri/eigen_config.h"
+#include "nuri/core/container/csr.h"
 #include "nuri/core/geometry.h"
 #include "nuri/core/molecule.h"
-#include "nuri/utils.h"
 
 namespace nuri {
 namespace internal {
@@ -50,93 +48,6 @@ extern ArrayXd shrake_rupley_sasa(
     const Molecule &mol, const Matrix3Xd &conf, int nprobe = 92,
     double rprobe = 1.4,
     internal::SrSasaMethod method = internal::SrSasaMethod::kAuto);
-
-namespace internal {
-  class OffsetTable {
-  public:
-    OffsetTable(): off_(ArrayXi::Zero(1)) { }
-
-    explicit OffsetTable(int n): off_(n + 1) { }
-
-    explicit OffsetTable(ArrayXi &&off) noexcept: off_(std::move(off)) { }
-
-    int operator[](int i) const { return off_[i]; }
-
-    int degree(int i) const { return off_[i + 1] - off_[i]; }
-
-    int max_deg() const {
-      return size() == 0 ? 0
-                         : (off_.tail(size()) - off_.head(size())).maxCoeff();
-    }
-
-    int size() const { return static_cast<int>(off_.size()) - 1; }
-
-    ArrayXi &off() { return off_; }
-
-    const ArrayXi &off() const { return off_; }
-
-  private:
-    ArrayXi off_;
-  };
-
-  class CSR {
-  public:
-    using const_iterator = ArrayXi::const_iterator;
-
-    CSR() = default;
-
-    CSR(ArrayXi &&adj, OffsetTable &&off) noexcept
-        : adj_(std::move(adj)), tbl_(std::move(off)) { }
-
-    const_iterator begin(int i) const { return adj_.begin() + tbl_[i]; }
-
-    const_iterator end(int i) const { return adj_.begin() + tbl_[i + 1]; }
-
-    int offset(int i) const { return tbl_[i]; }
-
-    int degree(int i) const { return tbl_.degree(i); }
-
-    int max_deg() const { return tbl_.max_deg(); }
-
-    auto nbrs(int i) const { return adj_.segment(tbl_[i], degree(i)); }
-
-    int eid(const_iterator it) const {
-      return static_cast<int>(it - adj_.begin());
-    }
-
-    /**
-     * Edge id of `j` in row `i`, -1 if absent.
-     */
-    int find(int i, int j) const {
-      const auto e = end(i), it = std::lower_bound(begin(i), e, j);
-      return it != e && *it == j ? eid(it) : -1;
-    }
-
-    int m() const { return static_cast<int>(adj_.size()); }
-
-    int n() const { return tbl_.size(); }
-
-    ArrayXi &adj() { return adj_; }
-
-    const ArrayXi &adj() const { return adj_; }
-
-    ArrayXi &off() { return tbl_.off(); }
-
-    const ArrayXi &off() const { return tbl_.off(); }
-
-  private:
-    ArrayXi adj_;
-    OffsetTable tbl_;
-  };
-
-  using nuri::argsort_bucket;
-
-  template <class Key, class Map>
-  void argsort_bucket(ArrayXi &idxs, OffsetTable &off, const Key &key,
-                      const Map &map) {
-    return argsort_bucket(idxs, off.off(), key, map);
-  }
-}  // namespace internal
 
 /**
  * @brief Kind of a molecular surface: solvent-accessible (probe centers) or

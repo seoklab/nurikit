@@ -18,6 +18,7 @@
 #include "nuri/eigen_config.h"
 #include "ring.h"
 #include "stages.h"
+#include "nuri/core/container/csr.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
 #include "nuri/utils.h"
@@ -60,7 +61,7 @@ namespace internal {
 
     int pair_id_unordered(const CSR &g, const int i, const int j) {
       auto [a, b] = nuri::minmax(i, j);
-      return g.find(a, b);
+      return find_sorted(g, a, b);
     }
 
     struct VertexMap {

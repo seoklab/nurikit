@@ -14,6 +14,7 @@
 
 #include "nuri/eigen_config.h"
 #include "stages.h"
+#include "nuri/core/container/csr.h"
 
 namespace nuri {
 namespace internal {
@@ -69,12 +70,6 @@ namespace {
              cosa.head(m) };
   }
 
-  CSR csr_prefix(const CSR &csr, const int n) {
-    const int m = csr.offset(n);
-    return { ArrayXi(csr.adj().head(m)),
-             OffsetTable(ArrayXi(csr.off().head(n + 1))) };
-  }
-
   ConvexPatches convex_patches(const SurfaceSpheres &ss, const SasGeometry &sas,
                                ArrayXd &&area) {
     return { std::move(area), cap_prefix(sas.caps.h, sas.caps.axis,
@@ -101,7 +96,7 @@ namespace {
     const int n_probes = sas.probes.n_active;
     return {
       sas.probes.pos.leftCols(n_probes),
-      csr_prefix(sas.probes.atoms, n_probes),
+      sas.probes.atoms.prefix(n_probes),
       std::move(ses.face_area),
       { std::move(ses.face_off), std::move(ses.face_axis),
                              std::move(ses.face_cosa) }

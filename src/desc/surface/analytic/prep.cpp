@@ -18,6 +18,7 @@
 
 #include "nuri/eigen_config.h"
 #include "stages.h"
+#include "nuri/core/container/csr.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
 #include "nuri/utils.h"
@@ -236,7 +237,7 @@ namespace internal {
             if (sar2[i] * dij.cross(dik).squaredNorm()
                 >= cutoff * (gij * gij) * (gik * gik))
               continue;
-            if (g.find(j, k) < 0)
+            if (find_sorted(g, j, k) < 0)
               continue;
 
             const int mid = ex.shared_circle({ i, j, k });
