@@ -145,6 +145,7 @@ cmake -S {project} -B . \
 ]
 
 [tool.cibuildwheel.config-settings]
+"build-dir" = "/tmp/nuri-build/{wheel_tag}"
 "build.verbose" = "true"
 
 [tool.cibuildwheel.environment]
