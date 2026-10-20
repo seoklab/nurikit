@@ -43,6 +43,7 @@ jobs:
           cmake -G Ninja -S . -B build \
             -DCMAKE_BUILD_TYPE=Debug \
             -DNURI_BUILD_PYTHON_DOCTEST=ON \
+            -DNURI_DEBUG_OPTIMIZATION_LEVEL=Og \
             -DNURI_PREBUILT_ABSL=ON \
             -DNURI_TEST_COVERAGE=ON
 
