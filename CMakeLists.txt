@@ -221,6 +221,7 @@ if(NURI_BUILD_LIB OR NURI_BUILD_PYTHON OR NURI_BUILD_TESTING)
   # Boost superproject's library list as a cache variable directly.
   set(BOOST_INCLUDE_LIBRARIES
     spirit fusion optional container iterator range graph property_map
+    multiprecision
     CACHE INTERNAL "" FORCE
   )
   set(Boost_USE_MULTITHREADED ON)
