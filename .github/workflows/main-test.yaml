@@ -10,7 +10,10 @@ on:
     branches:
       - main
     paths:
+      - ".github/actions/**"
+      - ".github/scripts/**"
       - ".github/workflows/main-test.yaml"
+      - ".github/workflows/_check-want-test.yaml"
       - ".github/workflows/_test-and-coverage.yaml"
       - ".github/workflows/_run-clang-tools.yaml"
       - "cmake/**"

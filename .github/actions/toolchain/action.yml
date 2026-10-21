@@ -1,0 +1,41 @@
+#
+# Project NuriKit - Copyright 2026 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+name: toolchain
+description: >-
+  Install cmake, python, and the brew dependencies on a hosted runner. Call
+  after checkout; the dependency script is resolved relative to this action.
+
+inputs:
+  cmake-version:
+    description: "cmake version spec for lukka/get-cmake"
+    default: "~3.22.0" # Ubuntu 22.04
+  python-version:
+    description: "Python version for actions/setup-python; empty skips"
+    default: "3.9"
+  pip-packages:
+    description: "Space-separated packages to pip install; empty skips"
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: lukka/get-cmake@latest
+      with:
+        cmakeVersion: ${{ inputs.cmake-version }}
+
+    - if: ${{ inputs.python-version != '' }}
+      uses: actions/setup-python@v7
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - if: ${{ inputs.python-version != '' && inputs.pip-packages != '' }}
+      shell: bash
+      run: pip install $PACKAGES
+      env:
+        PACKAGES: ${{ inputs.pip-packages }}
+
+    - shell: bash
+      run: "$GITHUB_ACTION_PATH/../../scripts/setup-deps.sh"

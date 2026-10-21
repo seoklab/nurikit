@@ -26,12 +26,6 @@ jobs:
     name: Wheel for ${{ inputs.python }}
     runs-on: ${{ contains(inputs.python, 'linux') && 'ubuntu-latest' || 'macos-latest' }}
     steps:
-      - uses: lukka/get-cmake@latest
-        with:
-          # Linux -> for Ubuntu 22.04
-          # macOS -> universal binary at least from 3.19.7
-          cmakeVersion: ${{ contains(inputs.python, 'linux') && '~3.22.0' || '3.19.7' }}
-
       - uses: actions/download-artifact@v8
         with:
           name: sdist
@@ -55,9 +49,14 @@ jobs:
           key: wheel-${{ inputs.python }}
           container: ${{ contains(inputs.python, 'linux') }}
 
+      - uses: ./git/.github/actions/toolchain
+        with:
+          # macOS universal binary from 3.19.7
+          cmake-version: ${{ contains(inputs.python, 'linux') && '~3.22.0' || '3.19.7' }}
+          python-version: ""
+
       # The ccache action's post step still needs git/.github at job end.
       - run: |
-          git/.github/scripts/setup-deps.sh
           mv git/docs .
           find git -mindepth 1 -maxdepth 1 ! -name .github -exec rm -rf {} +
 

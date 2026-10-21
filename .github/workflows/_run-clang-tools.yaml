@@ -25,17 +25,9 @@ jobs:
     if: ${{ inputs.files-changed-only }}
 
     steps:
-      - uses: lukka/get-cmake@latest
-        with:
-          cmakeVersion: "~3.22.0" # for Ubuntu 22.04
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.9"
-
       - uses: actions/checkout@v7
 
-      - run: .github/scripts/setup-deps.sh
+      - uses: ./.github/actions/toolchain
 
       - name: Configure with cmake
         run: |

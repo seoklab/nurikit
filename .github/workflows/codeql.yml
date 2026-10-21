@@ -71,17 +71,7 @@ jobs:
       # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
 
       - if: ${{ matrix.language == 'c-cpp' }}
-        uses: lukka/get-cmake@latest
-        with:
-          cmakeVersion: "~3.22.0" # for Ubuntu 22.04
-
-      - if: ${{ matrix.language == 'c-cpp' }}
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.9"
-
-      - if: ${{ matrix.language == 'c-cpp' }}
-        run: .github/scripts/setup-deps.sh
+        uses: ./.github/actions/toolchain
 
       - if: ${{ matrix.language == 'c-cpp' }}
         run: |

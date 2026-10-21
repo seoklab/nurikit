@@ -30,17 +30,6 @@ jobs:
       version: ${{ steps.extract-version.outputs.version }}
 
     steps:
-      - uses: lukka/get-cmake@latest
-        with:
-          # Ubuntu 22.04
-          cmakeVersion: "~3.22.0"
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.9"
-
-      - run: pip install pybind11-stubgen numpy
-
       - uses: actions/checkout@v7
 
       - if: ${{ !inputs.skip-ccache }}
@@ -48,7 +37,9 @@ jobs:
         with:
           key: sdist
 
-      - run: .github/scripts/setup-deps.sh
+      - uses: ./.github/actions/toolchain
+        with:
+          pip-packages: pybind11-stubgen numpy
 
       # Remove once pybind/pybind11-stubgen#280 is released.
       - name: Patch pybind11-stubgen for union-member imports
@@ -125,12 +116,6 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - uses: lukka/get-cmake@latest
-        with:
-          # Ubuntu 22.04 uses 3.22
-          # Automatic ctest parallelism from 3.29
-          cmakeVersion: "~3.29"
-
       - uses: actions/checkout@v7
 
       - if: ${{ !inputs.skip-ccache }}
@@ -139,7 +124,10 @@ jobs:
           key: build-lib-${{ matrix.os }}
           container: ${{ matrix.os == 'linux' }}
 
-      - run: .github/scripts/setup-deps.sh
+      - uses: ./.github/actions/toolchain
+        with:
+          cmake-version: "~3.29" # automatic ctest parallelism
+          python-version: ""
 
       - uses: actions/download-artifact@v8
         with:

@@ -29,16 +29,6 @@ jobs:
     if: ${{ !endsWith(github.triggering_actor, '[bot]') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: lukka/get-cmake@latest
-        with:
-          cmakeVersion: "~3.22.0" # for Ubuntu 22.04
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.9"
-
-      - run: pip install sphinx
-
       - uses: actions/checkout@v7
 
       - if: ${{ !inputs.skip-ccache }}
@@ -46,7 +36,9 @@ jobs:
         with:
           key: coverage
 
-      - run: .github/scripts/setup-deps.sh
+      - uses: ./.github/actions/toolchain
+        with:
+          pip-packages: sphinx
 
       - name: Configure
         run: |
