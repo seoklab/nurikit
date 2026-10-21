@@ -19,11 +19,11 @@ on:
         description: "Minimal build"
         required: false
         default: false
-      ccache:
+      skip-ccache:
         type: boolean
-        description: "Cache compilations with ccache"
+        description: "Skip ccache"
         required: false
-        default: true
+        default: false
   push:
     branches:
       - main
@@ -52,7 +52,7 @@ jobs:
     uses: ./.github/workflows/_base-build.yaml
     with:
       emulate-version: ${{ inputs.emulate-version }}
-      ccache: ${{ inputs.ccache != false }}
+      skip-ccache: ${{ inputs.skip-ccache || false }}
 
   targets:
     uses: ./.github/workflows/_wheel-targets.yaml
@@ -70,7 +70,7 @@ jobs:
     uses: ./.github/workflows/_wheel-build.yaml
     with:
       python: ${{ matrix.python }}
-      ccache: ${{ inputs.ccache != false }}
+      skip-ccache: ${{ inputs.skip-ccache || false }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}

@@ -34,7 +34,7 @@ jobs:
   test:
     uses: ./.github/workflows/_test-and-coverage.yaml
     with:
-      ccache: false
+      skip-ccache: true
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
@@ -43,7 +43,7 @@ jobs:
     with:
       emulate-version: ${{ github.event.inputs.version }}
       minimal: ${{ github.event.inputs.minimal == 'true' }}
-      ccache: false
+      skip-ccache: true
 
   publish:
     needs: [run-clang-tools, test, build]
