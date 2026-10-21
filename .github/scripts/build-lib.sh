@@ -12,6 +12,9 @@ set --
 
 if [[ $output == *linux* ]]; then
 	yum -y install ninja-build
+	if [[ ${CMAKE_CXX_COMPILER_LAUNCHER-} == ccache ]]; then
+		yum -y install ccache
+	fi
 fi
 
 cmake -DCMAKE_BUILD_TYPE=Release \
@@ -27,6 +30,10 @@ cmake -DCMAKE_BUILD_TYPE=Release \
 	-GNinja
 cmake --build build -j --target all
 cmake --install build
+
+if [[ ${CMAKE_CXX_COMPILER_LAUNCHER-} == ccache ]]; then
+	ccache -s
+fi
 
 # pypa build environment installs at lib64
 if [[ ! -d install/lib ]]; then

@@ -1,0 +1,47 @@
+#
+# Project NuriKit - Copyright 2026 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+name: ccache
+description: >-
+  Point every later cmake/pip step at ccache and persist its directory across
+  runs. Host jobs get ccache from hendrikmuhs/ccache-action; container jobs
+  install it themselves (see .github/scripts/build-lib.sh and the cibuildwheel
+  before-all in pyproject.toml.in) and only the directory is cached here.
+
+inputs:
+  key:
+    description: "Cache key, one per job and matrix leg"
+    required: true
+  container:
+    description: "The compiler runs inside a container that provides ccache"
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/ccache"
+        {
+          echo "CCACHE_DIR=$RUNNER_TEMP/ccache"
+          echo "CCACHE_MAXSIZE=500M"
+          echo "CMAKE_CXX_COMPILER_LAUNCHER=ccache"
+        } >>"$GITHUB_ENV"
+
+    # Ubuntu's ccache 4.9 rejects -fprofile-update (coverage build) as an
+    # unsupported option; the action's binary is 4.13. The v1.2 tag lags
+    # behind and lacks the install input.
+    - if: ${{ inputs.container != 'true' }}
+      uses: hendrikmuhs/ccache-action@v1.2.24
+      with:
+        key: ${{ inputs.key }}
+        install: binary
+
+    - if: ${{ inputs.container == 'true' }}
+      uses: actions/cache@v6
+      with:
+        path: ${{ runner.temp }}/ccache
+        key: ccache-${{ inputs.key }}-${{ github.sha }}
+        restore-keys: ccache-${{ inputs.key }}-

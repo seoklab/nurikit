@@ -58,6 +58,7 @@
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "NURI_DEBUG_OPTIMIZATION_LEVEL": "Og",
         "NURI_TEST_COVERAGE": "ON"
       }
     },

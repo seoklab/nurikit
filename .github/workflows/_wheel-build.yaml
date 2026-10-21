@@ -12,6 +12,10 @@ on:
         type: string
         description: "Python version"
         required: true
+      ccache:
+        type: boolean
+        description: "Cache compilations with ccache"
+        default: true
 
 defaults:
   run:
@@ -45,9 +49,17 @@ jobs:
         with:
           path: git
 
+      - if: ${{ inputs.ccache }}
+        uses: ./git/.github/actions/ccache
+        with:
+          key: wheel-${{ inputs.python }}
+          container: ${{ contains(inputs.python, 'linux') }}
+
+      # The ccache action's post step still needs git/.github at job end.
       - run: |
           git/.github/scripts/setup-deps.sh
-          mv git/docs . && rm -rf git
+          mv git/docs .
+          find git -mindepth 1 -maxdepth 1 ! -name .github -exec rm -rf {} +
 
       - id: resolve
         run: |

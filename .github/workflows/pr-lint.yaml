@@ -42,7 +42,7 @@ jobs:
         uses: tj-actions/changed-files@v47
         with:
           files: |
-            **.clang-*
+            **/.clang-*
             scripts/run_clang_tools.sh
 
   run-clang-tools:
