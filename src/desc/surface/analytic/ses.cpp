@@ -16,6 +16,7 @@
 #include "nuri/eigen_config.h"
 #include "ring.h"
 #include "stages.h"
+#include "nuri/core/container/csr.h"
 #include "nuri/core/geometry.h"
 #include "nuri/desc/surface.h"
 #include "nuri/utils.h"

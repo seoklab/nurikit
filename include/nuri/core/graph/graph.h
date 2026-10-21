@@ -25,6 +25,7 @@
 //! @endcond
 
 #include "nuri/core/container/container_ext.h"
+#include "nuri/core/container/csr.h"
 #include "nuri/core/graph/traits.h"
 #include "nuri/iterator.h"
 #include "nuri/meta.h"
@@ -528,7 +529,7 @@ public:
    * @param num_nodes The number of nodes in the graph. All node data will be
    *        default-constructed.
    */
-  Graph(int num_nodes): offsets_(num_nodes + 1), nodes_(num_nodes) { }
+  Graph(int num_nodes): offsets_(num_nodes), nodes_(num_nodes) { }
 
   /**
    * @brief Create a graph with \p num_nodes nodes, each initialized with
@@ -537,7 +538,7 @@ public:
    * @param data The data to copy-initialize each node with.
    */
   Graph(int num_nodes, const NT &data)
-      : offsets_(num_nodes + 1), nodes_(num_nodes, data) { }
+      : offsets_(num_nodes), nodes_(num_nodes, data) { }
 
   bool empty() const {
     // GCOV_EXCL_START
@@ -560,11 +561,11 @@ public:
   }
   int num_edges() const { return static_cast<int>(edges_.size()); }
 
-  int degree(int id) const { return offsets_[id + 1] - offsets_[id]; }
+  int degree(int id) const { return offsets_.degree(id); }
 
   void reserve(int num_nodes) {
     nodes_.reserve(num_nodes);
-    offsets_.reserve(num_nodes + 1);
+    offsets_.reserve(num_nodes);
   }
 
   void reserve_edges(int num_edges) {
@@ -581,7 +582,7 @@ public:
   int add_node(const NT &data) {
     int id = num_nodes();
     nodes_.push_back(data);
-    offsets_.push_back(offsets_[id]);
+    offsets_.push_back(offsets_.total());
     return id;
   }
 
@@ -594,7 +595,7 @@ public:
   int add_node(NT &&data) noexcept {
     int id = num_nodes();
     nodes_.push_back(std::move(data));
-    offsets_.push_back(offsets_[id]);
+    offsets_.push_back(offsets_.total());
     return id;
   }
 
@@ -613,7 +614,7 @@ public:
   int add_nodes(Iterator begin, Iterator end) {
     const int first = num_nodes();
     nodes_.insert(nodes_.end(), begin, end);
-    offsets_.resize(num_nodes() + 1, offsets_.back());
+    offsets_.resize(num_nodes());
     return first;
   }
 
@@ -698,7 +699,7 @@ public:
     nodes_.clear();
     edges_.clear();
     adj_list_.clear();
-    offsets_ = { 0 };
+    offsets_.clear();
   }
 
   /**
@@ -851,7 +852,7 @@ public:
   void clear_edges() {
     edges_.clear();
     adj_list_.clear();
-    absl::c_fill(offsets_, 0);
+    offsets_.clear_rows();
   }
 
   /**
@@ -1128,7 +1129,7 @@ private:
    * edges are shifted, and only the new endpoints are materialized.
    *
    * Precondition: `offsets_` and `adj_list_` form a valid CSR view of
-   * `edges_[0 .. first_eid)`, and `offsets_.size() == nodes_.size() + 1`.
+   * `edges_[0 .. first_eid)`, and `offsets_.size() == num_nodes()`.
    *
    * @note Complexity: `O((V - v_min) + (E_total - first_eid))`, where
    *       `v_min` is the smallest endpoint among the new edges. Degenerates
@@ -1162,10 +1163,11 @@ private:
 
     // Slices of nodes in (src, dst] shrink by 1 (one entry gone before them);
     // slices of nodes > dst shrink by 2.
+    auto &off = offsets_.off();
     for (int v = src + 1; v <= dst; ++v)
-      --offsets_[v];
-    for (int v = dst + 1, n = static_cast<int>(offsets_.size()); v < n; ++v)
-      offsets_[v] -= 2;
+      --off[v];
+    for (int v = dst + 1, n = static_cast<int>(off.size()); v < n; ++v)
+      off[v] -= 2;
   }
 
   AdjRef adjacent(int nid, int idx) {
@@ -1178,7 +1180,7 @@ private:
     return { *this, nid, adj.dst, adj.eid };
   }
 
-  std::vector<int> offsets_ = { 0 };
+  internal::GrowableOffsetTable offsets_;
   std::vector<AdjEntry> adj_list_;
 
   std::vector<NT> nodes_;
@@ -1290,7 +1292,7 @@ Graph<NT, ET>::erase_nodes_common(std::vector<int> &node_keep,
     ABSL_DLOG(INFO) << "resizing offset table & node list";
     // O(1) operations
     nodes_.resize(first_erased_id);
-    offsets_.resize(first_erased_id + 1);
+    offsets_.resize(first_erased_id);
     return ret;
   }
 
@@ -1302,13 +1304,14 @@ Graph<NT, ET>::erase_nodes_common(std::vector<int> &node_keep,
   // Phase IV: update the node numbers in adjacencies and edges, O(V+E)
   mask_to_map(node_keep);
 
+  auto &off = offsets_.off();
   for (int v = 0; v < static_cast<int>(node_keep.size()); ++v) {
     int w = node_keep[v];
     if (w < 0)
       continue;
-    offsets_[w + 1] = offsets_[v + 1];
+    off[w + 1] = off[v + 1];
   }
-  offsets_.resize(nodes_.size() + 1);
+  offsets_.resize(num_nodes());
 
   for (AdjEntry &adj: adj_list_)
     adj.dst = node_keep[adj.dst];
@@ -1348,19 +1351,20 @@ void Graph<NT, ET>::publish_edges_from(const int first_eid) {
   // Invariant on entry to iteration `v`: `shift == sum(delta[v..n-1])`, which
   // equals `shift_{v+1}` (= the offset-shift that was applied to node v+1's
   // slice). Subtracting `delta[v]` yields `shift_v` for the current node.
+  auto &off = offsets_.off();
   int shift = added;
   for (int i = n - 1; i > v_min; --i) {
-    const int old_end = offsets_[i + 1], old_start = offsets_[i],
+    const int old_end = off[i + 1], old_start = off[i],
               old_deg = old_end - old_start;
 
-    offsets_[i + 1] = old_end + shift;
+    off[i + 1] = old_end + shift;
     shift -= delta[i];
     const int new_start = old_start + shift;
     std::move_backward(adj_list_.begin() + old_start,
                        adj_list_.begin() + old_end,
                        adj_list_.begin() + new_start + old_deg);
   }
-  offsets_[v_min + 1] += shift;
+  off[v_min + 1] += shift;
 
   // GCOV_EXCL_START
   ABSL_DCHECK_EQ(shift, delta[v_min])
@@ -1371,8 +1375,8 @@ void Graph<NT, ET>::publish_edges_from(const int first_eid) {
   for (int eid = first_eid; eid < total_edges; ++eid) {
     const StoredEdge &e = edges_[eid];
     int sd = delta[e.src]--, dd = delta[e.dst]--;
-    adj_list_[offsets_[e.src + 1] - sd] = { e.dst, eid };
-    adj_list_[offsets_[e.dst + 1] - dd] = { e.src, eid };
+    adj_list_[off[e.src + 1] - sd] = { e.dst, eid };
+    adj_list_[off[e.dst + 1] - dd] = { e.src, eid };
   }
 }
 
@@ -1479,15 +1483,16 @@ void Graph<NT, ET>::erase_edges_common(std::vector<int> &edge_keep,
 
   // Phase II: compact adj_list_ and rewrite offsets_ in place, O(V+E).
   const int n = num_nodes();
+  auto &off = offsets_.off();
   int p = 0, old_end = 0;
   for (int i = 0; i < n; ++i) {
     const int old_start = old_end;
-    old_end = offsets_[i + 1];
+    old_end = off[i + 1];
     for (int q = old_start; q < old_end; ++q) {
       if (edge_keep[adj_list_[q].eid] != 0)
         adj_list_[p++] = adj_list_[q];
     }
-    offsets_[i + 1] = p;
+    off[i + 1] = p;
   }
   adj_list_.resize(p);
 

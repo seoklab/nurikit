@@ -12,10 +12,10 @@ on:
         type: string
         description: "Python version"
         required: true
-      ccache:
+      skip-ccache:
         type: boolean
-        description: "Cache compilations with ccache"
-        default: true
+        description: "Skip ccache"
+        default: false
 
 defaults:
   run:
@@ -49,7 +49,7 @@ jobs:
         with:
           path: git
 
-      - if: ${{ inputs.ccache }}
+      - if: ${{ !inputs.skip-ccache }}
         uses: ./git/.github/actions/ccache
         with:
           key: wheel-${{ inputs.python }}

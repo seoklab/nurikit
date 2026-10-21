@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include <absl/algorithm/container.h>
 #include <absl/base/nullability.h>
 #include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
@@ -287,7 +288,7 @@ void argsort_bucket(ArrayXi &idxs, Offset &&off, const Key &key,
 
   const int m = static_cast<int>(key.size());
 
-  off.setZero();
+  absl::c_fill(off, 0);
   for (int k = 0; k < m; ++k)
     ++off[key[k]];
   std::inclusive_scan(off.begin(), off.end(), off.begin());

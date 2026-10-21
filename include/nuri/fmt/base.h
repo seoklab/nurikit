@@ -25,6 +25,7 @@
 #include <boost/iterator/iterator_facade.hpp>
 //! @endcond
 
+#include "nuri/core/container/csr.h"
 #include "nuri/core/container/dumb_buffer.h"
 #include "nuri/core/molecule.h"
 #include "nuri/fmt/parse_result.h"
@@ -301,14 +302,13 @@ namespace internal {
 
     void clear() noexcept;
 
-    bool empty() const { return segments_.size() == 1; }
+    bool empty() const { return segments_.size() == 0; }
 
-    int size() const { return static_cast<int>(segments_.size()) - 1; }
+    int size() const { return segments_.size(); }
 
     std::string_view operator[](int i) const {
       ABSL_DCHECK(i >= 0 && i < size());
-      return std::string_view(data_.data() + segments_[i],
-                              segments_[i + 1] - segments_[i]);
+      return std::string_view(data_.data() + segments_[i], segments_.degree(i));
     }
 
     std::string_view front() const { return (*this)[0]; }
@@ -321,7 +321,7 @@ namespace internal {
 
   private:
     std::string data_;
-    std::vector<int> segments_ { 0 };
+    GrowableOffsetTable segments_;
   };
 
   /**

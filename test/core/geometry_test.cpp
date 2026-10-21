@@ -504,8 +504,13 @@ TEST(VoxelGridTest, Create) {
 
   ASSERT_EQ(grid.cell_offset()[0], 0);
   ASSERT_EQ(grid.cell_offset()[grid.num_cells()], m.cols());
-  for (int v = 0; v < grid.num_cells(); ++v)
-    EXPECT_LE(grid.cell_offset()[v], grid.cell_offset()[v + 1]) << "v = " << v;
+  for (int v = 0; v < grid.num_cells(); ++v) {
+    const int beg = grid.cell_offset()[v], end = grid.cell_offset()[v + 1];
+    EXPECT_LE(beg, end) << "v = " << v;
+    EXPECT_TRUE(std::is_sorted(grid.cell_pts().data() + beg,
+                               grid.cell_pts().data() + end))
+        << "v = " << v;
+  }
 
   ArrayXi seen = grid.cell_pts();
   absl::c_sort(seen);
@@ -562,9 +567,15 @@ TEST(VoxelGridTest, TooFineCutoff) {
 }
 
 TEST(VoxelGridTest, EmptyCloud) {
+  const VoxelGrid none;
+  EXPECT_EQ(none.num_cells(), 0);
+  EXPECT_EQ(none.cell_offset().size(), 1);
+
   Matrix3Xd empty(3, 0);
   VoxelGrid grid(empty, 1.0);
   EXPECT_EQ(grid.pts().cols(), 0);
+  EXPECT_EQ(grid.num_cells(), 0);
+  EXPECT_EQ(grid.cell_offset().size(), 1);
 
   std::vector<int> idxs;
   std::vector<double> distsq;
@@ -588,6 +599,8 @@ TEST(VoxelGridTest, EmptyCloud) {
   EXPECT_EQ(grid.pts().cols(), 20);
   grid.rebuild(empty);
   EXPECT_EQ(grid.pts().cols(), 0);
+  EXPECT_EQ(grid.num_cells(), 0);
+  EXPECT_EQ(grid.cell_offset().size(), 1);
 
   grid.find_neighbors_d(Vector3d::Zero(), idxs, distsq);
   EXPECT_TRUE(idxs.empty());
