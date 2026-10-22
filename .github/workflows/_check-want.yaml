@@ -1,0 +1,58 @@
+#
+# Project NuriKit - Copyright 2023 SNU Compbio Lab.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+name: Check commit message for skip markers
+
+on:
+  workflow_call:
+    outputs:
+      test:
+        value: ${{ jobs.check-want.outputs.test }}
+      lint:
+        value: ${{ jobs.check-want.outputs.lint }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check-want:
+    runs-on: ubuntu-latest
+    outputs:
+      test: ${{ steps.want.outputs.test }}
+      lint: ${{ steps.want.outputs.lint }}
+    steps:
+      - uses: actions/checkout@v7
+        id: checkout
+        if: ${{ !github.event.pull_request.draft }}
+        with:
+          fetch-depth: 0
+
+      - id: want
+        run: |
+          test=false
+          lint=false
+
+          if [[ $CHECKED_OUT == success ]]; then
+            if [[ $EVENT == pull_request ]]; then
+              msg="$(git log --no-merges --format=%B -n 1 HEAD)"
+            else
+              msg="$(git log --format=%B -n 1 HEAD)"
+            fi
+
+            grep -Eq '\[(skip test|test skip)\]' <<<"$msg" || test=true
+            [[ $ACTOR == *'[bot]' ]] ||
+              grep -Eq '\[(skip lint|lint skip)\]' <<<"$msg" ||
+              lint=true
+          fi
+
+          {
+            echo "test=$test"
+            echo "lint=$lint"
+          } >>"$GITHUB_OUTPUT"
+        env:
+          CHECKED_OUT: ${{ steps.checkout.outcome }}
+          EVENT: ${{ github.event_name }}
+          ACTOR: ${{ github.triggering_actor }}

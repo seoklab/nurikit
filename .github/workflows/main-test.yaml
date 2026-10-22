@@ -13,7 +13,7 @@ on:
       - ".github/actions/**"
       - ".github/scripts/**"
       - ".github/workflows/main-test.yaml"
-      - ".github/workflows/_check-want-test.yaml"
+      - ".github/workflows/_check-want.yaml"
       - ".github/workflows/_test-and-coverage.yaml"
       - ".github/workflows/_run-clang-tools.yaml"
       - "cmake/**"
@@ -33,25 +33,19 @@ defaults:
     shell: bash
 
 jobs:
-  check-want-lint:
-    uses: ./.github/workflows/_check-want-test.yaml
-    with:
-      keyword: "lint"
-      skip-bots: true
+  check-want:
+    uses: ./.github/workflows/_check-want.yaml
 
   run-clang-tools:
-    needs: check-want-lint
-    if: ${{ needs.check-want-lint.outputs.want == 'true' }}
+    needs: check-want
+    if: ${{ needs.check-want.outputs.lint == 'true' }}
     uses: ./.github/workflows/_run-clang-tools.yaml
     with:
       files-changed-only: false
 
-  check-want-test:
-    uses: ./.github/workflows/_check-want-test.yaml
-
   test-and-coverage:
-    needs: check-want-test
-    if: ${{ needs.check-want-test.outputs.want == 'true' }}
+    needs: check-want
+    if: ${{ needs.check-want.outputs.test == 'true' }}
     uses: ./.github/workflows/_test-and-coverage.yaml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
