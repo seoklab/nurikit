@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - main
+      - "release/**"
     paths:
       - ".github/actions/**"
       - ".github/scripts/**"
@@ -21,12 +22,11 @@ on:
       - "scripts/**"
       - "src/**"
       - "test/**"
-      - "python/include/**"
-      - "python/src/**"
-      - "python/test/**"
+      - "python/**"
       - "third-party/**"
-      - ".clang-*"
-      - "CMakeLists.txt"
+      - "**/.clang-*"
+      - "**/CMakeLists.txt"
+      - pyproject.toml.in
 
 defaults:
   run:
