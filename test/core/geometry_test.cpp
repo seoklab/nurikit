@@ -122,12 +122,15 @@ void verify_octree_neighbor_k(const Matrix3Xd &pts, const OCTree &tree,
 // Outside queries: every child bound is a positive box gap.
 constexpr double kOutsideOffset = 3.0;
 
+// 500 points split twice at this bucket, so queries descend two levels.
+constexpr int kMultiLevelBucket = 8;
+
 TEST(OCTreeTest, FindNeighborByCount) {
   Matrix3Xd m = Matrix3Xd::Random(3, 500);
   Matrix3Xd test = Matrix3Xd::Random(3, 50);
   int k = 10;
 
-  OCTree tree(m);
+  OCTree tree(m, kMultiLevelBucket);
   for (int i = 0; i < test.cols(); ++i)
     verify_octree_neighbor_k(m, tree, test.col(i), k);
 
@@ -160,7 +163,7 @@ TEST(OCTreeTest, FindNeighborByDistance) {
   Matrix3Xd test = Matrix3Xd::Random(3, 50);
   double cutoff = 0.5;
 
-  OCTree tree(m);
+  OCTree tree(m, kMultiLevelBucket);
   for (int i = 0; i < test.cols(); ++i)
     verify_octree_neighbor_d(m, tree, test.col(i), cutoff);
 
@@ -216,7 +219,7 @@ TEST(OCTreeTest, FindNeighborByCountAndDistance) {
   // 5 neighbors in average
   double cutoff = std::pow(2.0 * 5 / 500, 1.0 / 3.0);
 
-  OCTree tree(m);
+  OCTree tree(m, kMultiLevelBucket);
   for (int i = 0; i < test.cols(); ++i)
     verify_octree_neighbor_kd(m, tree, test.col(i), k, cutoff,
                               absl::StrCat("On line ", __LINE__));
@@ -235,7 +238,7 @@ TEST(OCTreeTest, FindNeighborByCountAndDistance) {
 
 TEST(OCTreeTest, NothingInRange) {
   Matrix3Xd m = Matrix3Xd::Random(3, 500);
-  OCTree tree(m);
+  OCTree tree(m, kMultiLevelBucket);
 
   const Vector3d far = Vector3d::Constant(5.0);
   std::vector<int> idxs;
@@ -422,7 +425,7 @@ TEST(OCTreeTest, CoincidentPoints) {
   const Vector3d p(1.0, 2.0, 3.0);
   Matrix3Xd m = p.replicate(1, n);
 
-  OCTree tree(m);
+  OCTree tree(m, kMultiLevelBucket);
   ASSERT_GT(tree.size(), 0);
 
   std::vector<int> idxs;
@@ -453,7 +456,7 @@ TEST(OCTreeTest, CoincidentPoints) {
   tree.find_neighbors_self(0.5, is, js);
   EXPECT_EQ(is.size(), static_cast<size_t>(n) * (n - 1) / 2);
 
-  OCTree other(m);
+  OCTree other(m, kMultiLevelBucket);
   is.clear();
   js.clear();
   tree.find_neighbors_tree(other, 0.5, is, js);

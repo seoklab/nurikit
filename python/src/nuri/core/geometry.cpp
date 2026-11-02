@@ -279,13 +279,14 @@ To update the point set, one must :py:meth:`rebuild()` the octree.
              self.tree.rebuild(self.pts, bucket_size);
              return self;
            }),
-           py::arg("pts"), py::arg("bucket_size") = 32, R"doc(
+           py::arg("pts"), py::arg("bucket_size") = OCTree::kDefaultBucketSize,
+           R"doc(
 Initialize the octree with a set of points.
 
 :param pts: The points to build the octree with. Must be representable as a 2D
   numpy array of shape ``(N, 3)``.
 :param bucket_size: The maximum number of points in each leaf node of the
-  octree. Defaults to 32.
+  octree. Defaults to 64.
 
 :raises ValueError: If ``bucket_size`` is not positive.
 )doc")
@@ -297,13 +298,14 @@ Initialize the octree with a set of points.
             self.pts = py_arr.eigen();
             self.tree.rebuild(self.pts, bucket_size);
           },
-          py::arg("pts"), py::arg("bucket_size") = 32, R"doc(
+          py::arg("pts"), py::arg("bucket_size") = OCTree::kDefaultBucketSize,
+          R"doc(
 Rebuild the octree with a new set of points.
 
 :param pts: The points to build the octree with. Must be representable as a 2D
   numpy array of shape ``(N, 3)``.
 :param bucket_size: The maximum number of points in each leaf node of the
-  octree. Defaults to 32.
+  octree. Defaults to 64.
 
 :raises ValueError: If ``bucket_size`` is not positive.
 )doc")

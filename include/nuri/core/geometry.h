@@ -121,7 +121,10 @@ public:
 
   OCTree() = default;
 
-  explicit OCTree(Points pts, int bucket_size = 32): bucket_size_(bucket_size) {
+  constexpr static int kDefaultBucketSize = 64;
+
+  explicit OCTree(Points pts, int bucket_size = kDefaultBucketSize)
+      : bucket_size_(bucket_size) {
     rebuild_impl(pts);
   }
 
@@ -188,7 +191,7 @@ private:
   std::vector<internal::OCTreeNode> nodes_;
   ArrayXi idxs_;
 
-  int bucket_size_ = 32;
+  int bucket_size_ = kDefaultBucketSize;
 };
 
 namespace internal {
