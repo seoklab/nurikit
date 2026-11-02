@@ -42,20 +42,20 @@ void verify_oct_range(int idx, const Matrix3Xd &pts, const OCTree &oct,
   NURI_EXPECT_EIGEN_EQ(node.maxs(), pts(E::all, members).rowwise().maxCoeff())
       << "node = " << idx;
 
-  if (node.leaf()) {
+  if (oct.leaf(idx)) {
     EXPECT_LE(node.nleaf(), oct.bucket_size()) << "node = " << idx;
     return;
   }
 
-  int c = node.child_begin();
+  int left = node.begin();
   for (int octant = 0; octant < 8; ++octant) {
-    if (!node.has_child(octant))
-      continue;
-
-    EXPECT_EQ(node.child(octant), c) << "node = " << idx;
-    verify_oct_range(c++, pts, oct, node.mins(), node.maxs());
+    const int cid = oct.child(idx, octant);
+    EXPECT_EQ(oct[cid].begin(), left) << "node = " << idx;
+    EXPECT_GT(oct[cid].nleaf(), 0) << "node = " << idx;
+    left = oct[cid].end();
+    verify_oct_range(cid, pts, oct, node.mins(), node.maxs());
   }
-  EXPECT_EQ(c, node.child_end()) << "node = " << idx;
+  EXPECT_EQ(left, node.end()) << "node = " << idx;
 }
 
 TEST(OCTreeTest, Create) {
@@ -65,12 +65,12 @@ TEST(OCTreeTest, Create) {
   std::vector<int> childs { tree.root() }, idxs;
   for (int i = 0; i < tree.size(); ++i) {
     const auto &node = tree[i];
-    if (node.leaf()) {
+    if (tree.leaf(i)) {
       idxs.insert(idxs.end(), tree.idxs().begin() + node.begin(),
                   tree.idxs().begin() + node.begin() + node.nleaf());
     } else {
-      for (int c = node.child_begin(); c < node.child_end(); ++c)
-        childs.push_back(c);
+      for (int o = 0; o < 8; ++o)
+        childs.push_back(tree.child(i, o));
     }
   }
 
@@ -480,12 +480,12 @@ TEST(OCTreeTest, CoincidentPointsStructure) {
   std::vector<int> childs { tree.root() }, idxs;
   for (int i = 0; i < tree.size(); ++i) {
     const auto &node = tree[i];
-    if (node.leaf()) {
+    if (tree.leaf(i)) {
       idxs.insert(idxs.end(), tree.idxs().begin() + node.begin(),
                   tree.idxs().begin() + node.begin() + node.nleaf());
     } else {
-      for (int c = node.child_begin(); c < node.child_end(); ++c)
-        childs.push_back(c);
+      for (int o = 0; o < 8; ++o)
+        childs.push_back(tree.child(i, o));
     }
   }
 
@@ -501,6 +501,20 @@ TEST(OCTreeTest, CoincidentPointsStructure) {
   std::sort(idxs.begin(), idxs.end());
   for (int i = 0; i < idxs.size(); ++i)
     EXPECT_EQ(idxs[i], i) << "i = " << i;
+}
+
+TEST(OCTreeTest, MixedLevelSplitsWhole) {
+  // 515 = 8 * 64 + 3: level 1 is five 64-nodes and three 65-nodes
+  Matrix3Xd m = Matrix3Xd::Random(3, 515);
+  OCTree tree(m, 64);
+  ASSERT_EQ(tree.size(), 73);
+  EXPECT_EQ(tree.leaf_begin(), 9);
+
+  verify_oct_range(tree.root(), m, tree, m.rowwise().minCoeff(),
+                   m.rowwise().maxCoeff());
+
+  for (int i = tree.leaf_begin(); i < tree.size(); ++i)
+    EXPECT_LE(tree[i].nleaf(), 64) << "i = " << i;
 }
 
 TEST(OCTreeTest, EmptyCloud) {
