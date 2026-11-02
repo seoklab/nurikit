@@ -13,6 +13,7 @@
 #include <vector>
 
 #include <absl/log/absl_check.h>
+#include <absl/numeric/bits.h>
 #include <Eigen/Dense>
 //! @endcond
 
@@ -23,22 +24,38 @@
 
 namespace nuri {
 namespace internal {
-  using Array8i = Array<int, 8, 1>;
-
-  class OCTreeNode {
+  // Children of a node are stored contiguously in octant order starting at
+  // first_child_; bit i of child_mask_ marks a non-empty octant i.
+  class alignas(64) OCTreeNode {
   public:
-    OCTreeNode(Array8i &&children, int begin, int nleaf, const Vector3d &mins,
-               const Vector3d &maxs)
-        : children_(std::move(children)), begin_(begin), nleaf_(nleaf),
+    OCTreeNode() = default;
+
+    OCTreeNode(int first_child, uint8_t child_mask, int begin, int nleaf,
+               const Vector3d &mins, const Vector3d &maxs)
+        : first_child_(first_child), begin_(begin), nleaf_(nleaf),
+          child_mask_(child_mask),
+          nchild_(static_cast<uint8_t>(absl::popcount(child_mask))),
           mins_(mins), maxs_(maxs) { }
 
-    const Array8i &children() const { return children_; }
+    bool leaf() const { return child_mask_ == 0; }
 
-    int child(int i) const { return children_[i]; }
+    int child_begin() const { return first_child_; }
+    int child_end() const { return first_child_ + nchild_; }
 
-    int operator[](int i) const { return child(i); }
+    int num_children() const { return nchild_; }
 
-    bool leaf() const;
+    bool has_child(int octant) const {
+      return ((child_mask_ >> octant) & 1) != 0;
+    }
+
+    // XXX: popcount is a libgcc call on baseline x86-64; keep it off the
+    // query path (child_begin()/child_end() iterate the children).
+    int child(int octant) const {
+      ABSL_DCHECK(has_child(octant));
+      return first_child_
+             + absl::popcount(
+                 static_cast<uint8_t>(child_mask_ & ((1U << octant) - 1)));
+    }
 
     int begin() const { return begin_; }
     int end() const { return begin_ + nleaf_; }
@@ -50,12 +67,16 @@ namespace internal {
     const Vector3d &maxs() const { return maxs_; }
 
   private:
-    Array8i children_;
-    int begin_;
-    int nleaf_;
+    int first_child_ = 0;
+    int begin_ = 0;
+    int nleaf_ = 0;
+    uint8_t child_mask_ = 0;
+    uint8_t nchild_ = 0;
     Vector3d mins_;
     Vector3d maxs_;
   };
+
+  static_assert(sizeof(OCTreeNode) == 64);
 
   struct OCTreeNodeEntry {
     int idx;
@@ -172,7 +193,7 @@ public:
 
   int size() const { return static_cast<int>(nodes_.size()); }
 
-  int root() const { return size() - 1; }
+  constexpr static int root() { return 0; }
 
   int bucket_size() const { return bucket_size_; }
 

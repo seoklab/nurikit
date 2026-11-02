@@ -4,6 +4,7 @@
 //
 
 #include <algorithm>
+#include <cstdint>
 #include <numeric>
 #include <utility>
 #include <vector>
@@ -20,11 +21,9 @@
 
 namespace nuri {
 namespace {
-  using internal::Array8i;
   using internal::OCTreeNode;
 
-  constexpr int kNoChild = -1;
-  constexpr int kLeafMarker = -2;  // children_[0] only
+  using Array8i = Array<int, 8, 1>;
 
   // Octant index is (xyz):
   // 000 -> +++, 100 -> -++, 010 -> +-+, 110 -> --+,
@@ -81,9 +80,10 @@ namespace {
     return ptrs;
   }
 
-  int build_octree(OCTree::Points pts, std::vector<OCTreeNode> &data,
-                   ArrayXi &idxs, const int begin, const int nleaf,
-                   const int bucket_size, SplitKeys keys) {
+  // XXX: data reallocates during the recursion; hold slots, never references.
+  void build_octree(OCTree::Points pts, std::vector<OCTreeNode> &data,
+                    ArrayXi &idxs, const int begin, const int nleaf,
+                    const int bucket_size, SplitKeys keys, const int slot) {
     Vector3d mins = pts.col(idxs[begin]), maxs = mins;
     for (int i = begin + 1; i < begin + nleaf; ++i) {
       auto pt = pts.col(idxs[i]);
@@ -91,43 +91,35 @@ namespace {
       maxs = maxs.cwiseMax(pt);
     }
 
-    Array8i children;
-    auto epilog = [&] {
-      int id = static_cast<int>(data.size());
-      data.emplace_back(std::move(children), begin, nleaf, mins, maxs);
-      return id;
-    };
-
     if (nleaf <= bucket_size) {
       std::sort(idxs.begin() + begin, idxs.begin() + begin + nleaf);
-      children[0] = kLeafMarker;
-      return epilog();
+      data[slot] = OCTreeNode(0, 0, begin, nleaf, mins, maxs);
+      return;
     }
 
     Array8i ptrs = partition_octant(idxs, begin, begin + nleaf, pts, keys);
 
-    int right = begin;
-    for (int i = 0; i < 8; ++i) {
-      int left = right;
-      right = ptrs[i];
-
-      int nchild = right - left;
-      if (nchild <= 0) {
-        children[i] = kNoChild;
-        continue;
-      }
-
-      children[i] =
-          build_octree(pts, data, idxs, left, nchild, bucket_size, keys);
+    uint8_t mask = 0;
+    for (int i = 0, left = begin; i < 8; ++i) {
+      mask |= static_cast<uint8_t>(value_if(ptrs[i] > left) << i);
+      left = ptrs[i];
     }
 
-    return epilog();
+    const int first = static_cast<int>(data.size());
+    const OCTreeNode node(first, mask, begin, nleaf, mins, maxs);
+    data.resize(first + node.num_children());
+    data[slot] = node;
+
+    int cid = first;
+    for (int i = 0, left = begin; i < 8; ++i) {
+      const int right = ptrs[i];
+      if (right > left)
+        build_octree(pts, data, idxs, left, right - left, bucket_size, keys,
+                     cid++);
+      left = right;
+    }
   }
 }  // namespace
-
-bool internal::OCTreeNode::leaf() const {
-  return children_[0] == kLeafMarker;
-}
 
 void OCTree::rebuild_impl(Points src) {
   bucket_size_ = nuri::max(8, bucket_size_);
@@ -146,12 +138,14 @@ void OCTree::rebuild_impl(Points src) {
   std::iota(idxs_.begin(), idxs_.end(), 0);
 
   std::vector<SplitKey> keys(n);
+  nodes_.resize(1);
   {
     internal::AllowEigenMallocScoped<false> ems;
-    build_octree(src, nodes_, idxs_, 0, n, bucket_size_, absl::MakeSpan(keys));
+    build_octree(src, nodes_, idxs_, 0, n, bucket_size_, absl::MakeSpan(keys),
+                 root());
   }
 
-  const OCTreeNode &root_node = nodes_.back();
+  const OCTreeNode &root_node = nodes_.front();
   max_ = root_node.maxs();
   len_ = max_ - root_node.mins();
 
@@ -244,7 +238,7 @@ namespace {
     ArrayXd &dsqbuf = scratch.dsqbuf(tree.bucket_size());
 
     OCTreeKdScratch::NodeHeap &node_heap = scratch.nodes();
-    node_heap.push({ tree.root(), 0 });
+    node_heap.push({ OCTree::root(), 0 });
 
     while (!node_heap.empty()) {
       auto [idx, min_dsq] = node_heap.pop_get();
@@ -271,10 +265,7 @@ namespace {
         continue;
       }
 
-      for (int cid: node.children()) {
-        if (cid < 0)
-          continue;
-
+      for (int cid = node.child_begin(); cid < node.child_end(); ++cid) {
         double child_dsq = minsq_box_point(tree[cid], pt);
         if (child_dsq > worst_dsq)
           continue;
@@ -348,8 +339,8 @@ namespace {
       return;
     }
 
-    for (int cid: node.children()) {
-      if (cid < 0 || minsq_box_point(oct[cid], pt) > cutoffsq)
+    for (int cid = node.child_begin(); cid < node.child_end(); ++cid) {
+      if (minsq_box_point(oct[cid], pt) > cutoffsq)
         continue;
 
       find_candidates_d(oct, pt, cutoffsq, idxs, distsq, oct[cid], dsqbuf);
@@ -384,7 +375,7 @@ namespace {
   class OCTreeBox {
   public:
     explicit OCTreeBox(const OCTree &parent)
-        : OCTreeBox(parent, parent.root()) { }
+        : OCTreeBox(parent, OCTree::root()) { }
 
     OCTreeBox(const OCTree &parent, int nid): parent_(&parent), nid_(nid) { }
 
@@ -400,11 +391,10 @@ namespace {
       return { min_dsq, max_dsq };
     }
 
-    bool has_child(int octant) const { return node()[octant] >= 0; }
+    int child_begin() const { return node().child_begin(); }
+    int child_end() const { return node().child_end(); }
 
-    OCTreeBox child(int octant) const {
-      return OCTreeBox(*parent_, node()[octant]);
-    }
+    OCTreeBox child(int cid) const { return OCTreeBox(*parent_, cid); }
 
     bool leaf_node() const { return node().leaf(); }
 
@@ -523,44 +513,29 @@ namespace {
     }
 
     if (left.leaf_node()) {
-      for (int j = 0; j < 8; ++j) {
-        if (!right.has_child(j))
-          continue;
-
+      for (int j = right.child_begin(); j < right.child_end(); ++j)
         find_neighbors_tree_impl<intra>(is, js, dsqbuf, jbuf, left,
                                         right.child(j), cutoffsq);
-      }
       return;
     }
 
     if (right.leaf_node()) {
-      for (int i = 0; i < 8; ++i) {
-        if (!left.has_child(i))
-          continue;
-
+      for (int i = left.child_begin(); i < left.child_end(); ++i)
         find_neighbors_tree_impl<intra>(is, js, dsqbuf, jbuf, left.child(i),
                                         right, cutoffsq);
-      }
       return;
     }
 
-    for (int i = 0; i < 8; ++i) {
-      if (!left.has_child(i))
-        continue;
-
+    for (int i = left.child_begin(); i < left.child_end(); ++i) {
       OCTreeBox lc = left.child(i);
-      int j0 = 0;
+      int j0 = right.child_begin();
       if constexpr (intra) {
         if (left.id() == right.id())
           j0 = i;
       }
-      for (int j = j0; j < 8; ++j) {
-        if (!right.has_child(j))
-          continue;
-
+      for (int j = j0; j < right.child_end(); ++j)
         find_neighbors_tree_impl<intra>(is, js, dsqbuf, jbuf, lc,
                                         right.child(j), cutoffsq);
-      }
     }
   }
 }  // namespace

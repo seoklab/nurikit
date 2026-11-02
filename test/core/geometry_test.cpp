@@ -47,9 +47,15 @@ void verify_oct_range(int idx, const Matrix3Xd &pts, const OCTree &oct,
     return;
   }
 
-  for (int c: node.children())
-    if (c >= 0)
-      verify_oct_range(c, pts, oct, node.mins(), node.maxs());
+  int c = node.child_begin();
+  for (int octant = 0; octant < 8; ++octant) {
+    if (!node.has_child(octant))
+      continue;
+
+    EXPECT_EQ(node.child(octant), c) << "node = " << idx;
+    verify_oct_range(c++, pts, oct, node.mins(), node.maxs());
+  }
+  EXPECT_EQ(c, node.child_end()) << "node = " << idx;
 }
 
 TEST(OCTreeTest, Create) {
@@ -63,9 +69,8 @@ TEST(OCTreeTest, Create) {
       idxs.insert(idxs.end(), tree.idxs().begin() + node.begin(),
                   tree.idxs().begin() + node.begin() + node.nleaf());
     } else {
-      for (int c: node.children())
-        if (c >= 0)
-          childs.push_back(c);
+      for (int c = node.child_begin(); c < node.child_end(); ++c)
+        childs.push_back(c);
     }
   }
 
@@ -479,9 +484,8 @@ TEST(OCTreeTest, CoincidentPointsStructure) {
       idxs.insert(idxs.end(), tree.idxs().begin() + node.begin(),
                   tree.idxs().begin() + node.begin() + node.nleaf());
     } else {
-      for (int c: node.children())
-        if (c >= 0)
-          childs.push_back(c);
+      for (int c = node.child_begin(); c < node.child_end(); ++c)
+        childs.push_back(c);
     }
   }
 
