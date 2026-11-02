@@ -8,6 +8,7 @@
 //! @cond
 #include <cmath>
 #include <cstdint>
+#include <functional>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -78,15 +79,20 @@ namespace internal {
 
   static_assert(sizeof(OCTreeNode) == 64);
 
-  struct OCTreeNodeEntry {
-    int idx;
-    double min_dsq;
-  };
+  class OCTreeNodeEntry {
+  public:
+    OCTreeNodeEntry(int idx, double min_dsq): idx_(idx), min_dsq_(min_dsq) { }
 
-  struct OCTreeNodeFarther {
-    bool operator()(const OCTreeNodeEntry &a, const OCTreeNodeEntry &b) const {
-      return a.min_dsq > b.min_dsq;
+    int idx() const { return idx_; }
+    double min_dsq() const { return min_dsq_; }
+
+    bool operator>(const OCTreeNodeEntry &other) const {
+      return min_dsq_ > other.min_dsq_;
     }
+
+  private:
+    int idx_;
+    double min_dsq_;
   };
 
   struct OCTreeCandEntry {
@@ -102,7 +108,7 @@ namespace internal {
 
   class OCTreeKdScratch {
   public:
-    using NodeHeap = ClearablePQ<OCTreeNodeEntry, OCTreeNodeFarther>;
+    using NodeHeap = ClearablePQ<OCTreeNodeEntry, std::greater<>>;
     using CandHeap = ClearablePQ<OCTreeCandEntry, OCTreeCandCloser>;
 
     void clear() {

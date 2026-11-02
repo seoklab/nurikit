@@ -232,45 +232,72 @@ namespace {
   };
 
   template <class Best>
+  double scan_leaf(const OCTree &tree, const OCTreeNode &node,
+                   const Vector3d &pt, ArrayXd &dsqbuf, Best &best,
+                   double worst_dsq) {
+    const int cnt = node.nleaf();
+    dsqbuf.head(cnt) = (tree.pts().middleCols(node.begin(), cnt).colwise() - pt)
+                           .colwise()
+                           .squaredNorm();
+
+    for (int i = 0; i < cnt; ++i) {
+      double d = dsqbuf[i];
+      if (d > worst_dsq)
+        continue;
+
+      worst_dsq = best.offer(d, tree.idxs()[i + node.begin()], worst_dsq);
+    }
+    return worst_dsq;
+  }
+
+  template <class Best>
   void find_kd_impl(const OCTree &tree, const Vector3d &pt, double worst_dsq,
                     Best &best, OCTreeKdScratch &scratch,
                     std::vector<int> &idxs, std::vector<double> &distsq) {
     ArrayXd &dsqbuf = scratch.dsqbuf(tree.bucket_size());
 
     OCTreeKdScratch::NodeHeap &node_heap = scratch.nodes();
-    node_heap.push({ OCTree::root(), 0 });
+    node_heap.emplace(OCTree::root(), 0.0);
 
     while (!node_heap.empty()) {
-      auto [idx, min_dsq] = node_heap.pop_get();
+      const auto top = node_heap.pop_get();
       // Nodes are popped in order of increasing min_dsq, so once min_dsq
       // exceeds worst_dsq we cannot improve the answer anymore.
-      if (min_dsq > worst_dsq)
+      if (top.min_dsq() > worst_dsq)
         break;
 
-      const OCTreeNode &node = tree[idx];
-      if (node.leaf()) {
-        const int cnt = node.nleaf();
-        dsqbuf.head(cnt) =
-            (tree.pts().middleCols(node.begin(), cnt).colwise() - pt)
-                .colwise()
-                .squaredNorm();
+      int cur = top.idx();
+      while (true) {
+        const OCTreeNode &node = tree[cur];
+        if (node.leaf()) {
+          worst_dsq = scan_leaf(tree, node, pt, dsqbuf, best, worst_dsq);
+          break;
+        }
 
-        for (int i = 0; i < cnt; ++i) {
-          double d = dsqbuf[i];
-          if (d > worst_dsq)
+        const int first = node.child_begin(), nchild = node.num_children();
+        double child_dsq[8];
+        int nearest = -1;
+        double nearest_dsq = worst_dsq;
+        for (int k = 0; k < nchild; ++k) {
+          child_dsq[k] = minsq_box_point(tree[first + k], pt);
+          if (child_dsq[k] <= nearest_dsq) {
+            nearest = k;
+            nearest_dsq = child_dsq[k];
+          }
+        }
+
+        if (nearest < 0)
+          break;
+
+        for (int k = 0; k < nchild; ++k) {
+          if (k == nearest || child_dsq[k] > worst_dsq)
             continue;
 
-          worst_dsq = best.offer(d, tree.idxs()[i + node.begin()], worst_dsq);
+          // XXX: emplace, not push: a pushed entry temp is staged on the stack
+          // and reloaded as one 16-byte word (store-forwarding stall).
+          node_heap.emplace(first + k, child_dsq[k]);
         }
-        continue;
-      }
-
-      for (int cid = node.child_begin(); cid < node.child_end(); ++cid) {
-        double child_dsq = minsq_box_point(tree[cid], pt);
-        if (child_dsq > worst_dsq)
-          continue;
-
-        node_heap.push({ cid, child_dsq });
+        cur = first + nearest;
       }
     }
 
