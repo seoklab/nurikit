@@ -27,10 +27,10 @@ namespace internal {
 
   class OCTreeNode {
   public:
-    OCTreeNode(Array8i &&children, int begin, int nleaf, const Vector3d &maxs,
-               const Vector3d &half)
+    OCTreeNode(Array8i &&children, int begin, int nleaf, const Vector3d &mins,
+               const Vector3d &maxs)
         : children_(std::move(children)), begin_(begin), nleaf_(nleaf),
-          maxs_(maxs), half_(half) { }
+          mins_(mins), maxs_(maxs) { }
 
     const Array8i &children() const { return children_; }
 
@@ -45,16 +45,16 @@ namespace internal {
 
     int nleaf() const { return nleaf_; }
 
-    const Vector3d &maxs() const { return maxs_; }
+    const Vector3d &mins() const { return mins_; }
 
-    const Vector3d &half() const { return half_; }
+    const Vector3d &maxs() const { return maxs_; }
 
   private:
     Array8i children_;
     int begin_;
     int nleaf_;
+    Vector3d mins_;
     Vector3d maxs_;
-    Vector3d half_;
   };
 
   struct OCTreeNodeEntry {
@@ -173,8 +173,6 @@ public:
 
   int bucket_size() const { return bucket_size_; }
 
-  int max_nleaf() const { return max_nleaf_; }
-
   const ArrayXi &idxs() const { return idxs_; }
 
   const internal::OCTreeNode &node(int i) const { return nodes_[i]; }
@@ -191,7 +189,6 @@ private:
   ArrayXi idxs_;
 
   int bucket_size_ = 32;
-  int max_nleaf_ = 0;
 };
 
 namespace internal {
