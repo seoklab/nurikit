@@ -279,34 +279,46 @@ To update the point set, one must :py:meth:`rebuild()` the octree.
              self.tree.rebuild(self.pts, bucket_size);
              return self;
            }),
-           py::arg("pts"), py::arg("bucket_size") = 32, R"doc(
+           py::arg("pts"), py::arg("bucket_size") = OCTree::kDefaultBucketSize,
+           R"doc(
 Initialize the octree with a set of points.
 
 :param pts: The points to build the octree with. Must be representable as a 2D
   numpy array of shape ``(N, 3)``.
 :param bucket_size: The maximum number of points in each leaf node of the
-  octree. Defaults to 32.
+  octree. Defaults to 64.
 
 :raises ValueError: If ``bucket_size`` is not positive.
 )doc")
       .def(
           "rebuild",
-          [](OCTreeWrapper &self, const py::handle &obj, int bucket_size) {
+          [](OCTreeWrapper &self, const py::handle &obj,
+             std::optional<int> xbucket_size) {
+            int bucket_size = self.tree.bucket_size();
+            if (xbucket_size) {
+              bucket_size = *xbucket_size;
+              check_positive(bucket_size, "bucket_size");
+            }
+
             auto py_arr = py_array_cast<3>(obj);
-            check_positive(bucket_size, "bucket_size");
             self.pts = py_arr.eigen();
             self.tree.rebuild(self.pts, bucket_size);
           },
-          py::arg("pts"), py::arg("bucket_size") = 32, R"doc(
+          py::arg("pts"), py::arg("bucket_size") = py::none(), R"doc(
 Rebuild the octree with a new set of points.
 
 :param pts: The points to build the octree with. Must be representable as a 2D
   numpy array of shape ``(N, 3)``.
 :param bucket_size: The maximum number of points in each leaf node of the
-  octree. Defaults to 32.
+  octree. If omitted, the current bucket size is reused. Must be positive when
+  specified.
 
-:raises ValueError: If ``bucket_size`` is not positive.
+:raises ValueError: If ``bucket_size`` is specified and not positive.
 )doc")
+      .def_property_readonly(
+          "bucket_size",
+          [](const OCTreeWrapper &self) { return self.tree.bucket_size(); },
+          "The maximum number of points in each leaf node of this octree.")
       .def(
           "find_neighbors",
           [](const OCTreeWrapper &self, const py::handle &obj,

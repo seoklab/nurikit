@@ -105,9 +105,14 @@ class TestOctree:
     def test_construct_and_rebuild(self, cloud: tuple[np.ndarray, np.ndarray]):
         pts, _ = cloud
         tree = ngeom.Octree(pts)
+        assert tree.bucket_size == 64
 
         new_pts = pts[:50]
         tree.rebuild(new_pts, bucket_size=8)
+        assert tree.bucket_size == 8
+
+        tree.rebuild(new_pts)
+        assert tree.bucket_size == 8
 
         qry = pts[:5]
         idxs, dist = tree.find_neighbors(qry, k=1)

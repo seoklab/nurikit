@@ -4,13 +4,11 @@
 //
 
 #include <algorithm>
-#include <array>
 #include <numeric>
 #include <utility>
 #include <vector>
 
 #include <absl/base/attributes.h>
-#include <absl/base/optimization.h>
 #include <absl/log/absl_check.h>
 #include <absl/log/absl_log.h>
 #include <absl/types/span.h>
@@ -22,191 +20,127 @@
 
 namespace nuri {
 namespace {
-  using internal::Array8i;
   using internal::OCTreeNode;
 
-  constexpr int kNoChild = -1;
-  constexpr int kLeafMarker = -2;  // children_[0] only
-
-  // Octant index is (xyz):
+  // Octant o of a node covers [bounds[o], bounds[o + 1]). Octant index (xyz):
   // 000 -> +++, 100 -> -++, 010 -> +-+, 110 -> --+,
   // 001 -> ++-, 101 -> -+-, 011 -> +--, 111 -> ---
+  using OctantBounds = Array<int, 9, 1>;
 
-  const std::array<Vector3d, 8> kOctantMasks = [] {
-    std::array<Vector3d, 8> masks;
-    for (int i = 0; i < 8; ++i) {
-      auto mask_of = [&](int axis) {
-        return static_cast<double>(static_cast<bool>(i & (0b100 >> axis)));
-      };
+  using SplitKey = std::pair<double, int>;
+  using SplitKeys = absl::Span<SplitKey>;
 
-      masks[i][0] = mask_of(0);
-      masks[i][1] = mask_of(1);
-      masks[i][2] = mask_of(2);
-    }
-    return masks;
-  }();
-
-  Vector3d max_of(int octant, const Vector3d &max, const Vector3d &size) {
-    return max - size.cwiseProduct(kOctantMasks[octant]);
-  }
-
-  // partition begin - end into two parts:
+  // Split begin - end at the rank median into two parts:
   // +: [begin, ret), -: [ret, end)
   int partition_sub(ArrayXi &idxs, int begin, int end, OCTree::Points pts,
-                    const Vector3d &cntr, int axis) {
-    auto it =
-        std::partition(idxs.begin() + begin, idxs.begin() + end,
-                       [&](int idx) { return pts(axis, idx) >= cntr[axis]; });
-    return static_cast<int>(it - idxs.begin());
+                    int axis, SplitKeys keys) {
+    for (int i = begin; i < end; ++i)
+      keys[i] = { pts(axis, idxs[i]), idxs[i] };
+
+    const int mid = begin + (end - begin) / 2;
+    std::nth_element(
+        keys.begin() + begin, keys.begin() + mid, keys.begin() + end,
+        [](const SplitKey &a, const SplitKey &b) { return a.first > b.first; });
+
+    for (int i = begin; i < end; ++i)
+      idxs[i] = keys[i].second;
+    return mid;
   }
 
-  Array8i partition_octant(ArrayXi &idxs, int begin, int end,
-                           OCTree::Points pts, const Vector3d &cntr) {
-    Array8i ptrs;
-    ptrs[7] = end;
-
-    for (int i = 0; i < 3; ++i) {
-      int right = begin;
-      int plen = 4 >> i;
-      // i == 0 -> j: 3          (plen == 4)
-      // i == 1 -> j: 1, 5       (plen == 2)
-      // i == 2 -> j: 0, 2, 4, 6 (plen == 1)
-      for (int j = plen - 1; j < 8; j += plen << 1) {
-        int left = right;
-        right = ptrs[j + plen];
-        ptrs[j] = partition_sub(idxs, left, right, pts, cntr, i);
-      }
+  // Nested halving, x then y then z:
+  // axis 0 -> j: 4          (plen == 4)
+  // axis 1 -> j: 2, 6       (plen == 2)
+  // axis 2 -> j: 1, 3, 5, 7 (plen == 1)
+  OctantBounds partition_octant(ArrayXi &idxs, int begin, int end,
+                                OCTree::Points pts, SplitKeys keys) {
+    OctantBounds bounds;
+    bounds[0] = begin;
+    bounds[8] = end;
+    for (int axis = 0; axis < 3; ++axis) {
+      const int plen = 4 >> axis;
+      for (int j = plen; j < 8; j += plen << 1)
+        bounds[j] = partition_sub(idxs, bounds[j - plen], bounds[j + plen], pts,
+                                  axis, keys);
     }
-
-    // Now [begin, end) is partitioned into 8 octants so that (xyz) is:
-    // 000 (+++): [begin, ptrs[0])
-    // 001 (++-): [ptrs[0], ptrs[1])
-    // 010 (+-+): [ptrs[1], ptrs[2])
-    // 011 (+--): [ptrs[2], ptrs[3])
-    // 100 (-++): [ptrs[3], ptrs[4])
-    // 101 (-+-): [ptrs[4], ptrs[5])
-    // 110 (--+): [ptrs[5], ptrs[6])
-    // 111 (---): [ptrs[6], ptrs[7] == end)
-    // So the octant index matches end index of each octant.
-    return ptrs;
+    return bounds;
   }
 
-  int build_octree(OCTree::Points pts, std::vector<OCTreeNode> &data,
-                   const Vector3d &max, const Vector3d &size, ArrayXi &idxs,
-                   const int begin, const int nleaf, const int bucket_size,
-                   int &max_nleaf) {
-    Vector3d half = size * 0.5;
-
-    Array8i children;
-    auto epilog = [&] {
-      int id = static_cast<int>(data.size());
-      data.emplace_back(std::move(children), begin, nleaf, max, half);
-      return id;
-    };
-
-    auto mark_leaf = [&] {
-      std::sort(idxs.begin() + begin, idxs.begin() + begin + nleaf);
-      children[0] = kLeafMarker;
-    };
-
-    if (nleaf <= bucket_size) {
-      mark_leaf();
-      return epilog();
+  OCTreeNode make_node(OCTree::Points pts, const ArrayXi &idxs, int begin,
+                       int nleaf) {
+    Vector3d mins = pts.col(idxs[begin]), maxs = mins;
+    for (int i = begin + 1; i < begin + nleaf; ++i) {
+      auto pt = pts.col(idxs[i]);
+      mins = mins.cwiseMin(pt);
+      maxs = maxs.cwiseMax(pt);
     }
+    return OCTreeNode(begin, nleaf, mins, maxs);
+  }
 
-    Vector3d cntr = max - half;
-
-    // Bounds the recursion at floating-point precision
-    if (ABSL_PREDICT_FALSE((cntr.array() == max.array()).all())) {
-      mark_leaf();
-      max_nleaf = nuri::max(max_nleaf, nleaf);
-      return epilog();
-    }
-
-    Array8i ptrs = partition_octant(idxs, begin, begin + nleaf, pts, cntr);
-
-    int right = begin;
-    for (int i = 0; i < 8; ++i) {
-      int left = right;
-      right = ptrs[i];
-
-      int nchild = right - left;
-      if (nchild <= 0) {
-        children[i] = kNoChild;
-        continue;
-      }
-
-      children[i] = build_octree(pts, data, max_of(i, max, half), half, idxs,
-                                 left, nchild, bucket_size, max_nleaf);
-    }
-
-    return epilog();
+  // Complete 8-ary tree: the leaf level is the first whose largest node,
+  // ceil(n / 8^depth), fits the bucket.
+  int complete_tree_size(int n, int bucket_size) {
+    int total = 1;
+    for (int largest = n; largest > bucket_size; largest = (largest + 7) / 8)
+      total = 8 * total + 1;
+    return total;
   }
 }  // namespace
 
-bool internal::OCTreeNode::leaf() const {
-  return children_[0] == kLeafMarker;
-}
-
 void OCTree::rebuild_impl(Points src) {
   bucket_size_ = nuri::max(8, bucket_size_);
-  nodes_.clear();
 
   const int n = static_cast<int>(src.cols());
   if (n == 0) {
+    nodes_.clear();
     max_.setZero();
     len_.setZero();
     idxs_.resize(0);
     pts_.resize(3, 0);
-    max_nleaf_ = 0;
     return;
   }
-
-  max_ = src.rowwise().maxCoeff();
-  len_ = max_ - src.rowwise().minCoeff();
 
   idxs_.resize(n);
   std::iota(idxs_.begin(), idxs_.end(), 0);
 
-  max_nleaf_ = bucket_size_;
+  nodes_.resize(complete_tree_size(n, bucket_size_));
+  const int leaf_begin = this->leaf_begin();
+  std::vector<SplitKey> keys(n);
   {
     internal::AllowEigenMallocScoped<false> ems;
-    build_octree(src, nodes_, max_, len_, idxs_, 0, n, bucket_size_,
-                 max_nleaf_);
+
+    auto place = [&](int slot, int begin, int nleaf) {
+      if (slot >= leaf_begin)
+        std::sort(idxs_.begin() + begin, idxs_.begin() + begin + nleaf);
+      nodes_[slot] = make_node(src, idxs_, begin, nleaf);
+    };
+
+    place(root(), 0, n);
+    for (int i = 0; i < leaf_begin; ++i) {
+      const OCTreeNode &parent = nodes_[i];
+      const OctantBounds bounds = partition_octant(
+          idxs_, parent.begin(), parent.end(), src, absl::MakeSpan(keys));
+      for (int o = 0; o < 8; ++o) {
+        ABSL_DCHECK_GT(bounds[o + 1], bounds[o]);
+        place(child(i, o), bounds[o], bounds[o + 1] - bounds[o]);
+      }
+    }
   }
+
+  const OCTreeNode &root_node = nodes_.front();
+  max_ = root_node.maxs();
+  len_ = max_ - root_node.mins();
 
   pts_ = src(E::all, idxs_);
 }
 
 namespace {
-  using Array8d = Array<double, 8, 1>;
-
   using internal::OCTreeKdScratch;
 
-  int octant_idx(const Vector3d &diff) {
-    Array3i isneg = (diff.array() < 0.).cast<int>();
-    return (isneg.x() << 2) | (isneg.y() << 1) | (isneg.z() << 0);
-  }
-
-  Array8d octant_min_distsq(int octant, const Vector3d &ax_distsq,
-                            double my_dsq = 0.0) {
-    int idxs[8] = { octant,
-                    // flip    x  ,             y ,              z,
-                    octant ^ 0b100, octant ^ 0b010, octant ^ 0b001,
-                    // flip    xy ,             yz,            x z,
-                    octant ^ 0b110, octant ^ 0b011, octant ^ 0b101,
-                    // flip    xyz
-                    octant ^ 0b111 };
-
-    Array8d octant_distsq;
-    octant_distsq(idxs)[0] = my_dsq;
-    // neighbors
-    octant_distsq(idxs).segment<3>(1) = ax_distsq;
-    // diagonals
-    octant_distsq(idxs).segment<3>(4) = ax_distsq + ax_distsq({ 1, 2, 0 });
-    // opposite
-    octant_distsq(idxs)[7] = ax_distsq.sum();
-    return octant_distsq;
+  double minsq_box_point(const OCTreeNode &node, const Vector3d &pt) {
+    return (node.mins() - pt)
+        .cwiseMax(pt - node.maxs())
+        .cwiseMax(0.0)
+        .squaredNorm();
   }
 
   double maxsq_box_point(const Vector3d &box_max, const Vector3d &box_len,
@@ -279,50 +213,72 @@ namespace {
   };
 
   template <class Best>
+  double scan_leaf(const OCTree &tree, const OCTreeNode &node,
+                   const Vector3d &pt, ArrayXd &dsqbuf, Best &best,
+                   double worst_dsq) {
+    const int cnt = node.nleaf();
+    dsqbuf.head(cnt) = (tree.pts().middleCols(node.begin(), cnt).colwise() - pt)
+                           .colwise()
+                           .squaredNorm();
+
+    for (int i = 0; i < cnt; ++i) {
+      double d = dsqbuf[i];
+      if (d > worst_dsq)
+        continue;
+
+      worst_dsq = best.offer(d, tree.idxs()[i + node.begin()], worst_dsq);
+    }
+    return worst_dsq;
+  }
+
+  template <class Best>
   void find_kd_impl(const OCTree &tree, const Vector3d &pt, double worst_dsq,
                     Best &best, OCTreeKdScratch &scratch,
                     std::vector<int> &idxs, std::vector<double> &distsq) {
-    ArrayXd &dsqbuf = scratch.dsqbuf(tree.max_nleaf());
+    ArrayXd &dsqbuf = scratch.dsqbuf(tree.bucket_size());
+    const int leaf_begin = tree.leaf_begin();
 
     OCTreeKdScratch::NodeHeap &node_heap = scratch.nodes();
-    node_heap.push({ tree.root(), 0 });
+    node_heap.emplace(OCTree::root(), 0.0);
 
     while (!node_heap.empty()) {
-      auto [idx, min_dsq] = node_heap.pop_get();
+      const auto top = node_heap.pop_get();
       // Nodes are popped in order of increasing min_dsq, so once min_dsq
       // exceeds worst_dsq we cannot improve the answer anymore.
-      if (min_dsq > worst_dsq)
+      if (top.min_dsq() > worst_dsq)
         break;
 
-      const OCTreeNode &node = tree[idx];
-      if (node.leaf()) {
-        const int cnt = node.nleaf();
-        dsqbuf.head(cnt) =
-            (tree.pts().middleCols(node.begin(), cnt).colwise() - pt)
-                .colwise()
-                .squaredNorm();
+      int cur = top.idx();
+      while (true) {
+        if (cur >= leaf_begin) {
+          worst_dsq = scan_leaf(tree, tree[cur], pt, dsqbuf, best, worst_dsq);
+          break;
+        }
 
-        for (int i = 0; i < cnt; ++i) {
-          double d = dsqbuf[i];
-          if (d > worst_dsq)
+        const int first = OCTree::child(cur, 0);
+        double child_dsq[8];
+        int nearest = -1;
+        double nearest_dsq = worst_dsq;
+        for (int k = 0; k < 8; ++k) {
+          child_dsq[k] = minsq_box_point(tree[first + k], pt);
+          if (child_dsq[k] <= nearest_dsq) {
+            nearest = k;
+            nearest_dsq = child_dsq[k];
+          }
+        }
+
+        if (nearest < 0)
+          break;
+
+        for (int k = 0; k < 8; ++k) {
+          if (k == nearest || child_dsq[k] > worst_dsq)
             continue;
 
-          worst_dsq = best.offer(d, tree.idxs()[i + node.begin()], worst_dsq);
+          // XXX: emplace, not push: a pushed entry temp is staged on the stack
+          // and reloaded as one 16-byte word (store-forwarding stall).
+          node_heap.emplace(first + k, child_dsq[k]);
         }
-        continue;
-      }
-
-      Vector3d cntr_diff = pt - node.maxs() + node.half();
-      int octant = octant_idx(cntr_diff);
-      Array8d octant_distsq =
-          octant_min_distsq(octant, cntr_diff.cwiseAbs2(), min_dsq);
-
-      for (int i = 0; i < 8; ++i) {
-        int cid = node[i];
-        if (cid < 0 || octant_distsq[i] > worst_dsq)
-          continue;
-
-        node_heap.push({ cid, octant_distsq[i] });
+        cur = first + nearest;
       }
     }
 
@@ -376,9 +332,10 @@ void OCTree::find_neighbors_kd(const Vector3d &pt, const int k,
 namespace {
   void find_candidates_d(const OCTree &oct, const Vector3d &pt,
                          const double cutoffsq, std::vector<int> &idxs,
-                         std::vector<double> &distsq, const OCTreeNode &node,
+                         std::vector<double> &distsq, const int nid,
                          ArrayXd &dsqbuf) {
-    if (node.leaf()) {
+    const OCTreeNode &node = oct[nid];
+    if (oct.leaf(nid)) {
       const int cnt = node.nleaf();
       dsqbuf.head(cnt) =
           (oct.pts().middleCols(node.begin(), cnt).colwise() - pt)
@@ -391,16 +348,12 @@ namespace {
       return;
     }
 
-    Vector3d cntr_diff = pt - node.maxs() + node.half();
-    int octant = octant_idx(cntr_diff);
-    Array8d octant_distsq = octant_min_distsq(octant, cntr_diff.cwiseAbs2());
-
-    for (int i = 0; i < 8; ++i) {
-      int cid = node[i];
-      if (octant_distsq[i] > cutoffsq || cid < 0)
+    for (int o = 0; o < 8; ++o) {
+      const int cid = OCTree::child(nid, o);
+      if (minsq_box_point(oct[cid], pt) > cutoffsq)
         continue;
 
-      find_candidates_d(oct, pt, cutoffsq, idxs, distsq, oct[cid], dsqbuf);
+      find_candidates_d(oct, pt, cutoffsq, idxs, distsq, cid, dsqbuf);
     }
   }
 }  // namespace
@@ -415,8 +368,8 @@ void OCTree::find_neighbors_d(const Vector3d &pt, const double cutoff,
   if (nodes_.empty())
     return;
 
-  ArrayXd dsqbuf(max_nleaf());
-  find_candidates_d(*this, pt, cutoffsq, idxs, distsq, node(root()), dsqbuf);
+  ArrayXd dsqbuf(bucket_size());
+  find_candidates_d(*this, pt, cutoffsq, idxs, distsq, root(), dsqbuf);
 
   int n = 0;
   for (int i = 0; i < idxs.size(); ++i) {
@@ -432,15 +385,13 @@ namespace {
   class OCTreeBox {
   public:
     explicit OCTreeBox(const OCTree &parent)
-        : OCTreeBox(parent, parent.root(), parent.max(), parent.len()) { }
+        : OCTreeBox(parent, OCTree::root()) { }
 
-    OCTreeBox(const OCTree &parent, int nid, const Vector3d &max,
-              const Vector3d &len)
-        : parent_(&parent), nid_(nid), max_(max), len_(len) { }
+    OCTreeBox(const OCTree &parent, int nid): parent_(&parent), nid_(nid) { }
 
     std::pair<double, double> minmax_distsq(const OCTreeBox &other) const {
-      Vector3d self_min = max_ - len_, other_min = other.max_ - other.len_;
-      Vector3d minmax = self_min - other.max_, maxmin = other_min - max_;
+      Vector3d minmax = node().mins() - other.node().maxs(),
+               maxmin = other.node().mins() - node().maxs();
 
       double min_dsq = minmax.cwiseMax(0.0).squaredNorm()
                        + maxmin.cwiseMax(0.0).squaredNorm();
@@ -450,18 +401,13 @@ namespace {
       return { min_dsq, max_dsq };
     }
 
-    bool has_child(int octant) const { return node()[octant] >= 0; }
-
     OCTreeBox child(int octant) const {
-      Vector3d half = len_ * 0.5;
-      return OCTreeBox(*parent_, node()[octant], max_of(octant, max_, half),
-                       half);
+      return OCTreeBox(*parent_, OCTree::child(nid_, octant));
     }
 
-    bool leaf_node() const { return node().leaf(); }
+    bool leaf_node() const { return tree().leaf(nid_); }
 
     absl::Span<const int> idxs() const {
-      ABSL_DCHECK_GE(id(), 0);
       const int *p = tree().idxs().data() + begin();
       return absl::MakeConstSpan(p, nleaf());
     }
@@ -479,8 +425,6 @@ namespace {
   private:
     internal::Nonnull<const OCTree *> parent_;
     int nid_;
-    Vector3d max_;
-    Vector3d len_;
   };
 
   template <bool intra>
@@ -577,44 +521,29 @@ namespace {
     }
 
     if (left.leaf_node()) {
-      for (int j = 0; j < 8; ++j) {
-        if (!right.has_child(j))
-          continue;
-
+      for (int j = 0; j < 8; ++j)
         find_neighbors_tree_impl<intra>(is, js, dsqbuf, jbuf, left,
                                         right.child(j), cutoffsq);
-      }
       return;
     }
 
     if (right.leaf_node()) {
-      for (int i = 0; i < 8; ++i) {
-        if (!left.has_child(i))
-          continue;
-
+      for (int i = 0; i < 8; ++i)
         find_neighbors_tree_impl<intra>(is, js, dsqbuf, jbuf, left.child(i),
                                         right, cutoffsq);
-      }
       return;
     }
 
     for (int i = 0; i < 8; ++i) {
-      if (!left.has_child(i))
-        continue;
-
       OCTreeBox lc = left.child(i);
       int j0 = 0;
       if constexpr (intra) {
         if (left.id() == right.id())
           j0 = i;
       }
-      for (int j = j0; j < 8; ++j) {
-        if (!right.has_child(j))
-          continue;
-
+      for (int j = j0; j < 8; ++j)
         find_neighbors_tree_impl<intra>(is, js, dsqbuf, jbuf, lc,
                                         right.child(j), cutoffsq);
-      }
     }
   }
 }  // namespace
@@ -629,7 +558,7 @@ void OCTree::find_neighbors_tree(const OCTree &oct, const double cutoff,
   if (nodes_.empty() || oct.nodes_.empty())
     return;
 
-  const int cap = nuri::max(max_nleaf(), oct.max_nleaf());
+  const int cap = nuri::max(bucket_size(), oct.bucket_size());
   VectorXd dsqbuf(cap);
   ArrayXi jbuf(cap);
 
@@ -658,8 +587,8 @@ void OCTree::find_neighbors_self(double cutoff, std::vector<int> &left,
   if (nodes_.empty())
     return;
 
-  VectorXd dsqbuf(max_nleaf());
-  ArrayXi jbuf(max_nleaf());
+  VectorXd dsqbuf(bucket_size());
+  ArrayXi jbuf(bucket_size());
 
   OCTreeBox root(*this);
   find_neighbors_tree_impl<true>(left, right, dsqbuf, jbuf, root, root,

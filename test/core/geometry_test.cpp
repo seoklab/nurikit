@@ -27,48 +27,35 @@ namespace nuri {
 namespace {
 constexpr double kVoxelGridBinMargin = 0x1p-19;
 
-// Implementation detail, but should be exposed for testing
-
-const std::array<Vector3d, 8> kOctantMasks = []() {
-  std::array<Vector3d, 8> masks;
-  for (int i = 0; i < 8; ++i) {
-    auto mask_of = [&](int axis) {
-      return static_cast<double>(static_cast<bool>(i & (0b100 >> axis)));
-    };
-
-    masks[i][0] = mask_of(0);
-    masks[i][1] = mask_of(1);
-    masks[i][2] = mask_of(2);
-  }
-  return masks;
-}();
-
-Vector3d max_of(int octant, const Vector3d &max, const Vector3d &size) {
-  return max - size.cwiseProduct(kOctantMasks[octant]);
-}
-
 void verify_oct_range(int idx, const Matrix3Xd &pts, const OCTree &oct,
-                      const Vector3d &max, const Vector3d &size) {
+                      const Vector3d &parent_mins,
+                      const Vector3d &parent_maxs) {
   const auto &node = oct[idx];
-  NURI_EXPECT_EIGEN_EQ(node.maxs(), max) << "node = " << idx;
-  NURI_EXPECT_EIGEN_EQ(node.half(), size / 2) << "node = " << idx;
-  if (node.leaf()) {
-    const int *ptr = oct.idxs().data() + node.begin();
-    for (int i = 0; i < node.nleaf(); ++i) {
-      const Vector3d &pt = pts.col(ptr[i]);
-      EXPECT_TRUE((pt.array() <= max.array() + 1e-6).all()) << "node = " << idx;
-      EXPECT_TRUE((pt.array() >= (max - size).array() - 1e-6).all())
-          << "node = " << idx;
-    }
+  EXPECT_TRUE((node.mins().array() >= parent_mins.array()).all())
+      << "node = " << idx;
+  EXPECT_TRUE((node.maxs().array() <= parent_maxs.array()).all())
+      << "node = " << idx;
+
+  auto members = oct.idxs().segment(node.begin(), node.nleaf());
+  NURI_EXPECT_EIGEN_EQ(node.mins(), pts(E::all, members).rowwise().minCoeff())
+      << "node = " << idx;
+  NURI_EXPECT_EIGEN_EQ(node.maxs(), pts(E::all, members).rowwise().maxCoeff())
+      << "node = " << idx;
+
+  if (oct.leaf(idx)) {
+    EXPECT_LE(node.nleaf(), oct.bucket_size()) << "node = " << idx;
     return;
   }
 
-  Vector3d half = size / 2;
-  for (int i = 0; i < 8; ++i) {
-    if (node[i] < 0)
-      continue;
-    verify_oct_range(node[i], pts, oct, max_of(i, max, half), half);
+  int left = node.begin();
+  for (int octant = 0; octant < 8; ++octant) {
+    const int cid = oct.child(idx, octant);
+    EXPECT_EQ(oct[cid].begin(), left) << "node = " << idx;
+    EXPECT_GT(oct[cid].nleaf(), 0) << "node = " << idx;
+    left = oct[cid].end();
+    verify_oct_range(cid, pts, oct, node.mins(), node.maxs());
   }
+  EXPECT_EQ(left, node.end()) << "node = " << idx;
 }
 
 TEST(OCTreeTest, Create) {
@@ -78,17 +65,19 @@ TEST(OCTreeTest, Create) {
   std::vector<int> childs { tree.root() }, idxs;
   for (int i = 0; i < tree.size(); ++i) {
     const auto &node = tree[i];
-    if (node.leaf()) {
+    if (tree.leaf(i)) {
       idxs.insert(idxs.end(), tree.idxs().begin() + node.begin(),
                   tree.idxs().begin() + node.begin() + node.nleaf());
     } else {
-      for (int c: node.children())
-        if (c >= 0)
-          childs.push_back(c);
+      for (int o = 0; o < 8; ++o)
+        childs.push_back(tree.child(i, o));
     }
   }
 
-  verify_oct_range(tree.root(), m, tree, tree.max(), tree.len());
+  const Vector3d mins = m.rowwise().minCoeff(), maxs = m.rowwise().maxCoeff();
+  NURI_EXPECT_EIGEN_EQ(tree.max(), maxs);
+  NURI_EXPECT_EIGEN_EQ(tree.len(), maxs - mins);
+  verify_oct_range(tree.root(), m, tree, mins, maxs);
 
   ASSERT_EQ(childs.size(), tree.size());
   std::sort(childs.begin(), childs.end());
@@ -135,12 +124,22 @@ void verify_octree_neighbor_k(const Matrix3Xd &pts, const OCTree &tree,
   EXPECT_TRUE(std::is_sorted(distsq.begin(), distsq.end()));
 }
 
+// Outside queries: every child bound is a positive box gap.
+constexpr double kOutsideOffset = 3.0;
+
+// 500 points split twice at this bucket, so queries descend two levels.
+constexpr int kMultiLevelBucket = 8;
+
 TEST(OCTreeTest, FindNeighborByCount) {
   Matrix3Xd m = Matrix3Xd::Random(3, 500);
   Matrix3Xd test = Matrix3Xd::Random(3, 50);
   int k = 10;
 
-  OCTree tree(m);
+  OCTree tree(m, kMultiLevelBucket);
+  for (int i = 0; i < test.cols(); ++i)
+    verify_octree_neighbor_k(m, tree, test.col(i), k);
+
+  test.array() += kOutsideOffset;
   for (int i = 0; i < test.cols(); ++i)
     verify_octree_neighbor_k(m, tree, test.col(i), k);
 }
@@ -169,9 +168,13 @@ TEST(OCTreeTest, FindNeighborByDistance) {
   Matrix3Xd test = Matrix3Xd::Random(3, 50);
   double cutoff = 0.5;
 
-  OCTree tree(m);
+  OCTree tree(m, kMultiLevelBucket);
   for (int i = 0; i < test.cols(); ++i)
     verify_octree_neighbor_d(m, tree, test.col(i), cutoff);
+
+  test.array() += kOutsideOffset;
+  for (int i = 0; i < test.cols(); ++i)
+    verify_octree_neighbor_d(m, tree, test.col(i), 6.0);
 }
 
 void verify_octree_neighbor_kd(const Matrix3Xd &pts, const OCTree &tree,
@@ -221,7 +224,7 @@ TEST(OCTreeTest, FindNeighborByCountAndDistance) {
   // 5 neighbors in average
   double cutoff = std::pow(2.0 * 5 / 500, 1.0 / 3.0);
 
-  OCTree tree(m);
+  OCTree tree(m, kMultiLevelBucket);
   for (int i = 0; i < test.cols(); ++i)
     verify_octree_neighbor_kd(m, tree, test.col(i), k, cutoff,
                               absl::StrCat("On line ", __LINE__));
@@ -231,6 +234,32 @@ TEST(OCTreeTest, FindNeighborByCountAndDistance) {
   for (int i = 0; i < test.cols(); ++i)
     verify_octree_neighbor_kd(m, tree, test.col(i), k, cutoff,
                               absl::StrCat("On line ", __LINE__));
+
+  test.array() += kOutsideOffset;
+  for (int i = 0; i < test.cols(); ++i)
+    verify_octree_neighbor_kd(m, tree, test.col(i), k, 6.0,
+                              absl::StrCat("On line ", __LINE__));
+}
+
+TEST(OCTreeTest, NothingInRange) {
+  Matrix3Xd m = Matrix3Xd::Random(3, 500);
+  OCTree tree(m, kMultiLevelBucket);
+
+  const Vector3d far = Vector3d::Constant(5.0);
+  std::vector<int> idxs;
+  std::vector<double> distsq;
+
+  tree.find_neighbors_kd(far, 1, idxs, distsq, 0.5);
+  EXPECT_TRUE(idxs.empty());
+  EXPECT_TRUE(distsq.empty());
+
+  tree.find_neighbors_kd(far, 10, idxs, distsq, 0.5);
+  EXPECT_TRUE(idxs.empty());
+  EXPECT_TRUE(distsq.empty());
+
+  tree.find_neighbors_d(far, 0.5, idxs, distsq);
+  EXPECT_TRUE(idxs.empty());
+  EXPECT_TRUE(distsq.empty());
 }
 
 TEST(OCTreeTest, FindNeighborTree) {
@@ -396,12 +425,12 @@ TEST(OCTreeTest, FindNeighborSelf) {
 }
 
 TEST(OCTreeTest, CoincidentPoints) {
-  // Over-full coincident cluster: octant splitting can never separate them
+  // Over-full coincident cluster: every split yields zero-size boxes
   const int n = 100;
   const Vector3d p(1.0, 2.0, 3.0);
   Matrix3Xd m = p.replicate(1, n);
 
-  OCTree tree(m);
+  OCTree tree(m, kMultiLevelBucket);
   ASSERT_GT(tree.size(), 0);
 
   std::vector<int> idxs;
@@ -418,11 +447,21 @@ TEST(OCTreeTest, CoincidentPoints) {
   tree.find_neighbors_kd(p, n, idxs, distsq);
   EXPECT_EQ(idxs.size(), n);
 
+  tree.find_neighbors_kd(p, n / 2, idxs, distsq);
+  ASSERT_EQ(idxs.size(), n / 2);
+  for (double d: distsq)
+    EXPECT_DOUBLE_EQ(d, 0.0);
+
+  tree.find_neighbors_kd(p, n / 2, idxs, distsq, 0.5);
+  ASSERT_EQ(idxs.size(), n / 2);
+  for (double d: distsq)
+    EXPECT_DOUBLE_EQ(d, 0.0);
+
   std::vector<int> is, js;
   tree.find_neighbors_self(0.5, is, js);
   EXPECT_EQ(is.size(), static_cast<size_t>(n) * (n - 1) / 2);
 
-  OCTree other(m);
+  OCTree other(m, kMultiLevelBucket);
   is.clear();
   js.clear();
   tree.find_neighbors_tree(other, 0.5, is, js);
@@ -430,30 +469,28 @@ TEST(OCTreeTest, CoincidentPoints) {
 }
 
 TEST(OCTreeTest, CoincidentPointsStructure) {
-  // Mixed cloud: internal nodes plus a leaf whose nleaf() exceeds bucket_size()
+  // Mixed cloud: an over-full coincident cluster splits into zero-size boxes
   const int nscat = 400, ncoin = 100;
   Matrix3Xd m(3, nscat + ncoin);
   m.leftCols(nscat) = Matrix3Xd::Random(3, nscat);
   m.rightCols(ncoin) = Vector3d(0.25, -0.5, 0.75).replicate(1, ncoin);
 
   OCTree tree(m);
-  EXPECT_GT(tree.max_nleaf(), tree.bucket_size());
 
   std::vector<int> childs { tree.root() }, idxs;
   for (int i = 0; i < tree.size(); ++i) {
     const auto &node = tree[i];
-    if (node.leaf()) {
-      EXPECT_LE(node.nleaf(), tree.max_nleaf());
+    if (tree.leaf(i)) {
       idxs.insert(idxs.end(), tree.idxs().begin() + node.begin(),
                   tree.idxs().begin() + node.begin() + node.nleaf());
     } else {
-      for (int c: node.children())
-        if (c >= 0)
-          childs.push_back(c);
+      for (int o = 0; o < 8; ++o)
+        childs.push_back(tree.child(i, o));
     }
   }
 
-  verify_oct_range(tree.root(), m, tree, tree.max(), tree.len());
+  verify_oct_range(tree.root(), m, tree, m.rowwise().minCoeff(),
+                   m.rowwise().maxCoeff());
 
   ASSERT_EQ(childs.size(), tree.size());
   std::sort(childs.begin(), childs.end());
@@ -464,6 +501,20 @@ TEST(OCTreeTest, CoincidentPointsStructure) {
   std::sort(idxs.begin(), idxs.end());
   for (int i = 0; i < idxs.size(); ++i)
     EXPECT_EQ(idxs[i], i) << "i = " << i;
+}
+
+TEST(OCTreeTest, MixedLevelSplitsWhole) {
+  // 515 = 8 * 64 + 3: level 1 is five 64-nodes and three 65-nodes
+  Matrix3Xd m = Matrix3Xd::Random(3, 515);
+  OCTree tree(m, 64);
+  ASSERT_EQ(tree.size(), 73);
+  EXPECT_EQ(tree.leaf_begin(), 9);
+
+  verify_oct_range(tree.root(), m, tree, m.rowwise().minCoeff(),
+                   m.rowwise().maxCoeff());
+
+  for (int i = tree.leaf_begin(); i < tree.size(); ++i)
+    EXPECT_LE(tree[i].nleaf(), 64) << "i = " << i;
 }
 
 TEST(OCTreeTest, EmptyCloud) {

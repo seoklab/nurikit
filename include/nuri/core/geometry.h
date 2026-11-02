@@ -8,6 +8,7 @@
 //! @cond
 #include <cmath>
 #include <cstdint>
+#include <functional>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -23,49 +24,43 @@
 
 namespace nuri {
 namespace internal {
-  using Array8i = Array<int, 8, 1>;
-
   class OCTreeNode {
   public:
-    OCTreeNode(Array8i &&children, int begin, int nleaf, const Vector3d &maxs,
-               const Vector3d &half)
-        : children_(std::move(children)), begin_(begin), nleaf_(nleaf),
-          maxs_(maxs), half_(half) { }
+    OCTreeNode() = default;
 
-    const Array8i &children() const { return children_; }
-
-    int child(int i) const { return children_[i]; }
-
-    int operator[](int i) const { return child(i); }
-
-    bool leaf() const;
+    OCTreeNode(int begin, int nleaf, const Vector3d &mins, const Vector3d &maxs)
+        : begin_(begin), nleaf_(nleaf), mins_(mins), maxs_(maxs) { }
 
     int begin() const { return begin_; }
     int end() const { return begin_ + nleaf_; }
 
     int nleaf() const { return nleaf_; }
 
+    const Vector3d &mins() const { return mins_; }
+
     const Vector3d &maxs() const { return maxs_; }
 
-    const Vector3d &half() const { return half_; }
+  private:
+    int begin_ = 0;
+    int nleaf_ = 0;
+    Vector3d mins_;
+    Vector3d maxs_;
+  };
+
+  class OCTreeNodeEntry {
+  public:
+    OCTreeNodeEntry(int idx, double min_dsq): idx_(idx), min_dsq_(min_dsq) { }
+
+    int idx() const { return idx_; }
+    double min_dsq() const { return min_dsq_; }
+
+    bool operator>(const OCTreeNodeEntry &other) const {
+      return min_dsq_ > other.min_dsq_;
+    }
 
   private:
-    Array8i children_;
-    int begin_;
-    int nleaf_;
-    Vector3d maxs_;
-    Vector3d half_;
-  };
-
-  struct OCTreeNodeEntry {
-    int idx;
-    double min_dsq;
-  };
-
-  struct OCTreeNodeFarther {
-    bool operator()(const OCTreeNodeEntry &a, const OCTreeNodeEntry &b) const {
-      return a.min_dsq > b.min_dsq;
-    }
+    int idx_;
+    double min_dsq_;
   };
 
   struct OCTreeCandEntry {
@@ -81,7 +76,7 @@ namespace internal {
 
   class OCTreeKdScratch {
   public:
-    using NodeHeap = ClearablePQ<OCTreeNodeEntry, OCTreeNodeFarther>;
+    using NodeHeap = ClearablePQ<OCTreeNodeEntry, std::greater<>>;
     using CandHeap = ClearablePQ<OCTreeCandEntry, OCTreeCandCloser>;
 
     void clear() {
@@ -121,7 +116,10 @@ public:
 
   OCTree() = default;
 
-  explicit OCTree(Points pts, int bucket_size = 32): bucket_size_(bucket_size) {
+  constexpr static int kDefaultBucketSize = 64;
+
+  explicit OCTree(Points pts, int bucket_size = kDefaultBucketSize)
+      : bucket_size_(bucket_size) {
     rebuild_impl(pts);
   }
 
@@ -169,11 +167,15 @@ public:
 
   int size() const { return static_cast<int>(nodes_.size()); }
 
-  int root() const { return size() - 1; }
+  constexpr static int root() { return 0; }
+
+  constexpr static int child(int i, int octant) { return 8 * i + 1 + octant; }
+
+  int leaf_begin() const { return (size() - 1) / 8; }
+
+  bool leaf(int i) const { return i >= leaf_begin(); }
 
   int bucket_size() const { return bucket_size_; }
-
-  int max_nleaf() const { return max_nleaf_; }
 
   const ArrayXi &idxs() const { return idxs_; }
 
@@ -190,8 +192,7 @@ private:
   std::vector<internal::OCTreeNode> nodes_;
   ArrayXi idxs_;
 
-  int bucket_size_ = 32;
-  int max_nleaf_ = 0;
+  int bucket_size_ = kDefaultBucketSize;
 };
 
 namespace internal {
