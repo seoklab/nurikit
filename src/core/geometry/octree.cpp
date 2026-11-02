@@ -30,19 +30,28 @@ namespace {
   // 000 -> +++, 100 -> -++, 010 -> +-+, 110 -> --+,
   // 001 -> ++-, 101 -> -+-, 011 -> +--, 111 -> ---
 
+  using SplitKey = std::pair<double, int>;
+  using SplitKeys = absl::Span<SplitKey>;
+
   // Split begin - end at the rank median into two parts:
   // +: [begin, ret), -: [ret, end)
   int partition_sub(ArrayXi &idxs, int begin, int end, OCTree::Points pts,
-                    int axis) {
+                    int axis, SplitKeys keys) {
+    for (int i = begin; i < end; ++i)
+      keys[i] = { pts(axis, idxs[i]), idxs[i] };
+
     const int mid = begin + (end - begin) / 2;
-    std::nth_element(idxs.begin() + begin, idxs.begin() + mid,
-                     idxs.begin() + end,
-                     [&](int a, int b) { return pts(axis, a) > pts(axis, b); });
+    std::nth_element(
+        keys.begin() + begin, keys.begin() + mid, keys.begin() + end,
+        [](const SplitKey &a, const SplitKey &b) { return a.first > b.first; });
+
+    for (int i = begin; i < end; ++i)
+      idxs[i] = keys[i].second;
     return mid;
   }
 
   Array8i partition_octant(ArrayXi &idxs, int begin, int end,
-                           OCTree::Points pts) {
+                           OCTree::Points pts, SplitKeys keys) {
     Array8i ptrs;
     ptrs[7] = end;
 
@@ -55,7 +64,7 @@ namespace {
       for (int j = plen - 1; j < 8; j += plen << 1) {
         int left = right;
         right = ptrs[j + plen];
-        ptrs[j] = partition_sub(idxs, left, right, pts, i);
+        ptrs[j] = partition_sub(idxs, left, right, pts, i, keys);
       }
     }
 
@@ -74,7 +83,7 @@ namespace {
 
   int build_octree(OCTree::Points pts, std::vector<OCTreeNode> &data,
                    ArrayXi &idxs, const int begin, const int nleaf,
-                   const int bucket_size) {
+                   const int bucket_size, SplitKeys keys) {
     Vector3d mins = pts.col(idxs[begin]), maxs = mins;
     for (int i = begin + 1; i < begin + nleaf; ++i) {
       auto pt = pts.col(idxs[i]);
@@ -95,7 +104,7 @@ namespace {
       return epilog();
     }
 
-    Array8i ptrs = partition_octant(idxs, begin, begin + nleaf, pts);
+    Array8i ptrs = partition_octant(idxs, begin, begin + nleaf, pts, keys);
 
     int right = begin;
     for (int i = 0; i < 8; ++i) {
@@ -108,7 +117,8 @@ namespace {
         continue;
       }
 
-      children[i] = build_octree(pts, data, idxs, left, nchild, bucket_size);
+      children[i] =
+          build_octree(pts, data, idxs, left, nchild, bucket_size, keys);
     }
 
     return epilog();
@@ -135,9 +145,10 @@ void OCTree::rebuild_impl(Points src) {
   idxs_.resize(n);
   std::iota(idxs_.begin(), idxs_.end(), 0);
 
+  std::vector<SplitKey> keys(n);
   {
     internal::AllowEigenMallocScoped<false> ems;
-    build_octree(src, nodes_, idxs_, 0, n, bucket_size_);
+    build_octree(src, nodes_, idxs_, 0, n, bucket_size_, absl::MakeSpan(keys));
   }
 
   const OCTreeNode &root_node = nodes_.back();
