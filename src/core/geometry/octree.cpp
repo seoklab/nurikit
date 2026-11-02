@@ -443,15 +443,16 @@ namespace {
   class OCTreeBox {
   public:
     explicit OCTreeBox(const OCTree &parent)
-        : OCTreeBox(parent, parent.root(), parent.max(), parent.len()) { }
+        : OCTreeBox(parent, parent.root()) { }
 
-    OCTreeBox(const OCTree &parent, int nid, const Vector3d &max,
-              const Vector3d &len)
-        : parent_(&parent), nid_(nid), max_(max), len_(len) { }
+    OCTreeBox(const OCTree &parent, int nid): parent_(&parent), nid_(nid) { }
 
     std::pair<double, double> minmax_distsq(const OCTreeBox &other) const {
-      Vector3d self_min = max_ - len_, other_min = other.max_ - other.len_;
-      Vector3d minmax = self_min - other.max_, maxmin = other_min - max_;
+      const Vector3d &self_max = node().maxs(),
+                     &other_max = other.node().maxs();
+      Vector3d self_min = self_max - 2 * node().half(),
+               other_min = other_max - 2 * other.node().half();
+      Vector3d minmax = self_min - other_max, maxmin = other_min - self_max;
 
       double min_dsq = minmax.cwiseMax(0.0).squaredNorm()
                        + maxmin.cwiseMax(0.0).squaredNorm();
@@ -464,9 +465,7 @@ namespace {
     bool has_child(int octant) const { return node()[octant] >= 0; }
 
     OCTreeBox child(int octant) const {
-      Vector3d half = len_ * 0.5;
-      return OCTreeBox(*parent_, node()[octant], max_of(octant, max_, half),
-                       half);
+      return OCTreeBox(*parent_, node()[octant]);
     }
 
     bool leaf_node() const { return node().leaf(); }
@@ -490,8 +489,6 @@ namespace {
   private:
     internal::Nonnull<const OCTree *> parent_;
     int nid_;
-    Vector3d max_;
-    Vector3d len_;
   };
 
   template <bool intra>
