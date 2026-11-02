@@ -188,8 +188,14 @@ namespace {
     return (isneg.x() << 2) | (isneg.y() << 1) | (isneg.z() << 0);
   }
 
+  Vector3d box_gap(const OCTreeNode &node, const Vector3d &pt) {
+    Vector3d box_min = node.maxs() - 2 * node.half();
+    return (box_min - pt).cwiseMax(pt - node.maxs()).cwiseMax(0.0);
+  }
+
+  // Exact child box distance: center plane on flipped axes, parent gap else.
   Array8d octant_min_distsq(int octant, const Vector3d &ax_distsq,
-                            double my_dsq = 0.0) {
+                            const Vector3d &gap_distsq) {
     int idxs[8] = { octant,
                     // flip    x  ,             y ,              z,
                     octant ^ 0b100, octant ^ 0b010, octant ^ 0b001,
@@ -198,12 +204,16 @@ namespace {
                     // flip    xyz
                     octant ^ 0b111 };
 
+    const double gap_sum = gap_distsq.sum();
+
     Array8d octant_distsq;
-    octant_distsq(idxs)[0] = my_dsq;
+    octant_distsq(idxs)[0] = gap_sum;
     // neighbors
-    octant_distsq(idxs).segment<3>(1) = ax_distsq;
+    octant_distsq(idxs).segment<3>(1) =
+        (ax_distsq - gap_distsq).array() + gap_sum;
     // diagonals
-    octant_distsq(idxs).segment<3>(4) = ax_distsq + ax_distsq({ 1, 2, 0 });
+    octant_distsq(idxs).segment<3>(4) =
+        ax_distsq + ax_distsq({ 1, 2, 0 }) + gap_distsq({ 2, 0, 1 });
     // opposite
     octant_distsq(idxs)[7] = ax_distsq.sum();
     return octant_distsq;
@@ -314,8 +324,8 @@ namespace {
 
       Vector3d cntr_diff = pt - node.maxs() + node.half();
       int octant = octant_idx(cntr_diff);
-      Array8d octant_distsq =
-          octant_min_distsq(octant, cntr_diff.cwiseAbs2(), min_dsq);
+      Array8d octant_distsq = octant_min_distsq(octant, cntr_diff.cwiseAbs2(),
+                                                box_gap(node, pt).cwiseAbs2());
 
       for (int i = 0; i < 8; ++i) {
         int cid = node[i];
@@ -393,7 +403,8 @@ namespace {
 
     Vector3d cntr_diff = pt - node.maxs() + node.half();
     int octant = octant_idx(cntr_diff);
-    Array8d octant_distsq = octant_min_distsq(octant, cntr_diff.cwiseAbs2());
+    Array8d octant_distsq = octant_min_distsq(octant, cntr_diff.cwiseAbs2(),
+                                              box_gap(node, pt).cwiseAbs2());
 
     for (int i = 0; i < 8; ++i) {
       int cid = node[i];

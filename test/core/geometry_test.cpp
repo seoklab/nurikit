@@ -135,12 +135,19 @@ void verify_octree_neighbor_k(const Matrix3Xd &pts, const OCTree &tree,
   EXPECT_TRUE(std::is_sorted(distsq.begin(), distsq.end()));
 }
 
+// Outside queries: every child bound is a positive box gap.
+constexpr double kOutsideOffset = 3.0;
+
 TEST(OCTreeTest, FindNeighborByCount) {
   Matrix3Xd m = Matrix3Xd::Random(3, 500);
   Matrix3Xd test = Matrix3Xd::Random(3, 50);
   int k = 10;
 
   OCTree tree(m);
+  for (int i = 0; i < test.cols(); ++i)
+    verify_octree_neighbor_k(m, tree, test.col(i), k);
+
+  test.array() += kOutsideOffset;
   for (int i = 0; i < test.cols(); ++i)
     verify_octree_neighbor_k(m, tree, test.col(i), k);
 }
@@ -172,6 +179,10 @@ TEST(OCTreeTest, FindNeighborByDistance) {
   OCTree tree(m);
   for (int i = 0; i < test.cols(); ++i)
     verify_octree_neighbor_d(m, tree, test.col(i), cutoff);
+
+  test.array() += kOutsideOffset;
+  for (int i = 0; i < test.cols(); ++i)
+    verify_octree_neighbor_d(m, tree, test.col(i), 6.0);
 }
 
 void verify_octree_neighbor_kd(const Matrix3Xd &pts, const OCTree &tree,
@@ -231,6 +242,32 @@ TEST(OCTreeTest, FindNeighborByCountAndDistance) {
   for (int i = 0; i < test.cols(); ++i)
     verify_octree_neighbor_kd(m, tree, test.col(i), k, cutoff,
                               absl::StrCat("On line ", __LINE__));
+
+  test.array() += kOutsideOffset;
+  for (int i = 0; i < test.cols(); ++i)
+    verify_octree_neighbor_kd(m, tree, test.col(i), k, 6.0,
+                              absl::StrCat("On line ", __LINE__));
+}
+
+TEST(OCTreeTest, NothingInRange) {
+  Matrix3Xd m = Matrix3Xd::Random(3, 500);
+  OCTree tree(m);
+
+  const Vector3d far = Vector3d::Constant(5.0);
+  std::vector<int> idxs;
+  std::vector<double> distsq;
+
+  tree.find_neighbors_kd(far, 1, idxs, distsq, 0.5);
+  EXPECT_TRUE(idxs.empty());
+  EXPECT_TRUE(distsq.empty());
+
+  tree.find_neighbors_kd(far, 10, idxs, distsq, 0.5);
+  EXPECT_TRUE(idxs.empty());
+  EXPECT_TRUE(distsq.empty());
+
+  tree.find_neighbors_d(far, 0.5, idxs, distsq);
+  EXPECT_TRUE(idxs.empty());
+  EXPECT_TRUE(distsq.empty());
 }
 
 TEST(OCTreeTest, FindNeighborTree) {
@@ -417,6 +454,16 @@ TEST(OCTreeTest, CoincidentPoints) {
 
   tree.find_neighbors_kd(p, n, idxs, distsq);
   EXPECT_EQ(idxs.size(), n);
+
+  tree.find_neighbors_kd(p, n / 2, idxs, distsq);
+  ASSERT_EQ(idxs.size(), n / 2);
+  for (double d: distsq)
+    EXPECT_DOUBLE_EQ(d, 0.0);
+
+  tree.find_neighbors_kd(p, n / 2, idxs, distsq, 0.5);
+  ASSERT_EQ(idxs.size(), n / 2);
+  for (double d: distsq)
+    EXPECT_DOUBLE_EQ(d, 0.0);
 
   std::vector<int> is, js;
   tree.find_neighbors_self(0.5, is, js);
