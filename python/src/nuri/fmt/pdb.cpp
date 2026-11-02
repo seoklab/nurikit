@@ -53,6 +53,28 @@ private:
   static const auto &deref(const std::vector<T> &v, int idx) { return v[idx]; }
 };
 
+struct ModelDictKeys {
+  py::str chain_id { "chain_id" };
+  py::str res_seq { "res_seq" };
+  py::str ins_code { "ins_code" };
+
+  py::str altloc { "altloc" };
+  py::str pos { "pos" };
+  py::str occupancy { "occupancy" };
+  py::str tempfactor { "tempfactor" };
+
+  py::str res_id { "res_id" };
+  py::str name { "name" };
+  py::str atomic_number { "atomic_number" };
+  py::str formal_charge { "formal_charge" };
+  py::str hetero { "hetero" };
+  py::str sites { "sites" };
+
+  py::str id { "id" };
+  py::str atom_idxs { "atom_idxs" };
+  py::str res_idxs { "res_idxs" };
+};
+
 template <class T>
 py::class_<std::vector<T>> bind_readonly_vector(py::module &m, const char *name,
                                                 const char *iter_name) {
@@ -113,58 +135,74 @@ pyt::List<PDBModel> read_pdb_models(std::istream &is, bool skip_on_error) {
   return models;
 }
 
-using py::literals::operator""_a;
-
-py::dict resid_as_dict(PDBResidueId rid) {
-  py::dict res("chain_id"_a = rid.chain_id, "res_seq"_a = rid.res_seq,
-               "ins_code"_a = icode_as_py(rid.ins_code));
+py::dict resid_as_dict(const ModelDictKeys &k, PDBResidueId rid) {
+  py::dict res;
+  res[k.chain_id] = rid.chain_id;
+  res[k.res_seq] = rid.res_seq;
+  res[k.ins_code] = icode_as_py(rid.ins_code);
   return res;
 }
 
-py::list sites_as_list(const std::vector<PDBAtomSite> &sites) {
+py::list sites_as_list(const ModelDictKeys &k,
+                       const std::vector<PDBAtomSite> &sites) {
   py::list res(sites.size());
   for (int i = 0; i < sites.size(); ++i) {
     const PDBAtomSite &site = sites[i];
-    res[i] = py::dict("altloc"_a = site.altloc(),
-                      "pos"_a = eigen_as_numpy(site.pos()),
-                      "occupancy"_a = site.occupancy(),
-                      "tempfactor"_a = site.tempfactor());
+
+    py::dict s;
+    s[k.altloc] = site.altloc();
+    s[k.pos] = eigen_as_numpy(site.pos());
+    s[k.occupancy] = site.occupancy();
+    s[k.tempfactor] = site.tempfactor();
+    res[i] = s;
   }
   return res;
 }
 
 py::dict model_as_dict(const PDBModel &self) {
+  const ModelDictKeys k;
+
   py::list atoms(self.atoms().size());
   for (int i = 0; i < self.atoms().size(); ++i) {
     const PDBAtom &atom = self.atoms()[i];
 
-    atoms[i] =
-        py::dict("res_id"_a = resid_as_dict(atom.rid()), "name"_a = atom.name(),
-                 "atomic_number"_a = atom.element().atomic_number(),
-                 "formal_charge"_a = atom.fcharge(), "hetero"_a = atom.hetero(),
-                 "sites"_a = sites_as_list(atom.sites()));
+    py::dict a;
+    a[k.res_id] = resid_as_dict(k, atom.rid());
+    a[k.name] = atom.name();
+    a[k.atomic_number] = atom.element().atomic_number();
+    a[k.formal_charge] = atom.fcharge();
+    a[k.hetero] = atom.hetero();
+    a[k.sites] = sites_as_list(k, atom.sites());
+    atoms[i] = a;
   }
 
   py::list residues(self.residues().size());
   for (int i = 0; i < self.residues().size(); ++i) {
     const PDBResidue &residue = self.residues()[i];
 
-    residues[i] = py::dict(
-        "id"_a = resid_as_dict(residue.id()), "name"_a = residue.name(),
-        "atom_idxs"_a = stdvec_as_numpy(residue.atom_idxs()));
+    py::dict r;
+    r[k.id] = resid_as_dict(k, residue.id());
+    r[k.name] = residue.name();
+    r[k.atom_idxs] = stdvec_as_numpy(residue.atom_idxs());
+    residues[i] = r;
   }
 
   py::list chains(self.chains().size());
   for (int i = 0; i < self.chains().size(); ++i) {
     const PDBChain &chain = self.chains()[i];
 
-    chains[i] = py::dict("id"_a = chain.id(),
-                         "res_idxs"_a = stdvec_as_numpy(chain.res_idxs()));
+    py::dict c;
+    c[k.id] = chain.id();
+    c[k.res_idxs] = stdvec_as_numpy(chain.res_idxs());
+    chains[i] = c;
   }
 
-  py::dict res("chains"_a = chains, "residues"_a = residues, "atoms"_a = atoms,
-               "major_conf"_a = eigen_as_numpy(self.major_conf()),
-               "props"_a = py::dict(py::cast(self.props())));
+  py::dict res;
+  res["chains"] = chains;
+  res["residues"] = residues;
+  res["atoms"] = atoms;
+  res["major_conf"] = eigen_as_numpy(self.major_conf());
+  res["props"] = py::dict(py::cast(self.props()));
   return res;
 }
 }  // namespace
